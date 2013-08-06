@@ -43,10 +43,19 @@ namespace {
     ::GetProcAddress(::GetModuleHandleA("kernel32.dll"),
                      "CreateSymbolicLinkW"));
 
-  error_code UTF8ToUTF16(StringRef utf8, SmallVectorImpl<wchar_t> &utf16) {
-    int len = ::MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS,
+  error_code ExternToUTF16(StringRef utf8, SmallVectorImpl<wchar_t> &utf16) {
+    UINT CodePage = CP_UTF8;
+    int len = ::MultiByteToWideChar(CodePage, MB_ERR_INVALID_CHARS,
                                     utf8.begin(), utf8.size(),
                                     utf16.begin(), 0);
+ 
+    // If the input string is not UTF-8 encoded, try system locale as well
+    if (len == 0) {
+      CodePage = CP_OEMCP;
+      len = ::MultiByteToWideChar(CodePage, MB_ERR_INVALID_CHARS,
+                                  utf8.begin(), utf8.size(),
+                                  utf16.begin(), 0);
+    }
 
     if (len == 0)
       return windows_error(::GetLastError());
@@ -54,7 +63,7 @@ namespace {
     utf16.reserve(len + 1);
     utf16.set_size(len);
 
-    len = ::MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS,
+    len = ::MultiByteToWideChar(CodePage, MB_ERR_INVALID_CHARS,
                                     utf8.begin(), utf8.size(),
                                     utf16.begin(), utf16.size());
 
@@ -136,7 +145,7 @@ static error_code createUniqueEntity(const Twine &model, int &result_fd,
   StringRef m = model.toStringRef(result_path);
 
   SmallVector<wchar_t, 128> model_utf16;
-  if (error_code ec = UTF8ToUTF16(m, model_utf16)) return ec;
+  if (error_code ec = ExternToUTF16(m, model_utf16)) return ec;
 
   if (makeAbsolute) {
     // Make model absolute by prepending a temp directory if it's not already.
@@ -336,7 +345,7 @@ error_code create_directory(const Twine &path, bool &existed) {
   SmallString<128> path_storage;
   SmallVector<wchar_t, 128> path_utf16;
 
-  if (error_code ec = UTF8ToUTF16(path.toStringRef(path_storage),
+  if (error_code ec = ExternToUTF16(path.toStringRef(path_storage),
                                   path_utf16))
     return ec;
 
@@ -362,8 +371,8 @@ error_code create_hard_link(const Twine &to, const Twine &from) {
   // Convert to utf-16.
   SmallVector<wchar_t, 128> wide_from;
   SmallVector<wchar_t, 128> wide_to;
-  if (error_code ec = UTF8ToUTF16(f, wide_from)) return ec;
-  if (error_code ec = UTF8ToUTF16(t, wide_to)) return ec;
+  if (error_code ec = ExternToUTF16(f, wide_from)) return ec;
+  if (error_code ec = ExternToUTF16(t, wide_to)) return ec;
 
   if (!::CreateHardLinkW(wide_from.begin(), wide_to.begin(), NULL))
     return windows_error(::GetLastError());
@@ -385,8 +394,8 @@ error_code create_symlink(const Twine &to, const Twine &from) {
   // Convert to utf-16.
   SmallVector<wchar_t, 128> wide_from;
   SmallVector<wchar_t, 128> wide_to;
-  if (error_code ec = UTF8ToUTF16(f, wide_from)) return ec;
-  if (error_code ec = UTF8ToUTF16(t, wide_to)) return ec;
+  if (error_code ec = ExternToUTF16(f, wide_from)) return ec;
+  if (error_code ec = ExternToUTF16(t, wide_to)) return ec;
 
   if (!create_symbolic_link_api(wide_from.begin(), wide_to.begin(), 0))
     return windows_error(::GetLastError());
@@ -409,7 +418,7 @@ error_code remove(const Twine &path, bool &existed) {
     return EC;
   }
 
-  if (error_code ec = UTF8ToUTF16(path.toStringRef(path_storage),
+  if (error_code ec = ExternToUTF16(path.toStringRef(path_storage),
                                   path_utf16))
     return ec;
 
@@ -444,8 +453,8 @@ error_code rename(const Twine &from, const Twine &to) {
   // Convert to utf-16.
   SmallVector<wchar_t, 128> wide_from;
   SmallVector<wchar_t, 128> wide_to;
-  if (error_code ec = UTF8ToUTF16(f, wide_from)) return ec;
-  if (error_code ec = UTF8ToUTF16(t, wide_to)) return ec;
+  if (error_code ec = ExternToUTF16(f, wide_from)) return ec;
+  if (error_code ec = ExternToUTF16(t, wide_to)) return ec;
 
   error_code ec = error_code::success();
   for (int i = 0; i < 2000; i++) {
@@ -468,7 +477,7 @@ error_code resize_file(const Twine &path, uint64_t size) {
   SmallString<128> path_storage;
   SmallVector<wchar_t, 128> path_utf16;
 
-  if (error_code ec = UTF8ToUTF16(path.toStringRef(path_storage),
+  if (error_code ec = ExternToUTF16(path.toStringRef(path_storage),
                                   path_utf16))
     return ec;
 
@@ -488,7 +497,7 @@ error_code exists(const Twine &path, bool &result) {
   SmallString<128> path_storage;
   SmallVector<wchar_t, 128> path_utf16;
 
-  if (error_code ec = UTF8ToUTF16(path.toStringRef(path_storage),
+  if (error_code ec = ExternToUTF16(path.toStringRef(path_storage),
                                   path_utf16))
     return ec;
 
@@ -511,7 +520,7 @@ bool can_write(const Twine &Path) {
   SmallString<128> PathStorage;
   SmallVector<wchar_t, 128> PathUtf16;
 
-  if (UTF8ToUTF16(Path.toStringRef(PathStorage), PathUtf16))
+  if (ExternToUTF16(Path.toStringRef(PathStorage), PathUtf16))
     return false;
 
   DWORD Attr = ::GetFileAttributesW(PathUtf16.begin());
@@ -522,7 +531,7 @@ bool can_execute(const Twine &Path) {
   SmallString<128> PathStorage;
   SmallVector<wchar_t, 128> PathUtf16;
 
-  if (UTF8ToUTF16(Path.toStringRef(PathStorage), PathUtf16))
+  if (ExternToUTF16(Path.toStringRef(PathStorage), PathUtf16))
     return false;
 
   DWORD Attr = ::GetFileAttributesW(PathUtf16.begin());
@@ -633,7 +642,7 @@ error_code status(const Twine &path, file_status &result) {
     return error_code::success();
   }
 
-  if (error_code ec = UTF8ToUTF16(path8, path_utf16))
+  if (error_code ec = ExternToUTF16(path8, path_utf16))
     return ec;
 
   DWORD attr = ::GetFileAttributesW(path_utf16.begin());
@@ -688,7 +697,7 @@ error_code get_magic(const Twine &path, uint32_t len,
   result.set_size(0);
 
   // Convert path to UTF-16.
-  if (error_code ec = UTF8ToUTF16(path.toStringRef(path_storage),
+  if (error_code ec = ExternToUTF16(path.toStringRef(path_storage),
                                   path_utf16))
     return ec;
 
@@ -823,7 +832,7 @@ mapped_file_region::mapped_file_region(const Twine &path,
   SmallVector<wchar_t, 128> path_utf16;
 
   // Convert path to UTF-16.
-  if ((ec = UTF8ToUTF16(path.toStringRef(path_storage), path_utf16)))
+  if ((ec = ExternToUTF16(path.toStringRef(path_storage), path_utf16)))
     return;
 
   // Get file handle for creating a file mapping.
@@ -931,7 +940,7 @@ error_code detail::directory_iterator_construct(detail::DirIterState &it,
                                                 StringRef path){
   SmallVector<wchar_t, 128> path_utf16;
 
-  if (error_code ec = UTF8ToUTF16(path,
+  if (error_code ec = ExternToUTF16(path,
                                   path_utf16))
     return ec;
 
@@ -1029,7 +1038,7 @@ error_code openFileForRead(const Twine &Name, int &ResultFD) {
   SmallString<128> PathStorage;
   SmallVector<wchar_t, 128> PathUTF16;
 
-  if (error_code EC = UTF8ToUTF16(Name.toStringRef(PathStorage),
+  if (error_code EC = ExternToUTF16(Name.toStringRef(PathStorage),
                                   PathUTF16))
     return EC;
 
@@ -1067,7 +1076,7 @@ error_code openFileForWrite(const Twine &Name, int &ResultFD,
   SmallString<128> PathStorage;
   SmallVector<wchar_t, 128> PathUTF16;
 
-  if (error_code EC = UTF8ToUTF16(Name.toStringRef(PathStorage),
+  if (error_code EC = ExternToUTF16(Name.toStringRef(PathStorage),
                                   PathUTF16))
     return EC;
 
