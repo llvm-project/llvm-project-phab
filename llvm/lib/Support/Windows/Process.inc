@@ -145,7 +145,7 @@ void Process::PreventCoreFiles() {
 Optional<std::string> Process::GetEnv(StringRef Name) {
   // Convert the argument to UTF-16 to pass it to _wgetenv().
   SmallVector<wchar_t, 128> NameUTF16;
-  if (error_code ec = windows::UTF8ToUTF16(Name, NameUTF16))
+  if (error_code ec = windows::ExternToUTF16(Name, NameUTF16))
     return None;
 
   // Environment variable can be encoded in non-UTF8 encoding, and there's no
