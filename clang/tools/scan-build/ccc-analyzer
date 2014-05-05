@@ -39,24 +39,29 @@ if (`uname -a` =~ m/Darwin/) {
   $DefaultCXXCompiler = 'g++';
 }
 
-if ($FindBin::Script =~ /c\+\+-analyzer/) {
-  $Compiler = $ENV{'CCC_CXX'};
-  if (!defined $Compiler || ! -x $Compiler) { $Compiler = $DefaultCXXCompiler; }
+$Compiler = $ENV{'COMPILER'};
+$Clang = $ENV{'CLANG'};
+if (!defined $Compiler) {
+  if ($FindBin::Script =~ /c\+\+-analyzer/) {
+    $Compiler = $ENV{'CCC_CXX'};
+    if (!defined $Compiler) { $Compiler = $DefaultCXXCompiler; }
 
-  $Clang = $ENV{'CLANG_CXX'};
-  if (!defined $Clang || ! -x $Clang) { $Clang = 'clang++'; }
+    $Clang = $ENV{'CLANG_CXX'};
+    if (!defined $Clang) { $Clang = 'clang++'; }
 
-  $IsCXX = 1
+    $IsCXX = 1
+  }
+  else {
+    $Compiler = $ENV{'CCC_CC'};
+    if (!defined $Compiler) { $Compiler = $DefaultCCompiler; }
+
+    $Clang = $ENV{'CLANG'};
+    if (!defined $Clang) { $Clang = 'clang'; }
+
+    $IsCXX = 0
+  }
 }
-else {
-  $Compiler = $ENV{'CCC_CC'};
-  if (!defined $Compiler || ! -x $Compiler) { $Compiler = $DefaultCCompiler; }
-
-  $Clang = $ENV{'CLANG'};
-  if (!defined $Clang || ! -x $Clang) { $Clang = 'clang'; }
-
-  $IsCXX = 0
-}
+if (!defined $Clang) { $Clang = 'clang'; }
 
 ##===----------------------------------------------------------------------===##
 # Cleanup.
@@ -362,6 +367,7 @@ my %CompilerLinkerOptionMap = (
 my %IgnoredOptionMap = (
   '-MT' => 1,  # Ignore these preprocessor options.
   '-MF' => 1,
+  '-mllvm' => 1,
 
   '-fsyntax-only' => 0,
   '-save-temps' => 0,
@@ -418,20 +424,27 @@ my %LangsAccepted = (
 #  Main Logic.
 ##----------------------------------------------------------------------------##
 
+
+my $IsIntercepted = $ENV{'IS_INTERCEPTED'};
+if (!defined $IsIntercepted) { $IsIntercepted = 0; }
 my $Action = 'link';
+
 my @CompileOpts;
 my @LinkOpts;
 my @Files;
 my $Lang;
 my $Output;
 my %Uniqued;
+my $Status;
 
-# Forward arguments to gcc.
-my $Status = system($Compiler,@ARGV);
-if (defined $ENV{'CCC_ANALYZER_LOG'}) {
-  print STDERR "$Compiler @ARGV\n";
+if ($IsIntercepted ne 'true') {
+  # Forward arguments to gcc.
+  $Status = system($Compiler,@ARGV);
+  if (defined $ENV{'CCC_ANALYZER_LOG'}) {
+    print STDERR "$Compiler @ARGV\n";
+  }
+  if ($Status) { exit($Status >> 8); }
 }
-if ($Status) { exit($Status >> 8); }
 
 # Get the analysis options.
 my $Analyses = $ENV{'CCC_ANALYZER_ANALYSIS'};
@@ -447,6 +460,9 @@ my $ConstraintsModel = $ENV{'CCC_ANALYZER_CONSTRAINTS_MODEL'};
 
 #Get the internal stats setting.
 my $InternalStats = $ENV{'CCC_ANALYZER_INTERNAL_STATS'};
+
+#Get additional args for build (like defines, compiler options, etc)
+my $AdditionalArgs = $ENV{'CCC_ANALYZER_ADDITIONAL_ARGS'};
 
 # Get the output format.
 my $OutputFormat = $ENV{'CCC_ANALYZER_OUTPUT_FORMAT'};
@@ -488,6 +504,16 @@ foreach (my $i = 0; $i < scalar(@ARGV); ++$i) {
     next;
   }
 
+  # FIXME: need MUCH more precise detection, this is only stub
+  if ($Arg =~ /^-march/) {
+    if (`uname -a` =~ m/Linux/) {
+      if ($Arg =~ /armv7/) {
+        push @CompileOpts, "-target";
+        push @CompileOpts, "armv7-none-linux-androideabi";
+      }
+    }
+  }
+
   # Options with possible arguments that should pass through to compiler.
   if (defined $CompileOptionMap{$ArgKey}) {
     my $Cnt = $CompileOptionMap{$ArgKey};
@@ -495,6 +521,7 @@ foreach (my $i = 0; $i < scalar(@ARGV); ++$i) {
     while ($Cnt > 0) { ++$i; --$Cnt; push @CompileOpts, $ARGV[$i]; }
     next;
   }
+
   # Handle the case where there isn't a space after -iquote
   if ($Arg =~ /^-iquote.*/) {
     push @CompileOpts,$Arg;
@@ -700,6 +727,7 @@ if ($Action eq 'compile' or $Action eq 'link') {
 
     push @CmdArgs, @CompileOpts;
     push @CmdArgs, $file;
+    push @CmdArgs, $AdditionalArgs;
 
     if (scalar @Archs) {
       foreach my $arch (@Archs) {
@@ -717,4 +745,4 @@ if ($Action eq 'compile' or $Action eq 'link') {
   }
 }
 
-exit($Status >> 8);
+exit 0

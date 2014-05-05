@@ -893,6 +893,7 @@ sub SetEnv {
   foreach my $opt ('CCC_ANALYZER_STORE_MODEL',
                     'CCC_ANALYZER_PLUGINS',
                     'CCC_ANALYZER_INTERNAL_STATS',
+                    'CCC_ANALYZER_ADDITIONAL_ARGS',
                     'CCC_ANALYZER_OUTPUT_FORMAT') {
     my $x = $Options->{$opt};
     if (defined $x) { $ENV{$opt} = $x }
@@ -995,13 +996,19 @@ sub RunBuildCommand {
   my $CCAnalyzer = shift;
   my $CXXAnalyzer = shift;
   my $Options = shift;
+  my $UseInterceptor = shift;
+
+  # Setup the environment.
+  SetEnv($Options);
+
+  if ($UseInterceptor) {
+    my $BuildCmd = join ' ', @$Args;
+    return (system("$RealBin/strace_interceptor.py $BuildCmd") >> 8);
+  }
 
   if ($Cmd =~ /\bxcodebuild$/) {
     return RunXcodebuild($Args, $IgnoreErrors, $CCAnalyzer, $CXXAnalyzer, $Options);
   }
-
-  # Setup the environment.
-  SetEnv($Options);
 
   if ($Cmd =~ /(.*\/?gcc[^\/]*$)/ or
       $Cmd =~ /(.*\/?cc[^\/]*$)/ or
@@ -1348,6 +1355,8 @@ my $MaxLoop = 0;
 my $RequestDisplayHelp = 0;
 my $ForceDisplayHelp = 0;
 my $AnalyzerDiscoveryMethod;
+my $UseInterceptor = 0;
+my @AdditionalArgs;
 
 if (!@ARGV) {
   $ForceDisplayHelp = 1
@@ -1368,6 +1377,12 @@ while (@ARGV) {
   if ($arg eq '-analyze-headers') {
     shift @ARGV;
     $AnalyzeHeaders = 1;
+    next;
+  }
+
+  if ($arg eq '--use-interceptor') {
+    shift @ARGV;
+    $UseInterceptor = 1;
     next;
   }
 
@@ -1525,6 +1540,11 @@ while (@ARGV) {
     push @PluginsToLoad, "-load", shift @ARGV;
     next;
   }
+  if ($arg eq "-additional-arg") {
+    shift @ARGV;
+    push @AdditionalArgs, shift @ARGV;
+    next;
+  }
   if ($arg eq "--use-analyzer") {
  	shift @ARGV;
   	$AnalyzerDiscoveryMethod = shift @ARGV;
@@ -1649,11 +1669,13 @@ if ($MaxLoop > 0) { push @AnalysesToRun, "-analyzer-max-loop $MaxLoop"; }
 my $CCC_ANALYZER_ANALYSIS = join ' ',@AnalysesToRun;
 my $CCC_ANALYZER_PLUGINS = join ' ',@PluginsToLoad;
 my $CCC_ANALYZER_CONFIG = join ' ',@ConfigOptions;
+my $CCC_ANALYZER_ADDITIONAL_ARGS = join ' ',@AdditionalArgs;
 my %Options = (
   'CC' => $Cmd,
   'CXX' => $CmdCXX,
   'CLANG' => $Clang,
   'CLANG_CXX' => $ClangCXX,
+  'CCC_ANALYZER_ADDITIONAL_ARGS' => $CCC_ANALYZER_ADDITIONAL_ARGS,
   'VERBOSE' => $Verbose,
   'CCC_ANALYZER_ANALYSIS' => $CCC_ANALYZER_ANALYSIS,
   'CCC_ANALYZER_PLUGINS' => $CCC_ANALYZER_PLUGINS,
@@ -1676,7 +1698,7 @@ if (defined $OutputFormat) {
 
 # Run the build.
 my $ExitStatus = RunBuildCommand(\@ARGV, $IgnoreErrors, $Cmd, $CmdCXX,
-                                \%Options);
+                                \%Options, $UseInterceptor);
 
 if (defined $OutputFormat) {
   if ($OutputFormat =~ /plist/) {
