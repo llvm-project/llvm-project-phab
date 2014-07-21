@@ -129,6 +129,7 @@ void initializeEarlyCSEPass(PassRegistry&);
 void initializeExpandISelPseudosPass(PassRegistry&);
 void initializeFindUsedTypesPass(PassRegistry&);
 void initializeFunctionAttrsPass(PassRegistry&);
+void initializeFunctionAttrsTDPass(PassRegistry&);
 void initializeGCMachineCodeAnalysisPass(PassRegistry&);
 void initializeGCModuleInfoPass(PassRegistry&);
 void initializeGVNPass(PassRegistry&);

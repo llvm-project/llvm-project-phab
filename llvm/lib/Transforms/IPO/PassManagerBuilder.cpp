@@ -164,6 +164,9 @@ void PassManagerBuilder::populateModulePassManager(PassManagerBase &MPM) {
     MPM.add(createInstructionCombiningPass());// Clean up after IPCP & DAE
     addExtensionsToPM(EP_Peephole, MPM);
     MPM.add(createCFGSimplificationPass());   // Clean up after IPCP & DAE
+
+    MPM.add(createFunctionAttrsPass());       // Set nocapture attr
+    MPM.add(createFunctionAttrsTDPass());     // Set noalias attr
   }
 
   // Start of CallGraph SCC passes.
@@ -345,6 +348,7 @@ void PassManagerBuilder::populateLTOPassManager(PassManagerBase &PM,
 
   // Run a few AA driven optimizations here and now, to cleanup the code.
   PM.add(createFunctionAttrsPass()); // Add nocapture.
+  PM.add(createFunctionAttrsTDPass()); // Add noalias.
   PM.add(createGlobalsModRefPass()); // IP alias analysis.
 
   PM.add(createLICMPass());                 // Hoist loop invariants.
