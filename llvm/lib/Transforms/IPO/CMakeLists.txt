@@ -5,6 +5,7 @@ add_llvm_library(LLVMipo
   DeadArgumentElimination.cpp
   ExtractGV.cpp
   FunctionAttrs.cpp
+  FunctionAttrsTD.cpp
   GlobalDCE.cpp
   GlobalOpt.cpp
   IPConstantPropagation.cpp
