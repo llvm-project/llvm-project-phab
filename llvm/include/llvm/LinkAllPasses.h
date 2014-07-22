@@ -142,6 +142,7 @@ namespace {
       (void) llvm::createInstructionNamerPass();
       (void) llvm::createMetaRenamerPass();
       (void) llvm::createFunctionAttrsPass();
+      (void) llvm::createFunctionAttrsTDPass();
       (void) llvm::createMergeFunctionsPass();
       (void) llvm::createPrintModulePass(*(llvm::raw_ostream*)nullptr);
       (void) llvm::createPrintFunctionPass(*(llvm::raw_ostream*)nullptr);

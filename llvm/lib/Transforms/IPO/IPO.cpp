@@ -27,6 +27,7 @@ void llvm::initializeIPO(PassRegistry &Registry) {
   initializeDAEPass(Registry);
   initializeDAHPass(Registry);
   initializeFunctionAttrsPass(Registry);
+  initializeFunctionAttrsTDPass(Registry);
   initializeGlobalDCEPass(Registry);
   initializeGlobalOptPass(Registry);
   initializeIPCPPass(Registry);
@@ -65,6 +66,10 @@ void LLVMAddDeadArgEliminationPass(LLVMPassManagerRef PM) {
 
 void LLVMAddFunctionAttrsPass(LLVMPassManagerRef PM) {
   unwrap(PM)->add(createFunctionAttrsPass());
+}
+
+void LLVMAddFunctionAttrsTDPass(LLVMPassManagerRef PM) {
+  unwrap(PM)->add(createFunctionAttrsTDPass());
 }
 
 void LLVMAddFunctionInliningPass(LLVMPassManagerRef PM) {

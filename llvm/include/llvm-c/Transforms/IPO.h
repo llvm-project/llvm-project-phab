@@ -40,6 +40,9 @@ void LLVMAddDeadArgEliminationPass(LLVMPassManagerRef PM);
 /** See llvm::createFunctionAttrsPass function. */
 void LLVMAddFunctionAttrsPass(LLVMPassManagerRef PM);
 
+/** See llvm::createFunctionAttrsTDPass function. */
+void LLVMAddFunctionAttrsTDPass(LLVMPassManagerRef PM);
+
 /** See llvm::createFunctionInliningPass function. */
 void LLVMAddFunctionInliningPass(LLVMPassManagerRef PM);
 

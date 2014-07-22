@@ -179,6 +179,12 @@ ModulePass *createStripDeadPrototypesPass();
 Pass *createFunctionAttrsPass();
 
 //===----------------------------------------------------------------------===//
+/// createFunctionAttrsTDPass - This pass discovers function arguments that
+/// are always nonnull, dereferenceable and/or noalias.
+///
+ModulePass *createFunctionAttrsTDPass();
+
+//===----------------------------------------------------------------------===//
 /// createMergeFunctionsPass - This pass discovers identical functions and
 /// collapses them.
 ///
