@@ -37,6 +37,7 @@ add_lldb_library(lldbTarget
   ThreadPlan.cpp
   ThreadPlanBase.cpp
   ThreadPlanCallFunction.cpp
+  ThreadPlanCallFunctionGDB.cpp
   ThreadPlanCallUserExpression.cpp
   ThreadPlanRunToAddress.cpp
   ThreadPlanShouldStopHere.cpp

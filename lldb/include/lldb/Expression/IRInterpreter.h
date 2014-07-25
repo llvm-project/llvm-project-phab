@@ -44,7 +44,8 @@ public:
     static bool
     CanInterpret (llvm::Module &module,
                   llvm::Function &function,
-                  lldb_private::Error &error);
+                  lldb_private::Error &error,
+                  lldb_private::ExecutionContext &exe_cxt);
     
     static bool
     Interpret (llvm::Module &module,
@@ -53,7 +54,8 @@ public:
                lldb_private::IRMemoryMap &memory_map,
                lldb_private::Error &error,
                lldb::addr_t stack_frame_bottom,
-               lldb::addr_t stack_frame_top);
+               lldb::addr_t stack_frame_top,
+               lldb_private::ExecutionContext &target);
     
 private:   
     static bool

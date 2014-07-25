@@ -69,6 +69,9 @@ public:
     // This function can return NULL.
     ExecutionContextScope *GetBestExecutionContextScope() const;
 
+    //
+    bool getAllocSize( lldb::addr_t address, size_t &size );
+
 protected:
     // This function should only be used if you know you are using the JIT.
     // Any other cases should use GetBestExecutionContextScope().
