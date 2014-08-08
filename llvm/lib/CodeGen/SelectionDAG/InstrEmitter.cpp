@@ -672,6 +672,8 @@ InstrEmitter::EmitDbgValue(SDDbgValue *SD,
     DenseMap<SDValue, unsigned>::iterator I = VRBaseMap.find(Op);
     if (I==VRBaseMap.end())
       MIB.addReg(0U);       // undef
+    else if (TargetRegisterInfo::isPhysicalRegister(I->second))
+      MIB.addReg(I->second, RegState::Debug);
     else
       AddOperand(MIB, Op, (*MIB).getNumOperands(), &II, VRBaseMap,
                  /*IsDebug=*/true, /*IsClone=*/false, /*IsCloned=*/false);
