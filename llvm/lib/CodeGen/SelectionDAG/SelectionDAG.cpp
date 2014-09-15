@@ -6198,7 +6198,7 @@ void SelectionDAG::TransferDbgValues(SDValue From, SDValue To) {
        I != E; ++I) {
     SDDbgValue *Dbg = *I;
     if (Dbg->getKind() == SDDbgValue::SDNODE) {
-      SDDbgValue *Clone = getDbgValue(Dbg->getMDPtr(), ToNode, To.getResNo(),
+      SDDbgValue *Clone = getDbgValue(Dbg->getMDPtr(), ToNode, Dbg->getResNo(),
 				      Dbg->isIndirect(),
                                       Dbg->getOffset(), Dbg->getDebugLoc(),
                                       Dbg->getOrder());
