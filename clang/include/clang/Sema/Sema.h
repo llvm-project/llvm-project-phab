@@ -31,6 +31,7 @@
 #include "clang/Basic/Specifiers.h"
 #include "clang/Basic/TemplateKinds.h"
 #include "clang/Basic/TypeTraits.h"
+#include "clang/Sema/ActiveTemplateInst.h"
 #include "clang/Sema/AnalysisBasedWarnings.h"
 #include "clang/Sema/DeclSpec.h"
 #include "clang/Sema/ExternalSemaSource.h"
@@ -160,6 +161,7 @@ namespace clang {
   class TemplateArgumentList;
   class TemplateArgumentLoc;
   class TemplateDecl;
+  class TemplateInstantiationObserver;
   class TemplateParameterList;
   class TemplatePartialOrderingContext;
   class TemplateTemplateParmDecl;
@@ -6158,120 +6160,6 @@ public:
                                bool RelativeToPrimary = false,
                                const FunctionDecl *Pattern = nullptr);
 
-  /// \brief A template instantiation that is currently in progress.
-  struct ActiveTemplateInstantiation {
-    /// \brief The kind of template instantiation we are performing
-    enum InstantiationKind {
-      /// We are instantiating a template declaration. The entity is
-      /// the declaration we're instantiating (e.g., a CXXRecordDecl).
-      TemplateInstantiation,
-
-      /// We are instantiating a default argument for a template
-      /// parameter. The Entity is the template, and
-      /// TemplateArgs/NumTemplateArguments provides the template
-      /// arguments as specified.
-      /// FIXME: Use a TemplateArgumentList
-      DefaultTemplateArgumentInstantiation,
-
-      /// We are instantiating a default argument for a function.
-      /// The Entity is the ParmVarDecl, and TemplateArgs/NumTemplateArgs
-      /// provides the template arguments as specified.
-      DefaultFunctionArgumentInstantiation,
-
-      /// We are substituting explicit template arguments provided for
-      /// a function template. The entity is a FunctionTemplateDecl.
-      ExplicitTemplateArgumentSubstitution,
-
-      /// We are substituting template argument determined as part of
-      /// template argument deduction for either a class template
-      /// partial specialization or a function template. The
-      /// Entity is either a ClassTemplatePartialSpecializationDecl or
-      /// a FunctionTemplateDecl.
-      DeducedTemplateArgumentSubstitution,
-
-      /// We are substituting prior template arguments into a new
-      /// template parameter. The template parameter itself is either a
-      /// NonTypeTemplateParmDecl or a TemplateTemplateParmDecl.
-      PriorTemplateArgumentSubstitution,
-
-      /// We are checking the validity of a default template argument that
-      /// has been used when naming a template-id.
-      DefaultTemplateArgumentChecking,
-
-      /// We are instantiating the exception specification for a function
-      /// template which was deferred until it was needed.
-      ExceptionSpecInstantiation
-    } Kind;
-
-    /// \brief The point of instantiation within the source code.
-    SourceLocation PointOfInstantiation;
-
-    /// \brief The template (or partial specialization) in which we are
-    /// performing the instantiation, for substitutions of prior template
-    /// arguments.
-    NamedDecl *Template;
-
-    /// \brief The entity that is being instantiated.
-    Decl *Entity;
-
-    /// \brief The list of template arguments we are substituting, if they
-    /// are not part of the entity.
-    const TemplateArgument *TemplateArgs;
-
-    /// \brief The number of template arguments in TemplateArgs.
-    unsigned NumTemplateArgs;
-
-    /// \brief The template deduction info object associated with the
-    /// substitution or checking of explicit or deduced template arguments.
-    sema::TemplateDeductionInfo *DeductionInfo;
-
-    /// \brief The source range that covers the construct that cause
-    /// the instantiation, e.g., the template-id that causes a class
-    /// template instantiation.
-    SourceRange InstantiationRange;
-
-    ActiveTemplateInstantiation()
-      : Kind(TemplateInstantiation), Template(nullptr), Entity(nullptr),
-        TemplateArgs(nullptr), NumTemplateArgs(0), DeductionInfo(nullptr) {}
-
-    /// \brief Determines whether this template is an actual instantiation
-    /// that should be counted toward the maximum instantiation depth.
-    bool isInstantiationRecord() const;
-
-    friend bool operator==(const ActiveTemplateInstantiation &X,
-                           const ActiveTemplateInstantiation &Y) {
-      if (X.Kind != Y.Kind)
-        return false;
-
-      if (X.Entity != Y.Entity)
-        return false;
-
-      switch (X.Kind) {
-      case TemplateInstantiation:
-      case ExceptionSpecInstantiation:
-        return true;
-
-      case PriorTemplateArgumentSubstitution:
-      case DefaultTemplateArgumentChecking:
-        return X.Template == Y.Template && X.TemplateArgs == Y.TemplateArgs;
-
-      case DefaultTemplateArgumentInstantiation:
-      case ExplicitTemplateArgumentSubstitution:
-      case DeducedTemplateArgumentSubstitution:
-      case DefaultFunctionArgumentInstantiation:
-        return X.TemplateArgs == Y.TemplateArgs;
-
-      }
-
-      llvm_unreachable("Invalid InstantiationKind!");
-    }
-
-    friend bool operator!=(const ActiveTemplateInstantiation &X,
-                           const ActiveTemplateInstantiation &Y) {
-      return !(X == Y);
-    }
-  };
-
   /// \brief List of active template instantiations.
   ///
   /// This vector is treated as a stack. As one template instantiation
@@ -6315,6 +6203,14 @@ public:
   /// same instantiation. FIXME: Does this belong in Sema? It's tough
   /// to implement it anywhere else.
   ActiveTemplateInstantiation LastTemplateInstantiationErrorContext;
+
+  /// \brief The template instantiation observer to trace or track 
+  /// instantiations (observers can be chained).
+  ///
+  /// This observer is used to print, trace or track template
+  /// instantiations as they are being constructed. For example, 
+  /// the 'templight' option is implemented with one such observer.
+  std::unique_ptr<TemplateInstantiationObserver> TemplateInstObserverChain;
 
   /// \brief The current index into pack expansion arguments that will be
   /// used for substitution of parameter packs.

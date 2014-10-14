@@ -30,6 +30,7 @@
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/ScopeInfo.h"
 #include "clang/Sema/Template.h"
+#include "clang/Sema/TemplateInstObserver.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -5197,6 +5198,15 @@ bool Sema::RequireCompleteTypeImpl(SourceLocation Loc, QualType T,
 
       // Try to recover by implicitly importing this module.
       createImplicitModuleImportForErrorRecovery(Loc, Owner);
+    }
+    else if (Def && TemplateInstObserverChain) {
+      ActiveTemplateInstantiation TempInst;
+      TempInst.Kind = ActiveTemplateInstantiation::Memoization;
+      TempInst.Template = Def;
+      TempInst.Entity = Def;
+      TempInst.PointOfInstantiation = Loc;
+      TemplateInstObserverChain->atTemplateBegin(*this, TempInst);
+      TemplateInstObserverChain->atTemplateEnd(*this, TempInst);
     }
 
     // We lock in the inheritance model once somebody has asked us to ensure

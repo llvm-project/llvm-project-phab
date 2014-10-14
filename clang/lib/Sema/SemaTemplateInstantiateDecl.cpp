@@ -22,6 +22,7 @@
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/PrettyDeclStackTrace.h"
 #include "clang/Sema/Template.h"
+#include "clang/Sema/TemplateInstObserver.h"
 
 using namespace clang;
 
@@ -3271,7 +3272,7 @@ TemplateDeclInstantiator::InitFunctionInstantiation(FunctionDecl *New,
   // into a template instantiation for this specific function template
   // specialization, which is not a SFINAE context, so that we diagnose any
   // further errors in the declaration itself.
-  typedef Sema::ActiveTemplateInstantiation ActiveInstType;
+  typedef ActiveTemplateInstantiation ActiveInstType;
   ActiveInstType &ActiveInst = SemaRef.ActiveTemplateInstantiations.back();
   if (ActiveInst.Kind == ActiveInstType::ExplicitTemplateArgumentSubstitution ||
       ActiveInst.Kind == ActiveInstType::DeducedTemplateArgumentSubstitution) {
@@ -3280,8 +3281,12 @@ TemplateDeclInstantiator::InitFunctionInstantiation(FunctionDecl *New,
       assert(FunTmpl->getTemplatedDecl() == Tmpl &&
              "Deduction from the wrong function template?");
       (void) FunTmpl;
+      if ( SemaRef.TemplateInstObserverChain )
+        SemaRef.TemplateInstObserverChain->atTemplateEnd(SemaRef, ActiveInst);
       ActiveInst.Kind = ActiveInstType::TemplateInstantiation;
       ActiveInst.Entity = New;
+      if ( SemaRef.TemplateInstObserverChain )
+        SemaRef.TemplateInstObserverChain->atTemplateBegin(SemaRef, ActiveInst);
     }
   }
 
