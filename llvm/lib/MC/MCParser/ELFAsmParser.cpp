@@ -554,7 +554,7 @@ EndStmt:
     auto InsertResult = Sections.insert(
         std::make_pair(ELFSection, std::make_pair(nullptr, nullptr)));
     if (InsertResult.second) {
-      if (getContext().getDwarfVersion() <= 2)
+      if (getContext().getDwarfVersion() <= 2 && Type == ELF::SHT_PROGBITS)
         Warning(loc, "DWARF2 only supports one section per compilation unit");
 
       MCSymbol *SectionStartSymbol = getContext().CreateTempSymbol();
