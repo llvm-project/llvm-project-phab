@@ -211,6 +211,8 @@ STATISTIC(NumOptimizedAccessesToGlobalArray,
           "Number of optimized accesses to global arrays");
 STATISTIC(NumOptimizedAccessesToGlobalVar,
           "Number of optimized accesses to global vars");
+STATISTIC(NumOptimizedAccessesToStackVar,
+          "Number of optimized accesses to stack vars");
 
 namespace {
 /// Frontend-provided metadata for source location.
@@ -875,6 +877,22 @@ void AddressSanitizer::instrumentMop(Instruction *I, bool UseCalls) {
       }
     }
   }
+
+  // A direct inbounds access to a stack variable is always valid.
+  if (isa<AllocaInst>(Addr->stripInBoundsConstantOffsets())) {
+    NumOptimizedAccessesToStackVar++;
+    return;
+  }
+/*
+  This does not give the desired result.
+  if (ConstantExpr *CE = dyn_cast<ConstantExpr>(Addr)) {
+    if (CE->isGEPWithNoNotionalOverIndexing() &&
+        isa<AllocaInst>(CE->getOperand(0))) {
+      NumOptimizedAccessesToStackVar++;
+      return;
+    }
+  }
+*/
 
   Type *OrigPtrTy = Addr->getType();
   Type *OrigTy = cast<PointerType>(OrigPtrTy)->getElementType();
