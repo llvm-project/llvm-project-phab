@@ -24,6 +24,9 @@
 #include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/Triple.h"
+#include "llvm/Analysis/MemoryBuiltins.h"
+#include "llvm/Analysis/TargetLibraryInfo.h"
+#include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/CallSite.h"
 #include "llvm/IR/DIBuilder.h"
 #include "llvm/IR/DataLayout.h"
@@ -181,6 +184,9 @@ static cl::opt<bool> ClOptSameTemp("asan-opt-same-temp",
        cl::init(true));
 static cl::opt<bool> ClOptGlobals("asan-opt-globals",
        cl::desc("Don't instrument scalar globals"), cl::Hidden, cl::init(true));
+static cl::opt<bool> ClOptStack("asan-opt-stack",
+       cl::desc("Don't instrument scalar stack variables"), cl::Hidden,
+       cl::init(false));
 
 static cl::opt<bool> ClCheckLifetime("asan-check-lifetime",
        cl::desc("Use llvm.lifetime intrinsics to insert extra checks"),
@@ -207,10 +213,10 @@ STATISTIC(NumInstrumentedReads, "Number of instrumented reads");
 STATISTIC(NumInstrumentedWrites, "Number of instrumented writes");
 STATISTIC(NumInstrumentedDynamicAllocas,
           "Number of instrumented dynamic allocas");
-STATISTIC(NumOptimizedAccessesToGlobalArray,
-          "Number of optimized accesses to global arrays");
 STATISTIC(NumOptimizedAccessesToGlobalVar,
           "Number of optimized accesses to global vars");
+STATISTIC(NumOptimizedAccessesToStackVar,
+          "Number of optimized accesses to stack vars");
 
 namespace {
 /// Frontend-provided metadata for source location.
@@ -371,8 +377,11 @@ struct AddressSanitizer : public FunctionPass {
   }
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.addRequired<DominatorTreeWrapperPass>();
+    AU.addRequired<DataLayoutPass>();
+    AU.addRequired<TargetLibraryInfoWrapperPass>();
   }
-  void instrumentMop(Instruction *I, bool UseCalls);
+  void instrumentMop(ObjectSizeOffsetEvaluator &ObjSizeEval, Instruction *I,
+                     bool UseCalls);
   void instrumentPointerComparisonOrSubtraction(Instruction *I);
   void instrumentAddress(Instruction *OrigIns, Instruction *InsertBefore,
                          Value *Addr, uint32_t TypeSize, bool IsWrite,
@@ -396,6 +405,8 @@ struct AddressSanitizer : public FunctionPass {
 
   bool LooksLikeCodeInBug11395(Instruction *I);
   bool GlobalIsLinkerInitialized(GlobalVariable *G);
+  bool isInboundsAccess(ObjectSizeOffsetEvaluator &ObjSizeEval, Value *Addr)
+      const;
 
   LLVMContext *C;
   const DataLayout *DL;
@@ -851,28 +862,30 @@ AddressSanitizer::instrumentPointerComparisonOrSubtraction(Instruction *I) {
   IRB.CreateCall2(F, Param[0], Param[1]);
 }
 
-void AddressSanitizer::instrumentMop(Instruction *I, bool UseCalls) {
+void AddressSanitizer::instrumentMop(ObjectSizeOffsetEvaluator &ObjSizeEval,
+                                     Instruction *I, bool UseCalls) {
   bool IsWrite = false;
   unsigned Alignment = 0;
   Value *Addr = isInterestingMemoryAccess(I, &IsWrite, &Alignment);
   assert(Addr);
   if (ClOpt && ClOptGlobals) {
-    if (GlobalVariable *G = dyn_cast<GlobalVariable>(Addr)) {
-      // If initialization order checking is disabled, a simple access to a
-      // dynamically initialized global is always valid.
-      if (!ClInitializers || GlobalIsLinkerInitialized(G)) {
-        NumOptimizedAccessesToGlobalVar++;
-        return;
-      }
+    // If initialization order checking is disabled, a simple access to a
+    // dynamically initialized global is always valid.
+    GlobalVariable *G = dyn_cast<GlobalVariable>(GetUnderlyingObject(Addr,
+                                                                     nullptr));
+    if (G != NULL && (!ClInitializers || GlobalIsLinkerInitialized(G)) &&
+        isInboundsAccess(ObjSizeEval, Addr)) {
+      NumOptimizedAccessesToGlobalVar++;
+      return;
     }
-    ConstantExpr *CE = dyn_cast<ConstantExpr>(Addr);
-    if (CE && CE->isGEPWithNoNotionalOverIndexing()) {
-      if (GlobalVariable *G = dyn_cast<GlobalVariable>(CE->getOperand(0))) {
-        if (CE->getOperand(1)->isNullValue() && GlobalIsLinkerInitialized(G)) {
-          NumOptimizedAccessesToGlobalArray++;
-          return;
-        }
-      }
+  }
+
+  if (ClOpt && ClOptStack) {
+    // A direct inbounds access to a stack variable is always valid.
+    if (isa<AllocaInst>(GetUnderlyingObject(Addr, nullptr)) &&
+        isInboundsAccess(ObjSizeEval, Addr)) {
+      NumOptimizedAccessesToStackVar++;
+      return;
     }
   }
 
@@ -1484,13 +1497,18 @@ bool AddressSanitizer::runOnFunction(Function &F) {
       ToInstrument.size() > (unsigned)ClInstrumentationWithCallsThreshold)
     UseCalls = true;
 
+  const TargetLibraryInfo *TLI = &getAnalysis<TargetLibraryInfoWrapperPass>().
+      getTLI();
+  ObjectSizeOffsetEvaluator ObjSizeEval(DL, TLI, F.getContext(),
+                                        /*RoundToAlign=*/ true);
+
   // Instrument.
   int NumInstrumented = 0;
   for (auto Inst : ToInstrument) {
     if (ClDebugMin < 0 || ClDebugMax < 0 ||
         (NumInstrumented >= ClDebugMin && NumInstrumented <= ClDebugMax)) {
       if (isInterestingMemoryAccess(Inst, &IsWrite, &Alignment))
-        instrumentMop(Inst, UseCalls);
+        instrumentMop(ObjSizeEval, Inst, UseCalls);
       else
         instrumentMemIntrinsic(cast<MemIntrinsic>(Inst));
     }
@@ -2022,4 +2040,21 @@ void FunctionStackPoisoner::handleDynamicAllocaCall(
   // shadow addresses for future unpoisoning.
   AI->eraseFromParent();
   NumInstrumentedDynamicAllocas++;
+}
+
+// isInboundsAccess returns true if Addr is always inbounds with respect to its
+// base object. For example, it is a field access or an array access with
+// constant inbounds index.
+bool AddressSanitizer::isInboundsAccess(ObjectSizeOffsetEvaluator &ObjSizeEval,
+                                        Value *Addr) const {
+  SizeOffsetEvalType SizeOffset = ObjSizeEval.compute(Addr);
+  if (!ObjSizeEval.bothKnown(SizeOffset) ||
+      !isa<ConstantInt>(SizeOffset.first) ||
+      !isa<ConstantInt>(SizeOffset.second))
+    return false;
+  Type *OrigTy = cast<PointerType>(Addr->getType())->getElementType();
+  uint32_t TypeSize = DL->getTypeStoreSize(OrigTy);
+  int64_t Size = dyn_cast<ConstantInt>(SizeOffset.first)->getSExtValue();
+  int64_t Offset = dyn_cast<ConstantInt>(SizeOffset.second)->getSExtValue();
+  return Offset >= 0 && Offset + TypeSize <= Size;
 }
