@@ -169,6 +169,10 @@ static DecodeStatus DecodeVecShiftL16Imm(llvm::MCInst &Inst, unsigned Imm,
                                          uint64_t Addr, const void *Decoder);
 static DecodeStatus DecodeVecShiftL8Imm(llvm::MCInst &Inst, unsigned Imm,
                                         uint64_t Addr, const void *Decoder);
+static DecodeStatus DecodePair32ClassRegisterClass(MCInst &Inst, unsigned RegNo,
+                                        uint64_t Addr, const void *Decoder);
+static DecodeStatus DecodePair64ClassRegisterClass(MCInst &Inst, unsigned RegNo,
+                                        uint64_t Addr, const void *Decoder);
 
 static bool Check(DecodeStatus &Out, DecodeStatus In) {
   switch (In) {
@@ -1102,6 +1106,12 @@ static DecodeStatus DecodeExclusiveLdStInstruction(llvm::MCInst &Inst,
   case AArch64::STLRW:
   case AArch64::STLRB:
   case AArch64::STLRH:
+  case AArch64::STLLRW:
+  case AArch64::STLLRB:
+  case AArch64::STLLRH:
+  case AArch64::LDLARW:
+  case AArch64::LDLARB:
+  case AArch64::LDLARH:
     DecodeGPR32RegisterClass(Inst, Rt, Addr, Decoder);
     break;
   case AArch64::STLXRX:
@@ -1112,6 +1122,8 @@ static DecodeStatus DecodeExclusiveLdStInstruction(llvm::MCInst &Inst,
   case AArch64::LDAXRX:
   case AArch64::LDXRX:
   case AArch64::STLRX:
+  case AArch64::LDLARX:
+  case AArch64::STLLRX:
     DecodeGPR64RegisterClass(Inst, Rt, Addr, Decoder);
     break;
   case AArch64::STLXPW:
@@ -1504,7 +1516,10 @@ static DecodeStatus DecodeSystemPStateInstruction(llvm::MCInst &Inst,
   Inst.addOperand(MCOperand::CreateImm(crm));
 
   bool ValidNamed;
-  (void)AArch64PState::PStateMapper().toString(pstate_field, ValidNamed);
+  const AArch64Disassembler *Dis =
+      static_cast<const AArch64Disassembler *>(Decoder);
+  AArch64PState::PStateMapper Mapper(Dis->getSubtargetInfo().getFeatureBits());
+  Mapper.toString(pstate_field, ValidNamed);
 
   return ValidNamed ? Success : Fail;
 }
@@ -1530,5 +1545,31 @@ static DecodeStatus DecodeTestAndBranch(llvm::MCInst &Inst, uint32_t insn,
   if (!Dis->tryAddingSymbolicOperand(Inst, dst * 4, Addr, true, 0, 4))
     Inst.addOperand(MCOperand::CreateImm(dst));
 
+  return Success;
+}
+
+static DecodeStatus DecodePair32ClassRegisterClass(MCInst &Inst, unsigned RegNo,
+                                             uint64_t Addr,
+                                             const void *Decoder) {
+  // Register number must be even (see CASP instruction)
+  if (RegNo & 0x1)
+    return Fail;
+
+  unsigned Register = AArch64MCRegisterClasses[AArch64::Pair32ClassRegClassID].
+      getRegister(RegNo);
+  Inst.addOperand(MCOperand::CreateReg(Register));
+  return Success;
+}
+
+static DecodeStatus DecodePair64ClassRegisterClass(MCInst &Inst, unsigned RegNo,
+                                             uint64_t Addr,
+                                             const void *Decoder) {
+  // Register number must be even (see CASP instruction)
+  if (RegNo & 0x1)
+    return Fail;
+
+  unsigned Register = AArch64MCRegisterClasses[AArch64::Pair64ClassRegClassID].
+      getRegister(RegNo);
+  Inst.addOperand(MCOperand::CreateReg(Register));
   return Success;
 }

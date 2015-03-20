@@ -19,10 +19,10 @@
 using namespace llvm;
 
 StringRef AArch64NamedImmMapper::toString(uint32_t Value, bool &Valid) const {
-  for (unsigned i = 0; i < NumPairs; ++i) {
-    if (Pairs[i].Value == Value) {
+  for (unsigned i = 0; i < NumMappings; ++i) {
+    if (hasFeature(Mappings[i].SubTargetFeature) && Mappings[i].Value == Value) {
       Valid = true;
-      return Pairs[i].Name;
+      return Mappings[i].Name;
     }
   }
 
@@ -32,10 +32,10 @@ StringRef AArch64NamedImmMapper::toString(uint32_t Value, bool &Valid) const {
 
 uint32_t AArch64NamedImmMapper::fromString(StringRef Name, bool &Valid) const {
   std::string LowerCaseName = Name.lower();
-  for (unsigned i = 0; i < NumPairs; ++i) {
-    if (Pairs[i].Name == LowerCaseName) {
+  for (unsigned i = 0; i < NumMappings; ++i) {
+    if (hasFeature(Mappings[i].SubTargetFeature) && Mappings[i].Name == LowerCaseName) {
       Valid = true;
-      return Pairs[i].Value;
+      return Mappings[i].Value;
     }
   }
 
@@ -47,7 +47,7 @@ bool AArch64NamedImmMapper::validImm(uint32_t Value) const {
   return Value < TooBigImm;
 }
 
-const AArch64NamedImmMapper::Mapping AArch64AT::ATMapper::ATPairs[] = {
+const AArch64NamedImmMapper::Mapping AArch64AT::ATMapper::ATMappings[] = {
   {"s1e1r", S1E1R},
   {"s1e2r", S1E2R},
   {"s1e3r", S1E3R},
@@ -62,10 +62,10 @@ const AArch64NamedImmMapper::Mapping AArch64AT::ATMapper::ATPairs[] = {
   {"s12e0w", S12E0W},
 };
 
-AArch64AT::ATMapper::ATMapper()
-  : AArch64NamedImmMapper(ATPairs, 0) {}
+AArch64AT::ATMapper::ATMapper(uint64_t SubTargetFeatureBits)
+  : AArch64NamedImmMapper(SubTargetFeatureBits, ATMappings, 0) {}
 
-const AArch64NamedImmMapper::Mapping AArch64DB::DBarrierMapper::DBarrierPairs[] = {
+const AArch64NamedImmMapper::Mapping AArch64DB::DBarrierMapper::DBarrierMappings[] = {
   {"oshld", OSHLD},
   {"oshst", OSHST},
   {"osh", OSH},
@@ -80,10 +80,10 @@ const AArch64NamedImmMapper::Mapping AArch64DB::DBarrierMapper::DBarrierPairs[] 
   {"sy", SY}
 };
 
-AArch64DB::DBarrierMapper::DBarrierMapper()
-  : AArch64NamedImmMapper(DBarrierPairs, 16u) {}
+AArch64DB::DBarrierMapper::DBarrierMapper(uint64_t SubTargetFeatureBits)
+  : AArch64NamedImmMapper(SubTargetFeatureBits, DBarrierMappings, 16u) {}
 
-const AArch64NamedImmMapper::Mapping AArch64DC::DCMapper::DCPairs[] = {
+const AArch64NamedImmMapper::Mapping AArch64DC::DCMapper::DCMappings[] = {
   {"zva", ZVA},
   {"ivac", IVAC},
   {"isw", ISW},
@@ -94,26 +94,26 @@ const AArch64NamedImmMapper::Mapping AArch64DC::DCMapper::DCPairs[] = {
   {"cisw", CISW}
 };
 
-AArch64DC::DCMapper::DCMapper()
-  : AArch64NamedImmMapper(DCPairs, 0) {}
+AArch64DC::DCMapper::DCMapper(uint64_t SubTargetFeatureBits)
+  : AArch64NamedImmMapper(SubTargetFeatureBits, DCMappings, 0) {}
 
-const AArch64NamedImmMapper::Mapping AArch64IC::ICMapper::ICPairs[] = {
+const AArch64NamedImmMapper::Mapping AArch64IC::ICMapper::ICMappings[] = {
   {"ialluis",  IALLUIS},
   {"iallu", IALLU},
   {"ivau", IVAU}
 };
 
-AArch64IC::ICMapper::ICMapper()
-  : AArch64NamedImmMapper(ICPairs, 0) {}
+AArch64IC::ICMapper::ICMapper(uint64_t SubTargetFeatureBits)
+  : AArch64NamedImmMapper(SubTargetFeatureBits, ICMappings, 0) {}
 
-const AArch64NamedImmMapper::Mapping AArch64ISB::ISBMapper::ISBPairs[] = {
+const AArch64NamedImmMapper::Mapping AArch64ISB::ISBMapper::ISBMappings[] = {
   {"sy",  SY},
 };
 
-AArch64ISB::ISBMapper::ISBMapper()
-  : AArch64NamedImmMapper(ISBPairs, 16) {}
+AArch64ISB::ISBMapper::ISBMapper(uint64_t SubTargetFeatureBits)
+  : AArch64NamedImmMapper(SubTargetFeatureBits, ISBMappings, 16) {}
 
-const AArch64NamedImmMapper::Mapping AArch64PRFM::PRFMMapper::PRFMPairs[] = {
+const AArch64NamedImmMapper::Mapping AArch64PRFM::PRFMMapper::PRFMMappings[] = {
   {"pldl1keep", PLDL1KEEP},
   {"pldl1strm", PLDL1STRM},
   {"pldl2keep", PLDL2KEEP},
@@ -134,19 +134,20 @@ const AArch64NamedImmMapper::Mapping AArch64PRFM::PRFMMapper::PRFMPairs[] = {
   {"pstl3strm", PSTL3STRM}
 };
 
-AArch64PRFM::PRFMMapper::PRFMMapper()
-  : AArch64NamedImmMapper(PRFMPairs, 32) {}
+AArch64PRFM::PRFMMapper::PRFMMapper(uint64_t SubTargetFeatureBits)
+  : AArch64NamedImmMapper(SubTargetFeatureBits, PRFMMappings, 32) {}
 
-const AArch64NamedImmMapper::Mapping AArch64PState::PStateMapper::PStatePairs[] = {
+const AArch64NamedImmMapper::Mapping AArch64PState::PStateMapper::PStateMappings[] = {
   {"spsel", SPSel},
   {"daifset", DAIFSet},
-  {"daifclr", DAIFClr}
+  {"daifclr", DAIFClr},
+  {"pan", PAN, AArch64::FeatureV8_1a},
 };
 
-AArch64PState::PStateMapper::PStateMapper()
-  : AArch64NamedImmMapper(PStatePairs, 0) {}
+AArch64PState::PStateMapper::PStateMapper(uint64_t SubTargetFeatureBits)
+  : AArch64NamedImmMapper(SubTargetFeatureBits, PStateMappings, 0) {}
 
-const AArch64NamedImmMapper::Mapping AArch64SysReg::MRSMapper::MRSPairs[] = {
+const AArch64NamedImmMapper::Mapping AArch64SysReg::MRSMapper::MRSMappings[] = {
   {"mdccsr_el0", MDCCSR_EL0},
   {"dbgdtrrx_el0", DBGDTRRX_EL0},
   {"mdrar_el1", MDRAR_EL1},
@@ -245,13 +246,13 @@ const AArch64NamedImmMapper::Mapping AArch64SysReg::MRSMapper::MRSPairs[] = {
   {"ich_elsr_el2", ICH_ELSR_EL2}
 };
 
-AArch64SysReg::MRSMapper::MRSMapper(uint64_t FeatureBits)
-  : SysRegMapper(FeatureBits) {
-    InstPairs = &MRSPairs[0];
-    NumInstPairs = llvm::array_lengthof(MRSPairs);
+AArch64SysReg::MRSMapper::MRSMapper(uint64_t SubTargetFeatureBits)
+  : SysRegMapper(SubTargetFeatureBits) {
+    InstMappings = &MRSMappings[0];
+    NumInstMappings = llvm::array_lengthof(MRSMappings);
 }
 
-const AArch64NamedImmMapper::Mapping AArch64SysReg::MSRMapper::MSRPairs[] = {
+const AArch64NamedImmMapper::Mapping AArch64SysReg::MSRMapper::MSRMappings[] = {
   {"dbgdtrtx_el0", DBGDTRTX_EL0},
   {"oslar_el1", OSLAR_EL1},
   {"pmswinc_el0", PMSWINC_EL0},
@@ -266,17 +267,20 @@ const AArch64NamedImmMapper::Mapping AArch64SysReg::MSRMapper::MSRPairs[] = {
   {"icc_dir_el1", ICC_DIR_EL1},
   {"icc_sgi1r_el1", ICC_SGI1R_EL1},
   {"icc_asgi1r_el1", ICC_ASGI1R_EL1},
-  {"icc_sgi0r_el1", ICC_SGI0R_EL1}
+  {"icc_sgi0r_el1", ICC_SGI0R_EL1},
+
+  // Privileged Access Never extension specific system registers
+  {"pan", PAN, AArch64::FeatureV8_1a},
 };
 
-AArch64SysReg::MSRMapper::MSRMapper(uint64_t FeatureBits)
-  : SysRegMapper(FeatureBits) {
-    InstPairs = &MSRPairs[0];
-    NumInstPairs = llvm::array_lengthof(MSRPairs);
+AArch64SysReg::MSRMapper::MSRMapper(uint64_t SubTargetFeatureBits)
+  : SysRegMapper(SubTargetFeatureBits) {
+    InstMappings = &MSRMappings[0];
+    NumInstMappings = llvm::array_lengthof(MSRMappings);
 }
 
 
-const AArch64NamedImmMapper::Mapping AArch64SysReg::SysRegMapper::SysRegPairs[] = {
+const AArch64NamedImmMapper::Mapping AArch64SysReg::SysRegMapper::SysRegMappings[] = {
   {"osdtrrx_el1", OSDTRRX_EL1},
   {"osdtrtx_el1",  OSDTRTX_EL1},
   {"teecr32_el1", TEECR32_EL1},
@@ -752,12 +756,47 @@ const AArch64NamedImmMapper::Mapping AArch64SysReg::SysRegMapper::SysRegPairs[] 
   {"ich_lr12_el2", ICH_LR12_EL2},
   {"ich_lr13_el2", ICH_LR13_EL2},
   {"ich_lr14_el2", ICH_LR14_EL2},
-  {"ich_lr15_el2", ICH_LR15_EL2}
-};
+  {"ich_lr15_el2", ICH_LR15_EL2},
+  {"cpm_ioacc_ctl_el3", CPM_IOACC_CTL_EL3, AArch64::ProcCyclone},
 
-const AArch64NamedImmMapper::Mapping
-AArch64SysReg::SysRegMapper::CycloneSysRegPairs[] = {
-  {"cpm_ioacc_ctl_el3", CPM_IOACC_CTL_EL3}
+  // Privileged Access Never extension specific system registers
+  {"pan", PAN, AArch64::FeatureV8_1a},
+
+  // Limited Ordering Regions extension system registers
+  {"lorsa_el1", LORSA_EL1, AArch64::FeatureV8_1a},
+  {"lorea_el1", LOREA_EL1, AArch64::FeatureV8_1a},
+  {"lorn_el1", LORN_EL1, AArch64::FeatureV8_1a},
+  {"lorc_el1", LORC_EL1, AArch64::FeatureV8_1a},
+  {"lorid_el1", LORID_EL1, AArch64::FeatureV8_1a},  
+
+  // Virtualization host extensions system registers
+  {"ttbr1_el2", TTBR1_EL2, AArch64::FeatureV8_1a},
+  {"contextidr_el2", CONTEXTIDR_EL2, AArch64::FeatureV8_1a},
+  {"cnthv_tval_el2", CNTHV_TVAL_EL2, AArch64::FeatureV8_1a},
+  {"cnthv_cval_el2", CNTHV_CVAL_EL2, AArch64::FeatureV8_1a},
+  {"cnthv_ctl_el2", CNTHV_CTL_EL2, AArch64::FeatureV8_1a},
+  {"sctlr_el12", SCTLR_EL12, AArch64::FeatureV8_1a},
+  {"cpacr_el12", CPACR_EL12, AArch64::FeatureV8_1a},
+  {"ttbr0_el12", TTBR0_EL12, AArch64::FeatureV8_1a},
+  {"ttbr1_el12", TTBR1_EL12, AArch64::FeatureV8_1a},
+  {"tcr_el12", TCR_EL12, AArch64::FeatureV8_1a},
+  {"afsr0_el12", AFSR0_EL12, AArch64::FeatureV8_1a},
+  {"afsr1_el12", AFSR1_EL12, AArch64::FeatureV8_1a},
+  {"esr_el12", ESR_EL12, AArch64::FeatureV8_1a},
+  {"far_el12", FAR_EL12, AArch64::FeatureV8_1a},
+  {"mair_el12", MAIR_EL12, AArch64::FeatureV8_1a},
+  {"amair_el12", AMAIR_EL12, AArch64::FeatureV8_1a},
+  {"vbar_el12", VBAR_EL12, AArch64::FeatureV8_1a},
+  {"contextidr_el12", CONTEXTIDR_EL12, AArch64::FeatureV8_1a},
+  {"cntkctl_el12", CNTKCTL_EL12, AArch64::FeatureV8_1a},
+  {"cntp_tval_el02", CNTP_TVAL_EL02, AArch64::FeatureV8_1a},
+  {"cntp_ctl_el02", CNTP_CTL_EL02, AArch64::FeatureV8_1a},
+  {"cntp_cval_el02", CNTP_CVAL_EL02, AArch64::FeatureV8_1a},
+  {"cntv_tval_el02", CNTV_TVAL_EL02, AArch64::FeatureV8_1a},
+  {"cntv_ctl_el02", CNTV_CTL_EL02, AArch64::FeatureV8_1a},
+  {"cntv_cval_el02", CNTV_CVAL_EL02, AArch64::FeatureV8_1a},
+  {"spsr_el12", SPSR_EL12, AArch64::FeatureV8_1a},
+  {"elr_el12", ELR_EL12, AArch64::FeatureV8_1a},
 };
 
 uint32_t
@@ -765,29 +804,21 @@ AArch64SysReg::SysRegMapper::fromString(StringRef Name, bool &Valid) const {
   std::string NameLower = Name.lower();
 
   // First search the registers shared by all
-  for (unsigned i = 0; i < array_lengthof(SysRegPairs); ++i) {
-    if (SysRegPairs[i].Name == NameLower) {
+  for (unsigned i = 0; i < array_lengthof(SysRegMappings); ++i) {
+    if (hasFeature(SysRegMappings[i].SubTargetFeature) &&
+        SysRegMappings[i].Name == NameLower) {
       Valid = true;
-      return SysRegPairs[i].Value;
-    }
-  }
-
-  // Next search for target specific registers
-  if (FeatureBits & AArch64::ProcCyclone) {
-    for (unsigned i = 0; i < array_lengthof(CycloneSysRegPairs); ++i) {
-      if (CycloneSysRegPairs[i].Name == NameLower) {
-        Valid = true;
-        return CycloneSysRegPairs[i].Value;
-      }
+      return SysRegMappings[i].Value;
     }
   }
 
   // Now try the instruction-specific registers (either read-only or
   // write-only).
-  for (unsigned i = 0; i < NumInstPairs; ++i) {
-    if (InstPairs[i].Name == NameLower) {
+  for (unsigned i = 0; i < NumInstMappings; ++i) {
+    if (hasFeature(InstMappings[i].SubTargetFeature) &&
+        InstMappings[i].Name == NameLower) {
       Valid = true;
-      return InstPairs[i].Value;
+      return InstMappings[i].Value;
     }
   }
 
@@ -816,26 +847,19 @@ AArch64SysReg::SysRegMapper::fromString(StringRef Name, bool &Valid) const {
 std::string
 AArch64SysReg::SysRegMapper::toString(uint32_t Bits) const {
   // First search the registers shared by all
-  for (unsigned i = 0; i < array_lengthof(SysRegPairs); ++i) {
-    if (SysRegPairs[i].Value == Bits) {
-      return SysRegPairs[i].Name;
-    }
-  }
-
-  // Next search for target specific registers
-  if (FeatureBits & AArch64::ProcCyclone) {
-    for (unsigned i = 0; i < array_lengthof(CycloneSysRegPairs); ++i) {
-      if (CycloneSysRegPairs[i].Value == Bits) {
-        return CycloneSysRegPairs[i].Name;
-      }
+  for (unsigned i = 0; i < array_lengthof(SysRegMappings); ++i) {
+    if (hasFeature(SysRegMappings[i].SubTargetFeature) &&
+        SysRegMappings[i].Value == Bits) {
+      return SysRegMappings[i].Name;
     }
   }
 
   // Now try the instruction-specific registers (either read-only or
   // write-only).
-  for (unsigned i = 0; i < NumInstPairs; ++i) {
-    if (InstPairs[i].Value == Bits) {
-      return InstPairs[i].Name;
+  for (unsigned i = 0; i < NumInstMappings; ++i) {
+    if (hasFeature(InstMappings[i].SubTargetFeature) &&
+        InstMappings[i].Value == Bits) {
+      return InstMappings[i].Name;
     }
   }
 
@@ -850,7 +874,7 @@ AArch64SysReg::SysRegMapper::toString(uint32_t Bits) const {
                + "_c" + utostr(CRm) + "_" + utostr(Op2);
 }
 
-const AArch64NamedImmMapper::Mapping AArch64TLBI::TLBIMapper::TLBIPairs[] = {
+const AArch64NamedImmMapper::Mapping AArch64TLBI::TLBIMapper::TLBIMappings[] = {
   {"ipas2e1is", IPAS2E1IS},
   {"ipas2le1is", IPAS2LE1IS},
   {"vmalle1is", VMALLE1IS},
@@ -885,5 +909,5 @@ const AArch64NamedImmMapper::Mapping AArch64TLBI::TLBIMapper::TLBIPairs[] = {
   {"vaale1", VAALE1}
 };
 
-AArch64TLBI::TLBIMapper::TLBIMapper()
-  : AArch64NamedImmMapper(TLBIPairs, 0) {}
+AArch64TLBI::TLBIMapper::TLBIMapper(uint64_t SubTargetFeatureBits)
+  : AArch64NamedImmMapper(SubTargetFeatureBits, TLBIMappings, 0) {}

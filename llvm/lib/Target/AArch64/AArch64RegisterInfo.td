@@ -592,3 +592,37 @@ def FPR16Op : RegisterOperand<FPR16, "printOperand">;
 def FPR32Op : RegisterOperand<FPR32, "printOperand">;
 def FPR64Op : RegisterOperand<FPR64, "printOperand">;
 def FPR128Op : RegisterOperand<FPR128, "printOperand">;
+
+
+//===----------------------------------------------------------------------===//
+// ARMv8.1a atomic CASP register operands
+
+
+let Namespace = "AArch64" in {
+  def sube32 : SubRegIndex<32>;
+  def subo32 : SubRegIndex<32>;
+  def sube64 : SubRegIndex<64>;
+  def subo64 : SubRegIndex<64>;
+}
+
+def Pair32 : RegisterTuples<[sube32, subo32], [(rotl GPR32, 0), (rotl GPR32, 1)]>;
+def Pair64 : RegisterTuples<[sube64, subo64], [(rotl GPR64, 0), (rotl GPR64, 1)]>;
+
+def Pair32Class   : RegisterClass<"AArch64", [untyped], 32, (add Pair32)> {let Size = 64;}
+def Pair64Class   : RegisterClass<"AArch64", [untyped], 64, (add Pair64)> {let Size = 128;}
+
+
+let RenderMethod = "addRegOperands", ParserMethod="tryParsePair" in {
+  def Pair32AsmOperandClass : AsmOperandClass { let Name = "Pair32"; }
+  def Pair64AsmOperandClass : AsmOperandClass { let Name = "Pair64"; }
+}
+
+def ConsecutivePairClassOperand32 : RegisterOperand<Pair32Class,"printConsecutivePairClassOperand<32>"> {
+  let ParserMatchClass = Pair32AsmOperandClass;
+}
+def ConsecutivePairClassOperand64 : RegisterOperand<Pair64Class,"printConsecutivePairClassOperand<64>"> {
+  let ParserMatchClass = Pair64AsmOperandClass;
+}
+
+
+//===----- END: v8.1a atomic CASP register operands -----------------------===//

@@ -276,6 +276,9 @@ class ARMAsmParser : public MCTargetAsmParser {
   bool hasD16() const {
     return STI.getFeatureBits() & ARM::FeatureD16;
   }
+  bool hasV8_1a() const {
+    return STI.getFeatureBits() & ARM::FeatureV8_1a;
+  }
 
   void SwitchMode() {
     uint64_t FB = ComputeAvailableFeatures(STI.ToggleFeature(ARM::ModeThumb));
@@ -5442,6 +5445,7 @@ getMnemonicAcceptInfo(StringRef Mnemonic, StringRef FullInst,
       Mnemonic == "vcvtn" || Mnemonic == "vcvtp" || Mnemonic == "vcvtm" ||
       Mnemonic == "vrinta" || Mnemonic == "vrintn" || Mnemonic == "vrintp" ||
       Mnemonic == "vrintm" || Mnemonic.startswith("aes") || Mnemonic == "hvc" ||
+      Mnemonic == "setpan" ||
       Mnemonic.startswith("sha1") || Mnemonic.startswith("sha256") ||
       (FullInst.startswith("vmull") && FullInst.endswith(".p64"))) {
     // These mnemonics are never predicable

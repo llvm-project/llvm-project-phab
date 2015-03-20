@@ -116,6 +116,8 @@ protected:
   void printMRSSystemRegister(const MCInst *MI, unsigned OpNum, raw_ostream &O);
   void printSystemPStateField(const MCInst *MI, unsigned OpNum, raw_ostream &O);
   void printSIMDType10Operand(const MCInst *MI, unsigned OpNum, raw_ostream &O);
+  template<unsigned size>
+  void printConsecutivePairClassOperand(const MCInst *MI, unsigned OpNum, raw_ostream &O);
 };
 
 class AArch64AppleInstPrinter : public AArch64InstPrinter {

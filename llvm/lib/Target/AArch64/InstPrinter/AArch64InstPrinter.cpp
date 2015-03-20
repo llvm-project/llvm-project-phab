@@ -1088,7 +1088,8 @@ void AArch64InstPrinter::printPrefetchOp(const MCInst *MI, unsigned OpNum,
                                          raw_ostream &O) {
   unsigned prfop = MI->getOperand(OpNum).getImm();
   bool Valid;
-  StringRef Name = AArch64PRFM::PRFMMapper().toString(prfop, Valid);
+  auto PRFMMapper = AArch64PRFM::PRFMMapper(getAvailableFeatures());
+  StringRef Name = PRFMMapper.toString(prfop, Valid);
   if (Valid)
     O << Name;
   else
@@ -1148,6 +1149,19 @@ static unsigned getNextVectorRegister(unsigned Reg, unsigned Stride = 1) {
     }
   }
   return Reg;
+}
+
+template<unsigned size>
+void AArch64InstPrinter::printConsecutivePairClassOperand(const MCInst *MI, unsigned OpNum, raw_ostream &O) {
+  static_assert(size == 64 || size == 32,"Template parameter must be either 32 or 64");
+  unsigned Reg = MI->getOperand(OpNum).getReg();
+
+  unsigned sube = (size == 32) ? AArch64::sube32 : AArch64::sube64;
+  unsigned subo = (size == 32) ? AArch64::subo32 : AArch64::subo64;
+
+  unsigned even = MRI.getSubReg(Reg,  sube);
+  unsigned odd = MRI.getSubReg(Reg,  subo);
+  O << getRegisterName(even) << ", " << getRegisterName(odd);
 }
 
 void AArch64InstPrinter::printVectorList(const MCInst *MI, unsigned OpNum,
@@ -1260,12 +1274,11 @@ void AArch64InstPrinter::printBarrierOption(const MCInst *MI, unsigned OpNo,
   unsigned Val = MI->getOperand(OpNo).getImm();
   unsigned Opcode = MI->getOpcode();
 
+  AArch64NamedImmMapper Mapper = Opcode == AArch64::ISB ?
+    AArch64ISB::ISBMapper(getAvailableFeatures()):
+    Mapper = AArch64DB::DBarrierMapper(getAvailableFeatures());
   bool Valid;
-  StringRef Name;
-  if (Opcode == AArch64::ISB)
-    Name = AArch64ISB::ISBMapper().toString(Val, Valid);
-  else
-    Name = AArch64DB::DBarrierMapper().toString(Val, Valid);
+  StringRef Name = Mapper.toString(Val, Valid);
   if (Valid)
     O << Name;
   else
@@ -1276,8 +1289,8 @@ void AArch64InstPrinter::printMRSSystemRegister(const MCInst *MI, unsigned OpNo,
                                                 raw_ostream &O) {
   unsigned Val = MI->getOperand(OpNo).getImm();
 
-  auto Mapper = AArch64SysReg::MRSMapper(getAvailableFeatures());
-  std::string Name = Mapper.toString(Val);
+  auto MRSMapper = AArch64SysReg::MRSMapper(getAvailableFeatures());
+  std::string Name = MRSMapper.toString(Val);
 
   O << StringRef(Name).upper();
 }
@@ -1286,8 +1299,8 @@ void AArch64InstPrinter::printMSRSystemRegister(const MCInst *MI, unsigned OpNo,
                                                 raw_ostream &O) {
   unsigned Val = MI->getOperand(OpNo).getImm();
 
-  auto Mapper = AArch64SysReg::MSRMapper(getAvailableFeatures());
-  std::string Name = Mapper.toString(Val);
+  auto MSRMapper = AArch64SysReg::MSRMapper(getAvailableFeatures());
+  std::string Name = MSRMapper.toString(Val);
 
   O << StringRef(Name).upper();
 }
@@ -1297,7 +1310,8 @@ void AArch64InstPrinter::printSystemPStateField(const MCInst *MI, unsigned OpNo,
   unsigned Val = MI->getOperand(OpNo).getImm();
 
   bool Valid;
-  StringRef Name = AArch64PState::PStateMapper().toString(Val, Valid);
+  auto PStateMapper = AArch64PState::PStateMapper(getAvailableFeatures());
+  StringRef Name = PStateMapper.toString(Val, Valid);
   if (Valid)
     O << StringRef(Name.str()).upper();
   else

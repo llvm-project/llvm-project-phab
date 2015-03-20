@@ -22,6 +22,8 @@ def HasCrypto        : Predicate<"Subtarget->hasCrypto()">,
                                  AssemblerPredicate<"FeatureCrypto", "crypto">;
 def HasCRC           : Predicate<"Subtarget->hasCRC()">,
                                  AssemblerPredicate<"FeatureCRC", "crc">;
+def HasV8_1a         : Predicate<"Subtarget->hasV8_1a()">,
+                                 AssemblerPredicate<"FeatureV8_1a", "v8.1a">;
 def IsLE             : Predicate<"Subtarget->isLittleEndian()">;
 def IsBE             : Predicate<"!Subtarget->isLittleEndian()">;
 def IsCyclone        : Predicate<"Subtarget->isCyclone()">;
@@ -725,6 +727,80 @@ def CRC32CHrr : BaseCRC32<0, 0b01, 1, GPR32, int_aarch64_crc32ch, "crc32ch">;
 def CRC32CWrr : BaseCRC32<0, 0b10, 1, GPR32, int_aarch64_crc32cw, "crc32cw">;
 def CRC32CXrr : BaseCRC32<1, 0b11, 1, GPR64, int_aarch64_crc32cx, "crc32cx">;
 
+// v8.1 atomic CAS
+multiclass CASOrder<string size, RegisterClass RC> {
+  let A = 0b1, R = 0b0 in def _acquire : BaseCAS<"a",size,RC>;
+  let A = 0b0, R = 0b1 in def _release : BaseCAS<"l",size,RC>;
+  let A = 0b1, R = 0b1 in def _acquire_and_release : BaseCAS<"al",size,RC>;
+  let A = 0b0, R = 0b0 in def _no_order : BaseCAS<"",size,RC>;
+}
+
+multiclass CASOrderSize {
+  let Sz = 0b00 in defm _B : CASOrder<"b",GPR32>;
+  let Sz = 0b01 in defm _H : CASOrder<"h",GPR32>;
+  let Sz = 0b10 in defm _S : CASOrder<"",GPR32>;
+  let Sz = 0b11 in defm _D : CASOrder<"",GPR64>;
+}
+
+defm CAS : CASOrderSize;
+
+// v8.1 atomic SWP
+multiclass SWPOrder<string size, RegisterClass RC> {
+  let A = 0b1, R = 0b0 in def _acquire : BaseSWP<"a",size,RC>;
+  let A = 0b0, R = 0b1 in def _release : BaseSWP<"l",size,RC>;
+  let A = 0b1, R = 0b1 in def _acquire_and_release : BaseSWP<"al",size,RC>;
+  let A = 0b0, R = 0b0 in def _no_order : BaseSWP<"",size,RC>;
+}
+
+multiclass SWPOrderSize {
+  let Sz = 0b00 in defm _B : SWPOrder<"b",GPR32>;
+  let Sz = 0b01 in defm _H : SWPOrder<"h",GPR32>;
+  let Sz = 0b10 in defm _S : SWPOrder<"",GPR32>;
+  let Sz = 0b11 in defm _D : SWPOrder<"",GPR64>;
+}
+
+defm SWP : SWPOrderSize;
+
+// v8.1 atomic LD<OP>
+multiclass LDOpOrder<string size, RegisterClass RC> {
+  let A = 0b1, R = 0b0 in defm _acquire : LDOp<"a", size, RC>;
+  let A = 0b0, R = 0b1 in defm _release : LDOp<"l", size, RC>;
+  let A = 0b1, R = 0b1 in defm _acquire_and_release : LDOp<"al", size, RC>;
+  let A = 0b0, R = 0b0 in defm _no_order : LDOp<"", size, RC>;
+}
+
+multiclass LDOpOrderSize {
+  let Sz = 0b00 in defm _B : LDOpOrder<"b", GPR32>;
+  let Sz = 0b01 in defm _H : LDOpOrder<"h", GPR32>;
+  let Sz = 0b10 in defm _S : LDOpOrder<"", GPR32>;
+  let Sz = 0b11 in defm _D : LDOpOrder<"", GPR64>;
+}
+
+defm LD : LDOpOrderSize;
+
+defm : BaseAliasLDOp<"add">;
+defm : BaseAliasLDOp<"clr">;
+defm : BaseAliasLDOp<"eor">;
+defm : BaseAliasLDOp<"set">;
+defm : BaseAliasLDOp<"smax">;
+defm : BaseAliasLDOp<"smin">;
+defm : BaseAliasLDOp<"umax">;
+defm : BaseAliasLDOp<"umin">;
+
+// v8.1 atomic CASP
+multiclass CASPOrder<string size, RegisterOperand RC> {
+  let A = 0b1, R = 0b0 in def _acquire    : BaseCASP<"a",size,RC>;
+  let A = 0b0, R = 0b1 in def _release    : BaseCASP<"l",size,RC>;
+  let A = 0b1, R = 0b1 in def _acquire_and_release   : BaseCASP<"al",size,RC>;
+  let A = 0b0, R = 0b0 in def _no_order : BaseCASP<"",size,RC>;
+}
+
+multiclass CASPOrderSize {
+  let Sz = 0b00 in defm _S : CASPOrder<"",ConsecutivePairClassOperand32>;
+  let Sz = 0b01 in defm _D : CASPOrder<"",ConsecutivePairClassOperand64>;
+}
+
+defm CASP : CASPOrderSize;
 
 //===----------------------------------------------------------------------===//
 // Logical instructions.
@@ -2312,6 +2388,20 @@ def STLXPX : StoreExclusivePair<0b11, 0, 0, 1, 1, GPR64, "stlxp">;
 def STXPW  : StoreExclusivePair<0b10, 0, 0, 1, 0, GPR32, "stxp">;
 def STXPX  : StoreExclusivePair<0b11, 0, 0, 1, 0, GPR64, "stxp">;
 
+let Predicates = [HasV8_1a] in {
+  // v8 limited-order region extension load-acquire instructions
+  def LDLARW  : LoadAcquire   <0b10, 1, 1, 0, 0, GPR32, "ldlar">;
+  def LDLARX  : LoadAcquire   <0b11, 1, 1, 0, 0, GPR64, "ldlar">;
+  def LDLARB  : LoadAcquire   <0b00, 1, 1, 0, 0, GPR32, "ldlarb">;
+  def LDLARH  : LoadAcquire   <0b01, 1, 1, 0, 0, GPR32, "ldlarh">;
+
+  // v8 limited-order region extension store-release instructions
+  def STLLRW  : StoreRelease   <0b10, 1, 0, 0, 0, GPR32, "stllr">;
+  def STLLRX  : StoreRelease   <0b11, 1, 0, 0, 0, GPR64, "stllr">;
+  def STLLRB  : StoreRelease   <0b00, 1, 0, 0, 0, GPR32, "stllrb">;
+  def STLLRH  : StoreRelease   <0b01, 1, 0, 0, 0, GPR32, "stllrh">;
+}
+
 //===----------------------------------------------------------------------===//
 // Scaled floating point to integer conversion instructions.
 //===----------------------------------------------------------------------===//
@@ -2769,6 +2859,10 @@ defm UQSUB    : SIMDThreeSameVector<1,0b00101,"uqsub", int_aarch64_neon_uqsub>;
 defm URHADD   : SIMDThreeSameVectorBHS<1,0b00010,"urhadd", int_aarch64_neon_urhadd>;
 defm URSHL    : SIMDThreeSameVector<1,0b01010,"urshl", int_aarch64_neon_urshl>;
 defm USHL     : SIMDThreeSameVector<1,0b01000,"ushl", int_aarch64_neon_ushl>;
+defm SQRDMLAH : SIMDThreeSameVectorSQRDMLxHTiedHS<1,0b10000,"sqrdmlah",
+                                                  int_aarch64_neon_sqadd>;
+defm SQRDMLSH : SIMDThreeSameVectorSQRDMLxHTiedHS<1,0b10001,"sqrdmlsh",
+                                                    int_aarch64_neon_sqsub>;
 
 defm AND : SIMDLogicalThreeVector<0, 0b00, "and", and>;
 defm BIC : SIMDLogicalThreeVector<0, 0b01, "bic",
@@ -2985,6 +3079,32 @@ defm UQSHL    : SIMDThreeScalarBHSD<1, 0b01001, "uqshl", int_aarch64_neon_uqshl>
 defm UQSUB    : SIMDThreeScalarBHSD<1, 0b00101, "uqsub", int_aarch64_neon_uqsub>;
 defm URSHL    : SIMDThreeScalarD<   1, 0b01010, "urshl", int_aarch64_neon_urshl>;
 defm USHL     : SIMDThreeScalarD<   1, 0b01000, "ushl", int_aarch64_neon_ushl>;
+let Predicates = [HasV8_1a] in {
+  defm SQRDMLAH : SIMDThreeScalarHSTied<1, 0, 0b10000, "sqrdmlah">;
+  defm SQRDMLSH : SIMDThreeScalarHSTied<1, 0, 0b10001, "sqrdmlsh">;
+  // FIXME: uncomment the following, after backend will support i16 neon type
+  //def : Pat<(i16 (int_aarch64_neon_sqadd
+  //                 (i16 FPR16:$Rd),
+  //                 (i16 (int_aarch64_neon_sqrdmulh (i16 FPR16:$Rn),
+  //                                                 (i16 FPR16:$Rm))))),
+  //          (SQRDMLAHv1i16 FPR16:$Rd, FPR16:$Rn, FPR16:$Rm)>;
+  def : Pat<(i32 (int_aarch64_neon_sqadd
+                   (i32 FPR32:$Rd),
+                   (i32 (int_aarch64_neon_sqrdmulh (i32 FPR32:$Rn),
+                                                   (i32 FPR32:$Rm))))),
+            (SQRDMLAHv1i32 FPR32:$Rd, FPR32:$Rn, FPR32:$Rm)>;
+  // FIXME: uncomment the following, after backend will support i16 neon type
+  //def : Pat<(i16 (int_aarch64_neon_sqsub
+  //                 (i16 FPR16:$Rd),
+  //                 (i16 (int_aarch64_neon_sqrdmulh (i16 FPR16:$Rn),
+  //                                                 (i16 FPR16:$Rm))))),
+  //          (SQRDMLSHv1i16 FPR16:$Rd, FPR16:$Rn, FPR16:$Rm)>;
+  def : Pat<(i32 (int_aarch64_neon_sqsub
+                   (i32 FPR32:$Rd),
+                   (i32 (int_aarch64_neon_sqrdmulh (i32 FPR32:$Rn),
+                                                   (i32 FPR32:$Rm))))),
+            (SQRDMLSHv1i32 FPR32:$Rd, FPR32:$Rn, FPR32:$Rm)>;
+}
 
 def : InstAlias<"cmls $dst, $src1, $src2",
                 (CMHSv1i64 FPR64:$dst, FPR64:$src2, FPR64:$src1), 0>;
@@ -4315,6 +4435,10 @@ defm SQDMLAL : SIMDIndexedLongSQDMLXSDTied<0, 0b0011, "sqdmlal",
                                            int_aarch64_neon_sqadd>;
 defm SQDMLSL : SIMDIndexedLongSQDMLXSDTied<0, 0b0111, "sqdmlsl",
                                            int_aarch64_neon_sqsub>;
+defm SQRDMLAH : SIMDIndexedSQRDMLxHSDTied<1, 0b1101, "sqrdmlah",
+                                          int_aarch64_neon_sqadd>;
+defm SQRDMLSH : SIMDIndexedSQRDMLxHSDTied<1, 0b1111, "sqrdmlsh",
+                                          int_aarch64_neon_sqsub>;
 defm SQDMULL : SIMDIndexedLongSD<0, 0b1011, "sqdmull", int_aarch64_neon_sqdmull>;
 defm UMLAL   : SIMDVectorIndexedLongSDTied<1, 0b0010, "umlal",
     TriOpFrag<(add node:$LHS, (int_aarch64_neon_umull node:$MHS, node:$RHS))>>;

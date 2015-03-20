@@ -106,6 +106,7 @@ private:
   OperandMatchResultTy tryParseAddSubImm(OperandVector &Operands);
   OperandMatchResultTy tryParseGPR64sp0Operand(OperandVector &Operands);
   bool tryParseVectorRegister(OperandVector &Operands);
+  OperandMatchResultTy tryParsePair(OperandVector &Operands);
 
 public:
   enum AArch64MatchResultTy {
@@ -204,6 +205,8 @@ private:
 
   struct BarrierOp {
     unsigned Val; // Not the enum since not all values have names.
+    const char *Data;
+    unsigned Length;
   };
 
   struct SysRegOp {
@@ -220,6 +223,8 @@ private:
 
   struct PrefetchOp {
     unsigned Val;
+    const char *Data;
+    unsigned Length;
   };
 
   struct ShiftExtendOp {
@@ -347,6 +352,11 @@ public:
     return Barrier.Val;
   }
 
+  StringRef getBarrierName() const {
+    assert(Kind == k_Barrier && "Invalid access!");
+    return StringRef(Barrier.Data, Barrier.Length);
+  }
+
   unsigned getReg() const override {
     assert(Kind == k_Register && "Invalid access!");
     return Reg.RegNum;
@@ -380,6 +390,11 @@ public:
   unsigned getPrefetch() const {
     assert(Kind == k_Prefetch && "Invalid access!");
     return Prefetch.Val;
+  }
+
+  StringRef getPrefetchName() const {
+    assert(Kind == k_Prefetch && "Invalid access!");
+    return StringRef(Prefetch.Data, Prefetch.Length);
   }
 
   AArch64_AM::ShiftExtendType getShiftExtendType() const {
@@ -860,7 +875,14 @@ public:
     return Kind == k_Register && !Reg.isVector &&
       AArch64MCRegisterClasses[AArch64::GPR64RegClassID].contains(Reg.RegNum);
   }
-
+  bool isPair32() const {
+    return Kind == k_Register && !Reg.isVector &&
+      AArch64MCRegisterClasses[AArch64::Pair32ClassRegClassID].contains(Reg.RegNum);
+  }
+  bool isPair64() const {
+    return Kind == k_Register && !Reg.isVector &&
+      AArch64MCRegisterClasses[AArch64::Pair64ClassRegClassID].contains(Reg.RegNum);
+  }
   bool isGPR64sp0() const {
     return Kind == k_Register && !Reg.isVector &&
       AArch64MCRegisterClasses[AArch64::GPR64spRegClassID].contains(Reg.RegNum);
@@ -1595,10 +1617,14 @@ public:
     return Op;
   }
 
-  static std::unique_ptr<AArch64Operand> CreateBarrier(unsigned Val, SMLoc S,
+  static std::unique_ptr<AArch64Operand> CreateBarrier(unsigned Val,
+                                                       StringRef Str,
+                                                       SMLoc S,
                                                        MCContext &Ctx) {
     auto Op = make_unique<AArch64Operand>(k_Barrier, Ctx);
     Op->Barrier.Val = Val;
+    Op->Barrier.Data = Str.data();
+    Op->Barrier.Length = Str.size();
     Op->StartLoc = S;
     Op->EndLoc = S;
     return Op;
@@ -1629,10 +1655,14 @@ public:
     return Op;
   }
 
-  static std::unique_ptr<AArch64Operand> CreatePrefetch(unsigned Val, SMLoc S,
+  static std::unique_ptr<AArch64Operand> CreatePrefetch(unsigned Val,
+                                                        StringRef Str,
+                                                        SMLoc S,
                                                         MCContext &Ctx) {
     auto Op = make_unique<AArch64Operand>(k_Prefetch, Ctx);
     Op->Prefetch.Val = Val;
+    Op->Barrier.Data = Str.data();
+    Op->Barrier.Length = Str.size();
     Op->StartLoc = S;
     Op->EndLoc = S;
     return Op;
@@ -1660,9 +1690,8 @@ void AArch64Operand::print(raw_ostream &OS) const {
        << AArch64_AM::getFPImmFloat(getFPImm()) << ") >";
     break;
   case k_Barrier: {
-    bool Valid;
-    StringRef Name = AArch64DB::DBarrierMapper().toString(getBarrier(), Valid);
-    if (Valid)
+    StringRef Name = getBarrierName();
+    if (!Name.empty())
       OS << "<barrier " << Name << ">";
     else
       OS << "<barrier invalid #" << getBarrier() << ">";
@@ -1705,9 +1734,8 @@ void AArch64Operand::print(raw_ostream &OS) const {
     OS << "c" << getSysCR();
     break;
   case k_Prefetch: {
-    bool Valid;
-    StringRef Name = AArch64PRFM::PRFMMapper().toString(getPrefetch(), Valid);
-    if (Valid)
+    StringRef Name = getPrefetchName();
+    if (!Name.empty())
       OS << "<prfop " << Name << ">";
     else
       OS << "<prfop invalid #" << getPrefetch() << ">";
@@ -1950,7 +1978,11 @@ AArch64AsmParser::tryParsePrefetch(OperandVector &Operands) {
       return MatchOperand_ParseFail;
     }
 
-    Operands.push_back(AArch64Operand::CreatePrefetch(prfop, S, getContext()));
+    bool Valid;
+    auto Mapper = AArch64PRFM::PRFMMapper(STI.getFeatureBits());
+    StringRef Name = Mapper.toString(MCE->getValue(), Valid);
+    Operands.push_back(AArch64Operand::CreatePrefetch(prfop, Name,
+                                                      S, getContext()));
     return MatchOperand_Success;
   }
 
@@ -1960,14 +1992,16 @@ AArch64AsmParser::tryParsePrefetch(OperandVector &Operands) {
   }
 
   bool Valid;
-  unsigned prfop = AArch64PRFM::PRFMMapper().fromString(Tok.getString(), Valid);
+  auto Mapper = AArch64PRFM::PRFMMapper(STI.getFeatureBits());
+  unsigned prfop = Mapper.fromString(Tok.getString(), Valid);
   if (!Valid) {
     TokError("pre-fetch hint expected");
     return MatchOperand_ParseFail;
   }
 
   Parser.Lex(); // Eat identifier token.
-  Operands.push_back(AArch64Operand::CreatePrefetch(prfop, S, getContext()));
+  Operands.push_back(AArch64Operand::CreatePrefetch(prfop, Tok.getString(),
+                                                    S, getContext()));
   return MatchOperand_Success;
 }
 
@@ -2569,8 +2603,11 @@ AArch64AsmParser::tryParseBarrierOperand(OperandVector &Operands) {
       Error(ExprLoc, "barrier operand out of range");
       return MatchOperand_ParseFail;
     }
-    Operands.push_back(
-        AArch64Operand::CreateBarrier(MCE->getValue(), ExprLoc, getContext()));
+    bool Valid;
+    auto Mapper = AArch64DB::DBarrierMapper(STI.getFeatureBits());
+    StringRef Name = Mapper.toString(MCE->getValue(), Valid);
+    Operands.push_back( AArch64Operand::CreateBarrier(MCE->getValue(), Name,
+                                                      ExprLoc, getContext()));
     return MatchOperand_Success;
   }
 
@@ -2580,7 +2617,8 @@ AArch64AsmParser::tryParseBarrierOperand(OperandVector &Operands) {
   }
 
   bool Valid;
-  unsigned Opt = AArch64DB::DBarrierMapper().fromString(Tok.getString(), Valid);
+  auto Mapper = AArch64DB::DBarrierMapper(STI.getFeatureBits());
+  unsigned Opt = Mapper.fromString(Tok.getString(), Valid);
   if (!Valid) {
     TokError("invalid barrier option name");
     return MatchOperand_ParseFail;
@@ -2592,8 +2630,8 @@ AArch64AsmParser::tryParseBarrierOperand(OperandVector &Operands) {
     return MatchOperand_ParseFail;
   }
 
-  Operands.push_back(
-      AArch64Operand::CreateBarrier(Opt, getLoc(), getContext()));
+  Operands.push_back( AArch64Operand::CreateBarrier(Opt, Tok.getString(),
+                                                    getLoc(), getContext()));
   Parser.Lex(); // Consume the option
 
   return MatchOperand_Success;
@@ -2618,8 +2656,8 @@ AArch64AsmParser::tryParseSysReg(OperandVector &Operands) {
   assert(IsKnown == (MSRReg != -1U) &&
          "register should be -1 if and only if it's unknown");
 
-  uint32_t PStateField =
-      AArch64PState::PStateMapper().fromString(Tok.getString(), IsKnown);
+  auto PStateMapper = AArch64PState::PStateMapper(STI.getFeatureBits());
+  uint32_t PStateField = PStateMapper.fromString(Tok.getString(), IsKnown);
   assert(IsKnown == (PStateField != -1U) &&
          "register should be -1 if and only if it's unknown");
 
@@ -4261,4 +4299,76 @@ unsigned AArch64AsmParser::validateTargetOperandClass(MCParsedAsmOperand &AsmOp,
   if (CE->getValue() == ExpectedVal)
     return Match_Success;
   return Match_InvalidOperand;
+}
+
+
+AArch64AsmParser::OperandMatchResultTy
+AArch64AsmParser::tryParsePair(OperandVector &Operands) {
+
+  SMLoc S = getLoc();
+
+  if (getParser().getTok().isNot(AsmToken::Identifier)) {
+    Error(S, "Expected register");
+    return MatchOperand_ParseFail;
+  }
+
+  int FirstReg = tryParseRegister();
+  if (FirstReg ==-1) {
+    return MatchOperand_ParseFail;
+  }
+
+  const MCRegisterClass &WRegClass =
+      AArch64MCRegisterClasses[AArch64::GPR32RegClassID];
+  const MCRegisterClass &XRegClass =
+      AArch64MCRegisterClasses[AArch64::GPR64RegClassID];
+
+  bool isXReg = XRegClass.contains(FirstReg),
+       isWReg = WRegClass.contains(FirstReg);
+  if (!isXReg && !isWReg) {
+    Error(S, "Expected register");
+    return MatchOperand_ParseFail;
+  }
+
+  const MCRegisterInfo *RI = getContext().getRegisterInfo();
+  unsigned FirstEncoding = RI->getEncodingValue(FirstReg);
+
+  if (FirstEncoding & 0x1) {
+    Error(S, "Expected even register");
+    return MatchOperand_ParseFail;
+  }
+
+  SMLoc M = getLoc();
+  if (getParser().getTok().isNot(AsmToken::Comma)) {
+    Error(M, "Expected Comma");
+    return MatchOperand_ParseFail;
+  }
+  // Eat the comma
+  getParser().Lex();
+
+  SMLoc E = getLoc();
+  int SecondReg = tryParseRegister();
+  if (SecondReg ==-1) {
+    return MatchOperand_ParseFail;
+  }
+
+  if (RI->getEncodingValue(SecondReg) != FirstEncoding + 1 ||
+      (isXReg && !XRegClass.contains(SecondReg)) ||
+      (isWReg && !WRegClass.contains(SecondReg))) {
+    Error(E,"Expected consecutive registers");
+    return MatchOperand_ParseFail;
+  }
+
+  unsigned Pair = 0;
+  if (isXReg) {
+    Pair = AArch64MCRegisterClasses[AArch64::Pair64ClassRegClassID].getRegister(
+        FirstEncoding);
+  } else {
+    Pair = AArch64MCRegisterClasses[AArch64::Pair32ClassRegClassID].getRegister(
+        FirstEncoding);
+  }
+
+  Operands.push_back(AArch64Operand::CreateReg(Pair, false, S, getLoc(),
+      getContext()));
+
+  return MatchOperand_Success;
 }
