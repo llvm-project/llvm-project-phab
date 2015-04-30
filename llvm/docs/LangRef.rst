@@ -10325,6 +10325,59 @@ sufficient overall improvement in code quality. For this reason,
 that the optimizer can otherwise deduce or facts that are of little use to the
 optimizer.
 
+'``llvm.noalias``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type>* @llvm.noalias.p<address space><type>(<type>* %ptr, metadata %scopes)
+
+Overview:
+"""""""""
+
+``llvm.noalias`` allows the optimizer to assume that pointers derived from the
+return value don't alias with those used by memory accesses tagged with
+associated ``noalias`` metadata.
+
+Arguments:
+""""""""""
+
+The first argument in the pointer on which the aliasing assumption is being
+placed. This pointer value is returned, but parts of the optimizer ignore this
+fact so that data dependencies on the return value will be maintained. The
+aliasing assumptions apply only to uses of pointers derived from the return
+value.
+
+The second argument is metadata that is a list of ``noalias`` metadata
+references. The format is identical to that required for ``noalias`` metadata.
+This list should have only one element.
+
+Semantics:
+""""""""""
+
+``llvm.noalias`` allows the optimizer to assume that pointers derived from the
+return value don't alias with those used by memory accesses tagged with
+``noalias`` metadata with compatible scopes. See the description of
+``alias.scope`` and ``noalias`` metadata for more information. The aliasing
+assumptions apply only to uses of pointers derived from the return value, and
+accesses using those derived pointers must themselves be tagged with
+``noalias`` metadata with compatible scopes.
+
+Unlike ``alias.scope`` metadata, which applies to only the access to which it
+is attached, the ``llvm.noalias`` intrinsic applies to all pointers derived
+from the return value. Placing an ``llvm.noalias`` intrinsic outside of a loop
+provides a mechanism for communicating that certain memory accesses don't alias
+with uses of a pointer in any loop iteration. This works only if the
+``llvm.noalias`` intrinsic itself dominates the loop body.
+
+Note that the use of ``alias.scope`` metadata does not block potential
+optimizations, as ``llvm.noalias`` might, and so use of  ``alias.scope``
+metadata when possible is recommended. Nevertheless, no code is generated for
+this intrinsic.
+
 .. _bitset.test:
 
 '``llvm.bitset.test``' Intrinsic
