@@ -1280,6 +1280,10 @@ void CodeGenFunction::EmitStoreOfScalar(llvm::Value *Value, llvm::Value *Addr,
 
   Value = EmitToMemory(Value, Ty);
 
+  auto NAI = NoAliasAddrMap.find(Addr);
+  if (NAI != NoAliasAddrMap.end())
+    Value = Builder.CreateNoAlias(Value, NAI->second);
+
   if (Ty->isAtomicType() ||
       (!isInit && typeIsSuitableForInlineAtomic(Ty, Volatile))) {
     EmitAtomicStore(RValue::get(Value),

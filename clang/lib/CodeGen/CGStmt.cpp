@@ -16,6 +16,7 @@
 #include "CodeGenModule.h"
 #include "TargetInfo.h"
 #include "clang/AST/StmtVisitor.h"
+#include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Basic/PrettyStackTrace.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Sema/LoopHint.h"
@@ -260,6 +261,40 @@ bool CodeGenFunction::EmitSimpleStmt(const Stmt *S) {
   return true;
 }
 
+namespace {
+/// We need to record memory instructions for this scope if there are
+/// restrict-qualified variables declared within it.
+struct RestrictFinder : RecursiveASTVisitor<RestrictFinder> {
+  bool FoundRestrictDecl;
+  RestrictFinder() : FoundRestrictDecl(false) {}
+
+  // Blocks and lambdas are handled as separate functions, so we need not
+  // traverse them in the parent context.
+  bool TraverseBlockExpr(BlockExpr *BE) { return true; }
+  bool TraverseLambdaBody(LambdaExpr *LE) { return true; }
+  bool TraverseCapturedStmt(CapturedStmt *CS) { return true; }
+
+  bool VisitVarDecl(VarDecl *VD) {
+    if (VD->getType().isRestrictQualified())
+      FoundRestrictDecl = true;
+
+    return FoundRestrictDecl;
+  }
+};
+}
+
+bool CodeGenFunction::hasLocalRestrictVars(const CompoundStmt &S) {
+  // We may have restrict-qualified variables, but if we're not optimizing, we
+  // don't do anything special with them.
+  if (CGM.getCodeGenOpts().OptimizationLevel == 0)
+    return false;
+
+  RestrictFinder Finder;
+  // Finder.Visit(&S);
+  Finder.TraverseStmt(const_cast<CompoundStmt *>(&S));
+  return Finder.FoundRestrictDecl;
+}
+
 /// EmitCompoundStmt - Emit a compound statement {..} node.  If GetLast is true,
 /// this captures the expression result of the last sub-statement and returns it
 /// (for use by the statement expression extension).
@@ -269,7 +304,7 @@ llvm::Value* CodeGenFunction::EmitCompoundStmt(const CompoundStmt &S, bool GetLa
                              "LLVM IR generation of compound statement ('{}')");
 
   // Keep track of the current cleanup stack depth, including debug scopes.
-  LexicalScope Scope(*this, S.getSourceRange());
+  LexicalScope Scope(*this, S.getSourceRange(), hasLocalRestrictVars(S));
 
   return EmitCompoundStmtWithoutScope(S, GetLast, AggSlot);
 }
@@ -450,6 +485,23 @@ void CodeGenFunction::LexicalScope::rescopeLabels() {
   }
 }
 
+void CodeGenFunction::LexicalNoAliasInfo::addNoAliasMD() {
+  if (MemoryInsts.empty() || NoAliasScopes.empty())
+    return;
+
+  llvm::MDNode *NewScopeList =
+    llvm::MDNode::get(MemoryInsts[0]->getParent()->getContext(),
+                      NoAliasScopes);
+
+  for (auto &I : MemoryInsts)
+    I->setMetadata(
+          llvm::LLVMContext::MD_noalias,
+          llvm::MDNode::concatenate(I->getMetadata(
+                                      llvm::LLVMContext::MD_noalias),
+                                      NewScopeList));
+
+  MemoryInsts.clear();
+}
 
 void CodeGenFunction::EmitLabelStmt(const LabelStmt &S) {
   EmitLabel(S.getDecl());
