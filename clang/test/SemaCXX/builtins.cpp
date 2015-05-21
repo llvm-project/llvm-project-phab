@@ -44,3 +44,9 @@ void no_ms_builtins() {
   __noop(1); // expected-error {{use of undeclared}}
   __debugbreak(); // expected-error {{use of undeclared}}
 }
+
+// Make sure the processing for type-generic bultins allows the usual C++ overloading.
+int __builtin_isnan(double);
+int __builtin_isnan(long double);
+int __builtin_isnan(float);
+int __builtin_isnan(...);

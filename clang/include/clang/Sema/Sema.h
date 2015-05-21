@@ -8726,6 +8726,32 @@ private:
   mutable IdentifierInfo *Ident_super;
   mutable IdentifierInfo *Ident___float128;
 
+private:
+  using BuiltinTypeBinding = std::pair<unsigned, const Type *>;
+  /// \brief All the declaration types of builtin libc/libm functions seen.
+  SmallVector<BuiltinTypeBinding, 2> SavedBuiltinFunctionDeclarations;
+
+  /// \brief Create an appropriate declaration for a type-generic builtin.
+  /// If a user-specified declaration of a type-generic builtin has
+  /// been seen in the TU (tracked by \c SavedBuiltinFunctionDeclarations), use
+  /// that if it contains legal arguments. If the argument types are illegal
+  /// emit a variadic declaration in C++, and a no-arg declaration in C as
+  /// fall-back cases.
+  ///
+  /// If the language is not C++11 or C99 (or derivations thereof), return
+  /// whatever \c GetBuiltinType would return.
+  ///
+  /// \param [in] II  The \c IdentifierInfo for the declaration name.
+  /// \param [in] ID  The identifier ID for the detected compiler builtin.
+  /// \param [in] Loc The location this declaration was found at.
+  /// \param [in] BT  The type computed from GetBuiltinType, used a fall-back
+  /// case if we can't be more specific.
+  ///
+  /// \return A declaration type for this builtin, or \c BT if no improvement
+  /// can be made.
+  QualType CheckGenericBuiltinRedeclaration(IdentifierInfo *II, unsigned ID,
+                                            SourceLocation Loc, QualType BT);
+
 protected:
   friend class Parser;
   friend class InitializationSequence;
