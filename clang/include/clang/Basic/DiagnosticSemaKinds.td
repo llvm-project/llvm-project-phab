@@ -470,7 +470,12 @@ def warn_strncat_wrong_size : Warning<
 def note_strncat_wrong_size : Note<
   "change the argument to be the free space in the destination buffer minus " 
   "the terminating null byte">;
-
+def err_incorrect_args_builtin_redecl : Error<
+  "%0 is a builtin that takes %1 argument%s1, it has been redeclared with %2 "
+  "argument%s2">;
+def err_builtin_expects_realfloating_type : Error<
+  "%0 expects either double, long double or float argument types, but has been "
+  "given an argument of type %1">;
 def warn_assume_side_effects : Warning<
   "the argument to %0 has side effects that will be discarded">,
   InGroup<DiagGroup<"assume">>;

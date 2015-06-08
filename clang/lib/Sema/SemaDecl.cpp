@@ -1703,6 +1703,152 @@ static StringRef getHeaderName(ASTContext::GetBuiltinTypeError Error) {
   llvm_unreachable("unhandled error kind");
 }
 
+
+QualType Sema::CheckGenericBuiltinRedeclaration(IdentifierInfo *II, unsigned ID,
+                                                SourceLocation Loc,
+                                                QualType BuiltinType) {
+  bool HasC99MathLib = LangOpts.CPlusPlus11 || LangOpts.C99;
+
+  FunctionType::ExtInfo EI(CC_C);
+  FunctionProtoType::ExtProtoInfo EPI;
+  EPI.ExtInfo = EI;
+  EPI.Variadic = LangOpts.CPlusPlus11;
+  SmallVector<QualType, 2> ArgTypes;
+
+  auto DefaultFunctionType = LangOpts.CPlusPlus11 ?
+    Context.getFunctionType(Context.IntTy, ArrayRef<QualType>(), EPI) :
+    Context.getFunctionNoProtoType(Context.IntTy, EI);
+
+  // Check SavedBuiltinFunctionDeclarations for an instance of the builtin
+  // ID.
+  auto SeenDecl = std::find_if(SavedBuiltinFunctionDeclarations.begin(),
+                               SavedBuiltinFunctionDeclarations.end(),
+                               [ID] (const BuiltinTypeBinding &B) {
+                                 return B.first == ID;
+                               });
+
+  if (SeenDecl != SavedBuiltinFunctionDeclarations.end()) {
+    const Type *TP = SeenDecl->second;
+
+    if (TP->isFunctionProtoType()) {
+      if (const FunctionProtoType *FPT = dyn_cast<FunctionProtoType>(TP)) {
+        // Ignore if we're looking at a variadic prototype like T name(...)
+        // In C99, the semantic checks for function merging will complain
+        // about having no parameter before the ellipses.
+        if (FPT->getNumParams()) {
+          switch (ID) {
+          case Builtin::BI__builtin_isgreater:
+          case Builtin::BI__builtin_isgreaterequal:
+          case Builtin::BI__builtin_isless:
+          case Builtin::BI__builtin_islessequal:
+          case Builtin::BI__builtin_islessgreater:
+          case Builtin::BI__builtin_isunordered:
+            // These builtins take two real-floating arguments, all that is
+            // done here is to check that if they've been declared with
+            // two real-floating arguments, use that as the declaration of
+            // the builtin.
+            {
+              if (FPT->getNumParams() != 2 && HasC99MathLib) {
+                Diag(Loc, diag::err_incorrect_args_builtin_redecl)
+                  << II->getName()
+                  << 2
+                  << FPT->getNumParams();
+                return DefaultFunctionType;
+              }
+              
+              QualType QT1 = FPT->getParamType(0);
+              QualType QT2 = FPT->getParamType(1);
+              ArgTypes.push_back(QT1);
+              ArgTypes.push_back(QT2);
+              
+              if (QT1->isRealFloatingType() && QT2->isRealFloatingType()) {
+                EPI.Variadic = false;
+                return Context.getFunctionType(Context.IntTy, ArgTypes, EPI);
+              } else {
+                if (HasC99MathLib) {
+                  // Emit a diagnostic here since the user has attempted to
+                  // redeclare a standard builtin with erroneous argument types.
+                  if (QT1->isRealFloatingType())
+                    QT1 = QT2;
+                  Diag(Loc, diag::err_builtin_expects_realfloating_type)
+                    << II->getName()
+                    << QT1.getAsString();              
+                  return DefaultFunctionType;
+                } else {
+                  // Return whatever the user defined. C99 builtins don't exist.
+                  EPI.Variadic = false;
+                  return Context.getFunctionType(Context.IntTy, ArgTypes, EPI);
+                }
+              }
+              break;
+            }
+          case Builtin::BI__builtin_isfinite:
+          case Builtin::BI__builtin_isinf:
+          case Builtin::BI__builtin_isinf_sign:
+          case Builtin::BI__builtin_isnormal:
+          case Builtin::BI__builtin_isnan:
+          case Builtin::BI__builtin_signbit:
+            {
+              QualType QT = FPT->getParamType(0);
+              ArgTypes.push_back(QT);
+
+              if (QT->isRealFloatingType()) {
+                EPI.Variadic = false;
+                return Context.getFunctionType(Context.IntTy, ArgTypes, EPI);
+              } else {
+                if (HasC99MathLib) {
+                  // Emit a diagnostic here since the user has attempted to
+                  // redeclare a standard builtin with an erroneous argument type.
+                  Diag(Loc, diag::err_builtin_expects_realfloating_type)
+                    << II->getName()
+                    << QT.getAsString();
+                  return DefaultFunctionType;
+                } else {
+                  // Return whatever the user defined. C99 builtins don't exist.
+                  EPI.Variadic = false;
+                  return Context.getFunctionType(Context.IntTy, ArgTypes, EPI);
+                }
+              }
+              break;
+            }
+          }
+        }
+      }
+    } else if (TP->isFunctionNoProtoType() && HasC99MathLib) {
+      // This is a K&R style int __builtin_name() declaration.
+      switch (ID) {
+      case Builtin::BI__builtin_isgreater:
+      case Builtin::BI__builtin_isgreaterequal:
+      case Builtin::BI__builtin_isless:
+      case Builtin::BI__builtin_islessequal:
+      case Builtin::BI__builtin_islessgreater:
+      case Builtin::BI__builtin_isunordered:
+        if (HasC99MathLib)
+          Diag(Loc, diag::err_incorrect_args_builtin_redecl)
+            << II->getName()
+            << 2
+            << 0;
+        break;
+      case Builtin::BI__builtin_isfinite:
+      case Builtin::BI__builtin_isinf:
+      case Builtin::BI__builtin_isinf_sign:
+      case Builtin::BI__builtin_isnormal:
+      case Builtin::BI__builtin_isnan:
+      case Builtin::BI__builtin_signbit:        
+        Diag(Loc, diag::err_incorrect_args_builtin_redecl)
+          << II->getName()
+          << 1
+          << 0;
+        break;
+      }
+      return DefaultFunctionType;
+    }
+  }
+
+  // Default to just returning whatever GetBuiltinType found.
+  return BuiltinType;
+}
+
 /// LazilyCreateBuiltin - The specified Builtin-ID was first used at
 /// file scope.  lazily create a decl for it. ForRedeclaration is true
 /// if we're creating this built-in in anticipation of redeclaring the
@@ -1714,6 +1860,9 @@ NamedDecl *Sema::LazilyCreateBuiltin(IdentifierInfo *II, unsigned ID,
 
   ASTContext::GetBuiltinTypeError Error;
   QualType R = Context.GetBuiltinType(ID, Error);
+
+  R = CheckGenericBuiltinRedeclaration(II, ID, Loc, R);
+
   if (Error) {
     if (ForRedeclaration)
       Diag(Loc, diag::warn_implicit_decl_requires_sysheader)
@@ -4731,6 +4880,16 @@ NamedDecl *Sema::HandleDeclarator(Scope *S, Declarator &D,
     if (IsLinkageLookup)
       Previous.clear(LookupRedeclarationWithLinkage);
 
+    if (IdentifierInfo *II = Name.getAsIdentifierInfo())
+      if (unsigned BuiltinID = II->getBuiltinID())
+        if (Context.BuiltinInfo.isLibFunction(BuiltinID))
+          // Keep the declaration of this library function for later processing
+          // if/when we're asking to generate a declaration for it. (See
+          // LazilyCreateBuiltin). For type-generic builtins, keeping the user
+          // declaration around can inform what declaration we should
+          // actually create.
+          SavedBuiltinFunctionDeclarations.push_back(std::make_pair(BuiltinID,
+                                                                    R.getTypePtr()));
     LookupName(Previous, S, CreateBuiltins);
   } else { // Something like "int foo::x;"
     LookupQualifiedName(Previous, DC);
