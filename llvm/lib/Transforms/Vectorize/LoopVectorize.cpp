@@ -264,11 +264,11 @@ public:
   InnerLoopVectorizer(Loop *OrigLoop, ScalarEvolution *SE, LoopInfo *LI,
                       DominatorTree *DT, const TargetLibraryInfo *TLI,
                       const TargetTransformInfo *TTI, unsigned VecWidth,
-                      unsigned UnrollFactor)
+                      unsigned UnrollFactor, unsigned MVSize)
       : OrigLoop(OrigLoop), SE(SE), LI(LI), DT(DT), TLI(TLI), TTI(TTI),
-        VF(VecWidth), UF(UnrollFactor), Builder(SE->getContext()),
-        Induction(nullptr), OldInduction(nullptr), WidenMap(UnrollFactor),
-        Legal(nullptr), AddedSafetyChecks(false) {}
+        VF(VecWidth), MaxVectorSize(MVSize), UF(UnrollFactor),
+        Builder(SE->getContext()), Induction(nullptr), OldInduction(nullptr),
+        WidenMap(UnrollFactor), Legal(nullptr), AddedSafetyChecks(false) {}
 
   // Perform the actual loop widening (vectorization).
   void vectorize(LoopVectorizationLegality *L) {
@@ -433,6 +433,9 @@ protected:
   /// vector elements.
   unsigned VF;
 
+  /// The max possible Vector Factor.
+  unsigned MaxVectorSize;
+
 protected:
   /// The vectorization unroll factor to use. Each scalar is vectorized to this
   /// many different vector instructions.
@@ -479,7 +482,8 @@ public:
   InnerLoopUnroller(Loop *OrigLoop, ScalarEvolution *SE, LoopInfo *LI,
                     DominatorTree *DT, const TargetLibraryInfo *TLI,
                     const TargetTransformInfo *TTI, unsigned UnrollFactor)
-      : InnerLoopVectorizer(OrigLoop, SE, LI, DT, TLI, TTI, 1, UnrollFactor) {}
+      : InnerLoopVectorizer(OrigLoop, SE, LI, DT, TLI, TTI, 1, UnrollFactor,
+                            0) {}
 
 private:
   void scalarizeInstruction(Instruction *Instr,
@@ -1088,7 +1092,7 @@ public:
                              const TargetLibraryInfo *TLI, AssumptionCache *AC,
                              const Function *F, const LoopVectorizeHints *Hints)
       : TheLoop(L), SE(SE), LI(LI), Legal(Legal), TTI(TTI), TLI(TLI),
-        TheFunction(F), Hints(Hints) {
+        TheFunction(F), Hints(Hints), MaxVectorSize(0) {
     CodeMetrics::collectEphemeralValues(L, AC, EphValues);
   }
 
@@ -1107,6 +1111,9 @@ public:
   /// needs to be vectorized. We ignore values that remain scalar such as
   /// 64 bit loop indices.
   unsigned getWidestType();
+
+  /// \return The maximum possible vector factor.
+  unsigned getMaxVectorSize() { return MaxVectorSize; }
 
   /// \return The desired interleave count.
   /// If interleave count has been specified by metadata it will be returned.
@@ -1177,6 +1184,8 @@ private:
   const Function *TheFunction;
   // Loop Vectorize Hint.
   const LoopVectorizeHints *Hints;
+  // The max possible Vector Factor.
+  unsigned MaxVectorSize;
 };
 
 /// Utility class for getting and setting loop vectorizer hints in the form
@@ -1675,7 +1684,8 @@ struct LoopVectorize : public FunctionPass {
       Unroller.vectorize(&LVL);
     } else {
       // If we decided that it is *legal* to vectorize the loop then do it.
-      InnerLoopVectorizer LB(L, SE, LI, DT, TLI, TTI, VF.Width, IC);
+      InnerLoopVectorizer LB(L, SE, LI, DT, TLI, TTI, VF.Width, IC,
+                             CM.getMaxVectorSize());
       LB.vectorize(&LVL);
       ++LoopsVectorized;
 
@@ -2461,7 +2471,7 @@ void InnerLoopVectorizer::createEmptyLoop() {
    the vectorized instructions while the old loop will continue to run the
    scalar remainder.
 
-       [ ] <-- Back-edge taken count overflow check.
+       [ ] <-- loop iteration number check.
     /   |
    /    v
   |    [ ] <-- vector loop bypass (may consist of multiple blocks).
@@ -2525,21 +2535,18 @@ void InnerLoopVectorizer::createEmptyLoop() {
   // Notice that the pre-header does not change, only the loop body.
   SCEVExpander Exp(*SE, DL, "induction");
 
-  // We need to test whether the backedge-taken count is uint##_max. Adding one
-  // to it will cause overflow and an incorrect loop trip count in the vector
-  // body. In case of overflow we want to directly jump to the scalar remainder
-  // loop.
-  Value *BackedgeCount =
-      Exp.expandCodeFor(BackedgeTakeCount, BackedgeTakeCount->getType(),
-                        VectorPH->getTerminator());
-  if (BackedgeCount->getType()->isPointerTy())
-    BackedgeCount = CastInst::CreatePointerCast(BackedgeCount, IdxTy,
-                                                "backedge.ptrcnt.to.int",
-                                                VectorPH->getTerminator());
-  Instruction *CheckBCOverflow =
-      CmpInst::Create(Instruction::ICmp, CmpInst::ICMP_EQ, BackedgeCount,
-                      Constant::getAllOnesValue(BackedgeCount->getType()),
-                      "backedge.overflow", VectorPH->getTerminator());
+  // We test the iteration number and if it is less than MaxVectorSize we want
+  // to directly jump to the scalar remainder loop.
+  Value *ExitCountValue = Exp.expandCodeFor(ExitCount, ExitCount->getType(),
+                                            VectorPH->getTerminator());
+  if (ExitCountValue->getType()->isPointerTy())
+    ExitCountValue = CastInst::CreatePointerCast(ExitCountValue, IdxTy,
+                                                 "exitcount.ptrcnt.to.int",
+                                                 VectorPH->getTerminator());
+  Instruction *CheckMinIters =
+      CmpInst::Create(Instruction::ICmp, CmpInst::ICMP_ULT, ExitCountValue,
+                      ConstantInt::get(ExitCount->getType(), MaxVectorSize),
+                      "min.iters.check", VectorPH->getTerminator());
 
   // The loop index does not have to start at Zero. Find the original start
   // value from the induction PHI node. If we don't have an induction variable
@@ -2594,12 +2601,11 @@ void InnerLoopVectorizer::createEmptyLoop() {
   // Generate code to check that the loop's trip count that we computed by
   // adding one to the backedge-taken count will not overflow.
   BasicBlock *NewVectorPH =
-      VectorPH->splitBasicBlock(VectorPH->getTerminator(), "overflow.checked");
+      VectorPH->splitBasicBlock(VectorPH->getTerminator(), "min.iters.checked");
   if (ParentLoop)
     ParentLoop->addBasicBlockToLoop(NewVectorPH, *LI);
-  ReplaceInstWithInst(
-      VectorPH->getTerminator(),
-      BranchInst::Create(ScalarPH, NewVectorPH, CheckBCOverflow));
+  ReplaceInstWithInst(VectorPH->getTerminator(),
+                      BranchInst::Create(ScalarPH, NewVectorPH, CheckMinIters));
   VectorPH = NewVectorPH;
 
   // This is the IR builder that we use to add all of the logic for bypassing
@@ -4477,7 +4483,7 @@ LoopVectorizationCostModel::selectVectorizationFactor(bool OptForSize) {
     MaxSafeDepDist = Legal->getMaxSafeDepDistBytes() * 8;
   WidestRegister = ((WidestRegister < MaxSafeDepDist) ?
                     WidestRegister : MaxSafeDepDist);
-  unsigned MaxVectorSize = WidestRegister / WidestType;
+  MaxVectorSize = WidestRegister / WidestType;
   DEBUG(dbgs() << "LV: The Widest type: " << WidestType << " bits.\n");
   DEBUG(dbgs() << "LV: The Widest register is: "
           << WidestRegister << " bits.\n");
