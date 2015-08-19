@@ -321,7 +321,8 @@ namespace __sanitizer {
     long pw_change;
     char *pw_class;
 #endif
-#if !(SANITIZER_ANDROID && (SANITIZER_WORDSIZE == 32))
+
+#if !(SANITIZER_ANDROID && (SANITIZER_WORDSIZE == 32) && !__aarch64__)
     char *pw_gecos;
 #endif
     char *pw_dir;
@@ -398,6 +399,23 @@ namespace __sanitizer {
     int cmsg_level;
     int cmsg_type;
   };
+#elif SANITIZER_ANDROID
+struct __sanitizer_msghdr {
+  void* msg_name;
+  unsigned msg_namelen;
+  struct __sanitizer_iovec* msg_iov;
+  unsigned long msg_iovlen;
+  void* msg_control;
+  unsigned long msg_controllen;
+  int msg_flags;
+};
+
+struct __sanitizer_cmsghdr {
+  unsigned long cmsg_len;
+  int cmsg_level;
+  int cmsg_type;
+};
+
 #else
   struct __sanitizer_msghdr {
     void *msg_name;
@@ -715,6 +733,50 @@ namespace __sanitizer {
     int _fileno;
   };
 # define SANITIZER_HAS_STRUCT_FILE 1
+#elif SANITIZER_ANDROID
+  struct __sanitizer__sbuf {
+    unsigned char* _base;
+    uptr _size;
+  };
+
+  struct __sanitizer_FILE  {
+    unsigned char *_p;  /* current position in (some) buffer */
+    int         _r;     /* read space left for getc() */
+    int         _w;     /* write space left for putc() */
+#if defined(__LP64__)
+    int         _flags; /* flags, below; this FILE is free if 0 */
+    int         _file;  /* fileno, if Unix descriptor, else -1 */
+#else
+    short       _flags; /* flags, below; this FILE is free if 0 */
+    short       _file;  /* fileno, if Unix descriptor, else -1 */
+#endif
+     /* the buffer (at least 1 byte, if !NULL) */
+    struct      __sanitizer__sbuf _bf;
+    int         _lbfsize;       /* 0 or -_bf._size, for inline putc */
+
+    /* operations */
+    void        *_cookie;       /* cookie passed to io functions */
+    int         (*_close)(void *a);
+    int         (*_read)(void *a , char *b, int c);
+    uptr        (*_seek)(void *a, uptr b, int c);
+    int         (*_write)(void *a, const char *b, int c);
+
+    /* extension data, to avoid further ABI breakage */
+    struct      __sanitizer__sbuf _ext;
+    /* data for long sequences of ungetc() */
+    unsigned char *_up; /* saved _p when _p is doing ungetc data */
+    int           _ur;  /* saved _r when _r is counting ungetc data */
+
+    unsigned char _ubuf[3];     /* guarantee an ungetc() buffer */
+    unsigned char _nbuf[1];     /* guarantee a getc() buffer */
+
+    struct      __sanitizer__sbuf _lb;     /* buffer for fgetln() */
+
+    /* Unix stdio files get aligned to block boundaries on fseek() */
+    int         _blksize;       /* stat.st_blksize (may be != _bf._size) */
+    uptr        _offset;        /* current lseek offset */
+  };
+# define SANITIZER_HAS_STRUCT_FILE 0
 #else
   typedef void __sanitizer_FILE;
 # define SANITIZER_HAS_STRUCT_FILE 0
