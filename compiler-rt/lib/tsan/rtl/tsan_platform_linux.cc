@@ -221,9 +221,12 @@ void InitializeShadowMemory() {
 #elif defined(__mips64)
   const uptr kMadviseRangeBeg  = 0xff00000000ull;
   const uptr kMadviseRangeSize = 0x0100000000ull;
-#elif defined(__aarch64__)
+#elif defined(__aarch64__) && !SANITIZER_ANDROID
   const uptr kMadviseRangeBeg  = 0x7e00000000ull;
   const uptr kMadviseRangeSize = 0x0100000000ull;
+#elif SANITIZER_TLS_WORKAROUND_NEEDED
+  const uptr kMadviseRangeBeg  = kHiAppMemBeg;
+  const uptr kMadviseRangeSize = kHiAppMemEnd - kHiAppMemBeg;
 #endif
   NoHugePagesInRegion(MemToShadow(kMadviseRangeBeg),
                       kMadviseRangeSize * kShadowMultiplier);
@@ -311,6 +314,18 @@ static void CheckAndProtect() {
     Die();
   }
 
+#if SANITIZER_TLS_WORKAROUND_NEEDED
+  // on aaarch64/android, the memory maps are significantly different
+  ProtectRange(kShadowEnd, kMetaShadowBeg);
+  ProtectRange(kMetaShadowEnd, kLoAppMemBeg);
+  ProtectRange(kLoAppMemEnd, kTraceMemBeg);
+
+  // Memory for traces is mapped lazily in MapThreadTrace.
+  // Protect the whole range for now, so that user does not map something here.
+  ProtectRange(kTraceMemBeg, kTraceMemEnd);
+  ProtectRange(kTraceMemEnd, kHeapMemBeg);
+  //ProtectRange(HeapEnd(), kHiAppMemBeg);
+#else
   ProtectRange(kLoAppMemEnd, kShadowBeg);
   ProtectRange(kShadowEnd, kMetaShadowBeg);
   ProtectRange(kMetaShadowEnd, kTraceMemBeg);
@@ -319,6 +334,7 @@ static void CheckAndProtect() {
   ProtectRange(kTraceMemBeg, kTraceMemEnd);
   ProtectRange(kTraceMemEnd, kHeapMemBeg);
   ProtectRange(HeapEnd(), kHiAppMemBeg);
+#endif
 }
 #endif  // #ifndef SANITIZER_GO
 
@@ -370,7 +386,7 @@ bool IsGlobalVar(uptr addr) {
 // This is required to properly "close" the fds, because we do not see internal
 // closes within glibc. The code is a pure hack.
 int ExtractResolvFDs(void *state, int *fds, int nfd) {
-#if SANITIZER_LINUX
+#if SANITIZER_LINUX && !SANITIZER_ANDROID
   int cnt = 0;
   __res_state *statp = (__res_state*)state;
   for (int i = 0; i < MAXNS && cnt < nfd; i++) {

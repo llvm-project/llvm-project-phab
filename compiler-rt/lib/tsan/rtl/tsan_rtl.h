@@ -34,6 +34,9 @@
 #include "sanitizer_common/sanitizer_libignore.h"
 #include "sanitizer_common/sanitizer_suppressions.h"
 #include "sanitizer_common/sanitizer_thread_registry.h"
+
+// this needs to be pulled in first
+#include "tsan_aarch64_tls_workaround.h"
 #include "tsan_clock.h"
 #include "tsan_defs.h"
 #include "tsan_flags.h"
@@ -410,11 +413,19 @@ struct ThreadState {
 };
 
 #ifndef SANITIZER_GO
+#if !SANITIZER_TLS_WORKAROUND_NEEDED
 __attribute__((tls_model("initial-exec")))
 extern THREADLOCAL char cur_thread_placeholder[];
 INLINE ThreadState *cur_thread() {
-  return reinterpret_cast<ThreadState *>(&cur_thread_placeholder);
+  return reinterpret_cast<ThreadState *>(&GetFromTLS(cur_thread_placeholder));
 }
+#else
+extern char &get_from_tls_cur_thread_placeholder();
+INLINE ThreadState *cur_thread() {
+  return reinterpret_cast<ThreadState *>
+    (&get_from_tls_cur_thread_placeholder());
+}
+#endif
 #endif
 
 class ThreadContext : public ThreadContextBase {

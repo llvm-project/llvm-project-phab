@@ -1,3 +1,7 @@
+if(${COMPILER_RT_CROSS_COMPILING_NOANDROID})
+SET(ANDROID "0" CACHE STRING "ANDROID" FORCE)
+endif()
+
 # CMake build for CompilerRT.
 #
 # This build assumes that CompilerRT is checked out into the

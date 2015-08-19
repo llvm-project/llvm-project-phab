@@ -171,6 +171,7 @@
 #include <linux/mtio.h>
 #include <linux/ppp_defs.h>
 #include <linux/if_ppp.h>
+#include <sys/socket.h>
 #endif
 
 #if SANITIZER_LINUX
@@ -1155,7 +1156,7 @@ CHECK_SIZE_AND_OFFSET(passwd, pw_gid);
 CHECK_SIZE_AND_OFFSET(passwd, pw_dir);
 CHECK_SIZE_AND_OFFSET(passwd, pw_shell);
 
-#if !SANITIZER_ANDROID
+#if !SANITIZER_ANDROID || (SANITIZER_ANDROID && __aarch64__)
 CHECK_SIZE_AND_OFFSET(passwd, pw_gecos);
 #endif
 

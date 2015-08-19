@@ -18,12 +18,23 @@ class ScopedInterceptor {
 
 }  // namespace __tsan
 
+#if SANITIZER_TLS_WORKAROUND_NEEDED
+#define SCOPED_INTERCEPTOR_RAW(func, ...) \
+    ThreadState *thr = cur_thread(); \
+    const uptr caller_pc = GET_CALLER_PC(); \
+    DPrintf("#%d: intercept " #func " %s:%d:%s\n", \
+            thr->tid, __FILE__, __LINE__, __PRETTY_FUNCTION__); \
+    ScopedInterceptor si(thr, #func, caller_pc); \
+    const uptr pc = StackTrace::GetCurrentPc(); \
+    (void)pc;
+#else
 #define SCOPED_INTERCEPTOR_RAW(func, ...) \
     ThreadState *thr = cur_thread(); \
     const uptr caller_pc = GET_CALLER_PC(); \
     ScopedInterceptor si(thr, #func, caller_pc); \
     const uptr pc = StackTrace::GetCurrentPc(); \
-    (void)pc; \
+    (void)pc;
+#endif // SANITIZER_TLS_WORKAROUND_NEEDED
 /**/
 
 #if SANITIZER_FREEBSD

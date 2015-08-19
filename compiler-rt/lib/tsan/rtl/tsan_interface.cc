@@ -23,8 +23,15 @@ using namespace __tsan;  // NOLINT
 typedef u16 uint16_t;
 typedef u32 uint32_t;
 typedef u64 uint64_t;
+#if SANITIZER_TLS_WORKAROUND_NEEDED
+static u64 __tsan_init_count = 0;
+#endif
 
 void __tsan_init() {
+#if SANITIZER_TLS_WORKAROUND_NEEDED
+  __tsan_init_count++;
+  DPrintf("__tsan_init called %lld times\n", __tsan_init_count);
+#endif
   Initialize(cur_thread());
 }
 

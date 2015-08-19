@@ -174,7 +174,15 @@ if(ANDROID)
   detect_target_arch()
   set(COMPILER_RT_OS_SUFFIX "-android")
 elseif(NOT APPLE) # Supported archs for Apple platforms are generated later
-  if("${LLVM_NATIVE_ARCH}" STREQUAL "X86")
+  # See If the user wants cross compiling, e.g. using clang for something
+  # other than android.
+  # This is useful if we want to use CMAKE_C_FLAGS and CMAKE_C_COMPILER to
+  # pass in cross compilation args, i.e. we are using a single version of clang
+  # that has a default target other than the host to generate compiler-rt for the
+  # host (or some other platform)
+  if(${COMPILER_RT_CROSS_COMPILING})
+    detect_target_arch()
+  elseif("${LLVM_NATIVE_ARCH}" STREQUAL "X86")
     if(NOT MSVC)
       test_target_arch(x86_64 "" "-m64")
       # FIXME: We build runtimes for both i686 and i386, as "clang -m32" may
@@ -260,7 +268,11 @@ set(ALL_LSAN_SUPPORTED_ARCH ${X86_64} mips64 mips64el)
 set(ALL_MSAN_SUPPORTED_ARCH ${X86_64} mips64 mips64el)
 set(ALL_PROFILE_SUPPORTED_ARCH ${X86_64} i386 i686 ${ARM32} mips mips64
     mipsel mips64el ${ARM64} powerpc64 powerpc64le)
+if(${COMPILER_RT_FORCE_TSAN_AARCH64})
+set(ALL_TSAN_SUPPORTED_ARCH ${X86_64} mips64 mips64el ${ARM64})
+else()
 set(ALL_TSAN_SUPPORTED_ARCH ${X86_64} mips64 mips64el)
+endif()
 set(ALL_UBSAN_SUPPORTED_ARCH ${X86_64} i386 i686 ${ARM32} ${ARM64} mips
     mipsel mips64 mips64el powerpc64 powerpc64le)
 set(ALL_SAFESTACK_SUPPORTED_ARCH ${X86_64} i386 i686)
@@ -492,7 +504,7 @@ else()
 endif()
 
 if (COMPILER_RT_HAS_SANITIZER_COMMON AND TSAN_SUPPORTED_ARCH AND
-    OS_NAME MATCHES "Linux|FreeBSD")
+    OS_NAME MATCHES "Linux|FreeBSD|Android")
   set(COMPILER_RT_HAS_TSAN TRUE)
 else()
   set(COMPILER_RT_HAS_TSAN FALSE)

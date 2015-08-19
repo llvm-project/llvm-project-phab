@@ -20,6 +20,16 @@ namespace std {
 struct nothrow_t {};
 }  // namespace std
 
+#if SANITIZER_TLS_WORKAROUND_NEEDED
+#include "interception/interception.h"
+
+DECLARE_REAL_AND_INTERCEPTOR(void *, malloc, uptr);
+DECLARE_REAL_AND_INTERCEPTOR(void, free, void *);
+
+#define __libc_malloc REAL(malloc)
+#define __libc_free   REAL(free)
+#endif
+
 #define OPERATOR_NEW_BODY(mangled_name) \
   if (cur_thread()->in_symbolizer) \
     return __libc_malloc(size); \

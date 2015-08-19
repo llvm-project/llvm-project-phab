@@ -45,7 +45,11 @@ extern "C" void __tsan_resume() {
 namespace __tsan {
 
 #ifndef SANITIZER_GO
+#if !SANITIZER_TLS_WORKAROUND_NEEDED
 THREADLOCAL char cur_thread_placeholder[sizeof(ThreadState)] ALIGNED(64);
+// these are the real accessor functions
+extern char &get_from_tls_cur_thread_placeholder();
+#endif
 #endif
 static char ctx_placeholder[sizeof(Context)] ALIGNED(64);
 Context *ctx;
@@ -294,7 +298,9 @@ static void CheckShadowMapping() {
           continue;
         const uptr s = MemToShadow(p);
         const uptr m = (uptr)MemToMeta(p);
-        VPrintf(3, "  checking pointer %p: shadow=%p meta=%p\n", p, s, m);
+        const uptr s1 = ShadowToMem(s);
+        VPrintf(3, "  checking pointer %p: shadow=%p meta=%p s2m=%p\n", \
+                p, s, m, s1);
         CHECK(IsAppMem(p));
         CHECK(IsShadowMem(s));
         CHECK_EQ(p & ~(kShadowCell - 1), ShadowToMem(s));
@@ -340,7 +346,7 @@ void Initialize(ThreadState *thr) {
   // On MIPS, TSan initialization is run before
   // __pthread_initialize_minimal_internal() is finished, so we can not spawn
   // new threads.
-#ifndef __mips__
+#if !defined(__mips__) && !SANITIZER_TLS_WORKAROUND_NEEDED
   StartBackgroundThread();
   SetSandboxingCallback(StopBackgroundThread);
 #endif

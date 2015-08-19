@@ -17,6 +17,7 @@ append_list_if(COMPILER_RT_HAS_WGLOBAL_CONSTRUCTORS_FLAG -Wglobal-constructors
 # FIXME: Add support for --sysroot=. compile flag:
 
 set(TSAN_SOURCES
+  rtl/tsan_aarch64_tls_workaround.cc
   rtl/tsan_clock.cc
   rtl/tsan_flags.cc
   rtl/tsan_fd.cc
@@ -53,6 +54,7 @@ elseif(UNIX)
 endif()
 
 set(TSAN_HEADERS
+  rtl/tsan_aarch64_tls_workaround.h
   rtl/tsan_clock.h
   rtl/tsan_defs.h
   rtl/tsan_dense_alloc.h

@@ -14,7 +14,6 @@
 
 #ifndef TSAN_PLATFORM_H
 #define TSAN_PLATFORM_H
-
 #if !defined(__LP64__) && !defined(_WIN64)
 # error "Only 64-bit is supported"
 #endif
@@ -87,6 +86,7 @@ const uptr kAppMemMsk     = 0xfc00000000ull;
 const uptr kAppMemXor     = 0x0400000000ull;
 const uptr kVdsoBeg       = 0xfffff00000ull;
 #elif defined(__aarch64__)
+#if !SANITIZER_ANDROID
 /*
 C/C++ on linux/aarch64 (39-bit VMA)
 0000 4000 00 - 0200 0000 00: main binary
@@ -113,7 +113,28 @@ const uptr kHiAppMemEnd   = 0x7fffffffffull;
 const uptr kAppMemMsk     = 0x7800000000ull;
 const uptr kAppMemXor     = 0x0800000000ull;
 const uptr kVdsoBeg       = 0x7f00000000ull;
-#endif
+#else
+/*
+// aarch64-android: -- memory maps are wierd here.
+*/
+const uptr kShadowBeg     = 0x1400000000ull;
+const uptr kShadowEnd     = 0x2400000000ull;
+const uptr kMetaShadowBeg = 0x3000000000ull;
+const uptr kMetaShadowEnd = 0x4000000000ull;
+const uptr kLoAppMemBeg   = 0x5500000000ull;
+const uptr kLoAppMemEnd   = 0x5600000000ull;
+const uptr kTraceMemBeg   = 0x6000000000ull;
+const uptr kTraceMemEnd   = 0x6200000000ull;
+const uptr kHeapMemBeg    = 0x7e00000000ull;
+const uptr kHeapMemEnd    = 0x7f00000000ull;
+const uptr kHiAppMemBeg   = 0x7f00000000ull;
+const uptr kHiAppMemEnd   = 0x8000000000ull;
+const uptr kAppMemMsk     = 0xfc00000000ull;
+const uptr kAppMemMskRtn  = 0x7c00000000ull;
+const uptr kAppMemXor     = 0x0400000000ull;
+const uptr kVdsoBeg       = 0xf000000000ull;
+#endif // !SANITIZER_ANDROID
+#endif // __aarch64__
 
 ALWAYS_INLINE
 bool IsAppMem(uptr mem) {
@@ -146,6 +167,16 @@ u32 *MemToMeta(uptr x) {
       ^ kAppMemXor) / kMetaShadowCell * kMetaShadowSize) | kMetaShadowBeg);
 }
 
+#if defined(__aarch64__)
+ALWAYS_INLINE
+uptr ShadowToMem(uptr s) {
+  CHECK(IsShadowMem(s));
+  if (s >= MemToShadow(kLoAppMemBeg) && s <= MemToShadow(kLoAppMemEnd - 1))
+    return (s / kShadowCnt) ^ kAppMemXor | kLoAppMemBeg;
+  else
+    return ((s / kShadowCnt) ^ kAppMemXor) | kAppMemMskRtn;
+}
+#else // __mips64 and __x86_64__
 ALWAYS_INLINE
 uptr ShadowToMem(uptr s) {
   CHECK(IsShadowMem(s));
@@ -154,6 +185,7 @@ uptr ShadowToMem(uptr s) {
   else
     return ((s / kShadowCnt) ^ kAppMemXor) | kAppMemMsk;
 }
+#endif
 
 static USED uptr UserRegions[] = {
   kLoAppMemBeg, kLoAppMemEnd,

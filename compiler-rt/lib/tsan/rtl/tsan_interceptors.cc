@@ -20,6 +20,10 @@
 #include "sanitizer_common/sanitizer_placement_new.h"
 #include "sanitizer_common/sanitizer_stacktrace.h"
 #include "interception/interception.h"
+
+// this needs to be pulled in first
+#include "tsan_aarch64_tls_workaround.h"
+
 #include "tsan_interceptors.h"
 #include "tsan_interface.h"
 #include "tsan_platform.h"
@@ -27,6 +31,14 @@
 #include "tsan_rtl.h"
 #include "tsan_mman.h"
 #include "tsan_fd.h"
+
+#if SANITIZER_TLS_WORKAROUND_NEEDED
+u64 GLOBAL_interceptor_count = 0;
+
+__attribute__((section(".preinit_array"), used))
+void (*__local_tsan_preinitc)(void) = __tsan_init;
+#endif // SANITIZER_TLS_WORKAROUND_NEEDED
+
 
 using namespace __tsan;  // NOLINT
 
@@ -44,6 +56,11 @@ using namespace __tsan;  // NOLINT
 #define PTHREAD_CREATE_DETACHED 2
 #endif
 
+
+#if SANITIZER_ANDROID
+#define __errno_location __errno
+#define fileno_unlocked fileno
+#endif
 
 #ifdef __mips__
 const int kSigCount = 129;
@@ -80,7 +97,9 @@ extern "C" int pthread_attr_setstacksize(void *attr, uptr stacksize);
 extern "C" int pthread_key_create(unsigned *key, void (*destructor)(void* v));
 extern "C" int pthread_setspecific(unsigned key, const void *v);
 DECLARE_REAL(int, pthread_mutexattr_gettype, void *, void *)
+#if !SANITIZER_ANDROID
 extern "C" int pthread_yield();
+#endif
 extern "C" int pthread_sigmask(int how, const __sanitizer_sigset_t *set,
                                __sanitizer_sigset_t *oldset);
 // REAL(sigfillset) defined in common interceptors.
@@ -88,15 +107,42 @@ DECLARE_REAL(int, sigfillset, __sanitizer_sigset_t *set)
 DECLARE_REAL(int, fflush, __sanitizer_FILE *fp)
 extern "C" void *pthread_self();
 extern "C" void _exit(int status);
+
 extern "C" int *__errno_location();
 extern "C" int fileno_unlocked(void *stream);
+
+#if SANITIZER_ANDROID && __aarch64__
+// bionic does not have __libc_(malloc/realloc/calloc/free)
+DECLARE_REAL(void *, malloc, uptr);
+DECLARE_REAL(void *, calloc, uptr, uptr);
+DECLARE_REAL(void *, realloc, void *, uptr);
+DECLARE_REAL(void, free, void *);
+
+#define __libc_malloc  REAL(malloc)
+#define __libc_realloc REAL(realloc)
+#define __libc_calloc  REAL(calloc)
+#define __libc_free    REAL(free)
+#else
+extern "C" void *__libc_malloc(uptr size);
+extern "C" void __libc_free(void *ptr);
 extern "C" void *__libc_calloc(uptr size, uptr n);
 extern "C" void *__libc_realloc(void *ptr, uptr size);
+#endif
+
 extern "C" int dirfd(void *dirp);
 #if !SANITIZER_FREEBSD
 extern "C" int mallopt(int param, int value);
 #endif
+
+#if SANITIZER_ANDROID
+extern __sanitizer_FILE __sF[];
+#define         stdout  (&__sF[1])
+#define         stderr  (&__sF[2])
+#else
 extern __sanitizer_FILE *stdout, *stderr;
+#endif // SANITIZER_ANDROID
+
+
 const int PTHREAD_MUTEX_RECURSIVE = 1;
 const int PTHREAD_MUTEX_RECURSIVE_NP = 1;
 const int EINVAL = 22;
@@ -127,7 +173,7 @@ typedef long long_t;  // NOLINT
 # define F_TLOCK 2      /* Test and lock a region for exclusive use.  */
 # define F_TEST  3      /* Test a region for other processes locks.  */
 
-#define errno (*__errno_location())
+#define get_errno_lval (*__errno_location())
 
 typedef void (*sighandler_t)(int sig);
 typedef void (*sigactionhandler_t)(int sig, my_siginfo_t *siginfo, void *uctx);
@@ -538,7 +584,11 @@ TSAN_INTERCEPTOR(void*, __libc_memalign, uptr align, uptr sz) {
 
 TSAN_INTERCEPTOR(void*, calloc, uptr size, uptr n) {
   if (cur_thread()->in_symbolizer)
+#if SANITIZER_ANDROID
+    return REAL(calloc)(size, n);
+#else
     return __libc_calloc(size, n);
+#endif
   void *p = 0;
   {
     SCOPED_INTERCEPTOR_RAW(calloc, size, n);
@@ -550,7 +600,12 @@ TSAN_INTERCEPTOR(void*, calloc, uptr size, uptr n) {
 
 TSAN_INTERCEPTOR(void*, realloc, void *p, uptr size) {
   if (cur_thread()->in_symbolizer)
+#if SANITIZER_ANDROID
+    return REAL(realloc)(p, size);
+#else
     return __libc_realloc(p, size);
+#endif
+
   if (p)
     invoke_free_hook(p);
   {
@@ -668,7 +723,7 @@ static bool fix_mmap_addr(void **addr, long_t sz, int flags) {
   if (*addr) {
     if (!IsAppMem((uptr)*addr) || !IsAppMem((uptr)*addr + sz - 1)) {
       if (flags & MAP_FIXED) {
-        errno = EINVAL;
+        get_errno_lval = EINVAL;
         return false;
       } else {
         *addr = 0;
@@ -831,7 +886,7 @@ extern "C" void *__tsan_thread_start_func(void *arg) {
     }
     ThreadIgnoreEnd(thr, 0);
     while ((tid = atomic_load(&p->tid, memory_order_acquire)) == 0)
-      pthread_yield();
+      internal_sched_yield();
     ThreadStart(thr, tid, GetTid());
     atomic_store(&p->tid, 0, memory_order_release);
   }
@@ -891,7 +946,7 @@ TSAN_INTERCEPTOR(int, pthread_create,
     //    before the new thread got a chance to acquire from it in ThreadStart.
     atomic_store(&p.tid, tid, memory_order_release);
     while (atomic_load(&p.tid, memory_order_acquire) != 0)
-      pthread_yield();
+      internal_sched_yield();
   }
   if (attr == &myattr)
     pthread_attr_destroy(&myattr);
@@ -1265,7 +1320,7 @@ TSAN_INTERCEPTOR(int, pthread_once, void *o, void (*f)()) {
     atomic_store(a, 2, memory_order_release);
   } else {
     while (v != 2) {
-      pthread_yield();
+      internal_sched_yield();
       v = atomic_load(a, memory_order_acquire);
     }
     if (!thr->in_ignored_lib)
@@ -1419,7 +1474,7 @@ TSAN_INTERCEPTOR(int, lstat64, const char *path, void *buf) {
 #define TSAN_MAYBE_INTERCEPT_LSTAT64
 #endif
 
-#if !SANITIZER_FREEBSD
+#if !SANITIZER_FREEBSD && !SANITIZER_ANDROID
 TSAN_INTERCEPTOR(int, __fxstat, int version, int fd, void *buf) {
   SCOPED_TSAN_INTERCEPTOR(__fxstat, version, fd, buf);
   if (fd > 0)
@@ -1432,7 +1487,9 @@ TSAN_INTERCEPTOR(int, __fxstat, int version, int fd, void *buf) {
 #endif
 
 TSAN_INTERCEPTOR(int, fstat, int fd, void *buf) {
-#if SANITIZER_FREEBSD
+// SANITIZER_TLS_WORKAROUND_NEEDED is for ANDROID&&__aarch64__
+// ANDROID does not have fxstat and friends
+#if SANITIZER_FREEBSD||SANITIZER_TLS_WORKAROUND_NEEDED
   SCOPED_TSAN_INTERCEPTOR(fstat, fd, buf);
   if (fd > 0)
     FdAccess(thr, pc, fd);
@@ -1445,7 +1502,7 @@ TSAN_INTERCEPTOR(int, fstat, int fd, void *buf) {
 #endif
 }
 
-#if !SANITIZER_FREEBSD
+#if !SANITIZER_FREEBSD && !SANITIZER_TLS_WORKAROUND_NEEDED
 TSAN_INTERCEPTOR(int, __fxstat64, int version, int fd, void *buf) {
   SCOPED_TSAN_INTERCEPTOR(__fxstat64, version, fd, buf);
   if (fd > 0)
@@ -1457,7 +1514,7 @@ TSAN_INTERCEPTOR(int, __fxstat64, int version, int fd, void *buf) {
 #define TSAN_MAYBE_INTERCEPT___FXSTAT64
 #endif
 
-#if !SANITIZER_FREEBSD
+#if !SANITIZER_FREEBSD && !SANITIZER_TLS_WORKAROUND_NEEDED
 TSAN_INTERCEPTOR(int, fstat64, int fd, void *buf) {
   SCOPED_TSAN_INTERCEPTOR(__fxstat64, 0, fd, buf);
   if (fd > 0)
@@ -1466,7 +1523,17 @@ TSAN_INTERCEPTOR(int, fstat64, int fd, void *buf) {
 }
 #define TSAN_MAYBE_INTERCEPT_FSTAT64 TSAN_INTERCEPT(fstat64)
 #else
+#if SANITIZER_TLS_WORKAROUND_NEEDED
+TSAN_INTERCEPTOR(int, fstat64, int fd, void *buf) {
+  SCOPED_TSAN_INTERCEPTOR(fstat64, fd, buf);
+  if (fd > 0)
+    FdAccess(thr, pc, fd);
+  return REAL(fstat64)(fd, buf);
+}
+#define TSAN_MAYBE_INTERCEPT_FSTAT64 TSAN_INTERCEPT(fstat64)
+#else
 #define TSAN_MAYBE_INTERCEPT_FSTAT64
+#endif
 #endif
 
 TSAN_INTERCEPTOR(int, open, const char *name, int flags, int mode) {
@@ -1867,8 +1934,8 @@ static void CallUserSignalHandler(ThreadState *thr, bool sync, bool acquire,
   if (acquire)
     Acquire(thr, 0, (uptr)&sigactions[sig]);
   // Ensure that the handler does not spoil errno.
-  const int saved_errno = errno;
-  errno = 99;
+  const int saved_errno = get_errno_lval;
+  get_errno_lval = 99;
   // This code races with sigaction. Be careful to not read sa_sigaction twice.
   // Also need to remember pc for reporting before the call,
   // because the handler can reset it.
@@ -1888,7 +1955,7 @@ static void CallUserSignalHandler(ThreadState *thr, bool sync, bool acquire,
   // because in async signal processing case (when handler is called directly
   // from rtl_generic_sighandler) we have not yet received the reraised
   // signal; and it looks too fragile to intercept all ways to reraise a signal.
-  if (flags()->report_bugs && !sync && sig != SIGTERM && errno != 99) {
+  if (flags()->report_bugs && !sync && sig != SIGTERM && get_errno_lval != 99) {
     VarSizeStackTrace stack;
     // StackTrace::GetNestInstructionPc(pc) is used because return address is
     // expected, OutputReport() will undo this.
@@ -1900,7 +1967,7 @@ static void CallUserSignalHandler(ThreadState *thr, bool sync, bool acquire,
       OutputReport(thr, rep);
     }
   }
-  errno = saved_errno;
+  get_errno_lval = saved_errno;
 }
 
 void ProcessPendingSignals(ThreadState *thr) {
@@ -1910,10 +1977,21 @@ void ProcessPendingSignals(ThreadState *thr) {
     return;
   atomic_store(&sctx->have_pending_signals, 0, memory_order_relaxed);
   atomic_fetch_add(&thr->in_signal_handler, 1, memory_order_relaxed);
+#if SANITIZER_TLS_WORKAROUND_NEEDED
+  extern __sanitizer_sigset_t &get_from_tls_emptyset();
+  extern __sanitizer_sigset_t &get_from_tls_oldset();
+  extern void internal_sigfillset(__sanitizer_sigset_t *f);
+#else
   // These are too big for stack.
   static THREADLOCAL __sanitizer_sigset_t emptyset, oldset;
-  CHECK_EQ(0, REAL(sigfillset)(&emptyset));
-  CHECK_EQ(0, pthread_sigmask(SIG_SETMASK, &emptyset, &oldset));
+#endif
+  __sanitizer_sigset_t *P =  & GetFromTLS(emptyset);
+  CHECK_EQ(0, REAL(sigfillset)(P));
+  __sanitizer_sigset_t *E = &GetFromTLS(emptyset);
+  __sanitizer_sigset_t *O = &GetFromTLS(oldset);
+
+  CHECK_EQ(0, pthread_sigmask(SIG_SETMASK, E, O));
+
   for (int sig = 0; sig < kSigCount; sig++) {
     SignalDesc *signal = &sctx->pending_signals[sig];
     if (signal->armed) {
@@ -1922,7 +2000,7 @@ void ProcessPendingSignals(ThreadState *thr) {
           &signal->siginfo, &signal->ctx);
     }
   }
-  CHECK_EQ(0, pthread_sigmask(SIG_SETMASK, &oldset, 0));
+  CHECK_EQ(0, pthread_sigmask(SIG_SETMASK, &GetFromTLS(oldset), 0));
   atomic_fetch_add(&thr->in_signal_handler, -1, memory_order_relaxed);
 }
 
@@ -2463,7 +2541,7 @@ void InitializeInterceptors() {
   REAL(memcpy) = internal_memcpy;
 
   // Instruct libc malloc to consume less memory.
-#if !SANITIZER_FREEBSD
+#if !SANITIZER_FREEBSD && !SANITIZER_ANDROID
   mallopt(1, 0);  // M_MXFAST
   mallopt(-3, 32*1024);  // M_MMAP_THRESHOLD
 #endif

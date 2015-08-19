@@ -9,6 +9,7 @@ __tsan_unaligned*
 __tsan_release
 __tsan_acquire
 __ubsan_*
+InitTSanWorkAround
 Annotate*
 WTFAnnotate*
 RunningOnValgrind

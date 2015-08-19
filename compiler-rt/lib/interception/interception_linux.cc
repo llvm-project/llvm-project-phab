@@ -19,8 +19,14 @@
 
 namespace __interception {
 bool GetRealFunctionAddress(const char *func_name, uptr *func_addr,
-    uptr real, uptr wrapper) {
+                            uptr real, uptr wrapper) {
   *func_addr = (uptr)dlsym(RTLD_NEXT, func_name);
+#if defined(__aarch64__) && defined(__ANDROID__)
+  // At least one functions, such as android's dl_iterate_phdr
+  // need RTLD_DEFAULT to be found properly
+  if (!(*func_addr))
+    *func_addr = (uptr)dlsym(RTLD_DEFAULT, func_name);
+#endif
   return real == wrapper;
 }
 

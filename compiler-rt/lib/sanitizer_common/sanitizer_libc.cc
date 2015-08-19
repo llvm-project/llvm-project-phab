@@ -71,6 +71,19 @@ void *internal_memmove(void *dest, const void *src, uptr n) {
   return dest;
 }
 
+void *internal_malloc(uptr n) {
+  return InternalAlloc(n);
+}
+
+void *internal_calloc(uptr n, uptr s) {
+  void *rtn = InternalAlloc(n * s);
+  if (rtn) {
+    internal_memset(rtn, 0, n * s);
+  }
+  return (void*)0;
+}
+
+
 // Semi-fast bzero for 16-aligned data. Still far from peak performance.
 void internal_bzero_aligned16(void *s, uptr n) {
   struct S16 { u64 a, b; } ALIGNED(16);
