@@ -246,6 +246,8 @@ void MCObjectFileInfo::initMachOMCObjectFileInfo(Triple T) {
 }
 
 void MCObjectFileInfo::initELFMCObjectFileInfo(Triple T) {
+  bool eh_frame_writable = false;
+
   switch (T.getArch()) {
   case Triple::mips:
   case Triple::mipsel:
@@ -338,6 +340,15 @@ void MCObjectFileInfo::initELFMCObjectFileInfo(Triple T) {
                     dwarf::DW_EH_PE_sdata4;
     // We don't support PC-relative LSDA references in GAS so we use the default
     // DW_EH_PE_absptr for those.
+
+    // The section .eh_frame exhibits absolute addresses which require fixups.
+    // While the gnu linker can transform them in relative references at
+    // linking time, at the moment the mclinker does not provide this
+    // functionality. Setting the section as writable allows the fixups to be
+    // resolved at run time.
+    if (RelocM == Reloc::PIC_) {
+      eh_frame_writable = true;
+    }
     break;
   case Triple::ppc64:
   case Triple::ppc64le:
@@ -401,6 +412,9 @@ void MCObjectFileInfo::initELFMCObjectFileInfo(Triple T) {
       EHSectionType = ELF::SHT_X86_64_UNWIND;
     else
       EHSectionFlags |= ELF::SHF_WRITE;
+  }
+  if (eh_frame_writable) {
+    EHSectionFlags |= ELF::SHF_WRITE;
   }
 
   // ELF
