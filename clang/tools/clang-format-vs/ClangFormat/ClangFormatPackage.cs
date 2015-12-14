@@ -12,12 +12,14 @@
 //
 //===----------------------------------------------------------------------===//
 
+using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.Editor;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
 using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Text.Editor;
 using Microsoft.VisualStudio.TextManager.Interop;
+using Microsoft.VisualStudio.ComponentModelHost;
 using System;
 using System.Collections;
 using System.ComponentModel;
@@ -163,6 +165,15 @@ namespace LLVM.ClangFormat
             get { return sortIncludes; }
             set { sortIncludes = value; }
         }
+
+        [Category("LLVM/Clang")]
+        [DisplayName("Reformat On Save")]
+        [Description("Reformat code when the source file is saved on disk")]
+        public bool ReformatOnSave
+        {
+            get;
+            set;
+        }
     }
 
     [PackageRegistration(UseManagedResourcesOnly = true)]
@@ -170,12 +181,19 @@ namespace LLVM.ClangFormat
     [ProvideMenuResource("Menus.ctmenu", 1)]
     [Guid(GuidList.guidClangFormatPkgString)]
     [ProvideOptionPage(typeof(OptionPageGrid), "LLVM/Clang", "ClangFormat", 0, 0, true)]
-    public sealed class ClangFormatPackage : Package
+    [ProvideAutoLoad(UIContextGuids80.NoSolution)]
+    public sealed class ClangFormatPackage : Package, IVsRunningDocTableEvents3
     {
+        private RunningDocumentTable runningDocumentTable;
+        private uint adviseCookie;
+
         #region Package Members
         protected override void Initialize()
         {
             base.Initialize();
+
+            runningDocumentTable = new RunningDocumentTable(this);
+            adviseCookie = runningDocumentTable.Advise(this);
 
             var commandService = GetService(typeof(IMenuCommandService)) as OleMenuCommandService;
             if (commandService != null)
@@ -184,6 +202,13 @@ namespace LLVM.ClangFormat
                 var menuItem = new MenuCommand(MenuItemCallback, menuCommandID);
                 commandService.AddCommand(menuItem);
             }
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            runningDocumentTable.Unadvise(adviseCookie);
+
+            base.Dispose(disposing);
         }
         #endregion
 
@@ -202,10 +227,16 @@ namespace LLVM.ClangFormat
             if (start >= text.Length && text.Length > 0)
                 start = text.Length - 1;
             string path = GetDocumentParent(view);
+            FormatTextBuffer(view.TextBuffer, start, length, path);
+        }
+
+        private void FormatTextBuffer(ITextBuffer textBuffer, int offset, int length, string path)
+        {
             try
             {
-                var root = XElement.Parse(RunClangFormat(text, start, length, path));
-                var edit = view.TextBuffer.CreateEdit();
+                string text = textBuffer.CurrentSnapshot.GetText();
+                var root = XElement.Parse(RunClangFormat(text, offset, length, path));
+                var edit = textBuffer.CreateEdit();
                 foreach (XElement replacement in root.Descendants("replacement"))
                 {
                     var span = new Span(
@@ -316,7 +347,7 @@ namespace LLVM.ClangFormat
             var userData = (IVsUserData)textView;
             if (userData == null)
                 return null;
-            Guid guidWpfViewHost = DefGuidList.guidIWpfTextViewHost;
+            Guid guidWpfViewHost = Microsoft.VisualStudio.Editor.DefGuidList.guidIWpfTextViewHost;
             object host;
             userData.GetData(ref guidWpfViewHost, out host);
             return ((IWpfTextViewHost)host).TextView;
@@ -346,6 +377,12 @@ namespace LLVM.ClangFormat
             return page.SortIncludes;
         }
 
+        private bool ShouldReformatOnSave()
+        {
+            var page = (OptionPageGrid)GetDialogPage(typeof(OptionPageGrid));
+            return page.ReformatOnSave;
+        }
+
         private string GetDocumentParent(IWpfTextView view)
         {
             ITextDocument document;
@@ -354,6 +391,79 @@ namespace LLVM.ClangFormat
                 return Directory.GetParent(document.FilePath).ToString();
             }
             return null;
+        }
+
+        public int OnAfterFirstDocumentLock(uint docCookie, uint dwRDTLockType,
+            uint dwReadLocksRemaining, uint dwEditLocksRemaining)
+        {
+            return VSConstants.S_OK;
+        }
+
+        public int OnBeforeLastDocumentUnlock(uint docCookie, uint dwRDTLockType,
+            uint dwReadLocksRemaining, uint dwEditLocksRemaining)
+        {
+            return VSConstants.S_OK;
+        }
+
+        public int OnAfterSave(uint docCookie)
+        {
+            return VSConstants.S_OK;
+        }
+
+        public int OnAfterAttributeChange(uint docCookie, uint grfAttribs)
+        {
+            return VSConstants.S_OK;
+        }
+
+        public int OnBeforeDocumentWindowShow(uint docCookie, int fFirstShow, IVsWindowFrame pFrame)
+        {
+            return VSConstants.S_OK;
+        }
+
+        public int OnAfterDocumentWindowHide(uint docCookie, IVsWindowFrame pFrame)
+        {
+            return VSConstants.S_OK;
+        }
+
+        public int OnAfterAttributeChangeEx(uint docCookie, uint grfAttribs,
+            IVsHierarchy pHierOld, uint itemidOld, string pszMkDocumentOld,
+            IVsHierarchy pHierNew, uint itemidNew, string pszMkDocumentNew)
+        {
+            return VSConstants.S_OK;
+        }
+
+        public int OnBeforeSave(uint docCookie)
+        {
+            if (!ShouldReformatOnSave())
+                return VSConstants.S_OK;
+
+            var documentInfo = runningDocumentTable.GetDocumentInfo(docCookie);
+            if (documentInfo.DocData == null)
+                return VSConstants.S_OK;
+
+            var buffer = documentInfo.DocData as IVsTextBuffer;
+            if (buffer == null)
+                return VSConstants.S_OK;
+
+            var componentModel = GetService(typeof(SComponentModel)) as IComponentModel;
+            if (componentModel == null)
+                return VSConstants.S_OK;
+
+            var editorAdaptersFactoryService = componentModel.GetService<IVsEditorAdaptersFactoryService>();
+            if (editorAdaptersFactoryService == null)
+                return VSConstants.S_OK;
+            
+            var textBuffer = editorAdaptersFactoryService.GetDocumentBuffer(buffer);
+            if (textBuffer == null)
+                return VSConstants.S_OK;
+
+            if (!textBuffer.ContentType.IsOfType("C/C++"))
+                return VSConstants.S_OK;
+
+            string text = textBuffer.CurrentSnapshot.GetText();
+            FormatTextBuffer(textBuffer, 0, text.Length, Directory.GetParent(documentInfo.Moniker).ToString());
+
+            return VSConstants.S_OK;
         }
     }
 }
