@@ -1,4 +1,5 @@
 // Header for PCH test cxx-templates.cpp
+#pragma clang diagnostic ignored "-Wnon-template-friend"
 
 template <typename T1, typename T2>
 struct S;

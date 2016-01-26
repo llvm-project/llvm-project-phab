@@ -104,7 +104,7 @@ namespace cyclic_module_load {
 }
 
 #ifndef NO_ERRORS
-// expected-error@cxx-templates.h:305 {{incomplete}}
+// expected-error@cxx-templates.h:306 {{incomplete}}
 template int local_extern::f<int[]>(); // expected-note {{in instantiation of}}
 #endif
 template int local_extern::g<int[]>();

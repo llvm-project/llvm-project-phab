@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -verify -emit-llvm-only %s
+// RUN: %clang_cc1 -verify -emit-llvm-only -Wno-non-template-friend %s
 
 namespace test0 {
 template <typename T> struct Num {
