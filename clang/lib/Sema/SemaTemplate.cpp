@@ -2542,7 +2542,7 @@ DeclResult Sema::ActOnVarTemplateSpecialization(
             InstantiationDependent)) {
       Diag(TemplateNameLoc, diag::err_partial_spec_fully_specialized)
           << VarTemplate->getDeclName();
-      IsPartialSpecialization = false;
+      return true;
     }
 
     if (isSameAsPrimaryTemplate(VarTemplate->getTemplateParameters(),
@@ -6286,7 +6286,7 @@ Sema::ActOnClassTemplateSpecialization(Scope *S, unsigned TagSpec,
                                                      InstantiationDependent)) {
       Diag(TemplateNameLoc, diag::err_partial_spec_fully_specialized)
         << ClassTemplate->getDeclName();
-      isPartialSpecialization = false;
+      return true;
     }
   }
 
