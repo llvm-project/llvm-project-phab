@@ -1,8 +1,8 @@
-; RUN: opt < %s -basicaa -globalopt -instcombine -loop-rotate -licm -instcombine -indvars -loop-deletion -constmerge -S | FileCheck %s
+; RUN: opt < %s -basicaa -globalopt -instcombine -loop-rotate -licm -instcombine -indvars -constmerge -loop-deletion -S | FileCheck %s
 ; PR11882: ComputeLoadConstantCompareExitLimit crash.
 ;
 ; for.body is deleted leaving a loop-invariant load.
-; CHECK-NOT: for.body
+; CHECK-NOT: for.body:
 target datalayout = "e-p:64:64:64-n32:64"
 
 @func_21_l_773 = external global i32, align 4

@@ -366,6 +366,12 @@ public:
   /// invariant.
   bool hasLoopInvariantOperands(const Instruction *I) const;
 
+  bool isLoopInvariantOutsideSubLoop(const Value *V,
+                                     const Loop *Sub) const;
+
+  bool hasLoopInvariantOperandsOutsideSubLoop(const Instruction *I,
+                                              const Loop *Sub) const;
+
   /// If the given value is an instruction inside of the loop and it can be
   /// hoisted, do so to make it trivially loop-invariant.
   /// Return true if the value after any hoisting is loop invariant. This
