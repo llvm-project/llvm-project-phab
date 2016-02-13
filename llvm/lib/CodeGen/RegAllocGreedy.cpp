@@ -62,7 +62,7 @@ SplitSpillMode("split-spill-mode", cl::Hidden,
              clEnumValN(SplitEditor::SM_Size,  "size",  "Optimize for size"),
              clEnumValN(SplitEditor::SM_Speed, "speed", "Optimize for speed"),
              clEnumValEnd),
-  cl::init(SplitEditor::SM_Partition));
+  cl::init(SplitEditor::SM_Size));
 
 static cl::opt<unsigned>
 LastChanceRecoloringMaxDepth("lcr-max-depth", cl::Hidden,
@@ -157,6 +157,9 @@ class RAGreedy : public MachineFunctionPass,
     /// Attempt live range splitting if assignment is impossible.
     RS_Split,
 
+    /// Attempt live range splitting around loops.
+    RS_LoopSplit,
+
     /// Attempt more aggressive live range splitting that is guaranteed to make
     /// progress.  This is used for split products that may not be making
     /// progress.
@@ -164,7 +167,6 @@ class RAGreedy : public MachineFunctionPass,
 
     /// Live range will be spilled.  No more splitting will be attempted.
     RS_Spill,
-
 
     /// Live range is in memory. Because of other evictions, it might get moved
     /// in a register in the end.
@@ -312,6 +314,13 @@ class RAGreedy : public MachineFunctionPass,
   /// Set of broken hints that may be reconciled later because of eviction.
   SmallSetVector<LiveInterval *, 8> SetOfBrokenHints;
 
+  /// Set of Loops for which all the vregs crossing its entry or exit have been
+  /// splitted.
+  SmallPtrSet<MachineLoop *, 16> SplittedLoops;
+
+  /// Set of LiveInterval which should be removed from Queue.
+  SmallPtrSet<LiveInterval *, 32> RemovedFromQ;
+
 public:
   RAGreedy();
 
@@ -360,11 +369,17 @@ private:
   bool mayRecolorAllInterferences(unsigned PhysReg, LiveInterval &VirtReg,
                                   SmallLISet &RecoloringCandidates,
                                   const SmallVirtRegSet &FixedRegisters);
+  void splitAllAroundLoop(MachineLoop *Loop,
+                          SmallVectorImpl<unsigned> &NewVRegs);
 
   unsigned tryAssign(LiveInterval&, AllocationOrder&,
                      SmallVectorImpl<unsigned>&);
   unsigned tryEvict(LiveInterval&, AllocationOrder&,
                     SmallVectorImpl<unsigned>&, unsigned = ~0u);
+  bool trySplitRegAroundLoop(LiveInterval &VirtReg,
+                             SmallVectorImpl<unsigned> &NewVRegs);
+  bool trySplitLoopInAll(LiveInterval &VirtReg,
+                         SmallVectorImpl<unsigned> &NewVRegs);
   unsigned tryRegionSplit(LiveInterval&, AllocationOrder&,
                           SmallVectorImpl<unsigned>&);
   /// Calculate cost of region splitting.
@@ -422,14 +437,8 @@ char RAGreedy::ID = 0;
 
 #ifndef NDEBUG
 const char *const RAGreedy::StageName[] = {
-    "RS_New",
-    "RS_Assign",
-    "RS_Split",
-    "RS_Split2",
-    "RS_Spill",
-    "RS_Memory",
-    "RS_Done"
-};
+    "RS_New",    "RS_Assign", "RS_Split",  "RS_LoopSplit",
+    "RS_Split2", "RS_Spill",  "RS_Memory", "RS_Done"};
 #endif
 
 // Hysteresis to use when comparing floats.
@@ -600,11 +609,13 @@ void RAGreedy::enqueue(PQueue &CurQueue, LiveInterval *LI) {
 LiveInterval *RAGreedy::dequeue() { return dequeue(Queue); }
 
 LiveInterval *RAGreedy::dequeue(PQueue &CurQueue) {
-  if (CurQueue.empty())
-    return nullptr;
-  LiveInterval *LI = &LIS->getInterval(~CurQueue.top().second);
-  CurQueue.pop();
-  return LI;
+  while (!CurQueue.empty()) {
+    LiveInterval *LI = &LIS->getInterval(~CurQueue.top().second);
+    CurQueue.pop();
+    if (!RemovedFromQ.count(LI))
+      return LI;
+  }
+  return nullptr;
 }
 
 
@@ -1342,6 +1353,244 @@ void RAGreedy::splitAroundRegion(LiveRangeEdit &LREdit,
     MF->verify(this, "After splitting live range around region");
 }
 
+/// isHotLoop - the loop is regarded as hot if the freq of its header is much
+/// larger than its preheader.
+static bool isHotLoop(MachineLoop *Loop, MachineBlockFrequencyInfo *MBFI) {
+  MachineBasicBlock *Preheader = Loop->getLoopPreheader();
+  if (!Preheader)
+    return false;
+  MachineBasicBlock *Header = Loop->getHeader();
+  unsigned Ratio = MBFI->getBlockFreq(Header).getFrequency() /
+                   MBFI->getBlockFreq(Preheader).getFrequency();
+  return Ratio >= 10;
+}
+
+/// noCriticalEdge - The loop has no critical edges if the entry and exit edges
+/// are not critical edges.
+static bool noCriticalEdge(MachineLoop *Loop) {
+  MachineBasicBlock *Preheader = Loop->getLoopPreheader();
+  if (!Preheader)
+    return false;
+
+  SmallVector<MachineBasicBlock *, 8> ExitBlocks;
+  SmallPtrSet<MachineBasicBlock *, 8> UniqExitBlocks;
+  Loop->getExitBlocks(ExitBlocks);
+  UniqExitBlocks.insert(ExitBlocks.begin(), ExitBlocks.end());
+  for (auto ExitBlock : UniqExitBlocks) {
+    if (ExitBlock->pred_size() > 1)
+      return false;
+  }
+  return true;
+}
+
+/// crossLoopBoundary - Literally, if the VirtReg is livein at the entry of
+/// an exit block or liveout at the exit of the preheader block, we say it
+/// crosses the loop boundary.
+/// However, a VirtReg after being splitted for a loop still cross the loop
+/// boundary. To avoid recursively splitting the same VirtReg, the
+/// concept of crossLoopBoundary is extended a little bit: If the VirtReg
+/// lives through the entry of an exit block or lives through the exit of
+/// the preheader block, we say it crosses the loop boundary.
+static bool crossLoopBoundary(LiveInterval &VirtReg, MachineLoop *Loop,
+                              LiveIntervals *LIS) {
+  // VirtReg crosses loop entry boundary if it lives through the loop
+  // preheader block.
+  bool Cross = LIS->isLiveInToMBB(VirtReg, Loop->getLoopPreheader()) &&
+               LIS->isLiveOutOfMBB(VirtReg, Loop->getLoopPreheader());
+
+  // VirtReg crosses loop entry boundary if it lives through any loop
+  // exit block.
+  SmallVector<MachineBasicBlock *, 8> ExitBlocks;
+  Loop->getExitBlocks(ExitBlocks);
+  for (auto &ExitBlock : ExitBlocks)
+    Cross = Cross || (LIS->isLiveOutOfMBB(VirtReg, ExitBlock) &&
+                      LIS->isLiveInToMBB(VirtReg, ExitBlock));
+  return Cross;
+}
+
+/// trySplitLoopInAll - For the innermost hot loop covering the live range of
+/// VirtReg, Split all the virtregs which live across the loop boundary.
+/// Covering here means VirtReg is totally inside the loop, or its live range
+/// starts at the loop Preheader and ends inside the loop, or its live range
+/// starts inside the loop and ends at the loop ExitBlock.
+/// The fact that VirtReg didn't get a Physical reg means the loop covering
+/// it has high register pressure. Splitting all the crossing virtregs at the
+/// loop boundary helps the best register allocation for virtreg references
+/// inside the loop.
+bool RAGreedy::trySplitLoopInAll(LiveInterval &VirtReg,
+                                 SmallVectorImpl<unsigned> &NewVRegs) {
+  MachineLoop *CandLoop = nullptr;
+  ArrayRef<SplitAnalysis::BlockInfo> UseBlocks = SA->getUseBlocks();
+  for (unsigned i = 0; i != UseBlocks.size(); ++i) {
+    const SplitAnalysis::BlockInfo &BI = UseBlocks[i];
+    const MachineBasicBlock *MBB = BI.MBB;
+    // If MBB is not inside any loop, skip it.
+    if (!Loops->getLoopDepth(MBB))
+      continue;
+
+    // Find the loop which the live range of VirtReg is inside or just
+    // covers.
+    MachineLoop *Loop = Loops->getLoopFor(MBB);
+    while (Loop) {
+      if (noCriticalEdge(Loop) && isHotLoop(Loop, MBFI) &&
+          !crossLoopBoundary(VirtReg, Loop, LIS))
+        break;
+      Loop = Loop->getParentLoop();
+    }
+    if (!SplittedLoops.count(Loop)) {
+      CandLoop = Loop;
+      break;
+    }
+  }
+
+  if (!CandLoop)
+    return false;
+
+#ifndef NDEBUG
+  // Assume there is no separate live range outside CandLoop.
+  for (unsigned i = 0; i != UseBlocks.size(); ++i) {
+    const SplitAnalysis::BlockInfo &BI = UseBlocks[i];
+    const MachineBasicBlock *MBB = BI.MBB;
+    if (CandLoop && CandLoop->contains(MBB))
+      continue;
+    if (MBB == CandLoop->getLoopPreheader())
+      continue;
+    SmallVector<MachineBasicBlock *, 8> ExitBlocks;
+    CandLoop->getExitBlocks(ExitBlocks);
+    bool found = false;
+    for (auto &ExitBlock : ExitBlocks) {
+      if (MBB == ExitBlock) {
+        found = true;
+        break;
+      }
+    }
+    assert(found && "Separate live ranges from the same vreg");
+  }
+#endif
+
+  DEBUG(dbgs() << "Split all vregs for " << *CandLoop);
+  splitAllAroundLoop(CandLoop, NewVRegs);
+  return true;
+}
+
+/// trySplitRegAroundLoop - VirtReg didn't get a Physical reg assigned before
+/// splitting. If it lives across a loop and it has reference inside the loop,
+/// find the outermost such loop and split the VirtReg around it. So the
+/// new VirtReg with shorter live range just around the loop will have better
+/// chance to get a Physical register, and its reference inside the loop
+/// may not need to be spilled.
+/// Another benefit of splitting VirtReg around loop is if the new VirtReg
+/// around the loop still cannot get Physical register, it indicates the loop
+/// has high enough register pressure, so we may go further step to split all
+/// the virtregs acrossing the loop's boundary by calling splitAllAroundLoop
+/// in the next round of selectOrSplit.
+bool RAGreedy::trySplitRegAroundLoop(LiveInterval &VirtReg,
+                                     SmallVectorImpl<unsigned> &NewVRegs) {
+  LiveRangeEdit LREdit(&VirtReg, NewVRegs, *MF, *LIS, VRM, this);
+  // Here we cannot use SplitSpillMode other than SM_Partition mode because
+  // hoisting backcopies can keep generating new VReg living across loop and
+  // cause infinite loop.
+  SE->reset(LREdit, SplitEditor::SM_Partition);
+
+  SmallPtrSet<MachineLoop *, 4> CandLoopSet;
+  // Search each reference of VirtReg inside a hot loop.
+  ArrayRef<SplitAnalysis::BlockInfo> UseBlocks = SA->getUseBlocks();
+  for (unsigned i = 0; i != UseBlocks.size(); ++i) {
+    const SplitAnalysis::BlockInfo &BI = UseBlocks[i];
+    const MachineBasicBlock *MBB = BI.MBB;
+    // If MBB is not inside any loop, skip it.
+    if (!Loops->getLoopDepth(MBB))
+      continue;
+    // If MBB is already inside a CandLoop, don't try to find candidate
+    // loop for it.
+    bool InCandLoop = false;
+    for (auto CandLoop : CandLoopSet)
+      if (CandLoop->contains(MBB))
+        InCandLoop = true;
+    if (InCandLoop)
+      continue;
+
+    // Search the outermost hot loop which VirtReg lives across.
+    MachineLoop *CandLoop = nullptr;
+    MachineLoop *Loop = Loops->getLoopFor(MBB);
+    while (Loop) {
+      if (noCriticalEdge(Loop) && isHotLoop(Loop, MBFI) &&
+          crossLoopBoundary(VirtReg, Loop, LIS))
+        CandLoop = Loop;
+      Loop = Loop->getParentLoop();
+    }
+    if (CandLoop)
+      CandLoopSet.insert(CandLoop);
+  }
+
+  if (CandLoopSet.empty())
+    return false;
+
+  for (auto CandLoop : CandLoopSet) {
+    DEBUG(dbgs() << "Split " << PrintReg(VirtReg.reg, TRI) << " for "
+                 << *CandLoop);
+    SE->splitAroundLoop(VirtReg, CandLoop, true);
+  }
+  SmallVector<unsigned, 8> IntvMap;
+  SE->finish(&IntvMap);
+  return true;
+}
+
+/// splitAllAroundLoop - Split all the virtregs crossing loop at the loop
+/// boundary, including those already got Physical register assigned.
+void RAGreedy::splitAllAroundLoop(MachineLoop *Loop,
+                                  SmallVectorImpl<unsigned> &NewVRegs) {
+  SmallVector<unsigned, 4> LSNewVRegs;
+  for (unsigned i = 0, e = MRI->getNumVirtRegs(); i != e; ++i) {
+    unsigned Reg = TargetRegisterInfo::index2VirtReg(i);
+    if (MRI->reg_nodbg_empty(Reg))
+      continue;
+
+    LiveInterval &LI = LIS->getInterval(Reg);
+    if (crossLoopBoundary(LI, Loop, LIS)) {
+      DEBUG(dbgs() << PrintReg(Reg, TRI));
+      // For those VirtRegs already been assigned Physical register, unassigned
+      // the original VirtReg, split it and assign the same Physical register to
+      // the new VirtRegs.
+      // For those VirtRegs not been assigned yet, they need to be removed from
+      // Queue after the splitting.
+      unsigned PhysReg = 0;
+      bool hasPhys = VRM->hasPhys(Reg);
+      if (hasPhys) {
+        PhysReg = VRM->getPhys(Reg);
+        DEBUG(dbgs() << " with [" << PrintReg(PhysReg, TRI) << "] is splitted");
+        Matrix->unassign(LI);
+      } else {
+        DEBUG(dbgs() << " is splitted:\n");
+      }
+
+      LSNewVRegs.clear();
+      LiveRangeEdit LREdit(&LI, LSNewVRegs, *MF, *LIS, VRM, this);
+      // For the splitting of VirtReg with physical register assigned, cannot use
+      // SplitSpillMode other than SM_Partition mode because other mode may hoist
+      // backcopies and produce overlapped live ranges.
+      // For the splitting of VirtReg not being assigned, still cannot use
+      // SplitSpillMode other than SM_Partition mode because hoisting backcopies
+      // can keep generating new VReg living across loop and cause infinite loop.
+      SE->reset(LREdit, SplitEditor::SM_Partition);
+      SE->splitAroundLoop(LI, Loop, !hasPhys);
+
+      SmallVector<unsigned, 8> IntvMap;
+      SE->finish(&IntvMap);
+      for (auto NewVReg : LSNewVRegs) {
+        if (hasPhys)
+          Matrix->assign(LIS->getInterval(NewVReg), PhysReg);
+        else {
+          // Remove the original VirtReg from Queue.
+          RemovedFromQ.insert(&LI);
+          NewVRegs.push_back(NewVReg);
+        }
+      }
+    }
+  }
+  SplittedLoops.insert(Loop);
+}
+
 unsigned RAGreedy::tryRegionSplit(LiveInterval &VirtReg, AllocationOrder &Order,
                                   SmallVectorImpl<unsigned> &NewVRegs) {
   unsigned NumCands = 0;
@@ -1968,6 +2217,32 @@ unsigned RAGreedy::trySplit(LiveInterval &VirtReg, AllocationOrder &Order,
     Matrix->invalidateVirtRegs();
     if (unsigned PhysReg = tryAssign(VirtReg, Order, NewVRegs))
       return PhysReg;
+  }
+
+  // Loop split is to try to let references inside hot loops get their best
+  // chance to get physical register assigned. It achieves that by splitting
+  // virtregs at the loop boundary so the live ranges outside loop will not
+  // affect the coloring of live ranges inside loop.
+  //
+  // This is achieved in two steps. For a VirtReg with a long live range
+  // across a loop and there is reference of it inside the loop, call
+  // trySplitRegAroundLoop to split the VirtReg at the loop boundary. In the
+  // next round of selectOrSplit, if the new VirtReg after splitting around
+  // the loop gets physical register, it is a good result. If the new VirtReg
+  // still cannot get physical register, it indicates precisely the loop has
+  // high register pressure, and trySplitLoopInAll will be called to split
+  // all the other virtregs living across the loop and make the loop a
+  // relatively independent register allocation region.
+  if (getStage(VirtReg) < RS_LoopSplit) {
+    bool LoopSplitted = trySplitLoopInAll(VirtReg, NewVRegs);
+    bool RegSplitted = trySplitRegAroundLoop(VirtReg, NewVRegs);
+    if (LoopSplitted || RegSplitted) {
+      if (LoopSplitted && !RegSplitted) {
+        NewVRegs.push_back(VirtReg.reg);
+        setStage(VirtReg, RS_LoopSplit);
+      }
+      return 0;
+    }
   }
 
   // First try to split around a region spanning multiple blocks. RS_Split2
@@ -2598,6 +2873,7 @@ bool RAGreedy::runOnMachineFunction(MachineFunction &mf) {
   IntfCache.init(MF, Matrix->getLiveUnions(), Indexes, LIS, TRI);
   GlobalCand.resize(32);  // This will grow as needed.
   SetOfBrokenHints.clear();
+  RemovedFromQ.clear();
 
   allocatePhysRegs();
   tryHintsRecoloring();
