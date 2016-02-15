@@ -93,6 +93,7 @@ add_llvm_library(LLVMCodeGen
   ProcessImplicitDefs.cpp
   PrologEpilogInserter.cpp
   PseudoSourceValue.cpp
+  ReachingPhysDefs.cpp
   RegAllocBase.cpp
   RegAllocBasic.cpp
   RegAllocFast.cpp
