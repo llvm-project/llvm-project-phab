@@ -348,7 +348,7 @@ lab20:
 lab21:
 ; CHECK: lab21:
 ; CHECK-NOT: store
-; CHECK: br i1 false, label %lab21, label %lab22
+; CHECK: br i1 false, label %lab21, label %lab21.licm_exit
   store i32 36127957, i32* undef, align 4
   br i1 undef, label %lab21, label %lab22
 
