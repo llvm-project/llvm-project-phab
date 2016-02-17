@@ -74,6 +74,9 @@ static cl::opt<bool> DisableCopyProp("disable-copyprop", cl::Hidden,
     cl::desc("Disable Copy Propagation pass"));
 static cl::opt<bool> DisablePartialLibcallInlining("disable-partial-libcall-inlining",
     cl::Hidden, cl::desc("Disable Partial Libcall Inlining"));
+static cl::opt<bool>
+    DisableSCEdge("disable-scedge", cl::Hidden,
+                  cl::desc("Disable Split Critical Edge for loops pass"));
 static cl::opt<bool> EnableImplicitNullChecks(
     "enable-implicit-null-checks",
     cl::desc("Fold null checks into faulting memory operations"),
@@ -544,6 +547,9 @@ void TargetPassConfig::addMachinePasses() {
 
   // Run pre-ra passes.
   addPreRegAlloc();
+
+  if (!DisableSCEdge)
+    addPass(&SplitCritEdgesID);
 
   // Run register allocation and passes that are tightly coupled with it,
   // including phi elimination and scheduling.

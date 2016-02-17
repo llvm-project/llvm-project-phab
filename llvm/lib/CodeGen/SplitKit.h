@@ -29,6 +29,7 @@ class LiveIntervals;
 class LiveRangeEdit;
 class MachineBlockFrequencyInfo;
 class MachineInstr;
+class MachineLoop;
 class MachineLoopInfo;
 class MachineRegisterInfo;
 class TargetInstrInfo;
@@ -367,6 +368,9 @@ public:
   /// selectIntv - Select a previously opened interval index.
   void selectIntv(unsigned Idx);
 
+  /// splitAroundLoop - Split VirtReg around the loop.
+  void splitAroundLoop(LiveInterval &VirtReg, MachineLoop *Loop, bool Tight);
+
   /// enterIntvBefore - Enter the open interval before the instruction at Idx.
   /// If the parent interval is not live before Idx, a COPY is not inserted.
   /// Return the beginning of the new live range.
@@ -399,6 +403,7 @@ public:
   /// Add liveness from the MBB top to the copy.
   /// Return the end of the live range.
   SlotIndex leaveIntvAtTop(MachineBasicBlock &MBB);
+  SlotIndex leaveIntvAtEnd(MachineBasicBlock &MBB);
 
   /// overlapIntv - Indicate that all instructions in range should use the open
   /// interval, but also let the complement interval be live.

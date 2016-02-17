@@ -442,6 +442,9 @@ namespace llvm {
   /// basic blocks.
   extern char &SpillPlacementID;
 
+  /// Split critical edges for loops pass.
+  extern char &SplitCritEdgesID;
+
   /// ShrinkWrap pass. Look for the best place to insert save and restore
   // instruction and update the MachineFunctionInfo with that information.
   extern char &ShrinkWrapID;
