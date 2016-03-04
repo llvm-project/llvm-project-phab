@@ -33,6 +33,7 @@ class Pass;
 class PredIteratorCache;
 class ScalarEvolution;
 class TargetLibraryInfo;
+class LPPassManager;
 
 /// \brief Captures loop safety information.
 /// It keep information for loop & its header may throw exception.
@@ -350,7 +351,7 @@ bool formLCSSARecursively(Loop &L, DominatorTree &DT, LoopInfo *LI,
 /// It returns changed status.
 bool sinkRegion(DomTreeNode *, AliasAnalysis *, LoopInfo *, DominatorTree *,
                 TargetLibraryInfo *, Loop *, AliasSetTracker *,
-                LICMSafetyInfo *);
+                LICMSafetyInfo *, LPPassManager *);
 
 /// \brief Walk the specified region of the CFG (defined by all blocks
 /// dominated by the specified block, and that are in the current loop) in depth
