@@ -71,7 +71,6 @@ bool AMDGPUIntegerDivision::doInitialization(Module &M) {
 }
 
 bool AMDGPUIntegerDivision::runOnFunction(Function &F) {
-//  llvm_unreachable("does this happen");
   if (TM)
     TLI = TM->getSubtargetImpl(F)->getTargetLowering();
 
@@ -98,7 +97,7 @@ bool AMDGPUIntegerDivision::shouldExpandDivRem(const BinaryOperator &I) {
   bool isUdiv64 = I.getOpcode() == Instruction::UDiv &&  I.getType()->isIntegerTy(64);
   return shouldExpandInIr && isUdiv64;
 }
-/*TODO:Uthkarsh 
+/* 
   Change the function calls to your own menthods instead of the in-built integer division which
   introduces more control flow. 
 */
