@@ -50,6 +50,10 @@ FunctionPass *createSICodeEmitterPass(formatted_raw_ostream &OS);
 FunctionPass *createSIInsertWaits(TargetMachine &tm);
 
 ModulePass *createAMDGPUAnnotateKernelFeaturesPass();
+/*Modified Integer Division*/
+FunctionPass *createAMDGPUIntegerDivisionPass(const TargetMachine *TM);
+extern char &AMDGPUIntegerDivisionID;
+
 void initializeAMDGPUAnnotateKernelFeaturesPass(PassRegistry &);
 extern char &AMDGPUAnnotateKernelFeaturesID;
 
@@ -81,6 +85,12 @@ extern char &SIFixSGPRLiveRangesID;
 
 void initializeAMDGPUAnnotateUniformValuesPass(PassRegistry&);
 extern char &AMDGPUAnnotateUniformValuesPassID;
+
+/*Modified Integer Division : IR Pass to perform 64bit integer division*/
+
+void initializeAMDGPUIntegerDivisionPass(PassRegistry&);
+extern char AMDGPU64bitDivisionID;
+
 
 extern Target TheAMDGPUTarget;
 extern Target TheGCNTarget;

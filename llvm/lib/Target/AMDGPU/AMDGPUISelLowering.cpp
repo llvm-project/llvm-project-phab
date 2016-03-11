@@ -253,7 +253,11 @@ AMDGPUTargetLowering::AMDGPUTargetLowering(TargetMachine &TM,
     setOperationAction(ISD::BSWAP, VT, Expand);
     setOperationAction(ISD::CTTZ, VT, Expand);
     setOperationAction(ISD::CTLZ, VT, Expand);
+
+    setOperationAction(ISD::CTLZ_ZERO_UNDEF, VT, Expand);
   }
+
+
 
   if (!Subtarget->hasBCNT(32))
     setOperationAction(ISD::CTPOP, MVT::i32, Expand);
@@ -1652,6 +1656,8 @@ SDValue AMDGPUTargetLowering::LowerDIVREM24(SDValue Op, SelectionDAG &DAG, bool 
   return DAG.getMergeValues(Res, DL);
 }
 
+// FIXME: This seems to be extremely inefficient. SC produces almost 1/3rd as
+// many instructions for i64 udiv.
 void AMDGPUTargetLowering::LowerUDIVREM64(SDValue Op,
                                       SelectionDAG &DAG,
                                       SmallVectorImpl<SDValue> &Results) const {

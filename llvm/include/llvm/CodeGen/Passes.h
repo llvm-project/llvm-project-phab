@@ -392,6 +392,9 @@ namespace llvm {
   /// load-linked/store-conditional loops.
   extern char &AtomicExpandID;
 
+  /// Lowers unsupported integer division.
+  extern char &IntegerDivisionID;
+
   /// MachineLoopInfo - This pass is a loop analysis pass.
   extern char &MachineLoopInfoID;
 
@@ -645,6 +648,9 @@ namespace llvm {
 
   /// createJumpInstrTables - This pass creates jump-instruction tables.
   ModulePass *createJumpInstrTablesPass();
+
+  /// Lower unsupported integer division
+  FunctionPass *createIntegerDivisionPass(const TargetMachine *TM);
 
   /// createForwardControlFlowIntegrityPass - This pass adds control-flow
   /// integrity.

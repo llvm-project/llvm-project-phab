@@ -167,6 +167,12 @@ public:
 
   virtual bool useSoftFloat() const { return false; }
 
+  /// Returns true if the instruction should be expanded by the IR-level
+  /// IntegerDivision pass.
+  virtual bool shouldExpandDivRemInIR(const BinaryOperator &I) const {
+    return false;
+  }
+
   /// Return the pointer type for the given address space, defaults to
   /// the pointer type from the data layout.
   /// FIXME: The default needs to be removed once all the code is updated.

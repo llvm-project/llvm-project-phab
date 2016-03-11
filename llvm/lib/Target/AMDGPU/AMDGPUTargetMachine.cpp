@@ -36,6 +36,7 @@
 #include "llvm/Transforms/Scalar.h"
 #include <llvm/CodeGen/Passes.h>
 
+
 using namespace llvm;
 
 extern "C" void LLVMInitializeAMDGPUTarget() {
@@ -52,6 +53,9 @@ extern "C" void LLVMInitializeAMDGPUTarget() {
   initializeSILoadStoreOptimizerPass(*PR);
   initializeAMDGPUAnnotateKernelFeaturesPass(*PR);
   initializeAMDGPUAnnotateUniformValuesPass(*PR);
+  /*Modified Integer Division Pass*/
+  initializeAMDGPUIntegerDivisionPass(*PR);
+
 }
 
 static std::unique_ptr<TargetLoweringObjectFile> createTLOF(const Triple &TT) {
@@ -200,7 +204,8 @@ void AMDGPUPassConfig::addIRPasses() {
 
   // Handle uses of OpenCL image2d_t, image3d_t and sampler_t arguments.
   addPass(createAMDGPUOpenCLImageTypeLoweringPass());
-
+  /*TODO:Uthkarsh - Integer Division*/
+  addPass(createAMDGPUIntegerDivisionPass(&getAMDGPUTargetMachine()));
   TargetPassConfig::addIRPasses();
 }
 
@@ -210,7 +215,10 @@ void AMDGPUPassConfig::addCodeGenPrepare() {
     addPass(createAMDGPUPromoteAlloca(ST));
     addPass(createSROAPass());
   }
+
   TargetPassConfig::addCodeGenPrepare();
+
+  //  addPass(createIntegerDivisionPass(&getAMDGPUTargetMachine()));
 }
 
 bool
