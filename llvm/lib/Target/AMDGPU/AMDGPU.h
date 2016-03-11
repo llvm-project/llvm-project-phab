@@ -85,9 +85,6 @@ extern char &SIFixSGPRLiveRangesID;
 
 void initializeAMDGPUAnnotateUniformValuesPass(PassRegistry&);
 extern char &AMDGPUAnnotateUniformValuesPassID;
-
-/*Modified Integer Division : IR Pass to perform 64bit integer division*/
-
 void initializeAMDGPUIntegerDivisionPass(PassRegistry&);
 extern char AMDGPU64bitDivisionID;
 

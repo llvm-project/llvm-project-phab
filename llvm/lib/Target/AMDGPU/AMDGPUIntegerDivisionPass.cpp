@@ -1,4 +1,4 @@
-//===-- IntegerDivisionPass.cpp - Expand div/mod instructions -------------===//
+//===-- AMDGPUIntegerDivisionPass.cpp - Expand div/mod instructions -------------===//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -7,11 +7,11 @@
 //
 //===----------------------------------------------------------------------===//
 //
-/// \file
+/// \file: An IR level pass to perform 64bit Integer division
 //===----------------------------------------------------------------------===//
 
 /*Modified Integer Division Pass*/
-
+#include "AMDGPU.h"
 #include "llvm/CodeGen/Passes.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstVisitor.h"
@@ -19,12 +19,11 @@
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetSubtargetInfo.h"
 #include "llvm/Transforms/Utils/IntegerDivision.h"
-#include "AMDGPU.h"
 #include "AMDGPU64bitDivision.h"
 
 using namespace llvm;
 
-#define DEBUG_TYPE "AMDGPU integer-division"
+#define DEBUG_TYPE "amdgpu-integer-division"
 
 namespace {
 
@@ -34,7 +33,7 @@ class AMDGPUIntegerDivision : public FunctionPass,
   const TargetMachine *TM;
   const TargetLowering *TLI;
 
-  int checkingVariable;                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 
+  //int checkingVariable;                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 
 
   bool shouldExpandDivRem(const BinaryOperator &I);
 
@@ -64,14 +63,8 @@ public:
 } // End anonymous namespace
 
 char AMDGPUIntegerDivision::ID = 0;
-//char &llvm::IntegerDivisionID = AMDGPUIntegerDivision::ID;
 INITIALIZE_TM_PASS(AMDGPUIntegerDivision, DEBUG_TYPE,"Expand integer division", false, false);
-
 char &llvm::AMDGPUIntegerDivisionID = AMDGPUIntegerDivision::ID;
-/*INITIALIZE_PASS_BEGIN(AMDGPUIntegerDivision, DEBUG_TYPE,
-                      "Add AMDGPU function attributes", false, false)
-INITIALIZE_PASS_END(AMDGPUIntegerDivision, DEBUG_TYPE,
-                    "Add AMDGPU function attributes", false, false)*/
 
 bool AMDGPUIntegerDivision::doInitialization(Module &M) {
   return false;
@@ -101,9 +94,8 @@ bool AMDGPUIntegerDivision::runOnFunction(Function &F) {
 
 bool AMDGPUIntegerDivision::shouldExpandDivRem(const BinaryOperator &I) {
   assert(TLI);
-  bool shouldExpandInIr = TLI && TLI->shouldExpandDivRemInIR(I);
-  // TODO:Uthkarsh later modify to handle signed 64 bit too.  
-  bool isUdiv64 = I.getOpcode() == Instruction::UDiv &&  I.getType()->getIntegerBitWidth() == 64;
+  bool shouldExpandInIr = TLI && TLI->shouldExpandDivRemInIR(I);  
+  bool isUdiv64 = I.getOpcode() == Instruction::UDiv &&  I.getType()->isIntegerTy(64);
   return shouldExpandInIr && isUdiv64;
 }
 /*TODO:Uthkarsh 
@@ -146,5 +138,3 @@ bool AMDGPUIntegerDivision::visitURem(BinaryOperator &I) {
 FunctionPass *llvm::createAMDGPUIntegerDivisionPass(const TargetMachine *TM) {
   return new AMDGPUIntegerDivision(TM);
 }
-
-//static RegisterPass<AMDGPUIntegerDivision> X("AMD GPU Integer Division", "IR level 64 bit integer division",false,false);
