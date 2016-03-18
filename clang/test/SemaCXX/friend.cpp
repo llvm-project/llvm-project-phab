@@ -363,3 +363,47 @@ void g_pr6954() {
   f_pr6954(5); // expected-error{{undeclared identifier 'f_pr6954'}}
 }
 
+
+template<typename T> void pr23342_func(T x);
+template<typename T>
+struct pr23342_C1 {
+  friend void pr23342_func<>(T x);
+  friend bool func(T x);  // expected-warning{{friend declaration 'func' declares a non-template function}}
+                          // expected-note@-1{{if this is not what you intended, make sure the function template has already been declared and add <> after the function name here}}
+  friend bool func2(int x);
+  template<typename T2> friend bool func3(T2 x);
+  friend T func4();  // expected-warning{{friend declaration 'func4' declares a non-template function}}
+                     // expected-note@-1{{if this is not what you intended, make sure the function template has already been declared and add <> after the function name here}}
+};
+
+namespace pr23342 {
+
+template<typename T>
+struct C1 {
+  friend void pr23342_func<>(T x);
+  friend bool func(T x);  // expected-warning{{friend declaration 'pr23342::func' declares a non-template function}}
+                          // expected-note@-1{{if this is not what you intended, make sure the function template has already been declared and add <> after the function name here}}
+  friend bool func2(int x);
+  template<typename T2> friend bool func3(T2 x);
+  friend T func4();    // expected-warning{{friend declaration 'pr23342::func4' declares a non-template function}}
+                       // expected-note@-1{{if this is not what you intended, make sure the function template has already been declared and add <> after the function name here}}};
+};
+
+template <typename T>
+struct Arg {
+  friend bool operator==(const Arg& lhs, T rhs) {
+   return false;
+  }
+  friend bool operator!=(const Arg& lhs, T rhs);  // expected-warning{{friend declaration 'pr23342::operator!=' declares a non-template function}}
+                       // expected-note@-1{{if this is not what you intended, make sure the function template has already been declared and add <> after the function name here}}};
+};
+template <typename T>
+bool operator!=(const Arg<T>& lhs, T rhs) {
+  return true;
+}
+bool foo() {
+  Arg<int> arg;
+  return (arg == 42) || (arg != 42);
+}
+
+}

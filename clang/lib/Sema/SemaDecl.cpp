@@ -8424,6 +8424,15 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
     AddToScope = false;
   }
 
+  if (isFriend && !NewFD->isInvalidDecl()) {
+    if (R->isDependentType() && TemplateParamLists.empty() &&
+        !DC->isRecord() && !isFunctionTemplateSpecialization &&
+        (D.getFunctionDefinitionKind() == FDK_Declaration)) {
+      Diag(NameInfo.getLoc(), diag::warn_non_template_friend) << NewFD;
+      Diag(NameInfo.getLoc(), diag::note_non_template_friend);
+    }
+  }
+
   return NewFD;
 }
 

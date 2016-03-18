@@ -581,8 +581,10 @@ namespace dr553 {
 
 namespace dr557 { // dr557: yes
   template<typename T> struct S {
-    friend void f(S<T> *);
-    friend void g(S<S<T> > *);
+    friend void f(S<T> *);  // expected-warning{{friend declaration 'dr557::f' declares a non-template function}}
+                            // expected-note@-1{{if this is not what you intended, make sure the function template has already been declared and add <> after the function name here}}
+    friend void g(S<S<T> > *); // expected-warning{{friend declaration 'dr557::g' declares a non-template function}}
+                            // expected-note@-1{{if this is not what you intended, make sure the function template has already been declared and add <> after the function name here}}
   };
   void x(S<int> *p, S<S<int> > *q) {
     f(p);

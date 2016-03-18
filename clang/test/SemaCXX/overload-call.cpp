@@ -574,13 +574,15 @@ namespace IncompleteArg {
   // Ensure that overload resolution attempts to complete argument types when
   // performing ADL.
   template<typename T> struct S {
-    friend int f(const S&);
+    friend int f(const S&);  // expected-warning{{friend declaration 'IncompleteArg::f' declares a non-template function}}
+                             // expected-note@-1{{if this is not what you intended, make sure the function template has already been declared and add <> after the function name here}}
   };
   extern S<int> s;
   int k = f(s);
 
   template<typename T> struct Op {
-    friend bool operator==(const Op &, const Op &);
+    friend bool operator==(const Op &, const Op &);  // expected-warning{{friend declaration 'IncompleteArg::operator==' declares a non-template function}}
+                                                     // expected-note@-1{{if this is not what you intended, make sure the function template has already been declared and add <> after the function name here}}
   };
   extern Op<char> op;
   bool b = op == op;
