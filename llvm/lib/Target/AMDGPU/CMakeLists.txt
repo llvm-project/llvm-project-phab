@@ -13,6 +13,8 @@ tablegen(LLVM AMDGPUGenAsmMatcher.inc -gen-asm-matcher)
 add_public_tablegen_target(AMDGPUCommonTableGen)
 
 add_llvm_target(AMDGPUCodeGen
+  AMDGPU64bitDivision.cpp
+  AMDGPU64bitDivision.h
   AMDILCFGStructurizer.cpp
   AMDGPUAlwaysInlinePass.cpp
   AMDGPUAnnotateKernelFeatures.cpp
@@ -33,6 +35,7 @@ add_llvm_target(AMDGPUCodeGen
   AMDGPUInstrInfo.cpp
   AMDGPUPromoteAlloca.cpp
   AMDGPURegisterInfo.cpp
+  AMDGPUIntegerDivisionPass.cpp
   R600ClauseMergePass.cpp
   R600ControlFlowFinalizer.cpp
   R600EmitClauseMarkers.cpp
