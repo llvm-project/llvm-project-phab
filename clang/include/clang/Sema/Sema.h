@@ -9254,6 +9254,15 @@ private:
   /// attempts to add itself into the container
   void CheckObjCCircularContainer(ObjCMessageExpr *Message);
 
+  /// \brief Set of friend function declared in template classes and dependent
+  /// on their type parameters. These declarations must be checked for possible
+  /// misuse as templates.
+  llvm::SmallPtrSet<FunctionDecl *, 4> DependentFriend;
+
+  /// \brief Check dependent friends functions for misinterpretation as template
+  /// ones.
+  void CheckDependentFriends();
+
   void AnalyzeDeleteExprMismatch(const CXXDeleteExpr *DE);
   void AnalyzeDeleteExprMismatch(FieldDecl *Field, SourceLocation DeleteLoc,
                                  bool DeleteWasArrayForm);
