@@ -204,6 +204,9 @@ private:
   /// \sa includeTemporaryDtorsInCFG
   Optional<bool> IncludeTemporaryDtorsInCFG;
   
+  /// \sa includeScopesInCFG
+  Optional<bool> IncludeScopesInCFG;
+
   /// \sa mayInlineCXXStandardLibrary
   Optional<bool> InlineCXXStandardLibrary;
   
@@ -387,6 +390,12 @@ public:
   /// This is controlled by the 'cfg-temporary-dtors' config option, which
   /// accepts the values "true" and "false".
   bool includeTemporaryDtorsInCFG();
+
+  /// Returns whether or not scope information should be included in the CFG.
+  ///
+  /// This is controlled by the 'cfg-scope-info' config option, which accepts
+  /// the values "true" and "false".
+  bool includeScopesInCFG();
 
   /// Returns whether or not C++ standard library functions may be considered
   /// for inlining.

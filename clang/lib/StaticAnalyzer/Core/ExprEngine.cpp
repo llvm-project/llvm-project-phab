@@ -310,6 +310,9 @@ void ExprEngine::processCFGElement(const CFGElement E, ExplodedNode *Pred,
     case CFGElement::TemporaryDtor:
       ProcessImplicitDtor(E.castAs<CFGImplicitDtor>(), Pred);
       return;
+    case CFGElement::ScopeBegin:
+    case CFGElement::ScopeEnd:
+      llvm_unreachable("Local scopes not yet implemented.");
   }
 }
 
