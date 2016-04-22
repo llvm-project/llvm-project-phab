@@ -18,6 +18,7 @@
 #define LLVM_TRANSFORMS_IPO_INLINERPASS_H
 
 #include "llvm/Analysis/CallGraphSCCPass.h"
+#include "llvm/Transforms/IPO/InlineReport.h"
 
 namespace llvm {
 class AssumptionCacheTracker;
@@ -62,13 +63,18 @@ struct Inliner : public CallGraphSCCPass {
   /// deal with that subset of the functions.
   bool removeDeadFunctions(CallGraph &CG, bool AlwaysInlineOnly = false);
 
+  InlineReport& getReport() { return Report; }
+
 private:
   // InsertLifetime - Insert @llvm.lifetime intrinsics.
   bool InsertLifetime;
 
   /// shouldInline - Return true if the inliner should attempt to
   /// inline at the given CallSite.
-  bool shouldInline(CallSite CS);
+bool shouldInline(CallSite CS);
+
+  // The inline report
+  InlineReport Report;
 
 protected:
   AssumptionCacheTracker *ACT;

@@ -753,6 +753,9 @@ CallGraphNode *ArgPromotion::DoPromotion(Function *F,
   // Get the callgraph information that we need to update to reflect our
   // changes.
   CallGraph &CG = getAnalysis<CallGraphWrapperPass>().getCallGraph();
+  // Argument promotion is replacing F with NF. We need to update all
+  // of the call graph reports to reflect this.
+  CG.replaceFunctionWithFunctionInCGReports(F, NF); 
 
   // Get a new callgraph node for NF.
   CallGraphNode *NF_CGN = CG.getOrInsertFunction(NF);

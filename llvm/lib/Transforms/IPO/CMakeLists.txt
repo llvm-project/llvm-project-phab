@@ -15,6 +15,7 @@ add_llvm_library(LLVMipo
   IPO.cpp
   InferFunctionAttrs.cpp
   InlineAlways.cpp
+  InlineReport.cpp
   InlineSimple.cpp
   Inliner.cpp
   Internalize.cpp

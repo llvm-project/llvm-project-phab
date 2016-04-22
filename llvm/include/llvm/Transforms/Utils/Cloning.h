@@ -189,12 +189,18 @@ public:
   /// get copied into the caller.
   SmallVector<AllocaInst *, 4> StaticAllocas;
 
+  /// OriginalCalls - InlineFunction fills this in with callsites that
+  /// were cloned from the callee.  This is only filled in if CG is
+  /// non-null.
+  SmallVector<const Value*, 8> OriginalCalls;
+
   /// InlinedCalls - InlineFunction fills this in with callsites that were
   /// inlined from the callee.  This is only filled in if CG is non-null.
   SmallVector<WeakVH, 8> InlinedCalls;
 
   void reset() {
     StaticAllocas.clear();
+    OriginalCalls.clear();
     InlinedCalls.clear();
   }
 };

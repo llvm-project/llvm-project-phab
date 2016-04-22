@@ -41,15 +41,19 @@ STATISTIC(NumCallsDeleted, "Number of call sites deleted, not inlined");
 STATISTIC(NumDeleted, "Number of functions deleted because all callers found");
 STATISTIC(NumMergedAllocas, "Number of allocas merged together");
 
+extern cl::opt<unsigned> InlineReportLevel; 
+
 // This weirdly named statistic tracks the number of times that, when attempting
 // to inline a function A into B, we analyze the callers of B in order to see
 // if those would be more profitable and blocked inline steps.
 STATISTIC(NumCallerCallersAnalyzed, "Number of caller-callers analyzed");
 
-Inliner::Inliner(char &ID) : CallGraphSCCPass(ID), InsertLifetime(true) {}
+Inliner::Inliner(char &ID) : CallGraphSCCPass(ID), InsertLifetime(true),
+  Report(InlineReportLevel) {}
 
 Inliner::Inliner(char &ID, bool InsertLifetime)
-    : CallGraphSCCPass(ID), InsertLifetime(InsertLifetime) {}
+    : CallGraphSCCPass(ID), InsertLifetime(InsertLifetime),
+      Report(InlineReportLevel) {}
 
 /// For this class, we declare that we require and preserve the call graph.
 /// If the derived class implements this method, it should
@@ -363,6 +367,8 @@ bool Inliner::runOnSCC(CallGraphSCC &SCC) {
   ACT = &getAnalysis<AssumptionCacheTracker>();
   auto &TLI = getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
 
+  CG.registerCGReport(&Report);
+
   SmallPtrSet<Function*, 8> SCCFunctions;
   DEBUG(dbgs() << "Inliner visiting SCC:");
   for (CallGraphNode *Node : SCC) {
@@ -385,14 +391,21 @@ bool Inliner::runOnSCC(CallGraphSCC &SCC) {
   for (CallGraphNode *Node : SCC) {
     Function *F = Node->getFunction();
     if (!F) continue;
+
+    getReport().addFunction(F, &CG.getModule());
     
     for (BasicBlock &BB : *F)
       for (Instruction &I : BB) {
         CallSite CS(cast<Value>(&I));
         // If this isn't a call, or it is a call to an intrinsic, it can
         // never be inlined.
-        if (!CS || isa<IntrinsicInst>(I))
+        if (!CS)
           continue;
+
+        getReport().addNewCallSite(F, &CS, &CG.getModule());
+        if (isa<IntrinsicInst>(I)) {
+          continue;
+        }
         
         // If this is a direct call to an external function, we can never inline
         // it.  If it is an indirect call, inlining may resolve it to be a
@@ -408,8 +421,10 @@ bool Inliner::runOnSCC(CallGraphSCC &SCC) {
   DEBUG(dbgs() << ": " << CallSites.size() << " call sites.\n");
 
   // If there are no calls in this function, exit early.
-  if (CallSites.empty())
+  if (CallSites.empty()) {
+    getReport().makeAllNotCurrent(); 
     return false;
+  } 
 
   // Now that we have all of the call sites, move the ones to functions in the
   // current SCC to the end of the list.
@@ -479,20 +494,27 @@ bool Inliner::runOnSCC(CallGraphSCC &SCC) {
         }
 
         // Attempt to inline the function.
+        InlineReportCallSite* IRCS = getReport().getCallSite(&CS);
+        Instruction* NI = CS.getInstruction();
+        getReport().setActiveInlineInstruction(NI);
         if (!InlineCallIfPossible(*this, CS, InlineInfo, InlinedArrayAllocas,
                                   InlineHistoryID, InsertLifetime)) {
+          getReport().setActiveInlineInstruction(nullptr);
           emitOptimizationRemarkMissed(CallerCtx, DEBUG_TYPE, *Caller, DLoc,
                                        Twine(Callee->getName() +
                                              " will not be inlined into " +
                                              Caller->getName()));
           continue;
         }
+        getReport().setActiveInlineInstruction(nullptr);
         ++NumInlined;
 
         // Report the inline decision.
         emitOptimizationRemark(
             CallerCtx, DEBUG_TYPE, *Caller, DLoc,
             Twine(Callee->getName() + " inlined into " + Caller->getName()));
+        getReport().inlineCallSite(NI, IRCS, &CG.getModule(), Callee,
+          InlineInfo); 
 
         // If inlining this function gave us any new call sites, throw them
         // onto our worklist to process.  They are useful inline candidates.
@@ -519,6 +541,7 @@ bool Inliner::runOnSCC(CallGraphSCC &SCC) {
           CG[Callee]->getNumReferences() == 0) {
         DEBUG(dbgs() << "    -> Deleting dead function: "
               << Callee->getName() << "\n");
+        getReport().setDead(Callee); 
         CallGraphNode *CalleeNode = CG[Callee];
 
         // Remove any call graph edges from the callee to its callees.
@@ -545,14 +568,16 @@ bool Inliner::runOnSCC(CallGraphSCC &SCC) {
       LocalChange = true;
     }
   } while (LocalChange);
-
+  getReport().makeAllNotCurrent();
   return Changed;
 }
 
 /// Remove now-dead linkonce functions at the end of
 /// processing to avoid breaking the SCC traversal.
 bool Inliner::doFinalization(CallGraph &CG) {
-  return removeDeadFunctions(CG);
+  bool ReturnValue = removeDeadFunctions(CG);
+  getReport().print();
+  return ReturnValue;
 }
 
 /// Remove dead functions that are not included in DNR (Do Not Remove) list.

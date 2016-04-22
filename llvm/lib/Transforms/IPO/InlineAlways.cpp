@@ -12,6 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "llvm/Transforms/IPO/InlinerPass.h" 
 #include "llvm/Transforms/IPO.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/Analysis/AssumptionCache.h"
@@ -51,7 +52,9 @@ public:
 
   using llvm::Pass::doFinalization;
   bool doFinalization(CallGraph &CG) override {
-    return removeDeadFunctions(CG, /*AlwaysInlineOnly=*/ true);
+    bool ReturnValue = removeDeadFunctions(CG, /*AlwaysInlineOnly=*/ true);
+    getReport().print();
+    return ReturnValue; 
   }
 };
 
