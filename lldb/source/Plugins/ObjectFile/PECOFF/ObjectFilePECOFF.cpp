@@ -825,7 +825,7 @@ ObjectFilePECOFF::GetEntryPointAddress ()
         return m_entry_point_address;
 
     SectionList *section_list = GetSectionList();
-    addr_t offset = m_coff_header_opt.entry;
+    addr_t offset = m_coff_header_opt.entry + m_coff_header_opt.image_base;
 
     if (!section_list)
         m_entry_point_address.SetOffset(offset);
