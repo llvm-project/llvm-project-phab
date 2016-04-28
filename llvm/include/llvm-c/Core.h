@@ -2128,13 +2128,32 @@ LLVMValueRef LLVMMDString(const char *Str, unsigned SLen);
  *
  * The returned value corresponds to the llvm::MDNode class.
  */
-LLVMValueRef LLVMMDNodeInContext(LLVMContextRef C, LLVMValueRef *Vals,
-                                 unsigned Count);
+// LLVMValueRef LLVMMDNodeInContext(LLVMContextRef C, LLVMValueRef *Vals,
+//                                  unsigned Count);
 
 /**
  * Obtain a MDNode value from the global context.
  */
-LLVMValueRef LLVMMDNode(LLVMValueRef *Vals, unsigned Count);
+// LLVMValueRef LLVMMDNode(LLVMValueRef *Vals, unsigned Count);
+
+/**
+ * Obtain a MDNode metadata from the global context.
+ *
+ * While LLVMMDNode and LLVMMDNodeInContext will accept a variety
+ * of inputs, LLVMGetMDNode will only accept metadata as arguments.
+ */
+LLVMValueRef LLVMGetMDNode(LLVMContextRef C, LLVMValueRef *Vals,
+                           unsigned Count);
+
+/**
+ * Obtain a Metadata as a Value.
+ */
+LLVMValueRef LLVMMetadataAsValue(LLVMContextRef C, LLVMValueRef MD);
+
+/**
+ * Obtain a Value as a Metadata.
+ */
+LLVMValueRef LLVMValueAsMetadata(LLVMValueRef Val);
 
 /**
  * Obtain the underlying string from a MDString value.

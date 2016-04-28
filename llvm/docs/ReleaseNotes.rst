@@ -57,6 +57,8 @@ Non-comprehensive list of changes in this release
 * The C API enum LLVMAttribute is deprecated in favor of
   LLVMGetAttrKindID.
 
+* The C API function LLVMMDNodeis deprecated in favor of LLVMGetMDNode.
+
 * ``TargetFrameLowering::eliminateCallFramePseudoInstr`` now returns an
   iterator to the next instruction instead of ``void``. Targets that previously
   did ``MBB.erase(I); return;`` now probably want ``return MBB.erase(I);``.
