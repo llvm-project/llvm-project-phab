@@ -673,6 +673,7 @@ void Sema::ActOnEndOfTranslationUnit() {
       LateTemplateParserCleanup(OpaqueParser);
 
     CheckDelayedMemberExceptionSpecs();
+    CheckDependentFriends();
   }
 
   // All delayed member exception specs should be checked or we end up accepting

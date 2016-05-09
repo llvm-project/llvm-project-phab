@@ -9336,6 +9336,15 @@ private:
   /// attempts to add itself into the container
   void CheckObjCCircularContainer(ObjCMessageExpr *Message);
 
+  /// \brief Set of file level friend functions declared in template classes.
+  /// Such functions are not added to redeclaration chains until instantiation
+  /// of proper templates, but they are needed for checks.
+  llvm::DenseSet<FunctionDecl *> FriendsOfTemplates;
+
+  /// \brief Check dependent friends functions for misinterpretation as template
+  /// ones.
+  void CheckDependentFriends();
+
   void AnalyzeDeleteExprMismatch(const CXXDeleteExpr *DE);
   void AnalyzeDeleteExprMismatch(FieldDecl *Field, SourceLocation DeleteLoc,
                                  bool DeleteWasArrayForm);
