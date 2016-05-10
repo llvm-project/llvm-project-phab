@@ -282,6 +282,9 @@ namespace clang {
                                                         FileID FID) {
       return None;
     }
+
+    /// \brief Read a preallocated skipped range from the external source.
+    virtual SourceRange ReadSkippedRange(unsigned Index) = 0;
   };
   
   /// \brief A record of the steps taken while preprocessing a source file,
@@ -306,6 +309,8 @@ namespace clang {
 
     /// \brief The set of ranges that were skipped by the preprocessor,
     std::vector<SourceRange> SkippedRanges;
+
+    bool SkippedRangesAllLoaded;
 
     /// \brief Global (loaded or local) ID for a preprocessed entity.
     /// Negative values are used to indicate preprocessed entities
@@ -358,6 +363,15 @@ namespace clang {
     /// \returns The index into the set of loaded preprocessed entities, which
     /// corresponds to the first newly-allocated entity.
     unsigned allocateLoadedEntities(unsigned NumEntities);
+
+    /// \brief Allocate space for a new set of loaded preprocessed skipped ranges.
+    ///
+    /// \returns The index into the set of loaded preprocessed ranges, which
+    /// corresponds to the first newly-allocated range.
+    unsigned allocateSkippedRanges(unsigned NumRanges);
+
+    /// \brief Ensures that all external skipped ranges have been loaded.
+    void ensureSkippedRangesLoaded();
 
     /// \brief Register a new macro definition.
     void RegisterMacroDefinition(MacroInfo *Macro, MacroDefinitionRecord *Def);
@@ -481,7 +495,8 @@ namespace clang {
     MacroDefinitionRecord *findMacroDefinition(const MacroInfo *MI);
 
     /// \brief Retrieve all ranges that got skipped while preprocessing.
-    const std::vector<SourceRange> &getSkippedRanges() const {
+    const std::vector<SourceRange> &getSkippedRanges() {
+      ensureSkippedRangesLoaded();
       return SkippedRanges;
     }
         

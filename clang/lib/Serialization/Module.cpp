@@ -31,6 +31,8 @@ ModuleFile::ModuleFile(ModuleKind Kind, unsigned Generation)
     LocalNumMacros(0), MacroOffsets(nullptr),
     BasePreprocessedEntityID(0),
     PreprocessedEntityOffsets(nullptr), NumPreprocessedEntities(0),
+    BasePreprocessedSkippedRangeID(0),
+    PreprocessedSkippedRangeOffsets(nullptr), NumPreprocessedSkippedRanges(0),
     LocalNumHeaderFileInfos(0), 
     HeaderFileInfoTableData(nullptr), HeaderFileInfoTable(nullptr),
     LocalNumSubmodules(0), BaseSubmoduleID(0),

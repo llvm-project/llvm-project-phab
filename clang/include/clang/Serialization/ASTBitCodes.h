@@ -183,6 +183,25 @@ namespace clang {
       }
     };
 
+    /// \brief Source range of a skipped preprocessor region
+    struct PPSkippedRange {
+      /// \brief Raw source location of beginning of range.
+      unsigned Begin;
+      /// \brief Raw source location of end of range.
+      unsigned End;
+
+      PPSkippedRange(SourceRange R)
+        : Begin(R.getBegin().getRawEncoding()),
+          End(R.getEnd().getRawEncoding()) { }
+
+      SourceLocation getBegin() const {
+        return SourceLocation::getFromRawEncoding(Begin);
+      }
+      SourceLocation getEnd() const {
+        return SourceLocation::getFromRawEncoding(End);
+      }
+    };
+
     /// \brief Source range/offset of a preprocessed entity.
     struct DeclOffset {
       /// \brief Raw source location.
@@ -580,7 +599,10 @@ namespace clang {
       MSSTRUCT_PRAGMA_OPTIONS = 55,
 
       /// \brief Record code for \#pragma ms_struct options.
-      POINTERS_TO_MEMBERS_PRAGMA_OPTIONS = 56
+      POINTERS_TO_MEMBERS_PRAGMA_OPTIONS = 56,
+
+      /// \brief A table of skipped ranges within the preprocessing record.
+      PPD_SKIPPED_RANGES = 57
     };
 
     /// \brief Record types used within a source manager block.

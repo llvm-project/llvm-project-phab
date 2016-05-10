@@ -315,6 +315,10 @@ public:
   const PPEntityOffset *PreprocessedEntityOffsets;
   unsigned NumPreprocessedEntities;
 
+  unsigned BasePreprocessedSkippedRangeID;
+  const PPSkippedRange *PreprocessedSkippedRangeOffsets;
+  unsigned NumPreprocessedSkippedRanges;
+
   // === Header search information ===
 
   /// \brief The number of local HeaderFileInfo structures.
