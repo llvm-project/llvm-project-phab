@@ -14,6 +14,7 @@ add_llvm_library(LLVMInstrumentation
 
   ADDITIONAL_HEADER_DIRS
   ${LLVM_MAIN_INCLUDE_DIR}/llvm/Transforms
+  ${LLVM_MAIN_INCLUDE_DIR}/llvm/Transforms/Instrumentation
   )
 
 add_dependencies(LLVMInstrumentation intrinsics_gen)
