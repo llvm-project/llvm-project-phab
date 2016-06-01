@@ -62,6 +62,23 @@ bool Loop::hasLoopInvariantOperands(const Instruction *I) const {
   return all_of(I->operands(), [this](Value *V) { return isLoopInvariant(V); });
 }
 
+bool Loop::isLoopInvariantOutsideSubLoop(const Value *V,
+                                         const Loop *Sub) const {
+  if (const Instruction *I = dyn_cast<Instruction>(V)) {
+    // It's defined in the subloop or outside the outer loop.
+    return Sub->contains(I) || !contains(I);
+  }
+  return true;
+}
+
+bool Loop::hasLoopInvariantOperandsOutsideSubLoop(const Instruction *I,
+                                                  const Loop *Sub) const {
+  return all_of(I->operands(),
+                [this, Sub](Value *V) {
+                  return isLoopInvariantOutsideSubLoop(V, Sub);
+                });
+}
+
 bool Loop::makeLoopInvariant(Value *V, bool &Changed,
                              Instruction *InsertPt) const {
   if (Instruction *I = dyn_cast<Instruction>(V))
