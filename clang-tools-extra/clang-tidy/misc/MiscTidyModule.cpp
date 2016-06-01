@@ -43,6 +43,7 @@
 #include "SuspiciousStringCompareCheck.h"
 #include "SwappedArgumentsCheck.h"
 #include "ThrowByValueCatchByReferenceCheck.h"
+#include "ThrowWithNoexceptCheck.h"
 #include "UndelegatedConstructor.h"
 #include "UniqueptrResetReleaseCheck.h"
 #include "UnusedAliasDeclsCheck.h"
@@ -122,6 +123,8 @@ public:
         "misc-swapped-arguments");
     CheckFactories.registerCheck<ThrowByValueCatchByReferenceCheck>(
         "misc-throw-by-value-catch-by-reference");
+    CheckFactories.registerCheck<ThrowWithNoexceptCheck>(
+        "misc-throw-with-noexcept");
     CheckFactories.registerCheck<UndelegatedConstructorCheck>(
         "misc-undelegated-constructor");
     CheckFactories.registerCheck<UniqueptrResetReleaseCheck>(

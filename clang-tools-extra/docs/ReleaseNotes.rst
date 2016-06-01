@@ -63,9 +63,14 @@ Improvements to clang-tidy
 explain them more clearly, and provide more accurate fix-its for the issues
 identified.  The improvements since the 3.8 release include:
 
+- New `misc-throw-with-noexcept
+  <http://clang.llvm.org/extra/clang-tidy/checks/misc-throw-with-noexcept.html>`_ check
+
+  Flags ``throw`` statements in functions marked as no-throw.
+
 - New Boost module containing checks for issues with Boost library.
 
-- New `boost-use-to-string 
+- New `boost-use-to-string
   <http://clang.llvm.org/extra/clang-tidy/checks/boost-use-to-string.html>`_ check
 
   Finds usages of ``boost::lexical_cast<std::string>`` and changes it to
