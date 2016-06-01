@@ -1106,54 +1106,70 @@ int *specialMallocWithStruct() {
 }
 
 // Test various allocation/deallocation functions.
-void testStrdup(const char *s, unsigned validIndex) {
+void testStrdup(const char *s) {
   char *s2 = strdup(s);
-  s2[validIndex + 1] = 'b';
 } // expected-warning {{Potential leak of memory pointed to by}}
 
-void testWinStrdup(const char *s, unsigned validIndex) {
+void testWinStrdup(const char *s) {
   char *s2 = _strdup(s);
-  s2[validIndex + 1] = 'b';
 } // expected-warning {{Potential leak of memory pointed to by}}
 
-void testWcsdup(const wchar_t *s, unsigned validIndex) {
+void testWcsdup(const wchar_t *s) {
   wchar_t *s2 = wcsdup(s);
-  s2[validIndex + 1] = 'b';
 } // expected-warning {{Potential leak of memory pointed to by}}
 
-void testWinWcsdup(const wchar_t *s, unsigned validIndex) {
+void testWinWcsdup(const wchar_t *s) {
   wchar_t *s2 = _wcsdup(s);
-  s2[validIndex + 1] = 'b';
 } // expected-warning {{Potential leak of memory pointed to by}}
 
-int testStrndup(const char *s, unsigned validIndex, unsigned size) {
+void testStrndup(const char *s, unsigned size) {
   char *s2 = strndup(s, size);
-  s2 [validIndex + 1] = 'b';
-  if (s2[validIndex] != 'a')
-    return 0;
-  else
-    return 1;// expected-warning {{Potential leak of memory pointed to by}}
-}
+} // expected-warning {{Potential leak of memory pointed to by}}
 
-void testStrdupContentIsDefined(const char *s, unsigned validIndex) {
+void testStrdupOverwritten(const char *s) {
+  char *s2 = strdup(s);
+  s2 = 0;
+} // expected-warning {{Potential leak of memory pointed to by}}
+
+void testWinStrdupOverwritten(const char *s) {
+  char *s2 = _strdup(s);
+  s2 = 0;
+} // expected-warning {{Potential leak of memory pointed to by}}
+
+void testWcsdupOverwritten(const wchar_t *s) {
+  wchar_t *s2 = wcsdup(s);
+  s2 = 0;
+} // expected-warning {{Potential leak of memory pointed to by}}
+
+void testWinWcsdupOverwritten(const wchar_t *s) {
+  wchar_t *s2 = _wcsdup(s);
+  s2 = 0;
+} // expected-warning {{Potential leak of memory pointed to by}}
+
+void testStrndupOverwritten(const char *s, unsigned size) {
+  char *s2 = strndup(s, size);
+  s2 = 0;
+} // expected-warning {{Potential leak of memory pointed to by}}
+
+void testStrdupContentIsDefined(const char *s) {
   char *s2 = strdup(s);
   char result = s2[1];// no warning
   free(s2);
 }
 
-void testWinStrdupContentIsDefined(const char *s, unsigned validIndex) {
+void testWinStrdupContentIsDefined(const char *s) {
   char *s2 = _strdup(s);
   char result = s2[1];// no warning
   free(s2);
 }
 
-void testWcsdupContentIsDefined(const wchar_t *s, unsigned validIndex) {
+void testWcsdupContentIsDefined(const wchar_t *s) {
   wchar_t *s2 = wcsdup(s);
   wchar_t result = s2[1];// no warning
   free(s2);
 }
 
-void testWinWcsdupContentIsDefined(const wchar_t *s, unsigned validIndex) {
+void testWinWcsdupContentIsDefined(const wchar_t *s) {
   wchar_t *s2 = _wcsdup(s);
   wchar_t result = s2[1];// no warning
   free(s2);

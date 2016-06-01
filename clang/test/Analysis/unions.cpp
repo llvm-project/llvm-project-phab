@@ -93,7 +93,7 @@ namespace PR17596 {
 
     // FIXME: This is a leak of uu.s.
     uu = vv;
-  }
+  } // expected-warning{{leak}}
 
   void testIndirectInvalidation() {
     IntOrString uu;

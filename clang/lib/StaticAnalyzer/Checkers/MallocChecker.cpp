@@ -198,6 +198,8 @@ public:
   DefaultBool ChecksEnabled[CK_NumCheckKinds];
   CheckName CheckNames[CK_NumCheckKinds];
 
+  static void *getTag() { static int tag; return &tag; }
+
   void checkPreCall(const CallEvent &Call, CheckerContext &C) const;
   void checkPostStmt(const CallExpr *CE, CheckerContext &C) const;
   void checkPostStmt(const CXXNewExpr *NE, CheckerContext &C) const;
@@ -319,6 +321,18 @@ private:
                              ProgramStateRef State) const;
   static ProgramStateRef CallocMem(CheckerContext &C, const CallExpr *CE,
                                    ProgramStateRef State);
+
+  static ProgramStateRef DuplicateString(CheckerContext &C, const CallExpr *CE,
+                                         ProgramStateRef State);
+  static ProgramStateRef DuplicateStringBounded(CheckerContext &C,
+                                                const CallExpr *CE,
+                                                ProgramStateRef State);
+  static SVal copyCString(CheckerContext &C, ProgramStateRef &State, SVal Buf);
+  static SVal getCStringLength(CheckerContext &C, ProgramStateRef &State,
+                               const Expr *Ex, SVal Buf);
+  static SVal getCStringLengthForRegion(CheckerContext &C,
+                                        ProgramStateRef &State, const Expr *Ex,
+                                        const MemRegion *MR);
 
   ///\brief Check if the memory associated with this symbol was released.
   bool isReleased(SymbolRef Sym, CheckerContext &C) const;
@@ -801,9 +815,15 @@ void MallocChecker::checkPostStmt(const CallExpr *CE, CheckerContext &C) const {
       State = FreeMemAux(C, CE, State, 0, false, ReleasedAllocatedMemory);
     } else if (FunI == II_strdup || FunI == II_win_strdup ||
                FunI == II_wcsdup || FunI == II_win_wcsdup) {
-      State = MallocUpdateRefState(C, CE, State);
+      if (CE->getNumArgs() < 1)
+        return;
+      State = DuplicateString(C, CE, State);
+      State = ProcessZeroAllocation(C, CE, 0, State);
     } else if (FunI == II_strndup) {
-      State = MallocUpdateRefState(C, CE, State);
+      if (CE->getNumArgs() < 2)
+        return;
+      State = DuplicateStringBounded(C, CE, State);
+      State = ProcessZeroAllocation(C, CE, 0, State);
     } else if (FunI == II_alloca || FunI == II_win_alloca) {
       State = MallocMemAux(C, CE, CE->getArg(0), UndefinedVal(), State,
                            AF_Alloca);
@@ -2011,6 +2031,121 @@ ProgramStateRef MallocChecker::CallocMem(CheckerContext &C, const CallExpr *CE,
   SVal zeroVal = svalBuilder.makeZeroVal(svalBuilder.getContext().CharTy);
 
   return MallocMemAux(C, CE, TotalSize, zeroVal, State);
+}
+
+ProgramStateRef MallocChecker::DuplicateString(CheckerContext &C,
+                                               const CallExpr *CE,
+                                               ProgramStateRef State) {
+  const auto *sourceEx = CE->getArg(0);
+  auto sourceVal = State->getSVal(sourceEx, C.getLocationContext());
+  return MallocMemAux(C, CE, getCStringLength(C, State, sourceEx, sourceVal),
+                      copyCString(C, State, sourceVal), State);
+}
+
+ProgramStateRef MallocChecker::DuplicateStringBounded(CheckerContext &C,
+                                                      const CallExpr *CE,
+                                                      ProgramStateRef State) {
+  const auto *sourceEx = CE->getArg(0);
+  auto sourceVal = State->getSVal(sourceEx, C.getLocationContext());
+  auto strLen = getCStringLength(C, State, sourceEx, sourceVal);
+
+  SValBuilder &svalBuilder = C.getSValBuilder();
+  QualType cmpTy = svalBuilder.getConditionType();
+  QualType sizeTy = svalBuilder.getContext().getSizeType();
+
+  const auto *lenEx = CE->getArg(1);
+  auto lenVal = State->getSVal(lenEx, C.getLocationContext());
+  lenVal = svalBuilder.evalCast(lenVal, sizeTy, lenEx->getType());
+
+  Optional<NonLoc> strLenNL = strLen.getAs<NonLoc>();
+  Optional<NonLoc> lenValNL = lenVal.getAs<NonLoc>();
+
+  SVal destLength = UnknownVal();
+
+  if (strLenNL && lenValNL) {
+    ProgramStateRef stateLenVal, stateStrLen;
+
+    std::tie(stateLenVal, stateStrLen) = State->assume(
+        svalBuilder.evalBinOpNN(State, BO_GE, *strLenNL, *lenValNL, cmpTy)
+            .castAs<DefinedOrUnknownSVal>());
+
+    if (stateLenVal && !stateStrLen) {
+      State = stateLenVal;
+      destLength = lenVal;
+    } else if (!stateLenVal && stateStrLen) {
+      State = stateStrLen;
+      destLength = strLen;
+    }
+  }
+  return MallocMemAux(C, CE, destLength, copyCString(C, State, sourceVal),
+                      State);
+}
+
+SVal MallocChecker::copyCString(CheckerContext &C, ProgramStateRef &State,
+                                SVal Buf) {
+  const auto *MR = Buf.getAsRegion();
+  if (!MR)
+    return UnknownVal();
+
+  MR = MR->StripCasts();
+
+  if (const auto *TVR = MR->getAs<TypedValueRegion>()) {
+    auto &svalBuilder = C.getSValBuilder();
+    const auto store = State->getStore();
+    auto &storeMgr = State->getStateManager().getStoreManager();
+    return svalBuilder.makeLazyCompoundVal(StoreRef(store, storeMgr), TVR);
+  } else {
+    return UnknownVal();
+  }
+}
+
+SVal MallocChecker::getCStringLength(CheckerContext &C, ProgramStateRef &State,
+                                     const Expr *Ex, SVal Buf) {
+  const auto *MR = Buf.getAsRegion();
+  if (!MR)
+    return UnknownVal();
+
+  MR = MR->StripCasts();
+
+  switch (MR->getKind()) {
+  case MemRegion::StringRegionKind: {
+    auto &svalBuilder = C.getSValBuilder();
+    auto sizeTy = svalBuilder.getContext().getSizeType();
+    const auto *strLit = cast<StringRegion>(MR)->getStringLiteral();
+    return svalBuilder.makeIntVal(strLit->getByteLength(), sizeTy);
+  }
+  case MemRegion::SymbolicRegionKind:
+  case MemRegion::AllocaRegionKind:
+  case MemRegion::VarRegionKind:
+  case MemRegion::FieldRegionKind:
+  case MemRegion::ObjCIvarRegionKind:
+    return getCStringLengthForRegion(C, State, Ex, MR);
+  default:
+    return UnknownVal();
+  }
+}
+
+SVal MallocChecker::getCStringLengthForRegion(CheckerContext &C,
+                                              ProgramStateRef &State,
+                                              const Expr *Ex,
+                                              const MemRegion *MR) {
+  auto &svalBuilder = C.getSValBuilder();
+  auto sizeTy = svalBuilder.getContext().getSizeType();
+  auto strLength = svalBuilder.getMetadataSymbolVal(MallocChecker::getTag(), MR,
+                                                    Ex, sizeTy, C.blockCount());
+  if (auto strLn = strLength.getAs<NonLoc>()) {
+    // In case of unbounded calls strlen etc bound the range to SIZE_MAX/4
+    auto &BVF = svalBuilder.getBasicValueFactory();
+    const auto &maxValInt = BVF.getMaxValue(sizeTy);
+    auto fourInt = APSIntType(maxValInt).getValue(4);
+    const auto *maxLengthInt = BVF.evalAPSInt(BO_Div, maxValInt, fourInt);
+    auto maxLength = svalBuilder.makeIntVal(*maxLengthInt);
+    auto evalLength =
+        svalBuilder.evalBinOpNN(State, BO_LE, *strLn, maxLength, sizeTy);
+    State = State->assume(evalLength.castAs<DefinedOrUnknownSVal>(), true);
+  }
+
+  return strLength;
 }
 
 LeakInfo
