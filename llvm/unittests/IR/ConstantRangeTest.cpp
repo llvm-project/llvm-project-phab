@@ -762,4 +762,38 @@ TEST(ConstantRange, GetEquivalentICmp) {
                    .getEquivalentICmp(Pred, RHS));
 }
 
+TEST_F(ConstantRangeTest, BinaryAnd) {
+  EXPECT_EQ(Full.binaryAnd(Full), Full);
+  EXPECT_EQ(Full.binaryAnd(Empty), Empty);
+  EXPECT_EQ(Full.binaryAnd(One), ConstantRange(APInt(16, 0), APInt(16, 0xb)));
+  EXPECT_EQ(Full.binaryAnd(Some),
+            ConstantRange(APInt(16, 0), APInt(16, 0xaaa)));
+  EXPECT_EQ(Full.binaryAnd(Wrap), Full);
+  EXPECT_EQ(Empty.binaryAnd(Empty), Empty);
+  EXPECT_EQ(Empty.binaryAnd(One), Empty);
+  EXPECT_EQ(Empty.binaryAnd(Some), Empty);
+  EXPECT_EQ(Empty.binaryAnd(Wrap), Empty);
+  EXPECT_EQ(One.binaryAnd(One), One);
+  EXPECT_EQ(One.binaryAnd(Some), ConstantRange(APInt(16, 0), APInt(16, 0xb)));
+  EXPECT_EQ(One.binaryAnd(Wrap), ConstantRange(APInt(16, 0), APInt(16, 0xb)));
+  EXPECT_EQ(Some.binaryAnd(Some),
+            ConstantRange(APInt(16, 0), APInt(16, 0xaaa)));
+  EXPECT_EQ(Some.binaryAnd(Wrap),
+            ConstantRange(APInt(16, 0), APInt(16, 0xaaa)));
+  EXPECT_EQ(Wrap.binaryAnd(Wrap), Full);
+
+  EXPECT_EQ(ConstantRange(APInt(8, 0x30), APInt(8, 0x3a))
+                .binaryAnd(ConstantRange(APInt(8, 0x20), APInt(8, 0x3f))),
+            ConstantRange(APInt(8, 0x20), APInt(8, 0x3a)));
+  EXPECT_EQ(ConstantRange(APInt(8, 21), APInt(8, 25))
+                .binaryAnd(ConstantRange(APInt(8, 22), APInt(8, 26))),
+            ConstantRange(APInt(8, 16), APInt(8, 25)));
+  EXPECT_EQ(ConstantRange(APInt(8, 4), APInt(8, 6))
+                .binaryAnd(ConstantRange(APInt(8, 8), APInt(8, 10))),
+            ConstantRange(APInt(8, 0), APInt(8, 2)));
+  EXPECT_EQ(ConstantRange(APInt(8, 255), APInt(8, 1))
+                .binaryAnd(ConstantRange(APInt(8, 255), APInt(8, 1))),
+            ConstantRange(APInt(8, 255), APInt(8, 1)));
+}
+
 }  // anonymous namespace

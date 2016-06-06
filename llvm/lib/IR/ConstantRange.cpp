@@ -825,13 +825,207 @@ ConstantRange
 ConstantRange::binaryAnd(const ConstantRange &Other) const {
   if (isEmptySet() || Other.isEmptySet())
     return ConstantRange(getBitWidth(), /*isFullSet=*/false);
-
-  // TODO: replace this with something less conservative
-
-  APInt umin = APIntOps::umin(Other.getUnsignedMax(), getUnsignedMax());
-  if (umin.isAllOnesValue())
+  if (isFullSet() && Other.isFullSet())
     return ConstantRange(getBitWidth(), /*isFullSet=*/true);
-  return ConstantRange(APInt::getNullValue(getBitWidth()), umin + 1);
+  if (isFullSet() || Other.isFullSet()) {
+    APInt NewUMax = isFullSet() ? Other.getUnsignedMax() : getUnsignedMax();
+    if (NewUMax.isMaxValue())
+      return ConstantRange(getBitWidth(), /*isFullSet=*/true);
+    return ConstantRange(APInt::getNullValue(getBitWidth()), NewUMax + 1);
+  }
+
+  // Note that 'wrapped' means Upper u< Lower, which is true for all ranges
+  // that contain -1 even if they don't include 0. For our purposes we only
+  // worry about those which include both.
+
+  if ((Other.isWrappedSet() && !Other.Upper.isMinValue()) && !isWrappedSet())
+    return Other.binaryAnd(*this);
+
+  if (isWrappedSet() && !Upper.isMinValue()) {
+    // Break wrapped ranges into two ranges, a low part and a high part. Compute
+    // binaryAnd between all the combinations, then union those together.
+    ConstantRange Low(APInt::getMinValue(getBitWidth()), Upper);
+    ConstantRange High(Lower, APInt::getMinValue(getBitWidth()));
+    if (Other.isWrappedSet() && !Other.Upper.isMinValue()) {
+      ConstantRange OtherLow(APInt::getMinValue(getBitWidth()), Other.Upper);
+      ConstantRange OtherHigh(Other.Lower, APInt::getMinValue(getBitWidth()));
+      return Low.binaryAnd(OtherLow)
+          .unionWith(Low.binaryAnd(OtherHigh))
+          .unionWith(High.binaryAnd(OtherLow))
+          .unionWith(High.binaryAnd(OtherHigh));
+    }
+    return Low.binaryAnd(Other).unionWith(High.binaryAnd(Other));
+  }
+
+  // Compute the min. To do this, we pick one representative from each range,
+  // such that they will have the lowest possible value when and'd together,
+  // by construction. In particular:
+  //   * each representative is between unsigned-min and unsigned-max inclusive
+  //     (we do not support wrapped ranges below, those are handled above)
+  //   * we try to avoid choosing a 1 bit in both representatives for the same
+  //     bit position. When we must, we try to make it happen in the least
+  //     significant bit possible.
+  //   * it is safe to choose a 1 bit in one representative if the other one has
+  //     a zero in the same bit position. We try to make this happen in the most
+  //     significant bit possible, since doing so removes restrictions on the
+  //     choice of remaining bits.
+  //
+  // Here's an example run of the algorithm. Consider i3 [1, 2) & i3 [5, 0).
+  // Starting with the left-most bit, LHS rep becomes 0xx, RHS rep becomes 1xx
+  // in order to stay in range. Next bit, LHS rep becomes 00x, RHS rep has the
+  // choice between 11x and 10x; because the LHS has a '0' bit here, we choose
+  // to put in a '1' now. Next is 001 and 110, aka i3 1 and i3 6 which when
+  // and'd together produce 0.
+
+  // Compute the min. Pick a sample value out of each range that when and'd
+  // produces the lowest possible value. We assume that any value between min
+  // and max is valid (ie., no wrapped ranges unless Upper == 0).
+  APInt UMax = getUnsignedMax(), UMin = getUnsignedMin();
+  APInt OtherUMax = Other.getUnsignedMax(), OtherUMin = Other.getUnsignedMin();
+
+  APInt MinSample = APInt::getMinValue(getBitWidth());
+  APInt OtherMinSample = APInt::getMinValue(getBitWidth());
+  for (int i = getBitWidth() - 1; i >= 0; --i) {
+    // Given the bits chosen in MinSample so far, are we free to pick a 0 or 1?
+    // Check by loading in '01...1' and '10...0' in to MinSample.
+    bool KnownZero = false, KnownOne = false;
+    bool OtherKnownZero = false, OtherKnownOne = false;
+    {
+      APInt ZeroThenOnes = APInt::getLowBitsSet(getBitWidth(), i);
+      APInt OneThenZeros = ZeroThenOnes + 1;
+      if ((MinSample | ZeroThenOnes).ult(UMin))
+        KnownOne = true;
+      if ((MinSample | OneThenZeros).ugt(UMax))
+        KnownZero = true;
+      if ((OtherMinSample | ZeroThenOnes).ult(OtherUMin))
+        OtherKnownOne = true;
+      if ((OtherMinSample | OneThenZeros).ugt(OtherUMax))
+        OtherKnownZero = true;
+    }
+
+    assert(!(KnownZero && KnownOne));
+    assert(!(OtherKnownZero && OtherKnownOne));
+
+    if ((KnownZero || KnownOne) && (OtherKnownZero || OtherKnownOne)) {
+      if (KnownOne) {
+        MinSample.setBit(i);
+      }
+      if (OtherKnownOne) {
+        OtherMinSample.setBit(i);
+      }
+      continue;
+    }
+
+    if (KnownZero) {
+      // MinSample picks a '0' now, OtherMinSample picks a '1' followed by all
+      // '0's.
+      MinSample = UMin;
+      OtherMinSample.setBit(i);
+      break;
+    }
+    if (KnownOne) {
+      MinSample.setBit(i);
+      continue;
+    }
+
+    if (OtherKnownZero) {
+      OtherMinSample = OtherUMin;
+      MinSample.setBit(i);
+      break;
+    }
+    if (OtherKnownOne) {
+      OtherMinSample.setBit(i);
+      continue;
+    }
+
+    // We have a free hand? I choose a 1 followed by all 0s for Sample, and a
+    // 0 followed by all 1s for OtherSample.
+    MinSample.setBit(i);
+    OtherMinSample |= APInt::getLowBitsSet(getBitWidth(), i);
+    break;
+  }
+
+  assert(UMin.ule(MinSample) && MinSample.ule(UMax));
+  assert(OtherUMin.ule(OtherMinSample) && OtherMinSample.ule(OtherUMax));
+  APInt NewUMin = MinSample & OtherMinSample;
+
+  // Compute the max. Similarly to computing the min, we want to choose a sample
+  // that has 1s in the same bit position for both samples. When a bit can be
+  // chosen to be either 0 or 1 and the other side is guaranteed to have a 0,
+  // we can safely choose 0 now which guarantees that choosing 1s for the rest
+  // of the bits will not go outside the range.
+  APInt MaxSample = APInt::getMinValue(getBitWidth());
+  APInt OtherMaxSample = APInt::getMinValue(getBitWidth());
+  for (int i = getBitWidth() - 1; i >= 0; --i) {
+    // Given the bits chosen in MaxSample so far, are we free to pick a 0 or 1?
+    // Check by loading in '01...1' and '10...0' in to MaxSample.
+    bool KnownZero = false, KnownOne = false;
+    bool OtherKnownZero = false, OtherKnownOne = false;
+    {
+      APInt ZeroThenOnes = APInt::getLowBitsSet(getBitWidth(), i);
+      APInt OneThenZeros = ZeroThenOnes + 1;
+      if ((MaxSample | ZeroThenOnes).ult(UMin))
+        KnownOne = true;
+      if ((MaxSample | OneThenZeros).ugt(UMax))
+        KnownZero = true;
+      if ((OtherMaxSample | ZeroThenOnes).ult(OtherUMin))
+        OtherKnownOne = true;
+      if ((OtherMaxSample | OneThenZeros).ugt(OtherUMax))
+        OtherKnownZero = true;
+    }
+
+    assert(!(KnownZero && KnownOne));
+    assert(!(OtherKnownZero && OtherKnownOne));
+
+    if ((KnownZero || KnownOne) && (OtherKnownZero || OtherKnownOne)) {
+      if (KnownOne) {
+        MaxSample.setBit(i);
+      }
+      if (OtherKnownOne) {
+        OtherMaxSample.setBit(i);
+      }
+      continue;
+    }
+
+    if (KnownOne) {
+      MaxSample.setBit(i);
+      OtherMaxSample.setBit(i);
+      continue;
+    }
+
+    if (OtherKnownOne) {
+      MaxSample.setBit(i);
+      OtherMaxSample.setBit(i);
+      continue;
+    }
+
+    if (KnownZero) {
+      // MaxSample picks a '0' now, OtherMaxSample picks a '0' followed by all
+      // '1's.
+      MaxSample = UMax;
+      OtherMaxSample |= APInt::getLowBitsSet(getBitWidth(), i);
+      break;
+    }
+
+    if (OtherKnownZero) {
+      OtherMaxSample = OtherUMax;
+      MaxSample |= APInt::getLowBitsSet(getBitWidth(), i);
+      break;
+    }
+
+    // We have a free hand? Choose 1s for both.
+    MaxSample.setBit(i);
+    OtherMaxSample.setBit(i);
+  }
+
+  assert(UMin.ule(MaxSample) && MaxSample.ule(UMax));
+  assert(OtherUMin.ule(OtherMaxSample) && OtherMaxSample.ule(OtherUMax));
+  APInt NewUMax = MaxSample & OtherMaxSample;
+
+  if (NewUMin.isMinValue() && NewUMax.isAllOnesValue())
+    return ConstantRange(getBitWidth(), /*isFullSet=*/true);
+
+  return ConstantRange(NewUMin, NewUMax + 1);
 }
 
 ConstantRange
