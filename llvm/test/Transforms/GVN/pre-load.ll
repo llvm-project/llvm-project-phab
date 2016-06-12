@@ -430,3 +430,55 @@ cleanup2:
   call void @g(i32 %NOTPRE)
   cleanupret from %c2 unwind to caller
 }
+
+; Don't PRE load across call which could throw or call exit().
+define i32 @test13(i32* noalias nocapture readonly %x, i32* noalias nocapture %r, i32 %a) {
+; CHECK-LABEL: @test13(
+; CHECK: entry:
+; CHECK-NEXT: icmp eq
+; CHECK-NEXT: br i1
+entry:
+  %tobool = icmp eq i32 %a, 0
+  br i1 %tobool, label %if.end, label %if.then
+
+; CHECK: if.then:
+; CHECK-NEXT: load i32
+; CHECK-NEXT: store i32
+if.then:
+  %uu = load i32, i32* %x, align 4
+  store i32 %uu, i32* %r, align 4
+  br label %if.end
+
+; CHECK: if.end:
+; CHECK-NEXT: call void @f()
+; CHECK-NEXT: load i32
+if.end:
+  call void @f()
+  %vv = load i32, i32* %x, align 4
+  ret i32 %vv
+}
+
+; Okay to PRE load from alloca across call.
+declare void @h(i32* nocapture)
+define i32 @test14(i32* noalias nocapture %r, i32 %a) {
+; CHECK-LABEL: @test14(
+entry:
+  %x = alloca i32
+  call void @h(i32* %x)
+  %tobool = icmp eq i32 %a, 0
+  br i1 %tobool, label %if.end, label %if.then
+
+if.then:
+  %uu = load i32, i32* %x, align 4
+  store i32 %uu, i32* %r, align 4
+  br label %if.end
+
+; CHECK: if.end:
+; CHECK-NEXT: %vv = phi i32
+; CHECK-NEXT: call void @f()
+; CHECK-NEXT: ret i32 %vv
+if.end:
+  call void @f()
+  %vv = load i32, i32* %x, align 4
+  ret i32 %vv
+}

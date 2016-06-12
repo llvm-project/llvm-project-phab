@@ -1391,6 +1391,16 @@ void GVN::AnalyzeLoadAvailability(LoadInst *LI, LoadDepVect &Deps,
          "post condition violation");
 }
 
+static bool canHoistAcross(BasicBlock::iterator BBI, BasicBlock::iterator BBE) {
+  // Don't hoist a load across a call which could throw an exception
+  // or call exit().
+  // FIXME: Potential O(N^2) performance issue?
+  for (; BBI != BBE; ++BBI)
+    if (isGuaranteedToTransferExecutionToSuccessor(BBI))
+      return false;
+  return true;
+}
+
 bool GVN::PerformLoadPRE(LoadInst *LI, AvailValInBlkVect &ValuesPerBlock,
                          UnavailBlkVect &UnavailableBlocks) {
   // Okay, we have *some* definitions of the value.  This means that the value
@@ -1409,6 +1419,12 @@ bool GVN::PerformLoadPRE(LoadInst *LI, AvailValInBlkVect &ValuesPerBlock,
   BasicBlock *LoadBB = LI->getParent();
   BasicBlock *TmpBB = LoadBB;
 
+  const DataLayout &DL = LI->getModule()->getDataLayout();
+  Value* UnderlyingObject = GetUnderlyingObject(LI->getPointerOperand(), DL);
+  bool SafeToLoadUnconditionally = isa<AllocaInst>(UnderlyingObject);
+  if (!SafeToLoadUnconditionally && !canHoistAcross(LoadBB->begin(), LI->getIterator()))
+    return false;
+
   while (TmpBB->getSinglePredecessor()) {
     TmpBB = TmpBB->getSinglePredecessor();
     if (TmpBB == LoadBB) // Infinite (unreachable) loop.
@@ -1422,6 +1438,9 @@ bool GVN::PerformLoadPRE(LoadInst *LI, AvailValInBlkVect &ValuesPerBlock,
     // above this block would be adding the load to execution paths along
     // which it was not previously executed.
     if (TmpBB->getTerminator()->getNumSuccessors() != 1)
+      return false;
+
+    if (!SafeToLoadUnconditionally && !canHoistAcross(TmpBB->begin(), TmpBB->end()))
       return false;
   }
 
@@ -1496,7 +1515,6 @@ bool GVN::PerformLoadPRE(LoadInst *LI, AvailValInBlkVect &ValuesPerBlock,
 
   // Check if the load can safely be moved to all the unavailable predecessors.
   bool CanDoPRE = true;
-  const DataLayout &DL = LI->getModule()->getDataLayout();
   SmallVector<Instruction*, 8> NewInsts;
   for (auto &PredLoad : PredLoads) {
     BasicBlock *UnavailablePred = PredLoad.first;
@@ -2399,6 +2417,10 @@ bool GVN::performScalarPRE(Instruction *CurInst) {
   if (NumWithout != 0) {
     // Don't do PRE across indirect branch.
     if (isa<IndirectBrInst>(PREPred->getTerminator()))
+      return false;
+
+    if (!isSafeToSpeculativelyExecute(CurInst) &&
+        !canHoistAcross(CurrentBlock->begin(), CurInst->getIterator()))
       return false;
 
     // We can't do PRE safely on a critical edge, so instead we schedule
