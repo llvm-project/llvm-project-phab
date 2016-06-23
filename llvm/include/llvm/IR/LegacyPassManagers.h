@@ -186,6 +186,14 @@ public:
   /// Set pass P as the last user of the given analysis passes.
   void setLastUser(ArrayRef<Pass*> AnalysisPasses, Pass *P);
 
+  /// Set pass P as locked for last use changes. This is used to make sure the
+  /// LastUser indication for a pass won't move past the point where it is not
+  /// preserved, since this would create inconsistencies.
+  void setLockedLastUse(const Pass *P);
+
+  /// Determine if the last use of pass P is unlocked.
+  bool isLastUseUnlocked(const Pass *P);
+
   /// Collect passes whose last user is P
   void collectLastUses(SmallVectorImpl<Pass *> &LastUses, Pass *P);
 
@@ -235,13 +243,17 @@ private:
   /// by this pass manager
   SmallVector<PMDataManager *, 8> IndirectPassManagers;
 
-  // Map to keep track of last user of the analysis pass.
-  // LastUser->second is the last user of Lastuser->first.
+  /// Map to keep track of last user of the analysis pass.
+  /// LastUser->second is the last user of Lastuser->first.
   DenseMap<Pass *, Pass *> LastUser;
 
-  // Map to keep track of passes that are last used by a pass.
-  // This inverse map is initialized at PM->run() based on
-  // LastUser map.
+  /// Set to keep track of locks on last use. A pass has its last use information
+  /// locked when the pass is no longer preserved.
+  SmallPtrSet<const Pass *, 16> LockedLastUse;
+
+  /// Map to keep track of passes that are last used by a pass.
+  /// This inverse map is initialized at PM->run() based on
+  /// LastUser map.
   DenseMap<Pass *, SmallPtrSet<Pass *, 8> > InversedLastUser;
 
   /// Immutable passes are managed by top level manager.
@@ -420,6 +432,10 @@ protected:
   bool isPassDebuggingExecutionsOrMore() const;
 
 private:
+  void removeNotPreservedAnalysis(Pass *P,
+      const AnalysisUsage::VectorType &PreservedSet,
+      DenseMap<AnalysisID, Pass*> &AnalysisSet);
+
   void dumpAnalysisUsage(StringRef Msg, const Pass *P,
                          const AnalysisUsage::VectorType &Set) const;
 

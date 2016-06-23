@@ -497,6 +497,16 @@ PMTopLevelManager::PMTopLevelManager(PMDataManager *PMDM) {
   activeStack.push(PMDM);
 }
 
+/// Set pass P as locked for last use changes.
+void PMTopLevelManager::setLockedLastUse(const Pass *P) {
+  LockedLastUse.insert(P);
+}
+
+/// Determine if the last use of pass P is unlocked.
+bool PMTopLevelManager::isLastUseUnlocked(const Pass *P) {
+  return LockedLastUse.count(P) == 0;
+}
+
 /// Set pass P as the last user of the given analysis passes.
 void
 PMTopLevelManager::setLastUser(ArrayRef<Pass*> AnalysisPasses, Pass *P) {
@@ -505,7 +515,8 @@ PMTopLevelManager::setLastUser(ArrayRef<Pass*> AnalysisPasses, Pass *P) {
     PDepth = P->getResolver()->getPMDataManager().getDepth();
 
   for (Pass *AP : AnalysisPasses) {
-    LastUser[AP] = P;
+    if (isLastUseUnlocked(AP))
+      LastUser[AP] = P;
 
     if (P == AP)
       continue;
@@ -543,7 +554,8 @@ PMTopLevelManager::setLastUser(ArrayRef<Pass*> AnalysisPasses, Pass *P) {
       if (LUI->second == AP)
         // DenseMap iterator is not invalidated here because
         // this is just updating existing entries.
-        LastUser[LUI->first] = P;
+        if (isLastUseUnlocked(LUI->first))
+          LastUser[LUI->first] = P;
     }
   }
 }
@@ -870,6 +882,27 @@ void PMDataManager::verifyPreservedAnalysis(Pass *P) {
   }
 }
 
+void PMDataManager::removeNotPreservedAnalysis(Pass *P,
+    const AnalysisUsage::VectorType &PreservedSet,
+    DenseMap<AnalysisID, Pass*> &AnalysisSet) {
+  for (DenseMap<AnalysisID, Pass*>::iterator I = AnalysisSet.begin(),
+         E = AnalysisSet.end(); I != E; ) {
+    DenseMap<AnalysisID, Pass*>::iterator Info = I++;
+    if (Info->second->getAsImmutablePass() == nullptr &&
+        std::find(PreservedSet.begin(), PreservedSet.end(), Info->first) ==
+        PreservedSet.end()) {
+      // Remove this analysis
+      Pass *S = Info->second;
+      if (PassDebugging >= Details) {
+        dbgs() << " -- '" <<  P->getPassName() << "' is not preserving '";
+        dbgs() << S->getPassName() << "'\n";
+      }
+      TPM->setLockedLastUse(S);
+      AnalysisSet.erase(Info);
+    }
+  }
+}
+
 /// Remove Analysis not preserved by Pass P
 void PMDataManager::removeNotPreservedAnalysis(Pass *P) {
   AnalysisUsage *AnUsage = TPM->findAnalysisUsage(P);
@@ -877,21 +910,7 @@ void PMDataManager::removeNotPreservedAnalysis(Pass *P) {
     return;
 
   const AnalysisUsage::VectorType &PreservedSet = AnUsage->getPreservedSet();
-  for (DenseMap<AnalysisID, Pass*>::iterator I = AvailableAnalysis.begin(),
-         E = AvailableAnalysis.end(); I != E; ) {
-    DenseMap<AnalysisID, Pass*>::iterator Info = I++;
-    if (Info->second->getAsImmutablePass() == nullptr &&
-        std::find(PreservedSet.begin(), PreservedSet.end(), Info->first) ==
-        PreservedSet.end()) {
-      // Remove this analysis
-      if (PassDebugging >= Details) {
-        Pass *S = Info->second;
-        dbgs() << " -- '" <<  P->getPassName() << "' is not preserving '";
-        dbgs() << S->getPassName() << "'\n";
-      }
-      AvailableAnalysis.erase(Info);
-    }
-  }
+  removeNotPreservedAnalysis(P, PreservedSet, AvailableAnalysis);
 
   // Check inherited analysis also. If P is not preserving analysis
   // provided by parent manager then remove it here.
@@ -900,22 +919,7 @@ void PMDataManager::removeNotPreservedAnalysis(Pass *P) {
     if (!InheritedAnalysis[Index])
       continue;
 
-    for (DenseMap<AnalysisID, Pass*>::iterator
-           I = InheritedAnalysis[Index]->begin(),
-           E = InheritedAnalysis[Index]->end(); I != E; ) {
-      DenseMap<AnalysisID, Pass *>::iterator Info = I++;
-      if (Info->second->getAsImmutablePass() == nullptr &&
-          std::find(PreservedSet.begin(), PreservedSet.end(), Info->first) ==
-             PreservedSet.end()) {
-        // Remove this analysis
-        if (PassDebugging >= Details) {
-          Pass *S = Info->second;
-          dbgs() << " -- '" <<  P->getPassName() << "' is not preserving '";
-          dbgs() << S->getPassName() << "'\n";
-        }
-        InheritedAnalysis[Index]->erase(Info);
-      }
-    }
+    removeNotPreservedAnalysis(P, PreservedSet, *InheritedAnalysis[Index]);
   }
 }
 

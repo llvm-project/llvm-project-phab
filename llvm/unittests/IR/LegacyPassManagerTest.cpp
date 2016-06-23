@@ -43,6 +43,9 @@ namespace llvm {
   void initializeCGPassPass(PassRegistry&);
   void initializeLPassPass(PassRegistry&);
   void initializeBPassPass(PassRegistry&);
+  void initializeModuleDupePass(PassRegistry&);
+  void initializeModuleDupeUserPass(PassRegistry&);
+  void initializeModuleDupePreservationBreakerPass(PassRegistry&);
 
   namespace {
     // ND = no deps
@@ -540,6 +543,107 @@ namespace llvm {
       return mod;
     }
 
+     
+    // This verifies that the locking of LastUser propagation works.
+    struct ModuleDupe : public ModulePass {
+    public:
+      static char run;
+      static char ID;
+      static char allocated;
+      ModuleDupe() : ModulePass(ID) {
+        initializeModuleDupePass(*PassRegistry::getPassRegistry());
+      }
+      bool runOnModule(Module &M) override {
+        EXPECT_EQ(allocated, 0);  // This is the core expect!
+        run++;
+        allocated++;
+        return true;
+      }
+      void releaseMemory() override {
+        EXPECT_GT(run, 0);
+        EXPECT_GT(allocated, 0);
+        allocated--;
+      }
+      void getAnalysisUsage(AnalysisUsage &AU) const override {
+        AU.setPreservesAll();
+      }
+    };
+    char ModuleDupe::ID=0;
+    char ModuleDupe::run=0;
+    char ModuleDupe::allocated=0;
+
+    struct ModuleDupePreservationBreaker : public ModulePass {
+    public:
+      static char run;
+      static char ID;
+      ModuleDupePreservationBreaker() : ModulePass(ID) {
+        initializeModuleDupePreservationBreakerPass(*PassRegistry::getPassRegistry());
+      }
+      bool runOnModule(Module &M) override {
+        run++;
+        return true;
+      }
+      void getAnalysisUsage(AnalysisUsage &AU) const override {
+        AU.addRequired<ModuleDupe>();
+      }
+    };
+    char ModuleDupePreservationBreaker::ID=0;
+    char ModuleDupePreservationBreaker::run=0;
+
+    struct ModuleDupeUser: public ModulePass {
+    public:
+      static char run;
+      static char ID;
+      ModuleDupeUser() : ModulePass(ID) {
+        initializeModuleDupeUserPass(*PassRegistry::getPassRegistry());
+      }
+      bool runOnModule(Module &M) override {
+        run++;
+        return false;
+      }
+      void getAnalysisUsage(AnalysisUsage &AU) const override {
+        AU.addRequired<ModuleDupePreservationBreaker>();
+        AU.addRequired<ModuleDupe>();
+        AU.setPreservesAll();
+      }
+    };
+    char ModuleDupeUser::ID=0;
+    char ModuleDupeUser::run=0;
+
+    TEST(PassManager, CheckOldUnpreservedPassHasBeenRemovedBeforeNewIsRun) {
+      LLVMContext Context;
+      Module M("test-checkoldunpreservedpasshasbeenremoved", Context);
+      struct ModuleDupe *mDupe = new ModuleDupe();
+      struct ModuleDupePreservationBreaker *mDPB = new ModuleDupePreservationBreaker();
+      struct ModuleDupeUser *mDupeUser = new ModuleDupeUser();
+
+      mDupe->run = mDupeUser->run = mDPB->run = 0;
+
+      legacy::PassManager Passes;
+      Passes.add(mDupe);
+      Passes.add(mDPB);
+      Passes.add(mDupeUser);
+
+      // The mDPB is not preserving mDupe, so a new Dupe will be scheduled
+      // before DupeUser. This means we'll have this sequence of passes:
+      // Dupe
+      // DupePreservationBreaker
+      // Dupe
+      // DupeUser
+      //
+      // The DupeUser is requiring DupePreservationBreaker, which tries to trick
+      // the LegacyPassManager to transitively move the LastUse of the first
+      // Dupe to DupeUser. This would make it not remove the first Dupe before
+      // creating the second one, which would risk errors when we have two
+      // active Dupe instances simultaneously. Dupe has a check for allocation
+      // that verifies that this doesn't happen.
+
+      Passes.run(M);
+      EXPECT_EQ(2, mDupe->run);
+      EXPECT_EQ(1, mDPB->run);
+      EXPECT_EQ(1, mDupeUser->run);
+    }
+
   }
 }
 
@@ -552,3 +656,6 @@ INITIALIZE_PASS_BEGIN(LPass, "lp","lp", false, false)
 INITIALIZE_PASS_DEPENDENCY(LoopInfoWrapperPass)
 INITIALIZE_PASS_END(LPass, "lp","lp", false, false)
 INITIALIZE_PASS(BPass, "bp","bp", false, false)
+INITIALIZE_PASS(ModuleDupe, "mdupe", "mdupe", false, false)
+INITIALIZE_PASS(ModuleDupeUser, "mdupeuser", "mdupeuser", false, false)
+INITIALIZE_PASS(ModuleDupePreservationBreaker, "mdupepb", "mdupepb", false, false)
