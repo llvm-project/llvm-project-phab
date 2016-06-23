@@ -131,6 +131,7 @@ public:
   // Add a new loop into the loop queue as a child of the given parent, or at
   // the top level if \c ParentLoop is null.
   Loop &addLoop(Loop *ParentLoop);
+  void addExistingLoop(Loop *L, Loop *ParentLoop);
 
   //===--------------------------------------------------------------------===//
   /// SimpleAnalysis - Provides simple interface to update analysis info

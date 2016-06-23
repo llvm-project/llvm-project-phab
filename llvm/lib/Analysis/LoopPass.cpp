@@ -71,16 +71,13 @@ LPPassManager::LPPassManager()
 }
 
 // Inset loop into loop nest (LoopInfo) and loop queue (LQ).
-Loop &LPPassManager::addLoop(Loop *ParentLoop) {
-  // Create a new loop. LI will take ownership.
-  Loop *L = new Loop();
-
+void LPPassManager::addExistingLoop(Loop *L, Loop *ParentLoop) {
   // Insert into the loop nest and the loop queue.
   if (!ParentLoop) {
     // This is the top level loop.
     LI->addTopLevelLoop(L);
     LQ.push_front(L);
-    return *L;
+    return;
   }
 
   ParentLoop->addChildLoop(L);
@@ -93,6 +90,12 @@ Loop &LPPassManager::addLoop(Loop *ParentLoop) {
       break;
     }
   }
+}
+
+Loop &LPPassManager::addLoop(Loop *ParentLoop) {
+  // Create a new loop. LI will take ownership.
+  Loop *L = new Loop();
+  addExistingLoop(L, ParentLoop);
   return *L;
 }
 

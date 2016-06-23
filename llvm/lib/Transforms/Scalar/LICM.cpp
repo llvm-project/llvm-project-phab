@@ -103,6 +103,7 @@ static bool canSinkOrHoistInst(Instruction &I, AliasAnalysis *AA,
                                DominatorTree *DT, TargetLibraryInfo *TLI,
                                Loop *CurLoop, AliasSetTracker *CurAST,
                                LoopSafetyInfo *SafetyInfo);
+static bool isTriviallyReplacablePHI(const PHINode &PN, const Instruction &I);
 
 namespace {
 struct LICM : public LoopPass {
@@ -117,7 +118,6 @@ struct LICM : public LoopPass {
   /// loop preheaders be inserted into the CFG...
   ///
   void getAnalysisUsage(AnalysisUsage &AU) const override {
-    AU.setPreservesCFG();
     AU.addRequired<TargetLibraryInfoWrapperPass>();
     getLoopAnalysisUsage(AU);
   }
@@ -208,7 +208,7 @@ bool LICM::runOnLoop(Loop *L, LPPassManager &LPM) {
   //
   if (L->hasDedicatedExits())
     Changed |= sinkRegion(DT->getNode(L->getHeader()), AA, LI, DT, TLI, CurLoop,
-                          CurAST, &SafetyInfo);
+                          CurAST, &SafetyInfo, &LPM);
   if (Preheader)
     Changed |= hoistRegion(DT->getNode(L->getHeader()), AA, LI, DT, TLI,
                            CurLoop, CurAST, &SafetyInfo);
@@ -262,6 +262,263 @@ bool LICM::runOnLoop(Loop *L, LPPassManager &LPM) {
   return Changed;
 }
 
+// Safety checks for subloop movement, shared between hoisting and sinking.
+// These conditions are necessary, but *not* sufficient to allow moving
+// a subloop.
+static bool canSinkOrHoistSubLoop(const Loop *SubLoop, const DominatorTree *DT,
+                                  const Loop *CurLoop,
+                                  const LoopSafetyInfo *SafetyInfo) {
+  // Only move loops one level at a time.
+  if (SubLoop->getParentLoop() != CurLoop)
+    return false;
+
+  // Subloop being moved must have a single exit and entry block.
+  if (!SubLoop->getLoopPredecessor() || !SubLoop->getExitBlock() ||
+      !SubLoop->getExitingBlock()) {
+    DEBUG(dbgs() << "Not hoisting/sinking subloop: "
+                 << SubLoop->getHeader()->getName()
+                 << ": Missing exit block, exiting block, or predecessor.");
+    return false;
+  }
+
+  if (!SubLoop->hasDedicatedExits()) {
+    DEBUG(dbgs() << "Not hoisting/sinking subloop: "
+                 << SubLoop->getHeader()->getName() << ": Exit block "
+                 << SubLoop->getExitBlock()->getName()
+                 << " has out-of-loop predecessor.\n");
+    return false;
+  }
+
+  if (!isGuaranteedToExecute(*SubLoop->getHeader()->begin(), DT, CurLoop,
+                             SafetyInfo)) {
+    DEBUG(dbgs() << "Not hoisting/sinking subloop "
+                 << SubLoop->getHeader()->getName() << " to "
+                 << CurLoop->getHeader()->getName()
+                 << ": not guaranteed to execute.\n");
+    return false;
+  }
+  return true;
+}
+
+static bool canSinkSubLoop(Loop *SubLoop, AliasAnalysis *AA, DominatorTree *DT,
+                           TargetLibraryInfo *TLI, Loop *CurLoop,
+                           AliasSetTracker *CurAST,
+                           LoopSafetyInfo *SafetyInfo) {
+  if (!canSinkOrHoistSubLoop(SubLoop, DT, CurLoop, SafetyInfo))
+    return false;
+
+  // Checked in runOnLoop().
+  assert(CurLoop->hasDedicatedExits() &&
+         "Can't sink subloop to loop without dedicated exits!");
+
+  // Make sure the outer loop has a single exit block we can sink to.
+  if (!CurLoop->getExitBlock()) {
+    DEBUG(dbgs() << "Not sinking subloop: " << SubLoop->getHeader()->getName()
+                 << ": Outer loop " << CurLoop->getHeader()->getName()
+                 << " has no dedicated exit block.\n");
+    return false;
+  }
+
+  auto ExitBlock = SubLoop->getExitBlock();
+  assert(ExitBlock && "Can't sink subloop without single exit block!");
+  // Find any LCSSA phi nodes and check they're not used inside the loop.
+  PHINode *PN;
+  for (auto II = ExitBlock->begin(); (PN = dyn_cast<PHINode>(II)); ++II) {
+    if (PN->getNumOperands() == 1 &&
+        SubLoop->contains(PN->getIncomingBlock(0))) {
+      if (!isNotUsedInLoop(*PN, CurLoop, SafetyInfo)) {
+        DEBUG(dbgs() << "Not sinking subloop: "
+                     << SubLoop->getHeader()->getName()
+                     << ": Inner loop value used in outer loop.\n");
+        return false;
+      }
+    }
+  }
+
+  // Check we can sink each instruction inside the loop.
+  for (BasicBlock *BB : SubLoop->blocks()) {
+    for (Instruction &I : *BB) {
+      if (!isa<PHINode>(&I) && !isa<BranchInst>(&I) &&
+          !canSinkOrHoistInst(I, AA, DT, TLI, CurLoop, CurAST, SafetyInfo)) {
+        DEBUG(dbgs() << "Not sinking subloop: "
+                     << SubLoop->getHeader()->getName() << ": Can't sink " << I
+                     << "\n");
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
+// Update all phi nodes for which the incoming block is no longer a predecessor
+// of BB to refer to New.
+static void replaceInvalidPHIOperandsWith(BasicBlock *BB, BasicBlock *New) {
+  PHINode *PN;
+  for (auto II = BB->begin(); (PN = dyn_cast<PHINode>(II)); ++II) {
+    for (unsigned Idx = 0; Idx < PN->getNumOperands(); ++Idx) {
+      BasicBlock *Incoming = PN->getIncomingBlock(Idx);
+      if (std::find(pred_begin(BB), pred_end(BB), Incoming) == pred_end(BB))
+        PN->setIncomingBlock(Idx, New);
+    }
+  }
+}
+
+static void removeSubLoop(Loop *SubLoop, DominatorTree *DT) {
+  // Remove from parent's subloop list.
+  Loop *Parent = SubLoop->getParentLoop();
+  assert(Parent && "Subloop has no parent");
+  auto &SubLoops = Parent->getSubLoops();
+  BasicBlock *SubLoopHeader = SubLoop->getHeader();
+  Loop::iterator it = std::find(SubLoops.begin(), SubLoops.end(), SubLoop);
+  assert(it != SubLoops.end() && *it == SubLoop && "Can't get iterator to subloop");
+  SubLoop = Parent->removeChildLoop(it);
+
+  auto OldExitBlock = SubLoop->getExitBlock();
+  assert(OldExitBlock && "Can't get subloop exit block!");
+
+  // Create a new exit block, which will be hoisted along with the loop to
+  // preserve LCSSA.
+  BasicBlock *NewExitBlock =
+      BasicBlock::Create(SubLoopHeader->getContext(),
+                         SubLoopHeader->getName() + ".licm_exit",
+                         SubLoopHeader->getParent());
+  DT->addNewBlock(NewExitBlock, SubLoop->getExitingBlock());
+
+  TerminatorInst *DummyTerm =
+      new UnreachableInst(NewExitBlock->getContext(), NewExitBlock);
+
+  // Find any LCSSA phi nodes and add them to the new exit block.
+  std::vector<PHINode *> PhisToMove;
+  PHINode *PN;
+  for (auto II = OldExitBlock->begin(); (PN = dyn_cast<PHINode>(II)); ++II) {
+    if (PN->getNumOperands() == 1 &&
+        SubLoop->contains(PN->getIncomingBlock(0))) {
+      auto Inst = dyn_cast<Instruction>(PN->getIncomingValue(0));
+      if (Inst && SubLoop->contains(Inst))
+        PhisToMove.push_back(PN);
+    }
+  }
+  for (auto PN : PhisToMove)
+    PN->moveBefore(DummyTerm);
+
+  // Point the subloop's predecessor at its exit block.
+  BasicBlock *SubLoopPredecessor = SubLoop->getLoopPredecessor();
+  assert(SubLoopPredecessor && "Can't get subloop predecessor!");
+  SubLoopPredecessor->getTerminator()->replaceUsesOfWith(SubLoopHeader,
+                                                         OldExitBlock);
+
+  auto ExitingBlock = SubLoop->getExitingBlock();
+  for (auto II = OldExitBlock->begin(); isa<PHINode>(II); ++II)
+    II->replaceUsesOfWith(ExitingBlock, SubLoopPredecessor);
+
+  // Branch from the subloop's exiting block to the new exit block.
+  for (auto BBI = succ_begin(ExitingBlock), BBE = succ_end(ExitingBlock);
+       BBI != BBE; ++BBI) {
+    if (!SubLoop->contains(*BBI)) {
+      ExitingBlock->getTerminator()->replaceUsesOfWith(*BBI, NewExitBlock);
+    }
+  }
+
+  for (auto *BB : SubLoop->blocks())
+    Parent->removeBlockFromLoop(BB);
+
+  // We never need to free a subloop's AST here - because we only ever move
+  // *sub*loops, the AST is always freed in collectAliasInfoForLoop(), even if
+  // we're moving this subloop to level 0.
+
+  // The old exit block is now dominated by the subloop's old predecessor.
+  DT->changeImmediateDominator(OldExitBlock, SubLoopPredecessor);
+}
+
+// Insert the subloop after the phis in the outer loop's exit block.
+static void sinkSubLoopToExit(Loop *SubLoop, LoopInfo *LI, DominatorTree *DT,
+                              Loop *CurLoop, LPPassManager *LPM) {
+  BasicBlock *SubLoopHeader = SubLoop->getHeader();
+  BasicBlock *ExitBlock = CurLoop->getExitBlock();
+  BasicBlock *SubLoopExitBlock = SubLoop->getExitBlock();
+  assert(SubLoopHeader && ExitBlock && SubLoopExitBlock);
+
+  DEBUG(dbgs() << "LICM sinking to " << ExitBlock->getName() << ": ");
+  DEBUG(SubLoop->dump());
+
+  // Split the outer loop's exit block into phi and non-phi parts.
+  BasicBlock *AfterSubLoop = ExitBlock->splitBasicBlock(
+      ExitBlock->getFirstNonPHI(), ExitBlock->getName() + ".licm_post_subloop");
+  DT->addNewBlock(AfterSubLoop, SubLoopExitBlock);
+
+  // Like in hoisting, fix up invalid phis in the subloop header which used to
+  // refer to the loop's predecessors inside the outer loop.
+  replaceInvalidPHIOperandsWith(SubLoopHeader, ExitBlock);
+
+  // The outer loop's exit block may contain LCSSA phi nodes referring to
+  // values defined in the inner loop. But because we've moved the inner loop
+  // to *after* these nodes, they are invalid. RAUW with the *inner* loop's
+  // LCSSA node.
+  std::vector<Instruction *> InstructionsToErase;
+  PHINode *PN;
+  for (auto II = ExitBlock->begin(); (PN = dyn_cast<PHINode>(II)); ++II) {
+    auto Incoming = dyn_cast<Instruction>(PN->getIncomingValue(0));
+    if (Incoming && PN->getNumOperands() > 0 &&
+        isTriviallyReplacablePHI(*PN, *Incoming)) {
+      if (Incoming->getParent() == SubLoopExitBlock) {
+        PN->replaceAllUsesWith(Incoming);
+        InstructionsToErase.push_back(PN);
+      }
+    }
+  }
+  for (auto I : InstructionsToErase)
+    I->eraseFromParent();
+
+  // Branch from the sunk subloop's exit block to the non-phi part of the
+  // original exit block.
+  ExitBlock->getTerminator()->moveBefore(SubLoopExitBlock->getTerminator());
+  SubLoopExitBlock->getTerminator()->eraseFromParent();
+
+  // Branch from the outer loop's exit block to the sunk subloop.
+  BranchInst::Create(SubLoopHeader, ExitBlock);
+
+  // The sunk subloop may use values which were defined in the outer loop. To
+  // preserve LCSSA, find these and add phis in the outer loop's exit block.
+  SmallVector<BasicBlock *, 8> ExitingBlocks;
+  CurLoop->getExitingBlocks(ExitingBlocks);
+  for (BasicBlock *BB : SubLoop->blocks()) {
+    for (Instruction &I : *BB) {
+      for (unsigned Idx = 0; Idx < I.getNumOperands(); ++Idx) {
+        auto Op = dyn_cast<Instruction>(I.getOperand(Idx));
+        if (Op && CurLoop->contains(Op->getParent())) {
+          auto PN =
+              PHINode::Create(Op->getType(), 0, Op->getName() + ".licm_lcssa",
+                              &*ExitBlock->begin());
+          for (BasicBlock *ExitingBlock : ExitingBlocks) {
+            PN->addIncoming(Op, ExitingBlock);
+          }
+          I.setOperand(Idx, PN);
+        }
+      }
+    }
+  }
+
+  Loop *ParentLoop = CurLoop->getParentLoop();
+  if (ParentLoop) {
+    ParentLoop->addBasicBlockToLoop(SubLoopExitBlock, *LI);
+    ParentLoop->addBasicBlockToLoop(AfterSubLoop, *LI);
+  }
+
+  assert(LPM && "No LPPassManager when sinking subloop!");
+  LPM->addExistingLoop(SubLoop, CurLoop->getParentLoop());
+
+  // The old outer exit block's children are dominated by the new exit block.
+  DomTreeNode *OldExitNode = (*DT)[ExitBlock];
+  const std::vector<DomTreeNode *> Children(OldExitNode->getChildren().begin(),
+                                            OldExitNode->getChildren().end());
+  for (DomTreeNode *Child : Children)
+    DT->changeImmediateDominator(Child, (*DT)[AfterSubLoop]);
+
+  DT->changeImmediateDominator(SubLoopHeader, ExitBlock);
+  DT->changeImmediateDominator(AfterSubLoop, SubLoopExitBlock);
+}
+
 /// Walk the specified region of the CFG (defined by all blocks dominated by
 /// the specified block, and that are in the current loop) in reverse depth
 /// first order w.r.t the DominatorTree.  This allows us to visit uses before
@@ -269,7 +526,8 @@ bool LICM::runOnLoop(Loop *L, LPPassManager &LPM) {
 ///
 bool llvm::sinkRegion(DomTreeNode *N, AliasAnalysis *AA, LoopInfo *LI,
                       DominatorTree *DT, TargetLibraryInfo *TLI, Loop *CurLoop,
-                      AliasSetTracker *CurAST, LoopSafetyInfo *SafetyInfo) {
+                      AliasSetTracker *CurAST, LoopSafetyInfo *SafetyInfo,
+                      LPPassManager *LPM) {
 
   // Verify inputs.
   assert(N != nullptr && AA != nullptr && LI != nullptr && DT != nullptr &&
@@ -283,14 +541,34 @@ bool llvm::sinkRegion(DomTreeNode *N, AliasAnalysis *AA, LoopInfo *LI,
 
   // We are processing blocks in reverse dfo, so process children first.
   bool Changed = false;
-  const std::vector<DomTreeNode *> &Children = N->getChildren();
+  const std::vector<DomTreeNode *> Children(N->getChildren().begin(),
+                                            N->getChildren().end());
   for (DomTreeNode *Child : Children)
-    Changed |= sinkRegion(Child, AA, LI, DT, TLI, CurLoop, CurAST, SafetyInfo);
+    Changed |=
+        sinkRegion(Child, AA, LI, DT, TLI, CurLoop, CurAST, SafetyInfo, LPM);
 
   // Only need to process the contents of this block if it is not part of a
-  // subloop (which would already have been processed).
-  if (inSubLoop(BB, CurLoop, LI))
+  // subloop (which would already have been processed). However, we might be
+  // able to sink the entire subloop.
+  if (inSubLoop(BB, CurLoop, LI)) {
+    Loop *SubLoop = LI->getLoopFor(BB);
+
+    // Make sure this is the dominating block.
+    if (SubLoop->getHeader() == BB) {
+      if (canSinkSubLoop(SubLoop, AA, DT, TLI, CurLoop, CurAST, SafetyInfo)) {
+        removeSubLoop(SubLoop, DT);
+        sinkSubLoopToExit(SubLoop, LI, DT, CurLoop, LPM);
+#ifndef NDEBUG
+        SubLoop->verifyLoop();
+        CurLoop->verifyLoop();
+        DT->verifyDomTree();
+        LI->verify();
+#endif
+        Changed = true;
+      }
+    }
     return Changed;
+  }
 
   for (BasicBlock::iterator II = BB->end(); II != BB->begin();) {
     Instruction &I = *--II;
