@@ -1,8 +1,8 @@
-; RUN: llc -O0 -march=mipsel -mcpu=mips32r2 -target-abi=o32 < %s -filetype=asm -o - \
+; RUN: llc -O0 -march=mipsel -mcpu=mips32r2 -mabi=o32 < %s -filetype=asm -o - \
 ; RUN:   | FileCheck -check-prefix=PTR32 -check-prefix=ALL %s
-; RUN: llc -O0 -march=mips64el -mcpu=mips64r2 -target-abi=n32 < %s -filetype=asm -o - \
+; RUN: llc -O0 -march=mips64el -mcpu=mips64r2 -mabi=n32 < %s -filetype=asm -o - \
 ; RUN:   | FileCheck  -check-prefix=PTR32 -check-prefix=ALL %s
-; RUN: llc -O0 -march=mips64el -mcpu=mips64r2 -target-abi=n64 < %s -filetype=asm -o - \
+; RUN: llc -O0 -march=mips64el -mcpu=mips64r2 -mabi=n64 < %s -filetype=asm -o - \
 ; RUN:   | FileCheck -check-prefix=PTR64 -check-prefix=ALL %s
 
 ; PTR32: lw $[[R0:[0-9]+]]

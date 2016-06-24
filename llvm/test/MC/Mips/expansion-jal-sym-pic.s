@@ -1,19 +1,19 @@
 # RUN: llvm-mc %s -arch=mips -mcpu=mips32 -show-encoding |\
 # RUN:   FileCheck %s -check-prefix=ALL -check-prefix=NORMAL -check-prefix=O32
 
-# RUN: llvm-mc %s -arch=mips -mcpu=mips64 -target-abi n32 -show-encoding |\
+# RUN: llvm-mc %s -arch=mips -mcpu=mips64 -mabi=n32 -show-encoding |\
 # RUN:   FileCheck %s -check-prefix=ALL -check-prefix=NORMAL -check-prefix=N32
 
-# RUN: llvm-mc %s -arch=mips64 -mcpu=mips64 -target-abi n64 -show-encoding |\
+# RUN: llvm-mc %s -arch=mips64 -mcpu=mips64 -mabi=n64 -show-encoding |\
 # RUN:   FileCheck %s -check-prefix=ALL -check-prefix=NORMAL -check-prefix=N64
 
 # RUN: llvm-mc %s -arch=mips -mcpu=mips32 -mattr=micromips -show-encoding |\
 # RUN:   FileCheck %s -check-prefix=ALL -check-prefix=MICROMIPS -check-prefix=O32-MICROMIPS
 
-# RUN: llvm-mc %s -arch=mips -mcpu=mips64 -target-abi n32 -mattr=micromips -show-encoding |\
+# RUN: llvm-mc %s -arch=mips -mcpu=mips64 -mabi=n32 -mattr=micromips -show-encoding |\
 # RUN:   FileCheck %s -check-prefix=ALL -check-prefix=MICROMIPS -check-prefix=N32-MICROMIPS
 
-# RUN: llvm-mc %s -arch=mips64 -mcpu=mips64 -target-abi n64 -mattr=micromips -show-encoding |\
+# RUN: llvm-mc %s -arch=mips64 -mcpu=mips64 -mabi=n64 -mattr=micromips -show-encoding |\
 # RUN:   FileCheck %s -check-prefix=ALL -check-prefix=MICROMIPS -check-prefix=N64-MICROMIPS
 
   .weak weak_label

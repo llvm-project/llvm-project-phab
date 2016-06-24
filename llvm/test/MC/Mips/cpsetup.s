@@ -1,14 +1,14 @@
-# RUN: llvm-mc -triple mips64-unknown-linux -target-abi o32 -filetype=obj -o - %s | \
+# RUN: llvm-mc -triple mips64-unknown-linux -mabi=o32 -filetype=obj -o - %s | \
 # RUN:   llvm-objdump -d -r - | FileCheck -check-prefix=ALL -check-prefix=O32 %s
 
-# RUN: llvm-mc -triple mips64-unknown-unknown -target-abi o32 %s | \
+# RUN: llvm-mc -triple mips64-unknown-unknown -mabi=o32 %s | \
 # RUN:   FileCheck -check-prefix=ALL -check-prefix=ASM %s
 
-# RUN: llvm-mc -triple mips64-unknown-linux -target-abi n32 -filetype=obj -o - %s | \
+# RUN: llvm-mc -triple mips64-unknown-linux -mabi=n32 -filetype=obj -o - %s | \
 # RUN:   llvm-objdump -d -r - | \
 # RUN:   FileCheck -check-prefix=ALL -check-prefix=NXX -check-prefix=N32 %s
 
-# RUN: llvm-mc -triple mips64-unknown-unknown -target-abi n32 %s | \
+# RUN: llvm-mc -triple mips64-unknown-unknown -mabi=n32 %s | \
 # RUN:   FileCheck -check-prefix=ALL -check-prefix=ASM %s
 
 # RUN: llvm-mc -triple mips64-unknown-linux %s -filetype=obj -o - | \

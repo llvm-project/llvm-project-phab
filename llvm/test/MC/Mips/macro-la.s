@@ -2,9 +2,9 @@
 # RUN:   FileCheck %s
 # RUN: llvm-mc %s -triple=mips-unknown-linux -show-encoding -mcpu=mips32r6 | \
 # RUN:   FileCheck %s
-# RUN: llvm-mc %s -triple=mips64-unknown-linux -show-encoding -mcpu=mips64r2 -target-abi=n32 | \
+# RUN: llvm-mc %s -triple=mips64-unknown-linux -show-encoding -mcpu=mips64r2 -mabi=n32 | \
 # RUN:   FileCheck %s
-# RUN: llvm-mc %s -triple=mips64-unknown-linux -show-encoding -mcpu=mips64r6 -target-abi=n32 | \
+# RUN: llvm-mc %s -triple=mips64-unknown-linux -show-encoding -mcpu=mips64r6 -mabi=n32 | \
 # RUN:   FileCheck %s
 
 # N64 should be acceptable too but we cannot convert la to dla yet.
