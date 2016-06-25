@@ -687,6 +687,64 @@ static bool canUnrollCompletely(Loop *L, unsigned Threshold,
   return false;
 }
 
+// Returns number of instructions that could be optimized out if a loop
+// get unrolled. Initially based only on the following structure.
+//
+// loop:
+//   R.prev = phi[R, ...
+//   R = phi [R.next, ...
+//   2 Uses of R or Rnext or R.prev
+//   R.next calculation depends on R
+// loopexit:
+//   1 Use of R or Rnext or R.prev
+//
+// Without unroll we will need a move to store R.prev value.
+// With unroll on 2 or more R.prev and R just go to different
+// registers.
+static unsigned ForceUnrollProfitability(Loop *L) {
+  BasicBlock *Latch = L->getLoopLatch();
+  BasicBlock *Header = L->getHeader();
+  // By default no instructions are optimized out.
+  unsigned OptInsns = 0;
+  if (!Latch || !Header)
+    return OptInsns;
+  for (Instruction &BBI : *Header) {
+    PHINode *PN = dyn_cast<PHINode>(&BBI);
+    // Exit when we've passed all PHI nodes.
+    if (!PN)
+      break;
+    // To simplify calculations we do not check that PN represents a
+    // recurrency (which could be a very long chain) potentially hitting
+    // some extra cases.
+    PHINode *PrevPN = dyn_cast<PHINode>(PN->getIncomingValueForBlock(Latch));
+    if (!PrevPN)
+      continue;
+    SmallVector<PHINode *, 2> PNs;
+    PNs.push_back(PN);
+    if (PN != PrevPN)
+      PNs.push_back(PrevPN);
+    unsigned PNLoopUses = 0, PNUses = 0;
+    for (PHINode *Phi : PNs) {
+      if (PNLoopUses >= 2 && PNUses >= 1)
+        break;
+      for (User *U : Phi->users()) {
+        Instruction *I = dyn_cast<Instruction>(U);
+        if (!I)
+          continue;
+        if (L->contains(I))
+          PNLoopUses++;
+        else
+          PNUses++;
+        if (PNLoopUses >= 2 && PNUses >= 1) {
+          OptInsns++;
+          break;
+        }
+      }
+    }
+  }
+  return OptInsns;
+}
+
 // Returns true if unroll count was set explicitly.
 // Calculates unroll count and writes it to UP.Count.
 static bool computeUnrollCount(Loop *L, const TargetTransformInfo &TTI,
@@ -884,6 +942,14 @@ static bool computeUnrollCount(Loop *L, const TargetTransformInfo &TTI,
                 "count that divides the loop trip multiple of ") +
               Twine(TripMultiple) + ".  Unrolling instead " + Twine(UP.Count) +
               " time(s).");
+  }
+
+  // Check if forced unroll is profitable.
+  if (!ExplicitUnroll) {
+    unsigned NewBEInsns = ForceUnrollProfitability(L);
+    if (NewBEInsns &&
+        (LoopSize - NewBEInsns) * UP.Count + NewBEInsns < UP.Threshold)
+      UP.Force = true;
   }
 
   if (UP.Count > UP.MaxCount)
