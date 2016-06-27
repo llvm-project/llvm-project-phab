@@ -3152,19 +3152,13 @@ FunctionDecl *FunctionDecl::getTemplateInstantiationPattern() const {
            "template");
     return getPrimaryTemplate()->getTemplatedDecl();
   }
-  
+
   if (FunctionTemplateDecl *Primary = getPrimaryTemplate()) {
-    while (Primary->getInstantiatedFromMemberTemplate()) {
-      // If we have hit a point where the user provided a specialization of
-      // this template, we're done looking.
-      if (Primary->isMemberSpecialization())
-        break;
-      Primary = Primary->getInstantiatedFromMemberTemplate();
-    }
-    
+    if (FunctionTemplateDecl *Def = Primary->getDefinition())
+      Primary = Def;
     return Primary->getTemplatedDecl();
-  } 
-    
+  }
+
   return getInstantiatedFromMemberFunction();
 }
 
