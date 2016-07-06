@@ -200,6 +200,12 @@ Pass *createReversePostOrderFunctionAttrsPass();
 ModulePass *createMergeFunctionsPass();
 
 //===----------------------------------------------------------------------===//
+/// createMergeSimilarFunctionsPass - This pass discovers similar functions and
+/// merges them.
+///
+ModulePass *createMergeSimilarFunctionsPass();
+
+//===----------------------------------------------------------------------===//
 /// createPartialInliningPass - This pass inlines parts of functions.
 ///
 ModulePass *createPartialInliningPass();
