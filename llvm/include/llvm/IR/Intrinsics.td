@@ -329,6 +329,13 @@ def int_readcyclecounter : Intrinsic<[llvm_i64_ty]>;
 // control dependencies will be maintained.
 def int_assume        : Intrinsic<[], [llvm_i1_ty], []>;
 
+// This intrinsic does not actually write to memory, but it is marked that way
+// to maintain proper control dependencies. The metadata argument refers to a
+// list of alias.scope metadata entries.
+def int_noalias       : Intrinsic<[llvm_anyptr_ty],
+                                  [LLVMMatchType<0>, llvm_metadata_ty],
+                                  [IntrArgMemOnly]>;
+
 // Stack Protector Intrinsic - The stackprotector intrinsic writes the stack
 // guard to the correct place on the stack frame.
 def int_stackprotector : Intrinsic<[], [llvm_ptr_ty, llvm_ptrptr_ty], []>;
