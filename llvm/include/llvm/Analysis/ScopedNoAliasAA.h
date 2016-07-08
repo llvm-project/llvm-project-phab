@@ -21,13 +21,14 @@
 #include "llvm/Pass.h"
 
 namespace llvm {
+class DominatorTree;
 
 /// A simple AA result which uses scoped-noalias metadata to answer queries.
 class ScopedNoAliasAAResult : public AAResultBase<ScopedNoAliasAAResult> {
   friend AAResultBase<ScopedNoAliasAAResult>;
 
 public:
-  explicit ScopedNoAliasAAResult() : AAResultBase() {}
+  ScopedNoAliasAAResult(DominatorTree *DT) : AAResultBase(), DT(DT) {}
   ScopedNoAliasAAResult(ScopedNoAliasAAResult &&Arg)
       : AAResultBase(std::move(Arg)) {}
 
@@ -40,10 +41,31 @@ public:
   ModRefInfo getModRefInfo(ImmutableCallSite CS, const MemoryLocation &Loc);
   ModRefInfo getModRefInfo(ImmutableCallSite CS1, ImmutableCallSite CS2);
 
+  // FIXME: This interface can be removed once the legacy-pass-manager support
+  // is removed.
+  void setDT(DominatorTree *DT) {
+    this->DT = DT;
+  }
+
 private:
   bool mayAliasInScopes(const MDNode *Scopes, const MDNode *NoAlias) const;
   void collectMDInDomain(const MDNode *List, const MDNode *Domain,
                          SmallPtrSetImpl<const MDNode *> &Nodes) const;
+
+  bool findCompatibleNoAlias(const Value *P,
+                             const MDNode *ANoAlias, const MDNode *BNoAlias,
+                             const DataLayout &DL,
+                             SmallPtrSetImpl<const Value *> &Visited,
+                             SmallVectorImpl<Instruction *> &CompatibleSet,
+                             int Depth = 0);
+  bool noAliasByIntrinsic(const MDNode *ANoAlias,
+                          const Value *APtr,
+                          const MDNode *BNoAlias,
+                          const Value *BPtr,
+                          ImmutableCallSite CSA = ImmutableCallSite(),
+                          ImmutableCallSite CSB = ImmutableCallSite());
+
+  DominatorTree *DT;
 };
 
 /// Analysis pass providing a never-invalidated alias analysis result.
@@ -66,12 +88,15 @@ public:
 
   ScopedNoAliasAAWrapperPass();
 
-  ScopedNoAliasAAResult &getResult() { return *Result; }
+  ScopedNoAliasAAResult &getResult() { setDT(); return *Result; }
   const ScopedNoAliasAAResult &getResult() const { return *Result; }
 
   bool doInitialization(Module &M) override;
   bool doFinalization(Module &M) override;
   void getAnalysisUsage(AnalysisUsage &AU) const override;
+
+private:
+  void setDT();
 };
 
 //===--------------------------------------------------------------------===//
