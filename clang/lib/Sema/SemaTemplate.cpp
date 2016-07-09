@@ -2113,7 +2113,8 @@ checkBuiltinTemplateIdType(Sema &SemaRef, BuiltinTemplateDecl *BTD,
 
 QualType Sema::CheckTemplateIdType(TemplateName Name,
                                    SourceLocation TemplateLoc,
-                                   TemplateArgumentListInfo &TemplateArgs) {
+                                   TemplateArgumentListInfo &TemplateArgs,
+                                   bool IsFriend) {
   DependentTemplateName *DTN
     = Name.getUnderlying().getAsDependentTemplateName();
   if (DTN && DTN->isIdentifier())
@@ -2203,7 +2204,7 @@ QualType Sema::CheckTemplateIdType(TemplateName Name,
     // TODO: in theory this could be a simple hashtable lookup; most
     // changes to CurContext don't change the set of current
     // instantiations.
-    if (isa<ClassTemplateDecl>(Template)) {
+    if (isa<ClassTemplateDecl>(Template) && !IsFriend) {
       for (DeclContext *Ctx = CurContext; Ctx; Ctx = Ctx->getLookupParent()) {
         // If we get out to a namespace, we're done.
         if (Ctx->isFileContext()) break;

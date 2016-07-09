@@ -5752,7 +5752,8 @@ public:
 
   QualType CheckTemplateIdType(TemplateName Template,
                                SourceLocation TemplateLoc,
-                              TemplateArgumentListInfo &TemplateArgs);
+                               TemplateArgumentListInfo &TemplateArgs,
+                               bool IsFriend = false);
 
   TypeResult
   ActOnTemplateIdType(CXXScopeSpec &SS, SourceLocation TemplateKWLoc,
@@ -9461,6 +9462,15 @@ private:
   /// \brief Check whether receiver is mutable ObjC container which
   /// attempts to add itself into the container
   void CheckObjCCircularContainer(ObjCMessageExpr *Message);
+
+  /// \brief Set of file level friend function declared in template classes.
+  /// Such functions are not added to redeclaration chains until instantiation
+  /// of proper templates, but they are needed for checks.
+  SmallVector<FunctionDecl *, 16> FriendsOfTemplates;
+
+  /// \brief Check dependent friend functions for misinterpretation as function
+  /// templates.
+  void CheckDependentFriends();
 
   void AnalyzeDeleteExprMismatch(const CXXDeleteExpr *DE);
   void AnalyzeDeleteExprMismatch(FieldDecl *Field, SourceLocation DeleteLoc,

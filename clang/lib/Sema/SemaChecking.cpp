@@ -24,6 +24,7 @@
 #include "clang/AST/ExprOpenMP.h"
 #include "clang/AST/StmtCXX.h"
 #include "clang/AST/StmtObjC.h"
+#include "clang/AST/TypeInstantiationMatcher.h"
 #include "clang/Analysis/Analyses/FormatString.h"
 #include "clang/Basic/CharInfo.h"
 #include "clang/Basic/TargetBuiltins.h"
@@ -10921,4 +10922,124 @@ void Sema::CheckArgumentWithTypeTag(const ArgumentWithTypeTagAttr *Attr,
         << TypeInfo.LayoutCompatible << RequiredType
         << ArgumentExpr->getSourceRange()
         << TypeTagExpr->getSourceRange();
+}
+
+namespace {
+
+/// \brief Helper class used to check if a friend declaration may refer to
+/// another function declaration.
+///
+/// The class is used to compare two function declarations, one is a friend
+/// function declared in template class, the other is a function declared at
+/// file level. Both functions must have the same name, this class checks only
+/// function types.
+/*
+class FunctionMatcher : public TypeMatcher<FunctionMatcher> {
+  const Type *InstType;
+public:
+  FunctionMatcher() : InstType(nullptr) {}
+
+  bool VisitTemplateSpecializationType(const TemplateSpecializationType *T) {
+    if (T == InstType)
+      return true;
+    TemplateName TN = T->getTemplateName();
+    if (TN.getKind() != TemplateName::Template)
+      return false;
+    TemplateDecl *TemplD = TN.getAsTemplateDecl();
+    auto *ClassTD = dyn_cast<ClassTemplateDecl>(TemplD);
+    if (!ClassTD)
+      return false;
+    auto Params = ClassTD->getTemplateParameters();
+
+    if (CXXRecordDecl *IClassD = InstType->getAsCXXRecordDecl()) {
+      auto *IClassSD = dyn_cast<ClassTemplateSpecializationDecl>(IClassD);
+      if (!IClassSD)
+        return false;
+      ClassTemplateDecl *IClassTD = IClassSD->getSpecializedTemplate();
+      if (ClassTD->getCanonicalDecl() != IClassTD->getCanonicalDecl())
+        return false;
+      const TemplateArgumentList &IArgs = IClassSD->getTemplateArgs();
+      if (Params->size() != IArgs.size())
+        return false;
+      for (unsigned I = 0; I < Params->size(); ++I) {
+        TypeDecl *Param = cast<TypeDecl>(Params->getParam(I));
+        const TemplateArgument &IArg = IArgs.get(I);
+        QualType IArgT = IArg.getAsType();
+        if (!IArgT.isNull()) {
+          if (!match(Param->getTypeForDecl(), IArgT.getTypePtr()))
+            return false;
+        }
+      }
+      return true;
+    }
+
+    if (auto *ITST = dyn_cast<TemplateSpecializationType>(InstType)) {
+      TemplateName ITN = ITST->getTemplateName();
+      if (ITN.getKind() != TemplateName::Template)
+        return false;
+      TemplateDecl *ITemplD = ITN.getAsTemplateDecl();
+      auto *IClassTD = dyn_cast<ClassTemplateDecl>(ITemplD);
+      if (!IClassTD)
+        return false;
+      return IClassTD->getCanonicalDecl() == ClassTD->getCanonicalDecl();
+    }
+   return false;
+  }
+};
+*/
+
+/// \brief Given a friend function declaration checks if it might be misused.
+static void CheckDependentFriend(Sema &S, FunctionDecl *FriendD) {
+  if (FriendD->isInvalidDecl())
+    return;
+  LookupResult FRes(S, FriendD->getNameInfo(), Sema::LookupOrdinaryName);
+  if (S.LookupQualifiedName(FRes, FriendD->getDeclContext())) {
+    QualType FriendT = FriendD->getType().getCanonicalType();
+    // First check if there is suitable function template, this is more probable
+    // misuse case.
+    for (NamedDecl *D : FRes) {
+      if (D->isInvalidDecl())
+        continue;
+      if (auto *FTD = dyn_cast<FunctionTemplateDecl>(D)) {
+        FunctionDecl *FD = FTD->getTemplatedDecl();
+        QualType FDT = FD->getType().getCanonicalType();
+        if (TypeInstantiationMatcher().match(FriendT, FDT)) {
+          // Appropriate function template is found.
+          S.Diag(FriendD->getLocation(), diag::warn_non_template_friend)
+            << FriendD;
+          SourceLocation NameLoc = FriendD->getNameInfo().getLocEnd();
+          SourceLocation PastName = S.getLocForEndOfToken(NameLoc);
+          S.Diag(PastName, diag::note_befriend_template)
+            << FixItHint::CreateInsertion(PastName, "<>");
+          return;
+        }
+      }
+    }
+    // Then check for suitable functions that uses particular specialization of
+    // parameter type.
+    for (NamedDecl *D : FRes) {
+      if (D->isInvalidDecl())
+        continue;
+      if (auto *FD = dyn_cast<FunctionDecl>(D)) {
+        QualType FT = FD->getType().getCanonicalType();
+        if (TypeInstantiationMatcher().match(FriendT, FT))
+          // This is suitable file-level function, do not issue warnings.
+          return;
+      }
+    }
+  }
+  S.Diag(FriendD->getLocation(), diag::warn_non_template_friend) << FriendD;
+  S.Diag(FriendD->getLocation(), diag::note_add_template_friend_decl);
+  S.Diag(FriendD->getLocation(), diag::note_befriend_template);
+}
+
+}
+
+void Sema::CheckDependentFriends() {
+  for (FunctionDecl *FriendD : FriendsOfTemplates) {
+    if (FriendD->getType()->isDependentType() &&
+        !FriendD->isThisDeclarationADefinition())
+      CheckDependentFriend(*this, FriendD);
+  }
+  FriendsOfTemplates.clear();
 }

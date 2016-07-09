@@ -8615,6 +8615,15 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
     AddToScope = false;
   }
 
+  if (isFriend && !NewFD->isInvalidDecl()) {
+    if (TemplateParamLists.empty() && !DC->isRecord() &&
+        !isFunctionTemplateSpecialization &&
+        NewFD->getType()->isDependentType() &&
+        !NewFD->isThisDeclarationADefinition()) {
+      FriendsOfTemplates.push_back(NewFD);
+    }
+  }
+
   return NewFD;
 }
 
