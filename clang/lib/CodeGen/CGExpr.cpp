@@ -1402,6 +1402,10 @@ void CodeGenFunction::EmitStoreOfScalar(llvm::Value *Value, Address Addr,
 
   Value = EmitToMemory(Value, Ty);
 
+  auto NAI = NoAliasAddrMap.find(Addr.getPointer());
+  if (NAI != NoAliasAddrMap.end())
+    Value = Builder.CreateNoAliasPointer(Value, NAI->second);
+
   LValue AtomicLValue =
       LValue::MakeAddr(Addr, Ty, getContext(), AlignSource, TBAAInfo);
   if (Ty->isAtomicType() ||

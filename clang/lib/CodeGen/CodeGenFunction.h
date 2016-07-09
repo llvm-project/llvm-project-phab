@@ -144,7 +144,7 @@ public:
   /// instruction is created using Builder.
   void InsertHelper(llvm::Instruction *I, const llvm::Twine &Name,
                     llvm::BasicBlock *BB,
-                    llvm::BasicBlock::iterator InsertPt) const;
+                    llvm::BasicBlock::iterator InsertPt);
 
   /// CurFuncDecl - Holds the Decl for the current outermost
   /// non-closure context.
@@ -531,7 +531,34 @@ public:
     }
   };
 
-  class LexicalScope : public RunCleanupsScope {
+  bool hasLocalRestrictVars(const CompoundStmt &S);
+
+  struct LexicalNoAliasInfo {
+    bool RecordMemoryInsts;
+    SmallVector<llvm::Instruction *, 8> MemoryInsts;
+    SmallVector<llvm::Metadata *, 4> NoAliasScopes;
+
+    LexicalNoAliasInfo(bool RMI = false) : RecordMemoryInsts(RMI) {}
+
+    void recordMemoryInsts() {
+      RecordMemoryInsts = true;
+    }
+
+    void recordMemoryInstruction(llvm::Instruction *I) {
+      if (RecordMemoryInsts)
+        MemoryInsts.push_back(I);
+    }
+
+    void addNoAliasScope(llvm::MDNode *Scope) {
+      assert(RecordMemoryInsts &&
+             "Adding noalias scope but not recording memory accesses!");
+      NoAliasScopes.push_back(Scope);
+    }
+
+    void addNoAliasMD();
+  } FnNoAliasInfo;
+
+  class LexicalScope : public RunCleanupsScope, public LexicalNoAliasInfo {
     SourceRange Range;
     SmallVector<const LabelDecl*, 4> Labels;
     LexicalScope *ParentScope;
@@ -541,8 +568,10 @@ public:
 
   public:
     /// \brief Enter a new cleanup scope.
-    explicit LexicalScope(CodeGenFunction &CGF, SourceRange Range)
-      : RunCleanupsScope(CGF), Range(Range), ParentScope(CGF.CurLexicalScope) {
+    explicit LexicalScope(CodeGenFunction &CGF, SourceRange Range,
+                          bool RMI = false)
+      : RunCleanupsScope(CGF), LexicalNoAliasInfo(RMI), Range(Range),
+        ParentScope(CGF.CurLexicalScope) {
       CGF.CurLexicalScope = this;
       if (CGDebugInfo *DI = CGF.getDebugInfo())
         DI->EmitLexicalBlockStart(CGF.Builder, Range.getBegin());
@@ -551,6 +580,14 @@ public:
     void addLabel(const LabelDecl *label) {
       assert(PerformCleanup && "adding label to dead scope?");
       Labels.push_back(label);
+    }
+
+    void recordMemoryInstruction(llvm::Instruction *I) {
+      LexicalNoAliasInfo::recordMemoryInstruction(I);
+      if (ParentScope)
+        ParentScope->recordMemoryInstruction(I);
+      else
+        CGF.FnNoAliasInfo.recordMemoryInstruction(I);
     }
 
     /// \brief Exit this cleanup scope, emitting any accumulated
@@ -570,6 +607,8 @@ public:
     /// \brief Force the emission of cleanups now, instead of waiting
     /// until this object is destroyed.
     void ForceCleanup() {
+      addNoAliasMD();
+
       CGF.CurLexicalScope = ParentScope;
       RunCleanupsScope::ForceCleanup();
 
@@ -581,6 +620,20 @@ public:
   };
 
   typedef llvm::DenseMap<const Decl *, Address> DeclMapTy;
+
+  void recordMemoryInstruction(llvm::Instruction *I) {
+    if (CurLexicalScope)
+      CurLexicalScope->recordMemoryInstruction(I);
+    else
+      FnNoAliasInfo.recordMemoryInstruction(I);
+  }
+
+  void addNoAliasScope(llvm::MDNode *Scope) {
+    if (CurLexicalScope)
+      CurLexicalScope->addNoAliasScope(Scope);
+    else
+      FnNoAliasInfo.addNoAliasScope(Scope);
+  }
 
   /// \brief The scope used to remap some variables as private in the OpenMP
   /// loop body (or other captured region emitted without outlining), and to
@@ -1187,6 +1240,12 @@ private:
   ///   "reqd_work_group_size", and three 32-bit integers X, Y and Z.
   void EmitOpenCLKernelMetadata(const FunctionDecl *FD, 
                                 llvm::Function *Fn);
+
+  /// The noalias domain metadata for this function.
+  llvm::MDNode* NoAliasDomain;
+  /// A map between the addresses of local restrict-qualified variables and
+  /// their noalias scope.
+  llvm::DenseMap<llvm::Value *, llvm::MDNode*> NoAliasAddrMap;
 
 public:
   CodeGenFunction(CodeGenModule &cgm, bool suppressNewContext=false);
@@ -2179,6 +2238,8 @@ public:
   void EmitAutoVarCleanups(const AutoVarEmission &emission);  
   void emitAutoVarTypeCleanup(const AutoVarEmission &emission,
                               QualType::DestructionKind dtorKind);
+
+  void EmitAutoVarNoAlias(const AutoVarEmission &emission);
 
   void EmitStaticVarDecl(const VarDecl &D,
                          llvm::GlobalValue::LinkageTypes Linkage);

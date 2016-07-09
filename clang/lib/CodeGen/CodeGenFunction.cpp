@@ -59,7 +59,7 @@ CodeGenFunction::CodeGenFunction(CodeGenModule &cgm, bool suppressNewContext)
       CXXStructorImplicitParamDecl(nullptr),
       CXXStructorImplicitParamValue(nullptr), OutermostConditional(nullptr),
       CurLexicalScope(nullptr), TerminateLandingPad(nullptr),
-      TerminateHandler(nullptr), TrapBB(nullptr) {
+      TerminateHandler(nullptr), TrapBB(nullptr), NoAliasDomain(nullptr) {
   if (!suppressNewContext)
     CGM.getCXXABI().getMangleContext().startNewFunction();
 
@@ -884,10 +884,16 @@ void CodeGenFunction::StartFunction(GlobalDecl GD,
 void CodeGenFunction::EmitFunctionBody(FunctionArgList &Args,
                                        const Stmt *Body) {
   incrementProfileCounter(Body);
-  if (const CompoundStmt *S = dyn_cast<CompoundStmt>(Body))
+  if (const CompoundStmt *S = dyn_cast<CompoundStmt>(Body)) {
+    if (hasLocalRestrictVars(*S))
+      FnNoAliasInfo.recordMemoryInsts();
+
     EmitCompoundStmtWithoutScope(*S);
-  else
+
+    FnNoAliasInfo.addNoAliasMD();
+  } else {
     EmitStmt(Body);
+  }
 }
 
 /// When instrumenting to collect profile data, the counts for some blocks
@@ -1886,10 +1892,13 @@ CodeGenFunction::SanitizerScope::~SanitizerScope() {
 void CodeGenFunction::InsertHelper(llvm::Instruction *I,
                                    const llvm::Twine &Name,
                                    llvm::BasicBlock *BB,
-                                   llvm::BasicBlock::iterator InsertPt) const {
+                                   llvm::BasicBlock::iterator InsertPt) {
   LoopStack.InsertHelper(I);
   if (IsSanitizerScope)
     CGM.getSanitizerMetadata()->disableSanitizerForInstruction(I);
+
+  if (I->mayReadOrWriteMemory())
+    recordMemoryInstruction(I);
 }
 
 void CGBuilderInserter::InsertHelper(
