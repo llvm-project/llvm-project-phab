@@ -1150,6 +1150,13 @@ def ext_friend_tag_redecl_outside_namespace : ExtWarn<
   "enclosing namespace is a Microsoft extension; add a nested name specifier">,
   InGroup<MicrosoftUnqualifiedFriend>;
 def err_pure_friend : Error<"friend declaration cannot have a pure-specifier">;
+def warn_non_template_friend : Warning<"friend declaration %q0 depends on "
+  "template parameter but is not a function template">,
+   InGroup<NonTemplateFriend>;
+def note_add_template_friend_decl : Note<"declare function outside class "
+  "template to suppress this warning">;
+def note_befriend_template : Note<"to befriend a template specialization, "
+  "make sure the function template has already been declared and use '<>'">;
 
 def err_invalid_member_in_interface : Error<
   "%select{data member |non-public member function |static member function |"

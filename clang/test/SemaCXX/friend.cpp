@@ -379,3 +379,111 @@ namespace tag_redecl {
     X *q = p;
   }
 }
+
+
+template<typename T> void pr23342_func(T x);
+template<typename T>
+struct pr23342_C1 {
+  friend void pr23342_func<>(T x);
+  friend bool func(T x);  // expected-warning{{friend declaration 'func' depends on template parameter but is not a function template}}
+                          // expected-note@-1{{declare function outside class template to suppress this warning}}
+                          // expected-note@-2{{to befriend a template specialization, make sure the function template has already been declared and use '<>'}}
+  friend bool func2(int x);
+  template<typename T2> friend bool func3(T2 x);
+  friend T func4();  // expected-warning{{friend declaration 'func4' depends on template parameter but is not a function template}}
+                     // expected-note@-1{{declare function outside class template to suppress this warning}}
+                     // expected-note@-2{{to befriend a template specialization, make sure the function template has already been declared and use '<>'}}
+};
+
+namespace pr23342 {
+
+template<typename T>
+struct C1 {
+  friend void pr23342_func<>(T x);
+  friend bool func(T x);  // expected-warning{{friend declaration 'pr23342::func' depends on template parameter but is not a function template}}
+                          // expected-note@-1{{declare function outside class template to suppress this warning}}
+                          // expected-note@-2{{to befriend a template specialization, make sure the function template has already been declared and use '<>'}}
+  friend bool func2(int x);
+  template<typename T2> friend bool func3(T2 x);
+  friend T func4();    // expected-warning{{friend declaration 'pr23342::func4' depends on template parameter but is not a function template}}
+                       // expected-note@-1{{declare function outside class template to suppress this warning}}
+                       // expected-note@-2{{to befriend a template specialization, make sure the function template has already been declared and use '<>'}}
+};
+
+template <typename T>
+struct Arg {
+  friend bool operator==(const Arg& lhs, T rhs) {
+   return false;
+  }
+  friend bool operator!=(const Arg& lhs, T rhs);  // expected-warning{{friend declaration 'pr23342::operator!=' depends on template parameter but is not a function template}}
+                       // expected-note@-1{{to befriend a template specialization, make sure the function template has already been declared and use '<>'}}
+};
+template <typename T>
+bool operator!=(const Arg<T>& lhs, T rhs) {
+  return true;
+}
+bool foo() {
+  Arg<int> arg;
+  return (arg == 42) || (arg != 42);
+}
+
+
+template<typename T> class C0 {
+  friend void func0(C0<T> &);  // expected-warning{{friend declaration 'pr23342::func0' depends on template parameter but is not a function template}}
+                               // expected-note@-1{{declare function outside class template to suppress this warning}}
+                               // expected-note@-2{{to befriend a template specialization, make sure the function template has already been declared and use '<>'}}
+};
+
+template<typename T> class C0a {
+  friend void func0a(C0a<T> &);  // expected-warning{{friend declaration 'pr23342::func0a' depends on template parameter but is not a function template}}
+                                 // expected-note@-1{{declare function outside class template to suppress this warning}}
+                                 // expected-note@-2{{to befriend a template specialization, make sure the function template has already been declared and use '<>'}}
+};
+void func0a(C0a<int> x);
+void func0a(C0a<int> *x);
+void func0a(const C0a<int> &x);
+int func0a(C0a<int> &x);
+
+template<typename T> class C0b {
+  friend void func0b(C0b<T> &x);
+};
+void func0b(C0b<int> &x);
+
+
+template<typename T> class C1a {
+  friend void func1a(T x, C1a<T> &y); // expected-warning{{friend declaration 'pr23342::func1a' depends on template parameter but is not a function template}}
+                                      // expected-note@-1{{declare function outside class template to suppress this warning}}
+                                      // expected-note@-2{{to befriend a template specialization, make sure the function template has already been declared and use '<>'}}
+};
+void func1a(char x, C1a<int> &y);
+
+template<typename T> class C1b {
+  friend void func1b(T x, C1b<T> &y);
+};
+void func1b(int x, C1b<int> &y);
+
+
+template<typename T> class C2a {
+  friend void func2a(C2a<T> &); // expected-warning{{friend declaration 'pr23342::func2a' depends on template parameter but is not a function template}}
+                                // expected-note@-1{{declare function outside class template to suppress this warning}}
+                                // expected-note@-2{{to befriend a template specialization, make sure the function template has already been declared and use '<>'}}
+};
+template<typename T>
+void func2a(const C2a<T> &x);
+
+
+template<typename T> class C2b {
+  friend void func2b(C2b<T> &); // expected-warning{{friend declaration 'pr23342::func2b' depends on template parameter but is not a function template}}
+                                // expected-note@-1{{to befriend a template specialization, make sure the function template has already been declared and use '<>'}};
+};
+template<typename T>
+void func2b(C2b<T> &x);
+
+template<typename T> class C2c;
+template<typename T>
+void func2c(C2c<T> &x);
+template<typename T> class C2c {
+  friend void func2c<>(C2c<T> &);
+};
+
+}
