@@ -14,17 +14,15 @@
 
 #include "llvm/Transforms/Instrumentation.h"
 #include "llvm/ADT/Statistic.h"
-#include "llvm/Analysis/MemoryBuiltins.h"
-#include "llvm/Analysis/TargetFolder.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/IR/DataLayout.h"
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Transforms/Instrumentation/BoundsChecking.h"
 using namespace llvm;
 
 #define DEBUG_TYPE "bounds-checking"
@@ -35,40 +33,6 @@ static cl::opt<bool> SingleTrapBB("bounds-checking-single-trap",
 STATISTIC(ChecksAdded, "Bounds checks added");
 STATISTIC(ChecksSkipped, "Bounds checks skipped");
 STATISTIC(ChecksUnable, "Bounds checks unable to add");
-
-typedef IRBuilder<TargetFolder> BuilderTy;
-
-namespace {
-  struct BoundsChecking : public FunctionPass {
-    static char ID;
-
-    BoundsChecking() : FunctionPass(ID) {
-      initializeBoundsCheckingPass(*PassRegistry::getPassRegistry());
-    }
-
-    bool runOnFunction(Function &F) override;
-
-    void getAnalysisUsage(AnalysisUsage &AU) const override {
-      AU.addRequired<TargetLibraryInfoWrapperPass>();
-    }
-
-  private:
-    const TargetLibraryInfo *TLI;
-    ObjectSizeOffsetEvaluator *ObjSizeEval;
-    BuilderTy *Builder;
-    Instruction *Inst;
-    BasicBlock *TrapBB;
-
-    BasicBlock *getTrapBB();
-    void emitBranchToTrap(Value *Cmp = nullptr);
-    bool instrument(Value *Ptr, Value *Val, const DataLayout &DL);
- };
-}
-
-char BoundsChecking::ID = 0;
-INITIALIZE_PASS(BoundsChecking, "bounds-checking", "Run-time bounds checking",
-                false, false)
-
 
 /// getTrapBB - create a basic block that traps. All overflowing conditions
 /// branch to this block. There's only one trap block per function.
@@ -163,9 +127,8 @@ bool BoundsChecking::instrument(Value *Ptr, Value *InstVal,
   return true;
 }
 
-bool BoundsChecking::runOnFunction(Function &F) {
+bool BoundsChecking::check(Function &F, const TargetLibraryInfo *TLI) {
   const DataLayout &DL = F.getParent()->getDataLayout();
-  TLI = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
 
   TrapBB = nullptr;
   BuilderTy TheBuilder(F.getContext(), TargetFolder(DL));
@@ -207,6 +170,54 @@ bool BoundsChecking::runOnFunction(Function &F) {
   return MadeChange;
 }
 
+PreservedAnalyses BoundsChecking::run(Function &F,
+                                      AnalysisManager<Function> &FAM) {
+  TargetLibraryInfo *TLI = &FAM.getResult<TargetLibraryAnalysis>(F);
+
+  if (check(F, TLI))
+    return PreservedAnalyses::none();
+
+  return PreservedAnalyses::all();
+}
+
+namespace llvm {
+struct BoundsCheckingLegacy : public FunctionPass {
+  static char ID;
+
+  BoundsCheckingLegacy() : FunctionPass(ID) {
+    initializeBoundsCheckingLegacyPass(*PassRegistry::getPassRegistry());
+  }
+
+  bool runOnFunction(Function &F) override {
+    const TargetLibraryInfo *TLI;
+    TLI = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
+    return P->check(F, TLI);
+  }
+
+  void getAnalysisUsage(AnalysisUsage &AU) const override {
+    AU.addRequired<TargetLibraryInfoWrapperPass>();
+  }
+
+  bool doInitialization(Module &M) override {
+    P.reset(new BoundsChecking());
+    return false;
+  }
+
+  bool doFinalization(Module &M) override {
+    P.reset();
+    return false;
+  }
+
+private:
+  std::unique_ptr<BoundsChecking> P;
+};
+}
+
+char BoundsCheckingLegacy::ID = 0;
+INITIALIZE_PASS(BoundsCheckingLegacy, "bounds-checking",
+                "Run-time bounds checking",
+                false, false)
+
 FunctionPass *llvm::createBoundsCheckingPass() {
-  return new BoundsChecking();
+  return new BoundsCheckingLegacy();
 }
