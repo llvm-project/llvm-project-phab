@@ -34,6 +34,119 @@ void ExprEngine::CreateCXXTemporaryObject(const MaterializeTemporaryExpr *ME,
   Bldr.generateNode(ME, Pred, state);
 }
 
+bool isCopyOrMoveLike(const CXXConstructorDecl *Constr) {
+  if (Constr->isCopyOrMoveConstructor())
+    return true;
+
+  if(Constr->getNumParams() != 1)
+    return false;
+
+  const auto ParamType =
+    Constr->getParamDecl(0)->getType()->getUnqualifiedDesugaredType();
+  if(!ParamType->isReferenceType())
+    return false;
+
+  const auto ParamPointeeType =
+    ParamType->getAs<ReferenceType>()->getPointeeType();
+  if(!ParamPointeeType->isRecordType())
+    return false;
+  
+  const auto *ParamRecDecl = ParamPointeeType->getAs<RecordType>()->getDecl();
+  const auto *ThisRecDecl = Constr->getParent();
+
+  if(ParamRecDecl!=ThisRecDecl)
+    return false;
+
+  return true;
+}
+
+bool isAlmostTrivial(const CXXMethodDecl *Met) {
+  if (Met->isTrivial())
+    return true;
+
+  if(!Met->hasTrivialBody())
+    return false;
+
+  if(Met->getNumParams() != 1)
+    return false;
+
+  const auto *Param = Met->getParamDecl(0);
+  const auto *ThisRecDecl = Met->getParent();
+
+  const auto *Constr = dyn_cast<CXXConstructorDecl>(Met);
+  if(!Constr)
+    return false;
+  
+  if(ThisRecDecl->getNumVBases()>0)
+    return false;
+
+  for(const auto Base: ThisRecDecl->bases()) {
+    if(Base.getType()->getAsCXXRecordDecl()->field_empty())
+      continue;
+    for(const auto *Initzer: Constr->inits()) {
+      if(Initzer->isBaseInitializer() &&
+         Initzer->getBaseClass() == &*Base.getType()) {
+        if(const auto *CtrCall = dyn_cast<CXXConstructExpr>(Initzer->getInit()->IgnoreParenImpCasts())) {
+          if(!isCopyOrMoveLike(CtrCall->getConstructor()) ||
+             !isAlmostTrivial(CtrCall->getConstructor()))
+            return false;
+          if(const auto *Init = dyn_cast<DeclRefExpr>(CtrCall->getArg(0)->IgnoreParenImpCasts())) {
+            if(Init->getDecl() != Param)
+              return false;
+          } else {
+            return false;
+          }
+        } else {
+          return false;
+        }
+        break;
+      }
+    }
+  }
+
+  for(const auto *Field: ThisRecDecl->fields()) {
+    if(!Field->getType()->isScalarType() &&
+       !Field->getType()->isRecordType())
+      return false;
+    bool found = false;
+    for(const auto *Initzer: Constr->inits()) {
+      if(Initzer->isMemberInitializer() && Initzer->getMember() == Field) {
+        found = true;
+        const MemberExpr *InitMem;
+        if(Field->getType()->isScalarType()) {
+          InitMem = dyn_cast<MemberExpr>(Initzer->getInit()->IgnoreParenImpCasts());
+        } else {
+          if(const auto *CtrCall = dyn_cast<CXXConstructExpr>(Initzer->getInit()->IgnoreParenImpCasts())) {
+            if(!isCopyOrMoveLike(CtrCall->getConstructor()) ||
+               !isAlmostTrivial(CtrCall->getConstructor()))
+              return false;
+            InitMem = dyn_cast<MemberExpr>(CtrCall->getArg(0)->IgnoreParenImpCasts());
+          } else {
+            return false;
+          } 
+        }
+        if(InitMem)  {
+          if(InitMem->getMemberDecl() != Field)
+            return false;
+          if(const auto *Base = dyn_cast<DeclRefExpr>(InitMem->getBase())) {
+            if(Base->getDecl() != Param)
+              return false;
+          } else {
+            return false;
+          }
+        } else {
+          return false;
+        }
+        break;
+      }
+    }
+    if(!found)
+      return false;
+  } 
+
+  return true;
+}
+
 // FIXME: This is the sort of code that should eventually live in a Core
 // checker rather than as a special case in ExprEngine.
 void ExprEngine::performTrivialCopy(NodeBuilder &Bldr, ExplodedNode *Pred,
@@ -41,12 +154,12 @@ void ExprEngine::performTrivialCopy(NodeBuilder &Bldr, ExplodedNode *Pred,
   SVal ThisVal;
   bool AlwaysReturnsLValue;
   if (const CXXConstructorCall *Ctor = dyn_cast<CXXConstructorCall>(&Call)) {
-    assert(Ctor->getDecl()->isTrivial());
-    assert(Ctor->getDecl()->isCopyOrMoveConstructor());
+    assert(isAlmostTrivial(Ctor->getDecl()));
+    assert(isCopyOrMoveLike(Ctor->getDecl()));
     ThisVal = Ctor->getCXXThisVal();
     AlwaysReturnsLValue = false;
   } else {
-    assert(cast<CXXMethodDecl>(Call.getDecl())->isTrivial());
+    assert(isAlmostTrivial(cast<CXXMethodDecl>(Call.getDecl())));
     assert(cast<CXXMethodDecl>(Call.getDecl())->getOverloadedOperator() ==
            OO_Equal);
     ThisVal = cast<CXXInstanceCall>(Call).getCXXThisVal();
@@ -332,8 +445,8 @@ void ExprEngine::VisitCXXConstructExpr(const CXXConstructExpr *CE,
   StmtNodeBuilder Bldr(DstPreCall, DstEvaluated, *currBldrCtx);
 
   bool IsArray = isa<ElementRegion>(Target);
-  if (CE->getConstructor()->isTrivial() &&
-      CE->getConstructor()->isCopyOrMoveConstructor() &&
+  if (isAlmostTrivial(CE->getConstructor()) &&
+      isCopyOrMoveLike(CE->getConstructor()) &&
       !IsArray) {
     // FIXME: Handle other kinds of trivial constructors as well.
     for (ExplodedNodeSet::iterator I = DstPreCall.begin(), E = DstPreCall.end();

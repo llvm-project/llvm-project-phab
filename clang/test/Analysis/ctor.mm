@@ -144,11 +144,11 @@ namespace PODUninitialized {
 
     NonPOD() {}
     NonPOD(const NonPOD &Other)
-      : x(Other.x), y(Other.y) // expected-warning {{undefined}}
+      : x(Other.x), y(Other.y) // no-warning
     {
     }
     NonPOD(NonPOD &&Other)
-    : x(Other.x), y(Other.y) // expected-warning {{undefined}}
+    : x(Other.x), y(Other.y) // no-warning
     {
     }
 
@@ -174,11 +174,11 @@ namespace PODUninitialized {
 
       Inner() {}
       Inner(const Inner &Other)
-        : x(Other.x), y(Other.y) // expected-warning {{undefined}}
+        : x(Other.x), y(Other.y) // no-warning
       {
       }
       Inner(Inner &&Other)
-      : x(Other.x), y(Other.y) // expected-warning {{undefined}}
+      : x(Other.x), y(Other.y) // no-warning
       {
       }
 
@@ -224,25 +224,29 @@ namespace PODUninitialized {
   void testNonPOD() {
     NonPOD p;
     p.x = 1;
-    NonPOD p2 = p;
+    NonPOD p2 = p; // no-warning
+    clang_analyzer_eval(p2.x == 1); // expected-warning{{TRUE}}
   }
 
   void testNonPODMove() {
     NonPOD p;
     p.x = 1;
-    NonPOD p2 = move(p);
+    NonPOD p2 = move(p); // no-warning
+    clang_analyzer_eval(p2.x == 1); // expected-warning{{TRUE}}
   }
 
   void testNonPODWrapper() {
     NonPODWrapper w;
     w.p.y = 1;
-    NonPODWrapper w2 = w;
+    NonPODWrapper w2 = w; // no-warning
+    clang_analyzer_eval(w2.p.y == 1); // expected-warning{{TRUE}}
   }
 
   void testNonPODWrapperMove() {
     NonPODWrapper w;
     w.p.y = 1;
-    NonPODWrapper w2 = move(w);
+    NonPODWrapper w2 = move(w); // no-warning
+    clang_analyzer_eval(w2.p.y == 1); // expected-warning{{TRUE}}
   }
 
   // Not strictly about constructors, but trivial assignment operators should
