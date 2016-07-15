@@ -8,24 +8,79 @@
 //===----------------------------------------------------------------------===//
 /// \file
 ///
-/// Implements a lazy call graph analysis and related passes for the new pass
-/// manager.
+/// Implements a lazy call graph analysis for the new pass manager.
 ///
-/// NB: This is *not* a traditional call graph! It is a graph which models both
-/// the current calls and potential calls. As a consequence there are many
-/// edges in this call graph that do not correspond to a 'call' or 'invoke'
-/// instruction.
+/// This analysis is used to decompose an LLVM Module into components useful
+/// for a specific subset of interprocedural optimization (IPO) techniques:
 ///
-/// The primary use cases of this graph analysis is to facilitate iterating
-/// across the functions of a module in ways that ensure all callees are
-/// visited prior to a caller (given any SCC constraints), or vice versa. As
-/// such is it particularly well suited to organizing CGSCC optimizations such
-/// as inlining, outlining, argument promotion, etc. That is its primary use
-/// case and motivates the design. It may not be appropriate for other
-/// purposes. The use graph of functions or some other conservative analysis of
-/// call instructions may be interesting for optimizations and subsequent
-/// analyses which don't work in the context of an overly specified
-/// potential-call-edge graph.
+/// 1) Call site based pairwise interprocedural transforms such as inlining,
+///    argument promotion, interprocedural constant propagation, etc.
+/// 2) Reachable set interprocedural analyses and inference such as function
+///    attribute inference, exception handling pruning, etc.
+///
+/// Both of these benefit from the optimization of each function in the program
+/// in post-order to ensure that callees are fully optimized when analyzing
+/// their callers and the call edge. To support this, we need an analysis that
+/// provides a post-order traversal of the strongly connected components (SCCs)
+/// of program call graph.
+///
+/// However, during this post-order traversal, transformations in #1 as well
+/// the basic function-local optimizations can mutate and refine the graph.
+/// These graph mutations need to be immediately reflected to achieve both of
+/// the above goals. Both transformations (#1 and #2) and analyses (#2) benefit
+/// directly from a more precise and refined call graph structure, so we want
+/// to incorporate graph updates immediately *during* the traversal. Put
+/// differently, we want a post-order traversal of the graph *including* all
+/// updates and refinements made to it. There are two primary forms of call
+/// graph refinement we care about:
+///
+/// a) Removing edges from the graph which provides smaller, more precise
+///    reachable sets and SCCs.
+/// b) Transforming indirect calls (that we must treat conservatively) into
+///    direct calls through constant propagation (typically this is thought of in
+///    the context of devirtualization).
+///
+/// These kinds of on-line graph updates make maintaining the graph
+/// significantly more complex in several ways. First, they require that the
+/// representation be updatable at all. They also require the graph update
+/// operations preserve enough information that any necessary changes to
+/// optimization techniques in #1 and #2 can be performed in a way that
+/// reflects the nature of the update. For example, if an update splits one SCC
+/// into three SCCs, we also need to know the post-order traversal of those new
+/// SCCs.
+///
+/// The refinement in (b) introduces an unusual requirement on the graph. For
+/// optimizations such as those in category #1 above, the graph must provide an
+/// ordering that ensures (to the extent possible) that *potential* call edge
+/// target functions are traversed prior to any (b)-style refinement which
+/// could introduce an actual call edge to that function. This is essentially
+/// a secondary traversal order constraint in addition to the post-order over
+/// SCCs. This is accomplished by providing a layer of function reference edges
+/// in addition to the layer of explicit function call edges. Because
+/// function-local and pairwise interprocedural transformations primarily turn
+/// an existing (possibly indirect) reference to a function into a direct call
+/// to a function, a post-ordering of this "reference graph" satisfies the
+/// additional constraint.
+///
+/// Further, even for transformations which refine indirect calls to direct
+/// calls without an intrinsic "reference" in the IR, we can force them to be
+/// based upon some encoding of such references. For example, a profile-guided
+/// indirect call promotion pass might insist on embedding the candidate
+/// targets from the profile into the IR as references to functions in order to
+/// have them be included in the above ordering constraint.
+///
+/// The extra ordering constraint also serves a secondary but closely related
+/// purpose. It allows a pass manager to identify regions of the call graph
+/// which can be optimized independently from each other, even in the face of
+/// transformations which mutate the call graph. As a consequence, it can be
+/// used to drive safe parallelism across a subset of the interprocedural
+/// optimizations on a module of the IR.
+///
+/// This analysis also tries to form these graph structures in a cache-friendly
+/// way. As a consequence, it works hard to form the graph lazily as the
+/// traversal visits the functions in the module. It also needs the update
+/// algorithms described above to work in a context of a lazily formed graph
+/// rather than a complete graph.
 ///
 /// To understand the specific rules and nature of this call graph analysis,
 /// see the documentation of the \c LazyCallGraph below.
@@ -58,46 +113,73 @@ class raw_ostream;
 
 /// A lazily constructed view of the call graph of a module.
 ///
-/// With the edges of this graph, the motivating constraint that we are
-/// attempting to maintain is that function-local optimization, CGSCC-local
-/// optimizations, and optimizations transforming a pair of functions connected
-/// by an edge in the graph, do not invalidate a bottom-up traversal of the SCC
-/// DAG. That is, no optimizations will delete, remove, or add an edge such
-/// that functions already visited in a bottom-up order of the SCC DAG are no
-/// longer valid to have visited, or such that functions not yet visited in
-/// a bottom-up order of the SCC DAG are not required to have already been
-/// visited.
+/// NB: This is *not* a traditional call graph! It is a graph which models both
+/// the current direct calls and references to functions which could be turned
+/// into direct calls during optimization. As a consequence there are many
+/// edges in this call graph that do not correspond to a 'call' or 'invoke'
+/// instruction.
 ///
-/// Within this constraint, the desire is to minimize the merge points of the
-/// SCC DAG. The greater the fanout of the SCC DAG and the fewer merge points
-/// in the SCC DAG, the more independence there is in optimizing within it.
-/// There is a strong desire to enable parallelization of optimizations over
-/// the call graph, and both limited fanout and merge points will (artificially
-/// in some cases) limit the scaling of such an effort.
+/// This analysis is designed to serve a complex set of constraints faced by
+/// the optimizer when decomposing an LLVM Module for call-graph aware
+/// optimizations and analyses. See the file comment for the detailed
+/// motivations and context that leads to the particular design.
 ///
-/// To this end, graph represents both direct and any potential resolution to
-/// an indirect call edge. Another way to think about it is that it represents
-/// both the direct call edges and any direct call edges that might be formed
-/// through static optimizations. Specifically, it considers taking the address
-/// of a function to be an edge in the call graph because this might be
-/// forwarded to become a direct call by some subsequent function-local
-/// optimization. The result is that the graph closely follows the use-def
-/// edges for functions. Walking "up" the graph can be done by looking at all
-/// of the uses of a function.
+/// The analysis builds a simple directed graph of calls with an edge between
+/// two functions if there exists at least one direct call from one to the
+/// other. The analysis also provides a simple directed graph of references
+/// with an edge between two functions if there exists at least one
+/// (potentially transitive, through multiple layers of global constants)
+/// reference from one function to the other. A call edge is trivially also
+/// a reference edge, and so we nest the call graph's SCCs (\c SCC below)
+/// within the reference graph's SCCs (\c RefSCC below). Put differently, the
+/// call graph is a subgraph of the reference graph, and thus the DAG of SCCs
+/// in the call graph is a subgraph of the DAG of SCCs in the referenc graph.
+///
+/// Both of these graphs are directed graphs with potential cycles, and this
+/// analysis specifically works to establish the SCCs of these directed graphs
+/// and support the post-order traversal of the resulting SCC DAG. The SCC
+/// formation is done lazily and on-demand during the traversal, including any
+/// necessary inspection of the IR to build the graph itself, in order to
+/// maximize locality when walking a module of the IR. The formation uses both
+/// a lazy and a normal implementation of Tarjan's SCC detection algorithm (for
+/// the reference and call graphs respectively), and so is linear in the number
+/// of edges plus nodes.
 ///
 /// The roots of the call graph are the external functions and functions
-/// escaped into global variables. Those functions can be called from outside
-/// of the module or via unknowable means in the IR -- we may not be able to
-/// form even a potential call edge from a function body which may dynamically
-/// load the function and call it.
+/// escaped into external global variables. Those functions can be called from
+/// outside of the module or via unknowable means in the IR -- we may not be
+/// able to form even a potential call edge from a function body which may
+/// dynamically load the function and call it.
 ///
-/// This analysis still requires updates to remain valid after optimizations
-/// which could potentially change the set of potential callees. The
-/// constraints it operates under only make the traversal order remain valid.
+/// The graph supports online updates, including within the region of the graph
+/// traversed to form SCCs (both reference and call edge SCCs). These updates,
+/// when within traversed regions of the graph, and thus potentially mutating
+/// the SCC structure in addition to mutating the underlying graph, are also
+/// written in a way that updates the SCC structure and surfaces detailed
+/// information about the nature of those updates to the caller so it can
+/// observe the new state and incorporate any changes. See the mutation API on
+/// the \c RefSCC class below for details.
 ///
-/// The entire analysis must be re-computed if full interprocedural
-/// optimizations run at any point. For example, globalopt completely
-/// invalidates the information in this analysis.
+/// Updates (both to call and reference edges) are also implemented using
+/// minorly tweaked versions of Tarjan's SCC finding algorithm (with the same
+/// complexity as above) over the subgraph whose SCCs could possibly change
+/// with the update. While in the worst case this includes the entire traversed
+/// region of the graph, hitting that worst case requires conneting a leaf of
+/// the graph to the traversed root in order to form a large cycle. If doing
+/// repeated mutations, the only reasonable access pattern is to mutate the
+/// just traversed SCC as that will then only run Tarjan's over the nodes
+/// (originally) in that SCC. In practice, this is exactly the set of mutations
+/// done by the optimizer. The entire analysis should be re-computed if full
+/// interprocedural optimizations run at any point and could trigger
+/// large-scale incremental updates.
+///
+/// FIXME: There is a well understood superlinear space problem with the
+/// function reference graph as implemented: it de-normalizes indirect
+/// references through tables of function pointers. There are many solutions
+/// available to this, all of which have the effect of preserving some amount
+/// of normalization and indirection to reduce the space requirements. We
+/// expect to introduce one of these techniques as soon as this becomes
+/// a problem in practice.
 ///
 /// FIXME: This class is named LazyCallGraph in a lame attempt to distinguish
 /// it from the existing CallGraph. At some point, it is expected that this
