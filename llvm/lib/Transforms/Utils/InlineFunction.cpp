@@ -1357,9 +1357,43 @@ bool llvm::InlineFunction(CallSite CS, InlineFunctionInfo &IFI,
   IFI.reset();
   
   const Function *CalledFunc = CS.getCalledFunction();
-  if (!CalledFunc ||              // Can't inline external function or indirect
-      CalledFunc->isDeclaration() || // call, or call to a vararg function!
-      CalledFunc->getFunctionType()->isVarArg()) return false;
+  if (!CalledFunc || CalledFunc->isDeclaration())
+    return false; // Can't inline external functions or indirect calls.
+
+  bool varargFuncAllowed = false;
+  if (CalledFunc->getFunctionType()->isVarArg()) {
+    // The CalledFunc is variadic by declaration, but we can still inline it if
+    // it does not have a va_start. This is a common use pattern where bodies of
+    // functions meant for trace messages can be conditionally suppressed with
+    // an ifdef, with the expectation that the call will get inlined and all
+    // overhead of trace messages will get optimized out in production builds.
+
+    // This code looks into the CalledFunc to determine whether it is using
+    // va_start. However, in order to limit the cost of this scan we are going
+    // to analyze only small functions. Larger functions, including those
+    // having multiple blocks will be rejected without completing the scan. 
+    // Our target use cases will all meet this criteria of 'small'.
+
+    if (CalledFunc->size() > 1)
+      return false; // Do not analyze multi block functions.
+    int ic = 0;
+    for (auto &I : *(CalledFunc->begin())) {
+      if (ic++ > 20)
+        return false; // Callee too large. Reject.
+      if (const CallInst *CI = dyn_cast<CallInst>(&I)) {
+        if (CI->isMustTailCall()) {
+          // If the CalledFunc has a musttail call, it will jump to that, and
+          // the target of that jump can have a va_start. So we reject these.
+          return false;
+        }
+        if (const Function *F = CI->getCalledFunction()) {
+          if (F->getIntrinsicID() == Intrinsic::vastart)
+            return false; // Callee has a va_start. Reject.
+        }
+      }
+    }
+    varargFuncAllowed = true; // Only for an assertion check below.
+  }
 
   // The inliner does not know how to inline through calls with operand bundles
   // in general ...
@@ -1486,8 +1520,13 @@ bool llvm::InlineFunction(CallSite CS, InlineFunctionInfo &IFI,
 
     auto &DL = Caller->getParent()->getDataLayout();
 
-    assert(CalledFunc->arg_size() == CS.arg_size() &&
+    if (varargFuncAllowed) {
+      assert(CalledFunc->arg_size() <= CS.arg_size() &&
+           "Not enough arguments passed to vararg function");
+    } else {
+      assert(CalledFunc->arg_size() == CS.arg_size() &&
            "No varargs calls can be inlined!");
+    }
 
     // Calculate the vector of arguments to pass into the function cloner, which
     // matches up the formal to the actual argument values.
