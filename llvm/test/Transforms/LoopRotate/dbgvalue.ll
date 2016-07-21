@@ -5,9 +5,9 @@ declare void @llvm.dbg.value(metadata, i64, metadata, metadata) nounwind readnon
 
 define i32 @tak(i32 %x, i32 %y, i32 %z) nounwind ssp !dbg !0 {
 ; CHECK-LABEL: define i32 @tak(
-; CHECK: entry
-; CHECK-NEXT: call void @llvm.dbg.value(metadata i32 %x
-; CHECK: tail call void @llvm.dbg.value(metadata i32 %call
+; CHECK: tailrecurse.lr
+; CHECK: call void @llvm.dbg.value(metadata i32 %x
+; CHECK: tail call void @llvm.dbg.value(metadata i32 %y
 
 entry:
   br label %tailrecurse
@@ -42,7 +42,7 @@ define i32 @tak2(i32 %x, i32 %y, i32 %z) nounwind ssp !dbg !0 {
 ; CHECK-LABEL: define i32 @tak2(
 ; CHECK: entry
 ; CHECK: tail call void @llvm.dbg.value(metadata i32 %x.tr
-; CHECK: tail call void @llvm.dbg.value(metadata i32 undef
+; CHECK: tail call void @llvm.dbg.value(metadata i32 %y.tr
 
 entry:
   br label %tailrecurse
@@ -83,12 +83,13 @@ define void @FindFreeHorzSeg(i64 %startCol, i64 %row, i64* %rowStart) {
 ; Ensure that the loop increment basic block is rotated into the tail of the
 ; body, even though it contains a debug intrinsic call.
 ; CHECK-LABEL: define void @FindFreeHorzSeg(
+; CHECK: for.inc:
+; CHECK: phi i64 [ %{{[^,]*}}, %{{[^,]*}} ]
 ; CHECK: %dec = add
 ; CHECK-NEXT: tail call void @llvm.dbg.value
+; CHECK-NEXT: br label %for.cond
 ; CHECK: %cmp = icmp
 ; CHECK: br i1 %cmp
-; CHECK: phi i64 [ %{{[^,]*}}, %{{[^,]*}} ]
-; CHECK-NEXT: br label %for.end
 
 
 entry:

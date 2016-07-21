@@ -231,6 +231,22 @@ Loop *cloneLoopWithPreheader(BasicBlock *Before, BasicBlock *LoopDomBB,
 void remapInstructionsInBlocks(const SmallVectorImpl<BasicBlock *> &Blocks,
                                ValueToValueMapTy &VMap);
 
+/// \brief Returns true of the region formed by [Entry, Exit] is
+/// a single-entry-single-exit (SESE) region. All the traces
+/// from \p Entry to \p Exit should be dominated by \p Entry
+/// and post-dominated by \p Exit.
+bool isSESE(const BasicBlock *Entry, const BasicBlock *Exit, DominatorTree *DT,
+            DominatorTree *PDT);
+
+/// \brief Returns true of the region formed by [Entry, Exit] is
+/// a single-entry-multiple-exit (SEME) region. All the traces
+/// from \p Entry which leads to the \p Exit are analyzed.
+bool isSEME(const BasicBlock *Entry, const BasicBlock *Exit, DominatorTree *DT);
+
+BasicBlock* copySEME(const SmallVectorImpl<BasicBlock *> &Blocks,
+                     const SmallPtrSetImpl<BasicBlock *> &Exits,
+                     ValueToValueMapTy &VMap, const Twine &NameSuffix,
+                     DominatorTree *DT, LoopInfo *LI);
 } // End llvm namespace
 
 #endif

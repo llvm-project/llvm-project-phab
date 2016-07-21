@@ -710,3 +710,133 @@ Loop *llvm::cloneLoopWithPreheader(BasicBlock *Before, BasicBlock *LoopDomBB,
 
   return NewLoop;
 }
+
+bool llvm::isSESE(const BasicBlock *Entry, const BasicBlock *Exit,
+                  DominatorTree *DT, DominatorTree *PDT) {
+  if (!DT->dominates(Entry, Exit))
+    return false;
+
+  if (!PDT->dominates(Exit, Entry))
+    return false;
+
+  for (auto I = df_begin(Entry), E = df_end(Entry); I != E;) {
+    if (*I == Exit) {
+      I.skipChildren();
+      continue;
+    }
+    if (!DT->dominates(Entry, *I))
+      return false;
+    ++I;
+  }
+  return true;
+}
+
+bool llvm::isSEME(const BasicBlock *Entry, const BasicBlock *Exit,
+                  DominatorTree *DT) {
+  if (!DT->dominates(Entry, Exit))
+    return false;
+
+  for (auto I = idf_begin(Exit), E = idf_end(Exit); I != E;) {
+    if (*I == Entry) {
+      I.skipChildren();
+      continue;
+    }
+
+    if (!DT->dominates(Entry, *I))
+      return false;
+
+    ++I;
+  }
+  return true;
+}
+
+static void adjustExitingPhis(ValueToValueMapTy &VMap,
+                              const SmallPtrSetImpl<BasicBlock *> &Exits) {
+  for (BasicBlock *BB : Exits) {
+    for (Instruction &Inst : *BB) {
+      PHINode *PN = dyn_cast<PHINode>(&Inst);
+      if (!PN)
+        break;
+      bool EdgeFromOrigBB = false;
+      for (unsigned i = 0, e = PN->getNumOperands(); i != e; ++i) {
+        Value *CopyB = VMap[PN->getIncomingBlock(i)];
+        if (!CopyB) // Skip args coming from outside the SEME.
+          continue;
+        BasicBlock *CopyBB = cast<BasicBlock>(CopyB);
+        EdgeFromOrigBB = true;
+        Value *Op = PN->getIncomingValue(i);
+        if (Value *RenamedVal = VMap[Op])
+          PN->addIncoming(RenamedVal, CopyBB);
+        else
+          // When no mapping is available it must be a constant.
+          PN->addIncoming(Op, CopyBB);
+      }
+      assert(EdgeFromOrigBB && "Illegal exit from SEME.");
+    }
+  }
+}
+
+BasicBlock* llvm::copySEME(const SmallVectorImpl<BasicBlock *> &Blocks,
+                           const SmallPtrSetImpl<BasicBlock *> &Exits,
+                           ValueToValueMapTy &VMap,
+                           const Twine &NameSuffix,
+                           DominatorTree *DT, LoopInfo *LI) {
+  BasicBlock *DomEntry = DT->getNode(Blocks[0])->getIDom()->getBlock();
+  assert(DomEntry && "no dominator");
+
+  Function *F = DomEntry->getParent();
+  BasicBlock *OrigH = Blocks[0];
+  SmallVector<BasicBlock *, 4> NewBlocks;
+  for (BasicBlock *BB : Blocks) {
+    BasicBlock *NewBB = CloneBasicBlock(BB, VMap, NameSuffix, F);
+    // Move them physically from the end of the block list.
+    F->getBasicBlockList().splice(OrigH->getIterator(), F->getBasicBlockList(),
+                                  NewBB);
+    Loop *BBLoop = LI->getLoopFor(BB);
+    Loop *BBParentLoop = BBLoop->getParentLoop();
+    if (BBParentLoop)
+      BBParentLoop->addBasicBlockToLoop(NewBB, *LI);
+    VMap[BB] = NewBB;
+    NewBlocks.push_back(NewBB);
+  }
+
+  remapInstructionsInBlocks(NewBlocks, VMap);
+
+  for (BasicBlock *BB : Blocks) {
+    BasicBlock *NewBB = cast_or_null<BasicBlock>(VMap[BB]);
+    BranchInst *BI = dyn_cast<BranchInst>(NewBB->getTerminator());
+    if (!BI)
+      continue;
+
+    for (unsigned I = 0, E = BI->getNumSuccessors(); I < E; ++I) {
+      BasicBlock *NewSucc = cast_or_null<BasicBlock>(VMap[BI->getSuccessor(I)]);
+      if (!NewSucc)
+        continue;
+      BI->setSuccessor(I, NewSucc);
+    }
+  }
+
+  // For all the basic blocks in the SEME, update the DOM.  Except for the entry
+  // block the tree structure is the same so the dominators also follow the same
+  // structural property. If the imm-dom of orig BB is not in SEME that means it
+  // is the entry block, in that case the new idom of the new BB must be its
+  // single predecessor because we are dealing with an SEME region.
+  BasicBlock *EntryNewSEME = nullptr;
+  for (BasicBlock *BB : Blocks) {
+    BasicBlock *NewBB = cast_or_null<BasicBlock>(VMap[BB]);
+    assert(NewBB);
+
+    BasicBlock *Dom = DT->getNode(BB)->getIDom()->getBlock();
+    BasicBlock *NewDom = cast_or_null<BasicBlock>(VMap[Dom]);
+    if (!NewDom) { // Dom does not belong to SEME => entry block.
+      EntryNewSEME = NewBB;
+      NewDom = Dom;
+      assert (Dom == DomEntry);
+    }
+    DT->addNewBlock(NewBB, NewDom);
+    DT->changeImmediateDominator(NewBB, NewDom);
+  }
+
+  adjustExitingPhis(VMap, Exits);
+  return EntryNewSEME;
+}
