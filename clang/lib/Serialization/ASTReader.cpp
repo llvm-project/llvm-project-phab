@@ -49,6 +49,7 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Bitcode/BitstreamReader.h"
 #include "llvm/Support/Compression.h"
+#include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/MemoryBuffer.h"
@@ -59,6 +60,8 @@
 #include <cstdio>
 #include <iterator>
 #include <system_error>
+
+#define DEBUG_TYPE "module-astreader"
 
 using namespace clang;
 using namespace clang::serialization;
@@ -364,6 +367,8 @@ static bool checkDiagnosticGroupMappings(DiagnosticsEngine &StoredDiags,
         if (Complain)
           Diags.Report(diag::err_pch_diagopt_mismatch) << "-Werror=" +
               Diags.getDiagnosticIDs()->getWarningOptionForDiag(DiagID).str();
+        DEBUG(llvm::dbgs() << "In checkDiagnosticGroupMappings: DiagID "
+                           << Diags.getDiagnosticIDs()->getWarningOptionForDiag(DiagID).str() << '\n';);
         return true;
       }
     }
@@ -390,6 +395,9 @@ static bool checkDiagnosticMappings(DiagnosticsEngine &StoredDiags,
     if (StoredDiags.getSuppressSystemWarnings()) {
       if (Complain)
         Diags.Report(diag::err_pch_diagopt_mismatch) << "-Wsystem-headers";
+      DEBUG(llvm::dbgs() << "In checkDiagnosticMappings: suppress system warnings"
+                         << ": IsSystem "
+                         << IsSystem << '\n';);
       return true;
     }
   }
@@ -397,6 +405,9 @@ static bool checkDiagnosticMappings(DiagnosticsEngine &StoredDiags,
   if (Diags.getWarningsAsErrors() && !StoredDiags.getWarningsAsErrors()) {
     if (Complain)
       Diags.Report(diag::err_pch_diagopt_mismatch) << "-Werror";
+    DEBUG(llvm::dbgs() << "In checkDiagnosticMappings: warnings as errors"
+                       << ": IsSystem "
+                       << IsSystem << '\n';);
     return true;
   }
 
@@ -404,6 +415,9 @@ static bool checkDiagnosticMappings(DiagnosticsEngine &StoredDiags,
       !StoredDiags.getEnableAllWarnings()) {
     if (Complain)
       Diags.Report(diag::err_pch_diagopt_mismatch) << "-Weverything -Werror";
+    DEBUG(llvm::dbgs() << "In checkDiagnosticMappings: enable all warnings"
+                       << ": IsSystem "
+                       << IsSystem << '\n';);
     return true;
   }
 
@@ -411,6 +425,9 @@ static bool checkDiagnosticMappings(DiagnosticsEngine &StoredDiags,
       !isExtHandlingFromDiagsError(StoredDiags)) {
     if (Complain)
       Diags.Report(diag::err_pch_diagopt_mismatch) << "-pedantic-errors";
+    DEBUG(llvm::dbgs() << "In checkDiagnosticMappings: pedantic-errors"
+                       << ": IsSystem "
+                       << IsSystem << '\n';);
     return true;
   }
 
@@ -2138,8 +2155,12 @@ ASTReader::ASTReadResult ASTReader::ReadOptionsBlock(
     case DIAGNOSTIC_OPTIONS: {
       bool Complain = (ClientLoadCapabilities & ARR_OutOfDate) == 0;
       if (!AllowCompatibleConfigurationMismatch &&
-          ParseDiagnosticOptions(Record, Complain, Listener))
+          ParseDiagnosticOptions(Record, Complain, Listener)) {
+        DEBUG(llvm::dbgs() << "In ReadOptionsBlock: we return OutOfDate"
+                           << ": client "
+                           << ClientLoadCapabilities << '\n';);
         return OutOfDate;
+      }
       break;
     }
 
@@ -2218,8 +2239,12 @@ ASTReader::ReadControlBlock(ModuleFile &F,
 
         for (unsigned I = 0; I < N; ++I) {
           InputFile IF = getInputFile(F, I+1, Complain);
-          if (!IF.getFile() || IF.isOutOfDate())
+          if (!IF.getFile() || IF.isOutOfDate()) {
+            DEBUG(llvm::dbgs() << "In ReadControlBlock: we return OutOfDate"
+                               << ": " << F.FileName << " client "
+                               << ClientLoadCapabilities << '\n';);
             return OutOfDate;
+          }
         }
       }
 
@@ -2280,8 +2305,12 @@ ASTReader::ReadControlBlock(ModuleFile &F,
           // If we can't load the module, exit early since we likely
           // will rebuild the module anyway. The stream may be in the
           // middle of a block.
-          if (Result != Success)
+          if (Result != Success) {
+            DEBUG(llvm::dbgs() << "In ReadControlBlock: ReadOptionsBlock returns " << Result
+                               << ": " << F.FileName << " client "
+                               << ClientLoadCapabilities << '\n';);
             return Result;
+          }
         } else if (Stream.SkipBlock()) {
           Error("malformed block record in AST file");
           return Failure;
@@ -2377,7 +2406,12 @@ ASTReader::ReadControlBlock(ModuleFile &F,
         case Failure: return Failure;
           // If we have to ignore the dependency, we'll have to ignore this too.
         case Missing:
-        case OutOfDate: return OutOfDate;
+        case OutOfDate: {
+          DEBUG(llvm::dbgs() << "In ReadControlBlock: ReadASTCore returns " << Result
+                             << ": " << F.FileName << " client "
+                             << ClientLoadCapabilities << '\n';);
+          return OutOfDate;
+        }
         case VersionMismatch: return VersionMismatch;
         case ConfigurationMismatch: return ConfigurationMismatch;
         case HadErrors: return HadErrors;
@@ -2424,6 +2458,10 @@ ASTReader::ReadControlBlock(ModuleFile &F,
             if ((ClientLoadCapabilities & ARR_OutOfDate) == 0)
               Diag(diag::err_imported_module_relocated)
                   << F.ModuleName << Blob << M->Directory->getName();
+            DEBUG(llvm::dbgs() << "In ReadControlBlock: due to module "
+                               << "directory, we return OutOfDate: "
+                               << F.FileName << " client "
+                               << ClientLoadCapabilities << '\n';);
             return OutOfDate;
           }
         }
@@ -2436,8 +2474,12 @@ ASTReader::ReadControlBlock(ModuleFile &F,
 
     case MODULE_MAP_FILE:
       if (ASTReadResult Result =
-              ReadModuleMapFileBlock(Record, F, ImportedBy, ClientLoadCapabilities))
+              ReadModuleMapFileBlock(Record, F, ImportedBy, ClientLoadCapabilities)) {
+        DEBUG(llvm::dbgs() << "In ReadControlBlock: ReadModuleMapFileBlock returns " << Result
+                           << ": " << F.FileName << " client "
+                           << ClientLoadCapabilities << '\n';);
         return Result;
+      }
       break;
 
     case INPUT_FILE_OFFSETS:
@@ -3485,6 +3527,9 @@ ASTReader::ASTReadResult ASTReader::ReadAST(StringRef FileName,
   // Defer any pending actions until we get to the end of reading the AST file.
   Deserializing AnASTFile(this);
 
+  DEBUG(llvm::dbgs() << "In ReadAST: " << FileName << " client "
+                     << ClientLoadCapabilities << '\n';);
+
   // Bump the generation number.
   unsigned PreviousGeneration = incrementGeneration(Context);
 
@@ -3514,6 +3559,9 @@ ASTReader::ASTReadResult ASTReader::ReadAST(StringRef FileName,
     // to be out-of-date. Just remove it.
     GlobalIndex.reset();
     ModuleMgr.setGlobalIndex(nullptr);
+    DEBUG(llvm::dbgs() << "In ReadAST: ReadASTCore returns " << ReadResult
+                       << ": " << FileName << " client "  
+                       << ClientLoadCapabilities << '\n';);
     return ReadResult;
   }
   case Success:
@@ -3529,13 +3577,21 @@ ASTReader::ASTReadResult ASTReader::ReadAST(StringRef FileName,
     ModuleFile &F = *M->Mod;
 
     // Read the AST block.
-    if (ASTReadResult Result = ReadASTBlock(F, ClientLoadCapabilities))
+    if (ASTReadResult Result = ReadASTBlock(F, ClientLoadCapabilities)) {
+      DEBUG(llvm::dbgs() << "In ReadAST: ReadASTBlock returns " << Result
+                         << ": " << FileName << " client " 
+                         << ClientLoadCapabilities << '\n';);
       return Result;
+    }
 
     // Read the extension blocks.
     while (!SkipCursorToBlock(F.Stream, EXTENSION_BLOCK_ID)) {
-      if (ASTReadResult Result = ReadExtensionBlock(F))
+      if (ASTReadResult Result = ReadExtensionBlock(F)) {
+        DEBUG(llvm::dbgs() << "In ReadAST: ReadExtensionBlock returns " << Result
+                           << ": " << FileName << " client "
+                           << ClientLoadCapabilities << '\n';);
         return Result;
+      }
     }
 
     // Once read, set the ModuleFile bit base offset and update the size in 
@@ -3761,8 +3817,12 @@ ASTReader::ReadASTCore(StringRef FileName,
   case ModuleManager::OutOfDate:
     // We couldn't load the module file because it is out-of-date. If the
     // client can handle out-of-date, return it.
-    if (ClientLoadCapabilities & ARR_OutOfDate)
+    if (ClientLoadCapabilities & ARR_OutOfDate) {
+      DEBUG(llvm::dbgs() << "In ReadASTCore: addModule returns " << AddResult
+                         << ": " << FileName << " client "
+                         << ClientLoadCapabilities << '\n';);
       return OutOfDate;
+    }
 
     // Otherwise, return an error.
     Diag(diag::err_module_file_out_of_date) << moduleKindForDiagnostic(Type)
@@ -3824,13 +3884,21 @@ ASTReader::ReadASTCore(StringRef FileName,
           if (Result != OutOfDate ||
               (ClientLoadCapabilities & ARR_OutOfDate) == 0)
             Diag(diag::err_module_file_not_module) << FileName;
+          DEBUG(llvm::dbgs() << "In ReadASTCore: ReadControlBlock returns Success but module "
+                             << "name is empty : " << FileName << " client "
+                             << ClientLoadCapabilities << '\n';);
           return Result;
         }
         break;
 
       case Failure: return Failure;
       case Missing: return Missing;
-      case OutOfDate: return OutOfDate;
+      case OutOfDate: {
+        DEBUG(llvm::dbgs() << "In ReadASTCore: ReadControlBlock returns OutOfDate"
+                           << ": " << FileName << " client "
+                           << ClientLoadCapabilities << '\n';);
+        return OutOfDate;
+      }
       case VersionMismatch: return VersionMismatch;
       case ConfigurationMismatch: return ConfigurationMismatch;
       case HadErrors: return HadErrors;
@@ -4596,6 +4664,9 @@ ASTReader::ReadSubmoduleBlock(ModuleFile &F, unsigned ClientLoadCapabilities) {
         else if (CurrentModule->getUmbrellaDir().Entry != Umbrella) {
           if ((ClientLoadCapabilities & ARR_OutOfDate) == 0)
             Error("mismatched umbrella directories in submodule");
+          DEBUG(llvm::dbgs() << "In ReadSubmoduleBlock: we return OutOfDate"
+                             << ": " << F.FileName << " client "
+                             << ClientLoadCapabilities << '\n';);
           return OutOfDate;
         }
       }

@@ -51,6 +51,7 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Bitcode/BitstreamWriter.h"
 #include "llvm/Support/Compression.h"
+#include "llvm/Support/Debug.h"
 #include "llvm/Support/EndianStream.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/MemoryBuffer.h"
@@ -61,6 +62,8 @@
 #include <cstdio>
 #include <string.h>
 #include <utility>
+
+#define DEBUG_TYPE "module-astwriter"
 
 using namespace clang;
 using namespace clang::serialization;
@@ -4113,6 +4116,7 @@ time_t ASTWriter::getTimestampForOutput(const FileEntry *E) const {
 uint64_t ASTWriter::WriteAST(Sema &SemaRef, const std::string &OutputFile,
                              Module *WritingModule, StringRef isysroot,
                              bool hasErrors) {
+  DEBUG(llvm::dbgs() << "In WriteAST: " << OutputFile << '\n';);
   WritingAST = true;
 
   ASTHasCompilerErrors = hasErrors;

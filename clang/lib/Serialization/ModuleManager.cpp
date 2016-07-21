@@ -16,6 +16,7 @@
 #include "clang/Lex/ModuleMap.h"
 #include "clang/Serialization/GlobalModuleIndex.h"
 #include "clang/Serialization/ModuleManager.h"
+#include "llvm/Support/Debug.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
@@ -24,6 +25,8 @@
 #ifndef NDEBUG
 #include "llvm/Support/GraphWriter.h"
 #endif
+
+#define DEBUG_TYPE "module-manager"
 
 using namespace clang;
 using namespace serialization;
@@ -76,6 +79,8 @@ ModuleManager::addModule(StringRef FileName, ModuleKind Type,
   }
   if (lookupModuleFile(FileName, ExpectedSize, ExpectedModTime, Entry)) {
     ErrorStr = "module file out of date";
+    DEBUG(llvm::dbgs() << "In addModule: size or modtime mismatch "
+                       << FileName << '\n';);
     return OutOfDate;
   }
 
@@ -169,6 +174,8 @@ ModuleManager::addModule(StringRef FileName, ModuleKind Type,
           assert(ImportedBy);
         delete ModuleEntry;
       }
+      DEBUG(llvm::dbgs() << "In addModule: signature mismatch "
+                         << FileName << '\n';);
       return OutOfDate;
     }
   }

@@ -35,6 +35,7 @@
 #include "clang/Serialization/GlobalModuleIndex.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Support/CrashRecoveryContext.h"
+#include "llvm/Support/Debug.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Host.h"
@@ -49,6 +50,8 @@
 #include <system_error>
 #include <time.h>
 #include <utility>
+
+#define DEBUG_TYPE "module-compilerinstance"
 
 using namespace clang;
 
@@ -924,6 +927,7 @@ static bool compileModuleImpl(CompilerInstance &ImportingInstance,
                               SourceLocation ImportLoc,
                               Module *Module,
                               StringRef ModuleFileName) {
+  DEBUG(llvm::dbgs() << "In compileModuleImpl: " << ModuleFileName << '\n';);
   ModuleMap &ModMap 
     = ImportingInstance.getPreprocessor().getHeaderSearchInfo().getModuleMap();
     
@@ -1451,6 +1455,9 @@ CompilerInstance::loadModule(SourceLocation ImportLoc,
 
     std::string ModuleFileName =
         PP->getHeaderSearchInfo().getModuleFileName(Module);
+    DEBUG(llvm::dbgs() << "In loadModule: " << ModuleName
+                       << " we find the Module then ModuleFileName "
+                       << ModuleFileName << '\n';);
     if (ModuleFileName.empty()) {
       if (Module->HasIncompatibleModuleFile) {
         // We tried and failed to load a module file for this module. Fall
