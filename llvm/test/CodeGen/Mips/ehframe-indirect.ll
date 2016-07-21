@@ -1,7 +1,7 @@
 ; RUN: llc -mtriple=mipsel-linux-gnu < %s -asm-verbose -relocation-model=pic | FileCheck -check-prefixes=ALL,O32 %s
 ; RUN: llc -mtriple=mipsel-linux-android < %s -asm-verbose -relocation-model=pic | FileCheck -check-prefixes=ALL,O32 %s
-; RUN: llc -mtriple=mips64el-linux-gnu -target-abi=n32 < %s -asm-verbose -relocation-model=pic | FileCheck -check-prefixes=ALL,N32 %s
-; RUN: llc -mtriple=mips64el-linux-android -target-abi=n32 < %s -asm-verbose -relocation-model=pic | FileCheck -check-prefixes=ALL,N32 %s
+; RUN: llc -mtriple=mips64el-linux-gnu -mabi=n32 < %s -asm-verbose -relocation-model=pic | FileCheck -check-prefixes=ALL,N32 %s
+; RUN: llc -mtriple=mips64el-linux-android -mabi=n32 < %s -asm-verbose -relocation-model=pic | FileCheck -check-prefixes=ALL,N32 %s
 ; RUN: llc -mtriple=mips64el-linux-gnu < %s -asm-verbose -relocation-model=pic | FileCheck -check-prefixes=ALL,N64 %s
 ; RUN: llc -mtriple=mips64el-linux-android < %s -asm-verbose -relocation-model=pic | FileCheck -check-prefixes=ALL,N64 %s
 
