@@ -38,6 +38,7 @@
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Scalar/GVN.h"
 #include "llvm/Transforms/Vectorize.h"
+#include "llvm/Transforms/Utils/VecClone.h"
 
 using namespace llvm;
 
@@ -101,6 +102,10 @@ EnableMLSM("mlsm", cl::init(true), cl::Hidden,
 static cl::opt<bool> EnableLoopInterchange(
     "enable-loopinterchange", cl::init(false), cl::Hidden,
     cl::desc("Enable the new, experimental LoopInterchange Pass"));
+
+static cl::opt<bool> RunVecClone("enable-vec-clone",
+  cl::init(true), cl::Hidden,
+  cl::desc("Run Vector Function Cloning"));
 
 static cl::opt<bool> EnableNonLTOGlobalsModRef(
     "enable-non-lto-gmr", cl::init(true), cl::Hidden,
@@ -376,6 +381,10 @@ void PassManagerBuilder::populateModulePassManager(
       MPM.add(createBarrierNoopPass());
 
     addExtensionsToPM(EP_EnabledOnOptLevel0, MPM);
+
+    if (RunVecClone)
+      MPM.add(createVecClonePass());
+
     return;
   }
 
@@ -512,6 +521,9 @@ void PassManagerBuilder::populateModulePassManager(
   // currently only performed for loops marked with the metadata
   // llvm.loop.distribute=true or when -enable-loop-distribute is specified.
   MPM.add(createLoopDistributePass(/*ProcessAllLoopsByDefault=*/false));
+
+  if (RunVecClone)
+    MPM.add(createVecClonePass());
 
   MPM.add(createLoopVectorizePass(DisableUnrollLoops, LoopVectorize));
 

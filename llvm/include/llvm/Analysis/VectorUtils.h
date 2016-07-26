@@ -27,6 +27,7 @@ class ScalarEvolution;
 class TargetTransformInfo;
 class Type;
 class Value;
+class VectorVariant;
 
 namespace Intrinsic {
 enum ID : unsigned;
@@ -122,6 +123,26 @@ computeMinimumValueSizes(ArrayRef<BasicBlock*> Blocks,
 ///
 /// This function always sets a (possibly null) value for each K in Kinds.
 Instruction *propagateMetadata(Instruction *I, ArrayRef<Value *> VL);
+
+/// \brief Contains the names of the declared vector function variants
+typedef std::vector<std::string> DeclaredVariants;
+
+/// \brief Contains a mapping of a function to its vector function variants
+typedef std::map<Function*, DeclaredVariants> FunctionVariants;
+
+/// \brief Get all function attributes that specify a vector variant.
+std::vector<Attribute> getVectorVariantAttributes(Function& F);
+
+/// \brief Determine the characteristic type of the vector function as
+/// specified according to the vector function ABI.
+Type* calcCharacteristicType(Function& F, VectorVariant& Variant);
+
+/// \brief Get all functions marked for vectorization in module.
+void getFunctionsToVectorize(Module &M, FunctionVariants& funcVars);
+
+/// \brief Returns a floating point or integer constant depending on Ty.
+template <typename T>
+Constant* getConstantValue(Type *Ty, LLVMContext &Context, T Val);
 
 } // llvm namespace
 
