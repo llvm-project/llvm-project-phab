@@ -4,11 +4,11 @@
 ; Loop from "rotated"
 ; CHECK: LV: Loop hints: force=enabled
 ; Loop from "nonrotated"
-; CHECK: LV: Loop hints: force=enabled
-; No more loops in the module
 ; CHECK-NOT: LV: Loop hints: force=
-; In total only 1 loop should be rotated.
-; CHECK: 1 loop-rotate
+; checking the stats for the function @nonrotated
+; CHECK: 2 gvn{{.*}}Number of equalities propagated
+; With the new loop rotation both the loops should be rotated.
+; CHECK: 2 loop-rotate
 
 target datalayout = "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-s0:64:64-f80:128:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"
