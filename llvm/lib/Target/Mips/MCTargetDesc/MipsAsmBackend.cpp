@@ -205,8 +205,9 @@ static unsigned adjustFixupValue(const MCFixup &Fixup, uint64_t Value,
 
 MCObjectWriter *
 MipsAsmBackend::createObjectWriter(raw_pwrite_stream &OS) const {
-  return createMipsELFObjectWriter(OS,
-    MCELFObjectTargetWriter::getOSABI(OSType), IsLittle, Is64Bit);
+  return createMipsELFObjectWriter(
+      OS, TheTriple, MCELFObjectTargetWriter::getOSABI(TheTriple.getOS()),
+      IsLittle);
 }
 
 // Little-endian fixup data byte ordering:
@@ -477,36 +478,4 @@ void MipsAsmBackend::processFixupValue(const MCAssembler &Asm,
   // The caller will also ignore any changes we make to Value
   // (recordRelocation() overwrites it with it's own calculation).
   (void)adjustFixupValue(Fixup, Value, &Asm.getContext());
-}
-
-// MCAsmBackend
-MCAsmBackend *llvm::createMipsAsmBackendEL32(const Target &T,
-                                             const MCRegisterInfo &MRI,
-                                             const Triple &TT, StringRef CPU,
-                                             const MCTargetOptions &Options) {
-  return new MipsAsmBackend(T, TT.getOS(), /*IsLittle*/ true,
-                            /*Is64Bit*/ false);
-}
-
-MCAsmBackend *llvm::createMipsAsmBackendEB32(const Target &T,
-                                             const MCRegisterInfo &MRI,
-                                             const Triple &TT, StringRef CPU,
-                                             const MCTargetOptions &Options) {
-  return new MipsAsmBackend(T, TT.getOS(), /*IsLittle*/ false,
-                            /*Is64Bit*/ false);
-}
-
-MCAsmBackend *llvm::createMipsAsmBackendEL64(const Target &T,
-                                             const MCRegisterInfo &MRI,
-                                             const Triple &TT, StringRef CPU,
-                                             const MCTargetOptions &Options) {
-  return new MipsAsmBackend(T, TT.getOS(), /*IsLittle*/ true, /*Is64Bit*/ true);
-}
-
-MCAsmBackend *llvm::createMipsAsmBackendEB64(const Target &T,
-                                             const MCRegisterInfo &MRI,
-                                             const Triple &TT, StringRef CPU,
-                                             const MCTargetOptions &Options) {
-  return new MipsAsmBackend(T, TT.getOS(), /*IsLittle*/ false,
-                            /*Is64Bit*/ true);
 }

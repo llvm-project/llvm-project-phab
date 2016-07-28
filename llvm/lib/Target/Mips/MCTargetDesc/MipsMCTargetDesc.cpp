@@ -13,6 +13,7 @@
 
 #include "MipsMCTargetDesc.h"
 #include "InstPrinter/MipsInstPrinter.h"
+#include "MipsAsmBackend.h"
 #include "MipsELFStreamer.h"
 #include "MipsMCAsmInfo.h"
 #include "MipsMCNaCl.h"
@@ -180,6 +181,9 @@ extern "C" void LLVMInitializeMipsTargetMC() {
 
     TargetRegistry::RegisterObjectTargetStreamer(
         *T, createMipsObjectTargetStreamer);
+
+    // Register the asm backend.
+    RegisterMCAsmBackend<MipsAsmBackend> Y(*T);
   }
 
   // Register the MC Code Emitter
@@ -188,15 +192,4 @@ extern "C" void LLVMInitializeMipsTargetMC() {
 
   for (Target *T : {&TheMipselTarget, &TheMips64elTarget})
     TargetRegistry::RegisterMCCodeEmitter(*T, createMipsMCCodeEmitterEL);
-
-  // Register the asm backend.
-  TargetRegistry::RegisterMCAsmBackend(TheMipsTarget,
-                                       createMipsAsmBackendEB32);
-  TargetRegistry::RegisterMCAsmBackend(TheMipselTarget,
-                                       createMipsAsmBackendEL32);
-  TargetRegistry::RegisterMCAsmBackend(TheMips64Target,
-                                       createMipsAsmBackendEB64);
-  TargetRegistry::RegisterMCAsmBackend(TheMips64elTarget,
-                                       createMipsAsmBackendEL64);
-
 }
