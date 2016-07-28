@@ -3539,7 +3539,7 @@ def : Pat <
              SRCMODS.NONE,
              (V_FRACT_F64_e64 $mods, $x, DSTCLAMP.NONE, DSTOMOD.NONE),
              SRCMODS.NONE,
-             (V_MOV_B64_PSEUDO 0x3fefffffffffffff),
+             CONST.FP64_ONE,
              DSTCLAMP.NONE, DSTOMOD.NONE),
          $x,
          (V_CMP_CLASS_F64_e64 SRCMODS.NONE, $x, 3/*NaN*/)),

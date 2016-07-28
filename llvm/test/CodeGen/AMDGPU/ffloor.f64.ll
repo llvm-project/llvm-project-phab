@@ -12,12 +12,13 @@ declare <16 x double> @llvm.floor.v16f64(<16 x double>) nounwind readnone
 
 ; FUNC-LABEL: {{^}}ffloor_f64:
 ; CI: v_floor_f64_e32
-; SI: v_fract_f64_e32
-; SI-DAG: v_min_f64
-; SI-DAG: v_cmp_class_f64_e64
+
+; SI: v_fract_f64_e32 [[FRACT:v\[[0-9]+:[0-9]+\]]], [[X:s\[[0-9]+:[0-9]+\]]]
+; SI-DAG: v_min_f64 [[MIN:v\[[0-9]+:[0-9]+\]]], 1.0, [[FRACT]]
+; SI-DAG: v_cmp_class_f64_e64 {{s\[[0-9]+:[0-9]+\]}}, [[X]], 3
 ; SI: v_cndmask_b32_e64
 ; SI: v_cndmask_b32_e64
-; SI: v_add_f64
+; SI: v_add_f64 {{v\[[0-9]+:[0-9]+\]}}, [[X]], -{{v\[[0-9]+:[0-9]+\]}}
 ; SI: s_endpgm
 define void @ffloor_f64(double addrspace(1)* %out, double %x) {
   %y = call double @llvm.floor.f64(double %x) nounwind readnone
@@ -27,15 +28,16 @@ define void @ffloor_f64(double addrspace(1)* %out, double %x) {
 
 ; FUNC-LABEL: {{^}}ffloor_f64_neg:
 ; CI: v_floor_f64_e64
+
 ; SI: v_fract_f64_e64 {{v[[0-9]+:[0-9]+]}}, -[[INPUT:s[[0-9]+:[0-9]+]]]
 ; SI-DAG: v_min_f64
 ; SI-DAG: v_cmp_class_f64_e64
 ; SI: v_cndmask_b32_e64
 ; SI: v_cndmask_b32_e64
-; SI: v_add_f64 {{v[[0-9]+:[0-9]+]}}, -[[INPUT]]
+; SI: v_add_f64 {{v[[0-9]+:[0-9]+]}}, -[[INPUT]], -v{{\[[0-9]+:[0-9]+\]}}
 ; SI: s_endpgm
 define void @ffloor_f64_neg(double addrspace(1)* %out, double %x) {
-  %neg = fsub double 0.0, %x
+  %neg = fsub double -0.0, %x
   %y = call double @llvm.floor.f64(double %neg) nounwind readnone
   store double %y, double addrspace(1)* %out
   ret void
@@ -52,7 +54,7 @@ define void @ffloor_f64_neg(double addrspace(1)* %out, double %x) {
 ; SI: s_endpgm
 define void @ffloor_f64_neg_abs(double addrspace(1)* %out, double %x) {
   %abs = call double @llvm.fabs.f64(double %x)
-  %neg = fsub double 0.0, %abs
+  %neg = fsub double -0.0, %abs
   %y = call double @llvm.floor.f64(double %neg) nounwind readnone
   store double %y, double addrspace(1)* %out
   ret void

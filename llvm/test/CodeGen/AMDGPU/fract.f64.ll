@@ -10,9 +10,7 @@ declare double @llvm.floor.f64(double) #0
 
 ; FUNC-LABEL: {{^}}fract_f64:
 ; SI-DAG: v_fract_f64_e32 [[FRC:v\[[0-9]+:[0-9]+\]]], v{{\[}}[[LO:[0-9]+]]:[[HI:[0-9]+]]]
-; SI-DAG: v_mov_b32_e32 v[[UPLO:[0-9]+]], -1
-; SI-DAG: v_mov_b32_e32 v[[UPHI:[0-9]+]], 0x3fefffff
-; SI-DAG: v_min_f64 v{{\[}}[[MINLO:[0-9]+]]:[[MINHI:[0-9]+]]], v{{\[}}[[UPLO]]:[[UPHI]]], [[FRC]]
+; SI-DAG: v_min_f64 v{{\[}}[[MINLO:[0-9]+]]:[[MINHI:[0-9]+]]], 1.0, [[FRC]]
 ; SI-DAG: v_cmp_class_f64_e64 [[COND:s\[[0-9]+:[0-9]+\]]], v{{\[}}[[LO]]:[[HI]]], 3
 ; SI: v_cndmask_b32_e64 v[[RESLO:[0-9]+]], v[[MINLO]], v[[LO]], [[COND]]
 ; SI: v_cndmask_b32_e64 v[[RESHI:[0-9]+]], v[[MINHI]], v[[HI]], [[COND]]
@@ -37,9 +35,7 @@ define void @fract_f64(double addrspace(1)* %out, double addrspace(1)* %src) #1 
 
 ; FUNC-LABEL: {{^}}fract_f64_neg:
 ; SI-DAG: v_fract_f64_e64 [[FRC:v\[[0-9]+:[0-9]+\]]], -v{{\[}}[[LO:[0-9]+]]:[[HI:[0-9]+]]]
-; SI-DAG: v_mov_b32_e32 v[[UPLO:[0-9]+]], -1
-; SI-DAG: v_mov_b32_e32 v[[UPHI:[0-9]+]], 0x3fefffff
-; SI-DAG: v_min_f64 v{{\[}}[[MINLO:[0-9]+]]:[[MINHI:[0-9]+]]], v{{\[}}[[UPLO]]:[[UPHI]]], [[FRC]]
+; SI-DAG: v_min_f64 v{{\[}}[[MINLO:[0-9]+]]:[[MINHI:[0-9]+]]], 1.0, [[FRC]]
 ; SI-DAG: v_cmp_class_f64_e64 [[COND:s\[[0-9]+:[0-9]+\]]], v{{\[}}[[LO]]:[[HI]]], 3
 ; SI: v_cndmask_b32_e64 v[[RESLO:[0-9]+]], v[[MINLO]], v[[LO]], [[COND]]
 ; SI: v_cndmask_b32_e64 v[[RESHI:[0-9]+]], v[[MINHI]], v[[HI]], [[COND]]
@@ -65,9 +61,7 @@ define void @fract_f64_neg(double addrspace(1)* %out, double addrspace(1)* %src)
 
 ; FUNC-LABEL: {{^}}fract_f64_neg_abs:
 ; SI-DAG: v_fract_f64_e64 [[FRC:v\[[0-9]+:[0-9]+\]]], -|v{{\[}}[[LO:[0-9]+]]:[[HI:[0-9]+]]]|
-; SI-DAG: v_mov_b32_e32 v[[UPLO:[0-9]+]], -1
-; SI-DAG: v_mov_b32_e32 v[[UPHI:[0-9]+]], 0x3fefffff
-; SI-DAG: v_min_f64 v{{\[}}[[MINLO:[0-9]+]]:[[MINHI:[0-9]+]]], v{{\[}}[[UPLO]]:[[UPHI]]], [[FRC]]
+; SI-DAG: v_min_f64 v{{\[}}[[MINLO:[0-9]+]]:[[MINHI:[0-9]+]]], 1.0, [[FRC]]
 ; SI-DAG: v_cmp_class_f64_e64 [[COND:s\[[0-9]+:[0-9]+\]]], v{{\[}}[[LO]]:[[HI]]], 3
 ; SI: v_cndmask_b32_e64 v[[RESLO:[0-9]+]], v[[MINLO]], v[[LO]], [[COND]]
 ; SI: v_cndmask_b32_e64 v[[RESHI:[0-9]+]], v[[MINHI]], v[[HI]], [[COND]]

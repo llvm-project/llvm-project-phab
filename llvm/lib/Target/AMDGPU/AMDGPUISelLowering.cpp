@@ -707,7 +707,6 @@ SDValue AMDGPUTargetLowering::LowerOperation(SDValue Op,
   case ISD::FRINT: return LowerFRINT(Op, DAG);
   case ISD::FNEARBYINT: return LowerFNEARBYINT(Op, DAG);
   case ISD::FROUND: return LowerFROUND(Op, DAG);
-  case ISD::FFLOOR: return LowerFFLOOR(Op, DAG);
   case ISD::SINT_TO_FP: return LowerSINT_TO_FP(Op, DAG);
   case ISD::UINT_TO_FP: return LowerUINT_TO_FP(Op, DAG);
   case ISD::FP_TO_SINT: return LowerFP_TO_SINT(Op, DAG);
@@ -1677,31 +1676,6 @@ SDValue AMDGPUTargetLowering::LowerFROUND(SDValue Op, SelectionDAG &DAG) const {
     return LowerFROUND64(Op, DAG);
 
   llvm_unreachable("unhandled type");
-}
-
-SDValue AMDGPUTargetLowering::LowerFFLOOR(SDValue Op, SelectionDAG &DAG) const {
-  SDLoc SL(Op);
-  SDValue Src = Op.getOperand(0);
-
-  // result = trunc(src);
-  // if (src < 0.0 && src != result)
-  //   result += -1.0.
-
-  SDValue Trunc = DAG.getNode(ISD::FTRUNC, SL, MVT::f64, Src);
-
-  const SDValue Zero = DAG.getConstantFP(0.0, SL, MVT::f64);
-  const SDValue NegOne = DAG.getConstantFP(-1.0, SL, MVT::f64);
-
-  EVT SetCCVT =
-      getSetCCResultType(DAG.getDataLayout(), *DAG.getContext(), MVT::f64);
-
-  SDValue Lt0 = DAG.getSetCC(SL, SetCCVT, Src, Zero, ISD::SETOLT);
-  SDValue NeTrunc = DAG.getSetCC(SL, SetCCVT, Src, Trunc, ISD::SETONE);
-  SDValue And = DAG.getNode(ISD::AND, SL, SetCCVT, Lt0, NeTrunc);
-
-  SDValue Add = DAG.getNode(ISD::SELECT, SL, MVT::f64, And, NegOne, Zero);
-  // TODO: Should this propagate fast-math-flags?
-  return DAG.getNode(ISD::FADD, SL, MVT::f64, Trunc, Add);
 }
 
 SDValue AMDGPUTargetLowering::LowerCTLZ(SDValue Op, SelectionDAG &DAG) const {
