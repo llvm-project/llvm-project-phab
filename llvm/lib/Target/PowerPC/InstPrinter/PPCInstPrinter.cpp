@@ -437,6 +437,10 @@ void PPCInstPrinter::printOperand(const MCInst *MI, unsigned OpNo,
     // The linux and AIX assembler does not take register prefixes.
     if (!isDarwinSyntax())
       RegName = stripRegisterPrefix(RegName);
+
+    if (FullRegNames && !isDarwinSyntax() &&
+        Op.getReg() != PPC::ZERO && Op.getReg() < PPC::ZERO8)
+      O << '%';
     
     O << RegName;
     return;
