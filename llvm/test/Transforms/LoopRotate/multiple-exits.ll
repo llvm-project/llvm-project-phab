@@ -3,7 +3,18 @@
 target datalayout = "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-s0:64:64-f80:128:128-n8:16:32:64-S128"
 target triple = "x86_64-apple-macosx10.8.0"
 
-; PR7447
+; PR7447: there should be two loops rotated.
+; CHECK-LABEL: @test1
+
+; Check that the outer loop is rotated.
+; CHECK: for.cond.lr:
+; CHECK: for.cond1.preheader.lr.ph:
+
+; Check that the inner loop is rotated.
+; CHECK: for.cond1.lr:
+; CHECK: land.rhs.lr:
+; CHECK: land.rhs.for.cond1_crit_edge.lr.ph:
+
 define i32 @test1([100 x i32]* nocapture %a) nounwind readonly {
 entry:
   br label %for.cond
@@ -31,17 +42,6 @@ land.rhs:                                         ; preds = %for.cond1
 return:                                           ; preds = %for.cond, %land.rhs
   %retval.0 = phi i32 [ 1000, %land.rhs ], [ %sum.0, %for.cond ]
   ret i32 %retval.0
-
-; CHECK-LABEL: @test1(
-; CHECK: for.cond1.preheader:
-; CHECK: %sum.04 = phi i32 [ 0, %entry ], [ %sum.1.lcssa, %for.cond.loopexit ]
-; CHECK: br label %for.cond1
-
-; CHECK: for.cond1:
-; CHECK: %sum.1 = phi i32 [ %add, %land.rhs ], [ %sum.04, %for.cond1.preheader ]
-; CHECK: %i.1 = phi i32 [ %inc, %land.rhs ], [ 0, %for.cond1.preheader ]
-; CHECK: %cmp2 = icmp ult i32 %i.1, 100
-; CHECK: br i1 %cmp2, label %land.rhs, label %for.cond.loopexit
 }
 
 define void @test2(i32 %x) nounwind {
@@ -75,9 +75,9 @@ return:                                           ; preds = %return.loopexit, %a
 
 ; CHECK-LABEL: @test2(
 ; CHECK: if.end:
-; CHECK: %inc = add i32 %i.02, 1
-; CHECK: %cmp = icmp eq i32 %inc, %x
-; CHECK: br i1 %cmp, label %for.cond.return.loopexit_crit_edge, label %for.body
+; CHECK: %inc = add i32 %phi.nh, 1
+; CHECK: %cmp = icmp eq i32 %i.0, %x
+; CHECK: br i1 %cmp, label %return.loopexit, label %for.body
 }
 
 declare i32 @foo(i32)
