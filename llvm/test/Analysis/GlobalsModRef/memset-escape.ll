@@ -6,15 +6,19 @@ target triple = "x86_64-apple-macosx10.10.0"
 @a = internal global [3 x i32] zeroinitializer, align 4
 @b = common global i32 0, align 4
 
-; The important thing we're checking for here is the reload of (some element of)
-; @a after the memset.
+; Check that load and the call to abort is redundant.
+; CHECK:   store i32 1, i32* getelementptr inbounds ([3 x i32], [3 x i32]* @a, i64 0, i64 2), align 4
+; CHECK:   store i32 0, i32* @b, align 4
+; CHECK:   br label %for.body
 
-; CHECK-LABEL: @main
-; CHECK: call void @llvm.memset.p0i8.i64{{.*}} @a
-; CHECK: store i32 3
-; CHECK: load i32, i32* getelementptr {{.*}} @a
-; CHECK: icmp eq i32
-; CHECK: br i1
+; CHECK: for.body:                                         ; preds = %for.body.preheader
+; CHECK:   store i32 0, i32* getelementptr inbounds ([3 x i32], [3 x i32]* @a, i64 0, i64 0), align 4
+; CHECK:   store i32 0, i32* getelementptr inbounds ([3 x i32], [3 x i32]* @a, i64 0, i64 1), align 4
+; CHECK:   store i32 0, i32* getelementptr inbounds ([3 x i32], [3 x i32]* @a, i64 0, i64 2), align 4
+; CHECK:   store i32 3, i32* @b, align 4
+; CHECK:   br i1 true, label %if.end, label %if.then
+; CHECK-NOT: load
+; CHECK-NOT: call void @abort()
 
 define i32 @main() {
 entry:

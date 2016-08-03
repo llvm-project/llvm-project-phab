@@ -5,8 +5,9 @@
 ; We expect a different value for %ptr each iteration (according to the
 ; definition of alloca). I.e. each @use must be paired with an alloca.
 
-; CHECK: call void @use(i8* %
-; CHECK: %ptr = alloca i8
+; CHECK: alloca i8
+; CHECK: call void @use
+; CHECK: alloca i8
 
 @e = global i16 10
 
