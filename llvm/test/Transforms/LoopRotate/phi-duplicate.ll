@@ -31,10 +31,15 @@ for.end:                                          ; preds = %for.cond
 ; Should only end up with one phi.
 ; CHECK-LABEL:      define void @test(
 ; CHECK-NEXT: entry:
-; CHECK-NEXT:   br label %for.body
+; CHECK-NEXT:   br label %for.cond.lr
 ; CHECK:      for.body:
-; CHECK-NEXT:   %j.01 = phi i64
-; CHECK-NOT:  br
-; CHECK:   br i1 %cmp, label %for.body, label %for.end
-; CHECK:      for.end:
-; CHECK-NEXT:        ret void
+; CHECK:  %phi.nh3 = phi i64
+; CHECK:  %phi.nh2 = phi i64
+; CHECK:  %phi.nh1 = phi i64
+; CHECK:  %phi.nh = phi i64
+; CHECK:  %inc = add nsw i64 %phi.nh, 1
+; CHECK:   br label %for.cond
+; CHECK: for.cond:
+; CHECK:   br i1 %cmp
+; CHECK: for.end:
+; CHECK-NEXT:  ret void
