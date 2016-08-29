@@ -16,22 +16,28 @@ outer.header:
 ; CHECK-NEXT: br i1 {{[^,]*}}, label %[[INNER_PREROTATE_PREHEADER:[^,]*]], label %outer.body
 
 ; CHECK: [[INNER_PREROTATE_PREHEADER]]:
-; CHECK-NEXT: br i1 {{[^,]*}}, label %[[INNER_PREROTATE_PREHEADER_SPLIT_RETURN:[^,]*]], label %[[INNER_ROTATED_PREHEADER:[^,]*]]
+; CHECK: br label %inner.header.lr
+
+; CHECK: inner.header.lr:
+; CHECK: br i1 true, label %return, label %inner.body.lr
+
+; CHECK: inner.body.lr:
+; CHECK-NEXT: br i1 {{[^,]*}}, label %[[OUTER_LATCH_LOOPEXIT:[^,]*]], label %[[INNER_ROTATED_PREHEADER:[^,]*]]
 
 ; CHECK: [[INNER_ROTATED_PREHEADER]]:
-; CHECK-NEXT: br label %inner.body
+; CHECK-NEXT: br label %inner.latch
 
 inner.header:
 ; Now the latch!
 ; CHECK: inner.header:
   br i1 undef, label %return, label %inner.body
-; CHECK-NEXT: br i1 {{[^,]*}}, label %[[INNER_SPLIT_RETURN:[^,]*]], label %inner.body
+; CHECK-NEXT: br i1 {{[^,]*}}, label %return, label %inner.body
 
 inner.body:
 ; Now the header!
 ; CHECK: inner.body:
   br i1 undef, label %outer.latch, label %inner.latch
-; CHECK-NEXT: br i1 {{[^,]*}}, label %[[INNER_SPLIT_OUTER_LATCH:[^,]*]], label %inner.header
+; CHECK-NEXT: br i1 {{[^,]*}}, label %[[OUTER_LATCH_LOOPEXIT]], label %inner.latch
 
 inner.latch:
 ; Dead!
@@ -42,22 +48,13 @@ outer.body:
   br label %outer.latch
 ; CHECK-NEXT: br label %outer.latch
 
-; L2 -> L1 exit edge needs a simplified exit block.
-; CHECK: [[INNER_SPLIT_OUTER_LATCH]]:
+; CHECK: [[OUTER_LATCH_LOOPEXIT]]:
 ; CHECK-NEXT: br label %outer.latch
 
 outer.latch:
 ; CHECK: outer.latch:
   br label %outer.header
 ; CHECK-NEXT: br label %outer.header
-
-; L1 -> L0 exit edge need sa simplified exit block.
-; CHECK: [[INNER_PREROTATE_PREHEADER_SPLIT_RETURN]]:
-; CHECK-NEXT: br label %return
-
-; L2 -> L0 exit edge needs a simplified exit block.
-; CHECK: [[INNER_SPLIT_RETURN]]:
-; CHECK-NEXT: br label %return
 
 return:
 ; CHECK: return:
