@@ -1,5 +1,6 @@
 add_subdirectory(clang-apply-replacements)
 add_subdirectory(clang-rename)
+add_subdirectory(clang-refactor)
 add_subdirectory(clang-reorder-fields)
 add_subdirectory(modularize)
 if(CLANG_ENABLE_STATIC_ANALYZER)
@@ -23,4 +24,3 @@ option(CLANG_TOOLS_EXTRA_INCLUDE_DOCS "Generate build targets for the Clang Extr
 if( CLANG_TOOLS_EXTRA_INCLUDE_DOCS )
   add_subdirectory(docs)
 endif()
-
