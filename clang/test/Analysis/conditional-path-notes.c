@@ -305,12 +305,12 @@ void testNonDiagnosableBranchArithmetic(int a, int b) {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;x&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;x&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;x&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;x&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from variable &apos;x&apos;)</string>
+// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from variable &apos;x&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:    <key>category</key><string>Logic error</string>
 // CHECK-NEXT:    <key>type</key><string>Dereference of null pointer</string>
 // CHECK-NEXT:    <key>check_name</key><string>core.NullDereference</string>
@@ -451,12 +451,12 @@ void testNonDiagnosableBranchArithmetic(int a, int b) {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from variable &apos;p&apos;)</string>
+// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from variable &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:    <key>category</key><string>Logic error</string>
 // CHECK-NEXT:    <key>type</key><string>Dereference of null pointer</string>
 // CHECK-NEXT:    <key>check_name</key><string>core.NullDereference</string>
@@ -597,12 +597,12 @@ void testNonDiagnosableBranchArithmetic(int a, int b) {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from variable &apos;p&apos;)</string>
+// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from variable &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:    <key>category</key><string>Logic error</string>
 // CHECK-NEXT:    <key>type</key><string>Dereference of null pointer</string>
 // CHECK-NEXT:    <key>check_name</key><string>core.NullDereference</string>
@@ -743,12 +743,12 @@ void testNonDiagnosableBranchArithmetic(int a, int b) {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from variable &apos;p&apos;)</string>
+// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from variable &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:    <key>category</key><string>Logic error</string>
 // CHECK-NEXT:    <key>type</key><string>Dereference of null pointer</string>
 // CHECK-NEXT:    <key>check_name</key><string>core.NullDereference</string>
@@ -957,12 +957,12 @@ void testNonDiagnosableBranchArithmetic(int a, int b) {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;x&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;x&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;x&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;x&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from variable &apos;x&apos;)</string>
+// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from variable &apos;x&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:    <key>category</key><string>Logic error</string>
 // CHECK-NEXT:    <key>type</key><string>Dereference of null pointer</string>
 // CHECK-NEXT:    <key>check_name</key><string>core.NullDereference</string>
@@ -1103,12 +1103,12 @@ void testNonDiagnosableBranchArithmetic(int a, int b) {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from variable &apos;p&apos;)</string>
+// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from variable &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:    <key>category</key><string>Logic error</string>
 // CHECK-NEXT:    <key>type</key><string>Dereference of null pointer</string>
 // CHECK-NEXT:    <key>check_name</key><string>core.NullDereference</string>
@@ -1283,12 +1283,12 @@ void testNonDiagnosableBranchArithmetic(int a, int b) {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer</string>
+// CHECK-NEXT:      <string>Dereference of null pointer [core.NullDereference]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer</string>
+// CHECK-NEXT:      <string>Dereference of null pointer [core.NullDereference]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer</string>
+// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer [core.NullDereference]</string>
 // CHECK-NEXT:    <key>category</key><string>Logic error</string>
 // CHECK-NEXT:    <key>type</key><string>Dereference of null pointer</string>
 // CHECK-NEXT:    <key>check_name</key><string>core.NullDereference</string>
@@ -1468,12 +1468,12 @@ void testNonDiagnosableBranchArithmetic(int a, int b) {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer</string>
+// CHECK-NEXT:      <string>Dereference of null pointer [core.NullDereference]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer</string>
+// CHECK-NEXT:      <string>Dereference of null pointer [core.NullDereference]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer</string>
+// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer [core.NullDereference]</string>
 // CHECK-NEXT:    <key>category</key><string>Logic error</string>
 // CHECK-NEXT:    <key>type</key><string>Dereference of null pointer</string>
 // CHECK-NEXT:    <key>check_name</key><string>core.NullDereference</string>
@@ -1585,12 +1585,12 @@ void testNonDiagnosableBranchArithmetic(int a, int b) {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer</string>
+// CHECK-NEXT:      <string>Dereference of null pointer [core.NullDereference]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer</string>
+// CHECK-NEXT:      <string>Dereference of null pointer [core.NullDereference]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer</string>
+// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer [core.NullDereference]</string>
 // CHECK-NEXT:    <key>category</key><string>Logic error</string>
 // CHECK-NEXT:    <key>type</key><string>Dereference of null pointer</string>
 // CHECK-NEXT:    <key>check_name</key><string>core.NullDereference</string>

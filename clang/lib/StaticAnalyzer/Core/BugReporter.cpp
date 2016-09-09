@@ -3388,14 +3388,22 @@ void BugReporter::FlushReport(BugReportEquivClass& EQ) {
 }
 
 void BugReporter::FlushReport(BugReport *exampleReport,
-                              PathDiagnosticConsumer &PD,
+                              PathDiagnosticConsumer &PC,
                               ArrayRef<BugReport*> bugReports) {
 
   // FIXME: Make sure we use the 'R' for the path that was actually used.
   // Probably doesn't make a difference in practice.
+  if (!exampleReport->getAnnotated()) {
+    std::string BugDesc(exampleReport->getDescription().str());
+    BugDesc += " [";
+    BugDesc += exampleReport->getBugType().getCheckName();
+    BugDesc += ']';
+    exampleReport->setDescription(BugDesc);
+  }
+
   BugType& BT = exampleReport->getBugType();
 
-  std::unique_ptr<PathDiagnostic> D(new PathDiagnostic(
+  std::unique_ptr<PathDiagnostic> PD(new PathDiagnostic(
       exampleReport->getBugType().getCheckName(),
       exampleReport->getDeclWithIssue(), exampleReport->getBugType().getName(),
       exampleReport->getDescription(),
@@ -3411,8 +3419,17 @@ void BugReporter::FlushReport(BugReport *exampleReport,
   // path diagnostics even for consumers which do not support paths, because
   // the BugReporterVisitors may mark this bug as a false positive.
   if (!bugReports.empty())
-    if (!generatePathDiagnostic(*D.get(), PD, bugReports))
+    if (!generatePathDiagnostic(*PD.get(), PC, bugReports))
       return;
+
+    SourceManager& SM = getSourceManager();
+
+    // If the has been suppressed, return. 	2281
+    if (LikelyFalsePositiveSuppressionBRVisitor::
+        handleUserSuppressions(D.getUserSuppressions()->getIgnoredReports(),
+                              *exampleReport, SM))
+    return;
+
 
   MaxValidBugClassSize = std::max(bugReports.size(),
                                   static_cast<size_t>(MaxValidBugClassSize));
@@ -3421,27 +3438,27 @@ void BugReporter::FlushReport(BugReport *exampleReport,
   // report location to the last piece in the main source file.
   AnalyzerOptions& Opts = getAnalyzerOptions();
   if (Opts.shouldReportIssuesInMainSourceFile() && !Opts.AnalyzeAll)
-    D->resetDiagnosticLocationToMainFile();
+    PD->resetDiagnosticLocationToMainFile();
 
   // If the path is empty, generate a single step path with the location
   // of the issue.
-  if (D->path.empty()) {
+  if (PD->path.empty()) {
     PathDiagnosticLocation L = exampleReport->getLocation(getSourceManager());
     auto piece = llvm::make_unique<PathDiagnosticEventPiece>(
         L, exampleReport->getDescription());
     for (SourceRange Range : exampleReport->getRanges())
       piece->addRange(Range);
-    D->setEndOfPath(std::move(piece));
+    PD->setEndOfPath(std::move(piece));
   }
 
   // Get the meta data.
   const BugReport::ExtraTextList &Meta = exampleReport->getExtraText();
   for (BugReport::ExtraTextList::const_iterator i = Meta.begin(),
                                                 e = Meta.end(); i != e; ++i) {
-    D->addMeta(*i);
+    PD->addMeta(*i);
   }
 
-  PD.HandlePathDiagnostic(std::move(D));
+  PC.HandlePathDiagnostic(std::move(PD));
 }
 
 void BugReporter::EmitBasicReport(const Decl *DeclWithIssue,

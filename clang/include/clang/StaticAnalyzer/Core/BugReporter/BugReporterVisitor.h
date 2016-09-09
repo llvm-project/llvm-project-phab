@@ -16,6 +16,7 @@
 #define LLVM_CLANG_STATICANALYZER_CORE_BUGREPORTER_BUGREPORTERVISITOR_H
 
 #include "clang/StaticAnalyzer/Core/PathSensitive/SVals.h"
+#include "clang/Frontend/SuppressDiagConsumer.h"
 #include "llvm/ADT/FoldingSet.h"
 
 namespace clang {
@@ -272,6 +273,11 @@ public:
   std::unique_ptr<PathDiagnosticPiece> getEndPath(BugReporterContext &BRC,
                                                   const ExplodedNode *N,
                                                   BugReport &BR) override;
+												  
+  // Return true if a report was suppressed.
+  static bool handleUserSuppressions(const IgnoredReports_t &IgnoredReports,
+                                     BugReport &BR,
+                                     SourceManager &SM);
 };
 
 /// \brief When a region containing undefined value or '0' value is passed 

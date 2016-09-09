@@ -91,12 +91,12 @@ void testBlocks() {
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>0</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>debug.DumpBugHash$NSObject::method:param:$3$arg=5;$debug</string>
+// CHECK-NEXT:     <string>debug.DumpBugHash$NSObject::method:param:$3$arg=5;$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>debug.DumpBugHash$NSObject::method:param:$3$arg=5;$debug</string>
+// CHECK-NEXT:     <string>debug.DumpBugHash$NSObject::method:param:$3$arg=5;$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>debug.DumpBugHash$NSObject::method:param:$3$arg=5;$debug</string>
+// CHECK-NEXT:   <key>description</key><string>debug.DumpBugHash$NSObject::method:param:$3$arg=5;$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:   <key>category</key><string>debug</string>
 // CHECK-NEXT:   <key>type</key><string>Dump hash components</string>
 // CHECK-NEXT:   <key>check_name</key><string>debug.DumpBugHash</string>
@@ -174,12 +174,12 @@ void testBlocks() {
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>0</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>debug.DumpBugHash$NSObject::method:param:$9$arg=5;$debug</string>
+// CHECK-NEXT:     <string>debug.DumpBugHash$NSObject::method:param:$9$arg=5;$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>debug.DumpBugHash$NSObject::method:param:$9$arg=5;$debug</string>
+// CHECK-NEXT:     <string>debug.DumpBugHash$NSObject::method:param:$9$arg=5;$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>debug.DumpBugHash$NSObject::method:param:$9$arg=5;$debug</string>
+// CHECK-NEXT:   <key>description</key><string>debug.DumpBugHash$NSObject::method:param:$9$arg=5;$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:   <key>category</key><string>debug</string>
 // CHECK-NEXT:   <key>type</key><string>Dump hash components</string>
 // CHECK-NEXT:   <key>check_name</key><string>debug.DumpBugHash</string>
@@ -223,12 +223,12 @@ void testBlocks() {
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>0</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>debug.DumpBugHash$void testBlocks()$3$intx=5;$debug</string>
+// CHECK-NEXT:     <string>debug.DumpBugHash$void testBlocks()$3$intx=5;$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>debug.DumpBugHash$void testBlocks()$3$intx=5;$debug</string>
+// CHECK-NEXT:     <string>debug.DumpBugHash$void testBlocks()$3$intx=5;$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>debug.DumpBugHash$void testBlocks()$3$intx=5;$debug</string>
+// CHECK-NEXT:   <key>description</key><string>debug.DumpBugHash$void testBlocks()$3$intx=5;$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:   <key>category</key><string>debug</string>
 // CHECK-NEXT:   <key>type</key><string>Dump hash components</string>
 // CHECK-NEXT:   <key>check_name</key><string>debug.DumpBugHash</string>
@@ -306,12 +306,12 @@ void testBlocks() {
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>0</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>debug.DumpBugHash$void testBlocks()$11$intx=5;$debug</string>
+// CHECK-NEXT:     <string>debug.DumpBugHash$void testBlocks()$11$intx=5;$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>debug.DumpBugHash$void testBlocks()$11$intx=5;$debug</string>
+// CHECK-NEXT:     <string>debug.DumpBugHash$void testBlocks()$11$intx=5;$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>debug.DumpBugHash$void testBlocks()$11$intx=5;$debug</string>
+// CHECK-NEXT:   <key>description</key><string>debug.DumpBugHash$void testBlocks()$11$intx=5;$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:   <key>category</key><string>debug</string>
 // CHECK-NEXT:   <key>type</key><string>Dump hash components</string>
 // CHECK-NEXT:   <key>check_name</key><string>debug.DumpBugHash</string>
@@ -389,12 +389,12 @@ void testBlocks() {
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>0</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>debug.DumpBugHash$void testBlocks()$3$^{inty=1+x;}();$debug</string>
+// CHECK-NEXT:     <string>debug.DumpBugHash$void testBlocks()$3$^{inty=1+x;}();$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>debug.DumpBugHash$void testBlocks()$3$^{inty=1+x;}();$debug</string>
+// CHECK-NEXT:     <string>debug.DumpBugHash$void testBlocks()$3$^{inty=1+x;}();$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>debug.DumpBugHash$void testBlocks()$3$^{inty=1+x;}();$debug</string>
+// CHECK-NEXT:   <key>description</key><string>debug.DumpBugHash$void testBlocks()$3$^{inty=1+x;}();$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:   <key>category</key><string>debug</string>
 // CHECK-NEXT:   <key>type</key><string>Dump hash components</string>
 // CHECK-NEXT:   <key>check_name</key><string>debug.DumpBugHash</string>
@@ -472,12 +472,12 @@ void testBlocks() {
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>0</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>debug.DumpBugHash$void testBlocks()$3$^{inty=1+x;}();$debug</string>
+// CHECK-NEXT:     <string>debug.DumpBugHash$void testBlocks()$3$^{inty=1+x;}();$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>debug.DumpBugHash$void testBlocks()$3$^{inty=1+x;}();$debug</string>
+// CHECK-NEXT:     <string>debug.DumpBugHash$void testBlocks()$3$^{inty=1+x;}();$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>debug.DumpBugHash$void testBlocks()$3$^{inty=1+x;}();$debug</string>
+// CHECK-NEXT:   <key>description</key><string>debug.DumpBugHash$void testBlocks()$3$^{inty=1+x;}();$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:   <key>category</key><string>debug</string>
 // CHECK-NEXT:   <key>type</key><string>Dump hash components</string>
 // CHECK-NEXT:   <key>check_name</key><string>debug.DumpBugHash</string>
@@ -632,12 +632,12 @@ void testBlocks() {
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>1</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>debug.DumpBugHash$$6$^{inty=1+x;}();$debug</string>
+// CHECK-NEXT:     <string>debug.DumpBugHash$$6$^{inty=1+x;}();$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>debug.DumpBugHash$$6$^{inty=1+x;}();$debug</string>
+// CHECK-NEXT:     <string>debug.DumpBugHash$$6$^{inty=1+x;}();$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>debug.DumpBugHash$$6$^{inty=1+x;}();$debug</string>
+// CHECK-NEXT:   <key>description</key><string>debug.DumpBugHash$$6$^{inty=1+x;}();$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:   <key>category</key><string>debug</string>
 // CHECK-NEXT:   <key>type</key><string>Dump hash components</string>
 // CHECK-NEXT:   <key>check_name</key><string>debug.DumpBugHash</string>
@@ -823,12 +823,12 @@ void testBlocks() {
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>1</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>debug.DumpBugHash$$14$^{inty=1+x;}();$debug</string>
+// CHECK-NEXT:     <string>debug.DumpBugHash$$14$^{inty=1+x;}();$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>debug.DumpBugHash$$14$^{inty=1+x;}();$debug</string>
+// CHECK-NEXT:     <string>debug.DumpBugHash$$14$^{inty=1+x;}();$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>debug.DumpBugHash$$14$^{inty=1+x;}();$debug</string>
+// CHECK-NEXT:   <key>description</key><string>debug.DumpBugHash$$14$^{inty=1+x;}();$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:   <key>category</key><string>debug</string>
 // CHECK-NEXT:   <key>type</key><string>Dump hash components</string>
 // CHECK-NEXT:   <key>check_name</key><string>debug.DumpBugHash</string>
@@ -980,12 +980,12 @@ void testBlocks() {
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>1</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>debug.DumpBugHash$$14$^{inty=1+x;}();$debug</string>
+// CHECK-NEXT:     <string>debug.DumpBugHash$$14$^{inty=1+x;}();$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>debug.DumpBugHash$$14$^{inty=1+x;}();$debug</string>
+// CHECK-NEXT:     <string>debug.DumpBugHash$$14$^{inty=1+x;}();$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>debug.DumpBugHash$$14$^{inty=1+x;}();$debug</string>
+// CHECK-NEXT:   <key>description</key><string>debug.DumpBugHash$$14$^{inty=1+x;}();$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:   <key>category</key><string>debug</string>
 // CHECK-NEXT:   <key>type</key><string>Dump hash components</string>
 // CHECK-NEXT:   <key>check_name</key><string>debug.DumpBugHash</string>
@@ -1171,12 +1171,12 @@ void testBlocks() {
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>1</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>debug.DumpBugHash$$18$^{inty=1+x;}();$debug</string>
+// CHECK-NEXT:     <string>debug.DumpBugHash$$18$^{inty=1+x;}();$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>debug.DumpBugHash$$18$^{inty=1+x;}();$debug</string>
+// CHECK-NEXT:     <string>debug.DumpBugHash$$18$^{inty=1+x;}();$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>debug.DumpBugHash$$18$^{inty=1+x;}();$debug</string>
+// CHECK-NEXT:   <key>description</key><string>debug.DumpBugHash$$18$^{inty=1+x;}();$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:   <key>category</key><string>debug</string>
 // CHECK-NEXT:   <key>type</key><string>Dump hash components</string>
 // CHECK-NEXT:   <key>check_name</key><string>debug.DumpBugHash</string>

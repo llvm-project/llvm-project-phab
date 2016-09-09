@@ -79,7 +79,7 @@ int test_cond_assign() {
 }
 
 // The original source for the above Radar contains another problem:
-// if the end-of-path node is an implicit statement, it may not have a valid
+// if the end-of-path node is an implicit statement, it may not have a valid
 // source location. <rdar://problem/12446776>
 - (void)test2 {
   if (bar_cond_assign()) {
@@ -287,12 +287,12 @@ int testFoo(Foo *x) {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from variable &apos;p&apos;)</string>
+// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from variable &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:    <key>category</key><string>Logic error</string>
 // CHECK-NEXT:    <key>type</key><string>Dereference of null pointer</string>
 // CHECK-NEXT:    <key>check_name</key><string>core.NullDereference</string>
@@ -433,12 +433,12 @@ int testFoo(Foo *x) {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from variable &apos;p&apos;)</string>
+// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from variable &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:    <key>category</key><string>Logic error</string>
 // CHECK-NEXT:    <key>type</key><string>Dereference of null pointer</string>
 // CHECK-NEXT:    <key>check_name</key><string>core.NullDereference</string>
@@ -642,12 +642,12 @@ int testFoo(Foo *x) {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;q&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;q&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;q&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;q&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from variable &apos;q&apos;)</string>
+// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from variable &apos;q&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:    <key>category</key><string>Logic error</string>
 // CHECK-NEXT:    <key>type</key><string>Dereference of null pointer</string>
 // CHECK-NEXT:    <key>check_name</key><string>core.NullDereference</string>
@@ -822,12 +822,12 @@ int testFoo(Foo *x) {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from variable &apos;p&apos;)</string>
+// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from variable &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:    <key>category</key><string>Logic error</string>
 // CHECK-NEXT:    <key>type</key><string>Dereference of null pointer</string>
 // CHECK-NEXT:    <key>check_name</key><string>core.NullDereference</string>
@@ -1031,12 +1031,12 @@ int testFoo(Foo *x) {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from variable &apos;p&apos;)</string>
+// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from variable &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:    <key>category</key><string>Logic error</string>
 // CHECK-NEXT:    <key>type</key><string>Dereference of null pointer</string>
 // CHECK-NEXT:    <key>check_name</key><string>core.NullDereference</string>
@@ -1211,12 +1211,12 @@ int testFoo(Foo *x) {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from field &apos;p&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from field &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from field &apos;p&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from field &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from field &apos;p&apos;)</string>
+// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from field &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:    <key>category</key><string>Logic error</string>
 // CHECK-NEXT:    <key>type</key><string>Dereference of null pointer</string>
 // CHECK-NEXT:    <key>check_name</key><string>core.NullDereference</string>
@@ -1517,12 +1517,12 @@ int testFoo(Foo *x) {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from variable &apos;p&apos;)</string>
+// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from variable &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:    <key>category</key><string>Logic error</string>
 // CHECK-NEXT:    <key>type</key><string>Dereference of null pointer</string>
 // CHECK-NEXT:    <key>check_name</key><string>core.NullDereference</string>
@@ -1789,12 +1789,12 @@ int testFoo(Foo *x) {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from variable &apos;p&apos;)</string>
+// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from variable &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:    <key>category</key><string>Logic error</string>
 // CHECK-NEXT:    <key>type</key><string>Dereference of null pointer</string>
 // CHECK-NEXT:    <key>check_name</key><string>core.NullDereference</string>
@@ -1935,12 +1935,12 @@ int testFoo(Foo *x) {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from variable &apos;p&apos;)</string>
+// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from variable &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:    <key>category</key><string>Logic error</string>
 // CHECK-NEXT:    <key>type</key><string>Dereference of null pointer</string>
 // CHECK-NEXT:    <key>check_name</key><string>core.NullDereference</string>
@@ -1996,12 +1996,12 @@ int testFoo(Foo *x) {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Value stored to &apos;foo&apos; during its initialization is never read</string>
+// CHECK-NEXT:      <string>Value stored to &apos;foo&apos; during its initialization is never read [deadcode.DeadStores]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Value stored to &apos;foo&apos; during its initialization is never read</string>
+// CHECK-NEXT:      <string>Value stored to &apos;foo&apos; during its initialization is never read [deadcode.DeadStores]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Value stored to &apos;foo&apos; during its initialization is never read</string>
+// CHECK-NEXT:    <key>description</key><string>Value stored to &apos;foo&apos; during its initialization is never read [deadcode.DeadStores]</string>
 // CHECK-NEXT:    <key>category</key><string>Dead store</string>
 // CHECK-NEXT:    <key>type</key><string>Dead initialization</string>
 // CHECK-NEXT:    <key>check_name</key><string>deadcode.DeadStores</string>
@@ -2166,7 +2166,7 @@ int testFoo(Foo *x) {
 // CHECK-NEXT:      <string>Object leaked: object allocated and stored into &apos;foo&apos; is not referenced later in this execution path and has a retain count of +1</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Potential leak of an object stored into &apos;foo&apos;</string>
+// CHECK-NEXT:    <key>description</key><string>Potential leak of an object stored into &apos;foo&apos; [osx.cocoa.RetainCount]</string>
 // CHECK-NEXT:    <key>category</key><string>Memory (Core Foundation/Objective-C)</string>
 // CHECK-NEXT:    <key>type</key><string>Leak</string>
 // CHECK-NEXT:    <key>check_name</key><string>osx.cocoa.RetainCount</string>
@@ -2472,12 +2472,12 @@ int testFoo(Foo *x) {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from variable &apos;p&apos;)</string>
+// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from variable &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:    <key>category</key><string>Logic error</string>
 // CHECK-NEXT:    <key>type</key><string>Dereference of null pointer</string>
 // CHECK-NEXT:    <key>check_name</key><string>core.NullDereference</string>
@@ -2778,12 +2778,12 @@ int testFoo(Foo *x) {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from variable &apos;p&apos;)</string>
+// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from variable &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:    <key>category</key><string>Logic error</string>
 // CHECK-NEXT:    <key>type</key><string>Dereference of null pointer</string>
 // CHECK-NEXT:    <key>check_name</key><string>core.NullDereference</string>
@@ -3084,12 +3084,12 @@ int testFoo(Foo *x) {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from variable &apos;p&apos;)</string>
+// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from variable &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:    <key>category</key><string>Logic error</string>
 // CHECK-NEXT:    <key>type</key><string>Dereference of null pointer</string>
 // CHECK-NEXT:    <key>check_name</key><string>core.NullDereference</string>
@@ -3463,12 +3463,12 @@ int testFoo(Foo *x) {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from variable &apos;p&apos;)</string>
+// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from variable &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:    <key>category</key><string>Logic error</string>
 // CHECK-NEXT:    <key>type</key><string>Dereference of null pointer</string>
 // CHECK-NEXT:    <key>check_name</key><string>core.NullDereference</string>
@@ -3905,12 +3905,12 @@ int testFoo(Foo *x) {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from variable &apos;p&apos;)</string>
+// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from variable &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:    <key>category</key><string>Logic error</string>
 // CHECK-NEXT:    <key>type</key><string>Dereference of null pointer</string>
 // CHECK-NEXT:    <key>check_name</key><string>core.NullDereference</string>
@@ -4381,12 +4381,12 @@ int testFoo(Foo *x) {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from variable &apos;p&apos;)</string>
+// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from variable &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:    <key>category</key><string>Logic error</string>
 // CHECK-NEXT:    <key>type</key><string>Dereference of null pointer</string>
 // CHECK-NEXT:    <key>check_name</key><string>core.NullDereference</string>
@@ -4857,12 +4857,12 @@ int testFoo(Foo *x) {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from variable &apos;p&apos;)</string>
+// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from variable &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:    <key>category</key><string>Logic error</string>
 // CHECK-NEXT:    <key>type</key><string>Dereference of null pointer</string>
 // CHECK-NEXT:    <key>check_name</key><string>core.NullDereference</string>
@@ -4906,12 +4906,12 @@ int testFoo(Foo *x) {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Value stored to &apos;x&apos; is never read</string>
+// CHECK-NEXT:      <string>Value stored to &apos;x&apos; is never read [deadcode.DeadStores]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Value stored to &apos;x&apos; is never read</string>
+// CHECK-NEXT:      <string>Value stored to &apos;x&apos; is never read [deadcode.DeadStores]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Value stored to &apos;x&apos; is never read</string>
+// CHECK-NEXT:    <key>description</key><string>Value stored to &apos;x&apos; is never read [deadcode.DeadStores]</string>
 // CHECK-NEXT:    <key>category</key><string>Dead store</string>
 // CHECK-NEXT:    <key>type</key><string>Dead increment</string>
 // CHECK-NEXT:    <key>check_name</key><string>deadcode.DeadStores</string>
@@ -5115,12 +5115,12 @@ int testFoo(Foo *x) {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>The left expression of the compound assignment is an uninitialized value. The computed value will also be garbage</string>
+// CHECK-NEXT:      <string>The left expression of the compound assignment is an uninitialized value. The computed value will also be garbage [core.uninitialized.Assign]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>The left expression of the compound assignment is an uninitialized value. The computed value will also be garbage</string>
+// CHECK-NEXT:      <string>The left expression of the compound assignment is an uninitialized value. The computed value will also be garbage [core.uninitialized.Assign]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>The left expression of the compound assignment is an uninitialized value. The computed value will also be garbage</string>
+// CHECK-NEXT:    <key>description</key><string>The left expression of the compound assignment is an uninitialized value. The computed value will also be garbage [core.uninitialized.Assign]</string>
 // CHECK-NEXT:    <key>category</key><string>Logic error</string>
 // CHECK-NEXT:    <key>type</key><string>Assigned value is garbage or undefined</string>
 // CHECK-NEXT:    <key>check_name</key><string>core.uninitialized.Assign</string>
@@ -5227,12 +5227,12 @@ int testFoo(Foo *x) {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from ivar &apos;p&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from ivar &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from ivar &apos;p&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from ivar &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from ivar &apos;p&apos;)</string>
+// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from ivar &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:    <key>category</key><string>Logic error</string>
 // CHECK-NEXT:    <key>type</key><string>Dereference of null pointer</string>
 // CHECK-NEXT:    <key>check_name</key><string>core.NullDereference</string>
@@ -5339,12 +5339,12 @@ int testFoo(Foo *x) {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Null pointer passed as an argument to a &apos;nonnull&apos; parameter</string>
+// CHECK-NEXT:      <string>Null pointer passed as an argument to a &apos;nonnull&apos; parameter [core.NonNullParamChecker]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Null pointer passed as an argument to a &apos;nonnull&apos; parameter</string>
+// CHECK-NEXT:      <string>Null pointer passed as an argument to a &apos;nonnull&apos; parameter [core.NonNullParamChecker]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Null pointer passed as an argument to a &apos;nonnull&apos; parameter</string>
+// CHECK-NEXT:    <key>description</key><string>Null pointer passed as an argument to a &apos;nonnull&apos; parameter [core.NonNullParamChecker]</string>
 // CHECK-NEXT:    <key>category</key><string>API</string>
 // CHECK-NEXT:    <key>type</key><string>Argument with &apos;nonnull&apos; attribute passed null</string>
 // CHECK-NEXT:    <key>check_name</key><string>core.NonNullParamChecker</string>
@@ -5582,12 +5582,12 @@ int testFoo(Foo *x) {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer</string>
+// CHECK-NEXT:      <string>Dereference of null pointer [core.NullDereference]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer</string>
+// CHECK-NEXT:      <string>Dereference of null pointer [core.NullDereference]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer</string>
+// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer [core.NullDereference]</string>
 // CHECK-NEXT:    <key>category</key><string>Logic error</string>
 // CHECK-NEXT:    <key>type</key><string>Dereference of null pointer</string>
 // CHECK-NEXT:    <key>check_name</key><string>core.NullDereference</string>

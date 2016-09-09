@@ -427,12 +427,12 @@ double testPassingParentRegionStruct(int x) {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>The left operand of &apos;+&apos; is a garbage value</string>
+// CHECK-NEXT:      <string>The left operand of &apos;+&apos; is a garbage value [core.UndefinedBinaryOperatorResult]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>The left operand of &apos;+&apos; is a garbage value</string>
+// CHECK-NEXT:      <string>The left operand of &apos;+&apos; is a garbage value [core.UndefinedBinaryOperatorResult]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>The left operand of &apos;+&apos; is a garbage value</string>
+// CHECK-NEXT:    <key>description</key><string>The left operand of &apos;+&apos; is a garbage value [core.UndefinedBinaryOperatorResult]</string>
 // CHECK-NEXT:    <key>category</key><string>Logic error</string>
 // CHECK-NEXT:    <key>type</key><string>Result of operation is garbage or undefined</string>
 // CHECK-NEXT:    <key>check_name</key><string>core.UndefinedBinaryOperatorResult</string>
@@ -747,12 +747,12 @@ double testPassingParentRegionStruct(int x) {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>The right operand of &apos;*&apos; is a garbage value</string>
+// CHECK-NEXT:      <string>The right operand of &apos;*&apos; is a garbage value [core.UndefinedBinaryOperatorResult]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>The right operand of &apos;*&apos; is a garbage value</string>
+// CHECK-NEXT:      <string>The right operand of &apos;*&apos; is a garbage value [core.UndefinedBinaryOperatorResult]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>The right operand of &apos;*&apos; is a garbage value</string>
+// CHECK-NEXT:    <key>description</key><string>The right operand of &apos;*&apos; is a garbage value [core.UndefinedBinaryOperatorResult]</string>
 // CHECK-NEXT:    <key>category</key><string>Logic error</string>
 // CHECK-NEXT:    <key>type</key><string>Result of operation is garbage or undefined</string>
 // CHECK-NEXT:    <key>check_name</key><string>core.UndefinedBinaryOperatorResult</string>
@@ -1164,12 +1164,12 @@ double testPassingParentRegionStruct(int x) {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from field &apos;f1&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from field &apos;f1&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from field &apos;f1&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from field &apos;f1&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from field &apos;f1&apos;)</string>
+// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from field &apos;f1&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:    <key>category</key><string>Logic error</string>
 // CHECK-NEXT:    <key>type</key><string>Dereference of null pointer</string>
 // CHECK-NEXT:    <key>check_name</key><string>core.NullDereference</string>

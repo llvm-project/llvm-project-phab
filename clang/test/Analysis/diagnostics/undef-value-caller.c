@@ -138,12 +138,12 @@ int test_calling_unimportant_callee(int argc, char *argv[]) {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Undefined or garbage value returned to caller</string>
+// CHECK-NEXT:      <string>Undefined or garbage value returned to caller [core.uninitialized.UndefReturn]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Undefined or garbage value returned to caller</string>
+// CHECK-NEXT:      <string>Undefined or garbage value returned to caller [core.uninitialized.UndefReturn]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Undefined or garbage value returned to caller</string>
+// CHECK-NEXT:    <key>description</key><string>Undefined or garbage value returned to caller [core.uninitialized.UndefReturn]</string>
 // CHECK-NEXT:    <key>category</key><string>Logic error</string>
 // CHECK-NEXT:    <key>type</key><string>Garbage return value</string>
 // CHECK-NEXT:    <key>check_name</key><string>core.uninitialized.UndefReturn</string>

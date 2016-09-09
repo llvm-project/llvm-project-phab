@@ -251,12 +251,12 @@ void test(Odd *odd) {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Attempt to free released memory</string>
+// CHECK-NEXT:      <string>Attempt to free released memory [cplusplus.NewDelete]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Attempt to free released memory</string>
+// CHECK-NEXT:      <string>Attempt to free released memory [cplusplus.NewDelete]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Attempt to free released memory</string>
+// CHECK-NEXT:    <key>description</key><string>Attempt to free released memory [cplusplus.NewDelete]</string>
 // CHECK-NEXT:    <key>category</key><string>Memory Error</string>
 // CHECK-NEXT:    <key>type</key><string>Double free</string>
 // CHECK-NEXT:    <key>check_name</key><string>cplusplus.NewDelete</string>
@@ -469,12 +469,12 @@ void test(Odd *odd) {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Attempt to free released memory</string>
+// CHECK-NEXT:      <string>Attempt to free released memory [cplusplus.NewDelete]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Attempt to free released memory</string>
+// CHECK-NEXT:      <string>Attempt to free released memory [cplusplus.NewDelete]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Attempt to free released memory</string>
+// CHECK-NEXT:    <key>description</key><string>Attempt to free released memory [cplusplus.NewDelete]</string>
 // CHECK-NEXT:    <key>category</key><string>Memory Error</string>
 // CHECK-NEXT:    <key>type</key><string>Double free</string>
 // CHECK-NEXT:    <key>check_name</key><string>cplusplus.NewDelete</string>

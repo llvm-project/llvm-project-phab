@@ -15,6 +15,7 @@
 #include "clang/Basic/CharInfo.h"
 #include "clang/Basic/FileManager.h"
 #include "clang/Frontend/FrontendDiagnostic.h"
+#include "clang/Frontend/SuppressDiagConsumer.h"
 #include "clang/Frontend/TextDiagnosticBuffer.h"
 #include "clang/Lex/HeaderSearch.h"
 #include "clang/Lex/Preprocessor.h"
@@ -919,3 +920,117 @@ std::unique_ptr<Directive> Directive::create(bool RegexKind,
   return llvm::make_unique<RegexDirective>(
       DirectiveLoc, DiagnosticLoc, MatchAnyLine, Text, Min, Max, RegexStr);
 }
+
+//AnalyzerIgnores_t SuppressDiagConsumer::AnalyzerIgnores;
+
+void SuppressDiagConsumer::BeginSourceFile(const LangOptions &LangOpts,
+ const Preprocessor *PP) {
+ CurrentPreprocessor = PP;
+ const_cast<Preprocessor*>(PP)->addCommentHandler(this);
+}
+
+void SuppressDiagConsumer::EndSourceFile() {
+ const_cast<Preprocessor*>(CurrentPreprocessor)->removeCommentHandler(this);
+}
+
+// Parses the comment to find out if there is 'analyzer_ignore' so that
+inline bool isPrintableCharacter(int c) {
+ return !isspace(c);
+}
+
+// Parses the comment to find out if there is 'clang_sa_ignore' so that
+// we can inform the static analyzer to ignore reports pertaining to the line.
+bool SuppressDiagConsumer::HandleComment(Preprocessor &PP,
+                                         SourceRange Comment) {
+  SourceManager &SM = PP.getSourceManager();
+  SourceLocation CommentBegin = Comment.getBegin();
+
+  const char *CommRaw = SM.getCharacterData(CommentBegin);
+  StringRef C(CommRaw, SM.getCharacterData(Comment.getEnd()) - CommRaw);
+
+  if (C.empty())
+    return false;
+
+
+  /*
+  comment = // clang_sa_ignore + text
+  text = '[' bug-id-list ']' + regular-comment
+  bug-id-list = bug-id
+  | ',' bug-id-list
+  bug-id = string
+  */
+
+  // e.g.,
+  // // clang_sa_ignore [unix.Malloc] more comment
+  // ~~ ~~~~~~~~~~~~~~~ ============= ++++++++++++
+  // pref|<----str---->|<----------suff---------->|
+  // idx
+  StringRef str("clang_sa_ignore");
+  size_t idx = C.find(str);
+  if (idx == StringRef::npos)
+    return false;
+
+  // First two characters in a comment are '//'
+  // It should be a C++ style comment.
+  StringRef pref(C.slice(2, idx));
+  StringRef suff(C.slice(idx+str.size(), C.size()));
+
+  // Pref cannot contain any character beside whitespaces
+  // eg: // d clang_sa_ignore
+  // Does not count as a supression
+  // Check for non-whitespace in the pref.
+  if(std::any_of(pref.begin(), pref.end(), isPrintableCharacter))
+    return false;
+
+
+  StringRef::iterator b_it = std::find(suff.begin(), suff.end(), '[');
+  if (b_it == suff.end())
+    return false;
+  StringRef::iterator e_it = std::find(b_it, suff.end(), ']');
+  if (e_it == suff.end())
+    return false;
+
+
+
+  // Check for non-whitespace from [suff, b_it)
+  if(std::any_of(suff.begin(), b_it, isPrintableCharacter))
+    return false;
+
+  // [b_it, e_it) == Set of diagnostics to be suppressed.
+  std::string text(++b_it, e_it);
+  text = StringRef(text).trim();
+
+  // Not found or an empty-string.
+  if (text.empty())
+    return false;
+
+  // Make an entry.
+  IgnoredReports_t &IgnoredReports = AnalyzerUserSuppressions->IgnoredReports;
+  IgnoredReports.insert(std::make_pair(CommentBegin,
+  std::vector<std::string>()));
+
+
+  // Save the static analyzer flags. Note that we don't want to verify
+  // the correctness of flags. The user is supposed to write correct
+  // spelling of the flags.
+  std::string::iterator e = text.end();
+  std::string::iterator bi = text.begin();
+  std::string::iterator it = e;
+  // TODO: Use llvm::SplitString for the new version.
+  //llvm::SplitString(text, AnalyzerIgnores[CommentBegin], ',');
+  while (true) {
+    it = std::find(bi, e, ',');
+    if (it == e)
+      break;
+    std::string st(bi, it);
+    st = StringRef(st).trim();
+
+    IgnoredReports[CommentBegin].push_back(st);
+    bi = ++it;
+  }
+  if (bi != e)
+   IgnoredReports[CommentBegin].emplace_back(bi, e);
+  return false;
+}
+
+

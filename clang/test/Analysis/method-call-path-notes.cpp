@@ -135,12 +135,12 @@ void test_cast(const TestInstanceCall *p) {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Called C++ object pointer is uninitialized</string>
+// CHECK-NEXT:      <string>Called C++ object pointer is uninitialized [core.CallAndMessage]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Called C++ object pointer is uninitialized</string>
+// CHECK-NEXT:      <string>Called C++ object pointer is uninitialized [core.CallAndMessage]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Called C++ object pointer is uninitialized</string>
+// CHECK-NEXT:    <key>description</key><string>Called C++ object pointer is uninitialized [core.CallAndMessage]</string>
 // CHECK-NEXT:    <key>category</key><string>Logic error</string>
 // CHECK-NEXT:    <key>type</key><string>Called C++ object pointer is uninitialized</string>
 // CHECK-NEXT:    <key>check_name</key><string>core.CallAndMessage</string>
@@ -247,12 +247,12 @@ void test_cast(const TestInstanceCall *p) {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Called C++ object pointer is null</string>
+// CHECK-NEXT:      <string>Called C++ object pointer is null [core.CallAndMessage]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Called C++ object pointer is null</string>
+// CHECK-NEXT:      <string>Called C++ object pointer is null [core.CallAndMessage]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Called C++ object pointer is null</string>
+// CHECK-NEXT:    <key>description</key><string>Called C++ object pointer is null [core.CallAndMessage]</string>
 // CHECK-NEXT:    <key>category</key><string>Logic error</string>
 // CHECK-NEXT:    <key>type</key><string>Called C++ object pointer is null</string>
 // CHECK-NEXT:    <key>check_name</key><string>core.CallAndMessage</string>
@@ -393,12 +393,12 @@ void test_cast(const TestInstanceCall *p) {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Called C++ object pointer is null</string>
+// CHECK-NEXT:      <string>Called C++ object pointer is null [core.CallAndMessage]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Called C++ object pointer is null</string>
+// CHECK-NEXT:      <string>Called C++ object pointer is null [core.CallAndMessage]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Called C++ object pointer is null</string>
+// CHECK-NEXT:    <key>description</key><string>Called C++ object pointer is null [core.CallAndMessage]</string>
 // CHECK-NEXT:    <key>category</key><string>Logic error</string>
 // CHECK-NEXT:    <key>type</key><string>Called C++ object pointer is null</string>
 // CHECK-NEXT:    <key>check_name</key><string>core.CallAndMessage</string>
@@ -539,12 +539,12 @@ void test_cast(const TestInstanceCall *p) {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Called C++ object pointer is null</string>
+// CHECK-NEXT:      <string>Called C++ object pointer is null [core.CallAndMessage]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Called C++ object pointer is null</string>
+// CHECK-NEXT:      <string>Called C++ object pointer is null [core.CallAndMessage]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Called C++ object pointer is null</string>
+// CHECK-NEXT:    <key>description</key><string>Called C++ object pointer is null [core.CallAndMessage]</string>
 // CHECK-NEXT:    <key>category</key><string>Logic error</string>
 // CHECK-NEXT:    <key>type</key><string>Called C++ object pointer is null</string>
 // CHECK-NEXT:    <key>check_name</key><string>core.CallAndMessage</string>
@@ -651,12 +651,12 @@ void test_cast(const TestInstanceCall *p) {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Called C++ object pointer is null</string>
+// CHECK-NEXT:      <string>Called C++ object pointer is null [core.CallAndMessage]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Called C++ object pointer is null</string>
+// CHECK-NEXT:      <string>Called C++ object pointer is null [core.CallAndMessage]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Called C++ object pointer is null</string>
+// CHECK-NEXT:    <key>description</key><string>Called C++ object pointer is null [core.CallAndMessage]</string>
 // CHECK-NEXT:    <key>category</key><string>Logic error</string>
 // CHECK-NEXT:    <key>type</key><string>Called C++ object pointer is null</string>
 // CHECK-NEXT:    <key>check_name</key><string>core.CallAndMessage</string>
@@ -797,12 +797,12 @@ void test_cast(const TestInstanceCall *p) {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Called C++ object pointer is null</string>
+// CHECK-NEXT:      <string>Called C++ object pointer is null [core.CallAndMessage]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Called C++ object pointer is null</string>
+// CHECK-NEXT:      <string>Called C++ object pointer is null [core.CallAndMessage]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Called C++ object pointer is null</string>
+// CHECK-NEXT:    <key>description</key><string>Called C++ object pointer is null [core.CallAndMessage]</string>
 // CHECK-NEXT:    <key>category</key><string>Logic error</string>
 // CHECK-NEXT:    <key>type</key><string>Called C++ object pointer is null</string>
 // CHECK-NEXT:    <key>check_name</key><string>core.CallAndMessage</string>

@@ -122,12 +122,12 @@ void testLambda() {
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>0</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>debug.DumpBugHash$int function(int)$10$return5;$debug</string>
+// CHECK-NEXT:     <string>debug.DumpBugHash$int function(int)$10$return5;$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>debug.DumpBugHash$int function(int)$10$return5;$debug</string>
+// CHECK-NEXT:     <string>debug.DumpBugHash$int function(int)$10$return5;$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>debug.DumpBugHash$int function(int)$10$return5;$debug</string>
+// CHECK-NEXT:   <key>description</key><string>debug.DumpBugHash$int function(int)$10$return5;$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:   <key>category</key><string>debug</string>
 // CHECK-NEXT:   <key>type</key><string>Dump hash components</string>
 // CHECK-NEXT:   <key>check_name</key><string>debug.DumpBugHash</string>
@@ -205,12 +205,12 @@ void testLambda() {
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>0</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>debug.DumpBugHash$int (anonymous namespace)::variadicParam(int, ...)$10$return5;$debug</string>
+// CHECK-NEXT:     <string>debug.DumpBugHash$int (anonymous namespace)::variadicParam(int, ...)$10$return5;$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>debug.DumpBugHash$int (anonymous namespace)::variadicParam(int, ...)$10$return5;$debug</string>
+// CHECK-NEXT:     <string>debug.DumpBugHash$int (anonymous namespace)::variadicParam(int, ...)$10$return5;$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>debug.DumpBugHash$int (anonymous namespace)::variadicParam(int, ...)$10$return5;$debug</string>
+// CHECK-NEXT:   <key>description</key><string>debug.DumpBugHash$int (anonymous namespace)::variadicParam(int, ...)$10$return5;$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:   <key>category</key><string>debug</string>
 // CHECK-NEXT:   <key>type</key><string>Dump hash components</string>
 // CHECK-NEXT:   <key>check_name</key><string>debug.DumpBugHash</string>
@@ -288,12 +288,12 @@ void testLambda() {
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>0</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>debug.DumpBugHash$int f()$28$constexprintf(){return5;}$debug</string>
+// CHECK-NEXT:     <string>debug.DumpBugHash$int f()$28$constexprintf(){return5;}$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>debug.DumpBugHash$int f()$28$constexprintf(){return5;}$debug</string>
+// CHECK-NEXT:     <string>debug.DumpBugHash$int f()$28$constexprintf(){return5;}$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>debug.DumpBugHash$int f()$28$constexprintf(){return5;}$debug</string>
+// CHECK-NEXT:   <key>description</key><string>debug.DumpBugHash$int f()$28$constexprintf(){return5;}$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:   <key>category</key><string>debug</string>
 // CHECK-NEXT:   <key>type</key><string>Dump hash components</string>
 // CHECK-NEXT:   <key>check_name</key><string>debug.DumpBugHash</string>
@@ -337,12 +337,12 @@ void testLambda() {
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>0</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>debug.DumpBugHash$AA::X::X()$16$X():priv(5){priv=0;}$debug</string>
+// CHECK-NEXT:     <string>debug.DumpBugHash$AA::X::X()$16$X():priv(5){priv=0;}$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>debug.DumpBugHash$AA::X::X()$16$X():priv(5){priv=0;}$debug</string>
+// CHECK-NEXT:     <string>debug.DumpBugHash$AA::X::X()$16$X():priv(5){priv=0;}$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>debug.DumpBugHash$AA::X::X()$16$X():priv(5){priv=0;}$debug</string>
+// CHECK-NEXT:   <key>description</key><string>debug.DumpBugHash$AA::X::X()$16$X():priv(5){priv=0;}$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:   <key>category</key><string>debug</string>
 // CHECK-NEXT:   <key>type</key><string>Dump hash components</string>
 // CHECK-NEXT:   <key>check_name</key><string>debug.DumpBugHash</string>
@@ -418,12 +418,12 @@ void testLambda() {
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>0</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>debug.DumpBugHash$AA::X::X()$21$X():priv(5){priv=0;}$debug</string>
+// CHECK-NEXT:     <string>debug.DumpBugHash$AA::X::X()$21$X():priv(5){priv=0;}$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>debug.DumpBugHash$AA::X::X()$21$X():priv(5){priv=0;}$debug</string>
+// CHECK-NEXT:     <string>debug.DumpBugHash$AA::X::X()$21$X():priv(5){priv=0;}$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>debug.DumpBugHash$AA::X::X()$21$X():priv(5){priv=0;}$debug</string>
+// CHECK-NEXT:   <key>description</key><string>debug.DumpBugHash$AA::X::X()$21$X():priv(5){priv=0;}$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:   <key>category</key><string>debug</string>
 // CHECK-NEXT:   <key>type</key><string>Dump hash components</string>
 // CHECK-NEXT:   <key>check_name</key><string>debug.DumpBugHash</string>
@@ -533,12 +533,12 @@ void testLambda() {
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>0</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>debug.DumpBugHash$AA::X::X()$21$X():priv(5){priv=0;}$debug</string>
+// CHECK-NEXT:     <string>debug.DumpBugHash$AA::X::X()$21$X():priv(5){priv=0;}$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>debug.DumpBugHash$AA::X::X()$21$X():priv(5){priv=0;}$debug</string>
+// CHECK-NEXT:     <string>debug.DumpBugHash$AA::X::X()$21$X():priv(5){priv=0;}$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>debug.DumpBugHash$AA::X::X()$21$X():priv(5){priv=0;}$debug</string>
+// CHECK-NEXT:   <key>description</key><string>debug.DumpBugHash$AA::X::X()$21$X():priv(5){priv=0;}$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:   <key>category</key><string>debug</string>
 // CHECK-NEXT:   <key>type</key><string>Dump hash components</string>
 // CHECK-NEXT:   <key>check_name</key><string>debug.DumpBugHash</string>
@@ -648,12 +648,12 @@ void testLambda() {
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>0</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>debug.DumpBugHash$AA::X::X()$28$X():priv(5){priv=0;}$debug</string>
+// CHECK-NEXT:     <string>debug.DumpBugHash$AA::X::X()$28$X():priv(5){priv=0;}$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>debug.DumpBugHash$AA::X::X()$28$X():priv(5){priv=0;}$debug</string>
+// CHECK-NEXT:     <string>debug.DumpBugHash$AA::X::X()$28$X():priv(5){priv=0;}$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>debug.DumpBugHash$AA::X::X()$28$X():priv(5){priv=0;}$debug</string>
+// CHECK-NEXT:   <key>description</key><string>debug.DumpBugHash$AA::X::X()$28$X():priv(5){priv=0;}$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:   <key>category</key><string>debug</string>
 // CHECK-NEXT:   <key>type</key><string>Dump hash components</string>
 // CHECK-NEXT:   <key>check_name</key><string>debug.DumpBugHash</string>
@@ -729,12 +729,12 @@ void testLambda() {
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>0</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>debug.DumpBugHash$int AA::X::static_method()$14$return5;$debug</string>
+// CHECK-NEXT:     <string>debug.DumpBugHash$int AA::X::static_method()$14$return5;$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>debug.DumpBugHash$int AA::X::static_method()$14$return5;$debug</string>
+// CHECK-NEXT:     <string>debug.DumpBugHash$int AA::X::static_method()$14$return5;$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>debug.DumpBugHash$int AA::X::static_method()$14$return5;$debug</string>
+// CHECK-NEXT:   <key>description</key><string>debug.DumpBugHash$int AA::X::static_method()$14$return5;$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:   <key>category</key><string>debug</string>
 // CHECK-NEXT:   <key>type</key><string>Dump hash components</string>
 // CHECK-NEXT:   <key>check_name</key><string>debug.DumpBugHash</string>
@@ -812,12 +812,12 @@ void testLambda() {
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>0</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>debug.DumpBugHash$int AA::X::method() &amp;&amp;$14$return5;$debug</string>
+// CHECK-NEXT:     <string>debug.DumpBugHash$int AA::X::method() &amp;&amp;$14$return5;$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>debug.DumpBugHash$int AA::X::method() &amp;&amp;$14$return5;$debug</string>
+// CHECK-NEXT:     <string>debug.DumpBugHash$int AA::X::method() &amp;&amp;$14$return5;$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>debug.DumpBugHash$int AA::X::method() &amp;&amp;$14$return5;$debug</string>
+// CHECK-NEXT:   <key>description</key><string>debug.DumpBugHash$int AA::X::method() &amp;&amp;$14$return5;$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:   <key>category</key><string>debug</string>
 // CHECK-NEXT:   <key>type</key><string>Dump hash components</string>
 // CHECK-NEXT:   <key>check_name</key><string>debug.DumpBugHash</string>
@@ -895,12 +895,12 @@ void testLambda() {
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>0</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>debug.DumpBugHash$class AA::X &amp; AA::X::operator=(int)$14$return*this;$debug</string>
+// CHECK-NEXT:     <string>debug.DumpBugHash$class AA::X &amp; AA::X::operator=(int)$14$return*this;$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>debug.DumpBugHash$class AA::X &amp; AA::X::operator=(int)$14$return*this;$debug</string>
+// CHECK-NEXT:     <string>debug.DumpBugHash$class AA::X &amp; AA::X::operator=(int)$14$return*this;$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>debug.DumpBugHash$class AA::X &amp; AA::X::operator=(int)$14$return*this;$debug</string>
+// CHECK-NEXT:   <key>description</key><string>debug.DumpBugHash$class AA::X &amp; AA::X::operator=(int)$14$return*this;$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:   <key>category</key><string>debug</string>
 // CHECK-NEXT:   <key>type</key><string>Dump hash components</string>
 // CHECK-NEXT:   <key>check_name</key><string>debug.DumpBugHash</string>
@@ -978,12 +978,12 @@ void testLambda() {
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>0</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>debug.DumpBugHash$AA::X::operator int()$14$return0;$debug</string>
+// CHECK-NEXT:     <string>debug.DumpBugHash$AA::X::operator int()$14$return0;$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>debug.DumpBugHash$AA::X::operator int()$14$return0;$debug</string>
+// CHECK-NEXT:     <string>debug.DumpBugHash$AA::X::operator int()$14$return0;$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>debug.DumpBugHash$AA::X::operator int()$14$return0;$debug</string>
+// CHECK-NEXT:   <key>description</key><string>debug.DumpBugHash$AA::X::operator int()$14$return0;$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:   <key>category</key><string>debug</string>
 // CHECK-NEXT:   <key>type</key><string>Dump hash components</string>
 // CHECK-NEXT:   <key>check_name</key><string>debug.DumpBugHash</string>
@@ -1059,12 +1059,12 @@ void testLambda() {
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>0</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>debug.DumpBugHash$AA::X::operator float()$14$return0;$debug</string>
+// CHECK-NEXT:     <string>debug.DumpBugHash$AA::X::operator float()$14$return0;$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>debug.DumpBugHash$AA::X::operator float()$14$return0;$debug</string>
+// CHECK-NEXT:     <string>debug.DumpBugHash$AA::X::operator float()$14$return0;$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>debug.DumpBugHash$AA::X::operator float()$14$return0;$debug</string>
+// CHECK-NEXT:   <key>description</key><string>debug.DumpBugHash$AA::X::operator float()$14$return0;$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:   <key>category</key><string>debug</string>
 // CHECK-NEXT:   <key>type</key><string>Dump hash components</string>
 // CHECK-NEXT:   <key>check_name</key><string>debug.DumpBugHash</string>
@@ -1140,12 +1140,12 @@ void testLambda() {
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>0</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>debug.DumpBugHash$int AA::X::OutOfLine()$10$return5;$debug</string>
+// CHECK-NEXT:     <string>debug.DumpBugHash$int AA::X::OutOfLine()$10$return5;$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>debug.DumpBugHash$int AA::X::OutOfLine()$10$return5;$debug</string>
+// CHECK-NEXT:     <string>debug.DumpBugHash$int AA::X::OutOfLine()$10$return5;$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>debug.DumpBugHash$int AA::X::OutOfLine()$10$return5;$debug</string>
+// CHECK-NEXT:   <key>description</key><string>debug.DumpBugHash$int AA::X::OutOfLine()$10$return5;$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:   <key>category</key><string>debug</string>
 // CHECK-NEXT:   <key>type</key><string>Dump hash components</string>
 // CHECK-NEXT:   <key>check_name</key><string>debug.DumpBugHash</string>
@@ -1189,12 +1189,12 @@ void testLambda() {
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>0</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>debug.DumpBugHash$void testLambda()$3$[](){$debug</string>
+// CHECK-NEXT:     <string>debug.DumpBugHash$void testLambda()$3$[](){$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>debug.DumpBugHash$void testLambda()$3$[](){$debug</string>
+// CHECK-NEXT:     <string>debug.DumpBugHash$void testLambda()$3$[](){$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>debug.DumpBugHash$void testLambda()$3$[](){$debug</string>
+// CHECK-NEXT:   <key>description</key><string>debug.DumpBugHash$void testLambda()$3$[](){$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:   <key>category</key><string>debug</string>
 // CHECK-NEXT:   <key>type</key><string>Dump hash components</string>
 // CHECK-NEXT:   <key>check_name</key><string>debug.DumpBugHash</string>
@@ -1238,12 +1238,12 @@ void testLambda() {
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>0</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>debug.DumpBugHash$void testLambda()$3$[](){$debug</string>
+// CHECK-NEXT:     <string>debug.DumpBugHash$void testLambda()$3$[](){$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>debug.DumpBugHash$void testLambda()$3$[](){$debug</string>
+// CHECK-NEXT:     <string>debug.DumpBugHash$void testLambda()$3$[](){$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>debug.DumpBugHash$void testLambda()$3$[](){$debug</string>
+// CHECK-NEXT:   <key>description</key><string>debug.DumpBugHash$void testLambda()$3$[](){$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:   <key>category</key><string>debug</string>
 // CHECK-NEXT:   <key>type</key><string>Dump hash components</string>
 // CHECK-NEXT:   <key>check_name</key><string>debug.DumpBugHash</string>
@@ -1321,12 +1321,12 @@ void testLambda() {
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>0</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>debug.DumpBugHash$void testLambda()$4$}();$debug</string>
+// CHECK-NEXT:     <string>debug.DumpBugHash$void testLambda()$4$}();$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>debug.DumpBugHash$void testLambda()$4$}();$debug</string>
+// CHECK-NEXT:     <string>debug.DumpBugHash$void testLambda()$4$}();$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>debug.DumpBugHash$void testLambda()$4$}();$debug</string>
+// CHECK-NEXT:   <key>description</key><string>debug.DumpBugHash$void testLambda()$4$}();$debug [debug.DumpBugHash]</string>
 // CHECK-NEXT:   <key>category</key><string>debug</string>
 // CHECK-NEXT:   <key>type</key><string>Dump hash components</string>
 // CHECK-NEXT:   <key>check_name</key><string>debug.DumpBugHash</string>

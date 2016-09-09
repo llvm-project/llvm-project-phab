@@ -470,12 +470,12 @@ void testGetMostInformativeDerivedForId(NSArray<NSString *> *a,
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>0</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;NSArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos;</string>
+// CHECK-NEXT:     <string>Conversion from value of type &apos;NSArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;NSArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos;</string>
+// CHECK-NEXT:     <string>Conversion from value of type &apos;NSArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;NSArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos;</string>
+// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;NSArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:   <key>category</key><string>Core Foundation/Objective-C</string>
 // CHECK-NEXT:   <key>type</key><string>Generics</string>
 // CHECK-NEXT:   <key>check_name</key><string>core.DynamicTypePropagation</string>
@@ -582,12 +582,12 @@ void testGetMostInformativeDerivedForId(NSArray<NSString *> *a,
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>0</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;NSNumber *&apos; to incompatible type &apos;NSString *&apos;</string>
+// CHECK-NEXT:     <string>Conversion from value of type &apos;NSNumber *&apos; to incompatible type &apos;NSString *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;NSNumber *&apos; to incompatible type &apos;NSString *&apos;</string>
+// CHECK-NEXT:     <string>Conversion from value of type &apos;NSNumber *&apos; to incompatible type &apos;NSString *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;NSNumber *&apos; to incompatible type &apos;NSString *&apos;</string>
+// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;NSNumber *&apos; to incompatible type &apos;NSString *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:   <key>category</key><string>Core Foundation/Objective-C</string>
 // CHECK-NEXT:   <key>type</key><string>Generics</string>
 // CHECK-NEXT:   <key>check_name</key><string>core.DynamicTypePropagation</string>
@@ -728,12 +728,12 @@ void testGetMostInformativeDerivedForId(NSArray<NSString *> *a,
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>0</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;NSArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos;</string>
+// CHECK-NEXT:     <string>Conversion from value of type &apos;NSArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;NSArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos;</string>
+// CHECK-NEXT:     <string>Conversion from value of type &apos;NSArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;NSArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos;</string>
+// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;NSArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:   <key>category</key><string>Core Foundation/Objective-C</string>
 // CHECK-NEXT:   <key>type</key><string>Generics</string>
 // CHECK-NEXT:   <key>check_name</key><string>core.DynamicTypePropagation</string>
@@ -980,12 +980,12 @@ void testGetMostInformativeDerivedForId(NSArray<NSString *> *a,
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>0</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;NSArray&lt;NSNumber *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSString *&gt; *&apos;</string>
+// CHECK-NEXT:     <string>Conversion from value of type &apos;NSArray&lt;NSNumber *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSString *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;NSArray&lt;NSNumber *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSString *&gt; *&apos;</string>
+// CHECK-NEXT:     <string>Conversion from value of type &apos;NSArray&lt;NSNumber *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSString *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;NSArray&lt;NSNumber *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSString *&gt; *&apos;</string>
+// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;NSArray&lt;NSNumber *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSString *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:   <key>category</key><string>Core Foundation/Objective-C</string>
 // CHECK-NEXT:   <key>type</key><string>Generics</string>
 // CHECK-NEXT:   <key>check_name</key><string>core.DynamicTypePropagation</string>
@@ -1092,12 +1092,12 @@ void testGetMostInformativeDerivedForId(NSArray<NSString *> *a,
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>0</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;NSNumber *&apos; to incompatible type &apos;NSString *&apos;</string>
+// CHECK-NEXT:      <string>Conversion from value of type &apos;NSNumber *&apos; to incompatible type &apos;NSString *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;NSNumber *&apos; to incompatible type &apos;NSString *&apos;</string>
+// CHECK-NEXT:      <string>Conversion from value of type &apos;NSNumber *&apos; to incompatible type &apos;NSString *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;NSNumber *&apos; to incompatible type &apos;NSString *&apos;</string>
+// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;NSNumber *&apos; to incompatible type &apos;NSString *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:   <key>category</key><string>Core Foundation/Objective-C</string>
 // CHECK-NEXT:   <key>type</key><string>Generics</string>
 // CHECK-NEXT:   <key>check_name</key><string>core.DynamicTypePropagation</string>
@@ -1238,12 +1238,12 @@ void testGetMostInformativeDerivedForId(NSArray<NSString *> *a,
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>0</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;NSArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos;</string>
+// CHECK-NEXT:     <string>Conversion from value of type &apos;NSArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;NSArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos;</string>
+// CHECK-NEXT:     <string>Conversion from value of type &apos;NSArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;NSArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos;</string>
+// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;NSArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:   <key>category</key><string>Core Foundation/Objective-C</string>
 // CHECK-NEXT:   <key>type</key><string>Generics</string>
 // CHECK-NEXT:   <key>check_name</key><string>core.DynamicTypePropagation</string>
@@ -1350,12 +1350,12 @@ void testGetMostInformativeDerivedForId(NSArray<NSString *> *a,
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>0</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;NSNumber *&apos; to incompatible type &apos;NSString *&apos;</string>
+// CHECK-NEXT:      <string>Conversion from value of type &apos;NSNumber *&apos; to incompatible type &apos;NSString *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;NSNumber *&apos; to incompatible type &apos;NSString *&apos;</string>
+// CHECK-NEXT:      <string>Conversion from value of type &apos;NSNumber *&apos; to incompatible type &apos;NSString *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;NSNumber *&apos; to incompatible type &apos;NSString *&apos;</string>
+// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;NSNumber *&apos; to incompatible type &apos;NSString *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:   <key>category</key><string>Core Foundation/Objective-C</string>
 // CHECK-NEXT:   <key>type</key><string>Generics</string>
 // CHECK-NEXT:   <key>check_name</key><string>core.DynamicTypePropagation</string>
@@ -1496,12 +1496,12 @@ void testGetMostInformativeDerivedForId(NSArray<NSString *> *a,
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>0</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;NSArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos;</string>
+// CHECK-NEXT:     <string>Conversion from value of type &apos;NSArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;NSArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos;</string>
+// CHECK-NEXT:     <string>Conversion from value of type &apos;NSArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;NSArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos;</string>
+// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;NSArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:   <key>category</key><string>Core Foundation/Objective-C</string>
 // CHECK-NEXT:   <key>type</key><string>Generics</string>
 // CHECK-NEXT:   <key>check_name</key><string>core.DynamicTypePropagation</string>
@@ -1642,12 +1642,12 @@ void testGetMostInformativeDerivedForId(NSArray<NSString *> *a,
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>0</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;NSArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos;</string>
+// CHECK-NEXT:     <string>Conversion from value of type &apos;NSArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;NSArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos;</string>
+// CHECK-NEXT:     <string>Conversion from value of type &apos;NSArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;NSArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos;</string>
+// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;NSArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:   <key>category</key><string>Core Foundation/Objective-C</string>
 // CHECK-NEXT:   <key>type</key><string>Generics</string>
 // CHECK-NEXT:   <key>check_name</key><string>core.DynamicTypePropagation</string>
@@ -1754,12 +1754,12 @@ void testGetMostInformativeDerivedForId(NSArray<NSString *> *a,
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>0</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;NSNumber *&apos; to incompatible type &apos;NSString *&apos;</string>
+// CHECK-NEXT:      <string>Conversion from value of type &apos;NSNumber *&apos; to incompatible type &apos;NSString *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;NSNumber *&apos; to incompatible type &apos;NSString *&apos;</string>
+// CHECK-NEXT:      <string>Conversion from value of type &apos;NSNumber *&apos; to incompatible type &apos;NSString *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;NSNumber *&apos; to incompatible type &apos;NSString *&apos;</string>
+// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;NSNumber *&apos; to incompatible type &apos;NSString *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:   <key>category</key><string>Core Foundation/Objective-C</string>
 // CHECK-NEXT:   <key>type</key><string>Generics</string>
 // CHECK-NEXT:   <key>check_name</key><string>core.DynamicTypePropagation</string>
@@ -1900,12 +1900,12 @@ void testGetMostInformativeDerivedForId(NSArray<NSString *> *a,
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>0</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;NSArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos;</string>
+// CHECK-NEXT:     <string>Conversion from value of type &apos;NSArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;NSArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos;</string>
+// CHECK-NEXT:     <string>Conversion from value of type &apos;NSArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;NSArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos;</string>
+// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;NSArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:   <key>category</key><string>Core Foundation/Objective-C</string>
 // CHECK-NEXT:   <key>type</key><string>Generics</string>
 // CHECK-NEXT:   <key>check_name</key><string>core.DynamicTypePropagation</string>
@@ -2080,12 +2080,12 @@ void testGetMostInformativeDerivedForId(NSArray<NSString *> *a,
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>0</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;NSString *&apos; to incompatible type &apos;NSMutableString *&apos;</string>
+// CHECK-NEXT:     <string>Conversion from value of type &apos;NSString *&apos; to incompatible type &apos;NSMutableString *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;NSString *&apos; to incompatible type &apos;NSMutableString *&apos;</string>
+// CHECK-NEXT:     <string>Conversion from value of type &apos;NSString *&apos; to incompatible type &apos;NSMutableString *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;NSString *&apos; to incompatible type &apos;NSMutableString *&apos;</string>
+// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;NSString *&apos; to incompatible type &apos;NSMutableString *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:   <key>category</key><string>Core Foundation/Objective-C</string>
 // CHECK-NEXT:   <key>type</key><string>Generics</string>
 // CHECK-NEXT:   <key>check_name</key><string>core.DynamicTypePropagation</string>
@@ -2226,12 +2226,12 @@ void testGetMostInformativeDerivedForId(NSArray<NSString *> *a,
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>0</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;MutableArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos;</string>
+// CHECK-NEXT:     <string>Conversion from value of type &apos;MutableArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;MutableArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos;</string>
+// CHECK-NEXT:     <string>Conversion from value of type &apos;MutableArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;MutableArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos;</string>
+// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;MutableArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:   <key>category</key><string>Core Foundation/Objective-C</string>
 // CHECK-NEXT:   <key>type</key><string>Generics</string>
 // CHECK-NEXT:   <key>check_name</key><string>core.DynamicTypePropagation</string>
@@ -2338,12 +2338,12 @@ void testGetMostInformativeDerivedForId(NSArray<NSString *> *a,
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>0</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;NSString *&apos; to incompatible type &apos;NSMutableString *&apos;</string>
+// CHECK-NEXT:     <string>Conversion from value of type &apos;NSString *&apos; to incompatible type &apos;NSMutableString *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;NSString *&apos; to incompatible type &apos;NSMutableString *&apos;</string>
+// CHECK-NEXT:     <string>Conversion from value of type &apos;NSString *&apos; to incompatible type &apos;NSMutableString *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;NSString *&apos; to incompatible type &apos;NSMutableString *&apos;</string>
+// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;NSString *&apos; to incompatible type &apos;NSMutableString *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:   <key>category</key><string>Core Foundation/Objective-C</string>
 // CHECK-NEXT:   <key>type</key><string>Generics</string>
 // CHECK-NEXT:   <key>check_name</key><string>core.DynamicTypePropagation</string>
@@ -2518,12 +2518,12 @@ void testGetMostInformativeDerivedForId(NSArray<NSString *> *a,
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>0</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;MutableArray&lt;NSString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSNumber *&gt; *&apos;</string>
+// CHECK-NEXT:     <string>Conversion from value of type &apos;MutableArray&lt;NSString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSNumber *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;MutableArray&lt;NSString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSNumber *&gt; *&apos;</string>
+// CHECK-NEXT:     <string>Conversion from value of type &apos;MutableArray&lt;NSString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSNumber *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;MutableArray&lt;NSString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSNumber *&gt; *&apos;</string>
+// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;MutableArray&lt;NSString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSNumber *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:   <key>category</key><string>Core Foundation/Objective-C</string>
 // CHECK-NEXT:   <key>type</key><string>Generics</string>
 // CHECK-NEXT:   <key>check_name</key><string>core.DynamicTypePropagation</string>
@@ -2630,12 +2630,12 @@ void testGetMostInformativeDerivedForId(NSArray<NSString *> *a,
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>0</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;NSNumber *&apos; to incompatible type &apos;NSString *&apos;</string>
+// CHECK-NEXT:      <string>Conversion from value of type &apos;NSNumber *&apos; to incompatible type &apos;NSString *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;NSNumber *&apos; to incompatible type &apos;NSString *&apos;</string>
+// CHECK-NEXT:      <string>Conversion from value of type &apos;NSNumber *&apos; to incompatible type &apos;NSString *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;NSNumber *&apos; to incompatible type &apos;NSString *&apos;</string>
+// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;NSNumber *&apos; to incompatible type &apos;NSString *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:   <key>category</key><string>Core Foundation/Objective-C</string>
 // CHECK-NEXT:   <key>type</key><string>Generics</string>
 // CHECK-NEXT:   <key>check_name</key><string>core.DynamicTypePropagation</string>
@@ -2776,12 +2776,12 @@ void testGetMostInformativeDerivedForId(NSArray<NSString *> *a,
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>0</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;ExceptionalArray&lt;NSString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSNumber *&gt; *&apos;</string>
+// CHECK-NEXT:     <string>Conversion from value of type &apos;ExceptionalArray&lt;NSString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSNumber *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;ExceptionalArray&lt;NSString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSNumber *&gt; *&apos;</string>
+// CHECK-NEXT:     <string>Conversion from value of type &apos;ExceptionalArray&lt;NSString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSNumber *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;ExceptionalArray&lt;NSString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSNumber *&gt; *&apos;</string>
+// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;ExceptionalArray&lt;NSString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSNumber *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:   <key>category</key><string>Core Foundation/Objective-C</string>
 // CHECK-NEXT:   <key>type</key><string>Generics</string>
 // CHECK-NEXT:   <key>check_name</key><string>core.DynamicTypePropagation</string>
@@ -2888,12 +2888,12 @@ void testGetMostInformativeDerivedForId(NSArray<NSString *> *a,
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>0</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;NSNumber *&apos; to incompatible type &apos;NSString *&apos;</string>
+// CHECK-NEXT:      <string>Conversion from value of type &apos;NSNumber *&apos; to incompatible type &apos;NSString *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;NSNumber *&apos; to incompatible type &apos;NSString *&apos;</string>
+// CHECK-NEXT:      <string>Conversion from value of type &apos;NSNumber *&apos; to incompatible type &apos;NSString *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;NSNumber *&apos; to incompatible type &apos;NSString *&apos;</string>
+// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;NSNumber *&apos; to incompatible type &apos;NSString *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:   <key>category</key><string>Core Foundation/Objective-C</string>
 // CHECK-NEXT:   <key>type</key><string>Generics</string>
 // CHECK-NEXT:   <key>check_name</key><string>core.DynamicTypePropagation</string>
@@ -3034,12 +3034,12 @@ void testGetMostInformativeDerivedForId(NSArray<NSString *> *a,
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>0</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;ExceptionalArray&lt;NSString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSNumber *&gt; *&apos;</string>
+// CHECK-NEXT:     <string>Conversion from value of type &apos;ExceptionalArray&lt;NSString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSNumber *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;ExceptionalArray&lt;NSString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSNumber *&gt; *&apos;</string>
+// CHECK-NEXT:     <string>Conversion from value of type &apos;ExceptionalArray&lt;NSString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSNumber *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;ExceptionalArray&lt;NSString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSNumber *&gt; *&apos;</string>
+// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;ExceptionalArray&lt;NSString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSNumber *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:   <key>category</key><string>Core Foundation/Objective-C</string>
 // CHECK-NEXT:   <key>type</key><string>Generics</string>
 // CHECK-NEXT:   <key>check_name</key><string>core.DynamicTypePropagation</string>
@@ -3180,12 +3180,12 @@ void testGetMostInformativeDerivedForId(NSArray<NSString *> *a,
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>0</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;MutableArray&lt;NSString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSMutableString *&gt; *&apos;</string>
+// CHECK-NEXT:     <string>Conversion from value of type &apos;MutableArray&lt;NSString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSMutableString *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;MutableArray&lt;NSString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSMutableString *&gt; *&apos;</string>
+// CHECK-NEXT:     <string>Conversion from value of type &apos;MutableArray&lt;NSString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSMutableString *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;MutableArray&lt;NSString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSMutableString *&gt; *&apos;</string>
+// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;MutableArray&lt;NSString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSMutableString *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:   <key>category</key><string>Core Foundation/Objective-C</string>
 // CHECK-NEXT:   <key>type</key><string>Generics</string>
 // CHECK-NEXT:   <key>check_name</key><string>core.DynamicTypePropagation</string>
@@ -3326,12 +3326,12 @@ void testGetMostInformativeDerivedForId(NSArray<NSString *> *a,
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>0</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;MutableArray&lt;NSMutableString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSString *&gt; *&apos;</string>
+// CHECK-NEXT:     <string>Conversion from value of type &apos;MutableArray&lt;NSMutableString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSString *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;MutableArray&lt;NSMutableString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSString *&gt; *&apos;</string>
+// CHECK-NEXT:     <string>Conversion from value of type &apos;MutableArray&lt;NSMutableString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSString *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;MutableArray&lt;NSMutableString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSString *&gt; *&apos;</string>
+// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;MutableArray&lt;NSMutableString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSString *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:   <key>category</key><string>Core Foundation/Objective-C</string>
 // CHECK-NEXT:   <key>type</key><string>Generics</string>
 // CHECK-NEXT:   <key>check_name</key><string>core.DynamicTypePropagation</string>
@@ -3472,12 +3472,12 @@ void testGetMostInformativeDerivedForId(NSArray<NSString *> *a,
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>0</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;MutableArray&lt;NSMutableString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSString *&gt; *&apos;</string>
+// CHECK-NEXT:     <string>Conversion from value of type &apos;MutableArray&lt;NSMutableString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSString *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;MutableArray&lt;NSMutableString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSString *&gt; *&apos;</string>
+// CHECK-NEXT:     <string>Conversion from value of type &apos;MutableArray&lt;NSMutableString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSString *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;MutableArray&lt;NSMutableString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSString *&gt; *&apos;</string>
+// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;MutableArray&lt;NSMutableString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSString *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:   <key>category</key><string>Core Foundation/Objective-C</string>
 // CHECK-NEXT:   <key>type</key><string>Generics</string>
 // CHECK-NEXT:   <key>check_name</key><string>core.DynamicTypePropagation</string>
@@ -3618,12 +3618,12 @@ void testGetMostInformativeDerivedForId(NSArray<NSString *> *a,
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>0</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;MutableArray&lt;NSString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSMutableString *&gt; *&apos;</string>
+// CHECK-NEXT:     <string>Conversion from value of type &apos;MutableArray&lt;NSString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSMutableString *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;MutableArray&lt;NSString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSMutableString *&gt; *&apos;</string>
+// CHECK-NEXT:     <string>Conversion from value of type &apos;MutableArray&lt;NSString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSMutableString *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;MutableArray&lt;NSString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSMutableString *&gt; *&apos;</string>
+// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;MutableArray&lt;NSString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSMutableString *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:   <key>category</key><string>Core Foundation/Objective-C</string>
 // CHECK-NEXT:   <key>type</key><string>Generics</string>
 // CHECK-NEXT:   <key>check_name</key><string>core.DynamicTypePropagation</string>
@@ -3827,12 +3827,12 @@ void testGetMostInformativeDerivedForId(NSArray<NSString *> *a,
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>0</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;MutableArray&lt;NSString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSMutableString *&gt; *&apos;</string>
+// CHECK-NEXT:     <string>Conversion from value of type &apos;MutableArray&lt;NSString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSMutableString *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;MutableArray&lt;NSString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSMutableString *&gt; *&apos;</string>
+// CHECK-NEXT:     <string>Conversion from value of type &apos;MutableArray&lt;NSString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSMutableString *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;MutableArray&lt;NSString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSMutableString *&gt; *&apos;</string>
+// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;MutableArray&lt;NSString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSMutableString *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:   <key>category</key><string>Core Foundation/Objective-C</string>
 // CHECK-NEXT:   <key>type</key><string>Generics</string>
 // CHECK-NEXT:   <key>check_name</key><string>core.DynamicTypePropagation</string>
@@ -3973,12 +3973,12 @@ void testGetMostInformativeDerivedForId(NSArray<NSString *> *a,
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>0</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;MutableArray&lt;NSString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSMutableString *&gt; *&apos;</string>
+// CHECK-NEXT:     <string>Conversion from value of type &apos;MutableArray&lt;NSString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSMutableString *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;MutableArray&lt;NSString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSMutableString *&gt; *&apos;</string>
+// CHECK-NEXT:     <string>Conversion from value of type &apos;MutableArray&lt;NSString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSMutableString *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;MutableArray&lt;NSString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSMutableString *&gt; *&apos;</string>
+// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;MutableArray&lt;NSString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSMutableString *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:   <key>category</key><string>Core Foundation/Objective-C</string>
 // CHECK-NEXT:   <key>type</key><string>Generics</string>
 // CHECK-NEXT:   <key>check_name</key><string>core.DynamicTypePropagation</string>
@@ -4119,12 +4119,12 @@ void testGetMostInformativeDerivedForId(NSArray<NSString *> *a,
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>0</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;MutableArray&lt;NSMutableString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSString *&gt; *&apos;</string>
+// CHECK-NEXT:     <string>Conversion from value of type &apos;MutableArray&lt;NSMutableString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSString *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;MutableArray&lt;NSMutableString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSString *&gt; *&apos;</string>
+// CHECK-NEXT:     <string>Conversion from value of type &apos;MutableArray&lt;NSMutableString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSString *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;MutableArray&lt;NSMutableString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSString *&gt; *&apos;</string>
+// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;MutableArray&lt;NSMutableString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSString *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:   <key>category</key><string>Core Foundation/Objective-C</string>
 // CHECK-NEXT:   <key>type</key><string>Generics</string>
 // CHECK-NEXT:   <key>check_name</key><string>core.DynamicTypePropagation</string>
@@ -4265,12 +4265,12 @@ void testGetMostInformativeDerivedForId(NSArray<NSString *> *a,
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>0</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;MutableArray&lt;NSMutableString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSString *&gt; *&apos;</string>
+// CHECK-NEXT:     <string>Conversion from value of type &apos;MutableArray&lt;NSMutableString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSString *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;MutableArray&lt;NSMutableString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSString *&gt; *&apos;</string>
+// CHECK-NEXT:     <string>Conversion from value of type &apos;MutableArray&lt;NSMutableString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSString *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;MutableArray&lt;NSMutableString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSString *&gt; *&apos;</string>
+// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;MutableArray&lt;NSMutableString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSString *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:   <key>category</key><string>Core Foundation/Objective-C</string>
 // CHECK-NEXT:   <key>type</key><string>Generics</string>
 // CHECK-NEXT:   <key>check_name</key><string>core.DynamicTypePropagation</string>
@@ -4474,12 +4474,12 @@ void testGetMostInformativeDerivedForId(NSArray<NSString *> *a,
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>0</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;MutableArray&lt;NSString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSMutableString *&gt; *&apos;</string>
+// CHECK-NEXT:     <string>Conversion from value of type &apos;MutableArray&lt;NSString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSMutableString *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;MutableArray&lt;NSString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSMutableString *&gt; *&apos;</string>
+// CHECK-NEXT:     <string>Conversion from value of type &apos;MutableArray&lt;NSString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSMutableString *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;MutableArray&lt;NSString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSMutableString *&gt; *&apos;</string>
+// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;MutableArray&lt;NSString *&gt; *&apos; to incompatible type &apos;MutableArray&lt;NSMutableString *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:   <key>category</key><string>Core Foundation/Objective-C</string>
 // CHECK-NEXT:   <key>type</key><string>Generics</string>
 // CHECK-NEXT:   <key>check_name</key><string>core.DynamicTypePropagation</string>
@@ -4620,12 +4620,12 @@ void testGetMostInformativeDerivedForId(NSArray<NSString *> *a,
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>0</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>Object has a dynamic type &apos;NSNumber *&apos; which is incompatible with static type &apos;NSString *&apos;</string>
+// CHECK-NEXT:     <string>Object has a dynamic type &apos;NSNumber *&apos; which is incompatible with static type &apos;NSString *&apos; [alpha.core.DynamicTypeChecker]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>Object has a dynamic type &apos;NSNumber *&apos; which is incompatible with static type &apos;NSString *&apos;</string>
+// CHECK-NEXT:     <string>Object has a dynamic type &apos;NSNumber *&apos; which is incompatible with static type &apos;NSString *&apos; [alpha.core.DynamicTypeChecker]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>Object has a dynamic type &apos;NSNumber *&apos; which is incompatible with static type &apos;NSString *&apos;</string>
+// CHECK-NEXT:   <key>description</key><string>Object has a dynamic type &apos;NSNumber *&apos; which is incompatible with static type &apos;NSString *&apos; [alpha.core.DynamicTypeChecker]</string>
 // CHECK-NEXT:   <key>category</key><string>Type Error</string>
 // CHECK-NEXT:   <key>type</key><string>Dynamic and static type mismatch</string>
 // CHECK-NEXT:   <key>check_name</key><string>alpha.core.DynamicTypeChecker</string>
@@ -4766,12 +4766,12 @@ void testGetMostInformativeDerivedForId(NSArray<NSString *> *a,
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>0</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>Object has a dynamic type &apos;NSNumber *&apos; which is incompatible with static type &apos;NSString *&apos;</string>
+// CHECK-NEXT:     <string>Object has a dynamic type &apos;NSNumber *&apos; which is incompatible with static type &apos;NSString *&apos; [alpha.core.DynamicTypeChecker]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>Object has a dynamic type &apos;NSNumber *&apos; which is incompatible with static type &apos;NSString *&apos;</string>
+// CHECK-NEXT:     <string>Object has a dynamic type &apos;NSNumber *&apos; which is incompatible with static type &apos;NSString *&apos; [alpha.core.DynamicTypeChecker]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>Object has a dynamic type &apos;NSNumber *&apos; which is incompatible with static type &apos;NSString *&apos;</string>
+// CHECK-NEXT:   <key>description</key><string>Object has a dynamic type &apos;NSNumber *&apos; which is incompatible with static type &apos;NSString *&apos; [alpha.core.DynamicTypeChecker]</string>
 // CHECK-NEXT:   <key>category</key><string>Type Error</string>
 // CHECK-NEXT:   <key>type</key><string>Dynamic and static type mismatch</string>
 // CHECK-NEXT:   <key>check_name</key><string>alpha.core.DynamicTypeChecker</string>
@@ -4912,12 +4912,12 @@ void testGetMostInformativeDerivedForId(NSArray<NSString *> *a,
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>0</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>Object has a dynamic type &apos;NSNumber *&apos; which is incompatible with static type &apos;NSString *&apos;</string>
+// CHECK-NEXT:     <string>Object has a dynamic type &apos;NSNumber *&apos; which is incompatible with static type &apos;NSString *&apos; [alpha.core.DynamicTypeChecker]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>Object has a dynamic type &apos;NSNumber *&apos; which is incompatible with static type &apos;NSString *&apos;</string>
+// CHECK-NEXT:     <string>Object has a dynamic type &apos;NSNumber *&apos; which is incompatible with static type &apos;NSString *&apos; [alpha.core.DynamicTypeChecker]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>Object has a dynamic type &apos;NSNumber *&apos; which is incompatible with static type &apos;NSString *&apos;</string>
+// CHECK-NEXT:   <key>description</key><string>Object has a dynamic type &apos;NSNumber *&apos; which is incompatible with static type &apos;NSString *&apos; [alpha.core.DynamicTypeChecker]</string>
 // CHECK-NEXT:   <key>category</key><string>Type Error</string>
 // CHECK-NEXT:   <key>type</key><string>Dynamic and static type mismatch</string>
 // CHECK-NEXT:   <key>check_name</key><string>alpha.core.DynamicTypeChecker</string>
@@ -5058,12 +5058,12 @@ void testGetMostInformativeDerivedForId(NSArray<NSString *> *a,
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>0</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>Object has a dynamic type &apos;NSNumber *&apos; which is incompatible with static type &apos;NSString *&apos;</string>
+// CHECK-NEXT:     <string>Object has a dynamic type &apos;NSNumber *&apos; which is incompatible with static type &apos;NSString *&apos; [alpha.core.DynamicTypeChecker]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>Object has a dynamic type &apos;NSNumber *&apos; which is incompatible with static type &apos;NSString *&apos;</string>
+// CHECK-NEXT:     <string>Object has a dynamic type &apos;NSNumber *&apos; which is incompatible with static type &apos;NSString *&apos; [alpha.core.DynamicTypeChecker]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>Object has a dynamic type &apos;NSNumber *&apos; which is incompatible with static type &apos;NSString *&apos;</string>
+// CHECK-NEXT:   <key>description</key><string>Object has a dynamic type &apos;NSNumber *&apos; which is incompatible with static type &apos;NSString *&apos; [alpha.core.DynamicTypeChecker]</string>
 // CHECK-NEXT:   <key>category</key><string>Type Error</string>
 // CHECK-NEXT:   <key>type</key><string>Dynamic and static type mismatch</string>
 // CHECK-NEXT:   <key>check_name</key><string>alpha.core.DynamicTypeChecker</string>
@@ -5238,12 +5238,12 @@ void testGetMostInformativeDerivedForId(NSArray<NSString *> *a,
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>0</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;NSString *&apos; to incompatible type &apos;NSMutableString *&apos;</string>
+// CHECK-NEXT:     <string>Conversion from value of type &apos;NSString *&apos; to incompatible type &apos;NSMutableString *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;NSString *&apos; to incompatible type &apos;NSMutableString *&apos;</string>
+// CHECK-NEXT:     <string>Conversion from value of type &apos;NSString *&apos; to incompatible type &apos;NSMutableString *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;NSString *&apos; to incompatible type &apos;NSMutableString *&apos;</string>
+// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;NSString *&apos; to incompatible type &apos;NSMutableString *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:   <key>category</key><string>Core Foundation/Objective-C</string>
 // CHECK-NEXT:   <key>type</key><string>Generics</string>
 // CHECK-NEXT:   <key>check_name</key><string>core.DynamicTypePropagation</string>
@@ -5384,12 +5384,12 @@ void testGetMostInformativeDerivedForId(NSArray<NSString *> *a,
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>0</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;NSString *&apos; to incompatible type &apos;NSMutableString *&apos;</string>
+// CHECK-NEXT:     <string>Conversion from value of type &apos;NSString *&apos; to incompatible type &apos;NSMutableString *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;NSString *&apos; to incompatible type &apos;NSMutableString *&apos;</string>
+// CHECK-NEXT:     <string>Conversion from value of type &apos;NSString *&apos; to incompatible type &apos;NSMutableString *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;NSString *&apos; to incompatible type &apos;NSMutableString *&apos;</string>
+// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;NSString *&apos; to incompatible type &apos;NSMutableString *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:   <key>category</key><string>Core Foundation/Objective-C</string>
 // CHECK-NEXT:   <key>type</key><string>Generics</string>
 // CHECK-NEXT:   <key>check_name</key><string>core.DynamicTypePropagation</string>
@@ -5496,12 +5496,12 @@ void testGetMostInformativeDerivedForId(NSArray<NSString *> *a,
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>0</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;NSNumber *&apos; to incompatible type &apos;NSString *&apos;</string>
+// CHECK-NEXT:      <string>Conversion from value of type &apos;NSNumber *&apos; to incompatible type &apos;NSString *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;NSNumber *&apos; to incompatible type &apos;NSString *&apos;</string>
+// CHECK-NEXT:      <string>Conversion from value of type &apos;NSNumber *&apos; to incompatible type &apos;NSString *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;NSNumber *&apos; to incompatible type &apos;NSString *&apos;</string>
+// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;NSNumber *&apos; to incompatible type &apos;NSString *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:   <key>category</key><string>Core Foundation/Objective-C</string>
 // CHECK-NEXT:   <key>type</key><string>Generics</string>
 // CHECK-NEXT:   <key>check_name</key><string>core.DynamicTypePropagation</string>
@@ -5642,12 +5642,12 @@ void testGetMostInformativeDerivedForId(NSArray<NSString *> *a,
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>0</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;NSArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos;</string>
+// CHECK-NEXT:     <string>Conversion from value of type &apos;NSArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;NSArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos;</string>
+// CHECK-NEXT:     <string>Conversion from value of type &apos;NSArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;NSArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos;</string>
+// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;NSArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:   <key>category</key><string>Core Foundation/Objective-C</string>
 // CHECK-NEXT:   <key>type</key><string>Generics</string>
 // CHECK-NEXT:   <key>check_name</key><string>core.DynamicTypePropagation</string>
@@ -5788,12 +5788,12 @@ void testGetMostInformativeDerivedForId(NSArray<NSString *> *a,
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>0</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;NSArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos;</string>
+// CHECK-NEXT:     <string>Conversion from value of type &apos;NSArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;NSArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos;</string>
+// CHECK-NEXT:     <string>Conversion from value of type &apos;NSArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;NSArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos;</string>
+// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;NSArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:   <key>category</key><string>Core Foundation/Objective-C</string>
 // CHECK-NEXT:   <key>type</key><string>Generics</string>
 // CHECK-NEXT:   <key>check_name</key><string>core.DynamicTypePropagation</string>
@@ -5934,12 +5934,12 @@ void testGetMostInformativeDerivedForId(NSArray<NSString *> *a,
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>0</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;NSArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos;</string>
+// CHECK-NEXT:     <string>Conversion from value of type &apos;NSArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;NSArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos;</string>
+// CHECK-NEXT:     <string>Conversion from value of type &apos;NSArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;NSArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos;</string>
+// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;NSArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:   <key>category</key><string>Core Foundation/Objective-C</string>
 // CHECK-NEXT:   <key>type</key><string>Generics</string>
 // CHECK-NEXT:   <key>check_name</key><string>core.DynamicTypePropagation</string>
@@ -6114,12 +6114,12 @@ void testGetMostInformativeDerivedForId(NSArray<NSString *> *a,
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>0</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;NSArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos;</string>
+// CHECK-NEXT:     <string>Conversion from value of type &apos;NSArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;NSArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos;</string>
+// CHECK-NEXT:     <string>Conversion from value of type &apos;NSArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;NSArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos;</string>
+// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;NSArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:   <key>category</key><string>Core Foundation/Objective-C</string>
 // CHECK-NEXT:   <key>type</key><string>Generics</string>
 // CHECK-NEXT:   <key>check_name</key><string>core.DynamicTypePropagation</string>
@@ -6294,12 +6294,12 @@ void testGetMostInformativeDerivedForId(NSArray<NSString *> *a,
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>0</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;NSArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos;</string>
+// CHECK-NEXT:     <string>Conversion from value of type &apos;NSArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;NSArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos;</string>
+// CHECK-NEXT:     <string>Conversion from value of type &apos;NSArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;NSArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos;</string>
+// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;NSArray&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSNumber *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:   <key>category</key><string>Core Foundation/Objective-C</string>
 // CHECK-NEXT:   <key>type</key><string>Generics</string>
 // CHECK-NEXT:   <key>check_name</key><string>core.DynamicTypePropagation</string>
@@ -6440,12 +6440,12 @@ void testGetMostInformativeDerivedForId(NSArray<NSString *> *a,
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>0</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>Object has a dynamic type &apos;NSArray&lt;NSString *&gt; *&apos; which is incompatible with static type &apos;NSSet *&apos;</string>
+// CHECK-NEXT:     <string>Object has a dynamic type &apos;NSArray&lt;NSString *&gt; *&apos; which is incompatible with static type &apos;NSSet *&apos; [alpha.core.DynamicTypeChecker]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>Object has a dynamic type &apos;NSArray&lt;NSString *&gt; *&apos; which is incompatible with static type &apos;NSSet *&apos;</string>
+// CHECK-NEXT:     <string>Object has a dynamic type &apos;NSArray&lt;NSString *&gt; *&apos; which is incompatible with static type &apos;NSSet *&apos; [alpha.core.DynamicTypeChecker]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>Object has a dynamic type &apos;NSArray&lt;NSString *&gt; *&apos; which is incompatible with static type &apos;NSSet *&apos;</string>
+// CHECK-NEXT:   <key>description</key><string>Object has a dynamic type &apos;NSArray&lt;NSString *&gt; *&apos; which is incompatible with static type &apos;NSSet *&apos; [alpha.core.DynamicTypeChecker]</string>
 // CHECK-NEXT:   <key>category</key><string>Type Error</string>
 // CHECK-NEXT:   <key>type</key><string>Dynamic and static type mismatch</string>
 // CHECK-NEXT:   <key>check_name</key><string>alpha.core.DynamicTypeChecker</string>
@@ -6620,12 +6620,12 @@ void testGetMostInformativeDerivedForId(NSArray<NSString *> *a,
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>0</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>Object has a dynamic type &apos;NSString *&apos; which is incompatible with static type &apos;NSNumber *&apos;</string>
+// CHECK-NEXT:     <string>Object has a dynamic type &apos;NSString *&apos; which is incompatible with static type &apos;NSNumber *&apos; [alpha.core.DynamicTypeChecker]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>Object has a dynamic type &apos;NSString *&apos; which is incompatible with static type &apos;NSNumber *&apos;</string>
+// CHECK-NEXT:     <string>Object has a dynamic type &apos;NSString *&apos; which is incompatible with static type &apos;NSNumber *&apos; [alpha.core.DynamicTypeChecker]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>Object has a dynamic type &apos;NSString *&apos; which is incompatible with static type &apos;NSNumber *&apos;</string>
+// CHECK-NEXT:   <key>description</key><string>Object has a dynamic type &apos;NSString *&apos; which is incompatible with static type &apos;NSNumber *&apos; [alpha.core.DynamicTypeChecker]</string>
 // CHECK-NEXT:   <key>category</key><string>Type Error</string>
 // CHECK-NEXT:   <key>type</key><string>Dynamic and static type mismatch</string>
 // CHECK-NEXT:   <key>check_name</key><string>alpha.core.DynamicTypeChecker</string>
@@ -6766,12 +6766,12 @@ void testGetMostInformativeDerivedForId(NSArray<NSString *> *a,
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>0</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;UnrelatedTypeGeneric&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSString *&gt; *&apos;</string>
+// CHECK-NEXT:     <string>Conversion from value of type &apos;UnrelatedTypeGeneric&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSString *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;UnrelatedTypeGeneric&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSString *&gt; *&apos;</string>
+// CHECK-NEXT:     <string>Conversion from value of type &apos;UnrelatedTypeGeneric&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSString *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;UnrelatedTypeGeneric&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSString *&gt; *&apos;</string>
+// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;UnrelatedTypeGeneric&lt;NSString *&gt; *&apos; to incompatible type &apos;NSArray&lt;NSString *&gt; *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:   <key>category</key><string>Core Foundation/Objective-C</string>
 // CHECK-NEXT:   <key>type</key><string>Generics</string>
 // CHECK-NEXT:   <key>check_name</key><string>core.DynamicTypePropagation</string>
@@ -6878,12 +6878,12 @@ void testGetMostInformativeDerivedForId(NSArray<NSString *> *a,
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>0</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;NSNumber *&apos; to incompatible type &apos;NSString *&apos;</string>
+// CHECK-NEXT:      <string>Conversion from value of type &apos;NSNumber *&apos; to incompatible type &apos;NSString *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>Conversion from value of type &apos;NSNumber *&apos; to incompatible type &apos;NSString *&apos;</string>
+// CHECK-NEXT:      <string>Conversion from value of type &apos;NSNumber *&apos; to incompatible type &apos;NSString *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;NSNumber *&apos; to incompatible type &apos;NSString *&apos;</string>
+// CHECK-NEXT:   <key>description</key><string>Conversion from value of type &apos;NSNumber *&apos; to incompatible type &apos;NSString *&apos; [core.DynamicTypePropagation]</string>
 // CHECK-NEXT:   <key>category</key><string>Core Foundation/Objective-C</string>
 // CHECK-NEXT:   <key>type</key><string>Generics</string>
 // CHECK-NEXT:   <key>check_name</key><string>core.DynamicTypePropagation</string>

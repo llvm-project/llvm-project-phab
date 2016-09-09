@@ -156,6 +156,7 @@ public:
   AnalyzerOptionsRef Opts;
   ArrayRef<std::string> Plugins;
   CodeInjector *Injector;
+  UserSuppressions *AnalyzerSuppressionsCons;
 
   /// \brief Stores the declarations from the local translation unit.
   /// Note, we pre-compute the local declarations at parse time as an
@@ -182,10 +183,11 @@ public:
 
   AnalysisConsumer(const Preprocessor &pp, const std::string &outdir,
                    AnalyzerOptionsRef opts, ArrayRef<std::string> plugins,
-                   CodeInjector *injector)
+                   CodeInjector *injector,
+				   UserSuppressions *AC)
       : RecVisitorMode(0), RecVisitorBR(nullptr), Ctx(nullptr), PP(pp),
         OutDir(outdir), Opts(std::move(opts)), Plugins(plugins),
-        Injector(injector) {
+        Injector(injector), AnalyzerSuppressionsCons(AC) {
     DigestAnalyzerOptions();
     if (Opts->PrintStats) {
       llvm::EnableStatistics();
@@ -277,7 +279,8 @@ public:
 
     Mgr = llvm::make_unique<AnalysisManager>(
         *Ctx, PP.getDiagnostics(), PP.getLangOpts(), PathConsumers,
-        CreateStoreMgr, CreateConstraintMgr, checkerMgr.get(), *Opts, Injector);
+        CreateStoreMgr, CreateConstraintMgr, checkerMgr.get(),
+        AnalyzerSuppressionsCons, *Opts, Injector);
   }
 
   /// \brief Store the top level decls in the set to be processed later on.
@@ -748,7 +751,8 @@ ento::CreateAnalysisConsumer(CompilerInstance &CI) {
   return llvm::make_unique<AnalysisConsumer>(
       CI.getPreprocessor(), CI.getFrontendOpts().OutputFile, analyzerOpts,
       CI.getFrontendOpts().Plugins,
-      hasModelPath ? new ModelInjector(CI) : nullptr);
+      hasModelPath ? new ModelInjector(CI) : nullptr,
+	  CI.getSuppressDiagConsumer()->getUserSuppressions());
 }
 
 //===----------------------------------------------------------------------===//

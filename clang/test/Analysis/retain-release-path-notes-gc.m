@@ -205,7 +205,7 @@ void retainReleaseIgnored () {
 // CHECK-NEXT:      <string>Object leaked: object allocated and stored into &apos;leaked&apos; is not referenced later in this execution path and has a retain count of +1</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Potential leak (when using garbage collection) of an object stored into &apos;leaked&apos;</string>
+// CHECK-NEXT:    <key>description</key><string>Potential leak (when using garbage collection) of an object stored into &apos;leaked&apos; [osx.cocoa.RetainCount]</string>
 // CHECK-NEXT:    <key>category</key><string>Memory (Core Foundation/Objective-C)</string>
 // CHECK-NEXT:    <key>type</key><string>Leak of object when using garbage collection</string>
 // CHECK-NEXT:    <key>check_name</key><string>osx.cocoa.RetainCount</string>
@@ -651,7 +651,7 @@ void retainReleaseIgnored () {
 // CHECK-NEXT:      <string>Object leaked: object allocated and stored into &apos;leaked&apos; is not referenced later in this execution path and has a retain count of +1</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Potential leak (when using garbage collection) of an object stored into &apos;leaked&apos;</string>
+// CHECK-NEXT:    <key>description</key><string>Potential leak (when using garbage collection) of an object stored into &apos;leaked&apos; [osx.cocoa.RetainCount]</string>
 // CHECK-NEXT:    <key>category</key><string>Memory (Core Foundation/Objective-C)</string>
 // CHECK-NEXT:    <key>type</key><string>Leak of object when using garbage collection</string>
 // CHECK-NEXT:    <key>check_name</key><string>osx.cocoa.RetainCount</string>
@@ -1017,12 +1017,12 @@ void retainReleaseIgnored () {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Incorrect decrement of the reference count of an object that is not owned at this point by the caller</string>
+// CHECK-NEXT:      <string>Incorrect decrement of the reference count of an object that is not owned at this point by the caller [osx.cocoa.RetainCount]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Incorrect decrement of the reference count of an object that is not owned at this point by the caller</string>
+// CHECK-NEXT:      <string>Incorrect decrement of the reference count of an object that is not owned at this point by the caller [osx.cocoa.RetainCount]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Incorrect decrement of the reference count of an object that is not owned at this point by the caller</string>
+// CHECK-NEXT:    <key>description</key><string>Incorrect decrement of the reference count of an object that is not owned at this point by the caller [osx.cocoa.RetainCount]</string>
 // CHECK-NEXT:    <key>category</key><string>Memory (Core Foundation/Objective-C)</string>
 // CHECK-NEXT:    <key>type</key><string>Bad release</string>
 // CHECK-NEXT:    <key>check_name</key><string>osx.cocoa.RetainCount</string>
@@ -1209,7 +1209,7 @@ void retainReleaseIgnored () {
 // CHECK-NEXT:      <string>Object leaked: object allocated and stored into &apos;object&apos; and returned from method &apos;getViolation&apos; is potentially leaked when using garbage collection.  Callers of this method do not expect a returned object with a +1 retain count since they expect the object to be managed by the garbage collector</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Potential leak (when using garbage collection) of an object stored into &apos;object&apos;</string>
+// CHECK-NEXT:    <key>description</key><string>Potential leak (when using garbage collection) of an object stored into &apos;object&apos; [osx.cocoa.RetainCount]</string>
 // CHECK-NEXT:    <key>category</key><string>Memory (Core Foundation/Objective-C)</string>
 // CHECK-NEXT:    <key>type</key><string>Leak of returned object when using garbage collection</string>
 // CHECK-NEXT:    <key>check_name</key><string>osx.cocoa.RetainCount</string>
@@ -1396,7 +1396,7 @@ void retainReleaseIgnored () {
 // CHECK-NEXT:      <string>Object leaked: object allocated and stored into &apos;object&apos; and returned from method &apos;copyViolation&apos; is potentially leaked when using garbage collection.  Callers of this method do not expect a returned object with a +1 retain count since they expect the object to be managed by the garbage collector</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Potential leak (when using garbage collection) of an object stored into &apos;object&apos;</string>
+// CHECK-NEXT:    <key>description</key><string>Potential leak (when using garbage collection) of an object stored into &apos;object&apos; [osx.cocoa.RetainCount]</string>
 // CHECK-NEXT:    <key>category</key><string>Memory (Core Foundation/Objective-C)</string>
 // CHECK-NEXT:    <key>type</key><string>Leak of returned object when using garbage collection</string>
 // CHECK-NEXT:    <key>check_name</key><string>osx.cocoa.RetainCount</string>

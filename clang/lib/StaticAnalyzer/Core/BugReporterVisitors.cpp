@@ -14,6 +14,7 @@
 #include "clang/StaticAnalyzer/Core/BugReporter/BugReporterVisitor.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprObjC.h"
+#include "clang/Frontend/SuppressDiagConsumer.h"
 #include "clang/Analysis/CFGStmtMap.h"
 #include "clang/StaticAnalyzer/Core/BugReporter/BugReporter.h"
 #include "clang/StaticAnalyzer/Core/BugReporter/PathDiagnostic.h"
@@ -1552,6 +1553,59 @@ ConditionBRVisitor::VisitTrueTest(const Expr *Cond,
   return event;
 }
 
+static bool AnalyzerIgnoreMatches(const std::vector<std::string> &Ignores,
+                                  StringRef BR) {
+  // Empty ignore-list => ignore all.
+  // A bug report does not have associated tag => ignore.
+  if (Ignores.empty() || BR.empty())
+    return true;
+  for (std::vector<std::string>::const_iterator it = Ignores.begin();
+  it != Ignores.end(); ++ it) {
+    // BR will have the specific string while Ignores might have a part of it.
+    if (BR.startswith(*it))
+      return true;
+  }
+  return false;
+}
+
+// Suppress the annotations from the comments in the source file.
+bool LikelyFalsePositiveSuppressionBRVisitor::
+handleUserSuppressions(const IgnoredReports_t &IgnoredReports, BugReport &BR,
+                       SourceManager &SM) {
+  bool changed = false;
+  StringRef BRString = BR.getDescription();
+
+  // If '[' ']' werent found then construct an empty string,
+  // which will cause this bug to be ignored.
+  size_t b_it = StringRef::npos, e_it = StringRef::npos;
+  b_it = BRString.find_first_of('[');
+  if (b_it != StringRef::npos)
+    e_it = BRString.find_first_of(']', b_it);
+
+  if (e_it != StringRef::npos)
+    ++b_it; // skip the '['
+  else
+    b_it = e_it = 0; // To create an empty BRTag
+
+  if (b_it > e_it)
+    return changed;
+  StringRef BRTag(BRString.data()+b_it, e_it - b_it);
+  if (std::find_if(BRTag.begin(), BRTag.end(), isspace) != BRTag.end())
+    return changed;
+  FullSourceLoc Loc = BR.getLocation(SM).asLocation();
+  unsigned l = SM.getSpellingLineNumber(Loc);
+  for (IgnoredReports_t::const_iterator b = IgnoredReports.begin();
+       b != IgnoredReports.end(); ++b) {
+    // If inside the source range ignore.
+    unsigned m = SM.getSpellingLineNumber(b->first);
+    if (l == m && AnalyzerIgnoreMatches(b->second, BRTag)) {
+      BR.markInvalid(getTag(), NULL);
+      changed = true;
+    }
+  }
+  return changed;
+}
+
 std::unique_ptr<PathDiagnosticPiece>
 LikelyFalsePositiveSuppressionBRVisitor::getEndPath(BugReporterContext &BRC,
                                                     const ExplodedNode *N,
@@ -1636,6 +1690,10 @@ LikelyFalsePositiveSuppressionBRVisitor::getEndPath(BugReporterContext &BRC,
       return nullptr;
     }
   }
+  
+  UserSuppressions *AC = BRC.getBugReporter().getUserSuppressions();
+  const IgnoredReports_t &IgnoredReports = AC->getIgnoredReports();
+  handleUserSuppressions(IgnoredReports, BR, SM);
 
   return nullptr;
 }

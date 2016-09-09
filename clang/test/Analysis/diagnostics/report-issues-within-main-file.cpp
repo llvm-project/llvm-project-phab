@@ -241,12 +241,12 @@ void callInMacroArg() {
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>1</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>Division by zero</string>
+// CHECK-NEXT:     <string>Division by zero [core.DivideZero]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>Division by zero</string>
+// CHECK-NEXT:     <string>Division by zero [core.DivideZero]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>Division by zero</string>
+// CHECK-NEXT:   <key>description</key><string>Division by zero [core.DivideZero]</string>
 // CHECK-NEXT:   <key>category</key><string>Logic error</string>
 // CHECK-NEXT:   <key>type</key><string>Division by zero</string>
 // CHECK-NEXT:   <key>check_name</key><string>core.DivideZero</string>
@@ -507,12 +507,12 @@ void callInMacroArg() {
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>2</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>Division by zero</string>
+// CHECK-NEXT:     <string>Division by zero [core.DivideZero]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>Division by zero</string>
+// CHECK-NEXT:     <string>Division by zero [core.DivideZero]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>Division by zero</string>
+// CHECK-NEXT:   <key>description</key><string>Division by zero [core.DivideZero]</string>
 // CHECK-NEXT:   <key>category</key><string>Logic error</string>
 // CHECK-NEXT:   <key>type</key><string>Division by zero</string>
 // CHECK-NEXT:   <key>check_name</key><string>core.DivideZero</string>
@@ -696,12 +696,12 @@ void callInMacroArg() {
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>1</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>Division by zero</string>
+// CHECK-NEXT:     <string>Division by zero [core.DivideZero]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>Division by zero</string>
+// CHECK-NEXT:     <string>Division by zero [core.DivideZero]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>Division by zero</string>
+// CHECK-NEXT:   <key>description</key><string>Division by zero [core.DivideZero]</string>
 // CHECK-NEXT:   <key>category</key><string>Logic error</string>
 // CHECK-NEXT:   <key>type</key><string>Division by zero</string>
 // CHECK-NEXT:   <key>check_name</key><string>core.DivideZero</string>
@@ -939,12 +939,12 @@ void callInMacroArg() {
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>1</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>Memory allocated by &apos;new[]&apos; should be deallocated by &apos;delete[]&apos;, not &apos;delete&apos;</string>
+// CHECK-NEXT:     <string>Memory allocated by &apos;new[]&apos; should be deallocated by &apos;delete[]&apos;, not &apos;delete&apos; [unix.MismatchedDeallocator]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>Memory allocated by &apos;new[]&apos; should be deallocated by &apos;delete[]&apos;, not &apos;delete&apos;</string>
+// CHECK-NEXT:     <string>Memory allocated by &apos;new[]&apos; should be deallocated by &apos;delete[]&apos;, not &apos;delete&apos; [unix.MismatchedDeallocator]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>Memory allocated by &apos;new[]&apos; should be deallocated by &apos;delete[]&apos;, not &apos;delete&apos; (within a call to &apos;~auto_ptr&apos;)</string>
+// CHECK-NEXT:   <key>description</key><string>Memory allocated by &apos;new[]&apos; should be deallocated by &apos;delete[]&apos;, not &apos;delete&apos; [unix.MismatchedDeallocator] (within a call to &apos;~auto_ptr&apos;)</string>
 // CHECK-NEXT:   <key>category</key><string>Memory Error</string>
 // CHECK-NEXT:   <key>type</key><string>Bad deallocator</string>
 // CHECK-NEXT:   <key>check_name</key><string>unix.MismatchedDeallocator</string>
@@ -1274,12 +1274,12 @@ void callInMacroArg() {
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>2</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>Division by zero</string>
+// CHECK-NEXT:     <string>Division by zero [core.DivideZero]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>Division by zero</string>
+// CHECK-NEXT:     <string>Division by zero [core.DivideZero]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>Division by zero (within a call to &apos;cause_div_by_zero_in_header&apos;)</string>
+// CHECK-NEXT:   <key>description</key><string>Division by zero [core.DivideZero] (within a call to &apos;cause_div_by_zero_in_header&apos;)</string>
 // CHECK-NEXT:   <key>category</key><string>Logic error</string>
 // CHECK-NEXT:   <key>type</key><string>Division by zero</string>
 // CHECK-NEXT:   <key>check_name</key><string>core.DivideZero</string>
@@ -1497,12 +1497,12 @@ void callInMacroArg() {
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>1</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>Division by zero</string>
+// CHECK-NEXT:     <string>Division by zero [core.DivideZero]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>Division by zero</string>
+// CHECK-NEXT:     <string>Division by zero [core.DivideZero]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>Division by zero</string>
+// CHECK-NEXT:   <key>description</key><string>Division by zero [core.DivideZero]</string>
 // CHECK-NEXT:   <key>category</key><string>Logic error</string>
 // CHECK-NEXT:   <key>type</key><string>Division by zero</string>
 // CHECK-NEXT:   <key>check_name</key><string>core.DivideZero</string>
@@ -1754,12 +1754,12 @@ void callInMacroArg() {
 // CHECK-NEXT:     </array>
 // CHECK-NEXT:     <key>depth</key><integer>1</integer>
 // CHECK-NEXT:     <key>extended_message</key>
-// CHECK-NEXT:     <string>Division by zero</string>
+// CHECK-NEXT:     <string>Division by zero [core.DivideZero]</string>
 // CHECK-NEXT:     <key>message</key>
-// CHECK-NEXT:     <string>Division by zero</string>
+// CHECK-NEXT:     <string>Division by zero [core.DivideZero]</string>
 // CHECK-NEXT:    </dict>
 // CHECK-NEXT:   </array>
-// CHECK-NEXT:   <key>description</key><string>Division by zero</string>
+// CHECK-NEXT:   <key>description</key><string>Division by zero [core.DivideZero]</string>
 // CHECK-NEXT:   <key>category</key><string>Logic error</string>
 // CHECK-NEXT:   <key>type</key><string>Division by zero</string>
 // CHECK-NEXT:   <key>check_name</key><string>core.DivideZero</string>

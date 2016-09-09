@@ -16,6 +16,7 @@
 #define LLVM_CLANG_STATICANALYZER_CORE_PATHSENSITIVE_ANALYSISMANAGER_H
 
 #include "clang/Analysis/AnalysisContext.h"
+#include "clang/Frontend/SuppressDiagConsumer.h"
 #include "clang/StaticAnalyzer/Core/AnalyzerOptions.h"
 #include "clang/StaticAnalyzer/Core/BugReporter/BugReporter.h"
 #include "clang/StaticAnalyzer/Core/BugReporter/PathDiagnostic.h"
@@ -42,6 +43,8 @@ class AnalysisManager : public BugReporterData {
   ConstraintManagerCreator CreateConstraintMgr;
 
   CheckerManager *CheckerMgr;
+  // User annotated suppressions of report.
+  UserSuppressions *userSuppressions;
 
 public:
   AnalyzerOptions &options;
@@ -52,6 +55,7 @@ public:
                   StoreManagerCreator storemgr,
                   ConstraintManagerCreator constraintmgr, 
                   CheckerManager *checkerMgr,
+				  UserSuppressions *US,
                   AnalyzerOptions &Options,
                   CodeInjector* injector = nullptr);
 
@@ -125,6 +129,10 @@ public:
 
   AnalysisDeclContext *getAnalysisDeclContext(const Decl *D) {
     return AnaCtxMgr.getContext(D);
+  }
+  
+  virtual UserSuppressions *getUserSuppressions() override {
+    return userSuppressions;
   }
 };
 

@@ -34,6 +34,7 @@ class ASTContext;
 class DiagnosticsEngine;
 class Stmt;
 class ParentMap;
+class UserSuppressions;
 
 namespace ento {
 
@@ -120,6 +121,9 @@ protected:
   /// when reporting an issue.
   bool DoNotPrunePath;
 
+  /// Set this to true when bug report should not be changed.
+  bool Annotated;
+
   /// Used to track unique reasons why a bug report might be invalid.
   ///
   /// \sa markInvalid
@@ -145,17 +149,18 @@ private:
 public:
   BugReport(BugType& bt, StringRef desc, const ExplodedNode *errornode)
     : BT(bt), DeclWithIssue(nullptr), Description(desc), ErrorNode(errornode),
-      ConfigurationChangeToken(0), DoNotPrunePath(false) {}
+      ConfigurationChangeToken(0), DoNotPrunePath(false), Annotated(false) {}
 
   BugReport(BugType& bt, StringRef shortDesc, StringRef desc,
             const ExplodedNode *errornode)
     : BT(bt), DeclWithIssue(nullptr), ShortDescription(shortDesc),
       Description(desc), ErrorNode(errornode), ConfigurationChangeToken(0),
-      DoNotPrunePath(false) {}
+      DoNotPrunePath(false), Annotated(false) {}
 
   BugReport(BugType &bt, StringRef desc, PathDiagnosticLocation l)
     : BT(bt), DeclWithIssue(nullptr), Description(desc), Location(l),
-      ErrorNode(nullptr), ConfigurationChangeToken(0), DoNotPrunePath(false) {}
+      ErrorNode(nullptr), ConfigurationChangeToken(0), DoNotPrunePath(false),
+      Annotated(false){}
 
   /// \brief Create a BugReport with a custom uniqueing location.
   ///
@@ -170,7 +175,7 @@ public:
       UniqueingLocation(LocationToUnique),
       UniqueingDecl(DeclToUnique),
       ErrorNode(errornode), ConfigurationChangeToken(0),
-      DoNotPrunePath(false) {}
+      DoNotPrunePath(false), Annotated(false) {}
 
   virtual ~BugReport();
 
@@ -180,6 +185,17 @@ public:
   const ExplodedNode *getErrorNode() const { return ErrorNode; }
 
   StringRef getDescription() const { return Description; }
+
+  void setDescription(StringRef d) {
+    if (!Annotated) {
+      Description = d;
+      Annotated = true;
+    }
+  }
+
+  /// Helpful in preventing multiple rewrites to Description.
+  void markAnnotated(bool a = true) { Annotated = a; }
+  bool getAnnotated() { return Annotated; }
 
   StringRef getShortDescription(bool UseFallback = true) const {
     if (ShortDescription.empty() && UseFallback)
@@ -355,6 +371,7 @@ public:
   virtual ASTContext &getASTContext() = 0;
   virtual SourceManager& getSourceManager() = 0;
   virtual AnalyzerOptions& getAnalyzerOptions() = 0;
+  virtual UserSuppressions *getUserSuppressions() = 0;
 };
 
 /// BugReporter is a utility class for generating PathDiagnostics for analysis.
@@ -378,7 +395,7 @@ private:
   /// Generate and flush the diagnostics for the given bug report
   /// and PathDiagnosticConsumer.
   void FlushReport(BugReport *exampleReport,
-                   PathDiagnosticConsumer &PD,
+                   PathDiagnosticConsumer &PC,
                    ArrayRef<BugReport*> BugReports);
 
   /// The set of bug reports tracked by the BugReporter.
@@ -450,6 +467,10 @@ public:
                        StringRef BugName, StringRef BugCategory,
                        StringRef BugStr, PathDiagnosticLocation Loc,
                        ArrayRef<SourceRange> Ranges = None);
+
+  UserSuppressions *getUserSuppressions() {
+    return D.getUserSuppressions();
+  }
 
 private:
   llvm::StringMap<BugType *> StrBugTypes;

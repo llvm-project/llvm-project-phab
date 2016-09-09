@@ -23,6 +23,7 @@
 #include "clang/Frontend/FrontendDiagnostic.h"
 #include "clang/Frontend/LogDiagnosticPrinter.h"
 #include "clang/Frontend/SerializedDiagnosticPrinter.h"
+#include "clang/Frontend/SuppressDiagConsumer.h"
 #include "clang/Frontend/TextDiagnosticPrinter.h"
 #include "clang/Frontend/Utils.h"
 #include "clang/Frontend/VerifyDiagnosticConsumer.h"
@@ -60,10 +61,14 @@ CompilerInstance::CompilerInstance(
       ModuleManager(nullptr),
       ThePCHContainerOperations(std::move(PCHContainerOps)),
       BuildGlobalModuleIndex(false), HaveFullGlobalModuleIndex(false),
-      ModuleBuildFailed(false) {}
+      ModuleBuildFailed(false),
+      AnalyzerUserSuppressions(new UserSuppressions()),
+      AnalyzerSuppressDiagCons(new SuppressDiagConsumer(
+                               AnalyzerUserSuppressions)) {}
 
 CompilerInstance::~CompilerInstance() {
   assert(OutputFiles.empty() && "Still output files in flight?");
+  delete AnalyzerUserSuppressions;
 }
 
 void CompilerInstance::setInvocation(CompilerInvocation *Value) {
@@ -191,14 +196,16 @@ static void SetupSerializedDiagnostics(DiagnosticOptions *DiagOpts,
 void CompilerInstance::createDiagnostics(DiagnosticConsumer *Client,
                                          bool ShouldOwnClient) {
   Diagnostics = createDiagnostics(&getDiagnosticOpts(), Client,
-                                  ShouldOwnClient, &getCodeGenOpts());
+                                  ShouldOwnClient, &getCodeGenOpts(),
+								  AnalyzerSuppressDiagCons->getUserSuppressions());
 }
 
 IntrusiveRefCntPtr<DiagnosticsEngine>
 CompilerInstance::createDiagnostics(DiagnosticOptions *Opts,
                                     DiagnosticConsumer *Client,
                                     bool ShouldOwnClient,
-                                    const CodeGenOptions *CodeGenOpts) {
+                                    const CodeGenOptions *CodeGenOpts,
+									UserSuppressions *US) {
   IntrusiveRefCntPtr<DiagnosticIDs> DiagID(new DiagnosticIDs());
   IntrusiveRefCntPtr<DiagnosticsEngine>
       Diags(new DiagnosticsEngine(DiagID, Opts));
@@ -213,6 +220,12 @@ CompilerInstance::createDiagnostics(DiagnosticOptions *Opts,
   // Chain in -verify checker, if requested.
   if (Opts->VerifyDiagnostics)
     Diags->setClient(new VerifyDiagnosticConsumer(*Diags));
+  else if (Opts->AnalyzerFilterDiagnostics)
+    Diags->setClient(new ChainedDiagnosticConsumer(
+                std::unique_ptr<DiagnosticConsumer>(Diags->takeClient()),
+                std::unique_ptr<DiagnosticConsumer>(
+                new SuppressDiagConsumer(US))),
+                false);
 
   // Chain in -diagnostic-log-file dumper, if requested.
   if (!Opts->DiagnosticLogFile.empty())

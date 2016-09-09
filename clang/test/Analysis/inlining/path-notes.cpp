@@ -869,12 +869,12 @@ namespace PR17746 {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>3</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from variable &apos;p&apos;)</string>
+// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from variable &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:    <key>category</key><string>Logic error</string>
 // CHECK-NEXT:    <key>type</key><string>Dereference of null pointer</string>
 // CHECK-NEXT:    <key>check_name</key><string>core.NullDereference</string>
@@ -1160,12 +1160,12 @@ namespace PR17746 {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>1</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from variable &apos;p&apos;)</string>
+// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from variable &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:    <key>category</key><string>Logic error</string>
 // CHECK-NEXT:    <key>type</key><string>Dereference of null pointer</string>
 // CHECK-NEXT:    <key>check_name</key><string>core.NullDereference</string>
@@ -1412,12 +1412,12 @@ namespace PR17746 {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>2</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;globalPtr&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;globalPtr&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;globalPtr&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;globalPtr&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from variable &apos;globalPtr&apos;)</string>
+// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from variable &apos;globalPtr&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:    <key>category</key><string>Logic error</string>
 // CHECK-NEXT:    <key>type</key><string>Dereference of null pointer</string>
 // CHECK-NEXT:    <key>check_name</key><string>core.NullDereference</string>
@@ -1662,12 +1662,12 @@ namespace PR17746 {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>2</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;globalPtr&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;globalPtr&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;globalPtr&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;globalPtr&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from variable &apos;globalPtr&apos;)</string>
+// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from variable &apos;globalPtr&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:    <key>category</key><string>Logic error</string>
 // CHECK-NEXT:    <key>type</key><string>Dereference of null pointer</string>
 // CHECK-NEXT:    <key>check_name</key><string>core.NullDereference</string>
@@ -1946,12 +1946,12 @@ namespace PR17746 {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>2</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;globalPtr&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;globalPtr&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;globalPtr&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;globalPtr&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from variable &apos;globalPtr&apos;)</string>
+// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from variable &apos;globalPtr&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:    <key>category</key><string>Logic error</string>
 // CHECK-NEXT:    <key>type</key><string>Dereference of null pointer</string>
 // CHECK-NEXT:    <key>check_name</key><string>core.NullDereference</string>
@@ -2264,12 +2264,12 @@ namespace PR17746 {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>2</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;globalPtr&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;globalPtr&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;globalPtr&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;globalPtr&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from variable &apos;globalPtr&apos;)</string>
+// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from variable &apos;globalPtr&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:    <key>category</key><string>Logic error</string>
 // CHECK-NEXT:    <key>type</key><string>Dereference of null pointer</string>
 // CHECK-NEXT:    <key>check_name</key><string>core.NullDereference</string>
@@ -2618,12 +2618,12 @@ namespace PR17746 {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>2</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;globalPtr&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;globalPtr&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;globalPtr&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;globalPtr&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from variable &apos;globalPtr&apos;)</string>
+// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from variable &apos;globalPtr&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:    <key>category</key><string>Logic error</string>
 // CHECK-NEXT:    <key>type</key><string>Dereference of null pointer</string>
 // CHECK-NEXT:    <key>check_name</key><string>core.NullDereference</string>
@@ -2908,12 +2908,12 @@ namespace PR17746 {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>2</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;globalPtr&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;globalPtr&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;globalPtr&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;globalPtr&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from variable &apos;globalPtr&apos;)</string>
+// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from variable &apos;globalPtr&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:    <key>category</key><string>Logic error</string>
 // CHECK-NEXT:    <key>type</key><string>Dereference of null pointer</string>
 // CHECK-NEXT:    <key>check_name</key><string>core.NullDereference</string>
@@ -3158,12 +3158,12 @@ namespace PR17746 {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Division by zero</string>
+// CHECK-NEXT:      <string>Division by zero [core.DivideZero]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Division by zero</string>
+// CHECK-NEXT:      <string>Division by zero [core.DivideZero]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Division by zero</string>
+// CHECK-NEXT:    <key>description</key><string>Division by zero [core.DivideZero]</string>
 // CHECK-NEXT:    <key>category</key><string>Logic error</string>
 // CHECK-NEXT:    <key>type</key><string>Division by zero</string>
 // CHECK-NEXT:    <key>check_name</key><string>core.DivideZero</string>
@@ -3507,12 +3507,12 @@ namespace PR17746 {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Division by zero</string>
+// CHECK-NEXT:      <string>Division by zero [core.DivideZero]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Division by zero</string>
+// CHECK-NEXT:      <string>Division by zero [core.DivideZero]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Division by zero</string>
+// CHECK-NEXT:    <key>description</key><string>Division by zero [core.DivideZero]</string>
 // CHECK-NEXT:    <key>category</key><string>Logic error</string>
 // CHECK-NEXT:    <key>type</key><string>Division by zero</string>
 // CHECK-NEXT:    <key>check_name</key><string>core.DivideZero</string>
@@ -3619,12 +3619,12 @@ namespace PR17746 {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Returning null reference</string>
+// CHECK-NEXT:      <string>Returning null reference [core.uninitialized.UndefReturn]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Returning null reference</string>
+// CHECK-NEXT:      <string>Returning null reference [core.uninitialized.UndefReturn]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Returning null reference</string>
+// CHECK-NEXT:    <key>description</key><string>Returning null reference [core.uninitialized.UndefReturn]</string>
 // CHECK-NEXT:    <key>category</key><string>Logic error</string>
 // CHECK-NEXT:    <key>type</key><string>Returning null reference</string>
 // CHECK-NEXT:    <key>check_name</key><string>core.uninitialized.UndefReturn</string>
@@ -3987,12 +3987,12 @@ namespace PR17746 {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>1</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from field &apos;ptr&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from field &apos;ptr&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from field &apos;ptr&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from field &apos;ptr&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from field &apos;ptr&apos;)</string>
+// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from field &apos;ptr&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:    <key>category</key><string>Logic error</string>
 // CHECK-NEXT:    <key>type</key><string>Dereference of null pointer</string>
 // CHECK-NEXT:    <key>check_name</key><string>core.NullDereference</string>
@@ -4194,12 +4194,12 @@ namespace PR17746 {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;y&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;y&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;y&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;y&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from variable &apos;y&apos;)</string>
+// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from variable &apos;y&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:    <key>category</key><string>Logic error</string>
 // CHECK-NEXT:    <key>type</key><string>Dereference of null pointer</string>
 // CHECK-NEXT:    <key>check_name</key><string>core.NullDereference</string>
@@ -4306,12 +4306,12 @@ namespace PR17746 {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from field &apos;x&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from field &apos;x&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from field &apos;x&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from field &apos;x&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from field &apos;x&apos;)</string>
+// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from field &apos;x&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:    <key>category</key><string>Logic error</string>
 // CHECK-NEXT:    <key>type</key><string>Dereference of null pointer</string>
 // CHECK-NEXT:    <key>check_name</key><string>core.NullDereference</string>
@@ -4486,12 +4486,12 @@ namespace PR17746 {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer</string>
+// CHECK-NEXT:      <string>Dereference of null pointer [core.NullDereference]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer</string>
+// CHECK-NEXT:      <string>Dereference of null pointer [core.NullDereference]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer</string>
+// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer [core.NullDereference]</string>
 // CHECK-NEXT:    <key>category</key><string>Logic error</string>
 // CHECK-NEXT:    <key>type</key><string>Dereference of null pointer</string>
 // CHECK-NEXT:    <key>check_name</key><string>core.NullDereference</string>
@@ -4598,12 +4598,12 @@ namespace PR17746 {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Dereference of undefined pointer value</string>
+// CHECK-NEXT:      <string>Dereference of undefined pointer value [core.NullDereference]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Dereference of undefined pointer value</string>
+// CHECK-NEXT:      <string>Dereference of undefined pointer value [core.NullDereference]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Dereference of undefined pointer value</string>
+// CHECK-NEXT:    <key>description</key><string>Dereference of undefined pointer value [core.NullDereference]</string>
 // CHECK-NEXT:    <key>category</key><string>Logic error</string>
 // CHECK-NEXT:    <key>type</key><string>Dereference of undefined pointer value</string>
 // CHECK-NEXT:    <key>check_name</key><string>core.NullDereference</string>
@@ -4807,12 +4807,12 @@ namespace PR17746 {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Called C++ object pointer is null</string>
+// CHECK-NEXT:      <string>Called C++ object pointer is null [core.CallAndMessage]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Called C++ object pointer is null</string>
+// CHECK-NEXT:      <string>Called C++ object pointer is null [core.CallAndMessage]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Called C++ object pointer is null</string>
+// CHECK-NEXT:    <key>description</key><string>Called C++ object pointer is null [core.CallAndMessage]</string>
 // CHECK-NEXT:    <key>category</key><string>Logic error</string>
 // CHECK-NEXT:    <key>type</key><string>Called C++ object pointer is null</string>
 // CHECK-NEXT:    <key>check_name</key><string>core.CallAndMessage</string>
@@ -5030,12 +5030,12 @@ namespace PR17746 {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>1</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Division by zero</string>
+// CHECK-NEXT:      <string>Division by zero [core.DivideZero]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Division by zero</string>
+// CHECK-NEXT:      <string>Division by zero [core.DivideZero]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Division by zero</string>
+// CHECK-NEXT:    <key>description</key><string>Division by zero [core.DivideZero]</string>
 // CHECK-NEXT:    <key>category</key><string>Logic error</string>
 // CHECK-NEXT:    <key>type</key><string>Division by zero</string>
 // CHECK-NEXT:    <key>check_name</key><string>core.DivideZero</string>
@@ -5267,12 +5267,12 @@ namespace PR17746 {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>2</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer</string>
+// CHECK-NEXT:      <string>Dereference of null pointer [core.NullDereference]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer</string>
+// CHECK-NEXT:      <string>Dereference of null pointer [core.NullDereference]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer</string>
+// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer [core.NullDereference]</string>
 // CHECK-NEXT:    <key>category</key><string>Logic error</string>
 // CHECK-NEXT:    <key>type</key><string>Dereference of null pointer</string>
 // CHECK-NEXT:    <key>check_name</key><string>core.NullDereference</string>

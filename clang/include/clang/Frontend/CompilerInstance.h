@@ -48,6 +48,8 @@ class Module;
 class Preprocessor;
 class Sema;
 class SourceManager;
+class SuppressDiagConsumer;
+class UserSuppressions;
 class TargetInfo;
 
 /// CompilerInstance - Helper class for managing a single instance of the Clang
@@ -146,6 +148,12 @@ class CompilerInstance : public ModuleLoader {
 
   /// \brief One or more modules failed to build.
   bool ModuleBuildFailed;
+
+  /// Static Analyzer reports to be suppressed.
+  UserSuppressions *AnalyzerUserSuppressions;
+
+  /// Consumer to parse comments and feed the results to static analyzer.
+  std::unique_ptr<SuppressDiagConsumer> AnalyzerSuppressDiagCons;
 
   /// \brief Holds information about the output file.
   ///
@@ -312,6 +320,10 @@ public:
   }
   const TargetOptions &getTargetOpts() const {
     return Invocation->getTargetOpts();
+  }
+  
+  SuppressDiagConsumer *getSuppressDiagConsumer() {
+    return AnalyzerSuppressDiagCons.get();
   }
 
   /// }
@@ -619,7 +631,8 @@ public:
   createDiagnostics(DiagnosticOptions *Opts,
                     DiagnosticConsumer *Client = nullptr,
                     bool ShouldOwnClient = true,
-                    const CodeGenOptions *CodeGenOpts = nullptr);
+                    const CodeGenOptions *CodeGenOpts = nullptr,
+                    UserSuppressions *US = nullptr);
 
   /// Create the file manager and replace any existing one with it.
   void createFileManager();

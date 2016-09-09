@@ -11,6 +11,7 @@
 #define LLVM_CLANG_STATICANALYZER_FRONTEND_FRONTENDACTIONS_H
 
 #include "clang/Frontend/FrontendAction.h"
+#include "clang/Frontend/SuppressDiagConsumer.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
 
@@ -26,9 +27,15 @@ namespace ento {
 //===----------------------------------------------------------------------===//
 
 class AnalysisAction : public ASTFrontendAction {
+public:
+  AnalysisAction(UserSuppressions *AC=nullptr)
+  : userSuppressions(AC)
+  { }
+
 protected:
   std::unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance &CI,
                                                  StringRef InFile) override;
+												 UserSuppressions *userSuppressions;
 };
 
 /// \brief Frontend action to parse model files.

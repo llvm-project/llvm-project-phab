@@ -403,7 +403,7 @@ void test_inline_dispatch_once() {
 // CHECK-NEXT:      <string>Call to &apos;open&apos; requires a third argument when the &apos;O_CREAT&apos; flag is set</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Call to &apos;open&apos; requires a third argument when the &apos;O_CREAT&apos; flag is set</string>
+// CHECK-NEXT:    <key>description</key><string>Call to &apos;open&apos; requires a third argument when the &apos;O_CREAT&apos; flag is set [unix.API]</string>
 // CHECK-NEXT:    <key>category</key><string>Unix API</string>
 // CHECK-NEXT:    <key>type</key><string>Improper use of &apos;open&apos;</string>
 // CHECK-NEXT:    <key>check_name</key><string>unix.API</string>
@@ -549,12 +549,12 @@ void test_inline_dispatch_once() {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Call to &apos;dispatch_once&apos; uses the local variable &apos;pred&apos; for the predicate value.  Using such transient memory for the predicate is potentially dangerous.  Perhaps you intended to declare the variable as &apos;static&apos;?</string>
+// CHECK-NEXT:      <string>Call to &apos;dispatch_once&apos; uses the local variable &apos;pred&apos; for the predicate value.  Using such transient memory for the predicate is potentially dangerous.  Perhaps you intended to declare the variable as &apos;static&apos;? [osx.API]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Call to &apos;dispatch_once&apos; uses the local variable &apos;pred&apos; for the predicate value.  Using such transient memory for the predicate is potentially dangerous.  Perhaps you intended to declare the variable as &apos;static&apos;?</string>
+// CHECK-NEXT:      <string>Call to &apos;dispatch_once&apos; uses the local variable &apos;pred&apos; for the predicate value.  Using such transient memory for the predicate is potentially dangerous.  Perhaps you intended to declare the variable as &apos;static&apos;? [osx.API]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Call to &apos;dispatch_once&apos; uses the local variable &apos;pred&apos; for the predicate value.  Using such transient memory for the predicate is potentially dangerous.  Perhaps you intended to declare the variable as &apos;static&apos;?</string>
+// CHECK-NEXT:    <key>description</key><string>Call to &apos;dispatch_once&apos; uses the local variable &apos;pred&apos; for the predicate value.  Using such transient memory for the predicate is potentially dangerous.  Perhaps you intended to declare the variable as &apos;static&apos;? [osx.API]</string>
 // CHECK-NEXT:    <key>category</key><string>API Misuse (Apple)</string>
 // CHECK-NEXT:    <key>type</key><string>Improper use of &apos;dispatch_once&apos;</string>
 // CHECK-NEXT:    <key>check_name</key><string>osx.API</string>
@@ -632,12 +632,12 @@ void test_inline_dispatch_once() {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Call to &apos;pthread_once&apos; uses the local variable &apos;pred&apos; for the &quot;control&quot; value.  Using such transient memory for the control value is potentially dangerous.  Perhaps you intended to declare the variable as &apos;static&apos;?</string>
+// CHECK-NEXT:      <string>Call to &apos;pthread_once&apos; uses the local variable &apos;pred&apos; for the &quot;control&quot; value.  Using such transient memory for the control value is potentially dangerous.  Perhaps you intended to declare the variable as &apos;static&apos;? [unix.API]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Call to &apos;pthread_once&apos; uses the local variable &apos;pred&apos; for the &quot;control&quot; value.  Using such transient memory for the control value is potentially dangerous.  Perhaps you intended to declare the variable as &apos;static&apos;?</string>
+// CHECK-NEXT:      <string>Call to &apos;pthread_once&apos; uses the local variable &apos;pred&apos; for the &quot;control&quot; value.  Using such transient memory for the control value is potentially dangerous.  Perhaps you intended to declare the variable as &apos;static&apos;? [unix.API]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Call to &apos;pthread_once&apos; uses the local variable &apos;pred&apos; for the &quot;control&quot; value.  Using such transient memory for the control value is potentially dangerous.  Perhaps you intended to declare the variable as &apos;static&apos;?</string>
+// CHECK-NEXT:    <key>description</key><string>Call to &apos;pthread_once&apos; uses the local variable &apos;pred&apos; for the &quot;control&quot; value.  Using such transient memory for the control value is potentially dangerous.  Perhaps you intended to declare the variable as &apos;static&apos;? [unix.API]</string>
 // CHECK-NEXT:    <key>category</key><string>Unix API</string>
 // CHECK-NEXT:    <key>type</key><string>Improper use of &apos;pthread_once&apos;</string>
 // CHECK-NEXT:    <key>check_name</key><string>unix.API</string>
@@ -715,12 +715,12 @@ void test_inline_dispatch_once() {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Call to &apos;malloc&apos; has an allocation size of 0 bytes</string>
+// CHECK-NEXT:      <string>Call to &apos;malloc&apos; has an allocation size of 0 bytes [unix.API]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Call to &apos;malloc&apos; has an allocation size of 0 bytes</string>
+// CHECK-NEXT:      <string>Call to &apos;malloc&apos; has an allocation size of 0 bytes [unix.API]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Call to &apos;malloc&apos; has an allocation size of 0 bytes</string>
+// CHECK-NEXT:    <key>description</key><string>Call to &apos;malloc&apos; has an allocation size of 0 bytes [unix.API]</string>
 // CHECK-NEXT:    <key>category</key><string>Unix API</string>
 // CHECK-NEXT:    <key>type</key><string>Undefined allocation of 0 bytes (CERT MEM04-C; CWE-131)</string>
 // CHECK-NEXT:    <key>check_name</key><string>unix.API</string>
@@ -798,12 +798,12 @@ void test_inline_dispatch_once() {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Call to &apos;calloc&apos; has an allocation size of 0 bytes</string>
+// CHECK-NEXT:      <string>Call to &apos;calloc&apos; has an allocation size of 0 bytes [unix.API]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Call to &apos;calloc&apos; has an allocation size of 0 bytes</string>
+// CHECK-NEXT:      <string>Call to &apos;calloc&apos; has an allocation size of 0 bytes [unix.API]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Call to &apos;calloc&apos; has an allocation size of 0 bytes</string>
+// CHECK-NEXT:    <key>description</key><string>Call to &apos;calloc&apos; has an allocation size of 0 bytes [unix.API]</string>
 // CHECK-NEXT:    <key>category</key><string>Unix API</string>
 // CHECK-NEXT:    <key>type</key><string>Undefined allocation of 0 bytes (CERT MEM04-C; CWE-131)</string>
 // CHECK-NEXT:    <key>check_name</key><string>unix.API</string>
@@ -881,12 +881,12 @@ void test_inline_dispatch_once() {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Call to &apos;calloc&apos; has an allocation size of 0 bytes</string>
+// CHECK-NEXT:      <string>Call to &apos;calloc&apos; has an allocation size of 0 bytes [unix.API]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Call to &apos;calloc&apos; has an allocation size of 0 bytes</string>
+// CHECK-NEXT:      <string>Call to &apos;calloc&apos; has an allocation size of 0 bytes [unix.API]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Call to &apos;calloc&apos; has an allocation size of 0 bytes</string>
+// CHECK-NEXT:    <key>description</key><string>Call to &apos;calloc&apos; has an allocation size of 0 bytes [unix.API]</string>
 // CHECK-NEXT:    <key>category</key><string>Unix API</string>
 // CHECK-NEXT:    <key>type</key><string>Undefined allocation of 0 bytes (CERT MEM04-C; CWE-131)</string>
 // CHECK-NEXT:    <key>check_name</key><string>unix.API</string>
@@ -964,12 +964,12 @@ void test_inline_dispatch_once() {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Call to &apos;realloc&apos; has an allocation size of 0 bytes</string>
+// CHECK-NEXT:      <string>Call to &apos;realloc&apos; has an allocation size of 0 bytes [unix.API]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Call to &apos;realloc&apos; has an allocation size of 0 bytes</string>
+// CHECK-NEXT:      <string>Call to &apos;realloc&apos; has an allocation size of 0 bytes [unix.API]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Call to &apos;realloc&apos; has an allocation size of 0 bytes</string>
+// CHECK-NEXT:    <key>description</key><string>Call to &apos;realloc&apos; has an allocation size of 0 bytes [unix.API]</string>
 // CHECK-NEXT:    <key>category</key><string>Unix API</string>
 // CHECK-NEXT:    <key>type</key><string>Undefined allocation of 0 bytes (CERT MEM04-C; CWE-131)</string>
 // CHECK-NEXT:    <key>check_name</key><string>unix.API</string>
@@ -1047,12 +1047,12 @@ void test_inline_dispatch_once() {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Call to &apos;reallocf&apos; has an allocation size of 0 bytes</string>
+// CHECK-NEXT:      <string>Call to &apos;reallocf&apos; has an allocation size of 0 bytes [unix.API]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Call to &apos;reallocf&apos; has an allocation size of 0 bytes</string>
+// CHECK-NEXT:      <string>Call to &apos;reallocf&apos; has an allocation size of 0 bytes [unix.API]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Call to &apos;reallocf&apos; has an allocation size of 0 bytes</string>
+// CHECK-NEXT:    <key>description</key><string>Call to &apos;reallocf&apos; has an allocation size of 0 bytes [unix.API]</string>
 // CHECK-NEXT:    <key>category</key><string>Unix API</string>
 // CHECK-NEXT:    <key>type</key><string>Undefined allocation of 0 bytes (CERT MEM04-C; CWE-131)</string>
 // CHECK-NEXT:    <key>check_name</key><string>unix.API</string>
@@ -1130,12 +1130,12 @@ void test_inline_dispatch_once() {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Call to &apos;alloca&apos; has an allocation size of 0 bytes</string>
+// CHECK-NEXT:      <string>Call to &apos;alloca&apos; has an allocation size of 0 bytes [unix.API]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Call to &apos;alloca&apos; has an allocation size of 0 bytes</string>
+// CHECK-NEXT:      <string>Call to &apos;alloca&apos; has an allocation size of 0 bytes [unix.API]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Call to &apos;alloca&apos; has an allocation size of 0 bytes</string>
+// CHECK-NEXT:    <key>description</key><string>Call to &apos;alloca&apos; has an allocation size of 0 bytes [unix.API]</string>
 // CHECK-NEXT:    <key>category</key><string>Unix API</string>
 // CHECK-NEXT:    <key>type</key><string>Undefined allocation of 0 bytes (CERT MEM04-C; CWE-131)</string>
 // CHECK-NEXT:    <key>check_name</key><string>unix.API</string>
@@ -1213,12 +1213,12 @@ void test_inline_dispatch_once() {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Call to &apos;alloca&apos; has an allocation size of 0 bytes</string>
+// CHECK-NEXT:      <string>Call to &apos;alloca&apos; has an allocation size of 0 bytes [unix.API]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Call to &apos;alloca&apos; has an allocation size of 0 bytes</string>
+// CHECK-NEXT:      <string>Call to &apos;alloca&apos; has an allocation size of 0 bytes [unix.API]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Call to &apos;alloca&apos; has an allocation size of 0 bytes</string>
+// CHECK-NEXT:    <key>description</key><string>Call to &apos;alloca&apos; has an allocation size of 0 bytes [unix.API]</string>
 // CHECK-NEXT:    <key>category</key><string>Unix API</string>
 // CHECK-NEXT:    <key>type</key><string>Undefined allocation of 0 bytes (CERT MEM04-C; CWE-131)</string>
 // CHECK-NEXT:    <key>check_name</key><string>unix.API</string>
@@ -1296,12 +1296,12 @@ void test_inline_dispatch_once() {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Call to &apos;valloc&apos; has an allocation size of 0 bytes</string>
+// CHECK-NEXT:      <string>Call to &apos;valloc&apos; has an allocation size of 0 bytes [unix.API]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Call to &apos;valloc&apos; has an allocation size of 0 bytes</string>
+// CHECK-NEXT:      <string>Call to &apos;valloc&apos; has an allocation size of 0 bytes [unix.API]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Call to &apos;valloc&apos; has an allocation size of 0 bytes</string>
+// CHECK-NEXT:    <key>description</key><string>Call to &apos;valloc&apos; has an allocation size of 0 bytes [unix.API]</string>
 // CHECK-NEXT:    <key>category</key><string>Unix API</string>
 // CHECK-NEXT:    <key>type</key><string>Undefined allocation of 0 bytes (CERT MEM04-C; CWE-131)</string>
 // CHECK-NEXT:    <key>check_name</key><string>unix.API</string>
@@ -1379,12 +1379,12 @@ void test_inline_dispatch_once() {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Call to &apos;dispatch_once&apos; uses the local variable &apos;pred&apos; for the predicate value.  Using such transient memory for the predicate is potentially dangerous.  Perhaps you intended to declare the variable as &apos;static&apos;?</string>
+// CHECK-NEXT:      <string>Call to &apos;dispatch_once&apos; uses the local variable &apos;pred&apos; for the predicate value.  Using such transient memory for the predicate is potentially dangerous.  Perhaps you intended to declare the variable as &apos;static&apos;? [osx.API]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Call to &apos;dispatch_once&apos; uses the local variable &apos;pred&apos; for the predicate value.  Using such transient memory for the predicate is potentially dangerous.  Perhaps you intended to declare the variable as &apos;static&apos;?</string>
+// CHECK-NEXT:      <string>Call to &apos;dispatch_once&apos; uses the local variable &apos;pred&apos; for the predicate value.  Using such transient memory for the predicate is potentially dangerous.  Perhaps you intended to declare the variable as &apos;static&apos;? [osx.API]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Call to &apos;dispatch_once&apos; uses the local variable &apos;pred&apos; for the predicate value.  Using such transient memory for the predicate is potentially dangerous.  Perhaps you intended to declare the variable as &apos;static&apos;?</string>
+// CHECK-NEXT:    <key>description</key><string>Call to &apos;dispatch_once&apos; uses the local variable &apos;pred&apos; for the predicate value.  Using such transient memory for the predicate is potentially dangerous.  Perhaps you intended to declare the variable as &apos;static&apos;? [osx.API]</string>
 // CHECK-NEXT:    <key>category</key><string>API Misuse (Apple)</string>
 // CHECK-NEXT:    <key>type</key><string>Improper use of &apos;dispatch_once&apos;</string>
 // CHECK-NEXT:    <key>check_name</key><string>osx.API</string>
@@ -1791,12 +1791,12 @@ void test_inline_dispatch_once() {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>2</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from variable &apos;p&apos;)</string>
+// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from variable &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:    <key>category</key><string>Logic error</string>
 // CHECK-NEXT:    <key>type</key><string>Dereference of null pointer</string>
 // CHECK-NEXT:    <key>check_name</key><string>core.NullDereference</string>
@@ -2180,12 +2180,12 @@ void test_inline_dispatch_once() {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>3</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from variable &apos;p&apos;)</string>
+// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from variable &apos;p&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:    <key>category</key><string>Logic error</string>
 // CHECK-NEXT:    <key>type</key><string>Dereference of null pointer</string>
 // CHECK-NEXT:    <key>check_name</key><string>core.NullDereference</string>

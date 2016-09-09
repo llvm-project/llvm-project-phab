@@ -20,6 +20,7 @@ AnalysisManager::AnalysisManager(ASTContext &ctx, DiagnosticsEngine &diags,
                                  StoreManagerCreator storemgr,
                                  ConstraintManagerCreator constraintmgr,
                                  CheckerManager *checkerMgr,
+								 UserSuppressions *US,
                                  AnalyzerOptions &Options,
                                  CodeInjector *injector)
   : AnaCtxMgr(Options.UnoptimizedCFG,
@@ -36,6 +37,7 @@ AnalysisManager::AnalysisManager(ASTContext &ctx, DiagnosticsEngine &diags,
     PathConsumers(PDC),
     CreateStoreMgr(storemgr), CreateConstraintMgr(constraintmgr),
     CheckerMgr(checkerMgr),
+	userSuppressions(US),
     options(Options) {
   AnaCtxMgr.getCFGBuildOptions().setAllAlwaysAdd();
 }

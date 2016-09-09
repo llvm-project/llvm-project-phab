@@ -567,12 +567,12 @@ void testNullDereferenceInDispatch() {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer</string>
+// CHECK-NEXT:      <string>Dereference of null pointer [core.NullDereference]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer</string>
+// CHECK-NEXT:      <string>Dereference of null pointer [core.NullDereference]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer</string>
+// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer [core.NullDereference]</string>
 // CHECK-NEXT:    <key>category</key><string>Logic error</string>
 // CHECK-NEXT:    <key>type</key><string>Dereference of null pointer</string>
 // CHECK-NEXT:    <key>check_name</key><string>core.NullDereference</string>
@@ -877,12 +877,12 @@ void testNullDereferenceInDispatch() {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Division by zero</string>
+// CHECK-NEXT:      <string>Division by zero [core.DivideZero]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Division by zero</string>
+// CHECK-NEXT:      <string>Division by zero [core.DivideZero]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Division by zero</string>
+// CHECK-NEXT:    <key>description</key><string>Division by zero [core.DivideZero]</string>
 // CHECK-NEXT:    <key>category</key><string>Logic error</string>
 // CHECK-NEXT:    <key>type</key><string>Division by zero</string>
 // CHECK-NEXT:    <key>check_name</key><string>core.DivideZero</string>
@@ -1129,12 +1129,12 @@ void testNullDereferenceInDispatch() {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>2</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Variable &apos;x&apos; is uninitialized when captured by block</string>
+// CHECK-NEXT:      <string>Variable &apos;x&apos; is uninitialized when captured by block [core.uninitialized.CapturedBlockVariable]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Variable &apos;x&apos; is uninitialized when captured by block</string>
+// CHECK-NEXT:      <string>Variable &apos;x&apos; is uninitialized when captured by block [core.uninitialized.CapturedBlockVariable]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Variable &apos;x&apos; is uninitialized when captured by block</string>
+// CHECK-NEXT:    <key>description</key><string>Variable &apos;x&apos; is uninitialized when captured by block [core.uninitialized.CapturedBlockVariable]</string>
 // CHECK-NEXT:    <key>category</key><string>Logic error</string>
 // CHECK-NEXT:    <key>type</key><string>uninitialized variable captured by block</string>
 // CHECK-NEXT:    <key>check_name</key><string>core.uninitialized.CapturedBlockVariable</string>
@@ -1446,12 +1446,12 @@ void testNullDereferenceInDispatch() {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>1</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;x&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;x&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;x&apos;)</string>
+// CHECK-NEXT:      <string>Dereference of null pointer (loaded from variable &apos;x&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from variable &apos;x&apos;)</string>
+// CHECK-NEXT:    <key>description</key><string>Dereference of null pointer (loaded from variable &apos;x&apos;) [core.NullDereference]</string>
 // CHECK-NEXT:    <key>category</key><string>Logic error</string>
 // CHECK-NEXT:    <key>type</key><string>Dereference of null pointer</string>
 // CHECK-NEXT:    <key>check_name</key><string>core.NullDereference</string>
@@ -1626,12 +1626,12 @@ void testNullDereferenceInDispatch() {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Array element cannot be nil</string>
+// CHECK-NEXT:      <string>Array element cannot be nil [osx.cocoa.NilArg]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Array element cannot be nil</string>
+// CHECK-NEXT:      <string>Array element cannot be nil [osx.cocoa.NilArg]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
-// CHECK-NEXT:    <key>description</key><string>Array element cannot be nil</string>
+// CHECK-NEXT:    <key>description</key><string>Array element cannot be nil [osx.cocoa.NilArg]</string>
 // CHECK-NEXT:    <key>category</key><string>API Misuse (Apple)</string>
 // CHECK-NEXT:    <key>type</key><string>nil argument</string>
 // CHECK-NEXT:    <key>check_name</key><string>osx.cocoa.NilArg</string>
@@ -2024,9 +2024,9 @@ void testNullDereferenceInDispatch() {
 // CHECK-NEXT:      </array>
 // CHECK-NEXT:      <key>depth</key><integer>0</integer>
 // CHECK-NEXT:      <key>extended_message</key>
-// CHECK-NEXT:      <string>Object was autoreleased 2 times but the object has a +0 retain count</string>
+// CHECK-NEXT:      <string>Object was autoreleased 2 times but the object has a +0 retain count [osx.cocoa.RetainCount]</string>
 // CHECK-NEXT:      <key>message</key>
-// CHECK-NEXT:      <string>Object was autoreleased 2 times but the object has a +0 retain count</string>
+// CHECK-NEXT:      <string>Object was autoreleased 2 times but the object has a +0 retain count [osx.cocoa.RetainCount]</string>
 // CHECK-NEXT:     </dict>
 // CHECK-NEXT:    </array>
 // CHECK-NEXT:    <key>description</key><string>Object autoreleased too many times</string>

@@ -135,6 +135,7 @@ void TextDiagnosticPrinter::HandleDiagnostic(DiagnosticsEngine::Level Level,
   // other infrastructure necessary when emitting more rich diagnostics.
   if (!Info.getLocation().isValid()) {
     TextDiagnostic::printDiagnosticLevel(OS, Level, DiagOpts->ShowColors,
+                                         DiagOpts->AnalyzerFilterDiagnostics,
                                          DiagOpts->CLFallbackMode);
     TextDiagnostic::printDiagnosticMessage(OS, Level, DiagMessageStream.str(),
                                            OS.tell() - StartOfLocationInfo,

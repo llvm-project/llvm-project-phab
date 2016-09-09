@@ -688,6 +688,7 @@ TextDiagnostic::emitDiagnosticMessage(SourceLocation Loc,
     OS.resetColor();
   
   printDiagnosticLevel(OS, Level, DiagOpts->ShowColors,
+                       DiagOpts->AnalyzerFilterDiagnostics,
                        DiagOpts->CLFallbackMode);
   printDiagnosticMessage(OS,
                          /*IsSupplemental*/ Level == DiagnosticsEngine::Note,
@@ -699,6 +700,7 @@ TextDiagnostic::emitDiagnosticMessage(SourceLocation Loc,
 TextDiagnostic::printDiagnosticLevel(raw_ostream &OS,
                                      DiagnosticsEngine::Level Level,
                                      bool ShowColors,
+                                     bool analyzing,
                                      bool CLFallbackMode) {
   if (ShowColors) {
     // Print diagnostic category in bold and color
@@ -718,7 +720,9 @@ TextDiagnostic::printDiagnosticLevel(raw_ostream &OS,
     llvm_unreachable("Invalid diagnostic type");
   case DiagnosticsEngine::Note:    OS << "note"; break;
   case DiagnosticsEngine::Remark:  OS << "remark"; break;
-  case DiagnosticsEngine::Warning: OS << "warning"; break;
+  case DiagnosticsEngine::Warning: analyzing ?
+                                   OS << "clang_sa_warning" :
+                                   OS << "warning"; break;
   case DiagnosticsEngine::Error:   OS << "error"; break;
   case DiagnosticsEngine::Fatal:   OS << "fatal error"; break;
   }

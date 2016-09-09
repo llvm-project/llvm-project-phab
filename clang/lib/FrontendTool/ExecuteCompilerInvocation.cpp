@@ -101,7 +101,8 @@ CreateFrontendBaseAction(CompilerInstance &CI) {
   case MigrateSource:          Action = "MigrateSource"; break;
 #endif
 #ifdef CLANG_ENABLE_STATIC_ANALYZER
-  case RunAnalysis:            return llvm::make_unique<ento::AnalysisAction>();
+  case RunAnalysis:            return llvm::make_unique<ento::AnalysisAction>(
+                        CI.getSuppressDiagConsumer()->getUserSuppressions());
 #else
   case RunAnalysis:            Action = "RunAnalysis"; break;
 #endif
