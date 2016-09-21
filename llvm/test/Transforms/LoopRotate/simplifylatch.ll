@@ -3,8 +3,13 @@
 
 @mode_table = global [4 x i32] zeroinitializer		; <[4 x i32]*> [#uses=1]
 
+; Check that loop with multiple exits is rotated.
 ; CHECK-LABEL: @f(
-; CHECK-NOT: bb:
+; CHECK: bb.lr:
+; CHECK: bb2.lr:
+; CHECK: bb4.lr.ph:
+; CHECK: bb:
+
 define i8 @f() {
 entry:
 	tail call i32 @fegetround( )		; <i32>:0 [#uses=1]
@@ -38,11 +43,21 @@ declare i32 @fegetround()
 
 declare void @raise_exception() noreturn
 
-;CHECK: for.body.lr.ph:
-;CHECK-NEXT:  %arrayidx1 = getelementptr inbounds i8, i8* %CurPtr, i64 0
-;CHECK-NEXT:  %0 = load i8, i8* %arrayidx1, align 1
-;CHECK-NEXT:  %conv2 = sext i8 %0 to i32
-;CHECK-NEXT:  br label %for.body
+;CHECK-LABEL: @foo(
+;CHECK: for.body.lr:
+;CHECK: %arrayidx.lr = getelementptr inbounds i8, i8* %CurPtr, i64 %idxprom.lr
+;CHECK: %0 = load i8, i8* %arrayidx.lr, align 1
+;CHECK: %conv.lr = sext i8 %0 to i32
+;CHECK: %arrayidx1.lr = getelementptr inbounds i8, i8* %CurPtr, i64 0
+;CHECK: %1 = load i8, i8* %arrayidx1.lr, align 1
+;CHECK: %conv2.lr = sext i8 %1 to i32
+;CHECK: for.body:
+;CHECK: %arrayidx = getelementptr inbounds i8, i8* %CurPtr, i64 %idxprom
+;CHECK: %2 = load i8, i8* %arrayidx, align 1
+;CHECK: %conv = sext i8 %2 to i32
+;CHECK: %3 = load i8, i8* %arrayidx1, align 1
+;CHECK: %conv2 = sext i8 %3 to i32
+;CHECK: br i1 %cmp3, label %return, label %for.inc
 
 define i32 @foo(i8* %CurPtr, i32 %a) #0 {
 entry:
