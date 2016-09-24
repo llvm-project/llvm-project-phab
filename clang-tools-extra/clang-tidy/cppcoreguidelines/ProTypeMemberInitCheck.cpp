@@ -251,7 +251,8 @@ void fixInitializerList(const ASTContext &Context, DiagnosticBuilder &Diag,
 ProTypeMemberInitCheck::ProTypeMemberInitCheck(StringRef Name,
                                                ClangTidyContext *Context)
     : ClangTidyCheck(Name, Context),
-      IgnoreArrays(Options.get("IgnoreArrays", false)) {}
+      IgnoreArrays(Options.get("IgnoreArrays", false)),
+      LiteralInitializers(Options.get("LiteralInitializers", false)) {}
 
 void ProTypeMemberInitCheck::registerMatchers(MatchFinder *Finder) {
   if (!getLangOpts().CPlusPlus)
@@ -296,6 +297,7 @@ void ProTypeMemberInitCheck::check(const MatchFinder::MatchResult &Result) {
 
 void ProTypeMemberInitCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
   Options.store(Opts, "IgnoreArrays", IgnoreArrays);
+  Options.store(Opts, "LiteralInitializers", LiteralInitializers);
 }
 
 void ProTypeMemberInitCheck::checkMissingMemberInitializer(
@@ -366,9 +368,21 @@ void ProTypeMemberInitCheck::checkMissingMemberInitializer(
   // Use in-class initialization if possible.
   if (Context.getLangOpts().CPlusPlus11) {
     for (const FieldDecl *Field : FieldsToFix) {
+      QualType type = Field->getType();
+      const char *Initializer = "{}";
+      if (LiteralInitializers) {
+        if (type->isBooleanType())
+          Initializer = " = false";
+        else if (type->isIntegerType())
+          Initializer = " = 0";
+        else if (type->isFloatingType())
+          Initializer = " = 0.0";
+        else if (type->isPointerType())
+          Initializer = " = nullptr";
+      }
       Diag << FixItHint::CreateInsertion(
           getLocationForEndOfToken(Context, Field->getSourceRange().getEnd()),
-          "{}");
+          Initializer);
     }
   } else {
     // Otherwise, rewrite the constructor's initializer list.
