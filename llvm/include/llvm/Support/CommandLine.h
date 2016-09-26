@@ -1777,6 +1777,91 @@ typedef void (*TokenizerCallback)(StringRef Source, StringSaver &Saver,
                                   SmallVectorImpl<const char *> &NewArgv,
                                   bool MarkEOLs);
 
+/// \brief Tokenizes content of configuration file.
+///
+/// \param [in] Source The string representing content of config file.
+/// \param [in] Saver Delegates back to the caller for saving parsed strings.
+/// \param [in] MarkEOLs Added for compatibility with TokenizerCallback.
+/// \param [out] NewArgv All parsed strings are appended to NewArgv.
+///
+/// It works like TokenizeGNUCommandLine with ability to skip comment lines.
+///
+void TokenizeConfigFile(StringRef Source, StringSaver &Saver,
+                        SmallVectorImpl<const char *> &NewArgv,
+                        bool MarkEOLs = false);
+
+/// Enumerates possible results of configuration file search.
+///
+enum class CfgFileSearch {
+  Successful,   ///< File is found.
+  Ignored,      ///< File not found, no diagnostic required.
+  NoArgument,   ///< Option '--config' is not followed by argument.
+  NotFoundCfg,  ///< Configuration specified by --config was not found.
+  NotFoundOpt,  ///< File specified by '--config' does not exist.
+  NotFoundEnv   ///< File specified by environmental variable does not exist.
+};
+
+/// \brief Tries to find configuration file for current invocation.
+///
+/// \param CfgFileName [out] Configuration file name, if the search was
+///                          successful.
+/// \param Argv [in, out] Command line option supplied to the executable.
+/// \param Dirs [in] Directories used to search configuration file.
+/// \param ToolName [in] Name of tool that reads options.
+/// \return Error code of the search.
+///
+/// Configuration file may be specified in several ways:
+/// - via option --config,
+/// - by setting environmental variable <TOOL>CFG (for instance CLANGCFG),
+/// - as default configuration.
+///
+/// If option '--config' is specified, its argument is assigned to CfgName,
+/// unless it is full path. Both the option and the argument is removed
+/// from Argv.
+/// If explicitly specified configuration (via --config or env variable) cannot
+/// be found, error message is emitted and program exits with non-zero exit
+/// code.
+/// Argument Argv is expected to store full program name in Argv[0].
+///
+CfgFileSearch findConfigFile(SmallVectorImpl<char> &CfgFileName,
+                             SmallVectorImpl<const char *> &Argv,
+                             ArrayRef<const char *> Dirs,
+                             StringRef ToolName);
+
+/// \brief Report error occurred in config file search.
+///
+/// \param Res [in] Code of search result.
+/// \param CfgFileName [in] If set it is configuration name or full path to
+///                         configuration file.
+/// \param Dirs [in] Directories used to search configuration file.
+/// \param ProgramFullPath [in] Path to the tool executable.
+/// \param ToolName [in] Name of tool that reads options.
+///
+void reportConfigFileSearchError(CfgFileSearch Res,
+                                 StringRef CfgFileName,
+                                 ArrayRef<const char *> Dirs,
+                                 StringRef ProgramFullPath);
+
+/// \brief Tries to read command line options from configuration file.
+///
+/// \param Saver [in] Objects that saves allocated strings.
+/// \param Argv [out] Command line into which options are read.
+/// \param ToolName [in] Name of tool that reads options.
+///
+/// Configuration file provides a facility for a tool to set up some command
+/// line options before the options actually specified in command line. Options
+/// specified in configuration file are automatically processed every time the
+/// tool executable is run.
+///
+/// The default configuration file is a file named <ToolName>.cfg (for instance
+/// 'clang.cfg') placed in the same directory as the tool executable. If
+/// environment variable <ToolName>CFG (for instance CLANGCFG) is set, its value
+/// is considered as full path to configuration file, default file is not used
+/// in this case.
+///
+void readConfigFile(SmallVectorImpl<char> &CfgFileName, StringSaver &Saver,
+                    SmallVectorImpl<const char *> &Argv);
+
 /// \brief Expand response files on a command line recursively using the given
 /// StringSaver and tokenization strategy.  Argv should contain the command line
 /// before expansion and will be modified in place. If requested, Argv will
