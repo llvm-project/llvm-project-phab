@@ -330,6 +330,14 @@ int main(int argc_, const char **argv_) {
   llvm::BumpPtrAllocator A;
   llvm::StringSaver Saver(A);
 
+  // Try reading options from configuration file.
+  static const char * const SearchDirs[] = { "~/.llvm", "/etc/llvm" };
+  llvm::SmallString<128> ConfigFile;
+  auto SRes = llvm::cl::findConfigFile(ConfigFile, argv, SearchDirs, "clang");
+  llvm::cl::reportConfigFileSearchError(SRes, ConfigFile, SearchDirs, ProgName);
+  if (SRes == llvm::cl::CfgFileSearch::Successful)
+    llvm::cl::readConfigFile(ConfigFile, Saver, argv);
+
   // Parse response files using the GNU syntax, unless we're in CL mode. There
   // are two ways to put clang in CL compatibility mode: argv[0] is either
   // clang-cl or cl, or --driver-mode=cl is on the command line. The normal
@@ -446,6 +454,8 @@ int main(int argc_, const char **argv_) {
   ProcessWarningOptions(Diags, *DiagOpts, /*ReportDiags=*/false);
 
   Driver TheDriver(Path, llvm::sys::getDefaultTargetTriple(), Diags);
+  if (!ConfigFile.empty())
+    TheDriver.setConfigFile(ConfigFile.str());
   SetInstallDir(argv, TheDriver, CanonicalPrefixes);
 
   insertTargetAndModeArgs(TargetAndMode.first, TargetAndMode.second, argv,
