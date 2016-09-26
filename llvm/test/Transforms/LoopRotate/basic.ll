@@ -18,9 +18,10 @@ for.cond:                                         ; preds = %for.body, %entry
   %arrayidx = getelementptr inbounds [20 x i32], [20 x i32]* %array, i64 0, i64 0
   br i1 %cmp, label %for.body, label %for.end
 
-; CHECK: for.body:
+; CHECK: for.cond.lr:
 ; CHECK-NEXT: phi i32 [ 0
-; CHECK-NEXT: store i32 0
+; CHECK: for.body:
+; CHECK: store i32 0
 
 for.body:                                         ; preds = %for.cond
   store i32 0, i32* %arrayidx, align 16
