@@ -1441,9 +1441,7 @@ bool llvm::InlineFunction(CallSite CS, InlineFunctionInfo &IFI,
   
   const Function *CalledFunc = CS.getCalledFunction();
   if (!CalledFunc ||              // Can't inline external function or indirect
-      CalledFunc->isDeclaration() || // call, or call to a vararg function!
-      CalledFunc->getFunctionType()->isVarArg()) return false;
-
+      CalledFunc->isDeclaration()) return false; // calls.
   // The inliner does not know how to inline through calls with operand bundles
   // in general ...
   if (CS.hasOperandBundles()) {
@@ -1569,7 +1567,11 @@ bool llvm::InlineFunction(CallSite CS, InlineFunctionInfo &IFI,
 
     auto &DL = Caller->getParent()->getDataLayout();
 
-    assert(CalledFunc->arg_size() == CS.arg_size() &&
+    if (CalledFunc->getFunctionType()->isVarArg())
+      assert(CalledFunc->arg_size() <= CS.arg_size() &&
+           "Not enough arguments passed to vararg function");
+    else
+      assert(CalledFunc->arg_size() == CS.arg_size() &&
            "No varargs calls can be inlined!");
 
     // Calculate the vector of arguments to pass into the function cloner, which
@@ -1746,16 +1748,25 @@ bool llvm::InlineFunction(CallSite CS, InlineFunctionInfo &IFI,
     if (CallInst *CI = dyn_cast<CallInst>(TheCall))
       CallSiteTailKind = CI->getTailCallKind();
 
+    bool calleeIsVararg = CalledFunc->isVarArg(); // Just for asserts below.
     for (Function::iterator BB = FirstNewBlock, E = Caller->end(); BB != E;
          ++BB) {
       for (Instruction &I : *BB) {
         CallInst *CI = dyn_cast<CallInst>(&I);
         if (!CI)
           continue;
+	if (calleeIsVararg) {
+          assert((!CI->isMustTailCall())
+                        && "Inlined musttailcall in vararg function");
+	}
 
-        if (Function *F = CI->getCalledFunction())
+        if (Function *F = CI->getCalledFunction()) {
           InlinedDeoptimizeCalls |=
               F->getIntrinsicID() == Intrinsic::experimental_deoptimize;
+          if (calleeIsVararg)
+            assert((F->getIntrinsicID() != Intrinsic::vastart) && 
+                                            "Inlined vastart");
+        }
 
         // We need to reduce the strength of any inlined tail calls.  For
         // musttail, we have to avoid introducing potential unbounded stack

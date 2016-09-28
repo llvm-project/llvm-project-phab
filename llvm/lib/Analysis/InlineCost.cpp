@@ -97,6 +97,9 @@ class CallAnalyzer : public InstVisitor<CallAnalyzer, bool> {
   bool HasReturn;
   bool HasIndirectBr;
   bool HasFrameEscape;
+  bool HasVaStart;    // whether F has va_start in it.
+  bool HasMustTailCall;   // whether F has a tail or musttail call in it.
+  bool FIsVarArg;     // whether F is variadic by declaration.
 
   /// Number of bytes allocated statically by the callee.
   uint64_t AllocatedSize;
@@ -209,7 +212,8 @@ public:
         Cost(0), IsCallerRecursive(false), IsRecursiveCall(false),
         ExposesReturnsTwice(false), HasDynamicAlloca(false),
         ContainsNoDuplicateCall(false), HasReturn(false), HasIndirectBr(false),
-        HasFrameEscape(false), AllocatedSize(0), NumInstructions(0),
+        HasFrameEscape(false), HasVaStart(false), HasMustTailCall(false),
+        FIsVarArg(Callee.isVarArg()), AllocatedSize(0), NumInstructions(0),
         NumVectorInstructions(0), FiftyPercentVectorBonus(0),
         TenPercentVectorBonus(0), VectorBonus(0), NumConstantArgs(0),
         NumConstantOffsetPtrArgs(0), NumAllocaArgs(0), NumConstantPtrCmps(0),
@@ -891,6 +895,16 @@ bool CallAnalyzer::visitCallSite(CallSite CS) {
   }
   if (CS.isCall() && cast<CallInst>(CS.getInstruction())->cannotDuplicate())
     ContainsNoDuplicateCall = true;
+  if (CS.isCall()) {
+    auto CI = cast<CallInst>(CS.getInstruction());
+    if (CI->isMustTailCall()) {
+      HasMustTailCall = true;
+      // If A calls a variadic function B and B has a musttail call to C, then
+      // C can do va_start and access args passed from A to B against '...'.
+      // Therefore we can not inline B inside A.
+      if (FIsVarArg) return false; // No point looking further.
+    }
+  }
 
   if (Function *F = CS.getCalledFunction()) {
     // When we have a concrete function, first try to simplify it directly.
@@ -916,6 +930,10 @@ bool CallAnalyzer::visitCallSite(CallSite CS) {
         return false;
       case Intrinsic::localescape:
         HasFrameEscape = true;
+        return false;
+      case Intrinsic::vastart:
+        // The callee has a va_start. We can not handle that in inlinining.
+        HasVaStart = true;
         return false;
       }
     }
@@ -1129,7 +1147,8 @@ bool CallAnalyzer::analyzeBlock(BasicBlock *BB,
 
     // If the visit this instruction detected an uninlinable pattern, abort.
     if (IsRecursiveCall || ExposesReturnsTwice || HasDynamicAlloca ||
-        HasIndirectBr || HasFrameEscape)
+        HasIndirectBr || HasFrameEscape || HasVaStart ||
+        (HasMustTailCall && FIsVarArg))
       return false;
 
     // If the caller is a recursive function then we don't want to inline
@@ -1509,6 +1528,7 @@ InlineCost llvm::getInlineCost(
 
 bool llvm::isInlineViable(Function &F) {
   bool ReturnsTwice = F.hasFnAttribute(Attribute::ReturnsTwice);
+  bool isVarArg = F.isVarArg();
   for (Function::iterator BI = F.begin(), BE = F.end(); BI != BE; ++BI) {
     // Disallow inlining of functions which contain indirect branches or
     // blockaddresses.
@@ -1520,6 +1540,14 @@ bool llvm::isInlineViable(Function &F) {
       if (!CS)
         continue;
 
+      if (isVarArg) {
+        if (const CallInst*CI = dyn_cast<CallInst>(&II)) {
+          // Same logic as in analyzeBlock above.
+          if (CI->isMustTailCall()) 
+            return false;
+        }
+      }
+
       // Disallow recursive calls.
       if (&F == CS.getCalledFunction())
         return false;
@@ -1530,12 +1558,13 @@ bool llvm::isInlineViable(Function &F) {
           cast<CallInst>(CS.getInstruction())->canReturnTwice())
         return false;
 
-      // Disallow inlining functions that call @llvm.localescape. Doing this
-      // correctly would require major changes to the inliner.
-      if (CS.getCalledFunction() &&
-          CS.getCalledFunction()->getIntrinsicID() ==
-              llvm::Intrinsic::localescape)
-        return false;
+      // Disallow inlining functions that call @llvm.localescape or @vastart.
+      // Doing this correctly would require major changes to the inliner.
+      if (auto cf = CS.getCalledFunction()) {
+        auto intrId = cf->getIntrinsicID();
+        if (intrId == Intrinsic::localescape || intrId == Intrinsic::vastart)
+          return false;
+      }
     }
   }
 
