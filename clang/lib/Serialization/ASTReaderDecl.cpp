@@ -2699,10 +2699,11 @@ static bool isSameEntity(NamedDecl *X, NamedDecl *Y) {
   }
 
   // Functions with the same type and linkage match.
-  // FIXME: This needs to cope with merging of prototyped/non-prototyped
-  // functions, etc.
   if (FunctionDecl *FuncX = dyn_cast<FunctionDecl>(X)) {
     FunctionDecl *FuncY = cast<FunctionDecl>(Y);
+    // Return true if either function is a non-prototyped declaration.
+    if (!FuncX->hasWrittenPrototype() || !FuncY->hasWrittenPrototype())
+      return true;
     if (CXXConstructorDecl *CtorX = dyn_cast<CXXConstructorDecl>(X)) {
       CXXConstructorDecl *CtorY = cast<CXXConstructorDecl>(Y);
       if (CtorX->getInheritedConstructor() &&
