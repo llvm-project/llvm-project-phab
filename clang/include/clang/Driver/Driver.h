@@ -187,6 +187,9 @@ private:
   /// Name to use when invoking gcc/g++.
   std::string CCCGenericGCCName;
 
+  /// Name of configuration file if used.
+  std::string ConfigFile;
+
   /// Whether to check that input files exist when constructing compilation
   /// jobs.
   unsigned CheckInputsExist : 1;
@@ -237,6 +240,9 @@ public:
 
   /// Name to use when invoking gcc/g++.
   const std::string &getCCCGenericGCCName() const { return CCCGenericGCCName; }
+
+  const std::string &getConfigFile() const { return ConfigFile; }
+  void setConfigFile(StringRef x) { ConfigFile = x; }
 
   const llvm::opt::OptTable &getOpts() const { return *Opts; }
 
