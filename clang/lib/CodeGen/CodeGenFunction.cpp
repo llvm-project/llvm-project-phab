@@ -60,7 +60,7 @@ CodeGenFunction::CodeGenFunction(CodeGenModule &cgm, bool suppressNewContext)
       CXXStructorImplicitParamDecl(nullptr),
       CXXStructorImplicitParamValue(nullptr), OutermostConditional(nullptr),
       CurLexicalScope(nullptr), TerminateLandingPad(nullptr),
-      TerminateHandler(nullptr), TrapBB(nullptr) {
+      TerminateHandler(nullptr), TrapBB(nullptr), NoAliasDomain(nullptr) {
   if (!suppressNewContext)
     CGM.getCXXABI().getMangleContext().startNewFunction();
 
@@ -932,10 +932,25 @@ void CodeGenFunction::StartFunction(GlobalDecl GD,
 void CodeGenFunction::EmitFunctionBody(FunctionArgList &Args,
                                        const Stmt *Body) {
   incrementProfileCounter(Body);
-  if (const CompoundStmt *S = dyn_cast<CompoundStmt>(Body))
+  if (const CompoundStmt *S = dyn_cast<CompoundStmt>(Body)) {
+    // Block-local restrict-qualified pointers have the property of implying
+    // exclusivity of access within their block, even with respect to accesses
+    // in their block prior to the point of declaraction of the
+    // restrict-qualified pointer. We don't want to incur the expense
+    // associated with recording memory-accessing instructions when we won't
+    // have any block-local restrict-qualified pointers, so we check for any
+    // relevant declaractions first.
+    if (hasLocalRestrictVars(*S))
+      FnNoAliasInfo.recordMemoryInsts();
+
     EmitCompoundStmtWithoutScope(*S);
-  else
+
+    // Now that we're done with the block, add noalias metadata if we had any
+    // block-local restrict-qualified pointers.
+    FnNoAliasInfo.addNoAliasMD();
+  } else {
     EmitStmt(Body);
+  }
 }
 
 /// When instrumenting to collect profile data, the counts for some blocks
@@ -1957,10 +1972,18 @@ CodeGenFunction::SanitizerScope::~SanitizerScope() {
 void CodeGenFunction::InsertHelper(llvm::Instruction *I,
                                    const llvm::Twine &Name,
                                    llvm::BasicBlock *BB,
-                                   llvm::BasicBlock::iterator InsertPt) const {
+                                   llvm::BasicBlock::iterator InsertPt) {
   LoopStack.InsertHelper(I);
   if (IsSanitizerScope)
     CGM.getSanitizerMetadata()->disableSanitizerForInstruction(I);
+
+  // When we have block-local restrict-qualified pointers, we need to record
+  // all memory-accessing instructions (i.e. any kind of instruction for which
+  // AA::getModRefInfo might return something other than NoModRef) so that they
+  // can be tagged with noalias metadata with noalias scopes corresponding to
+  // the applicable restrict-qualified pointers.
+  if (I->mayReadOrWriteMemory())
+    recordMemoryInstruction(I);
 }
 
 void CGBuilderInserter::InsertHelper(

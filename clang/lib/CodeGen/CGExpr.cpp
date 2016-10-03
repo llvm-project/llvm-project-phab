@@ -1402,6 +1402,13 @@ void CodeGenFunction::EmitStoreOfScalar(llvm::Value *Value, Address Addr,
 
   Value = EmitToMemory(Value, Ty);
 
+  // If this is an assignment to a restrict-qualified local variable, then we
+  // have pointer aliasing assumptions that can be applied to the pointer value
+  // being stored.
+  auto NAI = NoAliasAddrMap.find(Addr.getPointer());
+  if (NAI != NoAliasAddrMap.end())
+    Value = Builder.CreateNoAliasPointer(Value, NAI->second);
+
   LValue AtomicLValue =
       LValue::MakeAddr(Addr, Ty, getContext(), AlignSource, TBAAInfo);
   if (Ty->isAtomicType() ||

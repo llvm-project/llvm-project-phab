@@ -31,6 +31,7 @@
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/Intrinsics.h"
+#include "llvm/IR/MDBuilder.h"
 #include "llvm/IR/Type.h"
 
 using namespace clang;
@@ -912,6 +913,7 @@ static bool shouldUseMemSetPlusStoresToInitialize(llvm::Constant *Init,
 /// These turn into simple stack objects, or GlobalValues depending on target.
 void CodeGenFunction::EmitAutoVarDecl(const VarDecl &D) {
   AutoVarEmission emission = EmitAutoVarAlloca(D);
+  EmitAutoVarNoAlias(emission);
   EmitAutoVarInit(emission);
   EmitAutoVarCleanups(emission);
 }
@@ -1279,6 +1281,52 @@ void CodeGenFunction::EmitAutoVarInit(const AutoVarEmission &emission) {
 
     Builder.CreateMemCpy(Loc, SrcPtr, SizeVal, isVolatile);
   }
+}
+
+// For all local restrict-qualified local variables, we create a noalias
+// metadata scope. This scope is used to identify each restrict-qualified
+// variable and the other memory accesses within the scope where its aliasing
+// assumptions apply. The scope metadata is stored in the NoAliasAddrMap map
+// where the pointer to the local variable is the key in the map.
+void CodeGenFunction::EmitAutoVarNoAlias(const AutoVarEmission &emission) {
+  assert(emission.Variable && "emission was not valid!");
+
+  // Don't emit noalias intrinsics unless we're optimizing.
+  if (CGM.getCodeGenOpts().OptimizationLevel == 0)
+    return;
+
+  const VarDecl &D = *emission.Variable;
+  QualType type = D.getType();
+
+  // Emit a noalias intrinsic for restrict-qualified variables.
+  if (!type.isRestrictQualified())
+    return;
+
+  llvm::MDBuilder MDB(CurFn->getContext());
+  if (!NoAliasDomain)
+    NoAliasDomain = MDB.createAnonymousAliasScopeDomain(CurFn->getName());
+
+  std::string Name = CurFn->getName();
+  Name += ": ";
+  Name += D.getName();
+
+  llvm::MDNode *Scope =
+    MDB.createAnonymousAliasScope(NoAliasDomain, Name);
+  addNoAliasScope(Scope);
+
+  SmallVector<llvm::Metadata *, 8> ScopeListEntries(1, Scope);
+  llvm::MDNode *ScopeList =
+    llvm::MDNode::get(CurFn->getContext(), ScopeListEntries);
+
+  // Check whether this is a byref variable that's potentially
+  // captured and moved by its own initializer.  If so, we'll need to
+  // emit the initializer first, then copy into the variable.
+  const Expr *Init = D.getInit();
+  bool capturedByInit = emission.IsByRef && isCapturedBy(D, Init);
+
+  Address Loc =
+    capturedByInit ? emission.Addr : emission.getObjectAddress(*this);
+  NoAliasAddrMap[Loc.getPointer()] = ScopeList;
 }
 
 /// Emit an expression as an initializer for a variable at the given
