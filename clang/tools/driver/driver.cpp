@@ -305,6 +305,36 @@ static int ExecuteCC1Tool(ArrayRef<const char *> argv, StringRef Tool) {
   return 1;
 }
 
+// Directories searched for configuration specified by option '--config'.
+static const ArrayRef<const char *> SearchDirs({ "~/.llvm", "/etc/llvm" });
+
+// Directories searched for default configuration.
+static const ArrayRef<const char *> DefSearchDirs;
+
+/// \brief Tries to find config file based on executable name.
+///
+/// If clang executable has name like foo-clang, the function tries to find file
+/// foo.cfg. The search is made by same rules as for default config file.
+///
+/// \param ConfigName  [out] File name, if the search is successful.
+/// \param ProgramName [in]  Clang executable name.
+///
+static llvm::cl::SearchResult findConfigFileFromProgramName(
+    llvm::SmallVectorImpl<char> &ConfigName, StringRef ProgramName) {
+  ConfigName.clear();
+  StringRef PName = llvm::sys::path::stem(ProgramName);
+  size_t Pos = PName.find("-clang");
+  if (Pos != StringRef::npos) {
+    ConfigName.append(PName.begin(), PName.begin() + Pos);
+    const StringRef Ext(".cfg");
+    ConfigName.append(Ext.begin(), Ext.end());
+    std::string CName(ConfigName.begin(), ConfigName.size());
+    return llvm::cl::findDefaultCfgFile(ConfigName, DefSearchDirs, ProgramName,
+                                        CName);
+  }
+  return llvm::cl::SearchResult::NotSpecified;
+}
+
 int main(int argc_, const char **argv_) {
   llvm::sys::PrintStackTraceOnErrorSignal(argv_[0]);
   llvm::PrettyStackTraceProgram X(argc_, argv_);
@@ -329,6 +359,47 @@ int main(int argc_, const char **argv_) {
 
   llvm::BumpPtrAllocator A;
   llvm::StringSaver Saver(A);
+
+  // Try reading options from configuration file.
+  llvm::SmallString<128> ConfigFile;
+
+  // First try config file specified in command line. It has higher priority
+  // than any other way to specify configuration.
+  auto SRes = llvm::cl::findConfigFileFromArgs(ConfigFile, argv, SearchDirs);
+  if (llvm::cl::checkConfigFileSearchResult(SRes, ConfigFile, SearchDirs,
+                                            ProgName))
+    return 1;
+
+  // Environment variable has the next priority. It also specifies config file
+  // explicitly.
+  if (SRes == llvm::cl::SearchResult::NotSpecified) {
+    SRes = llvm::cl::findConfigFileFromEnv(ConfigFile, "CLANGCFG");
+    if (llvm::cl::checkConfigFileSearchResult(SRes, ConfigFile, SearchDirs,
+                                              ProgName))
+      return 1;
+  }
+
+  // If config file is not specified explicitly, try determine configuration
+  // implicitly. First try deduce configuration from executable. For instance,
+  // file 'foo-clang' applies config file 'foo.cfg'.
+  if (SRes == llvm::cl::SearchResult::NotSpecified) {
+    SRes = findConfigFileFromProgramName(ConfigFile, ProgName);
+    if (llvm::cl::checkConfigFileSearchResult(SRes, ConfigFile, DefSearchDirs,
+                                              ProgName))
+      return 1;
+  }
+
+  // Finally try to find file 'clang.cfg'.
+  if (SRes == llvm::cl::SearchResult::NotSpecified) {
+    SRes = llvm::cl::findDefaultCfgFile(ConfigFile, DefSearchDirs, ProgName,
+                                        "clang.cfg");
+    if (llvm::cl::checkConfigFileSearchResult(SRes, ConfigFile, DefSearchDirs,
+                                              ProgName))
+      return 1;
+  }
+
+  if (SRes == llvm::cl::SearchResult::Successful)
+    llvm::cl::readConfigFile(ConfigFile, Saver, argv);
 
   // Parse response files using the GNU syntax, unless we're in CL mode. There
   // are two ways to put clang in CL compatibility mode: argv[0] is either
@@ -446,6 +517,8 @@ int main(int argc_, const char **argv_) {
   ProcessWarningOptions(Diags, *DiagOpts, /*ReportDiags=*/false);
 
   Driver TheDriver(Path, llvm::sys::getDefaultTargetTriple(), Diags);
+  if (!ConfigFile.empty())
+    TheDriver.setConfigFile(ConfigFile.str());
   SetInstallDir(argv, TheDriver, CanonicalPrefixes);
 
   insertTargetAndModeArgs(TargetAndMode.first, TargetAndMode.second, argv,
