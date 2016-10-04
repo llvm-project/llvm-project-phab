@@ -1120,6 +1120,7 @@ bool LLParser::ParseFnAttributeValuePairs(AttrBuilder &B,
       B.addAttribute(Attribute::SanitizeMemory); break;
     case lltok::kw_uwtable: B.addAttribute(Attribute::UWTable); break;
     case lltok::kw_writeonly: B.addAttribute(Attribute::WriteOnly); break;
+    case lltok::kw_hasvectorvariants: B.addAttribute(Attribute::HasVectorVariants); break;
 
     // Error handling.
     case lltok::kw_inreg:
@@ -1444,6 +1445,7 @@ bool LLParser::ParseOptionalParamAttrs(AttrBuilder &B) {
     case lltok::kw_sspstrong:
     case lltok::kw_safestack:
     case lltok::kw_uwtable:
+    case lltok::kw_hasvectorvariants:
       HaveError |= Error(Lex.getLoc(), "invalid use of function-only attribute");
       break;
     }
