@@ -101,7 +101,6 @@ template<typename T> class C12 {
   friend void func_12(int x = 0);  // expected-error{{friend declaration specifying a default argument must be the only declaration}}
 };
 
-
 namespace pr22307 {
 
 struct t {
@@ -170,3 +169,70 @@ struct Test {
 template class Test<int>;
 
 }
+
+// Case of template friend functions.
+
+template<typename T> void func_21(T *x);
+template<typename T1>
+struct C21a {
+  template<typename T> friend void func_21(T *x) {}
+};
+template<typename T1>
+struct C21b {
+  template<typename T> friend void func_21(T *x) {}
+};
+
+
+template<typename T> inline void func_22(T *x) {}
+template<typename T1>
+struct C22a {
+  template<typename T> friend void func_22(T *x) {}
+};
+template<typename T1>
+struct C22b {
+  template<typename T> friend void func_22(T *x) {}
+};
+
+
+template<typename T1>
+struct C23a {
+  template<typename T> friend void func_23(T *x) {}
+};
+template<typename T1>
+struct C23b {
+  template<typename T> friend void func_23(T *x) {}
+};
+
+
+template<typename T> inline void func_24(T *x) {}  // expected-note{{previous definition is here}}
+template<typename T1>
+struct C24 {
+  template<typename T> friend void func_24(T *x) {} // expected-error{{redefinition of 'func_24'}}
+};
+
+C24<int> v24;  // expected-note{{in instantiation of template class 'C24<int>' requested here}}
+
+
+template<typename T> inline void func_25(T *x);
+template<typename T1>
+struct C25a {
+  template<typename T> friend void func_25(T *x) {} // expected-note{{previous definition is here}}
+};
+template<typename T1>
+struct C25b {
+  template<typename T> friend void func_25(T *x) {} // expected-error{{redefinition of 'func_25'}}
+};
+
+C25a<int> v25a;
+C25b<int> v25b;  // expected-note{{in instantiation of template class 'C25b<int>' requested here}}
+
+
+template<typename T> void func_26(T *x);
+template<typename T1>
+struct C26 {
+  template<typename T> friend void func_26(T *x) {}  // expected-error{{redefinition of 'func_26'}}
+                                                     // expected-note@-1{{previous definition is here}}
+};
+
+C26<int> v26a;
+C26<long> v26b;  //expected-note{{in instantiation of template class 'C26<long>' requested here}}

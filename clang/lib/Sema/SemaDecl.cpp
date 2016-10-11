@@ -8846,10 +8846,23 @@ bool Sema::CheckFunctionDeclaration(Scope *S, FunctionDecl *NewFD,
 
     if (FunctionTemplateDecl *OldTemplateDecl
                                   = dyn_cast<FunctionTemplateDecl>(OldDecl)) {
-      NewFD->setPreviousDeclaration(OldTemplateDecl->getTemplatedDecl());
       FunctionTemplateDecl *NewTemplateDecl
         = NewFD->getDescribedFunctionTemplate();
       assert(NewTemplateDecl && "Template/non-template mismatch");
+      Redeclaration = shouldLinkDependentDeclWithPrevious(NewTemplateDecl,
+                                                          OldTemplateDecl);
+      if (Redeclaration &&
+          (NewTemplateDecl->getFriendObjectKind() != Decl::FOK_None ||
+           OldTemplateDecl->getFriendObjectKind() != Decl::FOK_None))
+        if (FunctionTemplateDecl *NewDef = NewTemplateDecl->getDefinition())
+          if (FunctionTemplateDecl *OldDef = OldTemplateDecl->getDefinition()) {
+            Diag(NewDef->getLocation(), diag::err_redefinition)
+                << NewDef->getDeclName();
+            Diag(OldDef->getLocation(), diag::note_previous_definition);
+            Redeclaration = false;
+          }
+      if (Redeclaration)
+        NewFD->setPreviousDeclaration(OldTemplateDecl->getTemplatedDecl());
       if (CXXMethodDecl *Method
             = dyn_cast<CXXMethodDecl>(NewTemplateDecl->getTemplatedDecl())) {
         Method->setAccess(OldTemplateDecl->getAccess());

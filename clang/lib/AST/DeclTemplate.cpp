@@ -289,6 +289,27 @@ void FunctionTemplateDecl::LoadLazySpecializations() const {
   }
 }
 
+FunctionTemplateDecl *FunctionTemplateDecl::getDefinition() const {
+  for (auto *R : redecls()) {
+    FunctionTemplateDecl *F = cast<FunctionTemplateDecl>(R);
+    if (F->isThisDeclarationADefinition())
+      return F;
+
+    // If template does not have a body, probably it is instantiated from
+    // another template and is not used yet.
+    if (FunctionTemplateDecl *P = F->getInstantiatedFromMemberTemplate()) {
+      // If we have hit a point where the user provided a specialization of
+      // this template, we're done looking.
+      if (F->isMemberSpecialization())
+        return F;
+      if (FunctionTemplateDecl *Def = P->getDefinition())
+        return Def;
+    }
+  }
+
+  return nullptr;
+}
+
 llvm::FoldingSetVector<FunctionTemplateSpecializationInfo> &
 FunctionTemplateDecl::getSpecializations() const {
   LoadLazySpecializations();

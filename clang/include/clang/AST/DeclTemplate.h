@@ -933,6 +933,15 @@ public:
     return getTemplatedDecl()->isThisDeclarationADefinition();
   }
 
+  /// \brief Returns definition for this function template of null if no
+  /// definition was found.
+  ///
+  /// To properly handle function templates defined in friend declarations, the
+  /// function scans redeclaration chain and for each declaration from there
+  /// tries to find definition in the chains formed by InstantiatedFromMember.
+  ///
+  FunctionTemplateDecl *getDefinition() const;
+
   /// \brief Return the specialization with the provided arguments if it exists,
   /// otherwise return the insertion point.
   FunctionDecl *findSpecialization(ArrayRef<TemplateArgument> Args,
