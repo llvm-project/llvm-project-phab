@@ -30,6 +30,7 @@
 #include "llvm/Support/ConvertUTF.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Host.h"
 #include "llvm/Support/ManagedStatic.h"
 #include "llvm/Support/MemoryBuffer.h"
@@ -710,6 +711,12 @@ void cl::TokenizeGNUCommandLine(StringRef Src, StringSaver &Saver,
     // Backslash escapes the next character.
     if (I + 1 < E && Src[I] == '\\') {
       ++I; // Skip the escape.
+      if (Src[I] == '\n')
+        continue; // Ignore backlash followed by '\n'.
+      if (Src[I] == '\r' && I + 1 < E && Src[I + 1] == '\n') {
+        ++I;
+        continue; // Ignore backlash followed by \r\n.
+      }
       Token.push_back(Src[I]);
       continue;
     }
@@ -947,6 +954,167 @@ bool cl::ExpandResponseFiles(StringSaver &Saver, TokenizerCallback Tokenizer,
   return AllExpanded;
 }
 
+static bool findFileInDirectories(SmallVectorImpl<char> &FilePath,
+                                  std::string FileName,
+                                  ArrayRef<const char *> Directories) {
+  for (const char *Dir : Directories) {
+    assert(Dir);
+    FilePath.clear();
+    if (Dir[0] == '~') {
+      assert(llvm::sys::path::is_separator(Dir[1]));
+      if (llvm::sys::path::home_directory(FilePath)) {
+        llvm::sys::path::append(FilePath, Dir + 2, FileName);
+        if (llvm::sys::fs::is_regular_file(FilePath))
+          return true;
+      }
+      continue;
+    }
+    llvm::sys::path::append(FilePath, Dir, FileName);
+    if (llvm::sys::fs::is_regular_file(FilePath))
+      return true;
+  }
+
+  return false;
+}
+
+cl::SearchResult cl::findConfigFileFromArgs(SmallVectorImpl<char> &CfgFileName,
+                                            SmallVectorImpl<const char *> &Argv,
+                                            ArrayRef<const char *> Dirs) {
+  assert(!Argv.empty());
+  CfgFileName.clear();
+
+  // If command line contains option '--config', try to load the configuration
+  // specified by it.
+  auto CfgOption = std::find_if(Argv.begin(), Argv.end(), [](const char *X) {
+    return strcmp(X, "--config") == 0;
+  });
+  if (CfgOption == Argv.end())
+    return SearchResult::NotSpecified;
+
+  // '--config' must be followed by config name.
+  if (CfgOption + 1 == Argv.end())
+    return SearchResult::NoArgument;
+  // Only one '--config' is allowed.
+  if (std::find_if(CfgOption + 1, Argv.end(),
+                    [](const char *X) {
+                      return strcmp(X, "--config") == 0;
+                    }) != Argv.end())
+    return SearchResult::Multiple;
+  std::string CfgFile = *(CfgOption + 1);
+
+  // Remove '--config' and its parameter from command line options.
+  Argv.erase(CfgOption, CfgOption + 2);
+
+  // If argument contains directory separator, treat it as a path to
+  // configuration file. Otherwise it is a configuration name and must be
+  // resolved to file path.
+  if (!llvm::sys::path::has_parent_path(CfgFile)) {
+    if (!StringRef(CfgFile).endswith(".cfg"))
+      CfgFile += ".cfg";
+
+    // Look configuration file in well-known directories, if they are
+    // specified.
+    if (findFileInDirectories(CfgFileName, CfgFile, Dirs))
+      return SearchResult::Successful;
+
+    // Keep configuration name for error report.
+    CfgFileName.clear();
+    CfgFileName.append(CfgFile.begin(), CfgFile.end());
+    return SearchResult::NotFoundCfg;
+  }
+
+  // Configuration was specified by path.
+  CfgFileName.append(CfgFile.begin(), CfgFile.end());
+
+  assert(!CfgFileName.empty());
+  if (!llvm::sys::fs::is_regular_file(CfgFileName))
+    return SearchResult::NotFoundOpt;
+  return SearchResult::Successful;
+}
+
+
+cl::SearchResult cl::findConfigFileFromEnv(SmallVectorImpl<char> &CfgFileName,
+                                           StringRef VarName) {
+  CfgFileName.clear();
+  if (auto CfgPath = sys::Process::GetEnv(VarName)) {
+    CfgFileName.append(CfgPath->begin(), CfgPath->end());
+    if (!CfgFileName.empty()) {
+      if (!llvm::sys::fs::is_regular_file(CfgFileName))
+        return SearchResult::NotFoundEnv;
+      return SearchResult::Successful;
+    }
+    // Treat empty variable as if it was is not set.
+  }
+  return SearchResult::NotSpecified;
+}
+
+
+cl::SearchResult cl::findDefaultCfgFile(SmallVectorImpl<char> &CfgFileName,
+                                        ArrayRef<const char *> Dirs,
+                                        StringRef ProgramFullPath,
+                                        StringRef FileName) {
+  CfgFileName.clear();
+  if (findFileInDirectories(CfgFileName, FileName, Dirs))
+    return SearchResult::Successful;
+
+  // If not found, try searching the directory where executable resides.
+  CfgFileName.clear();
+  llvm::sys::path::append(CfgFileName,
+                          llvm::sys::path::parent_path(ProgramFullPath),
+                          FileName);
+  if (llvm::sys::fs::is_regular_file(CfgFileName))
+    return SearchResult::Successful;
+  return SearchResult::NotSpecified;
+}
+
+
+bool cl::checkConfigFileSearchResult(SearchResult Res,
+                                     StringRef CfgFile,
+                                     ArrayRef<const char *> Dirs,
+                                     StringRef ProgramFullPath) {
+  switch (Res) {
+  case SearchResult::Successful:
+  case SearchResult::NotSpecified:
+    return false;
+  case SearchResult::NoArgument:
+    errs() << ProgramFullPath <<
+      ": CommandLine Error: Option '--config' must be followed by "
+      "configuration name or full path to configuration file\n";
+    break;
+  case SearchResult::Multiple:
+    errs() << ProgramFullPath <<
+      ": CommandLine Error: More than one option '--config' is specified\n";
+    break;
+  case SearchResult::NotFoundCfg:
+    errs() << ProgramFullPath <<
+      ": CommandLine Error: Configuration '" << CfgFile << "' specified by "
+      "option '--config' cannot be found in directories:\n";
+    for (const char *Dir : Dirs)
+      errs() << "    " << Dir << "\n";
+    break;
+  case SearchResult::NotFoundOpt:
+    errs() << ProgramFullPath <<
+      ": CommandLine Error: Configuration file '" << CfgFile << "' specified "
+      "by option '--config' cannot be found\n";
+    break;
+  case SearchResult::NotFoundEnv:
+    errs() << ProgramFullPath <<
+      ": CommandLine Error: Configuration file '" << CfgFile << "' specified "
+      "by environment variable cannot be found\n";
+    break;
+  }
+  return true;
+}
+
+void cl::readConfigFile(SmallVectorImpl<char> &CfgFile, StringSaver &Saver,
+                        SmallVectorImpl<const char *> &Argv) {
+  CfgFile.push_back(0);
+  SmallVector<const char *, 8> NewArgs;
+  ExpandResponseFile(CfgFile.data(), Saver, TokenizeConfigFile, NewArgs);
+  ExpandResponseFiles(Saver, TokenizeConfigFile, NewArgs, false);
+  Argv.insert(Argv.begin() + 1, NewArgs.begin(), NewArgs.end());
+}
+
 /// ParseEnvironmentOptions - An alternative entry point to the
 /// CommandLine library, which allows you to read the program's name
 /// from the caller (as PROGNAME) and its command-line arguments from
@@ -975,6 +1143,39 @@ void cl::ParseEnvironmentOptions(const char *progName, const char *envVar,
   TokenizeGNUCommandLine(*envValue, Saver, newArgv);
   int newArgc = static_cast<int>(newArgv.size());
   ParseCommandLineOptions(newArgc, &newArgv[0], StringRef(Overview));
+}
+
+void cl::TokenizeConfigFile(StringRef Source, StringSaver &Saver,
+                            SmallVectorImpl<const char *> &NewArgv,
+                            bool MarkEOLs) {
+  for (const char *Cur = Source.begin(); Cur != Source.end();) {
+    // Check for comment line.
+    if (isWhitespace(*Cur)) {
+      while (Cur != Source.end() && isWhitespace(*Cur))
+        ++Cur;
+      continue;
+    }
+    if (*Cur == '#') {
+      while (Cur != Source.end() && *Cur != '\n')
+        ++Cur;
+      continue;
+    }
+    // Find end of current line.
+    const char *Start = Cur;
+    for (const char *End = Source.end(); Cur != End; ++Cur) {
+      if (*Cur == '\\') {
+        if (Cur + 1 != End) {
+          ++Cur;
+          if (Cur != End && *Cur == '\r' && (Cur + 1 != End) && Cur[1] == '\n')
+            ++Cur;
+        }
+      } else if (*Cur == '\n')
+        break;
+    }
+    // Tokenize line.
+    StringRef Line(Start, Cur - Start);
+    cl::TokenizeGNUCommandLine(Line, Saver, NewArgv, MarkEOLs);
+  }
 }
 
 bool cl::ParseCommandLineOptions(int argc, const char *const *argv,
