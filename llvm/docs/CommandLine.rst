@@ -1255,6 +1255,130 @@ thereby working around the command-line length limits. Response files are
 enabled by an optional fourth argument to `cl::ParseEnvironmentOptions`_ and
 `cl::ParseCommandLineOptions`_.
 
+.. _configuration files:
+
+Configuration files
+^^^^^^^^^^^^^^^^^^^
+
+Set of options may be groupped into **configurations**, which makes it easier to
+specify necessary options. For instance, a build tool may be run to produce a
+program for debugging or for product delivery. Both modes may require to specify
+many options that set include paths, set of libraries, compiler options and so
+on. These options can be groupped info *debug* and *release* configurations, and
+be specified just by choosing one of them.
+
+A configuration is a collection of options stored in a file. Options may be
+specified on one or several lines. Long options may be split between several
+lines by trailing backslash. Lines composed of whitespace characters only are
+ignored as well as lines in which the first non-blank character is `#`. Example
+of configuration file:
+
+::
+
+    # Comment
+    -option_1 -option2
+
+    # Next option
+    -option_3
+    # Option split between lines
+    -option_4="long long\
+    argument"
+
+Particular configuration file may be specified in several ways:
+
+    - Using command line option `--config`, followed by configuration file name,
+    - By setting up environment variable, specific to the application.
+    - As a default configuration.
+
+There are separate functions that search for configuration file name specified by
+each way.
+
+The function **cl::findConfigFileFromArgs** is used to find configuration
+specified in command line. It searches command line for the option `--config`,
+which must be followed by is either a full path to configuration file, or just a
+configuration file name, for instance:
+
+::
+
+    --config /home/user/cfgs/testing.txt
+    --config debug
+    --config debug.cfg
+
+If the argument contains a directory separator, it is considered as a file name,
+options are read from that file. Otherwise the argument is appended extension
+`cfg` if it is not specified yet, and the obtained file name is searched for
+in the directories specified in the application source code. For instance, in
+the invocation:
+
+::
+
+    appl --config debug
+
+file `debug.cfg` is searched for in the directories `~/.llvm` and `/etc/llvm`,
+if they were specified in call to **cl::findConfigFileFromArgs**.
+
+The function **cl::findConfigFileFromEnv** may be used to find config file
+specified by environment variable. If neither `--config` nor environment variable
+are specified, the application may looks for a default configuration file using
+function **cl::findDefaultCfgFile**. It searches for the given file in the
+specified set of well-known directories. If the file was not found there, it is
+looked for in the directory where application executable resides. For example,
+if a tool `appl` was run by the command:
+
+::
+
+    /export/tools/appl
+
+the cl::findConfigFileFromEnv looks for the files:
+
+::
+
+    ~/.llvm/appl.cfg
+    /etc/llvm/appl.cfg
+    /export/tools/appl.cfg
+
+if the directories `~/.llvm` and `/etc/llvm` were specified in call to
+**cl::findDefaultCfgFile**.
+
+To use configuration files, application calls appropriate library functions as
+in the example:
+
+.. code-block:: c++
+
+    // This array must contain argument specified in application invocation, these
+    // are same as specified by argument of `main`.
+    SmallVector<const char *, 256> argv;
+
+    // Directories that are searched for configuration files.
+    static const char * const SearchDirs[] = { "~/.llvm", "/etc/llvm" };
+
+    // Variable that is assigned the path to the found file.
+    llvm::SmallString<128> ConfigFile;
+
+    // Look for the configuration file specigied in command line.
+    auto SRes = llvm::cl::findConfigFileFromArgs(ConfigFile, argv, SearchDirs);
+    if (llvm::cl::checkConfigFileSearchResult(SRes, ConfigFile, SearchDirs, argv[0]))
+      return 1;
+
+    // If command line does not contain option '--config', look for envirinment
+    // variable, "APPLCFG" in our case.
+    if (SRes == llvm::cl::SearchResult::NotSpecified) {
+      SRes = llvm::cl::findConfigFileFromEnv(ConfigFile, "APPLCFG");
+      if (llvm::cl::checkConfigFileSearchResult(SRes, ConfigFile, SearchDirs, argv[0]))
+        return 1;
+    }
+
+    // Finally try to find default config file.
+    SRes = llvm::cl::findDefaultCfgFile(ConfigFile, SearchDirs, ProgName,
+                                        "appl.cfg");
+    if (llvm::cl::checkConfigFileSearchResult(SRes, ConfigFile, SearchDirs, argv[0]))
+      return 1;
+
+    // If file is found, read it.
+    if (SRes == llvm::cl::CfgFileSearch::Successful)
+      llvm::cl::readConfigFile(ConfigFile, Saver, argv);
+
+
 Top-Level Classes and Functions
 -------------------------------
 
