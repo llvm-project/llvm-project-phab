@@ -513,3 +513,91 @@ vector.ph:
   store <32 x i8> %6, <32 x i8>* %2, align 1
   ret void
 }
+
+define void @test13(i16* nocapture %head, i32* nocapture %w) nounwind {
+; SSE-LABEL: test13:
+; SSE:     psubusw {{%xmm[0-9]}}, {{%xmm[0-9]}}
+;
+; AVX-LABEL: test13:
+; AVX:     vpsubusw {{%xmm[0-9]}}, [[REG1:%xmm[0-9]]], [[REG1]]
+vector.ph:
+  %0 = getelementptr inbounds i16, i16* %head, i64 0
+  %1 = bitcast i16* %0 to <8 x i16>*
+  %2 = load <8 x i16>, <8 x i16>* %1, align 2
+  %3 = getelementptr inbounds i32, i32* %w, i64 0
+  %4 = bitcast i32* %3 to <8 x i32>*
+  %5 = load <8 x i32>, <8 x i32>* %4, align 2
+  %6 = zext <8 x i16> %2 to <8 x i32>
+  %7 = icmp ult <8 x i32> %6, %5
+  %8 = sub <8 x i32> %6, %5
+  %9 = trunc <8 x i32> %8 to <8 x i16>
+  %10 = select <8 x i1> %7, <8 x i16> zeroinitializer, <8 x i16> %9
+  store <8 x i16> %10, <8 x i16>* %1, align 1
+  ret void
+}
+
+define void @test14(i8* nocapture %head, i32* nocapture %w) nounwind {
+; SSE-LABEL: test14:
+; SSE:     psubusb {{%xmm[0-9]}}, {{%xmm[0-9]}}
+;
+; AVX-LABEL: test14:
+; AVX:       vpsubusb {{%xmm[0-9]}}, [[REG1:%xmm[0-9]]], [[REG1]]
+vector.ph:
+  %0 = getelementptr inbounds i8, i8* %head, i64 0
+  %1 = bitcast i8* %0 to <16 x i8>*
+  %2 = load <16 x i8>, <16 x i8>* %1, align 2
+  %3 = getelementptr inbounds i32, i32* %w, i64 0
+  %4 = bitcast i32* %3 to <16 x i32>*
+  %5 = load <16 x i32>, <16 x i32>* %4, align 2
+  %6 = zext <16 x i8> %2 to <16 x i32>
+  %7 = icmp ult <16 x i32> %6, %5
+  %8 = sub <16 x i32> %6, %5
+  %9 = trunc <16 x i32> %8 to <16 x i8>
+  %10 = select <16 x i1> %7, <16 x i8> zeroinitializer, <16 x i8> %9
+  store <16 x i8> %10, <16 x i8>* %1, align 1
+  ret void
+}
+
+define void @test15(i16* nocapture %head, i32* nocapture %w) nounwind {
+; SSE-LABEL: test15:
+; SSE:     psubusw {{%xmm[0-9]}}, {{%xmm[0-9]}}
+;
+; AVX-LABEL: test15:
+; AVX:     vpsubusw {{%xmm[0-9]}}, [[REG1:%xmm[0-9]]], [[REG1]]
+vector.ph:
+  %0 = getelementptr inbounds i16, i16* %head, i64 0
+  %1 = bitcast i16* %0 to <8 x i16>*
+  %2 = load <8 x i16>, <8 x i16>* %1, align 2
+  %3 = getelementptr inbounds i32, i32* %w, i64 0
+  %4 = bitcast i32* %3 to <8 x i32>*
+  %5 = load <8 x i32>, <8 x i32>* %4, align 2
+  %6 = zext <8 x i16> %2 to <8 x i32>
+  %7 = icmp ugt <8 x i32> %6, %5
+  %8 = sub <8 x i32> %6, %5
+  %9 = trunc <8 x i32> %8 to <8 x i16>
+  %10 = select <8 x i1> %7, <8 x i16> %9, <8 x i16> zeroinitializer
+  store <8 x i16> %10, <8 x i16>* %1, align 1
+  ret void
+}
+
+define void @test16(i16* nocapture %head, i32* nocapture %w) nounwind {
+; SSE-LABEL: test16:
+; SSE:     psubusw {{%xmm[0-9]}}, {{%xmm[0-9]}}
+;
+; AVX-LABEL: test16:
+; AVX:     vpsubusw {{%xmm[0-9]}}, [[REG1:%xmm[0-9]]], [[REG1]]
+vector.ph:
+  %0 = getelementptr inbounds i16, i16* %head, i64 0
+  %1 = bitcast i16* %0 to <8 x i16>*
+  %2 = load <8 x i16>, <8 x i16>* %1, align 2
+  %3 = getelementptr inbounds i32, i32* %w, i64 0
+  %4 = bitcast i32* %3 to <8 x i32>*
+  %5 = load <8 x i32>, <8 x i32>* %4, align 2
+  %6 = zext <8 x i16> %2 to <8 x i32>
+  %7 = icmp ult <8 x i32> %5, %6
+  %8 = sub <8 x i32> %6, %5
+  %9 = trunc <8 x i32> %8 to <8 x i16>
+  %10 = select <8 x i1> %7, <8 x i16> %9, <8 x i16> zeroinitializer
+  store <8 x i16> %10, <8 x i16>* %1, align 1
+  ret void
+}
