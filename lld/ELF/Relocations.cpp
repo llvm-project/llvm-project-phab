@@ -328,23 +328,8 @@ static bool isStaticLinkTimeConstant(RelExpr E, uint32_t Type,
 
   bool AbsVal = isAbsoluteValue<ELFT>(Body);
   bool RelE = isRelExpr(E);
-  if (AbsVal && !RelE)
+  if (AbsVal || RelE)
     return true;
-  if (!AbsVal && RelE)
-    return true;
-
-  // Relative relocation to an absolute value. This is normally unrepresentable,
-  // but if the relocation refers to a weak undefined symbol, we allow it to
-  // resolve to the image base. This is a little strange, but it allows us to
-  // link function calls to such symbols. Normally such a call will be guarded
-  // with a comparison, which will load a zero from the GOT.
-  if (AbsVal && RelE) {
-    if (Body.isUndefined() && !Body.isLocal() && Body.symbol()->isWeak())
-      return true;
-    error("relocation " + getRelName(Type) +
-          " cannot refer to absolute symbol " + Body.getName());
-    return true;
-  }
 
   return Target->usesOnlyLowPageBits(Type);
 }
