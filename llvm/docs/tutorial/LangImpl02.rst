@@ -714,17 +714,17 @@ Intermediate Representation (IR) from the AST.
 Full Code Listing
 =================
 
-Here is the complete code listing for this and the previous chapter.
-Note that it is fully self-contained: you don't need LLVM or any
-external libraries at all for this. (Besides the C and C++ standard
-libraries, of course.) To build this, just compile with:
+Here is the complete code listing for this and the previous chapter. Because
+this example uses the LLVM libraries, we need to link them in in order to build
+it. To do this, use the :doc:`llvm-config </CommandGuide/llvm-config>` tool to
+inform our makefile/command line about which options to use:
 
 .. code-block:: bash
 
     # Compile
-    clang++ -g -O3 toy.cpp
+    clang++ -g -O3 toy.cpp `llvm-config --cxxflags --ldflags --system-libs --libs core` -o toy
     # Run
-    ./a.out
+    ./toy
 
 Here is the code:
 

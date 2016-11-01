@@ -546,10 +546,7 @@ Full Code Listing
 =================
 
 Here is the complete code listing for our running example, enhanced with
-the LLVM code generator. Because this uses the LLVM libraries, we need
-to link them in. To do this, we use the
-`llvm-config <http://llvm.org/cmds/llvm-config.html>`_ tool to inform
-our makefile/command line about which options to use:
+the LLVM code generator. As before, to build this example, use:
 
 .. code-block:: bash
 
