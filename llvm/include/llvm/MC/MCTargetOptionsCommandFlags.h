@@ -53,11 +53,6 @@ cl::opt<bool> FatalWarnings("fatal-warnings",
 cl::opt<bool> NoWarn("no-warn", cl::desc("Suppress all warnings"));
 cl::alias NoWarnW("W", cl::desc("Alias for --no-warn"), cl::aliasopt(NoWarn));
 
-cl::opt<std::string>
-ABIName("target-abi", cl::Hidden,
-        cl::desc("The name of the ABI to be targeted from the backend."),
-        cl::init(""));
-
 static inline MCTargetOptions InitMCTargetOptionsFromFlags() {
   MCTargetOptions Options;
   Options.SanitizeAddress =
@@ -67,7 +62,6 @@ static inline MCTargetOptions InitMCTargetOptionsFromFlags() {
   Options.MCPIECopyRelocations = PIECopyRelocations;
   Options.DwarfVersion = DwarfVersion;
   Options.ShowMCInst = ShowMCInst;
-  Options.ABIName = ABIName;
   Options.MCFatalWarnings = FatalWarnings;
   Options.MCNoWarn = NoWarn;
   return Options;
