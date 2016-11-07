@@ -666,7 +666,12 @@ ExprResult Sema::CheckSwitchCondition(SourceLocation SwitchLoc, Expr *Cond) {
 StmtResult Sema::ActOnStartOfSwitchStmt(SourceLocation SwitchLoc,
                                         Stmt *InitStmt, ConditionResult Cond) {
   if (Cond.isInvalid())
-    return StmtError();
+    Cond = ConditionResult(
+        *this, nullptr,
+        MakeFullExpr(new (Context) OpaqueValueExpr(SourceLocation(),
+                                                   Context.IntTy, VK_RValue),
+                     SwitchLoc),
+        false);
 
   getCurFunction()->setHasBranchIntoScope();
 
@@ -768,7 +773,7 @@ Sema::ActOnFinishSwitchStmt(SourceLocation SwitchLoc, Stmt *Switch,
     // type, when we started the switch statement. If we don't have an
     // appropriate type now, just return an error.
     if (!CondType->isIntegralOrEnumerationType())
-      return StmtError();
+      return SS;
 
     if (CondExpr->isKnownToHaveBooleanValue()) {
       // switch(bool_expr) {...} is often a programmer error, e.g.
@@ -1169,11 +1174,6 @@ Sema::ActOnFinishSwitchStmt(SourceLocation SwitchLoc, Stmt *Switch,
   if (BodyStmt)
     DiagnoseEmptyStmtBody(CondExpr->getLocEnd(), BodyStmt,
                           diag::warn_empty_switch_body);
-
-  // FIXME: If the case list was broken is some way, we don't have a good system
-  // to patch it up.  Instead, just return the whole substmt as broken.
-  if (CaseListIsErroneous)
-    return StmtError();
 
   return SS;
 }
