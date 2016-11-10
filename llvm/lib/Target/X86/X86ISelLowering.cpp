@@ -27356,6 +27356,37 @@ static SDValue combineSelect(SDNode *N, SelectionDAG &DAG,
       Other = LHS;
     }
 
+    if (Other.getNode() && Other.getOpcode() == ISD::TRUNCATE &&
+        Other.getOperand(0).getOpcode() == ISD::SUB && isUnsignedIntSetCC(CC)) {
+      //  x >= y ? x - y : 0, where y is wider then x. We can truncate y
+      //  to x, because it is only used if it is less than x.
+      SDValue SubXY = Other.getOperand(0);
+      EVT ExtType = SubXY.getValueType();
+
+      SDValue SubLHS = SubXY.getOperand(0), SubRHS = SubXY.getOperand(1);
+      SDValue CondLHS = Cond.getOperand(0), CondRHS = Cond.getOperand(1);
+      ISD::CondCode NewCC = CC;
+      // Else can occur, if the sub arguments are swapped
+      // x < y ? y - x : 0 -> y > x ? y - x : 0
+      if (CC == ISD::SETULE || CC == ISD::SETULT) {
+        std::swap(CondLHS, CondRHS);
+        NewCC = CC == ISD::SETULE ? ISD::SETUGE : ISD::SETUGT;
+      }
+      if (CondLHS.getOpcode() == ISD::ZERO_EXTEND &&
+          DAG.isEqualTo(SubRHS, CondRHS) && DAG.isEqualTo(SubLHS, CondLHS)) {
+        SDValue SaturationConst = DAG.getConstant(
+            APInt::getMaxValue(VT.getScalarSizeInBits()).getLimitedValue(),
+            SDLoc(SubRHS), ExtType);
+        SDValue UMin = DAG.getNode(ISD::UMIN, SDLoc(SubRHS), ExtType, SubRHS,
+                                   SaturationConst);
+        Other = DAG.getNode(ISD::SUB, SDLoc(SubXY), VT, CondLHS.getOperand(0),
+                            DAG.getZExtOrTrunc(UMin, SDLoc(SubRHS), VT));
+        Cond = DAG.getNode(NewCC, SDLoc(Cond), VT, Other.getOperand(0),
+                           Other.getOperand(1));
+        CC = NewCC;
+      }
+    }
+
     if (Other.getNode() && Other->getNumOperands() == 2 &&
         DAG.isEqualTo(Other->getOperand(0), Cond.getOperand(0))) {
       SDValue OpLHS = Other->getOperand(0), OpRHS = Other->getOperand(1);
