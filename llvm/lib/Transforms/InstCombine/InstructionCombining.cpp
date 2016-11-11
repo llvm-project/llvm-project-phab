@@ -780,8 +780,8 @@ static Value *FoldOperationIntoSelectOperand(Instruction &I, Value *SO,
 
 /// Given an instruction with a select as one operand and a constant as the
 /// other operand, try to fold the binary operator into the select arguments.
-/// This also works for Cast instructions, which obviously do not have a second
-/// operand.
+/// This also works for some Cast instructions, which obviously do not have a
+/// second operand.
 Instruction *InstCombiner::FoldOpIntoSelect(Instruction &Op, SelectInst *SI) {
   // Don't modify shared select instructions.
   if (!SI->hasOneUse())
@@ -794,6 +794,20 @@ Instruction *InstCombiner::FoldOpIntoSelect(Instruction &Op, SelectInst *SI) {
 
   // Bool selects with constant operands can be folded to logical ops.
   if (SI->getType()->getScalarType()->isIntegerTy(1))
+    return nullptr;
+
+  // If Op is an extend and this is not a select of constants, do not grow the
+  // select operand sizes by pulling the extend ahead of the select unless
+  // there's also a truncate before the select that will allow folding with the
+  // extend. This is particularly important for vectors because we want to use
+  // the narrowest operations possible for a given number of vector lanes.
+  auto isNonTruncVariable = [](Value *V) {
+    return !isa<Constant>(V) && !match(V, m_Trunc(m_Value()));
+  };
+
+  unsigned SrcWidth = SI->getType()->getScalarSizeInBits();
+  unsigned DstWidth = Op.getType()->getScalarSizeInBits();
+  if (SrcWidth < DstWidth && (isNonTruncVariable(TV) || isNonTruncVariable(FV)))
     return nullptr;
 
   // If it's a bitcast involving vectors, make sure it has the same number of

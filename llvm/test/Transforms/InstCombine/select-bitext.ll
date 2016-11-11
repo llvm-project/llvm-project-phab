@@ -5,8 +5,8 @@
 
 define i64 @sel_sext(i32 %a, i1 %cmp) {
 ; CHECK-LABEL: @sel_sext(
-; CHECK-NEXT:    [[TMP1:%.*]] = sext i32 %a to i64
-; CHECK-NEXT:    [[EXT:%.*]] = select i1 %cmp, i64 [[TMP1]], i64 42
+; CHECK-NEXT:    [[SEL:%.*]] = select i1 %cmp, i32 %a, i32 42
+; CHECK-NEXT:    [[EXT:%.*]] = sext i32 [[SEL]] to i64
 ; CHECK-NEXT:    ret i64 [[EXT]]
 ;
   %sel = select i1 %cmp, i32 %a, i32 42
@@ -16,8 +16,8 @@ define i64 @sel_sext(i32 %a, i1 %cmp) {
 
 define <4 x i64> @sel_sext_vec(<4 x i32> %a, <4 x i1> %cmp) {
 ; CHECK-LABEL: @sel_sext_vec(
-; CHECK-NEXT:    [[TMP1:%.*]] = sext <4 x i32> %a to <4 x i64>
-; CHECK-NEXT:    [[EXT:%.*]] = select <4 x i1> %cmp, <4 x i64> [[TMP1]], <4 x i64> <i64 42, i64 42, i64 42, i64 42>
+; CHECK-NEXT:    [[SEL:%.*]] = select <4 x i1> %cmp, <4 x i32> %a, <4 x i32> <i32 42, i32 42, i32 42, i32 42>
+; CHECK-NEXT:    [[EXT:%.*]] = sext <4 x i32> [[SEL]] to <4 x i64>
 ; CHECK-NEXT:    ret <4 x i64> [[EXT]]
 ;
   %sel = select <4 x i1> %cmp, <4 x i32> %a, <4 x i32> <i32 42, i32 42, i32 42, i32 42>
@@ -27,8 +27,8 @@ define <4 x i64> @sel_sext_vec(<4 x i32> %a, <4 x i1> %cmp) {
 
 define i64 @sel_zext(i32 %a, i1 %cmp) {
 ; CHECK-LABEL: @sel_zext(
-; CHECK-NEXT:    [[TMP1:%.*]] = zext i32 %a to i64
-; CHECK-NEXT:    [[EXT:%.*]] = select i1 %cmp, i64 [[TMP1]], i64 42
+; CHECK-NEXT:    [[SEL:%.*]] = select i1 %cmp, i32 %a, i32 42
+; CHECK-NEXT:    [[EXT:%.*]] = zext i32 [[SEL]] to i64
 ; CHECK-NEXT:    ret i64 [[EXT]]
 ;
   %sel = select i1 %cmp, i32 %a, i32 42
@@ -38,8 +38,8 @@ define i64 @sel_zext(i32 %a, i1 %cmp) {
 
 define <4 x i64> @sel_zext_vec(<4 x i32> %a, <4 x i1> %cmp) {
 ; CHECK-LABEL: @sel_zext_vec(
-; CHECK-NEXT:    [[TMP1:%.*]] = zext <4 x i32> %a to <4 x i64>
-; CHECK-NEXT:    [[EXT:%.*]] = select <4 x i1> %cmp, <4 x i64> [[TMP1]], <4 x i64> <i64 42, i64 42, i64 42, i64 42>
+; CHECK-NEXT:    [[SEL:%.*]] = select <4 x i1> %cmp, <4 x i32> %a, <4 x i32> <i32 42, i32 42, i32 42, i32 42>
+; CHECK-NEXT:    [[EXT:%.*]] = zext <4 x i32> [[SEL]] to <4 x i64>
 ; CHECK-NEXT:    ret <4 x i64> [[EXT]]
 ;
   %sel = select <4 x i1> %cmp, <4 x i32> %a, <4 x i32> <i32 42, i32 42, i32 42, i32 42>
