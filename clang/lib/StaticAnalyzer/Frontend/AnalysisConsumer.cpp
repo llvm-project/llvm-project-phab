@@ -416,6 +416,7 @@ void AnalysisConsumer::storeTopLevelDecls(DeclGroupRef DG) {
 }
 
 static bool shouldSkipFunction(const Decl *D,
+                               AnalyzerOptionsRef Opts,
                                const SetOfConstDecls &Visited,
                                const SetOfConstDecls &VisitedAsTopLevel) {
   if (VisitedAsTopLevel.count(D))
@@ -438,8 +439,22 @@ static bool shouldSkipFunction(const Decl *D,
       return false;
   }
 
-  // Otherwise, if we visited the function before, do not reanalyze it.
-  return Visited.count(D);
+  // Otherwise, if we visited the function before, do not reanalyze it
+  // unless we don't want to analyze all functions.
+  if (Opts->getBooleanOption("skip-inlined-functions", true))
+    return Visited.count(D);
+
+  // If "skip-inlined-functions" option was set to false,
+  // we want to reanalyze every function that can be visible externally
+  // (but we exclude C static functions and private methods).
+  if (D->getAccess() == AS_private)
+    return true;
+
+  const FunctionDecl *FD = dyn_cast<FunctionDecl>(D);
+  if (FD && !FD->hasExternalFormalLinkage())
+    return true;
+
+  return false;
 }
 
 ExprEngine::InliningModes
@@ -489,7 +504,7 @@ void AnalysisConsumer::HandleDeclsCallGraph(const unsigned LocalTUDeclsSize) {
 
     // Skip the functions which have been processed already or previously
     // inlined.
-    if (shouldSkipFunction(D, Visited, VisitedAsTopLevel))
+    if (shouldSkipFunction(D, Opts, Visited, VisitedAsTopLevel))
       continue;
 
     // Analyze the function.
