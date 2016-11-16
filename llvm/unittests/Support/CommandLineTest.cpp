@@ -205,6 +205,85 @@ TEST(CommandLineTest, TokenizeWindowsCommandLine) {
                            array_lengthof(Output));
 }
 
+TEST(CommandLineTest, TokenizeConfigFile1) {
+  const char *Input = "\\";
+  const char *const Output[] = { "\\" };
+  testCommandLineTokenizer(cl::tokenizeConfigFile, Input, Output,
+                           array_lengthof(Output));
+}
+
+TEST(CommandLineTest, TokenizeConfigFile2) {
+  const char *Input = "\\abc";
+  const char *const Output[] = { "abc" };
+  testCommandLineTokenizer(cl::tokenizeConfigFile, Input, Output,
+                           array_lengthof(Output));
+}
+
+TEST(CommandLineTest, TokenizeConfigFile3) {
+  const char *Input = "abc\\";
+  const char *const Output[] = { "abc\\" };
+  testCommandLineTokenizer(cl::tokenizeConfigFile, Input, Output,
+                           array_lengthof(Output));
+}
+
+TEST(CommandLineTest, TokenizeConfigFile4) {
+  const char *Input = "abc\\\n123";
+  const char *const Output[] = { "abc123" };
+  testCommandLineTokenizer(cl::tokenizeConfigFile, Input, Output,
+                           array_lengthof(Output));
+}
+
+TEST(CommandLineTest, TokenizeConfigFile5) {
+  const char *Input = "abc\\\r\n123";
+  const char *const Output[] = { "abc123" };
+  testCommandLineTokenizer(cl::tokenizeConfigFile, Input, Output,
+                           array_lengthof(Output));
+}
+
+TEST(CommandLineTest, TokenizeConfigFile6) {
+  const char *Input = "abc\\\n";
+  const char *const Output[] = { "abc" };
+  testCommandLineTokenizer(cl::tokenizeConfigFile, Input, Output,
+                           array_lengthof(Output));
+}
+
+TEST(CommandLineTest, TokenizeConfigFile7) {
+  const char *Input = "abc\\\r\n";
+  const char *const Output[] = { "abc" };
+  testCommandLineTokenizer(cl::tokenizeConfigFile, Input, Output,
+                           array_lengthof(Output));
+}
+
+TEST(CommandLineTest, TokenizeConfigFile8) {
+  SmallVector<const char *, 0> Actual;
+  BumpPtrAllocator A;
+  StringSaver Saver(A);
+  cl::tokenizeConfigFile("\\\n", Saver, Actual, /*MarkEOLs=*/false);
+  EXPECT_TRUE(Actual.empty());
+}
+
+TEST(CommandLineTest, TokenizeConfigFile9) {
+  SmallVector<const char *, 0> Actual;
+  BumpPtrAllocator A;
+  StringSaver Saver(A);
+  cl::tokenizeConfigFile("\\\r\n", Saver, Actual, /*MarkEOLs=*/false);
+  EXPECT_TRUE(Actual.empty());
+}
+
+TEST(CommandLineTest, TokenizeConfigFile10) {
+  const char *Input = "\\\nabc";
+  const char *const Output[] = { "abc" };
+  testCommandLineTokenizer(cl::tokenizeConfigFile, Input, Output,
+                           array_lengthof(Output));
+}
+
+TEST(CommandLineTest, TokenizeConfigFile11) {
+  const char *Input = "\\\r\nabc";
+  const char *const Output[] = { "abc" };
+  testCommandLineTokenizer(cl::tokenizeConfigFile, Input, Output,
+                           array_lengthof(Output));
+}
+
 TEST(CommandLineTest, AliasesWithArguments) {
   static const size_t ARGC = 3;
   const char *const Inputs[][ARGC] = {
@@ -567,6 +646,297 @@ TEST(CommandLineTest, ResponseFiles) {
   llvm::sys::fs::remove(IncludedFileName2);
   llvm::sys::fs::remove(IncDir);
   llvm::sys::fs::remove(IncludedFileName);
+  llvm::sys::fs::remove(TestDir);
+}
+
+TEST(CommandLineTest, ConfigFileErrors) {
+  llvm::SmallString<128> CfgFileName;
+  llvm::SmallVector<const char *, 1> Argv = { "test/test" };
+  ArrayRef<const char *> Dirs;
+  cl::SearchResult Result;
+
+  // Config in not specified.
+  Result = cl::findConfigFileFromArgs(CfgFileName, Argv, Dirs, false);
+  EXPECT_TRUE(Result == cl::SearchResult::NotSpecified);
+
+  // Missed argument of --config
+  Argv = { "--config" };
+  Result = cl::findConfigFileFromArgs(CfgFileName, Argv, Dirs, false);
+  EXPECT_TRUE(Result == cl::SearchResult::NoArgument);
+
+  // Multiple options --config
+  Argv = { "--config", "a", "--config", "b" };
+  Result = cl::findConfigFileFromArgs(CfgFileName, Argv, Dirs, false);
+  EXPECT_TRUE(Result == cl::SearchResult::Multiple);
+
+  // Inexistent file specified by full path.
+  Argv = { "--config", "/abcd.cfg" };
+  Result = cl::findConfigFileFromArgs(CfgFileName, Argv, Dirs, false);
+  EXPECT_TRUE(Result == cl::SearchResult::NotFoundOpt);
+  EXPECT_TRUE(Argv.empty());
+  EXPECT_TRUE(CfgFileName.equals("/abcd.cfg"));
+
+  // Inexistent configuration.
+  Argv = { "--config", "abcd.cfg" };
+  Result = cl::findConfigFileFromArgs(CfgFileName, Argv, Dirs, false);
+  EXPECT_TRUE(Result == cl::SearchResult::NotFoundCfg);
+  EXPECT_TRUE(Argv.empty());
+  EXPECT_TRUE(CfgFileName.equals("abcd.cfg"));
+
+  // Inexistent configuration, configuration without extension.
+  Argv = { "--config", "abcd" };
+  Result = cl::findConfigFileFromArgs(CfgFileName, Argv, Dirs, false);
+  EXPECT_TRUE(Result == cl::SearchResult::NotFoundCfg);
+  EXPECT_TRUE(Argv.empty());
+  EXPECT_TRUE(CfgFileName.equals("abcd.cfg"));
+}
+
+TEST(CommandLineTest, ReadConfigFile) {
+  llvm::SmallString<128> CfgFileName;
+  llvm::SmallVector<const char *, 1> Argv;
+  const char *ProgramFullPath = "/test/test";
+  ArrayRef<const char *> Dirs;
+  cl::SearchResult Result;
+
+  llvm::SmallString<128> TestCfg;
+  std::error_code EC =
+    llvm::sys::fs::createTemporaryFile("unittest", "cfg", TestCfg);
+  EXPECT_TRUE(!EC);
+  std::string Directory = llvm::sys::path::parent_path(TestCfg);
+  std::string FileName = llvm::sys::path::filename(TestCfg);
+  llvm::BumpPtrAllocator A;
+  llvm::StringSaver Saver(A);
+
+  std::ofstream Cfg(TestCfg.c_str());
+  Cfg << "# Comment\n";
+  Cfg << "-option_1 -option_2\n";
+  Cfg << "-option_3=abcd\n";
+  Cfg.close();
+
+  Argv = { ProgramFullPath, "-flag_1", "--config", FileName.c_str() };
+  Dirs = ArrayRef<const char *>(Directory.c_str());
+  Result = cl::findConfigFileFromArgs(CfgFileName, Argv, Dirs, false);
+
+  EXPECT_TRUE(Result == cl::SearchResult::Successful);
+  EXPECT_TRUE(CfgFileName.equals(TestCfg));
+  EXPECT_EQ(Argv.size(), 2);
+  EXPECT_STREQ(Argv[0], ProgramFullPath);
+  EXPECT_STREQ(Argv[1], "-flag_1");
+
+  unsigned NumOpts = 0;
+  llvm::cl::readConfigFile(CfgFileName, Saver, Argv, NumOpts);
+
+  EXPECT_EQ(Argv.size(), 5);
+  EXPECT_STREQ(Argv[0], ProgramFullPath);
+  EXPECT_STREQ(Argv[1], "-option_1");
+  EXPECT_STREQ(Argv[2], "-option_2");
+  EXPECT_STREQ(Argv[3], "-option_3=abcd");
+  EXPECT_STREQ(Argv[4], "-flag_1");
+  EXPECT_EQ(NumOpts, 3);
+
+  // Reading from file with lines concatenated by trailing \.
+  Cfg.open(TestCfg.c_str(), std::ofstream::trunc);
+  EXPECT_TRUE(Cfg.is_open());
+
+  Cfg << "\n\n# Comment\n";
+  Cfg << "-option_\\\n";
+  Cfg << "1 -option_3=abcd\n";
+  Cfg.close();
+
+  Argv = { ProgramFullPath, "-flag_1", "--config", FileName.c_str(),
+           "-flag_2" };
+  Dirs = ArrayRef<const char *>(Directory.c_str());
+  Result = cl::findConfigFileFromArgs(CfgFileName, Argv, Dirs, false);
+
+  EXPECT_TRUE(Result == cl::SearchResult::Successful);
+  EXPECT_TRUE(CfgFileName.equals(TestCfg));
+  EXPECT_EQ(Argv.size(), 3);
+  EXPECT_STREQ(Argv[0], ProgramFullPath);
+  EXPECT_STREQ(Argv[1], "-flag_1");
+  EXPECT_STREQ(Argv[2], "-flag_2");
+
+  NumOpts = 0;
+  llvm::cl::readConfigFile(CfgFileName, Saver, Argv, NumOpts);
+
+  EXPECT_EQ(Argv.size(), 5);
+  EXPECT_STREQ(Argv[0], ProgramFullPath);
+  EXPECT_STREQ(Argv[1], "-option_1");
+  EXPECT_STREQ(Argv[2], "-option_3=abcd");
+  EXPECT_STREQ(Argv[3], "-flag_1");
+  EXPECT_STREQ(Argv[4], "-flag_2");
+  EXPECT_EQ(NumOpts, 2);
+
+  llvm::sys::fs::remove(TestCfg);
+}
+
+TEST(CommandLineTest, ReadConfigFileFromBinDir) {
+  // Create test directory
+  llvm::SmallString<128> TestDir;
+  std::error_code EC =
+    llvm::sys::fs::createUniqueDirectory("unittest", TestDir);
+  EXPECT_TRUE(!EC);
+
+  // Pretend executable is in the test directory.
+  llvm::SmallString<128> ProgramFullPath;
+  llvm::sys::path::append(ProgramFullPath, TestDir, "testtool");
+
+  const char * ConfigFileName = "test.cfg";
+
+  // Create config file in the binary directory.
+  llvm::SmallString<128> BinCfg;
+  llvm::sys::path::append(BinCfg, TestDir, ConfigFileName);
+  std::ofstream Cfg(BinCfg.c_str());
+  EXPECT_TRUE(Cfg.is_open());
+  Cfg << "-option_1 -option_2";
+  Cfg.close();
+
+  // Create directory for config files.
+  llvm::SmallString<128> TestCfgDir;
+  llvm::sys::path::append(TestCfgDir, TestDir, "stddir");
+  EC = llvm::sys::fs::create_directory(TestCfgDir);
+  EXPECT_TRUE(!EC);
+
+  // Create config file there.
+  llvm::SmallString<128> TestCfg;
+  llvm::sys::path::append(TestCfg, TestCfgDir, ConfigFileName);
+  std::ofstream Cfg2(TestCfg.c_str());
+  EXPECT_TRUE(Cfg2.is_open());
+  Cfg2 << "-option_3=abcd";
+  Cfg2.close();
+
+  // Working variables shared between test cases.
+  llvm::SmallString<128> CfgFileName;
+  llvm::SmallVector<const char *, 1> Argv;
+  ArrayRef<const char *> Dirs;
+  cl::SearchResult Result;
+  llvm::BumpPtrAllocator A;
+  llvm::StringSaver Saver(A);
+
+  // Case 1: search directory has higher priority than binary.
+  Argv = { ProgramFullPath.c_str(), "--config", ConfigFileName };
+  Dirs = ArrayRef<const char *>(TestCfgDir.c_str());
+  Result = cl::findConfigFileFromArgs(CfgFileName, Argv, Dirs, true);
+  EXPECT_TRUE(Result == cl::SearchResult::Successful);
+  EXPECT_TRUE(strcmp(CfgFileName.c_str(), TestCfg.c_str()) == 0);
+
+  // Case 2: without search directories config file in binary directory must
+  // be found.
+  Argv = { ProgramFullPath.c_str(), "--config", ConfigFileName };
+  Dirs = ArrayRef<const char *>();
+  Result = cl::findConfigFileFromArgs(CfgFileName, Argv, Dirs, true);
+  EXPECT_TRUE(Result == cl::SearchResult::Successful);
+  EXPECT_TRUE(strcmp(CfgFileName.c_str(), BinCfg.c_str()) == 0);
+
+  // Case 3: Config file is not found if search in binary directory is
+  // suppressed.
+  Argv = { ProgramFullPath.c_str(), "--config", ConfigFileName };
+  Dirs = ArrayRef<const char *>();
+  Result = cl::findConfigFileFromArgs(CfgFileName, Argv, Dirs, false);
+  EXPECT_TRUE(Result == cl::SearchResult::NotFoundCfg);
+
+  llvm::sys::fs::remove(TestCfg);
+  llvm::sys::fs::remove(TestCfgDir);
+  llvm::sys::fs::remove(BinCfg);
+  llvm::sys::fs::remove(TestDir);
+}
+
+TEST(CommandLineTest, ReadDefaultConfigFile) {
+  llvm::SmallString<128> TestDir;
+  std::error_code EC =
+      llvm::sys::fs::createUniqueDirectory("unittest", TestDir);
+  EXPECT_TRUE(!EC);
+
+  llvm::SmallString<128> TestTool;
+  llvm::sys::path::append(TestTool, TestDir, "testtool");
+  std::ofstream Tool(TestTool.c_str());
+  EXPECT_TRUE(Tool.is_open());
+  Tool << std::endl;
+  Tool.close();
+
+  llvm::SmallString<128> TestCfg;
+  llvm::sys::path::append(TestCfg, TestDir, "test.cfg");
+  std::ofstream Cfg(TestCfg.c_str());
+  EXPECT_TRUE(Cfg.is_open());
+  Cfg << "-option_1 -option_2\n"
+         "-option_3=abcd\n";
+  Cfg.close();
+
+  llvm::BumpPtrAllocator A;
+  llvm::StringSaver Saver(A);
+
+  llvm::SmallVector<const char *, 1> Argv = { TestTool.c_str(), "-flag_1" };
+  llvm::SmallString<128> CfgFileName;
+  bool Result = cl::searchForFile(CfgFileName, ArrayRef<const char *>(),
+                                  Argv[0], "test.cfg");
+
+  EXPECT_TRUE(Result);
+  EXPECT_STREQ(CfgFileName.c_str(), TestCfg.c_str());
+
+  unsigned NumOpts = 0;
+  llvm::cl::readConfigFile(CfgFileName, Saver, Argv, NumOpts);
+
+  EXPECT_EQ(Argv.size(), 5);
+  EXPECT_STREQ(Argv[0], TestTool.c_str());
+  EXPECT_STREQ(Argv[1], "-option_1");
+  EXPECT_STREQ(Argv[2], "-option_2");
+  EXPECT_STREQ(Argv[3], "-option_3=abcd");
+  EXPECT_STREQ(Argv[4], "-flag_1");
+  EXPECT_EQ(NumOpts, 3);
+
+  llvm::sys::fs::remove(TestCfg);
+  llvm::sys::fs::remove(TestTool);
+  llvm::sys::fs::remove(TestDir);
+}
+
+TEST(CommandLineTest, ReadDefaultConfigFileFromStdDir) {
+  llvm::SmallString<128> TestDir;
+  std::error_code EC =
+    llvm::sys::fs::createUniqueDirectory("unittest", TestDir);
+  EXPECT_TRUE(!EC);
+
+  llvm::SmallString<128> TestTool;
+  llvm::sys::path::append(TestTool, TestDir, "testtool");
+  std::ofstream Tool(TestTool.c_str());
+  EXPECT_TRUE(Tool.is_open());
+  Tool << std::endl;
+  Tool.close();
+
+  llvm::SmallString<128> TestCfgDir;
+  llvm::sys::path::append(TestCfgDir, TestDir, "stddir");
+  EC = llvm::sys::fs::create_directory(TestCfgDir);
+  EXPECT_TRUE(!EC);
+
+  llvm::SmallString<128> TestCfg;
+  llvm::sys::path::append(TestCfg, TestCfgDir, "test.cfg");
+  std::ofstream Cfg(TestCfg.c_str());
+  EXPECT_TRUE(Cfg.is_open());
+  Cfg << "-option_3=abcd\n";
+  Cfg.close();
+
+  llvm::BumpPtrAllocator A;
+  llvm::StringSaver Saver(A);
+
+  llvm::SmallVector<const char *, 1> Argv = { TestTool.c_str(), "-flag_1" };
+  const char *TestCfgDirStr = TestCfgDir.c_str();
+  ArrayRef<const char *> Dirs(TestCfgDirStr);
+  llvm::SmallString<128> CfgFileName;
+  bool Result = cl::searchForFile(CfgFileName, Dirs, Argv[0], "test.cfg");
+
+  EXPECT_TRUE(Result);
+  EXPECT_STREQ(CfgFileName.c_str(), TestCfg.c_str());
+
+  unsigned NumOpts = 0;
+  llvm::cl::readConfigFile(CfgFileName, Saver, Argv, NumOpts);
+
+  EXPECT_EQ(Argv.size(), 3);
+  EXPECT_STREQ(Argv[0], TestTool.c_str());
+  EXPECT_STREQ(Argv[1], "-option_3=abcd");
+  EXPECT_STREQ(Argv[2], "-flag_1");
+  EXPECT_EQ(NumOpts, 1);
+
+  llvm::sys::fs::remove(TestCfg);
+  llvm::sys::fs::remove(TestCfgDir);
+  llvm::sys::fs::remove(TestTool);
   llvm::sys::fs::remove(TestDir);
 }
 
