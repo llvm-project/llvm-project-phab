@@ -924,6 +924,8 @@ StringRef ELFObjectFile<ELFT>::getFileFormatName() const {
       return "ELF32-wasm";
     case ELF::EM_AMDGPU:
       return "ELF32-amdgpu";
+    case ELF::EM_AAP:
+      return "ELF32-aap";
     default:
       return "ELF32-unknown";
     }
@@ -971,6 +973,8 @@ unsigned ELFObjectFile<ELFT>::getArch() const {
     return Triple::x86;
   case ELF::EM_X86_64:
     return Triple::x86_64;
+  case ELF::EM_AAP:
+    return Triple::aap;
   case ELF::EM_AARCH64:
     return Triple::aarch64;
   case ELF::EM_ARM:

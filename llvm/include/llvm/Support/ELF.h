@@ -315,6 +315,11 @@ enum {
   // such numbers for an official value for WebAssembly. As soon as one is
   // allocated, this enum will be updated to use it.
   EM_WEBASSEMBLY = 0x4157, // WebAssembly architecture
+
+  // A request has been made to the maintainer of the official registry for
+  // such numbers for an official value for AAP. As soon as one is allocated,
+  // this enum will be updated to use it.
+  EM_AAP = 0x5343 // AAP
 };
 
 // Object file classes.
@@ -615,6 +620,11 @@ enum {
 // ELF Relocation types for BPF
 enum {
 #include "ELFRelocs/BPF.def"
+};
+
+// ELF Relocation type for AAP.
+enum {
+#include "ELFRelocs/AAP.def"
 };
 
 #undef ELF_RELOC

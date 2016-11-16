@@ -259,6 +259,7 @@ module LLVM_Utils {
     textual header "Support/AArch64TargetParser.def"
     textual header "Support/Dwarf.def"
     textual header "Support/MachO.def"
+    textual header "Support/ELFRelocs/AAP.def"
     textual header "Support/ELFRelocs/AArch64.def"
     textual header "Support/ELFRelocs/AMDGPU.def"
     textual header "Support/ELFRelocs/ARM.def"
