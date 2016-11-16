@@ -644,6 +644,55 @@ a special character, which is the convention used by GNU Make. The -MV
 option tells Clang to put double-quotes around the entire filename, which
 is the convention used by NMake and Jom.
 
+Configuration files
+-------------------
+
+Configuration files group command line options and allow to specify all of
+them just by referencing the configuration file. They may be used, for
+instance to collect options required to tune compilation for particular
+target, such as -L, -I, -l, --sysroot, codegen options etc.
+
+Command line option `--config` can be used to specify configuration file in
+a clang invocation. For instance:
+
+::
+
+    clang --config /home/user/cfgs/testing.txt
+    clang --config debug
+    clang --config debug.cfg
+
+If the provided argument contains a directory separator, it is considered as
+a file path, options are read from that file. Otherwise the argument is appended
+extension `cfg` if it is not specified yet, and the obtained file name is searched
+for in the directories: `~/.llvm` and the directory where clang executable resides.
+The first found file is used. It is an error if the required file cannot be found.
+
+Another way to specify configuration file is to encode it in executable name. For
+instance, if clang executable is named `armv7l-clang` (it may be a symbolic link
+to `clang`), then clang will search file `armv7l.cfg` in the same directories, as
+if it was specified by `--config` option.
+
+The configuration file consists of command line options specified on one or several
+lines. Lines composed of whitespace characters only are ignored as well as lines in
+which the first non-blank character is `#`. Long options may be split between several
+lines by trailing backslash. Here is an example of config file:
+
+::
+
+    # Several options on line
+    -c --target=x86_64-unknown-linux-gnu
+
+    # Long option split between lines
+    -I/usr/lib/gcc/x86_64-linux-gnu/5.4.0/../../../../\
+    include/c++/5.4.0
+
+    # other config files may be included
+    @linux.options
+
+Files included by directives `@file` in configuration files are resolved relative to
+the including file. For instance if a config file `~/.llvm/target.cfg` contains
+directive `os/linux.opts`, the file `linux.opts` is searched for in the directory
+`~/.llvm/os`.
 
 Language and Target-Independent Features
 ========================================
