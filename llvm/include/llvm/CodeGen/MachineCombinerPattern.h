@@ -71,7 +71,11 @@ enum class MachineCombinerPattern {
   FMLSv2f32_OP2,
   FMLSv2f64_OP2,
   FMLSv4i32_indexed_OP2,
-  FMLSv4f32_OP2
+  FMLSv4f32_OP2,
+
+  // These are FDIV-RECIP patterns matched by X86 machine combiner
+  DivSxRecip,
+  VDivSxRecip
 };
 
 } // end namespace llvm

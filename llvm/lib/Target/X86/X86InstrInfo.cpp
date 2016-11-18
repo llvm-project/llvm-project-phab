@@ -8645,6 +8645,179 @@ bool X86InstrInfo::isAssociativeAndCommutative(const MachineInstr &Inst) const {
   }
 }
 
+/// genFDivReciprocal - Generates reciprocal estimate instructions instead
+/// of the given fdiv instruction
+///
+/// Example (-x86-asm-syntax=intel): instead of
+///
+///   vmovss  xmm1, dword ptr [rip + .LCPI0_0] # xmm1 = mem[0],zero,zero,zero
+///   vdivss  xmm0, xmm1, xmm0
+///
+/// we're generating
+///
+///   vmovss  xmm1, dword ptr [rip + .LCPI0_0] # xmm1 = mem[0],zero,zero,zero
+///   vrcpss  xmm2, xmm0, xmm0
+///   vmulss  xmm0, xmm0, xmm2
+///   vsubss  xmm0, xmm1, xmm0
+///   vmulss  xmm0, xmm0, xmm2
+///   vaddss  xmm0, xmm0, xmm2
+
+static MachineInstr *
+genFDivReciprocal(MachineFunction &MF, MachineRegisterInfo &MRI,
+                  const TargetInstrInfo *TII, MachineInstr &Root,
+                  SmallVectorImpl<MachineInstr *> &InsInstrs,
+                  DenseMap<unsigned, unsigned> &InstrIdxForVirtReg) {
+
+  unsigned ResultReg = Root.getOperand(0).getReg();
+  unsigned SrcReg1 = Root.getOperand(1).getReg();
+  bool Src1IsKill = Root.getOperand(1).isKill();
+  unsigned SrcReg2 = Root.getOperand(2).getReg();
+  bool Src2IsKill = Root.getOperand(2).isKill();
+
+  const TargetRegisterInfo *TRI = MF.getSubtarget().getRegisterInfo();
+  const TargetRegisterClass *RC = Root.getRegClassConstraint(0, TII, TRI);
+
+  if (TargetRegisterInfo::isVirtualRegister(ResultReg))
+    MRI.constrainRegClass(ResultReg, RC);
+  if (TargetRegisterInfo::isVirtualRegister(SrcReg1))
+    MRI.constrainRegClass(SrcReg1, RC);
+  if (TargetRegisterInfo::isVirtualRegister(SrcReg2))
+    MRI.constrainRegClass(SrcReg2, RC);
+
+  // vrcpss
+  unsigned NewVR = MRI.createVirtualRegister(RC);
+  InstrIdxForVirtReg.insert(std::make_pair(NewVR, 0));
+  MachineInstrBuilder Rcp =
+      BuildMI(MF, Root.getDebugLoc(), TII->get(llvm::X86::VRCPSSr), NewVR)
+          .addReg(SrcReg2, getKillRegState(Src2IsKill))
+          .addReg(SrcReg2, getKillRegState(Src2IsKill));
+  // vmulss
+  unsigned NewVR1 = MRI.createVirtualRegister(RC);
+  InstrIdxForVirtReg.insert(std::make_pair(NewVR1, 0));
+  MachineInstrBuilder Mul =
+      BuildMI(MF, Root.getDebugLoc(), TII->get(llvm::X86::VMULSSrr), NewVR1)
+          .addReg(SrcReg2, getKillRegState(Src2IsKill))
+          .addReg(NewVR);
+  // vsubss
+  unsigned NewVR2 = MRI.createVirtualRegister(RC);
+  InstrIdxForVirtReg.insert(std::make_pair(NewVR2, 0));
+  MachineInstrBuilder Sub =
+      BuildMI(MF, Root.getDebugLoc(), TII->get(llvm::X86::VSUBSSrr), NewVR2)
+          .addReg(SrcReg1, getKillRegState(Src1IsKill))
+          .addReg(NewVR1);
+  // vmulss
+  unsigned NewVR3 = MRI.createVirtualRegister(RC);
+  InstrIdxForVirtReg.insert(std::make_pair(NewVR3, 0));
+  MachineInstrBuilder Mul2 =
+      BuildMI(MF, Root.getDebugLoc(), TII->get(llvm::X86::VMULSSrr), NewVR3)
+          .addReg(NewVR2)
+          .addReg(NewVR);
+  // vaddss
+  MachineInstrBuilder Add =
+      BuildMI(MF, Root.getDebugLoc(), TII->get(llvm::X86::VADDSSrr), ResultReg)
+          .addReg(NewVR3)
+          .addReg(NewVR);
+  InsInstrs.push_back(Rcp);
+  InsInstrs.push_back(Mul);
+  InsInstrs.push_back(Sub);
+  InsInstrs.push_back(Mul2);
+  InsInstrs.push_back(Add);
+  return Rcp;
+}
+
+/// When getMachineCombinerPatterns() finds potential patterns,
+/// this function generates the instructions that could replace the
+/// original code sequence
+void X86InstrInfo::genAlternativeCodeSequence(
+    MachineInstr &Root, MachineCombinerPattern Pattern,
+    SmallVectorImpl<MachineInstr *> &InsInstrs,
+    SmallVectorImpl<MachineInstr *> &DelInstrs,
+    DenseMap<unsigned, unsigned> &InstrIdxForVirtReg) const {
+  MachineBasicBlock &MBB = *Root.getParent();
+  MachineRegisterInfo &MRI = MBB.getParent()->getRegInfo();
+  MachineFunction &MF = *MBB.getParent();
+  const TargetInstrInfo *TII = MF.getSubtarget().getInstrInfo();
+
+  switch (Pattern) {
+  default:
+    // Reassociate instructions.
+    TargetInstrInfo::genAlternativeCodeSequence(Root, Pattern, InsInstrs,
+                                                DelInstrs, InstrIdxForVirtReg);
+    return;
+  case MachineCombinerPattern::DivSxRecip:
+    DEBUG(dbgs() << "The pattern found for DivSxRecip\n");
+    break;
+  case MachineCombinerPattern::VDivSxRecip:
+    DEBUG(dbgs() << "The pattern found for VDivSxRecip\n");
+    genFDivReciprocal(MF, MRI, TII, Root, InsInstrs, InstrIdxForVirtReg);
+    DelInstrs.push_back(&Root); // Record FDiv for deletion
+    //    MUL = genFusedMultiply(MF, MRI, TII, Root, InsInstrs, 1, Opc, RC);
+    break;
+  }
+}
+
+/// Find instructions that can be turned into recip
+static bool getFDIVPatterns(MachineInstr &Root,
+                            SmallVectorImpl<MachineCombinerPattern> &Patterns) {
+  // TODO: we should use function level of options see getRecipEstimateForFunc()
+  if (!Root.getParent()->getParent()->getTarget().Options.UnsafeFPMath)
+    return false;
+  unsigned Opc = Root.getOpcode();
+  //  MachineBasicBlock &MBB = *Root.getParent();
+  bool Found = false;
+
+  switch (Opc) {
+  default:
+    break;
+  // TODO: at the moment we support FP scalar types only
+  case X86::DIVSSrr: // f32
+  case X86::DIVSDrr: // f64
+    assert(Root.getOperand(1).isReg() && Root.getOperand(2).isReg() &&
+           "DIVSxrr does not have register operands");
+    Patterns.push_back(MachineCombinerPattern::DivSxRecip);
+    Found = true;
+    break;
+  //  case X86::DIVPSrr:    // v4f32
+  //  case X86::DIVPDrr:    // v2f64
+  //  case X86::VDIVPSrr:   // f4f32
+  //  case X86::VDIVPDrr:   // v2f64
+  case X86::VDIVSSrr: // f32
+  case X86::VDIVSDrr: // f64
+    assert(Root.getOperand(1).isReg() && Root.getOperand(2).isReg() &&
+           Root.getOperand(2).isReg() &&
+           "VDIVSxrrr does not have register operands");
+    Patterns.push_back(MachineCombinerPattern::VDivSxRecip);
+    Found = true;
+    break;
+    //  case X86::VDIVPSYrr:  // v8f32
+    //  case X86::VDIVPDYrr:  // v4f64
+    //    assert(Root.getOperand(1).isReg() && Root.getOperand(2).isReg() &&
+    //           "FDIV_Yrr does not have register operands");
+    //    Patterns.push_back(MachineCombinerPattern::FDivRecip2);
+    //    Found = true;
+    //    break;
+  }
+  return Found;
+}
+
+/// Return true when there is potentially a faster code sequence for an
+/// instruction chain ending in \p Root. All potential patterns are listed in
+/// the \p Pattern vector. Pattern should be sorted in priority order since the
+/// pattern evaluator stops checking as soon as it finds a faster sequence.
+
+bool X86InstrInfo::getMachineCombinerPatterns(
+    MachineInstr &Root,
+    SmallVectorImpl<MachineCombinerPattern> &Patterns) const {
+  // FDIV patterns
+  if (getFDIVPatterns(Root, Patterns))
+    return true;
+  // FSQRT patterns
+  //  if (getFSQRTPatterns(Root, Patterns))
+  //    return true;
+
+  return TargetInstrInfo::getMachineCombinerPatterns(Root, Patterns);
+}
+
 /// This is an architecture-specific helper function of reassociateOps.
 /// Set special operand attributes for new instructions after reassociation.
 void X86InstrInfo::setSpecialOperandAttr(MachineInstr &OldMI1,
