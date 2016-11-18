@@ -7179,8 +7179,21 @@ bool LoopVectorizePass::processLoop(Loop *L) {
 
   // Check the loop for a trip count threshold:
   // do not vectorize loops with a tiny trip count.
-  const unsigned TC = SE->getSmallConstantTripCount(L);
-  if (TC > 0u && TC < TinyTripCountVectorThreshold) {
+  bool KnownTC = false;
+  unsigned TC = SE->getSmallConstantTripCount(L);
+  if (TC) {
+    KnownTC = true;
+  } else if (F->getEntryCount()) {
+    // If the tripcount is unknown, but profile information is available,
+    // use a profile-based estimate.
+    auto EstimatedTC = getLoopEstimatedTripCount(L);
+    if (EstimatedTC) {
+      TC = *EstimatedTC;
+      KnownTC = true;
+    }
+  }
+
+  if (KnownTC && TC < TinyTripCountVectorThreshold) {
     DEBUG(dbgs() << "LV: Found a loop with a very small trip count. "
                  << "This loop is not worth vectorizing.");
     if (Hints.getForce() == LoopVectorizeHints::FK_Enabled)
