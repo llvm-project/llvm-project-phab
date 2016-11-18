@@ -6631,6 +6631,17 @@ static SDValue getAddressForMemoryInput(SDValue Chain, const SDLoc &Location,
   return Chain;
 }
 
+static MVT getFirstLegalVT(const TargetRegisterClass *RC,
+                            const TargetLowering &TLI) {
+  for (auto *I = RC->vt_begin(); I != RC->vt_end(); ++I) {
+    auto RegVT = *I;
+    if (TLI.isTypeLegal(RegVT))
+      return RegVT;
+  }
+
+  return MVT::Other;
+}
+
 /// GetRegistersForValue - Assign registers (virtual or physical) for the
 /// specified operand.  We prefer to assign virtual registers, to allow the
 /// register allocator to handle the assignment process.  However, if the asm
@@ -6692,12 +6703,17 @@ static void GetRegistersForValue(SelectionDAG &DAG, const TargetLowering &TLI,
   if (unsigned AssignedReg = PhysReg.first) {
     const TargetRegisterClass *RC = PhysReg.second;
     if (OpInfo.ConstraintVT == MVT::Other)
-      ValueVT = *RC->vt_begin();
+      ValueVT = getFirstLegalVT(RC, TLI);
 
     // Get the actual register value type.  This is important, because the user
     // may have asked for (e.g.) the AX register in i32 type.  We need to
     // remember that AX is actually i16 to get the right extension.
-    RegVT = *RC->vt_begin();
+    //
+    // There are edge cases where the register cannot hold a legal type but we
+    // still want to have the constraint (for example when using the
+    // -mgeneral-regs-only option). In these cases we will assign an MVT::Other
+    // type under the assumption that we don't need any extensions.
+    RegVT = getFirstLegalVT(RC, TLI);
 
     // This is a explicit reference to a physical register.
     Regs.push_back(AssignedReg);

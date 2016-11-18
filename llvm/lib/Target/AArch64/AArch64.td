@@ -44,6 +44,18 @@ def FeatureFullFP16 : SubtargetFeature<"fullfp16", "HasFullFP16", "true",
 def FeatureSPE : SubtargetFeature<"spe", "HasSPE", "true",
   "Enable Statistical Profiling extension">;
 
+def FeatureNEONAsm : SubtargetFeature<"neonasm", "HasNEONAsm", "true",
+  "Enable assembling Advanced SIMD instructions">;
+
+def FeatureCryptoAsm : SubtargetFeature<"cryptoasm", "HasCryptoAsm", "true",
+  "Enable assembling cryptographic instructions">;
+
+def FeatureFPARMv8Asm : SubtargetFeature<"fp-armv8asm", "HasFPARMv8Asm",
+  "true", "Enable assembling ARMv8 FP instructions">;
+
+def FeatureFullFP16Asm : SubtargetFeature<"fullfp16asm", "HasFullFP16Asm",
+  "true", "Enable assembling Full FP16 instructions", [FeatureFPARMv8Asm]>;
+
 /// Cyclone has register move instructions which are "free".
 def FeatureZCRegMove : SubtargetFeature<"zcm", "HasZeroCycleRegMove", "true",
                                         "Has zero-cycle register moves">;

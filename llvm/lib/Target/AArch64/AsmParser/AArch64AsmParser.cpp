@@ -128,7 +128,32 @@ public:
       new AArch64TargetStreamer(S);
 
     // Initialize the set of available features.
-    setAvailableFeatures(ComputeAvailableFeatures(getSTI().getFeatureBits()));
+    uint64_t FeatureMask = ComputeAvailableFeatures(getSTI().getFeatureBits());
+    bool HasNEONAsm = STI.getFeatureBits()[AArch64::FeatureNEONAsm];
+    bool HasCryptoAsm = STI.getFeatureBits()[AArch64::FeatureCryptoAsm];
+    bool HasFPARMv8Asm = STI.getFeatureBits()[AArch64::FeatureFPARMv8Asm];
+    bool HasFullFP16Asm = STI.getFeatureBits()[AArch64::FeatureFullFP16Asm];
+
+    // Check for features disabled by -mgeneral-regs-only and re-enable them
+    // in the assembler.
+    if (!HasNEONAsm && !HasCryptoAsm && !HasFPARMv8Asm && !HasFullFP16Asm) {
+      setAvailableFeatures(FeatureMask);
+      return;
+    }
+
+    // We need to enable some features.
+    MCSubtargetInfo &CSTI = copySTI();
+    if (HasNEONAsm)
+      CSTI.ToggleFeature(AArch64::FeatureNEON);
+    if (HasCryptoAsm)
+      CSTI.ToggleFeature(AArch64::FeatureCrypto);
+    if (HasFPARMv8Asm)
+      CSTI.ToggleFeature(AArch64::FeatureFPARMv8);
+    if (HasFullFP16Asm)
+      CSTI.ToggleFeature(AArch64::FeatureFullFP16);
+
+    FeatureMask = ComputeAvailableFeatures(CSTI.getFeatureBits());
+    setAvailableFeatures(FeatureMask);
   }
 
   bool ParseInstruction(ParseInstructionInfo &Info, StringRef Name,

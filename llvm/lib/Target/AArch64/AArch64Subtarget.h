@@ -63,6 +63,10 @@ protected:
   bool HasPerfMon = false;
   bool HasFullFP16 = false;
   bool HasSPE = false;
+  bool HasFPARMv8Asm = false;
+  bool HasNEONAsm = false;
+  bool HasCryptoAsm = false;
+  bool HasFullFP16Asm = false;
 
   // HasZeroCycleRegMove - Has zero-cycle register mov instructions.
   bool HasZeroCycleRegMove = false;
@@ -181,6 +185,9 @@ public:
   bool hasCrypto() const { return HasCrypto; }
   bool hasCRC() const { return HasCRC; }
   bool hasRAS() const { return HasRAS; }
+  bool hasFPARMv8Asm() const { return HasFPARMv8Asm; }
+  bool hasNEONAsm() const { return HasNEONAsm; }
+  bool hasCryptoAsm() const { return HasCryptoAsm; }
   bool balanceFPOps() const { return BalanceFPOps; }
   bool predictableSelectIsExpensive() const {
     return PredictableSelectIsExpensive;
@@ -215,6 +222,7 @@ public:
 
   bool hasPerfMon() const { return HasPerfMon; }
   bool hasFullFP16() const { return HasFullFP16; }
+  bool hasFullFP16Asm() const { return HasFullFP16Asm; }
   bool hasSPE() const { return HasSPE; }
 
   bool isLittleEndian() const { return IsLittle; }
