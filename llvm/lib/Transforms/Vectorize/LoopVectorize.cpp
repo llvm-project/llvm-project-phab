@@ -7179,18 +7179,31 @@ bool LoopVectorizePass::processLoop(Loop *L) {
 
   // Check the loop for a trip count threshold:
   // do not vectorize loops with a tiny trip count.
-  const unsigned TC = SE->getSmallConstantTripCount(L);
-  if (TC > 0u && TC < TinyTripCountVectorThreshold) {
-    DEBUG(dbgs() << "LV: Found a loop with a very small trip count. "
-                 << "This loop is not worth vectorizing.");
+  bool KnownTC = false;
+  unsigned TC = SE->getSmallConstantTripCount(L);
+  if (TC) {
+    KnownTC = true;
+  } else if (F->getEntryCount()) {
+    // If the tripcount is unknown, but profile information is available,
+    // use a profile-based estimate.
+    auto EstimatedTC = getLoopEstimatedTripCount(L);
+    if (EstimatedTC) {
+      TC = *EstimatedTC;
+      KnownTC = true;
+    }
+  }
+
+  if (KnownTC && TC < TinyTripCountVectorThreshold) {
+    DEBUG(dbgs() << "LV: Found a loop with small trip count: " << TC
+                 << ". This loop is not worth vectorizing.");
     if (Hints.getForce() == LoopVectorizeHints::FK_Enabled)
       DEBUG(dbgs() << " But vectorizing was explicitly forced.\n");
     else {
       DEBUG(dbgs() << "\n");
       ORE->emit(createMissedAnalysis(Hints.vectorizeAnalysisPassName(),
-                                     "NotBeneficial", L)
-                << "vectorization is not beneficial "
-                   "and is not explicitly forced");
+                                     "SmallTripCount", L)
+                << "not beneficial due to small (" << ore::NV("TripCount", TC)
+                << ") trip count, and is not explicitly forced");
       return false;
     }
   }
