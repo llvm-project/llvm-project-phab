@@ -255,6 +255,61 @@ Instruction::CastOps InstCombiner::isEliminableCastPair(const CastInst *CI1,
   return Instruction::CastOps(Res);
 }
 
+/// If a cast widens the result, only widen the select when we are sure that it
+/// will remove a preceding truncate or remove the widening cast.
+static Instruction *
+foldWideningCastIntoSelect(CastInst &Cast, SelectInst &Sel,
+                           InstCombiner::BuilderTy &Builder) {
+  Type *SrcTy = Sel.getType();
+  Type *DstTy = Cast.getType();
+  unsigned SrcWidth = SrcTy->getScalarSizeInBits();
+  unsigned DstWidth = DstTy->getScalarSizeInBits();
+  if (SrcWidth >= DstWidth)
+    return nullptr;
+
+  Value *Cond = Sel.getCondition();
+  Value *TVal = Sel.getTrueValue();
+  Value *FVal = Sel.getFalseValue();
+  Instruction::CastOps CastOpc = Cast.getOpcode();
+
+  // If both arms of the select are constants, widen the select and eliminate
+  // the cast.
+  Constant *TC, *FC;
+  if (match(TVal, m_Constant(TC)) && match(FVal, m_Constant(FC))) {
+    Constant *WideTC = ConstantExpr::getCast(CastOpc, TC, DstTy);
+    Constant *WideFC = ConstantExpr::getCast(CastOpc, FC, DstTy);
+    SelectInst *WideSel = SelectInst::Create(Cond, WideTC, WideFC);
+    WideSel->copyMetadata(Sel);
+    return WideSel;
+  }
+
+  if (!Sel.hasOneUse() || CastOpc != Instruction::ZExt)
+    return nullptr;
+
+  // Look through the select to find a truncate. The trunc+zext is replaced by
+  // an 'and', and the select is widened.
+  Constant *C;
+  Value *X;
+  if (((match(TVal, m_Constant(C)) &&
+        match(FVal, m_OneUse(m_Trunc(m_Value(X))))) ||
+       (match(FVal, m_Constant(C)) &&
+        match(TVal, m_OneUse(m_Trunc(m_Value(X)))))) &&
+      X->getType() == DstTy) {
+    // zext (select Cond, C, (trunc X)) --> select Cond, C', (and X, Mask)
+    // zext (select Cond, (trunc X), C) --> select Cond, (and X, Mask), C'
+    Constant *Mask =
+        ConstantInt::get(DstTy, APInt::getLowBitsSet(DstWidth, SrcWidth));
+    Value *And = Builder.CreateAnd(X, Mask);
+    Constant *ExtC = ConstantExpr::getCast(CastOpc, C, DstTy);
+    SelectInst *WideSel = TVal == C ? SelectInst::Create(Cond, ExtC, And) :
+                                      SelectInst::Create(Cond, And, ExtC);
+    WideSel->copyMetadata(Sel);
+    return WideSel;
+  }
+
+  return nullptr;
+}
+
 /// @brief Implement the transforms common to all CastInst visitors.
 Instruction *InstCombiner::commonCastTransforms(CastInst &CI) {
   Value *Src = CI.getOperand(0);
@@ -269,9 +324,13 @@ Instruction *InstCombiner::commonCastTransforms(CastInst &CI) {
   }
 
   // If we are casting a select, then fold the cast into the select.
-  if (auto *SI = dyn_cast<SelectInst>(Src))
+  if (auto *SI = dyn_cast<SelectInst>(Src)) {
     if (Instruction *NV = FoldOpIntoSelect(CI, SI))
       return NV;
+
+    if (Instruction *NV = foldWideningCastIntoSelect(CI, *SI, *Builder))
+      return NV;
+  }
 
   // If we are casting a PHI, then fold the cast into the PHI.
   if (isa<PHINode>(Src)) {
@@ -838,6 +897,7 @@ Instruction *InstCombiner::visitZExt(ZExtInst &CI) {
   // type.   Only do this if the dest type is a simple type, don't convert the
   // expression tree to something weird like i93 unless the source is also
   // strange.
+  // TODO: Should all vectors be transformed?
   unsigned BitsToClear;
   if ((DestTy->isVectorTy() || ShouldChangeType(SrcTy, DestTy)) &&
       canEvaluateZExtd(Src, DestTy, BitsToClear, *this, &CI)) {
@@ -1133,6 +1193,7 @@ Instruction *InstCombiner::visitSExt(SExtInst &CI) {
   // type.   Only do this if the dest type is a simple type, don't convert the
   // expression tree to something weird like i93 unless the source is also
   // strange.
+  // TODO: Should all vectors be transformed?
   if ((DestTy->isVectorTy() || ShouldChangeType(SrcTy, DestTy)) &&
       canEvaluateSExtd(Src, DestTy)) {
     // Okay, we can transform this!  Insert the new expression now.
