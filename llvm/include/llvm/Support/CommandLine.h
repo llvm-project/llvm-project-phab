@@ -1790,6 +1790,129 @@ typedef void (*TokenizerCallback)(StringRef Source, StringSaver &Saver,
                                   SmallVectorImpl<const char *> &NewArgv,
                                   bool MarkEOLs);
 
+/// Tokenizes content of configuration file.
+///
+/// \param [in] Source The string representing content of config file.
+/// \param [in] Saver Delegates back to the caller for saving parsed strings.
+/// \param [out] NewArgv All parsed strings are appended to NewArgv.
+/// \param [in] MarkEOLs Added for compatibility with TokenizerCallback.
+///
+/// It works like TokenizeGNUCommandLine with ability to skip comment lines.
+///
+void tokenizeConfigFile(StringRef Source, StringSaver &Saver,
+                        SmallVectorImpl<const char *> &NewArgv,
+                        bool MarkEOLs = false);
+
+/// Looks for the specified file in well-known directories.
+///
+/// \param CfgFileName [out] File path, if the file was found.
+/// \param Dirs [in] Directories used for the search.
+/// \param ProgramFullPath [in] Path to the current executable or empty string.
+/// \param FileName [in] Name of the file to search for.
+/// \return True if file was found.
+///
+/// Looks for file specified by FileName sequentially in directories specified
+/// by Dirs. If not found and ProgramFullPath is not empty, searches directory
+/// where the current executable resides.
+///
+bool searchForFile(SmallVectorImpl<char> &CfgFileName,
+                   ArrayRef<const char *> Dirs, StringRef ProgramFullPath,
+                   StringRef FileName);
+
+/// Enumerates possible results of configuration file search.
+///
+enum class SearchResult {
+  Successful,   ///< File is found.
+  NotSpecified, ///< File is not specified, no diagnostic required.
+  NoArgument,   ///< Option '--config' is not followed by argument.
+  Multiple,     ///< Several options '--config' are found.
+  NotFoundCfg,  ///< Configuration specified by --config was not found.
+  NotFoundOpt,  ///< File specified by '--config' does not exist.
+  NotFoundEnv   ///< File specified by environmental variable does not exist.
+};
+
+/// Tries to find configuration file specified by command line arguments.
+///
+/// \param CfgFileName [out] Configuration file name, if it was specified by
+/// command line.
+/// \param Argv [in, out] Command line options supplied to the executable.
+/// \param Dirs [in] Directories used to search configuration file.
+/// \param SearchInBinDir [in] If True, also search directory were executable
+///                            resides.
+/// \return Code of the search result.
+///
+/// If option '--config' is specified, its argument is assigned to CfgFileName.
+/// Both the option and the argument are removed from Argv. If the resulted
+/// CfgFileName contains a directory separator, it is treated as file path, no
+/// search is made. Otherwise CfgFileName is appended extension '.cfg', if it
+/// does not have such yet, and the obtained file name is searched for in the
+/// directories:
+/// - specified by Dir,
+/// - the directory where executable resides, if SearchInBinDir is True.
+/// If The file is found, its full path replaces the value in CfgFileName.
+///
+/// The function returns values (enumerators of SearchResult):
+/// - Successful    - file is specified and found,
+/// - NotSpecified  - no option '--config' was found
+/// - NoArgument,
+/// - Multiple      - if option '--config' is used erroneously.
+/// - NotFoundCfg   - config was specified but not found.
+///
+SearchResult findConfigFileFromArgs(SmallVectorImpl<char> &CfgFileName,
+                                    SmallVectorImpl<const char *> &Argv,
+                                    ArrayRef<const char *> Dirs,
+                                    bool SearchInBinDir);
+
+/// Tries to find configuration file specified by the given environment
+/// variable.
+///
+/// \param CfgFileName [out] Configuration file name specified by the variable.
+/// \param VarName [in] Environment variable that may contain full path to
+///                     configuration file.
+/// \return Code of the search result.
+///
+/// If environment variable VarName exists and is not empty, tries to treat its
+/// value as config file path.
+///
+/// The function returns values (enumerators of SearchResult):
+/// - Successful    - file is specified and found,
+/// - NotSpecified  - variable VarName is not found,
+/// - NotFoundCfg   - the file specified by VarName is not found.
+///
+SearchResult findConfigFileFromEnv(SmallVectorImpl<char> &CfgFileName,
+                                   StringRef VarName);
+
+/// Report error occurred in config file search.
+///
+/// \param Res [in] Code of search result.
+/// \param CfgFileName [in] If set it is configuration name or full path to
+///                         the configuration file.
+/// \param Dirs [in] Directories used to search for the configuration file.
+/// \param SearchInBinDir [in] If True, directory were executable resides also
+///                            was searched.
+/// \param ProgramFullPath [in] Path to the current executable.
+/// \return true if the specified code represents an error.
+///
+bool checkConfigFileSearchResult(SearchResult Res,
+                                 StringRef CfgFileName,
+                                 ArrayRef<const char *> Dirs,
+                                 bool SearchInBinDir,
+                                 StringRef ProgramFullPath);
+
+/// Tries to read command line options from configuration file.
+///
+/// \param CfgFileName [in] Path to configuration file.
+/// \param Saver [in] Objects that saves allocated strings.
+/// \param Argv [out] Command line into which options are read.
+/// \param Num [out] Variable that is assigned number of options read from
+///                  the config file.
+///
+/// Inserts options read from configuration file into Argv starting from index
+/// 1 (Argv[0] must contain executable path).
+///
+void readConfigFile(SmallVectorImpl<char> &CfgFileName, StringSaver &Saver,
+                    SmallVectorImpl<const char *> &Argv, unsigned &Num);
+
 /// \brief Expand response files on a command line recursively using the given
 /// StringSaver and tokenization strategy.  Argv should contain the command line
 /// before expansion and will be modified in place. If requested, Argv will
@@ -1806,6 +1929,7 @@ typedef void (*TokenizerCallback)(StringRef Source, StringSaver &Saver,
 /// \param [in] RelativeNames true if names of nested response files must be
 /// resolved relative to including file.
 /// \return true if all @files were expanded successfully or there were none.
+///
 bool ExpandResponseFiles(StringSaver &Saver, TokenizerCallback Tokenizer,
                          SmallVectorImpl<const char *> &Argv,
                          bool MarkEOLs = false, bool RelativeNames = false);
