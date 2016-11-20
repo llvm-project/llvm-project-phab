@@ -1086,6 +1086,10 @@ void Driver::PrintVersion(const Compilation &C, raw_ostream &OS) const {
 
   // Print out the install directory.
   OS << "InstalledDir: " << InstalledDir << '\n';
+
+  // If configuration file was used, print its path.
+  if (!ConfigFile.empty())
+    OS << "Configuration file: " << ConfigFile << '\n';
 }
 
 /// PrintDiagnosticCategories - Implement the --print-diagnostic-categories
