@@ -141,6 +141,7 @@ RegistryMaps::RegistryMaps() {
   REGISTER_MATCHER(cxxCtorInitializer);
   REGISTER_MATCHER(cxxDefaultArgExpr);
   REGISTER_MATCHER(cxxDeleteExpr);
+  REGISTER_MATCHER(cxxDependentScopeMemberExpr);
   REGISTER_MATCHER(cxxDestructorDecl);
   REGISTER_MATCHER(cxxDynamicCastExpr);
   REGISTER_MATCHER(cxxForRangeStmt);

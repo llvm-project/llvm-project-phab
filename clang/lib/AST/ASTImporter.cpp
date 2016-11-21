@@ -159,6 +159,7 @@ namespace clang {
     Decl *VisitFieldDecl(FieldDecl *D);
     Decl *VisitIndirectFieldDecl(IndirectFieldDecl *D);
     Decl *VisitFriendDecl(FriendDecl *D);
+    Decl *VisitFunctionTemplateDecl(FunctionTemplateDecl *D);
     Decl *VisitObjCIvarDecl(ObjCIvarDecl *D);
     Decl *VisitVarDecl(VarDecl *D);
     Decl *VisitImplicitParamDecl(ImplicitParamDecl *D);
@@ -265,6 +266,7 @@ namespace clang {
     Expr *VisitMaterializeTemporaryExpr(MaterializeTemporaryExpr *E);
     Expr *VisitCXXNewExpr(CXXNewExpr *CE);
     Expr *VisitCXXDeleteExpr(CXXDeleteExpr *E);
+    Expr *VisitCXXDependentScopeMemberExpr(CXXDependentScopeMemberExpr *E);
     Expr *VisitCXXConstructExpr(CXXConstructExpr *E);
     Expr *VisitCXXMemberCallExpr(CXXMemberCallExpr *E);
     Expr *VisitExprWithCleanups(ExprWithCleanups *EWC);
@@ -3482,6 +3484,32 @@ Decl *ASTNodeImporter::VisitFriendDecl(FriendDecl *D) {
   return FrD;
 }
 
+Decl *ASTNodeImporter::VisitFunctionTemplateDecl(FunctionTemplateDecl *D) {
+  DeclContext *DC, *LexicalDC;
+  DeclarationName Name;
+  SourceLocation Loc;
+  NamedDecl *ToD;
+
+  if (ImportDeclParts(D, DC, LexicalDC, Name, ToD, Loc))
+    return nullptr;
+  if (!DC)
+    return nullptr;
+  if (ToD)
+      return ToD;
+
+  TemplateParameterList *Params = ImportTemplateParameterList(
+                                    D->getTemplateParameters());
+  if (!Params)
+    return nullptr;
+
+  NamedDecl *ToDecl = cast_or_null<NamedDecl>(D->getTemplatedDecl());
+  if (!ToDecl)
+    return nullptr;
+
+  return FunctionTemplateDecl::Create(Importer.getToContext(), DC, Loc,
+                                      Name, Params, ToDecl);
+}
+
 Decl *ASTNodeImporter::VisitObjCIvarDecl(ObjCIvarDecl *D) {
   // Import the major distinguishing characteristics of an ivar.
   DeclContext *DC, *LexicalDC;
@@ -6361,6 +6389,40 @@ Expr *ASTNodeImporter::VisitCXXDeleteExpr(CXXDeleteExpr *E) {
         OperatorDeleteDecl,
         ToArg,
         Importer.Import(E->getLocStart()));
+}
+
+Expr *ASTNodeImporter::VisitCXXDependentScopeMemberExpr(
+    CXXDependentScopeMemberExpr *E) {
+  Expr *Base = E->getBase();
+  if (!Base)
+    return nullptr;
+
+  QualType BaseType = E->getBaseType();
+  if (BaseType.isNull())
+    return nullptr;
+
+  TemplateArgumentListInfo ToTAInfo;
+  TemplateArgumentListInfo *ResInfo = nullptr;
+  if (E->hasExplicitTemplateArgs()) {
+    for (const auto &FromLoc : E->template_arguments()) {
+      bool Error = false;
+      TemplateArgumentLoc ToTALoc = ImportTemplateArgumentLoc(FromLoc, Error);
+      if (Error)
+        return nullptr;
+      ToTAInfo.addArgument(ToTALoc);
+    }
+    ResInfo = &ToTAInfo;
+  }
+
+  return CXXDependentScopeMemberExpr::Create(Importer.getToContext(),
+                                             Base, BaseType,
+                                             E->isArrow(),
+                                             E->getOperatorLoc(),
+                                             E->getQualifierLoc(),
+                                             E->getTemplateKeywordLoc(),
+                                             E->getFirstQualifierFoundInScope(),
+                                             E->getMemberNameInfo(),
+                                             ResInfo);
 }
 
 Expr *ASTNodeImporter::VisitCXXConstructExpr(CXXConstructExpr *E) {

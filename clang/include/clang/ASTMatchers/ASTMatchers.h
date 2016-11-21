@@ -5444,6 +5444,22 @@ const internal::VariadicDynCastAllOfMatcher<
   CUDAKernelCallExpr> cudaKernelCallExpr;
 
 
+/// \brief Matches member access expressions where the member could not
+///        be resolved because the base member was dependent.
+///
+/// Example matches d.t, and also (&d)->t
+/// \code
+///   template <typename T> class C {T t; };
+///   template <typename T> void foo() {
+///     C<T> d;
+///     d.t = T();
+///     (&d)->t = T();
+///   }
+/// \endcode
+const internal::VariadicDynCastAllOfMatcher<Expr, CXXDependentScopeMemberExpr>
+  cxxDependentScopeMemberExpr;
+
+
 /// \brief Matches expressions that resolve to a null pointer constant, such as
 /// GNU's __null, C++11's nullptr, or C's NULL macro.
 ///
