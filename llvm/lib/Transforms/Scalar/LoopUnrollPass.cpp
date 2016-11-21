@@ -250,7 +250,7 @@ struct EstimatedUnrollCost {
 static Optional<EstimatedUnrollCost>
 analyzeLoopUnrollCost(const Loop *L, unsigned TripCount, DominatorTree &DT,
                       ScalarEvolution &SE, const TargetTransformInfo &TTI,
-                      int MaxUnrolledLoopSize) {
+                      int MaxUnrolledLoopSize, bool CompleteUnroll = true) {
   // We want to be able to scale offsets by the trip count and add more offsets
   // to them without checking for overflows, and we already don't want to
   // analyze *massive* trip counts, so we force the max to be reasonably small.
@@ -325,8 +325,9 @@ analyzeLoopUnrollCost(const Loop *L, unsigned TripCount, DominatorTree &DT,
         // If this is a PHI node in the loop header, just add it to the PHI set.
         if (auto *PhiI = dyn_cast<PHINode>(I))
           if (PhiI->getParent() == L->getHeader()) {
-            assert(Cost.IsFree && "Loop PHIs shouldn't be evaluated as they "
-                                  "inherently simplify during unrolling.");
+            if (CompleteUnroll)
+              assert(Cost.IsFree && "Loop PHIs shouldn't be evaluated as they "
+                                    "inherently simplify during unrolling.");
             if (Iteration == 0)
               continue;
 
@@ -402,21 +403,49 @@ analyzeLoopUnrollCost(const Loop *L, unsigned TripCount, DominatorTree &DT,
           PHI->getNumIncomingValues() == 2 &&
           "Must have an incoming value only for the preheader and the latch.");
 
-      Value *V = PHI->getIncomingValueForBlock(
-          Iteration == 0 ? L->getLoopPreheader() : L->getLoopLatch());
-      Constant *C = dyn_cast<Constant>(V);
-      if (Iteration != 0 && !C)
-        C = SimplifiedValues.lookup(V);
-      if (C)
-        SimplifiedInputValues.push_back({PHI, C});
+      Value *VP = PHI->getIncomingValueForBlock(L->getLoopPreheader());
+      Value *VL = PHI->getIncomingValueForBlock(L->getLoopLatch());
+      if (CompleteUnroll) {
+        Value *V = Iteration == 0 ? VP : VL;
+        Constant *C = dyn_cast<Constant>(V);
+        if (Iteration != 0 && !C)
+          C = SimplifiedValues.lookup(V);
+        if (C)
+          SimplifiedInputValues.push_back({PHI, C});
+      }
+      // If incoming value for PHI is another PHI, that means we need to
+      // store previous value.
+      Instruction *IL = dyn_cast<Instruction>(VL);
+      if (Iteration != 0 && isa<PHINode>(VL) && IL && L->contains(IL))
+        RolledDynamicCost++;
+      // Simplify recurent XOR:
+      // I = PHI [VP, VL]
+      // VL = I ^ X
+      //
+      // To:
+      // I1 = VP
+      // VL1 = VP ^ X
+      // I2 = VP ^ X
+      // VL2 = VP
+      if ((TripCount & 1) == 0) {
+        if (IL && IL->getOpcode() == Instruction::Xor &&
+            IL->getOperand(0) == PHI && L->isLoopInvariant(IL->getOperand(1))) {
+          Constant *CP = dyn_cast<Constant>(VP);
+          if (Iteration & 1)
+            CP = SimplifiedValues.lookup(VL);
+          if (CP)
+            SimplifiedInputValues.push_back({PHI, CP});
+        }
+      }
     }
 
     // Now clear and re-populate the map for the next iteration.
     SimplifiedValues.clear();
     while (!SimplifiedInputValues.empty())
       SimplifiedValues.insert(SimplifiedInputValues.pop_back_val());
+    UnrolledInstAnalyzer Analyzer(Iteration, SimplifiedValues,
+                                  SE, L, CompleteUnroll);
 
-    UnrolledInstAnalyzer Analyzer(Iteration, SimplifiedValues, SE, L);
 
     BBWorklist.clear();
     BBWorklist.insert(L->getHeader());
@@ -515,7 +544,7 @@ analyzeLoopUnrollCost(const Loop *L, unsigned TripCount, DominatorTree &DT,
 
     // If we found no optimization opportunities on the first iteration, we
     // won't find them on later ones too.
-    if (UnrolledCost == RolledDynamicCost) {
+    if (CompleteUnroll && UnrolledCost == RolledDynamicCost) {
       DEBUG(dbgs() << "  No opportunities found.. exiting.\n"
                    << "  UnrolledCost: " << UnrolledCost << "\n");
       return None;
@@ -532,6 +561,9 @@ analyzeLoopUnrollCost(const Loop *L, unsigned TripCount, DominatorTree &DT,
         break;
 
       Value *Op = PN->getIncomingValueForBlock(ExitingBB);
+      if (auto *OpPN = dyn_cast<PHINode>(Op))
+        if (OpPN->getParent() == L->getHeader())
+          Op = OpPN->getIncomingValueForBlock(L->getLoopLatch());
       if (auto *OpI = dyn_cast<Instruction>(Op))
         if (L->contains(OpI))
           AddCostRecursively(*OpI, TripCount - 1);
@@ -927,6 +959,24 @@ static bool computeUnrollCount(
              "count that divides the loop trip multiple of "
           << NV("TripMultiple", TripMultiple) << ".  Unrolling instead "
           << NV("UnrollCount", UP.Count) << " time(s).");
+  }
+
+  // Estimate if Force unroll could be profitable.
+  // Currently try only 2 times unroll.
+  // Do it only for innermost loops with unknown trip count.
+  // For know trip count Runtime unroll is more profitable.
+  if (!ExplicitUnroll &&
+      isa<SCEVCouldNotCompute>(SE->getBackedgeTakenCount(L))) {
+    Optional<EstimatedUnrollCost> Cost =
+        analyzeLoopUnrollCost(L, 2, DT, *SE, TTI,
+                              UP.PartialThreshold, false);
+    if (Cost && Cost->UnrolledCost < Cost->RolledDynamicCost) {
+      UP.Force = true;
+      UP.Count = 2;
+      // Unroll uncountable loops only once.
+      DEBUG(dbgs() << "  unrolling with count: " << UP.Count << "\n");
+      return true;
+    }
   }
 
   if (UP.Count > UP.MaxCount)
