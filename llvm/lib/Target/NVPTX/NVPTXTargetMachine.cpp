@@ -111,6 +111,11 @@ NVPTXTargetMachine::NVPTXTargetMachine(const Target &T, const Triple &TT,
       is64bit(is64bit),
       TLOF(make_unique<NVPTXTargetObjectFile>()),
       Subtarget(TT, CPU, FS, *this) {
+  // NVPTX does not strictly require a structured CFG.  However, without a
+  // structured CFG we can create control flow that is too complicated for ptxas
+  // to analyze, resulting in subtly incorrect generated code, e.g. PR 27738.
+  setRequiresStructuredCFG(true);
+
   if (TT.getOS() == Triple::NVCL)
     drvInterface = NVPTX::NVCL;
   else
@@ -271,6 +276,14 @@ void NVPTXPassConfig::addIRPasses() {
   // but EarlyCSE can do neither of them.
   if (getOptLevel() != CodeGenOpt::None)
     addEarlyCSEOrGVNPass();
+
+  // NVPTX does not strictly require a structured CFG.  However, without a
+  // structured CFG we can emit control flow that is too complicated for ptxas
+  // to analyze, resulting in subtly incorrect generated code, e.g. PR 27738.
+  //
+  // SkipUniformRegions == true lets us emit unstructured control flow where we
+  // can prove that it is uniform across all the threads in a warp.
+  addPass(createStructurizeCFGPass(/* SkipUniformRegions = */ true));
 }
 
 bool NVPTXPassConfig::addInstSelector() {
