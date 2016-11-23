@@ -271,6 +271,7 @@ namespace clang {
     Expr *VisitCXXThisExpr(CXXThisExpr *E);
     Expr *VisitCXXBoolLiteralExpr(CXXBoolLiteralExpr *E);
     Expr *VisitMemberExpr(MemberExpr *E);
+    Expr *VisitUnresolvedLookupExpr(UnresolvedLookupExpr *E);
     Expr *VisitCallExpr(CallExpr *E);
     Expr *VisitInitListExpr(InitListExpr *E);
     Expr *VisitCXXDefaultInitExpr(CXXDefaultInitExpr *E);
@@ -6476,6 +6477,31 @@ Expr *ASTNodeImporter::VisitMemberExpr(MemberExpr *E) {
                             ToMember, ToFoundDecl, ToMemberNameInfo,
                             nullptr, T, E->getValueKind(),
                             E->getObjectKind());
+}
+
+Expr *ASTNodeImporter::VisitUnresolvedLookupExpr(UnresolvedLookupExpr *E) {
+  CXXRecordDecl *NamingClass = cast_or_null<CXXRecordDecl>(
+      Importer.Import(E->getNamingClass()));
+  if (!NamingClass)
+    return nullptr;
+
+  DeclarationNameInfo NameInfo(E->getName(), E->getNameLoc());
+  ImportDeclarationNameLoc(E->getNameInfo(), NameInfo);
+
+  UnresolvedSet<8> ToDecls;
+  for (UnresolvedLookupExpr::decls_iterator S = E->decls_begin(),
+                                            F = E->decls_end();
+       S != F; ++S){
+    if (NamedDecl *To = cast_or_null<NamedDecl>(Importer.Import(*S)))
+      ToDecls.addDecl(To);
+    else
+      return nullptr;
+  }
+
+  return UnresolvedLookupExpr::Create(Importer.getToContext(), NamingClass,
+                                      E->getQualifierLoc(), NameInfo,
+                                      E->requiresADL(), E->isOverloaded(),
+                                      ToDecls.begin(), ToDecls.end());
 }
 
 Expr *ASTNodeImporter::VisitCallExpr(CallExpr *E) {
