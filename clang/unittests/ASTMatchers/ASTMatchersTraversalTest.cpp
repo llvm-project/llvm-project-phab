@@ -239,6 +239,13 @@ TEST(HasDeclaration, HasDeclarationOfTemplateSpecializationType) {
   EXPECT_TRUE(matches("template <typename T> class A {}; A<int> a;",
                       varDecl(hasType(templateSpecializationType(
                         hasDeclaration(namedDecl(hasName("A"))))))));
+  EXPECT_TRUE(matches("template <typename T> class A {};"
+                      "template <typename T> class B { A<T> a; };",
+                      fieldDecl(hasType(templateSpecializationType(
+                        hasDeclaration(namedDecl(hasName("A"))))))));
+  EXPECT_TRUE(matches("template <typename T> class A {}; A<int> a;",
+                      varDecl(hasType(templateSpecializationType(
+                          hasDeclaration(cxxRecordDecl()))))));
 }
 
 TEST(HasDeclaration, HasDeclarationOfCXXNewExpr) {
