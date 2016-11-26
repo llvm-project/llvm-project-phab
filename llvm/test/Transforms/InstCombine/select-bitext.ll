@@ -33,12 +33,10 @@ define double @sel_fpext_constants(i1 %cmp) {
   ret double %ext
 }
 
-; FIXME: We should not grow the size of the select in the next 4 cases.
-
 define i64 @sel_sext(i32 %a, i1 %cmp) {
 ; CHECK-LABEL: @sel_sext(
-; CHECK-NEXT:    [[TMP1:%.*]] = sext i32 %a to i64
-; CHECK-NEXT:    [[EXT:%.*]] = select i1 %cmp, i64 [[TMP1]], i64 42
+; CHECK-NEXT:    [[SEL:%.*]] = select i1 %cmp, i32 %a, i32 42
+; CHECK-NEXT:    [[EXT:%.*]] = sext i32 [[SEL]] to i64
 ; CHECK-NEXT:    ret i64 [[EXT]]
 ;
   %sel = select i1 %cmp, i32 %a, i32 42
@@ -48,8 +46,8 @@ define i64 @sel_sext(i32 %a, i1 %cmp) {
 
 define <4 x i64> @sel_sext_vec(<4 x i32> %a, <4 x i1> %cmp) {
 ; CHECK-LABEL: @sel_sext_vec(
-; CHECK-NEXT:    [[TMP1:%.*]] = sext <4 x i32> %a to <4 x i64>
-; CHECK-NEXT:    [[EXT:%.*]] = select <4 x i1> %cmp, <4 x i64> [[TMP1]], <4 x i64> <i64 42, i64 42, i64 42, i64 42>
+; CHECK-NEXT:    [[SEL:%.*]] = select <4 x i1> %cmp, <4 x i32> %a, <4 x i32> <i32 42, i32 42, i32 42, i32 42>
+; CHECK-NEXT:    [[EXT:%.*]] = sext <4 x i32> [[SEL]] to <4 x i64>
 ; CHECK-NEXT:    ret <4 x i64> [[EXT]]
 ;
   %sel = select <4 x i1> %cmp, <4 x i32> %a, <4 x i32> <i32 42, i32 42, i32 42, i32 42>
@@ -59,8 +57,8 @@ define <4 x i64> @sel_sext_vec(<4 x i32> %a, <4 x i1> %cmp) {
 
 define i64 @sel_zext(i32 %a, i1 %cmp) {
 ; CHECK-LABEL: @sel_zext(
-; CHECK-NEXT:    [[TMP1:%.*]] = zext i32 %a to i64
-; CHECK-NEXT:    [[EXT:%.*]] = select i1 %cmp, i64 [[TMP1]], i64 42
+; CHECK-NEXT:    [[SEL:%.*]] = select i1 %cmp, i32 %a, i32 42
+; CHECK-NEXT:    [[EXT:%.*]] = zext i32 [[SEL]] to i64
 ; CHECK-NEXT:    ret i64 [[EXT]]
 ;
   %sel = select i1 %cmp, i32 %a, i32 42
@@ -70,8 +68,8 @@ define i64 @sel_zext(i32 %a, i1 %cmp) {
 
 define <4 x i64> @sel_zext_vec(<4 x i32> %a, <4 x i1> %cmp) {
 ; CHECK-LABEL: @sel_zext_vec(
-; CHECK-NEXT:    [[TMP1:%.*]] = zext <4 x i32> %a to <4 x i64>
-; CHECK-NEXT:    [[EXT:%.*]] = select <4 x i1> %cmp, <4 x i64> [[TMP1]], <4 x i64> <i64 42, i64 42, i64 42, i64 42>
+; CHECK-NEXT:    [[SEL:%.*]] = select <4 x i1> %cmp, <4 x i32> %a, <4 x i32> <i32 42, i32 42, i32 42, i32 42>
+; CHECK-NEXT:    [[EXT:%.*]] = zext <4 x i32> [[SEL]] to <4 x i64>
 ; CHECK-NEXT:    ret <4 x i64> [[EXT]]
 ;
   %sel = select <4 x i1> %cmp, <4 x i32> %a, <4 x i32> <i32 42, i32 42, i32 42, i32 42>
@@ -79,15 +77,16 @@ define <4 x i64> @sel_zext_vec(<4 x i32> %a, <4 x i1> %cmp) {
   ret <4 x i64> %ext
 }
 
-; FIXME: The next 18 tests cycle through trunc+select and {larger,smaller,equal} {sext,zext,fpext} {scalar,vector}.
-; The only cases where we eliminate an instruction are equal zext with scalar/vector, so that's probably the only
-; way to justify widening the select.
+; The next 18 tests cycle through trunc+select and {larger,smaller,equal} {sext,zext,fpext} {scalar,vector}.
+; The only cases where we eliminate an instruction are equal zext with scalar/vector, so that's the only
+; way to justify widening the select? Except all sext/zext with vectors are transformed to use a wider select
+; even if it means adding IR instructions?
 
 define i64 @trunc_sel_larger_sext(i32 %a, i1 %cmp) {
 ; CHECK-LABEL: @trunc_sel_larger_sext(
 ; CHECK-NEXT:    [[TRUNC:%.*]] = trunc i32 %a to i16
-; CHECK-NEXT:    [[TMP1:%.*]] = sext i16 [[TRUNC]] to i64
-; CHECK-NEXT:    [[EXT:%.*]] = select i1 %cmp, i64 [[TMP1]], i64 42
+; CHECK-NEXT:    [[SEL:%.*]] = select i1 %cmp, i16 [[TRUNC]], i16 42
+; CHECK-NEXT:    [[EXT:%.*]] = sext i16 [[SEL]] to i64
 ; CHECK-NEXT:    ret i64 [[EXT]]
 ;
   %trunc = trunc i32 %a to i16
@@ -99,9 +98,9 @@ define i64 @trunc_sel_larger_sext(i32 %a, i1 %cmp) {
 define <2 x i64> @trunc_sel_larger_sext_vec(<2 x i32> %a, <2 x i1> %cmp) {
 ; CHECK-LABEL: @trunc_sel_larger_sext_vec(
 ; CHECK-NEXT:    [[TRUNC:%.*]] = zext <2 x i32> %a to <2 x i64>
-; CHECK-NEXT:    [[SEXT:%.*]] = shl <2 x i64> [[TRUNC]], <i64 48, i64 48>
-; CHECK-NEXT:    [[TMP1:%.*]] = ashr <2 x i64> [[SEXT]], <i64 48, i64 48>
-; CHECK-NEXT:    [[EXT:%.*]] = select <2 x i1> %cmp, <2 x i64> [[TMP1]], <2 x i64> <i64 42, i64 43>
+; CHECK-NEXT:    [[TRUNC_OP:%.*]] = shl <2 x i64> [[TRUNC]], <i64 48, i64 48>
+; CHECK-NEXT:    [[TRUNC_OP_OP:%.*]] = ashr <2 x i64> [[TRUNC_OP]], <i64 48, i64 48>
+; CHECK-NEXT:    [[EXT:%.*]] = select <2 x i1> %cmp, <2 x i64> [[TRUNC_OP_OP]], <2 x i64> <i64 42, i64 43>
 ; CHECK-NEXT:    ret <2 x i64> [[EXT]]
 ;
   %trunc = trunc <2 x i32> %a to <2 x i16>
@@ -113,8 +112,8 @@ define <2 x i64> @trunc_sel_larger_sext_vec(<2 x i32> %a, <2 x i1> %cmp) {
 define i32 @trunc_sel_smaller_sext(i64 %a, i1 %cmp) {
 ; CHECK-LABEL: @trunc_sel_smaller_sext(
 ; CHECK-NEXT:    [[TRUNC:%.*]] = trunc i64 %a to i16
-; CHECK-NEXT:    [[TMP1:%.*]] = sext i16 [[TRUNC]] to i32
-; CHECK-NEXT:    [[EXT:%.*]] = select i1 %cmp, i32 [[TMP1]], i32 42
+; CHECK-NEXT:    [[SEL:%.*]] = select i1 %cmp, i16 [[TRUNC]], i16 42
+; CHECK-NEXT:    [[EXT:%.*]] = sext i16 [[SEL]] to i32
 ; CHECK-NEXT:    ret i32 [[EXT]]
 ;
   %trunc = trunc i64 %a to i16
@@ -126,9 +125,9 @@ define i32 @trunc_sel_smaller_sext(i64 %a, i1 %cmp) {
 define <2 x i32> @trunc_sel_smaller_sext_vec(<2 x i64> %a, <2 x i1> %cmp) {
 ; CHECK-LABEL: @trunc_sel_smaller_sext_vec(
 ; CHECK-NEXT:    [[TRUNC:%.*]] = trunc <2 x i64> %a to <2 x i32>
-; CHECK-NEXT:    [[SEXT:%.*]] = shl <2 x i32> [[TRUNC]], <i32 16, i32 16>
-; CHECK-NEXT:    [[TMP1:%.*]] = ashr <2 x i32> [[SEXT]], <i32 16, i32 16>
-; CHECK-NEXT:    [[EXT:%.*]] = select <2 x i1> %cmp, <2 x i32> [[TMP1]], <2 x i32> <i32 42, i32 43>
+; CHECK-NEXT:    [[TRUNC_OP:%.*]] = shl <2 x i32> [[TRUNC]], <i32 16, i32 16>
+; CHECK-NEXT:    [[TRUNC_OP_OP:%.*]] = ashr <2 x i32> [[TRUNC_OP]], <i32 16, i32 16>
+; CHECK-NEXT:    [[EXT:%.*]] = select <2 x i1> %cmp, <2 x i32> [[TRUNC_OP_OP]], <2 x i32> <i32 42, i32 43>
 ; CHECK-NEXT:    ret <2 x i32> [[EXT]]
 ;
   %trunc = trunc <2 x i64> %a to <2 x i16>
@@ -139,9 +138,9 @@ define <2 x i32> @trunc_sel_smaller_sext_vec(<2 x i64> %a, <2 x i1> %cmp) {
 
 define i32 @trunc_sel_equal_sext(i32 %a, i1 %cmp) {
 ; CHECK-LABEL: @trunc_sel_equal_sext(
-; CHECK-NEXT:    [[SEXT:%.*]] = shl i32 %a, 16
-; CHECK-NEXT:    [[TMP1:%.*]] = ashr exact i32 [[SEXT]], 16
-; CHECK-NEXT:    [[EXT:%.*]] = select i1 %cmp, i32 [[TMP1]], i32 42
+; CHECK-NEXT:    [[TRUNC:%.*]] = trunc i32 %a to i16
+; CHECK-NEXT:    [[SEL:%.*]] = select i1 %cmp, i16 [[TRUNC]], i16 42
+; CHECK-NEXT:    [[EXT:%.*]] = sext i16 [[SEL]] to i32
 ; CHECK-NEXT:    ret i32 [[EXT]]
 ;
   %trunc = trunc i32 %a to i16
@@ -152,9 +151,9 @@ define i32 @trunc_sel_equal_sext(i32 %a, i1 %cmp) {
 
 define <2 x i32> @trunc_sel_equal_sext_vec(<2 x i32> %a, <2 x i1> %cmp) {
 ; CHECK-LABEL: @trunc_sel_equal_sext_vec(
-; CHECK-NEXT:    [[SEXT:%.*]] = shl <2 x i32> %a, <i32 16, i32 16>
-; CHECK-NEXT:    [[TMP1:%.*]] = ashr <2 x i32> [[SEXT]], <i32 16, i32 16>
-; CHECK-NEXT:    [[EXT:%.*]] = select <2 x i1> %cmp, <2 x i32> [[TMP1]], <2 x i32> <i32 42, i32 43>
+; CHECK-NEXT:    [[A_OP:%.*]] = shl <2 x i32> %a, <i32 16, i32 16>
+; CHECK-NEXT:    [[A_OP_OP:%.*]] = ashr <2 x i32> [[A_OP]], <i32 16, i32 16>
+; CHECK-NEXT:    [[EXT:%.*]] = select <2 x i1> %cmp, <2 x i32> [[A_OP_OP]], <2 x i32> <i32 42, i32 43>
 ; CHECK-NEXT:    ret <2 x i32> [[EXT]]
 ;
   %trunc = trunc <2 x i32> %a to <2 x i16>
@@ -165,9 +164,9 @@ define <2 x i32> @trunc_sel_equal_sext_vec(<2 x i32> %a, <2 x i1> %cmp) {
 
 define i64 @trunc_sel_larger_zext(i32 %a, i1 %cmp) {
 ; CHECK-LABEL: @trunc_sel_larger_zext(
-; CHECK-NEXT:    [[TRUNC_MASK:%.*]] = and i32 %a, 65535
-; CHECK-NEXT:    [[TMP1:%.*]] = zext i32 [[TRUNC_MASK]] to i64
-; CHECK-NEXT:    [[EXT:%.*]] = select i1 %cmp, i64 [[TMP1]], i64 42
+; CHECK-NEXT:    [[TRUNC:%.*]] = trunc i32 %a to i16
+; CHECK-NEXT:    [[SEL:%.*]] = select i1 %cmp, i16 [[TRUNC]], i16 42
+; CHECK-NEXT:    [[EXT:%.*]] = zext i16 [[SEL]] to i64
 ; CHECK-NEXT:    ret i64 [[EXT]]
 ;
   %trunc = trunc i32 %a to i16
@@ -178,9 +177,9 @@ define i64 @trunc_sel_larger_zext(i32 %a, i1 %cmp) {
 
 define <2 x i64> @trunc_sel_larger_zext_vec(<2 x i32> %a, <2 x i1> %cmp) {
 ; CHECK-LABEL: @trunc_sel_larger_zext_vec(
-; CHECK-NEXT:    [[TMP1:%.*]] = and <2 x i32> %a, <i32 65535, i32 65535>
-; CHECK-NEXT:    [[TMP2:%.*]] = zext <2 x i32> [[TMP1]] to <2 x i64>
-; CHECK-NEXT:    [[EXT:%.*]] = select <2 x i1> %cmp, <2 x i64> [[TMP2]], <2 x i64> <i64 42, i64 43>
+; CHECK-NEXT:    [[TRUNC:%.*]] = zext <2 x i32> %a to <2 x i64>
+; CHECK-NEXT:    [[SEL:%.*]] = select <2 x i1> %cmp, <2 x i64> [[TRUNC]], <2 x i64> <i64 42, i64 43>
+; CHECK-NEXT:    [[EXT:%.*]] = and <2 x i64> [[SEL]], <i64 65535, i64 65535>
 ; CHECK-NEXT:    ret <2 x i64> [[EXT]]
 ;
   %trunc = trunc <2 x i32> %a to <2 x i16>
@@ -191,9 +190,9 @@ define <2 x i64> @trunc_sel_larger_zext_vec(<2 x i32> %a, <2 x i1> %cmp) {
 
 define i32 @trunc_sel_smaller_zext(i64 %a, i1 %cmp) {
 ; CHECK-LABEL: @trunc_sel_smaller_zext(
-; CHECK-NEXT:    [[TMP1:%.*]] = trunc i64 %a to i32
-; CHECK-NEXT:    [[TMP2:%.*]] = and i32 [[TMP1]], 65535
-; CHECK-NEXT:    [[EXT:%.*]] = select i1 %cmp, i32 [[TMP2]], i32 42
+; CHECK-NEXT:    [[TRUNC:%.*]] = trunc i64 %a to i16
+; CHECK-NEXT:    [[SEL:%.*]] = select i1 %cmp, i16 [[TRUNC]], i16 42
+; CHECK-NEXT:    [[EXT:%.*]] = zext i16 [[SEL]] to i32
 ; CHECK-NEXT:    ret i32 [[EXT]]
 ;
   %trunc = trunc i64 %a to i16
@@ -205,8 +204,8 @@ define i32 @trunc_sel_smaller_zext(i64 %a, i1 %cmp) {
 define <2 x i32> @trunc_sel_smaller_zext_vec(<2 x i64> %a, <2 x i1> %cmp) {
 ; CHECK-LABEL: @trunc_sel_smaller_zext_vec(
 ; CHECK-NEXT:    [[TRUNC:%.*]] = trunc <2 x i64> %a to <2 x i32>
-; CHECK-NEXT:    [[TMP1:%.*]] = and <2 x i32> [[TRUNC]], <i32 65535, i32 65535>
-; CHECK-NEXT:    [[EXT:%.*]] = select <2 x i1> %cmp, <2 x i32> [[TMP1]], <2 x i32> <i32 42, i32 43>
+; CHECK-NEXT:    [[SEL:%.*]] = select <2 x i1> %cmp, <2 x i32> [[TRUNC]], <2 x i32> <i32 42, i32 43>
+; CHECK-NEXT:    [[EXT:%.*]] = and <2 x i32> [[SEL]], <i32 65535, i32 65535>
 ; CHECK-NEXT:    ret <2 x i32> [[EXT]]
 ;
   %trunc = trunc <2 x i64> %a to <2 x i16>
@@ -218,11 +217,11 @@ define <2 x i32> @trunc_sel_smaller_zext_vec(<2 x i64> %a, <2 x i1> %cmp) {
 define i32 @trunc_sel_equal_zext(i32 %a, i1 %cmp) {
 ; CHECK-LABEL: @trunc_sel_equal_zext(
 ; CHECK-NEXT:    [[TMP1:%.*]] = and i32 %a, 65535
-; CHECK-NEXT:    [[EXT:%.*]] = select i1 %cmp, i32 [[TMP1]], i32 42
+; CHECK-NEXT:    [[EXT:%.*]] = select i1 %cmp, i32 [[TMP1]], i32 42, !prof !0
 ; CHECK-NEXT:    ret i32 [[EXT]]
 ;
   %trunc = trunc i32 %a to i16
-  %sel = select i1 %cmp, i16 %trunc, i16 42
+  %sel = select i1 %cmp, i16 %trunc, i16 42, !prof !0
   %ext = zext i16 %sel to i32
   ret i32 %ext
 }
@@ -230,11 +229,11 @@ define i32 @trunc_sel_equal_zext(i32 %a, i1 %cmp) {
 define <2 x i32> @trunc_sel_equal_zext_vec(<2 x i32> %a, <2 x i1> %cmp) {
 ; CHECK-LABEL: @trunc_sel_equal_zext_vec(
 ; CHECK-NEXT:    [[TMP1:%.*]] = and <2 x i32> %a, <i32 65535, i32 65535>
-; CHECK-NEXT:    [[EXT:%.*]] = select <2 x i1> %cmp, <2 x i32> [[TMP1]], <2 x i32> <i32 42, i32 43>
+; CHECK-NEXT:    [[EXT:%.*]] = select <2 x i1> %cmp, <2 x i32> [[TMP1]], <2 x i32> <i32 42, i32 43>, !prof !0
 ; CHECK-NEXT:    ret <2 x i32> [[EXT]]
 ;
   %trunc = trunc <2 x i32> %a to <2 x i16>
-  %sel = select <2 x i1> %cmp, <2 x i16> %trunc, <2 x i16> <i16 42, i16 43>
+  %sel = select <2 x i1> %cmp, <2 x i16> %trunc, <2 x i16> <i16 42, i16 43>, !prof !0
   %ext = zext <2 x i16> %sel to <2 x i32>
   ret <2 x i32> %ext
 }
@@ -242,8 +241,8 @@ define <2 x i32> @trunc_sel_equal_zext_vec(<2 x i32> %a, <2 x i1> %cmp) {
 define double @trunc_sel_larger_fpext(float %a, i1 %cmp) {
 ; CHECK-LABEL: @trunc_sel_larger_fpext(
 ; CHECK-NEXT:    [[TRUNC:%.*]] = fptrunc float %a to half
-; CHECK-NEXT:    [[TMP1:%.*]] = fpext half [[TRUNC]] to double
-; CHECK-NEXT:    [[EXT:%.*]] = select i1 %cmp, double [[TMP1]], double 4.200000e+01
+; CHECK-NEXT:    [[SEL:%.*]] = select i1 %cmp, half [[TRUNC]], half 0xH5140
+; CHECK-NEXT:    [[EXT:%.*]] = fpext half [[SEL]] to double
 ; CHECK-NEXT:    ret double [[EXT]]
 ;
   %trunc = fptrunc float %a to half
@@ -255,8 +254,8 @@ define double @trunc_sel_larger_fpext(float %a, i1 %cmp) {
 define <2 x double> @trunc_sel_larger_fpext_vec(<2 x float> %a, <2 x i1> %cmp) {
 ; CHECK-LABEL: @trunc_sel_larger_fpext_vec(
 ; CHECK-NEXT:    [[TRUNC:%.*]] = fptrunc <2 x float> %a to <2 x half>
-; CHECK-NEXT:    [[TMP1:%.*]] = fpext <2 x half> [[TRUNC]] to <2 x double>
-; CHECK-NEXT:    [[EXT:%.*]] = select <2 x i1> %cmp, <2 x double> [[TMP1]], <2 x double> <double 4.200000e+01, double 4.300000e+01>
+; CHECK-NEXT:    [[SEL:%.*]] = select <2 x i1> %cmp, <2 x half> [[TRUNC]], <2 x half> <half 0xH5140, half 0xH5160>
+; CHECK-NEXT:    [[EXT:%.*]] = fpext <2 x half> [[SEL]] to <2 x double>
 ; CHECK-NEXT:    ret <2 x double> [[EXT]]
 ;
   %trunc = fptrunc <2 x float> %a to <2 x half>
@@ -268,8 +267,8 @@ define <2 x double> @trunc_sel_larger_fpext_vec(<2 x float> %a, <2 x i1> %cmp) {
 define float @trunc_sel_smaller_fpext(double %a, i1 %cmp) {
 ; CHECK-LABEL: @trunc_sel_smaller_fpext(
 ; CHECK-NEXT:    [[TRUNC:%.*]] = fptrunc double %a to half
-; CHECK-NEXT:    [[TMP1:%.*]] = fpext half [[TRUNC]] to float
-; CHECK-NEXT:    [[EXT:%.*]] = select i1 %cmp, float [[TMP1]], float 4.200000e+01
+; CHECK-NEXT:    [[SEL:%.*]] = select i1 %cmp, half [[TRUNC]], half 0xH5140
+; CHECK-NEXT:    [[EXT:%.*]] = fpext half [[SEL]] to float
 ; CHECK-NEXT:    ret float [[EXT]]
 ;
   %trunc = fptrunc double %a to half
@@ -281,8 +280,8 @@ define float @trunc_sel_smaller_fpext(double %a, i1 %cmp) {
 define <2 x float> @trunc_sel_smaller_fpext_vec(<2 x double> %a, <2 x i1> %cmp) {
 ; CHECK-LABEL: @trunc_sel_smaller_fpext_vec(
 ; CHECK-NEXT:    [[TRUNC:%.*]] = fptrunc <2 x double> %a to <2 x half>
-; CHECK-NEXT:    [[TMP1:%.*]] = fpext <2 x half> [[TRUNC]] to <2 x float>
-; CHECK-NEXT:    [[EXT:%.*]] = select <2 x i1> %cmp, <2 x float> [[TMP1]], <2 x float> <float 4.200000e+01, float 4.300000e+01>
+; CHECK-NEXT:    [[SEL:%.*]] = select <2 x i1> %cmp, <2 x half> [[TRUNC]], <2 x half> <half 0xH5140, half 0xH5160>
+; CHECK-NEXT:    [[EXT:%.*]] = fpext <2 x half> [[SEL]] to <2 x float>
 ; CHECK-NEXT:    ret <2 x float> [[EXT]]
 ;
   %trunc = fptrunc <2 x double> %a to <2 x half>
@@ -294,8 +293,8 @@ define <2 x float> @trunc_sel_smaller_fpext_vec(<2 x double> %a, <2 x i1> %cmp) 
 define float @trunc_sel_equal_fpext(float %a, i1 %cmp) {
 ; CHECK-LABEL: @trunc_sel_equal_fpext(
 ; CHECK-NEXT:    [[TRUNC:%.*]] = fptrunc float %a to half
-; CHECK-NEXT:    [[TMP1:%.*]] = fpext half [[TRUNC]] to float
-; CHECK-NEXT:    [[EXT:%.*]] = select i1 %cmp, float [[TMP1]], float 4.200000e+01
+; CHECK-NEXT:    [[SEL:%.*]] = select i1 %cmp, half [[TRUNC]], half 0xH5140
+; CHECK-NEXT:    [[EXT:%.*]] = fpext half [[SEL]] to float
 ; CHECK-NEXT:    ret float [[EXT]]
 ;
   %trunc = fptrunc float %a to half
@@ -307,8 +306,8 @@ define float @trunc_sel_equal_fpext(float %a, i1 %cmp) {
 define <2 x float> @trunc_sel_equal_fpext_vec(<2 x float> %a, <2 x i1> %cmp) {
 ; CHECK-LABEL: @trunc_sel_equal_fpext_vec(
 ; CHECK-NEXT:    [[TRUNC:%.*]] = fptrunc <2 x float> %a to <2 x half>
-; CHECK-NEXT:    [[TMP1:%.*]] = fpext <2 x half> [[TRUNC]] to <2 x float>
-; CHECK-NEXT:    [[EXT:%.*]] = select <2 x i1> %cmp, <2 x float> [[TMP1]], <2 x float> <float 4.200000e+01, float 4.300000e+01>
+; CHECK-NEXT:    [[SEL:%.*]] = select <2 x i1> %cmp, <2 x half> [[TRUNC]], <2 x half> <half 0xH5140, half 0xH5160>
+; CHECK-NEXT:    [[EXT:%.*]] = fpext <2 x half> [[SEL]] to <2 x float>
 ; CHECK-NEXT:    ret <2 x float> [[EXT]]
 ;
   %trunc = fptrunc <2 x float> %a to <2 x half>
