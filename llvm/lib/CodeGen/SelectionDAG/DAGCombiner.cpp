@@ -14947,8 +14947,8 @@ SDValue DAGCombiner::BuildUDIV(SDNode *N) {
 ///   X_{i+1} = X_i (2 - A X_i) = X_i + X_i (1 - A X_i) [this second form
 ///     does not require additional intermediate precision]
 SDValue DAGCombiner::BuildReciprocalEstimate(SDValue Op, SDNodeFlags *Flags) {
-  if (Level >= AfterLegalizeDAG)
-    return SDValue();
+  //  if (Level >= AfterLegalizeDAG)
+  return SDValue();
 
   // TODO: Handle half and/or extended types?
   EVT VT = Op.getValueType();
