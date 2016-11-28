@@ -123,6 +123,9 @@ namespace clang {
                           ImportDefinitionKind Kind = IDK_Default);
     bool ImportDefinition(ObjCProtocolDecl *From, ObjCProtocolDecl *To,
                           ImportDefinitionKind Kind = IDK_Default);
+
+    void ImportAttributes(Decl *From, Decl *To);
+
     TemplateParameterList *ImportTemplateParameterList(
                                                  TemplateParameterList *Params);
     TemplateArgument ImportTemplateArgument(const TemplateArgument &From);
@@ -137,6 +140,8 @@ namespace clang {
                            bool Complain = true);
     bool IsStructuralMatch(EnumDecl *FromEnum, EnumDecl *ToRecord);
     bool IsStructuralMatch(EnumConstantDecl *FromEC, EnumConstantDecl *ToEC);
+    bool IsStructuralMatch(FunctionTemplateDecl *From,
+                           FunctionTemplateDecl *To);
     bool IsStructuralMatch(ClassTemplateDecl *From, ClassTemplateDecl *To);
     bool IsStructuralMatch(VarTemplateDecl *From, VarTemplateDecl *To);
     Decl *VisitDecl(Decl *D);
@@ -159,6 +164,7 @@ namespace clang {
     Decl *VisitFieldDecl(FieldDecl *D);
     Decl *VisitIndirectFieldDecl(IndirectFieldDecl *D);
     Decl *VisitFriendDecl(FriendDecl *D);
+    Decl *VisitFunctionTemplateDecl(FunctionTemplateDecl *D);
     Decl *VisitObjCIvarDecl(ObjCIvarDecl *D);
     Decl *VisitVarDecl(VarDecl *D);
     Decl *VisitImplicitParamDecl(ImplicitParamDecl *D);
@@ -265,6 +271,7 @@ namespace clang {
     Expr *VisitMaterializeTemporaryExpr(MaterializeTemporaryExpr *E);
     Expr *VisitCXXNewExpr(CXXNewExpr *CE);
     Expr *VisitCXXDeleteExpr(CXXDeleteExpr *E);
+    Expr *VisitCXXDependentScopeMemberExpr(CXXDependentScopeMemberExpr *E);
     Expr *VisitCXXConstructExpr(CXXConstructExpr *E);
     Expr *VisitCXXMemberCallExpr(CXXMemberCallExpr *E);
     Expr *VisitExprWithCleanups(ExprWithCleanups *EWC);
@@ -2307,6 +2314,15 @@ bool ASTNodeImporter::ImportDefinition(EnumDecl *From, EnumDecl *To,
   return false;
 }
 
+void ASTNodeImporter::ImportAttributes(Decl *From, Decl *To) {
+  for (Decl::attr_iterator I = From->attr_begin(), E = From->attr_end(); I != E;
+       ++I) {
+    Attr *ToAttr = (*I)->clone(Importer.getToContext());
+    ToAttr->setRange(Importer.Import((*I)->getRange()));
+    To->addAttr(ToAttr);
+  }
+}
+
 TemplateParameterList *ASTNodeImporter::ImportTemplateParameterList(
                                                 TemplateParameterList *Params) {
   SmallVector<NamedDecl *, 4> ToParams(Params->size());
@@ -2482,6 +2498,15 @@ bool ASTNodeImporter::IsStructuralMatch(EnumConstantDecl *FromEC,
   return FromVal.isSigned() == ToVal.isSigned() &&
          FromVal.getBitWidth() == ToVal.getBitWidth() &&
          FromVal == ToVal;
+}
+
+bool ASTNodeImporter::IsStructuralMatch(FunctionTemplateDecl *From,
+                                        FunctionTemplateDecl *To) {
+  StructuralEquivalenceContext Ctx(Importer.getFromContext(),
+                                   Importer.getToContext(),
+                                   Importer.getNonEquivalentDecls(),
+                                   false, false);
+  return Ctx.IsStructurallyEquivalent(From, To);
 }
 
 bool ASTNodeImporter::IsStructuralMatch(ClassTemplateDecl *From,
@@ -3480,6 +3505,64 @@ Decl *ASTNodeImporter::VisitFriendDecl(FriendDecl *D) {
   FrD->setLexicalDeclContext(LexicalDC);
   LexicalDC->addDeclInternal(FrD);
   return FrD;
+}
+
+Decl *ASTNodeImporter::VisitFunctionTemplateDecl(FunctionTemplateDecl *D) {
+  DeclContext *DC, *LexicalDC;
+  DeclarationName Name;
+  SourceLocation Loc;
+  NamedDecl *ToD;
+
+  if (ImportDeclParts(D, DC, LexicalDC, Name, ToD, Loc))
+    return nullptr;
+  assert(DC && "Null DeclContext after importing decl parts");
+  if (ToD)
+      return ToD;
+
+  // Try to find a function in our own ("to") context with the same name, same
+  // type, and in the same context as the function we're importing.
+  if (!LexicalDC->isFunctionOrMethod()) {
+    unsigned IDNS = Decl::IDNS_Ordinary;
+    SmallVector<NamedDecl *, 2> FoundDecls;
+    DC->getRedeclContext()->localUncachedLookup(Name, FoundDecls);
+    for (unsigned I = 0, N = FoundDecls.size(); I != N; ++I) {
+      if (!FoundDecls[I]->isInIdentifierNamespace(IDNS))
+        continue;
+
+      if (FunctionTemplateDecl *FoundFunction =
+          dyn_cast<FunctionTemplateDecl>(FoundDecls[I])) {
+        if (FoundFunction->hasExternalFormalLinkage() &&
+            D->hasExternalFormalLinkage()) {
+          if (IsStructuralMatch(D, FoundFunction)) {
+            Importer.Imported(D, FoundFunction);
+            // FIXME: Actually try to merge the body and other attributes.
+            return FoundFunction;
+          }
+        }
+      }
+    }
+  }
+
+  TemplateParameterList *Params = ImportTemplateParameterList(
+                                    D->getTemplateParameters());
+  if (!Params)
+    return nullptr;
+
+  FunctionDecl *TemplatedFD = cast_or_null<FunctionDecl>(D->getTemplatedDecl());
+  if (!TemplatedFD)
+    return nullptr;
+
+  FunctionTemplateDecl *ToFunc = FunctionTemplateDecl::Create(
+      Importer.getToContext(), DC, Loc, Name, Params, TemplatedFD);
+
+  TemplatedFD->setDescribedFunctionTemplate(ToFunc);
+  ImportAttributes(D, ToFunc);
+  ToFunc->setAccess(D->getAccess());
+  ToFunc->setLexicalDeclContext(LexicalDC);
+  Importer.Imported(D, ToFunc);
+
+  LexicalDC->addDeclInternal(ToFunc);
+  return ToFunc;
 }
 
 Decl *ASTNodeImporter::VisitObjCIvarDecl(ObjCIvarDecl *D) {
@@ -6361,6 +6444,40 @@ Expr *ASTNodeImporter::VisitCXXDeleteExpr(CXXDeleteExpr *E) {
         OperatorDeleteDecl,
         ToArg,
         Importer.Import(E->getLocStart()));
+}
+
+Expr *ASTNodeImporter::VisitCXXDependentScopeMemberExpr(
+    CXXDependentScopeMemberExpr *E) {
+  Expr *Base = E->getBase();
+  if (!Base)
+    return nullptr;
+
+  QualType BaseType = E->getBaseType();
+  if (BaseType.isNull())
+    return nullptr;
+
+  TemplateArgumentListInfo ToTAInfo;
+  TemplateArgumentListInfo *ResInfo = nullptr;
+  if (E->hasExplicitTemplateArgs()) {
+    for (const auto &FromLoc : E->template_arguments()) {
+      bool Error = false;
+      TemplateArgumentLoc ToTALoc = ImportTemplateArgumentLoc(FromLoc, Error);
+      if (Error)
+        return nullptr;
+      ToTAInfo.addArgument(ToTALoc);
+    }
+    ResInfo = &ToTAInfo;
+  }
+
+  return CXXDependentScopeMemberExpr::Create(Importer.getToContext(),
+                                             Base, BaseType,
+                                             E->isArrow(),
+                                             E->getOperatorLoc(),
+                                             E->getQualifierLoc(),
+                                             E->getTemplateKeywordLoc(),
+                                             E->getFirstQualifierFoundInScope(),
+                                             E->getMemberNameInfo(),
+                                             ResInfo);
 }
 
 Expr *ASTNodeImporter::VisitCXXConstructExpr(CXXConstructExpr *E) {

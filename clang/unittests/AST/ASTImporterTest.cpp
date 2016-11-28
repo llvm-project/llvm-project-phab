@@ -474,5 +474,54 @@ TEST(ImportExpr, ImportVAArgExpr) {
 }
 
 
+TEST(ImportDecl, ImportFunctionTemplateDecl) {
+  MatchVerifier<Decl> Verifier;
+  EXPECT_TRUE(
+        testImport(
+          "template <typename T> void declToImport() { };",
+          Lang_CXX, "", Lang_CXX, Verifier,
+          functionTemplateDecl()));
+}
+
+
+TEST(ImportExpr, ImportCXXDependentScopeMemberExpr) {
+  MatchVerifier<Decl> Verifier;
+  EXPECT_TRUE(
+        testImport(
+          "template <typename T> class C { T t; };"
+          "template <typename T> void declToImport() {"
+            "C<T> d;"
+            "d.t = T();"
+          "}",
+          Lang_CXX, "", Lang_CXX, Verifier,
+          functionTemplateDecl(
+            has(
+              functionDecl(
+                has(
+                  compoundStmt(
+                    has(
+                      binaryOperator(
+                        has(
+                          cxxDependentScopeMemberExpr()))))))))));
+  EXPECT_TRUE(
+        testImport(
+          "template <typename T> class C { T t; };"
+          "template <typename T> void declToImport() {"
+            "C<T> d;"
+            "(&d)->t = T();"
+          "}",
+          Lang_CXX, "", Lang_CXX, Verifier,
+          functionTemplateDecl(
+            has(
+              functionDecl(
+                has(
+                  compoundStmt(
+                    has(
+                      binaryOperator(
+                        has(
+                          cxxDependentScopeMemberExpr()))))))))));
+}
+
+
 } // end namespace ast_matchers
 } // end namespace clang
