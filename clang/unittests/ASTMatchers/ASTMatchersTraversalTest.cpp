@@ -227,6 +227,17 @@ TEST(HasDeclaration, HasGetDeclTraitTest) {
   EXPECT_FALSE(internal::has_getDecl<TemplateSpecializationType>::value);
 }
 
+TEST(HasDeclaration, ElaboratedType) {
+  EXPECT_TRUE(matches(
+      "namespace n { template <typename T> struct X {}; }"
+      "void f(n::X<int>);",
+      parmVarDecl(hasType(qualType(hasDeclaration(cxxRecordDecl()))))));
+  EXPECT_TRUE(matches(
+      "namespace n { template <typename T> struct X {}; }"
+      "void f(n::X<int>);",
+      parmVarDecl(hasType(elaboratedType(hasDeclaration(cxxRecordDecl()))))));
+}
+
 TEST(HasDeclaration, HasDeclarationOfTypeWithDecl) {
   EXPECT_TRUE(matches("typedef int X; X a;",
                       varDecl(hasName("a"),
@@ -239,6 +250,13 @@ TEST(HasDeclaration, HasDeclarationOfTemplateSpecializationType) {
   EXPECT_TRUE(matches("template <typename T> class A {}; A<int> a;",
                       varDecl(hasType(templateSpecializationType(
                         hasDeclaration(namedDecl(hasName("A"))))))));
+  EXPECT_TRUE(matches("template <typename T> class A {};"
+                      "template <typename T> class B { A<T> a; };",
+                      fieldDecl(hasType(templateSpecializationType(
+                        hasDeclaration(namedDecl(hasName("A"))))))));
+  EXPECT_TRUE(matches("template <typename T> class A {}; A<int> a;",
+                      varDecl(hasType(templateSpecializationType(
+                          hasDeclaration(cxxRecordDecl()))))));
 }
 
 TEST(HasDeclaration, HasDeclarationOfCXXNewExpr) {
