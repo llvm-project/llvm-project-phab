@@ -112,7 +112,7 @@ private:
   // Intrusive list support
   friend struct ilist_traits<MachineInstr>;
   friend struct ilist_callback_traits<MachineBasicBlock>;
-  void setParent(MachineBasicBlock *P) { Parent = P; }
+// AVT:  void setParent(MachineBasicBlock *P) { Parent = P; }
 
   /// This constructor creates a copy of the given
   /// MachineInstr in the given MachineFunction.
@@ -128,6 +128,8 @@ private:
   friend class MachineFunction;
 
 public:
+  // AVT:
+  void setParent(MachineBasicBlock *P) { Parent = P; }
   const MachineBasicBlock* getParent() const { return Parent; }
   MachineBasicBlock* getParent() { return Parent; }
 
