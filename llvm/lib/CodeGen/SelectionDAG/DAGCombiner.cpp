@@ -359,7 +359,6 @@ namespace {
     SDValue BuildSDIV(SDNode *N);
     SDValue BuildSDIVPow2(SDNode *N);
     SDValue BuildUDIV(SDNode *N);
-    SDValue BuildReciprocalEstimate(SDValue Op, SDNodeFlags *Flags);
     SDValue buildRsqrtEstimate(SDValue Op, SDNodeFlags *Flags);
     SDValue buildSqrtEstimate(SDValue Op, SDNodeFlags *Flags);
     SDValue buildSqrtEstimateImpl(SDValue Op, SDNodeFlags *Flags, bool Recip);
@@ -9029,12 +9028,6 @@ SDValue DAGCombiner::visitFDIV(SDNode *N) {
         }
       }
     }
-
-    // Fold into a reciprocal estimate and multiply instead of a real divide.
-    if (SDValue RV = BuildReciprocalEstimate(N1, Flags)) {
-      AddToWorklist(RV.getNode());
-      return DAG.getNode(ISD::FMUL, DL, VT, N0, RV, Flags);
-    }
   }
 
   // (fdiv (fneg X), (fneg Y)) -> (fdiv X, Y)
@@ -14936,59 +14929,6 @@ SDValue DAGCombiner::BuildUDIV(SDNode *N) {
   for (SDNode *N : Built)
     AddToWorklist(N);
   return S;
-}
-
-/// Newton iteration for a function: F(X) is X_{i+1} = X_i - F(X_i)/F'(X_i)
-/// For the reciprocal, we need to find the zero of the function:
-///   F(X) = A X - 1 [which has a zero at X = 1/A]
-///     =>
-///   X_{i+1} = X_i (2 - A X_i) = X_i + X_i (1 - A X_i) [this second form
-///     does not require additional intermediate precision]
-SDValue DAGCombiner::BuildReciprocalEstimate(SDValue Op, SDNodeFlags *Flags) {
-  if (Level >= AfterLegalizeDAG)
-    return SDValue();
-
-  // TODO: Handle half and/or extended types?
-  EVT VT = Op.getValueType();
-  if (VT.getScalarType() != MVT::f32 && VT.getScalarType() != MVT::f64)
-    return SDValue();
-
-  // If estimates are explicitly disabled for this function, we're done.
-  MachineFunction &MF = DAG.getMachineFunction();
-  int Enabled = TLI.getRecipEstimateDivEnabled(VT, MF);
-  if (Enabled == TLI.ReciprocalEstimate::Disabled)
-    return SDValue();
-
-  // Estimates may be explicitly enabled for this type with a custom number of
-  // refinement steps.
-  int Iterations = TLI.getDivRefinementSteps(VT, MF);
-  if (SDValue Est = TLI.getRecipEstimate(Op, DAG, Enabled, Iterations)) {
-    AddToWorklist(Est.getNode());
-
-    if (Iterations) {
-      EVT VT = Op.getValueType();
-      SDLoc DL(Op);
-      SDValue FPOne = DAG.getConstantFP(1.0, DL, VT);
-
-      // Newton iterations: Est = Est + Est (1 - Arg * Est)
-      for (int i = 0; i < Iterations; ++i) {
-        SDValue NewEst = DAG.getNode(ISD::FMUL, DL, VT, Op, Est, Flags);
-        AddToWorklist(NewEst.getNode());
-
-        NewEst = DAG.getNode(ISD::FSUB, DL, VT, FPOne, NewEst, Flags);
-        AddToWorklist(NewEst.getNode());
-
-        NewEst = DAG.getNode(ISD::FMUL, DL, VT, Est, NewEst, Flags);
-        AddToWorklist(NewEst.getNode());
-
-        Est = DAG.getNode(ISD::FADD, DL, VT, Est, NewEst, Flags);
-        AddToWorklist(Est.getNode());
-      }
-    }
-    return Est;
-  }
-
-  return SDValue();
 }
 
 /// Newton iteration for a function: F(X) is X_{i+1} = X_i - F(X_i)/F'(X_i)
