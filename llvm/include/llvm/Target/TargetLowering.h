@@ -36,6 +36,7 @@
 #include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/Target/TargetCallingConv.h"
 #include "llvm/Target/TargetMachine.h"
+#include "llvm/CodeGen/LiveInterval.h"
 #include <climits>
 #include <map>
 #include <vector>
@@ -3114,6 +3115,21 @@ public:
     return false;
   }
 
+  /// The target can specify whether a callee-saved register should be used
+  /// rather than spliting the live range. Default behaviour is yes.
+  virtual bool useCSRInsteadOfSplit(const LiveInterval &LI) const {
+    return true;
+  }
+
+  /// Target specific cost of using a callee-saved register for the first time
+  /// when the live range of the value spans the passed blocks. A target should
+  /// only return a value other than zero here if splitting might be preferred
+  /// to a CSR use (i.e. it would return false from useCSRInsteadOfSplit for the
+  /// respective live range).
+  virtual int64_t costOfFirstCSRForBlocks(
+    const SmallVectorImpl<MachineBasicBlock*> &UseMBBs) const {
+    return 0;
+  }
   /// Lower TLS global address SDNode for target independent emulated TLS model.
   virtual SDValue LowerToTLSEmulatedModel(const GlobalAddressSDNode *GA,
                                           SelectionDAG &DAG) const;
