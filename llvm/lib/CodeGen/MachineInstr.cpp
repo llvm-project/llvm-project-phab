@@ -1690,26 +1690,28 @@ LLVM_DUMP_METHOD void MachineInstr::dump() const {
 #endif
 }
 
-void MachineInstr::print(raw_ostream &OS, bool SkipOpers) const {
+void MachineInstr::print(raw_ostream &OS, bool SkipOpers,
+                         const MachineBasicBlock *P) const {
   const Module *M = nullptr;
   if (const MachineBasicBlock *MBB = getParent())
     if (const MachineFunction *MF = MBB->getParent())
       M = MF->getFunction()->getParent();
 
   ModuleSlotTracker MST(M);
-  print(OS, MST, SkipOpers);
+  print(OS, MST, SkipOpers, P);
 }
 
 void MachineInstr::print(raw_ostream &OS, ModuleSlotTracker &MST,
-                         bool SkipOpers) const {
+                         bool SkipOpers, const MachineBasicBlock *P) const {
   // We can be a bit tidier if we know the MachineFunction.
   const MachineFunction *MF = nullptr;
   const TargetRegisterInfo *TRI = nullptr;
   const MachineRegisterInfo *MRI = nullptr;
   const TargetInstrInfo *TII = nullptr;
   const TargetIntrinsicInfo *IntrinsicInfo = nullptr;
+  const MachineBasicBlock *MBB = P ? P : getParent();
 
-  if (const MachineBasicBlock *MBB = getParent()) {
+  if (MBB) {
     MF = MBB->getParent();
     if (MF) {
       MRI = &MF->getRegInfo();
