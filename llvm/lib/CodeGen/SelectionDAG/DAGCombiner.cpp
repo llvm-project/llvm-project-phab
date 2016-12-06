@@ -14953,6 +14953,18 @@ SDValue DAGCombiner::BuildUDIV(SDNode *N) {
 ///   X_{i+1} = X_i (2 - A X_i) = X_i + X_i (1 - A X_i) [this second form
 ///     does not require additional intermediate precision]
 SDValue DAGCombiner::BuildReciprocalEstimate(SDValue Op, SDNodeFlags *Flags) {
+
+  // This effort should be moved lower on Machine Combiner level because only
+  // there we know real estimation of fdiv and its reciprocal implementation
+  switch (DAG.getTarget().getTargetTriple().getArch()) {
+  default:
+    break;
+  // These architectures deal with reciprocal estimate on Machine Combiner level
+  case Triple::x86:
+  case Triple::x86_64:
+    return SDValue();
+  }
+
   if (Level >= AfterLegalizeDAG)
     return SDValue();
 
