@@ -1148,10 +1148,14 @@ public:
 
   //
   // Debugging support
-  //
-  void print(raw_ostream &OS, bool SkipOpers = false) const;
-  void print(raw_ostream &OS, ModuleSlotTracker &MST,
-             bool SkipOpers = false) const;
+  // Sometimes (e.g. in Machine Combiner) we have sequences of instructions
+  // which are not inserted in any Basic Block. As result we can't pretty print
+  // those instructions because disassembler needs access to such things like
+  // Target Instruction Info. To support the access we included P argument below
+  void print(raw_ostream &OS, bool SkipOpers = false,
+             const MachineBasicBlock *P = nullptr) const;
+  void print(raw_ostream &OS, ModuleSlotTracker &MST, bool SkipOpers = false,
+             const MachineBasicBlock *P = nullptr) const;
   void dump() const;
 
   //===--------------------------------------------------------------------===//
