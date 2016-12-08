@@ -272,15 +272,16 @@ defm : SMRD_Pattern <"S_LOAD_DWORDX8",  v8i32>;
 defm : SMRD_Pattern <"S_LOAD_DWORDX16", v16i32>;
 
 // 1. Offset as an immediate
-def SM_LOAD_PATTERN : Pat <  // name this pattern to reuse AddedComplexity on CI
-  (SIload_constant v4i32:$sbase, (SMRDBufferImm i32:$offset)),
-  (S_BUFFER_LOAD_DWORD_IMM $sbase, $offset, 0)
+// name this pattern to reuse AddedComplexity on CI
+def SM_LOAD_PATTERN : Pat <
+  (i32 (SIsbuffer_load v4i32:$sbase, (SMRDBufferImm i32:$offset), i1:$glc)),
+  (S_BUFFER_LOAD_DWORD_IMM $sbase, $offset, (as_i1imm $glc))
 >;
 
 // 2. Offset loaded in an 32bit SGPR
 def : Pat <
-  (SIload_constant v4i32:$sbase, (SMRDBufferSgpr i32:$offset)),
-  (S_BUFFER_LOAD_DWORD_SGPR $sbase, $offset, 0)
+  (i32 (SIsbuffer_load v4i32:$sbase, (SMRDBufferSgpr i32:$offset), i1:$glc)),
+  (S_BUFFER_LOAD_DWORD_SGPR $sbase, $offset, (as_i1imm $glc))
 >;
 
 } // End let AddedComplexity = 100
@@ -291,8 +292,8 @@ let Predicates = [isVI] in {
 
 // 1. Offset as 20bit DWORD immediate
 def : Pat <
-  (SIload_constant v4i32:$sbase, IMM20bit:$offset),
-  (S_BUFFER_LOAD_DWORD_IMM $sbase, (as_i32imm $offset), 0)
+  (i32 (SIsbuffer_load v4i32:$sbase, IMM20bit:$offset, i1:$glc)),
+  (S_BUFFER_LOAD_DWORD_IMM $sbase, (as_i32imm $offset), (as_i1imm $glc))
 >;
 
 def : Pat <
@@ -522,8 +523,8 @@ def : SMRD_Pattern_ci <"S_LOAD_DWORDX8",  v8i32>;
 def : SMRD_Pattern_ci <"S_LOAD_DWORDX16", v16i32>;
 
 def : Pat <
-  (SIload_constant v4i32:$sbase, (SMRDBufferImm32 i32:$offset)),
-  (S_BUFFER_LOAD_DWORD_IMM_ci $sbase, $offset, 0)> {
+  (i32 (SIsbuffer_load v4i32:$sbase, (SMRDBufferImm32 i32:$offset), i1:$glc)),
+  (S_BUFFER_LOAD_DWORD_IMM_ci $sbase, $offset, $glc)> {
   let Predicates = [isCI]; // should this be isCIOnly?
 }
 

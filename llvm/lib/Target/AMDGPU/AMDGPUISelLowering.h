@@ -321,6 +321,7 @@ enum NodeType : unsigned {
   ATOMIC_CMP_SWAP,
   ATOMIC_INC,
   ATOMIC_DEC,
+  SBUFFER_LOAD,
   LAST_AMDGPU_ISD_NUMBER
 };
 

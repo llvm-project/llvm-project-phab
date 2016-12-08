@@ -26,11 +26,6 @@ def SIEncodingFamily {
 // SI DAG Nodes
 //===----------------------------------------------------------------------===//
 
-def SIload_constant : SDNode<"AMDGPUISD::LOAD_CONSTANT",
-  SDTypeProfile<1, 2, [SDTCisVT<0, f32>, SDTCisVT<1, v4i32>, SDTCisVT<2, i32>]>,
-                      [SDNPMayLoad, SDNPMemOperand]
->;
-
 def SIatomic_inc : SDNode<"AMDGPUISD::ATOMIC_INC", SDTAtomic2,
   [SDNPMayLoad, SDNPMayStore, SDNPMemOperand, SDNPHasChain]
 >;
@@ -83,6 +78,11 @@ def SIpc_add_rel_offset : SDNode<"AMDGPUISD::PC_ADD_REL_OFFSET",
 
 def atomic_inc_global : global_binary_atomic_op<SIatomic_inc>;
 def atomic_dec_global : global_binary_atomic_op<SIatomic_dec>;
+
+def SIsbuffer_load : SDNode<"AMDGPUISD::SBUFFER_LOAD",
+  SDTypeProfile<1, 3, [SDTCisVT<1, v4i32>, SDTCisVT<2, i32>, SDTCisVT<3, i1>]>,
+  [SDNPHasChain, SDNPMayLoad, SDNPMemOperand]
+>;
 
 //===----------------------------------------------------------------------===//
 // SDNodes and PatFrag for local loads and stores to enable s_mov_b32 m0, -1
