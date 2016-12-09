@@ -4,6 +4,7 @@
 # RUN: llvm-readobj -dyn-relocations %t | FileCheck %s
 
 # CHECK:      Dynamic Relocations {
+# CHECK-NEXT:   0x3018 R_X86_64_JUMP_SLOT - 0x0
 # CHECK-NEXT: }
 
 .globl _start
