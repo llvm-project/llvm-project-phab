@@ -2523,9 +2523,7 @@ Intrinsic::ID llvm::getIntrinsicForCallSite(ImmutableCallSite ICS,
   case LibFunc::sqrt:
   case LibFunc::sqrtf:
   case LibFunc::sqrtl:
-    if (ICS->hasNoNaNs())
-      return Intrinsic::sqrt;
-    return Intrinsic::not_intrinsic;
+    return Intrinsic::sqrt;
   }
 
   return Intrinsic::not_intrinsic;
