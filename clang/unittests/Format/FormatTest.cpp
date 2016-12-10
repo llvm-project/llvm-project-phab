@@ -9445,7 +9445,7 @@ TEST_F(FormatTest, AlignConsecutiveDeclarations) {
                Alignment);
   EXPECT_EQ("void SomeFunction(int parameter = 0) {\n"
             "  int const i   = 1;\n"
-            "  int *     j   = 2;\n"
+            "  int      *j   = 2;\n"
             "  int       big = 10000;\n"
             "\n"
             "  unsigned oneTwoThree = 123;\n"
@@ -9457,6 +9457,29 @@ TEST_F(FormatTest, AlignConsecutiveDeclarations) {
             format("void SomeFunction(int parameter= 0) {\n"
                    " int const  i= 1;\n"
                    "  int *j=2;\n"
+                   " int big  =  10000;\n"
+                   "\n"
+                   "unsigned oneTwoThree  =123;\n"
+                   "int oneTwo = 12;\n"
+                   "  method();\n"
+                   "float k= 2;\n"
+                   "int ll=10000;\n"
+                   "}",
+                   Alignment));
+  EXPECT_EQ("void SomeFunction(int parameter = 0) {\n"
+            "  int const i = 1;\n"
+            "  int     **j = 2, ***k = 3;\n"
+            "  int       big = 10000;\n"
+            "\n"
+            "  unsigned oneTwoThree = 123;\n"
+            "  int      oneTwo      = 12;\n"
+            "  method();\n"
+            "  float k  = 2;\n"
+            "  int   ll = 10000;\n"
+            "}",
+            format("void SomeFunction(int parameter= 0) {\n"
+                   " int const  i= 1;\n"
+                   "  int **j=2,***k=3;\n"
                    " int big  =  10000;\n"
                    "\n"
                    "unsigned oneTwoThree  =123;\n"
@@ -9492,7 +9515,7 @@ TEST_F(FormatTest, AlignConsecutiveDeclarations) {
                Alignment);
   verifyFormat("void SomeFunction(int parameter = 0) {\n"
                "  int const i = 1;\n"
-               "  int *     j = 2;\n"
+               "  int      *j = 2;\n"
                "  int       big = 10000;\n"
                "}",
                Alignment);
@@ -9596,7 +9619,7 @@ TEST_F(FormatTest, AlignConsecutiveDeclarations) {
                "         float     b,\n"
                "         int       c,\n"
                "         uint32_t *d) {\n"
-               "  int *  e = 0;\n"
+               "  int   *e = 0;\n"
                "  float  f = 0;\n"
                "  double g = 0;\n"
                "}\n"
