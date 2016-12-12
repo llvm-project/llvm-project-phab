@@ -101,6 +101,8 @@ def err_drv_invalid_argument_to_fdebug_prefix_map : Error<
   "invalid argument '%0' to -fdebug-prefix-map">;
 def err_drv_malformed_sanitizer_blacklist : Error<
   "malformed sanitizer blacklist: '%0'">;
+def err_drv_incomplete_config : Error<
+  "config file does not contain argument for the option '%0'">;
 
 def err_target_unsupported_arch
   : Error<"the target architecture '%0' is not supported by the target '%1'">;
