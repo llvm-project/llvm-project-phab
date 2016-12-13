@@ -305,6 +305,41 @@ static int ExecuteCC1Tool(ArrayRef<const char *> argv, StringRef Tool) {
   return 1;
 }
 
+// Directories searched for configuration specified by option '--config'.
+static const ArrayRef<const char *> SearchDirs = {
+#if defined(CLANG_CONFIG_FILE_USER_DIR)
+  CLANG_CONFIG_FILE_USER_DIR,
+#endif
+#if defined(CLANG_CONFIG_FILE_SYSTEM_DIR)
+  CLANG_CONFIG_FILE_SYSTEM_DIR
+#endif
+};
+
+/// Deduce configuration name if it is encoded in the executable name.
+///
+/// \param ConfigFile [out] Is assigned configuration file path.
+/// \param ProgramName [in] clang executable path.
+/// \return True if configuration file was found.
+///
+/// If clang executable is named e.g. 'armv7l-clang' the function tries to
+/// find config file 'armv7l.cfg'. If it is found, its path is put into
+/// ConfigFile and the function returns true.
+///
+static bool findConfigFileFromProgramName(
+    llvm::SmallVectorImpl<char> &ConfigFile, StringRef ProgramName) {
+  ConfigFile.clear();
+  StringRef PName = llvm::sys::path::stem(ProgramName);
+  size_t Pos = PName.find("-clang");
+  if (Pos == StringRef::npos)
+    return false;
+
+  ConfigFile.append(PName.begin(), PName.begin() + Pos);
+  const StringRef Ext(".cfg");
+  ConfigFile.append(Ext.begin(), Ext.end());
+  std::string CName(ConfigFile.begin(), ConfigFile.size());
+  return llvm::cl::searchForFile(ConfigFile, SearchDirs, ProgramName, CName);
+}
+
 int main(int argc_, const char **argv_) {
   llvm::sys::PrintStackTraceOnErrorSignal(argv_[0]);
   llvm::PrettyStackTraceProgram X(argc_, argv_);
@@ -329,6 +364,31 @@ int main(int argc_, const char **argv_) {
 
   llvm::BumpPtrAllocator A;
   llvm::StringSaver Saver(A);
+
+  // Try reading options from configuration file.
+  llvm::SmallString<128> ConfigFile;
+  llvm::cl::SearchResult SRes;
+
+  // First try config file specified in command line. It has higher priority
+  // than any other way to specify configuration.
+  SRes = llvm::cl::findConfigFileFromArgs(ConfigFile, argv, SearchDirs, true);
+  if (llvm::cl::checkConfigFileSearchResult(SRes, ConfigFile, SearchDirs, true,
+                                            ProgName))
+    return 1;
+
+  // If config file is not specified explicitly, try to determine configuration
+  // implicitly. First try to deduce configuration from executable name. For
+  // instance, a file 'armv7l-clang' applies config file 'armv7l.cfg'. Second,
+  // try to find file 'clang.cfg'.
+  if (SRes == llvm::cl::SearchResult::NotSpecified) {
+    if (findConfigFileFromProgramName(ConfigFile, ProgName))
+      SRes = llvm::cl::SearchResult::Successful;
+  }
+
+  // If config file is found, read options from it.
+  unsigned NumConfigOptions = 0;
+  if (SRes == llvm::cl::SearchResult::Successful)
+    llvm::cl::readConfigFile(ConfigFile, Saver, argv, NumConfigOptions);
 
   // Parse response files using the GNU syntax, unless we're in CL mode. There
   // are two ways to put clang in CL compatibility mode: argv[0] is either
@@ -400,8 +460,12 @@ int main(int argc_, const char **argv_) {
       SmallVector<const char *, 8> PrependedOpts;
       getCLEnvVarOptions(OptCL.getValue(), Saver, PrependedOpts);
 
-      // Insert right after the program name to prepend to the argument list.
-      argv.insert(argv.begin() + 1, PrependedOpts.begin(), PrependedOpts.end());
+      // Insert right after the program name to prepend to the argument list. If
+      // there are options read from config file, put the options from "CL"
+      // after them, - config file is considered as a "patch" to compiler
+      // defaults.
+      argv.insert(argv.begin() + 1 + NumConfigOptions,
+                  PrependedOpts.begin(), PrependedOpts.end());
     }
     // Arguments in "_CL_" are appended.
     llvm::Optional<std::string> Opt_CL_ = llvm::sys::Process::GetEnv("_CL_");
@@ -446,6 +510,8 @@ int main(int argc_, const char **argv_) {
   ProcessWarningOptions(Diags, *DiagOpts, /*ReportDiags=*/false);
 
   Driver TheDriver(Path, llvm::sys::getDefaultTargetTriple(), Diags);
+  if (!ConfigFile.empty())
+    TheDriver.setConfigFile(ConfigFile.str(), NumConfigOptions);
   SetInstallDir(argv, TheDriver, CanonicalPrefixes);
 
   insertTargetAndModeArgs(TargetAndMode.first, TargetAndMode.second, argv,
