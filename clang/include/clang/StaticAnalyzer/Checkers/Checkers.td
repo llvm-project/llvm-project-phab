@@ -271,6 +271,13 @@ def VirtualCallChecker : Checker<"VirtualCall">,
 
 } // end: "optin.cplusplus"
 
+let ParentPackage = CplusplusAlpha in {
+
+def OStreamFormatChecker : Checker<"OStreamFormat">,
+  HelpText<"Check ostream objects for forgotten format modification">,
+  DescFile<"OStreamFormatChecker.cpp">;
+
+} // end: "alpha.cplusplus"
 
 //===----------------------------------------------------------------------===//
 // Valist checkers.
