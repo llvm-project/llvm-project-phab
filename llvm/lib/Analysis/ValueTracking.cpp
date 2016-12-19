@@ -2422,7 +2422,8 @@ bool llvm::ComputeMultiple(Value *V, unsigned Base, Value *&Multiple,
 }
 
 Intrinsic::ID llvm::getIntrinsicForCallSite(ImmutableCallSite ICS,
-                                            const TargetLibraryInfo *TLI) {
+                                            const TargetLibraryInfo *TLI,
+                                            bool forVector) {
   const Function *F = ICS.getCalledFunction();
   if (!F)
     return Intrinsic::not_intrinsic;
@@ -2523,7 +2524,7 @@ Intrinsic::ID llvm::getIntrinsicForCallSite(ImmutableCallSite ICS,
   case LibFunc::sqrt:
   case LibFunc::sqrtf:
   case LibFunc::sqrtl:
-    if (ICS->hasNoNaNs())
+    if (ICS->hasNoNaNs() || forVector)
       return Intrinsic::sqrt;
     return Intrinsic::not_intrinsic;
   }

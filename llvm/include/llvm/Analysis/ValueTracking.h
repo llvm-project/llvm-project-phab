@@ -160,7 +160,8 @@ template <typename T> class ArrayRef;
   /// Map a call instruction to an intrinsic ID.  Libcalls which have equivalent
   /// intrinsics are treated as-if they were intrinsics.
   Intrinsic::ID getIntrinsicForCallSite(ImmutableCallSite ICS,
-                                        const TargetLibraryInfo *TLI);
+                                        const TargetLibraryInfo *TLI,
+                                        bool forVector = false);
 
   /// Return true if we can prove that the specified FP value is never equal to
   /// -0.0.
