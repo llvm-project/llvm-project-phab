@@ -1,3 +1,6 @@
+if(WITHOUT_LLVMBUILD)
+  set(LLVM_LINK_COMPONENTS Core Support ProfileData Object)
+endif(WITHOUT_LLVMBUILD)
 add_llvm_library(LLVMAnalysis
   AliasAnalysis.cpp
   AliasAnalysisEvaluator.cpp
