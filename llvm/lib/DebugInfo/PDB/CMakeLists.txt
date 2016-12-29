@@ -54,6 +54,9 @@ add_pdb_impl_folder(Raw
 list(APPEND LIBPDB_ADDITIONAL_HEADER_DIRS "${LLVM_MAIN_INCLUDE_DIR}/llvm/DebugInfo/PDB/Raw")
 list(APPEND LIBPDB_ADDITIONAL_HEADER_DIRS "${LLVM_MAIN_INCLUDE_DIR}/llvm/DebugInfo/PDB")
 
+if(WITHOUT_LLVMBUILD)
+  set(LLVM_LINK_COMPONENTS Object Support DebugInfoCodeView DebugInfoMSF)
+endif(WITHOUT_LLVMBUILD)
 add_llvm_library(LLVMDebugInfoPDB
   GenericError.cpp
   IPDBSourceFile.cpp

@@ -11,6 +11,9 @@ tablegen(LLVM BPFGenCallingConv.inc -gen-callingconv)
 tablegen(LLVM BPFGenSubtargetInfo.inc -gen-subtarget)
 add_public_tablegen_target(BPFCommonTableGen)
 
+if(WITHOUT_LLVMBUILD)
+  set(LLVM_LINK_COMPONENTS AsmPrinter CodeGen Core MC BPFAsmPrinter BPFDesc BPFInfo SelectionDAG Support Target)
+endif(WITHOUT_LLVMBUILD)
 add_llvm_target(BPFCodeGen
   BPFAsmPrinter.cpp
   BPFFrameLowering.cpp

@@ -1,3 +1,6 @@
+if(WITHOUT_LLVMBUILD)
+  set(LLVM_LINK_COMPONENTS Analysis BitWriter Core InstCombine IRReader Linker Object ProfileData ScalarOpts Support TransformUtils Vectorize Instrumentation)
+endif(WITHOUT_LLVMBUILD)
 add_llvm_library(LLVMipo
   AlwaysInliner.cpp
   ArgumentPromotion.cpp

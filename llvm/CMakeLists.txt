@@ -611,6 +611,9 @@ if( ${PYTHON_VERSION_STRING} VERSION_LESS 2.7 )
   message(FATAL_ERROR "Python 2.7 or newer is required")
 endif()
 
+if(WITHOUT_LLVMBUILD)
+    message(STATUS "Building without LLVMBuild!")
+else()
 ######
 # LLVMBuild Integration
 #
@@ -668,6 +671,7 @@ endif()
 # the dependencies so that CMake will reconfigure properly when the LLVMBuild
 # files change.
 include(${LLVMBUILDCMAKEFRAG})
+endif(WITHOUT_LLVMBUILD)
 
 ######
 
@@ -911,6 +915,13 @@ endif()
 
 if (LLVM_INCLUDE_DOCS)
   add_subdirectory(docs)
+endif()
+
+if(WITHOUT_LLVMBUILD)
+  include(LLVMBuild)
+  get_property(llvm_libz GLOBAL PROPERTY LLVM_LIBS)
+  validate_component_deps("${llvm_libz}")
+  gen_libdep_inc("${llvm_libz}" "${LLVM_TARGETS_TO_BUILD}" "")
 endif()
 
 add_subdirectory(cmake/modules)

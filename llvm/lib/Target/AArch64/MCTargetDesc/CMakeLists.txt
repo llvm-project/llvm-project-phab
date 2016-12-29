@@ -1,3 +1,6 @@
+if(WITHOUT_LLVMBUILD)
+  set(LLVM_LINK_COMPONENTS AArch64AsmPrinter AArch64Info MC Support)
+endif(WITHOUT_LLVMBUILD)
 add_llvm_library(LLVMAArch64Desc
   AArch64AsmBackend.cpp
   AArch64ELFObjectWriter.cpp

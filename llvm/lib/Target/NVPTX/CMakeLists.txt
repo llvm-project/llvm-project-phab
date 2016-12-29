@@ -35,6 +35,9 @@ set(NVPTXCodeGen_sources
   NVVMReflect.cpp
   )
 
+if(WITHOUT_LLVMBUILD)
+  set(LLVM_LINK_COMPONENTS Analysis AsmPrinter CodeGen Core MC NVPTXAsmPrinter NVPTXDesc NVPTXInfo ScalarOpts SelectionDAG Support Target TransformUtils Vectorize)
+endif(WITHOUT_LLVMBUILD)
 add_llvm_target(NVPTXCodeGen ${NVPTXCodeGen_sources})
 
 add_subdirectory(TargetInfo)
