@@ -1,3 +1,6 @@
+if(WITHOUT_LLVMBUILD)
+  set(LLVM_LINK_COMPONENTS Analysis CodeGen Core DebugInfoCodeView DebugInfoMSF MC MCParser Support Target TransformUtils)
+endif(WITHOUT_LLVMBUILD)
 add_llvm_library(LLVMAsmPrinter
   AddressPool.cpp
   ARMException.cpp

@@ -47,6 +47,9 @@ else()
 endif()
 
 
+if(WITHOUT_LLVMBUILD)
+  set(LLVM_LINK_COMPONENTS Analysis BitReader BitWriter CodeGen Core IPO InstCombine Linker MC ObjCARCOpts Object Passes ScalarOpts Support Target TransformUtils)
+endif(WITHOUT_LLVMBUILD)
 add_llvm_library(LLVMLTO
   Caching.cpp
   LTO.cpp

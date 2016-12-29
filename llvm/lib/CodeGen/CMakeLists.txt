@@ -1,3 +1,6 @@
+if(WITHOUT_LLVMBUILD)
+  set(LLVM_LINK_COMPONENTS Analysis BitReader BitWriter Core Instrumentation MC ProfileData ScalarOpts Support Target TransformUtils)
+endif(WITHOUT_LLVMBUILD)
 add_llvm_library(LLVMCodeGen
   AggressiveAntiDepBreaker.cpp
   AllocationOrder.cpp
