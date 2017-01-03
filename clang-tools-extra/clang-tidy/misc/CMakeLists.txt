@@ -30,6 +30,7 @@ add_clang_library(clangTidyMiscModule
   StringConstructorCheck.cpp
   StringIntegerAssignmentCheck.cpp
   StringLiteralWithEmbeddedNulCheck.cpp
+  SuspiciousCallArgumentCheck.cpp
   SuspiciousMissingCommaCheck.cpp
   SuspiciousSemicolonCheck.cpp
   SuspiciousStringCompareCheck.cpp

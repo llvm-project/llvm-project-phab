@@ -38,6 +38,7 @@
 #include "StringConstructorCheck.h"
 #include "StringIntegerAssignmentCheck.h"
 #include "StringLiteralWithEmbeddedNulCheck.h"
+#include "SuspiciousCallArgumentCheck.h"
 #include "SuspiciousMissingCommaCheck.h"
 #include "SuspiciousSemicolonCheck.h"
 #include "SuspiciousStringCompareCheck.h"
@@ -112,6 +113,8 @@ public:
         "misc-string-integer-assignment");
     CheckFactories.registerCheck<StringLiteralWithEmbeddedNulCheck>(
         "misc-string-literal-with-embedded-nul");
+    CheckFactories.registerCheck<SuspiciousCallArgumentCheck>(
+        "misc-suspicious-call-argument");
     CheckFactories.registerCheck<SuspiciousMissingCommaCheck>(
         "misc-suspicious-missing-comma");
     CheckFactories.registerCheck<SuspiciousSemicolonCheck>(

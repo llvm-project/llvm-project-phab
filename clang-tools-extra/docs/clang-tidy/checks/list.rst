@@ -75,6 +75,7 @@ Clang-Tidy Checks
    misc-string-constructor
    misc-string-integer-assignment
    misc-string-literal-with-embedded-nul
+   misc-suspicious-call-argument
    misc-suspicious-missing-comma
    misc-suspicious-semicolon
    misc-suspicious-string-compare
