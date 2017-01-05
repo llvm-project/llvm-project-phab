@@ -15,6 +15,7 @@
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineJumpTableInfo.h"
@@ -1922,6 +1923,9 @@ SDValue SelectionDAGLegalize::ExpandBUILD_VECTOR(SDNode *Node) {
 // and leave the Hi part unset.
 SDValue SelectionDAGLegalize::ExpandLibCall(RTLIB::Libcall LC, SDNode *Node,
                                             bool isSigned) {
+  if (!TLI.getLibcallName(LC))
+    report_fatal_error("No implementation available for libcall " + utostr(LC));
+
   TargetLowering::ArgListTy Args;
   TargetLowering::ArgListEntry Entry;
   for (const SDValue &Op : Node->op_values()) {
@@ -1973,6 +1977,9 @@ SDValue SelectionDAGLegalize::ExpandLibCall(RTLIB::Libcall LC, SDNode *Node,
 SDValue SelectionDAGLegalize::ExpandLibCall(RTLIB::Libcall LC, EVT RetVT,
                                             const SDValue *Ops, unsigned NumOps,
                                             bool isSigned, const SDLoc &dl) {
+  if (!TLI.getLibcallName(LC))
+    report_fatal_error("No implementation available for libcall " + utostr(LC));
+
   TargetLowering::ArgListTy Args;
   Args.reserve(NumOps);
 

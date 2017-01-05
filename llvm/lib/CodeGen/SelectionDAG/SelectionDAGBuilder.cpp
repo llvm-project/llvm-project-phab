@@ -6398,27 +6398,6 @@ void SelectionDAGBuilder::visitCall(const CallInst &I) {
         if (visitBinaryFloatCall(I, ISD::FMAXNUM))
           return;
         break;
-      case LibFunc::sin:
-      case LibFunc::sinf:
-      case LibFunc::sinl:
-        if (visitUnaryFloatCall(I, ISD::FSIN))
-          return;
-        break;
-      case LibFunc::cos:
-      case LibFunc::cosf:
-      case LibFunc::cosl:
-        if (visitUnaryFloatCall(I, ISD::FCOS))
-          return;
-        break;
-      case LibFunc::sqrt:
-      case LibFunc::sqrtf:
-      case LibFunc::sqrtl:
-      case LibFunc::sqrt_finite:
-      case LibFunc::sqrtf_finite:
-      case LibFunc::sqrtl_finite:
-        if (visitUnaryFloatCall(I, ISD::FSQRT))
-          return;
-        break;
       case LibFunc::floor:
       case LibFunc::floorf:
       case LibFunc::floorl:
@@ -6453,18 +6432,6 @@ void SelectionDAGBuilder::visitCall(const CallInst &I) {
       case LibFunc::truncf:
       case LibFunc::truncl:
         if (visitUnaryFloatCall(I, ISD::FTRUNC))
-          return;
-        break;
-      case LibFunc::log2:
-      case LibFunc::log2f:
-      case LibFunc::log2l:
-        if (visitUnaryFloatCall(I, ISD::FLOG2))
-          return;
-        break;
-      case LibFunc::exp2:
-      case LibFunc::exp2f:
-      case LibFunc::exp2l:
-        if (visitUnaryFloatCall(I, ISD::FEXP2))
           return;
         break;
       case LibFunc::memcmp:

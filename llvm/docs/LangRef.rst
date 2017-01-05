@@ -10058,12 +10058,7 @@ all types however.
 Overview:
 """""""""
 
-The '``llvm.sqrt``' intrinsics return the sqrt of the specified operand,
-returning the same value as the libm '``sqrt``' functions would. Unlike
-``sqrt`` in libm, however, ``llvm.sqrt`` has undefined behavior for
-negative numbers other than -0.0 (which allows for better optimization,
-because there is no need to worry about errno being set).
-``llvm.sqrt(-0.0)`` is defined to return -0.0 like IEEE sqrt.
+The '``llvm.sqrt``' intrinsics return the square root of the operand.
 
 Arguments:
 """"""""""
@@ -10074,8 +10069,8 @@ type.
 Semantics:
 """"""""""
 
-This function returns the sqrt of the specified operand if it is a
-nonnegative floating point number.
+This is equivalent to the IEEE 754 ``squareRoot()`` function.  It has no
+side-effects.
 
 '``llvm.powi.*``' Intrinsic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -10147,9 +10142,8 @@ type.
 Semantics:
 """"""""""
 
-This function returns the sine of the specified operand, returning the
-same values as the libm ``sin`` functions would, and handles error
-conditions in the same way.
+This is equivalent to the IEEE 754 ``sin()`` function.  It has no
+side-effects.
 
 '``llvm.cos.*``' Intrinsic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -10183,9 +10177,8 @@ type.
 Semantics:
 """"""""""
 
-This function returns the cosine of the specified operand, returning the
-same values as the libm ``cos`` functions would, and handles error
-conditions in the same way.
+This is equivalent to the IEEE 754 ``cos()`` function.  It has no
+side-effects.
 
 '``llvm.pow.*``' Intrinsic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -10220,9 +10213,8 @@ to raise to that power.
 Semantics:
 """"""""""
 
-This function returns the first value raised to the second power,
-returning the same values as the libm ``pow`` functions would, and
-handles error conditions in the same way.
+This is equivalent to the IEEE 754 ``pow()`` function.  It has no
+side-effects.
 
 '``llvm.exp.*``' Intrinsic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -10256,8 +10248,8 @@ type.
 Semantics:
 """"""""""
 
-This function returns the same values as the libm ``exp`` functions
-would, and handles error conditions in the same way.
+This is equivalent to the IEEE 754 ``exp()`` function.  It has no
+side-effects.
 
 '``llvm.exp2.*``' Intrinsic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -10291,8 +10283,8 @@ type.
 Semantics:
 """"""""""
 
-This function returns the same values as the libm ``exp2`` functions
-would, and handles error conditions in the same way.
+This is equivalent to the IEEE 754 ``exp2()`` function.  It has no
+side-effects.
 
 '``llvm.log.*``' Intrinsic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -10326,8 +10318,8 @@ type.
 Semantics:
 """"""""""
 
-This function returns the same values as the libm ``log`` functions
-would, and handles error conditions in the same way.
+This is equivalent to the IEEE 754 ``log()`` function.  It has no
+side-effects.
 
 '``llvm.log10.*``' Intrinsic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -10361,8 +10353,8 @@ type.
 Semantics:
 """"""""""
 
-This function returns the same values as the libm ``log10`` functions
-would, and handles error conditions in the same way.
+This is equivalent to the IEEE 754 ``log10()`` function.  It has no
+side-effects.
 
 '``llvm.log2.*``' Intrinsic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -10396,8 +10388,8 @@ type.
 Semantics:
 """"""""""
 
-This function returns the same values as the libm ``log2`` functions
-would, and handles error conditions in the same way.
+This is equivalent to the IEEE 754 ``log2()`` function.  It has no
+side-effects.
 
 '``llvm.fma.*``' Intrinsic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -10432,8 +10424,8 @@ type.
 Semantics:
 """"""""""
 
-This function returns the same values as the libm ``fma`` functions
-would, and does not set errno.
+This is equivalent to the IEEE 754 ``fma()`` function.  It has no
+side-effects.
 
 '``llvm.fabs.*``' Intrinsic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^

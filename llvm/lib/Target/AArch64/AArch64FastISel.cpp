@@ -131,7 +131,6 @@ private:
   bool selectMul(const Instruction *I);
   bool selectShift(const Instruction *I);
   bool selectBitCast(const Instruction *I);
-  bool selectFRem(const Instruction *I);
   bool selectSDiv(const Instruction *I);
   bool selectGetElementPtr(const Instruction *I);
   bool selectAtomicCmpXchg(const AtomicCmpXchgInst *I);
@@ -4740,44 +4739,6 @@ bool AArch64FastISel::selectBitCast(const Instruction *I) {
   return true;
 }
 
-bool AArch64FastISel::selectFRem(const Instruction *I) {
-  MVT RetVT;
-  if (!isTypeLegal(I->getType(), RetVT))
-    return false;
-
-  RTLIB::Libcall LC;
-  switch (RetVT.SimpleTy) {
-  default:
-    return false;
-  case MVT::f32:
-    LC = RTLIB::REM_F32;
-    break;
-  case MVT::f64:
-    LC = RTLIB::REM_F64;
-    break;
-  }
-
-  ArgListTy Args;
-  Args.reserve(I->getNumOperands());
-
-  // Populate the argument list.
-  for (auto &Arg : I->operands()) {
-    ArgListEntry Entry;
-    Entry.Val = Arg;
-    Entry.Ty = Arg->getType();
-    Args.push_back(Entry);
-  }
-
-  CallLoweringInfo CLI;
-  MCContext &Ctx = MF->getContext();
-  CLI.setCallee(DL, Ctx, TLI.getLibcallCallingConv(LC), I->getType(),
-                TLI.getLibcallName(LC), std::move(Args));
-  if (!lowerCallTo(CLI))
-    return false;
-  updateValueMap(I, CLI.ResultReg);
-  return true;
-}
-
 bool AArch64FastISel::selectSDiv(const Instruction *I) {
   MVT VT;
   if (!isTypeLegal(I->getType(), VT))
@@ -5077,8 +5038,6 @@ bool AArch64FastISel::fastSelectInstruction(const Instruction *I) {
     return selectSelect(I);
   case Instruction::Ret:
     return selectRet(I);
-  case Instruction::FRem:
-    return selectFRem(I);
   case Instruction::GetElementPtr:
     return selectGetElementPtr(I);
   case Instruction::AtomicCmpXchg:

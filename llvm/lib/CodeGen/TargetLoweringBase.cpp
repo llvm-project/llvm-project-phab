@@ -130,11 +130,6 @@ static void InitLibcallNames(const char **Names, const Triple &TT) {
   Names[RTLIB::DIV_F80] = "__divxf3";
   Names[RTLIB::DIV_F128] = "__divtf3";
   Names[RTLIB::DIV_PPCF128] = "__gcc_qdiv";
-  Names[RTLIB::REM_F32] = "fmodf";
-  Names[RTLIB::REM_F64] = "fmod";
-  Names[RTLIB::REM_F80] = "fmodl";
-  Names[RTLIB::REM_F128] = "fmodl";
-  Names[RTLIB::REM_PPCF128] = "fmodl";
   Names[RTLIB::FMA_F32] = "fmaf";
   Names[RTLIB::FMA_F64] = "fma";
   Names[RTLIB::FMA_F80] = "fmal";
@@ -145,51 +140,6 @@ static void InitLibcallNames(const char **Names, const Triple &TT) {
   Names[RTLIB::POWI_F80] = "__powixf2";
   Names[RTLIB::POWI_F128] = "__powitf2";
   Names[RTLIB::POWI_PPCF128] = "__powitf2";
-  Names[RTLIB::SQRT_F32] = "sqrtf";
-  Names[RTLIB::SQRT_F64] = "sqrt";
-  Names[RTLIB::SQRT_F80] = "sqrtl";
-  Names[RTLIB::SQRT_F128] = "sqrtl";
-  Names[RTLIB::SQRT_PPCF128] = "sqrtl";
-  Names[RTLIB::LOG_F32] = "logf";
-  Names[RTLIB::LOG_F64] = "log";
-  Names[RTLIB::LOG_F80] = "logl";
-  Names[RTLIB::LOG_F128] = "logl";
-  Names[RTLIB::LOG_PPCF128] = "logl";
-  Names[RTLIB::LOG2_F32] = "log2f";
-  Names[RTLIB::LOG2_F64] = "log2";
-  Names[RTLIB::LOG2_F80] = "log2l";
-  Names[RTLIB::LOG2_F128] = "log2l";
-  Names[RTLIB::LOG2_PPCF128] = "log2l";
-  Names[RTLIB::LOG10_F32] = "log10f";
-  Names[RTLIB::LOG10_F64] = "log10";
-  Names[RTLIB::LOG10_F80] = "log10l";
-  Names[RTLIB::LOG10_F128] = "log10l";
-  Names[RTLIB::LOG10_PPCF128] = "log10l";
-  Names[RTLIB::EXP_F32] = "expf";
-  Names[RTLIB::EXP_F64] = "exp";
-  Names[RTLIB::EXP_F80] = "expl";
-  Names[RTLIB::EXP_F128] = "expl";
-  Names[RTLIB::EXP_PPCF128] = "expl";
-  Names[RTLIB::EXP2_F32] = "exp2f";
-  Names[RTLIB::EXP2_F64] = "exp2";
-  Names[RTLIB::EXP2_F80] = "exp2l";
-  Names[RTLIB::EXP2_F128] = "exp2l";
-  Names[RTLIB::EXP2_PPCF128] = "exp2l";
-  Names[RTLIB::SIN_F32] = "sinf";
-  Names[RTLIB::SIN_F64] = "sin";
-  Names[RTLIB::SIN_F80] = "sinl";
-  Names[RTLIB::SIN_F128] = "sinl";
-  Names[RTLIB::SIN_PPCF128] = "sinl";
-  Names[RTLIB::COS_F32] = "cosf";
-  Names[RTLIB::COS_F64] = "cos";
-  Names[RTLIB::COS_F80] = "cosl";
-  Names[RTLIB::COS_F128] = "cosl";
-  Names[RTLIB::COS_PPCF128] = "cosl";
-  Names[RTLIB::POW_F32] = "powf";
-  Names[RTLIB::POW_F64] = "pow";
-  Names[RTLIB::POW_F80] = "powl";
-  Names[RTLIB::POW_F128] = "powl";
-  Names[RTLIB::POW_PPCF128] = "powl";
   Names[RTLIB::CEIL_F32] = "ceilf";
   Names[RTLIB::CEIL_F64] = "ceil";
   Names[RTLIB::CEIL_F80] = "ceill";
@@ -486,14 +436,6 @@ static void InitLibcallNames(const char **Names, const Triple &TT) {
   Names[RTLIB::ATOMIC_FETCH_NAND_4] = "__atomic_fetch_nand_4";
   Names[RTLIB::ATOMIC_FETCH_NAND_8] = "__atomic_fetch_nand_8";
   Names[RTLIB::ATOMIC_FETCH_NAND_16] = "__atomic_fetch_nand_16";
-
-  if (TT.isGNUEnvironment()) {
-    Names[RTLIB::SINCOS_F32] = "sincosf";
-    Names[RTLIB::SINCOS_F64] = "sincos";
-    Names[RTLIB::SINCOS_F80] = "sincosl";
-    Names[RTLIB::SINCOS_F128] = "sincosl";
-    Names[RTLIB::SINCOS_PPCF128] = "sincosl";
-  }
 
   if (!TT.isOSOpenBSD()) {
     Names[RTLIB::STACKPROTECTOR_CHECK_FAIL] = "__stack_chk_fail";
