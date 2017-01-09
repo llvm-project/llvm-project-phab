@@ -30,7 +30,7 @@ WhitespaceManager::Change::Change(
     unsigned IndentLevel, int Spaces, unsigned StartOfTokenColumn,
     unsigned NewlinesBefore, StringRef PreviousLinePostfix,
     StringRef CurrentLinePrefix, tok::TokenKind Kind, bool ContinuesPPDirective,
-    bool IsStartOfDeclName, bool IsInsideToken)
+    bool IsStartOfDeclName, bool IsInsideToken, bool EndsPPIdentifier)
     : CreateReplacement(CreateReplacement),
       OriginalWhitespaceRange(OriginalWhitespaceRange),
       StartOfTokenColumn(StartOfTokenColumn), NewlinesBefore(NewlinesBefore),
@@ -38,7 +38,8 @@ WhitespaceManager::Change::Change(
       CurrentLinePrefix(CurrentLinePrefix), Kind(Kind),
       ContinuesPPDirective(ContinuesPPDirective),
       IsStartOfDeclName(IsStartOfDeclName), IndentLevel(IndentLevel),
-      Spaces(Spaces), IsInsideToken(IsInsideToken), IsTrailingComment(false),
+      Spaces(Spaces), IsInsideToken(IsInsideToken),
+      EndsPPIdentifier(EndsPPIdentifier), IsTrailingComment(false),
       TokenLength(0), PreviousEndOfTokenColumn(0), EscapedNewlineColumn(0),
       StartOfBlockComment(nullptr), IndentationOffset(0) {}
 
@@ -54,7 +55,8 @@ void WhitespaceManager::replaceWhitespace(FormatToken &Tok, unsigned Newlines,
              Spaces, StartOfTokenColumn, Newlines, "", "", Tok.Tok.getKind(),
              InPPDirective && !Tok.IsFirst,
              Tok.is(TT_StartOfName) || Tok.is(TT_FunctionDeclarationName),
-             /*IsInsideToken=*/false));
+             /*IsInsideToken=*/false,
+             /* EndsPPIdentifier=*/Tok.EndsPPIdentifier));
 }
 
 void WhitespaceManager::addUntouchableToken(const FormatToken &Tok,
@@ -66,7 +68,8 @@ void WhitespaceManager::addUntouchableToken(const FormatToken &Tok,
       /*Spaces=*/0, Tok.OriginalColumn, Tok.NewlinesBefore, "", "",
       Tok.Tok.getKind(), InPPDirective && !Tok.IsFirst,
       Tok.is(TT_StartOfName) || Tok.is(TT_FunctionDeclarationName),
-      /*IsInsideToken=*/false));
+      /*IsInsideToken=*/false,
+      /* EndsPPIdentifier=*/Tok.EndsPPIdentifier));
 }
 
 void WhitespaceManager::replaceWhitespaceInToken(
@@ -82,7 +85,8 @@ void WhitespaceManager::replaceWhitespaceInToken(
       CurrentPrefix, Tok.is(TT_LineComment) ? tok::comment : tok::unknown,
       InPPDirective && !Tok.IsFirst,
       Tok.is(TT_StartOfName) || Tok.is(TT_FunctionDeclarationName),
-      /*IsInsideToken=*/Newlines == 0));
+      /*IsInsideToken=*/Newlines == 0,
+      /* EndsPPIdentifier=*/Tok.EndsPPIdentifier));
 }
 
 const tooling::Replacements &WhitespaceManager::generateReplacements() {
@@ -91,6 +95,7 @@ const tooling::Replacements &WhitespaceManager::generateReplacements() {
 
   std::sort(Changes.begin(), Changes.end(), Change::IsBeforeInFile(SourceMgr));
   calculateLineBreakInformation();
+  alignConsecutiveMacros();
   alignConsecutiveDeclarations();
   alignConsecutiveAssignments();
   alignTrailingComments();
@@ -192,7 +197,8 @@ AlignTokenSequence(unsigned Start, unsigned End, unsigned Column, F &&Matches,
 // finalize the previous sequence.
 template <typename F>
 static void AlignTokens(const FormatStyle &Style, F &&Matches,
-                        SmallVector<WhitespaceManager::Change, 16> &Changes) {
+                        SmallVector<WhitespaceManager::Change, 16> &Changes,
+                        unsigned MaxNestingLevelIncrease, bool ConsiderCommas) {
   unsigned MinColumn = 0;
   unsigned MaxColumn = UINT_MAX;
 
@@ -201,17 +207,19 @@ static void AlignTokens(const FormatStyle &Style, F &&Matches,
   unsigned EndOfSequence = 0;
 
   // Keep track of the nesting level of matching tokens, i.e. the number of
-  // surrounding (), [], or {}. We will only align a sequence of matching
-  // token that share the same scope depth.
+  // surrounding (), [], or {}. If ConsiderNestingLevel is 0, we will
+  // only align a sequence of matching tokens that share the same scope depth.
+  // Otherwise, alignment will be allowed to continue until the nesting level
+  // increases by MaxNestingLevelIncrease.
   //
   // FIXME: This could use FormatToken::NestingLevel information, but there is
   // an outstanding issue wrt the brace scopes.
   unsigned NestingLevelOfLastMatch = 0;
   unsigned NestingLevel = 0;
 
-  // Keep track of the number of commas before the matching tokens, we will only
-  // align a sequence of matching tokens if they are preceded by the same number
-  // of commas.
+  // Keep track of the number of commas before the matching tokens. If
+  // ConsiderCommas is true, we will only align a sequence of matching tokens
+  // if they are preceded by the same number of commas.
   unsigned CommasBeforeLastMatch = 0;
   unsigned CommasBeforeMatch = 0;
 
@@ -268,8 +276,10 @@ static void AlignTokens(const FormatStyle &Style, F &&Matches,
     // If there is more than one matching token per line, or if the number of
     // preceding commas, or the scope depth, do not match anymore, end the
     // sequence.
-    if (FoundMatchOnLine || CommasBeforeMatch != CommasBeforeLastMatch ||
-        NestingLevel != NestingLevelOfLastMatch)
+    if (FoundMatchOnLine ||
+        (ConsiderCommas && CommasBeforeMatch != CommasBeforeLastMatch) ||
+        NestingLevel < NestingLevelOfLastMatch ||
+        NestingLevel > NestingLevelOfLastMatch + MaxNestingLevelIncrease)
       AlignCurrentSequence();
 
     CommasBeforeLastMatch = CommasBeforeMatch;
@@ -287,7 +297,7 @@ static void AlignTokens(const FormatStyle &Style, F &&Matches,
 
     // If we are restricted by the maximum column width, end the sequence.
     if (ChangeMinColumn > MaxColumn || ChangeMaxColumn < MinColumn ||
-        CommasBeforeLastMatch != CommasBeforeMatch) {
+        (ConsiderCommas && CommasBeforeLastMatch != CommasBeforeMatch)) {
       AlignCurrentSequence();
       StartOfSequence = i;
     }
@@ -298,6 +308,17 @@ static void AlignTokens(const FormatStyle &Style, F &&Matches,
 
   EndOfSequence = Changes.size();
   AlignCurrentSequence();
+}
+
+void WhitespaceManager::alignConsecutiveMacros() {
+  if (!Style.AlignConsecutiveMacros)
+    return;
+
+  AlignTokens(Style,
+              [&](Change const &C) {
+                return (&C != &Changes.front() && (&C - 1)->EndsPPIdentifier);
+              },
+              Changes, 1, false);
 }
 
 void WhitespaceManager::alignConsecutiveAssignments() {
@@ -316,7 +337,7 @@ void WhitespaceManager::alignConsecutiveAssignments() {
 
                 return C.Kind == tok::equal;
               },
-              Changes);
+              Changes, 0, true);
 }
 
 void WhitespaceManager::alignConsecutiveDeclarations() {
@@ -331,7 +352,7 @@ void WhitespaceManager::alignConsecutiveDeclarations() {
   //   SomeVeryLongType const& v3;
 
   AlignTokens(Style, [](Change const &C) { return C.IsStartOfDeclName; },
-              Changes);
+              Changes, 0, true);
 }
 
 void WhitespaceManager::alignTrailingComments() {

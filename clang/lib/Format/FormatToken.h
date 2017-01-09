@@ -145,6 +145,12 @@ struct FormatToken {
   /// \brief Whether the token text contains newlines (escaped or not).
   bool IsMultiline = false;
 
+  /// \brief Whether the token is the final token in the identifier of a PP
+  // macro. This will be either 1) the identifier token following the 'define'
+  // keyword in a simple PP macro, or 2) the closing r_paren token in the
+  // parameter list of a function-like PP macro.
+  bool EndsPPIdentifier = false;
+
   /// \brief Indicates that this is the first token of the file.
   bool IsFirst = false;
 
