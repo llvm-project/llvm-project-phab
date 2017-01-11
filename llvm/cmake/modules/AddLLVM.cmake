@@ -1207,7 +1207,7 @@ function(add_lit_testsuites project directory)
     cmake_parse_arguments(ARG "" "" "PARAMS;DEPENDS;ARGS" ${ARGN})
 
     # Search recursively for test directories by assuming anything not
-    # in a directory called Inputs contains tests.
+    # in a directory called Inputs/Output/.* contains tests.
     file(GLOB_RECURSE to_process LIST_DIRECTORIES true ${directory}/*)
     foreach(lit_suite ${to_process})
       if(NOT IS_DIRECTORY ${lit_suite})
@@ -1215,7 +1215,8 @@ function(add_lit_testsuites project directory)
       endif()
       string(FIND ${lit_suite} Inputs is_inputs)
       string(FIND ${lit_suite} Output is_output)
-      if (NOT (is_inputs EQUAL -1 AND is_output EQUAL -1))
+      string(COMPARE EQUAL ${lit_suite} "^[.].*" is_hidden)
+      if (NOT (is_inputs EQUAL -1 AND is_output EQUAL -1 AND is_hidden EQUAL -1))
         continue()
       endif()
 
