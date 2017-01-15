@@ -1644,6 +1644,60 @@ void TokenAnnotator::annotate(AnnotatedLine &Line) {
   Line.First->CanBreakBefore = Line.First->MustBreakBefore;
 }
 
+// This function heuristically determines whether 'tok' is the
+// 'define' keyword in a PP macro
+static bool isDefineKeyword(const FormatToken &tok) {
+  if (!tok.Previous)
+    return false;
+  if (!tok.is(tok::identifier) || !tok.TokenText.equals("define"))
+    return false;
+
+  return tok.Previous->is(tok::hash);
+}
+
+// This function heuristically determines whether 'Current' is the identifier
+// following the 'define' keyword in a simple PP macro (i.e. no parameters)
+static bool endsMacroIdentifier(const FormatToken &Current) {
+  const FormatToken *keyword = Current.Previous;
+
+  if (!keyword || Current.Next)
+    return false;
+  if (!Current.is(tok::identifier))
+    return false;
+
+  return isDefineKeyword(*keyword);
+}
+
+// This function heuristically determines whether 'Current' is the closing
+// r_paren token for the parameter list of a function-like PP macro
+static bool endsMacroWithArgsIdentifier(const FormatToken &Current) {
+  const FormatToken *Keyword, *Param = Current.Previous;
+
+  if (!Param || !Current.is(tok::r_paren))
+    return false;
+
+  while (Param && !Param->is(tok::l_paren)) {
+    if (!Param->is(tok::identifier) && !Param->is(tok::comma))
+      return false;
+    if (!Param->Previous)
+      return false;
+
+    Param = Param->Previous;
+  }
+
+  if (!Param || Param->SpacesRequiredBefore)
+    return false;
+  if (!Param->Previous || !Param->Previous->is(tok::identifier))
+    return false;
+
+  Keyword = Param->Previous->Previous;
+  return Keyword && isDefineKeyword(*Keyword);
+}
+
+static bool endsPPIdentifier(const FormatToken &Current) {
+  return endsMacroIdentifier(Current) || endsMacroWithArgsIdentifier(Current);
+}
+
 // This function heuristically determines whether 'Current' starts the name of a
 // function declaration.
 static bool isFunctionDeclarationName(const FormatToken &Current,
@@ -1758,6 +1812,7 @@ void TokenAnnotator::calculateFormattingInformation(AnnotatedLine &Line) {
   FormatToken *Current = Line.First->Next;
   bool InFunctionDecl = Line.MightBeFunctionDecl;
   while (Current) {
+    Current->EndsPPIdentifier = endsPPIdentifier(*Current);
     if (isFunctionDeclarationName(*Current, Line))
       Current->Type = TT_FunctionDeclarationName;
     if (Current->is(TT_LineComment)) {
@@ -2624,6 +2679,7 @@ void TokenAnnotator::printDebugInfo(const AnnotatedLine &Line) {
   while (Tok) {
     llvm::errs() << " M=" << Tok->MustBreakBefore
                  << " C=" << Tok->CanBreakBefore
+                 << " E=" << Tok->EndsPPIdentifier
                  << " T=" << getTokenTypeName(Tok->Type)
                  << " S=" << Tok->SpacesRequiredBefore
                  << " B=" << Tok->BlockParameterCount

@@ -107,7 +107,7 @@ public:
            unsigned NewlinesBefore, StringRef PreviousLinePostfix,
            StringRef CurrentLinePrefix, tok::TokenKind Kind,
            bool ContinuesPPDirective, bool IsStartOfDeclName,
-           bool IsInsideToken);
+           bool IsInsideToken, bool EndsPPIdentifier);
 
     bool CreateReplacement;
     // Changes might be in the middle of a token, so we cannot just keep the
@@ -141,6 +141,9 @@ public:
     // directly after a newline.
     bool IsInsideToken;
 
+    // If this change is at the final token of a PP macro identifier
+    bool EndsPPIdentifier;
+
     // \c IsTrailingComment, \c TokenLength, \c PreviousEndOfTokenColumn and
     // \c EscapedNewlineColumn will be calculated in
     // \c calculateLineBreakInformation.
@@ -166,6 +169,9 @@ private:
   /// or token parts in a line and \c PreviousEndOfTokenColumn and
   /// \c EscapedNewlineColumn for the first tokens or token parts in a line.
   void calculateLineBreakInformation();
+
+  /// \brief Align consecutive C/C++ preprocessor macros over all \c Changes.
+  void alignConsecutiveMacros();
 
   /// \brief Align consecutive assignments over all \c Changes.
   void alignConsecutiveAssignments();
