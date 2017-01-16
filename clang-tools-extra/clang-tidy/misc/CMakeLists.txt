@@ -38,6 +38,7 @@ add_clang_library(clangTidyMiscModule
   SuspiciousStringCompareCheck.cpp
   SwappedArgumentsCheck.cpp
   ThrowByValueCatchByReferenceCheck.cpp
+  ThrowWithNoexceptCheck.cpp
   UndelegatedConstructor.cpp
   UniqueptrResetReleaseCheck.cpp
   UnusedAliasDeclsCheck.cpp

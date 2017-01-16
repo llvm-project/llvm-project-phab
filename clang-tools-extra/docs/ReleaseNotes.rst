@@ -57,7 +57,10 @@ The improvements are...
 Improvements to clang-tidy
 --------------------------
 
-The improvements are...
+- New `misc-throw-with-noexcept
+  <http://clang.llvm.org/extra/clang-tidy/checks/misc-throw-with-noexcept.html>`_ check
+
+  Flags ``throw`` statements in functions marked as no-throw.
 
 Improvements to include-fixer
 -----------------------------
