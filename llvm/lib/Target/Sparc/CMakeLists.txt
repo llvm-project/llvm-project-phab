@@ -25,7 +25,20 @@ add_llvm_target(SparcCodeGen
   SparcTargetMachine.cpp
   SparcMCInstLower.cpp
   SparcTargetObjectFile.cpp
-  )
+
+  LINK_COMPONENTS
+    AsmPrinter
+    CodeGen
+    Core
+    MC
+    SelectionDAG
+    SparcAsmPrinter
+    SparcDesc
+    SparcInfo
+    Support
+    Target
+
+)
 
 add_subdirectory(TargetInfo)
 add_subdirectory(MCTargetDesc)

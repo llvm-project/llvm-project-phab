@@ -33,6 +33,19 @@ add_llvm_target(AVRCodeGen
 
   DEPENDS
   intrinsics_gen
+
+  LINK_COMPONENTS
+    AsmPrinter
+    CodeGen
+    Core
+    MC
+    AVRAsmPrinter
+    AVRDesc
+    AVRInfo
+    SelectionDAG
+    Support
+    Target
+
 )
 
 add_subdirectory(AsmParser)

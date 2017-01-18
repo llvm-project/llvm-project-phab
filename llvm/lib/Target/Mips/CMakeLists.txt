@@ -47,7 +47,21 @@ add_llvm_target(MipsCodeGen
   MipsSubtarget.cpp
   MipsTargetMachine.cpp
   MipsTargetObjectFile.cpp
-  )
+
+  LINK_COMPONENTS
+    Analysis
+    AsmPrinter
+    CodeGen
+    Core
+    MC
+    MipsAsmPrinter
+    MipsDesc
+    MipsInfo
+    SelectionDAG
+    Support
+    Target
+
+)
 
 add_subdirectory(InstPrinter)
 add_subdirectory(Disassembler)
