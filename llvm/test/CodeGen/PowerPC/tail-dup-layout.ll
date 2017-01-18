@@ -21,28 +21,27 @@ target triple = "powerpc64le-grtev4-linux-gnu"
 ; the optional blocks and that the optional blocks are in the correct order.
 ;CHECK-LABEL: f:
 ; test1 may have been merged with entry
-;CHECK: mr [[TAGREG:[0-9]+]], 3
-;CHECK: andi. {{[0-9]+}}, [[TAGREG]], 1
-;CHECK-NEXT: bc 12, 1, [[OPT1LABEL:[._0-9A-Za-z]+]]
+;CHECK: andi. {{[0-9]+}}, 3, 1
+;CHECK: bc 12, 1, [[OPT1LABEL:[._0-9A-Za-z]+]]
 ;CHECK-NEXT: [[TEST2LABEL:[._0-9A-Za-z]+]]: # %test2
-;CHECK-NEXT: rlwinm. {{[0-9]+}}, [[TAGREG]], 0, 30, 30
+;CHECK-NEXT: rlwinm. {{[0-9]+}}, 3, 0, 30, 30
 ;CHECK-NEXT: bne 0, [[OPT2LABEL:[._0-9A-Za-z]+]]
 ;CHECK-NEXT: [[TEST3LABEL:[._0-9A-Za-z]+]]: # %test3
-;CHECK-NEXT: rlwinm. {{[0-9]+}}, [[TAGREG]], 0, 29, 29
+;CHECK-NEXT: rlwinm. {{[0-9]+}}, 3, 0, 29, 29
 ;CHECK-NEXT: bne 0, .[[OPT3LABEL:[._0-9A-Za-z]+]]
 ;CHECK-NEXT: [[TEST4LABEL:[._0-9A-Za-z]+]]: # %test4
-;CHECK-NEXT: rlwinm. {{[0-9]+}}, [[TAGREG]], 0, 28, 28
+;CHECK-NEXT: rlwinm. {{[0-9]+}}, 3, 0, 28, 28
 ;CHECK-NEXT: bne 0, .[[OPT4LABEL:[._0-9A-Za-z]+]]
 ;CHECK-NEXT: [[EXITLABEL:[._0-9A-Za-z]+]]: # %exit
 ;CHECK: blr
 ;CHECK-NEXT: [[OPT1LABEL]]
-;CHECK: rlwinm. {{[0-9]+}}, [[TAGREG]], 0, 30, 30
+;CHECK: rlwinm. {{[0-9]+}}, 3, 0, 30, 30
 ;CHECK-NEXT: beq 0, [[TEST3LABEL]]
 ;CHECK-NEXT: [[OPT2LABEL]]
-;CHECK: rlwinm. {{[0-9]+}}, [[TAGREG]], 0, 29, 29
+;CHECK: rlwinm. {{[0-9]+}}, 3, 0, 29, 29
 ;CHECK-NEXT: beq 0, [[TEST4LABEL]]
 ;CHECK-NEXT: [[OPT3LABEL]]
-;CHECK: rlwinm. {{[0-9]+}}, [[TAGREG]], 0, 28, 28
+;CHECK: rlwinm. {{[0-9]+}}, 3, 0, 28, 28
 ;CHECK-NEXT: beq 0, [[EXITLABEL]]
 ;CHECK-NEXT: [[OPT4LABEL]]
 ;CHECK: b [[EXITLABEL]]
