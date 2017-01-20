@@ -35,7 +35,24 @@ set(NVPTXCodeGen_sources
   NVVMReflect.cpp
   )
 
-add_llvm_target(NVPTXCodeGen ${NVPTXCodeGen_sources})
+add_llvm_target(NVPTXCodeGen ${NVPTXCodeGen_sources}
+
+  LINK_COMPONENTS
+    Analysis
+    AsmPrinter
+    CodeGen
+    Core
+    MC
+    NVPTXAsmPrinter
+    NVPTXDesc
+    NVPTXInfo
+    ScalarOpts
+    SelectionDAG
+    Support
+    Target
+    TransformUtils
+    Vectorize
+)
 
 add_subdirectory(TargetInfo)
 add_subdirectory(InstPrinter)

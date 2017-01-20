@@ -13,6 +13,11 @@ add_llvm_library(LLVMHexagonDesc
   HexagonMCShuffler.cpp
   HexagonMCTargetDesc.cpp
   HexagonShuffler.cpp
-  )
+
+  LINK_COMPONENTS
+    HexagonInfo
+    MC
+    Support
+)
 
 add_dependencies(LLVMHexagonDesc HexagonCommonTableGen)

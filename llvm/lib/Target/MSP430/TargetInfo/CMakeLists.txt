@@ -1,3 +1,6 @@
 add_llvm_library(LLVMMSP430Info
   MSP430TargetInfo.cpp
-  )
+
+  LINK_COMPONENTS
+    Support
+)

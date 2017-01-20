@@ -11,4 +11,10 @@ add_llvm_library(LLVMMipsDesc
   MipsNaClELFStreamer.cpp
   MipsOptionRecord.cpp
   MipsTargetStreamer.cpp
-  )
+
+  LINK_COMPONENTS
+    MC
+    MipsAsmPrinter
+    MipsInfo
+    Support
+)
