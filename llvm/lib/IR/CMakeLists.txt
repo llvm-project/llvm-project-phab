@@ -59,4 +59,7 @@ add_llvm_library(LLVMCore
 
   DEPENDS
   intrinsics_gen
-  )
+
+  LINK_COMPONENTS
+    Support
+)

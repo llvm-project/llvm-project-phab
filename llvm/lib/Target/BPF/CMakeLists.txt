@@ -21,7 +21,19 @@ add_llvm_target(BPFCodeGen
   BPFRegisterInfo.cpp
   BPFSubtarget.cpp
   BPFTargetMachine.cpp
-  )
+
+  LINK_COMPONENTS
+    AsmPrinter
+    CodeGen
+    Core
+    MC
+    BPFAsmPrinter
+    BPFDesc
+    BPFInfo
+    SelectionDAG
+    Support
+    Target
+)
 
 add_subdirectory(Disassembler)
 add_subdirectory(InstPrinter)

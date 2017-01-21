@@ -3,6 +3,10 @@ include_directories( ${CMAKE_CURRENT_BINARY_DIR}/..
 
 add_llvm_library(LLVMAVRInfo
   AVRTargetInfo.cpp
+
+  LINK_COMPONENTS
+    MC
+    Support
 )
 
 add_dependencies(LLVMAVRInfo AVRCommonTableGen)

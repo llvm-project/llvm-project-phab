@@ -10,4 +10,9 @@ add_llvm_library(LLVMRuntimeDyld
 
   DEPENDS
   intrinsics_gen
-  )
+
+  LINK_COMPONENTS
+    MC
+    Object
+    Support
+)
