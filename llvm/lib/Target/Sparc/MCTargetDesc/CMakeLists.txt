@@ -6,4 +6,10 @@ add_llvm_library(LLVMSparcDesc
   SparcMCTargetDesc.cpp
   SparcMCExpr.cpp
   SparcTargetStreamer.cpp
-  )
+
+  LINK_COMPONENTS
+    MC
+    SparcAsmPrinter
+    SparcInfo
+    Support
+)

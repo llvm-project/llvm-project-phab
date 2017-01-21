@@ -9,26 +9,30 @@ function(link_system_libs target)
 endfunction()
 
 
-function(is_llvm_target_library library return_var)
-  # Sets variable `return_var' to ON if `library' corresponds to a
-  # LLVM supported target. To OFF if it doesn't.
+function(is_omitted_target_lib library return_var)
+  # Sets variable `return_var' to ON if `library' corresponds to an omitted LLVM
+  # target. To OFF otherwise.
   set(${return_var} OFF PARENT_SCOPE)
   string(TOUPPER "${library}" capitalized_lib)
-  string(TOUPPER "${LLVM_ALL_TARGETS}" targets)
+  set(omitted_targets ${LLVM_ALL_TARGETS})
+  list(REMOVE_ITEM omitted_targets ${LLVM_TARGETS_TO_BUILD})
+  string(TOUPPER "${omitted_targets}" targets)
   foreach(t ${targets})
     if( capitalized_lib STREQUAL t OR
-        capitalized_lib STREQUAL "LLVM${t}" OR
-        capitalized_lib STREQUAL "LLVM${t}CODEGEN" OR
-        capitalized_lib STREQUAL "LLVM${t}ASMPARSER" OR
-        capitalized_lib STREQUAL "LLVM${t}ASMPRINTER" OR
-        capitalized_lib STREQUAL "LLVM${t}DISASSEMBLER" OR
-        capitalized_lib STREQUAL "LLVM${t}INFO" )
+        capitalized_lib STREQUAL "${t}" OR
+        capitalized_lib STREQUAL "${t}DESC" OR
+        capitalized_lib STREQUAL "${t}CODEGEN" OR
+        capitalized_lib STREQUAL "${t}ASMPARSER" OR
+        capitalized_lib STREQUAL "${t}ASMPRINTER" OR
+        capitalized_lib STREQUAL "${t}DISASSEMBLER" OR
+        capitalized_lib STREQUAL "${t}INFO" OR
+        capitalized_lib STREQUAL "${t}UTILS" OR
+        capitalized_lib STREQUAL "${t}INSTPRINTER" )
       set(${return_var} ON PARENT_SCOPE)
       break()
     endif()
   endforeach()
-endfunction(is_llvm_target_library)
-
+endfunction(is_omitted_target_lib)
 
 macro(llvm_config executable)
   cmake_parse_arguments(ARG "USE_SHARED" "" "" ${ARGN})
@@ -197,10 +201,19 @@ function(llvm_map_components_to_libnames out_libs)
       string(TOUPPER "${c}" capitalized)
       list(FIND capitalized_libs LLVM${capitalized} lib_idx)
       if( lib_idx LESS 0 )
-        # The component is unknown. Maybe is an omitted target?
-        is_llvm_target_library(${c} iltl_result)
-        if( NOT iltl_result )
+        # The component is neither a known target (X86, MSP430, etc.) nor a
+        # component that has been scanned. Check if it's part of an omitted
+        # target, which is the only case when error is certain.
+        is_omitted_target_lib(${c} omitted_result)
+        if(omitted_result)
           message(FATAL_ERROR "Library `${c}' not found in list of llvm libraries.")
+        else()
+          # ${c} is either a malformed component, or one that is yet to be
+          # scanned. Ideally, we could distinguish between the two by scanning
+          # components in RPO of their dependency graph. But this isn't the
+          # case, so defer the well-formedness check to CMake at generation
+          # time.
+          list(APPEND expanded_components "$<LINK_ONLY:LLVM${c}>")
         endif()
       else( lib_idx LESS 0 )
         list(GET LLVM_AVAILABLE_LIBS ${lib_idx} canonical_lib)

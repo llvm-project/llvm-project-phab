@@ -8,4 +8,10 @@ add_llvm_library(LLVMCoverage
 
   DEPENDS
   intrinsics_gen
-  )
+
+  LINK_COMPONENTS
+    Core
+    Object
+    ProfileData
+    Support
+)

@@ -45,6 +45,21 @@ add_llvm_target(WebAssemblyCodeGen
 
   DEPENDS
   intrinsics_gen
+
+  LINK_COMPONENTS
+    Analysis
+    AsmPrinter
+    CodeGen
+    Core
+    MC
+    ScalarOpts
+    SelectionDAG
+    Support
+    Target
+    TransformUtils
+    WebAssemblyAsmPrinter
+    WebAssemblyDesc
+    WebAssemblyInfo
 )
 
 add_subdirectory(Disassembler)

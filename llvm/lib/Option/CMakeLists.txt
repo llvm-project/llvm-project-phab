@@ -6,4 +6,7 @@ add_llvm_library(LLVMOption
 
   ADDITIONAL_HEADER_DIRS
   ${LLVM_MAIN_INCLUDE_DIR}/llvm/Option
-  )
+
+  LINK_COMPONENTS
+    Support
+)

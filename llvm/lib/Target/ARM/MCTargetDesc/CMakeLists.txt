@@ -13,4 +13,11 @@ add_llvm_library(LLVMARMDesc
   ARMUnwindOpAsm.cpp
   ARMWinCOFFObjectWriter.cpp
   ARMWinCOFFStreamer.cpp
-  )
+
+  LINK_COMPONENTS
+    ARMAsmPrinter
+    ARMInfo
+    MC
+    MCDisassembler
+    Support
+)
