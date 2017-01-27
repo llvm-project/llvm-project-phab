@@ -153,9 +153,16 @@ MachineCombiner::getDepth(SmallVectorImpl<MachineInstr *> &InsInstrs,
         assert(DefInstr &&
                "There must be a definition for a new virtual register");
         DepthOp = InstrDepth[II->second];
-        LatencyOp = TSchedModel.computeOperandLatency(
-            DefInstr, DefInstr->findRegisterDefOperandIdx(MO.getReg()),
-            InstrPtr, InstrPtr->findRegisterUseOperandIdx(MO.getReg()));
+        int DefIdx = DefInstr->findRegisterDefOperandIdx(MO.getReg());
+        int UseIdx = InstrPtr->findRegisterUseOperandIdx(MO.getReg());
+        assert((DefIdx || UseIdx) && "Invalid reg usage");
+        if (DefIdx < 0 || UseIdx < 0)
+          // W/o def/use indexes we can't compute latency based on shed model
+          // that's why we're forced to use the default value
+          LatencyOp = TII->defaultDefLatency(SchedModel, *DefInstr);
+        else
+          LatencyOp = TSchedModel.computeOperandLatency(DefInstr, DefIdx,
+                                                        InstrPtr, UseIdx);
       } else {
         MachineInstr *DefInstr = getOperandDef(MO);
         if (DefInstr) {
