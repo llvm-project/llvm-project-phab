@@ -187,7 +187,8 @@ void WhitespaceManager::calculateLineBreakInformation() {
 // Align a single sequence of tokens, see AlignTokens below.
 template <typename F>
 static void
-AlignTokenSequence(unsigned Start, unsigned End, unsigned Column, F &&Matches,
+AlignTokenSequence(const FormatStyle &Style, unsigned Start, unsigned End,
+                   unsigned Column, F &&Matches,
                    SmallVector<WhitespaceManager::Change, 16> &Changes) {
   bool FoundMatchOnLine = false;
   int Shift = 0;
@@ -207,9 +208,24 @@ AlignTokenSequence(unsigned Start, unsigned End, unsigned Column, F &&Matches,
     }
 
     assert(Shift >= 0);
+    if (Shift == 0)
+      continue;
+
     Changes[i].StartOfTokenColumn += Shift;
     if (i + 1 != Changes.size())
       Changes[i + 1].PreviousEndOfTokenColumn += Shift;
+
+    // If PointerAlignment is PAS_Right, keep *s or &s next to the token
+    if (Style.PointerAlignment == FormatStyle::PAS_Right &&
+        Changes[i].Spaces != 0) {
+      for (int previous = i - 1;
+           previous >= 0 &&
+               Changes[previous].Tok->Type == TT_PointerOrReference;
+           previous--) {
+        Changes[previous + 1].Spaces -= Shift;
+        Changes[previous].Spaces += Shift;
+      }
+    }
   }
 }
 
@@ -256,8 +272,8 @@ static void AlignTokens(const FormatStyle &Style, F &&Matches,
   // containing any matching token to be aligned and located after such token.
   auto AlignCurrentSequence = [&] {
     if (StartOfSequence > 0 && StartOfSequence < EndOfSequence)
-      AlignTokenSequence(StartOfSequence, EndOfSequence, MinColumn, Matches,
-                         Changes);
+      AlignTokenSequence(Style, StartOfSequence, EndOfSequence, MinColumn,
+                         Matches, Changes);
     MinColumn = 0;
     MaxColumn = UINT_MAX;
     StartOfSequence = 0;
@@ -349,13 +365,6 @@ void WhitespaceManager::alignConsecutiveAssignments() {
 void WhitespaceManager::alignConsecutiveDeclarations() {
   if (!Style.AlignConsecutiveDeclarations)
     return;
-
-  // FIXME: Currently we don't handle properly the PointerAlignment: Right
-  // The * and & are not aligned and are left dangling. Something has to be done
-  // about it, but it raises the question of alignment of code like:
-  //   const char* const* v1;
-  //   float const* v2;
-  //   SomeVeryLongType const& v3;
 
   AlignTokens(Style,
               [](Change const &C) {
@@ -518,8 +527,7 @@ void WhitespaceManager::generateChanges() {
   }
 }
 
-void WhitespaceManager::storeReplacement(SourceRange Range,
-                                         StringRef Text) {
+void WhitespaceManager::storeReplacement(SourceRange Range, StringRef Text) {
   unsigned WhitespaceLength = SourceMgr.getFileOffset(Range.getEnd()) -
                               SourceMgr.getFileOffset(Range.getBegin());
   // Don't create a replacement, if it does not change anything.
