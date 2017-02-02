@@ -607,6 +607,60 @@ bool LoopUnswitch::processCurrentLoop() {
     }
   }
 
+  // Given a terminator TI, if TI is in header, and all instructions
+  // between the beginning of the loop header and TI are guaranteed to
+  // execute, then no freeze is needed in unswitching it.
+  // ReachableTI is a set of terminator instructions which does not
+  // require freeze when being unswitched.
+  DenseSet<TerminatorInst *> ReachableTIs;
+  {
+    BasicBlock *BB = currentLoop->getHeader();
+    while (BB) {
+      TerminatorInst *BBTI = BB->getTerminator();
+      bool AlwaysReachableTI = true;
+
+      // Check whether all instructions in BB transfers execution
+      // to successors.
+      for (auto &I : *BB) {
+        Instruction *Inst = &I;
+        if (!isGuaranteedToTransferExecutionToSuccessor(Inst)) {
+          AlwaysReachableTI = false;
+        }
+      }
+
+      if (!AlwaysReachableTI)
+        break;
+
+      // BBTI is always reachable from the header of the loop.
+      ReachableTIs.insert(BBTI);
+
+      // Now proceed to the next basic block, or stop here?
+      if (BBTI->getNumSuccessors() == 1)
+        BB = BBTI->getSuccessor(0);
+      else if (BranchInst *BBBI = dyn_cast<BranchInst>(BBTI)) {
+        if (BBBI->getCondition() == ConstantInt::getTrue(Context))
+          BB = BBBI->getSuccessor(0);
+        else if (BBBI->getCondition() == ConstantInt::getFalse(Context))
+          BB = BBBI->getSuccessor(1);
+        else
+          break;
+      } else if (SwitchInst *BBSI = dyn_cast<SwitchInst>(BBTI)) {
+        if (ConstantInt *CI = dyn_cast<ConstantInt>(BBSI->getCondition())) {
+          SwitchInst::CaseIt CItr = BBSI->findCaseValue(CI);
+          BB = CItr.getCaseSuccessor();
+        } else
+          break;
+      } else
+        // We can't find the next basic block which is guaranteed to be
+        // executed.
+        break;
+
+      // Check whether the block is already visited.
+      if (ReachableTIs.count(BB->getTerminator()) > 0)
+        break;
+    }
+  }
+
   // Loop over all of the basic blocks in the loop.  If we find an interior
   // block that is branching on a loop-invariant condition, we can unswitch this
   // loop.
@@ -624,6 +678,9 @@ bool LoopUnswitch::processCurrentLoop() {
         !isGuaranteedToExecute(*TI, DT, currentLoop, &SafetyInfo))
       continue;
 
+    // Is freeze needed when unswitching this branch?
+    bool NeedFreeze = ReachableTIs.count(TI) == 0;
+
     if (BranchInst *BI = dyn_cast<BranchInst>(TI)) {
       // Some branches may be rendered unreachable because of previous
       // unswitching.
@@ -638,8 +695,10 @@ bool LoopUnswitch::processCurrentLoop() {
         // unswitch on it if we desire.
         Value *LoopCond = FindLIVLoopCondition(BI->getCondition(),
                                                currentLoop, Changed);
+        // Determine whether we should freeze the condition.
         if (LoopCond &&
-            UnswitchIfProfitable(LoopCond, ConstantInt::getTrue(Context), true, TI)) {
+            UnswitchIfProfitable(LoopCond, ConstantInt::getTrue(Context),
+                                 NeedFreeze, TI)) {
           ++NumBranches;
           return true;
         }
@@ -669,7 +728,7 @@ bool LoopUnswitch::processCurrentLoop() {
         if (!UnswitchVal)
           continue;
 
-        if (UnswitchIfProfitable(LoopCond, UnswitchVal, true)) {
+        if (UnswitchIfProfitable(LoopCond, UnswitchVal, NeedFreeze)) {
           ++NumSwitches;
           return true;
         }
@@ -915,6 +974,11 @@ bool LoopUnswitch::TryTrivialLoopUnswitch(bool &Changed) {
   // this scenario could be very common in practice.
   SmallSet<BasicBlock*, 8> Visited;
 
+  // If there exists an instruction I which is (1) between the beginning of
+  // the loop preheader and the branch to unswitch, and (1) not guaranteed to 
+  // transfer execution to successor, then we need to freeze the condition.
+  bool NeedFreeze = false;
+
   while (true) {
     // If we exit loop or reach a previous visited block, then
     // we can not reach any trivial condition candidates (unfoldable
@@ -926,9 +990,15 @@ bool LoopUnswitch::TryTrivialLoopUnswitch(bool &Changed) {
     // Check if this loop will execute any side-effecting instructions (e.g.
     // stores, calls, volatile loads) in the part of the loop that the code
     // *would* execute. Check the header first.
-    for (Instruction &I : *CurrentBB)
+    for (Instruction &I : *CurrentBB) {
       if (I.mayHaveSideEffects())
         return false;
+      if (!NeedFreeze) {
+        // There exists an instruction which can exit from the loop.
+        // Hoisting branch must not have undef/poison value as its condition.
+        NeedFreeze |= !isGuaranteedToTransferExecutionToSuccessor(&I);
+      }
+    }
 
     // FIXME: add check for constant foldable switch instructions.
     if (BranchInst *BI = dyn_cast<BranchInst>(CurrentTerm)) {
@@ -985,7 +1055,7 @@ bool LoopUnswitch::TryTrivialLoopUnswitch(bool &Changed) {
       return false;   // Can't handle this.
 
     UnswitchTrivialCondition(currentLoop, LoopCond, CondVal, LoopExitBB,
-                             true, CurrentTerm);
+                             NeedFreeze, CurrentTerm);
     ++NumBranches;
     return true;
   } else if (SwitchInst *SI = dyn_cast<SwitchInst>(CurrentTerm)) {
@@ -1028,7 +1098,7 @@ bool LoopUnswitch::TryTrivialLoopUnswitch(bool &Changed) {
       return false;   // Can't handle this.
 
     UnswitchTrivialCondition(currentLoop, LoopCond, CondVal, LoopExitBB,
-                             true, nullptr);
+                             NeedFreeze, nullptr);
     ++NumSwitches;
     return true;
   }
