@@ -1822,6 +1822,78 @@ typedef void (*TokenizerCallback)(StringRef Source, StringSaver &Saver,
                                   SmallVectorImpl<const char *> &NewArgv,
                                   bool MarkEOLs);
 
+/// Tokenizes content of configuration file.
+///
+/// \param [in] Source The string representing content of config file.
+/// \param [in] Saver Delegates back to the caller for saving parsed strings.
+/// \param [out] NewArgv All parsed strings are appended to NewArgv.
+/// \param [in] MarkEOLs Added for compatibility with TokenizerCallback.
+///
+/// It works like TokenizeGNUCommandLine with ability to skip comment lines.
+///
+void tokenizeConfigFile(StringRef Source, StringSaver &Saver,
+                        SmallVectorImpl<const char *> &NewArgv,
+                        bool MarkEOLs = false);
+
+/// Looks for the specified file in well-known directories.
+///
+/// \param FilePath [out] File path, if the file was found.
+/// \param Dirs [in] Directories used for the search.
+/// \param ProgramFullPath [in] Path to the current executable or empty string.
+/// \param FileName [in] Name of the file to search for.
+/// \return True if file was found.
+///
+/// Looks for file specified by FileName sequentially in directories specified
+/// by Dirs. If not found and ProgramFullPath is not empty, searches directory
+/// where the current executable resides.
+///
+bool searchForFile(SmallVectorImpl<char> &FilePath,
+                   ArrayRef<const char *> Dirs, StringRef ProgramFullPath,
+                   StringRef FileName);
+
+/// Tries to find configuration file name specified by command line arguments.
+///
+/// \param CfgFileName [out] Configuration file name, if it was specified by
+/// command line.
+/// \param Argv [in, out] Command line options supplied to the executable.
+/// \param Dirs [in] Directories used to search configuration file.
+/// \param SearchInBinDir [in] If True, also searches directory were executable
+/// resides.
+/// \param ErrorText [out] If error occurred it is assigned text of the error,
+/// otherwise is assigned an empty string.
+/// \return true if configuration file was not specified or the command line
+/// contains errors.
+///
+/// Configuration file is specified in command line by the option '--config'
+/// followed by a file name. If the option is found, both the option and the
+/// argument are removed from Argv. If the argument contains a directory
+/// separator, it is treated as a file path, otherwise it is a file name and is
+/// searched for in the directories:
+/// - specified by Dir,
+/// - where executable resides, if SearchInBinDir is True.
+/// If the file is found, its full path is assigned to CfgFileName.
+///
+bool findConfigFile(SmallVectorImpl<char> &CfgFileName,
+                    SmallVectorImpl<const char *> &Argv,
+                    ArrayRef<const char *> Dirs,
+                    bool SearchInBinDir,
+                    std::string &ErrorText);
+
+/// Reads command line options the from the given configuration file.
+///
+/// \param CfgFileName [in] Path to configuration file.
+/// \param Saver [in] Objects that saves allocated strings.
+/// \param Argv [out] Command line into which options are read.
+/// \param Num [out] Variable that is assigned the number of options read from
+///                  the config file.
+/// \return true if the file was successfully read.
+///
+/// Inserts options read from configuration file into Argv starting from index
+/// 1 (Argv[0] must contain executable path).
+///
+bool readConfigFile(SmallVectorImpl<char> &CfgFileName, StringSaver &Saver,
+                    SmallVectorImpl<const char *> &Argv, unsigned &Num);
+
 /// \brief Expand response files on a command line recursively using the given
 /// StringSaver and tokenization strategy.  Argv should contain the command line
 /// before expansion and will be modified in place. If requested, Argv will
@@ -1838,6 +1910,7 @@ typedef void (*TokenizerCallback)(StringRef Source, StringSaver &Saver,
 /// \param [in] RelativeNames true if names of nested response files must be
 /// resolved relative to including file.
 /// \return true if all @files were expanded successfully or there were none.
+///
 bool ExpandResponseFiles(StringSaver &Saver, TokenizerCallback Tokenizer,
                          SmallVectorImpl<const char *> &Argv,
                          bool MarkEOLs = false, bool RelativeNames = false);

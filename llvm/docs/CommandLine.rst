@@ -1255,6 +1255,140 @@ thereby working around the command-line length limits. Response files are
 enabled by an optional fourth argument to `cl::ParseEnvironmentOptions`_ and
 `cl::ParseCommandLineOptions`_.
 
+.. _configuration files:
+
+Configuration files
+^^^^^^^^^^^^^^^^^^^
+
+Set of options may be grouped into **configurations**, which makes it easier to
+specify necessary options. For instance, a build tool can produce an executable
+either for debugging or product delivery. Both modes may require to specify many
+options that define include paths, set of libraries, compiler options and so on.
+These options can be grouped info *debug* and *release* configurations, and be
+applied just by choosing the configuration name.
+
+A configuration is a collection of options stored in a file. Options may be
+specified on one or several lines. Long options may be split between several
+lines by trailing backslash. Lines composed of whitespace characters only are
+ignored as well as lines in which the first non-blank character is `#`. Example
+of configuration file:
+
+::
+
+    # Comment
+    -option_1 -option2
+
+    # Next option
+    -option_3
+    # Option split between lines
+    -option_4="long long\
+    argument"
+
+When a configuration is selected, all options contained in it are inserted into
+the set of command line arguments as if they were specified at the beginning
+of command line.
+
+Configuration file may be specified in several ways:
+
+    - using command line option `--config`,
+    - as a default configuration.
+
+The function **cl::findConfigFile** is used to find configuration specified in
+command line. It searches command line for option `--config`, which must be
+followed by a configuration file name, for instance:
+
+::
+
+    --config /home/user/cfgs/testing.txt
+    --config debug.cfg
+
+If the argument contains a directory separator, it is considered as a file path,
+options are read from that file. Otherwise the argument is treated as a file
+name, which is searched for in the directories provided in call to
+**cl::findConfigFile**. For instance, if the function is called:
+
+.. code-block:: c++
+
+    const char *Dirs[] = { "~/.llvm", "/etc/llvm" };
+    llvm::SmallString<128> ConfigFile;
+    std::string ErrText;
+    bool Res = llvm::cl::findConfigFile(ConfigFile, argv, Dirs, false, ErrText);
+
+then in the invocation:
+
+::
+
+    appl --config debug.cfg
+
+file `debug.cfg` is searched for in the directories `~/.llvm` and `/etc/llvm`. If
+the forth argument of the function call is changed to true:
+
+.. code-block:: c++
+
+    bool Res = llvm::cl::findConfigFile(ConfigFile, argv, Dirs, true, ErrText);
+
+`debug.cfg` is searched for in the directory there the executable file `appl`
+resides, if it was not found in the directories specified by `Dirs`.
+
+Default configuration file may be found using the function **cl::searchForFile**.
+The code:
+
+.. code-block:: c++
+
+    llvm::SmallString<128> ConfigFile;
+    const char *Dirs[] = { "~/.llvm", "/etc/llvm" };
+    bool Res = llvm::cl::searchForFile(ConfigFile, Dirs, argv[0], "appl.cfg");
+
+in the case of invocation:
+
+::
+
+    /export/tools/appl
+
+sequentially searches for the files:
+
+::
+
+    ~/.llvm/appl.cfg
+    /etc/llvm/appl.cfg
+    /export/tools/appl.cfg
+
+To prevent from search in binary directory, use empty string as the third argument:
+
+.. code-block:: c++
+
+    auto Res = llvm::cl::searchForFile(ConfigFile, Dirs, "", "appl.cfg");
+
+The following code demonstrates how an application could process config files:
+
+.. code-block:: c++
+
+    // This array must contain argument specified in application invocation, these
+    // are same as specified by argument `argv` of `main`.
+    SmallVector<const char *, 256> argv;
+
+    // Directories that are searched for configuration files.
+    static const char * const Dirs[] = { "~/.llvm", "/etc/llvm" };
+
+    // Variable that is assigned the path to the found file.
+    llvm::SmallString<128> ConfigFile;
+
+    // Will contain error text.
+    std::string ErrText;
+
+    // Look for the configuration file specigied in command line.
+    bool HasConfig = llvm::cl::findConfigFile(ConfigFile, argv, Dirs, true, ErrText);
+    if (!HasConfig && !ErrText.empty())
+      std::cerr << ErrText;
+      return 1;
+    }
+
+    // If config file is found, read it.
+    unsigned NumOpts = 0;
+    if (HasConfig)
+      llvm::cl::readConfigFile(ConfigFile, Saver, argv, NumOpts);
+
+
 Top-Level Classes and Functions
 -------------------------------
 
