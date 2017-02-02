@@ -190,10 +190,12 @@ public:
   ///
   /// \pre `llvm::InitializeAllTargets()` has been called.
   /// \param ProgName The name the Clang driver was invoked with (from,
-  /// e.g., argv[0])
+  /// e.g., argv[0]).
+  /// \param VerifyTarget If True checks that the first component of the name
+  /// (like i686-linux-android above) is a registered target name.
   /// \return A pair of (`target`, `mode-flag`), where one or both may be empty.
   static std::pair<std::string, std::string>
-  getTargetAndModeFromProgramName(StringRef ProgName);
+  getTargetAndModeFromProgramName(StringRef ProgName, bool VerifyTarget = true);
 
   // Tool access.
 

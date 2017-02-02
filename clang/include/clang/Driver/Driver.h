@@ -208,6 +208,17 @@ private:
   /// Name to use when invoking gcc/g++.
   std::string CCCGenericGCCName;
 
+  /// Name of configuration file if used.
+  std::string ConfigFile;
+
+  /// Number of items in command line that came from configuration file.
+  unsigned NumConfigOptions;
+
+  /// Number of arguments originated from configuration file.
+  /// This number may be smaller that \c NumConfigOptions if some options
+  /// requires separate arguments.
+  unsigned NumConfigArgs;
+
   /// Whether to check that input files exist when constructing compilation
   /// jobs.
   unsigned CheckInputsExist : 1;
@@ -271,6 +282,13 @@ public:
 
   /// Name to use when invoking gcc/g++.
   const std::string &getCCCGenericGCCName() const { return CCCGenericGCCName; }
+
+  const std::string &getConfigFile() const { return ConfigFile; }
+  void setConfigFile(StringRef FileName, unsigned N) {
+    ConfigFile = FileName;
+    NumConfigOptions = N;
+    NumConfigArgs = 0;
+  }
 
   const llvm::opt::OptTable &getOpts() const { return *Opts; }
 

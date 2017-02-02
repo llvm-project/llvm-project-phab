@@ -163,7 +163,7 @@ const DriverSuffix *parseDriverSuffix(StringRef ProgName) {
 } // anonymous namespace
 
 std::pair<std::string, std::string>
-ToolChain::getTargetAndModeFromProgramName(StringRef PN) {
+ToolChain::getTargetAndModeFromProgramName(StringRef PN, bool VerifyTarget) {
   std::string ProgName = normalizeProgramName(PN);
   const DriverSuffix *DS = parseDriverSuffix(ProgName);
   if (!DS)
@@ -180,9 +180,8 @@ ToolChain::getTargetAndModeFromProgramName(StringRef PN) {
   Prefix = Prefix.slice(0, LastComponent);
   std::string IgnoredError;
   std::string Target;
-  if (llvm::TargetRegistry::lookupTarget(Prefix, IgnoredError)) {
+  if (!VerifyTarget || llvm::TargetRegistry::lookupTarget(Prefix, IgnoredError))
     Target = Prefix;
-  }
   return std::make_pair(Target, ModeFlag);
 }
 
