@@ -155,9 +155,16 @@ MachineCombiner::getDepth(SmallVectorImpl<MachineInstr *> &InsInstrs,
         assert(DefInstr &&
                "There must be a definition for a new virtual register");
         DepthOp = InstrDepth[II->second];
-        LatencyOp = TSchedModel.computeOperandLatency(
-            DefInstr, DefInstr->findRegisterDefOperandIdx(MO.getReg()),
-            InstrPtr, InstrPtr->findRegisterUseOperandIdx(MO.getReg()));
+        int DefIdx = DefInstr->findRegisterDefOperandIdx(MO.getReg());
+        int UseIdx = InstrPtr->findRegisterUseOperandIdx(MO.getReg());
+        assert((DefIdx || UseIdx) && "Invalid reg usage");
+        if (DefIdx < 0 || UseIdx < 0)
+          // W/o def/use indexes we can't compute latency based on shed model
+          // that's why we're forced to use the default value
+          LatencyOp = TII->defaultDefLatency(SchedModel, *DefInstr);
+        else
+          LatencyOp = TSchedModel.computeOperandLatency(DefInstr, DefIdx,
+                                                        InstrPtr, UseIdx);
       } else {
         MachineInstr *DefInstr = getOperandDef(MO);
         if (DefInstr) {
@@ -354,6 +361,19 @@ bool MachineCombiner::doSubstitute(unsigned NewSize, unsigned OldSize) {
   return false;
 }
 
+static void insertDeleteInstructions(MachineBasicBlock *MBB, MachineInstr &MI,
+                                     SmallVector<MachineInstr *, 16> InsInstrs,
+                                     SmallVector<MachineInstr *, 16> DelInstrs,
+                                     MachineTraceMetrics *Traces) {
+  for (auto *InstrPtr : InsInstrs)
+    MBB->insert((MachineBasicBlock::iterator)&MI, InstrPtr);
+  for (auto *InstrPtr : DelInstrs)
+    InstrPtr->eraseFromParentAndMarkDBGValuesForRemoval();
+  ++NumInstCombined;
+  Traces->invalidate(MBB);
+  Traces->verifyAnalysis();
+}
+
 /// Substitute a slow code sequence with a faster one by
 /// evaluating instruction combining pattern.
 /// The prototype of such a pattern is MUl + ADD -> MADD. Performs instruction
@@ -408,7 +428,6 @@ bool MachineCombiner::combineInstructions(MachineBasicBlock *MBB) {
       DenseMap<unsigned, unsigned> InstrIdxForVirtReg;
       if (!MinInstr)
         MinInstr = Traces->getEnsemble(MachineTraceMetrics::TS_MinInstrCount);
-      MachineTraceMetrics::Trace BlockTrace = MinInstr->getTrace(MBB);
       Traces->verifyAnalysis();
       TII->genAlternativeCodeSequence(MI, P, InsInstrs, DelInstrs,
                                       InstrIdxForVirtReg);
@@ -428,23 +447,22 @@ bool MachineCombiner::combineInstructions(MachineBasicBlock *MBB) {
       // fewer instructions OR
       // the new sequence neither lengthens the critical path nor increases
       // resource pressure.
-      if (SubstituteAlways || doSubstitute(NewInstCount, OldInstCount) ||
-          (improvesCriticalPathLen(MBB, &MI, BlockTrace, InsInstrs,
-                                   DelInstrs, InstrIdxForVirtReg, P) &&
-           preservesResourceLen(MBB, BlockTrace, InsInstrs, DelInstrs))) {
-        for (auto *InstrPtr : InsInstrs)
-          MBB->insert((MachineBasicBlock::iterator) &MI, InstrPtr);
-        for (auto *InstrPtr : DelInstrs)
-          InstrPtr->eraseFromParentAndMarkDBGValuesForRemoval();
-
-        Changed = true;
-        ++NumInstCombined;
-
-        Traces->invalidate(MBB);
-        Traces->verifyAnalysis();
+      if (SubstituteAlways || doSubstitute(NewInstCount, OldInstCount)) {
+        insertDeleteInstructions(MBB, MI, InsInstrs, DelInstrs, Traces);
         // Eagerly stop after the first pattern fires.
+        Changed = true;
         break;
       } else {
+        // We're getting the trace when we really need it for computations
+        MachineTraceMetrics::Trace BlockTrace = MinInstr->getTrace(MBB);
+        if (improvesCriticalPathLen(MBB, &MI, BlockTrace, InsInstrs, DelInstrs,
+                                    InstrIdxForVirtReg, P) &&
+            preservesResourceLen(MBB, BlockTrace, InsInstrs, DelInstrs)) {
+          insertDeleteInstructions(MBB, MI, InsInstrs, DelInstrs, Traces);
+          // Eagerly stop after the first pattern fires.
+          Changed = true;
+          break;
+        }
         // Cleanup instructions of the alternative code sequence. There is no
         // use for them.
         MachineFunction *MF = MBB->getParent();
@@ -454,7 +472,6 @@ bool MachineCombiner::combineInstructions(MachineBasicBlock *MBB) {
       InstrIdxForVirtReg.clear();
     }
   }
-
   return Changed;
 }
 

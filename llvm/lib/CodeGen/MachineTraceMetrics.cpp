@@ -499,6 +499,7 @@ void MachineTraceMetrics::Ensemble::computeTrace(const MachineBasicBlock *MBB) {
 }
 
 /// Invalidate traces through BadMBB.
+// TODO: this code should be refactored because it really increases compile time
 void
 MachineTraceMetrics::Ensemble::invalidate(const MachineBasicBlock *BadMBB) {
   SmallVector<const MachineBasicBlock*, 16> WorkList;
