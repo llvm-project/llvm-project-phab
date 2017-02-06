@@ -189,11 +189,12 @@ void addTargetAndModeForProgramName(std::vector<std::string> &CommandLine,
     }
     auto TargetMode =
         clang::driver::ToolChain::getTargetAndModeFromProgramName(InvokedAs);
-    if (!AlreadyHasMode && !TargetMode.second.empty()) {
-      CommandLine.insert(++CommandLine.begin(), TargetMode.second);
+    if (!AlreadyHasMode && !TargetMode.ModeSuffix.empty()) {
+      CommandLine.insert(++CommandLine.begin(), TargetMode.ModeSuffix);
     }
-    if (!AlreadyHasTarget && !TargetMode.first.empty()) {
-      CommandLine.insert(++CommandLine.begin(), {"-target", TargetMode.first});
+    if (!AlreadyHasTarget && TargetMode.TargetIsValid) {
+      CommandLine.insert(++CommandLine.begin(), {"-target",
+                                                 TargetMode.TargetPrefix});
     }
   }
 }

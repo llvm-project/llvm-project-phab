@@ -162,28 +162,25 @@ const DriverSuffix *parseDriverSuffix(StringRef ProgName) {
 }
 } // anonymous namespace
 
-std::pair<std::string, std::string>
+ToolChain::DriverNameParts
 ToolChain::getTargetAndModeFromProgramName(StringRef PN) {
   std::string ProgName = normalizeProgramName(PN);
   const DriverSuffix *DS = parseDriverSuffix(ProgName);
   if (!DS)
-    return std::make_pair("", "");
+    return DriverNameParts();
   std::string ModeFlag = DS->ModeFlag == nullptr ? "" : DS->ModeFlag;
 
   std::string::size_type LastComponent =
       ProgName.rfind('-', ProgName.size() - strlen(DS->Suffix));
   if (LastComponent == std::string::npos)
-    return std::make_pair("", ModeFlag);
+    return DriverNameParts(ModeFlag);
 
   // Infer target from the prefix.
   StringRef Prefix(ProgName);
   Prefix = Prefix.slice(0, LastComponent);
   std::string IgnoredError;
-  std::string Target;
-  if (llvm::TargetRegistry::lookupTarget(Prefix, IgnoredError)) {
-    Target = Prefix;
-  }
-  return std::make_pair(Target, ModeFlag);
+  bool IsRegistered = llvm::TargetRegistry::lookupTarget(Prefix, IgnoredError);
+  return DriverNameParts{Prefix, ModeFlag, IsRegistered};
 }
 
 StringRef ToolChain::getDefaultUniversalArchName() const {

@@ -61,7 +61,8 @@ Driver::Driver(StringRef ClangExecutable, StringRef DefaultTargetTriple,
       CCPrintHeadersFilename(nullptr), CCLogDiagnosticsFilename(nullptr),
       CCCPrintBindings(false), CCPrintHeaders(false), CCLogDiagnostics(false),
       CCGenDiagnostics(false), DefaultTargetTriple(DefaultTargetTriple),
-      CCCGenericGCCName(""), CheckInputsExist(true), CCCUsePCH(true),
+      CCCGenericGCCName(""), NumConfigOptions(0), NumConfigArgs(0),
+      CheckInputsExist(true), CCCUsePCH(true),
       SuppressMissingInputWarning(false) {
 
   // Provide a sane fallback if no VFS is specified.
@@ -88,7 +89,7 @@ Driver::Driver(StringRef ClangExecutable, StringRef DefaultTargetTriple,
 void Driver::ParseDriverMode(StringRef ProgramName,
                              ArrayRef<const char *> Args) {
   auto Default = ToolChain::getTargetAndModeFromProgramName(ProgramName);
-  StringRef DefaultMode(Default.second);
+  StringRef DefaultMode(Default.ModeSuffix);
   setDriverModeFromOption(DefaultMode);
 
   for (const char *ArgPtr : Args) {
@@ -129,9 +130,11 @@ InputArgList Driver::ParseArgStrings(ArrayRef<const char *> ArgStrings) {
       getIncludeExcludeOptionFlagMasks();
 
   unsigned MissingArgIndex, MissingArgCount;
+  int NumCfgArgs = static_cast<int>(NumConfigOptions);
   InputArgList Args =
       getOpts().ParseArgs(ArgStrings, MissingArgIndex, MissingArgCount,
-                          IncludedFlagsBitmask, ExcludedFlagsBitmask);
+                          IncludedFlagsBitmask, ExcludedFlagsBitmask,
+                          &NumCfgArgs);
 
   // Check for missing argument error.
   if (MissingArgCount)
@@ -149,6 +152,17 @@ InputArgList Driver::ParseArgStrings(ArrayRef<const char *> ArgStrings) {
     if (A->getOption().matches(options::OPT_mcpu_EQ) && A->containsValue("")) {
       Diag(clang::diag::warn_drv_empty_joined_argument) << A->getAsString(Args);
     }
+  }
+
+
+  // Check if the last option specified in config file takes a separate
+  // argument, the argument comes from the config file also.
+  // from outside of the file.
+  if (NumCfgArgs < 0) {
+    NumConfigArgs = static_cast<unsigned>(-NumCfgArgs);
+    Diag(diag::err_drv_incomplete_config) << ArgStrings[NumConfigOptions - 1];
+  } else {
+    NumConfigArgs = static_cast<unsigned>(NumCfgArgs);
   }
 
   for (const Arg *A : Args.filtered(options::OPT_UNKNOWN))
@@ -1080,6 +1094,10 @@ void Driver::PrintVersion(const Compilation &C, raw_ostream &OS) const {
 
   // Print out the install directory.
   OS << "InstalledDir: " << InstalledDir << '\n';
+
+  // If configuration file was used, print its path.
+  if (!ConfigFile.empty())
+    OS << "Configuration file: " << ConfigFile << '\n';
 }
 
 /// PrintDiagnosticCategories - Implement the --print-diagnostic-categories
@@ -2675,6 +2693,11 @@ Action *Driver::ConstructPhaseAction(Compilation &C, const ArgList &Args,
 
 void Driver::BuildJobs(Compilation &C) const {
   llvm::PrettyStackTraceString CrashInfo("Building compilation jobs");
+
+  // Claim all arguments that come from a configuration file so that the driver
+  // does not warn on any that is unused.
+  for (unsigned I = 0; I < NumConfigArgs; ++I)
+    C.getArgs().getArgs()[I]->claim();
 
   Arg *FinalOutput = C.getArgs().getLastArg(options::OPT_o);
 

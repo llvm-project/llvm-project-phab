@@ -199,22 +199,23 @@ extern int cc1_main(ArrayRef<const char *> Argv, const char *Argv0,
 extern int cc1as_main(ArrayRef<const char *> Argv, const char *Argv0,
                       void *MainAddr);
 
-static void insertTargetAndModeArgs(StringRef Target, StringRef Mode,
+static void insertTargetAndModeArgs(const ToolChain::DriverNameParts &NameParts,
                                     SmallVectorImpl<const char *> &ArgVector,
                                     std::set<std::string> &SavedStrings) {
-  if (!Mode.empty()) {
+  if (!NameParts.ModeSuffix.empty()) {
     // Add the mode flag to the arguments.
     auto it = ArgVector.begin();
     if (it != ArgVector.end())
       ++it;
-    ArgVector.insert(it, GetStableCStr(SavedStrings, Mode));
+    ArgVector.insert(it, GetStableCStr(SavedStrings, NameParts.ModeSuffix));
   }
 
-  if (!Target.empty()) {
+  if (NameParts.TargetIsValid) {
     auto it = ArgVector.begin();
     if (it != ArgVector.end())
       ++it;
-    const char *arr[] = {"-target", GetStableCStr(SavedStrings, Target)};
+    const char *arr[] = {"-target", GetStableCStr(SavedStrings,
+                                                  NameParts.TargetPrefix)};
     ArgVector.insert(it, std::begin(arr), std::end(arr));
   }
 }
@@ -305,6 +306,16 @@ static int ExecuteCC1Tool(ArrayRef<const char *> argv, StringRef Tool) {
   return 1;
 }
 
+// Directories searched for configuration specified by option '--config'.
+static const ArrayRef<const char *> SearchDirs = {
+#if defined(CLANG_CONFIG_FILE_USER_DIR)
+  CLANG_CONFIG_FILE_USER_DIR,
+#endif
+#if defined(CLANG_CONFIG_FILE_SYSTEM_DIR)
+  CLANG_CONFIG_FILE_SYSTEM_DIR
+#endif
+};
+
 int main(int argc_, const char **argv_) {
   llvm::sys::PrintStackTraceOnErrorSignal(argv_[0]);
   llvm::PrettyStackTraceProgram X(argc_, argv_);
@@ -324,11 +335,42 @@ int main(int argc_, const char **argv_) {
 
   llvm::InitializeAllTargets();
   std::string ProgName = argv[0];
-  std::pair<std::string, std::string> TargetAndMode =
-      ToolChain::getTargetAndModeFromProgramName(ProgName);
+  auto TargetAndMode = ToolChain::getTargetAndModeFromProgramName(ProgName);
 
   llvm::BumpPtrAllocator A;
   llvm::StringSaver Saver(A);
+
+  // Try reading options from configuration file.
+  llvm::SmallString<128> ConfigFile;
+  bool CfgFound;
+  std::string ErrText;
+
+  // First try config file specified in command line. It has higher priority
+  // than any other way to specify configuration.
+  CfgFound = llvm::cl::findConfigFile(ConfigFile, argv, SearchDirs, true,
+                                      ErrText);
+  if (!CfgFound && !ErrText.empty()) {
+    llvm::errs() << ProgName << ": CommandLine Error :" << ErrText << '\n';
+    return 1;
+  }
+
+  // If config file is not specified explicitly, try to determine configuration
+  // implicitly. First try to deduce configuration from executable name. For
+  // instance, a file 'armv7l-clang' applies config file 'armv7l.cfg'.
+  if (!CfgFound && !TargetAndMode.TargetPrefix.empty())
+    CfgFound = llvm::cl::searchForFile(ConfigFile, SearchDirs, ProgName,
+                                       TargetAndMode.TargetPrefix + ".cfg");
+
+  // If config file is found, read options from it.
+  unsigned NumConfigOptions = 0;
+  if (CfgFound) {
+    if (!llvm::cl::readConfigFile(ConfigFile, Saver, argv, NumConfigOptions)) {
+      llvm::errs() << ProgName <<
+        ": CommandLine Error : Cannot read configuration file '" <<
+        ConfigFile.c_str() << "'\n";
+      return 1;
+    }
+  }
 
   // Parse response files using the GNU syntax, unless we're in CL mode. There
   // are two ways to put clang in CL compatibility mode: argv[0] is either
@@ -338,7 +380,7 @@ int main(int argc_, const char **argv_) {
   // Finally, our -cc1 tools don't care which tokenization mode we use because
   // response files written by clang will tokenize the same way in either mode.
   bool ClangCLMode = false;
-  if (TargetAndMode.second == "--driver-mode=cl" ||
+  if (TargetAndMode.ModeSuffix == "--driver-mode=cl" ||
       std::find_if(argv.begin(), argv.end(), [](const char *F) {
         return F && strcmp(F, "--driver-mode=cl") == 0;
       }) != argv.end()) {
@@ -400,8 +442,12 @@ int main(int argc_, const char **argv_) {
       SmallVector<const char *, 8> PrependedOpts;
       getCLEnvVarOptions(OptCL.getValue(), Saver, PrependedOpts);
 
-      // Insert right after the program name to prepend to the argument list.
-      argv.insert(argv.begin() + 1, PrependedOpts.begin(), PrependedOpts.end());
+      // Insert right after the program name to prepend to the argument list. If
+      // there are options read from config file, put the options from "CL"
+      // after them because the config file is considered as a "patch" to
+      // compiler defaults.
+      argv.insert(argv.begin() + 1 + NumConfigOptions,
+                  PrependedOpts.begin(), PrependedOpts.end());
     }
     // Arguments in "_CL_" are appended.
     llvm::Optional<std::string> Opt_CL_ = llvm::sys::Process::GetEnv("_CL_");
@@ -446,10 +492,11 @@ int main(int argc_, const char **argv_) {
   ProcessWarningOptions(Diags, *DiagOpts, /*ReportDiags=*/false);
 
   Driver TheDriver(Path, llvm::sys::getDefaultTargetTriple(), Diags);
+  if (!ConfigFile.empty())
+    TheDriver.setConfigFile(ConfigFile.str(), NumConfigOptions);
   SetInstallDir(argv, TheDriver, CanonicalPrefixes);
 
-  insertTargetAndModeArgs(TargetAndMode.first, TargetAndMode.second, argv,
-                          SavedStrings);
+  insertTargetAndModeArgs(TargetAndMode, argv, SavedStrings);
 
   SetBackdoorDriverOutputsFromEnvVars(TheDriver);
 
