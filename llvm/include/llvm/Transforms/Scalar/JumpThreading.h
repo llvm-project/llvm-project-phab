@@ -62,11 +62,14 @@ class JumpThreadingPass : public PassInfoMixin<JumpThreadingPass> {
   std::unique_ptr<BlockFrequencyInfo> BFI;
   std::unique_ptr<BranchProbabilityInfo> BPI;
   bool HasProfileData = false;
+
 #ifdef NDEBUG
-  SmallPtrSet<const BasicBlock *, 16> LoopHeaders;
+  DenseMap<const BasicBlock *, SmallPtrSet<const BasicBlock *, 16>> LoopHeaders;
 #else
-  SmallSet<AssertingVH<const BasicBlock>, 16> LoopHeaders;
+  DenseMap<AssertingVH<const BasicBlock>, SmallPtrSet<const BasicBlock *, 16>>
+      LoopHeaders;
 #endif
+
   DenseSet<std::pair<Value *, BasicBlock *>> RecursionSet;
 
   unsigned BBDupThreshold;
