@@ -89,7 +89,7 @@ endfunction()
 # Adds static or shared runtime for a list of architectures and operating
 # systems and puts it in the proper directory in the build and install trees.
 # add_compiler_rt_runtime(<name>
-#                         {STATIC|SHARED}
+#                         {OBJECT|STATIC|SHARED}
 #                         ARCHS <architectures>
 #                         OS <os list>
 #                         SOURCES <source files>
@@ -100,8 +100,8 @@ endfunction()
 #                         OBJECT_LIBS <object libraries to use as sources>
 #                         PARENT_TARGET <convenience parent target>)
 function(add_compiler_rt_runtime name type)
-  if(NOT type MATCHES "^(STATIC|SHARED)$")
-    message(FATAL_ERROR "type argument must be STATIC or SHARED")
+  if(NOT type MATCHES "^(OBJECT|STATIC|SHARED)$")
+    message(FATAL_ERROR "type argument must be OBJECT, STATIC or SHARED")
     return()
   endif()
   cmake_parse_arguments(LIB
@@ -133,7 +133,10 @@ function(add_compiler_rt_runtime name type)
         message(FATAL_ERROR "Architecture ${arch} can't be targeted")
         return()
       endif()
-      if(type STREQUAL "STATIC")
+      if(type STREQUAL "OBJECT")
+        set(libname "${name}-${arch}")
+        set(output_name_${libname} ${libname}${COMPILER_RT_OS_SUFFIX})
+      elseif(type STREQUAL "STATIC")
         set(libname "${name}-${arch}")
         set(output_name_${libname} ${libname}${COMPILER_RT_OS_SUFFIX})
       else()
@@ -186,12 +189,34 @@ function(add_compiler_rt_runtime name type)
       set(COMPONENT_OPTION COMPONENT ${libname})
     endif()
 
-    add_library(${libname} ${type} ${sources_${libname}})
-    set_target_compile_flags(${libname} ${extra_cflags_${libname}})
-    set_target_link_flags(${libname} ${extra_link_flags_${libname}})
-    set_property(TARGET ${libname} APPEND PROPERTY
-                COMPILE_DEFINITIONS ${LIB_DEFS})
-    set_target_output_directories(${libname} ${COMPILER_RT_LIBRARY_OUTPUT_DIR})
+    if(type STREQUAL "OBJECT")
+      string(TOUPPER ${CMAKE_BUILD_TYPE} config)
+      set(cflags "${CMAKE_C_FLAGS} ${CMAKE_C_FLAGS_${config}}")
+      separate_arguments(cflags)
+      add_custom_command(
+          OUTPUT ${COMPILER_RT_LIBRARY_OUTPUT_DIR}/${libname}.o
+          COMMAND ${CMAKE_C_COMPILER} ${sources_${libname}} ${cflags} ${extra_cflags_${libname}} -c -o ${COMPILER_RT_LIBRARY_OUTPUT_DIR}/${libname}.o
+          DEPENDS ${sources_${libname}}
+          COMMENT "Building C object ${libname}.o")
+      add_custom_target(${libname} DEPENDS ${COMPILER_RT_LIBRARY_OUTPUT_DIR}/${libname}.o)
+      install(FILES ${COMPILER_RT_LIBRARY_OUTPUT_DIR}/${libname}.o
+        DESTINATION ${COMPILER_RT_LIBRARY_INSTALL_DIR}
+        ${COMPONENT_OPTION})
+    else()
+      add_library(${libname} ${type} ${sources_${libname}})
+      set_target_compile_flags(${libname} ${extra_cflags_${libname}})
+      set_target_link_flags(${libname} ${extra_link_flags_${libname}})
+      set_property(TARGET ${libname} APPEND PROPERTY
+                  COMPILE_DEFINITIONS ${LIB_DEFS})
+      set_target_output_directories(${libname} ${COMPILER_RT_LIBRARY_OUTPUT_DIR})
+      install(TARGETS ${libname}
+        ARCHIVE DESTINATION ${COMPILER_RT_LIBRARY_INSTALL_DIR}
+                ${COMPONENT_OPTION}
+        LIBRARY DESTINATION ${COMPILER_RT_LIBRARY_INSTALL_DIR}
+                ${COMPONENT_OPTION}
+        RUNTIME DESTINATION ${COMPILER_RT_LIBRARY_INSTALL_DIR}
+                ${COMPONENT_OPTION})
+    endif()
     set_target_properties(${libname} PROPERTIES
         OUTPUT_NAME ${output_name_${libname}})
     set_target_properties(${libname} PROPERTIES FOLDER "Compiler-RT Runtime")
@@ -204,13 +229,6 @@ function(add_compiler_rt_runtime name type)
         set_target_properties(${libname} PROPERTIES IMPORT_SUFFIX ".lib")
       endif()
     endif()
-    install(TARGETS ${libname}
-      ARCHIVE DESTINATION ${COMPILER_RT_LIBRARY_INSTALL_DIR}
-              ${COMPONENT_OPTION}
-      LIBRARY DESTINATION ${COMPILER_RT_LIBRARY_INSTALL_DIR}
-              ${COMPONENT_OPTION}
-      RUNTIME DESTINATION ${COMPILER_RT_LIBRARY_INSTALL_DIR}
-              ${COMPONENT_OPTION})
 
     # We only want to generate per-library install targets if you aren't using
     # an IDE because the extra targets get cluttered in IDEs.
