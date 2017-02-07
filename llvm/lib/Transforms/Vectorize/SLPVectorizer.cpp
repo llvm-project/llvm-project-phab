@@ -3719,6 +3719,33 @@ PreservedAnalyses SLPVectorizerPass::run(Function &F, FunctionAnalysisManager &A
   return PA;
 }
 
+namespace {
+/// Class tracks changes in the basic block and if something has changed and
+/// this basic block is part of the loop it communicates ScalarEvolution to
+/// forget an existing loop dispositions. Otherwise we may to reuse
+/// ScalarEvolution nodes and get wrong info about loop dispositions.
+class TrackChanges {
+private:
+  ScalarEvolution *SE = nullptr;
+  const LoopInfo *LI = nullptr;
+  const BasicBlock *BB = nullptr;
+  bool Changed = false;
+
+public:
+  TrackChanges(ScalarEvolution *SE, const LoopInfo *LI) : SE(SE), LI(LI) {}
+  void setBasicBlock(const BasicBlock *B) { BB = B; }
+  TrackChanges &operator|=(bool C) {
+    if (C) {
+      if (const Loop *L = LI->getLoopFor(BB))
+        SE->forgetLoopDispositions(L);
+      Changed = true;
+    }
+    return *this;
+  }
+  operator bool() const { return Changed; }
+};
+} // namespace
+
 bool SLPVectorizerPass::runImpl(Function &F, ScalarEvolution *SE_,
                                 TargetTransformInfo *TTI_,
                                 TargetLibraryInfo *TLI_, AliasAnalysis *AA_,
@@ -3736,7 +3763,7 @@ bool SLPVectorizerPass::runImpl(Function &F, ScalarEvolution *SE_,
 
   Stores.clear();
   GEPs.clear();
-  bool Changed = false;
+  TrackChanges Changed(SE, LI);
 
   // If the target claims to have no vector registers don't attempt
   // vectorization.
@@ -3758,6 +3785,7 @@ bool SLPVectorizerPass::runImpl(Function &F, ScalarEvolution *SE_,
 
   // Scan the blocks in the function in post order.
   for (auto BB : post_order(&F.getEntryBlock())) {
+    Changed.setBasicBlock(BB);
     collectSeedInstructions(BB);
 
     // Vectorize trees that end at stores.
