@@ -352,6 +352,8 @@ static bool isStaticLinkTimeConstant(RelExpr E, uint32_t Type,
   // between start of a function and '_gp' value and defined as absolute just
   // to simplify the code.
   if (AbsVal && RelE) {
+    if (Body.isLocal() || Body.getVisibility() == STV_HIDDEN)
+      return true;
     if (Body.isUndefined() && !Body.isLocal() && Body.symbol()->isWeak())
       return true;
     if (&Body == ElfSym<ELFT>::MipsGpDisp)
