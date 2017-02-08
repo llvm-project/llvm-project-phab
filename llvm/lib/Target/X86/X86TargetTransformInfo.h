@@ -102,6 +102,12 @@ public:
                            const Function *Callee) const;
 
   bool enableInterleavedAccessVectorization();
+
+  unsigned maximumSizeofISAClassVectorRegister(TTI::ISAClass IsaClass,
+                                               Type *Ty) const;
+  char encodeISAClass(TTI::ISAClass IsaClass) const;
+  TargetTransformInfo::ISAClass decodeISAClass(char IsaClass) const;
+  Type* promoteToSupportedType(Type *Ty, TTI::ISAClass IsaClass) const;
 private:
   int getGSScalarCost(unsigned Opcode, Type *DataTy, bool VariableMask,
                       unsigned Alignment, unsigned AddressSpace);

@@ -477,6 +477,26 @@ unsigned TargetTransformInfo::getStoreVectorFactor(unsigned VF,
   return TTIImpl->getStoreVectorFactor(VF, StoreSize, ChainSizeInBytes, VecTy);
 }
 
+unsigned TargetTransformInfo::maximumSizeofISAClassVectorRegister(
+    ISAClass I, Type *Ty) const {
+
+  return TTIImpl->maximumSizeofISAClassVectorRegister(I, Ty);
+}
+
+char TargetTransformInfo::encodeISAClass(ISAClass IsaClass) const {
+  return TTIImpl->encodeISAClass(IsaClass);
+}
+
+TargetTransformInfo::ISAClass TargetTransformInfo::decodeISAClass(
+    char IsaClass) const {
+  return TTIImpl->decodeISAClass(IsaClass);
+}
+
+Type* TargetTransformInfo::promoteToSupportedType(Type *Ty,
+                                                  ISAClass IsaClass) const {
+  return TTIImpl->promoteToSupportedType(Ty, IsaClass);
+}
+
 TargetTransformInfo::Concept::~Concept() {}
 
 TargetIRAnalysis::TargetIRAnalysis() : TTICallback(&getDefaultTTI) {}

@@ -2247,3 +2247,83 @@ int X86TTIImpl::getInterleavedMemoryOpCost(unsigned Opcode, Type *VecTy,
   return BaseT::getInterleavedMemoryOpCost(Opcode, VecTy, Factor, Indices,
                                            Alignment, AddressSpace);
 }
+
+unsigned X86TTIImpl::maximumSizeofISAClassVectorRegister(TTI::ISAClass I,
+                                                         Type *Ty) const {
+
+  assert((Ty->isIntegerTy() || Ty->isFloatTy() || Ty->isDoubleTy() ||
+          Ty->isPointerTy()) &&
+         "unsupported type");
+
+  unsigned int VectorRegisterSize = 0;
+
+  switch (I) {
+  case TTI::XMM:
+    VectorRegisterSize = 128;
+    break;
+  case TTI::YMM1:
+    if (Ty->isIntegerTy() || Ty->isPointerTy())
+      VectorRegisterSize = 128;
+    else
+      VectorRegisterSize = 256;
+    break;
+  case TTI::YMM2:
+    if (Ty->isIntegerTy(8))
+      VectorRegisterSize = 128;
+    else
+      VectorRegisterSize = 256;
+    break;
+  case TTI::ZMM:
+    VectorRegisterSize = 512;
+    break;
+  default:
+    llvm_unreachable("unknown isa class");
+    return 0;
+  }
+
+  assert(VectorRegisterSize != 0 && "unsupported ISA/type combination");
+  return VectorRegisterSize;
+}
+
+char X86TTIImpl::encodeISAClass(TTI::ISAClass IsaClass) const {
+  switch (IsaClass) {
+  case TTI::XMM:
+    return 'b';
+  case TTI::YMM1:
+    return 'c';
+  case TTI::YMM2:
+    return 'd';
+  case TTI::ZMM:
+    return 'e';
+  default:
+    break;
+  }
+
+  assert(false && "unsupported ISA class");
+  return '?';
+}
+
+TargetTransformInfo::ISAClass X86TTIImpl::decodeISAClass(char IsaClass) const {
+  switch (IsaClass) {
+  case 'b':
+    return TTI::XMM;
+  case 'c':
+    return TTI::YMM1;
+  case 'd':
+    return TTI::YMM2;
+  case 'e':
+    return TTI::ZMM;
+  default:
+    llvm_unreachable("unsupported ISA class");
+    return TTI::XMM;
+  }
+}
+
+Type* X86TTIImpl::promoteToSupportedType(Type *Ty, TTI::ISAClass I) const {
+  // On ZMM promote char and short to int
+  if (I == TargetTransformInfo::ISAClass::ZMM && (Ty->isIntegerTy(8) ||
+      Ty->isIntegerTy(16)))
+    return Type::getInt32Ty(Ty->getContext());
+
+  return Ty;
+}

@@ -438,6 +438,23 @@ public:
                                 VectorType *VecTy) const {
     return VF;
   }
+
+  unsigned maximumSizeofISAClassVectorRegister(
+    TTI::ISAClass I, Type *Ty) const {
+    return 0;
+  }
+
+  char encodeISAClass(TTI::ISAClass IsaClass) const {
+    return '?';
+  }
+
+  TTI::ISAClass decodeISAClass(char IsaClass) const {
+    return TTI::ISAClassesNum;
+  }
+
+  Type* promoteToSupportedType(Type *Ty, TTI::ISAClass IsaClass) const {
+    return Ty;
+  }
 protected:
   // Obtain the minimum required size to hold the value (without the sign)
   // In case of a vector it returns the min required size for one element.
