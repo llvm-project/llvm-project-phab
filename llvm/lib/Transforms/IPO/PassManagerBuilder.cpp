@@ -409,9 +409,11 @@ void PassManagerBuilder::populateModulePassManager(
     else if (!GlobalExtensions->empty() || !Extensions.empty())
       MPM.add(createBarrierNoopPass());
 
-    if (PrepareForThinLTO)
+    if (PrepareForThinLTO) {
+      MPM.add(createCanonicalizeAliasesPass());
       // Rename anon globals to be able to export them in the summary.
       MPM.add(createNameAnonGlobalPass());
+    }
 
     addExtensionsToPM(EP_EnabledOnOptLevel0, MPM);
     return;
@@ -507,6 +509,7 @@ void PassManagerBuilder::populateModulePassManager(
   // unrolling/vectorization/... now. We'll first run the inliner + CGSCC passes
   // during ThinLTO and perform the rest of the optimizations afterward.
   if (PrepareForThinLTO) {
+    MPM.add(createCanonicalizeAliasesPass());
     // Reduce the size of the IR as much as possible.
     MPM.add(createGlobalOptimizerPass());
     // Rename anon globals to be able to export them in the summary.
