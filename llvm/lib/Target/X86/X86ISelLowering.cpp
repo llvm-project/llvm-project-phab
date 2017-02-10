@@ -16348,6 +16348,17 @@ SDValue X86TargetLowering::getSqrtEstimate(SDValue Op,
   return SDValue();
 }
 
+/// Return a ReciprocalEstimate enum value for a division of the given type
+/// based on the function's attributes. If the operation is not overridden by
+/// the function's attributes, "Unspecified" is returned and target defaults
+/// are expected to be used for instruction selection.
+int X86TargetLowering::getRecipEstimateDivEnabled(EVT VT, MachineFunction &MF,
+                                                  bool forDAG) const {
+  if (!Subtarget.hasAVX512() && forDAG)
+    return ReciprocalEstimate::Disabled;
+  return TargetLoweringBase::getRecipEstimateDivEnabled(VT, MF);
+}
+
 /// The minimum architected relative accuracy is 2^-12. We need one
 /// Newton-Raphson step to have a good float result (24 bits of precision).
 SDValue X86TargetLowering::getRecipEstimate(SDValue Op, SelectionDAG &DAG,

@@ -9757,6 +9757,390 @@ bool X86InstrInfo::isAssociativeAndCommutative(const MachineInstr &Inst) const {
   }
 }
 
+// The dividend could be ExactlyOne value and in this case we should not create
+// additional constant for reciprocal division but use the dividend instead.
+// We're trying to find the dividend definition and if it is a constant
+// ExactlyOne value we'll use it.
+static bool isDividendExactlyOne(MachineFunction &MF, unsigned DividendReg) {
+  if (MachineInstr *MI = MF.getRegInfo().getUniqueVRegDef(DividendReg)) {
+    auto Constants =
+        MI->getParent()->getParent()->getConstantPool()->getConstants();
+    for (auto &MO : MI->operands()) {
+      if (MO.isCPI()) {
+        // We have a Constant Pool Index operand in this instruction
+        // FIXME: should we deal with other types of operand like Immediate?
+        auto ConstantEntry = Constants[MO.getIndex()];
+        // FIXME: what should we do with MachineConstantPoolEntry?
+        if (!ConstantEntry.isMachineConstantPoolEntry()) {
+          if (auto *C = dyn_cast<Constant>(ConstantEntry.Val.ConstVal)) {
+            if (C->getType()->isVectorTy()) {
+              if (!(C = C->getSplatValue()))
+                return false;
+            }
+            if (auto *CFP = dyn_cast<ConstantFP>(C))
+              return CFP->isExactlyValue(1.0);
+          }
+        }
+      }
+    }
+  }
+  return false;
+}
+
+static EVT getFDivEVT(MachineInstr &Root) {
+  // FIXME: should we support other kinds of DIV?
+  switch (Root.getOpcode()) {
+  default:
+    break;
+  case X86::DIVSSrr:  // f32
+  case X86::VDIVSSrr: // f32
+    return MVT::f32;
+  case X86::DIVPSrr:  // v4f32
+  case X86::VDIVPSrr: // v4f32
+    return MVT::v4f32;
+  case X86::VDIVPSYrr: // v8f32
+    return MVT::v8f32;
+  }
+  return MVT::INVALID_SIMPLE_VALUE_TYPE;
+}
+
+/// genReciprocalDiv - Generates A = B * 1/C instead of A = B/C
+/// (at the moment we support float types only: f32, v4f32 and 8f32)
+/// TODO: Should we support double types for the latest CPUs?
+///
+/// To get more precision we're using Newton-Raphson iterations like here:
+///
+/// X[0] = reciprocal (C);
+/// X[i+1] = X[i] + X[i] * (1 - C * X[i]); every iteration increases precision
+///
+/// In theory if we know that X[0] is accurate to N bits, the result of
+/// iteration k will be accurate to almost 2^k*N bits. For x86 it means:
+/// X[0] = 11 bits
+/// X[1] = 22 bits
+/// x[2] = 44 bits
+/// etc.
+///
+/// And the result of division will be here: A = B * X
+/// Example (-x86-asm-syntax=intel): instead of
+///
+///   vmovss  xmm1, dword ptr [rip + .LCPI0_0] # xmm1 = mem[0],zero,zero,zero
+///   vdivss  xmm0, xmm1, xmm0
+///
+/// we're generating
+///
+///   vmovss  xmm1, dword ptr [rip + .LCPI0_0] # xmm1 = mem[0],zero,zero,zero
+///   vrcpss  xmm2, xmm0, xmm0
+///   vmulss  xmm0, xmm0, xmm2
+///   vsubss  xmm0, xmm1, xmm0
+///   vmulss  xmm0, xmm0, xmm2
+///   vaddss  xmm0, xmm0, xmm2
+
+#define FMA_INDEX 7
+
+static void genReciprocalDiv(MachineInstr &Root,
+                             SmallVectorImpl<MachineInstr *> &InsInstrs,
+                             DenseMap<unsigned, unsigned> &InstrIdxForVirtReg,
+                             ArrayRef<int> Instrs, Type *Ty,
+                             X86Subtarget &Subtarget) {
+
+  MachineBasicBlock *MBB = Root.getParent();
+  MachineFunction &MF = *MBB->getParent();
+  MachineRegisterInfo &MRI = MF.getRegInfo();
+  const TargetInstrInfo *TII = Subtarget.getInstrInfo();
+  const TargetLowering *TLI = Subtarget.getTargetLowering();
+  const TargetRegisterInfo *TRI = Subtarget.getRegisterInfo();
+  const TargetRegisterClass *RC = Root.getRegClassConstraint(0, TII, TRI);
+  int Iterations = TLI->getDivRefinementSteps(getFDivEVT(Root), MF);
+
+  bool hasFMA = Subtarget.hasFMA();
+  assert(!hasFMA || Instrs.size() > FMA_INDEX);
+
+  unsigned ResultReg = Root.getOperand(0).getReg();
+  unsigned DividendReg = Root.getOperand(1).getReg();
+  bool DividendIsExactlyOne = isDividendExactlyOne(MF, DividendReg);
+  unsigned DividerReg = Root.getOperand(2).getReg();
+  bool DividerIsKill = Root.getOperand(2).isKill();
+
+  if (TargetRegisterInfo::isVirtualRegister(ResultReg))
+    MRI.constrainRegClass(ResultReg, RC);
+  if (TargetRegisterInfo::isVirtualRegister(DividendReg))
+    MRI.constrainRegClass(DividendReg, RC);
+  if (TargetRegisterInfo::isVirtualRegister(DividerReg))
+    MRI.constrainRegClass(DividerReg, RC);
+
+  if (Iterations < 0) // all values >= 0 mean Iterations were defined explictly
+    Iterations = 1;   // otherwise we use the default value
+
+  // The bullets below (0,2,1,3,4,5,6) mean the indexes inside input Instrs
+  // The meaning of indexes(bullets) see below inside genAlternativeCodeSequence
+  // 0: rcp
+  // Initial estimate value is recipocal division of C
+  MachineInstrBuilder RcpMI;
+  // Iff DivIsRcp == true Then div ~= rcp without any additional refinement
+  bool DivIsRcp = DividendIsExactlyOne && !Iterations;
+
+  unsigned RcpVReg;
+  if (!DivIsRcp) {
+    // We need refinement and only because of that we need this vreg
+    RcpVReg = MRI.createVirtualRegister(RC);
+    InstrIdxForVirtReg.insert(std::make_pair(RcpVReg, 0));
+  }
+  if (Instrs[0] == X86::VRCPSSr)
+    RcpMI = BuildMI(MF, Root.getDebugLoc(), TII->get(Instrs[0]),
+                    DivIsRcp ? ResultReg : RcpVReg)
+                .addReg(DividerReg, getKillRegState(DividerIsKill))
+                .addReg(DividerReg, getKillRegState(DividerIsKill));
+  else
+    RcpMI = BuildMI(MF, Root.getDebugLoc(), TII->get(Instrs[0]),
+                    DivIsRcp ? ResultReg : RcpVReg)
+                .addReg(DividerReg, getKillRegState(DividerIsKill));
+  InsInstrs.push_back(RcpMI);
+
+  unsigned LoadVReg = 0;
+  if (!DividendIsExactlyOne && Iterations) {
+    // 2: load (mov)
+    // We need all ones value to be able to do (1 - C * X[i])
+    // x86-32 PIC requires a PIC base register for constant pools.
+    unsigned PICBase = 0;
+    if (MF.getTarget().isPositionIndependent()) {
+      if (Subtarget.is64Bit())
+        PICBase = X86::RIP;
+      else
+        // FIXME: PICBase = getGlobalBaseReg(&MF);
+        // This doesn't work for several reasons.
+        // a. GlobalBaseReg may have been spilled.
+        // b. It may not be live at MI.
+        return;
+    }
+    // Create a constant-pool entry.
+    MachineConstantPool &MCP = *MF.getConstantPool();
+    //  const Constant *C = Constant::getAllOnesValue(Ty);
+    auto *CFP = ConstantFP::get(Ty, 1.0);
+    unsigned CPI = MCP.getConstantPoolIndex(CFP, 4);
+    LoadVReg = MRI.createVirtualRegister(RC);
+    InstrIdxForVirtReg.insert(std::make_pair(LoadVReg, 0));
+
+    MachineInstrBuilder LoadMI;
+    auto &MIDesc = TII->get(Instrs[2]);
+    if (MIDesc.getNumOperands() == 6)
+      LoadMI = BuildMI(MF, Root.getDebugLoc(), MIDesc, LoadVReg)
+                   .addReg(PICBase)
+                   .addImm(1)
+                   .addReg(0)
+                   .addConstantPoolIndex(CPI)
+                   .addReg(0);
+    else
+      LoadMI = BuildMI(MF, Root.getDebugLoc(), MIDesc, LoadVReg)
+                   .addConstantPoolIndex(CPI);
+    InsInstrs.push_back(LoadMI);
+  }
+  unsigned EstVReg = RcpVReg; // X[0] = reciprocal (C);
+
+  for (int i = 0; i < Iterations; i++) {
+    if (hasFMA) {
+      // 7: fnmadd
+      unsigned NFmaVReg = MRI.createVirtualRegister(RC);
+      InstrIdxForVirtReg.insert(std::make_pair(NFmaVReg, 0));
+      MachineInstrBuilder NFmaMI =
+          BuildMI(MF, Root.getDebugLoc(), TII->get(Instrs[FMA_INDEX]), NFmaVReg)
+              .addReg(DividerReg, getKillRegState(DividerIsKill))
+              .addReg(DividendIsExactlyOne ? DividendReg : LoadVReg)
+              .addReg(EstVReg);
+      InsInstrs.push_back(NFmaMI); // 1 - C * X[i]
+      // 8: fmadd
+      MachineInstrBuilder FmaMI;
+      unsigned FmaVReg;
+      if (DividendIsExactlyOne && (i + 1 == Iterations))
+        FmaVReg = ResultReg;
+      else {
+        FmaVReg = MRI.createVirtualRegister(RC);
+        InstrIdxForVirtReg.insert(std::make_pair(FmaVReg, 0));
+      }
+      FmaMI = BuildMI(MF, Root.getDebugLoc(), TII->get(Instrs[FMA_INDEX + 1]),
+                      FmaVReg)
+                  .addReg(EstVReg)
+                  .addReg(EstVReg)
+                  .addReg(NFmaVReg);
+      InsInstrs.push_back(FmaMI); // X[i] + X[i] * (1 - C * X[i])
+      EstVReg = FmaVReg;
+    } else {
+      // 1: mul
+      unsigned MulVReg = MRI.createVirtualRegister(RC);
+      InstrIdxForVirtReg.insert(std::make_pair(MulVReg, 0));
+      MachineInstrBuilder MulMI =
+          BuildMI(MF, Root.getDebugLoc(), TII->get(Instrs[1]), MulVReg)
+              .addReg(DividerReg, getKillRegState(DividerIsKill))
+              .addReg(EstVReg);
+      InsInstrs.push_back(MulMI); // C * X[i]
+
+      // 3: sub
+      unsigned SubVReg = MRI.createVirtualRegister(RC);
+      InstrIdxForVirtReg.insert(std::make_pair(SubVReg, 0));
+      MachineInstrBuilder SubMI =
+          BuildMI(MF, Root.getDebugLoc(), TII->get(Instrs[3]), SubVReg)
+              .addReg(DividendIsExactlyOne ? DividendReg : LoadVReg)
+              .addReg(MulVReg);
+      InsInstrs.push_back(SubMI); // 1 - C * X[i]
+
+      // 4: mul2
+      unsigned Mul2VReg = MRI.createVirtualRegister(RC);
+      InstrIdxForVirtReg.insert(std::make_pair(Mul2VReg, 0));
+      MachineInstrBuilder Mul2MI =
+          BuildMI(MF, Root.getDebugLoc(), TII->get(Instrs[4]), Mul2VReg)
+              .addReg(SubVReg)
+              .addReg(EstVReg);
+      InsInstrs.push_back(Mul2MI); // X[i] * (1 - C * X[i])
+
+      // 5: add
+      MachineInstrBuilder AddMI;
+      unsigned AddVReg;
+      if (DividendIsExactlyOne && (i + 1 == Iterations))
+        AddVReg = ResultReg;
+      else {
+        AddVReg = MRI.createVirtualRegister(RC);
+        InstrIdxForVirtReg.insert(std::make_pair(AddVReg, 0));
+      }
+      AddMI = BuildMI(MF, Root.getDebugLoc(), TII->get(Instrs[5]), AddVReg)
+                  .addReg(Mul2VReg)
+                  .addReg(EstVReg);
+      InsInstrs.push_back(AddMI); // X[i] + X[i] * (1 - C * X[i])
+      EstVReg = AddVReg;
+    }
+  }
+  if (!DividendIsExactlyOne) {
+    // 6: result mul
+    // The final multiplication B * 1/C
+    MachineInstrBuilder ResultMulMI =
+        BuildMI(MF, Root.getDebugLoc(), TII->get(Instrs[6]), ResultReg)
+            .addReg(DividendReg)
+            .addReg(EstVReg);
+    InsInstrs.push_back(ResultMulMI);
+  }
+  return;
+}
+
+/// When getMachineCombinerPatterns() finds potential patterns,
+/// this function generates the instructions that could replace the
+/// original code sequence
+void X86InstrInfo::genAlternativeCodeSequence(
+    MachineInstr &Root, MachineCombinerPattern Pattern,
+    SmallVectorImpl<MachineInstr *> &InsInstrs,
+    SmallVectorImpl<MachineInstr *> &DelInstrs,
+    DenseMap<unsigned, unsigned> &InstrIdxForVirtReg) const {
+  MachineBasicBlock &MBB = *Root.getParent();
+  MachineFunction &MF = *MBB.getParent();
+
+  switch (Pattern) {
+  default:
+    // Reassociate instructions.
+    TargetInstrInfo::genAlternativeCodeSequence(Root, Pattern, InsInstrs,
+                                                DelInstrs, InstrIdxForVirtReg);
+    return;
+  case MachineCombinerPattern::Div2RecipEst:
+    switch (Root.getOpcode()) {
+    default:
+      return;
+    case X86::VDIVSSrr: // f32
+      genReciprocalDiv(Root, InsInstrs, InstrIdxForVirtReg,
+                       {X86::VRCPSSr, X86::VMULSSrr, X86::VMOVSSrm,
+                        X86::VSUBSSrr, X86::VMULSSrr, X86::VADDSSrr,
+                        X86::VMULSSrr, X86::VFNMADD132SSr,
+                        X86::VFMADD132SSr}, // FMA support at FMA_INDEX
+                       Type::getFloatTy(MF.getFunction()->getContext()),
+                       Subtarget);
+      break;
+    case X86::VDIVPSrr: // v4f32
+      genReciprocalDiv(
+          Root, InsInstrs, InstrIdxForVirtReg,
+          {X86::VRCPPSr, X86::VMULPSrr, X86::VMOVAPSrm, X86::VSUBPSrr,
+           X86::VMULPSrr, X86::VADDPSrr, X86::VMULPSrr, X86::VFNMADD132PSr,
+           X86::VFMADD132PSr}, // FMA support at FMA_INDEX
+          VectorType::get(Type::getFloatTy(MF.getFunction()->getContext()), 4),
+          Subtarget);
+      break;
+    case X86::VDIVPSYrr: // v8f32
+      genReciprocalDiv(
+          Root, InsInstrs, InstrIdxForVirtReg,
+          {X86::VRCPPSYr, X86::VMULPSYrr, X86::VMOVAPSYrm, X86::VSUBPSYrr,
+           X86::VMULPSYrr, X86::VADDPSYrr, X86::VMULPSYrr, X86::VFNMADD132PSYr,
+           X86::VFMADD132PSYr}, // FMA support at FMA_INDEX
+          VectorType::get(Type::getFloatTy(MF.getFunction()->getContext()), 8),
+          Subtarget);
+      break;
+    case X86::DIVSSrr: // f32
+      genReciprocalDiv(Root, InsInstrs, InstrIdxForVirtReg,
+                       {X86::RCPSSr, X86::MULSSrr, X86::MOVSSrm, X86::SUBSSrr,
+                        X86::MULSSrr, X86::ADDSSrr, X86::MULSSrr},
+                       Type::getFloatTy(MF.getFunction()->getContext()),
+                       Subtarget);
+      break;
+    case X86::DIVPSrr: // v4f32
+      genReciprocalDiv(
+          Root, InsInstrs, InstrIdxForVirtReg,
+          {X86::RCPPSr, X86::MULPSrr, X86::MOVAPSrr, X86::SUBPSrr, X86::MULPSrr,
+           X86::ADDPSrr, X86::MULPSrr},
+          VectorType::get(Type::getFloatTy(MF.getFunction()->getContext()), 4),
+          Subtarget);
+      break;
+    }
+    break;
+  }
+  DEBUG(dbgs() << "\nAlternate sequence for " << MF.getName() << "\n";
+        for (unsigned i = 0; i < InsInstrs.size(); i++) {
+          dbgs() << i << ": ";
+          InsInstrs[i]->print(dbgs(), false, MF.getSubtarget().getInstrInfo());
+        });
+  DelInstrs.push_back(&Root); // Record FDiv for deletion
+}
+
+/// Find instructions that can be turned into recip
+static bool getFDIVPatterns(MachineInstr &Root,
+                            SmallVectorImpl<MachineCombinerPattern> &Patterns) {
+  switch (Root.getOpcode()) {
+  default:
+    return false;
+  // TODO: should we support other kinds of instructions?
+  case X86::VDIVSSrr:  // f32
+  case X86::VDIVPSrr:  // v4f32
+  case X86::VDIVPSYrr: // v8f32
+  case X86::DIVSSrr:   // f32
+  case X86::DIVPSrr:   // v4f32
+    break;
+  }
+  auto *MF = Root.getParent()->getParent();
+  auto TLI = MF->getSubtarget().getTargetLowering();
+  EVT VT = getFDivEVT(Root);
+  if (VT == MVT::INVALID_SIMPLE_VALUE_TYPE)
+    return false;
+  switch (TLI->getRecipEstimateDivEnabled(VT, *MF, /*forDAG*/ false)) {
+  case TLI->ReciprocalEstimate::Disabled:
+    return false;
+  case TLI->ReciprocalEstimate::Unspecified:
+    if (Root.getParent()->getParent()->getTarget().Options.UnsafeFPMath)
+      break;
+    return false;
+  }
+
+  Patterns.push_back(MachineCombinerPattern::Div2RecipEst);
+  return true;
+}
+
+/// Return true when there is potentially a faster code sequence for an
+/// instruction chain ending in \p Root. All potential patterns are listed in
+/// the \p Pattern vector. Pattern should be sorted in priority order since the
+/// pattern evaluator stops checking as soon as it finds a faster sequence.
+
+bool X86InstrInfo::getMachineCombinerPatterns(
+    MachineInstr &Root,
+    SmallVectorImpl<MachineCombinerPattern> &Patterns) const {
+  // FDIV patterns
+  if (getFDIVPatterns(Root, Patterns))
+    return true;
+  // TODO: FSQRT patterns will be prepared after reciprocal implementation
+  // completes
+  return TargetInstrInfo::getMachineCombinerPatterns(Root, Patterns);
+}
+
 /// This is an architecture-specific helper function of reassociateOps.
 /// Set special operand attributes for new instructions after reassociation.
 void X86InstrInfo::setSpecialOperandAttr(MachineInstr &OldMI1,
