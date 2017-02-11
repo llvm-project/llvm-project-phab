@@ -38,7 +38,7 @@ struct UnrollAnalyzerTest : public FunctionPass {
     TripCount = SE->getSmallConstantTripCount(L, Exiting);
     for (unsigned Iteration = 0; Iteration < TripCount; Iteration++) {
       DenseMap<Value *, Constant *> SimplifiedValues;
-      UnrolledInstAnalyzer Analyzer(Iteration, SimplifiedValues, *SE, L);
+      UnrolledInstAnalyzer Analyzer(Iteration, SimplifiedValues, *SE, L, true);
       for (auto *BB : L->getBlocks())
         for (Instruction &I : *BB)
           Analyzer.visit(I);

@@ -89,6 +89,11 @@ static cl::opt<bool> UnrollAllowRemainder(
     cl::desc("Allow generation of a loop remainder (extra iterations) "
              "when unrolling a loop."));
 
+static cl::opt<bool> UnrollAllowForce(
+    "unroll-allow-force", cl::Hidden, cl::init(false),
+    cl::desc("Allow generation of a loop remainder (extra iterations) "
+             "when unrolling a loop."));
+
 static cl::opt<bool>
     UnrollRuntime("unroll-runtime", cl::ZeroOrMore, cl::Hidden,
                   cl::desc("Unroll loops with run-time trip counts"));
@@ -229,6 +234,27 @@ struct UnrolledInstStateKeyInfo {
 };
 }
 
+/// Some instructions get the same value during loop execution.
+/// The function find a cycle length for such.
+static unsigned getPhiCycleLength (PHINode *PHI, const Loop *L) {
+  Value *V = PHI->getIncomingValueForBlock(L->getLoopLatch());
+  Instruction *I = dyn_cast<Instruction>(V);
+  if (!I)
+    return 0;
+  switch (I->getOpcode()) {
+  case Instruction::Sub:
+    if (ConstantInt *CS = dyn_cast<ConstantInt>(I->getOperand(0)))
+      if (CS->isZero() && I->getOperand(1) == PHI)
+        return 2;
+  case Instruction::Xor:
+    if (I->getOperand(0) == PHI && L->isLoopInvariant(I->getOperand(1)))
+      return 2;
+  default:
+    return 0;
+  }
+  return 0;
+}
+
 namespace {
 struct EstimatedUnrollCost {
   /// \brief The estimated cost after unrolling.
@@ -254,9 +280,9 @@ struct EstimatedUnrollCost {
 /// the analysis failed (no benefits expected from the unrolling, or the loop is
 /// too big to analyze), the returned value is None.
 static Optional<EstimatedUnrollCost>
-analyzeLoopUnrollCost(const Loop *L, unsigned TripCount, DominatorTree &DT,
+analyzeLoopUnrollCost(const Loop *L, unsigned UnrollCount, DominatorTree &DT,
                       ScalarEvolution &SE, const TargetTransformInfo &TTI,
-                      unsigned MaxUnrolledLoopSize) {
+                      unsigned MaxUnrolledLoopSize, bool CompleteUnroll = true) {
   // We want to be able to scale offsets by the trip count and add more offsets
   // to them without checking for overflows, and we already don't want to
   // analyze *massive* trip counts, so we force the max to be reasonably small.
@@ -268,9 +294,9 @@ analyzeLoopUnrollCost(const Loop *L, unsigned TripCount, DominatorTree &DT,
   if (!L->empty())
     return None;
 
-  // Don't simulate loops with a big or unknown tripcount
-  if (!UnrollMaxIterationsCountToAnalyze || !TripCount ||
-      TripCount > UnrollMaxIterationsCountToAnalyze)
+  // Don't simulate loops with a big or unknown UnrollCount
+  if (!UnrollMaxIterationsCountToAnalyze || !UnrollCount ||
+      UnrollCount > UnrollMaxIterationsCountToAnalyze)
     return None;
 
   SmallSetVector<BasicBlock *, 16> BBWorklist;
@@ -331,8 +357,10 @@ analyzeLoopUnrollCost(const Loop *L, unsigned TripCount, DominatorTree &DT,
         // If this is a PHI node in the loop header, just add it to the PHI set.
         if (auto *PhiI = dyn_cast<PHINode>(I))
           if (PhiI->getParent() == L->getHeader()) {
-            assert(Cost.IsFree && "Loop PHIs shouldn't be evaluated as they "
-                                  "inherently simplify during unrolling.");
+            if (CompleteUnroll)
+              assert(Cost.IsFree && "Loop PHIs shouldn't be evaluated as they "
+                                    "inherently simplify during complete "
+                                    "unrolling.");
             if (Iteration == 0)
               continue;
 
@@ -363,7 +391,15 @@ analyzeLoopUnrollCost(const Loop *L, unsigned TripCount, DominatorTree &DT,
           auto *OpI = dyn_cast<Instruction>(Op);
           if (!OpI || !L->contains(OpI))
             continue;
-
+          // For regular unroll instruction that depends on PHI also costs.
+          if (!CompleteUnroll && isa<PHINode>(OpI)) {
+            auto *OpIP = dyn_cast<PHINode>(OpI);
+            if(OpIP->getParent() == L->getHeader())
+              if (auto *OpIPI =
+                      dyn_cast<Instruction>(
+                          OpIP->getIncomingValueForBlock(L->getLoopLatch())))
+            CostWorklist.push_back(OpIPI);
+          }
           // Otherwise accumulate its cost.
           CostWorklist.push_back(OpI);
         }
@@ -392,7 +428,7 @@ analyzeLoopUnrollCost(const Loop *L, unsigned TripCount, DominatorTree &DT,
   // which would be simplified.
   // Since the same load will take different values on different iterations,
   // we literally have to go through all loop's iterations.
-  for (unsigned Iteration = 0; Iteration < TripCount; ++Iteration) {
+  for (unsigned Iteration = 0; Iteration < UnrollCount; ++Iteration) {
     DEBUG(dbgs() << " Analyzing iteration " << Iteration << "\n");
 
     // Prepare for the iteration by collecting any simplified entry or backedge
@@ -408,10 +444,26 @@ analyzeLoopUnrollCost(const Loop *L, unsigned TripCount, DominatorTree &DT,
           PHI->getNumIncomingValues() == 2 &&
           "Must have an incoming value only for the preheader and the latch.");
 
+      // If incoming value for PHI is another loop PHI, that means we need to
+      // store previous value (without unroll).
+      if (PHINode *PHIL = dyn_cast<PHINode>(
+          PHI->getIncomingValueForBlock(L->getLoopLatch())))
+        if (Iteration && L->contains(PHIL))
+          RolledDynamicCost++;
+
+      unsigned PhiCycle = getPhiCycleLength (PHI, L);
+      // For complete unroll if we were unable to get PHI cycle length
+      // consider cycle length as full unroll count (TripCount).
+      if (CompleteUnroll && PhiCycle == 0)
+        PhiCycle = UnrollCount;
+      // If PHI has no cycle we are unable to simplify it.
+      if (PhiCycle == 0)
+        continue;
+
       Value *V = PHI->getIncomingValueForBlock(
-          Iteration == 0 ? L->getLoopPreheader() : L->getLoopLatch());
+          Iteration % PhiCycle ? L->getLoopLatch() : L->getLoopPreheader());
       Constant *C = dyn_cast<Constant>(V);
-      if (Iteration != 0 && !C)
+      if ((Iteration % PhiCycle) && !C)
         C = SimplifiedValues.lookup(V);
       if (C)
         SimplifiedInputValues.push_back({PHI, C});
@@ -421,8 +473,9 @@ analyzeLoopUnrollCost(const Loop *L, unsigned TripCount, DominatorTree &DT,
     SimplifiedValues.clear();
     while (!SimplifiedInputValues.empty())
       SimplifiedValues.insert(SimplifiedInputValues.pop_back_val());
+    UnrolledInstAnalyzer Analyzer(Iteration, SimplifiedValues,
+                                  SE, L, CompleteUnroll);
 
-    UnrolledInstAnalyzer Analyzer(Iteration, SimplifiedValues, SE, L);
 
     BBWorklist.clear();
     BBWorklist.insert(L->getHeader());
@@ -521,7 +574,7 @@ analyzeLoopUnrollCost(const Loop *L, unsigned TripCount, DominatorTree &DT,
 
     // If we found no optimization opportunities on the first iteration, we
     // won't find them on later ones too.
-    if (UnrolledCost == RolledDynamicCost) {
+    if (CompleteUnroll && UnrolledCost == RolledDynamicCost) {
       DEBUG(dbgs() << "  No opportunities found.. exiting.\n"
                    << "  UnrolledCost: " << UnrolledCost << "\n");
       return None;
@@ -538,9 +591,12 @@ analyzeLoopUnrollCost(const Loop *L, unsigned TripCount, DominatorTree &DT,
         break;
 
       Value *Op = PN->getIncomingValueForBlock(ExitingBB);
+      if (auto *OpPN = dyn_cast<PHINode>(Op))
+        if (OpPN->getParent() == L->getHeader())
+          Op = OpPN->getIncomingValueForBlock(L->getLoopLatch());
       if (auto *OpI = dyn_cast<Instruction>(Op))
         if (L->contains(OpI))
-          AddCostRecursively(*OpI, TripCount - 1);
+          AddCostRecursively(*OpI, UnrollCount - 1);
     }
   }
 
@@ -905,6 +961,25 @@ static bool computeUnrollCount(
              "count that divides the loop trip multiple of "
           << NV("TripMultiple", TripMultiple) << ".  Unrolling instead "
           << NV("UnrollCount", UP.Count) << " time(s).");
+  }
+
+  // Estimate if Force unroll could be profitable.
+  // Currently try only 2 times unroll.
+  // Do it only for innermost loops.
+  if (UnrollAllowForce && !ExplicitUnroll &&
+      (UP.Count < 2 ||
+       isa<SCEVCouldNotCompute>(SE->getBackedgeTakenCount(L)))) {
+    Optional<EstimatedUnrollCost> Cost =
+        analyzeLoopUnrollCost(L, 2, DT, *SE, TTI,
+                              UP.PartialThreshold + UP.BEInsns, false);
+    if (Cost && Cost->UnrolledCost < Cost->RolledDynamicCost) {
+      if ((unsigned)Cost->UnrolledCost <= UP.PartialThreshold)
+        UP.Force = true;
+      UP.Count = 2;
+      DEBUG(dbgs() << "  unrolling with count: " << UP.Count << "\n");
+      // Unroll uncountable loops only once.
+      return true;
+    }
   }
 
   if (UP.Count > UP.MaxCount)
