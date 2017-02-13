@@ -326,7 +326,7 @@ void JumpThreadingPass::FindLoopHeaders(Function &F) {
   FindFunctionBackedges(F, Edges);
 
   for (const auto &Edge : Edges)
-    LoopHeaders.insert(Edge.second);
+    LoopHeaders[Edge.second].insert(Edge.first);
 }
 
 /// getKnownConstant - Helper method to determine if we can thread over a
@@ -699,8 +699,10 @@ bool JumpThreadingPass::ProcessBlock(BasicBlock *BB) {
     if (!TI->isExceptional() && TI->getNumSuccessors() == 1 &&
         SinglePred != BB && !hasAddressTakenAndUsed(BB)) {
       // If SinglePred was a loop header, BB becomes one.
-      if (LoopHeaders.erase(SinglePred))
-        LoopHeaders.insert(BB);
+      if (LoopHeaders.count(SinglePred)) {
+        LoopHeaders[BB] = LoopHeaders[SinglePred];
+        LoopHeaders.erase(SinglePred);
+      }
 
       LVI->eraseBlock(SinglePred);
       MergeBasicBlockIntoOnlyPred(BB);
@@ -1050,8 +1052,10 @@ bool JumpThreadingPass::SimplifyPartiallyRedundantLoad(LoadInst *LI) {
         PredsToSplit.push_back(P);
     }
 
-    // Split them out to their own block.
-    UnavailablePred = SplitBlockPreds(LoadBB, PredsToSplit, "thread-pre-split");
+    // Split them out to their own block unless it mess up loop strutures.
+    if (!(UnavailablePred =
+              SplitBlockPreds(LoadBB, PredsToSplit, "thread-pre-split")))
+      return false;
   }
 
   // If the value isn't available in all predecessors, then there will be
@@ -1606,6 +1610,23 @@ bool JumpThreadingPass::ThreadEdge(BasicBlock *BB,
 BasicBlock *JumpThreadingPass::SplitBlockPreds(BasicBlock *BB,
                                                ArrayRef<BasicBlock *> Preds,
                                                const char *Suffix) {
+  bool HasBackedge = false;
+  bool HasNonBackedge = false;
+
+  // If we are splitting a backedge and an edge from outside of the loop is also
+  // hooked to the new block, the backedge will no longer be dominated by the
+  // header. In such case, we should not split it to keep it as a valid loop.
+  if (LoopHeaders.count(BB)) {
+    for (auto PredBB : Preds) {
+      if (LoopHeaders[BB].count(PredBB))
+        HasBackedge = true;
+      else
+        HasNonBackedge = true;
+      if (HasNonBackedge && HasBackedge)
+        return nullptr;
+    }
+  }
+
   // Collect the frequencies of all predecessors of BB, which will be used to
   // update the edge weight on BB->SuccBB.
   BlockFrequency PredBBFreq(0);
