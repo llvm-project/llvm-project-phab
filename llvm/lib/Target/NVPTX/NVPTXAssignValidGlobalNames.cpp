@@ -61,6 +61,13 @@ bool NVPTXAssignValidGlobalNames::runOnModule(Module &M) {
     }
   }
 
+  // Do the same for local function names.
+  for (Module::iterator F = M.begin(), Fend = M.end(); F != Fend; ++F) {
+    if (F->hasLocalLinkage()) {
+      F->setName(cleanUpName(F->getName()));
+    }
+  }
+
   return true;
 }
 
