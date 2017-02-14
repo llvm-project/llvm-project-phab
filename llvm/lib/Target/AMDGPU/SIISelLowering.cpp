@@ -294,6 +294,9 @@ SITargetLowering::SITargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::FDIV, MVT::f32, Custom);
   setOperationAction(ISD::FDIV, MVT::f64, Custom);
 
+  setOperationAction(ISD::FLOG, MVT::f32, Custom);
+  setOperationAction(ISD::FLOG, MVT::f64, Custom);
+
   if (Subtarget->has16BitInsts()) {
     setOperationAction(ISD::Constant, MVT::i16, Legal);
 
@@ -1978,6 +1981,7 @@ SDValue SITargetLowering::LowerOperation(SDValue Op, SelectionDAG &DAG) const {
     return LowerTrig(Op, DAG);
   case ISD::SELECT: return LowerSELECT(Op, DAG);
   case ISD::FDIV: return LowerFDIV(Op, DAG);
+  case ISD::FLOG: return LowerFLOG(Op, DAG);
   case ISD::ATOMIC_CMP_SWAP: return LowerATOMIC_CMP_SWAP(Op, DAG);
   case ISD::STORE: return LowerSTORE(Op, DAG);
   case ISD::GlobalAddress: {
@@ -3462,6 +3466,18 @@ SDValue SITargetLowering::LowerFDIV(SDValue Op, SelectionDAG &DAG) const {
     return LowerFDIV16(Op, DAG);
 
   llvm_unreachable("Unexpected type for fdiv");
+}
+
+SDValue SITargetLowering::LowerFLOG(SDValue Op, SelectionDAG &DAG) const {
+  EVT VT = Op.getValueType();
+
+  SDLoc SL(Op);
+  SDValue Operand = Op.getOperand(0);
+
+  SDValue Log2Operand = DAG.getNode(ISD::FLOG2, SL, VT, Operand);
+  const SDValue Log2e = DAG.getConstantFP(M_LOG2E, SL, VT);
+
+  return DAG.getNode(ISD::FDIV, SL, VT, Log2Operand, Log2e);
 }
 
 SDValue SITargetLowering::LowerSTORE(SDValue Op, SelectionDAG &DAG) const {
