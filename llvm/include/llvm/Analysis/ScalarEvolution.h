@@ -786,6 +786,9 @@ private:
     return Pair.first->second;
   }
 
+  /// Memoized results from getMinTrailingZeros.
+  DenseMap<const SCEV *, uint32_t> MinTrailingZeros;
+
   /// Determine the range for a particular SCEV.
   ConstantRange getRange(const SCEV *S, RangeSignHint Hint);
 
@@ -1382,6 +1385,10 @@ public:
   /// of times S is divisible by 2.  For example, given {4,+,8} it returns 2.
   /// If S is guaranteed to be 0, it returns the bitwidth of S.
   uint32_t GetMinTrailingZeros(const SCEV *S);
+
+  /// The implementation code for GetMinTralingZeros.
+  ///
+  uint32_t GetMinTrailingZerosHelper(const SCEV *S);
 
   /// Determine the unsigned range for a particular SCEV.
   ///

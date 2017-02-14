@@ -4437,8 +4437,20 @@ const SCEV *ScalarEvolution::createNodeForGEP(GEPOperator *GEP) {
   return getGEPExpr(GEP, IndexExprs);
 }
 
+/// A wrapper for GetMinTrailingZerosHelper that checks the memorized results
+/// before making the query.
 uint32_t
 ScalarEvolution::GetMinTrailingZeros(const SCEV *S) {
+  auto It = MinTrailingZeros.find(S);
+  if (It != MinTrailingZeros.end())
+    return It->second;
+  uint32_t minTrZeros = GetMinTrailingZerosHelper(S);
+  MinTrailingZeros.insert({S, minTrZeros});
+  return minTrZeros;
+}
+
+uint32_t
+ScalarEvolution::GetMinTrailingZerosHelper(const SCEV *S) {
   if (const SCEVConstant *C = dyn_cast<SCEVConstant>(S))
     return C->getAPInt().countTrailingZeros();
 
