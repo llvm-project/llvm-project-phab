@@ -44,10 +44,10 @@ class SITargetLowering final : public AMDGPUTargetLowering {
   SDValue LowerFDIV(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerINT_TO_FP(SDValue Op, SelectionDAG &DAG, bool Signed) const;
   SDValue LowerSTORE(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerFLOG(SDValue Op, SelectionDAG &Dag) const;
   SDValue LowerTrig(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerATOMIC_CMP_SWAP(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerBRCOND(SDValue Op, SelectionDAG &DAG) const;
-
   /// \brief Converts \p Op, which must be of floating point type, to the
   /// floating point type \p VT, by either extending or truncating it.
   SDValue getFPExtOrFPTrunc(SelectionDAG &DAG,

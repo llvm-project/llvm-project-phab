@@ -17,6 +17,10 @@
 #define _USE_MATH_DEFINES
 #endif
 
+#define M_LOG2E_F     1.44269504088896340735992468100189214f
+#define M_LN2_F       0.693147180559945309417232121458176568f
+#define M_LN10_F      2.30258509299404568401799145468436421f
+
 #include "AMDGPU.h"
 #include "AMDGPUIntrinsicInfo.h"
 #include "AMDGPUSubtarget.h"
@@ -291,6 +295,8 @@ SITargetLowering::SITargetLowering(const TargetMachine &TM,
 
   setOperationAction(ISD::FSIN, MVT::f32, Custom);
   setOperationAction(ISD::FCOS, MVT::f32, Custom);
+  setOperationAction(ISD::FLOG, MVT::f32, Custom);
+  setOperationAction(ISD::FLOG10, MVT::f32, Custom);
   setOperationAction(ISD::FDIV, MVT::f32, Custom);
   setOperationAction(ISD::FDIV, MVT::f64, Custom);
 
@@ -353,6 +359,8 @@ SITargetLowering::SITargetLowering(const TargetMachine &TM,
     setOperationAction(ISD::FP_ROUND, MVT::f16, Custom);
     setOperationAction(ISD::FCOS, MVT::f16, Promote);
     setOperationAction(ISD::FSIN, MVT::f16, Promote);
+    setOperationAction(ISD::FLOG, MVT::f16, Custom);
+    setOperationAction(ISD::FLOG10, MVT::f16, Custom);
     setOperationAction(ISD::FP_TO_SINT, MVT::f16, Promote);
     setOperationAction(ISD::FP_TO_UINT, MVT::f16, Promote);
     setOperationAction(ISD::SINT_TO_FP, MVT::f16, Promote);
@@ -1973,6 +1981,9 @@ SDValue SITargetLowering::LowerOperation(SDValue Op, SelectionDAG &DAG) const {
     return Result;
   }
 
+  case ISD::FLOG:
+  case ISD::FLOG10:
+    return LowerFLOG(Op, DAG);
   case ISD::FSIN:
   case ISD::FCOS:
     return LowerTrig(Op, DAG);
@@ -3528,6 +3539,28 @@ SDValue SITargetLowering::LowerSTORE(SDValue Op, SelectionDAG &DAG) const {
   default:
     llvm_unreachable("unhandled address space");
   }
+}
+
+SDValue SITargetLowering::LowerFLOG(SDValue Op, SelectionDAG &DAG) const {
+  EVT VT = Op.getValueType();
+
+  SDLoc SL(Op);
+  SDValue Operand = Op.getOperand(0);
+
+  SDValue Log2Operand = DAG.getNode(ISD::FLOG2, SL, VT, Operand);
+  SDValue Log2Base;
+  switch (Op.getOpcode()) {
+  case ISD::FLOG:
+    Log2Base = DAG.getConstantFP(M_LOG2E_F, SL, VT);
+    break;
+  case ISD::FLOG10:
+    Log2Base = DAG.getConstantFP(M_LN10_F / M_LN2_F, SL, VT);
+    break;
+  default:
+    llvm_unreachable("Wrong log opcode");
+  }
+
+  return DAG.getNode(ISD::FDIV, SL, VT, Log2Operand, Log2Base);
 }
 
 SDValue SITargetLowering::LowerTrig(SDValue Op, SelectionDAG &DAG) const {
