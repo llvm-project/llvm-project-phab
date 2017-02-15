@@ -964,8 +964,25 @@ Instruction *InstCombiner::visitLoadInst(LoadInst &LI) {
   // separated by a few arithmetic operations.
   BasicBlock::iterator BBI(LI);
   bool IsLoadCSE = false;
-  if (Value *AvailableVal = FindAvailableLoadedValue(
-          &LI, LI.getParent(), BBI, DefMaxInstsToScan, AA, &IsLoadCSE)) {
+  unsigned NumScannedInst = 0;
+  Value *AvailableVal =
+      FindAvailableLoadedValue(&LI, LI.getParent(), BBI, DefMaxInstsToScan, AA,
+                               &IsLoadCSE, &NumScannedInst);
+  // If the current block has a single predecessor, continue scanning through
+  // the single precessor.
+  BasicBlock *SinglePredBB = LI.getParent();
+  while (!AvailableVal && SinglePredBB && BBI == SinglePredBB->begin() &&
+         NumScannedInst < DefMaxInstsToScan) {
+    SinglePredBB = SinglePredBB->getSinglePredecessor();
+   if (SinglePredBB) {
+      BBI = SinglePredBB->end();
+      AvailableVal = FindAvailableLoadedValue(
+            &LI, SinglePredBB, BBI, (DefMaxInstsToScan - NumScannedInst),
+            nullptr, &IsLoadCSE, &NumScannedInst);
+    }
+  }
+
+  if (AvailableVal) {
     if (IsLoadCSE)
       combineMetadataForCSE(cast<LoadInst>(AvailableVal), &LI);
 
