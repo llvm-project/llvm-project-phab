@@ -238,3 +238,15 @@ entry:
   store %swift.error* %err.res, %swift.error** %err, align 8
   ret void
 }
+
+; Check that %ld is removed as it loads from the same location to which %a is stored in
+; %entry.
+define i32 @test20(i32* %P, i32 %a) {
+entry:
+  store i32 %a, i32 * %P
+  br label %return
+
+return:                                           ; preds = %entry
+  %ld = load i32 , i32* %P
+  ret i32 %ld
+}
