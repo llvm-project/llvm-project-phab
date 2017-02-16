@@ -408,6 +408,18 @@ public:
   /// vectorizable. We do not vectorize such trees.
   bool isTreeTinyAndNotFullyVectorizable();
 
+  /// Correctly replaces \p Old with \p New instruction and marks \p Old for
+  /// deletion.
+  void replaceAllUsesWith(Instruction *Old, Instruction *New);
+
+  /// Checks if the instruction is marked for deletion.
+  bool isDeleted(Instruction *I) const;
+
+  /// Marks values for later deletion.
+  void markForDeletion(ArrayRef<Value *> AV);
+
+  ~BoUpSLP();
+
 private:
   struct TreeEntry;
 
@@ -577,14 +589,12 @@ private:
   /// AliasCache, which can happen if a new instruction is allocated at the
   /// same address as a previously deleted instruction.
   void eraseInstruction(Instruction *I) {
-    I->removeFromParent();
-    I->dropAllReferences();
-    DeletedInstructions.push_back(std::unique_ptr<Instruction>(I));
+    DeletedInstructions.insert(I);
   }
 
   /// Temporary store for deleted instructions. Instructions will be deleted
   /// eventually when the BoUpSLP is destructed.
-  SmallVector<std::unique_ptr<Instruction>, 8> DeletedInstructions;
+  SmallPtrSet<Instruction *, 8> DeletedInstructions;
 
   /// A list of values that need to extracted out of the tree.
   /// This list holds pairs of (Internal Scalar : External User). External User
@@ -596,7 +606,7 @@ private:
   SmallPtrSet<const Value *, 32> EphValues;
 
   /// Holds all of the instructions that we gathered.
-  SetVector<Instruction *> GatherSeq;
+  SetVector<InsertElementInst *> GatherSeq;
   /// A list of blocks that we are going to CSE.
   SetVector<BasicBlock *> CSEBlocks;
 
@@ -950,6 +960,31 @@ private:
 
 } // end namespace llvm
 } // end namespace slpvectorizer
+
+BoUpSLP::~BoUpSLP() {
+  for (auto *I : DeletedInstructions)
+    I->dropAllReferences();
+  for (auto *I : DeletedInstructions) {
+    assert(I->use_empty() && "trying to erase instruction with users.");
+    I->eraseFromParent();
+  }
+}
+
+void BoUpSLP::replaceAllUsesWith(Instruction *Old, Instruction *New) {
+  Old->replaceAllUsesWith(New);
+  eraseInstruction(Old);
+}
+
+bool BoUpSLP::isDeleted(Instruction *I) const {
+  return DeletedInstructions.count(I) > 0;
+}
+
+void BoUpSLP::markForDeletion(ArrayRef<Value *> AV) {
+  for (auto *V : AV) {
+    if (auto *I = dyn_cast<Instruction>(V))
+      DeletedInstructions.insert(I);
+  }
+}
 
 void BoUpSLP::buildTree(ArrayRef<Value *> Roots,
                         ArrayRef<Value *> UserIgnoreLst) {
@@ -2314,7 +2349,7 @@ Value *BoUpSLP::Gather(ArrayRef<Value *> VL, VectorType *Ty) {
   // Generate the 'InsertElement' instruction.
   for (unsigned i = 0; i < Ty->getNumElements(); ++i) {
     Vec = Builder.CreateInsertElement(Vec, VL[i], Builder.getInt32(i));
-    if (Instruction *Insrt = dyn_cast<Instruction>(Vec)) {
+    if (auto *Insrt = dyn_cast<InsertElementInst>(Vec)) {
       GatherSeq.insert(Insrt);
       CSEBlocks.insert(Insrt->getParent());
 
@@ -2934,9 +2969,9 @@ BoUpSLP::vectorizeTree(MapVector<Value *, DebugLoc> &ExternallyUsedValues) {
 
       assert(Entry->VectorizedValue && "Can't find vectorizable value");
 
+#ifndef NDEBUG
       Type *Ty = Scalar->getType();
       if (!Ty->isVoidTy()) {
-#ifndef NDEBUG
         for (User *U : Scalar->users()) {
           DEBUG(dbgs() << "SLP: \tvalidating user:" << *U << ".\n");
 
@@ -2945,10 +2980,8 @@ BoUpSLP::vectorizeTree(MapVector<Value *, DebugLoc> &ExternallyUsedValues) {
                   is_contained(UserIgnoreList, U)) &&
                  "Replacing out-of-tree value with undef");
         }
-#endif
-        Value *Undef = UndefValue::get(Ty);
-        Scalar->replaceAllUsesWith(Undef);
       }
+#endif
       DEBUG(dbgs() << "SLP: \tErasing scalar:" << *Scalar << ".\n");
       eraseInstruction(cast<Instruction>(Scalar));
     }
@@ -2963,10 +2996,8 @@ void BoUpSLP::optimizeGatherSequence() {
   DEBUG(dbgs() << "SLP: Optimizing " << GatherSeq.size()
         << " gather sequences instructions.\n");
   // LICM InsertElementInst sequences.
-  for (Instruction *it : GatherSeq) {
-    InsertElementInst *Insert = dyn_cast<InsertElementInst>(it);
-
-    if (!Insert)
+  for (auto *Insert : GatherSeq) {
+    if (isDeleted(Insert))
       continue;
 
     // Check if this block is inside a loop.
@@ -3028,8 +3059,7 @@ void BoUpSLP::optimizeGatherSequence() {
       for (Instruction *v : Visited) {
         if (In->isIdenticalTo(v) &&
             DT->dominates(v->getParent(), In->getParent())) {
-          In->replaceAllUsesWith(v);
-          eraseInstruction(In);
+          replaceAllUsesWith(In, v);
           In = nullptr;
           break;
         }
@@ -4257,11 +4287,10 @@ class HorizontalReduction {
   // After successfull horizontal reduction vectorization attempt for PHI node
   // vectorizer tries to update root binary op by combining vectorized tree and
   // the ReductionPHI node. But during vectorization this ReductionPHI can be
-  // vectorized itself and replaced by the undef value, while the instruction
-  // itself is marked for deletion. This 'marked for deletion' PHI node then can
-  // be used in new binary operation, causing "Use still stuck around after Def
-  // is destroyed" crash upon PHI node deletion.
-  WeakVH ReductionPHI;
+  // vectorized itself, while the instruction itself is marked for deletion.
+  // This 'marked for deletion' PHI node then can be used in new binary
+  // operation.
+  PHINode *ReductionPHI;
 
   /// The opcode of the reduction.
   Instruction::BinaryOps ReductionOpcode = Instruction::BinaryOpsEnd;
@@ -4470,6 +4499,10 @@ public:
       // Emit a reduction.
       Value *ReducedSubTree =
           emitReduction(VectorizedRoot, Builder, ReduxWidth);
+      // Mark all scalar reduction ops for deletion, they are replaced by the
+      // vector reductions (except for ReductionRoot node).
+      V.markForDeletion(
+          makeArrayRef(ReductionOps.begin(), std::prev(ReductionOps.end())));
       if (VectorizedTree) {
         Builder.SetCurrentDebugLocation(Loc);
         VectorizedTree = Builder.CreateBinOp(ReductionOpcode, VectorizedTree,
@@ -4493,13 +4526,13 @@ public:
         VectorizedTree = Builder.CreateBinOp(ReductionOpcode, VectorizedTree,
                                              Pair.first, "bin.extra");
       }
-      // Update users.
-      if (ReductionPHI && !isa<UndefValue>(ReductionPHI)) {
+      // Update users if ReductionPHI is not vectorized itself.
+      if (ReductionPHI && !V.isDeleted(ReductionPHI)) {
         assert(ReductionRoot && "Need a reduction operation");
         ReductionRoot->setOperand(0, VectorizedTree);
         ReductionRoot->setOperand(1, ReductionPHI);
       } else
-        ReductionRoot->replaceAllUsesWith(VectorizedTree);
+        V.replaceAllUsesWith(ReductionRoot, cast<Instruction>(VectorizedTree));
     }
     return VectorizedTree != nullptr;
   }
@@ -4832,7 +4865,7 @@ bool SLPVectorizerPass::vectorizeChainsInBlock(BasicBlock *BB, BoUpSLP &R) {
       if (!P)
         break;
 
-      if (!VisitedInstrs.count(P))
+      if (!VisitedInstrs.count(P) && !R.isDeleted(P))
         Incoming.push_back(P);
     }
 
@@ -4871,7 +4904,7 @@ bool SLPVectorizerPass::vectorizeChainsInBlock(BasicBlock *BB, BoUpSLP &R) {
 
   for (BasicBlock::iterator it = BB->begin(), e = BB->end(); it != e; it++) {
     // We may go through BB multiple times so skip the one we have checked.
-    if (!VisitedInstrs.insert(&*it).second)
+    if (!VisitedInstrs.insert(&*it).second || R.isDeleted(&*it))
       continue;
 
     if (isa<DbgInfoIntrinsic>(it))
@@ -5011,12 +5044,13 @@ bool SLPVectorizerPass::vectorizeGEPIndices(BasicBlock *BB, BoUpSLP &R) {
       // SetVector here to preserve program order. If the index computations
       // are vectorizable and begin with loads, we want to minimize the chance
       // of having to reorder them later.
-      SetVector<Value *> Candidates(GEPList.begin(), GEPList.end());
+      SetVector<GetElementPtrInst *> Candidates(GEPList.begin(), GEPList.end());
 
       // Some of the candidates may have already been vectorized after we
-      // initially collected them. If so, the WeakVHs will have nullified the
-      // values, so remove them from the set of candidates.
-      Candidates.remove(nullptr);
+      // initially collected them. If so, they are marked as deleted, so remove
+      // them from the set of candidates.
+      Candidates.remove_if(
+          [&R](GetElementPtrInst *I) { return R.isDeleted(I); });
 
       // Remove from the set of candidates all pairs of getelementptrs with
       // constant differences. Such getelementptrs are likely not good
@@ -5024,18 +5058,18 @@ bool SLPVectorizerPass::vectorizeGEPIndices(BasicBlock *BB, BoUpSLP &R) {
       // computed from the other. We also ensure all candidate getelementptr
       // indices are unique.
       for (int I = 0, E = GEPList.size(); I < E && Candidates.size() > 1; ++I) {
-        auto *GEPI = cast<GetElementPtrInst>(GEPList[I]);
+        auto *GEPI = GEPList[I];
         if (!Candidates.count(GEPI))
           continue;
         auto *SCEVI = SE->getSCEV(GEPList[I]);
         for (int J = I + 1; J < E && Candidates.size() > 1; ++J) {
-          auto *GEPJ = cast<GetElementPtrInst>(GEPList[J]);
+          auto *GEPJ = GEPList[J];
           auto *SCEVJ = SE->getSCEV(GEPList[J]);
           if (isa<SCEVConstant>(SE->getMinusSCEV(SCEVI, SCEVJ))) {
-            Candidates.remove(GEPList[I]);
-            Candidates.remove(GEPList[J]);
+            Candidates.remove(GEPI);
+            Candidates.remove(GEPJ);
           } else if (GEPI->idx_begin()->get() == GEPJ->idx_begin()->get()) {
-            Candidates.remove(GEPList[J]);
+            Candidates.remove(GEPJ);
           }
         }
       }
@@ -5050,8 +5084,7 @@ bool SLPVectorizerPass::vectorizeGEPIndices(BasicBlock *BB, BoUpSLP &R) {
       // the getelementptrs.
       SmallVector<Value *, 16> Bundle(Candidates.size());
       auto BundleIndex = 0u;
-      for (auto *V : Candidates) {
-        auto *GEP = cast<GetElementPtrInst>(V);
+      for (auto *GEP : Candidates) {
         auto *GEPIdx = GEP->idx_begin()->get();
         assert(GEP->getNumIndices() == 1 || !isa<Constant>(GEPIdx));
         Bundle[BundleIndex++] = GEPIdx;
