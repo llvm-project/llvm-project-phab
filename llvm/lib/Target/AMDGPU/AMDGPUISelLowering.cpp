@@ -13,6 +13,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+#define M_LOG2E_F     1.44269504088896340735992468100189214f
+#define M_LN2_F       0.693147180559945309417232121458176568f
+#define M_LN10_F      2.30258509299404568401799145468436421f
+
 #include "AMDGPUISelLowering.h"
 #include "AMDGPU.h"
 #include "AMDGPUCallLowering.h"
@@ -238,12 +242,24 @@ AMDGPUTargetLowering::AMDGPUTargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::FREM, MVT::f32, Custom);
   setOperationAction(ISD::FREM, MVT::f64, Custom);
 
+  setOperationAction(ISD::FLOG, MVT::f32, Custom);
+  setOperationAction(ISD::FLOG, MVT::v2f32, Expand);
+  setOperationAction(ISD::FLOG, MVT::v4f32, Expand);
+  setOperationAction(ISD::FLOG10, MVT::f32, Custom);
+  setOperationAction(ISD::FLOG10, MVT::v2f32, Expand);
+  setOperationAction(ISD::FLOG10, MVT::v4f32, Expand);
+
   // v_mad_f32 does not support denormals according to some sources.
   if (!Subtarget->hasFP32Denormals())
     setOperationAction(ISD::FMAD, MVT::f32, Legal);
 
   // Expand to fneg + fadd.
   setOperationAction(ISD::FSUB, MVT::f64, Expand);
+
+  if (Subtarget->has16BitInsts()) {
+    setOperationAction(ISD::FLOG, MVT::f16, Custom);
+    setOperationAction(ISD::FLOG10, MVT::f16, Custom);
+  }
 
   setOperationAction(ISD::CONCAT_VECTORS, MVT::v4i32, Custom);
   setOperationAction(ISD::CONCAT_VECTORS, MVT::v4f32, Custom);
@@ -915,6 +931,9 @@ SDValue AMDGPUTargetLowering::LowerOperation(SDValue Op,
   case ISD::FNEARBYINT: return LowerFNEARBYINT(Op, DAG);
   case ISD::FROUND: return LowerFROUND(Op, DAG);
   case ISD::FFLOOR: return LowerFFLOOR(Op, DAG);
+  case ISD::FLOG:
+  case ISD::FLOG10:
+    return LowerFLOG(Op, DAG);
   case ISD::SINT_TO_FP: return LowerSINT_TO_FP(Op, DAG);
   case ISD::UINT_TO_FP: return LowerUINT_TO_FP(Op, DAG);
   case ISD::FP_TO_FP16: return LowerFP_TO_FP16(Op, DAG);
@@ -1848,6 +1867,28 @@ SDValue AMDGPUTargetLowering::LowerFFLOOR(SDValue Op, SelectionDAG &DAG) const {
   SDValue Add = DAG.getNode(ISD::SELECT, SL, MVT::f64, And, NegOne, Zero);
   // TODO: Should this propagate fast-math-flags?
   return DAG.getNode(ISD::FADD, SL, MVT::f64, Trunc, Add);
+}
+
+SDValue AMDGPUTargetLowering::LowerFLOG(SDValue Op, SelectionDAG &DAG) const {
+  EVT VT = Op.getValueType();
+
+  SDLoc SL(Op);
+  SDValue Operand = Op.getOperand(0);
+
+  SDValue Log2Operand = DAG.getNode(ISD::FLOG2, SL, VT, Operand);
+  SDValue Log2Base;
+  switch (Op.getOpcode()) {
+  case ISD::FLOG:
+    Log2Base = DAG.getConstantFP(M_LOG2E_F, SL, VT);
+    break;
+  case ISD::FLOG10:
+    Log2Base = DAG.getConstantFP(M_LN10_F / M_LN2_F, SL, VT);
+    break;
+  default:
+    llvm_unreachable("Wrong log opcode");
+  }
+
+  return DAG.getNode(ISD::FDIV, SL, VT, Log2Operand, Log2Base);
 }
 
 SDValue AMDGPUTargetLowering::LowerCTLZ(SDValue Op, SelectionDAG &DAG) const {
