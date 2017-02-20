@@ -2538,6 +2538,17 @@ bool FunctionDecl::isDefined(const FunctionDecl *&Definition) const {
   return false;
 }
 
+bool FunctionDecl::isOdrDefined(const FunctionDecl *&Definition) const {
+  for (auto I : redecls()) {
+    if (I->isThisDeclarationAnOdrDefinition()) {
+      Definition = I->IsDeleted ? I->getCanonicalDecl() : I;
+      return true;
+    }
+  }
+
+  return false;
+}
+
 Stmt *FunctionDecl::getBody(const FunctionDecl *&Definition) const {
   if (!hasBody(Definition))
     return nullptr;

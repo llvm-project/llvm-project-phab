@@ -11692,8 +11692,12 @@ Sema::CheckForFunctionRedefinition(FunctionDecl *FD,
                                    SkipBodyInfo *SkipBody) {
   const FunctionDecl *Definition = EffectiveDefinition;
   if (!Definition)
-    if (!FD->isDefined(Definition))
+    if (!FD->isOdrDefined(Definition))
       return;
+  assert(Definition);
+
+  if (FD == Definition)
+    return;
 
   if (canRedefineFunction(Definition, getLangOpts()))
     return;
