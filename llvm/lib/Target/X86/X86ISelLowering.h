@@ -1280,6 +1280,14 @@ namespace llvm {
                             int &RefinementSteps, bool &UseOneConstNR,
                             bool Reciprocal) const override;
 
+    /// Return a ReciprocalEstimate enum value for a division of the given type
+    /// based on the function's attributes. If the operation is not overridden
+    /// by
+    /// the function's attributes, "Unspecified" is returned and target defaults
+    /// are expected to be used for instruction selection.
+    int getRecipEstimateDivEnabled(EVT VT, MachineFunction &MF,
+                                   bool forDAG) const override;
+
     /// Use rcp* to speed up fdiv calculations.
     SDValue getRecipEstimate(SDValue Operand, SelectionDAG &DAG, int Enabled,
                              int &RefinementSteps) const override;

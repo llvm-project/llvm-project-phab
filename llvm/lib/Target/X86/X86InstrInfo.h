@@ -501,6 +501,21 @@ public:
     return true;
   }
 
+  /// When getMachineCombinerPatterns() finds patterns, this function generates
+  /// the instructions that could replace the original code sequence
+  void genAlternativeCodeSequence(
+      MachineInstr &Root, MachineCombinerPattern Pattern,
+      SmallVectorImpl<MachineInstr *> &InsInstrs,
+      SmallVectorImpl<MachineInstr *> &DelInstrs,
+      DenseMap<unsigned, unsigned> &InstrIdxForVirtReg) const override;
+
+  /// Return true when there is potentially a faster code sequence
+  /// for an instruction chain ending in <Root>. All potential patterns are
+  /// listed in the <Patterns> array.
+  bool getMachineCombinerPatterns(
+      MachineInstr &Root,
+      SmallVectorImpl<MachineCombinerPattern> &Patterns) const override;
+
   bool isAssociativeAndCommutative(const MachineInstr &Inst) const override;
 
   bool hasReassociableOperands(const MachineInstr &Inst,

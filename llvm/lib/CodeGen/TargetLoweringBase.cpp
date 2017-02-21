@@ -2079,8 +2079,9 @@ int TargetLoweringBase::getRecipEstimateSqrtEnabled(EVT VT,
   return getOpEnabled(true, VT, getRecipEstimateForFunc(MF));
 }
 
-int TargetLoweringBase::getRecipEstimateDivEnabled(EVT VT,
-                                                   MachineFunction &MF) const {
+int TargetLoweringBase::getRecipEstimateDivEnabled(EVT VT, MachineFunction &MF,
+                                                   bool forDAGCombiner) const {
+
   return getOpEnabled(false, VT, getRecipEstimateForFunc(MF));
 }
 
