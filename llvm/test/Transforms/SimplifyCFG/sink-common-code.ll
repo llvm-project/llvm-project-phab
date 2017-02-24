@@ -792,6 +792,40 @@ if.end:
 ; CHECK: call i32 asm "rorl $2, $0", "=&r,0,n,~{dirflag},~{fpsr},~{flags}"(i32 %r6, i32 8)
 ; CHECK: call i32 asm "rorl $2, $0", "=&r,0,n,~{dirflag},~{fpsr},~{flags}"(i32 %r6, i32 6)
 
+; Check that simplifycfg doesn't transform the loop (%loop.header) into an irreduciable loop.
+
+define zeroext i1 @test_keeploop(i1 zeroext %flag, i32 %blksA, i32 %blksB, i32 %nblks, i8* %p) {
+entry:
+  br i1 %flag, label %if.then, label %loop.header
+
+if.then:
+  %cmp = icmp uge i32 %blksA, %nblks
+  %frombool1 = zext i1 %cmp to i8
+  store i8 %frombool1, i8* %p
+  br label %loop.header
+
+loop.header:
+  %c = call i1 @f2()
+  br i1 %c, label %loop.inc,  label %loop.exit
+
+loop.inc:
+  %add = add i32 %nblks, %blksB
+  %cmp2 = icmp ule i32 %add, %blksA
+  %frombool3 = zext i1 %cmp2 to i8
+  store i8 %frombool3, i8* %p
+  br label %loop.header
+
+loop.exit:
+  ret i1 true
+}
+declare i1 @f2()
+
+; CHECK-LABEL: @test_keeploop
+; CHECK-LABE: if.then:
+; CHECK: br label %loop.header
+; CHECK-LABE: loop.inc:
+; CHECK: br label %loop.header
+
 declare i32 @call_target()
 
 define void @test_operand_bundles(i1 %cond, i32* %ptr) {

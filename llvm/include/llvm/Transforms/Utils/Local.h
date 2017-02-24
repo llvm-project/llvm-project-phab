@@ -51,6 +51,9 @@ template<typename T> class SmallVectorImpl;
 
 typedef SmallVector<DbgValueInst *, 1> DbgValueList;
 
+typedef DenseMap<const BasicBlock *, SmallPtrSet<const BasicBlock *, 4>>
+    LoopHeaderList;
+
 //===----------------------------------------------------------------------===//
 //  Local constant propagation.
 //
@@ -138,7 +141,7 @@ bool EliminateDuplicatePHINodes(BasicBlock *BB);
 /// eliminate.
 bool SimplifyCFG(BasicBlock *BB, const TargetTransformInfo &TTI,
                  unsigned BonusInstThreshold, AssumptionCache *AC = nullptr,
-                 SmallPtrSetImpl<BasicBlock *> *LoopHeaders = nullptr);
+                 LoopHeaderList *LoopHeaders = nullptr);
 
 /// This function is used to flatten a CFG. For example, it uses parallel-and
 /// and parallel-or mode to collapse if-conditions and merge if-regions with

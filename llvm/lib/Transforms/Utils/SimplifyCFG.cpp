@@ -169,7 +169,7 @@ class SimplifyCFGOpt {
   const DataLayout &DL;
   unsigned BonusInstThreshold;
   AssumptionCache *AC;
-  SmallPtrSetImpl<BasicBlock *> *LoopHeaders;
+  LoopHeaderList *LoopHeaders;
   Value *isValueEqualityComparison(TerminatorInst *TI);
   BasicBlock *GetValueEqualityComparisonCases(
       TerminatorInst *TI, std::vector<ValueEqualityComparisonCase> &Cases);
@@ -193,7 +193,7 @@ class SimplifyCFGOpt {
 public:
   SimplifyCFGOpt(const TargetTransformInfo &TTI, const DataLayout &DL,
                  unsigned BonusInstThreshold, AssumptionCache *AC,
-                 SmallPtrSetImpl<BasicBlock *> *LoopHeaders)
+                 LoopHeaderList *LoopHeaders)
       : TTI(TTI), DL(DL), BonusInstThreshold(BonusInstThreshold), AC(AC),
         LoopHeaders(LoopHeaders) {}
 
@@ -1680,7 +1680,8 @@ namespace {
 /// check whether BBEnd has only two predecessors and the other predecessor
 /// ends with an unconditional branch. If it is true, sink any common code
 /// in the two predecessors to BBEnd.
-static bool SinkThenElseCodeToEnd(BranchInst *BI1) {
+static bool SinkThenElseCodeToEnd(BranchInst *BI1,
+                                  LoopHeaderList *LoopHeaders) {
   assert(BI1->isUnconditional());
   BasicBlock *BBEnd = BI1->getSuccessor(0);
 
@@ -1795,6 +1796,26 @@ static bool SinkThenElseCodeToEnd(BranchInst *BI1) {
     DEBUG(dbgs() << "SINK: Splitting edge\n");
     // We have a conditional edge and we're going to sink some instructions.
     // Insert a new block postdominating all blocks we're going to sink from.
+
+    if (LoopHeaders && LoopHeaders->count(BI1->getSuccessor(0))) {
+      // If we are handling a loop header and both backedges and non-backedges
+      // are hooked to the new block, this will make the loop irreduciable
+      // because the new block is not dominated by the loop header. In such
+      // case, we should not split it to keep it as a valid loop.
+      bool HasBackedge = false;
+      bool HasNonBackedge = false;
+      SmallPtrSet<const BasicBlock *, 4> &BackEdges =
+          (*LoopHeaders)[BI1->getSuccessor(0)];
+      for (auto PredBB : UnconditionalPreds) {
+        if (BackEdges.count(PredBB))
+          HasBackedge = true;
+        else
+          HasNonBackedge = true;
+        if (HasNonBackedge && HasBackedge)
+          return false;
+      }
+    }
+
     if (!SplitBlockPredecessors(BI1->getSuccessor(0), UnconditionalPreds,
                                 ".sink.split"))
       // Edges couldn't be split.
@@ -5691,7 +5712,7 @@ bool SimplifyCFGOpt::SimplifyUncondBranch(BranchInst *BI,
                                           IRBuilder<> &Builder) {
   BasicBlock *BB = BI->getParent();
 
-  if (SinkCommon && SinkThenElseCodeToEnd(BI))
+  if (SinkCommon && SinkThenElseCodeToEnd(BI, LoopHeaders))
     return true;
 
   // If the Terminator is the only non-phi instruction, simplify the block.
@@ -6022,7 +6043,7 @@ bool SimplifyCFGOpt::run(BasicBlock *BB) {
 ///
 bool llvm::SimplifyCFG(BasicBlock *BB, const TargetTransformInfo &TTI,
                        unsigned BonusInstThreshold, AssumptionCache *AC,
-                       SmallPtrSetImpl<BasicBlock *> *LoopHeaders) {
+                       LoopHeaderList *LoopHeaders) {
   return SimplifyCFGOpt(TTI, BB->getModule()->getDataLayout(),
                         BonusInstThreshold, AC, LoopHeaders)
       .run(BB);

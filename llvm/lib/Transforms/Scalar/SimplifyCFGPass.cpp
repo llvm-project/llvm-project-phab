@@ -136,9 +136,10 @@ static bool iterativelySimplifyCFG(Function &F, const TargetTransformInfo &TTI,
 
   SmallVector<std::pair<const BasicBlock *, const BasicBlock *>, 32> Edges;
   FindFunctionBackedges(F, Edges);
-  SmallPtrSet<BasicBlock *, 16> LoopHeaders;
+  LoopHeaderList LoopHeaders;
+
   for (unsigned i = 0, e = Edges.size(); i != e; ++i)
-    LoopHeaders.insert(const_cast<BasicBlock *>(Edges[i].second));
+    LoopHeaders[Edges[i].second].insert(Edges[i].first);
 
   while (LocalChange) {
     LocalChange = false;
