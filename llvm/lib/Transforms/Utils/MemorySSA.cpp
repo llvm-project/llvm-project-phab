@@ -107,6 +107,21 @@ public:
       : MemoryLocOrCall(MUD->getMemoryInst()) {}
   MemoryLocOrCall(const MemoryUseOrDef *MUD)
       : MemoryLocOrCall(MUD->getMemoryInst()) {}
+  ~MemoryLocOrCall() {}
+  MemoryLocOrCall(const MemoryLocOrCall &MLOC) {
+    if (IsCall)
+      CS = MLOC.CS;
+    else
+      Loc = MLOC.Loc;
+  }
+
+  MemoryLocOrCall &operator=(const MemoryLocOrCall &MLOC) {
+    if (IsCall)
+      CS = MLOC.CS;
+    else
+      Loc = MLOC.Loc;
+    return *this;
+  }
 
   MemoryLocOrCall(Instruction *Inst) {
     if (ImmutableCallSite(Inst)) {
@@ -114,10 +129,7 @@ public:
       CS = ImmutableCallSite(Inst);
     } else {
       IsCall = false;
-      // There is no such thing as a memorylocation for a fence inst, and it is
-      // unique in that regard.
-      if (!isa<FenceInst>(Inst))
-        Loc = MemoryLocation::get(Inst);
+      Loc = MemoryLocation::getOrNone(Inst);
     }
   }
 
@@ -129,10 +141,12 @@ public:
     assert(IsCall);
     return CS;
   }
-  MemoryLocation getLoc() const {
+  const MemoryLocation &getLoc() const {
     assert(!IsCall);
-    return Loc;
+    return Loc.getValue();
   }
+
+  const Optional<MemoryLocation> &getLocOrNone() const { return Loc; }
 
   bool operator==(const MemoryLocOrCall &Other) const {
     if (IsCall != Other.IsCall)
@@ -146,7 +160,7 @@ public:
 private:
   union {
     ImmutableCallSite CS;
-    MemoryLocation Loc;
+    Optional<MemoryLocation> Loc;
   };
 };
 }
@@ -213,7 +227,7 @@ static Reorderability getLoadReorderability(const LoadInst *Use,
 }
 
 static bool instructionClobbersQuery(MemoryDef *MD,
-                                     const MemoryLocation &UseLoc,
+                                     const Optional<MemoryLocation> &UseLoc,
                                      const Instruction *UseInst,
                                      AliasAnalysis &AA) {
   Instruction *DefInst = MD->getMemoryInst();
@@ -248,7 +262,7 @@ static bool instructionClobbersQuery(MemoryDef *MD,
       case Reorderability::Never:
         return true;
       case Reorderability::IfNoAlias:
-        return !AA.isNoAlias(UseLoc, MemoryLocation::get(DefLoad));
+        return !AA.isNoAlias(UseLoc.getValue(), MemoryLocation::get(DefLoad));
       }
     }
   }
@@ -256,22 +270,12 @@ static bool instructionClobbersQuery(MemoryDef *MD,
   return AA.getModRefInfo(DefInst, UseLoc) & MRI_Mod;
 }
 
-static bool instructionClobbersQuery(MemoryDef *MD, const MemoryUseOrDef *MU,
-                                     const MemoryLocOrCall &UseMLOC,
-                                     AliasAnalysis &AA) {
-  // FIXME: This is a temporary hack to allow a single instructionClobbersQuery
-  // to exist while MemoryLocOrCall is pushed through places.
-  if (UseMLOC.IsCall)
-    return instructionClobbersQuery(MD, MemoryLocation(), MU->getMemoryInst(),
-                                    AA);
-  return instructionClobbersQuery(MD, UseMLOC.getLoc(), MU->getMemoryInst(),
-                                  AA);
-}
-
 // Return true when MD may alias MU, return false otherwise.
 bool defClobbersUseOrDef(MemoryDef *MD, const MemoryUseOrDef *MU,
                          AliasAnalysis &AA) {
-  return instructionClobbersQuery(MD, MU, MemoryLocOrCall(MU), AA);
+  return instructionClobbersQuery(
+      MD, MemoryLocation::getOrNone(MU->getMemoryInst()), MU->getMemoryInst(),
+      AA);
 }
 }
 
@@ -1457,7 +1461,8 @@ void MemorySSA::OptimizeUses::optimizeUsesInBlock(
         FoundClobberResult = true;
         break;
       }
-      if (instructionClobbersQuery(MD, MU, UseMLOC, *AA)) {
+      if (instructionClobbersQuery(MD, UseMLOC.getLocOrNone(),
+                                   MU->getMemoryInst(), *AA)) {
         FoundClobberResult = true;
         break;
       }
@@ -1702,7 +1707,7 @@ MemoryUseOrDef *MemorySSA::createNewAccess(Instruction *I) {
       return nullptr;
 
   // Find out what affect this instruction has on memory.
-  ModRefInfo ModRef = AA->getModRefInfo(I);
+  ModRefInfo ModRef = AA->getModRefInfo(I, None);
   bool Def = bool(ModRef & MRI_Mod);
   bool Use = bool(ModRef & MRI_Ref);
 
