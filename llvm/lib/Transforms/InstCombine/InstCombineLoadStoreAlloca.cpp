@@ -22,9 +22,11 @@
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/MDBuilder.h"
+#include "llvm/IR/PatternMatch.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Local.h"
 using namespace llvm;
+using namespace PatternMatch;
 
 #define DEBUG_TYPE "instcombine"
 
@@ -1293,6 +1295,110 @@ static bool equivalentAddressValues(Value *A, Value *B) {
   return false;
 }
 
+// If this is "store (or X, Y), P" and X is "(and (load P), cst)", where cst
+// is a byte mask indicating a consecutive number of bytes, check to see if
+// Y is known to provide just those bytes.  If so, what the original store
+// sequence is doing is "load P to V; replace some bytes in V with corresponding
+// bytes from Y via bit manipulation; then store the updated V to P". We can
+// replace the sequence with a single (narrower) store, and save the load and
+// bit operations.
+static bool reduceLoadOpStoreWidth(InstCombiner &IC, StoreInst &SI) {
+  Value *Val = SI.getOperand(0);
+  Value *Ptr = SI.getOperand(1);
+  Type *StoreTy = Val->getType();
+  if (StoreTy->isVectorTy() || !StoreTy->isIntegerTy() || !Val->hasOneUse())
+    return false;
+
+  const DataLayout &DL = IC.getDataLayout();
+  unsigned TBits = DL.getTypeSizeInBits(StoreTy);
+  if (TBits != DL.getTypeStoreSizeInBits(StoreTy))
+    return false;
+
+  LoadInst *Load;
+  Value *MaskedVal;
+  ConstantInt *Cst;
+  // Match "or((and (load P), cst), Y)" or "or(Y, (and (load P), cst))".
+  if (!match(Val, m_c_Or(m_And(m_Load(Load), m_ConstantInt(Cst)),
+                         m_Value(MaskedVal))))
+    return false;
+
+  // Load should have the same address as SI.
+  if (Load->getOperand(0) != Ptr)
+    return false;
+
+  // Cst is the mask. Analyze the pattern of mask after sext it to uint64_t. We
+  // will handle patterns like either 0..01..1 or 1..10..01..1
+  uint64_t Mask = Cst->getValue().getSExtValue();
+  unsigned MaskLeadOnes = countLeadingOnes(Mask);
+  unsigned MaskTrailOnes = countTrailingOnes(Mask);
+  unsigned MaskMidZeros = !MaskLeadOnes
+                              ? countLeadingZeros(Mask)
+                              : countTrailingZeros(Mask >> MaskTrailOnes);
+
+  // See if we have a continuous run of zeros.
+  if (MaskMidZeros == 0 || MaskLeadOnes + MaskMidZeros + MaskTrailOnes != 64)
+    return false;
+
+  // Adjust EffectiveZeros down to be from the actual size of store instead
+  // of i64.
+  unsigned EffectiveZeros = MaskMidZeros;
+  if (MaskTrailOnes + MaskMidZeros > TBits)
+    EffectiveZeros = MaskMidZeros - (64 - TBits);
+
+  // Only handle 1B/2B/4B size of EffectiveZeros.
+  if (EffectiveZeros != 8 && EffectiveZeros != 16 && EffectiveZeros != 32)
+    return false;
+
+  if (MaskTrailOnes % EffectiveZeros)
+    return false;
+
+  // Check MaskedVal only provides nonzero bits within range from lowbits
+  // (MaskTrailOnes) to highbits (MaskTrailOnes + EffectiveZeros).
+  APInt BitMask =
+      ~APInt::getBitsSet(TBits, MaskTrailOnes, MaskTrailOnes + EffectiveZeros);
+  if (!IC.MaskedValueIsZero(MaskedVal, BitMask))
+    return false;
+
+  // Start shrinking the size of the store.
+  // Get the offset from Ptr for the shrinked store.
+  unsigned StOffset;
+  if (DL.isBigEndian()) {
+    if ((TBits - MaskTrailOnes - EffectiveZeros) % 8 != 0)
+      return false;
+    StOffset = (TBits - MaskTrailOnes - EffectiveZeros) / 8;
+  } else {
+    if (MaskTrailOnes % 8 != 0)
+      return false;
+    StOffset = MaskTrailOnes / 8;
+  }
+
+  Value *NewPtr = Ptr;
+  unsigned Align = SI.getAlignment();
+  Type *NewTy = Type::getIntNTy(StoreTy->getContext(), EffectiveZeros);
+  InstCombiner::BuilderTy &Builder = *IC.Builder;
+  unsigned AS = cast<PointerType>(Ptr->getType())->getAddressSpace();
+  // Generate the new address and alignment for the store:
+  if (StOffset) {
+    ConstantInt *Idx =
+        ConstantInt::get(Type::getInt32Ty(SI.getContext()), StOffset);
+    NewPtr =
+        Builder.CreateBitCast(Ptr, Type::getInt8PtrTy(SI.getContext(), AS));
+    NewPtr = Builder.CreateGEP(Type::getInt8Ty(SI.getContext()), NewPtr, Idx,
+                               "uglygep");
+    Align = DL.getABITypeAlignment(NewTy);
+  }
+  NewPtr = Builder.CreateBitCast(NewPtr, NewTy->getPointerTo(AS));
+
+  // Prepare the value to store: Shift MaskTrailOnes bits right and truncate
+  // the MaskedVal.
+  Value *LShr = Builder.CreateLShr(MaskedVal, MaskTrailOnes);
+  Value *Trunc = Builder.CreateTruncOrBitCast(LShr, NewTy);
+  // Create the new store and remove the old one.
+  Builder.CreateAlignedStore(Trunc, NewPtr, Align);
+  SI.eraseFromParent();
+  return true;
+}
+
 Instruction *InstCombiner::visitStoreInst(StoreInst &SI) {
   Value *Val = SI.getOperand(0);
   Value *Ptr = SI.getOperand(1);
@@ -1413,6 +1519,8 @@ Instruction *InstCombiner::visitStoreInst(StoreInst &SI) {
       if (SimplifyStoreAtEndOfBlock(SI))
         return nullptr;  // xform done!
 
+  if (reduceLoadOpStoreWidth(*this, SI))
+    return nullptr;
   return nullptr;
 }
 
