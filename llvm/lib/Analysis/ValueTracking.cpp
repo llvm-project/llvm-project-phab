@@ -3859,6 +3859,24 @@ bool llvm::propagatesFullPoison(const Instruction *I) {
   }
 }
 
+void llvm::propagateKnownNonPoison(
+    const Value *I, SmallVectorImpl<const Value *> &NonPoison,
+    function_ref<bool(const Value *)> FollowPred) {
+  SmallPtrSet<const Value *, 8> Visited;
+  Visited.insert(I);
+  NonPoison.push_back(I);
+  unsigned Idx = 0;
+  do {
+    const auto *NextI = dyn_cast<Instruction>(NonPoison[Idx++]);
+    if (!NextI || !propagatesFullPoison(NextI))
+      continue;
+
+    copy_if(NextI->operands(), std::back_inserter(NonPoison), [&](Value *V) {
+      return FollowPred(V) && Visited.insert(V).second;
+    });
+  } while (Idx < NonPoison.size());
+}
+
 const Value *llvm::getGuaranteedNonFullPoisonOp(const Instruction *I) {
   switch (I->getOpcode()) {
     case Instruction::Store:

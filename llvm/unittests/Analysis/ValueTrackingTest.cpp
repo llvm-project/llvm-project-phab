@@ -258,3 +258,46 @@ TEST(ValueTracking, ComputeNumSignBits_PR32045) {
       cast<ReturnInst>(F->getEntryBlock().getTerminator())->getOperand(0);
   EXPECT_EQ(ComputeNumSignBits(RVal, M->getDataLayout()), 1u);
 }
+
+TEST(ValueTracking, propagateKnownNonPoison) {
+  StringRef Assembly = "define i1 @f(i32 %a) { "
+                       "  %val0 = add i32 %a, -1 "
+                       "  %val1 = sub i32 %val0, 1 "
+                       "  %cmp = icmp slt i32 %val1, 400 "
+                       "  ret i1 %cmp "
+                       "} ";
+
+  LLVMContext Context;
+  SMDiagnostic Error;
+  auto M = parseAssemblyString(Assembly, Error, Context);
+  assert(M && "Bad assembly?");
+
+  auto *F = M->getFunction("f");
+  assert(F && "Bad assembly?");
+
+  auto *RInst = cast<ReturnInst>(F->getEntryBlock().getTerminator());
+  auto *CmpI = cast<Instruction>(RInst->getOperand(0));
+  auto *SubI = cast<Instruction>(CmpI->getOperand(0));
+  auto *AddI = cast<Instruction>(SubI->getOperand(0));
+  auto *ArgA = cast<Argument>(AddI->getOperand(0));
+
+  {
+    SmallVector<const Value *, 4> NonPoison;
+    propagateKnownNonPoison(CmpI, NonPoison,
+                            [](const Value *V) { return true; });
+    EXPECT_TRUE(is_contained(NonPoison, CmpI));
+    EXPECT_TRUE(is_contained(NonPoison, SubI));
+    EXPECT_TRUE(is_contained(NonPoison, AddI));
+    EXPECT_TRUE(is_contained(NonPoison, ArgA));
+  }
+
+  {
+    SmallVector<const Value *, 4> NonPoison;
+    propagateKnownNonPoison(CmpI, NonPoison,
+                            [&](const Value *V) { return V != AddI; });
+    EXPECT_TRUE(is_contained(NonPoison, CmpI));
+    EXPECT_TRUE(is_contained(NonPoison, SubI));
+    EXPECT_FALSE(is_contained(NonPoison, AddI));
+    EXPECT_FALSE(is_contained(NonPoison, ArgA));
+  }
+}

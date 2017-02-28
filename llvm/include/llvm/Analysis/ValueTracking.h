@@ -418,6 +418,17 @@ template <typename T> class ArrayRef;
   /// the parent of I.
   bool isKnownNotFullPoison(const Instruction *PoisonI);
 
+  /// Starting with the assumption that \p I is not poison, fill \p
+  /// NonPoison with a set of values that are also known to not be
+  /// poison.  Internally this is a simple worklist algorithm around
+  /// \p propagatesFullPoison.
+  ///
+  /// The worklist algorithm does not follow values for which \p
+  /// FollowPred returns false.
+  void propagateKnownNonPoison(const Value *I,
+                               SmallVectorImpl<const Value *> &NonPoison,
+                               function_ref<bool(const Value *)> FollowPred);
+
   /// \brief Specific patterns of select instructions we can match.
   enum SelectPatternFlavor {
     SPF_UNKNOWN = 0,
