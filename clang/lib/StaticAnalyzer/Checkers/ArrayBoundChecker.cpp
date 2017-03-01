@@ -24,17 +24,20 @@ using namespace ento;
 
 namespace {
 class ArrayBoundChecker :
-    public Checker<check::Location> {
+    public Checker<check::Location, check::PreStmt<ArraySubscriptExpr>> {
   mutable std::unique_ptr<BuiltinBug> BT;
+  mutable std::unique_ptr<BuiltinBug> BT_VLA;
 
 public:
   void checkLocation(SVal l, bool isLoad, const Stmt* S,
                      CheckerContext &C) const;
+  void checkPreStmt(const ArraySubscriptExpr *A, CheckerContext &C) const;
 };
 }
 
 void ArrayBoundChecker::checkLocation(SVal l, bool isLoad, const Stmt* LoadS,
                                       CheckerContext &C) const {
+
   // Check for out of bound array element access.
   const MemRegion *R = l.getAsRegion();
   if (!R)
@@ -86,6 +89,39 @@ void ArrayBoundChecker::checkLocation(SVal l, bool isLoad, const Stmt* LoadS,
   // Array bound check succeeded.  From this point forward the array bound
   // should always succeed.
   C.addTransition(StInBound);
+}
+
+void ArrayBoundChecker::checkPreStmt(const ArraySubscriptExpr *A, CheckerContext &C) const
+{
+  const Expr *Base = A->getBase()->IgnoreImpCasts();
+
+  ASTContext &Ctx = C.getASTContext();
+  const VariableArrayType *VLA = Ctx.getAsVariableArrayType(Base->getType());
+  if (!VLA)
+    return;
+
+  ProgramStateRef State = C.getState();
+  SVal sizeV = State->getSVal(VLA->getSizeExpr(), C.getLocationContext());
+  SVal idxV = State->getSVal(A->getIdx(), C.getLocationContext());
+
+  // Is idx greater than size?
+  SValBuilder &Bldr = C.getSValBuilder();
+  SVal GE = Bldr.evalBinOp(State, BO_GE, idxV, sizeV, Bldr.getConditionType());
+  if (!GE.isConstant(1))
+    return;
+
+  ExplodedNode *N = C.generateErrorNode(State);
+  if (!N)
+    return;
+
+  if (!BT_VLA)
+    BT_VLA.reset(new BuiltinBug(
+      this, "Out-of-bound VLA access",
+      "Out-of-bounds VLA access (symbolically this index is greater than the size)"));
+  // Generate a report for this bug.
+  auto report = llvm::make_unique<BugReport>(*BT_VLA, BT_VLA->getDescription(), N);
+  report->addRange(A->getSourceRange());
+  C.emitReport(std::move(report));
 }
 
 void ento::registerArrayBoundChecker(CheckerManager &mgr) {
