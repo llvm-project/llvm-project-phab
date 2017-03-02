@@ -4,6 +4,8 @@
 define fastcc float @foo(float %x) unnamed_addr #0 {
 ; CHECK-LABEL: foo:
 ; CHECK:       # BB#0: # %entry
+; CHECK-NEXT:    rcpss %xmm0, %xmm2
+; CHECK-NEXT:    movss {{.*#+}} xmm1 = mem[0],zero,zero,zero
 ; CHECK-NEXT:    calll .L0$pb
 ; CHECK-NEXT:  .Lcfi0:
 ; CHECK-NEXT:    .cfi_adjust_cfa_offset 4
@@ -13,8 +15,11 @@ define fastcc float @foo(float %x) unnamed_addr #0 {
 ; CHECK-NEXT:    .cfi_adjust_cfa_offset -4
 ; CHECK-NEXT:  .Ltmp0:
 ; CHECK-NEXT:    addl $_GLOBAL_OFFSET_TABLE_+(.Ltmp0-.L0$pb), %eax
-; CHECK-NEXT:    movss {{.*#+}} xmm1 = mem[0],zero,zero,zero
-; CHECK-NEXT:    divss %xmm0, %xmm1
+; CHECK-NEXT:    mulss %xmm2, %xmm0
+; CHECK-NEXT:    subss %xmm0, %xmm1
+; CHECK-NEXT:    mulss %xmm2, %xmm1
+; CHECK-NEXT:    addss %xmm2, %xmm1
+; CHECK-NEXT:    mulss {{\.LCPI.*}}@GOTOFF(%eax), %xmm1
 ; CHECK-NEXT:    movaps %xmm1, %xmm0
 ; CHECK-NEXT:    movss %xmm1, (%eax)
 ; CHECK-NEXT:    retl

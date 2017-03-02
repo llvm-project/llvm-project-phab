@@ -155,9 +155,16 @@ MachineCombiner::getDepth(SmallVectorImpl<MachineInstr *> &InsInstrs,
         assert(DefInstr &&
                "There must be a definition for a new virtual register");
         DepthOp = InstrDepth[II->second];
-        LatencyOp = TSchedModel.computeOperandLatency(
-            DefInstr, DefInstr->findRegisterDefOperandIdx(MO.getReg()),
-            InstrPtr, InstrPtr->findRegisterUseOperandIdx(MO.getReg()));
+        int DefIdx = DefInstr->findRegisterDefOperandIdx(MO.getReg());
+        int UseIdx = InstrPtr->findRegisterUseOperandIdx(MO.getReg());
+        assert((DefIdx || UseIdx) && "Invalid reg usage");
+        if (DefIdx < 0 || UseIdx < 0)
+          // W/o def/use indexes we can't compute latency based on shed model
+          // that's why we're forced to use the default value
+          LatencyOp = TII->defaultDefLatency(SchedModel, *DefInstr);
+        else
+          LatencyOp = TSchedModel.computeOperandLatency(DefInstr, DefIdx,
+                                                        InstrPtr, UseIdx);
       } else {
         MachineInstr *DefInstr = getOperandDef(MO);
         if (DefInstr) {
@@ -267,8 +274,12 @@ bool MachineCombiner::improvesCriticalPathLen(
   // dependency cycles) in the critical path to proceed with the transform.
   // Being conservative also protects against inaccuracies in the underlying
   // machine trace metrics and CPU models.
-  if (getCombinerObjective(Pattern) == CombinerObjective::MustReduceDepth)
+  if (getCombinerObjective(Pattern) == CombinerObjective::MustReduceDepth) {
+    DEBUG(dbgs() << "It MustReduceDepth ");
+    DEBUG(NewRootDepth < RootDepth ? dbgs() << "and it does it\n"
+                                   : dbgs() << "but it does NOT do it\n");
     return NewRootDepth < RootDepth;
+  }
 
   // A more flexible cost calculation for the critical path includes the slack
   // of the original code sequence. This may allow the transform to proceed
@@ -282,16 +293,18 @@ bool MachineCombiner::improvesCriticalPathLen(
 
   unsigned RootSlack = BlockTrace.getInstrSlack(*Root);
 
+  unsigned NewCycleCount = NewRootDepth + NewRootLatency;
+  unsigned OldCycleCount = RootDepth + RootLatency + RootSlack;
+
   DEBUG(dbgs() << " NewRootLatency: " << NewRootLatency << "\n";
         dbgs() << " RootLatency: " << RootLatency << "\n";
         dbgs() << " RootSlack: " << RootSlack << "\n";
-        dbgs() << " NewRootDepth + NewRootLatency = "
-               << NewRootDepth + NewRootLatency << "\n";
-        dbgs() << " RootDepth + RootLatency + RootSlack = "
-               << RootDepth + RootLatency + RootSlack << "\n";);
-
-  unsigned NewCycleCount = NewRootDepth + NewRootLatency;
-  unsigned OldCycleCount = RootDepth + RootLatency + RootSlack;
+        dbgs() << " NewRootDepth + NewRootLatency = " << NewCycleCount << "\n";
+        dbgs() << " RootDepth + RootLatency + RootSlack = " << OldCycleCount
+               << "\n";);
+  DEBUG(NewCycleCount <= OldCycleCount
+            ? dbgs() << "It improves PathLen\n"
+            : dbgs() << "It does NOT improve PathLen");
 
   return NewCycleCount <= OldCycleCount;
 }
@@ -340,6 +353,9 @@ bool MachineCombiner::preservesResourceLen(
   DEBUG(dbgs() << "RESOURCE DATA: \n";
         dbgs() << " resource len before: " << ResLenBeforeCombine
                << " after: " << ResLenAfterCombine << "\n";);
+  DEBUG(ResLenAfterCombine <= ResLenBeforeCombine
+            ? dbgs() << "It preserves ResourceLen\n"
+            : dbgs() << "It does NOT preserve ResourceLen\n");
 
   return ResLenAfterCombine <= ResLenBeforeCombine;
 }
