@@ -100,13 +100,6 @@ define void @PR32038(i32 %n) {
 ; DEFAULT:       for.body:
 ; DEFAULT-NEXT:    [[TMP17:%.*]] = phi i32 [ [[BIN_EXTRA:%.*]], [[FOR_BODY]] ], [ 0, [[ENTRY:%.*]] ]
 ; DEFAULT-NEXT:    [[TMP2:%.*]] = select <8 x i1> [[TMP1]], <8 x i32> <i32 -720, i32 -720, i32 -720, i32 -720, i32 -720, i32 -720, i32 -720, i32 -720>, <8 x i32> <i32 -80, i32 -80, i32 -80, i32 -80, i32 -80, i32 -80, i32 -80, i32 -80>
-; DEFAULT-NEXT:    [[TMP20:%.*]] = add i32 -5, undef
-; DEFAULT-NEXT:    [[TMP22:%.*]] = add i32 [[TMP20]], undef
-; DEFAULT-NEXT:    [[TMP24:%.*]] = add i32 [[TMP22]], undef
-; DEFAULT-NEXT:    [[TMP26:%.*]] = add i32 [[TMP24]], undef
-; DEFAULT-NEXT:    [[TMP28:%.*]] = add i32 [[TMP26]], undef
-; DEFAULT-NEXT:    [[TMP30:%.*]] = add i32 [[TMP28]], undef
-; DEFAULT-NEXT:    [[TMP32:%.*]] = add i32 [[TMP30]], undef
 ; DEFAULT-NEXT:    [[RDX_SHUF:%.*]] = shufflevector <8 x i32> [[TMP2]], <8 x i32> undef, <8 x i32> <i32 4, i32 5, i32 6, i32 7, i32 undef, i32 undef, i32 undef, i32 undef>
 ; DEFAULT-NEXT:    [[BIN_RDX:%.*]] = add <8 x i32> [[TMP2]], [[RDX_SHUF]]
 ; DEFAULT-NEXT:    [[RDX_SHUF1:%.*]] = shufflevector <8 x i32> [[BIN_RDX]], <8 x i32> undef, <8 x i32> <i32 2, i32 3, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef>
@@ -115,7 +108,6 @@ define void @PR32038(i32 %n) {
 ; DEFAULT-NEXT:    [[BIN_RDX4:%.*]] = add <8 x i32> [[BIN_RDX2]], [[RDX_SHUF3]]
 ; DEFAULT-NEXT:    [[TMP3:%.*]] = extractelement <8 x i32> [[BIN_RDX4]], i32 0
 ; DEFAULT-NEXT:    [[BIN_EXTRA]] = add i32 [[TMP3]], -5
-; DEFAULT-NEXT:    [[TMP34:%.*]] = add i32 [[TMP32]], undef
 ; DEFAULT-NEXT:    br label [[FOR_BODY]]
 ;
 ; GATHER-LABEL: @PR32038(
@@ -140,19 +132,12 @@ define void @PR32038(i32 %n) {
 ; GATHER:       for.body:
 ; GATHER-NEXT:    [[TMP17:%.*]] = phi i32 [ [[BIN_EXTRA:%.*]], [[FOR_BODY]] ], [ 0, [[ENTRY:%.*]] ]
 ; GATHER-NEXT:    [[TMP19:%.*]] = select i1 [[TMP1]], i32 -720, i32 -80
-; GATHER-NEXT:    [[TMP20:%.*]] = add i32 -5, [[TMP19]]
 ; GATHER-NEXT:    [[TMP21:%.*]] = select i1 [[TMP3]], i32 -720, i32 -80
-; GATHER-NEXT:    [[TMP22:%.*]] = add i32 [[TMP20]], [[TMP21]]
 ; GATHER-NEXT:    [[TMP23:%.*]] = select i1 [[TMP5]], i32 -720, i32 -80
-; GATHER-NEXT:    [[TMP24:%.*]] = add i32 [[TMP22]], [[TMP23]]
 ; GATHER-NEXT:    [[TMP25:%.*]] = select i1 [[TMP7]], i32 -720, i32 -80
-; GATHER-NEXT:    [[TMP26:%.*]] = add i32 [[TMP24]], [[TMP25]]
 ; GATHER-NEXT:    [[TMP27:%.*]] = select i1 [[TMP9]], i32 -720, i32 -80
-; GATHER-NEXT:    [[TMP28:%.*]] = add i32 [[TMP26]], [[TMP27]]
 ; GATHER-NEXT:    [[TMP29:%.*]] = select i1 [[TMP11]], i32 -720, i32 -80
-; GATHER-NEXT:    [[TMP30:%.*]] = add i32 [[TMP28]], [[TMP29]]
 ; GATHER-NEXT:    [[TMP31:%.*]] = select i1 [[TMP13]], i32 -720, i32 -80
-; GATHER-NEXT:    [[TMP32:%.*]] = add i32 [[TMP30]], [[TMP31]]
 ; GATHER-NEXT:    [[TMP33:%.*]] = select i1 [[TMP15]], i32 -720, i32 -80
 ; GATHER-NEXT:    [[TMP0:%.*]] = insertelement <8 x i32> undef, i32 [[TMP19]], i32 0
 ; GATHER-NEXT:    [[TMP1:%.*]] = insertelement <8 x i32> [[TMP0]], i32 [[TMP21]], i32 1
@@ -170,7 +155,6 @@ define void @PR32038(i32 %n) {
 ; GATHER-NEXT:    [[BIN_RDX4:%.*]] = add <8 x i32> [[BIN_RDX2]], [[RDX_SHUF3]]
 ; GATHER-NEXT:    [[TMP8:%.*]] = extractelement <8 x i32> [[BIN_RDX4]], i32 0
 ; GATHER-NEXT:    [[BIN_EXTRA]] = add i32 [[TMP8]], -5
-; GATHER-NEXT:    [[TMP34:%.*]] = add i32 [[TMP32]], [[TMP33]]
 ; GATHER-NEXT:    br label [[FOR_BODY]]
 ;
 ; MAX-COST-LABEL: @PR32038(
