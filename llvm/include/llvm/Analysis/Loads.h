@@ -78,6 +78,7 @@ extern cl::opt<unsigned> DefMaxInstsToScan;
 /// precise.
 /// \param [out] IsLoadCSE Whether the returned value is a load from the same
 /// location in memory, as opposed to the value operand of a store.
+/// \param [out] NumScannedInst The number of instructions scanned.
 ///
 /// \returns The found value, or nullptr if no value is found.
 Value *FindAvailableLoadedValue(LoadInst *Load,
@@ -86,7 +87,7 @@ Value *FindAvailableLoadedValue(LoadInst *Load,
                                 unsigned MaxInstsToScan = DefMaxInstsToScan,
                                 AliasAnalysis *AA = nullptr,
                                 bool *IsLoadCSE = nullptr,
-                                unsigned *NumScanedInst = nullptr);
+                                unsigned *NumScannedInst = nullptr);
 
 }
 

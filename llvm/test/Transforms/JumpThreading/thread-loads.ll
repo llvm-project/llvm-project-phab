@@ -380,6 +380,68 @@ end:
 declare void @fn2(i64)
 declare void @fn3(i64)
 
+; This test if SimplifyPartiallyRedundantLoad() can detect %1 as a partically
+; redundant load for %2 through lor.lhs.false -> while.end -> land.rhs.
+; By detecting it, we can thread from while.end to return across lor.lhs.false.
+; This IR is the input of the jump thread pass in O3 for the below C code.
+;
+;int dict_match(char * s, char * t) {
+;  while((*s != '\0') && (*t != '\0')) {
+;    s++;
+;    t++;
+;  }
+;
+;  if ((*s == '*') || (*t == '\0'))
+;    return 0;
+;
+;  return *s - *t;
+;}
+;
+; CHECK-LABEL: @dict_match
+; CHECK-LABEL: while.end:
+; CHECK: br i1 %cmp7, label %return, label %return
+;
+define i32 @dict_match(i8* nocapture readonly %s, i8* nocapture readonly %t) local_unnamed_addr #0 {
+entry:
+  br label %while.cond
+
+while.cond:                                       ; preds = %while.body, %entry
+  %s.addr.0 = phi i8* [ %s, %entry ], [ %incdec.ptr, %while.body ]
+  %t.addr.0 = phi i8* [ %t, %entry ], [ %incdec.ptr5, %while.body ]
+  %0 = load i8, i8* %s.addr.0, align 1
+  %conv = zext i8 %0 to i32
+  %cond = icmp eq i8 %0, 0
+  br i1 %cond, label %lor.lhs.false, label %land.rhs
+
+land.rhs:                                         ; preds = %while.cond
+  %1 = load i8, i8* %t.addr.0, align 1
+  %cmp3 = icmp ne i8 %1, 0
+  br i1 %cmp3, label %while.body, label %while.end
+
+while.body:                                       ; preds = %land.rhs
+  %incdec.ptr = getelementptr inbounds i8, i8* %s.addr.0, i64 1
+  %incdec.ptr5 = getelementptr inbounds i8, i8* %t.addr.0, i64 1
+  br label %while.cond
+
+while.end:                                        ; preds = %land.rhs
+  %cmp7 = icmp eq i8 %0, 42
+  br i1 %cmp7, label %return, label %lor.lhs.false
+
+lor.lhs.false:                                    ; preds = %while.cond, %while.end
+  %2 = load i8, i8* %t.addr.0, align 1
+  %cmp10 = icmp eq i8 %2, 0
+  br i1 %cmp10, label %return, label %if.end
+
+if.end:                                           ; preds = %lor.lhs.false
+  %conv9 = zext i8 %2 to i32
+  %sub = sub nsw i32 %conv, %conv9
+  br label %return
+
+return:                                           ; preds = %while.end, %lor.lhs.false, %if.end
+  %retval.0 = phi i32 [ %sub, %if.end ], [ 0, %lor.lhs.false ], [ 0, %while.end ]
+  ret i32 %retval.0
+}
+
 
 !0 = !{!3, !3, i64 0}
 !1 = !{!"omnipotent char", !2}

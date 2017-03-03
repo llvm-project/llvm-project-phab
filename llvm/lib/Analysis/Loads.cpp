@@ -313,7 +313,7 @@ Value *llvm::FindAvailableLoadedValue(LoadInst *Load,
                                       BasicBlock::iterator &ScanFrom,
                                       unsigned MaxInstsToScan,
                                       AliasAnalysis *AA, bool *IsLoadCSE,
-                                      unsigned *NumScanedInst) {
+                                      unsigned *NumScannedInst) {
   if (MaxInstsToScan == 0)
     MaxInstsToScan = ~0U;
 
@@ -345,8 +345,8 @@ Value *llvm::FindAvailableLoadedValue(LoadInst *Load,
     // Restore ScanFrom to expected value in case next test succeeds
     ScanFrom++;
 
-    if (NumScanedInst)
-      ++(*NumScanedInst);
+    if (NumScannedInst)
+      ++(*NumScannedInst);
 
     // Don't scan huge blocks.
     if (MaxInstsToScan-- == 0)

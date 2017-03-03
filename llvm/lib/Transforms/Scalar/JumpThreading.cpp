@@ -993,22 +993,22 @@ bool JumpThreadingPass::SimplifyPartiallyRedundantLoad(LoadInst *LI) {
 
     // Scan the predecessor to see if the value is available in the pred.
     BBIt = PredBB->end();
-    unsigned NumScanedInst = 0;
+    unsigned NumScannedInst = 0;
     Value *PredAvailable =
         FindAvailableLoadedValue(LI, PredBB, BBIt, DefMaxInstsToScan, nullptr,
-                                 &IsLoadCSE, &NumScanedInst);
+                                 &IsLoadCSE, &NumScannedInst);
 
     // If PredBB has a single predecessor, continue scanning through the single
     // predecessor.
     BasicBlock *SinglePredBB = PredBB;
     while (!PredAvailable && SinglePredBB && BBIt == SinglePredBB->begin() &&
-           NumScanedInst < DefMaxInstsToScan) {
+           NumScannedInst < DefMaxInstsToScan) {
       SinglePredBB = SinglePredBB->getSinglePredecessor();
       if (SinglePredBB) {
         BBIt = SinglePredBB->end();
         PredAvailable = FindAvailableLoadedValue(
-            LI, SinglePredBB, BBIt, (DefMaxInstsToScan - NumScanedInst),
-            nullptr, &IsLoadCSE, &NumScanedInst);
+            LI, SinglePredBB, BBIt, (DefMaxInstsToScan - NumScannedInst),
+            nullptr, &IsLoadCSE, &NumScannedInst);
       }
     }
 
