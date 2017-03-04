@@ -5709,6 +5709,342 @@ static bool splitMergedValStore(StoreInst &SI, const DataLayout &DL,
   return true;
 }
 
+/// Check whether mem will be modified between \p LI and \p SI.
+static bool memModBetween(LoadInst &LI, StoreInst &SI) {
+  // Check whether mem is modified inside BB local iterator range.
+  auto memModInside = [](BasicBlock::const_iterator Start,
+                         BasicBlock::const_iterator End) -> bool {
+    for (const Instruction &Inst :
+         iterator_range<BasicBlock::const_iterator>(Start, End))
+      if (Inst.mayWriteToMemory())
+        return true;
+    return false;
+  };
+  const BasicBlock *LIBB = LI.getParent();
+  const BasicBlock *SIBB = SI.getParent();
+  BasicBlock::const_iterator LII(LI);
+  BasicBlock::const_iterator SII(SI);
+  if (LIBB == SIBB)
+    return memModInside(LII, SII);
+
+  // LIBB is different from SIBB. We neet to scan LI to the end of
+  // LIBB + begin of SIBB to SI + BasicBlocks between LIBB and SIBB.
+  if (memModInside(LII, LIBB->end()))
+    return true;
+  if (memModInside(SIBB->begin(), SII))
+    return true;
+
+  // Collect BasicBlocks to scan between LIBB and SIBB into BBSet .
+  // Limit the maximum number of BasicBlocks to 3 to protect compile time.
+  const int MaxBB = 3;
+  SmallPtrSet<const BasicBlock *, 4> BBSet;
+  SmallVector<const BasicBlock *, 4> WorkSet;
+  WorkSet.push_back(SIBB);
+  do {
+    const BasicBlock *BB = WorkSet.pop_back_val();
+    for (const BasicBlock *Pred : predecessors(BB)) {
+      if (Pred != LIBB && !BBSet.count(Pred)) {
+        BBSet.insert(Pred);
+        if (BBSet.size() > MaxBB)
+          return true;
+        WorkSet.push_back(Pred);
+      }
+    }
+  } while (!WorkSet.empty());
+
+  for (const BasicBlock *BB : BBSet) {
+    if (memModInside(BB->begin(), BB->end()))
+      return true;
+  }
+  return false;
+}
+
+/// Analyze or ((and (load P), \p Cst), \p MaskedVal). Update \p ActualModBits
+/// with the number of bits of the original load to be modified, and update
+/// \p ShiftBits with the pos of the first bit to be modified bit. If the
+/// analysis result shows we can store the MaskedVal after some change but
+/// without using original load, keep \p StoreWithoutLoad as true.
+static void analyzeOrAndPattern(Value &MaskedVal, ConstantInt &Cst,
+                                unsigned &ShiftBits, unsigned &ActualModBits,
+                                bool &StoreWithoutLoad, StoreInst &SI,
+                                const DataLayout &DL) {
+  // Cst is the mask. Analyze the pattern of mask after sext it to uint64_t. We
+  // will handle patterns like either 0..01..1 or 1..10..01..1
+  APInt Mask = Cst.getValue();
+  unsigned MBitWidth = Mask.getBitWidth();
+  unsigned MaskLeadOnes = Mask.countLeadingOnes();
+  unsigned MaskTrailOnes = Mask.countTrailingOnes();
+  unsigned MaskMidZeros = !MaskLeadOnes
+                              ? Mask.countLeadingZeros()
+                              : Mask.ashr(MaskTrailOnes).countTrailingZeros();
+
+  StoreWithoutLoad = true;
+  // See if we have a continuous run of zeros.
+  if (MaskMidZeros == 0 ||
+      MaskLeadOnes + MaskMidZeros + MaskTrailOnes != MBitWidth)
+    StoreWithoutLoad = false;
+
+  // Check MaskedVal only provides nonzero bits within range from lowbits
+  // (MaskTrailOnes) to highbits (MaskTrailOnes + MaskMidZeros).
+  APInt BitMask = ~APInt::getBitsSet(MBitWidth, MaskTrailOnes,
+                                     MaskTrailOnes + MaskMidZeros);
+
+  // Find out the range in which 1 appears in MaskedVal.
+  APInt KnownOne(MBitWidth, 0), KnownZero(MBitWidth, 0);
+  computeKnownBits(&MaskedVal, KnownZero, KnownOne, DL, 0);
+
+  ActualModBits = MaskMidZeros;
+  ShiftBits = MaskTrailOnes;
+  // Check !IC.MaskedValueIsZero(MaskedVal, BitMask) by inlining the call
+  // because we want to reuse the result of computeKnownBits to compute
+  // ShiftBits and ActualModBits.
+  if ((KnownZero & BitMask) != BitMask) {
+    StoreWithoutLoad = false;
+    unsigned Lower = KnownOne.countTrailingZeros();
+    unsigned Higher = MBitWidth - KnownOne.countLeadingZeros();
+    ShiftBits = std::min(Lower, MaskTrailOnes);
+    ActualModBits = std::max(Higher, MaskTrailOnes + MaskMidZeros) - ShiftBits;
+  }
+}
+
+/// Analyze \p Val = or/xor/and ((load P), \p Cst). Update \p ActualModBits
+/// with the number of bits of the original load to be modified, and update
+/// \p ShiftBits with the pos of the first bit to be modified.
+static void analyzeBOpPattern(Value &Val, ConstantInt &Cst, unsigned &ShiftBits,
+                              unsigned &ActualModBits) {
+  APInt Mask = Cst.getValue();
+  BinaryOperator *BOP = cast<BinaryOperator>(&Val);
+  if (BOP->getOpcode() == Instruction::And)
+    Mask = ~Mask;
+
+  ShiftBits = Mask.countTrailingZeros();
+  ActualModBits = Mask.getBitWidth() - ShiftBits;
+  if (ActualModBits)
+    ActualModBits = ActualModBits - Mask.countLeadingZeros();
+}
+
+/// Update \p ActualModBits and \p ShiftBits so the updated \p ActualModBits
+/// bits can form a legal type and also cover all the modified bits.
+static void updateShiftAndModifiedBits(unsigned &ActualModBits,
+                                       unsigned &ShiftBits, unsigned TBits,
+                                       unsigned Align, LLVMContext &Context,
+                                       const DataLayout &DL,
+                                       const TargetLowering &TLI) {
+  unsigned NewModBits = PowerOf2Ceil(ActualModBits);
+  Type *NewTy = Type::getIntNTy(Context, NewModBits);
+  int NewShiftBits;
+
+  // Check if we can find a NewShiftBits for the NewModBits, so that
+  // NewShiftBits and NewModBits forms a new range covering the old
+  // modified range without worsening alignment.
+  auto coverOldRange = [&]() -> bool {
+    unsigned MAlign = MinAlign(Align, DL.getABITypeAlignment(NewTy));
+    NewShiftBits = ShiftBits - ShiftBits % (MAlign * 8);
+    while (NewShiftBits >= 0) {
+      if (NewModBits + NewShiftBits <= TBits &&
+          NewModBits + NewShiftBits >= ActualModBits + ShiftBits)
+        return true;
+      NewShiftBits -= MAlign * 8;
+    }
+    return false;
+  };
+  // See whether we can store NewTy legally.
+  auto isStoreLegalType = [&]() -> bool {
+    EVT OldEVT =
+        TLI.getValueType(DL, Type::getIntNTy(Context, PowerOf2Ceil(TBits)));
+    EVT NewEVT = TLI.getValueType(DL, NewTy);
+    return TLI.isOperationLegalOrCustom(ISD::STORE, NewEVT) ||
+           TLI.isTruncStoreLegalOrCustom(OldEVT, NewEVT);
+  };
+  // Try to find the minimal NewModBits which can form a legal type and cover
+  // all the old modified bits.
+  while (NewModBits < TBits && (!isStoreLegalType() || !coverOldRange())) {
+    NewModBits = NextPowerOf2(NewModBits);
+    NewTy = Type::getIntNTy(Context, NewModBits);
+  }
+  ActualModBits = NewModBits;
+  ShiftBits = NewShiftBits;
+}
+
+// If this is "store (or X, Y), P" and X is "(and (load P), cst)", where cst
+// is a byte mask indicating a consecutive number of bytes, check to see if
+// Y is known to provide just those bytes.  If so, what the original store
+// sequence is doing is "load P to V; replace some bytes in V with corresponding
+// bytes from Y via bit manipulation; then store the updated V to P". We can
+// replace the sequence with a single (narrower) store, and save the load and
+// bit operations (The first shrink transformation).
+//
+// If this is "store (or/and/xor (load P), cst), we can know the maximum range
+// where the load value will be modified and shrink the size of the store if
+// only the shrinked size can still cover the modified range (the second shrink
+// transformation). Especially when the original size is illegal and the the
+// size after shrink is legal, the transformation will be beneficial.
+//
+// For the first pattern, when the first shrink transformation fails, we can
+// still try the second one because from the first pattern, we can also know
+// the range where the load value will be modified.
+static bool reduceLoadOpsStoreWidth(StoreInst &SI, const DataLayout &DL,
+                                    const TargetLowering &TLI) {
+  Value *Val = SI.getOperand(0);
+  Value *Ptr = SI.getOperand(1);
+  Type *StoreTy = Val->getType();
+  if (StoreTy->isVectorTy() || !StoreTy->isIntegerTy() || !Val->hasOneUse())
+    return false;
+
+  unsigned TBits = DL.getTypeStoreSizeInBits(StoreTy);
+  if (TBits != DL.getTypeStoreSizeInBits(StoreTy))
+    return false;
+
+  LoadInst *LI;
+  Value *MaskedVal = nullptr;
+  ConstantInt *Cst;
+  // Match "or((and (load P), cst), Y)" or "or/and/xor((load P), cst)" or
+  // their exprs after commutation.
+  bool OrAndPattern = false;
+  if (!(OrAndPattern = match(Val, m_c_Or(m_And(m_Load(LI), m_ConstantInt(Cst)),
+                                         m_Value(MaskedVal)))) &&
+      !match(Val, m_c_Or(m_Load(LI), m_ConstantInt(Cst))) &&
+      !match(Val, m_c_And(m_Load(LI), m_ConstantInt(Cst))) &&
+      !match(Val, m_c_Xor(m_Load(LI), m_ConstantInt(Cst))))
+    return false;
+
+  // LI should have the same address as SI.
+  if (LI->getOperand(0) != Ptr)
+    return false;
+
+  // Make sure the mem SI accesses is not modified between LI and SI.
+  if (memModBetween(*LI, SI))
+    return false;
+
+  // Ideally, we hope we can optimize the load-andor-store sequence to a
+  // single shrinked store of shr+truncated MaskedVal without accessing
+  // the original load, but if we cannot, we will try to optimize the
+  // sequence into a shrinked store of the truncated Val.
+  // For load-bop-store sequence, StoreWithoutLoad will always be false.
+  bool StoreWithoutLoad = false;
+  // ActualModBits indicates the number of bits of the original load
+  // to be modified.
+  // ShiftBits indicates the position of the first bit to be modified.
+  // Both vals will be populated in analyzeXXXPattern below.
+  unsigned ActualModBits;
+  unsigned ShiftBits;
+  if (OrAndPattern)
+    analyzeOrAndPattern(*MaskedVal, *Cst, ShiftBits, ActualModBits,
+                        StoreWithoutLoad, SI, DL);
+  else
+    analyzeBOpPattern(*Val, *Cst, ShiftBits, ActualModBits);
+
+  // Adjust ActualModBits down to be from the actual size of store.
+  if (ShiftBits > TBits) {
+    ShiftBits = 0;
+    ActualModBits = TBits;
+  } else if (ShiftBits + ActualModBits > TBits) {
+    ActualModBits = TBits - ShiftBits;
+  }
+
+  unsigned StOffset;
+  if (StoreWithoutLoad) {
+    // Get the offset from Ptr for the shrinked store.
+    if (DL.isBigEndian())
+      StOffset = TBits - ShiftBits - ActualModBits;
+    else
+      StOffset = ShiftBits;
+    if (StOffset % 8 != 0)
+      StoreWithoutLoad = false;
+    else
+      StOffset = StOffset / 8;
+
+    // If ActualModBits is not the length of legal type, we cannot
+    // store MaskedVal directly.
+    if (ActualModBits != 8 && ActualModBits != 16 && ActualModBits != 32)
+      StoreWithoutLoad = false;
+  }
+
+  unsigned Align = SI.getAlignment();
+  LLVMContext &Context = SI.getContext();
+  // If we are shrink the store of Val, update ActualModBits and ShiftBits
+  // to ensure the shrinked store is of legal type.
+  if (!StoreWithoutLoad) {
+    // If we cannot do StoreWithoutLoad shrink, do the simple shrink only
+    // when StoreTy is illegal.
+    if (TLI.isOperationLegalOrCustom(ISD::STORE, TLI.getValueType(DL, StoreTy)))
+      return false;
+    if (!ActualModBits)
+      return false;
+    updateShiftAndModifiedBits(ActualModBits, ShiftBits, TBits, Align, Context,
+                               DL, TLI);
+    if (ActualModBits >= TBits)
+      return false;
+
+    if (DL.isBigEndian())
+      StOffset = (TBits - ShiftBits - ActualModBits) / 8;
+    else
+      StOffset = ShiftBits / 8;
+  }
+
+  // Start shrinking the size of the store.
+  Value *NewPtr = Ptr;
+  unsigned AS = cast<PointerType>(Ptr->getType())->getAddressSpace();
+  IRBuilder<> Builder(Context);
+  Builder.SetInsertPoint(&SI);
+  if (StOffset) {
+    ConstantInt *Idx = ConstantInt::get(Type::getInt32Ty(Context), StOffset);
+    NewPtr =
+        Builder.CreateBitCast(Ptr, Type::getInt8PtrTy(Context, AS), "cast");
+    NewPtr =
+        Builder.CreateGEP(Type::getInt8Ty(Context), NewPtr, Idx, "uglygep");
+    Align = MinAlign(StOffset, Align);
+  }
+  Type *NewTy = Type::getIntNTy(Context, ActualModBits);
+  NewPtr = Builder.CreateBitCast(NewPtr, NewTy->getPointerTo(AS), "cast");
+  APInt ModifiedCst = Cst->getValue().lshr(ShiftBits).trunc(ActualModBits);
+  ConstantInt *NewCst = ConstantInt::get(Context, ModifiedCst);
+
+  Value *NewVal;
+  if (OrAndPattern) {
+    // Shift and truncate MaskedVal.
+    Value *Trunc;
+    if (auto MVCst = dyn_cast<ConstantInt>(MaskedVal)) {
+      ModifiedCst = MVCst->getValue().lshr(ShiftBits).trunc(ActualModBits);
+      Trunc = ConstantInt::get(Context, ModifiedCst);
+    } else {
+      Value *ShiftedVal = ShiftBits
+                              ? Builder.CreateLShr(MaskedVal, ShiftBits, "lshr")
+                              : MaskedVal;
+      Trunc = Builder.CreateTruncOrBitCast(ShiftedVal, NewTy, "trunc");
+    }
+    // Create NewVal to store.
+    if (StoreWithoutLoad) {
+      NewVal = Trunc;
+    } else {
+      Value *NewLoad = Builder.CreateAlignedLoad(NewPtr, Align, "load.trunc");
+      Value *NewAnd = Builder.CreateAnd(NewLoad, NewCst, "and.trunc");
+      NewVal = Builder.CreateOr(NewAnd, Trunc, "or.trunc");
+    }
+  } else {
+    Value *NewLoad = Builder.CreateAlignedLoad(NewPtr, Align, "load.trunc");
+    // Create NewVal to store.
+    BinaryOperator *BOP = cast<BinaryOperator>(Val);
+    switch (BOP->getOpcode()) {
+    default:
+      break;
+    case Instruction::And:
+      NewVal = Builder.CreateAnd(NewLoad, NewCst, "and.trunc");
+      break;
+    case Instruction::Or:
+      NewVal = Builder.CreateOr(NewLoad, NewCst, "or.trunc");
+      break;
+    case Instruction::Xor:
+      NewVal = Builder.CreateXor(NewLoad, NewCst, "xor.trunc");
+      break;
+    }
+  }
+  // Create the new store and remove the old one.
+  Builder.CreateAlignedStore(NewVal, NewPtr, Align);
+  SI.eraseFromParent();
+  return true;
+}
+
 bool CodeGenPrepare::optimizeInst(Instruction *I, bool& ModifiedDT) {
   // Bail out if we inserted the instruction to prevent optimizations from
   // stepping on each other's toes.
@@ -5774,6 +6110,8 @@ bool CodeGenPrepare::optimizeInst(Instruction *I, bool& ModifiedDT) {
 
   if (StoreInst *SI = dyn_cast<StoreInst>(I)) {
     if (TLI && splitMergedValStore(*SI, *DL, *TLI))
+      return true;
+    if (TLI && reduceLoadOpsStoreWidth(*SI, *DL, *TLI))
       return true;
     SI->setMetadata(LLVMContext::MD_invariant_group, nullptr);
     if (TLI) {
