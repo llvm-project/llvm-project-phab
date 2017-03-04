@@ -38,6 +38,7 @@
 #ifndef LLVM_ANALYSIS_ALIASANALYSIS_H
 #define LLVM_ANALYSIS_ALIASANALYSIS_H
 
+#include "llvm/ADT/Optional.h"
 #include "llvm/IR/CallSite.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/PassManager.h"
@@ -500,46 +501,47 @@ public:
     return getModRefInfo(I, MemoryLocation(P, Size));
   }
 
-  /// Check whether or not an instruction may read or write memory (without
-  /// regard to a specific location).
-  ///
-  /// For function calls, this delegates to the alias-analysis specific
-  /// call-site mod-ref behavior queries. Otherwise it delegates to the generic
-  /// mod ref information query without a location.
-  ModRefInfo getModRefInfo(const Instruction *I) {
-    if (auto CS = ImmutableCallSite(I)) {
-      auto MRB = getModRefBehavior(CS);
-      if ((MRB & MRI_ModRef) == MRI_ModRef)
-        return MRI_ModRef;
-      if (MRB & MRI_Ref)
-        return MRI_Ref;
-      if (MRB & MRI_Mod)
-        return MRI_Mod;
-      return MRI_NoModRef;
-    }
-
-    return getModRefInfo(I, MemoryLocation());
-  }
-
-  /// Check whether or not an instruction may read or write the specified
-  /// memory location.
+  /// Check whether or not an instruction may read or write the optionally
+  /// specified memory location.
   ///
   /// An instruction that doesn't read or write memory may be trivially LICM'd
   /// for example.
   ///
-  /// This primarily delegates to specific helpers above.
-  ModRefInfo getModRefInfo(const Instruction *I, const MemoryLocation &Loc) {
+  /// For function calls, this delegates to the alias-analysis specific
+  /// call-site mod-ref behavior queries. Otherwise it delegates to specific
+  /// helpers above.
+  ModRefInfo getModRefInfo(const Instruction *I,
+                           const Optional<MemoryLocation> &OptLoc) {
+    if (OptLoc == None) {
+      if (auto CS = ImmutableCallSite(I)) {
+        auto MRB = getModRefBehavior(CS);
+        if ((MRB & MRI_ModRef) == MRI_ModRef)
+          return MRI_ModRef;
+        if (MRB & MRI_Ref)
+          return MRI_Ref;
+        if (MRB & MRI_Mod)
+          return MRI_Mod;
+        return MRI_NoModRef;
+      }
+    }
+    const MemoryLocation &Loc = OptLoc.getValueOr(MemoryLocation());
     switch (I->getOpcode()) {
-    case Instruction::VAArg:  return getModRefInfo((const VAArgInst*)I, Loc);
-    case Instruction::Load:   return getModRefInfo((const LoadInst*)I,  Loc);
-    case Instruction::Store:  return getModRefInfo((const StoreInst*)I, Loc);
-    case Instruction::Fence:  return getModRefInfo((const FenceInst*)I, Loc);
+    case Instruction::VAArg:
+      return getModRefInfo((const VAArgInst *)I, Loc);
+    case Instruction::Load:
+      return getModRefInfo((const LoadInst *)I, Loc);
+    case Instruction::Store:
+      return getModRefInfo((const StoreInst *)I, Loc);
+    case Instruction::Fence:
+      return getModRefInfo((const FenceInst *)I, Loc);
     case Instruction::AtomicCmpXchg:
-      return getModRefInfo((const AtomicCmpXchgInst*)I, Loc);
+      return getModRefInfo((const AtomicCmpXchgInst *)I, Loc);
     case Instruction::AtomicRMW:
-      return getModRefInfo((const AtomicRMWInst*)I, Loc);
-    case Instruction::Call:   return getModRefInfo((const CallInst*)I,  Loc);
-    case Instruction::Invoke: return getModRefInfo((const InvokeInst*)I,Loc);
+      return getModRefInfo((const AtomicRMWInst *)I, Loc);
+    case Instruction::Call:
+      return getModRefInfo((const CallInst *)I, Loc);
+    case Instruction::Invoke:
+      return getModRefInfo((const InvokeInst *)I, Loc);
     case Instruction::CatchPad:
       return getModRefInfo((const CatchPadInst *)I, Loc);
     case Instruction::CatchRet:
