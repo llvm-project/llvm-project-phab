@@ -12,14 +12,16 @@ define void @test1(i32 *%V) {
 ; CHECK-NEXT: store i32 1234567
 }
 
-; Note that we could do better by merging the two stores into one.
+; Check that we merge these two stores
 define void @test2(i32* %P) {
 ; CHECK-LABEL: @test2(
   store i32 0, i32* %P
-; CHECK: store i32
   %Q = bitcast i32* %P to i16*
   store i16 1, i16* %Q
-; CHECK: store i16
+; CHECK-NOT: store
+; Big endian store, so we get 1<<16 as the merged value
+; CHECK: store i32 65536, i32* %P
+; CHECK-NOT: store
   ret void
 }
 
