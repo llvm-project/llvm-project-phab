@@ -60,13 +60,9 @@ entry:
  store i16 2020, i16* %wptrp, align 1
  ret void
 
-; CHECK-NOT: store i32 5, i32* %ptr
-; CHECK-NOT: store i8 7, i8* %bptr
-; CHECK: store i16 -30062, i16* %wptr
-; CHECK-NOT: store i8 25, i8* %bptr2
-; CHECK: store i8 47, i8* %bptr3
-; CHECK: store i16 2020, i16* %wptrp, align 1
-
+; CHECK-NOT: store
+; CHECK: store i32 -1979194321, i32* %ptr
+; CHECK-NOT: store
 ; CHECK: ret void
 }
 
@@ -94,13 +90,14 @@ entry:
   store i16 1126, i16* %wptr2, align 1
   store i16 5656, i16* %wptr3, align 1
 
-; CHECK-NOT: store i32 5, i32* %ptr
-
+; CHECK-NEXT: entry:
+; CHECK-NEXT: store i32 84280422, i32* %ptr
+; All the intermediate stored bytes that are fully contained in the i32 memory
+; region get merged to the i32 store.
+; CHECK-NOT: store
 ; CHECK: store i16 1456, i16* %wptrm1, align 1
-; CHECK: store i16 1346, i16* %wptr, align 1
-; CHECK: store i16 1756, i16* %wptr1, align 1
-; CHECK: store i16 1126, i16* %wptr2, align 1
-; CHECK: store i16 5656, i16* %wptr3, align 1
+; CHECK-NEXT: store i16 5656, i16* %wptr3, align 1
+; CHECK-NOT: store
 
   ret void
 
@@ -132,7 +129,14 @@ entry:
   store i16 1126, i16* %wptr2, align 1
   store i16 5656, i16* %wptr3, align 1
 
-; CHECK: store i32 5, i32* %ptr
+; CHECK-NEXT: entry:
+; Top (first) byte is 0x00 because we load from it in between the two stores.
+; CHECK-NEXT:  store i32 394342, i32* %ptr
+; CHECK-NOT: store
+; CHECK:  store i16 1456, i16* %wptrm1, align 1
+; CHECK-NEXT: store i16 1346, i16* %wptr, align 1
+; CHECK-NEXT:  store i16 5656, i16* %wptr3, align 1
+; CHECK-NOT: store
 
   ret i8 %v
 
