@@ -11,7 +11,6 @@ define i32 @fptouint(float %a) nounwind {
 entry:
 ; CHECK: fptouint
 ; CHECK: trunc.w.s 
-; CHECK: trunc.w.s 
   fptoui float %a to i32		; <i32>:0 [#uses=1]
   ret i32 %0
 }

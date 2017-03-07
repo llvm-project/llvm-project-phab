@@ -118,20 +118,8 @@ entry:
   %0 = load half, half * @h, align 2
   %1 = fptoui half %0 to i32
 
-; MIPS32:       lwc1 $f[[FC:[0-9]+]], %lo($CPI{{[0-9]+}}_{{[0-9]+}})
-; MIPS64-N32:   lwc1 $f[[FC:[0-9]+]], %got_ofst(.LCPI{{[0-9]+}}_{{[0-9]+}})
-; MIPS64-N64:   lwc1 $f[[FC:[0-9]+]], %got_ofst(.LCPI{{[0-9]+}}_{{[0-9]+}})
-
 ; ALL:          lh $[[R0:[0-9]+]]
 ; ALL:          fill.h $w[[W0:[0-9]+]], $[[R0]]
-; ALL:          fexupr.w $w[[W1:[0-9]+]], $w[[W0]]
-; ALL:          copy_s.w $[[R1:[0-9]+]], $w[[W1]][0]
-; ALL:          mtc1 $[[R1]], $f[[F0:[0-9]+]]
-; MIPSR6:       cmp.lt.s  $f[[F1:[0-9]+]], $f[[F0]], $f[[FC]]
-; ALL:          sub.s $f[[F2:[0-9]+]], $f[[F0]], $f[[FC]]
-; ALL:          mfc1 $[[R2:[0-9]]], $f[[F2]]
-; ALL:          fill.w $w[[W2:[0-9]+]], $[[R2]]
-; ALL:          fexdo.h $w[[W3:[0-9]+]], $w[[W2]], $w[[W2]]
 ; ALL:          fexupr.w $w[[W4:[0-9]+]], $w[[W3]]
 ; ALL:          fexupr.d $w[[W5:[0-9]+]], $w[[W4]]
 
@@ -145,43 +133,6 @@ entry:
 
 ; ALL:          trunc.w.d $f[[F4:[0-9]+]], $f[[F3]]
 ; ALL:          mfc1 $[[R4:[0-9]+]], $f[[F4]]
-; ALL:          fexupr.d $w[[W6:[0-9]+]], $w[[W1]]
-
-; MIPS32:       copy_s.w $[[R5:[0-9]+]], $w[[W6]][0]
-; MIPS32:       mtc1 $[[R5]], $f[[F5:[0-9]+]]
-; MIPS32:       copy_s.w $[[R6:[0-9]+]], $w[[W6]][1]
-; MIPS32:       mthc1 $[[R6]], $f[[F5]]
-
-; MIPS64:       copy_s.d $[[R2:[0-9]+]], $w[[W2]][0]
-; MIPS64:       dmtc1 $[[R2]], $f[[F5:[0-9]+]]
-
-; ALL:          trunc.w.d $f[[F6:[0-9]]], $f[[F5]]
-; ALL:          mfc1 $[[R7:[0-9]]], $f[[F6]]
-
-; MIPS32R5-O32: lw $[[R13:[0-9]+]], %got($CPI{{[0-9]+}}_{{[0-9]+}})
-; MIPS32R5-O32: addiu $[[R14:[0-9]+]], $[[R13]], %lo($CPI{{[0-9]+}}_{{[0-9]+}})
-
-; MIPS64R5-N32: lw $[[R13:[0-9]+]], %got_page(.LCPI{{[0-9]+}}_{{[0-9]+}})
-; MIPS64R5-N32: addiu $[[R14:[0-9]+]], $[[R13]], %got_ofst(.LCPI{{[0-9]+}}_{{[0-9]+}})
-
-; MIPS64R5-N64: ld $[[R13:[0-9]+]], %got_page(.LCPI{{[0-9]+}}_{{[0-9]+}})
-; MIPS64R5-N64: daddiu $[[R14:[0-9]+]], $[[R13]], %got_ofst(.LCPI{{[0-9]+}}_{{[0-9]+}})
-
-; ALL:          lui $[[R8:[0-9]+]], 32768
-; ALL:          xor $[[R9:[0-9]+]], $[[R4]], $[[R8]]
-
-; MIPSR5:       lh $[[R15:[0-9]+]], 0($[[R14]])
-; MIPSR5:       fill.h $w[[W7:[0-9]+]], $[[R15]]
-; MIPSR5:       fexupr.w $w[[W8:[0-9]+]], $w[[W7]]
-; MIPSR5:       copy_s.w $[[R16:[0-9]+]], $w[[W8]][0]
-; MIPSR5:       mtc1 $[[R16]], $f[[F7:[0-9]+]]
-; MIPSR5:       c.olt.s $f[[F0]], $f[[F7]]
-; MIPSR5:       movt $[[R9]], $[[R7]], $fcc0
-
-; MIPSR6:       mfc1 $[[R10:[0-9]+]], $f[[F1]]
-; MIPSR6:       seleqz $[[R11:[0-9]]], $[[R9]], $[[R10]]
-; MIPSR6:       selnez $[[R12:[0-9]]], $[[R7]], $[[R10]]
-; MIPSR6:       or $2, $[[R12]], $[[R11]]
 
   ret i32 %1
 }
@@ -214,35 +165,16 @@ define void @uitofp(i32 %a) {
 entry:
 ; ALL-LABEL: uitofp:
 
-; MIPS32-O32: ldc1 $f[[F0:[0-9]+]], %lo($CPI{{[0-9]+}}_{{[0-9]+}})
-; MIPS32-O32: ldc1 $f[[F1:[0-9]+]], 0($sp)
-
-; MIPS64-N32: ldc1 $f[[F0:[0-9]+]], %got_ofst(.LCPI{{[0-9]+}}_{{[0-9]+}})
-; MIPS64-N32: ldc1 $f[[F1:[0-9]+]], 8($sp)
-
-; MIPS64-N64: ldc1 $f[[F0:[0-9]+]], %got_ofst(.LCPI{{[0-9]+}}_{{[0-9]+}})
-; MIPS64-N64: ldc1 $f[[F1:[0-9]+]], 8($sp)
-
-; MIPSR5:     sub.d $f[[F2:[0-9]+]], $f[[F1]], $f[[F0]]
-; MIPSR6-O32: sub.d $f[[F2:[0-9]+]], $f[[F0]], $f[[F1]]
-; MIPSR6-N32: sub.d $f[[F2:[0-9]+]], $f[[F1]], $f[[F0]]
-; MIPSR6-N64: sub.d $f[[F2:[0-9]+]], $f[[F1]], $f[[F0]]
-
-; MIPS32:     mfc1 $[[R0:[0-9]+]], $f[[F2]]
-; MIPS32:     fill.w $w[[W0:[0-9]+]], $[[R0]]
-; MIPS32:     mfhc1 $[[R1:[0-9]+]], $f[[F2]]
-; MIPS32:     insert.w $w[[W0]][1], $[[R1]]
-; MIPS32:     insert.w $w[[W0]][3], $[[R1]]
-
-; MIPS64-N64: ld $[[R3:[0-9]+]], %got_disp(h)
-; MIPS64-N32: lw $[[R3:[0-9]+]], %got_disp(h)
-; MIPS64:     dmfc1 $[[R1:[0-9]+]], $f[[F2]]
-; MIPS64:     fill.d $w[[W0:[0-9]+]], $[[R1]]
-
-; ALL:        fexdo.w $w[[W1:[0-9]+]], $w[[W0]], $w[[W0]]
-; ALL:        fexdo.h $w[[W2:[0-9]+]], $w[[W1]], $w[[W1]]
-
 ; MIPS32:     lw $[[R3:[0-9]+]], %got(h)
+; MIPS32:     fill.w $w[[W0:[0-9]+]], $4
+; MIPS32:     ffint_u.w $w[[W1:[0-9]+]], $w[[W0]]
+
+; MIPS64-DAG:     sll $[[R1:[0-9]+]], $4, 0
+; MIPS64-N32-DAG: lw $[[R3:[0-9]+]], %got_disp(h)
+; MIPS64-N64-DAG: ld $[[R3:[0-9]+]], %got_disp(h)
+; MIPS64-DAG:     fill.w $w[[W0:[0-9]+]], $[[R1]]
+
+; ALL:        fexdo.h $w[[W2:[0-9]+]], $w[[W1]], $w[[W1]]
 
 ; ALL:        copy_u.h $[[R2:[0-9]+]], $w[[W2]]
 ; ALL:        sh $[[R2]], 0($[[R3]])

@@ -32,6 +32,7 @@ def SDT_MipsFPCmp : SDTypeProfile<0, 3, [SDTCisSameAs<0, 1>, SDTCisFP<1>,
 def SDT_MipsCMovFP : SDTypeProfile<1, 3, [SDTCisSameAs<0, 1>, SDTCisVT<2, i32>,
                                           SDTCisSameAs<1, 3>]>;
 def SDT_MipsTruncIntFP : SDTypeProfile<1, 1, [SDTCisFP<0>, SDTCisFP<1>]>;
+def SDT_MipsConvertIntFP : SDTypeProfile<1, 1, [SDTCisFP<0>, SDTCisFP<1>]>;
 def SDT_MipsBuildPairF64 : SDTypeProfile<1, 2, [SDTCisVT<0, f64>,
                                                 SDTCisVT<1, i32>,
                                                 SDTCisSameAs<1, 2>]>;
@@ -45,6 +46,7 @@ def MipsCMovFP_F : SDNode<"MipsISD::CMovFP_F", SDT_MipsCMovFP, [SDNPInGlue]>;
 def MipsFPBrcond : SDNode<"MipsISD::FPBrcond", SDT_MipsFPBrcond,
                           [SDNPHasChain, SDNPOptInGlue]>;
 def MipsTruncIntFP : SDNode<"MipsISD::TruncIntFP", SDT_MipsTruncIntFP>;
+def MipsConvertIntFP : SDNode<"MipsISD::ConvertIntFP", SDT_MipsConvertIntFP>;
 def MipsBuildPairF64 : SDNode<"MipsISD::BuildPairF64", SDT_MipsBuildPairF64>;
 def MipsExtractElementF64 : SDNode<"MipsISD::ExtractElementF64",
                                    SDT_MipsExtractElementF64>;
@@ -247,6 +249,12 @@ class C_COND_FT<string CondStr, string Typestr, RegisterOperand RC,
   let hasFCCRegOperand = 1;
 }
 
+class UIntToFp_FT<RegisterOperand OutRC, RegisterOperand InRC> :
+  PseudoSE<(outs OutRC:$dst), (ins InRC:$src),
+          [(set OutRC:$dst, (uint_to_fp InRC:$src))]> {
+  let usesCustomInserter = 1;
+}
+
 
 multiclass C_COND_M<string TypeStr, RegisterOperand RC, bits<5> fmt,
                     InstrItinClass itin> {
@@ -419,6 +427,11 @@ let isPseudo = 1, isCodeGenOnly = 1 in {
   def PseudoCVT_D64_W : ABSS_FT<"", FGR64Opnd, GPR32Opnd, II_CVT>;
   def PseudoCVT_D64_L : ABSS_FT<"", FGR64Opnd, GPR64Opnd, II_CVT>;
 }
+
+def UInt32ToFp32Pseudo : UIntToFp_FT<FGR32Opnd, GPR32Opnd>;
+def UInt32ToFp64Pseudo_32 : UIntToFp_FT<AFGR64Opnd, GPR32Opnd>, FGR_32;
+def UInt32ToFp64Pseudo_64 : UIntToFp_FT<FGR64Opnd, GPR32Opnd>, FGR_64;
+def UInt64ToFp64Pseudo_64 : UIntToFp_FT<FGR64Opnd, GPR64Opnd>, FGR_64;
 
 def FABS_S : MMRel, ABSS_FT<"abs.s", FGR32Opnd, FGR32Opnd, II_ABS, fabs>,
              ABSS_FM<0x5, 16>;
@@ -782,6 +795,8 @@ let AdditionalPredicates = [NotInMicroMips] in {
 //===----------------------------------------------------------------------===//
 def : MipsPat<(f32 fpimm0), (MTC1 ZERO)>;
 def : MipsPat<(f32 fpimm0neg), (FNEG_S (MTC1 ZERO))>;
+
+def : MipsPat<(MipsConvertIntFP FGR64Opnd:$src), (CVT_D64_L FGR64Opnd:$src)>, FGR_64;
 
 def : MipsPat<(f32 (sint_to_fp GPR32Opnd:$src)),
               (PseudoCVT_S_W GPR32Opnd:$src)>;

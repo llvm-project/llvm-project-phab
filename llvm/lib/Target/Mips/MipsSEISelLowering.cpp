@@ -1224,6 +1224,16 @@ MipsSETargetLowering::EmitInstrWithCustomInserter(MachineInstr &MI,
     return emitFPEXTEND_PSEUDO(MI, BB, true);
   case Mips::MSA_FP_ROUND_D_PSEUDO:
     return emitFPROUND_PSEUDO(MI, BB, true);
+  case Mips::MSA_UINT_TO_FP:
+    return emitUINT_TO_FP_MSA(MI, BB);
+  case Mips::UInt32ToFp32Pseudo:
+    return emitUINT_TO_FP(MI, BB, Mips::CVT_S_W, Mips::FADD_S, false);
+  case Mips::UInt32ToFp64Pseudo_32:
+    return emitUINT_TO_FP(MI, BB, Mips::CVT_D32_W, Mips::FADD_D32, false);
+  case Mips::UInt32ToFp64Pseudo_64:
+    return emitUINT_TO_FP(MI, BB, Mips::CVT_D64_W, Mips::FADD_D64, true);
+  case Mips::UInt64ToFp64Pseudo_64:
+    return emitUINT_TO_FP(MI, BB, Mips::CVT_D64_L, Mips::FADD_D64, true);
   }
 }
 
@@ -3842,6 +3852,121 @@ MipsSETargetLowering::emitFPEXTEND_PSEUDO(MachineInstr &MI,
 
   MI.eraseFromParent();
   return BB;
+}
+
+// Emit the MSA_UINT_TO_FP pseudo instruction.
+MachineBasicBlock *
+MipsSETargetLowering::emitUINT_TO_FP_MSA(MachineInstr &MI,
+                                         MachineBasicBlock *BB) const {
+
+  const TargetInstrInfo *TII = Subtarget.getInstrInfo();
+  MachineRegisterInfo &RegInfo = BB->getParent()->getRegInfo();
+  const TargetRegisterClass *RC = &Mips::MSA128WRegClass;
+  DebugLoc DL = MI.getDebugLoc();
+  unsigned Wd1 = RegInfo.createVirtualRegister(RC);
+  unsigned Wd2 = RegInfo.createVirtualRegister(RC);
+  unsigned Wd3 = RegInfo.createVirtualRegister(&Mips::MSA128HRegClass);
+  BuildMI(*BB, MI, DL, TII->get(Mips::FILL_W), Wd1)
+      .addReg(MI.getOperand(1).getReg());
+  BuildMI(*BB, MI, DL, TII->get(Mips::FFINT_U_W), Wd2).addReg(Wd1);
+  BuildMI(*BB, MI, DL, TII->get(Mips::FEXDO_H), MI.getOperand(0).getReg())
+      .addReg(Wd2)
+      .addReg(Wd2);
+
+  MI.eraseFromParent();
+  return BB;
+}
+
+// Emit the UIntToFpPseudo pseudo instruction.
+MachineBasicBlock *MipsSETargetLowering::emitUINT_TO_FP(MachineInstr &MI,
+                                                        MachineBasicBlock *BB,
+                                                        unsigned CvtOp,
+                                                        unsigned FaddOp,
+                                                        bool IsFP64) const {
+
+  const TargetInstrInfo *TII = Subtarget.getInstrInfo();
+  MachineRegisterInfo &RegInfo = BB->getParent()->getRegInfo();
+  DebugLoc DL = MI.getDebugLoc();
+  const BasicBlock *LLVM_BB = BB->getBasicBlock();
+  MachineFunction *MF = BB->getParent();
+  MachineBasicBlock *newMBB = MF->CreateMachineBasicBlock(LLVM_BB);
+  MachineBasicBlock *exitMBB = MF->CreateMachineBasicBlock(LLVM_BB);
+  MachineFunction::iterator It = ++BB->getIterator();
+  MF->insert(It, newMBB);
+  MF->insert(It, exitMBB);
+
+  // Transfer the remainder of BB and its successor edges to exitMBB.
+  exitMBB->splice(exitMBB->begin(), BB,
+                  std::next(MachineBasicBlock::iterator(MI)), BB->end());
+  exitMBB->transferSuccessorsAndUpdatePHIs(BB);
+
+  BB->addSuccessor(newMBB);
+  BB->addSuccessor(exitMBB);
+  newMBB->addSuccessor(exitMBB);
+
+  unsigned Dest = MI.getOperand(0).getReg();
+  unsigned Src = MI.getOperand(1).getReg();
+
+  const TargetRegisterClass *FPRegClass = RegInfo.getRegClass(Dest);
+  const TargetRegisterClass *GPRegClass = RegInfo.getRegClass(Src);
+
+  const bool IsSrc64 = GPRegClass == &Mips::GPR64RegClass;
+  const bool IsDest64 = FPRegClass != &Mips::FGR32RegClass;
+
+  const bool IsFGR64onMips64 = Subtarget.hasMips64() && IsFP64;
+  const bool IsFGR64onMips32 = !Subtarget.hasMips64() && IsFP64;
+
+  unsigned FPVReg1 = RegInfo.createVirtualRegister(FPRegClass);
+  unsigned FPVReg2 = RegInfo.createVirtualRegister(FPRegClass);
+  unsigned FPVReg3 = RegInfo.createVirtualRegister(FPRegClass);
+  unsigned FPVReg4 = RegInfo.createVirtualRegister(FPRegClass);
+  unsigned GPVReg1 = RegInfo.createVirtualRegister(GPRegClass);
+  unsigned GPVReg2 = RegInfo.createVirtualRegister(GPRegClass);
+
+  const uint64_t AddValue = IsSrc64 ? 0x43F0 : 0x41F0;
+
+  if (Subtarget.hasMips64() && IsSrc64)
+    BuildMI(BB, DL, TII->get(Mips::DMTC1), FPVReg1).addReg(Src);
+  else
+    BuildMI(BB, DL, TII->get(Mips::MTC1), FPVReg1).addReg(Src);
+
+  BuildMI(BB, DL, TII->get(CvtOp), FPVReg2).addReg(FPVReg1);
+  BuildMI(BB, DL, TII->get(Mips::BGEZ))
+      .addReg(Src, RegState::Kill)
+      .addMBB(exitMBB);
+
+  BuildMI(newMBB, DL, TII->get(Mips::LUi), GPVReg1).addImm(AddValue);
+
+  if (IsDest64) {
+    if (!IsFP64)
+      BuildMI(newMBB, DL, TII->get(Mips::BuildPairF64), FPVReg3)
+          .addReg(Mips::ZERO)
+          .addReg(GPVReg1);
+    else if (IsFGR64onMips32)
+      BuildMI(newMBB, DL, TII->get(Mips::BuildPairF64_64), FPVReg3)
+          .addReg(Mips::ZERO_64)
+          .addReg(GPVReg1);
+    else if (IsFGR64onMips64) {
+      BuildMI(newMBB, DL, TII->get(Mips::DSLL), GPVReg2)
+          .addReg(GPVReg1)
+          .addImm(32);
+      BuildMI(newMBB, DL, TII->get(Mips::DMTC1), FPVReg3).addReg(GPVReg2);
+    }
+  } else
+    BuildMI(newMBB, DL, TII->get(Mips::MTC1), FPVReg3).addReg(GPVReg1);
+
+  BuildMI(newMBB, DL, TII->get(FaddOp), FPVReg4)
+      .addReg(FPVReg2)
+      .addReg(FPVReg3);
+
+  BuildMI(*exitMBB, exitMBB->begin(), DL, TII->get(Mips::PHI), Dest)
+      .addReg(FPVReg2)
+      .addMBB(BB)
+      .addReg(FPVReg4)
+      .addMBB(newMBB);
+
+  MI.eraseFromParent();
+  return exitMBB;
 }
 
 // Emit the FEXP2_W_1 pseudo instructions.
