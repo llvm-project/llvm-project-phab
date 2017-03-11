@@ -475,7 +475,7 @@ public:
 
   /// getBlockNumbered - MachineBasicBlocks are automatically numbered when they
   /// are inserted into the machine function.  The block number for a machine
-  /// basic block can be found by using the MBB::getBlockNumber method, this
+  /// basic block can be found by using the MBB::getNumber method, this
   /// method provides the inverse mapping.
   ///
   MachineBasicBlock *getBlockNumbered(unsigned N) const {

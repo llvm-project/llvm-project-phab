@@ -15,6 +15,7 @@
 #define LLVM_CODEGEN_MACHINEFRAMEINFO_H
 
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/Support/DataTypes.h"
 #include <cassert>
 #include <vector>
@@ -25,7 +26,6 @@ class DataLayout;
 class TargetRegisterClass;
 class Type;
 class MachineFunction;
-class MachineBasicBlock;
 class TargetFrameLowering;
 class TargetMachine;
 class BitVector;
@@ -272,10 +272,22 @@ class MachineFrameInfo {
   /// stack objects like arguments so we can't treat them as immutable.
   bool HasTailCall = false;
 
+  // FIXME: ShrinkWrap2: Deprecate.
   /// Not null, if shrink-wrapping found a better place for the prologue.
   MachineBasicBlock *Save = nullptr;
   /// Not null, if shrink-wrapping found a better place for the epilogue.
   MachineBasicBlock *Restore = nullptr;
+
+public:
+  using CalleeSavedMap =
+      DenseMap<MachineBasicBlock *, std::vector<CalleeSavedInfo>>;
+private:
+  /// If any, contains better save points for the prologue found by
+  /// shrink-wrapping.
+  CalleeSavedMap Saves;
+  /// If any, contains better restore points for the epilogue found by
+  /// shrink-wrapping.
+  CalleeSavedMap Restores;
 
 public:
   explicit MachineFrameInfo(unsigned StackAlignment, bool StackRealignable,
@@ -647,10 +659,19 @@ public:
 
   void setCalleeSavedInfoValid(bool v) { CSIValid = v; }
 
+  // FIXME: ShrinkWrap2: Merge with multiple points.
   MachineBasicBlock *getSavePoint() const { return Save; }
   void setSavePoint(MachineBasicBlock *NewSave) { Save = NewSave; }
   MachineBasicBlock *getRestorePoint() const { return Restore; }
   void setRestorePoint(MachineBasicBlock *NewRestore) { Restore = NewRestore; }
+
+  // FIXME: ShrinkWrap2: Merge with old shrink-wrapping.
+  // FIXME: ShrinkWrap2: Provide setSaves / setRestores instead of non-const ref
+  // to the map?
+  CalleeSavedMap &getSaves() { return Saves; }
+  CalleeSavedMap &getRestores() { return Restores; }
+  const CalleeSavedMap &getSaves() const { return Saves; }
+  const CalleeSavedMap &getRestores() const { return Restores; }
 
   /// Return a set of physical registers that are pristine.
   ///

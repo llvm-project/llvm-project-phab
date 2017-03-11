@@ -107,6 +107,7 @@ private:
   unsigned MinCSFrameIndex = std::numeric_limits<unsigned>::max();
   unsigned MaxCSFrameIndex = 0;
 
+  // FIXME: ShrinkWrap2: Merge the shrink-wrapping logic here.
   // Save and Restore blocks of the current function. Typically there is a
   // single save block, unless Windows EH funclets are involved.
   MBBVector SaveBlocks;
@@ -328,6 +329,84 @@ void PEI::calculateSaveRestoreBlocks(MachineFunction &Fn) {
   }
 }
 
+/// insertCSRSpills - Insert spill code for callee saved registers used in the
+/// basic block.
+static void insertCSRSpills(MachineBasicBlock &Save,
+                            const std::vector<CalleeSavedInfo> &CSI) {
+  MachineFunction &Fn = *Save.getParent();
+
+  assert(!CSI.empty() && "No spills to insert.");
+
+  const TargetInstrInfo &TII = *Fn.getSubtarget().getInstrInfo();
+  const TargetRegisterInfo *TRI = Fn.getSubtarget().getRegisterInfo();
+
+  MachineBasicBlock::iterator I = Save.begin();
+  // FIXME: ShrinkWrap2: Spill using target interface when X86's target stops
+  // inserting push / pop operations everywhere.
+  // if (!TFI->spillCalleeSavedRegisters(Save, I, CSI, TRI)) {
+  for (unsigned i = 0, e = CSI.size(); i != e; ++i) {
+    // Insert the spill to the stack frame.
+    unsigned Reg = CSI[i].getReg();
+
+    // Update liveness.
+    if (!Fn.getRegInfo().isLiveIn(Reg))
+      Save.addLiveIn(Reg);
+
+    // FIXME: ShrinkWrap2: Check if can be killed.
+    const TargetRegisterClass *RC = TRI->getMinimalPhysRegClass(Reg);
+    TII.storeRegToStackSlot(Save, I, Reg, false, CSI[i].getFrameIdx(), RC, TRI);
+  }
+  // }
+}
+
+/// insertCSRSpills - Insert restore code for callee saved registers used in the
+/// basic block.
+static void insertCSRRestores(MachineBasicBlock &Restore,
+                              const std::vector<CalleeSavedInfo> &CSI) {
+  MachineFunction &Fn = *Restore.getParent();
+
+  assert(!CSI.empty() && "No restores to insert.");
+
+  const TargetInstrInfo &TII = *Fn.getSubtarget().getInstrInfo();
+  const TargetRegisterInfo *TRI = Fn.getSubtarget().getRegisterInfo();
+
+  // Restore using target interface.
+  auto I = Restore.end();
+
+  // Skip over all terminator instructions, which are part of the return
+  // sequence.
+  MachineBasicBlock::iterator I2 = I;
+  while (I2 != Restore.begin() && (--I2)->isTerminator())
+    I = I2;
+
+  bool AtStart = I == Restore.begin();
+  MachineBasicBlock::iterator BeforeI = I;
+  if (!AtStart)
+    --BeforeI;
+
+  // Restore all registers immediately before the return and any terminators
+  // that precede it.
+  // FIXME: ShrinkWrap2: Spill using target interface when X86's target stops
+  // inserting push / pop operations everywhere.
+  // if (!TFI->restoreCalleeSavedRegisters(Restore, I, CSI, TRI)) {
+  for (unsigned i = 0, e = CSI.size(); i != e; ++i) {
+    unsigned Reg = CSI[i].getReg();
+    const TargetRegisterClass *RC = TRI->getMinimalPhysRegClass(Reg);
+    TII.loadRegFromStackSlot(Restore, I, Reg, CSI[i].getFrameIdx(), RC, TRI);
+    assert(I != Restore.begin() &&
+           "loadRegFromStackSlot didn't insert any code!");
+    // Insert in reverse order. loadRegFromStackSlot can insert multiple
+    // instructions.
+    if (AtStart)
+      I = Restore.begin();
+    else {
+      I = BeforeI;
+      ++I;
+    }
+  }
+  // }
+}
+
 static void assignCalleeSavedSpillSlots(MachineFunction &F,
                                         const BitVector &SavedRegs,
                                         unsigned &MinCSFrameIndex,
@@ -337,16 +416,22 @@ static void assignCalleeSavedSpillSlots(MachineFunction &F,
 
   const TargetRegisterInfo *RegInfo = F.getSubtarget().getRegisterInfo();
   const MCPhysReg *CSRegs = RegInfo->getCalleeSavedRegs(&F);
+  MachineFrameInfo &MFI = F.getFrameInfo();
 
   std::vector<CalleeSavedInfo> CSI;
   for (unsigned i = 0; CSRegs[i]; ++i) {
     unsigned Reg = CSRegs[i];
-    if (SavedRegs.test(Reg))
+    if (SavedRegs.test(Reg)) {
+      // FIXME: ShrinkWrap2: Quick and dirty.
+      // Skip the frame pointer on X86.
+      if ((!MFI.getSaves().empty()) && Reg == RegInfo->getFrameRegister(F))
+        continue;
+
       CSI.push_back(CalleeSavedInfo(Reg));
+    }
   }
 
   const TargetFrameLowering *TFI = F.getSubtarget().getFrameLowering();
-  MachineFrameInfo &MFI = F.getFrameInfo();
   if (!TFI->assignCalleeSavedSpillSlots(F, RegInfo, CSI)) {
     // If target doesn't implement this, use generic code.
 
@@ -533,6 +618,66 @@ static void insertCSRSpillsAndRestores(MachineFunction &Fn,
   }
 }
 
+// FIXME: ShrinkWrap2: Name.
+static void doSpillCalleeSavedRegsShrinkWrap2(MachineFunction &Fn,
+                                              RegScavenger *RS,
+                                              unsigned &MinCSFrameIndex,
+                                              unsigned &MaxCSFrameIndex,
+                                              const MBBVector &SaveBlocks,
+                                              const MBBVector &RestoreBlocks) {
+  const TargetRegisterInfo &TRI = *Fn.getSubtarget().getRegisterInfo();
+  MachineFrameInfo &MFI = Fn.getFrameInfo();
+  MachineFrameInfo::CalleeSavedMap &Saves = MFI.getSaves();
+  MachineFrameInfo::CalleeSavedMap &Restores = MFI.getRestores();
+
+  // FIXME: ShrinkWrap2: We already gathered all the CSRs in ShrinkWrap. Reuse
+  // somehow?
+  BitVector SavedRegs;
+  SavedRegs.resize(TRI.getNumRegs());
+  for (auto &Save : Saves)
+    for (const CalleeSavedInfo &CSI : Save.second)
+      SavedRegs.set(CSI.getReg());
+
+  // FIXME: ShrinkWrap2: Re-use stack slots. What about target-specific hooks?
+  assignCalleeSavedSpillSlots(Fn, SavedRegs, MinCSFrameIndex, MaxCSFrameIndex);
+
+  MFI.setCalleeSavedInfoValid(true);
+
+  if (Fn.getFunction()->hasFnAttribute(Attribute::Naked))
+    return;
+
+  // FIXME: ShrinkWrap2: This is awful. We first call
+  // assignCalleeSavedSpillSlots, that fills MFI.CalleeSavedInfo which is used
+  // for the ENTIRE function. Then, we need to reassign the FrameIdx back to the
+  // Saves / Restores map.
+  const std::vector<CalleeSavedInfo> &CSIs = MFI.getCalleeSavedInfo();
+  for (auto *Map : {&Saves, &Restores}) {
+    for (auto &Elt : *Map) {
+      for (const CalleeSavedInfo &CSI : Elt.second) {
+        unsigned Reg = CSI.getReg();
+        // Look for the register in the assigned CSIs, and reassign it in the
+        // map.
+        auto It = std::find_if(CSIs.begin(), CSIs.end(),
+                               [&](const CalleeSavedInfo &NewCSI) {
+                                 return NewCSI.getReg() == Reg;
+                               });
+        if (It != CSIs.end())
+          // FIXME: ShrinkWrap2: const_cast...
+          const_cast<CalleeSavedInfo &>(CSI).setFrameIdx(It->getFrameIdx());
+      }
+    }
+  }
+
+  for (auto &Save : Saves) {
+    insertCSRSpills(*Save.first, Save.second);
+    // FIXME: ShrinkWrap2: Update liveness only after all spills / restores?
+    updateLiveness(Fn);
+  }
+
+  for (auto &Restore : Restores)
+    insertCSRRestores(*Restore.first, Restore.second);
+}
+
 static void doSpillCalleeSavedRegs(MachineFunction &Fn, RegScavenger *RS,
                                    unsigned &MinCSFrameIndex,
                                    unsigned &MaxCSFrameIndex,
@@ -540,8 +685,15 @@ static void doSpillCalleeSavedRegs(MachineFunction &Fn, RegScavenger *RS,
                                    const MBBVector &RestoreBlocks) {
   const Function *F = Fn.getFunction();
   const TargetFrameLowering *TFI = Fn.getSubtarget().getFrameLowering();
+  MachineFrameInfo &MFI = Fn.getFrameInfo();
+
   MinCSFrameIndex = std::numeric_limits<unsigned>::max();
   MaxCSFrameIndex = 0;
+
+  // FIXME: ShrinkWrap2: Share code somehow.
+  if (!MFI.getSaves().empty())
+    return doSpillCalleeSavedRegsShrinkWrap2(
+        Fn, RS, MinCSFrameIndex, MaxCSFrameIndex, SaveBlocks, RestoreBlocks);
 
   // Determine which of the registers in the callee save list should be saved.
   BitVector SavedRegs;
@@ -974,6 +1126,11 @@ void PEI::calculateFrameObjectOffsets(MachineFunction &Fn) {
 void PEI::insertPrologEpilogCode(MachineFunction &Fn) {
   const TargetFrameLowering &TFI = *Fn.getSubtarget().getFrameLowering();
 
+  // FIXME: ShrinkWrap2: Stack alginment / adjustment / etc. go in emitPrologue.
+  // For now, we add these at the entry / exit of the function, and we spill
+  // callee saves using our own blocks. There should be a way to shrink-wrap the
+  // stack operations as well.
+
   // Add prologue to the function...
   for (MachineBasicBlock *SaveBlock : SaveBlocks)
     TFI.emitPrologue(Fn, *SaveBlock);
@@ -982,9 +1139,11 @@ void PEI::insertPrologEpilogCode(MachineFunction &Fn) {
   for (MachineBasicBlock *RestoreBlock : RestoreBlocks)
     TFI.emitEpilogue(Fn, *RestoreBlock);
 
+  // FIXME: ShrinkWrap2: Will this still work?
   for (MachineBasicBlock *SaveBlock : SaveBlocks)
     TFI.inlineStackProbe(Fn, *SaveBlock);
 
+  // FIXME: ShrinkWrap2: Will this still work?
   // Emit additional code that is required to support segmented stacks, if
   // we've been asked for it.  This, when linked with a runtime with support
   // for segmented stacks (libgcc is one), will result in allocating stack
@@ -994,6 +1153,7 @@ void PEI::insertPrologEpilogCode(MachineFunction &Fn) {
       TFI.adjustForSegmentedStacks(Fn, *SaveBlock);
   }
 
+  // FIXME: ShrinkWrap2: Will this still work?
   // Emit additional code that is required to explicitly handle the stack in
   // HiPE native code (if needed) when loaded in the Erlang/OTP runtime. The
   // approach is rather similar to that of Segmented Stacks, but it uses a
