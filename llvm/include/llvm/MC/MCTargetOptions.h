@@ -23,6 +23,12 @@ enum class ExceptionHandling {
   WinEH,    /// Windows Exception Handling
 };
 
+enum class AsmSourceOutput {
+    None,
+    Alone,
+    WithDebug
+};
+
 class StringRef;
 
 class MCTargetOptions {
@@ -47,6 +53,7 @@ public:
   bool ShowMCEncoding : 1;
   bool ShowMCInst : 1;
   bool AsmVerbose : 1;
+  int AsmSource : 2;
 
   /// Preserve Comments in Assembly.
   bool PreserveAsmComments : 1;
@@ -82,6 +89,7 @@ inline bool operator==(const MCTargetOptions &LHS, const MCTargetOptions &RHS) {
           ARE_EQUAL(ShowMCEncoding) &&
           ARE_EQUAL(ShowMCInst) &&
           ARE_EQUAL(AsmVerbose) &&
+          ARE_EQUAL(AsmSource) &&
           ARE_EQUAL(DwarfVersion) &&
           ARE_EQUAL(ABIName) &&
           ARE_EQUAL(IASSearchPaths));

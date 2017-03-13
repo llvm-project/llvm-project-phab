@@ -17,7 +17,7 @@ MCTargetOptions::MCTargetOptions()
       MCFatalWarnings(false), MCNoWarn(false), MCNoDeprecatedWarn(false),
       MCSaveTempLabels(false), MCUseDwarfDirectory(false),
       MCIncrementalLinkerCompatible(false), MCPIECopyRelocations(false),
-      ShowMCEncoding(false), ShowMCInst(false), AsmVerbose(false),
+      ShowMCEncoding(false), ShowMCInst(false), AsmVerbose(false), AsmSource(0),
       PreserveAsmComments(true) {}
 
 StringRef MCTargetOptions::getABIName() const {

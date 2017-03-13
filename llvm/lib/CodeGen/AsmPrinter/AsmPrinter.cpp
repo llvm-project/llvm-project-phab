@@ -15,6 +15,7 @@
 #include "CodeViewDebug.h"
 #include "DwarfDebug.h"
 #include "DwarfException.h"
+#include "SourceInterleave.h"
 #include "WinException.h"
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/APInt.h"
@@ -119,6 +120,11 @@ static const char *const EHTimerDescription = "DWARF Exception Writer";
 static const char *const CodeViewLineTablesGroupName = "linetables";
 static const char *const CodeViewLineTablesGroupDescription =
   "CodeView Line Tables";
+
+static const char *const SourceInterleaveGroupName = "source printer";
+static const char *const SourceInterleaveGroupDescription = "Interleave source code comments with instructions";
+static const char *const SourceInterleaveTimerName = "interleave_source";
+static const char *const SourceInterleaveTimerDescription = "Source interleaver";
 
 STATISTIC(EmittedInsts, "Number of machine instrs printed");
 
@@ -294,17 +300,24 @@ bool AsmPrinter::doInitialization(Module &M) {
   if (MAI->doesSupportDebugInformation()) {
     bool EmitCodeView = MMI->getModule()->getCodeViewFlag();
     if (EmitCodeView && (TM.getTargetTriple().isKnownWindowsMSVCEnvironment() ||
-                         TM.getTargetTriple().isWindowsItaniumEnvironment())) {
-      Handlers.push_back(HandlerInfo(new CodeViewDebug(this),
-                                     DbgTimerName, DbgTimerDescription,
-                                     CodeViewLineTablesGroupName,
-                                     CodeViewLineTablesGroupDescription));
+                         TM.getTargetTriple().isWindowsItaniumEnvironment()) &&
+        TM.Options.MCOptions.AsmSource != (int)llvm::AsmSourceOutput::Alone) {
+      Handlers.push_back(HandlerInfo(
+          new CodeViewDebug(this), DbgTimerName, DbgTimerDescription,
+          CodeViewLineTablesGroupName, CodeViewLineTablesGroupDescription));
     }
-    if (!EmitCodeView || MMI->getModule()->getDwarfVersion()) {
+    if ((!EmitCodeView || MMI->getModule()->getDwarfVersion()) &&
+        TM.Options.MCOptions.AsmSource != (int)llvm::AsmSourceOutput::Alone) {
       DD = new DwarfDebug(this, &M);
       DD->beginModule();
       Handlers.push_back(HandlerInfo(DD, DbgTimerName, DbgTimerDescription,
                                      DWARFGroupName, DWARFGroupDescription));
+    }
+    if (TM.Options.MCOptions.AsmSource) {
+      Handlers.push_back(HandlerInfo(
+          new SourceInterleave(this), SourceInterleaveTimerName,
+          SourceInterleaveTimerDescription, SourceInterleaveGroupName,
+          SourceInterleaveGroupDescription));
     }
   }
 
@@ -923,8 +936,6 @@ void AsmPrinter::EmitFunctionBody() {
   // Emit target-specific gunk before the function body.
   EmitFunctionBodyStart();
 
-  bool ShouldPrintDebugScopes = MMI->hasDebugInfo();
-
   // Print out code for the function.
   bool HasAnyRealCode = false;
   int NumInstsInFunction = 0;
@@ -940,13 +951,10 @@ void AsmPrinter::EmitFunctionBody() {
         ++NumInstsInFunction;
       }
 
-      if (ShouldPrintDebugScopes) {
-        for (const HandlerInfo &HI : Handlers) {
-          NamedRegionTimer T(HI.TimerName, HI.TimerDescription,
-                             HI.TimerGroupName, HI.TimerGroupDescription,
-                             TimePassesIsEnabled);
-          HI.Handler->beginInstruction(&MI);
-        }
+      for (const HandlerInfo &HI : Handlers) {
+        NamedRegionTimer T(HI.TimerName, HI.TimerDescription, HI.TimerGroupName,
+                           HI.TimerGroupDescription, TimePassesIsEnabled);
+        HI.Handler->beginInstruction(&MI);
       }
 
       if (isVerbose())
@@ -985,13 +993,10 @@ void AsmPrinter::EmitFunctionBody() {
         break;
       }
 
-      if (ShouldPrintDebugScopes) {
-        for (const HandlerInfo &HI : Handlers) {
-          NamedRegionTimer T(HI.TimerName, HI.TimerDescription,
-                             HI.TimerGroupName, HI.TimerGroupDescription,
-                             TimePassesIsEnabled);
-          HI.Handler->endInstruction();
-        }
+      for (const HandlerInfo &HI : Handlers) {
+        NamedRegionTimer T(HI.TimerName, HI.TimerDescription, HI.TimerGroupName,
+                           HI.TimerGroupDescription, TimePassesIsEnabled);
+        HI.Handler->endInstruction();
       }
     }
 
