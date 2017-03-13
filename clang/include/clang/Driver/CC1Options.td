@@ -225,6 +225,8 @@ def no_struct_path_tbaa : Flag<["-"], "no-struct-path-tbaa">,
   HelpText<"Turn off struct-path aware Type Based Alias Analysis">;
 def masm_verbose : Flag<["-"], "masm-verbose">,
   HelpText<"Generate verbose assembly output">;
+def masm_source : Separate<["-"], "masm-source">,
+  HelpText<"Annotate assembly output with source code lines.">;
 def mcode_model : Separate<["-"], "mcode-model">,
   HelpText<"The code model to use">;
 def mdebug_pass : Separate<["-"], "mdebug-pass">,

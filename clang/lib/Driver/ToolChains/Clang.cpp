@@ -2748,6 +2748,20 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("-split-dwarf=Enable");
   }
 
+  // If -fverbose-asm explicitly appears enable at least DebugLineTablesOnly
+  // but remember that no debug info was requested, to avoid cluttering
+  // assembler output with debug directives.
+  if (Args.hasArg(options::OPT_fverbose_asm)) {
+    CmdArgs.push_back("-masm-source");
+    if (DebugInfoKind == codegenoptions::NoDebugInfo) {
+      // FIXME: Check whether LimitedDebugInfo will give us line information,
+      // otherwise we should be overriding it as well.
+      DebugInfoKind = codegenoptions::DebugLineTablesOnly;
+      CmdArgs.push_back("1");
+    } else
+      CmdArgs.push_back("2");
+  }
+
   // After we've dealt with all combinations of things that could
   // make DebugInfoKind be other than None or DebugLineTablesOnly,
   // figure out if we need to "upgrade" it to standalone debug info.
