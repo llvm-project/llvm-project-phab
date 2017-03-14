@@ -261,8 +261,28 @@ bool NestedNameSpecifier::containsUnexpandedParameterPack() const {
 void
 NestedNameSpecifier::print(raw_ostream &OS,
                            const PrintingPolicy &Policy) const {
+  if(Policy.Scope == ScopePrintingKind::SuppressScope
+     || Policy.TemporarySuppressScope) {
+    return;
+  }
+
+  // Nested name specifiers describe the scope as written in the source code. Thus
+  // these specifier may not contain the full scope if parts of the scope were
+  // not written in the source code. If IncludeUnwrittenScopes is set to true
+  // the parts of the scope that were not written in the source code are printed.
+  bool IncludeUnwrittenScopes = false;
+
   if (getPrefix())
     getPrefix()->print(OS, Policy);
+  else if(Policy.Scope == ScopePrintingKind::FullScope
+          && getKind() != NestedNameSpecifier::Global) {
+    // If this is the first written nested name specifier and it is not the global
+    // scope specifier then maybe not all scopes have been written in the source
+    // code ("maybe" because sometimes is not possible to write an absolute scope
+    // e.g. dependent names or local classes). Try to include the unwritten
+    // scopes if the printing of all scopes is requested:
+    IncludeUnwrittenScopes = true;
+  }
 
   switch (getKind()) {
   case Identifier:
@@ -270,13 +290,23 @@ NestedNameSpecifier::print(raw_ostream &OS,
     break;
 
   case Namespace:
+    if(IncludeUnwrittenScopes) {
+      getAsNamespace()->printQualifiedName(OS, Policy);
+      break;
+    }
+
     if (getAsNamespace()->isAnonymousNamespace())
       return;
-      
+
     OS << getAsNamespace()->getName();
     break;
 
   case NamespaceAlias:
+    if(IncludeUnwrittenScopes) {
+      getAsNamespaceAlias()->getNamespace()->printQualifiedName(OS, Policy);
+      break;
+    }
+
     OS << getAsNamespaceAlias()->getName();
     break;
 
@@ -294,8 +324,10 @@ NestedNameSpecifier::print(raw_ostream &OS,
   case TypeSpec: {
     const Type *T = getAsType();
 
-    PrintingPolicy InnerPolicy(Policy);
-    InnerPolicy.SuppressScope = true;
+    if(IncludeUnwrittenScopes) {
+      QualType(T, 0).print(OS, Policy);
+      break;
+    }
 
     // Nested-name-specifiers are intended to contain minimally-qualified
     // types. An actual ElaboratedType will not occur, since we'll store
@@ -304,21 +336,9 @@ NestedNameSpecifier::print(raw_ostream &OS,
     // dependent template-id types (e.g., Outer<T>::template Inner<U>),
     // the type requires its own nested-name-specifier for uniqueness, so we
     // suppress that nested-name-specifier during printing.
-    assert(!isa<ElaboratedType>(T) &&
-           "Elaborated type in nested-name-specifier");
-    if (const TemplateSpecializationType *SpecType
-          = dyn_cast<TemplateSpecializationType>(T)) {
-      // Print the template name without its corresponding
-      // nested-name-specifier.
-      SpecType->getTemplateName().print(OS, InnerPolicy, true);
-
-      // Print the template argument list.
-      TemplateSpecializationType::PrintTemplateArgumentList(
-          OS, SpecType->template_arguments(), InnerPolicy);
-    } else {
-      // Print the type normally
-      QualType(T, 0).print(OS, InnerPolicy);
-    }
+    PrintingPolicy InnerPolicy(Policy);
+    InnerPolicy.TemporarySuppressScope = true;
+    QualType(T, 0).print(OS, InnerPolicy);
     break;
   }
   }

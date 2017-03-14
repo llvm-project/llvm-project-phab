@@ -1427,10 +1427,17 @@ void NamedDecl::printQualifiedName(raw_ostream &OS,
   typedef SmallVector<const DeclContext *, 8> ContextsTy;
   ContextsTy Contexts;
 
-  // Collect contexts.
-  while (Ctx && isa<NamedDecl>(Ctx)) {
-    Contexts.push_back(Ctx);
-    Ctx = Ctx->getParent();
+  if(P.Scope != ScopePrintingKind::SuppressScope && !P.TemporarySuppressScope) {
+    // Collect contexts.
+    while (Ctx && isa<NamedDecl>(Ctx)) {
+      Contexts.push_back(Ctx);
+      Ctx = Ctx->getParent();
+    }
+
+    if (P.Scope == ScopePrintingKind::FullScope) {
+      // Add global scope specifier up front
+      OS << "::";
+    }
   }
 
   for (const DeclContext *DC : reverse(Contexts)) {

@@ -30,17 +30,68 @@ public:
   virtual bool handledStmt(Stmt* E, raw_ostream& OS) = 0;
 };
 
+// namespace with enum (instead of enum class) to avoid
+// 'PrintingPolicy::Scope' is too small to hold all values of
+// 'ScopePrintingKind' warnings.
+namespace ScopePrintingKind {
+  enum ScopePrintingKind {
+    /// \brief Print all nested name specifiers (including the global scope
+    /// specifier). This is necessary if a printed non-absolute scope would not
+    /// select the desired scope.
+    ///
+    /// Example: Consider the following code:
+    /// \code
+    /// namespace Z {
+    ///   namespace Z {
+    ///     namespace Y {
+    ///       class X { }; // (1)
+    ///     }
+    ///   }
+    ///   namespace Y {
+    ///     class X { }; // (2)
+    ///   }
+    ///   // (3)
+    /// }
+    /// \endcode
+    /// Printing type ::Z::Y::X (marked with (2)) without FullScope results in
+    /// "Z::Y::X". If this is used at the position marked with (3), it
+    /// will select the wrong type ::Z::Z::Y::X (marked with (1)). With FullScope
+    /// the result is "::Z::Y::X" and the correct type is selected.
+    ///
+    /// Please note that in some cases it is not possible to print the full scope.
+    /// For example in case of a local class or a dependent name.
+    FullScope,
+
+    /// \brief In case of an elaborated type print the outer scope as written in
+    /// the source. (If there is a tag keyword and no scope in the source then no
+    /// scope is printed.)
+    /// Otherwise print the full scope but without the global scope specifier.
+    ///
+    /// This distinction is made for inner scopes recursively.
+    DefaultScope,
+
+    /// \brief Do not print any scope.
+    SuppressScope
+  };
+}
+
 /// \brief Describes how types, statements, expressions, and
 /// declarations should be printed.
 ///
 /// This type is intended to be small and suitable for passing by value.
 /// It is very frequently copied.
 struct PrintingPolicy {
+  friend class TypePrinter;
+  friend class NestedNameSpecifier;
+  friend class TemplateName;
+  friend class ElaboratedTypePolicyRAII;
+  friend class NamedDecl;
+
   /// \brief Create a default printing policy for the specified language.
   PrintingPolicy(const LangOptions &LO)
     : Indentation(2), SuppressSpecifiers(false),
       SuppressTagKeyword(LO.CPlusPlus),
-      IncludeTagDefinition(false), SuppressScope(false),
+      IncludeTagDefinition(false), Scope(ScopePrintingKind::DefaultScope),
       SuppressUnwrittenScope(false), SuppressInitializers(false),
       ConstantArraySizeAsWritten(false), AnonymousTagLocations(true),
       SuppressStrongLifetime(false), SuppressLifetimeQualifiers(false),
@@ -50,7 +101,8 @@ struct PrintingPolicy {
       UseVoidForZeroParams(!LO.CPlusPlus),
       TerseOutput(false), PolishForDeclaration(false),
       Half(LO.Half), MSWChar(LO.MicrosoftExt && !LO.WChar),
-      IncludeNewlines(true), MSVCFormatting(false) { }
+      IncludeNewlines(true), MSVCFormatting(false),
+      TemporarySuppressScope(false){ }
 
   /// \brief Adjust this printing policy for cases where it's known that
   /// we're printing C++ code (for instance, if AST dumping reaches a
@@ -101,13 +153,15 @@ struct PrintingPolicy {
   /// \endcode
   bool IncludeTagDefinition : 1;
 
-  /// \brief Suppresses printing of scope specifiers.
-  bool SuppressScope : 1;
+  /// \brief Specifies whether the scope should be printed, and if so, how
+  /// detailed.
+  ScopePrintingKind::ScopePrintingKind Scope : 2;
+
 
   /// \brief Suppress printing parts of scope specifiers that don't need
   /// to be written, e.g., for inline or anonymous namespaces.
   bool SuppressUnwrittenScope : 1;
-  
+
   /// \brief Suppress printing of variable initializers.
   ///
   /// This flag is used when printing the loop variable in a for-range
@@ -138,16 +192,16 @@ struct PrintingPolicy {
   /// char a[9] = "A string";
   /// \endcode
   bool ConstantArraySizeAsWritten : 1;
-  
+
   /// \brief When printing an anonymous tag name, also print the location of
-  /// that entity (e.g., "enum <anonymous at t.h:10:5>"). Otherwise, just 
+  /// that entity (e.g., "enum <anonymous at t.h:10:5>"). Otherwise, just
   /// prints "(anonymous)" for the name.
   bool AnonymousTagLocations : 1;
-  
+
   /// \brief When true, suppress printing of the __strong lifetime qualifier in
   /// ARC.
   unsigned SuppressStrongLifetime : 1;
-  
+
   /// \brief When true, suppress printing of lifetime qualifier in
   /// ARC.
   unsigned SuppressLifetimeQualifiers : 1;
@@ -179,7 +233,7 @@ struct PrintingPolicy {
   /// declarations inside namespaces etc.  Effectively, this should print
   /// only the requested declaration.
   unsigned TerseOutput : 1;
-  
+
   /// \brief When true, do certain refinement needed for producing proper
   /// declaration tag; such as, do not print attributes attached to the declaration.
   ///
@@ -200,6 +254,13 @@ struct PrintingPolicy {
   /// prints anonymous namespaces as `anonymous namespace' and does not insert
   /// spaces after template arguments.
   bool MSVCFormatting : 1;
+
+private:
+  /// \brief When true, suppress printing of current outer scope. For example
+  /// with TemporarySuppressScope set to true "::A::B::C<D::E, ::F>" ist
+  /// printed as "C<D::E, ::F>". This is currently only supported in some cases
+  /// and is currently only used internally.
+  bool TemporarySuppressScope : 1;
 };
 
 } // end namespace clang

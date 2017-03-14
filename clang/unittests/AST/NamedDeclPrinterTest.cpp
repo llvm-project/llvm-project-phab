@@ -32,10 +32,12 @@ class PrintMatch : public MatchFinder::MatchCallback {
   SmallString<1024> Printed;
   unsigned NumFoundDecls;
   bool SuppressUnwrittenScope;
+  bool MakeAbsolute;
 
 public:
-  explicit PrintMatch(bool suppressUnwrittenScope)
-    : NumFoundDecls(0), SuppressUnwrittenScope(suppressUnwrittenScope) {}
+  explicit PrintMatch(bool suppressUnwrittenScope, bool makeAbsolute)
+    : NumFoundDecls(0), SuppressUnwrittenScope(suppressUnwrittenScope),
+      MakeAbsolute(makeAbsolute){}
 
   void run(const MatchFinder::MatchResult &Result) override {
     const NamedDecl *ND = Result.Nodes.getNodeAs<NamedDecl>("id");
@@ -48,6 +50,8 @@ public:
     llvm::raw_svector_ostream Out(Printed);
     PrintingPolicy Policy = Result.Context->getPrintingPolicy();
     Policy.SuppressUnwrittenScope = SuppressUnwrittenScope;
+    Policy.Scope = MakeAbsolute ? ScopePrintingKind::FullScope
+                                : ScopePrintingKind::DefaultScope;
     ND->printQualifiedName(Out, Policy);
   }
 
@@ -64,8 +68,9 @@ public:
 PrintedNamedDeclMatches(StringRef Code, const std::vector<std::string> &Args,
                         bool SuppressUnwrittenScope,
                         const DeclarationMatcher &NodeMatch,
-                        StringRef ExpectedPrinted, StringRef FileName) {
-  PrintMatch Printer(SuppressUnwrittenScope);
+                        StringRef ExpectedPrinted, StringRef FileName,
+                        bool MakeAbsolute) {
+  PrintMatch Printer(SuppressUnwrittenScope, MakeAbsolute);
   MatchFinder Finder;
   Finder.addMatcher(NodeMatch, &Printer);
   std::unique_ptr<FrontendActionFactory> Factory =
@@ -94,26 +99,30 @@ PrintedNamedDeclMatches(StringRef Code, const std::vector<std::string> &Args,
 
 ::testing::AssertionResult
 PrintedNamedDeclCXX98Matches(StringRef Code, StringRef DeclName,
-                             StringRef ExpectedPrinted) {
+                             StringRef ExpectedPrinted,
+                             bool MakeAbsolute = false) {
   std::vector<std::string> Args(1, "-std=c++98");
   return PrintedNamedDeclMatches(Code,
                                  Args,
                                  /*SuppressUnwrittenScope*/ false,
                                  namedDecl(hasName(DeclName)).bind("id"),
                                  ExpectedPrinted,
-                                 "input.cc");
+                                 "input.cc", 
+                                 MakeAbsolute);
 }
 
 ::testing::AssertionResult
 PrintedWrittenNamedDeclCXX11Matches(StringRef Code, StringRef DeclName,
-                                    StringRef ExpectedPrinted) {
+                                    StringRef ExpectedPrinted, 
+                                    bool MakeAbsolute = false) {
   std::vector<std::string> Args(1, "-std=c++11");
   return PrintedNamedDeclMatches(Code,
                                  Args,
                                  /*SuppressUnwrittenScope*/ true,
                                  namedDecl(hasName(DeclName)).bind("id"),
                                  ExpectedPrinted,
-                                 "input.cc");
+                                 "input.cc",
+                                 MakeAbsolute);
 }
 
 } // unnamed namespace
@@ -125,11 +134,27 @@ TEST(NamedDeclPrinter, TestNamespace1) {
     "(anonymous namespace)::A"));
 }
 
+TEST(NamedDeclPrinter, TestNamespace1Absolute) {
+  ASSERT_TRUE(PrintedNamedDeclCXX98Matches(
+    "namespace { int A; }",
+    "A",
+    "::(anonymous namespace)::A",
+    true));
+}
+
 TEST(NamedDeclPrinter, TestNamespace2) {
   ASSERT_TRUE(PrintedWrittenNamedDeclCXX11Matches(
     "inline namespace Z { namespace { int A; } }",
     "A",
     "A"));
+}
+
+TEST(NamedDeclPrinter, TestNamespace2Absolute) {
+  ASSERT_TRUE(PrintedWrittenNamedDeclCXX11Matches(
+    "inline namespace Z { namespace { int A; } }",
+    "A",
+    "::A",
+    true));
 }
 
 TEST(NamedDeclPrinter, TestUnscopedUnnamedEnum) {
@@ -139,11 +164,27 @@ TEST(NamedDeclPrinter, TestUnscopedUnnamedEnum) {
     "A"));
 }
 
+TEST(NamedDeclPrinter, TestUnscopedUnnamedEnumAbsolute) {
+  ASSERT_TRUE(PrintedWrittenNamedDeclCXX11Matches(
+    "enum { A };",
+    "A",
+    "::A",
+    true));
+}
+
 TEST(NamedDeclPrinter, TestNamedEnum) {
   ASSERT_TRUE(PrintedWrittenNamedDeclCXX11Matches(
     "enum X { A };",
     "A",
     "X::A"));
+}
+
+TEST(NamedDeclPrinter, TestNamedEnumAbsolute) {
+  ASSERT_TRUE(PrintedWrittenNamedDeclCXX11Matches(
+    "enum X { A };",
+    "A",
+    "::X::A",
+    true));
 }
 
 TEST(NamedDeclPrinter, TestScopedNamedEnum) {
@@ -167,9 +208,33 @@ TEST(NamedDeclPrinter, TestClassWithUnscopedNamedEnum) {
     "X::Y::A"));
 }
 
+TEST(NamedDeclPrinter, TestClassWithUnscopedNamedEnumAbsolute) {
+  ASSERT_TRUE(PrintedWrittenNamedDeclCXX11Matches(
+    "class X { enum Y { A }; };",
+    "A",
+    "::X::Y::A",
+    true));
+}
+
 TEST(NamedDeclPrinter, TestClassWithScopedNamedEnum) {
   ASSERT_TRUE(PrintedWrittenNamedDeclCXX11Matches(
     "class X { enum class Y { A }; };",
     "A",
     "X::Y::A"));
+}
+
+TEST(NamedDeclPrinter, TestClassWithScopedNamedEnumAbsolute) {
+  ASSERT_TRUE(PrintedWrittenNamedDeclCXX11Matches(
+    "class X { enum class Y { A }; };",
+    "A",
+    "::X::Y::A",
+    true));
+}
+
+TEST(NamedDeclPrinter, TestLocalClass) {
+  ASSERT_TRUE(PrintedWrittenNamedDeclCXX11Matches(
+      "class X { void f() { enum class Y { A }; } };",
+      "A",
+      "::X::f()::Y::A",
+      true));
 }

@@ -277,12 +277,7 @@ public:
   ///
   /// \param OS the output stream to which the template name will be
   /// printed.
-  ///
-  /// \param SuppressNNS if true, don't print the
-  /// nested-name-specifier that precedes the template name (if it has
-  /// one).
-  void print(raw_ostream &OS, const PrintingPolicy &Policy,
-             bool SuppressNNS = false) const;
+  void print(raw_ostream &OS, const PrintingPolicy &Policy) const;
 
   /// \brief Debugging aid that dumps the template name.
   void dump(raw_ostream &OS) const;
