@@ -22,8 +22,8 @@ add_llvm_library(LLVMSelectionDAG
   SelectionDAGPrinter.cpp
   SelectionDAGTargetInfo.cpp
   StatepointLowering.cpp
+  SwitchLoweringCaseCluster.cpp
   TargetLowering.cpp
-  
   DEPENDS
   intrinsics_gen
   )
