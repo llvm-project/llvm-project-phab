@@ -11,16 +11,15 @@ target triple = "powerpc64le-grtev4-linux-gnu"
 ; exit
 
 ;CHECK-LABEL: tail_dup_break_cfg:
-;CHECK: mr [[TAGREG:[0-9]+]], 3
-;CHECK: andi. {{[0-9]+}}, [[TAGREG]], 1
-;CHECK-NEXT: bc 12, 1, [[BODY1LABEL:[._0-9A-Za-z]+]]
+;CHECK: andi. {{[0-9]+}}, 3, 1
+;CHECK: bc 12, 1, [[BODY1LABEL:[._0-9A-Za-z]+]]
 ;CHECK-NEXT: # %test2
-;CHECK-NEXT: rlwinm. {{[0-9]+}}, [[TAGREG]], 0, 30, 30
+;CHECK-NEXT: rlwinm. {{[0-9]+}}, 3, 0, 30, 30
 ;CHECK-NEXT: bne 0, [[BODY2LABEL:[._0-9A-Za-z]+]]
 ;CHECK: [[EXITLABEL:[._0-9A-Za-z]+]]: # %exit
 ;CHECK: blr
 ;CHECK-NEXT: [[BODY1LABEL]]
-;CHECK: rlwinm. {{[0-9]+}}, [[TAGREG]], 0, 30, 30
+;CHECK: rlwinm. {{[0-9]+}}, 3, 0, 30, 30
 ;CHECK-NEXT: beq 0, [[EXITLABEL]]
 ;CHECK-NEXT: [[BODY2LABEL:[._0-9A-Za-z]+]]:
 ;CHECK: b [[EXITLABEL]]
@@ -53,12 +52,11 @@ exit:
 
 ; The branch weights here hint that we shouldn't tail duplicate in this case.
 ;CHECK-LABEL: tail_dup_dont_break_cfg:
-;CHECK: mr [[TAGREG:[0-9]+]], 3
-;CHECK: andi. {{[0-9]+}}, [[TAGREG]], 1
-;CHECK-NEXT: bc 4, 1, [[TEST2LABEL:[._0-9A-Za-z]+]]
+;CHECK: andi. {{[0-9]+}}, 3, 1
+;CHECK: bc 4, 1, [[TEST2LABEL:[._0-9A-Za-z]+]]
 ;CHECK-NEXT: # %body1
 ;CHECK: [[TEST2LABEL]]: # %test2
-;CHECK-NEXT: rlwinm. {{[0-9]+}}, [[TAGREG]], 0, 30, 30
+;CHECK-NEXT: rlwinm. {{[0-9]+}}, 3, 0, 30, 30
 ;CHECK-NEXT: beq 0, [[EXITLABEL:[._0-9A-Za-z]+]]
 ;CHECK-NEXT: # %body2
 ;CHECK: [[EXITLABEL:[._0-9A-Za-z]+]]: # %exit

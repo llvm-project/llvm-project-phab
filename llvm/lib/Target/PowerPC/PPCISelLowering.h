@@ -1013,6 +1013,9 @@ namespace llvm {
     SDValue
     combineElementTruncationToVectorTruncation(SDNode *N,
                                                DAGCombinerInfo &DCI) const;
+    virtual bool useCSRInsteadOfSplit(const LiveInterval &LI) const override;
+    virtual int64_t costOfFirstCSRForBlocks(
+      const SmallVectorImpl<MachineBasicBlock*> &UseMBBs) const override;
   };
 
   namespace PPC {

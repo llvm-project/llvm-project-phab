@@ -12937,3 +12937,33 @@ bool PPCTargetLowering::isFPImmLegal(const APFloat &Imm, EVT VT) const {
     return Imm.isPosZero();
   }
 }
+
+// If the live interval can be spilled, we'd prefer to do so (subject to cost
+// function below).
+bool PPCTargetLowering::useCSRInsteadOfSplit(const LiveInterval &LI) const {
+  return !LI.isSpillable();
+}
+
+static bool hasCall(MachineBasicBlock *MBB) {
+  for (MachineInstr &MI : *MBB)
+    if (MI.isCall())
+      return true;
+  return false;
+}
+
+// Return a high cost for the first use of a callee-saved register if the live
+// range of the value spans basic blocks in which we'd prefer not to use one.
+// This will often defer use of a CSR and give shrink-wrapping an opportunity
+// to sink/hoist the save/restore from entry/exit blocks respectively.
+int64_t PPCTargetLowering::costOfFirstCSRForBlocks(
+  const SmallVectorImpl<MachineBasicBlock*> &UseMBBs) const {
+  // Make uses of callee-saved registers expensive if any blocks in the live
+  // range have no calls. The actual cost may need some adjustment - this is a
+  // rather arbitrary number that seems to produce good performance improvement.
+  const int CostOnBlockWithoutCall = 1 << 15;
+  for (MachineBasicBlock *It : UseMBBs) {
+    if (!hasCall(It))
+      return CostOnBlockWithoutCall;
+  }
+  return TargetLowering::costOfFirstCSRForBlocks(UseMBBs);
+}

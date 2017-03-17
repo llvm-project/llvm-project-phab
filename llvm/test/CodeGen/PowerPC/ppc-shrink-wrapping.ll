@@ -91,10 +91,11 @@ declare i32 @doSomething(i32, i32*)
 ; 
 ; Loop body
 ; CHECK: .[[LOOP:LBB[0-9_]+]]: # %for.body
+; CHECK: mr [[NEWSUM:[0-9]+]], [[SUM]]
 ; CHECK: bl something
 ; CHECK-DAG: addi [[IV]], [[IV]], -1
-; CHECK-DAG: add [[SUM]], 3, [[SUM]] 
-; CHECK-NEXT: cmplwi [[IV]], 0
+; CHECK-DAG: add [[NEWSUM]], 3, [[NEWSUM]]
+; CHECK: cmplwi [[IV]], 0
 ; CHECK-NEXT: bne 0, .[[LOOP]]
 ;
 ; Next BB.
@@ -159,12 +160,13 @@ declare i32 @something(...)
 ; Loop preheader
 ; CHECK-DAG: li [[SUM:[0-9]+]], 0
 ; CHECK-DAG: li [[IV:[0-9]+]], 10
-; 
+;
 ; Loop body
 ; CHECK: .[[LOOP:LBB[0-9_]+]]: # %for.body
 ; CHECK: bl something
+; CHECK: mr [[NEWRET:[0-9]+]], 3
 ; CHECK-DAG: addi [[IV]], [[IV]], -1
-; CHECK-DAG: add [[SUM]], 3, [[SUM]] 
+; CHECK-DAG: add [[SUM]], [[NEWRET]], [[SUM]]
 ; CHECK-NEXT: cmplwi [[IV]], 0
 ; CHECK-NEXT: bne 0, .[[LOOP]]
 ;
@@ -301,16 +303,17 @@ declare void @somethingElse(...)
 ; Loop preheader
 ; CHECK-DAG: li [[SUM:[0-9]+]], 0
 ; CHECK-DAG: li [[IV:[0-9]+]], 10
-; 
+;
 ; Loop body
 ; CHECK: .[[LOOP:LBB[0-9_]+]]: # %for.body
+; CHECK: mr [[NEWSUM:[0-9]+]], [[SUM]]
 ; CHECK: bl something
 ; CHECK-DAG: addi [[IV]], [[IV]], -1
-; CHECK-DAG: add [[SUM]], 3, [[SUM]] 
+; CHECK-DAG: add [[NEWSUM]], 3, [[NEWSUM]]
 ; CHECK-NEXT: cmplwi [[IV]], 0
-; CHECK-NEXT: bne 0, .[[LOOP]]
+; CHECK: bne 0, .[[LOOP]]
 ;
-; Next BB. 
+; Next BB.
 ; slwi 3, [[SUM]], 3
 ;
 ; DISABLE: b .[[EPILOG_BB:LBB[0-9_]+]]

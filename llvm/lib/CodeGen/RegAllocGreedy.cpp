@@ -48,6 +48,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetInstrInfo.h"
 #include "llvm/Target/TargetSubtargetInfo.h"
+#include "llvm/Target/TargetLowering.h"
 #include <queue>
 
 using namespace llvm;
@@ -120,6 +121,7 @@ class RAGreedy : public MachineFunctionPass,
   // Shortcuts to some useful interface.
   const TargetInstrInfo *TII;
   const TargetRegisterInfo *TRI;
+  const TargetLowering *TLI;
   RegisterClassInfo RCI;
 
   // analyses
@@ -2331,7 +2333,17 @@ unsigned RAGreedy::tryAssignCSRFirstTime(LiveInterval &VirtReg,
     // the cost of splitting is lower than CSRCost.
     SA->analyze(&VirtReg);
     unsigned NumCands = 0;
-    BlockFrequency BestCost = CSRCost; // Don't modify CSRCost.
+    BlockFrequency BestCost;
+    bool GetCostFromTarget = !TLI->useCSRInsteadOfSplit(VirtReg);
+    if (GetCostFromTarget) {
+      ArrayRef<SplitAnalysis::BlockInfo> UseBlocks = SA->getUseBlocks();
+      SmallVector<MachineBasicBlock*, 4> UseMBBs;
+      for (int i = 0, e = UseBlocks.size(); i < e; ++i)
+        UseMBBs.push_back(UseBlocks[i].MBB);
+      BestCost = TLI->costOfFirstCSRForBlocks(UseMBBs);
+    } else
+      BestCost = CSRCost;
+
     unsigned BestCand = calculateRegionSplitCost(VirtReg, Order, BestCost,
                                                  NumCands, true /*IgnoreCSR*/);
     if (BestCand == NoCand)
@@ -2550,8 +2562,8 @@ unsigned RAGreedy::selectOrSplitImpl(LiveInterval &VirtReg,
     // When NewVRegs is not empty, we may have made decisions such as evicting
     // a virtual register, go with the earlier decisions and use the physical
     // register.
-    if (CSRCost.getFrequency() && isUnusedCalleeSavedReg(PhysReg) &&
-        NewVRegs.empty()) {
+    if ((CSRCost.getFrequency() || !TLI->useCSRInsteadOfSplit(VirtReg)) &&
+        isUnusedCalleeSavedReg(PhysReg) && NewVRegs.empty()) {
       unsigned CSRReg = tryAssignCSRFirstTime(VirtReg, Order, PhysReg,
                                               CostPerUseLimit, NewVRegs);
       if (CSRReg || !NewVRegs.empty())
@@ -2704,6 +2716,7 @@ bool RAGreedy::runOnMachineFunction(MachineFunction &mf) {
   MF = &mf;
   TRI = MF->getSubtarget().getRegisterInfo();
   TII = MF->getSubtarget().getInstrInfo();
+  TLI = MF->getSubtarget().getTargetLowering();
   RCI.runOnMachineFunction(mf);
 
   EnableLocalReassign = EnableLocalReassignment ||
