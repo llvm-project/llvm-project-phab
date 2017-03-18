@@ -859,6 +859,17 @@ bool is_contained(R &&Range, const E &Element) {
          std::end(Range);
 }
 
+/// Wrapper function around std::lower_bound to detect if an element
+/// exists in a container via binary search.  The same requirements as
+/// for std::lower_bound (that is: Range must be partially ordered,
+/// with respect to the expression Element < Value for Value in Range)
+/// applies here.
+template <typename R, typename E>
+bool binary_search(R &&Range, const E &Element) {
+  auto It = std::lower_bound(std::begin(Range), std::end(Range), Element);
+  return It != std::end(Range) && *It == Element;
+}
+
 /// Wrapper function around std::count to count the number of times an element
 /// \p Element occurs in the given range \p Range.
 template <typename R, typename E>

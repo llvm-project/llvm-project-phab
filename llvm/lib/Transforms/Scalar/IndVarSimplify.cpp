@@ -30,6 +30,7 @@
 #include "llvm/Analysis/GlobalsModRef.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/LoopPass.h"
+#include "llvm/Analysis/ValueTracking.h"
 #include "llvm/Analysis/ScalarEvolutionAliasAnalysis.h"
 #include "llvm/Analysis/ScalarEvolutionExpander.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
@@ -2136,6 +2137,67 @@ static Value *genLoopLimit(PHINode *IndVar, const SCEV *IVCount, Loop *L,
   }
 }
 
+/// We want to insert a branch on IV on the backedge of L.  Return true if we
+/// can legally do that (branching on poison is undefined behavior), modifying
+/// instructions if necessary.
+static bool makeValueNonPoisonOnBackEdge(Instruction *IV, Loop *L) {
+  auto IVNeverPoison = isIVNeverPoison(IV, L);
+  if (IVNeverPoison.first)
+    return true;
+
+  Instruction *PoisonGenerator =
+      const_cast<Instruction *>(IVNeverPoison.second);
+
+  // If PoisonGenerator is non-null then we can call
+  // dropPoisonGeneratingFlags on it to make IV not poison.  However,
+  // let's first check if we can avoid dropping no-wrap flags at all.
+
+  Value *BECond = nullptr;
+  auto *LatchTerminator = L->getLoopLatch()->getTerminator();
+  if (auto *BI = dyn_cast<BranchInst>(LatchTerminator)) {
+    if (BI->isConditional())
+      BECond = dyn_cast<Instruction>(BI->getCondition());
+  } else if (auto *SI = dyn_cast<SwitchInst>(LatchTerminator)) {
+    BECond = dyn_cast<Instruction>(SI->getCondition());
+  }
+
+  if (BECond) {
+    auto InLoop = [&](const Value *V) {
+      auto *I = dyn_cast<Instruction>(V);
+      return I && L->contains(I);
+    };
+
+    // We know that at the backedge we will branch on BECond, which in turn
+    // means that BECond itself is not poison.  See if that knowledge amounts to
+    // something.
+    SmallVector<const Value *, 8> NotPoison;
+    propagateKnownNonPoison(BECond, NotPoison, InLoop);
+
+    array_pod_sort(NotPoison.begin(), NotPoison.end());
+
+    if (binary_search(NotPoison, IV))
+      return true;
+
+    auto IsNonPoison = [&](Value *V) {
+      return isa<ConstantInt>(V) || binary_search(NotPoison, V);
+    };
+
+    if (all_of(IV->operands(), IsNonPoison)) {
+      // All of the inputs to IV are non-poison.  This means I can make IV
+      // non-poison by preventing it from generating *new* poison.
+      IV->dropPoisonGeneratingFlags();
+      return true;
+    }
+  }
+
+  if (PoisonGenerator) {
+    PoisonGenerator->dropPoisonGeneratingFlags();
+    return true;
+  }
+
+  return false;
+}
+
 /// This method rewrites the exit condition of the loop to be a canonical !=
 /// comparison against the incremented loop induction variable.  This pass is
 /// able to rewrite the exit tests of any loop where the SCEV analysis can
@@ -2149,7 +2211,7 @@ linearFunctionTestReplace(Loop *L,
   assert(canExpandBackedgeTakenCount(L, SE, Rewriter) && "precondition");
 
   // Initialize CmpIndVar and IVCount to their preincremented values.
-  Value *CmpIndVar = IndVar;
+  Instruction *CmpIndVar = IndVar;
   const SCEV *IVCount = BackedgeTakenCount;
 
   assert(L->getLoopLatch() && "Loop no longer in simplified form?");
@@ -2166,8 +2228,15 @@ linearFunctionTestReplace(Loop *L,
     // The BackedgeTaken expression contains the number of times that the
     // backedge branches to the loop header.  This is one less than the
     // number of times the loop executes, so use the incremented indvar.
-    CmpIndVar = IndVar->getIncomingValueForBlock(L->getExitingBlock());
+    CmpIndVar = cast<Instruction>(
+        IndVar->getIncomingValueForBlock(L->getExitingBlock()));
   }
+
+  // In general, we cannot introduce a branch on poison where there
+  // wasn't one before.  Try a variety of tricks to see if branching
+  // on CmpIndVar can be made legal.
+  if (!makeValueNonPoisonOnBackEdge(CmpIndVar, L))
+    return nullptr;
 
   Value *ExitCnt = genLoopLimit(IndVar, IVCount, L, Rewriter, SE);
   assert(ExitCnt->getType()->isPointerTy() ==
@@ -2253,8 +2322,8 @@ linearFunctionTestReplace(Loop *L,
       }
 
       if (!Extended)
-        CmpIndVar = Builder.CreateTrunc(CmpIndVar, ExitCnt->getType(),
-                                        "lftr.wideiv");
+        CmpIndVar = cast<Instruction>(
+            Builder.CreateTrunc(CmpIndVar, ExitCnt->getType(), "lftr.wideiv"));
     }
   }
   Value *Cond = Builder.CreateICmp(P, CmpIndVar, ExitCnt, "exitcond");
