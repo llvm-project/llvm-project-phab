@@ -34,6 +34,10 @@
 #include "llvm/Target/TargetRegisterInfo.h"
 using namespace llvm;
 
+static cl::opt<bool>
+Disable_CantUnwind("disable-arm-cantunwind", cl::Hidden,
+   cl::desc("Do not Generate EHABI exidx_cantunwind value."));
+
 ARMException::ARMException(AsmPrinter *A) : DwarfCFIExceptionBase(A) {}
 
 ARMException::~ARMException() {}
@@ -44,8 +48,12 @@ ARMTargetStreamer &ARMException::getTargetStreamer() {
 }
 
 void ARMException::beginFunction(const MachineFunction *MF) {
-  if (Asm->MAI->getExceptionHandlingType() == ExceptionHandling::ARM)
+  const Function *F = MF->getFunction();
+
+  if (Asm->MAI->getExceptionHandlingType() == ExceptionHandling::ARM &&
+      (F->hasUWTable() || !Disable_CantUnwind))
     getTargetStreamer().emitFnStart();
+
   // See if we need call frame info.
   AsmPrinter::CFIMoveType MoveType = Asm->needsCFIMoves();
   assert(MoveType != AsmPrinter::CFI_M_EH &&
@@ -69,6 +77,7 @@ void ARMException::endFunction(const MachineFunction *MF) {
   ARMTargetStreamer &ATS = getTargetStreamer();
   const Function *F = MF->getFunction();
   const Function *Per = nullptr;
+
   if (F->hasPersonalityFn())
     Per = dyn_cast<Function>(F->getPersonalityFn()->stripPointerCasts());
   bool forceEmitPersonality =
@@ -76,8 +85,8 @@ void ARMException::endFunction(const MachineFunction *MF) {
     F->needsUnwindTableEntry();
   bool shouldEmitPersonality = forceEmitPersonality ||
     !MF->getLandingPads().empty();
-  if (!Asm->MF->getFunction()->needsUnwindTableEntry() &&
-      !shouldEmitPersonality)
+
+  if (!F->needsUnwindTableEntry() && !shouldEmitPersonality && !Disable_CantUnwind)
     ATS.emitCantUnwind();
   else if (shouldEmitPersonality) {
     // Emit references to personality.
@@ -94,7 +103,8 @@ void ARMException::endFunction(const MachineFunction *MF) {
     emitExceptionTable();
   }
 
-  if (Asm->MAI->getExceptionHandlingType() == ExceptionHandling::ARM)
+  if (Asm->MAI->getExceptionHandlingType() == ExceptionHandling::ARM &&
+      (F->hasUWTable() || !Disable_CantUnwind))
     ATS.emitFnEnd();
 }
 
