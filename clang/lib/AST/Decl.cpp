@@ -2533,8 +2533,18 @@ bool FunctionDecl::hasTrivialBody() const
 
 bool FunctionDecl::isDefined(const FunctionDecl *&Definition) const {
   for (auto I : redecls()) {
-    if (I->IsDeleted || I->IsDefaulted || I->Body || I->IsLateTemplateParsed ||
-        I->hasDefiningAttr()) {
+    if (I->isThisDeclarationADefinition()) {
+      Definition = I->IsDeleted ? I->getCanonicalDecl() : I;
+      return true;
+    }
+  }
+
+  return false;
+}
+
+bool FunctionDecl::isOdrDefined(const FunctionDecl *&Definition) const {
+  for (auto I : redecls()) {
+    if (I->isThisDeclarationAnOdrDefinition()) {
       Definition = I->IsDeleted ? I->getCanonicalDecl() : I;
       return true;
     }
