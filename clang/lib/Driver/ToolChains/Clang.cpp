@@ -469,6 +469,11 @@ static void addExceptionArgs(const ArgList &Args, types::ID InputType,
 
   if (EH)
     CmdArgs.push_back("-fexceptions");
+  else if (Triple.getArch() == llvm::Triple::arm &&
+	   !Triple.isOSDarwin() && !Triple.isOSWindows()) {
+    CmdArgs.push_back("-mllvm");
+    CmdArgs.push_back("-disable-arm-cantunwind");
+  }
 }
 
 static bool ShouldDisableAutolink(const ArgList &Args, const ToolChain &TC) {
