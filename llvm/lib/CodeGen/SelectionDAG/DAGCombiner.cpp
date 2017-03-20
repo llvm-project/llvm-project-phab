@@ -449,6 +449,11 @@ namespace {
                           EVT LoadResultTy, EVT &ExtVT, EVT &LoadedVT,
                           bool &NarrowLoad);
 
+    //// Helper function for MergeConsecutiveStores which merges the
+    //// component store chains.
+    SDValue getMergeStoreChains(SmallVectorImpl<MemOpLink> &StoreNodes,
+                                unsigned NumStores);
+
     /// This is a helper function for MergeConsecutiveStores. When the source
     /// elements of the consecutive stores are all constants or all extracted
     /// vector elements, try to merge them into one larger store.
@@ -12071,6 +12076,26 @@ bool DAGCombiner::isMulAddWithConstProfitable(SDNode *MulNode,
   return false;
 }
 
+SDValue DAGCombiner::getMergeStoreChains(SmallVectorImpl<MemOpLink> &StoreNodes,
+                                         unsigned NumStores) {
+  SmallVector<SDValue, 8> Chains;
+  SmallPtrSet<const SDNode *, 8> Visited;
+  SDLoc StoreDL(StoreNodes[0].MemNode);
+
+  for (unsigned i = 0; i < NumStores; ++i) {
+    Visited.insert(StoreNodes[i].MemNode);
+  }
+
+  // don't include nodes that are children
+  for (unsigned i = 0; i < NumStores; ++i) {
+    if (Visited.count(StoreNodes[i].MemNode->getChain().getNode()) == 0)
+      Chains.push_back(StoreNodes[i].MemNode->getChain());
+  }
+
+  assert(Chains.size() > 0 && "Chain should have generated a chain");
+  return DAG.getNode(ISD::TokenFactor, StoreDL, MVT::Other, Chains);
+}
+
 bool DAGCombiner::MergeStoresOfConstantsOrVecElts(
                   SmallVectorImpl<MemOpLink> &StoreNodes, EVT MemVT,
                   unsigned NumStores, bool IsConstantSrc, bool UseVector) {
@@ -12153,17 +12178,8 @@ bool DAGCombiner::MergeStoresOfConstantsOrVecElts(
     StoredVal = DAG.getConstant(StoreInt, DL, StoreTy);
   }
 
-  SmallVector<SDValue, 8> Chains;
-
-  // Gather all Chains we're inheriting. As generally all chains are
-  // equal, do minor check to remove obvious redundancies.
-  Chains.push_back(StoreNodes[0].MemNode->getChain());
-  for (unsigned i = 1; i < NumStores; ++i)
-    if (StoreNodes[0].MemNode->getChain() != StoreNodes[i].MemNode->getChain())
-      Chains.push_back(StoreNodes[i].MemNode->getChain());
-
   LSBaseSDNode *FirstInChain = StoreNodes[0].MemNode;
-  SDValue NewChain = DAG.getNode(ISD::TokenFactor, DL, MVT::Other, Chains);
+  SDValue NewChain = getMergeStoreChains(StoreNodes, NumStores);
   SDValue NewStore = DAG.getStore(NewChain, DL, StoredVal,
                                   FirstInChain->getBasePtr(),
                                   FirstInChain->getPointerInfo(),
@@ -12192,6 +12208,54 @@ void DAGCombiner::getStoreMergeCandidates(
   if (BasePtr.Base.isUndef())
     return;
 
+  bool IsLoadSrc = isa<LoadSDNode>(St->getValue());
+  bool IsConstantSrc = isa<ConstantSDNode>(St->getValue()) ||
+                       isa<ConstantFPSDNode>(St->getValue());
+  bool IsExtractVecSrc =
+      (St->getValue().getOpcode() == ISD::EXTRACT_VECTOR_ELT ||
+       St->getValue().getOpcode() == ISD::EXTRACT_SUBVECTOR);
+  auto CandidateMatch = [&](StoreSDNode *Other, BaseIndexOffset &Ptr) -> bool {
+    if (Other->isVolatile() || Other->isIndexed())
+      return false;
+    // We can merge constant floats to equivalent integers
+    if (Other->getMemoryVT() != MemVT)
+      if (!(MemVT.isInteger() && MemVT.bitsEq(Other->getMemoryVT()) &&
+            isa<ConstantFPSDNode>(Other->getValue())))
+        return false;
+    Ptr = BaseIndexOffset::match(Other->getBasePtr(), DAG);
+    if (!Ptr.equalBaseIndex(BasePtr))
+      return false;
+    if (IsLoadSrc)
+      return isa<LoadSDNode>(Other->getValue());
+    if (IsConstantSrc)
+      return (MemVT.isInteger() || MemVT == Other->getMemoryVT()) &&
+             (isa<ConstantSDNode>(Other->getValue()) ||
+              isa<ConstantFPSDNode>(Other->getValue()));
+    if (IsExtractVecSrc)
+      return (MemVT == Other->getMemoryVT() &&
+              (Other->getValue().getOpcode() == ISD::EXTRACT_VECTOR_ELT ||
+               Other->getValue().getOpcode() == ISD::EXTRACT_SUBVECTOR));
+    return false;
+  };
+
+  // In the case FindBetterChain gives up we will find chains of
+  // consecutive stores. Do a preprocessing step to walk up the chain
+  // leaving the the head of the chain for the parallel search.
+
+  StoreSDNode *STChain = St;
+  int64_t LastOffset = BasePtr.Offset;
+  while (StoreSDNode *Chain = dyn_cast<StoreSDNode>(STChain->getChain())) {
+    BaseIndexOffset Ptr;
+    //Check Chain.
+    if (!CandidateMatch(Chain, Ptr) || Ptr.Offset > LastOffset)
+      break;
+    StoreNodes.push_back(MemOpLink(STChain, LastOffset));
+    LastOffset = Ptr.Offset;
+    STChain = Chain;
+  }
+
+  SDNode *RootNode = (STChain->getChain()).getNode();
+
   // We looking for a root node which is an ancestor to all mergable
   // stores. We search up through a load, to our root and then down
   // through all children. For instance we will find Store{1,2,3} if
@@ -12203,12 +12267,10 @@ void DAGCombiner::getStoreMergeCandidates(
   // |-------|-------|
   // Load    Load    Store3
   // |       |
-  // Store1   Store2
+  // Store1  Store2
   //
   // FIXME: We should be able to climb and
   // descend TokenFactors to find candidates as well.
-
-  SDNode *RootNode = (St->getChain()).getNode();
 
   // Set of Parents of Candidates
   std::set<SDNode *> CandidateParents;
@@ -12221,39 +12283,13 @@ void DAGCombiner::getStoreMergeCandidates(
   } else
     CandidateParents.insert(RootNode);
 
-  bool IsLoadSrc = isa<LoadSDNode>(St->getValue());
-  bool IsConstantSrc = isa<ConstantSDNode>(St->getValue()) ||
-                       isa<ConstantFPSDNode>(St->getValue());
-  bool IsExtractVecSrc =
-      (St->getValue().getOpcode() == ISD::EXTRACT_VECTOR_ELT ||
-       St->getValue().getOpcode() == ISD::EXTRACT_SUBVECTOR);
-  auto CorrectValueKind = [&](StoreSDNode *Other) -> bool {
-    if (IsLoadSrc)
-      return isa<LoadSDNode>(Other->getValue());
-    if (IsConstantSrc)
-      return (isa<ConstantSDNode>(Other->getValue()) ||
-              isa<ConstantFPSDNode>(Other->getValue()));
-    if (IsExtractVecSrc)
-      return (Other->getValue().getOpcode() == ISD::EXTRACT_VECTOR_ELT ||
-              Other->getValue().getOpcode() == ISD::EXTRACT_SUBVECTOR);
-    return false;
-  };
-
   // check all parents of mergable children
   for (auto P = CandidateParents.begin(); P != CandidateParents.end(); ++P)
     for (auto I = (*P)->use_begin(), E = (*P)->use_end(); I != E; ++I)
       if (I.getOperandNo() == 0)
         if (StoreSDNode *OtherST = dyn_cast<StoreSDNode>(*I)) {
-          if (OtherST->isVolatile() || OtherST->isIndexed())
-            continue;
-          // We can merge constant floats to equivalent integers
-          if (OtherST->getMemoryVT() != MemVT)
-            if (!(MemVT.isInteger() && MemVT.bitsEq(OtherST->getMemoryVT()) &&
-                  isa<ConstantFPSDNode>(OtherST->getValue())))
-              continue;
-          BaseIndexOffset Ptr =
-              BaseIndexOffset::match(OtherST->getBasePtr(), DAG);
-          if (Ptr.equalBaseIndex(BasePtr) && CorrectValueKind(OtherST))
+          BaseIndexOffset Ptr;
+          if (CandidateMatch(OtherST, Ptr))
             StoreNodes.push_back(MemOpLink(OtherST, Ptr.Offset));
         }
 }
@@ -12494,9 +12530,6 @@ bool DAGCombiner::MergeConsecutiveStores(StoreSDNode *St) {
     LoadSDNode *Ld = dyn_cast<LoadSDNode>(St->getValue());
     if (!Ld) break;
 
-    // Loads must only have one use.
-    if (!Ld->hasNUsesOfValue(1, 0))
-      break;
 
     // The memory operands must not be volatile.
     if (Ld->isVolatile() || Ld->isIndexed())
@@ -12506,9 +12539,6 @@ bool DAGCombiner::MergeConsecutiveStores(StoreSDNode *St) {
     if (Ld->getExtensionType() != ISD::NON_EXTLOAD)
       break;
 
-    // The stored memory type must be the same.
-    if (Ld->getMemoryVT() != MemVT)
-      break;
 
     BaseIndexOffset LdPtr = BaseIndexOffset::match(Ld->getBasePtr(), DAG);
     // If this is not the first ptr that we check.
@@ -12611,14 +12641,6 @@ bool DAGCombiner::MergeConsecutiveStores(StoreSDNode *St) {
   if (NumElem < 2)
     return false;
 
-  // Collect the chains from all merged stores. Because the common case
-  // all chains are the same, check if we match the first Chain.
-  SmallVector<SDValue, 8> MergeStoreChains;
-  MergeStoreChains.push_back(StoreNodes[0].MemNode->getChain());
-  for (unsigned i = 1; i < NumElem; ++i)
-    if (StoreNodes[0].MemNode->getChain() != StoreNodes[i].MemNode->getChain())
-      MergeStoreChains.push_back(StoreNodes[i].MemNode->getChain());
-
   // Find if it is better to use vectors or integers to load and store
   // to memory.
   EVT JointMemOpVT;
@@ -12638,8 +12660,7 @@ bool DAGCombiner::MergeConsecutiveStores(StoreSDNode *St) {
                                 FirstLoad->getBasePtr(),
                                 FirstLoad->getPointerInfo(), FirstLoadAlign);
 
-  SDValue NewStoreChain =
-    DAG.getNode(ISD::TokenFactor, StoreDL, MVT::Other, MergeStoreChains);
+  SDValue NewStoreChain = getMergeStoreChains(StoreNodes, NumElem);
 
   AddToWorklist(NewStoreChain.getNode());
 
@@ -12650,8 +12671,24 @@ bool DAGCombiner::MergeConsecutiveStores(StoreSDNode *St) {
   // Transfer chain users from old loads to the new load.
   for (unsigned i = 0; i < NumElem; ++i) {
     LoadSDNode *Ld = cast<LoadSDNode>(LoadNodes[i].MemNode);
-    DAG.ReplaceAllUsesOfValueWith(SDValue(Ld, 1),
-                                  SDValue(NewLoad.getNode(), 1));
+    if (SDValue(Ld, 0).hasOneUse()) {
+      // Only the original store used value so just replace chain.
+      DAG.ReplaceAllUsesOfValueWith(SDValue(Ld, 1),
+                                    SDValue(NewLoad.getNode(), 1));
+    } else {
+      // Multiple uses exist. Keep the old load in line with the new load.
+      SDValue Token0 =
+          DAG.getNode(ISD::TokenFactor, SDLoc(Ld), MVT::Other, SDValue(Ld, 1),
+                      SDValue(NewLoad.getNode(), 1));
+      // Don't cleanup Ld yet. This changes Token0 first argument to itself.
+      CombineTo(Ld, SDValue(Ld, 0), Token0, false);
+      SDValue Token =
+          DAG.getNode(ISD::TokenFactor, SDLoc(Ld), MVT::Other, SDValue(Ld, 1),
+                      SDValue(NewLoad.getNode(), 1));
+      // Reset Token0's input from itself to Ld's output chain.
+      CombineTo(Token0.getNode(), Token);
+      AddToWorklist(Ld);
+    }
   }
 
   // Replace the all stores with the new store.
