@@ -343,9 +343,7 @@ bool CallAnalyzer::isGEPFree(GetElementPtrInst &GEP) {
        Indices.push_back(SimpleOp);
      else
        Indices.push_back(*I);
-  return TargetTransformInfo::TCC_Free ==
-         TTI.getGEPCost(GEP.getSourceElementType(), GEP.getPointerOperand(),
-                        Indices);
+  return TargetTransformInfo::TCC_Free == TTI.getGEPCost(&GEP, Indices);
 }
 
 bool CallAnalyzer::visitAlloca(AllocaInst &I) {

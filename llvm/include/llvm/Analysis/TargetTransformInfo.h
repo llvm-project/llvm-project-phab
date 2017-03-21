@@ -149,7 +149,7 @@ public:
   /// The contract for this function is the same as \c getOperationCost except
   /// that it supports an interface that provides extra information specific to
   /// the GEP operation.
-  int getGEPCost(Type *PointeeType, const Value *Ptr,
+  int getGEPCost(const GetElementPtrInst *GEP,
                  ArrayRef<const Value *> Operands) const;
 
   /// \brief Estimate the cost of a function call when lowered.
@@ -735,7 +735,7 @@ public:
   virtual ~Concept() = 0;
   virtual const DataLayout &getDataLayout() const = 0;
   virtual int getOperationCost(unsigned Opcode, Type *Ty, Type *OpTy) = 0;
-  virtual int getGEPCost(Type *PointeeType, const Value *Ptr,
+  virtual int getGEPCost(const GetElementPtrInst *GEP,
                          ArrayRef<const Value *> Operands) = 0;
   virtual int getCallCost(FunctionType *FTy, int NumArgs) = 0;
   virtual int getCallCost(const Function *F, int NumArgs) = 0;
@@ -882,9 +882,9 @@ public:
   int getOperationCost(unsigned Opcode, Type *Ty, Type *OpTy) override {
     return Impl.getOperationCost(Opcode, Ty, OpTy);
   }
-  int getGEPCost(Type *PointeeType, const Value *Ptr,
+  int getGEPCost(const GetElementPtrInst *GEP,
                  ArrayRef<const Value *> Operands) override {
-    return Impl.getGEPCost(PointeeType, Ptr, Operands);
+    return Impl.getGEPCost(GEP, Operands);
   }
   int getCallCost(FunctionType *FTy, int NumArgs) override {
     return Impl.getCallCost(FTy, NumArgs);

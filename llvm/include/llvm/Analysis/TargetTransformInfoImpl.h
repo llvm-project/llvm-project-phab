@@ -103,7 +103,7 @@ public:
     }
   }
 
-  int getGEPCost(Type *PointeeType, const Value *Ptr,
+  int getGEPCost(const GetElementPtrInst *GEP,
                  ArrayRef<const Value *> Operands) {
     // In the basic model, we just assume that all-constant GEPs will be folded
     // into their uses via addressing modes.
@@ -566,13 +566,15 @@ public:
 
   using BaseT::getGEPCost;
 
-  int getGEPCost(Type *PointeeType, const Value *Ptr,
+  int getGEPCost(const GetElementPtrInst *GEP,
                  ArrayRef<const Value *> Operands) {
+    assert(GEP);
+    const Value *Ptr = GEP->getPointerOperand();
     const GlobalValue *BaseGV = nullptr;
     if (Ptr != nullptr) {
       // TODO: will remove this when pointers have an opaque type.
       assert(Ptr->getType()->getScalarType()->getPointerElementType() ==
-                 PointeeType &&
+                 GEP->getSourceElementType() &&
              "explicit pointee type doesn't match operand's pointee type");
       BaseGV = dyn_cast<GlobalValue>(Ptr->stripPointerCasts());
     }
@@ -580,7 +582,7 @@ public:
     int64_t BaseOffset = 0;
     int64_t Scale = 0;
 
-    auto GTI = gep_type_begin(PointeeType, Operands);
+    auto GTI = gep_type_begin(GEP);
     Type *TargetType;
     for (auto I = Operands.begin(); I != Operands.end(); ++I, ++GTI) {
       TargetType = GTI.getIndexedType();
@@ -639,8 +641,8 @@ public:
 
     if (const GEPOperator *GEP = dyn_cast<GEPOperator>(U)) {
       SmallVector<Value *, 4> Indices(GEP->idx_begin(), GEP->idx_end());
-      return static_cast<T *>(this)->getGEPCost(
-          GEP->getSourceElementType(), GEP->getPointerOperand(), Indices);
+      return static_cast<T *>(this)->getGEPCost(cast<GetElementPtrInst>(GEP),
+                                                Indices);
     }
 
     if (auto CS = ImmutableCallSite(U)) {

@@ -144,9 +144,9 @@ public:
     return getTLI()->isTypeLegal(VT);
   }
 
-  int getGEPCost(Type *PointeeType, const Value *Ptr,
+  int getGEPCost(const GetElementPtrInst *GEP,
                  ArrayRef<const Value *> Operands) {
-    return BaseT::getGEPCost(PointeeType, Ptr, Operands);
+    return BaseT::getGEPCost(GEP, Operands);
   }
 
   unsigned getIntrinsicCost(Intrinsic::ID IID, Type *RetTy,

@@ -71,9 +71,9 @@ unsigned TargetTransformInfo::getInliningThresholdMultiplier() const {
   return TTIImpl->getInliningThresholdMultiplier();
 }
 
-int TargetTransformInfo::getGEPCost(Type *PointeeType, const Value *Ptr,
+int TargetTransformInfo::getGEPCost(const GetElementPtrInst *GEP,
                                     ArrayRef<const Value *> Operands) const {
-  return TTIImpl->getGEPCost(PointeeType, Ptr, Operands);
+  return TTIImpl->getGEPCost(GEP, Operands);
 }
 
 int TargetTransformInfo::getIntrinsicCost(

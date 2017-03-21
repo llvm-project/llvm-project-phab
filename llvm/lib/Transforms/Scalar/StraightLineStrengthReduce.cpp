@@ -239,8 +239,7 @@ static bool isGEPFoldable(GetElementPtrInst *GEP,
   SmallVector<const Value*, 4> Indices;
   for (auto I = GEP->idx_begin(); I != GEP->idx_end(); ++I)
     Indices.push_back(*I);
-  return TTI->getGEPCost(GEP->getSourceElementType(), GEP->getPointerOperand(),
-                         Indices) == TargetTransformInfo::TCC_Free;
+  return TTI->getGEPCost(GEP, Indices) == TargetTransformInfo::TCC_Free;
 }
 
 // Returns whether (Base + Index * Stride) can be folded to an addressing mode.
