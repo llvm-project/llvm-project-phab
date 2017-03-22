@@ -766,6 +766,8 @@ void ASTDeclReader::VisitFunctionDecl(FunctionDecl *FD) {
   FD->setCachedLinkage(Linkage(Record.readInt()));
   FD->EndRangeLoc = ReadSourceLocation();
 
+  bool IsFunctionNoProtoType = FD->getType()->getAs<FunctionNoProtoType>();
+
   switch ((FunctionDecl::TemplatedKind)Record.readInt()) {
   case FunctionDecl::TK_NonTemplate:
     mergeRedeclarable(FD, Redecl);
@@ -873,6 +875,12 @@ void ASTDeclReader::VisitFunctionDecl(FunctionDecl *FD) {
 
   // Read in the parameters.
   unsigned NumParams = Record.readInt();
+
+  // Return here if FD is a non-prototype function declaration and has been
+  // merged with a function prototype.
+  if (IsFunctionNoProtoType && FD->getType()->getAs<FunctionProtoType>())
+    return;
+
   SmallVector<ParmVarDecl *, 16> Params;
   Params.reserve(NumParams);
   for (unsigned I = 0; I != NumParams; ++I)
@@ -2402,6 +2410,35 @@ void ASTDeclReader::mergeTemplatePattern(RedeclarableTemplateDecl *D,
   llvm_unreachable("merged an unknown kind of redeclarable template");
 }
 
+static void mergeCompatibleFunctionDecls(FunctionDecl *OldFD,
+                                         FunctionDecl *NewFD,
+                                         ASTContext &Context) {
+  const auto *OldFuncType = OldFD->getType()->getAs<FunctionType>();
+  const auto *NewFuncType = NewFD->getType()->getAs<FunctionType>();
+  const FunctionProtoType *OldProto = dyn_cast<FunctionProtoType>(OldFuncType);
+
+  if (!OldProto || !isa<FunctionNoProtoType>(NewFuncType))
+    return;
+
+  SmallVector<QualType, 4> ParamTypes(OldProto->param_types());
+  QualType NewType = Context.getFunctionType(
+      NewFuncType->getReturnType(), ParamTypes, OldProto->getExtProtoInfo());
+  NewFD->setType(NewType);
+  NewFD->setHasInheritedPrototype();
+
+  SmallVector<ParmVarDecl *, 4> Params;
+  for (const auto &ParamType : OldProto->param_types()) {
+    auto *Param = ParmVarDecl::Create(Context, NewFD, SourceLocation(),
+                                      SourceLocation(), nullptr, ParamType,
+                                      nullptr, SC_None, nullptr);
+    Param->setScopeInfo(0, Params.size());
+    Param->setImplicit();
+    Params.push_back(Param);
+  }
+
+  NewFD->setParams(Params);
+}
+
 /// \brief Attempts to merge the given declaration (D) with another declaration
 /// of the same entity.
 template<typename T>
@@ -2422,6 +2459,13 @@ void ASTDeclReader::mergeRedeclarable(Redeclarable<T> *DBase, T *Existing,
     D->First = ExistingCanon;
     ExistingCanon->Used |= D->Used;
     D->Used = false;
+
+    if (!Reader.getContext().getLangOpts().CPlusPlus) {
+      auto *OldFD = dyn_cast<FunctionDecl>(Existing);
+      auto *FD = dyn_cast<FunctionDecl>(D);
+      if (OldFD && FD)
+        mergeCompatibleFunctionDecls(OldFD, FD, Reader.getContext());
+    }
 
     // When we merge a namespace, update its pointer to the first namespace.
     // We cannot have loaded any redeclarations of this declaration yet, so
@@ -2672,6 +2716,10 @@ static bool isSameTemplateParameterList(const TemplateParameterList *X,
 /// B. Will ignore any overloadable attrs represented in the type of A and B.
 static bool hasSameOverloadableAttrs(const FunctionDecl *A,
                                      const FunctionDecl *B) {
+  if (A->getType()->getAs<FunctionType>()->getNoReturnAttr() !=
+      B->getType()->getAs<FunctionType>()->getNoReturnAttr())
+    return false;
+
   // Note that pass_object_size attributes are represented in the function's
   // ExtParameterInfo, so we don't need to check them here.
 
@@ -2763,7 +2811,7 @@ static bool isSameEntity(NamedDecl *X, NamedDecl *Y) {
         return false;
     }
     ASTContext &C = FuncX->getASTContext();
-    if (!C.hasSameType(FuncX->getType(), FuncY->getType())) {
+    if (!C.typesAreCompatible(FuncX->getType(), FuncY->getType())) {
       // We can get functions with different types on the redecl chain in C++17
       // if they have differing exception specifications and at least one of
       // the excpetion specs is unresolved.
