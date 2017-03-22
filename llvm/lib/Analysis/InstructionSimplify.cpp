@@ -53,11 +53,12 @@ struct Query {
   const DominatorTree *DT;
   AssumptionCache *AC;
   const Instruction *CxtI;
+  KBCache *KBC;
 
   Query(const DataLayout &DL, const TargetLibraryInfo *tli,
         const DominatorTree *dt, AssumptionCache *ac = nullptr,
-        const Instruction *cxti = nullptr)
-      : DL(DL), TLI(tli), DT(dt), AC(ac), CxtI(cxti) {}
+        const Instruction *cxti = nullptr, KBCache *kbc = nullptr)
+      : DL(DL), TLI(tli), DT(dt), AC(ac), CxtI(cxti), KBC(kbc) {}
 };
 } // end anonymous namespace
 
@@ -596,9 +597,9 @@ static Value *SimplifyAddInst(Value *Op0, Value *Op1, bool isNSW, bool isNUW,
 Value *llvm::SimplifyAddInst(Value *Op0, Value *Op1, bool isNSW, bool isNUW,
                              const DataLayout &DL, const TargetLibraryInfo *TLI,
                              const DominatorTree *DT, AssumptionCache *AC,
-                             const Instruction *CxtI) {
-  return ::SimplifyAddInst(Op0, Op1, isNSW, isNUW, Query(DL, TLI, DT, AC, CxtI),
-                           RecursionLimit);
+                             KBCache *KBC, const Instruction *CxtI) {
+  return ::SimplifyAddInst(Op0, Op1, isNSW, isNUW,
+                           Query(DL, TLI, DT, AC, CxtI, KBC), RecursionLimit);
 }
 
 /// \brief Compute the base pointer and cumulative constant offsets for V.
@@ -702,7 +703,8 @@ static Value *SimplifySubInst(Value *Op0, Value *Op1, bool isNSW, bool isNUW,
     unsigned BitWidth = Op1->getType()->getScalarSizeInBits();
     APInt KnownZero(BitWidth, 0);
     APInt KnownOne(BitWidth, 0);
-    computeKnownBits(Op1, KnownZero, KnownOne, Q.DL, 0, Q.AC, Q.CxtI, Q.DT);
+    computeKnownBits(Op1, KnownZero, KnownOne, Q.DL, 0, Q.AC, Q.CxtI, Q.DT,
+                     Q.KBC);
     if (KnownZero == ~APInt::getSignBit(BitWidth)) {
       // Op1 is either 0 or the minimum signed value. If the sub is NSW, then
       // Op1 must be 0 because negating the minimum signed value is undefined.
@@ -809,9 +811,9 @@ static Value *SimplifySubInst(Value *Op0, Value *Op1, bool isNSW, bool isNUW,
 Value *llvm::SimplifySubInst(Value *Op0, Value *Op1, bool isNSW, bool isNUW,
                              const DataLayout &DL, const TargetLibraryInfo *TLI,
                              const DominatorTree *DT, AssumptionCache *AC,
-                             const Instruction *CxtI) {
-  return ::SimplifySubInst(Op0, Op1, isNSW, isNUW, Query(DL, TLI, DT, AC, CxtI),
-                           RecursionLimit);
+                             KBCache *KBC, const Instruction *CxtI) {
+  return ::SimplifySubInst(Op0, Op1, isNSW, isNUW,
+                           Query(DL, TLI, DT, AC, CxtI, KBC), RecursionLimit);
 }
 
 /// Given operands for an FAdd, see if we can fold the result.  If not, this
@@ -978,8 +980,8 @@ Value *llvm::SimplifyFAddInst(Value *Op0, Value *Op1, FastMathFlags FMF,
                               const DataLayout &DL,
                               const TargetLibraryInfo *TLI,
                               const DominatorTree *DT, AssumptionCache *AC,
-                              const Instruction *CxtI) {
-  return ::SimplifyFAddInst(Op0, Op1, FMF, Query(DL, TLI, DT, AC, CxtI),
+                              KBCache *KBC, const Instruction *CxtI) {
+  return ::SimplifyFAddInst(Op0, Op1, FMF, Query(DL, TLI, DT, AC, CxtI, KBC),
                             RecursionLimit);
 }
 
@@ -987,8 +989,8 @@ Value *llvm::SimplifyFSubInst(Value *Op0, Value *Op1, FastMathFlags FMF,
                               const DataLayout &DL,
                               const TargetLibraryInfo *TLI,
                               const DominatorTree *DT, AssumptionCache *AC,
-                              const Instruction *CxtI) {
-  return ::SimplifyFSubInst(Op0, Op1, FMF, Query(DL, TLI, DT, AC, CxtI),
+                              KBCache *KBC, const Instruction *CxtI) {
+  return ::SimplifyFSubInst(Op0, Op1, FMF, Query(DL, TLI, DT, AC, CxtI, KBC),
                             RecursionLimit);
 }
 
@@ -996,16 +998,16 @@ Value *llvm::SimplifyFMulInst(Value *Op0, Value *Op1, FastMathFlags FMF,
                               const DataLayout &DL,
                               const TargetLibraryInfo *TLI,
                               const DominatorTree *DT, AssumptionCache *AC,
-                              const Instruction *CxtI) {
-  return ::SimplifyFMulInst(Op0, Op1, FMF, Query(DL, TLI, DT, AC, CxtI),
+                              KBCache *KBC, const Instruction *CxtI) {
+  return ::SimplifyFMulInst(Op0, Op1, FMF, Query(DL, TLI, DT, AC, CxtI, KBC),
                             RecursionLimit);
 }
 
 Value *llvm::SimplifyMulInst(Value *Op0, Value *Op1, const DataLayout &DL,
                              const TargetLibraryInfo *TLI,
                              const DominatorTree *DT, AssumptionCache *AC,
-                             const Instruction *CxtI) {
-  return ::SimplifyMulInst(Op0, Op1, Query(DL, TLI, DT, AC, CxtI),
+                             KBCache *KBC, const Instruction *CxtI) {
+  return ::SimplifyMulInst(Op0, Op1, Query(DL, TLI, DT, AC, CxtI, KBC),
                            RecursionLimit);
 }
 
@@ -1131,8 +1133,8 @@ static Value *SimplifySDivInst(Value *Op0, Value *Op1, const Query &Q,
 Value *llvm::SimplifySDivInst(Value *Op0, Value *Op1, const DataLayout &DL,
                               const TargetLibraryInfo *TLI,
                               const DominatorTree *DT, AssumptionCache *AC,
-                              const Instruction *CxtI) {
-  return ::SimplifySDivInst(Op0, Op1, Query(DL, TLI, DT, AC, CxtI),
+                              KBCache *KBC, const Instruction *CxtI) {
+  return ::SimplifySDivInst(Op0, Op1, Query(DL, TLI, DT, AC, CxtI, KBC),
                             RecursionLimit);
 }
 
@@ -1159,8 +1161,8 @@ static Value *SimplifyUDivInst(Value *Op0, Value *Op1, const Query &Q,
 Value *llvm::SimplifyUDivInst(Value *Op0, Value *Op1, const DataLayout &DL,
                               const TargetLibraryInfo *TLI,
                               const DominatorTree *DT, AssumptionCache *AC,
-                              const Instruction *CxtI) {
-  return ::SimplifyUDivInst(Op0, Op1, Query(DL, TLI, DT, AC, CxtI),
+                              KBCache *KBC, const Instruction *CxtI) {
+  return ::SimplifyUDivInst(Op0, Op1, Query(DL, TLI, DT, AC, CxtI, KBC),
                             RecursionLimit);
 }
 
@@ -1206,8 +1208,8 @@ Value *llvm::SimplifyFDivInst(Value *Op0, Value *Op1, FastMathFlags FMF,
                               const DataLayout &DL,
                               const TargetLibraryInfo *TLI,
                               const DominatorTree *DT, AssumptionCache *AC,
-                              const Instruction *CxtI) {
-  return ::SimplifyFDivInst(Op0, Op1, FMF, Query(DL, TLI, DT, AC, CxtI),
+                              KBCache *KBC, const Instruction *CxtI) {
+  return ::SimplifyFDivInst(Op0, Op1, FMF, Query(DL, TLI, DT, AC, CxtI, KBC),
                             RecursionLimit);
 }
 
@@ -1257,8 +1259,8 @@ static Value *SimplifySRemInst(Value *Op0, Value *Op1, const Query &Q,
 Value *llvm::SimplifySRemInst(Value *Op0, Value *Op1, const DataLayout &DL,
                               const TargetLibraryInfo *TLI,
                               const DominatorTree *DT, AssumptionCache *AC,
-                              const Instruction *CxtI) {
-  return ::SimplifySRemInst(Op0, Op1, Query(DL, TLI, DT, AC, CxtI),
+                              KBCache *KBC, const Instruction *CxtI) {
+  return ::SimplifySRemInst(Op0, Op1, Query(DL, TLI, DT, AC, CxtI, KBC),
                             RecursionLimit);
 }
 
@@ -1285,8 +1287,8 @@ static Value *SimplifyURemInst(Value *Op0, Value *Op1, const Query &Q,
 Value *llvm::SimplifyURemInst(Value *Op0, Value *Op1, const DataLayout &DL,
                               const TargetLibraryInfo *TLI,
                               const DominatorTree *DT, AssumptionCache *AC,
-                              const Instruction *CxtI) {
-  return ::SimplifyURemInst(Op0, Op1, Query(DL, TLI, DT, AC, CxtI),
+                              KBCache *KBC, const Instruction *CxtI) {
+  return ::SimplifyURemInst(Op0, Op1, Query(DL, TLI, DT, AC, CxtI, KBC),
                             RecursionLimit);
 }
 
@@ -1313,8 +1315,8 @@ Value *llvm::SimplifyFRemInst(Value *Op0, Value *Op1, FastMathFlags FMF,
                               const DataLayout &DL,
                               const TargetLibraryInfo *TLI,
                               const DominatorTree *DT, AssumptionCache *AC,
-                              const Instruction *CxtI) {
-  return ::SimplifyFRemInst(Op0, Op1, FMF, Query(DL, TLI, DT, AC, CxtI),
+                              KBCache *KBC, const Instruction *CxtI) {
+  return ::SimplifyFRemInst(Op0, Op1, FMF, Query(DL, TLI, DT, AC, CxtI, KBC),
                             RecursionLimit);
 }
 
@@ -1382,7 +1384,8 @@ static Value *SimplifyShift(unsigned Opcode, Value *Op0, Value *Op1,
   unsigned BitWidth = Op1->getType()->getScalarSizeInBits();
   APInt KnownZero(BitWidth, 0);
   APInt KnownOne(BitWidth, 0);
-  computeKnownBits(Op1, KnownZero, KnownOne, Q.DL, 0, Q.AC, Q.CxtI, Q.DT);
+  computeKnownBits(Op1, KnownZero, KnownOne, Q.DL, 0, Q.AC, Q.CxtI, Q.DT,
+                   Q.KBC);
   if (KnownOne.getLimitedValue() >= BitWidth)
     return UndefValue::get(Op0->getType());
 
@@ -1419,7 +1422,7 @@ static Value *SimplifyRightShift(unsigned Opcode, Value *Op0, Value *Op1,
     APInt Op0KnownZero(BitWidth, 0);
     APInt Op0KnownOne(BitWidth, 0);
     computeKnownBits(Op0, Op0KnownZero, Op0KnownOne, Q.DL, /*Depth=*/0, Q.AC,
-                     Q.CxtI, Q.DT);
+                     Q.CxtI, Q.DT, Q.KBC);
     if (Op0KnownOne[0])
       return Op0;
   }
@@ -1449,9 +1452,9 @@ static Value *SimplifyShlInst(Value *Op0, Value *Op1, bool isNSW, bool isNUW,
 Value *llvm::SimplifyShlInst(Value *Op0, Value *Op1, bool isNSW, bool isNUW,
                              const DataLayout &DL, const TargetLibraryInfo *TLI,
                              const DominatorTree *DT, AssumptionCache *AC,
-                             const Instruction *CxtI) {
-  return ::SimplifyShlInst(Op0, Op1, isNSW, isNUW, Query(DL, TLI, DT, AC, CxtI),
-                           RecursionLimit);
+                             KBCache *KBC, const Instruction *CxtI) {
+  return ::SimplifyShlInst(Op0, Op1, isNSW, isNUW,
+                           Query(DL, TLI, DT, AC, CxtI, KBC), RecursionLimit);
 }
 
 /// Given operands for an LShr, see if we can fold the result.
@@ -1474,9 +1477,9 @@ Value *llvm::SimplifyLShrInst(Value *Op0, Value *Op1, bool isExact,
                               const DataLayout &DL,
                               const TargetLibraryInfo *TLI,
                               const DominatorTree *DT, AssumptionCache *AC,
-                              const Instruction *CxtI) {
-  return ::SimplifyLShrInst(Op0, Op1, isExact, Query(DL, TLI, DT, AC, CxtI),
-                            RecursionLimit);
+                              KBCache *KBC, const Instruction *CxtI) {
+  return ::SimplifyLShrInst(Op0, Op1, isExact,
+                            Query(DL, TLI, DT, AC, CxtI, KBC), RecursionLimit);
 }
 
 /// Given operands for an AShr, see if we can fold the result.
@@ -1497,7 +1500,8 @@ static Value *SimplifyAShrInst(Value *Op0, Value *Op1, bool isExact,
     return X;
 
   // Arithmetic shifting an all-sign-bit value is a no-op.
-  unsigned NumSignBits = ComputeNumSignBits(Op0, Q.DL, 0, Q.AC, Q.CxtI, Q.DT);
+  unsigned NumSignBits =
+    ComputeNumSignBits(Op0, Q.DL, 0, Q.AC, Q.CxtI, Q.DT, Q.KBC);
   if (NumSignBits == Op0->getType()->getScalarSizeInBits())
     return Op0;
 
@@ -1508,9 +1512,9 @@ Value *llvm::SimplifyAShrInst(Value *Op0, Value *Op1, bool isExact,
                               const DataLayout &DL,
                               const TargetLibraryInfo *TLI,
                               const DominatorTree *DT, AssumptionCache *AC,
-                              const Instruction *CxtI) {
-  return ::SimplifyAShrInst(Op0, Op1, isExact, Query(DL, TLI, DT, AC, CxtI),
-                            RecursionLimit);
+                              KBCache *KBC, const Instruction *CxtI) {
+  return ::SimplifyAShrInst(Op0, Op1, isExact,
+                            Query(DL, TLI, DT, AC, CxtI, KBC), RecursionLimit);
 }
 
 static Value *simplifyUnsignedRangeCheck(ICmpInst *ZeroICmp,
@@ -1692,10 +1696,10 @@ static Value *SimplifyAndInst(Value *Op0, Value *Op1, const Query &Q,
   if (match(Op0, m_Neg(m_Specific(Op1))) ||
       match(Op1, m_Neg(m_Specific(Op0)))) {
     if (isKnownToBeAPowerOfTwo(Op0, Q.DL, /*OrZero*/ true, 0, Q.AC, Q.CxtI,
-                               Q.DT))
+                               Q.DT, Q.KBC))
       return Op0;
     if (isKnownToBeAPowerOfTwo(Op1, Q.DL, /*OrZero*/ true, 0, Q.AC, Q.CxtI,
-                               Q.DT))
+                               Q.DT, Q.KBC))
       return Op1;
   }
 
@@ -1761,8 +1765,8 @@ static Value *SimplifyAndInst(Value *Op0, Value *Op1, const Query &Q,
 Value *llvm::SimplifyAndInst(Value *Op0, Value *Op1, const DataLayout &DL,
                              const TargetLibraryInfo *TLI,
                              const DominatorTree *DT, AssumptionCache *AC,
-                             const Instruction *CxtI) {
-  return ::SimplifyAndInst(Op0, Op1, Query(DL, TLI, DT, AC, CxtI),
+                             KBCache *KBC, const Instruction *CxtI) {
+  return ::SimplifyAndInst(Op0, Op1, Query(DL, TLI, DT, AC, CxtI, KBC),
                            RecursionLimit);
 }
 
@@ -1942,10 +1946,12 @@ static Value *SimplifyOrInst(Value *Op0, Value *Op1, const Query &Q,
           match(A, m_Add(m_Value(V1), m_Value(V2)))) {
         // Add commutes, try both ways.
         if (V1 == B &&
-            MaskedValueIsZero(V2, C2->getValue(), Q.DL, 0, Q.AC, Q.CxtI, Q.DT))
+            MaskedValueIsZero(V2, C2->getValue(), Q.DL, 0, Q.AC, Q.CxtI, Q.DT,
+                              Q.KBC))
           return A;
         if (V2 == B &&
-            MaskedValueIsZero(V1, C2->getValue(), Q.DL, 0, Q.AC, Q.CxtI, Q.DT))
+            MaskedValueIsZero(V1, C2->getValue(), Q.DL, 0, Q.AC, Q.CxtI, Q.DT,
+                              Q.KBC))
           return A;
       }
       // Or commutes, try both ways.
@@ -1953,10 +1959,12 @@ static Value *SimplifyOrInst(Value *Op0, Value *Op1, const Query &Q,
           match(B, m_Add(m_Value(V1), m_Value(V2)))) {
         // Add commutes, try both ways.
         if (V1 == A &&
-            MaskedValueIsZero(V2, C1->getValue(), Q.DL, 0, Q.AC, Q.CxtI, Q.DT))
+            MaskedValueIsZero(V2, C1->getValue(), Q.DL, 0, Q.AC, Q.CxtI, Q.DT,
+                              Q.KBC))
           return B;
         if (V2 == A &&
-            MaskedValueIsZero(V1, C1->getValue(), Q.DL, 0, Q.AC, Q.CxtI, Q.DT))
+            MaskedValueIsZero(V1, C1->getValue(), Q.DL, 0, Q.AC, Q.CxtI, Q.DT,
+                              Q.KBC))
           return B;
       }
     }
@@ -1974,8 +1982,8 @@ static Value *SimplifyOrInst(Value *Op0, Value *Op1, const Query &Q,
 Value *llvm::SimplifyOrInst(Value *Op0, Value *Op1, const DataLayout &DL,
                             const TargetLibraryInfo *TLI,
                             const DominatorTree *DT, AssumptionCache *AC,
-                            const Instruction *CxtI) {
-  return ::SimplifyOrInst(Op0, Op1, Query(DL, TLI, DT, AC, CxtI),
+                            KBCache *KBC, const Instruction *CxtI) {
+  return ::SimplifyOrInst(Op0, Op1, Query(DL, TLI, DT, AC, CxtI, KBC),
                           RecursionLimit);
 }
 
@@ -2028,8 +2036,8 @@ static Value *SimplifyXorInst(Value *Op0, Value *Op1, const Query &Q,
 Value *llvm::SimplifyXorInst(Value *Op0, Value *Op1, const DataLayout &DL,
                              const TargetLibraryInfo *TLI,
                              const DominatorTree *DT, AssumptionCache *AC,
-                             const Instruction *CxtI) {
-  return ::SimplifyXorInst(Op0, Op1, Query(DL, TLI, DT, AC, CxtI),
+                             KBCache *KBC, const Instruction *CxtI) {
+  return ::SimplifyXorInst(Op0, Op1, Query(DL, TLI, DT, AC, CxtI, KBC),
                            RecursionLimit);
 }
 
@@ -2344,17 +2352,17 @@ static Value *simplifyICmpWithZero(CmpInst::Predicate Pred, Value *LHS,
     return getTrue(ITy);
   case ICmpInst::ICMP_EQ:
   case ICmpInst::ICMP_ULE:
-    if (isKnownNonZero(LHS, Q.DL, 0, Q.AC, Q.CxtI, Q.DT))
+    if (isKnownNonZero(LHS, Q.DL, 0, Q.AC, Q.CxtI, Q.DT, Q.KBC))
       return getFalse(ITy);
     break;
   case ICmpInst::ICMP_NE:
   case ICmpInst::ICMP_UGT:
-    if (isKnownNonZero(LHS, Q.DL, 0, Q.AC, Q.CxtI, Q.DT))
+    if (isKnownNonZero(LHS, Q.DL, 0, Q.AC, Q.CxtI, Q.DT, Q.KBC))
       return getTrue(ITy);
     break;
   case ICmpInst::ICMP_SLT:
     ComputeSignBit(LHS, LHSKnownNonNegative, LHSKnownNegative, Q.DL, 0, Q.AC,
-                   Q.CxtI, Q.DT);
+                   Q.CxtI, Q.DT, Q.KBC);
     if (LHSKnownNegative)
       return getTrue(ITy);
     if (LHSKnownNonNegative)
@@ -2362,15 +2370,16 @@ static Value *simplifyICmpWithZero(CmpInst::Predicate Pred, Value *LHS,
     break;
   case ICmpInst::ICMP_SLE:
     ComputeSignBit(LHS, LHSKnownNonNegative, LHSKnownNegative, Q.DL, 0, Q.AC,
-                   Q.CxtI, Q.DT);
+                   Q.CxtI, Q.DT, Q.KBC);
     if (LHSKnownNegative)
       return getTrue(ITy);
-    if (LHSKnownNonNegative && isKnownNonZero(LHS, Q.DL, 0, Q.AC, Q.CxtI, Q.DT))
+    if (LHSKnownNonNegative &&
+        isKnownNonZero(LHS, Q.DL, 0, Q.AC, Q.CxtI, Q.DT, Q.KBC))
       return getFalse(ITy);
     break;
   case ICmpInst::ICMP_SGE:
     ComputeSignBit(LHS, LHSKnownNonNegative, LHSKnownNegative, Q.DL, 0, Q.AC,
-                   Q.CxtI, Q.DT);
+                   Q.CxtI, Q.DT, Q.KBC);
     if (LHSKnownNegative)
       return getFalse(ITy);
     if (LHSKnownNonNegative)
@@ -2378,10 +2387,11 @@ static Value *simplifyICmpWithZero(CmpInst::Predicate Pred, Value *LHS,
     break;
   case ICmpInst::ICMP_SGT:
     ComputeSignBit(LHS, LHSKnownNonNegative, LHSKnownNegative, Q.DL, 0, Q.AC,
-                   Q.CxtI, Q.DT);
+                   Q.CxtI, Q.DT, Q.KBC);
     if (LHSKnownNegative)
       return getFalse(ITy);
-    if (LHSKnownNonNegative && isKnownNonZero(LHS, Q.DL, 0, Q.AC, Q.CxtI, Q.DT))
+    if (LHSKnownNonNegative &&
+        isKnownNonZero(LHS, Q.DL, 0, Q.AC, Q.CxtI, Q.DT, Q.KBC))
       return getTrue(ITy);
     break;
   }
@@ -2667,9 +2677,9 @@ static Value *simplifyICmpWithBinOp(CmpInst::Predicate Pred, Value *LHS,
         bool RHSKnownNonNegative, RHSKnownNegative;
         bool YKnownNonNegative, YKnownNegative;
         ComputeSignBit(RHS, RHSKnownNonNegative, RHSKnownNegative, Q.DL, 0,
-                       Q.AC, Q.CxtI, Q.DT);
+                       Q.AC, Q.CxtI, Q.DT, Q.KBC);
         ComputeSignBit(Y, YKnownNonNegative, YKnownNegative, Q.DL, 0, Q.AC,
-                       Q.CxtI, Q.DT);
+                       Q.CxtI, Q.DT, Q.KBC);
         if (RHSKnownNonNegative && YKnownNegative)
           return Pred == ICmpInst::ICMP_SLT ? getTrue(ITy) : getFalse(ITy);
         if (RHSKnownNegative || YKnownNonNegative)
@@ -2687,9 +2697,9 @@ static Value *simplifyICmpWithBinOp(CmpInst::Predicate Pred, Value *LHS,
         bool LHSKnownNonNegative, LHSKnownNegative;
         bool YKnownNonNegative, YKnownNegative;
         ComputeSignBit(LHS, LHSKnownNonNegative, LHSKnownNegative, Q.DL, 0,
-                       Q.AC, Q.CxtI, Q.DT);
+                       Q.AC, Q.CxtI, Q.DT, Q.KBC);
         ComputeSignBit(Y, YKnownNonNegative, YKnownNegative, Q.DL, 0, Q.AC,
-                       Q.CxtI, Q.DT);
+                       Q.CxtI, Q.DT, Q.KBC);
         if (LHSKnownNonNegative && YKnownNegative)
           return Pred == ICmpInst::ICMP_SGT ? getTrue(ITy) : getFalse(ITy);
         if (LHSKnownNegative || YKnownNonNegative)
@@ -2746,7 +2756,7 @@ static Value *simplifyICmpWithBinOp(CmpInst::Predicate Pred, Value *LHS,
     case ICmpInst::ICMP_SGT:
     case ICmpInst::ICMP_SGE:
       ComputeSignBit(RHS, KnownNonNegative, KnownNegative, Q.DL, 0, Q.AC,
-                     Q.CxtI, Q.DT);
+                     Q.CxtI, Q.DT, Q.KBC);
       if (!KnownNonNegative)
         break;
       LLVM_FALLTHROUGH;
@@ -2757,7 +2767,7 @@ static Value *simplifyICmpWithBinOp(CmpInst::Predicate Pred, Value *LHS,
     case ICmpInst::ICMP_SLT:
     case ICmpInst::ICMP_SLE:
       ComputeSignBit(RHS, KnownNonNegative, KnownNegative, Q.DL, 0, Q.AC,
-                     Q.CxtI, Q.DT);
+                     Q.CxtI, Q.DT, Q.KBC);
       if (!KnownNonNegative)
         break;
       LLVM_FALLTHROUGH;
@@ -2777,7 +2787,7 @@ static Value *simplifyICmpWithBinOp(CmpInst::Predicate Pred, Value *LHS,
     case ICmpInst::ICMP_SGT:
     case ICmpInst::ICMP_SGE:
       ComputeSignBit(LHS, KnownNonNegative, KnownNegative, Q.DL, 0, Q.AC,
-                     Q.CxtI, Q.DT);
+                     Q.CxtI, Q.DT, Q.KBC);
       if (!KnownNonNegative)
         break;
       LLVM_FALLTHROUGH;
@@ -2788,7 +2798,7 @@ static Value *simplifyICmpWithBinOp(CmpInst::Predicate Pred, Value *LHS,
     case ICmpInst::ICMP_SLT:
     case ICmpInst::ICMP_SLE:
       ComputeSignBit(LHS, KnownNonNegative, KnownNegative, Q.DL, 0, Q.AC,
-                     Q.CxtI, Q.DT);
+                     Q.CxtI, Q.DT, Q.KBC);
       if (!KnownNonNegative)
         break;
       LLVM_FALLTHROUGH;
@@ -3313,7 +3323,7 @@ static Value *SimplifyICmpInst(unsigned Predicate, Value *LHS, Value *RHS,
 
   // icmp eq|ne X, Y -> false|true if X != Y
   if ((Pred == ICmpInst::ICMP_EQ || Pred == ICmpInst::ICMP_NE) &&
-      isKnownNonEqual(LHS, RHS, Q.DL, Q.AC, Q.CxtI, Q.DT)) {
+      isKnownNonEqual(LHS, RHS, Q.DL, Q.AC, Q.CxtI, Q.DT, Q.KBC)) {
     LLVMContext &Ctx = LHS->getType()->getContext();
     return Pred == ICmpInst::ICMP_NE ?
       ConstantInt::getTrue(Ctx) : ConstantInt::getFalse(Ctx);
@@ -3373,7 +3383,7 @@ static Value *SimplifyICmpInst(unsigned Predicate, Value *LHS, Value *RHS,
       APInt LHSKnownZero(BitWidth, 0);
       APInt LHSKnownOne(BitWidth, 0);
       computeKnownBits(LHS, LHSKnownZero, LHSKnownOne, Q.DL, /*Depth=*/0, Q.AC,
-                       Q.CxtI, Q.DT);
+                       Q.CxtI, Q.DT, Q.KBC);
       if (((LHSKnownZero & *RHSVal) != 0) || ((LHSKnownOne & ~(*RHSVal)) != 0))
         return Pred == ICmpInst::ICMP_EQ ? ConstantInt::getFalse(ITy)
                                          : ConstantInt::getTrue(ITy);
@@ -3399,9 +3409,9 @@ Value *llvm::SimplifyICmpInst(unsigned Predicate, Value *LHS, Value *RHS,
                               const DataLayout &DL,
                               const TargetLibraryInfo *TLI,
                               const DominatorTree *DT, AssumptionCache *AC,
-                              const Instruction *CxtI) {
-  return ::SimplifyICmpInst(Predicate, LHS, RHS, Query(DL, TLI, DT, AC, CxtI),
-                            RecursionLimit);
+                              KBCache *KBC, const Instruction *CxtI) {
+  return ::SimplifyICmpInst(Predicate, LHS, RHS,
+                            Query(DL, TLI, DT, AC, CxtI, KBC), RecursionLimit);
 }
 
 /// Given operands for an FCmpInst, see if we can fold the result.
@@ -3532,9 +3542,9 @@ Value *llvm::SimplifyFCmpInst(unsigned Predicate, Value *LHS, Value *RHS,
                               FastMathFlags FMF, const DataLayout &DL,
                               const TargetLibraryInfo *TLI,
                               const DominatorTree *DT, AssumptionCache *AC,
-                              const Instruction *CxtI) {
+                              KBCache *KBC, const Instruction *CxtI) {
   return ::SimplifyFCmpInst(Predicate, LHS, RHS, FMF,
-                            Query(DL, TLI, DT, AC, CxtI), RecursionLimit);
+                            Query(DL, TLI, DT, AC, CxtI, KBC), RecursionLimit);
 }
 
 /// See if V simplifies when its operand Op is replaced with RepOp.
@@ -3802,9 +3812,10 @@ Value *llvm::SimplifySelectInst(Value *Cond, Value *TrueVal, Value *FalseVal,
                                 const DataLayout &DL,
                                 const TargetLibraryInfo *TLI,
                                 const DominatorTree *DT, AssumptionCache *AC,
-                                const Instruction *CxtI) {
+                                KBCache *KBC, const Instruction *CxtI) {
   return ::SimplifySelectInst(Cond, TrueVal, FalseVal,
-                              Query(DL, TLI, DT, AC, CxtI), RecursionLimit);
+                              Query(DL, TLI, DT, AC, CxtI, KBC),
+                              RecursionLimit);
 }
 
 /// Given operands for an GetElementPtrInst, see if we can fold the result.
@@ -3921,9 +3932,9 @@ Value *llvm::SimplifyGEPInst(Type *SrcTy, ArrayRef<Value *> Ops,
                              const DataLayout &DL,
                              const TargetLibraryInfo *TLI,
                              const DominatorTree *DT, AssumptionCache *AC,
-                             const Instruction *CxtI) {
+                             KBCache *KBC, const Instruction *CxtI) {
   return ::SimplifyGEPInst(SrcTy, Ops,
-                           Query(DL, TLI, DT, AC, CxtI), RecursionLimit);
+                           Query(DL, TLI, DT, AC, CxtI, KBC), RecursionLimit);
 }
 
 /// Given operands for an InsertValueInst, see if we can fold the result.
@@ -3958,8 +3969,9 @@ static Value *SimplifyInsertValueInst(Value *Agg, Value *Val,
 Value *llvm::SimplifyInsertValueInst(
     Value *Agg, Value *Val, ArrayRef<unsigned> Idxs, const DataLayout &DL,
     const TargetLibraryInfo *TLI, const DominatorTree *DT, AssumptionCache *AC,
-    const Instruction *CxtI) {
-  return ::SimplifyInsertValueInst(Agg, Val, Idxs, Query(DL, TLI, DT, AC, CxtI),
+    KBCache *KBC, const Instruction *CxtI) {
+  return ::SimplifyInsertValueInst(Agg, Val, Idxs,
+                                   Query(DL, TLI, DT, AC, CxtI, KBC),
                                    RecursionLimit);
 }
 
@@ -3993,8 +4005,8 @@ Value *llvm::SimplifyExtractValueInst(Value *Agg, ArrayRef<unsigned> Idxs,
                                       const TargetLibraryInfo *TLI,
                                       const DominatorTree *DT,
                                       AssumptionCache *AC,
-                                      const Instruction *CxtI) {
-  return ::SimplifyExtractValueInst(Agg, Idxs, Query(DL, TLI, DT, AC, CxtI),
+                                      KBCache *KBC, const Instruction *CxtI) {
+  return ::SimplifyExtractValueInst(Agg, Idxs, Query(DL, TLI, DT, AC, CxtI, KBC),
                                     RecursionLimit);
 }
 
@@ -4025,8 +4037,10 @@ static Value *SimplifyExtractElementInst(Value *Vec, Value *Idx, const Query &,
 
 Value *llvm::SimplifyExtractElementInst(
     Value *Vec, Value *Idx, const DataLayout &DL, const TargetLibraryInfo *TLI,
-    const DominatorTree *DT, AssumptionCache *AC, const Instruction *CxtI) {
-  return ::SimplifyExtractElementInst(Vec, Idx, Query(DL, TLI, DT, AC, CxtI),
+    const DominatorTree *DT, AssumptionCache *AC, KBCache *KBC,
+    const Instruction *CxtI) {
+  return ::SimplifyExtractElementInst(Vec, Idx,
+                                      Query(DL, TLI, DT, AC, CxtI, KBC),
                                       RecursionLimit);
 }
 
@@ -4101,8 +4115,8 @@ Value *llvm::SimplifyCastInst(unsigned CastOpc, Value *Op, Type *Ty,
                               const DataLayout &DL,
                               const TargetLibraryInfo *TLI,
                               const DominatorTree *DT, AssumptionCache *AC,
-                              const Instruction *CxtI) {
-  return ::SimplifyCastInst(CastOpc, Op, Ty, Query(DL, TLI, DT, AC, CxtI),
+                              KBCache *KBC, const Instruction *CxtI) {
+  return ::SimplifyCastInst(CastOpc, Op, Ty, Query(DL, TLI, DT, AC, CxtI, KBC),
                             RecursionLimit);
 }
 
@@ -4196,8 +4210,8 @@ static Value *SimplifyFPBinOp(unsigned Opcode, Value *LHS, Value *RHS,
 Value *llvm::SimplifyBinOp(unsigned Opcode, Value *LHS, Value *RHS,
                            const DataLayout &DL, const TargetLibraryInfo *TLI,
                            const DominatorTree *DT, AssumptionCache *AC,
-                           const Instruction *CxtI) {
-  return ::SimplifyBinOp(Opcode, LHS, RHS, Query(DL, TLI, DT, AC, CxtI),
+                           KBCache *KBC, const Instruction *CxtI) {
+  return ::SimplifyBinOp(Opcode, LHS, RHS, Query(DL, TLI, DT, AC, CxtI, KBC),
                          RecursionLimit);
 }
 
@@ -4205,9 +4219,9 @@ Value *llvm::SimplifyFPBinOp(unsigned Opcode, Value *LHS, Value *RHS,
                              const FastMathFlags &FMF, const DataLayout &DL,
                              const TargetLibraryInfo *TLI,
                              const DominatorTree *DT, AssumptionCache *AC,
-                             const Instruction *CxtI) {
-  return ::SimplifyFPBinOp(Opcode, LHS, RHS, FMF, Query(DL, TLI, DT, AC, CxtI),
-                           RecursionLimit);
+                             KBCache *KBC, const Instruction *CxtI) {
+  return ::SimplifyFPBinOp(Opcode, LHS, RHS, FMF,
+                           Query(DL, TLI, DT, AC, CxtI, KBC), RecursionLimit);
 }
 
 /// Given operands for a CmpInst, see if we can fold the result.
@@ -4221,9 +4235,9 @@ static Value *SimplifyCmpInst(unsigned Predicate, Value *LHS, Value *RHS,
 Value *llvm::SimplifyCmpInst(unsigned Predicate, Value *LHS, Value *RHS,
                              const DataLayout &DL, const TargetLibraryInfo *TLI,
                              const DominatorTree *DT, AssumptionCache *AC,
-                             const Instruction *CxtI) {
-  return ::SimplifyCmpInst(Predicate, LHS, RHS, Query(DL, TLI, DT, AC, CxtI),
-                           RecursionLimit);
+                             KBCache *KBC, const Instruction *CxtI) {
+  return ::SimplifyCmpInst(Predicate, LHS, RHS,
+                           Query(DL, TLI, DT, AC, CxtI, KBC), RecursionLimit);
 }
 
 static bool IsIdempotent(Intrinsic::ID ID) {
@@ -4447,17 +4461,18 @@ static Value *SimplifyCall(Value *V, IterTy ArgBegin, IterTy ArgEnd,
 Value *llvm::SimplifyCall(Value *V, User::op_iterator ArgBegin,
                           User::op_iterator ArgEnd, const DataLayout &DL,
                           const TargetLibraryInfo *TLI, const DominatorTree *DT,
-                          AssumptionCache *AC, const Instruction *CxtI) {
-  return ::SimplifyCall(V, ArgBegin, ArgEnd, Query(DL, TLI, DT, AC, CxtI),
+                          AssumptionCache *AC, KBCache *KBC,
+                          const Instruction *CxtI) {
+  return ::SimplifyCall(V, ArgBegin, ArgEnd, Query(DL, TLI, DT, AC, CxtI, KBC),
                         RecursionLimit);
 }
 
 Value *llvm::SimplifyCall(Value *V, ArrayRef<Value *> Args,
                           const DataLayout &DL, const TargetLibraryInfo *TLI,
                           const DominatorTree *DT, AssumptionCache *AC,
-                          const Instruction *CxtI) {
+                          KBCache *KBC, const Instruction *CxtI) {
   return ::SimplifyCall(V, Args.begin(), Args.end(),
-                        Query(DL, TLI, DT, AC, CxtI), RecursionLimit);
+                        Query(DL, TLI, DT, AC, CxtI, KBC), RecursionLimit);
 }
 
 /// See if we can compute a simplified version of this instruction.
@@ -4465,6 +4480,7 @@ Value *llvm::SimplifyCall(Value *V, ArrayRef<Value *> Args,
 Value *llvm::SimplifyInstruction(Instruction *I, const DataLayout &DL,
                                  const TargetLibraryInfo *TLI,
                                  const DominatorTree *DT, AssumptionCache *AC,
+                                 KBCache *KBC,
                                  OptimizationRemarkEmitter *ORE) {
   Value *Result;
 
@@ -4474,137 +4490,143 @@ Value *llvm::SimplifyInstruction(Instruction *I, const DataLayout &DL,
     break;
   case Instruction::FAdd:
     Result = SimplifyFAddInst(I->getOperand(0), I->getOperand(1),
-                              I->getFastMathFlags(), DL, TLI, DT, AC, I);
+                              I->getFastMathFlags(), DL, TLI, DT, AC, KBC, I);
     break;
   case Instruction::Add:
     Result = SimplifyAddInst(I->getOperand(0), I->getOperand(1),
                              cast<BinaryOperator>(I)->hasNoSignedWrap(),
                              cast<BinaryOperator>(I)->hasNoUnsignedWrap(), DL,
-                             TLI, DT, AC, I);
+                             TLI, DT, AC, KBC, I);
     break;
   case Instruction::FSub:
     Result = SimplifyFSubInst(I->getOperand(0), I->getOperand(1),
-                              I->getFastMathFlags(), DL, TLI, DT, AC, I);
+                              I->getFastMathFlags(), DL, TLI, DT, AC, KBC, I);
     break;
   case Instruction::Sub:
     Result = SimplifySubInst(I->getOperand(0), I->getOperand(1),
                              cast<BinaryOperator>(I)->hasNoSignedWrap(),
                              cast<BinaryOperator>(I)->hasNoUnsignedWrap(), DL,
-                             TLI, DT, AC, I);
+                             TLI, DT, AC, KBC, I);
     break;
   case Instruction::FMul:
     Result = SimplifyFMulInst(I->getOperand(0), I->getOperand(1),
-                              I->getFastMathFlags(), DL, TLI, DT, AC, I);
+                              I->getFastMathFlags(), DL, TLI, DT, AC, KBC, I);
     break;
   case Instruction::Mul:
     Result =
-        SimplifyMulInst(I->getOperand(0), I->getOperand(1), DL, TLI, DT, AC, I);
+        SimplifyMulInst(I->getOperand(0), I->getOperand(1), DL, TLI, DT, AC,
+                        KBC, I);
     break;
   case Instruction::SDiv:
     Result = SimplifySDivInst(I->getOperand(0), I->getOperand(1), DL, TLI, DT,
-                              AC, I);
+                              AC, KBC, I);
     break;
   case Instruction::UDiv:
     Result = SimplifyUDivInst(I->getOperand(0), I->getOperand(1), DL, TLI, DT,
-                              AC, I);
+                              AC, KBC, I);
     break;
   case Instruction::FDiv:
     Result = SimplifyFDivInst(I->getOperand(0), I->getOperand(1),
-                              I->getFastMathFlags(), DL, TLI, DT, AC, I);
+                              I->getFastMathFlags(), DL, TLI, DT, AC, KBC, I);
     break;
   case Instruction::SRem:
     Result = SimplifySRemInst(I->getOperand(0), I->getOperand(1), DL, TLI, DT,
-                              AC, I);
+                              AC, KBC, I);
     break;
   case Instruction::URem:
     Result = SimplifyURemInst(I->getOperand(0), I->getOperand(1), DL, TLI, DT,
-                              AC, I);
+                              AC, KBC, I);
     break;
   case Instruction::FRem:
     Result = SimplifyFRemInst(I->getOperand(0), I->getOperand(1),
-                              I->getFastMathFlags(), DL, TLI, DT, AC, I);
+                              I->getFastMathFlags(), DL, TLI, DT, AC, KBC, I);
     break;
   case Instruction::Shl:
     Result = SimplifyShlInst(I->getOperand(0), I->getOperand(1),
                              cast<BinaryOperator>(I)->hasNoSignedWrap(),
                              cast<BinaryOperator>(I)->hasNoUnsignedWrap(), DL,
-                             TLI, DT, AC, I);
+                             TLI, DT, AC, KBC, I);
     break;
   case Instruction::LShr:
     Result = SimplifyLShrInst(I->getOperand(0), I->getOperand(1),
                               cast<BinaryOperator>(I)->isExact(), DL, TLI, DT,
-                              AC, I);
+                              AC, KBC, I);
     break;
   case Instruction::AShr:
     Result = SimplifyAShrInst(I->getOperand(0), I->getOperand(1),
                               cast<BinaryOperator>(I)->isExact(), DL, TLI, DT,
-                              AC, I);
+                              AC, KBC, I);
     break;
   case Instruction::And:
     Result =
-        SimplifyAndInst(I->getOperand(0), I->getOperand(1), DL, TLI, DT, AC, I);
+        SimplifyAndInst(I->getOperand(0), I->getOperand(1), DL, TLI, DT, AC,
+                        KBC, I);
     break;
   case Instruction::Or:
     Result =
-        SimplifyOrInst(I->getOperand(0), I->getOperand(1), DL, TLI, DT, AC, I);
+        SimplifyOrInst(I->getOperand(0), I->getOperand(1), DL, TLI, DT, AC,
+                       KBC, I);
     break;
   case Instruction::Xor:
     Result =
-        SimplifyXorInst(I->getOperand(0), I->getOperand(1), DL, TLI, DT, AC, I);
+        SimplifyXorInst(I->getOperand(0), I->getOperand(1), DL, TLI, DT, AC,
+                        KBC, I);
     break;
   case Instruction::ICmp:
     Result =
         SimplifyICmpInst(cast<ICmpInst>(I)->getPredicate(), I->getOperand(0),
-                         I->getOperand(1), DL, TLI, DT, AC, I);
+                         I->getOperand(1), DL, TLI, DT, AC, KBC, I);
     break;
   case Instruction::FCmp:
     Result = SimplifyFCmpInst(cast<FCmpInst>(I)->getPredicate(),
                               I->getOperand(0), I->getOperand(1),
-                              I->getFastMathFlags(), DL, TLI, DT, AC, I);
+                              I->getFastMathFlags(), DL, TLI, DT, AC, KBC, I);
     break;
   case Instruction::Select:
     Result = SimplifySelectInst(I->getOperand(0), I->getOperand(1),
-                                I->getOperand(2), DL, TLI, DT, AC, I);
+                                I->getOperand(2), DL, TLI, DT, AC, KBC, I);
     break;
   case Instruction::GetElementPtr: {
     SmallVector<Value*, 8> Ops(I->op_begin(), I->op_end());
     Result = SimplifyGEPInst(cast<GetElementPtrInst>(I)->getSourceElementType(),
-                             Ops, DL, TLI, DT, AC, I);
+                             Ops, DL, TLI, DT, AC, KBC, I);
     break;
   }
   case Instruction::InsertValue: {
     InsertValueInst *IV = cast<InsertValueInst>(I);
     Result = SimplifyInsertValueInst(IV->getAggregateOperand(),
                                      IV->getInsertedValueOperand(),
-                                     IV->getIndices(), DL, TLI, DT, AC, I);
+                                     IV->getIndices(), DL, TLI, DT, AC, KBC, I);
     break;
   }
   case Instruction::ExtractValue: {
     auto *EVI = cast<ExtractValueInst>(I);
     Result = SimplifyExtractValueInst(EVI->getAggregateOperand(),
-                                      EVI->getIndices(), DL, TLI, DT, AC, I);
+                                      EVI->getIndices(), DL, TLI, DT, AC,
+                                      KBC, I);
     break;
   }
   case Instruction::ExtractElement: {
     auto *EEI = cast<ExtractElementInst>(I);
     Result = SimplifyExtractElementInst(
-        EEI->getVectorOperand(), EEI->getIndexOperand(), DL, TLI, DT, AC, I);
+        EEI->getVectorOperand(), EEI->getIndexOperand(), DL, TLI, DT, AC,
+        KBC, I);
     break;
   }
   case Instruction::PHI:
-    Result = SimplifyPHINode(cast<PHINode>(I), Query(DL, TLI, DT, AC, I));
+    Result = SimplifyPHINode(cast<PHINode>(I), Query(DL, TLI, DT, AC, I, KBC));
     break;
   case Instruction::Call: {
     CallSite CS(cast<CallInst>(I));
     Result = SimplifyCall(CS.getCalledValue(), CS.arg_begin(), CS.arg_end(), DL,
-                          TLI, DT, AC, I);
+                          TLI, DT, AC, KBC, I);
     break;
   }
 #define HANDLE_CAST_INST(num, opc, clas) case Instruction::opc:
 #include "llvm/IR/Instruction.def"
 #undef HANDLE_CAST_INST
     Result = SimplifyCastInst(I->getOpcode(), I->getOperand(0), I->getType(),
-                              DL, TLI, DT, AC, I);
+                              DL, TLI, DT, AC, KBC, I);
     break;
   }
 
@@ -4614,7 +4636,8 @@ Value *llvm::SimplifyInstruction(Instruction *I, const DataLayout &DL,
     unsigned BitWidth = I->getType()->getScalarSizeInBits();
     APInt KnownZero(BitWidth, 0);
     APInt KnownOne(BitWidth, 0);
-    computeKnownBits(I, KnownZero, KnownOne, DL, /*Depth*/0, AC, I, DT, ORE);
+    computeKnownBits(I, KnownZero, KnownOne, DL, /*Depth*/0, AC, I, DT, KBC,
+                     ORE);
     if ((KnownZero | KnownOne).isAllOnesValue())
       Result = ConstantInt::get(I->getType(), KnownOne);
   }
@@ -4639,7 +4662,8 @@ Value *llvm::SimplifyInstruction(Instruction *I, const DataLayout &DL,
 static bool replaceAndRecursivelySimplifyImpl(Instruction *I, Value *SimpleV,
                                               const TargetLibraryInfo *TLI,
                                               const DominatorTree *DT,
-                                              AssumptionCache *AC) {
+                                              AssumptionCache *AC,
+                                              KBCache *KBC) {
   bool Simplified = false;
   SmallSetVector<Instruction *, 8> Worklist;
   const DataLayout &DL = I->getModule()->getDataLayout();
@@ -4668,7 +4692,7 @@ static bool replaceAndRecursivelySimplifyImpl(Instruction *I, Value *SimpleV,
     I = Worklist[Idx];
 
     // See if this instruction simplifies.
-    SimpleV = SimplifyInstruction(I, DL, TLI, DT, AC);
+    SimpleV = SimplifyInstruction(I, DL, TLI, DT, AC, KBC);
     if (!SimpleV)
       continue;
 
@@ -4695,15 +4719,15 @@ static bool replaceAndRecursivelySimplifyImpl(Instruction *I, Value *SimpleV,
 bool llvm::recursivelySimplifyInstruction(Instruction *I,
                                           const TargetLibraryInfo *TLI,
                                           const DominatorTree *DT,
-                                          AssumptionCache *AC) {
-  return replaceAndRecursivelySimplifyImpl(I, nullptr, TLI, DT, AC);
+                                          AssumptionCache *AC, KBCache *KBC) {
+  return replaceAndRecursivelySimplifyImpl(I, nullptr, TLI, DT, AC, KBC);
 }
 
 bool llvm::replaceAndRecursivelySimplify(Instruction *I, Value *SimpleV,
                                          const TargetLibraryInfo *TLI,
                                          const DominatorTree *DT,
-                                         AssumptionCache *AC) {
+                                         AssumptionCache *AC, KBCache *KBC) {
   assert(I != SimpleV && "replaceAndRecursivelySimplify(X,X) is not valid!");
   assert(SimpleV && "Must provide a simplified value.");
-  return replaceAndRecursivelySimplifyImpl(I, SimpleV, TLI, DT, AC);
+  return replaceAndRecursivelySimplifyImpl(I, SimpleV, TLI, DT, AC, KBC);
 }

@@ -39,6 +39,7 @@ class Value;
 class PHINode;
 class AllocaInst;
 class AssumptionCache;
+class KBCache;
 class ConstantExpr;
 class DataLayout;
 class TargetLibraryInfo;
@@ -181,14 +182,16 @@ unsigned getOrEnforceKnownAlignment(Value *V, unsigned PrefAlign,
                                     const DataLayout &DL,
                                     const Instruction *CxtI = nullptr,
                                     AssumptionCache *AC = nullptr,
-                                    const DominatorTree *DT = nullptr);
+                                    const DominatorTree *DT = nullptr,
+                                    KBCache *KBC = nullptr);
 
 /// Try to infer an alignment for the specified pointer.
 static inline unsigned getKnownAlignment(Value *V, const DataLayout &DL,
                                          const Instruction *CxtI = nullptr,
                                          AssumptionCache *AC = nullptr,
-                                         const DominatorTree *DT = nullptr) {
-  return getOrEnforceKnownAlignment(V, 0, DL, CxtI, AC, DT);
+                                         const DominatorTree *DT = nullptr,
+                                         KBCache *KBC = nullptr) {
+  return getOrEnforceKnownAlignment(V, 0, DL, CxtI, AC, DT, KBC);
 }
 
 /// Given a getelementptr instruction/constantexpr, emit the code necessary to

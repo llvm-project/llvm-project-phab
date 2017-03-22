@@ -37,6 +37,7 @@
 #include "llvm/IR/Operator.h"
 #include "llvm/IR/PatternMatch.h"
 #include "llvm/IR/Statepoint.h"
+#include "llvm/IR/ValueMap.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/MathExtras.h"
 #include <algorithm>
@@ -58,6 +59,9 @@ static cl::opt<bool>
 DontImproveNonNegativePhiBits("dont-improve-non-negative-phi-bits",
                               cl::Hidden, cl::init(true));
 
+static cl::opt<bool>
+UseCache("cache-known-bits", cl::Hidden, cl::init(true));
+
 /// Returns the bitwidth of the given scalar or pointer type (if unknown returns
 /// 0). For vector types, returns the element type's bitwidth.
 static unsigned getBitWidth(Type *Ty, const DataLayout &DL) {
@@ -77,6 +81,7 @@ struct Query {
   AssumptionCache *AC;
   const Instruction *CxtI;
   const DominatorTree *DT;
+  KBCache *KBC;
   // Unlike the other analyses, this may be a nullptr because not all clients
   // provide it currently.
   OptimizationRemarkEmitter *ORE;
@@ -93,17 +98,28 @@ struct Query {
   std::array<const Value *, MaxDepth> Excluded;
   unsigned NumExcluded;
 
+  // Is this query potentially sensitive on the context instruction.
+  bool *ContextSensitive;
+
   Query(const DataLayout &DL, AssumptionCache *AC, const Instruction *CxtI,
-        const DominatorTree *DT, OptimizationRemarkEmitter *ORE = nullptr)
-      : DL(DL), AC(AC), CxtI(CxtI), DT(DT), ORE(ORE), NumExcluded(0) {}
+        const DominatorTree *DT, KBCache *KBC,
+        OptimizationRemarkEmitter *ORE = nullptr)
+      : DL(DL), AC(AC), CxtI(CxtI), DT(DT), KBC(KBC), ORE(ORE),
+        NumExcluded(0), ContextSensitive(nullptr) {}
 
   Query(const Query &Q, const Value *NewExcl)
-      : DL(Q.DL), AC(Q.AC), CxtI(Q.CxtI), DT(Q.DT), ORE(Q.ORE),
-        NumExcluded(Q.NumExcluded) {
+      : DL(Q.DL), AC(Q.AC), CxtI(Q.CxtI), DT(Q.DT), KBC(Q.KBC),
+        ORE(Q.ORE), NumExcluded(Q.NumExcluded),
+        ContextSensitive(Q.ContextSensitive) {
     Excluded = Q.Excluded;
     Excluded[NumExcluded++] = NewExcl;
     assert(NumExcluded <= Excluded.size());
   }
+
+  Query(const Query &Q, bool *NewCS)
+      : DL(Q.DL), AC(Q.AC), CxtI(Q.CxtI), DT(Q.DT), KBC(Q.KBC),
+        ORE(Q.ORE), Excluded(Q.Excluded), NumExcluded(Q.NumExcluded),
+        ContextSensitive(NewCS) {}
 
   bool isExcluded(const Value *Value) const {
     if (NumExcluded == 0)
@@ -130,22 +146,73 @@ static const Instruction *safeCxtI(const Value *V, const Instruction *CxtI) {
   return nullptr;
 }
 
+namespace llvm {
+class KBCache {
+  ValueMap<const Value *, std::pair<APInt, APInt>> KnownBits;
+
+public:
+  void cache(const Value *V, APInt &KnownZero, APInt &KnownOne) {
+    KnownBits[V] = std::make_pair(KnownZero, KnownOne);
+  }
+
+  bool find(const Value *V, APInt &KnownZero, APInt &KnownOne) {
+    auto KBI = KnownBits.find(V);
+    if (KBI == KnownBits.end())
+      return false;
+
+    KnownZero = KBI->second.first;
+    KnownOne  = KBI->second.second;
+    return true;
+  }
+};
+
+void KBCacheDeleter::operator()(KBCache *KBC) {
+  delete KBC;
+}
+
+std::unique_ptr<KBCache, KBCacheDeleter> makeKnownBitsCache() {
+  return std::unique_ptr<KBCache, KBCacheDeleter>(new KBCache);
+}
+} // namespace llvm
+
+static void computeKnownBitsNotCached(const Value *V, APInt &KnownZero,
+                                      APInt &KnownOne, unsigned Depth,
+                                      const Query &Q);
+
 static void computeKnownBits(const Value *V, APInt &KnownZero, APInt &KnownOne,
-                             unsigned Depth, const Query &Q);
+                             unsigned Depth, const Query &Q) {
+  if (Q.KBC && UseCache && Q.KBC->find(V, KnownZero, KnownOne))
+    return;
+
+  bool ContextSensitive;
+  ::computeKnownBitsNotCached(V, KnownZero, KnownOne, Depth,
+                              Query(Q, &ContextSensitive));
+
+  // If this query is context-sensitive, then so it its parent query.
+  if (ContextSensitive) {
+    if (Q.ContextSensitive)
+      *Q.ContextSensitive = true;
+
+    return;
+  }
+
+  if (Q.KBC && UseCache)
+    Q.KBC->cache(V, KnownZero, KnownOne);
+}
 
 void llvm::computeKnownBits(const Value *V, APInt &KnownZero, APInt &KnownOne,
                             const DataLayout &DL, unsigned Depth,
                             AssumptionCache *AC, const Instruction *CxtI,
-                            const DominatorTree *DT,
+                            const DominatorTree *DT, KBCache *KBC,
                             OptimizationRemarkEmitter *ORE) {
   ::computeKnownBits(V, KnownZero, KnownOne, Depth,
-                     Query(DL, AC, safeCxtI(V, CxtI), DT, ORE));
+                     Query(DL, AC, safeCxtI(V, CxtI), DT, KBC, ORE));
 }
 
 bool llvm::haveNoCommonBitsSet(const Value *LHS, const Value *RHS,
                                const DataLayout &DL,
                                AssumptionCache *AC, const Instruction *CxtI,
-                               const DominatorTree *DT) {
+                               const DominatorTree *DT, KBCache *KBC) {
   assert(LHS->getType() == RHS->getType() &&
          "LHS and RHS should have the same type");
   assert(LHS->getType()->isIntOrIntVectorTy() &&
@@ -153,8 +220,8 @@ bool llvm::haveNoCommonBitsSet(const Value *LHS, const Value *RHS,
   IntegerType *IT = cast<IntegerType>(LHS->getType()->getScalarType());
   APInt LHSKnownZero(IT->getBitWidth(), 0), LHSKnownOne(IT->getBitWidth(), 0);
   APInt RHSKnownZero(IT->getBitWidth(), 0), RHSKnownOne(IT->getBitWidth(), 0);
-  computeKnownBits(LHS, LHSKnownZero, LHSKnownOne, DL, 0, AC, CxtI, DT);
-  computeKnownBits(RHS, RHSKnownZero, RHSKnownOne, DL, 0, AC, CxtI, DT);
+  computeKnownBits(LHS, LHSKnownZero, LHSKnownOne, DL, 0, AC, CxtI, DT, KBC);
+  computeKnownBits(RHS, RHSKnownZero, RHSKnownOne, DL, 0, AC, CxtI, DT, KBC);
   return (LHSKnownZero | RHSKnownZero).isAllOnesValue();
 }
 
@@ -164,9 +231,9 @@ static void ComputeSignBit(const Value *V, bool &KnownZero, bool &KnownOne,
 void llvm::ComputeSignBit(const Value *V, bool &KnownZero, bool &KnownOne,
                           const DataLayout &DL, unsigned Depth,
                           AssumptionCache *AC, const Instruction *CxtI,
-                          const DominatorTree *DT) {
+                          const DominatorTree *DT, KBCache *KBC) {
   ::ComputeSignBit(V, KnownZero, KnownOne, Depth,
-                   Query(DL, AC, safeCxtI(V, CxtI), DT));
+                   Query(DL, AC, safeCxtI(V, CxtI), DT, KBC));
 }
 
 static bool isKnownToBeAPowerOfTwo(const Value *V, bool OrZero, unsigned Depth,
@@ -176,45 +243,45 @@ bool llvm::isKnownToBeAPowerOfTwo(const Value *V, const DataLayout &DL,
                                   bool OrZero,
                                   unsigned Depth, AssumptionCache *AC,
                                   const Instruction *CxtI,
-                                  const DominatorTree *DT) {
+                                  const DominatorTree *DT, KBCache *KBC) {
   return ::isKnownToBeAPowerOfTwo(V, OrZero, Depth,
-                                  Query(DL, AC, safeCxtI(V, CxtI), DT));
+                                  Query(DL, AC, safeCxtI(V, CxtI), DT, KBC));
 }
 
 static bool isKnownNonZero(const Value *V, unsigned Depth, const Query &Q);
 
 bool llvm::isKnownNonZero(const Value *V, const DataLayout &DL, unsigned Depth,
                           AssumptionCache *AC, const Instruction *CxtI,
-                          const DominatorTree *DT) {
-  return ::isKnownNonZero(V, Depth, Query(DL, AC, safeCxtI(V, CxtI), DT));
+                          const DominatorTree *DT, KBCache *KBC) {
+  return ::isKnownNonZero(V, Depth, Query(DL, AC, safeCxtI(V, CxtI), DT, KBC));
 }
 
 bool llvm::isKnownNonNegative(const Value *V, const DataLayout &DL,
                               unsigned Depth,
                               AssumptionCache *AC, const Instruction *CxtI,
-                              const DominatorTree *DT) {
+                              const DominatorTree *DT, KBCache *KBC) {
   bool NonNegative, Negative;
-  ComputeSignBit(V, NonNegative, Negative, DL, Depth, AC, CxtI, DT);
+  ComputeSignBit(V, NonNegative, Negative, DL, Depth, AC, CxtI, DT, KBC);
   return NonNegative;
 }
 
 bool llvm::isKnownPositive(const Value *V, const DataLayout &DL, unsigned Depth,
                            AssumptionCache *AC, const Instruction *CxtI,
-                           const DominatorTree *DT) {
+                           const DominatorTree *DT, KBCache *KBC) {
   if (auto *CI = dyn_cast<ConstantInt>(V))
     return CI->getValue().isStrictlyPositive();
 
   // TODO: We'd doing two recursive queries here.  We should factor this such
   // that only a single query is needed.
-  return isKnownNonNegative(V, DL, Depth, AC, CxtI, DT) &&
-    isKnownNonZero(V, DL, Depth, AC, CxtI, DT);
+  return isKnownNonNegative(V, DL, Depth, AC, CxtI, DT, KBC) &&
+    isKnownNonZero(V, DL, Depth, AC, CxtI, DT, KBC);
 }
 
 bool llvm::isKnownNegative(const Value *V, const DataLayout &DL, unsigned Depth,
                            AssumptionCache *AC, const Instruction *CxtI,
-                           const DominatorTree *DT) {
+                           const DominatorTree *DT, KBCache *KBC) {
   bool NonNegative, Negative;
-  ComputeSignBit(V, NonNegative, Negative, DL, Depth, AC, CxtI, DT);
+  ComputeSignBit(V, NonNegative, Negative, DL, Depth, AC, CxtI, DT, KBC);
   return Negative;
 }
 
@@ -223,10 +290,10 @@ static bool isKnownNonEqual(const Value *V1, const Value *V2, const Query &Q);
 bool llvm::isKnownNonEqual(const Value *V1, const Value *V2,
                            const DataLayout &DL,
                            AssumptionCache *AC, const Instruction *CxtI,
-                           const DominatorTree *DT) {
+                           const DominatorTree *DT, KBCache *KBC) {
   return ::isKnownNonEqual(V1, V2, Query(DL, AC,
                                          safeCxtI(V1, safeCxtI(V2, CxtI)),
-                                         DT));
+                                         DT, KBC));
 }
 
 static bool MaskedValueIsZero(const Value *V, const APInt &Mask, unsigned Depth,
@@ -235,9 +302,10 @@ static bool MaskedValueIsZero(const Value *V, const APInt &Mask, unsigned Depth,
 bool llvm::MaskedValueIsZero(const Value *V, const APInt &Mask,
                              const DataLayout &DL,
                              unsigned Depth, AssumptionCache *AC,
-                             const Instruction *CxtI, const DominatorTree *DT) {
+                             const Instruction *CxtI, const DominatorTree *DT,
+                             KBCache *KBC) {
   return ::MaskedValueIsZero(V, Mask, Depth,
-                             Query(DL, AC, safeCxtI(V, CxtI), DT));
+                             Query(DL, AC, safeCxtI(V, CxtI), DT, KBC));
 }
 
 static unsigned ComputeNumSignBits(const Value *V, unsigned Depth,
@@ -246,8 +314,8 @@ static unsigned ComputeNumSignBits(const Value *V, unsigned Depth,
 unsigned llvm::ComputeNumSignBits(const Value *V, const DataLayout &DL,
                                   unsigned Depth, AssumptionCache *AC,
                                   const Instruction *CxtI,
-                                  const DominatorTree *DT) {
-  return ::ComputeNumSignBits(V, Depth, Query(DL, AC, safeCxtI(V, CxtI), DT));
+                                  const DominatorTree *DT, KBCache *KBC) {
+  return ::ComputeNumSignBits(V, Depth, Query(DL, AC, safeCxtI(V, CxtI), DT, KBC));
 }
 
 static void computeKnownBitsAddSub(bool Add, const Value *Op0, const Value *Op1,
@@ -450,6 +518,16 @@ static bool isAssumeLikeIntrinsic(const Instruction *I) {
   return false;
 }
 
+static bool isValidAssumeForContext(const Instruction *Inv,
+                                    const Query &Q) {
+  // The fact that we're checking an assumption means that this query is
+  // potentially context sensitive...
+  if (Q.ContextSensitive)
+    *Q.ContextSensitive = true;
+
+  return isValidAssumeForContext(Inv, Q.CxtI, Q.DT);
+}
+
 bool llvm::isValidAssumeForContext(const Instruction *Inv,
                                    const Instruction *CxtI,
                                    const DominatorTree *DT) {
@@ -529,7 +607,7 @@ static void computeKnownBitsFromAssume(const Value *V, APInt &KnownZero,
 
     Value *Arg = I->getArgOperand(0);
 
-    if (Arg == V && isValidAssumeForContext(I, Q.CxtI, Q.DT)) {
+    if (Arg == V && isValidAssumeForContext(I, Q)) {
       assert(BitWidth == 1 && "assume operand is not i1?");
       KnownZero.clearAllBits();
       KnownOne.setAllBits();
@@ -556,7 +634,7 @@ static void computeKnownBitsFromAssume(const Value *V, APInt &KnownZero,
     ConstantInt *C;
     // assume(v = a)
     if (match(Arg, m_c_ICmp(Pred, m_V, m_Value(A))) &&
-        Pred == ICmpInst::ICMP_EQ && isValidAssumeForContext(I, Q.CxtI, Q.DT)) {
+        Pred == ICmpInst::ICMP_EQ && isValidAssumeForContext(I, Q)) {
       APInt RHSKnownZero(BitWidth, 0), RHSKnownOne(BitWidth, 0);
       computeKnownBits(A, RHSKnownZero, RHSKnownOne, Depth+1, Query(Q, I));
       KnownZero |= RHSKnownZero;
@@ -565,7 +643,7 @@ static void computeKnownBitsFromAssume(const Value *V, APInt &KnownZero,
     } else if (match(Arg,
                      m_c_ICmp(Pred, m_c_And(m_V, m_Value(B)), m_Value(A))) &&
                Pred == ICmpInst::ICMP_EQ &&
-               isValidAssumeForContext(I, Q.CxtI, Q.DT)) {
+               isValidAssumeForContext(I, Q)) {
       APInt RHSKnownZero(BitWidth, 0), RHSKnownOne(BitWidth, 0);
       computeKnownBits(A, RHSKnownZero, RHSKnownOne, Depth+1, Query(Q, I));
       APInt MaskKnownZero(BitWidth, 0), MaskKnownOne(BitWidth, 0);
@@ -579,7 +657,7 @@ static void computeKnownBitsFromAssume(const Value *V, APInt &KnownZero,
     } else if (match(Arg, m_c_ICmp(Pred, m_Not(m_c_And(m_V, m_Value(B))),
                                    m_Value(A))) &&
                Pred == ICmpInst::ICMP_EQ &&
-               isValidAssumeForContext(I, Q.CxtI, Q.DT)) {
+               isValidAssumeForContext(I, Q)) {
       APInt RHSKnownZero(BitWidth, 0), RHSKnownOne(BitWidth, 0);
       computeKnownBits(A, RHSKnownZero, RHSKnownOne, Depth+1, Query(Q, I));
       APInt MaskKnownZero(BitWidth, 0), MaskKnownOne(BitWidth, 0);
@@ -593,7 +671,7 @@ static void computeKnownBitsFromAssume(const Value *V, APInt &KnownZero,
     } else if (match(Arg,
                      m_c_ICmp(Pred, m_c_Or(m_V, m_Value(B)), m_Value(A))) &&
                Pred == ICmpInst::ICMP_EQ &&
-               isValidAssumeForContext(I, Q.CxtI, Q.DT)) {
+               isValidAssumeForContext(I, Q)) {
       APInt RHSKnownZero(BitWidth, 0), RHSKnownOne(BitWidth, 0);
       computeKnownBits(A, RHSKnownZero, RHSKnownOne, Depth+1, Query(Q, I));
       APInt BKnownZero(BitWidth, 0), BKnownOne(BitWidth, 0);
@@ -607,7 +685,7 @@ static void computeKnownBitsFromAssume(const Value *V, APInt &KnownZero,
     } else if (match(Arg, m_c_ICmp(Pred, m_Not(m_c_Or(m_V, m_Value(B))),
                                    m_Value(A))) &&
                Pred == ICmpInst::ICMP_EQ &&
-               isValidAssumeForContext(I, Q.CxtI, Q.DT)) {
+               isValidAssumeForContext(I, Q)) {
       APInt RHSKnownZero(BitWidth, 0), RHSKnownOne(BitWidth, 0);
       computeKnownBits(A, RHSKnownZero, RHSKnownOne, Depth+1, Query(Q, I));
       APInt BKnownZero(BitWidth, 0), BKnownOne(BitWidth, 0);
@@ -621,7 +699,7 @@ static void computeKnownBitsFromAssume(const Value *V, APInt &KnownZero,
     } else if (match(Arg,
                      m_c_ICmp(Pred, m_c_Xor(m_V, m_Value(B)), m_Value(A))) &&
                Pred == ICmpInst::ICMP_EQ &&
-               isValidAssumeForContext(I, Q.CxtI, Q.DT)) {
+               isValidAssumeForContext(I, Q)) {
       APInt RHSKnownZero(BitWidth, 0), RHSKnownOne(BitWidth, 0);
       computeKnownBits(A, RHSKnownZero, RHSKnownOne, Depth+1, Query(Q, I));
       APInt BKnownZero(BitWidth, 0), BKnownOne(BitWidth, 0);
@@ -638,7 +716,7 @@ static void computeKnownBitsFromAssume(const Value *V, APInt &KnownZero,
     } else if (match(Arg, m_c_ICmp(Pred, m_Not(m_c_Xor(m_V, m_Value(B))),
                                    m_Value(A))) &&
                Pred == ICmpInst::ICMP_EQ &&
-               isValidAssumeForContext(I, Q.CxtI, Q.DT)) {
+               isValidAssumeForContext(I, Q)) {
       APInt RHSKnownZero(BitWidth, 0), RHSKnownOne(BitWidth, 0);
       computeKnownBits(A, RHSKnownZero, RHSKnownOne, Depth+1, Query(Q, I));
       APInt BKnownZero(BitWidth, 0), BKnownOne(BitWidth, 0);
@@ -655,7 +733,7 @@ static void computeKnownBitsFromAssume(const Value *V, APInt &KnownZero,
     } else if (match(Arg, m_c_ICmp(Pred, m_Shl(m_V, m_ConstantInt(C)),
                                    m_Value(A))) &&
                Pred == ICmpInst::ICMP_EQ &&
-               isValidAssumeForContext(I, Q.CxtI, Q.DT)) {
+               isValidAssumeForContext(I, Q)) {
       APInt RHSKnownZero(BitWidth, 0), RHSKnownOne(BitWidth, 0);
       computeKnownBits(A, RHSKnownZero, RHSKnownOne, Depth+1, Query(Q, I));
       // For those bits in RHS that are known, we can propagate them to known
@@ -666,7 +744,7 @@ static void computeKnownBitsFromAssume(const Value *V, APInt &KnownZero,
     } else if (match(Arg, m_c_ICmp(Pred, m_Not(m_Shl(m_V, m_ConstantInt(C))),
                                    m_Value(A))) &&
                Pred == ICmpInst::ICMP_EQ &&
-               isValidAssumeForContext(I, Q.CxtI, Q.DT)) {
+               isValidAssumeForContext(I, Q)) {
       APInt RHSKnownZero(BitWidth, 0), RHSKnownOne(BitWidth, 0);
       computeKnownBits(A, RHSKnownZero, RHSKnownOne, Depth+1, Query(Q, I));
       // For those bits in RHS that are known, we can propagate them inverted
@@ -679,7 +757,7 @@ static void computeKnownBitsFromAssume(const Value *V, APInt &KnownZero,
                                                 m_AShr(m_V, m_ConstantInt(C))),
                               m_Value(A))) &&
                Pred == ICmpInst::ICMP_EQ &&
-               isValidAssumeForContext(I, Q.CxtI, Q.DT)) {
+               isValidAssumeForContext(I, Q)) {
       APInt RHSKnownZero(BitWidth, 0), RHSKnownOne(BitWidth, 0);
       computeKnownBits(A, RHSKnownZero, RHSKnownOne, Depth+1, Query(Q, I));
       // For those bits in RHS that are known, we can propagate them to known
@@ -692,7 +770,7 @@ static void computeKnownBitsFromAssume(const Value *V, APInt &KnownZero,
                                              m_AShr(m_V, m_ConstantInt(C)))),
                                    m_Value(A))) &&
                Pred == ICmpInst::ICMP_EQ &&
-               isValidAssumeForContext(I, Q.CxtI, Q.DT)) {
+               isValidAssumeForContext(I, Q)) {
       APInt RHSKnownZero(BitWidth, 0), RHSKnownOne(BitWidth, 0);
       computeKnownBits(A, RHSKnownZero, RHSKnownOne, Depth+1, Query(Q, I));
       // For those bits in RHS that are known, we can propagate them inverted
@@ -702,7 +780,7 @@ static void computeKnownBitsFromAssume(const Value *V, APInt &KnownZero,
     // assume(v >=_s c) where c is non-negative
     } else if (match(Arg, m_ICmp(Pred, m_V, m_Value(A))) &&
                Pred == ICmpInst::ICMP_SGE &&
-               isValidAssumeForContext(I, Q.CxtI, Q.DT)) {
+               isValidAssumeForContext(I, Q)) {
       APInt RHSKnownZero(BitWidth, 0), RHSKnownOne(BitWidth, 0);
       computeKnownBits(A, RHSKnownZero, RHSKnownOne, Depth+1, Query(Q, I));
 
@@ -713,7 +791,7 @@ static void computeKnownBitsFromAssume(const Value *V, APInt &KnownZero,
     // assume(v >_s c) where c is at least -1.
     } else if (match(Arg, m_ICmp(Pred, m_V, m_Value(A))) &&
                Pred == ICmpInst::ICMP_SGT &&
-               isValidAssumeForContext(I, Q.CxtI, Q.DT)) {
+               isValidAssumeForContext(I, Q)) {
       APInt RHSKnownZero(BitWidth, 0), RHSKnownOne(BitWidth, 0);
       computeKnownBits(A, RHSKnownZero, RHSKnownOne, Depth+1, Query(Q, I));
 
@@ -724,7 +802,7 @@ static void computeKnownBitsFromAssume(const Value *V, APInt &KnownZero,
     // assume(v <=_s c) where c is negative
     } else if (match(Arg, m_ICmp(Pred, m_V, m_Value(A))) &&
                Pred == ICmpInst::ICMP_SLE &&
-               isValidAssumeForContext(I, Q.CxtI, Q.DT)) {
+               isValidAssumeForContext(I, Q)) {
       APInt RHSKnownZero(BitWidth, 0), RHSKnownOne(BitWidth, 0);
       computeKnownBits(A, RHSKnownZero, RHSKnownOne, Depth+1, Query(Q, I));
 
@@ -735,7 +813,7 @@ static void computeKnownBitsFromAssume(const Value *V, APInt &KnownZero,
     // assume(v <_s c) where c is non-positive
     } else if (match(Arg, m_ICmp(Pred, m_V, m_Value(A))) &&
                Pred == ICmpInst::ICMP_SLT &&
-               isValidAssumeForContext(I, Q.CxtI, Q.DT)) {
+               isValidAssumeForContext(I, Q)) {
       APInt RHSKnownZero(BitWidth, 0), RHSKnownOne(BitWidth, 0);
       computeKnownBits(A, RHSKnownZero, RHSKnownOne, Depth+1, Query(Q, I));
 
@@ -746,7 +824,7 @@ static void computeKnownBitsFromAssume(const Value *V, APInt &KnownZero,
     // assume(v <=_u c)
     } else if (match(Arg, m_ICmp(Pred, m_V, m_Value(A))) &&
                Pred == ICmpInst::ICMP_ULE &&
-               isValidAssumeForContext(I, Q.CxtI, Q.DT)) {
+               isValidAssumeForContext(I, Q)) {
       APInt RHSKnownZero(BitWidth, 0), RHSKnownOne(BitWidth, 0);
       computeKnownBits(A, RHSKnownZero, RHSKnownOne, Depth+1, Query(Q, I));
 
@@ -756,7 +834,7 @@ static void computeKnownBitsFromAssume(const Value *V, APInt &KnownZero,
     // assume(v <_u c)
     } else if (match(Arg, m_ICmp(Pred, m_V, m_Value(A))) &&
                Pred == ICmpInst::ICMP_ULT &&
-               isValidAssumeForContext(I, Q.CxtI, Q.DT)) {
+               isValidAssumeForContext(I, Q)) {
       APInt RHSKnownZero(BitWidth, 0), RHSKnownOne(BitWidth, 0);
       computeKnownBits(A, RHSKnownZero, RHSKnownOne, Depth+1, Query(Q, I));
 
@@ -1507,8 +1585,9 @@ static void computeKnownBitsFromOperator(const Operator *I, APInt &KnownZero,
 /// where V is a vector, known zero, and known one values are the
 /// same width as the vector element, and the bit is set only if it is true
 /// for all of the elements in the vector.
-void computeKnownBits(const Value *V, APInt &KnownZero, APInt &KnownOne,
-                      unsigned Depth, const Query &Q) {
+void computeKnownBitsNotCached(const Value *V, APInt &KnownZero,
+                               APInt &KnownOne, unsigned Depth,
+                               const Query &Q) {
   assert(V && "No Value?");
   assert(Depth <= MaxDepth && "Limit Search Depth");
   unsigned BitWidth = KnownZero.getBitWidth();
@@ -3534,7 +3613,8 @@ OverflowResult llvm::computeOverflowForUnsignedMul(const Value *LHS,
                                                    const DataLayout &DL,
                                                    AssumptionCache *AC,
                                                    const Instruction *CxtI,
-                                                   const DominatorTree *DT) {
+                                                   const DominatorTree *DT,
+                                                   KBCache *KBC) {
   // Multiplying n * m significant bits yields a result of n + m significant
   // bits. If the total number of significant bits does not exceed the
   // result bit width (minus 1), there is no overflow.
@@ -3547,9 +3627,9 @@ OverflowResult llvm::computeOverflowForUnsignedMul(const Value *LHS,
   APInt RHSKnownZero(BitWidth, 0);
   APInt RHSKnownOne(BitWidth, 0);
   computeKnownBits(LHS, LHSKnownZero, LHSKnownOne, DL, /*Depth=*/0, AC, CxtI,
-                   DT);
+                   DT, KBC);
   computeKnownBits(RHS, RHSKnownZero, RHSKnownOne, DL, /*Depth=*/0, AC, CxtI,
-                   DT);
+                   DT, KBC);
   // Note that underestimating the number of zero bits gives a more
   // conservative answer.
   unsigned ZeroBits = LHSKnownZero.countLeadingOnes() +
@@ -3585,14 +3665,15 @@ OverflowResult llvm::computeOverflowForUnsignedAdd(const Value *LHS,
                                                    const DataLayout &DL,
                                                    AssumptionCache *AC,
                                                    const Instruction *CxtI,
-                                                   const DominatorTree *DT) {
+                                                   const DominatorTree *DT,
+                                                   KBCache *KBC) {
   bool LHSKnownNonNegative, LHSKnownNegative;
   ComputeSignBit(LHS, LHSKnownNonNegative, LHSKnownNegative, DL, /*Depth=*/0,
-                 AC, CxtI, DT);
+                 AC, CxtI, DT, KBC);
   if (LHSKnownNonNegative || LHSKnownNegative) {
     bool RHSKnownNonNegative, RHSKnownNegative;
     ComputeSignBit(RHS, RHSKnownNonNegative, RHSKnownNegative, DL, /*Depth=*/0,
-                   AC, CxtI, DT);
+                   AC, CxtI, DT, KBC);
 
     if (LHSKnownNegative && RHSKnownNegative) {
       // The sign bit is set in both cases: this MUST overflow.
@@ -3616,7 +3697,8 @@ static OverflowResult computeOverflowForSignedAdd(const Value *LHS,
                                                   const DataLayout &DL,
                                                   AssumptionCache *AC,
                                                   const Instruction *CxtI,
-                                                  const DominatorTree *DT) {
+                                                  const DominatorTree *DT,
+                                                  KBCache *KBC) {
   if (Add && Add->hasNoSignedWrap()) {
     return OverflowResult::NeverOverflows;
   }
@@ -3624,9 +3706,9 @@ static OverflowResult computeOverflowForSignedAdd(const Value *LHS,
   bool LHSKnownNonNegative, LHSKnownNegative;
   bool RHSKnownNonNegative, RHSKnownNegative;
   ComputeSignBit(LHS, LHSKnownNonNegative, LHSKnownNegative, DL, /*Depth=*/0,
-                 AC, CxtI, DT);
+                 AC, CxtI, DT, KBC);
   ComputeSignBit(RHS, RHSKnownNonNegative, RHSKnownNegative, DL, /*Depth=*/0,
-                 AC, CxtI, DT);
+                 AC, CxtI, DT, KBC);
 
   if ((LHSKnownNonNegative && RHSKnownNegative) ||
       (LHSKnownNegative && RHSKnownNonNegative)) {
@@ -3724,9 +3806,10 @@ OverflowResult llvm::computeOverflowForSignedAdd(const AddOperator *Add,
                                                  const DataLayout &DL,
                                                  AssumptionCache *AC,
                                                  const Instruction *CxtI,
-                                                 const DominatorTree *DT) {
+                                                 const DominatorTree *DT,
+                                                 KBCache *KBC) {
   return ::computeOverflowForSignedAdd(Add->getOperand(0), Add->getOperand(1),
-                                       Add, DL, AC, CxtI, DT);
+                                       Add, DL, AC, CxtI, DT, KBC);
 }
 
 OverflowResult llvm::computeOverflowForSignedAdd(const Value *LHS,
@@ -3734,8 +3817,9 @@ OverflowResult llvm::computeOverflowForSignedAdd(const Value *LHS,
                                                  const DataLayout &DL,
                                                  AssumptionCache *AC,
                                                  const Instruction *CxtI,
-                                                 const DominatorTree *DT) {
-  return ::computeOverflowForSignedAdd(LHS, RHS, nullptr, DL, AC, CxtI, DT);
+                                                 const DominatorTree *DT,
+                                                 KBCache *KBC) {
+  return ::computeOverflowForSignedAdd(LHS, RHS, nullptr, DL, AC, CxtI, DT, KBC);
 }
 
 bool llvm::isGuaranteedToTransferExecutionToSuccessor(const Instruction *I) {
@@ -4256,7 +4340,7 @@ static bool isTruePredicate(CmpInst::Predicate Pred,
                             const Value *LHS, const Value *RHS,
                             const DataLayout &DL, unsigned Depth,
                             AssumptionCache *AC, const Instruction *CxtI,
-                            const DominatorTree *DT) {
+                            const DominatorTree *DT, KBCache *KBC) {
   assert(!LHS->getType()->isVectorTy() && "TODO: extend to handle vectors!");
   if (ICmpInst::isTrueWhenEqual(Pred) && LHS == RHS)
     return true;
@@ -4294,7 +4378,7 @@ static bool isTruePredicate(CmpInst::Predicate Pred,
           match(B, m_Or(m_Specific(X), m_APInt(CB)))) {
         unsigned BitWidth = CA->getBitWidth();
         APInt KnownZero(BitWidth, 0), KnownOne(BitWidth, 0);
-        computeKnownBits(X, KnownZero, KnownOne, DL, Depth + 1, AC, CxtI, DT);
+        computeKnownBits(X, KnownZero, KnownOne, DL, Depth + 1, AC, CxtI, DT, KBC);
 
         if ((KnownZero & *CA) == *CA && (KnownZero & *CB) == *CB)
           return true;
@@ -4320,7 +4404,8 @@ isImpliedCondOperands(CmpInst::Predicate Pred, const Value *ALHS,
                       const Value *ARHS, const Value *BLHS,
                       const Value *BRHS, const DataLayout &DL,
                       unsigned Depth, AssumptionCache *AC,
-                      const Instruction *CxtI, const DominatorTree *DT) {
+                      const Instruction *CxtI, const DominatorTree *DT,
+                      KBCache *KBC) {
   switch (Pred) {
   default:
     return None;
@@ -4328,16 +4413,18 @@ isImpliedCondOperands(CmpInst::Predicate Pred, const Value *ALHS,
   case CmpInst::ICMP_SLT:
   case CmpInst::ICMP_SLE:
     if (isTruePredicate(CmpInst::ICMP_SLE, BLHS, ALHS, DL, Depth, AC, CxtI,
-                        DT) &&
-        isTruePredicate(CmpInst::ICMP_SLE, ARHS, BRHS, DL, Depth, AC, CxtI, DT))
+                        DT, KBC) &&
+        isTruePredicate(CmpInst::ICMP_SLE, ARHS, BRHS, DL, Depth, AC, CxtI, DT,
+                        KBC))
       return true;
     return None;
 
   case CmpInst::ICMP_ULT:
   case CmpInst::ICMP_ULE:
     if (isTruePredicate(CmpInst::ICMP_ULE, BLHS, ALHS, DL, Depth, AC, CxtI,
-                        DT) &&
-        isTruePredicate(CmpInst::ICMP_ULE, ARHS, BRHS, DL, Depth, AC, CxtI, DT))
+                        DT, KBC) &&
+        isTruePredicate(CmpInst::ICMP_ULE, ARHS, BRHS, DL, Depth, AC, CxtI, DT,
+                        KBC))
       return true;
     return None;
   }
@@ -4403,7 +4490,7 @@ Optional<bool> llvm::isImpliedCondition(const Value *LHS, const Value *RHS,
                                         const DataLayout &DL, bool InvertAPred,
                                         unsigned Depth, AssumptionCache *AC,
                                         const Instruction *CxtI,
-                                        const DominatorTree *DT) {
+                                        const DominatorTree *DT, KBCache *KBC) {
   // A mismatch occurs when we compare a scalar cmp to a vector cmp, for example.
   if (LHS->getType() != RHS->getType())
     return None;
@@ -4456,7 +4543,7 @@ Optional<bool> llvm::isImpliedCondition(const Value *LHS, const Value *RHS,
 
   if (APred == BPred)
     return isImpliedCondOperands(APred, ALHS, ARHS, BLHS, BRHS, DL, Depth, AC,
-                                 CxtI, DT);
+                                 CxtI, DT, KBC);
 
   return None;
 }

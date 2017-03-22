@@ -56,7 +56,7 @@ static bool runImpl(Function &F, const DominatorTree *DT,
 
         // Don't waste time simplifying unused instructions.
         if (!I->use_empty()) {
-          if (Value *V = SimplifyInstruction(I, DL, TLI, DT, AC, ORE)) {
+          if (Value *V = SimplifyInstruction(I, DL, TLI, DT, AC, nullptr, ORE)) {
             // Mark all uses for resimplification next time round the loop.
             for (User *U : I->users())
               Next->insert(cast<Instruction>(U));

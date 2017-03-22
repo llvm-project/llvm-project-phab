@@ -192,6 +192,7 @@ private:
   AssumptionCache &AC;
   TargetLibraryInfo &TLI;
   DominatorTree &DT;
+  std::unique_ptr<KBCache, KBCacheDeleter> KBC;
   const DataLayout &DL;
 
   // Optional analyses. When non-null, these can both be used to do better
@@ -207,7 +208,7 @@ public:
                DominatorTree &DT, const DataLayout &DL, LoopInfo *LI)
       : Worklist(Worklist), Builder(Builder), MinimizeSize(MinimizeSize),
         ExpensiveCombines(ExpensiveCombines), AA(AA), AC(AC), TLI(TLI), DT(DT),
-        DL(DL), LI(LI), MadeIRChange(false) {}
+        KBC(makeKnownBitsCache()), DL(DL), LI(LI), MadeIRChange(false) {}
 
   /// \brief Run the combiner over the entire worklist until it is empty.
   ///
@@ -492,29 +493,32 @@ public:
   void computeKnownBits(Value *V, APInt &KnownZero, APInt &KnownOne,
                         unsigned Depth, Instruction *CxtI) const {
     return llvm::computeKnownBits(V, KnownZero, KnownOne, DL, Depth, &AC, CxtI,
-                                  &DT);
+                                  &DT, KBC.get());
   }
 
   bool MaskedValueIsZero(Value *V, const APInt &Mask, unsigned Depth = 0,
                          Instruction *CxtI = nullptr) const {
-    return llvm::MaskedValueIsZero(V, Mask, DL, Depth, &AC, CxtI, &DT);
+    return llvm::MaskedValueIsZero(V, Mask, DL, Depth, &AC, CxtI, &DT,
+                                   KBC.get());
   }
   unsigned ComputeNumSignBits(Value *Op, unsigned Depth = 0,
                               Instruction *CxtI = nullptr) const {
-    return llvm::ComputeNumSignBits(Op, DL, Depth, &AC, CxtI, &DT);
+    return llvm::ComputeNumSignBits(Op, DL, Depth, &AC, CxtI, &DT, KBC.get());
   }
   void ComputeSignBit(Value *V, bool &KnownZero, bool &KnownOne,
                       unsigned Depth = 0, Instruction *CxtI = nullptr) const {
     return llvm::ComputeSignBit(V, KnownZero, KnownOne, DL, Depth, &AC, CxtI,
-                                &DT);
+                                &DT, KBC.get());
   }
   OverflowResult computeOverflowForUnsignedMul(Value *LHS, Value *RHS,
                                                const Instruction *CxtI) {
-    return llvm::computeOverflowForUnsignedMul(LHS, RHS, DL, &AC, CxtI, &DT);
+    return llvm::computeOverflowForUnsignedMul(LHS, RHS, DL, &AC, CxtI, &DT,
+                                               KBC.get());
   }
   OverflowResult computeOverflowForUnsignedAdd(Value *LHS, Value *RHS,
                                                const Instruction *CxtI) {
-    return llvm::computeOverflowForUnsignedAdd(LHS, RHS, DL, &AC, CxtI, &DT);
+    return llvm::computeOverflowForUnsignedAdd(LHS, RHS, DL, &AC, CxtI, &DT,
+                                               KBC.get());
   }
 
   /// Maximum size of array considered when transforming.

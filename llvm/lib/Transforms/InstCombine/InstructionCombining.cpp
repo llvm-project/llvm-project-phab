@@ -689,14 +689,16 @@ Value *InstCombiner::SimplifyUsingDistributiveLaws(BinaryOperator &I) {
       if (SI0->getCondition() == SI1->getCondition()) {
         Value *SI = nullptr;
         if (Value *V = SimplifyBinOp(TopLevelOpcode, SI0->getFalseValue(),
-                                     SI1->getFalseValue(), DL, &TLI, &DT, &AC))
+                                     SI1->getFalseValue(), DL, &TLI, &DT, &AC,
+                                     KBC.get()))
           SI = Builder->CreateSelect(SI0->getCondition(),
                                      Builder->CreateBinOp(TopLevelOpcode,
                                                           SI0->getTrueValue(),
                                                           SI1->getTrueValue()),
                                      V);
         if (Value *V = SimplifyBinOp(TopLevelOpcode, SI0->getTrueValue(),
-                                     SI1->getTrueValue(), DL, &TLI, &DT, &AC))
+                                     SI1->getTrueValue(), DL, &TLI, &DT, &AC,
+                                     KBC.get()))
           SI = Builder->CreateSelect(
               SI0->getCondition(), V,
               Builder->CreateBinOp(TopLevelOpcode, SI0->getFalseValue(),
@@ -1383,7 +1385,8 @@ Instruction *InstCombiner::visitGetElementPtrInst(GetElementPtrInst &GEP) {
   SmallVector<Value*, 8> Ops(GEP.op_begin(), GEP.op_end());
 
   if (Value *V =
-          SimplifyGEPInst(GEP.getSourceElementType(), Ops, DL, &TLI, &DT, &AC))
+          SimplifyGEPInst(GEP.getSourceElementType(), Ops, DL, &TLI, &DT, &AC,
+                          KBC.get()))
     return replaceInstUsesWith(GEP, V);
 
   Value *PtrOp = GEP.getOperand(0);
@@ -2289,7 +2292,8 @@ Instruction *InstCombiner::visitExtractValueInst(ExtractValueInst &EV) {
     return replaceInstUsesWith(EV, Agg);
 
   if (Value *V =
-          SimplifyExtractValueInst(Agg, EV.getIndices(), DL, &TLI, &DT, &AC))
+          SimplifyExtractValueInst(Agg, EV.getIndices(), DL, &TLI, &DT, &AC,
+                                   KBC.get()))
     return replaceInstUsesWith(EV, V);
 
   if (InsertValueInst *IV = dyn_cast<InsertValueInst>(Agg)) {
