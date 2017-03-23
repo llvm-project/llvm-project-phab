@@ -213,6 +213,7 @@ public:
   bool addInstSelector() override;
   void addPreEmitPass() override;
   void addPreRegAlloc() override;
+  void addPreSched2() override;
 };
 
 } // end anonymous namespace
@@ -253,6 +254,10 @@ TargetIRAnalysis MipsTargetMachine::getTargetIRAnalysis() {
     DEBUG(errs() << "Target Transform Info Pass Added\n");
     return TargetTransformInfo(BasicTTIImpl(this, F));
   });
+}
+
+void MipsPassConfig::addPreSched2() {
+  addPass(createMipsExpandPseudoPass());
 }
 
 // Implemented by targets that want to run passes immediately before

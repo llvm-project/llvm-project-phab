@@ -1,21 +1,26 @@
-; RUN: llc -march=mipsel --disable-machine-licm -mcpu=mips32   -relocation-model=pic < %s | \
+; RUN: llc -march=mipsel --disable-machine-licm -mcpu=mips32 -relocation-model=pic -verify-machineinstrs < %s | \
 ; RUN:   FileCheck %s -check-prefixes=ALL,MIPS32-ANY,NO-SEB-SEH,CHECK-EL,NOT-MICROMIPS
 ; RUN: llc -march=mipsel --disable-machine-licm -mcpu=mips32r2 -relocation-model=pic -verify-machineinstrs < %s | \
 ; RUN:   FileCheck %s -check-prefixes=ALL,MIPS32-ANY,HAS-SEB-SEH,CHECK-EL,NOT-MICROMIPS
 ; RUN: llc -march=mipsel --disable-machine-licm -mcpu=mips32r6 -relocation-model=pic -verify-machineinstrs < %s | \
 ; RUN:   FileCheck %s -check-prefixes=ALL,MIPS32-ANY,HAS-SEB-SEH,CHECK-EL,MIPSR6
-; RUN: llc -march=mips64el --disable-machine-licm -mcpu=mips4    -relocation-model=pic < %s | \
+; RUN: llc -march=mips64el --disable-machine-licm -mcpu=mips4 -relocation-model=pic -verify-machineinstrs < %s | \
 ; RUN:   FileCheck %s -check-prefixes=ALL,MIPS64-ANY,NO-SEB-SEH,CHECK-EL,NOT-MICROMIPS
-; RUN: llc -march=mips64el --disable-machine-licm -mcpu=mips64   -relocation-model=pic < %s | \
+; RUN: llc -march=mips64el --disable-machine-licm -mcpu=mips64 -relocation-model=pic -verify-machineinstrs < %s | \
 ; RUN:   FileCheck %s -check-prefixes=ALL,MIPS64-ANY,NO-SEB-SEH,CHECK-EL,NOT-MICROMIPS
 ; RUN: llc -march=mips64el --disable-machine-licm -mcpu=mips64r2 -relocation-model=pic -verify-machineinstrs < %s | \
 ; RUN:   FileCheck %s -check-prefixes=ALL,MIPS64-ANY,HAS-SEB-SEH,CHECK-EL,NOT-MICROMIPS
-; RUN: llc -march=mips64el --disable-machine-licm -mcpu=mips64r6 -relocation-model=pic < %s | \
+; RUN: llc -march=mips64el --disable-machine-licm -mcpu=mips64r6 -relocation-model=pic -verify-machineinstrs < %s | \
 ; RUN:   FileCheck %s -check-prefixes=ALL,MIPS64-ANY,HAS-SEB-SEH,CHECK-EL,MIPSR6
-; RUN: llc -march=mips64 -O0 -mcpu=mips64r6 -relocation-model=pic -verify-machineinstrs < %s | \
-; RUN:   FileCheck %s -check-prefixes=ALL-LABEL,MIPS64-ANY,O0
-; RUN: llc -march=mipsel --disable-machine-licm -mcpu=mips32r2 -mattr=micromips -relocation-model=pic < %s | \
+; RUN: llc -march=mips64 -O0 -mcpu=mips64r6 -relocation-model=pic -verify-machineinstrs -verify-machineinstrs < %s | \
+; RUN:   FileCheck %s -check-prefixes=ALL-LABEL,MIPS64-ANY
+; RUN: llc -march=mipsel --disable-machine-licm -mcpu=mips32r2 -mattr=micromips -relocation-model=pic -verify-machineinstrs < %s | \
 ; RUN:   FileCheck %s -check-prefixes=ALL,MIPS32-ANY,HAS-SEB-SEH,CHECK-EL,MICROMIPS
+
+; We want to verify the produced code is well formed all optimization levels, the rest of the tets which ensure correctness.
+; RUN: llc -march=mipsel -O1 --disable-machine-licm -mcpu=mips32 -relocation-model=pic -verify-machineinstrs < %s > /dev/null
+; RUN: llc -march=mipsel -O2 --disable-machine-licm -mcpu=mips32 -relocation-model=pic -verify-machineinstrs < %s > /dev/null
+; RUN: llc -march=mipsel -O3 --disable-machine-licm -mcpu=mips32 -relocation-model=pic -verify-machineinstrs < %s > /dev/null
 
 ; Keep one big-endian check so that we don't reduce testing, but don't add more
 ; since endianness doesn't affect the body of the atomic operations.
@@ -33,10 +38,6 @@ entry:
 
 ; MIPS32-ANY:    lw      $[[R0:[0-9]+]], %got(x)
 ; MIPS64-ANY:    ld      $[[R0:[0-9]+]], %got_disp(x)(
-
-; O0:        [[BB0:(\$|\.L)[A-Z_0-9]+]]:
-; O0:            ld      $[[R1:[0-9]+]]
-; O0-NEXT:       ll      $[[R2:[0-9]+]], 0($[[R1]])
 
 ; ALL:       [[BB0:(\$|\.L)[A-Z_0-9]+]]:
 ; ALL:           ll      $[[R3:[0-9]+]], 0($[[R0]])
@@ -141,10 +142,6 @@ entry:
 ; ALL:           nor     $[[R8:[0-9]+]], $zero, $[[R7]]
 ; ALL:           sllv    $[[R9:[0-9]+]], $4, $[[R5]]
 
-; O0:        [[BB0:(\$|\.L)[A-Z_0-9]+]]:
-; O0:            ld      $[[R10:[0-9]+]]
-; O0-NEXT:       ll      $[[R11:[0-9]+]], 0($[[R10]])
-
 ; ALL:       [[BB0:(\$|\.L)[A-Z_0-9]+]]:
 ; ALL:           ll      $[[R12:[0-9]+]], 0($[[R2]])
 ; ALL:           addu    $[[R13:[0-9]+]], $[[R12]], $[[R9]]
@@ -186,10 +183,6 @@ entry:
 ; ALL:        nor     $[[R8:[0-9]+]], $zero, $[[R7]]
 ; ALL:        sllv    $[[R9:[0-9]+]], $4, $[[R5]]
 
-; O0:        [[BB0:(\$|\.L)[A-Z_0-9]+]]:
-; O0:            ld      $[[R10:[0-9]+]]
-; O0-NEXT:       ll      $[[R11:[0-9]+]], 0($[[R10]])
-
 ; ALL:    [[BB0:(\$|\.L)[A-Z_0-9]+]]:
 ; ALL:        ll      $[[R12:[0-9]+]], 0($[[R2]])
 ; ALL:        subu    $[[R13:[0-9]+]], $[[R12]], $[[R9]]
@@ -230,10 +223,6 @@ entry:
 ; ALL:           sllv    $[[R7:[0-9]+]], $[[R6]], $[[R5]]
 ; ALL:           nor     $[[R8:[0-9]+]], $zero, $[[R7]]
 ; ALL:           sllv    $[[R9:[0-9]+]], $4, $[[R5]]
-
-; O0:        [[BB0:(\$|\.L)[A-Z_0-9]+]]:
-; O0:            ld      $[[R10:[0-9]+]]
-; O0-NEXT:       ll      $[[R11:[0-9]+]], 0($[[R10]])
 
 ; ALL:       [[BB0:(\$|\.L)[A-Z_0-9]+]]:
 ; ALL:           ll      $[[R12:[0-9]+]], 0($[[R2]])
@@ -422,10 +411,6 @@ entry:
 ; ALL:           sllv    $[[R7:[0-9]+]], $[[R6]], $[[R5]]
 ; ALL:           nor     $[[R8:[0-9]+]], $zero, $[[R7]]
 ; ALL:           sllv    $[[R9:[0-9]+]], $4, $[[R5]]
-
-; O0:        [[BB0:(\$|\.L)[A-Z_0-9]+]]:
-; O0:            ld      $[[R10:[0-9]+]]
-; O0-NEXT:       ll      $[[R11:[0-9]+]], 0($[[R10]])
 
 ; ALL:       [[BB0:(\$|\.L)[A-Z_0-9]+]]:
 ; ALL:           ll      $[[R12:[0-9]+]], 0($[[R2]])
