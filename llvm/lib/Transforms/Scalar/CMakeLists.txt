@@ -2,6 +2,7 @@ add_llvm_library(LLVMScalarOpts
   ADCE.cpp
   AlignmentFromAssumptions.cpp
   BDCE.cpp
+  BitfieldShrinking.cpp
   ConstantHoisting.cpp
   ConstantProp.cpp
   CorrelatedValuePropagation.cpp

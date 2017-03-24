@@ -64,6 +64,9 @@ namespace llvm {
   MachineFunctionPass *createResetMachineFunctionPass(bool EmitFallbackDiag,
                                                       bool AbortOnFailedISel);
 
+  /// This pass shrinks some bitfields load/store to legal type accesses.
+  FunctionPass *createBitfieldShrinkingPass(const TargetMachine *TM = nullptr);
+
   /// createCodeGenPreparePass - Transform the code to expose more pattern
   /// matching during instruction selection.
   FunctionPass *createCodeGenPreparePass(const TargetMachine *TM = nullptr);

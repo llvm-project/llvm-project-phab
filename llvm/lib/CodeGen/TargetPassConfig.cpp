@@ -72,6 +72,8 @@ static cl::opt<bool> DisableLSR("disable-lsr", cl::Hidden,
     cl::desc("Disable Loop Strength Reduction Pass"));
 static cl::opt<bool> DisableConstantHoisting("disable-constant-hoisting",
     cl::Hidden, cl::desc("Disable ConstantHoisting"));
+static cl::opt<bool> DisableBitfieldShrinking("disable-bitfield-shrinking",
+    cl::Hidden, cl::desc("Disable BitfieldShrinking"));
 static cl::opt<bool> DisableCGP("disable-cgp", cl::Hidden,
     cl::desc("Disable Codegen Prepare"));
 static cl::opt<bool> DisableCopyProp("disable-copyprop", cl::Hidden,
@@ -474,6 +476,9 @@ void TargetPassConfig::addIRPasses() {
   // Prepare expensive constants for SelectionDAG.
   if (getOptLevel() != CodeGenOpt::None && !DisableConstantHoisting)
     addPass(createConstantHoistingPass());
+
+  if (!DisableBitfieldShrinking)
+    addPass(createBitfieldShrinkingPass(TM));
 
   if (getOptLevel() != CodeGenOpt::None && !DisablePartialLibcallInlining)
     addPass(createPartiallyInlineLibCallsPass());

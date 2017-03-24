@@ -74,6 +74,7 @@ void initializeBBVectorizePass(PassRegistry&);
 void initializeBDCELegacyPassPass(PassRegistry &);
 void initializeBarrierNoopPass(PassRegistry&);
 void initializeBasicAAWrapperPassPass(PassRegistry&);
+void initializeBitfieldShrinkingPassPass(PassRegistry&);
 void initializeBlockExtractorPassPass(PassRegistry&);
 void initializeBlockFrequencyInfoWrapperPassPass(PassRegistry&);
 void initializeBoundsCheckingPass(PassRegistry&);
