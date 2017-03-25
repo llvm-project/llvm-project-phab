@@ -65,6 +65,9 @@ private:
 
   // Whether arrays need to be initialized or not. Default is false.
   bool IgnoreArrays;
+  // Whether fix-its for initializers of fundamental type use literals. Only
+  // effective in C++11 mode. Default is false.
+  bool LiteralInitializers;
 };
 
 } // namespace cppcoreguidelines
