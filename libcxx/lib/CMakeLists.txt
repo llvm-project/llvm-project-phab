@@ -2,12 +2,43 @@ set(LIBCXX_LIB_CMAKEFILES_DIR "${CMAKE_CURRENT_BINARY_DIR}${CMAKE_FILES_DIRECTOR
 
 # Get sources
 file(GLOB LIBCXX_SOURCES ../src/*.cpp)
+set(LIBCXX_SOURCES
+      ../src/algorithm.cpp
+      ../src/any.cpp
+      ../src/bind.cpp
+      ../src/chrono.cpp
+      ../src/condition_variable.cpp
+      ../src/debug.cpp
+      ../src/exception.cpp
+      ../src/future.cpp
+      ../src/hash.cpp
+      ../src/ios.cpp
+      ../src/iostream.cpp
+      ../src/locale.cpp
+      ../src/memory.cpp
+      ../src/mutex.cpp
+      ../src/new.cpp
+      ../src/optional.cpp
+      ../src/random.cpp
+      ../src/regex.cpp
+      ../src/shared_mutex.cpp
+      ../src/stdexcept.cpp
+      ../src/string.cpp
+      ../src/strstream.cpp
+      ../src/system_error.cpp
+      ../src/thread.cpp
+      ../src/typeinfo.cpp
+      ../src/utility.cpp
+      ../src/valarray.cpp
+      ../src/variant.cpp)
 if(WIN32)
-  file(GLOB LIBCXX_WIN32_SOURCES ../src/support/win32/*.cpp)
-  list(APPEND LIBCXX_SOURCES ${LIBCXX_WIN32_SOURCES})
+  list(APPEND LIBCXX_SOURCES
+         ../src/support/win32/locale_win32.cpp
+         ../src/support/win32/support.cpp)
 elseif("${CMAKE_SYSTEM_NAME}" STREQUAL "SunOS")
   file(GLOB LIBCXX_SOLARIS_SOURCES ../src/support/solaris/*.cpp)
-  list(APPEND LIBCXX_SOURCES ${LIBCXX_SOLARIS_SOURCES})
+  list(APPEND LIBCXX_SOURCES
+         ../src/support/solaris/xlocale.cpp)
 endif()
 
 # Add all the headers to the project for IDEs.
