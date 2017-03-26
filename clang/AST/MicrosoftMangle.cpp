@@ -2056,6 +2056,7 @@ void MicrosoftCXXNameMangler::mangleCallingConvention(CallingConv CC) {
   //                      ::= J # __export __fastcall
   //                      ::= Q # __vectorcall
   //                      ::= w # __regcall
+  //                      ::= S # __swiftcall
   // The 'export' calling conventions are from a bygone era
   // (*cough*Win16*cough*) when functions were declared for export with
   // that keyword. (It didn't actually export them, it just made them so
@@ -2074,6 +2075,7 @@ void MicrosoftCXXNameMangler::mangleCallingConvention(CallingConv CC) {
     case CC_X86FastCall: Out << 'I'; break;
     case CC_X86VectorCall: Out << 'Q'; break;
     case CC_X86RegCall: Out << 'w'; break;
+    case CC_Swift: Out << "S"; break;
   }
 }
 void MicrosoftCXXNameMangler::mangleCallingConvention(const FunctionType *T) {
