@@ -7518,8 +7518,78 @@ TEST_F(FormatTest, ConfigurableSpaceBeforeAssignmentOperators) {
   verifyFormat("a or_eq 8;", Spaces);
 }
 
+TEST_F(FormatTest, AlignConsecutiveMacros) {
+  FormatStyle Alignment = getLLVMStyle();
+  Alignment.AlignConsecutiveAssignments = true;
+  Alignment.AlignConsecutiveDeclarations = true;
+  Alignment.AlignConsecutiveMacros = false;
+
+  verifyFormat("#define a 3\n"
+               "#define bbbb 4\n"
+               "#define ccc (5)",
+               Alignment);
+
+  verifyFormat("#define f(x) (x * x)\n"
+               "#define fff(x, y, z) (x * y + z)\n"
+               "#define ffff(x, y) (x - y)",
+               Alignment);
+
+  verifyFormat("#define foo(x, y) (x + y)\n"
+               "#define bar (5, 6)(2 + 2)",
+               Alignment);
+
+  verifyFormat("#define a 3\n"
+               "#define bbbb 4\n"
+               "#define ccc (5)\n"
+               "#define f(x) (x * x)\n"
+               "#define fff(x, y, z) (x * y + z)\n"
+               "#define ffff(x, y) (x - y)",
+               Alignment);
+
+  Alignment.AlignConsecutiveMacros = true;
+  verifyFormat("#define a    3\n"
+               "#define bbbb 4\n"
+               "#define ccc  (5)",
+               Alignment);
+
+  verifyFormat("#define f(x)         (x * x)\n"
+               "#define fff(x, y, z) (x * y + z)\n"
+               "#define ffff(x, y)   (x - y)",
+               Alignment);
+
+  verifyFormat("#define foo(x, y) (x + y)\n"
+               "#define bar       (5, 6)(2 + 2)",
+               Alignment);
+
+  verifyFormat("#define a            3\n"
+               "#define bbbb         4\n"
+               "#define ccc          (5)\n"
+               "#define f(x)         (x * x)\n"
+               "#define fff(x, y, z) (x * y + z)\n"
+               "#define ffff(x, y)   (x - y)",
+               Alignment);
+
+  verifyFormat("#define a         5\n"
+               "#define foo(x, y) (x + y)\n"
+               "#define CCC       (6)\n"
+               "auto lambda = []() {\n"
+               "  auto  ii = 0;\n"
+               "  float j  = 0;\n"
+               "  return 0;\n"
+               "};\n"
+               "int   i  = 0;\n"
+               "float i2 = 0;\n"
+               "auto  v  = type{\n"
+               "    i = 1,   //\n"
+               "    (i = 2), //\n"
+               "    i = 3    //\n"
+               "};",
+               Alignment);
+}
+
 TEST_F(FormatTest, AlignConsecutiveAssignments) {
   FormatStyle Alignment = getLLVMStyle();
+  Alignment.AlignConsecutiveMacros = true;
   Alignment.AlignConsecutiveAssignments = false;
   verifyFormat("int a = 5;\n"
                "int oneTwoThree = 123;",
@@ -7660,7 +7730,10 @@ TEST_F(FormatTest, AlignConsecutiveAssignments) {
                "int j = 2;",
                Alignment);
 
-  verifyFormat("auto lambda = []() {\n"
+  verifyFormat("#define a         5\n"
+               "#define foo(x, y) (x + y)\n"
+               "#define CCC       (6)\n"
+               "auto lambda = []() {\n"
                "  auto i = 0;\n"
                "  return 0;\n"
                "};\n"
@@ -7702,6 +7775,7 @@ TEST_F(FormatTest, AlignConsecutiveAssignments) {
 
 TEST_F(FormatTest, AlignConsecutiveDeclarations) {
   FormatStyle Alignment = getLLVMStyle();
+  Alignment.AlignConsecutiveMacros = true;
   Alignment.AlignConsecutiveDeclarations = false;
   verifyFormat("float const a = 5;\n"
                "int oneTwoThree = 123;",
@@ -7933,7 +8007,10 @@ TEST_F(FormatTest, AlignConsecutiveDeclarations) {
                Alignment);
 
   Alignment.AlignConsecutiveAssignments = true;
-  verifyFormat("auto lambda = []() {\n"
+  verifyFormat("#define a         5\n"
+               "#define foo(x, y) (x + y)\n"
+               "#define CCC       (6)\n"
+               "auto lambda = []() {\n"
                "  auto  ii = 0;\n"
                "  float j  = 0;\n"
                "  return 0;\n"
@@ -8659,6 +8736,7 @@ TEST_F(FormatTest, ParsesConfigurationBools) {
   CHECK_PARSE_BOOL(AlignEscapedNewlinesLeft);
   CHECK_PARSE_BOOL(AlignOperands);
   CHECK_PARSE_BOOL(AlignTrailingComments);
+  CHECK_PARSE_BOOL(AlignConsecutiveMacros);
   CHECK_PARSE_BOOL(AlignConsecutiveAssignments);
   CHECK_PARSE_BOOL(AlignConsecutiveDeclarations);
   CHECK_PARSE_BOOL(AllowAllParametersOfDeclarationOnNextLine);
