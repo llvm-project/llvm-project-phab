@@ -20,6 +20,7 @@
 #include "llvm/CodeGen/MachineScheduler.h"
 #include "llvm/CodeGen/RegisterPressure.h"
 #include "llvm/CodeGen/ScheduleDAG.h"
+#include "llvm/MC/LaneBitmask.h"
 #include <cassert>
 #include <cstdint>
 #include <map>
@@ -85,8 +86,8 @@ class SIScheduleBlock {
   // Note that some registers are not 32 bits,
   // and thus the pressure is not equal
   // to the number of live registers.
-  std::set<unsigned> LiveInRegs;
-  std::set<unsigned> LiveOutRegs;
+  SmallVector<RegisterMaskPair, 8> LiveInRegs;
+  SmallVector<RegisterMaskPair, 8> LiveOutRegs;
 
   bool Scheduled = false;
   bool HighLatencyBlock = false;
@@ -161,8 +162,8 @@ public:
     return InternalAdditionnalPressure;
   }
 
-  std::set<unsigned> &getInRegs() { return LiveInRegs; }
-  std::set<unsigned> &getOutRegs() { return LiveOutRegs; }
+  SmallVector<RegisterMaskPair, 8> &getInRegs() { return LiveInRegs; }
+  SmallVector<RegisterMaskPair, 8> &getOutRegs() { return LiveOutRegs; }
 
   void printDebug(bool Full);
 
@@ -306,6 +307,7 @@ private:
 
   void topologicalSort();
 
+  void adjustLaneLiveness(MachineInstr &MI);
   void scheduleInsideBlocks();
 
   void fillStats();
@@ -322,10 +324,22 @@ class SIScheduleBlockScheduler {
   SISchedulerBlockSchedulerVariant Variant;
   std::vector<SIScheduleBlock*> Blocks;
 
-  std::vector<std::map<unsigned, unsigned>> LiveOutRegsNumUsages;
-  std::set<unsigned> LiveRegs;
+  // For each register, basis of LaneBitmask to generate all
+  // LaneBitmasks involved in the scheduling.
+  // If the register is not in the map, it is assumed it is always
+  // used with full mask.
+  std::map<unsigned, SmallVector<LaneBitmask, 8>> LaneMaskBasisForReg;
+
+  // The RegisterMaskPair below are assumed to be pairs (Reg, Mask)
+  // such that Mask is in LaneMaskBasisForReg[Reg] if exists.
+  std::vector<std::map<RegisterMaskPair, unsigned>> LiveOutRegsNumUsages;
+  std::map<unsigned, LaneBitmask> LiveRegs;
   // Num of schedulable unscheduled blocks reading the register.
-  std::map<unsigned, unsigned> LiveRegsConsumers;
+  std::map<RegisterMaskPair, unsigned> LiveRegsConsumers;
+  // Blocks's getInRegs, but with RegisterMaskPair with Mask
+  // in LaneMaskBasisForReg[Reg] if exists.
+  DenseMap<unsigned, SmallVector<RegisterMaskPair, 8>> InRegsForBlock;
+  DenseMap<unsigned, SmallVector<RegisterMaskPair, 8>> OutRegsForBlock;
 
   std::vector<unsigned> LastPosHighLatencyParentScheduled;
   int LastPosWaitedHighLatency;
@@ -356,6 +370,18 @@ public:
   unsigned getSGPRUsage() { return maxSregUsage; }
 
 private:
+
+  // Convert Reg/Mask to a list of Reg/Mask, with Mask in
+  // LaneMaskBasisForReg.
+  SmallVector<RegisterMaskPair, 8> getPairsForReg(unsigned Reg,
+                                                  LaneBitmask Mask);
+  // ToAppend: where to append the result.
+  void getPairsForReg(SmallVector<RegisterMaskPair, 8> &ToAppend,
+                      unsigned Reg, LaneBitmask Mask);
+  // Idem for a list of Reg/Mask
+  SmallVector<RegisterMaskPair, 8> getPairsForRegs(
+    const SmallVector<RegisterMaskPair, 8> &Regs);
+
   struct SIBlockSchedCandidate : SISchedulerCandidate {
     // The best Block candidate.
     SIScheduleBlock *Block = nullptr;
@@ -391,15 +417,17 @@ private:
                             SIBlockSchedCandidate &TryCand);
   SIScheduleBlock *pickBlock();
 
-  void addLiveRegs(std::set<unsigned> &Regs);
-  void decreaseLiveRegs(SIScheduleBlock *Block, std::set<unsigned> &Regs);
+  // The Mask in RegisterMaskPair needs to be
+  // element of LaneMaskBasisForReg.
+  void addLiveRegs(SmallVector<RegisterMaskPair, 8> &Regs);
+  void decreaseLiveRegs(SIScheduleBlock *Block,
+                        SmallVector<RegisterMaskPair, 8> &Regs);
   void releaseBlockSuccs(SIScheduleBlock *Parent);
   void blockScheduled(SIScheduleBlock *Block);
 
   // Check register pressure change
-  // by scheduling a block with these LiveIn and LiveOut.
-  std::vector<int> checkRegUsageImpact(std::set<unsigned> &InRegs,
-                                       std::set<unsigned> &OutRegs);
+  // by scheduling a block
+  void checkRegUsageImpact(unsigned BlockID, int &DiffVGPR, int &DiffSGPR);
 
   void schedule();
 };
@@ -415,7 +443,8 @@ class SIScheduler {
   SIScheduleBlockCreator BlockCreator;
 
 public:
-  SIScheduler(SIScheduleDAGMI *DAG) : DAG(DAG), BlockCreator(DAG) {}
+  SIScheduler(SIScheduleDAGMI *DAG) :
+    DAG(DAG), BlockCreator(DAG) {}
 
   ~SIScheduler() = default;
 
@@ -447,7 +476,7 @@ public:
 
   // To init Block's RPTracker.
   void initRPTracker(RegPressureTracker &RPTracker) {
-    RPTracker.init(&MF, RegClassInfo, LIS, BB, RegionBegin, false, false);
+    RPTracker.init(&MF, RegClassInfo, LIS, BB, RegionBegin, ShouldTrackLaneMasks, false);
   }
 
   MachineBasicBlock *getBB() { return BB; }
@@ -467,24 +496,18 @@ public:
                                                      unsigned &VgprUsage,
                                                      unsigned &SgprUsage);
 
-  std::set<unsigned> getInRegs() {
-    std::set<unsigned> InRegs;
-    for (const auto &RegMaskPair : RPTracker.getPressure().LiveInRegs) {
-      InRegs.insert(RegMaskPair.RegUnit);
-    }
-    return InRegs;
+  const SmallVector<RegisterMaskPair, 8> &getInRegs() {
+    return RPTracker.getPressure().LiveInRegs;
   }
 
-  std::set<unsigned> getOutRegs() {
-    std::set<unsigned> OutRegs;
-    for (const auto &RegMaskPair : RPTracker.getPressure().LiveOutRegs) {
-      OutRegs.insert(RegMaskPair.RegUnit);
-    }
-    return OutRegs;
+  const SmallVector<RegisterMaskPair, 8> &getOutRegs() {
+    return RPTracker.getPressure().LiveOutRegs;
   };
 
   unsigned getVGPRSetID() const { return VGPRSetID; }
   unsigned getSGPRSetID() const { return SGPRSetID; }
+
+  bool shouldTrackLaneMasks() const { return ShouldTrackLaneMasks; }
 
 private:
   void topologicalSort();
