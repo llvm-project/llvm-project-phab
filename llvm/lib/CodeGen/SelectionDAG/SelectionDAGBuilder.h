@@ -20,6 +20,7 @@
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/CodeGen/SelectionDAG.h"
 #include "llvm/CodeGen/SelectionDAGNodes.h"
+#include "llvm/CodeGen/SwitchCaseCluster.h"
 #include "llvm/IR/CallSite.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Statepoint.h"
@@ -135,18 +136,9 @@ private:
   /// SDNodes we create.
   unsigned SDNodeOrder;
 
-  enum CaseClusterKind {
-    /// A cluster of adjacent case labels with the same destination, or just one
-    /// case.
-    CC_Range,
-    /// A cluster of cases suitable for jump table lowering.
-    CC_JumpTable,
-    /// A cluster of cases suitable for bit test lowering.
-    CC_BitTests
-  };
 
   /// A cluster of case labels.
-  struct CaseCluster {
+  struct MachineCaseCluster {
     CaseClusterKind Kind;
     const ConstantInt *Low, *High;
     union {
@@ -156,9 +148,11 @@ private:
     };
     BranchProbability Prob;
 
-    static CaseCluster range(const ConstantInt *Low, const ConstantInt *High,
-                             MachineBasicBlock *MBB, BranchProbability Prob) {
-      CaseCluster C;
+    static MachineCaseCluster range(const ConstantInt *Low,
+                                    const ConstantInt *High,
+                                    MachineBasicBlock *MBB,
+                                    BranchProbability Prob) {
+      MachineCaseCluster C;
       C.Kind = CC_Range;
       C.Low = Low;
       C.High = High;
@@ -167,10 +161,11 @@ private:
       return C;
     }
 
-    static CaseCluster jumpTable(const ConstantInt *Low,
-                                 const ConstantInt *High, unsigned JTCasesIndex,
-                                 BranchProbability Prob) {
-      CaseCluster C;
+    static MachineCaseCluster jumpTable(const ConstantInt *Low,
+                                        const ConstantInt *High,
+                                        unsigned JTCasesIndex,
+                                        BranchProbability Prob) {
+      MachineCaseCluster C;
       C.Kind = CC_JumpTable;
       C.Low = Low;
       C.High = High;
@@ -179,9 +174,11 @@ private:
       return C;
     }
 
-    static CaseCluster bitTests(const ConstantInt *Low, const ConstantInt *High,
-                                unsigned BTCasesIndex, BranchProbability Prob) {
-      CaseCluster C;
+    static MachineCaseCluster bitTests(const ConstantInt *Low,
+                                       const ConstantInt *High,
+                                       unsigned BTCasesIndex,
+                                       BranchProbability Prob) {
+      MachineCaseCluster C;
       C.Kind = CC_BitTests;
       C.Low = Low;
       C.High = High;
@@ -191,8 +188,8 @@ private:
     }
   };
 
-  typedef std::vector<CaseCluster> CaseClusterVector;
-  typedef CaseClusterVector::iterator CaseClusterIt;
+  typedef std::vector<MachineCaseCluster> MachineCaseClusterVector;
+  typedef MachineCaseClusterVector::iterator MachineCaseClusterIt;
 
   struct CaseBits {
     uint64_t Mask;
@@ -208,9 +205,6 @@ private:
   };
 
   typedef std::vector<CaseBits> CaseBitsVector;
-
-  /// Sort Clusters and merge adjacent cases.
-  void sortAndRangeify(CaseClusterVector &Clusters);
 
   /// CaseBlock - This structure is used to communicate between
   /// SelectionDAGBuilder and SDISel for the code generation of additional basic
@@ -304,41 +298,10 @@ private:
     BranchProbability DefaultProb;
   };
 
-  /// Check whether a range of clusters is dense enough for a jump table.
-  bool isDense(const CaseClusterVector &Clusters,
-               const SmallVectorImpl<unsigned> &TotalCases,
-               unsigned First, unsigned Last, unsigned MinDensity) const;
-
-  /// Build a jump table cluster from Clusters[First..Last]. Returns false if it
-  /// decides it's not a good idea.
-  bool buildJumpTable(const CaseClusterVector &Clusters, unsigned First,
-                      unsigned Last, const SwitchInst *SI,
-                      MachineBasicBlock *DefaultMBB, CaseCluster &JTCluster);
-
-  /// Find clusters of cases suitable for jump table lowering.
-  void findJumpTables(CaseClusterVector &Clusters, const SwitchInst *SI,
-                      MachineBasicBlock *DefaultMBB);
-
-  /// Check whether the range [Low,High] fits in a machine word.
-  bool rangeFitsInWord(const APInt &Low, const APInt &High);
-
-  /// Check whether these clusters are suitable for lowering with bit tests based
-  /// on the number of destinations, comparison metric, and range.
-  bool isSuitableForBitTests(unsigned NumDests, unsigned NumCmps,
-                             const APInt &Low, const APInt &High);
-
-  /// Build a bit test cluster from Clusters[First..Last]. Returns false if it
-  /// decides it's not a good idea.
-  bool buildBitTests(CaseClusterVector &Clusters, unsigned First, unsigned Last,
-                     const SwitchInst *SI, CaseCluster &BTCluster);
-
-  /// Find clusters of cases suitable for bit test lowering.
-  void findBitTestClusters(CaseClusterVector &Clusters, const SwitchInst *SI);
-
   struct SwitchWorkListItem {
     MachineBasicBlock *MBB;
-    CaseClusterIt FirstCluster;
-    CaseClusterIt LastCluster;
+    MachineCaseClusterIt FirstCluster;
+    MachineCaseClusterIt LastCluster;
     const ConstantInt *GE;
     const ConstantInt *LT;
     BranchProbability DefaultProb;
@@ -347,12 +310,21 @@ private:
 
   /// Determine the rank by weight of CC in [First,Last]. If CC has more weight
   /// than each cluster in the range, its rank is 0.
-  static unsigned caseClusterRank(const CaseCluster &CC, CaseClusterIt First,
-                                  CaseClusterIt Last);
+  static unsigned caseClusterRank(const MachineCaseCluster &CC, MachineCaseClusterIt First,
+                                  MachineCaseClusterIt Last);
 
   /// Emit comparison and split W into two subtrees.
   void splitWorkItem(SwitchWorkList &WorkList, const SwitchWorkListItem &W,
                      Value *Cond, MachineBasicBlock *SwitchMBB);
+
+  /// Prepare to lower a jump table case cluster.
+  unsigned prepareJumpTable(const SwitchInst *SI, CaseCluster &JTCluser,
+                            MachineBasicBlock *DefaultMBB);
+
+  /// Prepare to lower a bit test case cluster.
+  unsigned prepareBitTests(const SwitchInst *SI, CaseCluster &JTCluser,
+                           MachineBasicBlock *DefaultMBB,
+                           BranchProbability TotalProb);
 
   /// Lower W.
   void lowerWorkItem(SwitchWorkListItem W, Value *Cond,
@@ -606,11 +578,18 @@ public:
 
   LLVMContext *Context;
 
+  /// Helper object to form case clusters for SwitchInst.
+  SwitchCaseClusterFinder *CaseClusterFinder;
+
   SelectionDAGBuilder(SelectionDAG &dag, FunctionLoweringInfo &funcinfo,
                       CodeGenOpt::Level ol)
-    : CurInst(nullptr), SDNodeOrder(LowestSDNodeOrder), TM(dag.getTarget()),
-      DAG(dag), FuncInfo(funcinfo),
-      HasTailCall(false) {
+      : CurInst(nullptr), SDNodeOrder(LowestSDNodeOrder), TM(dag.getTarget()),
+        DAG(dag), FuncInfo(funcinfo), HasTailCall(false),
+        CaseClusterFinder(nullptr) {}
+
+  ~SelectionDAGBuilder() {
+    if (CaseClusterFinder)
+      delete CaseClusterFinder;
   }
 
   void init(GCFunctionInfo *gfi, AliasAnalysis &aa,
