@@ -3232,7 +3232,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       // semantic analysis, etc.
       break;
     }
-  }
+  } else if (Args.hasFlag(options::OPT_fopenmp_simd,
+                          options::OPT_fno_openmp_simd, /*Default=*/false))
+    CmdArgs.push_back("-fopenmp-simd");
 
   const SanitizerArgs &Sanitize = getToolChain().getSanitizerArgs();
   Sanitize.addArgs(getToolChain(), Args, CmdArgs, InputType);

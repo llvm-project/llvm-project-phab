@@ -12,6 +12,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/AST/ASTContext.h"
+#include "clang/Basic/OpenMPKinds.h"
 #include "clang/Basic/PragmaKinds.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Lex/Preprocessor.h"
@@ -94,6 +95,12 @@ struct PragmaNoOpenMPHandler : public PragmaHandler {
 
 struct PragmaOpenMPHandler : public PragmaHandler {
   PragmaOpenMPHandler() : PragmaHandler("omp") { }
+  void HandlePragma(Preprocessor &PP, PragmaIntroducerKind Introducer,
+                    Token &FirstToken) override;
+};
+
+struct PragmaOpenMPSIMDHandler : public PragmaHandler {
+  PragmaOpenMPSIMDHandler() : PragmaHandler("omp") { }
   void HandlePragma(Preprocessor &PP, PragmaIntroducerKind Introducer,
                     Token &FirstToken) override;
 };
@@ -215,6 +222,8 @@ void Parser::initializePragmaHandlers() {
   }
   if (getLangOpts().OpenMP)
     OpenMPHandler.reset(new PragmaOpenMPHandler());
+  else if (getLangOpts().OpenMPSimd)
+    OpenMPHandler.reset(new PragmaOpenMPSIMDHandler());
   else
     OpenMPHandler.reset(new PragmaNoOpenMPHandler());
   PP.AddPragmaHandler(OpenMPHandler.get());
@@ -1536,6 +1545,111 @@ PragmaOpenMPHandler::HandlePragma(Preprocessor &PP,
     Pragma.push_back(Tok);
     PP.Lex(Tok);
   }
+  SourceLocation EodLoc = Tok.getLocation();
+  Tok.startToken();
+  Tok.setKind(tok::annot_pragma_openmp_end);
+  Tok.setLocation(EodLoc);
+  Pragma.push_back(Tok);
+
+  auto Toks = llvm::make_unique<Token[]>(Pragma.size());
+  std::copy(Pragma.begin(), Pragma.end(), Toks.get());
+  PP.EnterTokenStream(std::move(Toks), Pragma.size(),
+                      /*DisableMacroExpansion=*/false);
+}
+
+/// \brief Handle '#pragma omp ...' when only OpenMP simd is enabled
+///
+void
+PragmaOpenMPSIMDHandler::HandlePragma(Preprocessor &PP,
+                                      PragmaIntroducerKind Introducer,
+                                      Token &FirstTok) {
+  SmallVector<Token, 16> Pragma;
+  Token Tok;
+  Tok.startToken();
+  Tok.setKind(tok::annot_pragma_openmp);
+  Tok.setLocation(FirstTok.getLocation());
+  Pragma.push_back(Tok);
+  PP.Lex(Tok);
+  auto Text = PP.getSpelling(Tok);
+
+  bool isSimd = false;
+  bool isDeclare = false;
+  // Check for a declare before everything else, since that isn't recognized
+  // as a directive on its own.
+  if (Text == "declare") {
+    Pragma.push_back(Tok);
+    isDeclare = true;
+    PP.Lex(Tok);
+    Text = PP.getSpelling(Tok);
+  }
+
+  // Discard directives that aren't related to simd.
+  while (Tok.isNot(tok::eod) && getOpenMPDirectiveKind(Text) != OMPD_unknown) {
+    if (Text == "simd") {
+      Pragma.push_back(Tok);
+      isSimd = true;
+    }
+
+    PP.Lex(Tok);
+    Text = PP.getSpelling(Tok);
+  }
+
+  // If we didn't encounter a simd directive, discard the whole pragma and warn
+  // about it (if enabled).
+  if (!isSimd) {
+    if (!PP.getDiagnostics().isIgnored(diag::warn_pragma_omp_ignored,
+                                       FirstTok.getLocation())) {
+      PP.Diag(FirstTok, diag::warn_pragma_omp_ignored);
+      PP.getDiagnostics().setSeverity(diag::warn_pragma_omp_ignored,
+                                      diag::Severity::Ignored,
+                                      SourceLocation());
+    }
+
+    if (Tok.isNot(tok::eod))
+      PP.DiscardUntilEndOfDirective();
+    return;
+  }
+
+  auto DirectiveKind = isDeclare ? OMPD_declare_simd : OMPD_simd;
+
+  // Read through any clauses, only save those which apply to simd or
+  // declare simd directives
+  while (Tok.isNot(tok::eod)) {
+    Text = PP.getSpelling(Tok);
+    bool Allowed = isAllowedClauseForDirective(DirectiveKind,
+                                               getOpenMPClauseKind(Text));
+
+    if (Allowed)
+      Pragma.push_back(Tok);
+
+    PP.Lex(Tok);
+
+    // For clauses with arguments, we need to process everything up to a
+    // matching parenthesis. Either add to the current pragma or discard
+    // if it's not supported for the current directive kind.
+    if (Tok.is(tok::l_paren)) {
+      while (Tok.isNot(tok::r_paren)) {
+        // Make sure we bail out of processing clauses if we hit the end of the
+        // directive before finishing the arguments. Let the full openmp parser
+        // deal with reporting errors for malformed pragmas.
+        if (Tok.is(tok::eod))
+          break;
+
+        if (Allowed)
+          Pragma.push_back(Tok);
+
+        PP.Lex(Tok);
+      }
+
+      if (Tok.isNot(tok::eod)) {
+        // Add the ')' if we're not throwing this clause away
+        if (Allowed)
+          Pragma.push_back(Tok);
+        PP.Lex(Tok);
+      }
+    }
+  }
+
   SourceLocation EodLoc = Tok.getLocation();
   Tok.startToken();
   Tok.setKind(tok::annot_pragma_openmp_end);

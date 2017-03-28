@@ -983,7 +983,7 @@ unsigned Sema::getOpenMPNestingLevel() const {
 }
 
 VarDecl *Sema::IsOpenMPCapturedDecl(ValueDecl *D) {
-  assert(LangOpts.OpenMP && "OpenMP is not allowed");
+  assert((LangOpts.OpenMP || LangOpts.OpenMPSimd) && "OpenMP is not allowed");
   D = getCanonicalDecl(D);
 
   // If we are attempting to capture a global variable in a directive with
@@ -1029,7 +1029,7 @@ VarDecl *Sema::IsOpenMPCapturedDecl(ValueDecl *D) {
 }
 
 bool Sema::isOpenMPPrivateDecl(ValueDecl *D, unsigned Level) {
-  assert(LangOpts.OpenMP && "OpenMP is not allowed");
+  assert((LangOpts.OpenMP || LangOpts.OpenMPSimd) && "OpenMP is not allowed");
   return DSAStack->hasExplicitDSA(
       D, [](OpenMPClauseKind K) -> bool { return K == OMPC_private; }, Level);
 }
