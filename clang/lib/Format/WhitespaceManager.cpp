@@ -87,6 +87,7 @@ const tooling::Replacements &WhitespaceManager::generateReplacements() {
 
   std::sort(Changes.begin(), Changes.end(), Change::IsBeforeInFile(SourceMgr));
   calculateLineBreakInformation();
+  alignConsecutiveMacros();
   alignConsecutiveDeclarations();
   alignConsecutiveAssignments();
   alignTrailingComments();
@@ -189,7 +190,8 @@ void WhitespaceManager::calculateLineBreakInformation() {
 template <typename F>
 static void
 AlignTokenSequence(unsigned Start, unsigned End, unsigned Column, F &&Matches,
-                   SmallVector<WhitespaceManager::Change, 16> &Changes) {
+                   SmallVector<WhitespaceManager::Change, 16> &Changes,
+                   bool IgnoreScopeAndCommas) {
   bool FoundMatchOnLine = false;
   int Shift = 0;
 
@@ -207,18 +209,20 @@ AlignTokenSequence(unsigned Start, unsigned End, unsigned Column, F &&Matches,
   SmallVector<unsigned, 16> ScopeStack;
 
   for (unsigned i = Start; i != End; ++i) {
-    if (ScopeStack.size() != 0 &&
+    if (!IgnoreScopeAndCommas && ScopeStack.size() != 0 &&
         Changes[i].nestingAndIndentLevel() <
             Changes[ScopeStack.back()].nestingAndIndentLevel())
       ScopeStack.pop_back();
 
-    if (i != Start && Changes[i].nestingAndIndentLevel() >
-                          Changes[i - 1].nestingAndIndentLevel())
+    if (!IgnoreScopeAndCommas && i != Start &&
+        Changes[i].nestingAndIndentLevel() >
+            Changes[i - 1].nestingAndIndentLevel())
       ScopeStack.push_back(i);
 
     bool InsideNestedScope = ScopeStack.size() != 0;
 
-    if (Changes[i].NewlinesBefore > 0 && !InsideNestedScope) {
+    if (Changes[i].NewlinesBefore > 0 &&
+        (!InsideNestedScope || IgnoreScopeAndCommas)) {
       Shift = 0;
       FoundMatchOnLine = false;
     }
@@ -226,7 +230,8 @@ AlignTokenSequence(unsigned Start, unsigned End, unsigned Column, F &&Matches,
     // If this is the first matching token to be aligned, remember by how many
     // spaces it has to be shifted, so the rest of the changes on the line are
     // shifted by the same amount
-    if (!FoundMatchOnLine && !InsideNestedScope && Matches(Changes[i])) {
+    if (!FoundMatchOnLine && (IgnoreScopeAndCommas || !InsideNestedScope) &&
+        Matches(Changes[i])) {
       FoundMatchOnLine = true;
       Shift = Column - Changes[i].StartOfTokenColumn;
       Changes[i].Spaces += Shift;
@@ -279,7 +284,7 @@ AlignTokenSequence(unsigned Start, unsigned End, unsigned Column, F &&Matches,
 template <typename F>
 static unsigned AlignTokens(const FormatStyle &Style, F &&Matches,
                             SmallVector<WhitespaceManager::Change, 16> &Changes,
-                            unsigned StartAt) {
+                            bool IgnoreScopeAndCommas, unsigned StartAt) {
   unsigned MinColumn = 0;
   unsigned MaxColumn = UINT_MAX;
 
@@ -293,9 +298,9 @@ static unsigned AlignTokens(const FormatStyle &Style, F &&Matches,
                                    ? Changes[StartAt].nestingAndIndentLevel()
                                    : std::pair<unsigned, unsigned>(0, 0);
 
-  // Keep track of the number of commas before the matching tokens, we will only
-  // align a sequence of matching tokens if they are preceded by the same number
-  // of commas.
+  // Keep track of the number of commas before the matching tokens. If
+  // IgnoreScopeAndCommas is false, we will only align a sequence of matching
+  // tokens if they are preceded by the same number of commas.
   unsigned CommasBeforeLastMatch = 0;
   unsigned CommasBeforeMatch = 0;
 
@@ -312,7 +317,7 @@ static unsigned AlignTokens(const FormatStyle &Style, F &&Matches,
   auto AlignCurrentSequence = [&] {
     if (StartOfSequence > 0 && StartOfSequence < EndOfSequence)
       AlignTokenSequence(StartOfSequence, EndOfSequence, MinColumn, Matches,
-                         Changes);
+                         Changes, IgnoreScopeAndCommas);
     MinColumn = 0;
     MaxColumn = UINT_MAX;
     StartOfSequence = 0;
@@ -337,9 +342,11 @@ static unsigned AlignTokens(const FormatStyle &Style, F &&Matches,
 
     if (Changes[i].Tok->is(tok::comma)) {
       ++CommasBeforeMatch;
-    } else if (Changes[i].nestingAndIndentLevel() > NestingAndIndentLevel) {
+    } else if (!IgnoreScopeAndCommas &&
+               (Changes[i].nestingAndIndentLevel() > NestingAndIndentLevel)) {
       // Call AlignTokens recursively, skipping over this scope block.
-      unsigned StoppedAt = AlignTokens(Style, Matches, Changes, i);
+      unsigned StoppedAt =
+          AlignTokens(Style, Matches, Changes, IgnoreScopeAndCommas, i);
       i = StoppedAt - 1;
       continue;
     }
@@ -349,12 +356,12 @@ static unsigned AlignTokens(const FormatStyle &Style, F &&Matches,
 
     // If there is more than one matching token per line, or if the number of
     // preceding commas, do not match anymore, end the sequence.
-    if (FoundMatchOnLine || CommasBeforeMatch != CommasBeforeLastMatch)
+    if (FoundMatchOnLine ||
+        (!IgnoreScopeAndCommas && (CommasBeforeMatch != CommasBeforeLastMatch)))
       AlignCurrentSequence();
 
     CommasBeforeLastMatch = CommasBeforeMatch;
     FoundMatchOnLine = true;
-
     if (StartOfSequence == 0)
       StartOfSequence = i;
 
@@ -366,7 +373,8 @@ static unsigned AlignTokens(const FormatStyle &Style, F &&Matches,
 
     // If we are restricted by the maximum column width, end the sequence.
     if (ChangeMinColumn > MaxColumn || ChangeMaxColumn < MinColumn ||
-        CommasBeforeLastMatch != CommasBeforeMatch) {
+        (!IgnoreScopeAndCommas &&
+         (CommasBeforeLastMatch != CommasBeforeMatch))) {
       AlignCurrentSequence();
       StartOfSequence = i;
     }
@@ -378,6 +386,56 @@ static unsigned AlignTokens(const FormatStyle &Style, F &&Matches,
   EndOfSequence = i;
   AlignCurrentSequence();
   return i;
+}
+
+void WhitespaceManager::alignConsecutiveMacros() {
+  if (!Style.AlignConsecutiveMacros)
+    return;
+
+  AlignTokens(Style,
+              [&](const Change &C) {
+                if (&C == &Changes.front())
+                  return false;
+
+                const FormatToken *Current = (&C - 1)->Tok;
+                unsigned SpacesRequiredBefore = 1;
+
+                if (!Current->Next || Current->Next->SpacesRequiredBefore == 0)
+                  return false;
+
+                // If current token is a ")", skip over the parameter
+                // list.
+                if (Current->is(tok::r_paren)) {
+                  do
+                    Current = Current->Previous;
+                  while (Current && !Current->Next->is(tok::l_paren));
+
+                  SpacesRequiredBefore = 0;
+                }
+
+                if (!Current || !Current->Previous)
+                  return false;
+
+                if (!Current->Previous->is(tok::pp_define) ||
+                    !Current->is(tok::identifier))
+                  return false;
+
+                // For a macro function, 0 spaces are required between the
+                // identifier and the lparen that opens the parameter list.
+                // For a simple macro, 1 space is required between the
+                // identifier and the first token of the defined value.
+                return Current->Next->SpacesRequiredBefore ==
+                       SpacesRequiredBefore;
+              },
+
+              // Special case for AlignTokens: for all other alignment cases,
+              // the current sequence is ended when a comma or a scope change
+              // is encountered. This won't work for PP macros, since we need
+              // function-like macros and simple macros with
+              // parenthesis-enclosed values to be aligned in the same
+              // sequence. Setting IgnoreScopeAndCommas true prevents a scope
+              // change or a comma from ending the current sequence.
+              Changes, /*IgnoreScopeAndCommas=*/true, /*StartAt=*/0);
 }
 
 void WhitespaceManager::alignConsecutiveAssignments() {
@@ -396,7 +454,7 @@ void WhitespaceManager::alignConsecutiveAssignments() {
 
                 return C.Tok->is(tok::equal);
               },
-              Changes, /*StartAt=*/0);
+              Changes, /*IgnoreScopeAndCommas=*/false, /*StartAt=*/0);
 }
 
 void WhitespaceManager::alignConsecutiveDeclarations() {
@@ -417,7 +475,7 @@ void WhitespaceManager::alignConsecutiveDeclarations() {
                        C.Tok->is(TT_FunctionDeclarationName) ||
                        C.Tok->is(tok::kw_operator);
               },
-              Changes, /*StartAt=*/0);
+              Changes, /*IgnoreScopeAndCommas=*/false, /*StartAt=*/0);
 }
 
 void WhitespaceManager::alignTrailingComments() {
