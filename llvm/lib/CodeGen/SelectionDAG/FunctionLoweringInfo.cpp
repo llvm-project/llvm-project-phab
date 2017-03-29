@@ -409,6 +409,29 @@ FunctionLoweringInfo::GetLiveOutRegInfo(unsigned Reg, unsigned BitWidth) {
   return LOI;
 }
 
+/// Try to recompute LiveOutRegInfo for an invalidated PHI when it's referred as
+/// an input value in a later block if its predecessors are all visited at that
+/// point.
+const FunctionLoweringInfo::LiveOutInfo *
+FunctionLoweringInfo::tryToRecomputePHILiveOutRegInfo(Value *V,
+                                                      unsigned BitWidth) {
+  PHINode *Phi = dyn_cast<PHINode>(V);
+  if (!Phi || !InvalidatedPHIs.count(Phi))
+    return nullptr;
+
+  const BasicBlock *LLVMBB = Phi->getParent();
+  for (const_pred_iterator PI = pred_begin(LLVMBB), PE = pred_end(LLVMBB);
+       PI != PE; ++PI) {
+    if (!VisitedBBs.count(*PI) || MBBMap[*PI] == MBB)
+      return nullptr;
+  }
+  // If all predecessors are visited, retry to compute LiveOutRegInfo.
+  unsigned SrcReg = ValueMap[Phi];
+  InvalidatedPHIs.erase(Phi);
+  ComputePHILiveOutRegInfo(Phi);
+  return GetLiveOutRegInfo(SrcReg, BitWidth);
+}
+
 /// ComputePHILiveOutRegInfo - Compute LiveOutInfo for a PHI's destination
 /// register based on the LiveOutInfo of its operands.
 void FunctionLoweringInfo::ComputePHILiveOutRegInfo(const PHINode *PN) {
@@ -457,8 +480,10 @@ void FunctionLoweringInfo::ComputePHILiveOutRegInfo(const PHINode *PN) {
     }
     const LiveOutInfo *SrcLOI = GetLiveOutRegInfo(SrcReg, BitWidth);
     if (!SrcLOI) {
-      DestLOI.IsValid = false;
-      return;
+      if (!(SrcLOI = tryToRecomputePHILiveOutRegInfo(V, BitWidth))) {
+        DestLOI.IsValid = false;
+        return;
+      }
     }
     DestLOI = *SrcLOI;
   }
@@ -494,8 +519,10 @@ void FunctionLoweringInfo::ComputePHILiveOutRegInfo(const PHINode *PN) {
     }
     const LiveOutInfo *SrcLOI = GetLiveOutRegInfo(SrcReg, BitWidth);
     if (!SrcLOI) {
-      DestLOI.IsValid = false;
-      return;
+      if (!(SrcLOI = tryToRecomputePHILiveOutRegInfo(V, BitWidth))) {
+        DestLOI.IsValid = false;
+        return;
+      }
     }
     DestLOI.NumSignBits = std::min(DestLOI.NumSignBits, SrcLOI->NumSignBits);
     DestLOI.KnownZero &= SrcLOI->KnownZero;

@@ -1513,6 +1513,7 @@ void SelectionDAGISel::SelectAllBasicBlocks(const Function &Fn) {
 
   // Iterate over all basic blocks in the function.
   for (const BasicBlock *LLVMBB : RPOT) {
+    FuncInfo->MBB = FuncInfo->MBBMap[LLVMBB];
     if (OptLevel != CodeGenOpt::None) {
       bool AllPredsVisited = true;
       for (const_pred_iterator PI = pred_begin(LLVMBB), PE = pred_end(LLVMBB);
@@ -1529,8 +1530,10 @@ void SelectionDAGISel::SelectAllBasicBlocks(const Function &Fn) {
           FuncInfo->ComputePHILiveOutRegInfo(PN);
       } else {
         for (BasicBlock::const_iterator I = LLVMBB->begin();
-             const PHINode *PN = dyn_cast<PHINode>(I); ++I)
+             const PHINode *PN = dyn_cast<PHINode>(I); ++I) {
           FuncInfo->InvalidatePHILiveOutRegInfo(PN);
+          FuncInfo->InvalidatedPHIs.insert(PN);
+        }
       }
 
       FuncInfo->VisitedBBs.insert(LLVMBB);
@@ -1541,7 +1544,6 @@ void SelectionDAGISel::SelectAllBasicBlocks(const Function &Fn) {
     BasicBlock::const_iterator const End = LLVMBB->end();
     BasicBlock::const_iterator BI = End;
 
-    FuncInfo->MBB = FuncInfo->MBBMap[LLVMBB];
     if (!FuncInfo->MBB)
       continue; // Some blocks like catchpads have no code or MBB.
 

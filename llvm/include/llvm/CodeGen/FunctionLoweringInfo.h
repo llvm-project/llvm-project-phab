@@ -184,6 +184,9 @@ public:
   /// selection.
   SmallPtrSet<const BasicBlock*, 4> VisitedBBs;
 
+  /// Record PHIs invalidated for computing LiveOutRegInfo.
+  SmallPtrSet<const PHINode *, 4> InvalidatedPHIs;
+
   /// PHINodesToUpdate - A list of phi instructions whose operand list will
   /// be updated after processing the current basic block.
   /// TODO: This isn't per-function state, it's per-basic-block state. But
@@ -262,6 +265,10 @@ public:
   /// ComputePHILiveOutRegInfo - Compute LiveOutInfo for a PHI's destination
   /// register based on the LiveOutInfo of its operands.
   void ComputePHILiveOutRegInfo(const PHINode*);
+
+  /// Try to recompute LiveOutInfo for a PHI which was invalidated before.
+  const LiveOutInfo *tryToRecomputePHILiveOutRegInfo(Value *V,
+                                                     unsigned BitWidth);
 
   /// InvalidatePHILiveOutRegInfo - Invalidates a PHI's LiveOutInfo, to be
   /// called when a block is visited before all of its predecessors.
