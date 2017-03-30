@@ -49,11 +49,17 @@ STATISTIC(NumRedundantStores, "Number of redundant stores deleted");
 STATISTIC(NumFastStores, "Number of stores deleted");
 STATISTIC(NumFastOther , "Number of other instrs removed");
 STATISTIC(NumCompletePartials, "Number of stores dead by later partials");
+STATISTIC(NumModifiedStores, "Number of stores modified");
 
 static cl::opt<bool>
 EnablePartialOverwriteTracking("enable-dse-partial-overwrite-tracking",
   cl::init(true), cl::Hidden,
   cl::desc("Enable partial-overwrite tracking in DSE"));
+
+static cl::opt<bool>
+EnablePartialStoreMerging("enable-dse-partial-store-merging",
+  cl::init(true), cl::Hidden,
+  cl::desc("Enable partial store merging in DSE"));
 
 
 //===----------------------------------------------------------------------===//
@@ -287,7 +293,13 @@ static uint64_t getPointerSize(const Value *V, const DataLayout &DL,
 }
 
 namespace {
-enum OverwriteResult { OW_Begin, OW_Complete, OW_End, OW_Unknown };
+enum OverwriteResult {
+  OW_Begin,
+  OW_Complete,
+  OW_End,
+  OW_PartialEarlierWithFullLater,
+  OW_Unknown
+};
 }
 
 /// Return 'OW_Complete' if a store to the 'Later' location completely
@@ -425,6 +437,19 @@ static OverwriteResult isOverwrite(const MemoryLocation &Later,
       ++NumCompletePartials;
       return OW_Complete;
     }
+  }
+
+  // Check for an earlier store which writes to all the memory locations that
+  // the latter store writes to.
+  if (EnablePartialStoreMerging && LaterOff >= EarlierOff &&
+      Earlier.Size >= Later.Size &&
+      uint64_t(LaterOff - EarlierOff) + Later.Size <= Earlier.Size) {
+    DEBUG(dbgs() << "DSE: Partial overwrite an earlier load [" << EarlierOff
+                 << ", " << int64_t(EarlierOff + Earlier.Size)
+                 << ") by a later store [" << LaterOff << ", "
+                 << int64_t(LaterOff + Later.Size) << ")\n");
+    // TODO: Maybe come up with a better name?
+    return OW_PartialEarlierWithFullLater;
   }
 
   // Another interesting case is if the later store overwrites the end of the
@@ -1094,6 +1119,8 @@ static bool eliminateDeadStores(BasicBlock &BB, AliasAnalysis *AA,
       // If we find a write that is a) removable (i.e., non-volatile), b) is
       // completely obliterated by the store to 'Loc', and c) which we know that
       // 'Inst' doesn't load from, then we can remove it.
+      // Also try to merge two stores if a latter one only touches memory
+      // written to by the earlier one.
       if (isRemovable(DepWrite) &&
           !isPossibleSelfRead(Inst, Loc, DepWrite, *TLI, *AA)) {
         int64_t InstWriteOffset, DepWriteOffset;
@@ -1123,6 +1150,68 @@ static bool eliminateDeadStores(BasicBlock &BB, AliasAnalysis *AA,
           bool IsOverwriteEnd = (OR == OW_End);
           MadeChange |= tryToShorten(DepWrite, DepWriteOffset, EarlierSize,
                                     InstWriteOffset, LaterSize, IsOverwriteEnd);
+        } else if (EnablePartialStoreMerging &&
+                   OR == OW_PartialEarlierWithFullLater) {
+          auto *Earlier = dyn_cast<StoreInst>(DepWrite);
+          auto *Later = dyn_cast<StoreInst>(Inst);
+          if (Earlier && isa<ConstantInt>(Earlier->getValueOperand()) &&
+              Later && isa<ConstantInt>(Later->getValueOperand())) {
+            // If the store we find is:
+            //   a) partially overwritten by the store to 'Loc'
+            //   b) the latter store is fully contained in the earlier one and
+            //   c) They both have a contant value
+            // Merge the two stores, replacing the earlier store's value with a
+            // merge of both values.
+            // TODO: Deal with other constant types (vectors, etc), and probably
+            // some mem intrinsics (if needed)
+
+            APInt EarlierValue =
+                cast<ConstantInt>(Earlier->getValueOperand())->getValue();
+            APInt LaterValue =
+                cast<ConstantInt>(Later->getValueOperand())->getValue();
+            unsigned LaterBits = LaterValue.getBitWidth();
+            assert(EarlierValue.getBitWidth() > LaterValue.getBitWidth());
+            LaterValue = LaterValue.zext(EarlierValue.getBitWidth());
+
+            // Offset of the smaller store inside the larger store
+            unsigned BitOffsetDiff = (InstWriteOffset - DepWriteOffset) * 8;
+            unsigned ShiftAmount =
+                DL.isBigEndian()
+                    ? EarlierValue.getBitWidth() - BitOffsetDiff - LaterBits
+                    : BitOffsetDiff;
+            APInt Mask =
+                APInt::getBitsSet(EarlierValue.getBitWidth(), ShiftAmount,
+                                  ShiftAmount + LaterBits);
+            // Clear the bits we'll be replacing, then OR with the smaller
+            // store, shifted appropriately.
+            APInt Merged = (EarlierValue & ~Mask) | (LaterValue << ShiftAmount);
+            DEBUG(dbgs() << "DSE: Merge Stores:\n  Earlier: " << *DepWrite
+                         << "\n  Later: " << *Inst
+                         << "\n  Merged Value: " << Merged << '\n');
+
+            auto *SI = new StoreInst(
+                ConstantInt::get(Earlier->getValueOperand()->getType(), Merged),
+                Earlier->getPointerOperand(), false, Earlier->getAlignment(),
+                DepWrite);
+            SI->copyMetadata(*DepWrite);
+            ++NumModifiedStores;
+
+            // Replace earlier, wider, store
+            DepWrite->replaceAllUsesWith(SI);
+            size_t Idx = InstrOrdering.lookup(DepWrite);
+            InstrOrdering.erase(DepWrite);
+            InstrOrdering.insert(std::make_pair(SI, Idx));
+
+            //// Delete the old stores and now-dead instructions that feed them.
+            deleteDeadInstruction(Inst, &BBI, *MD, *TLI, IOL, &InstrOrdering);
+            deleteDeadInstruction(DepWrite, &BBI, *MD, *TLI, IOL,
+                                  &InstrOrdering);
+            MadeChange = true;
+
+            //// We erased DepWrite; start over.
+            InstDep = MD->getDependency(SI);
+            continue;
+          }
         }
       }
 
