@@ -447,9 +447,24 @@ void PPCInstPrinter::printTLSCall(const MCInst *MI, unsigned OpNo,
 
 /// stripRegisterPrefix - This method strips the character prefix from a
 /// register name so that only the number is left.  Used by for linux asm.
-static const char *stripRegisterPrefix(const char *RegName) {
-  if (FullRegNames || ShowVSRNumsAsVR)
+static const char *stripRegisterPrefix(const char *RegName, unsigned RegNum) {
+  if (FullRegNames || ShowVSRNumsAsVR) {
+    if (RegNum >= PPC::CR0EQ && RegNum <= PPC::CR7UN) {
+      unsigned BitNo = atoi(RegName);
+      const char *CRBits[] =
+      { "lt", "gt", "eq", "un",
+        "4*cr1+lt", "4*cr1+gt", "4*cr1+eq", "4*cr1+un",
+        "4*cr2+lt", "4*cr2+gt", "4*cr2+eq", "4*cr2+un",
+        "4*cr3+lt", "4*cr3+gt", "4*cr3+eq", "4*cr3+un",
+        "4*cr4+lt", "4*cr4+gt", "4*cr4+eq", "4*cr4+un",
+        "4*cr5+lt", "4*cr5+gt", "4*cr5+eq", "4*cr5+un",
+        "4*cr6+lt", "4*cr6+gt", "4*cr6+eq", "4*cr6+un",
+        "4*cr7+lt", "4*cr7+gt", "4*cr7+eq", "4*cr7+un"
+      };
+      return CRBits[BitNo];
+    }
     return RegName;
+  }
 
   switch (RegName[0]) {
   case 'r':
@@ -489,7 +504,7 @@ void PPCInstPrinter::printOperand(const MCInst *MI, unsigned OpNo,
     const char *RegName = getRegisterName(Reg);
     // The linux and AIX assembler does not take register prefixes.
     if (!isDarwinSyntax())
-      RegName = stripRegisterPrefix(RegName);
+      RegName = stripRegisterPrefix(RegName, Reg);
     
     O << RegName;
     return;
