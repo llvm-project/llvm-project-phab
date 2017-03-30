@@ -67,6 +67,10 @@ Improvements to clang-tidy
 
   Allow custom memory management functions to be considered as well.
 
+- Added `LiteralInitializers` option to `cppcoreguidelines-pro-type-member-init`
+   If set to true, the check will provide fix-its with literal initializers
+   (``int i = 0;``) instead of curly braces (``int i{};``).
+
 - New `readability-misleading-indentation
   <http://clang.llvm.org/extra/clang-tidy/checks/readability-misleading-indentation.html>`_ check
 
