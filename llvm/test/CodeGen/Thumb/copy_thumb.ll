@@ -24,7 +24,7 @@
 
 declare void @bar(i32, i32)
 
-define void @foo(i32 %a, i32 %b) {
+define void @foo(i32 %a, i32 %b) uwtable {
 entry:
   call void @bar(i32 %b, i32 %a);
   ret void

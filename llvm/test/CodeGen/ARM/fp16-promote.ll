@@ -893,7 +893,7 @@ define void @test_insertvalue(%struct.dummy* %p, half* %q) {
 ; CHECK-ALL: .fnstart
 ; CHECK-ALL: ldrh
 ; CHECK-ALL: strh
-define void @test_extractvalue(%struct.dummy* %p, half* %q) {
+define void @test_extractvalue(%struct.dummy* %p, half* %q) uwtable {
   %a = load %struct.dummy, %struct.dummy* %p
   %b = extractvalue %struct.dummy %a, 1
   store half %b, half* %q
@@ -914,7 +914,7 @@ define %struct.dummy @test_struct_return(%struct.dummy* %p) {
 ; CHECK-ALL-NEXT: .fnstart
 ; CHECK-NOVFP-NEXT: mov r0, r1
 ; CHECK-ALL-NEXT: bx lr
-define half @test_struct_arg(%struct.dummy %p) {
+define half @test_struct_arg(%struct.dummy %p) uwtable {
   %a = extractvalue %struct.dummy %p, 1
   ret half %a
 }
@@ -959,4 +959,4 @@ define half @test_sitofp_i32_fadd(i32 %a, half %b) #0 {
   ret half %r
 }
 
-attributes #0 = { nounwind }
+attributes #0 = { nounwind uwtable }
