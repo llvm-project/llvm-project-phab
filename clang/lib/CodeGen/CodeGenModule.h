@@ -1341,6 +1341,9 @@ private:
   void ConstructDefaultFnAttrList(StringRef Name, bool HasOptnone,
                                   bool AttrOnCallSite,
                                   llvm::AttrBuilder &FuncAttrs);
+
+  bool needsUnwindTable();
+
 };
 }  // end namespace CodeGen
 }  // end namespace clang
