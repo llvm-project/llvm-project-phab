@@ -1126,6 +1126,9 @@ template <class ELFT> void Writer<ELFT>::finalizeSections() {
   if (ErrorCount)
     return;
 
+  if (In<ELFT>::MipsGot)
+    In<ELFT>::MipsGot->template build<ELFT>();
+
   // So far we have added sections from input object files.
   // This function adds linker-created Out::* sections.
   addPredefinedSections();

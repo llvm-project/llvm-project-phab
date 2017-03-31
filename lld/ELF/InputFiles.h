@@ -97,6 +97,9 @@ public:
   uint16_t EMachine = llvm::ELF::EM_NONE;
   uint8_t OSABI = 0;
 
+  // Index of MIPS GOT built for this file.
+  size_t MipsGotIndex = -1;
+
 protected:
   InputFile(Kind K, MemoryBufferRef M);
   std::vector<InputSectionBase *> Sections;
