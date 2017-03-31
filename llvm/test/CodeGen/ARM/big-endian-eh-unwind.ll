@@ -71,3 +71,4 @@ declare void @_ZSt9terminatev()
 ; CHECK-LABEL: Contents of section .ARM.extab:
 ; CHECK-NEXT: 0000 00000000 00a8b0b0
 
+attributes #0 = { uwtable }

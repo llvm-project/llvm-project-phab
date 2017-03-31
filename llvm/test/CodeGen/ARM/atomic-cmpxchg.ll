@@ -7,7 +7,7 @@
 ; RUN: llc < %s -mtriple=armv7-linux-gnueabi -asm-verbose=false -verify-machineinstrs | FileCheck %s -check-prefix=CHECK-ARMV7
 ; RUN: llc < %s -mtriple=thumbv7-linux-gnueabi -asm-verbose=false -verify-machineinstrs | FileCheck %s -check-prefix=CHECK-THUMBV7
 
-define zeroext i1 @test_cmpxchg_res_i8(i8* %addr, i8 %desired, i8 zeroext %new) {
+define zeroext i1 @test_cmpxchg_res_i8(i8* %addr, i8 %desired, i8 zeroext %new) uwtable {
 entry:
   %0 = cmpxchg i8* %addr, i8 %desired, i8 %new monotonic monotonic
   %1 = extractvalue { i8, i1 } %0, 1
