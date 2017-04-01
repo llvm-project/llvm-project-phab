@@ -1,5 +1,4 @@
 // RUN: %clang_builtins %s %librt -o %t && %run %t
-// XFAIL: aarch64
 // test fails for aarch64 (see pr32260)
 
 //===-- fixunsxfti_test.c - Test __fixunsxfti -----------------------------===//
@@ -23,13 +22,15 @@
 // Returns: convert a to a unsigned long long, rounding toward zero.
 //          Negative values all become zero.
 
-// Assumption: long double is an intel 80 bit floating point type padded with 6 bytes
-//             tu_int is a 64 bit integral type
-//             value in long double is representable in tu_int or is negative 
-//                 (no range checking performed)
-
-// gggg gggg gggg gggg gggg gggg gggg gggg | gggg gggg gggg gggg seee eeee eeee eeee |
-// 1mmm mmmm mmmm mmmm mmmm mmmm mmmm mmmm | mmmm mmmm mmmm mmmm mmmm mmmm mmmm mmmm
+// Assumption:
+//   if __LDBL_MANT_DIG__ == 64, it's Intel 80-bit FP representation:
+//     long double is an intel 80 bit floating point type padded with 6 bytes:
+//     gggg gggg gggg gggg gggg gggg gggg gggg | gggg gggg gggg gggg seee eeee eeee eeee |
+//     1mmm mmmm mmmm mmmm mmmm mmmm mmmm mmmm | mmmm mmmm mmmm mmmm mmmm mmmm mmmm mmmm
+//   if __LDBL_MANT_DIG__ == 113, it's IEEE754 quad-precision floating point type:
+//      sign: bit 127, exp: bit 126 - 112, mantissa: bit 111 - 0.
+//  tu_int is a 128 bit integral type
+//  value in long double is representable in tu_int or is negative
 
 COMPILER_RT_ABI tu_int __fixunsxfti(long double a);
 
@@ -59,7 +60,6 @@ int main()
 #ifdef CRT_HAS_128BIT
     if (test__fixunsxfti(0.0, 0))
         return 1;
-
     if (test__fixunsxfti(0.5, 0))
         return 1;
     if (test__fixunsxfti(0.99, 0))
