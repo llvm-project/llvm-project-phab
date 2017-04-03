@@ -18,7 +18,7 @@
 #include "int_lib.h"
 #include <stdio.h>
 
-#ifdef CRT_HAS_128BIT
+#if defined(CRT_HAS_128BIT) && __LDBL_MANT_DIG__ == 64
 
 // Returns: convert a to a unsigned long long, rounding toward zero.
 //          Negative values all become zero.
@@ -56,7 +56,7 @@ char assumption_3[sizeof(long double)*CHAR_BIT == 128] = {0};
 
 int main()
 {
-#ifdef CRT_HAS_128BIT
+#if defined(CRT_HAS_128BIT) && __LDBL_MANT_DIG__ == 64
     if (test__fixunsxfti(0.0, 0))
         return 1;
 
