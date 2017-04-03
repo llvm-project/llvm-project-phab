@@ -1,6 +1,4 @@
 // RUN: %clang_builtins %s %librt -o %t && %run %t
-// XFAIL: aarch64
-// test fails for aarch64 (see pr32260)
 
 //===-- floattixf.c - Test __floattixf ------------------------------------===//
 //
@@ -19,7 +17,7 @@
 #include <float.h>
 #include <stdio.h>
 
-#ifdef CRT_HAS_128BIT
+#if __LDBL_MANT_DIG__ == 64
 
 // Returns: convert a to a long double, rounding toward even.
 
@@ -52,7 +50,7 @@ char assumption_3[sizeof(long double)*CHAR_BIT == 128] = {0};
 
 int main()
 {
-#ifdef CRT_HAS_128BIT
+#if __LDBL_MANT_DIG__ == 64
     if (test__floattixf(0, 0.0))
         return 1;
 

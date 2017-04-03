@@ -1,6 +1,4 @@
 // RUN: %clang_builtins %s %librt -o %t && %run %t
-// XFAIL: aarch64
-// test fails for aarch64 (see pr32260)
 
 //===-- fixxfti_test.c - Test __fixxfti -----------------------------------===//
 //
@@ -18,7 +16,7 @@
 #include "int_lib.h"
 #include <stdio.h>
 
-#ifdef CRT_HAS_128BIT
+#if __LDBL_MANT_DIG__ == 64
 
 // Returns: convert a to a signed long long, rounding toward zero.
 
@@ -54,7 +52,7 @@ char assumption_3[sizeof(long double)*CHAR_BIT == 128] = {0};
 
 int main()
 {
-#ifdef CRT_HAS_128BIT
+#if __LDBL_MANT_DIG__ == 64
     if (test__fixxfti(0.0, 0))
         return 1;
 
