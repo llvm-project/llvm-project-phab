@@ -1,6 +1,4 @@
 // RUN: %clang_builtins %s %librt -o %t && %run %t
-// XFAIL: aarch64
-// test fails for aarch64 (see pr32260)
 
 //===-- floatuntixf.c - Test __floatuntixf --------------------------------===//
 //
@@ -19,8 +17,7 @@
 #include <float.h>
 #include <stdio.h>
 
-#ifdef CRT_HAS_128BIT
-
+#if HAS_80_BIT_LONG_DOUBLE
 // Returns: convert a to a long double, rounding toward even.
 
 // Assumption: long double is a IEEE 80 bit floating point type padded to 128 bits
@@ -52,7 +49,7 @@ char assumption_3[sizeof(long double)*CHAR_BIT == 128] = {0};
 
 int main()
 {
-#ifdef CRT_HAS_128BIT
+#if HAS_80_BIT_LONG_DOUBLE
     if (test__floatuntixf(0, 0.0))
         return 1;
 
