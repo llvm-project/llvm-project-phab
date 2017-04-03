@@ -1451,6 +1451,8 @@ Enable ARC-style weak references in Objective-C
 
 .. option:: -fopenmp, -fno-openmp
 
+.. option:: -fopenmp-simd, -fno-openmp-simd
+
 .. option:: -fopenmp-dump-offload-linker-script
 
 .. option:: -fopenmp-use-tls

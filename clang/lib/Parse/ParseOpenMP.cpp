@@ -149,6 +149,33 @@ static OpenMPDirectiveKind ParseOpenMPDirectiveKind(Parser &P) {
       DKind = F[i][2];
     }
   }
+
+  // If we're only interested in the simd pragmas, convert any combined
+  // construct with a simd directive to just 'simd' or 'declare simd',
+  // and any other to 'unknown'.
+  if (P.getLangOpts().OpenMPSimd) {
+    switch (DKind) {
+      default:
+        DKind = OMPD_unknown;
+        break;
+      case OMPD_declare_simd:
+        break;
+      case OMPD_simd:
+      case OMPD_parallel_for_simd:
+      case OMPD_for_simd:
+      case OMPD_taskloop_simd:
+      case OMPD_distribute_parallel_for_simd:
+      case OMPD_distribute_simd:
+      case OMPD_target_simd:
+      case OMPD_teams_distribute_simd:
+      case OMPD_teams_distribute_parallel_for_simd:
+      case OMPD_target_teams_distribute_parallel_for_simd:
+      case OMPD_target_teams_distribute_simd:
+        DKind = OMPD_simd;
+        break;
+    }
+  }
+
   return DKind < OMPD_unknown ? static_cast<OpenMPDirectiveKind>(DKind)
                               : OMPD_unknown;
 }
@@ -1015,7 +1042,10 @@ StmtResult Parser::ParseOpenMPDeclarativeOrExecutableDirective(
     SkipUntil(tok::annot_pragma_openmp_end);
     break;
   case OMPD_unknown:
-    Diag(Tok, diag::err_omp_unknown_directive);
+    // Don't report unknown directives if we're only looking at simd,
+    // as the filter function will have switched the kind.
+    if (!getLangOpts().OpenMPSimd)
+      Diag(Tok, diag::err_omp_unknown_directive);
     SkipUntil(tok::annot_pragma_openmp_end);
     break;
   }
@@ -1105,6 +1135,18 @@ OMPClause *Parser::ParseOpenMPClause(OpenMPDirectiveKind DKind,
                                      OpenMPClauseKind CKind, bool FirstClause) {
   OMPClause *Clause = nullptr;
   bool ErrorFound = false;
+
+  // If we're only interpreting 'simd' directives, filter out clauses that
+  // don't apply without an error.
+  if (DKind == OMPD_simd && getLangOpts().OpenMPSimd &&
+      !isAllowedClauseForDirective(DKind, CKind)) {
+
+    if (PP.LookAhead(/*N=*/0).is(tok::l_paren))
+      SkipUntil(tok::r_paren);
+
+    return nullptr;
+  }
+
   // Check if clause is allowed for the given directive.
   if (CKind != OMPC_unknown && !isAllowedClauseForDirective(DKind, CKind)) {
     Diag(Tok, diag::err_omp_unexpected_clause) << getOpenMPClauseName(CKind)

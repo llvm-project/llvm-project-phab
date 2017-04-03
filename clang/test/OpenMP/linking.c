@@ -89,3 +89,14 @@
 // CHECK-MSVC-ILINK-64-SAME: -libpath:{{.+}}/../lib
 // CHECK-MSVC-ILINK-64-SAME: -defaultlib:libiomp5md.lib
 //
+// RUN: %clang -no-canonical-prefixes %s -### -o %t.o 2>&1 \
+// RUN:     -fopenmp-simd -target aarch64-linux-gnu \
+// RUN:   | FileCheck --check-prefix=CHECK-SIMD-ONLY-AA64 %s
+// CHECK-SIMD-ONLY-AA64-NOT: "-l[[DEFAULT_OPENMP_LIB]]"
+// CHECK-SIMD-ONLY-AA64-NOT: "-lpthread"
+//
+// RUN: %clang -no-canonical-prefixes %s -### -o %t.o 2>&1 \
+// RUN:     -fopenmp-simd -target x86_64-unknown_linux \
+// RUN:   | FileCheck --check-prefix=CHECK-SIMD-ONLY-X64 %s
+// CHECK-SIMD-ONLY-X64-NOT: "-l[[DEFAULT_OPENMP_LIB]]"
+// CHECK-SIMD-ONLY-X64-NOT: "-lpthread"

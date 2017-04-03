@@ -119,7 +119,7 @@ CodeGenModule::CodeGenModule(ASTContext &C, const HeaderSearchOptions &HSO,
     createObjCRuntime();
   if (LangOpts.OpenCL)
     createOpenCLRuntime();
-  if (LangOpts.OpenMP)
+  if (LangOpts.OpenMP || LangOpts.OpenMPSimd)
     createOpenMPRuntime();
   if (LangOpts.CUDA)
     createCUDARuntime();

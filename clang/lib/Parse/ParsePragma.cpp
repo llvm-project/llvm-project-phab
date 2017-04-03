@@ -213,7 +213,7 @@ void Parser::initializePragmaHandlers() {
 
     PP.AddPragmaHandler("OPENCL", FPContractHandler.get());
   }
-  if (getLangOpts().OpenMP)
+  if (getLangOpts().OpenMP || getLangOpts().OpenMPSimd)
     OpenMPHandler.reset(new PragmaOpenMPHandler());
   else
     OpenMPHandler.reset(new PragmaNoOpenMPHandler());

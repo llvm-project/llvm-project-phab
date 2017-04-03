@@ -13961,7 +13961,8 @@ bool Sema::tryCaptureVariable(
   // Capture global variables if it is required to use private copy of this
   // variable.
   bool IsGlobal = !Var->hasLocalStorage();
-  if (IsGlobal && !(LangOpts.OpenMP && IsOpenMPCapturedDecl(Var)))
+  if (IsGlobal && !((LangOpts.OpenMP || LangOpts.OpenMPSimd) &&
+                    IsOpenMPCapturedDecl(Var)))
     return true;
 
   // Walk up the stack to determine whether we can capture the variable,
