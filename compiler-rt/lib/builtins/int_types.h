@@ -67,6 +67,9 @@ typedef union
 #endif
 
 #ifdef CRT_HAS_128BIT
+#if !defined(HAS_80_BIT_LONG_DOUBLE) && __LDBL_MANT_DIG__ == 64
+#define HAS_80_BIT_LONG_DOUBLE 1
+#endif
 typedef int      ti_int __attribute__ ((mode (TI)));
 typedef unsigned tu_int __attribute__ ((mode (TI)));
 
