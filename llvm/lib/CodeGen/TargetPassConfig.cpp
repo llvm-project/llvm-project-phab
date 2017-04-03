@@ -68,6 +68,8 @@ static cl::opt<bool> DisablePostRAMachineLICM("disable-postra-machine-licm",
     cl::desc("Disable Machine LICM"));
 static cl::opt<bool> DisableMachineSink("disable-machine-sink", cl::Hidden,
     cl::desc("Disable Machine Sinking"));
+static cl::opt<bool> DisableMemAccessShrinking("disable-memaccess-shrinking",
+    cl::Hidden, cl::desc("Disable MemAccessShrinking"));
 static cl::opt<bool> DisableLSR("disable-lsr", cl::Hidden,
     cl::desc("Disable Loop Strength Reduction Pass"));
 static cl::opt<bool> DisableConstantHoisting("disable-constant-hoisting",
@@ -474,6 +476,9 @@ void TargetPassConfig::addIRPasses() {
   // Prepare expensive constants for SelectionDAG.
   if (getOptLevel() != CodeGenOpt::None && !DisableConstantHoisting)
     addPass(createConstantHoistingPass());
+
+  if (getOptLevel() != CodeGenOpt::None && !DisableMemAccessShrinking)
+    addPass(createMemAccessShrinkingPass(TM));
 
   if (getOptLevel() != CodeGenOpt::None && !DisablePartialLibcallInlining)
     addPass(createPartiallyInlineLibCallsPass());

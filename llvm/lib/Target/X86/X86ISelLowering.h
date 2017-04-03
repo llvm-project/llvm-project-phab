@@ -939,6 +939,9 @@ namespace llvm {
     /// from i32 to i8 but not from i32 to i16.
     bool isNarrowingProfitable(EVT VT1, EVT VT2) const override;
 
+    /// Return true if it's expensive to narrow operations of type VT1 to VT2.
+    bool isNarrowingExpensive(EVT VT1, EVT VT2) const override;
+
     /// Given an intrinsic, checks if on the target the intrinsic will need to map
     /// to a MemIntrinsicNode (touches memory). If this is the case, it returns
     /// true and stores the intrinsic information into the IntrinsicInfo that was

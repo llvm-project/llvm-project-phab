@@ -6718,6 +6718,10 @@ SDValue AArch64TargetLowering::LowerEXTRACT_SUBVECTOR(SDValue Op,
   return SDValue();
 }
 
+bool AArch64TargetLowering::isNarrowingExpensive(EVT VT1, EVT VT2) const {
+  return false;
+}
+
 bool AArch64TargetLowering::isShuffleMaskLegal(const SmallVectorImpl<int> &M,
                                                EVT VT) const {
   if (VT.getVectorNumElements() == 4 &&

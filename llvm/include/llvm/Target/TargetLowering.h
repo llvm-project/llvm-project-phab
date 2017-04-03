@@ -1900,6 +1900,14 @@ public:
     return false;
   }
 
+  /// Return true if it's expensive to narrow operations of type VT1 to
+  /// VT2. Sometimes we want to try load/store shrinking to save extra
+  /// bit manipulation operations. We need to make sure the shrinking will
+  /// not be so expensive to offset the benefit.
+  virtual bool isNarrowingExpensive(EVT /*VT1*/, EVT /*VT2*/) const {
+    return true;
+  }
+
   /// \brief Return true if it is beneficial to convert a load of a constant to
   /// just the constant itself.
   /// On some targets it might be more efficient to use a combination of

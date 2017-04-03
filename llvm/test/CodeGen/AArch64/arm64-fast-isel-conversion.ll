@@ -9,12 +9,11 @@ entry:
 ; CHECK: strh w1, [sp, #12]
 ; CHECK: str w2, [sp, #8]
 ; CHECK: str x3, [sp]
-; CHECK: ldr x3, [sp]
-; CHECK: mov x0, x3
+; CHECK: ldr w0, [sp]
 ; CHECK: str w0, [sp, #8]
-; CHECK: ldr w0, [sp, #8]
+; CHECK: ldrh w0, [sp, #8]
 ; CHECK: strh w0, [sp, #12]
-; CHECK: ldrh w0, [sp, #12]
+; CHECK: ldrb w0, [sp, #12]
 ; CHECK: strb w0, [sp, #15]
 ; CHECK: ldrb w0, [sp, #15]
 ; CHECK: add sp, sp, #16
@@ -402,10 +401,8 @@ entry:
 define void @stack_trunc() nounwind {
 ; CHECK-LABEL: stack_trunc
 ; CHECK: sub  sp, sp, #16
-; CHECK: ldr  [[REG:x[0-9]+]], [sp]
-; CHECK: mov  x[[REG2:[0-9]+]], [[REG]]
-; CHECK: and  [[REG3:w[0-9]+]], w[[REG2]], #0xff
-; CHECK: strb [[REG3]], [sp, #15]
+; CHECK: ldrb [[REG:w[0-9]+]], [sp]
+; CHECK: strb [[REG]], [sp, #15]
 ; CHECK: add  sp, sp, #16
   %a = alloca i8, align 1
   %b = alloca i64, align 8

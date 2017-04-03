@@ -24338,6 +24338,10 @@ bool X86TargetLowering::isNarrowingProfitable(EVT VT1, EVT VT2) const {
   return !(VT1 == MVT::i32 && VT2 == MVT::i16);
 }
 
+bool X86TargetLowering::isNarrowingExpensive(EVT VT1, EVT VT2) const {
+  return false;
+}
+
 /// Targets can use this to indicate that they only support *some*
 /// VECTOR_SHUFFLE operations, those with specific masks.
 /// By default, if a target supports the VECTOR_SHUFFLE node, all mask values

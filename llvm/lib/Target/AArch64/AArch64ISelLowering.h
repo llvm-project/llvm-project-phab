@@ -284,6 +284,8 @@ public:
 
   bool isFPImmLegal(const APFloat &Imm, EVT VT) const override;
 
+  bool isNarrowingExpensive(EVT VT1, EVT VT2) const override;
+
   /// Return true if the given shuffle mask can be codegen'd directly, or if it
   /// should be stack expanded.
   bool isShuffleMaskLegal(const SmallVectorImpl<int> &M, EVT VT) const override;

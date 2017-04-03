@@ -84,6 +84,7 @@ add_llvm_library(LLVMCodeGen
   MachineSSAUpdater.cpp
   MachineTraceMetrics.cpp
   MachineVerifier.cpp
+  MemAccessShrinking.cpp
   PatchableFunction.cpp
   MIRPrinter.cpp
   MIRPrintingPass.cpp

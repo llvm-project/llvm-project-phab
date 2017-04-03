@@ -48,6 +48,7 @@ void llvm::initializeCodeGen(PassRegistry &Registry) {
   initializeMachineBlockPlacementPass(Registry);
   initializeMachineBlockPlacementStatsPass(Registry);
   initializeMachineCSEPass(Registry);
+  initializeMemAccessShrinkingPassPass(Registry);
   initializeImplicitNullChecksPass(Registry);
   initializeMachineCombinerPass(Registry);
   initializeMachineCopyPropagationPass(Registry);

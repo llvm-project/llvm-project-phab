@@ -6432,6 +6432,10 @@ SDValue ARMTargetLowering::ReconstructShuffle(SDValue Op,
   return DAG.getNode(ISD::BITCAST, dl, VT, Shuffle);
 }
 
+bool ARMTargetLowering::isNarrowingExpensive(EVT VT1, EVT VT2) const {
+  return false;
+}
+
 /// isShuffleMaskLegal - Targets can use this to indicate that they only
 /// support *some* VECTOR_SHUFFLE operations, those with specific masks.
 /// By default, if a target supports the VECTOR_SHUFFLE node, all mask values

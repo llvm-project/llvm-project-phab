@@ -428,6 +428,7 @@ class InstrItineraryData;
 
     Sched::Preference getSchedulingPreference(SDNode *N) const override;
 
+    bool isNarrowingExpensive(EVT VT1, EVT VT2) const override;
     bool
     isShuffleMaskLegal(const SmallVectorImpl<int> &M, EVT VT) const override;
     bool isOffsetFoldingLegal(const GlobalAddressSDNode *GA) const override;

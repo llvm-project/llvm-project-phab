@@ -166,6 +166,7 @@ namespace {
       (void) llvm::createCountingFunctionInserterPass();
       (void) llvm::createEarlyCSEPass();
       (void) llvm::createGVNHoistPass();
+      (void) llvm::createMemAccessShrinkingPass();
       (void) llvm::createMergedLoadStoreMotionPass();
       (void) llvm::createGVNPass();
       (void) llvm::createNewGVNPass();

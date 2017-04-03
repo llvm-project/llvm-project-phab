@@ -25,7 +25,7 @@ entry:
 ; CHECK: add  [[REG7:x[0-9]+]], [[REG6]], [[REG3]]
 ; CHECK: and  [[REG8:x[0-9]+]], [[REG7]], #0xffff
 ; CHECK: str  [[REG8]], {{\[}}[[REG1]]{{\]}}
-; CHECK: ldr  {{x[0-9]+}}, {{\[}}[[REG1]]{{\]}}
+; CHECK: ldr  {{w[0-9]+}}, {{\[}}[[REG1]]{{\]}}
   %0 = load i64, i64* @seed, align 8
   %mul = mul nsw i64 %0, 1309
   %add = add nsw i64 %mul, 13849

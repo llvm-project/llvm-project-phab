@@ -110,20 +110,23 @@ define i32 @t2(%class.Complex* nocapture %out, i64 %out_start) {
   ret i32 %res
 }
 
-; Check that we do not optimize overlapping slices.
 ;
-; The 64-bits should NOT have been split in as slices are overlapping.
+; The slices are overlapping, but it can still be split.
 ; First slice uses bytes numbered 0 to 3.
 ; Second slice uses bytes numbered 6 and 7.
 ; Third slice uses bytes numbered 4 to 7.
 ;
 ; STRESS-LABEL: t3:
-; STRESS: shrq $48
-; STRESS: shrq $32
+; STRESS: movzwl 6(%rdi,%rsi,8), %eax
+; STRESS-NEXT: addl (%rdi,%rsi,8), %eax
+; STRESS-NEXT: addl 4(%rdi,%rsi,8), %eax
 ;
 ; REGULAR-LABEL: t3:
-; REGULAR: shrq $48
-; REGULAR: shrq $32
+; REGULAR: movq	(%rdi,%rsi,8), %rcx
+; REGULAR-NEXT: movq %rcx, %rax
+; REGULAR-NEXT: shrq $48, %rax
+; REGULAR-NEXT: addl %ecx, %eax
+; REGULAR-NEXT: addl 4(%rdi,%rsi,8), %eax
 define i32 @t3(%class.Complex* nocapture %out, i64 %out_start) {
   %arrayidx = getelementptr inbounds %class.Complex, %class.Complex* %out, i64 %out_start
   %bitcast = bitcast %class.Complex* %arrayidx to i64*
