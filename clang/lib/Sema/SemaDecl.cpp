@@ -1906,7 +1906,8 @@ NamedDecl *Sema::LazilyCreateBuiltin(IdentifierInfo *II, unsigned ID,
   // entirely, but we're not there yet.
   DeclContext *SavedContext = CurContext;
   CurContext = Parent;
-  PushOnScopeChains(New, TUScope);
+  if (TUScope)
+    PushOnScopeChains(New, TUScope);
   CurContext = SavedContext;
   return New;
 }
