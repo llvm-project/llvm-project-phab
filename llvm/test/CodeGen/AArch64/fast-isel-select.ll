@@ -1,5 +1,5 @@
-; RUN: llc -mtriple=aarch64-apple-darwin                             -verify-machineinstrs < %s | FileCheck %s
-; RUN: llc -mtriple=aarch64-apple-darwin -fast-isel -fast-isel-abort=1 -verify-machineinstrs < %s | FileCheck %s
+; RUN: llc -mtriple=aarch64-apple-darwin                             -verify-machineinstrs < %s | FileCheck %s --check-prefix=CHECK --check-prefix=SLOWISEL
+; RUN: llc -mtriple=aarch64-apple-darwin -fast-isel -fast-isel-abort=1 -verify-machineinstrs < %s | FileCheck %s --check-prefix=CHECK -check-prefix=FASTISEL
 
 ; First test the different supported value types for select.
 define zeroext i1 @select_i1(i1 zeroext %c, i1 zeroext %a, i1 zeroext %b) {
@@ -294,9 +294,14 @@ define zeroext i1 @select_opt1(i1 zeroext %c, i1 zeroext %a) {
 }
 
 define zeroext i1 @select_opt2(i1 zeroext %c, i1 zeroext %a) {
-; CHECK-LABEL: select_opt2
-; CHECK:       eor [[REG:w[0-9]+]], w0, #0x1
-; CHECK:       orr {{w[0-9]+}}, [[REG]], w1
+; SLOWISEL-LABEL: select_opt2
+; SLOWISEL:       orn [[REG:w[0-9]+]], w1, w0
+; SLOWISEL:       and {{w[0-9]+}}, [[REG]], #0x1
+;
+; FASTISEL-LABEL: select_opt2
+; FASTISEL:       eor [[REG:w[0-9]+]], w0, #0x1
+; FASTISEL:       orr [[REG2:w[0-9]+]], [[REG]], w1
+; FASTISEL:       and {{w[0-9]+}}, [[REG2]], #0x1
   %1 = select i1 %c, i1 %a, i1 true
   ret i1 %1
 }
