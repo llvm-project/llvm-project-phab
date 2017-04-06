@@ -865,13 +865,27 @@ static bool hasUnwindExceptions(const LangOptions &LangOpts) {
   return true;
 }
 
+// This function needs an unwind table
+bool CodeGenModule::NeedsUnwindTable() {
+  if (CodeGenOpts.UnwindTables)
+    return true;
+
+  llvm::Triple::ArchType Arch = Context.getTargetInfo().getTriple().getArch();
+  return hasUnwindExceptions (LangOpts) &&
+    (Arch == llvm::Triple::arm ||
+     Arch == llvm::Triple::thumb);
+}
+
 void CodeGenModule::SetLLVMFunctionAttributesForDefinition(const Decl *D,
                                                            llvm::Function *F) {
   llvm::AttrBuilder B;
 
-  if (CodeGenOpts.UnwindTables)
+  // Set the attribute if the user requests it or if the language requiers it.
+  if (NeedsUnwindTable())
     B.addAttribute(llvm::Attribute::UWTable);
 
+  // If the module doesn't support exceptions the function cannot throw.
+  // We can have a nothrow function even if unwind tables are required.
   if (!hasUnwindExceptions(LangOpts))
     B.addAttribute(llvm::Attribute::NoUnwind);
 

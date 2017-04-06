@@ -1341,6 +1341,11 @@ private:
   void ConstructDefaultFnAttrList(StringRef Name, bool HasOptnone,
                                   bool AttrOnCallSite,
                                   llvm::AttrBuilder &FuncAttrs);
+
+  /// Check whether the attribute UWTable must be set to emit the unwind table
+  /// for exceptions
+  bool NeedsUnwindTable();
+
 };
 }  // end namespace CodeGen
 }  // end namespace clang
