@@ -84,6 +84,11 @@ EnableMachineCombinerPass("ppc-machine-combiner",
                           cl::desc("Enable the machine combiner pass"),
                           cl::init(true), cl::Hidden);
 
+static cl::opt<bool>
+EnableMemcpyExpansionPass("ppc-expand-extra-memcpy",
+                          cl::desc("Enable the extra memcpy expansion pass"),
+                          cl::init(false), cl::Hidden);
+
 extern "C" void LLVMInitializePowerPCTarget() {
   // Register the targets
   RegisterTargetMachine<PPC32TargetMachine> A(getThePPC32Target());
@@ -93,6 +98,7 @@ extern "C" void LLVMInitializePowerPCTarget() {
   PassRegistry &PR = *PassRegistry::getPassRegistry();
   initializePPCBoolRetToIntPass(PR);
   initializePPCExpandISELPass(PR);
+  initializePPCLowerIntrinsicsPass(PR);
 }
 
 /// Return the datalayout string of a subtarget.
@@ -347,6 +353,9 @@ void PPCPassConfig::addIRPasses() {
     // invariant.
     addPass(createLICMPass());
   }
+
+  if (TM->getOptLevel() != CodeGenOpt::None && EnableMemcpyExpansionPass)
+    addPass(createPPCLowerIntrinsicsPass());
 
   TargetPassConfig::addIRPasses();
 }
