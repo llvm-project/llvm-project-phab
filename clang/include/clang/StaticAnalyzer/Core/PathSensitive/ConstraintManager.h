@@ -63,9 +63,12 @@ class ConstraintManager {
 public:
   ConstraintManager() : NotifyAssumeClients(true) {}
 
+  virtual bool uglyEval(const SymSymExpr *SSE, ProgramStateRef state) {
+    return false;
+  }
+
   virtual ~ConstraintManager();
-  virtual ProgramStateRef assume(ProgramStateRef state,
-                                 DefinedSVal Cond,
+  virtual ProgramStateRef assume(ProgramStateRef state, DefinedSVal Cond,
                                  bool Assumption) = 0;
 
   typedef std::pair<ProgramStateRef, ProgramStateRef> ProgramStatePair;

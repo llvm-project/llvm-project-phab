@@ -287,6 +287,8 @@ public:
   RangeConstraintManager(SubEngine *SE, SValBuilder &SVB)
       : RangedConstraintManager(SE, SVB) {}
 
+  virtual bool uglyEval(const SymSymExpr *SSE, ProgramStateRef state);
+
   //===------------------------------------------------------------------===//
   // Implementation for interface from ConstraintManager.
   //===------------------------------------------------------------------===//
@@ -722,6 +724,25 @@ ProgramStateRef RangeConstraintManager::assumeSymOutsideInclusiveRange(
 //===------------------------------------------------------------------------===
 // Pretty-printing.
 //===------------------------------------------------------------------------===/
+
+bool RangeConstraintManager::uglyEval(const SymSymExpr *SSE,
+                                      ProgramStateRef State) {
+  ConstraintRangeTy Ranges = State->get<ConstraintRange>();
+  for (ConstraintRangeTy::iterator I = Ranges.begin(), E = Ranges.end(); I != E;
+       ++I) {
+    SymbolRef SR = I.getKey();
+    if (const SymSymExpr *SSE2 = dyn_cast<SymSymExpr>(SR)) {
+      if (SSE->getOpcode() != SSE2->getOpcode())
+        continue;
+      if (SSE->getLHS() != SSE2->getLHS())
+        continue;
+      if (SSE->getRHS() != SSE2->getRHS())
+        continue;
+      return true;
+    }
+  }
+  return false;
+}
 
 void RangeConstraintManager::print(ProgramStateRef St, raw_ostream &Out,
                                    const char *nl, const char *sep) {

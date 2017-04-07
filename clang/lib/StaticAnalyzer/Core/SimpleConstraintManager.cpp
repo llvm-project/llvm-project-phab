@@ -53,6 +53,19 @@ ProgramStateRef SimpleConstraintManager::assume(ProgramStateRef State,
 ProgramStateRef SimpleConstraintManager::assumeAux(ProgramStateRef State,
                                                    NonLoc Cond,
                                                    bool Assumption) {
+  if (1) {
+    Optional<nonloc::SymbolVal> SymVal = Cond.getAs<nonloc::SymbolVal>();
+    if (SymVal && SymVal->isExpression()) {
+      const SymExpr *SE = SymVal->getSymbol();
+      if (const SymSymExpr *SSE = dyn_cast<SymSymExpr>(SE)) {
+        if (SSE->getOpcode() == BO_GE) {
+          SymSymExpr SSE2(SSE->getRHS(), BO_EQ, SSE->getLHS(), SSE->getType());
+          if (State->getConstraintManager().uglyEval(&SSE2, State))
+            return Assumption ? State : nullptr;
+        }
+      }
+    }
+  }
 
   // We cannot reason about SymSymExprs, and can only reason about some
   // SymIntExprs.

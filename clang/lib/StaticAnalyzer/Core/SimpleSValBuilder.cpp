@@ -547,6 +547,13 @@ SVal SimpleSValBuilder::evalBinOpNN(ProgramStateRef state,
       if (const llvm::APSInt *RHSValue = getKnownValue(state, rhs))
         return MakeSymIntVal(Sym, op, *RHSValue, resultTy);
 
+      if (!state->isTainted(rhs) && !state->isTainted(lhs)) {
+        const SymExpr *lhse = lhs.getAsSymExpr();
+        const SymExpr *rhse = rhs.getAsSymExpr();
+        return nonloc::SymbolVal(
+            SymMgr.getSymSymExpr(lhse, op, rhse, resultTy));
+      }
+
       // Give up -- this is not a symbolic expression we can handle.
       return makeSymExprValNN(state, op, InputLHS, InputRHS, resultTy);
     }
