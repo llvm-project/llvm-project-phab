@@ -169,6 +169,5 @@ bool DeadMachineInstructionElim::runOnMachineFunction(MachineFunction &MF) {
     }
   }
 
-  LivePhysRegs.clear();
   return AnyChanges;
 }
