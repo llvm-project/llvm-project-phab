@@ -466,6 +466,9 @@ static bool getFunctionNameAndStartLineForAddress(DWARFCompileUnit *CU,
                                                   FunctionNameKind Kind,
                                                   std::string &FunctionName,
                                                   uint32_t &StartLine) {
+  if (Kind == FunctionNameKind::None)
+    return false;
+
   // The address may correspond to instruction in some inlined function,
   // so we have to build the chain of inlined functions and take the
   // name of the topmost function in it.
@@ -477,7 +480,7 @@ static bool getFunctionNameAndStartLineForAddress(DWARFCompileUnit *CU,
   const DWARFDie &DIE = InlinedChain[0];
   bool FoundResult = false;
   const char *Name = nullptr;
-  if (Kind != FunctionNameKind::None && (Name = DIE.getSubroutineName(Kind))) {
+  if ((Name = DIE.getSubroutineName(Kind))) {
     FunctionName = Name;
     FoundResult = true;
   }
