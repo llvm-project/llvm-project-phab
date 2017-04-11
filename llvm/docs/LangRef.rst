@@ -8446,7 +8446,10 @@ value modification, depending on the target and the address space
 pair. Pointer conversions within the same address space must be
 performed with the ``bitcast`` instruction. Note that if the address space
 conversion is legal then both result and operand refer to the same memory
-location.
+location. The pointer conversion cannot be an arbitrarily complex
+value modification. A pointer computation casted in one address space
+and then indexed should give the same result as an equivalent indexing
+calculation in the original address space and then casted.
 
 Example:
 """"""""
