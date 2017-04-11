@@ -190,6 +190,9 @@ void FunctionLoweringInfo::set(const Function &fn, MachineFunction &mf,
                 MF->getFrameInfo().setHasOpaqueSPAdjustment(true);
             }
           }
+        } else if (const Function *F = CS.getCalledFunction()) {
+          if (!F->isIntrinsic())
+            MF->getFrameInfo().setHasCalls(true);
         }
       }
 
