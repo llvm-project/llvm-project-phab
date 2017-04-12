@@ -566,6 +566,18 @@ static bool useFramePointerForTargetByDefault(const ArgList &Args,
     }
   }
 
+
+  if (Triple.getEnvironment() == llvm::Triple::EABI) {
+    switch (Triple.getArch()) {
+    case llvm::Triple::arm:
+    case llvm::Triple::thumb:
+      // ARM EABI doesn't require a frame pointer
+      return !areOptimizationsEnabled(Args);
+    default:
+      return true;
+    }
+  }
+
   return true;
 }
 
