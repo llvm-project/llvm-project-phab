@@ -21,6 +21,37 @@
 using namespace clang::clangd;
 
 
+std::string clang::clangd::jsonEscape(llvm::StringRef Input) {
+  std::string EscapedInput;
+  for (llvm::StringRef::iterator i = Input.begin(), e = Input.end(); i != e; ++i) {
+    if (*i == '\\')
+      EscapedInput += "\\\\";
+    else if (*i == '"')
+      EscapedInput += "\\\"";
+    // bell
+    else if (*i == 0x07)
+      EscapedInput += "\\a";
+    // backspace
+    else if (*i == 0x08)
+      EscapedInput += "\\b";
+    // hoz tab
+    else if (*i == 0x09)
+      EscapedInput += "\\t";
+    // new line
+    else if (*i == 0x0A)
+      EscapedInput += "\\n";
+    // form feed
+    else if (*i == 0x0C)
+      EscapedInput += "\\f";
+    // carr return
+    else if (*i == 0x0D)
+      EscapedInput += "\\r";
+    else
+      EscapedInput.push_back(*i);
+  }
+  return EscapedInput;
+}
+
 URI URI::fromUri(llvm::StringRef uri) {
   URI Result;
   Result.uri = uri;
@@ -230,7 +261,7 @@ std::string TextEdit::unparse(const TextEdit &P) {
   std::string Result;
   llvm::raw_string_ostream(Result) << llvm::format(
       R"({"range": %s, "newText": "%s"})", Range::unparse(P.range).c_str(),
-      llvm::yaml::escape(P.newText).c_str());
+      jsonEscape(P.newText).c_str());
   return Result;
 }
 
@@ -670,20 +701,20 @@ std::string CompletionItem::unparse(const CompletionItem &CI) {
   std::string Result = "{";
   llvm::raw_string_ostream Os(Result);
   assert(!CI.label.empty() && "completion item label is required");
-  Os << R"("label":")" << llvm::yaml::escape(CI.label) << R"(",)";
+  Os << R"("label":")" << jsonEscape(CI.label) << R"(",)";
   if (CI.kind != CompletionItemKind::Missing)
     Os << R"("kind":)" << static_cast<int>(CI.kind) << R"(,)";
   if (!CI.detail.empty())
-    Os << R"("detail":")" << llvm::yaml::escape(CI.detail) << R"(",)";
+    Os << R"("detail":")" << jsonEscape(CI.detail) << R"(",)";
   if (!CI.documentation.empty())
-    Os << R"("documentation":")" << llvm::yaml::escape(CI.documentation)
+    Os << R"("documentation":")" << jsonEscape(CI.documentation)
        << R"(",)";
   if (!CI.sortText.empty())
-    Os << R"("sortText":")" << llvm::yaml::escape(CI.sortText) << R"(",)";
+    Os << R"("sortText":")" << jsonEscape(CI.sortText) << R"(",)";
   if (!CI.filterText.empty())
-    Os << R"("filterText":")" << llvm::yaml::escape(CI.filterText) << R"(",)";
+    Os << R"("filterText":")" << jsonEscape(CI.filterText) << R"(",)";
   if (!CI.insertText.empty())
-    Os << R"("insertText":")" << llvm::yaml::escape(CI.insertText) << R"(",)";
+    Os << R"("insertText":")" << jsonEscape(CI.insertText) << R"(",)";
   if (CI.insertTextFormat != InsertTextFormat::Missing) {
     Os << R"("insertTextFormat":")" << static_cast<int>(CI.insertTextFormat)
        << R"(",)";

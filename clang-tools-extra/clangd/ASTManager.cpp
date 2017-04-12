@@ -227,7 +227,7 @@ void ASTManager::parseFileAndPublishDiagnostics(StringRef File) {
     Diagnostics +=
         R"({"range":)" + Range::unparse(R) +
         R"(,"severity":)" + std::to_string(getSeverity(D->getLevel())) +
-        R"(,"message":")" + llvm::yaml::escape(D->getMessage()) +
+        R"(,"message":")" + jsonEscape(D->getMessage()) +
         R"("},)";
 
     // We convert to Replacements to become independent of the SourceManager.

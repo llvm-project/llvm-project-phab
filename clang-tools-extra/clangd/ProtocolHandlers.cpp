@@ -172,9 +172,9 @@ void CodeActionHandler::handleMethod(llvm::yaml::MappingNode *Params,
 
     if (!Edits.empty())
       Commands +=
-          R"({"title":"Apply FixIt ')" + llvm::yaml::escape(D.message) +
+          R"({"title":"Apply FixIt ')" + jsonEscape(D.message) +
           R"('", "command": "clangd.applyFix", "arguments": [")" +
-          llvm::yaml::escape(CAP->textDocument.uri.uri) +
+          jsonEscape(CAP->textDocument.uri.uri) +
           R"(", [)" + Edits +
           R"(]]},)";
   }
