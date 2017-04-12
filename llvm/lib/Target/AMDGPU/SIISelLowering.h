@@ -132,6 +132,8 @@ public:
 
   const SISubtarget *getSubtarget() const;
 
+  bool shouldAssumeEmittedAsCall(ImmutableCallSite CS) const override;
+
   bool isShuffleMaskLegal(const SmallVectorImpl<int> &/*Mask*/,
                           EVT /*VT*/) const override;
 

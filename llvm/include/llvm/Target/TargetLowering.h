@@ -2811,6 +2811,12 @@ public:
     return false;
   }
 
+  /// Return true if it should be assumed this will be emitted as a call, not a
+  /// tail call or special instruction.
+  virtual bool shouldAssumeEmittedAsCall(ImmutableCallSite CS) const {
+    return false;
+  }
+
   /// Return the builtin name for the __builtin___clear_cache intrinsic
   /// Default is to invoke the clear cache library call
   virtual const char * getClearCacheBuiltinName() const {

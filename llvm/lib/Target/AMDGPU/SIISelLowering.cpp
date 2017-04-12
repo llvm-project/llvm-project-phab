@@ -512,6 +512,11 @@ const SISubtarget *SITargetLowering::getSubtarget() const {
 // TargetLowering queries
 //===----------------------------------------------------------------------===//
 
+bool SITargetLowering::shouldAssumeEmittedAsCall(ImmutableCallSite CS) const {
+  const Function *F = CS.getCalledFunction();
+  return !F || !F->isIntrinsic();
+}
+
 bool SITargetLowering::isShuffleMaskLegal(const SmallVectorImpl<int> &,
                                           EVT) const {
   // SI has some legal vector types, but no legal vector operations. Say no

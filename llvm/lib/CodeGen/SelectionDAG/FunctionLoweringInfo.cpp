@@ -190,6 +190,8 @@ void FunctionLoweringInfo::set(const Function &fn, MachineFunction &mf,
                 MF->getFrameInfo().setHasOpaqueSPAdjustment(true);
             }
           }
+        } else if (TLI->shouldAssumeEmittedAsCall(CS)) {
+          MF->getFrameInfo().setHasCalls(true);
         }
       }
 
