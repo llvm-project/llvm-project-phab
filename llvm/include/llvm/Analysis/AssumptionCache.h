@@ -112,30 +112,36 @@ public:
     Scanned = false;
   }
 
+  struct NullVHFilter {
+    bool operator()(const WeakVH& wvh) const {
+      return wvh;
+    }
+  };
+
+  using AssumptionRange = 
+      iterator_range<pointee_iterator<filter_iterator<WeakVH*, NullVHFilter>>>;
+
   /// \brief Access the list of assumption handles currently tracked for this
   /// function.
-  ///
-  /// Note that these produce weak handles that may be null. The caller must
-  /// handle that case.
-  /// FIXME: We should replace this with pointee_iterator<filter_iterator<...>>
-  /// when we can write that to filter out the null values. Then caller code
-  /// will become simpler.
-  MutableArrayRef<WeakVH> assumptions() {
+  AssumptionRange assumptions() {
     if (!Scanned)
       scanFunction();
-    return AssumeHandles;
+    return make_pointee_range(make_filter_range(AssumeHandles, 
+                                                NullVHFilter()));
   }
 
   /// \brief Access the list of assumptions which affect this value.
-  MutableArrayRef<WeakVH> assumptionsFor(const Value *V) {
+  AssumptionRange assumptionsFor(const Value *V) {
     if (!Scanned)
       scanFunction();
 
     auto AVI = AffectedValues.find_as(const_cast<Value *>(V));
     if (AVI == AffectedValues.end())
-      return MutableArrayRef<WeakVH>();
+      return make_pointee_range(make_filter_range(MutableArrayRef<WeakVH>(), 
+                                                  NullVHFilter()));
 
-    return AVI->second;
+    return make_pointee_range(make_filter_range(AVI->second, 
+                                                NullVHFilter()));
   }
 };
 

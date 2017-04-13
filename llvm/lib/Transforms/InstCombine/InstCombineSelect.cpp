@@ -1475,7 +1475,8 @@ Instruction *InstCombiner::visitSelectInst(SelectInst &SI) {
   // putting this fold here with limitations rather than in InstSimplify.
   // The motivation for this call into value tracking is to take advantage of
   // the assumption cache, so make sure that is populated.
-  if (!CondVal->getType()->isVectorTy() && !AC.assumptions().empty()) {
+  auto assumptions = AC.assumptions();
+  if (!CondVal->getType()->isVectorTy() && assumptions.begin() != assumptions.end()) {
     APInt KnownOne(1, 0), KnownZero(1, 0);
     computeKnownBits(CondVal, KnownZero, KnownOne, 0, &SI);
     if (KnownOne == 1)

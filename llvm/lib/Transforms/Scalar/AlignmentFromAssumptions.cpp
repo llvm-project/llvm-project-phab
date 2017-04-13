@@ -425,9 +425,8 @@ bool AlignmentFromAssumptionsPass::runImpl(Function &F, AssumptionCache &AC,
   NewSrcAlignments.clear();
 
   bool Changed = false;
-  for (auto &AssumeVH : AC.assumptions())
-    if (AssumeVH)
-      Changed |= processAssumption(cast<CallInst>(AssumeVH));
+  for (auto &AssumeV : AC.assumptions())
+    Changed |= processAssumption(cast<CallInst>(&AssumeV));
 
   return Changed;
 }
