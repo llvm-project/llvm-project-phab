@@ -16,7 +16,7 @@ define i32 @foo(i32* %a) {
   store i32 1, i32* @g, align 4
 
   %1 = bitcast i32* %a to i8*
-; CHECK: MemoryUse(2)
+; CHECK: MemoryUse(liveOnEntry)
 ; CHECK-NEXT: %a8 = call i8* @llvm.invariant.group.barrier(i8* %1)
   %a8 = call i8* @llvm.invariant.group.barrier(i8* %1)
   %a32 = bitcast i8* %a8 to i32*
@@ -35,7 +35,7 @@ define i32 @skipBarrier(i32* %a) {
   store i32 0, i32* %a, align 4, !invariant.group !0
 
   %1 = bitcast i32* %a to i8*
-; CHECK: MemoryUse(1)
+; CHECK: MemoryUse(liveOnEntry)
 ; CHECK-NEXT: %a8 = call i8* @llvm.invariant.group.barrier(i8* %1)
   %a8 = call i8* @llvm.invariant.group.barrier(i8* %1)
   %a32 = bitcast i8* %a8 to i32*
@@ -85,7 +85,7 @@ define i32 @handleInvariantGroups(i32* %a) {
 ; CHECK-NEXT: store i32 1
   store i32 1, i32* @g, align 4
   %1 = bitcast i32* %a to i8*
-; CHECK: MemoryUse(2)
+; CHECK: MemoryUse(liveOnEntry)
 ; CHECK-NEXT: %a8 = call i8* @llvm.invariant.group.barrier(i8* %1)
   %a8 = call i8* @llvm.invariant.group.barrier(i8* %1)
   %a32 = bitcast i8* %a8 to i32*
