@@ -380,6 +380,18 @@ And Linpack-pc with the same configuration. Result is Mflops, higher is better.
 
 .. image:: linpack-pc.png
 
+Internals
+---------
+
+.. toctree::
+   :hidden:
+
+   VectorizationPlan
+
+:doc:`VectorizationPlan`
+   The loop vectorizer is based on an abstract representation called Vectorization Plan.
+   This document describes its philosophy and design.
+
 .. _slp-vectorizer:
 
 The SLP Vectorizer

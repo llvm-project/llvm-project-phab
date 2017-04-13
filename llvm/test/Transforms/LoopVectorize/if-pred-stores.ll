@@ -31,9 +31,9 @@ entry:
 ; VEC:   br i1 %[[v16]], label %[[cond2:.+]], label %[[else2:.+]]
 ;
 ; VEC: [[cond2]]:
+; VEC:   %[[v1:.+]] = add i64 %index, 1
 ; VEC:   %[[v17:.+]] = extractelement <2 x i32> %wide.load, i32 1
 ; VEC:   %[[v9b:.+]] = add nsw i32 %[[v17]], 20
-; VEC:   %[[v1:.+]] = add i64 %index, 1
 ; VEC:   %[[v4:.+]] = getelementptr inbounds i32, i32* %f, i64 %[[v1]]
 ; VEC:   store i32 %[[v9b]], i32* %[[v4]], align 4
 ; VEC:   br label %[[else2:.+]]
