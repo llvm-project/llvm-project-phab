@@ -8444,9 +8444,14 @@ The '``addrspacecast``' instruction converts the pointer value
 ``ptrval`` to type ``pty2``. It can be a *no-op cast* or a complex
 value modification, depending on the target and the address space
 pair. Pointer conversions within the same address space must be
-performed with the ``bitcast`` instruction. Note that if the address space
-conversion is legal then both result and operand refer to the same memory
-location.
+performed with the ``bitcast`` instruction. Note that if the address
+space conversion is legal then both result and operand refer to the
+same memory location. The pointer conversion cannot be an arbitrarily
+complex value modification. A defined pointer computation casted in
+one address space and then indexed should give the same result as an
+equivalent indexing calculation in the original address space and then
+casted. It must be possible to return the original pointer value if
+casted back to the original address space.
 
 Example:
 """"""""
