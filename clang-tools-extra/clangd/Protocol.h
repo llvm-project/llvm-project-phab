@@ -29,6 +29,8 @@
 namespace clang {
 namespace clangd {
 
+std::string jsonEscape(llvm::StringRef Input);
+
 struct URI {
   std::string uri;
   std::string file;
