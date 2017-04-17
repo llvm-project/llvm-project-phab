@@ -271,8 +271,11 @@ class StackColoring : public MachineFunctionPass {
   /// Maps basic blocks to a serial number.
   SmallVector<const MachineBasicBlock*, 8> BasicBlockNumbering;
 
-  /// Maps liveness intervals for each slot.
+  /// Maps slots to their activity interval. Outside of this interval, slots
+  /// values are either dead or `undef` and they will not be written to.
   SmallVector<std::unique_ptr<LiveInterval>, 16> Intervals;
+  /// Maps slots to the points where they become active.
+  SmallVector<SmallVector<SlotIndex, 4>, 16> LiveStarts;
   /// VNInfo is used for the construction of LiveIntervals.
   VNInfo::Allocator VNInfoAllocator;
   /// SlotIndex analysis object.
@@ -672,15 +675,22 @@ void StackColoring::calculateLocalLiveness()
 
 void StackColoring::calculateLiveIntervals(unsigned NumSlots) {
   SmallVector<SlotIndex, 16> Starts;
-  SmallVector<SlotIndex, 16> Finishes;
+  SmallVector<bool, 16> DefinitelyStarted;
 
   // For each block, find which slots are active within this block
   // and update the live intervals.
   for (const MachineBasicBlock &MBB : *MF) {
     Starts.clear();
     Starts.resize(NumSlots);
-    Finishes.clear();
-    Finishes.resize(NumSlots);
+    DefinitelyStarted.clear();
+    DefinitelyStarted.resize(NumSlots);
+
+    // Start the interval of the slots that we previously found to be 'alive'.
+    BlockLifetimeInfo &MBBLiveness = BlockLiveness[&MBB];
+    for (int pos = MBBLiveness.LiveIn.find_first(); pos != -1;
+         pos = MBBLiveness.LiveIn.find_next(pos)) {
+      Starts[pos] = Indexes->getMBBStartIdx(&MBB);
+    }
 
     // Create the interval for the basic blocks containing lifetime begin/end.
     for (const MachineInstr &MI : MBB) {
@@ -692,68 +702,30 @@ void StackColoring::calculateLiveIntervals(unsigned NumSlots) {
       SlotIndex ThisIndex = Indexes->getInstructionIndex(MI);
       for (auto Slot : slots) {
         if (IsStart) {
-          if (!Starts[Slot].isValid() || Starts[Slot] > ThisIndex)
+          if (!DefinitelyStarted[Slot]) {
+            LiveStarts[Slot].push_back(ThisIndex);
+            DefinitelyStarted[Slot] = true;
+          }
+          if (!Starts[Slot].isValid())
             Starts[Slot] = ThisIndex;
-        } else {
-          if (!Finishes[Slot].isValid() || Finishes[Slot] < ThisIndex)
-            Finishes[Slot] = ThisIndex;
+        } else if (!IsStart && Starts[Slot].isValid()) {
+          VNInfo *VNI = Intervals[Slot]->getValNumInfo(0);
+          Intervals[Slot]->addSegment(
+              LiveInterval::Segment(Starts[Slot], ThisIndex, VNI));
+          Starts[Slot] = SlotIndex(); // Invalidate the start index
+          DefinitelyStarted[Slot] = false;
         }
       }
     }
 
-    // Create the interval of the blocks that we previously found to be 'alive'.
-    BlockLifetimeInfo &MBBLiveness = BlockLiveness[&MBB];
-    for (int pos = MBBLiveness.LiveIn.find_first(); pos != -1;
-         pos = MBBLiveness.LiveIn.find_next(pos)) {
-      Starts[pos] = Indexes->getMBBStartIdx(&MBB);
-    }
-    for (int pos = MBBLiveness.LiveOut.find_first(); pos != -1;
-         pos = MBBLiveness.LiveOut.find_next(pos)) {
-      Finishes[pos] = Indexes->getMBBEndIdx(&MBB);
-    }
-
+    // Finish up started segments
     for (unsigned i = 0; i < NumSlots; ++i) {
-      //
-      // When LifetimeStartOnFirstUse is turned on, data flow analysis
-      // is forward (from starts to ends), not bidirectional. A
-      // consequence of this is that we can wind up in situations
-      // where Starts[i] is invalid but Finishes[i] is valid and vice
-      // versa. Example:
-      //
-      //     LIFETIME_START x
-      //     if (...) {
-      //       <use of x>
-      //       throw ...;
-      //     }
-      //     LIFETIME_END x
-      //     return 2;
-      //
-      //
-      // Here the slot for "x" will not be live into the block
-      // containing the "return 2" (since lifetimes start with first
-      // use, not at the dominating LIFETIME_START marker).
-      //
-      if (Starts[i].isValid() && !Finishes[i].isValid()) {
-        Finishes[i] = Indexes->getMBBEndIdx(&MBB);
-      }
       if (!Starts[i].isValid())
         continue;
 
-      assert(Starts[i] && Finishes[i] && "Invalid interval");
-      VNInfo *ValNum = Intervals[i]->getValNumInfo(0);
-      SlotIndex S = Starts[i];
-      SlotIndex F = Finishes[i];
-      if (S < F) {
-        // We have a single consecutive region.
-        Intervals[i]->addSegment(LiveInterval::Segment(S, F, ValNum));
-      } else {
-        // We have two non-consecutive regions. This happens when
-        // LIFETIME_START appears after the LIFETIME_END marker.
-        SlotIndex NewStart = Indexes->getMBBStartIdx(&MBB);
-        SlotIndex NewFin = Indexes->getMBBEndIdx(&MBB);
-        Intervals[i]->addSegment(LiveInterval::Segment(NewStart, F, ValNum));
-        Intervals[i]->addSegment(LiveInterval::Segment(S, NewFin, ValNum));
-      }
+      SlotIndex EndIdx = Indexes->getMBBEndIdx(&MBB);
+      VNInfo *VNI = Intervals[i]->getValNumInfo(0);
+      Intervals[i]->addSegment(LiveInterval::Segment(Starts[i], EndIdx, VNI));
     }
   }
 }
@@ -983,6 +955,7 @@ bool StackColoring::runOnMachineFunction(MachineFunction &Func) {
   BasicBlockNumbering.clear();
   Markers.clear();
   Intervals.clear();
+  LiveStarts.clear();
   VNInfoAllocator.Reset();
 
   unsigned NumSlots = MFI->getObjectIndexEnd();
@@ -994,6 +967,7 @@ bool StackColoring::runOnMachineFunction(MachineFunction &Func) {
   SmallVector<int, 8> SortedSlots;
   SortedSlots.reserve(NumSlots);
   Intervals.reserve(NumSlots);
+  LiveStarts.resize(NumSlots);
 
   unsigned NumMarkers = collectMarkers(NumSlots);
 
@@ -1065,6 +1039,9 @@ bool StackColoring::runOnMachineFunction(MachineFunction &Func) {
     return MFI->getObjectSize(LHS) > MFI->getObjectSize(RHS);
   });
 
+  for (auto &s : LiveStarts)
+    std::sort(s.begin(), s.end());
+
   bool Changed = true;
   while (Changed) {
     Changed = false;
@@ -1080,12 +1057,80 @@ bool StackColoring::runOnMachineFunction(MachineFunction &Func) {
         int SecondSlot = SortedSlots[J];
         LiveInterval *First = &*Intervals[FirstSlot];
         LiveInterval *Second = &*Intervals[SecondSlot];
+        auto &FirstS = LiveStarts[FirstSlot];
+        auto &SecondS = LiveStarts[SecondSlot];
         assert (!First->empty() && !Second->empty() && "Found an empty range");
 
-        // Merge disjoint slots.
-        if (!First->overlaps(*Second)) {
+        // Merge disjoint slots. Now, the condition for this is a little bit
+        // tricky.
+        //
+        // The fundamental condition we want to preserve is that each stack
+        // slot has the correct contents at each point it is live.
+        //
+        // We *could* compute liveness using the standard backward dataflow
+        // algorithm. Unfortunately, that does not give very good results in the
+        // presence of aliasing, so we have frontends emit `lifetime.start` and
+        // `lifetime.end` intrinsics that make undesirable accesses UB.
+        //
+        // The effect of these intrinsics is as follows:
+        //   1) at start, each stack-slot is marked as *out-of-scope*, unless no
+        //   lifetime intrinsic refers to that stack slot, in which case
+        //   it is marked as *in-scope*.
+        //   2) on a `lifetime.start`, a stack slot is marked as *in-scope* and
+        //   the stack slot is overwritten with `undef`.
+        //   3) on a `lifetime.end`, a stack slot is marked as *out-of-scope*.
+        //   4) on function exit, all stack slots are marked as *out-of-scope*.
+        //   5) the effects of calling `lifetime.start` on an *in-scope* stack-slot,
+        //   or `lifetime.end` on an *out-of-scope* stack-slot, are left unspecified.
+        //   6) memory accesses to *out-of-scope* stack slots are UB.
+        //   7) when a stack-slot is marked as *out-of-scope*, all pointers to it
+        //   are invalidated unless it looks like they might be used (?). This
+        //   is used to justify not marking slots as live until the pointer
+        //   to them is used, but I think this should be clarified better.
+        //
+        // If we define a slot as *active* at a program point if it either can
+        // be written to, or if it has a live and non-undef content, then it
+        // is obvious that slots that are never active together can be merged.
+        //
+        // From our rules, we see that *out-of-scope* slots are never *active*,
+        // and from (7) we see that "non-conservative" slots remain non-*active*
+        // until their address is taken. Therefore, we can approximate slot activity
+        // using dataflow.
+        //
+        // Now, naively, we might think that we could figure out which sets of
+        // stack-slots interfere by propagating `S active` through the CFG for every
+        // stack-slot `S`, and having `S` and `T` interfere if there is a point in
+        // which they are both *active*. That is sound, but overly conservative in some
+        // important cases: it is possible that `S` is active on one predecessor edge and
+        // `T` is active on another. See PR32488.
+        //
+        // If we want to find all points of interference precisely, we could
+        // propagate `S active` and `S&T active` predicates through the CFG. That
+        // would be precise, but requires propagating `O(n^2)` dataflow facts.
+        //
+        // Instead, we rely on a little trick: for an `S&T active` predicate to
+        // start holding, there has to be either
+        // A) a point in the gen-set of `S active` where `T` is *active*
+        // B) a point in the gen-set of `T active` where `S` is *active*
+        // C) a point in the gen-set of both `S active` and `T active`.
+        //
+        // Of course, the `S&T active` predicate can be propagated further, but
+        // it holding at 1 point is enough for us to consider the 2 slots
+        // to interfere.
+        //
+        // We could be smarter: if both of the slots are dead at all such points,
+        // the slots won't interfere in practice. But that would bring us to
+        // "find all interference points" again.
+        if (!First->isLiveAtIndexes(SecondS) &&
+            !Second->isLiveAtIndexes(FirstS)) {
           Changed = true;
           First->MergeSegmentsInAsValue(*Second, First->getValNumInfo(0));
+
+          int OldSize = FirstS.size();
+          FirstS.append(SecondS.begin(), SecondS.end());
+          auto Mid = FirstS.begin() + OldSize;
+          std::inplace_merge(FirstS.begin(), Mid, FirstS.end());
+
           SlotRemap[SecondSlot] = FirstSlot;
           SortedSlots[J] = -1;
           DEBUG(dbgs()<<"Merging #"<<FirstSlot<<" and slots #"<<
