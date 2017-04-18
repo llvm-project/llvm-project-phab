@@ -140,6 +140,10 @@ FunctionPass *createMemorySanitizerPass(int TrackOrigins = 0,
 // Insert ThreadSanitizer (race detection) instrumentation
 FunctionPass *createThreadSanitizerPass();
 
+// Insert TBAASanitizer (type-based-aliasin- violation detection)
+// instrumentation
+FunctionPass *createTBAASanitizerPass();
+
 // Insert DataFlowSanitizer (dynamic data flow analysis) instrumentation
 ModulePass *createDataFlowSanitizerPass(
     const std::vector<std::string> &ABIListFiles = std::vector<std::string>(),

@@ -158,6 +158,9 @@ def SanitizeThread : EnumAttr<"sanitize_thread">;
 /// MemorySanitizer is on.
 def SanitizeMemory : EnumAttr<"sanitize_memory">;
 
+/// TBAASanitizer is on.
+def SanitizeTBAA : EnumAttr<"sanitize_tbaa">;
+
 /// Argument is swift error.
 def SwiftError : EnumAttr<"swifterror">;
 
@@ -193,6 +196,7 @@ class CompatRule<string F> {
 def : CompatRule<"isEqual<SanitizeAddressAttr>">;
 def : CompatRule<"isEqual<SanitizeThreadAttr>">;
 def : CompatRule<"isEqual<SanitizeMemoryAttr>">;
+def : CompatRule<"isEqual<SanitizeTBAAAttr>">;
 def : CompatRule<"isEqual<SafeStackAttr>">;
 
 class MergeRule<string F> {

@@ -1345,6 +1345,7 @@ void Verifier::verifyAttributeTypes(AttributeList Attrs, unsigned Idx,
         I->getKindAsEnum() == Attribute::SanitizeAddress ||
         I->getKindAsEnum() == Attribute::SanitizeThread ||
         I->getKindAsEnum() == Attribute::SanitizeMemory ||
+        I->getKindAsEnum() == Attribute::SanitizeTBAA ||
         I->getKindAsEnum() == Attribute::MinSize ||
         I->getKindAsEnum() == Attribute::NoDuplicate ||
         I->getKindAsEnum() == Attribute::Builtin ||

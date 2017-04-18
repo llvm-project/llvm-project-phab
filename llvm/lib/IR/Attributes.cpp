@@ -329,6 +329,8 @@ std::string Attribute::getAsString(bool InAttrGrp) const {
     return "sanitize_thread";
   if (hasAttribute(Attribute::SanitizeMemory))
     return "sanitize_memory";
+  if (hasAttribute(Attribute::SanitizeTBAA))
+    return "sanitize_tbaa";
   if (hasAttribute(Attribute::UWTable))
     return "uwtable";
   if (hasAttribute(Attribute::ZExt))
