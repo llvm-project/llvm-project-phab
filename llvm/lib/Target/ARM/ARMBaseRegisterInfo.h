@@ -150,6 +150,8 @@ public:
                              const VirtRegMap *VRM,
                              const LiveRegMatrix *Matrix) const override;
 
+  unsigned getCSRFirstUseCost() const override { return 1 << 13; }
+
   void updateRegAllocHint(unsigned Reg, unsigned NewReg,
                           MachineFunction &MF) const override;
 

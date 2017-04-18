@@ -84,6 +84,8 @@ public:
 
   BitVector getReservedRegs(const MachineFunction &MF) const override;
 
+  unsigned getCSRFirstUseCost() const override { return 1 << 13; }
+
   /// We require the register scavenger.
   bool requiresRegisterScavenging(const MachineFunction &MF) const override {
     return true;

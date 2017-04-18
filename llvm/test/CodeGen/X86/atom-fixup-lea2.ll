@@ -1,6 +1,6 @@
 ; RUN: llc < %s -mcpu=atom -mtriple=i686-linux | FileCheck %s
 ; CHECK:BB#5
-; CHECK-NEXT:leal
+; CHECK-NEXT:addl 12(%esp), %esi
 ; CHECK-NEXT:leal
 ; CHECK-NEXT:leal
 ; CHECK-NEXT:movl

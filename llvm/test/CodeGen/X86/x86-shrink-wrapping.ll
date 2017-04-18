@@ -941,7 +941,6 @@ attributes #3 = { nounwind }
 ; Make sure the epilogue happens in the exit block.
 ; CHECK-NOT: popq
 ; CHECK: popq
-; CHECK-NEXT: popq
 ; CHECK-NEXT: retq
 define i32 @irreducibleCFG() #4 {
 entry:

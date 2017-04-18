@@ -39,12 +39,7 @@ public:
   const uint32_t *getCallPreservedMask(const MachineFunction &MF,
                                        CallingConv::ID) const override;
 
-  unsigned getCSRFirstUseCost() const override {
-    // The cost will be compared against BlockFrequency where entry has the
-    // value of 1 << 14. A value of 5 will choose to spill or split really
-    // cold path instead of using a callee-saved register.
-    return 5;
-  }
+  unsigned getCSRFirstUseCost() const override { return 1 << 13; }
 
   // Calls involved in thread-local variable lookup save more registers than
   // normal calls, so they need a different mask to represent this.

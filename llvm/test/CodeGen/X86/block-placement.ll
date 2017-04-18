@@ -1067,7 +1067,6 @@ define i32 @test_cold_calls(i32* %a) {
 ; CHECK-LABEL: test_cold_calls:
 ; CHECK: %entry
 ; CHECK: %else
-; CHECK: %exit
 ; CHECK: %then
 
 entry:

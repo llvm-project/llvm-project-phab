@@ -105,6 +105,8 @@ public:
                                        CallingConv::ID) const override;
   const uint32_t *getNoPreservedMask() const override;
 
+  unsigned getCSRFirstUseCost() const override { return 1 << 13; }
+
   // Calls involved in thread-local variable lookup save more registers than
   // normal calls, so they need a different mask to represent this.
   const uint32_t *getDarwinTLSCallPreservedMask() const;

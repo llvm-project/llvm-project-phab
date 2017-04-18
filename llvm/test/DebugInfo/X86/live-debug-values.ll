@@ -1,4 +1,4 @@
-; RUN: llc -filetype=asm %s -o - | FileCheck %s
+; RUN: llc -filetype=asm -regalloc-csr-first-time-cost=0 %s -o - | FileCheck %s
 
 ; Test the extension of debug ranges from predecessors.
 ; Generated from the source file LiveDebugValues.c:

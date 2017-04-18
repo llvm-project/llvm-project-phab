@@ -956,15 +956,15 @@ define void @test_512(i512* %a, i512* %b, i512* %out) nounwind {
 ; X64-NEXT:    mulq %rcx
 ; X64-NEXT:    movq %rdx, %r9
 ; X64-NEXT:    movq %r9, -{{[0-9]+}}(%rsp) # 8-byte Spill
+; X64-NEXT:    movq %rax, -{{[0-9]+}}(%rsp) # 8-byte Spill
 ; X64-NEXT:    movq %rax, %r15
-; X64-NEXT:    movq %r15, -{{[0-9]+}}(%rsp) # 8-byte Spill
 ; X64-NEXT:    addq %r10, %r15
 ; X64-NEXT:    adcq %r13, %r9
 ; X64-NEXT:    addq %rbp, %r15
 ; X64-NEXT:    adcq %rsi, %r9
 ; X64-NEXT:    movq %rdi, -{{[0-9]+}}(%rsp) # 8-byte Spill
-; X64-NEXT:    movq (%rdi), %r14
-; X64-NEXT:    movq %r14, %rax
+; X64-NEXT:    movq (%rdi), %rax
+; X64-NEXT:    movq %rax, %r14
 ; X64-NEXT:    mulq %rbx
 ; X64-NEXT:    movq %rax, -{{[0-9]+}}(%rsp) # 8-byte Spill
 ; X64-NEXT:    movq %rdx, %r11

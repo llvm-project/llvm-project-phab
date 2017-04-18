@@ -1,4 +1,4 @@
-; RUN: llc < %s -mtriple=x86_64-apple-macosx -regalloc=greedy | FileCheck %s
+; RUN: llc < %s -mtriple=x86_64-apple-macosx -regalloc=greedy -regalloc-csr-first-time-cost=0 | FileCheck %s
 
 ; This testing case is reduced from 254.gap SyFgets function.
 ; We make sure a spill is hoisted to a cold BB inside the hotter outer loop.

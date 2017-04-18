@@ -56,10 +56,10 @@ try.cont:
 ; CHECK: calll __Z20function_that_throwsv
 ;     _Unwind_SjLj_Unregister(&UFC);
 ; CHECK: leal -64(%ebp), %eax
+; CHECK: pushl %eax
 ; CHECK: calll __Unwind_SjLj_Unregister
 ;
 ; CHECK: [[RESUME]]:
-; CHECK: leal -64(%ebp), %esi
 ;     assert(UFC.__callsite <= 1);
 ; CHECK: movl -60(%ebp), %eax
 ; CHECK: cmpl $1, %eax

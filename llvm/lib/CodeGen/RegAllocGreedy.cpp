@@ -97,10 +97,10 @@ static cl::opt<bool> EnableDeferredSpilling(
     cl::init(false));
 
 // FIXME: Find a good default for this flag and remove the flag.
-static cl::opt<unsigned>
-CSRFirstTimeCost("regalloc-csr-first-time-cost",
-              cl::desc("Cost for first time use of callee-saved register."),
-              cl::init(0), cl::Hidden);
+static cl::opt<int> CSRFirstTimeCost(
+    "regalloc-csr-first-time-cost",
+    cl::desc("Cost for first time use of callee-saved register."), cl::init(-1),
+    cl::Hidden);
 
 static RegisterRegAlloc greedyRegAlloc("greedy", "greedy register allocator",
                                        createGreedyRegisterAllocator);
@@ -2351,10 +2351,11 @@ void RAGreedy::aboutToRemoveInterval(LiveInterval &LI) {
 }
 
 void RAGreedy::initializeCSRCost() {
-  // We use the larger one out of the command-line option and the value report
-  // by TRI.
-  CSRCost = BlockFrequency(
-      std::max((unsigned)CSRFirstTimeCost, TRI->getCSRFirstUseCost()));
+  // The cost from command-line option will override the value reported by TRI.
+  if (CSRFirstTimeCost != -1)
+    CSRCost = BlockFrequency(CSRFirstTimeCost);
+  else
+    CSRCost = BlockFrequency(TRI->getCSRFirstUseCost());
   if (!CSRCost.getFrequency())
     return;
 
@@ -2468,9 +2469,16 @@ void RAGreedy::tryHintRecoloring(LiveInterval &VirtReg) {
       DEBUG(dbgs() << "Checking profitability:\n");
       BlockFrequency OldCopiesCost = getBrokenHintFreq(Info, CurrPhys);
       BlockFrequency NewCopiesCost = getBrokenHintFreq(Info, PhysReg);
+      // If we switch from a non-CSR register to a CSR register, we require
+      // the cost difference is larger than CSRCost to justify the recoloring,
+      // because such recoloring is possible to hinder shrinkwrapping.
+      bool ChangedToCSR = !RegClassInfo.getLastCalleeSavedAlias(CurrPhys) &&
+                          RegClassInfo.getLastCalleeSavedAlias(PhysReg);
       DEBUG(dbgs() << "Old Cost: " << OldCopiesCost.getFrequency()
-                   << "\nNew Cost: " << NewCopiesCost.getFrequency() << '\n');
-      if (OldCopiesCost < NewCopiesCost) {
+                   << "\nNew Cost: " << NewCopiesCost.getFrequency()
+                   << "\nCSRCost: "
+                   << (ChangedToCSR ? CSRCost.getFrequency() : 0) << '\n');
+      if (OldCopiesCost < NewCopiesCost + (ChangedToCSR ? CSRCost : 0)) {
         DEBUG(dbgs() << "=> Not profitable.\n");
         continue;
       }
