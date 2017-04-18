@@ -1845,11 +1845,12 @@ def NoSanitizeSpecific : InheritableAttr {
   let Spellings = [GCC<"no_address_safety_analysis">,
                    GCC<"no_sanitize_address">,
                    GCC<"no_sanitize_thread">,
-                   GNU<"no_sanitize_memory">];
+                   GNU<"no_sanitize_memory">,
+                   GNU<"no_sanitize_tbaa">];
   let Subjects = SubjectList<[Function, GlobalVar], ErrorDiag,
         "ExpectedFunctionOrGlobalVar">;
   let Documentation = [NoSanitizeAddressDocs, NoSanitizeThreadDocs,
-                       NoSanitizeMemoryDocs];
+                       NoSanitizeMemoryDocs, NoSanitizeTBAADocs];
   let ASTNode = 0;
 }
 

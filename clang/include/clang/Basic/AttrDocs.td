@@ -1676,6 +1676,19 @@ to avoid false positives in other places.
   }];
 }
 
+def NoSanitizeTBAADocs : Documentation {
+  let Category = DocCatFunction;
+  let Heading = "no_sanitize_tbaa";
+  let Content = [{
+.. _langext-tbaa_sanitizer:
+
+Use ``__attribute__((no_sanitize_tbaa))`` on a function declaration to
+specify that checks for type-based aliasing violations should not be inserted
+(e.g. by TBAASanitizer). The function may still be instrumented by the tool
+to avoid false positives in other places.
+  }];
+}
+
 def DocCatTypeSafety : DocumentationCategory<"Type Safety Checking"> {
   let Content = [{
 Clang supports additional attributes to enable checking type safety properties

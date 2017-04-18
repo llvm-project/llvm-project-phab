@@ -2563,12 +2563,13 @@ bool CompilerInvocation::CreateFromArgs(CompilerInvocation &Res,
       Res.getTargetOpts().HostTriple = Res.getFrontendOpts().AuxTriple;
   }
 
-  // FIXME: Override value name discarding when asan or msan is used because the
-  // backend passes depend on the name of the alloca in order to print out
-  // names.
+  // FIXME: Override value name discarding when asan, msan, or tbaa is used
+  // because the backend passes depend on the name of the alloca in order to
+  // print out names.
   Res.getCodeGenOpts().DiscardValueNames &=
       !LangOpts.Sanitize.has(SanitizerKind::Address) &&
-      !LangOpts.Sanitize.has(SanitizerKind::Memory);
+      !LangOpts.Sanitize.has(SanitizerKind::Memory) &&
+      !LangOpts.Sanitize.has(SanitizerKind::TBAA);
 
   // FIXME: ParsePreprocessorArgs uses the FileManager to read the contents of
   // PCH file and find the original header name. Remove the need to do that in
