@@ -47,7 +47,9 @@ DWARFCompileUnit::DWARFCompileUnit(SymbolFileDWARF *dwarf2Data)
       m_producer_version_minor(0), m_producer_version_update(0),
       m_language_type(eLanguageTypeUnknown), m_is_dwarf64(false),
       m_is_optimized(eLazyBoolCalculate), m_addr_base(0),
-      m_ranges_base(0), m_base_obj_offset(DW_INVALID_OFFSET) {}
+      m_ranges_base(0), m_base_obj_offset(DW_INVALID_OFFSET),
+      m_type_signature(0), m_type_offset(DW_INVALID_OFFSET)
+{}
 
 DWARFCompileUnit::~DWARFCompileUnit() {}
 
@@ -70,7 +72,7 @@ void DWARFCompileUnit::Clear() {
 }
 
 bool DWARFCompileUnit::Extract(const DWARFDataExtractor &debug_info,
-                               lldb::offset_t *offset_ptr) {
+                               lldb::offset_t *offset_ptr, bool is_type_unit) {
   Clear();
 
   m_offset = *offset_ptr;
@@ -90,8 +92,12 @@ bool DWARFCompileUnit::Extract(const DWARFDataExtractor &debug_info,
         m_dwarf2Data->get_debug_abbrev_data().ValidOffset(abbr_offset);
     bool addr_size_OK = ((m_addr_size == 4) || (m_addr_size == 8));
 
+    if (is_type_unit) {
+      m_type_signature = debug_info.GetU64(offset_ptr);
+      m_type_offset = debug_info.GetDWARFOffset(offset_ptr);
+    }
     if (length_OK && version_OK && addr_size_OK && abbr_offset_OK &&
-        abbr != NULL) {
+        abbr != NULL && (!is_type_unit || m_type_offset != DW_INVALID_OFFSET)) {
       m_abbrevs = abbr->GetAbbreviationDeclarationSet(abbr_offset);
       return true;
     }
@@ -161,8 +167,7 @@ size_t DWARFCompileUnit::ExtractDIEsIfNeeded(bool cu_die_only) {
   uint32_t depth = 0;
   // We are in our compile unit, parse starting at the offset
   // we were told to parse
-  const DWARFDataExtractor &debug_info_data =
-      m_dwarf2Data->get_debug_info_data();
+  const DWARFDataExtractor &debug_info_data = GetData();
   std::vector<uint32_t> die_index_stack;
   die_index_stack.reserve(32);
   die_index_stack.push_back(0);
@@ -316,45 +321,6 @@ dw_offset_t DWARFCompileUnit::GetAbbrevOffset() const {
   return m_abbrevs ? m_abbrevs->GetOffset() : DW_INVALID_OFFSET;
 }
 
-bool DWARFCompileUnit::Verify(Stream *s) const {
-  const DWARFDataExtractor &debug_info = m_dwarf2Data->get_debug_info_data();
-  bool valid_offset = debug_info.ValidOffset(m_offset);
-  bool length_OK = debug_info.ValidOffset(GetNextCompileUnitOffset() - 1);
-  bool version_OK = SymbolFileDWARF::SupportedVersion(m_version);
-  bool abbr_offset_OK =
-      m_dwarf2Data->get_debug_abbrev_data().ValidOffset(GetAbbrevOffset());
-  bool addr_size_OK = ((m_addr_size == 4) || (m_addr_size == 8));
-  if (valid_offset && length_OK && version_OK && addr_size_OK &&
-      abbr_offset_OK) {
-    return true;
-  } else {
-    s->Printf("    0x%8.8x: ", m_offset);
-    DumpDataExtractor(m_dwarf2Data->get_debug_info_data(), s, m_offset,
-                      lldb::eFormatHex, 1, Size(), 32, LLDB_INVALID_ADDRESS, 0,
-                      0);
-    s->EOL();
-    if (valid_offset) {
-      if (!length_OK)
-        s->Printf("        The length (0x%8.8x) for this compile unit is too "
-                  "large for the .debug_info provided.\n",
-                  m_length);
-      if (!version_OK)
-        s->Printf("        The 16 bit compile unit header version is not "
-                  "supported.\n");
-      if (!abbr_offset_OK)
-        s->Printf("        The offset into the .debug_abbrev section (0x%8.8x) "
-                  "is not valid.\n",
-                  GetAbbrevOffset());
-      if (!addr_size_OK)
-        s->Printf("        The address size is unsupported: 0x%2.2x\n",
-                  m_addr_size);
-    } else
-      s->Printf("        The start offset of the compile unit header in the "
-                ".debug_info is invalid.\n");
-  }
-  return false;
-}
-
 void DWARFCompileUnit::Dump(Stream *s) const {
   s->Printf("0x%8.8x: Compile Unit: length = 0x%8.8x, version = 0x%4.4x, "
             "abbr_offset = 0x%8.8x, addr_size = 0x%2.2x (next CU at "
@@ -396,6 +362,11 @@ lldb::user_id_t DWARFCompileUnit::GetID() const {
 
 void DWARFCompileUnit::BuildAddressRangeTable(
     SymbolFileDWARF *dwarf2Data, DWARFDebugAranges *debug_aranges) {
+
+  // No addresses are found in a type unit.
+  if (IsTypeUnit())
+    return;
+
   // This function is usually called if there in no .debug_aranges section
   // in order to produce a compile unit level set of address ranges that
   // is accurate.
@@ -1124,3 +1095,36 @@ void DWARFCompileUnit::SetAddrBase(dw_addr_t addr_base,
 lldb::ByteOrder DWARFCompileUnit::GetByteOrder() const {
   return m_dwarf2Data->GetObjectFile()->GetByteOrder();
 }
+
+DWARFDIE DWARFCompileUnit::GetTypeUnitDIE() {
+  if (IsTypeUnit()) {
+    // The type offset is compile unit relative, so we need to add the compile
+    // unit offset to ensure we get the correct DIE.
+    return GetDIE(GetTypeUnitDIEOffset());
+  }
+  return DWARFDIE();
+}
+
+DWARFDIE DWARFCompileUnit::FindTypeSignatureDIE(uint64_t type_sig) const {
+  auto cu = m_dwarf2Data->DebugInfo()->GetTypeUnitForSignature(type_sig);
+  if (cu)
+    return cu->GetTypeUnitDIE();
+  return DWARFDIE();
+}
+
+dw_offset_t DWARFCompileUnit::FindTypeSignatureDIEOffset(uint64_t type_sig) const {
+  auto cu = m_dwarf2Data->DebugInfo()->GetTypeUnitForSignature(type_sig);
+  if (cu)
+    return cu->GetTypeUnitDIEOffset();
+  return DW_INVALID_OFFSET;
+}
+
+const lldb_private::DWARFDataExtractor &DWARFCompileUnit::GetData() const {
+  // In DWARF 5, type units are in the .debug_info section. Prior to DWARF 5
+  // type units are in the .debug_types section.
+  if (IsTypeUnit() && GetVersion() < 5)
+    return m_dwarf2Data->get_debug_types_data();
+  else
+    return m_dwarf2Data->get_debug_info_data();
+}
+

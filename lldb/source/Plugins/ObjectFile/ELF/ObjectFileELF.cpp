@@ -1907,6 +1907,7 @@ void ObjectFileELF::CreateSections(SectionList &unified_section_list) {
       static ConstString g_sect_name_dwarf_debug_str(".debug_str");
       static ConstString g_sect_name_dwarf_debug_str_offsets(
           ".debug_str_offsets");
+      static ConstString g_sect_name_dwarf_debug_types(".debug_types");
       static ConstString g_sect_name_dwarf_debug_abbrev_dwo(
           ".debug_abbrev.dwo");
       static ConstString g_sect_name_dwarf_debug_info_dwo(".debug_info.dwo");
@@ -1984,6 +1985,8 @@ void ObjectFileELF::CreateSections(SectionList &unified_section_list) {
         sect_type = eSectionTypeDWARFDebugRanges;
       else if (name == g_sect_name_dwarf_debug_str)
         sect_type = eSectionTypeDWARFDebugStr;
+      else if (name == g_sect_name_dwarf_debug_types)
+        sect_type = eSectionTypeDWARFDebugTypes;
       else if (name == g_sect_name_dwarf_debug_str_offsets)
         sect_type = eSectionTypeDWARFDebugStrOffsets;
       else if (name == g_sect_name_dwarf_debug_abbrev_dwo)

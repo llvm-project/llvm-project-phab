@@ -83,6 +83,7 @@ class Declaration;
 class DiagnosticManager;
 class Disassembler;
 class DumpValueObjectOptions;
+class DWARFDataExtractor;
 class DynamicCheckerFunctions;
 class DynamicLoader;
 class Editline;

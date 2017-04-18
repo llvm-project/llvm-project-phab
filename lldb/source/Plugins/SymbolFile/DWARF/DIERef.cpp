@@ -47,6 +47,18 @@ DIERef::DIERef(const DWARFFormValue &form_value)
   if (form_value.IsValid()) {
     const DWARFCompileUnit *dwarf_cu = form_value.GetCompileUnit();
     if (dwarf_cu) {
+      // Replace the compile unit with the type signature compile unit for
+      // type signature attributes.
+      if (form_value.Form() == DW_FORM_ref_sig8) {
+        uint64_t type_sig = form_value.Unsigned();
+        auto debug_info = dwarf_cu->GetSymbolFileDWARF()->DebugInfo();
+        auto type_cu = debug_info->GetTypeUnitForSignature(type_sig);
+        if (type_cu) {
+          cu_offset = type_cu->GetOffset();
+          die_offset = type_cu->GetTypeUnitDIEOffset();
+        }
+        return;
+      }
       if (dwarf_cu->GetBaseObjOffset() != DW_INVALID_OFFSET)
         cu_offset = dwarf_cu->GetBaseObjOffset();
       else

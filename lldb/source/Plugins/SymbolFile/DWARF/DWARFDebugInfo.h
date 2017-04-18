@@ -12,6 +12,7 @@
 
 #include <map>
 #include <vector>
+#include <unordered_map>
 
 #include "DWARFDIE.h"
 #include "SymbolFileDWARF.h"
@@ -37,23 +38,13 @@ public:
   size_t GetNumCompileUnits();
   bool ContainsCompileUnit(const DWARFCompileUnit *cu) const;
   DWARFCompileUnit *GetCompileUnitAtIndex(uint32_t idx);
+  DWARFCompileUnit *GetTypeUnitForSignature(uint64_t type_sig);
   DWARFCompileUnit *GetCompileUnit(dw_offset_t cu_offset,
                                    uint32_t *idx_ptr = NULL);
   DWARFCompileUnit *GetCompileUnitContainingDIEOffset(dw_offset_t die_offset);
   DWARFCompileUnit *GetCompileUnit(const DIERef &die_ref);
   DWARFDIE GetDIEForDIEOffset(dw_offset_t die_offset);
   DWARFDIE GetDIE(const DIERef &die_ref);
-
-  void Dump(lldb_private::Stream *s, const uint32_t die_offset,
-            const uint32_t recurse_depth);
-  static void Parse(SymbolFileDWARF *parser, Callback callback, void *userData);
-  static void Verify(lldb_private::Stream *s, SymbolFileDWARF *dwarf2Data);
-  static void Dump(lldb_private::Stream *s, SymbolFileDWARF *dwarf2Data,
-                   const uint32_t die_offset, const uint32_t recurse_depth);
-  bool Find(const char *name, bool ignore_case,
-            std::vector<dw_offset_t> &die_offsets) const;
-  bool Find(lldb_private::RegularExpression &re,
-            std::vector<dw_offset_t> &die_offsets) const;
 
   enum {
     eDumpFlag_Verbose = (1 << 0),  // Verbose dumping
@@ -66,6 +57,7 @@ public:
 
 protected:
   typedef std::shared_ptr<DWARFCompileUnit> DWARFCompileUnitSP;
+  typedef std::unordered_map<uint64_t, uint32_t> TypeSignatureMap;
 
   static bool OffsetLessThanCompileUnitOffset(dw_offset_t offset,
                                               const DWARFCompileUnitSP &cu_sp);
@@ -77,6 +69,7 @@ protected:
   //----------------------------------------------------------------------
   SymbolFileDWARF *m_dwarf2Data;
   CompileUnitColl m_compile_units;
+  TypeSignatureMap m_type_sig_to_cu_index;
   std::unique_ptr<DWARFDebugAranges>
       m_cu_aranges_ap; // A quick address to compile unit table
 

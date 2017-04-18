@@ -580,6 +580,13 @@ uint64_t DWARFFormValue::Reference() const {
     die_offset += m_cu->GetOffset();
     break;
 
+  case DW_FORM_ref_sig8:
+    // CU must be valid since we will need to back up into the debug info and
+    // find the DIE offset of the type in the type unit.
+    assert(m_cu);
+      die_offset = m_cu->FindTypeSignatureDIEOffset(m_value.value.uval);
+      break;
+
   default:
     break;
   }
@@ -598,6 +605,14 @@ uint64_t DWARFFormValue::Reference(dw_offset_t base_offset) const {
     die_offset += base_offset;
     break;
 
+  case DW_FORM_ref_sig8:
+    // CU must be valid since we will need to back up into the debug info and
+    // find the DIE offset of the type in the type unit.
+    assert(m_cu);
+    die_offset = m_cu->FindTypeSignatureDIEOffset(m_value.value.uval) +
+        base_offset;
+    break;
+      
   default:
     break;
   }

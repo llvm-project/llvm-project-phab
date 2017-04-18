@@ -1211,6 +1211,7 @@ AddressClass ObjectFileMachO::GetAddressClass(lldb::addr_t file_addr) {
           case eSectionTypeDWARFDebugRanges:
           case eSectionTypeDWARFDebugStr:
           case eSectionTypeDWARFDebugStrOffsets:
+          case eSectionTypeDWARFDebugTypes:
           case eSectionTypeDWARFAppleNames:
           case eSectionTypeDWARFAppleTypes:
           case eSectionTypeDWARFAppleNamespaces:
@@ -1722,6 +1723,8 @@ void ObjectFileMachO::CreateSections(SectionList &unified_section_list) {
                   static ConstString g_sect_name_dwarf_debug_ranges(
                       "__debug_ranges");
                   static ConstString g_sect_name_dwarf_debug_str("__debug_str");
+                  static ConstString g_sect_name_dwarf_debug_types(
+                      "__debug_types");
                   static ConstString g_sect_name_dwarf_apple_names(
                       "__apple_names");
                   static ConstString g_sect_name_dwarf_apple_types(
@@ -1759,6 +1762,8 @@ void ObjectFileMachO::CreateSections(SectionList &unified_section_list) {
                     sect_type = eSectionTypeDWARFDebugRanges;
                   else if (section_name == g_sect_name_dwarf_debug_str)
                     sect_type = eSectionTypeDWARFDebugStr;
+                  else if (section_name == g_sect_name_dwarf_debug_types)
+                    sect_type = eSectionTypeDWARFDebugTypes;
                   else if (section_name == g_sect_name_dwarf_apple_names)
                     sect_type = eSectionTypeDWARFAppleNames;
                   else if (section_name == g_sect_name_dwarf_apple_types)

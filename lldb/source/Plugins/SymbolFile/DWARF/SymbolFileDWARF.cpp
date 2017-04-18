@@ -558,8 +558,23 @@ uint32_t SymbolFileDWARF::CalculateAbilities() {
 const DWARFDataExtractor &
 SymbolFileDWARF::GetCachedSectionData(lldb::SectionType sect_type,
                                       DWARFDataSegment &data_segment) {
-  llvm::call_once(data_segment.m_flag, [this, sect_type, &data_segment] {
+  llvm::call_once(data_segment.m_flag, [&] {
     this->LoadSectionData(sect_type, std::ref(data_segment.m_data));
+    if (sect_type == eSectionTypeDWARFDebugTypes) {
+      // To add .debug_types support with minimally invasive changes, we pretend
+      // that any DIEs in .debug_types start at the end of the .debug_info
+      // section. All info in .debug_types is relative and has no external DIE
+      // references unless thay are DW_AT_signature references, so the DIE
+      // offset for things in the .debug_types. If we do this, then we can
+      // just add the type units to the compile units collection and treat all
+      // information just as we do for all other information in the DWARF and
+      // everything just works. If we were to try to split this out, we would
+      // end up having to change a TON of code. Also DWARF 5 will have compile
+      // and type units in the .debug_info, so coding it this way will prepare
+      // use for an easy transition to DWARF 5.
+      uint64_t debug_info_size = get_debug_info_data().GetByteSize();
+      data_segment.m_data.OffsetData(debug_info_size);
+    }
   });
   return data_segment.m_data;
 }
@@ -629,6 +644,10 @@ const DWARFDataExtractor &SymbolFileDWARF::get_debug_str_data() {
 const DWARFDataExtractor &SymbolFileDWARF::get_debug_str_offsets_data() {
   return GetCachedSectionData(eSectionTypeDWARFDebugStrOffsets,
                               m_data_debug_str_offsets);
+}
+
+const DWARFDataExtractor &SymbolFileDWARF::get_debug_types_data() {
+  return GetCachedSectionData(eSectionTypeDWARFDebugTypes, m_data_debug_types);
 }
 
 const DWARFDataExtractor &SymbolFileDWARF::get_apple_names_data() {
@@ -3729,7 +3748,7 @@ VariableSP SymbolFileDWARF::ParseVariableDIE(const SymbolContext &sc,
               location_is_const_value_data = true;
               // The constant value will be either a block, a data value or a
               // string.
-              const DWARFDataExtractor &debug_info_data = get_debug_info_data();
+              auto debug_info_data = die.GetData();
               if (DWARFFormValue::IsBlockForm(form_value.Form())) {
                 // Retrieve the value as a block expression.
                 uint32_t block_offset =
@@ -3786,7 +3805,7 @@ VariableSP SymbolFileDWARF::ParseVariableDIE(const SymbolContext &sc,
             location_is_const_value_data = false;
             has_explicit_location = true;
             if (DWARFFormValue::IsBlockForm(form_value.Form())) {
-              const DWARFDataExtractor &debug_info_data = get_debug_info_data();
+              const DWARFDataExtractor &debug_info_data = die.GetData();
 
               uint32_t block_offset =
                   form_value.BlockData() - debug_info_data.GetDataStart();

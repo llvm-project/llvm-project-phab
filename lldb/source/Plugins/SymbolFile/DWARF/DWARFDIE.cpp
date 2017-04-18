@@ -466,3 +466,9 @@ bool operator==(const DWARFDIE &lhs, const DWARFDIE &rhs) {
 bool operator!=(const DWARFDIE &lhs, const DWARFDIE &rhs) {
   return lhs.GetDIE() != rhs.GetDIE() || lhs.GetCU() != rhs.GetCU();
 }
+
+const DWARFDataExtractor &DWARFDIE::GetData() const {
+  // Clients must check if this DIE is valid before calling this function.
+  assert(IsValid());
+  return m_cu->GetData();
+}

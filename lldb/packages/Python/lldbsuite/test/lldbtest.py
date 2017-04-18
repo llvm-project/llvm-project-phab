@@ -1569,6 +1569,22 @@ class Base(unittest2.TestCase):
                 clean):
             raise Exception("Don't know how to build binary with gmodules")
 
+    def buildDwarfTypeUnits(
+            self,
+            architecture=None,
+            compiler=None,
+            dictionary=None,
+            clean=True):
+        """Platform specific way to build binaries with gmodules info."""
+        module = builder_module()
+        if not module.buildDwarfTypeUnits(
+                self,
+                architecture,
+                compiler,
+                dictionary,
+                clean):
+            raise Exception("Don't know how to build binary with DWARF type units")
+
     def buildGo(self):
         """Build the default go binary.
         """
@@ -1754,6 +1770,16 @@ class LLDBTestCaseFactory(type):
                     gmodules_test_method.__name__ = gmodules_method_name
                     newattrs[gmodules_method_name] = gmodules_test_method
 
+                if "dwarf_type_units" in supported_categories:
+                    @decorators.add_test_categories(["dwarf_type_units"])
+                    @wraps(attrvalue)
+                    def gmodules_test_method(self, attrvalue=attrvalue):
+                        self.debug_info = "dwarf_type_units"
+                        return attrvalue(self)
+                    gmodules_method_name = attrname + "_dwarf_type_units"
+                    gmodules_test_method.__name__ = gmodules_method_name
+                    newattrs[gmodules_method_name] = gmodules_test_method
+
             else:
                 newattrs[attrname] = attrvalue
         return super(
@@ -1862,7 +1888,7 @@ class TestBase(Base):
         temp = os.path.join(os.getcwd(), template)
         with open(temp, 'r') as f:
             content = f.read()
-            
+
         public_api_dir = os.path.join(
             os.environ["LLDB_SRC"], "include", "lldb", "API")
 
@@ -2287,6 +2313,9 @@ class TestBase(Base):
             return self.buildDwo(architecture, compiler, dictionary, clean)
         elif self.debug_info == "gmodules":
             return self.buildGModules(
+                architecture, compiler, dictionary, clean)
+        elif self.debug_info == "dwarf_type_units":
+            return self.buildDwarfTypeUnits(
                 architecture, compiler, dictionary, clean)
         else:
             self.fail("Can't build for debug info: %s" % self.debug_info)

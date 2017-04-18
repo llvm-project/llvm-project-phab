@@ -32,20 +32,26 @@ public:
   ~DWARFCompileUnit();
 
   bool Extract(const lldb_private::DWARFDataExtractor &debug_info,
-               lldb::offset_t *offset_ptr);
+               lldb::offset_t *offset_ptr, bool is_type_unit);
+  const lldb_private::DWARFDataExtractor &GetData() const;
   size_t ExtractDIEsIfNeeded(bool cu_die_only);
   DWARFDIE LookupAddress(const dw_addr_t address);
   size_t AppendDIEsWithTag(const dw_tag_t tag,
                            DWARFDIECollection &matching_dies,
                            uint32_t depth = UINT32_MAX) const;
   void Clear();
-  bool Verify(lldb_private::Stream *s) const;
   void Dump(lldb_private::Stream *s) const;
   dw_offset_t GetOffset() const { return m_offset; }
+  size_t GetLengthByteSize() const { return m_is_dwarf64 ? 12 : 4; }
   lldb::user_id_t GetID() const;
   uint32_t Size() const {
-    return m_is_dwarf64 ? 23
-                        : 11; /* Size in bytes of the compile unit header */
+    // Size in bytes of the compile or type unit header
+    // Start with the common size between compile and type units
+    uint32_t header_size = m_is_dwarf64 ? 23 : 11;
+    // Add the extra type unit size if needed
+    if (IsTypeUnit())
+      header_size += m_is_dwarf64 ? 16 : 12;
+    return header_size;
   }
   bool ContainsDIEOffset(dw_offset_t die_offset) const {
     return die_offset >= GetFirstDIEOffset() &&
@@ -53,13 +59,12 @@ public:
   }
   dw_offset_t GetFirstDIEOffset() const { return m_offset + Size(); }
   dw_offset_t GetNextCompileUnitOffset() const {
-    return m_offset + m_length + (m_is_dwarf64 ? 12 : 4);
+    return m_offset + m_length + GetLengthByteSize();
   }
   size_t GetDebugInfoSize() const {
-    return m_length + (m_is_dwarf64 ? 12 : 4) - Size(); /* Size in bytes of the
-                                                           .debug_info data
-                                                           associated with this
-                                                           compile unit. */
+    // Size in bytes of the .debug_info or .debug_types data associated with
+    // this compile or type unit.
+    return m_length + GetLengthByteSize() - Size();
   }
   uint32_t GetLength() const { return m_length; }
   uint16_t GetVersion() const { return m_version; }
@@ -161,6 +166,42 @@ public:
 
   dw_offset_t GetBaseObjOffset() const { return m_base_obj_offset; }
 
+  // Return true if this compile unit is a type unit.
+  bool IsTypeUnit() const { return m_type_offset != DW_INVALID_OFFSET; }
+  // Return the type signature for the type contained in this type unit. This
+  // value will not be valid if this compile unit is not a type unit.
+  uint64_t GetTypeSignature() const { return m_type_signature; }
+  // If this compile unit is a type unit, then return the DWARFDIE that
+  // respresents the type contained in the type unit, else return an invalid
+  // DIE.
+  DWARFDIE GetTypeUnitDIE();
+  // If this compile unit is a type unit, then return the DIE offset for the
+  // type contained in the type unit, else return an invalid DIE offset.
+  dw_offset_t GetTypeUnitDIEOffset() {
+    if (IsTypeUnit())
+      return m_offset + m_type_offset;
+    return DW_INVALID_OFFSET;
+  }
+  
+  // Find the DIE for any given type signature.
+  //
+  // This is a convenience function that allows anyone to use the current
+  // compile unit to access the DWARF and use its debug info to retrieve a DIE
+  // that represents a type given a type signature. This function will cause all
+  // DIEs in the type unit to be parsed, only call if you need the actual DIE
+  // object.
+  DWARFDIE FindTypeSignatureDIE(uint64_t type_sig) const;
+  
+  // Find the DIE offset for any given type signature.
+  //
+  // This is a convenience function that allows anyone to use the current
+  // compile unit to access the DWARF and use its debug info to retrieve a DIE
+  // offset that represents a type given a type signature. This function doesn't
+  // cause any debug information to be parsed, so if clients only need the
+  // DIE offset of a type signature, this function is more efficient than
+  // DWARFDIE FindTypeSignatureDIE(...) above.
+  dw_offset_t FindTypeSignatureDIEOffset(uint64_t type_sig) const;
+  
 protected:
   SymbolFileDWARF *m_dwarf2Data;
   std::unique_ptr<SymbolFileDWARFDwo> m_dwo_symbol_file;
@@ -191,6 +232,11 @@ protected:
   dw_offset_t m_base_obj_offset; // If this is a dwo compile unit this is the
                                  // offset of the base compile unit in the main
                                  // object file
+  uint64_t m_type_signature;     // Type signature contained in a type unit
+                                 // which will be valid (non-zero) for type
+                                 // units only.
+  dw_offset_t m_type_offset;     // Compile unit relative type offset for type
+                                 // units only.
 
   void ParseProducerInfo();
 

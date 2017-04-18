@@ -193,7 +193,11 @@ ifneq (,$(findstring clang,$(CC)))
    MODULE_DEBUG_INFO_FLAGS += -gmodules
 endif
 
-DEBUG_INFO_FLAG ?= -g
+ifeq "$(DWARF_TYPE_UNITS)" "YES"
+	DEBUG_INFO_FLAG ?= -gdwarf-4
+else
+	DEBUG_INFO_FLAG ?= -g
+endif
 
 CFLAGS ?= $(DEBUG_INFO_FLAG) -O0 -fno-builtin
 ifeq "$(OS)" "Darwin"
@@ -213,6 +217,10 @@ endif
 
 ifeq "$(MAKE_DWO)" "YES"
 	CFLAGS += -gsplit-dwarf
+endif
+
+ifeq "$(DWARF_TYPE_UNITS)" "YES"
+	CFLAGS += -fdebug-types-section
 endif
 
 ifeq "$(MAKE_GMODULES)" "YES"
@@ -638,7 +646,7 @@ endif
 
 #----------------------------------------------------------------------
 # From http://blog.melski.net/tag/debugging-makefiles/
-# 
+#
 # Usage: make print-CC print-CXX print-LD
 #----------------------------------------------------------------------
 print-%:

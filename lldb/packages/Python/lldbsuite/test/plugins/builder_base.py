@@ -170,7 +170,6 @@ def buildDwo(
     # True signifies that we can handle building dwo.
     return True
 
-
 def buildGModules(
         sender=None,
         architecture=None,
@@ -192,6 +191,23 @@ def buildGModules(
     # True signifies that we can handle building with gmodules.
     return True
 
+def buildDwarfTypeUnits(
+        sender=None,
+        architecture=None,
+        compiler=None,
+        dictionary=None,
+        clean=True):
+    """Build the binaries with type units (type in  a .debug_types section)."""
+    commands = []
+    if clean:
+        commands.append([getMake(), "clean", getCmdLine(dictionary)])
+    commands.append([getMake(), "MAKE_DSYM=NO", "DWARF_TYPE_UNITS=YES",
+                    getArchSpec( architecture), getCCSpec(compiler),
+                    getCmdLine(dictionary)])
+
+    runBuildCommands(commands, sender=sender)
+    # True signifies that we can handle building dwo.
+    return True
 
 def cleanup(sender=None, dictionary=None):
     """Perform a platform-specific cleanup after the test."""

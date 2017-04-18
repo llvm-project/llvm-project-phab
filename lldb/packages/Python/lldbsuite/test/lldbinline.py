@@ -159,6 +159,12 @@ class InlineTest(TestBase):
         self.buildGModules()
         self.do_test()
 
+    def __test_with_dwarf_type_units(self):
+        self.using_dsym = False
+        self.BuildMakefile()
+        self.buildDwarfTypeUnits()
+        self.do_test()
+
     def execute_user_command(self, __command):
         exec(__command, globals(), locals())
 
@@ -241,6 +247,10 @@ def MakeInlineTest(__file, __globals, decorators=None):
             "gmodules", target_platform, configuration.compiler):
         test.test_with_gmodules = ApplyDecoratorsToFunction(
             test._InlineTest__test_with_gmodules, decorators)
+    if test_categories.is_supported_on_platform(
+            "dwarf_type_units", target_platform, configuration.compiler):
+        test.test_with_gmodules = ApplyDecoratorsToFunction(
+            test._InlineTest__test_with_dwarf_type_units, decorators)
 
     # Add the test case to the globals, and hide InlineTest
     __globals.update({test_name: test})
