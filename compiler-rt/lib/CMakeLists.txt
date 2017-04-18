@@ -53,6 +53,7 @@ if(COMPILER_RT_BUILD_SANITIZERS)
   compiler_rt_build_sanitizer(cfi)
   compiler_rt_build_sanitizer(esan)
   compiler_rt_build_sanitizer(scudo)
+  compiler_rt_build_sanitizer(tbaasan)
 
   compiler_rt_build_runtime(profile)
 endif()
