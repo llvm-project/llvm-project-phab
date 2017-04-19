@@ -181,6 +181,18 @@
 
 // RUN: %clangxx -no-canonical-prefixes %s -### -o %t.o 2>&1 \
 // RUN:     -target x86_64-unknown-linux -fuse-ld=ld -stdlib=platform -lstdc++ \
+// RUN:     -fsanitize=tbaa \
+// RUN:     -resource-dir=%S/Inputs/resource_dir \
+// RUN:     --sysroot=%S/Inputs/basic_linux_tree \
+// RUN:   | FileCheck --check-prefix=CHECK-TBAASAN-LINUX-CXX %s
+//
+// CHECK-TBAASAN-LINUX-CXX: "{{(.*[^-.0-9A-Z_a-z])?}}ld{{(.exe)?}}"
+// CHECK-TBAASAN-LINUX-CXX-NOT: stdc++
+// CHECK-TBAASAN-LINUX-CXX: "-whole-archive" "{{.*}}libclang_rt.tbaasan-x86_64.a" "-no-whole-archive"
+// CHECK-TBAASAN-LINUX-CXX: stdc++
+
+// RUN: %clangxx -no-canonical-prefixes %s -### -o %t.o 2>&1 \
+// RUN:     -target x86_64-unknown-linux -fuse-ld=ld -stdlib=platform -lstdc++ \
 // RUN:     -fsanitize=memory \
 // RUN:     -resource-dir=%S/Inputs/resource_dir \
 // RUN:     --sysroot=%S/Inputs/basic_linux_tree \

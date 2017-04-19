@@ -65,6 +65,7 @@ class SanitizerArgs {
   bool needsEsanRt() const {
     return Sanitizers.hasOneOf(SanitizerKind::Efficiency);
   }
+  bool needsTBAAsanRt() const { return Sanitizers.has(SanitizerKind::TBAA); }
 
   bool requiresPIE() const;
   bool needsUnwindTables() const;
