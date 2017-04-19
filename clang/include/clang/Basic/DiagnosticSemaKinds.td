@@ -3090,6 +3090,21 @@ def warn_address_of_reference_bool_conversion : Warning<
   "code; pointer may be assumed to always convert to true">,
   InGroup<UndefinedBoolConversion>;
 
+def err_noescape_passed_to_call : Error<
+  "cannot pass non-escaping parameter '%0' to function or method expecting escaping "
+  "argument">;
+def err_noescape_returned : Error<
+  "cannot return non-escaping parameter '%0' from function">;
+def err_noescape_assignment : Error<
+  "cannot assign non-escaping parameter '%0' to escaping variable">;
+def err_noescape_block_capture : Error<
+  "block cannot capture non-escaping parameter '%0'">;
+def warn_attribute_noescape_non_pointer : Warning<
+  "'noescape' attribute ignored on parameter of non-pointer type %0">,
+  InGroup<IgnoredAttributes>;
+def note_noescape_parameter : Note<
+  "parameter is %select{annotated|not annotated}0 with noescape">;
+
 def warn_null_pointer_compare : Warning<
     "comparison of %select{address of|function|array}0 '%1' %select{not |}2"
     "equal to a null pointer is always %select{true|false}2">,

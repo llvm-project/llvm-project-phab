@@ -112,6 +112,32 @@ members, and static locals.
   }];
 }
 
+def NoEscapeDocs : Documentation {
+  let Category = DocCatVariable;
+  let Content = [{
+``noescape`` placed on a block parameter is used to inform the compiler that the block passed to a function cannot escape: that is, the block will not be invoked after the function returns. To ensure that the block does not escape, clang imposes the following restrictions on usage of non-escaping blocks:
+
+* Cannot be passed to a function expecting an escaping block
+* Cannot be returned from a function
+* Cannot be captured by a block
+* Cannot be assigned to a variable
+
+For example:
+
+.. code-block:: c
+
+  typedef void (^BlockTy)();
+  void nonescapingFunc(__attribute__((noescape)) BlockTy);
+  void escapingFunc(BlockTy);
+
+  void callerFunc(__attribute__((noescape)) BlockTy block) {
+    nonescapingFunc(block); // OK
+    escapingFunc(block);    // error: parameter is not annotated with noescape
+  }
+
+  }];
+}
+
 def CarriesDependencyDocs : Documentation {
   let Category = DocCatFunction;
   let Content = [{

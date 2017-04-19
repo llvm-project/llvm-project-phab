@@ -11174,6 +11174,18 @@ ExprResult Sema::CreateBuiltinBinOp(SourceLocation OpLoc,
       DiagnoseSelfAssignment(*this, LHS.get(), RHS.get(), OpLoc);
       DiagnoseSelfMove(LHS.get(), RHS.get(), OpLoc);
     }
+
+    if (RHS.get())
+      if (const auto *DRE =
+              dyn_cast_or_null<DeclRefExpr>(RHS.get()->IgnoreImpCasts())) {
+        const auto *D = DRE->getDecl();
+        if (D->hasAttr<NoEscapeAttr>()) {
+          Diag(DRE->getLocation(), diag::err_noescape_assignment)
+              << D->getName();
+          Diag(D->getLocation(), diag::note_noescape_parameter) << 0;
+        }
+      }
+
     RecordModifiableNonNullParam(*this, LHS.get());
     break;
   case BO_PtrMemD:
@@ -13664,6 +13676,11 @@ static bool captureInBlock(BlockScopeInfo *BSI, VarDecl *Var,
         << Var->getDeclName();
     }
     return false;
+  }
+
+  if (Var->hasAttr<NoEscapeAttr>()) {
+    S.Diag(Loc, diag::err_noescape_block_capture) << Var->getName();
+    S.Diag(Var->getLocation(), diag::note_noescape_parameter) << 0;
   }
 
   // Warn about implicitly autoreleasing indirect parameters captured by blocks.

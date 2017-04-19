@@ -1516,6 +1516,23 @@ static void handleReturnsNonNullAttr(Sema &S, Decl *D,
                                Attr.getAttributeSpellingListIndex()));
 }
 
+static void handleNoEscapeAttr(Sema &S, Decl *D, const AttributeList &Attr) {
+  ParmVarDecl *PD = dyn_cast<ParmVarDecl>(D);
+  if (!PD)
+    return;
+
+  // noescape only applies to pointer types.
+  QualType T = PD->getType();
+  if (!T->isAnyPointerType() && !T->isBlockPointerType() &&
+      !T->isReferenceType() && !T->isArrayType() && !T->isMemberPointerType()) {
+    S.Diag(Attr.getLoc(), diag::warn_attribute_noescape_non_pointer) << T;
+    return;
+  }
+
+  D->addAttr(::new (S.Context) NoEscapeAttr(
+      Attr.getRange(), S.Context, Attr.getAttributeSpellingListIndex()));
+}
+
 static void handleAssumeAlignedAttr(Sema &S, Decl *D,
                                     const AttributeList &Attr) {
   Expr *E = Attr.getArgAsExpr(0),
@@ -6048,6 +6065,9 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     break;
   case AttributeList::AT_ReturnsNonNull:
     handleReturnsNonNullAttr(S, D, Attr);
+    break;
+  case AttributeList::AT_NoEscape:
+    handleNoEscapeAttr(S, D, Attr);
     break;
   case AttributeList::AT_AssumeAligned:
     handleAssumeAlignedAttr(S, D, Attr);

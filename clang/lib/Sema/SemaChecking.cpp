@@ -2538,6 +2538,39 @@ static void CheckNonNullArguments(Sema &S,
   }
 }
 
+template<class DeclType>
+static void checkNoescapeArguments(Sema &S, const DeclType *FDecl,
+                                   ArrayRef<const Expr *> Args,
+                                   SourceLocation CallSiteLoc) {
+  ArrayRef<ParmVarDecl*> Params = FDecl->parameters();
+
+  for (unsigned I = 0, E = Args.size(); I < E ; ++I) {
+    const auto *CalleePD = I < Params.size() ? Params[I] : nullptr;
+
+    // If this is not a variadic argument and the callee's parameter is marked
+    // noescape, continue.
+    if (CalleePD && CalleePD->hasAttr<NoEscapeAttr>())
+      continue;
+
+    if (!Args[I])
+      continue;
+
+    if (const auto *DRE = dyn_cast<DeclRefExpr>(Args[I]->IgnoreImpCasts())) {
+      const auto *CallerPD = DRE->getDecl();
+      if (CallerPD->hasAttr<NoEscapeAttr>()) {
+        S.Diag(Args[I]->getExprLoc(), diag::err_noescape_passed_to_call)
+            << CallerPD->getName();
+        S.Diag(CallerPD->getLocation(), diag::note_noescape_parameter) << 0;
+        if (CalleePD)
+          S.Diag(CalleePD->getLocation(), diag::note_noescape_parameter) << 1;
+        else
+          assert(FDecl->isVariadic() &&
+                 "Called function expected to be variadic");
+      }
+    }
+  }
+}
+
 /// Handles the checks for format strings, non-POD arguments to vararg
 /// functions, NULL arguments passed to non-NULL parameters, and diagnose_if
 /// attributes.
@@ -2590,6 +2623,16 @@ void Sema::checkCall(NamedDecl *FDecl, const FunctionProtoType *Proto,
       for (const auto *I : FDecl->specific_attrs<ArgumentWithTypeTagAttr>())
         CheckArgumentWithTypeTag(I, Args.data());
     }
+  }
+
+  if (FDecl) {
+    if (const auto *FD = dyn_cast<FunctionDecl>(FDecl))
+      checkNoescapeArguments(*this, FD, Args, Loc);
+    else if (const auto *OD = dyn_cast<ObjCMethodDecl>(FDecl))
+      checkNoescapeArguments(*this, OD, Args, Loc);
+    else if (const auto *VD = dyn_cast<VarDecl>(FDecl))
+      if (const auto *BE = dyn_cast_or_null<BlockExpr>(VD->getInit()))
+        checkNoescapeArguments(*this, BE->getBlockDecl(), Args, Loc);
   }
 
   if (FD)

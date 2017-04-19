@@ -3199,6 +3199,14 @@ StmtResult Sema::BuildReturnStmt(SourceLocation ReturnLoc, Expr *RetValExp) {
   const AttrVec *Attrs = nullptr;
   bool isObjCMethod = false;
 
+  if (const auto *DRE = dyn_cast_or_null<DeclRefExpr>(RetValExp)) {
+    const auto *D = DRE->getDecl();
+    if (D->hasAttr<NoEscapeAttr>()) {
+      Diag(DRE->getLocation(), diag::err_noescape_returned) << D->getName();
+      Diag(D->getLocation(), diag::note_noescape_parameter) << 0;
+    }
+  }
+
   if (const FunctionDecl *FD = getCurFunctionDecl()) {
     FnRetType = FD->getReturnType();
     if (FD->hasAttrs())
