@@ -288,6 +288,8 @@ llvm::Function *CodeGenModule::CreateGlobalInitOrDestructFunction(
       Fn->addFnAttr(llvm::Attribute::SanitizeMemory);
     if (getLangOpts().Sanitize.has(SanitizerKind::SafeStack))
       Fn->addFnAttr(llvm::Attribute::SafeStack);
+    if (getLangOpts().Sanitize.has(SanitizerKind::Type))
+      Fn->addFnAttr(llvm::Attribute::SanitizeType);
   }
 
   return Fn;
