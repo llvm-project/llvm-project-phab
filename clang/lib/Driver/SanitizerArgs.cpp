@@ -30,9 +30,10 @@ enum : SanitizerMask {
   NeedsUbsanCxxRt = Vptr | CFI,
   NotAllowedWithTrap = Vptr,
   RequiresPIE = DataFlow,
-  NeedsUnwindTables = Address | Thread | Memory | DataFlow,
+  NeedsUnwindTables = Address | Thread | Memory | DataFlow | Type,
   SupportsCoverage =
-      Address | Memory | Leak | Undefined | Integer | Nullability | DataFlow,
+      Address | Memory | Leak | Undefined | Integer | Nullability | DataFlow |
+      Type,
   RecoverableByDefault = Undefined | Integer | Nullability,
   Unrecoverable = Unreachable | Return,
   LegacyFsanitizeRecoverMask = Undefined | Integer,
@@ -98,6 +99,8 @@ static bool getDefaultBlacklist(const Driver &D, SanitizerMask Kinds,
     BlacklistFile = "dfsan_abilist.txt";
   else if (Kinds & CFI)
     BlacklistFile = "cfi_blacklist.txt";
+  else if (Kinds & Type)
+    BlacklistFile = "tysan_blacklist.txt";
 
   if (BlacklistFile) {
     clang::SmallString<64> Path(D.ResourceDir);
@@ -321,7 +324,10 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
       std::make_pair(Efficiency, Leak),
       std::make_pair(Efficiency, Thread),
       std::make_pair(Efficiency, Memory),
-      std::make_pair(Efficiency, KernelAddress)};
+      std::make_pair(Efficiency, KernelAddress),
+      std::make_pair(Type, Address), std::make_pair(Type, KernelAddress),
+      std::make_pair(Type, Memory), std::make_pair(Type, Leak),
+      std::make_pair(Type, Thread), std::make_pair(Type, Efficiency)};
   for (auto G : IncompatibleGroups) {
     SanitizerMask Group = G.first;
     if (Kinds & Group) {
