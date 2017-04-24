@@ -29,7 +29,11 @@ Macros:
 #pragma GCC system_header
 #endif
 
+#if defined(_LIBCPP_HAS_NO_INCLUDE_NEXT)
+#include _LIBCPP_INCLUDE_NEXT(errno.h)
+#else
 #include_next <errno.h>
+#endif
 
 #ifdef __cplusplus
 

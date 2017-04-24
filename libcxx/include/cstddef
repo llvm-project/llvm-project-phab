@@ -41,7 +41,11 @@ Types:
 #endif
 
 // Don't include our own <stddef.h>; we don't want to declare ::nullptr_t.
+#if defined(_LIBCPP_HAS_NO_INCLUDE_NEXT)
+#include _LIBCPP_INCLUDE_NEXT(stddef.h)
+#else
 #include_next <stddef.h>
+#endif
 #include <__nullptr>
 
 _LIBCPP_BEGIN_NAMESPACE_STD
