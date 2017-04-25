@@ -3109,6 +3109,10 @@ def warn_address_of_reference_bool_conversion : Warning<
   "code; pointer may be assumed to always convert to true">,
   InGroup<UndefinedBoolConversion>;
 
+def warn_attribute_noescape_non_pointer : Warning<
+  "'noescape' attribute ignored on parameter of non-pointer type %0">,
+  InGroup<IgnoredAttributes>;
+
 def warn_null_pointer_compare : Warning<
     "comparison of %select{address of|function|array}0 '%1' %select{not |}2"
     "equal to a null pointer is always %select{true|false}2">,

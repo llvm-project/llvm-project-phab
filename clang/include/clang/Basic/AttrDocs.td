@@ -112,6 +112,40 @@ members, and static locals.
   }];
 }
 
+def NoEscapeDocs : Documentation {
+  let Category = DocCatVariable;
+  let Content = [{
+``noescape`` placed on a function parameter of block type is used to inform the
+compiler that the block cannot escape: that is, no reference to the block
+derived from the parameter value will survive after the function returns.
+
+For example:
+
+.. code-block:: c
+
+  typedef void (^BlockTy)();
+  BlockTy g;
+
+  void nonescapingFunc(__attribute__((noescape)) BlockTy block) {
+    block(); // OK.
+  }
+
+  void escapingFunc(__attribute__((noescape)) BlockTy block) {
+    g = block; // Not OK. g can be invoked after the function returns.
+  }
+
+  void caller() {
+    escapingFunc(^{});
+    g();
+  }
+
+The compiler may do optimizations or issue improved diagnostics using this
+knowledge. Users are responsible for making sure parameters annotated with
+``noescape`` do not actuallly escape.
+
+  }];
+}
+
 def CarriesDependencyDocs : Documentation {
   let Category = DocCatFunction;
   let Content = [{
