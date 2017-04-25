@@ -752,6 +752,9 @@ unsigned ContinuationIndenter::getNewLineColumn(const LineState &State) {
   if (Previous.is(tok::r_paren) && !Current.isBinaryOperator() &&
       !Current.isOneOf(tok::colon, tok::comment))
     return ContinuationIndent;
+  if (Current.isBinaryOperator() && State.Stack.back().UnindentOperator)
+    return State.Stack.back().Indent - Current.Tok.getLength()
+        - Current.SpacesRequiredBefore;
   if (State.Stack.back().Indent == State.FirstIndent && PreviousNonComment &&
       PreviousNonComment->isNot(tok::r_brace))
     // Ensure that we fall back to the continuation indent width instead of
@@ -916,6 +919,7 @@ void ContinuationIndenter::moveStatePastFakeLParens(LineState &State,
     ParenState NewParenState = State.Stack.back();
     NewParenState.ContainsLineBreak = false;
     NewParenState.LastOperatorWrapped = true;
+    NewParenState.UnindentOperator = false;
     NewParenState.NoLineBreak =
         NewParenState.NoLineBreak || State.Stack.back().NoLineBreakInOperand;
 
@@ -927,10 +931,20 @@ void ContinuationIndenter::moveStatePastFakeLParens(LineState &State,
         (!Previous || Previous->isNot(tok::kw_return) ||
          (Style.Language != FormatStyle::LK_Java && *I > 0)) &&
         (Style.AlignAfterOpenBracket != FormatStyle::BAS_DontAlign ||
-         *I != prec::Comma || Current.NestingLevel == 0))
+         *I != prec::Comma || Current.NestingLevel == 0)) {
       NewParenState.Indent =
           std::max(std::max(State.Column, NewParenState.Indent),
                    State.Stack.back().LastSpace);
+
+      // If BreakBeforeBinaryOperators is set, un-indent a bit to account for
+      // the operator and keep the operands aligned
+      if (Style.BreakBeforeBinaryOperators != FormatStyle::BOS_None &&
+          Style.AlignOperands &&
+          !Newline &&
+          Previous &&
+          Previous->is(tok::equal))
+        NewParenState.UnindentOperator = true;
+    }
 
     // Do not indent relative to the fake parentheses inserted for "." or "->".
     // This is a special case to make the following to statements consistent:

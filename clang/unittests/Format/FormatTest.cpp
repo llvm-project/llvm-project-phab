@@ -2473,14 +2473,14 @@ TEST_F(FormatTest, ExpressionIndentationBreakingBeforeOperators) {
   Style.BreakBeforeBinaryOperators = FormatStyle::BOS_All;
   verifyFormat(
       "bool value = aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"
-      "                     + aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"
-      "                     + aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"
-      "                 == aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"
-      "                            * bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n"
-      "                        + bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n"
-      "             && aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"
-      "                        * aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"
-      "                    > ccccccccccccccccccccccccccccccccccccccccc;",
+      "                   + aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"
+      "                   + aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"
+      "              == aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"
+      "                         * bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n"
+      "                     + bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n"
+      "          && aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"
+      "                     * aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"
+      "                 > ccccccccccccccccccccccccccccccccccccccccc;",
       Style);
   verifyFormat("if (aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"
                "            * aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"
@@ -2509,8 +2509,8 @@ TEST_F(FormatTest, ExpressionIndentationBreakingBeforeOperators) {
                Style);
   verifyFormat(
       "int aaaaaa = aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"
-      "                 * bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n"
-      "             + cc;",
+      "               * bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n"
+      "           + cc;",
       Style);
 
   verifyFormat("aaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"
@@ -2530,9 +2530,9 @@ TEST_F(FormatTest, ExpressionIndentationBreakingBeforeOperators) {
                Style);
 
   Style.ColumnLimit = 60;
-  verifyFormat("zzzzzzzzzz\n"
-               "    = bbbbbbbbbbbbbbbbb\n"
-               "      >> aaaaaaaaaaaaaaaa(aaaaaaaaaaaaaaaaaaaaaaaaaa);",
+  verifyFormat("zzzzzzzzzzzzz\n"
+               "    = bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n"
+               "   >> aaaaaaaaaaaaaaaa(aaaaaaaaaaaaaaaaaaaaaaaaaa);",
                Style);
 }
 
