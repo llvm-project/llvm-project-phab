@@ -125,6 +125,11 @@ namespace llvm {
     MachineBasicBlock *emitFPROUND_PSEUDO(MachineInstr &MI,
                                           MachineBasicBlock *BBi,
                                           bool IsFGR64) const;
+    MachineBasicBlock *emitUINT_TO_FP_MSA(MachineInstr &MI,
+                                          MachineBasicBlock *BB) const;
+    MachineBasicBlock *emitUINT_TO_FP(MachineInstr &MI, MachineBasicBlock *BB,
+                                      unsigned CvtOp, unsigned FaddOp,
+                                      bool isFP64) const;
   };
 }
 
