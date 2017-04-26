@@ -1201,6 +1201,18 @@ struct FormatStyle {
   /// \endcode
   bool SpaceBeforeAssignmentOperators;
 
+  /// \brief If ``false``, spaces will be removed before colon.
+  /// This affects C++11 loop, initializer list, inheritance list and container
+  /// literals.
+  /// \code
+  ///    true:                                  false:
+  ///    class Foo : Bar {}             vs.     class Foo: Bar {}
+  ///    Foo::Foo() : a(a) {}                   Foo::Foo(): a(a) {}
+  ///    for (auto i : myList) {}               for (auto i: myList) {}
+  ///    f({a : 1, b : 2, c : 3});              f({a: 1, b: 2, c: 3});
+  /// \endcode
+  bool SpaceBeforeColon;
+
   /// \brief Different ways to put a space before opening parentheses.
   enum SpaceBeforeParensOptions {
     /// Never put a space before opening parentheses.
@@ -1414,6 +1426,7 @@ struct FormatStyle {
            SpaceAfterCStyleCast == R.SpaceAfterCStyleCast &&
            SpaceAfterTemplateKeyword == R.SpaceAfterTemplateKeyword &&
            SpaceBeforeAssignmentOperators == R.SpaceBeforeAssignmentOperators &&
+           SpaceBeforeColon == R.SpaceBeforeColon &&
            SpaceBeforeParens == R.SpaceBeforeParens &&
            SpaceInEmptyParentheses == R.SpaceInEmptyParentheses &&
            SpacesBeforeTrailingComments == R.SpacesBeforeTrailingComments &&
