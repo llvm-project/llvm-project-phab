@@ -306,40 +306,37 @@ private:
   }
 
   // Return true when all paths from HoistBB to the end of the function pass
-  // through one of the blocks in WL.
-  bool hoistingFromAllPaths(const BasicBlock *HoistBB,
-                            SmallPtrSetImpl<const BasicBlock *> &WL) {
-
-    // Copy WL as the loop will remove elements from it.
-    SmallPtrSet<const BasicBlock *, 2> WorkList(WL.begin(), WL.end());
-
-    for (auto It = df_begin(HoistBB), E = df_end(HoistBB); It != E;) {
-      // There exists a path from HoistBB to the exit of the function if we are
-      // still iterating in DF traversal and we removed all instructions from
-      // the work list.
-      if (WorkList.empty())
-        return false;
-
-      const BasicBlock *BB = *It;
-      if (WorkList.erase(BB)) {
-        // Stop DFS traversal when BB is in the work list.
-        It.skipChildren();
+  // through one of the blocks in WL.  Check for anticipability via graph
+  // reachability when dominance (HoistBB dominates WL) has already been
+  // established. If a leaf node in CFG can be reached from HoistBB without
+  // crossing an element from WL, that means any expression in WL cannot be
+  // anticipable at HoistBB. We do not check for availability of operands at
+  // this stage because in some cases operands can be made available.
+  bool anticReachable(const BasicBlock *HoistBB,
+                      const SmallPtrSetImpl<const BasicBlock *> &WL) {
+    SmallPtrSet<const BasicBlock *, 2> Remaining;
+    SmallVector<const BasicBlock*, 8> Queue;
+    Queue.push_back(HoistBB);
+    // Perform BFS from HoistBB on its successors until an element from
+    // WL is found. A path where no element from WL is found indicates
+    // it may be unsafe to hoist to HoistBB i.e., not-anticipable.
+    while(!Queue.empty()) {
+      const BasicBlock *BB = Queue.back();
+      Queue.pop_back();
+      if (WL.count(BB))
         continue;
-      }
 
       // We reached the leaf Basic Block => not all paths have this instruction.
       if (!BB->getTerminator()->getNumSuccessors())
         return false;
 
-      // When reaching the back-edge of a loop, there may be a path through the
-      // loop that does not pass through B or C before exiting the loop.
-      if (successorDominate(BB, HoistBB))
-        return false;
-
-      // Increment DFS traversal when not skipping children.
-      ++It;
+      for (const BasicBlock *Succ : BB->getTerminator()->successors()) {
+        if (Remaining.count(Succ)) // Loop.
+          return false;
+        Queue.push_back(Succ);
+        Remaining.insert(Succ);
+      }
     }
-
     return true;
   }
 
@@ -537,7 +534,7 @@ private:
                          SmallPtrSetImpl<const BasicBlock *> &WL,
                          int &NBBsOnAllPaths) {
     // Check that the hoisted expression is needed on all paths.
-    if (!hoistingFromAllPaths(HoistBB, WL))
+    if (!anticReachable(HoistBB, WL))
       return false;
 
     for (const BasicBlock *BB : WL)
@@ -614,7 +611,7 @@ private:
         // loading from the same address: for instance there may be a branch on
         // which the address of the load may not be initialized.
         if ((HoistBB == NewHoistBB || BB == NewHoistBB ||
-             hoistingFromAllPaths(NewHoistBB, WL)) &&
+             anticReachable(NewHoistBB, WL)) &&
             // Also check that it is safe to move the load or store from HoistPt
             // to NewHoistPt, and from Insn to NewHoistPt.
             safeToHoistLdSt(NewHoistPt, HoistPt, UD, K, NumBBsOnAllPaths) &&
