@@ -5,18 +5,12 @@ cmake_minimum_required(VERSION 3.4.3)
 if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
   project(Clang)
 
+  set(LLVM_CONFIG "" CACHE PATH "DEPRECATED: path to llvm-config. You should set CMAKE_PREFIX_PATH to the install prefix for llvm")
   # Rely on llvm-config.
   set(CONFIG_OUTPUT)
-  find_program(LLVM_CONFIG "llvm-config")
   if(LLVM_CONFIG)
     message(STATUS "Found LLVM_CONFIG as ${LLVM_CONFIG}")
     set(CONFIG_COMMAND ${LLVM_CONFIG}
-      "--assertion-mode"
-      "--bindir"
-      "--libdir"
-      "--includedir"
-      "--prefix"
-      "--src-root"
       "--cmakedir")
     execute_process(
       COMMAND ${CONFIG_COMMAND}
@@ -32,40 +26,20 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
       message(STATUS "${CONFIG_COMMAND_STR}")
       message(FATAL_ERROR "llvm-config failed with status ${HAD_ERROR}")
     endif()
-  else()
-    message(FATAL_ERROR "llvm-config not found -- ${LLVM_CONFIG}")
+    set(LLVM_CONFIG_CMAKE_PATH ${CONFIG_OUTPUT})
+    # Normalize LLVM_CMAKE_PATH. --cmakedir might contain backslashes.
+    # CMake assumes slashes as PATH.
+    file(TO_CMAKE_PATH ${LLVM_CONFIG_CMAKE_PATH} LLVM_CMAKE_PATH)
   endif()
-
-  list(GET CONFIG_OUTPUT 0 ENABLE_ASSERTIONS)
-  list(GET CONFIG_OUTPUT 1 TOOLS_BINARY_DIR)
-  list(GET CONFIG_OUTPUT 2 LIBRARY_DIR)
-  list(GET CONFIG_OUTPUT 3 INCLUDE_DIR)
-  list(GET CONFIG_OUTPUT 4 LLVM_OBJ_ROOT)
-  list(GET CONFIG_OUTPUT 5 MAIN_SRC_DIR)
-  list(GET CONFIG_OUTPUT 6 LLVM_CONFIG_CMAKE_PATH)
-
-  if(NOT MSVC_IDE)
-    set(LLVM_ENABLE_ASSERTIONS ${ENABLE_ASSERTIONS}
-      CACHE BOOL "Enable assertions")
-    # Assertions should follow llvm-config's.
-    mark_as_advanced(LLVM_ENABLE_ASSERTIONS)
-  endif()
-
-  set(LLVM_TOOLS_BINARY_DIR ${TOOLS_BINARY_DIR} CACHE PATH "Path to llvm/bin")
-  set(LLVM_LIBRARY_DIR ${LIBRARY_DIR} CACHE PATH "Path to llvm/lib")
-  set(LLVM_BINARY_DIR ${LLVM_OBJ_ROOT} CACHE PATH "Path to LLVM build tree")
-
-  # Normalize LLVM_CMAKE_PATH. --cmakedir might contain backslashes.
-  # CMake assumes slashes as PATH.
-  file(TO_CMAKE_PATH ${LLVM_CONFIG_CMAKE_PATH} LLVM_CMAKE_PATH)
-
-  find_program(LLVM_TABLEGEN_EXE "llvm-tblgen" ${LLVM_TOOLS_BINARY_DIR}
-    NO_DEFAULT_PATH)
 
   find_package(LLVM REQUIRED HINTS "${LLVM_CMAKE_PATH}")
+  message(STATUS "LLVM install found at ${LLVM_DIR}")
   list(APPEND CMAKE_MODULE_PATH ${LLVM_DIR})
 
   set(LLVM_MAIN_INCLUDE_DIR ${LLVM_BINARY_DIR}/include)
+
+  find_program(LLVM_TABLEGEN_EXE "llvm-tblgen" ${LLVM_TOOLS_BINARY_DIR}
+    NO_DEFAULT_PATH)
 
   # They are used as destination of target generators.
   set(LLVM_RUNTIME_OUTPUT_INTDIR ${CMAKE_BINARY_DIR}/${CMAKE_CFG_INTDIR}/bin)
