@@ -2,14 +2,16 @@
 ; RUN: llc -mtriple=x86_64-darwin -mcpu=atom < %s | FileCheck -check-prefix=ATOM %s
 
 ; CHECK-LABEL: t:
+; CHECK: [[LABEL:LBB.*]]:
 ; CHECK: movl (%r9,%rax,4), %e{{..}}
-; CHECK-NEXT: testq
-; CHECK-NEXT: jne
+; CHECK: testq
+; CHECK: jne [[LABEL]]
 
 ; ATOM-LABEL: t:
+; ATOM: [[LABEL:LBB.*]]:
 ; ATOM: movl (%r9,%r{{.+}},4), %e{{..}}
-; ATOM-NEXT: testq
-; ATOM-NEXT: jne
+; ATOM: testq
+; ATOM: jne [[LABEL]]
 
 @Te0 = external global [256 x i32]		; <[256 x i32]*> [#uses=5]
 @Te1 = external global [256 x i32]		; <[256 x i32]*> [#uses=4]

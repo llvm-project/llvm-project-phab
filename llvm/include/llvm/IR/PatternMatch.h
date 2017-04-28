@@ -317,6 +317,9 @@ inline bind_ty<BinaryOperator> m_BinOp(BinaryOperator *&I) { return I; }
 /// \brief Match a ConstantInt, capturing the value if we match.
 inline bind_ty<ConstantInt> m_ConstantInt(ConstantInt *&CI) { return CI; }
 
+/// \brief Match a load instruction, capturing the value if we match.
+inline bind_ty<LoadInst> m_Load(LoadInst *&LI) { return LI; }
+
 /// \brief Match a Constant, capturing the value if we match.
 inline bind_ty<Constant> m_Constant(Constant *&C) { return C; }
 

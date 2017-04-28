@@ -364,9 +364,8 @@ bool llvm::wouldInstructionBeTriviallyDead(Instruction *I,
 /// trivially dead instruction, delete it.  If that makes any of its operands
 /// trivially dead, delete them too, recursively.  Return true if any
 /// instructions were deleted.
-bool
-llvm::RecursivelyDeleteTriviallyDeadInstructions(Value *V,
-                                                 const TargetLibraryInfo *TLI) {
+bool llvm::RecursivelyDeleteTriviallyDeadInstructions(
+    Value *V, const TargetLibraryInfo *TLI, MemorySSAUpdater *MSSAUpdater) {
   Instruction *I = dyn_cast<Instruction>(V);
   if (!I || !I->use_empty() || !isInstructionTriviallyDead(I, TLI))
     return false;
@@ -392,6 +391,11 @@ llvm::RecursivelyDeleteTriviallyDeadInstructions(Value *V,
         if (isInstructionTriviallyDead(OpI, TLI))
           DeadInsts.push_back(OpI);
     }
+
+    // If MemorySSA is used, update it when we are about to erase a memory
+    // access instruction.
+    if (MSSAUpdater)
+      MSSAUpdater->removeMemoryAccess(I);
 
     I->eraseFromParent();
   } while (!DeadInsts.empty());

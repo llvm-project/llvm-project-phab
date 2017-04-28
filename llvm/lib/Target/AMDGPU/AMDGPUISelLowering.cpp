@@ -761,6 +761,21 @@ bool AMDGPUTargetLowering::isNarrowingProfitable(EVT SrcVT, EVT DestVT) const {
   return SrcVT.getSizeInBits() > 32 && DestVT.getSizeInBits() == 32;
 }
 
+bool AMDGPUTargetLowering::isNarrowingExpensive(EVT SrcVT, EVT DestVT) const {
+  // If we are reducing to a 32-bit load, this is always better.
+  if (DestVT.getStoreSizeInBits() == 32)
+    return true;
+
+  // Don't produce extloads from sub 32-bit types. SI doesn't have scalar
+  // extloads, so doing one requires using a buffer_load. In cases where we
+  // still couldn't use a scalar load, using the wider load shouldn't really
+  // hurt anything.
+
+  // If the old size already had to be an extload, there's no harm in continuing
+  // to reduce the width.
+  return (SrcVT.getStoreSizeInBits() < 32);
+}
+
 //===---------------------------------------------------------------------===//
 // TargetLowering Callbacks
 //===---------------------------------------------------------------------===//

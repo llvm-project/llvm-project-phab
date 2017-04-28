@@ -141,6 +141,7 @@ public:
   bool isZExtFree(SDValue Val, EVT VT2) const override;
 
   bool isNarrowingProfitable(EVT VT1, EVT VT2) const override;
+  bool isNarrowingExpensive(EVT VT1, EVT VT2) const override;
 
   MVT getVectorIdxTy(const DataLayout &) const override;
   bool isSelectSupported(SelectSupportKind) const override;

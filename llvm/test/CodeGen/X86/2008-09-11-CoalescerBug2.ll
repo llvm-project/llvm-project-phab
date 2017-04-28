@@ -13,9 +13,9 @@ entry:
 ; SOURCE-SCHED: xorl
 ; SOURCE-SCHED: cmpl
 ; SOURCE-SCHED: setg
-; SOURCE-SCHED: movb
 ; SOURCE-SCHED: xorl
 ; SOURCE-SCHED: subl
+; SOURCE-SCHED: movb
 ; SOURCE-SCHED: testb
 ; SOURCE-SCHED: jne
 	%0 = load i32, i32* @g_5, align 4		; <i32> [#uses=1]

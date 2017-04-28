@@ -464,6 +464,12 @@ void MemorySSAUpdater::removeMemoryAccess(MemoryAccess *MA) {
   MSSA->removeFromLists(MA);
 }
 
+void MemorySSAUpdater::removeMemoryAccess(Instruction *I) {
+  MemoryAccess *MemAcc = MSSA->getMemoryAccess(I);
+  if (MemAcc)
+    removeMemoryAccess(MemAcc);
+}
+
 MemoryAccess *MemorySSAUpdater::createMemoryAccessInBB(
     Instruction *I, MemoryAccess *Definition, const BasicBlock *BB,
     MemorySSA::InsertionPlace Point) {

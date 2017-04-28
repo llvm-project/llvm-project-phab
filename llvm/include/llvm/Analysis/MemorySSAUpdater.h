@@ -134,6 +134,9 @@ public:
   /// load is simply erased (not replaced), removeMemoryAccess should be called
   /// on the MemoryAccess for that store/load.
   void removeMemoryAccess(MemoryAccess *);
+  /// If the instruction has a MemoryAccess associated with it, remove
+  /// the MemoryAccess from MemorySSA.
+  void removeMemoryAccess(Instruction *);
 
 private:
   // Move What before Where in the MemorySSA IR.

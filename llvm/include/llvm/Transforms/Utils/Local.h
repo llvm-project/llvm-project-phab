@@ -15,13 +15,14 @@
 #ifndef LLVM_TRANSFORMS_UTILS_LOCAL_H
 #define LLVM_TRANSFORMS_UTILS_LOCAL_H
 
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/Analysis/AliasAnalysis.h"
+#include "llvm/Analysis/MemorySSAUpdater.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/GetElementPtrTypeIterator.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Operator.h"
-#include "llvm/ADT/SmallPtrSet.h"
 
 namespace llvm {
 
@@ -81,8 +82,9 @@ bool wouldInstructionBeTriviallyDead(Instruction *I,
 /// If the specified value is a trivially dead instruction, delete it.
 /// If that makes any of its operands trivially dead, delete them too,
 /// recursively. Return true if any instructions were deleted.
-bool RecursivelyDeleteTriviallyDeadInstructions(Value *V,
-                                        const TargetLibraryInfo *TLI = nullptr);
+bool RecursivelyDeleteTriviallyDeadInstructions(
+    Value *V, const TargetLibraryInfo *TLI = nullptr,
+    MemorySSAUpdater *MSSAUpdater = nullptr);
 
 /// If the specified value is an effectively dead PHI node, due to being a
 /// def-use chain of single-use nodes that either forms a cycle or is terminated
