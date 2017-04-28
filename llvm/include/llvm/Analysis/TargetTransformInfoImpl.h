@@ -312,6 +312,10 @@ public:
     return false;
   }
 
+  bool isExtFoldableInAllUsers(const Instruction &I) {
+    return false;
+  }
+
   unsigned getCacheLineSize() { return 0; }
 
   unsigned getPrefetchDistance() { return 0; }

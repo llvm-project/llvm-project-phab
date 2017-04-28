@@ -660,6 +660,14 @@ bool AArch64TTIImpl::shouldConsiderAddressTypePromotion(
   return Considerable;
 }
 
+bool AArch64TTIImpl::isExtFoldableInAllUsers(const Instruction &I) {
+  // FIXME: we handle only SExt for now.
+  if (I.getOpcode() != Instruction::SExt)
+    return false;
+  // SExt will be free when it is foldable in all users.
+  return TLI->isExtFree(&I);
+}
+
 unsigned AArch64TTIImpl::getCacheLineSize() {
   return ST->getCacheLineSize();
 }

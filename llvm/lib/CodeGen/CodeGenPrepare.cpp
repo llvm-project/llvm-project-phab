@@ -1058,7 +1058,7 @@ bool CodeGenPrepare::simplifyOffsetableRelocate(Instruction &I) {
 }
 
 /// SinkCast - Sink the specified cast instruction into its user blocks
-static bool SinkCast(CastInst *CI) {
+static bool SinkCast(CastInst *&CI, SetOfInstrs &InsertedInsts) {
   BasicBlock *DefBB = CI->getParent();
 
   /// InsertedCasts - Only insert a cast in each block once.
@@ -1102,6 +1102,7 @@ static bool SinkCast(CastInst *CI) {
       assert(InsertPt != UserBB->end());
       InsertedCast = CastInst::Create(CI->getOpcode(), CI->getOperand(0),
                                       CI->getType(), "", &*InsertPt);
+      InsertedInsts.insert(InsertedCast);
     }
 
     // Replace a use of the cast with a use of the new cast.
@@ -1113,6 +1114,7 @@ static bool SinkCast(CastInst *CI) {
   // If we removed all uses, nuke the cast.
   if (CI->use_empty()) {
     CI->eraseFromParent();
+    CI = nullptr;
     MadeChange = true;
   }
 
@@ -1126,7 +1128,7 @@ static bool SinkCast(CastInst *CI) {
 /// Return true if any changes are made.
 ///
 static bool OptimizeNoopCopyExpression(CastInst *CI, const TargetLowering &TLI,
-                                       const DataLayout &DL) {
+                                       const DataLayout &DL, SetOfInstrs &InsertedInsts) {
   // Sink only "cheap" (or nop) address-space casts.  This is a weaker condition
   // than sinking only nop casts, but is helpful on some platforms.
   if (auto *ASC = dyn_cast<AddrSpaceCastInst>(CI)) {
@@ -1161,7 +1163,7 @@ static bool OptimizeNoopCopyExpression(CastInst *CI, const TargetLowering &TLI,
   if (SrcVT != DstVT)
     return false;
 
-  return SinkCast(CI);
+  return SinkCast(CI, InsertedInsts);
 }
 
 /// Try to combine CI into a call to the llvm.uadd.with.overflow intrinsic if
@@ -4756,10 +4758,24 @@ bool CodeGenPrepare::canFormExtLd(
 /// \p Inst[in/out] the extension may be modified during the process if some
 /// promotions apply.
 bool CodeGenPrepare::optimizeExt(Instruction *&Inst) {
+   bool Changed = false;
   // ExtLoad formation and address type promotion infrastructure requires TLI to
   // be effective.
   if (!TLI)
     return false;
+
+  if (Inst->getOpcode() == Instruction::SExt) { 
+    if (TTI->isExtFoldableInAllUsers(*Inst)) {
+      // Sink the current extension into user blocks if foldable with all users.
+      CastInst *SI = cast<CastInst>(Inst);
+      Changed = SinkCast(SI, InsertedInsts);
+      // Check if the instruction is erased.
+      if (!SI) {
+        Inst = nullptr;
+        return true;
+      }
+    }
+  }
 
   bool AllowPromotionWithoutCommonHeader = false;
   /// See if it is an interesting sext operations for the address type
@@ -4808,7 +4824,7 @@ bool CodeGenPrepare::optimizeExt(Instruction *&Inst) {
     return true;
 
   TPT.rollback(LastKnownGood);
-  return false;
+  return Changed;
 }
 
 // Perform address type promotion if doing so is profitable.
@@ -4882,6 +4898,9 @@ bool CodeGenPrepare::performAddressTypePromotion(
 }
 
 bool CodeGenPrepare::optimizeExtUses(Instruction *I) {
+  if (!I)
+    return false;
+
   BasicBlock *DefBB = I->getParent();
 
   // If the result of a {s|z}ext and its source are both live out, rewrite all
@@ -5978,7 +5997,7 @@ bool CodeGenPrepare::optimizeInst(Instruction *I, bool& ModifiedDT) {
     if (isa<Constant>(CI->getOperand(0)))
       return false;
 
-    if (TLI && OptimizeNoopCopyExpression(CI, *TLI, *DL))
+    if (TLI && OptimizeNoopCopyExpression(CI, *TLI, *DL, InsertedInsts))
       return true;
 
     if (isa<ZExtInst>(I) || isa<SExtInst>(I)) {
@@ -5988,7 +6007,7 @@ bool CodeGenPrepare::optimizeInst(Instruction *I, bool& ModifiedDT) {
           TLI->getTypeAction(CI->getContext(),
                              TLI->getValueType(*DL, CI->getType())) ==
               TargetLowering::TypeExpandInteger) {
-        return SinkCast(CI);
+        return SinkCast(CI, InsertedInsts);
       } else {
         bool MadeChange = optimizeExt(I);
         return MadeChange | optimizeExtUses(I);

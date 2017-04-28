@@ -279,6 +279,10 @@ bool TargetTransformInfo::shouldConsiderAddressTypePromotion(
       I, AllowPromotionWithoutCommonHeader);
 }
 
+bool TargetTransformInfo::isExtFoldableInAllUsers(const Instruction &I) const {
+  return TTIImpl->isExtFoldableInAllUsers(I);
+}
+
 unsigned TargetTransformInfo::getCacheLineSize() const {
   return TTIImpl->getCacheLineSize();
 }

@@ -537,6 +537,9 @@ public:
   bool shouldConsiderAddressTypePromotion(
       const Instruction &I, bool &AllowPromotionWithoutCommonHeader) const;
 
+  /// \return True if the extension instrution \p I is foldable in all users.
+  bool isExtFoldableInAllUsers(const Instruction &I) const;
+
   /// \return The size of a cache line in bytes.
   unsigned getCacheLineSize() const;
 
@@ -818,6 +821,7 @@ public:
   virtual unsigned getRegisterBitWidth(bool Vector) = 0;
   virtual bool shouldConsiderAddressTypePromotion(
       const Instruction &I, bool &AllowPromotionWithoutCommonHeader) = 0;
+  virtual bool isExtFoldableInAllUsers(const Instruction &I) = 0;
   virtual unsigned getCacheLineSize() = 0;
   virtual unsigned getPrefetchDistance() = 0;
   virtual unsigned getMinPrefetchStride() = 0;
@@ -1053,6 +1057,9 @@ public:
       const Instruction &I, bool &AllowPromotionWithoutCommonHeader) override {
     return Impl.shouldConsiderAddressTypePromotion(
         I, AllowPromotionWithoutCommonHeader);
+  }
+  bool isExtFoldableInAllUsers(const Instruction &I) override {
+    return Impl.isExtFoldableInAllUsers(I);
   }
   unsigned getCacheLineSize() override {
     return Impl.getCacheLineSize();

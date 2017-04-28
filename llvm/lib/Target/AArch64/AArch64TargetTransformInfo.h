@@ -127,6 +127,8 @@ public:
   shouldConsiderAddressTypePromotion(const Instruction &I,
                                      bool &AllowPromotionWithoutCommonHeader);
 
+  bool isExtFoldableInAllUsers(const Instruction &I);
+
   unsigned getCacheLineSize();
 
   unsigned getPrefetchDistance();
