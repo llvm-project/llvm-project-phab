@@ -624,7 +624,7 @@ def int_invariant_end   : Intrinsic<[],
 // it would remove barrier. 
 def int_invariant_group_barrier : Intrinsic<[llvm_ptr_ty],
                                             [llvm_ptr_ty],
-                                            [IntrReadMem, IntrArgMemOnly]>;
+                                            [IntrInaccessibleMemOnly]>;
 
 //===------------------------ Stackmap Intrinsics -------------------------===//
 //
