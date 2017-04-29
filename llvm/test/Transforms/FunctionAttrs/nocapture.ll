@@ -218,3 +218,21 @@ entry:
   store volatile i32 0, i32* %gep, align 4
   ret void
 }
+
+; CHECK: nocaptureBarriers(i8* nocapture %p)
+define void @nocaptureBarriers(i8* %p) {
+entry:
+  %b = call i8* @llvm.invariant.group.barrier(i8* %p)
+  store i8 42, i8* %b
+  ret void
+}
+
+@g2 = global i8* null
+; CHECK: define void @captureBarrier(i8* %p)
+define void @captureBarrier(i8* %p) {
+  %b = call i8* @llvm.invariant.group.barrier(i8* %p)
+  store i8* %b, i8** @g2
+  ret void
+}
+
+declare i8* @llvm.invariant.group.barrier(i8*)
