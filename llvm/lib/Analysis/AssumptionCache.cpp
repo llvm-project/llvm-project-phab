@@ -204,9 +204,8 @@ PreservedAnalyses AssumptionPrinterPass::run(Function &F,
   AssumptionCache &AC = AM.getResult<AssumptionAnalysis>(F);
 
   OS << "Cached assumptions for function: " << F.getName() << "\n";
-  for (auto &VH : AC.assumptions())
-    if (VH)
-      OS << "  " << *cast<CallInst>(VH)->getArgOperand(0) << "\n";
+  for (auto &V : AC.assumptions())
+    OS << "  " << *cast<CallInst>(V).getArgOperand(0) << "\n";
 
   return PreservedAnalyses::all();
 }
@@ -245,9 +244,8 @@ void AssumptionCacheTracker::verifyAnalysis() const {
 
   SmallPtrSet<const CallInst *, 4> AssumptionSet;
   for (const auto &I : AssumptionCaches) {
-    for (auto &VH : I.second->assumptions())
-      if (VH)
-        AssumptionSet.insert(cast<CallInst>(VH));
+    for (auto &V : I.second->assumptions())
+      AssumptionSet.insert(cast<CallInst>(&V));
 
     for (const BasicBlock &B : cast<Function>(*I.first))
       for (const Instruction &II : B)

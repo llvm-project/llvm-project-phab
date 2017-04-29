@@ -509,10 +509,8 @@ static void computeKnownBitsFromAssume(const Value *V, KnownBits &Known,
   // Note that the patterns below need to be kept in sync with the code
   // in AssumptionCache::updateAffectedValues.
 
-  for (auto &AssumeVH : Q.AC->assumptionsFor(V)) {
-    if (!AssumeVH)
-      continue;
-    CallInst *I = cast<CallInst>(AssumeVH);
+  for (auto &AssumeV : Q.AC->assumptionsFor(V)) {
+    CallInst *I = cast<CallInst>(&AssumeV);
     assert(I->getParent()->getParent() == Q.CxtI->getParent()->getParent() &&
            "Got assumption for the wrong function!");
     if (Q.isExcluded(I))

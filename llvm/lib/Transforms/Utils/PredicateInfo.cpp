@@ -465,8 +465,8 @@ void PredicateInfo::buildPredicateInfo() {
       processSwitch(SI, BranchBB, OpsToRename);
     }
   }
-  for (auto &Assume : AC.assumptions()) {
-    if (auto *II = dyn_cast_or_null<IntrinsicInst>(Assume))
+  for (auto &AssumeV : AC.assumptions()) {
+    if (auto *II = dyn_cast<IntrinsicInst>(&AssumeV))
       processAssume(II, II->getParent(), OpsToRename);
   }
   // Now rename all our operations.
