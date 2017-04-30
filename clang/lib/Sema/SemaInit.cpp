@@ -885,8 +885,13 @@ void InitListChecker::CheckImplicitInitList(const InitializedEntity &Entity,
       StructuredSubobjectInitList->setRBraceLoc(EndLoc);
     }
 
-    // Complain about missing braces.
+    // Complain about missing braces when rhs is not a macro from system header.
     if (T->isArrayType() || T->isRecordType()) {
+      SourceLocation SpellingLoc = StructuredSubobjectInitList->getLocStart();
+      SpellingLoc = SemaRef.getSourceManager().getSpellingLoc(SpellingLoc);
+      if (SpellingLoc.isValid() && 
+            SemaRef.getSourceManager().isInSystemHeader(SpellingLoc)) 
+          return;
       SemaRef.Diag(StructuredSubobjectInitList->getLocStart(),
                    diag::warn_missing_braces)
           << StructuredSubobjectInitList->getSourceRange()
