@@ -40,6 +40,7 @@
 #include "StringIntegerAssignmentCheck.h"
 #include "StringLiteralWithEmbeddedNulCheck.h"
 #include "SuspiciousEnumUsageCheck.h"
+#include "SuspiciousMemsetUsageCheck.h"
 #include "SuspiciousMissingCommaCheck.h"
 #include "SuspiciousSemicolonCheck.h"
 #include "SuspiciousStringCompareCheck.h"
@@ -66,6 +67,8 @@ public:
     CheckFactories.registerCheck<AssertSideEffectCheck>(
         "misc-assert-side-effect");
     CheckFactories.registerCheck<MisplacedConstCheck>("misc-misplaced-const");
+    CheckFactories.registerCheck<SuspiciousMemsetUsageCheck>(
+        "misc-suspicious-memset-usage");
     CheckFactories.registerCheck<UnconventionalAssignOperatorCheck>(
         "misc-unconventional-assign-operator");
     CheckFactories.registerCheck<BoolPointerImplicitConversionCheck>(

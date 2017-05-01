@@ -86,6 +86,7 @@ Clang-Tidy Checks
    misc-string-integer-assignment
    misc-string-literal-with-embedded-nul
    misc-suspicious-enum-usage
+   misc-suspicious-memset-usage
    misc-suspicious-missing-comma
    misc-suspicious-semicolon
    misc-suspicious-string-compare

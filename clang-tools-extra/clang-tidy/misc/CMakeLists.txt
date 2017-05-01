@@ -4,6 +4,7 @@ add_clang_library(clangTidyMiscModule
   ArgumentCommentCheck.cpp
   AssertSideEffectCheck.cpp
   MisplacedConstCheck.cpp
+  SuspiciousMemsetUsageCheck.cpp
   UnconventionalAssignOperatorCheck.cpp
   BoolPointerImplicitConversionCheck.cpp
   DanglingHandleCheck.cpp
