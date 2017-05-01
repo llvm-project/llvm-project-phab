@@ -21,6 +21,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/EHPersonalities.h"
+#include "llvm/Analysis/OrderedBasicBlock.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstrTypes.h"
@@ -49,6 +50,15 @@ struct LoopSafetyInfo {
   bool MayThrow = false;       // The current loop contains an instruction which
                                // may throw.
   bool HeaderMayThrow = false; // Same as previous, but specific to loop header
+
+  // Whether we have computed all the early exits.
+  bool ComputedEarlyExits = false;
+  // The early exits in the loop, excluding loop exits.
+  // These are calls that might throw, infinite loop, etc.
+  SmallVector<Instruction *, 4> EarlyExits;
+  // Map to speed up instruction dominance check.
+  DenseMap<const BasicBlock *, std::unique_ptr<OrderedBasicBlock>> OBBMap;
+
   // Used to update funclet bundle operands.
   DenseMap<BasicBlock *, ColorVector> BlockColors;
 
@@ -442,13 +452,13 @@ bool promoteLoopAccessesToScalars(AliasSet &, SmallVectorImpl<BasicBlock *> &,
 /// checks loop body & header for the possibility of may throw
 /// exception, it takes LoopSafetyInfo and loop as argument.
 /// Updates safety information in LoopSafetyInfo argument.
-void computeLoopSafetyInfo(LoopSafetyInfo *, Loop *);
+void computeLoopSafetyInfo(LoopSafetyInfo *, Loop *,
+                           bool ComputeEarlyExits = false);
 
 /// Returns true if the instruction in a loop is guaranteed to execute at least
 /// once.
 bool isGuaranteedToExecute(const Instruction &Inst, const DominatorTree *DT,
-                           const Loop *CurLoop,
-                           const LoopSafetyInfo *SafetyInfo);
+                           const Loop *CurLoop, LoopSafetyInfo *SafetyInfo);
 
 /// \brief Returns the instructions that use values defined in the loop.
 SmallVector<Instruction *, 8> findDefsUsedOutsideOfLoop(Loop *L);
