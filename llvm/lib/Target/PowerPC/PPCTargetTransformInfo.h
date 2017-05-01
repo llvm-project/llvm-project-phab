@@ -87,6 +87,13 @@ public:
                                  unsigned Alignment,
                                  unsigned AddressSpace);
 
+  Type *getMemcpyLoopLoweringType(LLVMContext &Context, Value *Length,
+                                  unsigned SrcAlign, unsigned DestAlign) const;
+  void getMemcpyLoopResidualLoweringType(SmallVectorImpl<Type *> &OpsOut,
+                                         LLVMContext &Context,
+                                         unsigned RemainingBytes,
+                                         unsigned SrcAlign,
+                                         unsigned DestAlign) const;
   /// @}
 };
 

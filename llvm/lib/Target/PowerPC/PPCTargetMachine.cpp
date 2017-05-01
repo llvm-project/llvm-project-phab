@@ -93,6 +93,7 @@ extern "C" void LLVMInitializePowerPCTarget() {
   PassRegistry &PR = *PassRegistry::getPassRegistry();
   initializePPCBoolRetToIntPass(PR);
   initializePPCExpandISELPass(PR);
+  initializePPCLowerMemIntrinsicsPass(PR);
 }
 
 /// Return the datalayout string of a subtarget.
@@ -345,6 +346,9 @@ void PPCPassConfig::addIRPasses() {
     // invariant.
     addPass(createLICMPass());
   }
+
+  if (TM->getOptLevel() != CodeGenOpt::None)
+    addPass(createPPCLowerMemIntrinsicsPass());
 
   TargetPassConfig::addIRPasses();
 }
