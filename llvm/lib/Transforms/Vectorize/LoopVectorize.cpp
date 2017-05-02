@@ -5214,6 +5214,16 @@ bool LoopVectorizationLegality::canVectorize() {
     return false;
   }
 
+  if (!isa<SCEVConstant>(ExitCount) && TTI->hasBranchDivergence()) {
+    // Avoid creating a new branch condition for the loop size for a divergent
+    // target, since it may end up executing all paths anyway.
+    // TODO: It's possible in some cases where the condition is uniform but
+    // non-constant it may still be useful to vectorize.
+    DEBUG(dbgs() << "LV: Not vectorizing"
+                    "dynamic loop count for divergent target\n");
+    return false;
+  }
+
   // Check if we can vectorize the instructions and CFG in this loop.
   if (!canVectorizeInstrs()) {
     DEBUG(dbgs() << "LV: Can't vectorize the instructions or CFG\n");
