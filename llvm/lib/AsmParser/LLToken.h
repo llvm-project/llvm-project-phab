@@ -37,6 +37,7 @@ enum Kind {
   exclaim, // !
   bar,     // |
 
+  kw_m,
   kw_x,
   kw_true,
   kw_false,
