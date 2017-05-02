@@ -836,9 +836,25 @@ protected:
             return false;
           }
           use_var_name = true;
+          if (!m_exe_ctx.GetFramePtr()) {
+            VariableList list;
+            lldb_private::RegularExpression all_globals_regex(".");
+            target->GetImages().FindGlobalVariables(all_globals_regex, true,
+                                                    UINT32_MAX, list);
+          }
           matches = target->GetImages().FindGlobalVariables(
               regex, true, UINT32_MAX, variable_list);
         } else {
+          // if there is no frame then it is before "r" ing the exe, so just
+          // parse all the variables
+          // before picking proper otherwise we end up adding only this variable
+          // in m_variables
+          if (!m_exe_ctx.GetFramePtr()) {
+            VariableList list;
+            lldb_private::RegularExpression all_globals_regex(".");
+            target->GetImages().FindGlobalVariables(all_globals_regex, true,
+                                                    UINT32_MAX, list);
+          }
           Error error(Variable::GetValuesForVariableExpressionPath(
               arg, m_exe_ctx.GetBestExecutionContextScope(),
               GetVariableCallback, target, variable_list, valobj_list));

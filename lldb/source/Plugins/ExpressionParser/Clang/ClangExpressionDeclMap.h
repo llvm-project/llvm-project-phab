@@ -303,6 +303,23 @@ public:
   TargetInfo GetTargetInfo();
 
   //------------------------------------------------------------------
+  /// Used to parse all the variable declared in globa score before accssing
+  /// indivually  when user try to see the global symbol before starting
+  /// execution.
+  ///
+  /// @param[in] target
+  ///     The target to find the symbol in.
+  ///
+  /// @param[in] name
+  ///     Symbol name that user try to print.
+  ///
+  /// @return
+  ///     True on success; false otherwise.
+  //------------------------------------------------------------------
+
+  void ParseGlobalVariablesInScopeZero(Target &target, const ConstString name);
+
+  //------------------------------------------------------------------
   /// [Used by ClangASTSource] Find all entities matching a given name,
   /// using a NameSearchContext to make Decls for them.
   ///
