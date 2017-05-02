@@ -2075,6 +2075,9 @@ Error BitcodeReader::parseConstants() {
     case bitc::CST_CODE_UNDEF:     // UNDEF
       V = UndefValue::get(CurTy);
       break;
+    case bitc::CST_CODE_VSCALE:    // VSCALE
+      V = VScaleValue::get(CurTy);
+      break;
     case bitc::CST_CODE_SETTYPE:   // SETTYPE: [typeid]
       if (Record.empty())
         return error("Invalid record");

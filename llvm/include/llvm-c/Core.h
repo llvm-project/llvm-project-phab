@@ -232,6 +232,7 @@ typedef enum {
   LLVMInlineAsmValueKind,
 
   LLVMInstructionValueKind,
+  LLVMVScaleValueValueKind,
 } LLVMValueKind;
 
 typedef enum {
@@ -1184,6 +1185,7 @@ LLVMTypeRef LLVMX86MMXType(void);
           macro(Function)                   \
           macro(GlobalVariable)             \
       macro(UndefValue)                     \
+      macro(VScaleValue)                    \
     macro(Instruction)                      \
       macro(BinaryOperator)                 \
       macro(CallInst)                       \

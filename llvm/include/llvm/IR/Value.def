@@ -79,6 +79,7 @@ HANDLE_CONSTANT(ConstantInt)
 HANDLE_CONSTANT(ConstantFP)
 HANDLE_CONSTANT(ConstantPointerNull)
 HANDLE_CONSTANT(ConstantTokenNone)
+HANDLE_CONSTANT(VScaleValue)
 
 HANDLE_METADATA_VALUE(MetadataAsValue)
 HANDLE_INLINE_ASM_VALUE(InlineAsm)
@@ -88,9 +89,9 @@ HANDLE_INSTRUCTION(Instruction)
 // don't add new values here!
 
 HANDLE_CONSTANT_MARKER(ConstantFirstVal, Function)
-HANDLE_CONSTANT_MARKER(ConstantLastVal, ConstantTokenNone)
+HANDLE_CONSTANT_MARKER(ConstantLastVal, VScaleValue)
 HANDLE_CONSTANT_MARKER(ConstantDataFirstVal, UndefValue)
-HANDLE_CONSTANT_MARKER(ConstantDataLastVal, ConstantTokenNone)
+HANDLE_CONSTANT_MARKER(ConstantDataLastVal, VScaleValue)
 HANDLE_CONSTANT_MARKER(ConstantAggregateFirstVal, ConstantArray)
 HANDLE_CONSTANT_MARKER(ConstantAggregateLastVal, ConstantVector)
 

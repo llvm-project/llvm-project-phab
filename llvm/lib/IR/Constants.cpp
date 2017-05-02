@@ -792,6 +792,27 @@ unsigned UndefValue::getNumElements() const {
 }
 
 //===----------------------------------------------------------------------===//
+//                        VScaleValue Implementation
+//===----------------------------------------------------------------------===//
+
+Constant *VScaleValue::get(Type *Ty) {
+  assert(Ty->isIntegerTy() && "VScale must be an integer type!");
+
+  std::unique_ptr<VScaleValue> &Entry =
+  Ty->getContext().pImpl->VSVConstants[Ty];
+  if (!Entry)
+    Entry.reset(new VScaleValue(Ty));
+
+  return Entry.get();
+}
+
+/// Remove the constant from the constant table.
+void VScaleValue::destroyConstantImpl() {
+  // Free the constant and any dangling references to it.
+  getContext().pImpl->VSVConstants.erase(getType());
+}
+
+//===----------------------------------------------------------------------===//
 //                            ConstantXXX Classes
 //===----------------------------------------------------------------------===//
 

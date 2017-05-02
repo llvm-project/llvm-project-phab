@@ -2747,6 +2747,7 @@ bool LLParser::ParseValID(ValID &ID, PerFunctionState *PFS) {
     break;
   case lltok::kw_null: ID.Kind = ValID::t_Null; break;
   case lltok::kw_undef: ID.Kind = ValID::t_Undef; break;
+  case lltok::kw_vscale: ID.Kind = ValID::t_VScale; break;
   case lltok::kw_zeroinitializer: ID.Kind = ValID::t_Zero; break;
   case lltok::kw_none: ID.Kind = ValID::t_None; break;
 
@@ -4590,6 +4591,11 @@ bool LLParser::ConvertValIDToValue(Type *Ty, ValID &ID, Value *&V,
     } else
       return Error(ID.Loc, "constant expression type mismatch");
     return false;
+  case ValID::t_VScale:
+    if (!Ty->isIntegerTy())
+      return Error(ID.Loc, "vscale must be an integer type");
+    V = VScaleValue::get(Ty);
+    return false;
   }
   llvm_unreachable("Invalid ValID");
 }
@@ -4606,7 +4612,8 @@ bool LLParser::parseConstantValue(Type *Ty, Constant *&C) {
   case ValID::t_Undef:
   case ValID::t_Constant:
   case ValID::t_ConstantStruct:
-  case ValID::t_PackedConstantStruct: {
+  case ValID::t_PackedConstantStruct:
+  case ValID:: t_VScale: {
     Value *V;
     if (ConvertValIDToValue(Ty, ID, V, /*PFS=*/nullptr))
       return true;

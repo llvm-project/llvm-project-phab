@@ -1292,6 +1292,28 @@ public:
   }
 };
 
+//===----------------------------------------------------------------------===//
+/// A constant representing the scaling factor 'm' of a scalable vector of the
+/// form '<m x #elements x ty>'.
+///
+class VScaleValue final : public ConstantData {
+  VScaleValue(const VScaleValue &) = delete;
+
+  friend class Constant;
+  void destroyConstantImpl();
+
+  explicit VScaleValue(Type *T) : ConstantData(T, VScaleValueVal) {}
+
+public:
+  /// Static factory methods - Return a 'vscale' object of the specified type.
+  static Constant *get(Type *T);
+
+  /// Methods for support type inquiry through isa, cast, and dyn_cast:
+  static bool classof(const Value *V) {
+    return V->getValueID() == VScaleValueVal;
+  }
+};
+
 } // end namespace llvm
 
 #endif // LLVM_IR_CONSTANTS_H

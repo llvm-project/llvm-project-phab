@@ -519,6 +519,7 @@ lltok::Kind LLLexer::LexIdentifier() {
   KEYWORD(localexec);
   KEYWORD(zeroinitializer);
   KEYWORD(undef);
+  KEYWORD(vscale);
   KEYWORD(null);
   KEYWORD(none);
   KEYWORD(to);

@@ -311,6 +311,7 @@ enum ConstantsCodes {
   CST_CODE_INLINEASM = 23,       // INLINEASM:     [sideeffect|alignstack|
                                  //                 asmdialect,asmstr,conststr]
   CST_CODE_CE_GEP_WITH_INRANGE_INDEX = 24, //      [opty, flags, n x operands]
+  CST_CODE_VSCALE = 25,          // VSCALE
 };
 
 /// CastOpcodes - These are values used in the bitcode files to encode which

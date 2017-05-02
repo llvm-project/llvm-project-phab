@@ -2801,6 +2801,11 @@ constants and smaller complex constants.
     Unlike other typed constants that are meant to be interpreted as part of
     the instruction stream, metadata is a place to attach additional
     information such as debug info.
+**Scalable Vector Length**
+  Scalable vectors take the form "``<m x <# elements> x <elementtype> >``",
+  where "``m``" is an unknown positive integer constant. The string
+  "``vscale``" can be used to reference this value wherever an
+  :ref:`integer <t_integer>` is expected.
 
 Global Variable and Function Addresses
 --------------------------------------
