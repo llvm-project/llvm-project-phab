@@ -1026,9 +1026,8 @@ entry:
   %cond = select i1 %cmp3, ppc_fp128 %a1, ppc_fp128 %a2
   ret ppc_fp128 %cond
 
-; FIXME: Because of the way that the late SELECT_* pseudo-instruction expansion
-; works, we end up with two blocks with the same predicate. These could be
-; combined.
+; The default branchCoalescing optimization merged the two identical predicate blocks 
+; that were expanded by the late SELECT_* pseudo-instruction expansion.
 
 ; CHECK-LABEL: @testppc_fp128eq
 ; CHECK-DAG: fcmpu {{[0-9]+}}, 6, 8
@@ -1040,10 +1039,8 @@ entry:
 ; CHECK: crxor [[REG3:[0-9]+]], [[REG2]], [[REG1]]
 ; CHECK: bc 12, [[REG3]], .LBB[[BB1:[0-9_]+]]
 ; CHECK: fmr 11, 9
-; CHECK: .LBB[[BB1]]:
-; CHECK: bc 12, [[REG3]], .LBB[[BB2:[0-9_]+]]
 ; CHECK: fmr 12, 10
-; CHECK: .LBB[[BB2]]:
+; CHECK: .LBB[[BB1]]:
 ; CHECK-DAG: fmr 1, 11
 ; CHECK-DAG: fmr 2, 12
 ; CHECK: blr

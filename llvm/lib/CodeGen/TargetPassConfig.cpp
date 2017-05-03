@@ -719,7 +719,8 @@ void TargetPassConfig::addMachineSSAOptimization() {
   addPass(&MachineCSEID, false);
 
   // Coalesce basic blocks with the same branch condition
-  addPass(&BranchCoalescingID);
+  if (getOptLevel() != CodeGenOpt::None)
+    addPass(&BranchCoalescingID);
 
   addPass(&MachineSinkingID);
 

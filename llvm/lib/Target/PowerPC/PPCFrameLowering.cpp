@@ -2144,6 +2144,11 @@ PPCFrameLowering::restoreCalleeSavedRegisters(MachineBasicBlock &MBB,
   return true;
 }
 
+bool PPCFrameLowering::enableBranchCoalescing(const MachineFunction &MF) const {
+  return (MF.getSubtarget<PPCSubtarget>().isSVR4ABI() &&
+          MF.getSubtarget<PPCSubtarget>().isPPC64());
+}
+
 bool PPCFrameLowering::enableShrinkWrapping(const MachineFunction &MF) const {
   return (MF.getSubtarget<PPCSubtarget>().isSVR4ABI() &&
           MF.getSubtarget<PPCSubtarget>().isPPC64());

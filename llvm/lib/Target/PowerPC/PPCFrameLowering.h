@@ -137,6 +137,7 @@ public:
   const SpillSlot *
   getCalleeSavedSpillSlots(unsigned &NumEntries) const override;
 
+  bool enableBranchCoalescing(const MachineFunction &MF) const override;
   bool enableShrinkWrapping(const MachineFunction &MF) const override;
 
   /// Methods used by shrink wrapping to determine if MBB can be used for the

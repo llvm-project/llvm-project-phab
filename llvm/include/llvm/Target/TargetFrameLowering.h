@@ -146,6 +146,11 @@ public:
     return false;
   }
 
+  /// Returns true if the target will correctly handle branch coalescing
+  virtual bool enableBranchCoalescing(const MachineFunction &MF) const {
+    return false;
+  }
+
   /// Returns true if the target will correctly handle shrink wrapping.
   virtual bool enableShrinkWrapping(const MachineFunction &MF) const {
     return false;
