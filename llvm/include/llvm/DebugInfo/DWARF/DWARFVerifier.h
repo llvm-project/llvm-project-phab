@@ -10,9 +10,13 @@
 #ifndef LLVM_DEBUGINFO_DWARF_DWARFVERIFIER_H
 #define LLVM_DEBUGINFO_DWARF_DWARFVERIFIER_H
 
+#include "llvm/DebugInfo/DWARF/DWARFDebugRangeList.h"
+#include "llvm/DebugInfo/DWARF/DWARFDie.h"
+
 #include <cstdint>
 #include <map>
 #include <set>
+#include <vector>
 
 namespace llvm {
 class raw_ostream;
@@ -23,14 +27,59 @@ class DWARFUnit;
 
 /// A class that verifies DWARF debug information given a DWARF Context.
 class DWARFVerifier {
+  struct RangeInfoType {
+    DWARFDie Die;
+    DWARFAddressRangesVector Ranges;
+
+    RangeInfoType() : Die(), Ranges() {}
+    RangeInfoType(DWARFDie D, const DWARFAddressRangesVector &R);
+    /// Return true if this object contains all ranges within RHS.
+    bool Contains(const RangeInfoType &RHS);
+    bool DoesIntersect(const RangeInfoType &RHS) const;
+    void Dump(raw_ostream &OS) const;
+    bool operator<(const RangeInfoType &RHS) const;
+    static bool CheckForRangeErrors(raw_ostream &OS,
+                                    DWARFAddressRangesVector &Ranges);
+  };
+
   raw_ostream &OS;
   DWARFContext &DCtx;
   /// A map that tracks all references (converted absolute references) so we
   /// can verify each reference points to a valid DIE and not an offset that
   /// lies between to valid DIEs.
   std::map<uint64_t, std::set<uint32_t>> ReferenceToDIEOffsets;
+
+  /// Keep a set of all DW_TAG_subprogram range infos across all compile
+  /// units so we can look for overlapping function ranges after we go through
+  /// all of the DIEs.
+  std::set<RangeInfoType> AllFunctionRangeInfos;
+  /// A vector of range infos for all DIEs where the index is the depth of the
+  /// DIE. This helps to verify address ranges so we can tell if a child's
+  /// address ranges are fully contained in a parent's address ranges.
+  std::vector<RangeInfoType> DieRangeInfos;
+
   uint32_t NumDebugInfoErrors;
   uint32_t NumDebugLineErrors;
+
+  /// Verifies the a DIE's tag and gathers information about all DIEs.
+  ///
+  /// This function currently checks for:
+  /// - Checks DW_TAG_compile_unit address range(s)
+  /// - Checks DW_TAG_subprogram address range(s) and if the compile unit
+  ///   has ranges, verifies that its address range is fully contained in
+  ///   the compile unit ranges. Also adds the functions address range info
+  ///   to AllFunctionRangeInfos to look for functions with overlapping ranges
+  ///   after all DIEs have been processed.
+  /// - Checks that DW_TAG_lexical_block and DW_TAG_inlined_subroutine DIEs
+  ///   have address range(s) that are fully contained in their parent DIEs
+  ///   address range(s).
+  ///
+  /// @param Die          The DWARF DIE to check
+  void verifyDebugInfoTag(DWARFDie &Die);
+
+  /// Verifies that we have no overlapping function address ranges within all
+  /// of the DWARF.
+  void verifyDebugInfoOverlappingFunctionRanges();
 
   /// Verifies the attribute's DWARF attribute and its value.
   ///
@@ -60,7 +109,7 @@ class DWARFVerifier {
   /// offset matches. This helps to ensure if a DWARF link phase moved things
   /// around, that it doesn't create invalid references by failing to relocate
   /// CU relative and absolute references.
-  void veifyDebugInfoReferences();
+  void verifyDebugInfoReferences();
 
   /// Verify the the DW_AT_stmt_list encoding and value and ensure that no
   /// compile units that have the same DW_AT_stmt_list value.

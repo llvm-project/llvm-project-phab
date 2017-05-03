@@ -23,6 +23,144 @@ using namespace llvm;
 using namespace dwarf;
 using namespace object;
 
+namespace {
+/// Returns true if the two ranges [a.first, a.second) and [b.first, b.second)
+/// intersect.
+bool RangesIntersect(const std::pair<uint64_t, uint64_t> &a,
+                     const std::pair<uint64_t, uint64_t> &b) {
+  if (a.first == a.second || b.first == b.second)
+    return false; // Empty ranges can't intersect.
+  return (a.first < b.second) && (a.second > b.first);
+}
+
+} // anonymous namespace
+
+bool DWARFVerifier::RangeInfoType::CheckForRangeErrors(
+    raw_ostream &OS, DWARFAddressRangesVector &Ranges) {
+  bool HasErrors = false;
+  size_t I = 0;
+  while (I < Ranges.size()) {
+    if (Ranges[I].first >= Ranges[I].second) {
+      if (Ranges[I].first > Ranges[I].second) {
+        OS << "error: invalid range in DIE\n";
+        HasErrors = true;
+      }
+      // Remove empty or invalid ranges.
+      Ranges.erase(Ranges.begin() + I);
+      continue;
+    } else {
+      ++I; // Only increment if we didn't remove the range.
+    }
+  }
+  std::sort(Ranges.begin(), Ranges.end());
+  return HasErrors;
+}
+
+void DWARFVerifier::RangeInfoType::Dump(raw_ostream &OS) const {
+  OS << format("0x%08" PRIx32, Die.getOffset()) << ":";
+  for (const auto &R : Ranges)
+    OS << " [" << format("0x%" PRIx32, R.first) << "-"
+       << format("0x%" PRIx32, R.second) << ")";
+  OS << "\n";
+}
+
+bool DWARFVerifier::RangeInfoType::Contains(const RangeInfoType &RHS) {
+  for (const auto &S : RHS.Ranges)
+    for (const auto &R : Ranges)
+      if (R.first <= S.first && S.first < R.second)
+        return R.first < S.second && S.second <= R.second;
+  return false;
+}
+
+bool DWARFVerifier::RangeInfoType::DoesIntersect(
+    const RangeInfoType &RHS) const {
+  for (const auto &R : RHS.Ranges)
+    for (const auto &L : Ranges)
+      if (RangesIntersect(R, L))
+        return true;
+  return false;
+}
+
+bool DWARFVerifier::RangeInfoType::operator<(const RangeInfoType &RHS) const {
+  if (Ranges.empty()) {
+    if (RHS.Ranges.empty())
+      return Die.getOffset() < RHS.Die.getOffset();
+    else
+      return true;
+  }
+  if (RHS.Ranges.empty())
+    return false;
+  size_t LeftSize = Ranges.size();
+  size_t RightSize = RHS.Ranges.size();
+  for (size_t I = 0; I < LeftSize; ++I) {
+    if (I >= RightSize)
+      return false;
+    if (Ranges[I].first != RHS.Ranges[I].first)
+      return Ranges[I].first < RHS.Ranges[I].first;
+    if (Ranges[I].second != RHS.Ranges[I].second)
+      return Ranges[I].second < RHS.Ranges[I].second;
+  }
+  return false;
+}
+
+void DWARFVerifier::verifyDebugInfoTag(DWARFDie &Die) {
+  const auto Tag = Die.getTag();
+  const uint32_t Depth = Die.getDebugInfoEntry()->getDepth();
+  if (Depth >= DieRangeInfos.size())
+    DieRangeInfos.resize(Depth + 1);
+  DieRangeInfos[Depth].Die = Die;
+  DieRangeInfos[Depth].Ranges.clear();
+  switch (Tag) {
+  case DW_TAG_compile_unit: {
+    DieRangeInfos[Depth].Ranges = Die.getAddressRanges();
+    if (RangeInfoType::CheckForRangeErrors(OS, DieRangeInfos[Depth].Ranges)) {
+      ++NumDebugInfoErrors;
+      Die.dump(OS, 0);
+      OS << "\n";
+    }
+  } break;
+  case DW_TAG_subprogram:
+  case DW_TAG_lexical_block:
+  case DW_TAG_inlined_subroutine: {
+    DieRangeInfos[Depth].Ranges = Die.getAddressRanges();
+    if (RangeInfoType::CheckForRangeErrors(OS, DieRangeInfos[Depth].Ranges)) {
+      ++NumDebugInfoErrors;
+      Die.dump(OS, 0);
+      OS << "\n";
+    }
+    if (DieRangeInfos[Depth].Ranges.empty())
+      break;
+    if (Tag == DW_TAG_subprogram) {
+      // We need to keep track of all function ranges for
+      // .debug_aranges and .debug_info verifiers
+      AllFunctionRangeInfos.insert(DieRangeInfos[Depth]);
+
+      // Check the if the compile unit has valid ranges
+      if (!DieRangeInfos[0].Ranges.empty()) {
+        if (!DieRangeInfos[0].Contains(DieRangeInfos[Depth])) {
+          ++NumDebugInfoErrors;
+          OS << "error: CU DIE has child with address ranges "
+                "that are not contained in its ranges:\n";
+          DieRangeInfos[0].Die.dump(OS, 0);
+          Die.dump(OS, 0);
+          OS << "\n";
+        }
+      }
+    } else {
+      if (!DieRangeInfos[Depth - 1].Contains(DieRangeInfos[Depth])) {
+        ++NumDebugInfoErrors;
+        OS << "error: DIE has a child " << TagString(Tag)
+           << " DIE whose address ranges that are not contained "
+              "in its ranges:\n";
+        DieRangeInfos[Depth - 1].Die.dump(OS, 0);
+        Die.dump(OS, 0);
+      }
+    }
+  } break;
+  default:
+    break;
+  }
+}
 void DWARFVerifier::verifyDebugInfoAttribute(DWARFDie &Die,
                                              DWARFAttribute &AttrValue) {
   const auto Attr = AttrValue.Attr;
@@ -136,7 +274,7 @@ void DWARFVerifier::verifyDebugInfoForm(DWARFDie &Die,
   }
 }
 
-void DWARFVerifier::veifyDebugInfoReferences() {
+void DWARFVerifier::verifyDebugInfoReferences() {
   // Take all references and make sure they point to an actual DIE by
   // getting the DIE by offset and emitting an error
   OS << "Verifying .debug_info references...\n";
@@ -156,6 +294,28 @@ void DWARFVerifier::veifyDebugInfoReferences() {
   }
 }
 
+void DWARFVerifier::verifyDebugInfoOverlappingFunctionRanges() {
+  // Now go through all function address ranges and check for any that
+  // overlap. All function range infos were added to a std::set that we can
+  // traverse in order and do the checking for overlaps.
+  OS << "Verifying .debug_info function address ranges for overlap...\n";
+
+  auto End = AllFunctionRangeInfos.end();
+  auto Prev = End;
+  for (auto Curr = AllFunctionRangeInfos.begin(); Curr != End; ++Curr) {
+    if (Prev != End) {
+      if (Prev->DoesIntersect(*Curr)) {
+        ++NumDebugInfoErrors;
+        OS << "error: two function DIEs have overlapping address ranges:\n";
+        Prev->Die.dump(OS, 0);
+        Curr->Die.dump(OS, 0);
+        OS << "\n";
+      }
+    }
+    Prev = Curr;
+  }
+}
+
 bool DWARFVerifier::handleDebugInfo() {
   NumDebugInfoErrors = 0;
   OS << "Verifying .debug_info...\n";
@@ -166,13 +326,15 @@ bool DWARFVerifier::handleDebugInfo() {
       const auto Tag = Die.getTag();
       if (Tag == DW_TAG_null)
         continue;
+      verifyDebugInfoTag(Die);
       for (auto AttrValue : Die.attributes()) {
         verifyDebugInfoAttribute(Die, AttrValue);
         verifyDebugInfoForm(Die, AttrValue);
       }
     }
   }
-  veifyDebugInfoReferences();
+  verifyDebugInfoReferences();
+  verifyDebugInfoOverlappingFunctionRanges();
   return NumDebugInfoErrors == 0;
 }
 
