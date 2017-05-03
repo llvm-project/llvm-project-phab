@@ -745,7 +745,7 @@ public:
 
     template <class _T1, class _T2>
     _LIBCPP_INLINE_VISIBILITY
-    bool operator()(const _T1& __x, const _T2& __y) {return !__p_(__x, __y);}
+    bool operator()(const _T1& __x, const _T2& __y) {return __p_(__y, __x);}
 };
 
 #ifdef _LIBCPP_DEBUG

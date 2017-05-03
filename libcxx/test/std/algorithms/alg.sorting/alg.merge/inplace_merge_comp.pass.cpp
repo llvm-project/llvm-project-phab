@@ -32,6 +32,14 @@ struct indirect_less
         {return *x < *y;}
 };
 
+struct first_only
+{
+    bool operator()(const std::pair<int, int>& x, const std::pair<int, int>& y)
+    {
+        return x.first < y.first;
+    }
+};
+
 struct S {
 	S() : i_(0) {}
 	S(int i) : i_(i) {}
@@ -85,6 +93,23 @@ test_one(unsigned N, unsigned M)
     delete [] ia;
 }
 
+void
+test_two(unsigned N, unsigned M)
+{
+    typedef std::pair<int, int> P;
+    std::vector<P> v(N);
+    unsigned mod = std::max(M, N - M);
+    for (unsigned i = 0; i < N; ++i)
+    {
+        v[i] = P(i % mod, i >= M);
+    }
+
+    std::stable_sort(v.begin(), v.begin() + M, first_only());
+    std::stable_sort(v.begin() + M, v.end(), first_only());
+    std::inplace_merge(v.begin(), v.begin() + M, v.end(), first_only());
+    assert(std::is_sorted(v.begin(), v.end()));
+}
+
 template <class Iter>
 void
 test(unsigned N)
@@ -94,6 +119,12 @@ test(unsigned N)
     test_one<Iter>(N, N/2);
     test_one<Iter>(N, 3*N/4);
     test_one<Iter>(N, N);
+
+    test_two(N, 0);
+    test_two(N, N/4);
+    test_two(N, N/2);
+    test_two(N, 3*N/4);
+    test_two(N, N);
 }
 
 template <class Iter>
@@ -110,6 +141,18 @@ test()
     test_one<Iter>(3, 1);
     test_one<Iter>(3, 2);
     test_one<Iter>(3, 3);
+
+    test_two(0, 0);
+    test_two(1, 0);
+    test_two(1, 1);
+    test_two(2, 0);
+    test_two(2, 1);
+    test_two(2, 2);
+    test_two(3, 0);
+    test_two(3, 1);
+    test_two(3, 2);
+    test_two(3, 3);
+
     test<Iter>(4);
     test<Iter>(20);
     test<Iter>(100);
