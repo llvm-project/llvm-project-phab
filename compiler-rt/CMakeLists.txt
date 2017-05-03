@@ -31,6 +31,10 @@ mark_as_advanced(COMPILER_RT_BUILD_SANITIZERS)
 option(COMPILER_RT_BUILD_XRAY "Build xray" ON)
 mark_as_advanced(COMPILER_RT_BUILD_XRAY)
 
+set(COMPILER_RT_GENERIC_BUILD OFF CACHE BOOLEAN
+  "Build with the CMake options passed by the user and install with a generic name
+  to a generic location.")
+
 if (COMPILER_RT_STANDALONE_BUILD)
   load_llvm_config()
 
