@@ -733,6 +733,28 @@ ClangASTContext *ClangExpressionDeclMap::GetClangASTContext() {
       frame_decl_context.GetTypeSystem());
 }
 
+void ClangExpressionDeclMap::ParseGlobalVariablesInScopeZero(
+    Target &target, const ConstString name) {
+  const Symbol *symbol = FindGlobalDataSymbol(target, name, NULL);
+  ModuleSP module;
+
+  if (!symbol)
+    return;
+
+  if (symbol->ValueIsAddress())
+    module = symbol->GetAddressRef().GetModule();
+
+  SymbolVendor *vendor_sym = module->GetSymbolVendor(true, NULL);
+  SymbolContext sc;
+
+  sc.module_sp = module;
+  sc.comp_unit = symbol->GetAddress().CalculateSymbolContextCompileUnit();
+
+  vendor_sym->ParseVariablesForContext(sc);
+
+  return;
+}
+
 // Interface for ClangASTSource
 
 void ClangExpressionDeclMap::FindExternalVisibleDecls(
@@ -1229,6 +1251,11 @@ void ClangExpressionDeclMap::FindExternalVisibleDecls(
       }
     }
     if (target) {
+      // Looks like trying to find a variable before program is run.
+      // So parse the global variable for declaration.
+
+      ParseGlobalVariablesInScopeZero(*target, name);
+
       var = FindGlobalVariable(*target, module_sp, name, &namespace_decl, NULL);
 
       if (var) {

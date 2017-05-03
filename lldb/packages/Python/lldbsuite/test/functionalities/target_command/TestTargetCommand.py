@@ -59,6 +59,24 @@ class targetCommandTestCase(TestBase):
 
         self.do_target_variable_command_no_fail('globals')
 
+    @expectedFailureAndroid(archs=['aarch64'])
+    def test_target_variable_after_print_command(self):
+        """Test 'print' command before and 'target var' after starting the inferior."""
+        d = {'C_SOURCES': 'globals.c', 'EXE': 'globals'}
+        self.build(dictionary=d)
+        self.addTearDownCleanup(dictionary=d)
+
+        self.do_target_variable_after_print_command('globals')
+
+    @expectedFailureAndroid(archs=['aarch64'])
+    def test_target_variable_with_regex(self):
+        """Test 'target var -r' command before and 'target var' after starting the inferior."""
+        d = {'C_SOURCES': 'globals.c', 'EXE': 'globals'}
+        self.build(dictionary=d)
+        self.addTearDownCleanup(dictionary=d)
+
+        self.do_target_variable_with_regex('globals')
+
     def do_target_command(self):
         """Exercise 'target create', 'target list', 'target select' commands."""
         exe_a = os.path.join(os.getcwd(), "a.out")
@@ -245,7 +263,8 @@ class targetCommandTestCase(TestBase):
                     substrs=['my_global_char',
                              'my_global_str',
                              'my_global_str_ptr',
-                             'my_static_int'])
+                             'my_static_int',
+                             'my_global_int'])
 
         self.expect(
             "target variable my_global_str",
@@ -273,3 +292,49 @@ class targetCommandTestCase(TestBase):
             substrs=[
                 "my_global_char",
                 "'X'"])
+
+    def do_target_variable_after_print_command(self, exe_name):
+        """Exercise 'print' command before and 'target var' after starting the inferior."""
+        self.runCmd("file " + exe_name, CURRENT_EXECUTABLE_SET)
+
+        self.expect(
+            "target variable my_global_char",
+            VARIABLES_DISPLAYED_CORRECTLY,
+            substrs=[
+                "my_global_char",
+                "'X'"])
+
+        self.runCmd("b main")
+        self.runCmd("run")
+
+        # To test whether all varaible are shown if we print only one variable before
+        # starting inferior
+        self.expect("target variable",
+                    substrs=['my_global_char',
+                             'my_global_str',
+                             'my_global_str_ptr',
+                             'my_static_int',
+                             'my_global_int'])
+
+    def do_target_variable_with_regex(self, exe_name):
+        """Exercise 'target var -r' command before and 'target var' after starting the inferior."""
+        self.runCmd("file " + exe_name, CURRENT_EXECUTABLE_SET)
+
+        self.expect(
+            "target variable -r my_global_ch*",
+            VARIABLES_DISPLAYED_CORRECTLY,
+            substrs=[
+                "my_global_char",
+                "'X'"])
+
+        self.runCmd("b main")
+        self.runCmd("run")
+
+        # To test whether all varaible are shown if we use regex for one variable before
+        # starting inferior
+        self.expect("target variable",
+                    substrs=['my_global_char',
+                             'my_global_str',
+                             'my_global_str_ptr',
+                             'my_static_int',
+                             'my_global_int'])
