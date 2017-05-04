@@ -136,6 +136,9 @@ public:
     return 0;
   }
 
+  /// \brief True if the subtarget supports branch coalescing
+  virtual bool enableBranchCoalescing() const;
+
   /// \brief True if the subtarget should run MachineScheduler after aggressive
   /// coalescing.
   ///

@@ -157,9 +157,7 @@ class BranchCoalescing : public MachineFunctionPass {
   bool validateCandidates(CoalescingCandidateInfo &SourceRegion,
                           CoalescingCandidateInfo &TargetRegion) const;
 
-  static bool isBranchCoalescingEnabled() {
-    return EnableBranchCoalescing == cl::BOU_TRUE;
-  }
+  static bool isBranchCoalescingEnabled(const MachineFunction &MF);
 
 public:
   static char ID;
@@ -688,7 +686,7 @@ bool BranchCoalescing::mergeCandidates(CoalescingCandidateInfo &SourceRegion,
 bool BranchCoalescing::runOnMachineFunction(MachineFunction &MF) {
 
   if (skipFunction(*MF.getFunction()) || MF.empty() ||
-      !isBranchCoalescingEnabled())
+      !isBranchCoalescingEnabled(MF))
     return false;
 
   bool didSomething = false;
@@ -755,4 +753,16 @@ bool BranchCoalescing::runOnMachineFunction(MachineFunction &MF) {
 
   DEBUG(dbgs() << "Finished Branch Coalescing\n");
   return didSomething;
+}
+
+bool BranchCoalescing::isBranchCoalescingEnabled(const MachineFunction &MF) {
+  switch (EnableBranchCoalescing) {
+  case cl::BOU_UNSET:
+    return MF.getSubtarget().enableBranchCoalescing();
+  case cl::BOU_TRUE:
+    return true;
+  case cl::BOU_FALSE:
+    return false;
+  }
+  llvm_unreachable("Invalid branch coalescing state");
 }

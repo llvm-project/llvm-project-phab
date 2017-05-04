@@ -179,6 +179,10 @@ static bool needsAggressiveScheduling(unsigned Directive) {
   }
 }
 
+bool PPCSubtarget::enableBranchCoalescing() const {
+  return (isSVR4ABI() && isPPC64());
+}
+
 bool PPCSubtarget::enableMachineScheduler() const {
   // Enable MI scheduling for the embedded cores.
   // FIXME: Enable this for all cores (some additional modeling

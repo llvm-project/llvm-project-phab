@@ -302,6 +302,9 @@ public:
   /// but may expand the ISEL instruction later.
   bool enableEarlyIfConversion() const override { return true; }
 
+  // Branch coalesce support
+  bool enableBranchCoalescing() const override;
+
   // Scheduling customization.
   bool enableMachineScheduler() const override;
   // This overrides the PostRAScheduler bit in the SchedModel for each CPU.

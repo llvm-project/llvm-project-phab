@@ -35,6 +35,10 @@ bool TargetSubtargetInfo::enableAtomicExpand() const {
   return true;
 }
 
+bool TargetSubtargetInfo::enableBranchCoalescing() const {
+  return false;
+}
+
 bool TargetSubtargetInfo::enableMachineScheduler() const {
   return false;
 }
