@@ -106,6 +106,7 @@ Clang-Tidy Checks
    misc-suspicious-string-compare
    misc-swapped-arguments
    misc-throw-by-value-catch-by-reference
+   misc-throw-with-noexcept
    misc-unconventional-assign-operator
    misc-undelegated-constructor
    misc-uniqueptr-reset-release

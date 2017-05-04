@@ -52,10 +52,13 @@ The improvements are...
 Improvements to clang-rename
 ----------------------------
 
-The improvements are...
-
 Improvements to clang-tidy
 --------------------------
+
+- New `misc-throw-with-noexcept
+  <http://clang.llvm.org/extra/clang-tidy/checks/misc-throw-with-noexcept.html>`_ check
+
+  Flags ``throw`` statements in functions marked as no-throw.
 
 - New `cert-dcl58-cpp
   <http://clang.llvm.org/extra/clang-tidy/checks/cert-dcl58-cpp.html>`_ check
