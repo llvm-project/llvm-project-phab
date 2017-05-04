@@ -32,6 +32,7 @@ void LangOptions::resetNonModularOptions() {
   // FIXME: This should not be reset; modules can be different with different
   // sanitizer options (this affects __has_feature(address_sanitizer) etc).
   Sanitize.clear();
+  SanitizerBlacklists.clear();
   SanitizerBlacklistFiles.clear();
   XRayAlwaysInstrumentFiles.clear();
   XRayNeverInstrumentFiles.clear();

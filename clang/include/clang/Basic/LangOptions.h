@@ -19,6 +19,7 @@
 #include "clang/Basic/LLVM.h"
 #include "clang/Basic/ObjCRuntime.h"
 #include "clang/Basic/Sanitizers.h"
+#include "clang/Basic/SanitizerBlacklist.h"
 #include "clang/Basic/Visibility.h"
 #include <string>
 #include <vector>
@@ -98,8 +99,11 @@ public:
   /// \brief Set of enabled sanitizers.
   SanitizerSet Sanitize;
 
-  /// \brief Paths to blacklist files specifying which objects
+  /// \brief Per-sanitizer blacklist files specifying which objects
   /// (files, functions, variables) should not be instrumented.
+  std::vector<SanitizerBlacklist> SanitizerBlacklists;
+
+  /// Paths to sanitizer blacklist files.
   std::vector<std::string> SanitizerBlacklistFiles;
 
   /// \brief Paths to the XRay "always instrument" files specifying which

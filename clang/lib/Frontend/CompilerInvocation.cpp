@@ -15,6 +15,7 @@
 #include "clang/Config/config.h"
 #include "clang/Driver/DriverDiagnostic.h"
 #include "clang/Driver/Options.h"
+#include "clang/Driver/SanitizerArgs.h"
 #include "clang/Driver/Util.h"
 #include "clang/Frontend/FrontendDiagnostic.h"
 #include "clang/Frontend/LangStandard.h"
@@ -389,6 +390,23 @@ static void parseSanitizerKinds(StringRef FlagName,
       Diags.Report(diag::err_drv_invalid_value) << FlagName << Sanitizer;
     else
       S.set(K, true);
+  }
+}
+
+static void
+parseSanitizerBlacklists(StringRef FlagName, LangOptions &Opts,
+                         const std::vector<std::string> &BlacklistArgs,
+                         DiagnosticsEngine &Diags) {
+  for (const std::string &BA : BlacklistArgs) {
+    SanitizerMask Kind;
+    std::string Path;
+    if (!SanitizerArgs::decodeBlacklistArg(BA, Kind, Path)) {
+      Diags.Report(diag::err_drv_invalid_value) << FlagName << BA;
+      continue;
+    }
+    Opts.SanitizerBlacklistFiles.emplace_back(std::move(Path));
+    Opts.SanitizerBlacklists.emplace_back(Kind,
+                                          Opts.SanitizerBlacklistFiles.back());
   }
 }
 
@@ -2346,7 +2364,9 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
   // -fsanitize-address-field-padding=N has to be a LangOpt, parse it here.
   Opts.SanitizeAddressFieldPadding =
       getLastArgIntValue(Args, OPT_fsanitize_address_field_padding, 0, Diags);
-  Opts.SanitizerBlacklistFiles = Args.getAllArgValues(OPT_fsanitize_blacklist);
+  parseSanitizerBlacklists("-fsanitize-blacklist", Opts,
+                           Args.getAllArgValues(OPT_fsanitize_blacklist),
+                           Diags);
 
   // -fxray-instrument
   Opts.XRayInstrument =

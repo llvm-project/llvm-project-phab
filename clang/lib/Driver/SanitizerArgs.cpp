@@ -83,29 +83,33 @@ static std::string describeSanitizeArg(const llvm::opt::Arg *A,
 
 /// Produce a string containing comma-separated names of sanitizers in \p
 /// Sanitizers set.
-static std::string toString(const clang::SanitizerSet &Sanitizers);
+static std::string toString(SanitizerMask Kinds);
+static std::string toString(SanitizerSet Sanitizers);
 
-static bool getDefaultBlacklist(const Driver &D, SanitizerMask Kinds,
-                                std::string &BLPath) {
-  const char *BlacklistFile = nullptr;
-  if (Kinds & Address)
-    BlacklistFile = "asan_blacklist.txt";
-  else if (Kinds & Memory)
-    BlacklistFile = "msan_blacklist.txt";
-  else if (Kinds & Thread)
-    BlacklistFile = "tsan_blacklist.txt";
-  else if (Kinds & DataFlow)
-    BlacklistFile = "dfsan_abilist.txt";
-  else if (Kinds & CFI)
-    BlacklistFile = "cfi_blacklist.txt";
+/// Given the name of a sanitizer, produce the corresponding ordinal value.
+static SanitizerMask toMask(StringRef SanitizerFlag);
 
-  if (BlacklistFile) {
+void SanitizerArgs::collectDefaultBlacklists(const Driver &D,
+                                             SanitizerMask Kinds) {
+  const std::pair<SanitizerMask, const char *> Blacklists[] = {
+      {Address, "asan_blacklist.txt"},
+      {Memory, "msan_blacklist.txt"},
+      {Thread, "tsan_blacklist.txt"},
+      {DataFlow, "dfsan_abilist.txt"},
+      {CFI, "cfi_blacklist.txt"}};
+
+  for (const auto &BL : Blacklists) {
+    if (!(BL.first & Kinds))
+      continue;
+
     clang::SmallString<64> Path(D.ResourceDir);
-    llvm::sys::path::append(Path, BlacklistFile);
-    BLPath = Path.str();
-    return true;
+    llvm::sys::path::append(Path, BL.second);
+    if (llvm::sys::fs::exists(Path)) {
+      SanitizerBlacklistFiles.push_back(Path.str());
+      SanitizerBlacklists.emplace_back(BL.first,
+                                       SanitizerBlacklistFiles.back());
+    }
   }
-  return false;
 }
 
 /// Sets group bits for every group that has at least one representative already
@@ -386,26 +390,24 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
   TrappingKinds &= Kinds;
 
   // Setup blacklist files.
-  // Add default blacklist from resource directory.
-  {
-    std::string BLPath;
-    if (getDefaultBlacklist(D, Kinds, BLPath) && llvm::sys::fs::exists(BLPath))
-      BlacklistFiles.push_back(BLPath);
-  }
+  collectDefaultBlacklists(D, Kinds);
+
   // Parse -f(no-)sanitize-blacklist options.
   for (const auto *Arg : Args) {
     if (Arg->getOption().matches(options::OPT_fsanitize_blacklist)) {
       Arg->claim();
       std::string BLPath = Arg->getValue();
       if (llvm::sys::fs::exists(BLPath)) {
-        BlacklistFiles.push_back(BLPath);
-        ExtraDeps.push_back(BLPath);
+        SanitizerBlacklistFiles.push_back(BLPath);
+        SanitizerBlacklists.emplace_back(All, SanitizerBlacklistFiles.back());
+        ExtraDeps.emplace_back(SanitizerBlacklistFiles.back());
       } else
         D.Diag(clang::diag::err_drv_no_such_file) << BLPath;
 
     } else if (Arg->getOption().matches(options::OPT_fno_sanitize_blacklist)) {
       Arg->claim();
-      BlacklistFiles.clear();
+      SanitizerBlacklistFiles.clear();
+      SanitizerBlacklists.clear();
       ExtraDeps.clear();
     }
   }
@@ -413,7 +415,7 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
   {
     std::string BLError;
     std::unique_ptr<llvm::SpecialCaseList> SCL(
-        llvm::SpecialCaseList::create(BlacklistFiles, BLError));
+        llvm::SpecialCaseList::create(SanitizerBlacklistFiles, BLError));
     if (!SCL.get())
       D.Diag(clang::diag::err_drv_malformed_sanitizer_blacklist) << BLError;
   }
@@ -572,16 +574,32 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
   TrapSanitizers.Mask |= TrappingKinds;
 }
 
-static std::string toString(const clang::SanitizerSet &Sanitizers) {
+static std::string toString(SanitizerMask Kinds) {
   std::string Res;
 #define SANITIZER(NAME, ID)                                                    \
-  if (Sanitizers.has(ID)) {                                                    \
+  if (Kinds & ID) {                                                            \
     if (!Res.empty())                                                          \
       Res += ",";                                                              \
     Res += NAME;                                                               \
   }
+
 #include "clang/Basic/Sanitizers.def"
+#undef SANITIZER
   return Res;
+}
+
+static std::string toString(SanitizerSet Sanitizers) {
+  return toString(Sanitizers.Mask);
+}
+
+static SanitizerMask toMask(StringRef SanitizerFlag) {
+#define SANITIZER(NAME, ID)                                                    \
+  if (SanitizerFlag == NAME)                                                   \
+    return ID;
+
+#include "clang/Basic/Sanitizers.def"
+#undef SANITIZER
+  return SanitizerMask();
 }
 
 static void addIncludeLinkerOption(const ToolChain &TC,
@@ -596,6 +614,34 @@ static void addIncludeLinkerOption(const ToolChain &TC,
   }
   LinkerOptionFlag += SymbolName;
   CmdArgs.push_back(Args.MakeArgString(LinkerOptionFlag));
+}
+
+std::string SanitizerArgs::encodeBlacklistArg(const SanitizerBlacklist &SB) {
+  return toString(SB.Sanitizers) + ":" + SB.Path.str();
+}
+
+bool SanitizerArgs::decodeBlacklistArg(const std::string &Arg,
+                                       SanitizerMask &Kinds,
+                                       std::string &Path) {
+  StringRef LHS, RHS;
+  std::tie(LHS, RHS) = StringRef(Arg).split(':');
+  if (LHS.empty() || RHS.empty())
+    return false;
+
+  SmallVector<StringRef, 4> Sanitizers;
+  LHS.split(Sanitizers, ',', /*MaxSplit=*/-1, /*KeepEmpty=*/false);
+  if (Sanitizers.empty())
+    return false;
+
+  for (StringRef Sanitizer : Sanitizers) {
+    if (SanitizerMask Kind = toMask(Sanitizer))
+      Kinds |= Kind;
+    else
+      return false;
+  }
+
+  Path = RHS.str();
+  return true;
 }
 
 void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
@@ -661,9 +707,9 @@ void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
     CmdArgs.push_back(
         Args.MakeArgString("-fsanitize-trap=" + toString(TrapSanitizers)));
 
-  for (const auto &BLPath : BlacklistFiles) {
+  for (const auto &SB : SanitizerBlacklists) {
     SmallString<64> BlacklistOpt("-fsanitize-blacklist=");
-    BlacklistOpt += BLPath;
+    BlacklistOpt += encodeBlacklistArg(SB);
     CmdArgs.push_back(Args.MakeArgString(BlacklistOpt));
   }
   for (const auto &Dep : ExtraDeps) {

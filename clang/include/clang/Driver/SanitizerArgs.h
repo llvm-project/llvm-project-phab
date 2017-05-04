@@ -10,7 +10,9 @@
 #define LLVM_CLANG_DRIVER_SANITIZERARGS_H
 
 #include "clang/Basic/Sanitizers.h"
+#include "clang/Basic/SanitizerBlacklist.h"
 #include "clang/Driver/Types.h"
+#include "llvm/ADT/Optional.h"
 #include "llvm/Option/Arg.h"
 #include "llvm/Option/ArgList.h"
 #include <string>
@@ -19,6 +21,7 @@
 namespace clang {
 namespace driver {
 
+class Driver;
 class ToolChain;
 
 class SanitizerArgs {
@@ -26,8 +29,6 @@ class SanitizerArgs {
   SanitizerSet RecoverableSanitizers;
   SanitizerSet TrapSanitizers;
 
-  std::vector<std::string> BlacklistFiles;
-  std::vector<std::string> ExtraDeps;
   int CoverageFeatures = 0;
   int MsanTrackOrigins = 0;
   bool MsanUseAfterDtor = false;
@@ -41,6 +42,18 @@ class SanitizerArgs {
   bool TsanMemoryAccess = true;
   bool TsanFuncEntryExit = true;
   bool TsanAtomics = true;
+
+  /// Blacklists which each apply to specific sanitizers.
+  std::vector<SanitizerBlacklist> SanitizerBlacklists;
+
+  /// Paths to all sanitizer blacklist files.
+  std::vector<std::string> SanitizerBlacklistFiles;
+
+  /// Paths to sanitizer blacklist files which need depfile entries.
+  std::vector<StringRef> ExtraDeps;
+
+  /// Collect all default blacklists for the sanitizers enabled in \p Kinds.
+  void collectDefaultBlacklists(const Driver &D, SanitizerMask Kinds);
 
  public:
   /// Parses the sanitizer arguments from an argument list.
@@ -73,6 +86,13 @@ class SanitizerArgs {
   bool hasCrossDsoCfi() const { return CfiCrossDso; }
   void addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
                llvm::opt::ArgStringList &CmdArgs, types::ID InputType) const;
+
+  /// Encode a sanitizer blacklist argument as a string.
+  static std::string encodeBlacklistArg(const SanitizerBlacklist &SB);
+
+  /// Decode a sanitizer blacklist argument. Returns true on success.
+  static bool decodeBlacklistArg(const std::string &Arg, SanitizerMask &Kinds,
+                                 std::string &Path);
 };
 
 }  // namespace driver

@@ -278,17 +278,23 @@ llvm::Function *CodeGenModule::CreateGlobalInitOrDestructFunction(
   if (!getLangOpts().Exceptions)
     Fn->setDoesNotThrow();
 
-  if (!isInSanitizerBlacklist(Fn, Loc)) {
-    if (getLangOpts().Sanitize.hasOneOf(SanitizerKind::Address |
-                                        SanitizerKind::KernelAddress))
+  SanitizerMask ASanMask =
+      SanitizerKind::Address | SanitizerKind::KernelAddress;
+  if (getLangOpts().Sanitize.hasOneOf(ASanMask))
+    if (!isInSanitizerBlacklist(ASanMask, Fn, Loc))
       Fn->addFnAttr(llvm::Attribute::SanitizeAddress);
-    if (getLangOpts().Sanitize.has(SanitizerKind::Thread))
+
+  if (getLangOpts().Sanitize.has(SanitizerKind::Thread))
+    if (!isInSanitizerBlacklist(SanitizerKind::Thread, Fn, Loc))
       Fn->addFnAttr(llvm::Attribute::SanitizeThread);
-    if (getLangOpts().Sanitize.has(SanitizerKind::Memory))
+
+  if (getLangOpts().Sanitize.has(SanitizerKind::Memory))
+    if (!isInSanitizerBlacklist(SanitizerKind::Memory, Fn, Loc))
       Fn->addFnAttr(llvm::Attribute::SanitizeMemory);
-    if (getLangOpts().Sanitize.has(SanitizerKind::SafeStack))
+
+  if (getLangOpts().Sanitize.has(SanitizerKind::SafeStack))
+    if (!isInSanitizerBlacklist(SanitizerKind::SafeStack, Fn, Loc))
       Fn->addFnAttr(llvm::Attribute::SafeStack);
-  }
 
   return Fn;
 }

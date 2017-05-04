@@ -2605,7 +2605,8 @@ void CodeGenFunction::EmitVTablePtrCheck(const CXXRecordDecl *RD,
     return;
 
   std::string TypeName = RD->getQualifiedNameAsString();
-  if (getContext().getSanitizerBlacklist().isBlacklistedType(TypeName))
+  if (getContext().getSanitizerBlacklist().isBlacklistedType(
+          TypeName, SanitizerKind::CFI))
     return;
 
   SanitizerScope SanScope(this);
@@ -2688,7 +2689,8 @@ bool CodeGenFunction::ShouldEmitVTableTypeCheckedLoad(const CXXRecordDecl *RD) {
     return false;
 
   std::string TypeName = RD->getQualifiedNameAsString();
-  return !getContext().getSanitizerBlacklist().isBlacklistedType(TypeName);
+  return !getContext().getSanitizerBlacklist().isBlacklistedType(
+      TypeName, SanitizerKind::CFI);
 }
 
 llvm::Value *CodeGenFunction::EmitVTableTypeCheckedLoad(

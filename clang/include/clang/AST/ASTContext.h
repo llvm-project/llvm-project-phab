@@ -474,7 +474,7 @@ private:
 
   /// \brief Blacklist object that is used by sanitizers to decide which
   /// entities should not be instrumented.
-  std::unique_ptr<SanitizerBlacklist> SanitizerBL;
+  std::unique_ptr<SanitizerBlacklistInfo> SanitizerBL;
 
   /// \brief Function filtering mechanism to determine whether a given function
   /// should be imbued with the XRay "always" or "never" attributes.
@@ -658,7 +658,7 @@ public:
 
   const LangOptions& getLangOpts() const { return LangOpts; }
 
-  const SanitizerBlacklist &getSanitizerBlacklist() const {
+  const SanitizerBlacklistInfo &getSanitizerBlacklist() const {
     return *SanitizerBL;
   }
 

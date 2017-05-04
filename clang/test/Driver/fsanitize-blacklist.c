@@ -20,8 +20,19 @@
 // CHECK-BLACKLIST2: -fdepfile-entry={{.*}}.good" "-fdepfile-entry={{.*}}.second
 
 // Check that the default blacklist is not added as an extra dependency.
-// RUN: %clang -target x86_64-linux-gnu -fsanitize=address -resource-dir=%S/Inputs/resource_dir %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-DEFAULT-BLACKLIST --implicit-check-not=fdepfile-entry
+// RUN: %clang -target x86_64-linux-gnu -fsanitize=address -resource-dir=%S/Inputs/resource_dir %s -### &> %t.cc1_asan
+// RUN: FileCheck %s --check-prefix=CHECK-DEFAULT-BLACKLIST --implicit-check-not=fdepfile-entry -input-file %t.cc1_asan
 // CHECK-DEFAULT-BLACKLIST: -fsanitize-blacklist={{.*}}asan_blacklist.txt
+
+// Check that default blacklists are not added unless the matching sanitizer is
+// enabled, even if the blacklist exists.
+// RUN: FileCheck %s --implicit-check-not=cfi_blacklist.txt -input-file %t.cc1_asan
+
+// Check that we can add multiple default blacklists if the matching sanitizers
+// are enabled.
+// RUN: %clang -target x86_64-linux-gnu -fsanitize=address,cfi -flto -fvisibility=hidden -resource-dir=%S/Inputs/resource_dir %s -### 2>&1 | FileCheck %s --check-prefix=MULTIPLE-DEFAULT-BLACKLISTS
+// MULTIPLE-DEFAULT-BLACKLISTS-DAG: -fsanitize-blacklist={{.*}}asan_blacklist.txt
+// MULTIPLE-DEFAULT-BLACKLISTS-DAG: -fsanitize-blacklist={{.*}}cfi_blacklist.txt
 
 // Ignore -fsanitize-blacklist flag if there is no -fsanitize flag.
 // RUN: %clang -target x86_64-linux-gnu -fsanitize-blacklist=%t.good %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-NO-SANITIZE --check-prefix=DELIMITERS

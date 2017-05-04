@@ -1,9 +1,9 @@
 // RUN: echo "int extra_global;" > %t.extra-source.cpp
 // RUN: echo "global:*blacklisted_global*" > %t.blacklist
-// RUN: %clang_cc1 -include %t.extra-source.cpp -fsanitize=address -fsanitize-blacklist=%t.blacklist -emit-llvm -o - %s | FileCheck %s
+// RUN: %clang_cc1 -include %t.extra-source.cpp -fsanitize=address -fsanitize-blacklist=address:%t.blacklist -emit-llvm -o - %s | FileCheck %s
 // The blacklist file uses regexps, so Windows path backslashes.
 // RUN: echo "src:%s" | sed -e 's/\\/\\\\/g' > %t.blacklist-src
-// RUN: %clang_cc1 -include %t.extra-source.cpp -fsanitize=address -fsanitize-blacklist=%t.blacklist-src -emit-llvm -o - %s | FileCheck %s --check-prefix=BLACKLIST-SRC
+// RUN: %clang_cc1 -include %t.extra-source.cpp -fsanitize=address -fsanitize-blacklist=address:%t.blacklist-src -emit-llvm -o - %s | FileCheck %s --check-prefix=BLACKLIST-SRC
 
 int global;
 int dyn_init_global = global;

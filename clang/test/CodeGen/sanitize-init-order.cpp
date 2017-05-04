@@ -4,8 +4,8 @@
 // RUN: echo "src:%s=init" | sed -e 's/\\/\\\\/g' > %t-file.blacklist
 // RUN: echo "type:PODWithCtorAndDtor=init" > %t-type.blacklist
 // RUN: echo "type:NS::PODWithCtor=init" >> %t-type.blacklist
-// RUN: %clang_cc1 -fsanitize=address -fsanitize-blacklist=%t-file.blacklist -emit-llvm -o - %s | FileCheck %s --check-prefix=BLACKLIST
-// RUN: %clang_cc1 -fsanitize=address -fsanitize-blacklist=%t-type.blacklist -emit-llvm -o - %s | FileCheck %s --check-prefix=BLACKLIST
+// RUN: %clang_cc1 -fsanitize=address -fsanitize-blacklist=address:%t-file.blacklist -emit-llvm -o - %s | FileCheck %s --check-prefix=BLACKLIST
+// RUN: %clang_cc1 -fsanitize=address -fsanitize-blacklist=address:%t-type.blacklist -emit-llvm -o - %s | FileCheck %s --check-prefix=BLACKLIST
 
 struct PODStruct {
   int x;
