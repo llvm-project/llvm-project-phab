@@ -10,9 +10,13 @@
 #ifndef LLVM_DEBUGINFO_DWARF_DWARFVERIFIER_H
 #define LLVM_DEBUGINFO_DWARF_DWARFVERIFIER_H
 
+#include "llvm/DebugInfo/DWARF/DWARFDebugRangeList.h"
+#include "llvm/DebugInfo/DWARF/DWARFDie.h"
+
 #include <cstdint>
 #include <map>
 #include <set>
+#include <vector>
 
 namespace llvm {
 class raw_ostream;
@@ -23,14 +27,64 @@ class DWARFUnit;
 
 /// A class that verifies DWARF debug information given a DWARF Context.
 class DWARFVerifier {
+  struct DieRangeInfo {
+    DWARFDie Die;
+    DWARFAddressRangesVector Ranges;
+
+    DieRangeInfo() : Die(), Ranges() {}
+    DieRangeInfo(DWARFDie D, const DWARFAddressRangesVector &R);
+    /// Return true if this object contains all ranges within RHS.
+    bool Contains(const DieRangeInfo &RHS);
+    bool DoesIntersect(const DieRangeInfo &RHS) const;
+    void Dump(raw_ostream &OS) const;
+    bool operator<(const DieRangeInfo &RHS) const;
+    /// Return true if there are errors in the ranges R.
+    bool SortAndCheckRangesHasErrors(raw_ostream &OS);
+  };
+
+  struct VerifyDieInfo {
+    DieRangeInfo RI;
+    std::set<DieRangeInfo> ChildRangesCantOverlap;
+  };
+
   raw_ostream &OS;
   DWARFContext &DCtx;
   /// A map that tracks all references (converted absolute references) so we
   /// can verify each reference points to a valid DIE and not an offset that
   /// lies between to valid DIEs.
   std::map<uint64_t, std::set<uint32_t>> ReferenceToDIEOffsets;
+
+  /// Keep a set of all DW_TAG_subprogram range infos across all compile
+  /// units so we can look for overlapping function ranges after we go through
+  /// all of the DIEs.
+  std::set<DieRangeInfo> AllFunctionDieRangeInfos;
+
   uint32_t NumDebugInfoErrors;
   uint32_t NumDebugLineErrors;
+
+  /// Verifies the a DIE's tag and gathers information about all DIEs.
+  ///
+  /// This function currently checks for:
+  /// - Checks DW_TAG_compile_unit address range(s)
+  /// - Checks DW_TAG_subprogram address range(s) and if the compile unit
+  ///   has ranges, verifies that its address range is fully contained in
+  ///   the compile unit ranges. Also adds the functions address range info
+  ///   to AllFunctionDieRangeInfos to look for functions with overlapping
+  ///   ranges after all DIEs have been processed.
+  /// - Checks that DW_TAG_lexical_block and DW_TAG_inlined_subroutine DIEs
+  ///   have address range(s) that are fully contained in their parent DIEs
+  ///   address range(s).
+  ///
+  /// \param Die          The DWARF DIE to check
+  void verifyDie(const DWARFDie &Die, DieRangeInfo &UnitRI,
+                 VerifyDieInfo &ParentVRI);
+
+  /// Verify that no DIE ranges overlap.
+  void verifyNoRangesOverlap(const std::set<DieRangeInfo> &DieRangeInfos);
+
+  /// Verifies that we have no overlapping function address ranges within all
+  /// of the DWARF.
+  void verifyDebugInfoOverlappingFunctionRanges();
 
   /// Verifies the attribute's DWARF attribute and its value.
   ///
@@ -38,9 +92,9 @@ class DWARFVerifier {
   /// - DW_AT_ranges values is a valid .debug_ranges offset
   /// - DW_AT_stmt_list is a valid .debug_line offset
   ///
-  /// @param Die          The DWARF DIE that owns the attribute value
-  /// @param AttrValue    The DWARF attribute value to check
-  void verifyDebugInfoAttribute(DWARFDie &Die, DWARFAttribute &AttrValue);
+  /// \param Die          The DWARF DIE that owns the attribute value
+  /// \param AttrValue    The DWARF attribute value to check
+  void verifyDebugInfoAttribute(const DWARFDie &Die, DWARFAttribute &AttrValue);
 
   /// Verifies the attribute's DWARF form.
   ///
@@ -49,9 +103,9 @@ class DWARFVerifier {
   /// - All DW_FORM_ref_addr values have valid .debug_info offsets
   /// - All DW_FORM_strp values have valid .debug_str offsets
   ///
-  /// @param Die          The DWARF DIE that owns the attribute value
-  /// @param AttrValue    The DWARF attribute value to check
-  void verifyDebugInfoForm(DWARFDie &Die, DWARFAttribute &AttrValue);
+  /// \param Die          The DWARF DIE that owns the attribute value
+  /// \param AttrValue    The DWARF attribute value to check
+  void verifyDebugInfoForm(const DWARFDie &Die, DWARFAttribute &AttrValue);
 
   /// Verifies the all valid references that were found when iterating through
   /// all of the DIE attributes.
@@ -60,7 +114,7 @@ class DWARFVerifier {
   /// offset matches. This helps to ensure if a DWARF link phase moved things
   /// around, that it doesn't create invalid references by failing to relocate
   /// CU relative and absolute references.
-  void veifyDebugInfoReferences();
+  void verifyDebugInfoReferences();
 
   /// Verify the the DW_AT_stmt_list encoding and value and ensure that no
   /// compile units that have the same DW_AT_stmt_list value.
