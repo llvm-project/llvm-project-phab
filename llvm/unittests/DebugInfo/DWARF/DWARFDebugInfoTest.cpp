@@ -2142,4 +2142,422 @@ TEST(DWARFDebugInfo, TestDwarfVerifyCUDontShareLineTable) {
                             "offset:");
 }
 
+TEST(DWARFDebugInfo, TestDwarfVerifyCURangesIncomplete) {
+  // Create a single compile unit with a single function. The compile
+  // unit has a DW_AT_ranges attribute that doesn't fully contain the
+  // address range of the function. The verification should fail due to
+  // the CU ranges not containing all of the address ranges of all of the
+  // functions.
+  StringRef yamldata = R"(
+    debug_str:
+      - ''
+      - /tmp/main.c
+    debug_abbrev:    
+      - Code:            0x00000001
+        Tag:             DW_TAG_compile_unit
+        Children:        DW_CHILDREN_yes
+        Attributes:      
+          - Attribute:       DW_AT_low_pc
+            Form:            DW_FORM_addr
+          - Attribute:       DW_AT_high_pc
+            Form:            DW_FORM_addr
+          - Attribute:       DW_AT_name
+            Form:            DW_FORM_strp
+      - Code:            0x00000002
+        Tag:             DW_TAG_subprogram
+        Children:        DW_CHILDREN_no
+        Attributes:      
+          - Attribute:       DW_AT_low_pc
+            Form:            DW_FORM_addr
+          - Attribute:       DW_AT_high_pc
+            Form:            DW_FORM_addr
+    debug_info:      
+      - Length:          
+          TotalLength:     46
+        Version:         4
+        AbbrOffset:      0
+        AddrSize:        8
+        Entries:         
+          - AbbrCode:        0x00000001
+            Values:          
+              - Value:           0x0000000000001000
+              - Value:           0x0000000000001500
+              - Value:           0x0000000000000001
+          - AbbrCode:        0x00000002
+            Values:          
+              - Value:           0x0000000000001000
+              - Value:           0x0000000000002000
+          - AbbrCode:        0x00000000
+            Values:          
+  )";
+  auto ErrOrSections = DWARFYAML::EmitDebugSections(yamldata);
+  ASSERT_TRUE((bool)ErrOrSections);
+  DWARFContextInMemory DwarfContext(*ErrOrSections, 8);
+  VerifyError(DwarfContext, "error: CU DIE has child with address ranges that "
+                            "are not contained in its ranges:");
+}
+
+TEST(DWARFDebugInfo, TestDwarfVerifyLexicalBlockRanges) {
+  // Create a single compile unit with a single function that has a lexical
+  // block whose address range is not contained in the function address range.
+  StringRef yamldata = R"(
+    debug_str:
+      - ''
+      - /tmp/main.c
+      - main
+    debug_abbrev:
+      - Code:            0x00000001
+        Tag:             DW_TAG_compile_unit
+        Children:        DW_CHILDREN_yes
+        Attributes:
+          - Attribute:       DW_AT_name
+            Form:            DW_FORM_strp
+      - Code:            0x00000002
+        Tag:             DW_TAG_subprogram
+        Children:        DW_CHILDREN_yes
+        Attributes:
+          - Attribute:       DW_AT_name
+            Form:            DW_FORM_strp
+          - Attribute:       DW_AT_low_pc
+            Form:            DW_FORM_addr
+          - Attribute:       DW_AT_high_pc
+            Form:            DW_FORM_addr
+      - Code:            0x00000003
+        Tag:             DW_TAG_lexical_block
+        Children:        DW_CHILDREN_no
+        Attributes:
+          - Attribute:       DW_AT_low_pc
+            Form:            DW_FORM_addr
+          - Attribute:       DW_AT_high_pc
+            Form:            DW_FORM_addr
+    debug_info:
+      - Length:
+          TotalLength:     52
+        Version:         4
+        AbbrOffset:      0
+        AddrSize:        8
+        Entries:
+          - AbbrCode:        0x00000001
+            Values:
+              - Value:           0x0000000000000001
+          - AbbrCode:        0x00000002
+            Values:
+              - Value:           0x000000000000000D
+              - Value:           0x0000000000001000
+              - Value:           0x0000000000002000
+          - AbbrCode:        0x00000003
+            Values:
+              - Value:           0x0000000000001000
+              - Value:           0x0000000000002001
+          - AbbrCode:        0x00000000
+            Values:
+          - AbbrCode:        0x00000000
+            Values:
+  )";
+  auto ErrOrSections = DWARFYAML::EmitDebugSections(yamldata);
+  ASSERT_TRUE((bool)ErrOrSections);
+  DWARFContextInMemory DwarfContext(*ErrOrSections, 8);
+  VerifyError(DwarfContext, "error: DIE has a child DW_TAG_lexical_block DIE "
+                            "whose address ranges that are not contained in "
+                            "its ranges:");
+}
+
+TEST(DWARFDebugInfo, TestDwarfVerifyOverlappingFunctionRanges) {
+  // Create a single compile unit with a two functions that have overlapping
+  // address ranges.
+  StringRef yamldata = R"(
+    debug_str:
+      - ''
+      - /tmp/main.c
+      - main
+      - foo
+    debug_abbrev:
+      - Code:            0x00000001
+        Tag:             DW_TAG_compile_unit
+        Children:        DW_CHILDREN_yes
+        Attributes:
+          - Attribute:       DW_AT_name
+            Form:            DW_FORM_strp
+      - Code:            0x00000002
+        Tag:             DW_TAG_subprogram
+        Children:        DW_CHILDREN_no
+        Attributes:
+          - Attribute:       DW_AT_name
+            Form:            DW_FORM_strp
+          - Attribute:       DW_AT_low_pc
+            Form:            DW_FORM_addr
+          - Attribute:       DW_AT_high_pc
+            Form:            DW_FORM_addr
+    debug_info:
+      - Length:
+          TotalLength:     55
+        Version:         4
+        AbbrOffset:      0
+        AddrSize:        8
+        Entries:
+          - AbbrCode:        0x00000001
+            Values:
+              - Value:           0x0000000000000001
+          - AbbrCode:        0x00000002
+            Values:
+              - Value:           0x000000000000000D
+              - Value:           0x0000000000001000
+              - Value:           0x0000000000002000
+          - AbbrCode:        0x00000002
+            Values:
+              - Value:           0x0000000000000012
+              - Value:           0x0000000000001FFF
+              - Value:           0x0000000000002000
+          - AbbrCode:        0x00000000
+            Values:
+  )";
+  auto ErrOrSections = DWARFYAML::EmitDebugSections(yamldata);
+  ASSERT_TRUE((bool)ErrOrSections);
+  DWARFContextInMemory DwarfContext(*ErrOrSections, 8);
+  VerifyError(DwarfContext, "error: DIEs have overlapping address ranges:");
+}
+
+TEST(DWARFDebugInfo, TestDwarfVerifyOverlappingLexicalBlockRanges) {
+  // Create a single compile unit with a two functions that have overlapping
+  // address ranges.
+  StringRef yamldata = R"(
+    debug_str:
+      - ''
+      - /tmp/main.c
+      - main
+    debug_abbrev:    
+      - Code:            0x00000001
+        Tag:             DW_TAG_compile_unit
+        Children:        DW_CHILDREN_yes
+        Attributes:      
+          - Attribute:       DW_AT_low_pc
+            Form:            DW_FORM_addr
+          - Attribute:       DW_AT_high_pc
+            Form:            DW_FORM_addr
+          - Attribute:       DW_AT_name
+            Form:            DW_FORM_strp
+      - Code:            0x00000002
+        Tag:             DW_TAG_subprogram
+        Children:        DW_CHILDREN_yes
+        Attributes:      
+          - Attribute:       DW_AT_name
+            Form:            DW_FORM_strp
+          - Attribute:       DW_AT_low_pc
+            Form:            DW_FORM_addr
+          - Attribute:       DW_AT_high_pc
+            Form:            DW_FORM_addr
+      - Code:            0x00000003
+        Tag:             DW_TAG_lexical_block
+        Children:        DW_CHILDREN_no
+        Attributes:      
+          - Attribute:       DW_AT_low_pc
+            Form:            DW_FORM_addr
+          - Attribute:       DW_AT_high_pc
+            Form:            DW_FORM_addr
+    debug_info:      
+      - Length:          
+          TotalLength:     85
+        Version:         4
+        AbbrOffset:      0
+        AddrSize:        8
+        Entries:         
+          - AbbrCode:        0x00000001
+            Values:          
+              - Value:           0x0000000000001000
+              - Value:           0x0000000000002000
+              - Value:           0x0000000000000001
+          - AbbrCode:        0x00000002
+            Values:          
+              - Value:           0x000000000000000D
+              - Value:           0x0000000000001000
+              - Value:           0x0000000000002000
+          - AbbrCode:        0x00000003
+            Values:          
+              - Value:           0x0000000000001100
+              - Value:           0x0000000000001300
+          - AbbrCode:        0x00000003
+            Values:          
+              - Value:           0x00000000000012FF
+              - Value:           0x0000000000001300
+          - AbbrCode:        0x00000000
+            Values:          
+          - AbbrCode:        0x00000000
+            Values:          
+  )";
+  auto ErrOrSections = DWARFYAML::EmitDebugSections(yamldata);
+  ASSERT_TRUE((bool)ErrOrSections);
+  DWARFContextInMemory DwarfContext(*ErrOrSections, 8);
+  VerifyError(DwarfContext, "error: DIEs have overlapping address ranges:");
+}
+
+TEST(DWARFDebugInfo, TestDwarfVerifyInvalidDIERange) {
+  // Create a single compile unit with a single function that has an invalid
+  // address range where the high PC is smaller than the low PC.
+  StringRef yamldata = R"(
+    debug_str:
+      - ''
+      - /tmp/main.c
+      - main
+    debug_abbrev:    
+      - Code:            0x00000001
+        Tag:             DW_TAG_compile_unit
+        Children:        DW_CHILDREN_yes
+        Attributes:      
+          - Attribute:       DW_AT_name
+            Form:            DW_FORM_strp
+      - Code:            0x00000002
+        Tag:             DW_TAG_subprogram
+        Children:        DW_CHILDREN_no
+        Attributes:      
+          - Attribute:       DW_AT_name
+            Form:            DW_FORM_strp
+          - Attribute:       DW_AT_low_pc
+            Form:            DW_FORM_addr
+          - Attribute:       DW_AT_high_pc
+            Form:            DW_FORM_addr
+    debug_info:      
+      - Length:          
+          TotalLength:     34
+        Version:         4
+        AbbrOffset:      0
+        AddrSize:        8
+        Entries:         
+          - AbbrCode:        0x00000001
+            Values:          
+              - Value:           0x0000000000000001
+          - AbbrCode:        0x00000002
+            Values:          
+              - Value:           0x000000000000000D
+              - Value:           0x0000000000001000
+              - Value:           0x0000000000000900
+          - AbbrCode:        0x00000000
+            Values:          
+  )";
+  auto ErrOrSections = DWARFYAML::EmitDebugSections(yamldata);
+  ASSERT_TRUE((bool)ErrOrSections);
+  DWARFContextInMemory DwarfContext(*ErrOrSections, 8);
+  VerifyError(DwarfContext, "error: invalid range in DIE:");
+}
+
+namespace {
+
+void AssertRangesIntersect(const DWARFRange &LHS, const DWARFRange &RHS) {
+  ASSERT_TRUE(DWARFRangesIntersect(LHS, RHS));
+  ASSERT_TRUE(DWARFRangesIntersect(RHS, LHS));
+}
+void AssertRangesDontIntersect(const DWARFRange &LHS, const DWARFRange &RHS) {
+  ASSERT_FALSE(DWARFRangesIntersect(LHS, RHS));
+  ASSERT_FALSE(DWARFRangesIntersect(RHS, LHS));
+}
+
+void AssertRangesIntersect(const DWARFAddressRangesVector &LHS,
+                           const DWARFAddressRangesVector &RHS) {
+  ASSERT_TRUE(AnyDWARFRangesIntersect(LHS, RHS));
+  ASSERT_TRUE(AnyDWARFRangesIntersect(RHS, LHS));
+}
+
+void AssertRangesDontIntersect(const DWARFAddressRangesVector &LHS,
+                               const DWARFAddressRangesVector &RHS) {
+  ASSERT_FALSE(AnyDWARFRangesIntersect(LHS, RHS));
+  ASSERT_FALSE(AnyDWARFRangesIntersect(RHS, LHS));
+}
+
+} // namespace
+TEST(DWARFDebugInfo, TestDwarfRangesIntersect) {
+  DWARFRange R(0x10, 0x20);
+
+  //----------------------------------------------------------------------
+  // Test ranges that start before R...
+  //----------------------------------------------------------------------
+  // Other range ends before start of R
+  AssertRangesDontIntersect(R, {0x00, 0x10});
+  // Other range end address is start of a R
+  AssertRangesIntersect(R, {0x00, 0x11});
+  // Other range end address is in R
+  AssertRangesIntersect(R, {0x00, 0x15});
+  // Other range end address is at and of R
+  AssertRangesIntersect(R, {0x00, 0x20});
+  // Other range end address is past end of R
+  AssertRangesIntersect(R, {0x00, 0x40});
+
+  //----------------------------------------------------------------------
+  // Test ranges that start at R's start address
+  //----------------------------------------------------------------------
+  // Ensure empty ranges doesn't match
+  AssertRangesDontIntersect(R, {0x10, 0x10});
+  // 1 byte of Range
+  AssertRangesIntersect(R, {0x10, 0x11});
+  // same as Range
+  AssertRangesIntersect(R, {0x10, 0x20});
+  // 1 byte past Range
+  AssertRangesIntersect(R, {0x10, 0x21});
+
+  //----------------------------------------------------------------------
+  // Test ranges that start inside Range
+  //----------------------------------------------------------------------
+  // empty in range
+  AssertRangesDontIntersect(R, {0x11, 0x11});
+  // all in Range
+  AssertRangesIntersect(R, {0x11, 0x1f});
+  // ends at end of Range
+  AssertRangesIntersect(R, {0x11, 0x20});
+  // ends past Range
+  AssertRangesIntersect(R, {0x11, 0x21});
+
+  //----------------------------------------------------------------------
+  // Test ranges that start at last bytes of Range
+  //----------------------------------------------------------------------
+  // ends at end of Range
+  AssertRangesIntersect(R, {0x1f, 0x20});
+  // ends past Range
+  AssertRangesIntersect(R, {0x1f, 0x21});
+
+  //----------------------------------------------------------------------
+  // Test ranges that start after Range
+  //----------------------------------------------------------------------
+  // empty just past in Range
+  AssertRangesDontIntersect(R, {0x20, 0x20});
+  // valid past Range
+  AssertRangesDontIntersect(R, {0x20, 0x21});
+}
+
+TEST(DWARFDebugInfo, TestDwarfRangeVectorsIntersect) {
+  DWARFAddressRangesVector Ranges = {{0x10, 0x20}, {0x30, 0x40}};
+
+  // Test empty range
+  AssertRangesDontIntersect(Ranges, {});
+  // Test range that appears before all ranges in Ranges
+  AssertRangesDontIntersect(Ranges, {{0x00, 0x10}});
+  // Test range that appears between ranges in Ranges
+  AssertRangesDontIntersect(Ranges, {{0x20, 0x30}});
+  // Test range that appears after ranges in Ranges
+  AssertRangesDontIntersect(Ranges, {{0x40, 0x50}});
+
+  // Test range that start before first range
+  AssertRangesIntersect(Ranges, {{0x00, 0x11}});
+  // Test range that start at first range
+  AssertRangesIntersect(Ranges, {{0x10, 0x11}});
+  // Test range that start in first range
+  AssertRangesIntersect(Ranges, {{0x11, 0x12}});
+  // Test range that start at end of first range
+  AssertRangesIntersect(Ranges, {{0x1f, 0x20}});
+  // Test range that starts at end of first range
+  AssertRangesDontIntersect(Ranges, {{0x20, 0x21}});
+  // Test range that starts at end of first range
+  AssertRangesIntersect(Ranges, {{0x20, 0x31}});
+
+  // Test range that start before second range and ends before second
+  AssertRangesDontIntersect(Ranges, {{0x2f, 0x30}});
+  // Test range that start before second range and ends in second
+  AssertRangesIntersect(Ranges, {{0x2f, 0x31}});
+  // Test range that start at second range
+  AssertRangesIntersect(Ranges, {{0x30, 0x31}});
+  // Test range that start in second range
+  AssertRangesIntersect(Ranges, {{0x31, 0x32}});
+  // Test range that start at end of second range
+  AssertRangesIntersect(Ranges, {{0x3f, 0x40}});
+  // Test range that starts at end of second range
+  AssertRangesDontIntersect(Ranges, {{0x40, 0x41}});
+}
+
 } // end anonymous namespace
