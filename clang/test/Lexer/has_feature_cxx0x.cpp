@@ -479,3 +479,57 @@ int no_generic_lambdas();
 // CHECK-14: has_generic_lambdas
 // CHECK-11: no_generic_lambdas
 // CHECK-NO-11: no_generic_lambdas
+
+#if __has_feature(cxx_fold_expressions)
+int has_fold_expressions();
+#else
+int no_fold_expressions();
+#endif
+// CHECK-1Z: has_fold_expressions
+// CHECK-14: no_fold_expressions
+// CHECK-11: no_fold_expressions
+// CHECK-NO-11: no_fold_expressions
+
+
+#if __has_feature(cxx_if_constexpr)
+int has_if_constexpr();
+#else
+int no_if_constexpr();
+#endif
+// CHECK-1Z: has_if_constexpr
+// CHECK-14: no_if_constexpr
+// CHECK-11: no_if_constexpr
+// CHECK-NO-11: no_if_constexpr
+
+
+#if __has_feature(cxx_inline_variables)
+int has_inline_variables();
+#else
+int no_inline_variables();
+#endif
+// CHECK-1Z: has_inline_variables
+// CHECK-14: no_inline_variables
+// CHECK-11: no_inline_variables
+// CHECK-NO-11: no_inline_variables
+
+
+#if __has_feature(cxx_structured_bindings)
+int has_structured_bindings();
+#else
+int no_structured_bindings();
+#endif
+// CHECK-1Z: has_structured_bindings
+// CHECK-14: no_structured_bindings
+// CHECK-11: no_structured_bindings
+// CHECK-NO-11: no_structured_bindings
+
+
+#if __has_feature(cxx_variadic_using)
+int has_variadic_using();
+#else
+int no_variadic_using();
+#endif
+// CHECK-1Z: has_variadic_using
+// CHECK-14: no_variadic_using
+// CHECK-11: no_variadic_using
+// CHECK-NO-11: no_variadic_using

@@ -1224,8 +1224,15 @@ static bool HasFeature(const Preprocessor &PP, StringRef Feature) {
       .Case("cxx_relaxed_constexpr", LangOpts.CPlusPlus14)
       .Case("cxx_return_type_deduction", LangOpts.CPlusPlus14)
       .Case("cxx_variable_templates", LangOpts.CPlusPlus14)
+      // C++17 features
+      .Case("cxx_fold_expressions", LangOpts.CPlusPlus1z)
+      .Case("cxx_if_constexpr", LangOpts.CPlusPlus1z)
+      .Case("cxx_inline_variables", LangOpts.CPlusPlus1z)
+      .Case("cxx_structured_bindings", LangOpts.CPlusPlus1z)
+      .Case("cxx_variadic_using", LangOpts.CPlusPlus1z)
       // NOTE: For features covered by SD-6, it is preferable to provide *only*
-      // the SD-6 macro and not a __has_feature check.
+      // the SD-6 macro and not a __has_feature check unless the feature is
+      // also provided as an extension in older dialects.
 
       // C++ TSes
       //.Case("cxx_runtime_arrays", LangOpts.CPlusPlusTSArrays)
@@ -1314,6 +1321,12 @@ static bool HasExtension(const Preprocessor &PP, StringRef Extension) {
            .Case("cxx_binary_literals", true)
            .Case("cxx_init_captures", LangOpts.CPlusPlus11)
            .Case("cxx_variable_templates", LangOpts.CPlusPlus)
+           // C++17 features supported by other languages as extensions.
+           .Case("cxx_fold_expressions", LangOpts.CPlusPlus)
+           .Case("cxx_if_constexpr", LangOpts.CPlusPlus11)
+           .Case("cxx_inline_variables", LangOpts.CPlusPlus)
+           .Case("cxx_structured_bindings", LangOpts.CPlusPlus)
+           .Case("cxx_variadic_using", LangOpts.CPlusPlus11)
            .Default(false);
 }
 
