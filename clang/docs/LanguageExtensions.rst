@@ -873,6 +873,57 @@ Use ``__has_feature(cxx_variable_templates)`` or
 ``__has_extension(cxx_variable_templates)`` to determine if support for
 templated variable declarations is enabled.
 
+C++1z
+-----
+
+C++1z fold expressions
+^^^^^^^^^^^^^^^^^^^^^^
+
+Use ``__has_feature(cxx_fold_expressions)`` or
+``__has_extension(cxx_fold_expressions)`` to determine if support for
+fold expressions is enabled. For instance:
+
+.. code-block:: c++
+
+  template <class ...Bools>
+  bool variadic_and(Bools... b) { return (b && ...); }
+
+C++1z if constexpr
+^^^^^^^^^^^^^^^^^^
+
+Use ``__has_feature(cxx_if_constexpr)`` or
+``__has_extension(cxx_if_constexpr)`` to determine if support for
+``if constexpr`` is enabled.
+
+C++1z inline variables
+^^^^^^^^^^^^^^^^^^^^^^
+
+Use ``__has_feature(cxx_inline_variables)`` or
+``__has_extension(cxx_inline_variables)`` to determine if support for
+inline variables is enabled. (For instance, ``inline int x = 42;``)
+
+C++1z structured bindings
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Use ``__has_feature(cxx_structured_bindings)`` or
+``__has_extension(cxx_structured_bindings)`` to determine if support for
+structured bindings is enabled. (For instance,
+``auto [a, b, c] = std::make_tuple(1, 2, 3);``)
+
+C++1z variadic using
+^^^^^^^^^^^^^^^^^^^^
+
+Use ``__has_feature(cxx_variadic_using)`` or
+``__has_extension(cxx_variadic_using)`` to determine if support for
+pack expansions of using-declarations is enabled. For instance:
+
+.. code-block:: c++
+
+  template <class ...Bases> struct T : Bases... {
+    using Bases::operator()...;
+  }
+
+
 C11
 ---
 
