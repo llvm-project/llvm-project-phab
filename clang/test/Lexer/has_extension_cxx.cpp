@@ -66,3 +66,33 @@ int has_variable_templates();
 #if __has_extension(cxx_init_captures)
 int has_init_captures();
 #endif
+
+// CHECK-NOT: has_fold_expressions
+// CHECK11: has_fold_expressions
+#if __has_extension(cxx_fold_expressions)
+int has_fold_expressions();
+#endif
+
+// CHECK-NOT: has_if_constexpr
+// CHECK11: has_if_constexpr
+#if __has_extension(cxx_if_constexpr)
+int has_if_constexpr();
+#endif
+
+// CHECK-NOT: has_inline_variables
+// CHECK11: has_inline_variables
+#if __has_extension(cxx_inline_variables)
+int has_inline_variables();
+#endif
+
+// CHECK-NOT: has_structured_bindings
+// CHECK11: has_structured_bindings
+#if __has_extension(cxx_structured_bindings)
+int has_structured_bindings();
+#endif
+
+// CHECK-NOT: has_variadic_using
+// CHECK11: has_variadic_using
+#if __has_extension(cxx_variadic_using)
+int has_variadic_using();
+#endif

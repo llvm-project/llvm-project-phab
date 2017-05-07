@@ -873,6 +873,45 @@ Use ``__has_feature(cxx_variable_templates)`` or
 ``__has_extension(cxx_variable_templates)`` to determine if support for
 templated variable declarations is enabled.
 
+C++1z
+-----
+
+C++1z fold expressions
+^^^^^^^^^^^^^^^^^^^^^^
+
+Use ``__has_feature(cxx_fold_expressions)`` or
+``__has_extension(cxx_fold_expressions)`` to determine if support for
+fold expressions is enabled.
+
+C++1z if constexpr
+^^^^^^^^^^^^^^^^^^
+
+Use ``__has_feature(cxx_if_constexpr)`` or
+``__has_extension(cxx_if_constexpr)`` to determine if support for
+if constexpr is enabled.
+
+C++1z inline variables
+^^^^^^^^^^^^^^^^^^^^^^
+
+Use ``__has_feature(cxx_inline_variables)`` or
+``__has_extension(cxx_inline_variables)`` to determine if support for
+inline variables is enabled.
+
+C++1z structured bindings
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Use ``__has_feature(cxx_structured_bindings)`` or
+``__has_extension(cxx_structured_bindings)`` to determine if support for
+structured bindings is enabled.
+
+C++1z variadic using
+^^^^^^^^^^^^^^^^^^^^
+
+Use ``__has_feature(cxx_variadic_using)`` or
+``__has_extension(cxx_variadic_using)`` to determine if support for
+variadic using is enabled.
+
+
 C11
 ---
 
