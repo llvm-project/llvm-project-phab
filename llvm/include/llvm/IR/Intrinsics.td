@@ -617,14 +617,17 @@ def int_invariant_end   : Intrinsic<[],
 
 // invariant.group.barrier can't be marked with 'readnone' (IntrNoMem),
 // because it would cause CSE of two barriers with the same argument.
-// Readonly and argmemonly says that barrier only reads its argument and
-// it can be CSE only if memory didn't change between 2 barriers call,
-// which is valid.
+// Inaccessiblememonly says that the barrier doesn't read the argument,
+// but it changes state not accessible to this module. This way
+// we can DSE through the barrier because it doesn't read the value
+// after store. Although the barrier doesn't modify any memory it
+// can't be marked as readonly, because it would be possible to
+// CSE 2 barriers with store in between.
 // The argument also can't be marked with 'returned' attribute, because
-// it would remove barrier. 
+// it would remove barrier.
 def int_invariant_group_barrier : Intrinsic<[llvm_ptr_ty],
                                             [llvm_ptr_ty],
-                                            [IntrReadMem, IntrArgMemOnly]>;
+                                            [IntrInaccessibleMemOnly]>;
 
 //===------------------------ Stackmap Intrinsics -------------------------===//
 //
