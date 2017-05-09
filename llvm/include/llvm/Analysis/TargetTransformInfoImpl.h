@@ -274,6 +274,8 @@ public:
 
   bool enableInterleavedAccessVectorization() { return false; }
 
+  bool enableSplitStructArgs() { return false; }
+
   bool isFPVectorizationPotentiallyUnsafe() { return false; }
 
   bool allowsMisalignedMemoryAccesses(LLVMContext &Context,

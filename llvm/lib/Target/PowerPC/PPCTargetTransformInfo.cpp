@@ -447,3 +447,8 @@ int PPCTTIImpl::getInterleavedMemoryOpCost(unsigned Opcode, Type *VecTy,
   return Cost;
 }
 
+bool PPCTTIImpl::enableSplitStructArgs() {
+  if (ST->isPPC64() && ST->isELFv2ABI()) return true;
+  return false;
+}
+

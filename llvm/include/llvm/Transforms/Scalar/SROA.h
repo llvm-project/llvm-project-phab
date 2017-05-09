@@ -18,6 +18,7 @@
 
 #include "llvm/ADT/SetVector.h"
 #include "llvm/Analysis/AssumptionCache.h"
+#include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/PassManager.h"
@@ -59,6 +60,7 @@ class SROA : public PassInfoMixin<SROA> {
   LLVMContext *C = nullptr;
   DominatorTree *DT = nullptr;
   AssumptionCache *AC = nullptr;
+  TargetTransformInfo *TTI = nullptr;
 
   /// \brief Worklist of alloca instructions to simplify.
   ///
@@ -114,7 +116,7 @@ private:
 
   /// Helper used by both the public run method and by the legacy pass.
   PreservedAnalyses runImpl(Function &F, DominatorTree &RunDT,
-                            AssumptionCache &RunAC);
+                            AssumptionCache &RunAC, TargetTransformInfo &RunTTI);
 
   bool presplitLoadsAndStores(AllocaInst &AI, sroa::AllocaSlices &AS);
   AllocaInst *rewritePartition(AllocaInst &AI, sroa::AllocaSlices &AS,

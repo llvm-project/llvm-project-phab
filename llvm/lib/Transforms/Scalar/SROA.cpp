@@ -2988,11 +2988,14 @@ class AggLoadStoreRewriter : public InstVisitor<AggLoadStoreRewriter, bool> {
   /// value (as opposed to the user).
   Use *U;
 
+  bool SplitStructArgs = false;
+
 public:
   /// Rewrite loads and stores through a pointer and all pointers derived from
   /// it.
-  bool rewrite(Instruction &I) {
+  bool rewrite(Instruction &I, bool S) {
     DEBUG(dbgs() << "  Rewriting FCA loads and stores...\n");
+    SplitStructArgs = S;
     enqueueUsers(I);
     bool Changed = false;
     while (!Queue.empty()) {
@@ -3140,6 +3143,90 @@ private:
     }
   };
 
+  bool emitSplitOpsForArgs(StoreInst &SI) {
+    /*
+    %struct.record = type { i64, i32, i32 }
+
+    define signext i32 @ppc64le_func([2 x i64] %r.coerce) #0 {
+    entry:
+      %r = alloca %struct.record, align 8
+      %0 = bitcast %struct.record* %r to [2 x i64]*
+      store [2 x i64] %r.coerce, [2 x i64]* %0, align 8
+
+    define i32 @x86_64_func(i64 %r.coerce0, i64 %r.coerce1) #0 {
+    entry:
+      %r = alloca %struct.record, align 8
+      %0 = bitcast %struct.record* %r to { i64, i64 }*
+      %1 = getelementptr inbounds { i64, i64 }, { i64, i64 }* %0, i32 0, i32 0
+      store i64 %r.coerce0, i64* %1, align 8
+      %2 = getelementptr inbounds { i64, i64 }, { i64, i64 }* %0, i32 0, i32 1
+      store i64 %r.coerce1, i64* %2, align 8
+    */
+    Value *V = SI.getValueOperand();
+    assert(isa<Argument>(V));
+    ArrayType *ATy = dyn_cast<ArrayType>(V->getType());
+
+    // We optimize when a struct parameter is passed as a 64-bit integer array in GRPs (e.g. ppc64)
+    if (!ATy || !ATy->getElementType()->isIntegerTy(64))
+      return false;
+
+    BitCastInst *BCI = dyn_cast<BitCastInst>(SI.getPointerOperand());
+    if (BCI == NULL) return false;
+
+    AllocaInst *AI = dyn_cast<AllocaInst>(BCI->getOperand(0));
+    if (AI == NULL) return false;
+
+    StructType *STy = dyn_cast<StructType>(const_cast<Type*>(AI->getAllocatedType()));
+    if (STy == NULL) return false;
+
+    const DataLayout &DL = AI->getModule()->getDataLayout();
+    SmallVector<unsigned, 2> Indices;
+    SmallVector<Value *, 2> GEPIndices;
+    Type *Int32Ty = Type::getInt32Ty(STy->getContext());
+    GEPIndices.push_back(ConstantInt::get(Int32Ty, 0));
+    StructType::element_iterator I = STy->element_begin();
+    StructType::element_iterator E = STy->element_end();
+
+    // nested struct is not supprted now
+    for (; I != E; I++) {
+      Type *Ty = *I;
+      if (!Ty->isSingleValueType()) return false;
+    }
+
+    IRBuilderTy IRB(&SI);
+    unsigned Idx = 0;
+    for (I = STy->element_begin(); I != E; I++, Idx++) {
+      Type *Ty = *I;
+      GEPIndices.push_back(ConstantInt::get(Int32Ty, Idx));
+      unsigned Offset = DL.getIndexedOffsetInType(STy, GEPIndices);
+
+      Indices.push_back(Offset / 8);
+      Value *ExtractedI64 =
+          IRB.CreateExtractValue(V, Indices, V->getName() + "Extract");
+      Indices.pop_back();
+
+      Value *InBoundsGEP =
+          IRB.CreateInBoundsGEP(AI, GEPIndices);
+      GEPIndices.pop_back();
+      Value *Store;
+      if (DL.getTypeStoreSize(Ty) < DL.getTypeStoreSize(ExtractedI64->getType())) {
+        IntegerType *ExtractTy = Type::getIntNTy(SI.getContext(), DL.getTypeStoreSize(Ty) * 8);
+        Value *Extracted = extractInteger(DL, IRB, ExtractedI64, ExtractTy, Offset % 8, "extract");
+        Value *PtrInt = IRB.CreateBitCast(InBoundsGEP, ExtractTy->getPointerTo(SI.getPointerAddressSpace()));
+        Store = IRB.CreateStore(Extracted, PtrInt);
+      }
+      else {
+        IntegerType *ExtractTy = Type::getIntNTy(SI.getContext(), DL.getTypeStoreSize(Ty) * 8);
+        Value *PtrInt = IRB.CreateBitCast(InBoundsGEP, ExtractTy->getPointerTo(SI.getPointerAddressSpace()));
+        Store = IRB.CreateStore(ExtractedI64, PtrInt);
+      }
+
+      (void)Store;
+      DEBUG(dbgs() << "          to: " << *Store << "\n");
+    }
+    return true;
+  }
+
   bool visitStoreInst(StoreInst &SI) {
     if (!SI.isSimple() || SI.getPointerOperand() != *U)
       return false;
@@ -3149,6 +3236,10 @@ private:
 
     // We have an aggregate being stored, split it apart.
     DEBUG(dbgs() << "    original: " << SI << "\n");
+    if (SplitStructArgs && isa<Argument>(V) && emitSplitOpsForArgs(SI)) {
+      SI.eraseFromParent();
+      return true;
+    }
     StoreOpSplitter Splitter(&SI, *U);
     Splitter.emitSplitOps(V->getType(), V, V->getName() + ".fca");
     SI.eraseFromParent();
@@ -4100,7 +4191,7 @@ bool SROA::runOnAlloca(AllocaInst &AI) {
   // First, split any FCA loads and stores touching this alloca to promote
   // better splitting and promotion opportunities.
   AggLoadStoreRewriter AggRewriter;
-  Changed |= AggRewriter.rewrite(AI);
+  Changed |= AggRewriter.rewrite(AI, TTI->enableSplitStructArgs());
 
   // Build the slices using a recursive instruction-visiting builder.
   AllocaSlices AS(DL, AI);
@@ -4197,11 +4288,12 @@ bool SROA::promoteAllocas(Function &F) {
 }
 
 PreservedAnalyses SROA::runImpl(Function &F, DominatorTree &RunDT,
-                                AssumptionCache &RunAC) {
+                                AssumptionCache &RunAC, TargetTransformInfo &RunTTI) {
   DEBUG(dbgs() << "SROA function: " << F.getName() << "\n");
   C = &F.getContext();
   DT = &RunDT;
   AC = &RunAC;
+  TTI = &RunTTI;
 
   BasicBlock &EntryBB = F.getEntryBlock();
   for (BasicBlock::iterator I = EntryBB.begin(), E = std::prev(EntryBB.end());
@@ -4249,7 +4341,8 @@ PreservedAnalyses SROA::runImpl(Function &F, DominatorTree &RunDT,
 
 PreservedAnalyses SROA::run(Function &F, FunctionAnalysisManager &AM) {
   return runImpl(F, AM.getResult<DominatorTreeAnalysis>(F),
-                 AM.getResult<AssumptionAnalysis>(F));
+                 AM.getResult<AssumptionAnalysis>(F),
+                 AM.getResult<TargetIRAnalysis>(F));
 }
 
 /// A legacy pass for the legacy pass manager that wraps the \c SROA pass.
@@ -4270,12 +4363,14 @@ public:
 
     auto PA = Impl.runImpl(
         F, getAnalysis<DominatorTreeWrapperPass>().getDomTree(),
-        getAnalysis<AssumptionCacheTracker>().getAssumptionCache(F));
+        getAnalysis<AssumptionCacheTracker>().getAssumptionCache(F),
+        getAnalysis<TargetTransformInfoWrapperPass>().getTTI(F));
     return !PA.areAllPreserved();
   }
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.addRequired<AssumptionCacheTracker>();
     AU.addRequired<DominatorTreeWrapperPass>();
+    AU.addRequired<TargetTransformInfoWrapperPass>();
     AU.addPreserved<GlobalsAAWrapperPass>();
     AU.setPreservesCFG();
   }

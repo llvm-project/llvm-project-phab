@@ -61,6 +61,8 @@ public:
 
   bool enableAggressiveInterleaving(bool LoopHasReductions);
   bool enableInterleavedAccessVectorization();
+  bool enableSplitStructArgs();
+
   unsigned getNumberOfRegisters(bool Vector);
   unsigned getRegisterBitWidth(bool Vector);
   unsigned getCacheLineSize();

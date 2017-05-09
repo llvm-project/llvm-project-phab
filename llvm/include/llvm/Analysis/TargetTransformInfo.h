@@ -454,6 +454,9 @@ public:
   /// \brief Enable matching of interleaved access groups.
   bool enableInterleavedAccessVectorization() const;
 
+  /// \brief Split struct fields passed via GPRs in SROA
+  bool enableSplitStructArgs() const;
+
   /// \brief Indicate that it is potentially unsafe to automatically vectorize
   /// floating-point operations because the semantics of vector and scalar
   /// floating-point semantics may differ. For example, ARM NEON v7 SIMD math
@@ -806,6 +809,7 @@ public:
   virtual bool supportsEfficientVectorElementLoadStore() = 0;
   virtual bool enableAggressiveInterleaving(bool LoopHasReductions) = 0;
   virtual bool enableInterleavedAccessVectorization() = 0;
+  virtual bool enableSplitStructArgs() = 0;
   virtual bool isFPVectorizationPotentiallyUnsafe() = 0;
   virtual bool allowsMisalignedMemoryAccesses(LLVMContext &Context,
                                               unsigned BitWidth,
@@ -1019,6 +1023,9 @@ public:
   }
   bool enableInterleavedAccessVectorization() override {
     return Impl.enableInterleavedAccessVectorization();
+  }
+  bool enableSplitStructArgs() override {
+    return Impl.enableSplitStructArgs();
   }
   bool isFPVectorizationPotentiallyUnsafe() override {
     return Impl.isFPVectorizationPotentiallyUnsafe();
