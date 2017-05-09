@@ -723,6 +723,12 @@ void cl::TokenizeGNUCommandLine(StringRef Src, StringSaver &Saver,
     // Backslash escapes the next character.
     if (I + 1 < E && Src[I] == '\\') {
       ++I; // Skip the escape.
+      if (Src[I] == '\n')
+        continue; // Ignore backlash followed by '\n'.
+      if (Src[I] == '\r' && I + 1 < E && Src[I + 1] == '\n') {
+        ++I;
+        continue; // Ignore backlash followed by \r\n.
+      }
       Token.push_back(Src[I]);
       continue;
     }
@@ -982,6 +988,14 @@ bool cl::ExpandResponseFiles(StringSaver &Saver, TokenizerCallback Tokenizer,
   return AllExpanded;
 }
 
+bool cl::readConfigFile(StringRef CfgFile, StringSaver &Saver,
+                        SmallVectorImpl<const char *> &Argv) {
+  if (!ExpandResponseFile(CfgFile, Saver, tokenizeConfigFile, Argv, false,
+                          true))
+    return false;
+  return ExpandResponseFiles(Saver, tokenizeConfigFile, Argv, false);
+}
+
 /// ParseEnvironmentOptions - An alternative entry point to the
 /// CommandLine library, which allows you to read the program's name
 /// from the caller (as PROGNAME) and its command-line arguments from
@@ -1010,6 +1024,39 @@ void cl::ParseEnvironmentOptions(const char *progName, const char *envVar,
   TokenizeGNUCommandLine(*envValue, Saver, newArgv);
   int newArgc = static_cast<int>(newArgv.size());
   ParseCommandLineOptions(newArgc, &newArgv[0], StringRef(Overview));
+}
+
+void cl::tokenizeConfigFile(StringRef Source, StringSaver &Saver,
+                            SmallVectorImpl<const char *> &NewArgv,
+                            bool MarkEOLs) {
+  for (const char *Cur = Source.begin(); Cur != Source.end();) {
+    // Check for comment line.
+    if (isWhitespace(*Cur)) {
+      while (Cur != Source.end() && isWhitespace(*Cur))
+        ++Cur;
+      continue;
+    }
+    if (*Cur == '#') {
+      while (Cur != Source.end() && *Cur != '\n')
+        ++Cur;
+      continue;
+    }
+    // Find end of current line.
+    const char *Start = Cur;
+    for (const char *End = Source.end(); Cur != End; ++Cur) {
+      if (*Cur == '\\') {
+        if (Cur + 1 != End) {
+          ++Cur;
+          if (Cur != End && *Cur == '\r' && (Cur + 1 != End) && Cur[1] == '\n')
+            ++Cur;
+        }
+      } else if (*Cur == '\n')
+        break;
+    }
+    // Tokenize line.
+    StringRef Line(Start, Cur - Start);
+    cl::TokenizeGNUCommandLine(Line, Saver, NewArgv, MarkEOLs);
+  }
 }
 
 bool cl::ParseCommandLineOptions(int argc, const char *const *argv,

@@ -205,6 +205,85 @@ TEST(CommandLineTest, TokenizeWindowsCommandLine) {
                            array_lengthof(Output));
 }
 
+TEST(CommandLineTest, TokenizeConfigFile1) {
+  const char *Input = "\\";
+  const char *const Output[] = { "\\" };
+  testCommandLineTokenizer(cl::tokenizeConfigFile, Input, Output,
+                           array_lengthof(Output));
+}
+
+TEST(CommandLineTest, TokenizeConfigFile2) {
+  const char *Input = "\\abc";
+  const char *const Output[] = { "abc" };
+  testCommandLineTokenizer(cl::tokenizeConfigFile, Input, Output,
+                           array_lengthof(Output));
+}
+
+TEST(CommandLineTest, TokenizeConfigFile3) {
+  const char *Input = "abc\\";
+  const char *const Output[] = { "abc\\" };
+  testCommandLineTokenizer(cl::tokenizeConfigFile, Input, Output,
+                           array_lengthof(Output));
+}
+
+TEST(CommandLineTest, TokenizeConfigFile4) {
+  const char *Input = "abc\\\n123";
+  const char *const Output[] = { "abc123" };
+  testCommandLineTokenizer(cl::tokenizeConfigFile, Input, Output,
+                           array_lengthof(Output));
+}
+
+TEST(CommandLineTest, TokenizeConfigFile5) {
+  const char *Input = "abc\\\r\n123";
+  const char *const Output[] = { "abc123" };
+  testCommandLineTokenizer(cl::tokenizeConfigFile, Input, Output,
+                           array_lengthof(Output));
+}
+
+TEST(CommandLineTest, TokenizeConfigFile6) {
+  const char *Input = "abc\\\n";
+  const char *const Output[] = { "abc" };
+  testCommandLineTokenizer(cl::tokenizeConfigFile, Input, Output,
+                           array_lengthof(Output));
+}
+
+TEST(CommandLineTest, TokenizeConfigFile7) {
+  const char *Input = "abc\\\r\n";
+  const char *const Output[] = { "abc" };
+  testCommandLineTokenizer(cl::tokenizeConfigFile, Input, Output,
+                           array_lengthof(Output));
+}
+
+TEST(CommandLineTest, TokenizeConfigFile8) {
+  SmallVector<const char *, 0> Actual;
+  BumpPtrAllocator A;
+  StringSaver Saver(A);
+  cl::tokenizeConfigFile("\\\n", Saver, Actual, /*MarkEOLs=*/false);
+  EXPECT_TRUE(Actual.empty());
+}
+
+TEST(CommandLineTest, TokenizeConfigFile9) {
+  SmallVector<const char *, 0> Actual;
+  BumpPtrAllocator A;
+  StringSaver Saver(A);
+  cl::tokenizeConfigFile("\\\r\n", Saver, Actual, /*MarkEOLs=*/false);
+  EXPECT_TRUE(Actual.empty());
+}
+
+TEST(CommandLineTest, TokenizeConfigFile10) {
+  const char *Input = "\\\nabc";
+  const char *const Output[] = { "abc" };
+  testCommandLineTokenizer(cl::tokenizeConfigFile, Input, Output,
+                           array_lengthof(Output));
+}
+
+TEST(CommandLineTest, TokenizeConfigFile11) {
+  const char *Input = "\\\r\nabc";
+  const char *const Output[] = { "abc" };
+  testCommandLineTokenizer(cl::tokenizeConfigFile, Input, Output,
+                           array_lengthof(Output));
+}
+
 TEST(CommandLineTest, AliasesWithArguments) {
   static const size_t ARGC = 3;
   const char *const Inputs[][ARGC] = {
@@ -602,6 +681,54 @@ TEST(CommandLineTest, ResponseFiles) {
   llvm::sys::fs::remove(IncDir);
   llvm::sys::fs::remove(IncludedFileName);
   llvm::sys::fs::remove(TestDir);
+}
+
+TEST(CommandLineTest, ReadConfigFile) {
+  llvm::SmallVector<const char *, 1> Argv;
+
+  llvm::SmallString<128> TestCfg;
+  std::error_code EC =
+    llvm::sys::fs::createTemporaryFile("unittest", "cfg", TestCfg);
+  EXPECT_TRUE(!EC);
+  std::string Directory = llvm::sys::path::parent_path(TestCfg);
+  std::string FileName = llvm::sys::path::filename(TestCfg);
+  llvm::BumpPtrAllocator A;
+  llvm::StringSaver Saver(A);
+  bool Result;
+
+  // Comments are ignored in config files.
+  std::ofstream Cfg(TestCfg.c_str());
+  Cfg << "# Comment\n";
+  Cfg << "-option_1 -option_2\n";
+  Cfg << "-option_3=abcd\n";
+  Cfg.close();
+
+  Result = llvm::cl::readConfigFile(TestCfg, Saver, Argv);
+
+  EXPECT_TRUE(Result);
+  EXPECT_EQ(Argv.size(), 3);
+  EXPECT_STREQ(Argv[0], "-option_1");
+  EXPECT_STREQ(Argv[1], "-option_2");
+  EXPECT_STREQ(Argv[2], "-option_3=abcd");
+
+  // Reading from file with lines concatenated by trailing \.
+  Cfg.open(TestCfg.c_str(), std::ofstream::trunc);
+  EXPECT_TRUE(Cfg.is_open());
+
+  Cfg << "\n\n# Comment\n";
+  Cfg << "-option_\\\n";
+  Cfg << "1 -option_3=abcd\n";
+  Cfg.close();
+
+  Argv.clear();
+  Result = llvm::cl::readConfigFile(TestCfg, Saver, Argv);
+
+  EXPECT_TRUE(Result);
+  EXPECT_EQ(Argv.size(), 2);
+  EXPECT_STREQ(Argv[0], "-option_1");
+  EXPECT_STREQ(Argv[1], "-option_3=abcd");
+
+  llvm::sys::fs::remove(TestCfg);
 }
 
 }  // anonymous namespace

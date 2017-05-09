@@ -1828,6 +1828,29 @@ typedef void (*TokenizerCallback)(StringRef Source, StringSaver &Saver,
                                   SmallVectorImpl<const char *> &NewArgv,
                                   bool MarkEOLs);
 
+/// Tokenizes content of configuration file.
+///
+/// \param [in] Source The string representing content of config file.
+/// \param [in] Saver Delegates back to the caller for saving parsed strings.
+/// \param [out] NewArgv All parsed strings are appended to NewArgv.
+/// \param [in] MarkEOLs Added for compatibility with TokenizerCallback.
+///
+/// It works like TokenizeGNUCommandLine with ability to skip comment lines.
+///
+void tokenizeConfigFile(StringRef Source, StringSaver &Saver,
+                        SmallVectorImpl<const char *> &NewArgv,
+                        bool MarkEOLs = false);
+
+/// Reads command line options from the given configuration file.
+///
+/// \param CfgFileName [in] Path to configuration file.
+/// \param Saver [in] Objects that saves allocated strings.
+/// \param Argv [out] Array to which the read options are added.
+/// \return true if the file was successfully read.
+///
+bool readConfigFile(StringRef CfgFileName, StringSaver &Saver,
+                    SmallVectorImpl<const char *> &Argv);
+
 /// \brief Expand response files on a command line recursively using the given
 /// StringSaver and tokenization strategy.  Argv should contain the command line
 /// before expansion and will be modified in place. If requested, Argv will
