@@ -23,6 +23,234 @@ using namespace llvm;
 using namespace dwarf;
 using namespace object;
 
+bool DWARFVerifier::SortedRanges::contains(const SortedRanges &RHS) const {
+  return DWARFRangesContains(Ranges, RHS.Ranges);
+}
+
+bool DWARFVerifier::SortedRanges::doesIntersect(const SortedRanges &RHS) const {
+  return AnyDWARFRangesIntersect(Ranges, RHS.Ranges);
+}
+
+void DWARFVerifier::SortedRanges::dump(raw_ostream &OS) const {
+  for (const auto &R : Ranges)
+    OS << " [" << format("0x%" PRIx64, R.first) << "-"
+       << format("0x%" PRIx64, R.second) << ")";
+}
+
+bool DWARFVerifier::SortedRanges::operator<(const SortedRanges &RHS) const {
+  if (RHS.Ranges.empty())
+    return false;
+  if (Ranges.empty())
+    return true;
+  size_t LeftSize = Ranges.size();
+  size_t RightSize = RHS.Ranges.size();
+  for (size_t I = 0; I < LeftSize; ++I) {
+    if (I >= RightSize)
+      return false;
+    if (Ranges[I].first != RHS.Ranges[I].first)
+      return Ranges[I].first < RHS.Ranges[I].first;
+    if (Ranges[I].second != RHS.Ranges[I].second)
+      return Ranges[I].second < RHS.Ranges[I].second;
+  }
+  return false;
+}
+
+uint32_t DWARFVerifier::SortedRanges::removeInvalidRanges(
+    DWARFAddressRangesVector &Ranges) {
+  uint32_t NumInvalidRanges = 0;
+  size_t I = 0;
+  while (I < Ranges.size()) {
+    if (Ranges[I].first >= Ranges[I].second) {
+      if (Ranges[I].first > Ranges[I].second)
+        ++NumInvalidRanges;
+      // Remove empty or invalid ranges.
+      Ranges.erase(Ranges.begin() + I);
+    } else {
+      ++I; // Only increment if we didn't remove the range.
+    }
+  }
+  return NumInvalidRanges;
+}
+
+bool DWARFVerifier::SortedRanges::insert(
+    const DWARFAddressRangesVector &UnsortedRanges) {
+  bool Error = false;
+  for (const auto &R : UnsortedRanges) {
+    if (R.first >= R.second)
+      continue;
+    auto Begin = Ranges.begin();
+    auto End = Ranges.end();
+    auto InsertPos = std::lower_bound(Begin, End, R);
+    if (!Error) {
+      bool RangeOverlaps = false;
+      if (InsertPos != End) {
+        if (DWARFRangesIntersect(*InsertPos, R))
+          RangeOverlaps = true;
+        else if (InsertPos != Begin) {
+          auto Iter = InsertPos - 1;
+          if (DWARFRangesIntersect(*Iter, R))
+            RangeOverlaps = true;
+        }
+        if (RangeOverlaps) {
+          Error = true;
+        }
+      }
+      // Insert the range into our sorted list
+      Ranges.insert(InsertPos, R);
+    }
+  }
+  return Error;
+}
+
+bool DWARFVerifier::DieRangeInfo::setDieAndReportRangeErrors(raw_ostream &OS,
+                                                             DWARFDie D) {
+  Die = D;
+  auto UnsortedRanges = Die.getAddressRanges();
+  bool HasErrors = false;
+  if (SortedRanges::removeInvalidRanges(UnsortedRanges)) {
+    HasErrors = true;
+    OS << "error: invalid range in DIE:\n";
+  }
+  if (Ranges.insert(UnsortedRanges)) {
+    OS << "error: ranges in DIE overlap:\n";
+    HasErrors = true;
+  }
+  if (HasErrors) {
+    Die.dump(OS, 0);
+    OS << "\n";
+  }
+  return HasErrors;
+}
+
+void DWARFVerifier::DieRangeInfo::dump(raw_ostream &OS) const {
+  OS << format("0x%08" PRIx32, Die.getOffset()) << ":";
+  Ranges.dump(OS);
+  OS << "\n";
+}
+
+bool DWARFVerifier::DieRangeInfo::contains(const DieRangeInfo &RHS) const {
+  return Ranges.contains(RHS.Ranges);
+}
+
+bool DWARFVerifier::DieRangeInfo::doesIntersect(const DieRangeInfo &RHS) const {
+  return Ranges.doesIntersect(RHS.Ranges);
+}
+
+bool DWARFVerifier::DieRangeInfo::operator<(const DieRangeInfo &RHS) const {
+  return Ranges < RHS.Ranges;
+}
+
+bool DWARFVerifier::DieRangeInfo::reportErrorIfNotContained(
+    raw_ostream &OS, const DieRangeInfo &RI, const char *Error) const {
+  if (!contains(RI)) {
+    OS << Error;
+    Die.dump(OS, 0);
+    RI.Die.dump(OS, 0);
+    OS << "\n";
+    return true;
+  }
+  return false;
+}
+
+const DWARFVerifier::DieRangeInfo *
+DWARFVerifier::NonOverlappingRanges::GetOverlappingRangeInfo(
+    const DieRangeInfo &RI) const {
+  if (!RangeSet.empty()) {
+    auto Iter = RangeSet.lower_bound(RI);
+    if (Iter != RangeSet.end()) {
+      if (Iter->doesIntersect(RI))
+        return &*Iter;
+    }
+    if (Iter != RangeSet.begin()) {
+      --Iter;
+      if (Iter->doesIntersect(RI))
+        return &*Iter;
+    }
+  }
+  return nullptr;
+}
+
+bool DWARFVerifier::NonOverlappingRanges::insertAndReportErrors(
+    raw_ostream &OS, const DieRangeInfo &RI) {
+  bool Error = false;
+  auto OverlappingRI = GetOverlappingRangeInfo(RI);
+  if (OverlappingRI) {
+    OS << "error: DIEs have overlapping address ranges:\n";
+    OverlappingRI->Die.dump(OS, 0);
+    RI.Die.dump(OS, 0);
+    OS << "\n";
+    Error = true;
+  }
+  RangeSet.insert(RI);
+  return Error;
+}
+
+void DWARFVerifier::verifyDie(const DWARFDie &Die, const DieRangeInfo &ParentRI,
+                              NonOverlappingRanges &NOR) {
+  const auto Tag = Die.getTag();
+
+  DieRangeInfo RI;
+  switch (Tag) {
+  case DW_TAG_null:
+    return;
+  case DW_TAG_compile_unit:
+    if (UnitRI.setDieAndReportRangeErrors(OS, Die))
+      ++NumDebugInfoErrors;
+    break;
+  case DW_TAG_subprogram: {
+    if (RI.setDieAndReportRangeErrors(OS, Die))
+      ++NumDebugInfoErrors;
+    if (RI.Ranges.empty())
+      break;
+
+    // If the compile unit has address range(s), it must contain DIE's ranges.
+    const char *Error = "error: CU DIE has child with address ranges that are "
+                        "not contained in its ranges:\n";
+    if (!UnitRI.Ranges.empty() &&
+        UnitRI.reportErrorIfNotContained(OS, RI, Error)) {
+      ++NumDebugInfoErrors;
+    }
+
+    // Check if this function's range overlaps with any previous function ranges
+    // from any compile unit and make an error if needed.
+    if (AllFunctionRanges.insertAndReportErrors(OS, RI))
+      ++NumDebugInfoErrors;
+
+  } break;
+  case DW_TAG_lexical_block:
+  case DW_TAG_inlined_subroutine: {
+    if (RI.setDieAndReportRangeErrors(OS, Die)) {
+      ++NumDebugInfoErrors;
+      Die.dump(OS, 0);
+      OS << "\n";
+    }
+    if (RI.Ranges.empty())
+      break;
+    // Check to make sure our parent contains all ranges for this Die.
+    const char *Error = "error: DIE has a child DIE whose address ranges are "
+                        "not contained in its ranges:\n";
+    if (ParentRI.reportErrorIfNotContained(OS, RI, Error))
+      ++NumDebugInfoErrors;
+
+    // Check if this range overlaps with any previous sibling ranges and make an
+    // error if needed.
+    if (NOR.insertAndReportErrors(OS, RI))
+      ++NumDebugInfoErrors;
+  } break;
+  default:
+    RI.Die = Die;
+    break;
+  }
+  // Verify the attributes and forms.
+  for (auto AttrValue : Die.attributes()) {
+    verifyDebugInfoAttribute(Die, AttrValue);
+    verifyDebugInfoForm(Die, AttrValue);
+  }
+
+  NonOverlappingRanges DieNRO;
+  for (DWARFDie Child : Die)
+    verifyDie(Child, RI, DieNRO);
+}
 void DWARFVerifier::verifyDebugInfoAttribute(const DWARFDie &Die,
                                              DWARFAttribute &AttrValue) {
   const auto Attr = AttrValue.Attr;
@@ -160,17 +388,9 @@ bool DWARFVerifier::handleDebugInfo() {
   NumDebugInfoErrors = 0;
   OS << "Verifying .debug_info...\n";
   for (const auto &CU : DCtx.compile_units()) {
-    unsigned NumDies = CU->getNumDIEs();
-    for (unsigned I = 0; I < NumDies; ++I) {
-      auto Die = CU->getDIEAtIndex(I);
-      const auto Tag = Die.getTag();
-      if (Tag == DW_TAG_null)
-        continue;
-      for (auto AttrValue : Die.attributes()) {
-        verifyDebugInfoAttribute(Die, AttrValue);
-        verifyDebugInfoForm(Die, AttrValue);
-      }
-    }
+    NonOverlappingRanges NRO;
+    verifyDie(CU->getUnitDIE(/* ExtractUnitDIEOnly = */ false), DieRangeInfo(),
+              NRO);
   }
   verifyDebugInfoReferences();
   return NumDebugInfoErrors == 0;
