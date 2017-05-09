@@ -92,6 +92,16 @@ public:
                                   const std::vector<CalleeSavedInfo> &CSI,
                                   const TargetRegisterInfo *TRI) const override;
 
+  void getSavedRegisters(SmallVectorImpl<unsigned> &Regs,
+                         MachineBasicBlock &SaveBB,
+                         const std::vector<CalleeSavedInfo> &CSI,
+                         const TargetRegisterInfo *TRI) const override;
+
+  void getRestoredRegisters(SmallVectorImpl<unsigned> &Regs,
+                            MachineBasicBlock &RestoreBB,
+                            const std::vector<CalleeSavedInfo> &CSI,
+                            const TargetRegisterInfo *TRI) const override;
+
   bool hasFP(const MachineFunction &MF) const override;
   bool hasReservedCallFrame(const MachineFunction &MF) const override;
   bool canSimplifyCallFramePseudos(const MachineFunction &MF) const override;
