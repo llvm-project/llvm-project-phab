@@ -22,8 +22,45 @@ namespace llvm {
 
 class raw_ostream;
 
+typedef std::pair<uint64_t, uint64_t> DWARFRange;
+
+/// Returns true if [LHS.first, LHS.second) intersects with
+/// [RHS.first, RHS.second).
+inline bool DWARFRangesIntersect(const DWARFRange &LHS, const DWARFRange &RHS) {
+  if (LHS.first == LHS.second || RHS.first == RHS.second)
+    return false; // Empty ranges can't intersect.
+  return (LHS.first < RHS.second) && (LHS.second > RHS.first);
+}
+
+/// Returns true if [LHS.first, LHS.second) contains [RHS.first, RHS.second).
+inline bool DWARFRangeContains(const DWARFRange &LHS, const DWARFRange &RHS) {
+  if (LHS.first <= RHS.first && RHS.first < LHS.second)
+    return LHS.first < RHS.second && RHS.second <= LHS.second;
+  return false;
+}
+
 /// DWARFAddressRangesVector - represents a set of absolute address ranges.
-typedef std::vector<std::pair<uint64_t, uint64_t>> DWARFAddressRangesVector;
+typedef std::vector<DWARFRange> DWARFAddressRangesVector;
+
+/// Returns true if any ranges in LHS intersect with any ranges of RHS.
+inline bool AnyDWARFRangesIntersect(const DWARFAddressRangesVector &LHS,
+                                    const DWARFAddressRangesVector &RHS) {
+  for (const auto &R : LHS)
+    for (const auto &L : RHS)
+      if (DWARFRangesIntersect(R, L))
+        return true;
+  return false;
+}
+
+/// Returns true LHS contains all ranges in RHS.
+inline bool DWARFRangesContains(const DWARFAddressRangesVector &LHS,
+                                const DWARFAddressRangesVector &RHS) {
+  for (const auto &L : LHS)
+    for (const auto &R : RHS)
+      if (!DWARFRangeContains(L, R))
+        return false;
+  return true;
+}
 
 class DWARFDebugRangeList {
 public:
