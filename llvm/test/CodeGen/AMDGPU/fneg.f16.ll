@@ -64,8 +64,9 @@ define amdgpu_kernel void @v_fneg_fold_f16(half addrspace(1)* %out, half addrspa
 ; GCN-LABEL: {{^}}s_fneg_v2f16:
 ; CI: s_mov_b32 [[MASK:s[0-9]+]], 0x8000{{$}}
 ; CI: v_xor_b32_e32 v{{[0-9]+}}, [[MASK]], v{{[0-9]+}}
-; CI: v_lshlrev_b32_e32 v{{[0-9]+}}, 16, v{{[0-9]+}}
+; CI: v_and_b32_e32 v{{[0-9]+}}, 0xffff, v{{[0-9]+}}
 ; CI: v_xor_b32_e32 v{{[0-9]+}}, [[MASK]], v{{[0-9]+}}
+; CI: v_lshlrev_b32_e32 v{{[0-9]+}}, 16, v{{[0-9]+}}
 ; CI: v_or_b32_e32
 
 ; VI: v_mov_b32_e32 [[MASK:v[0-9]+]], 0x8000{{$}}
