@@ -143,6 +143,12 @@ bool ContinuationIndenter::canBreak(const LineState &State) {
       State.Stack.back().NoLineBreakInOperand)
     return false;
 
+  if (Style.DanglingParenthesis && Current.is(tok::r_paren) &&
+      Current.MatchingParen &&
+      Current.MatchingParen->LastNewlineOffset ==
+          Current.MatchingParen->Next->LastNewlineOffset)
+    return false;
+
   return !State.Stack.back().NoLineBreak;
 }
 
@@ -155,6 +161,11 @@ bool ContinuationIndenter::mustBreak(const LineState &State) {
       Current.closesBlockOrBlockTypeList(Style))
     return true;
   if (Previous.is(tok::semi) && State.LineContainsContinuedForLoopSection)
+    return true;
+  if (Style.DanglingParenthesis && Current.is(tok::r_paren) &&
+      Current.MatchingParen &&
+      Current.MatchingParen->LastNewlineOffset <
+          Current.MatchingParen->Next->LastNewlineOffset)
     return true;
   if ((startsNextParameter(Current, Style) || Previous.is(tok::semi) ||
        (Previous.is(TT_TemplateCloser) && Current.is(TT_StartOfName) &&
@@ -673,6 +684,9 @@ unsigned ContinuationIndenter::getNewLineColumn(const LineState &State) {
         Current.MatchingParen->BlockKind == BK_BracedInit)
       return State.Stack[State.Stack.size() - 2].LastSpace;
     return State.FirstIndent;
+  }
+  if (Style.DanglingParenthesis && Current.is(tok::r_paren) && State.Stack.size() > 1) {
+    return State.Stack[State.Stack.size() - 2].LastSpace;
   }
   if (NextNonComment->is(TT_TemplateString) && NextNonComment->closesScope())
     return State.Stack[State.Stack.size() - 2].LastSpace;

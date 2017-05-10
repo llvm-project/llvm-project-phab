@@ -778,6 +778,20 @@ struct FormatStyle {
   /// \endcode
   bool ConstructorInitializerAllOnOneLineOrOnePerLine;
 
+  /// \brief If there is a break after the opening parenthesis, also break
+  /// before the closing parenthesis
+  /// \code
+  ///   true:
+  ///   someLongFunction(
+  ///       argument1, argument2
+  ///   );
+  ///
+  ///   false:
+  ///   someLongFunction(
+  ///       argument1, argument2);
+  /// \endcode
+  bool DanglingParenthesis;
+
   /// \brief The number of characters to use for indentation of constructor
   /// initializer lists.
   unsigned ConstructorInitializerIndentWidth;
