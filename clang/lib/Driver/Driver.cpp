@@ -2585,6 +2585,17 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
         break;
       }
 
+      // When saving temps, add extra actions to write unoptimized and optimized
+      // IR besides the normal bitcode outputs.
+      if (isSaveTempsEnabled() && Phase == phases::Compile) {
+        Actions.push_back(
+            C.MakeAction<CompileJobAction>(Current, types::TY_LLVM_IR));
+      }
+      if (isSaveTempsEnabled() && Phase == phases::Backend) {
+        Actions.push_back(
+            C.MakeAction<BackendJobAction>(Current, types::TY_LLVM_IR));
+      }
+
       // Otherwise construct the appropriate action.
       auto *NewCurrent = ConstructPhaseAction(C, Args, Phase, Current);
 
@@ -3534,6 +3545,11 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
     if (!AtTopLevel && C.getArgs().hasArg(options::OPT_emit_llvm) &&
         JA.getType() == types::TY_LLVM_BC)
       Suffixed += ".tmp";
+    // When using -save-temps, append a ".unoptimized" suffix so that the
+    // optimized .ll file doesn't overwrite the unoptimized one.
+    if (isSaveTempsEnabled() && JA.getType() == types::TY_LLVM_IR &&
+        JA.getKind() == Action::CompileJobClass)
+      Suffixed += ".unoptimized";
     Suffixed += '.';
     Suffixed += Suffix;
     NamedOutput = C.getArgs().MakeArgString(Suffixed.c_str());
