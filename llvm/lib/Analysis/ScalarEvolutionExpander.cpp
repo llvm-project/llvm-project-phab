@@ -95,7 +95,7 @@ static BasicBlock::iterator findInsertPointAfter(Instruction *I,
   while (isa<PHINode>(IP))
     ++IP;
 
-  if (isa<FuncletPadInst>(IP) || isa<LandingPadInst>(IP)) {
+  if (isoneof<FuncletPadInst, LandingPadInst>(IP)) {
     ++IP;
   } else if (isa<CatchSwitchInst>(IP)) {
     IP = MustDominate->getFirstInsertionPt();
@@ -2021,7 +2021,7 @@ bool SCEVExpander::isHighCostExpansionHelper(
 
   // HowManyLessThans uses a Max expression whenever the loop is not guarded by
   // the exit condition.
-  if (isa<SCEVSMaxExpr>(S) || isa<SCEVUMaxExpr>(S))
+  if (isoneof<SCEVSMaxExpr, SCEVUMaxExpr>(S))
     return true;
 
   // Recurse past nary expressions, which commonly occur in the

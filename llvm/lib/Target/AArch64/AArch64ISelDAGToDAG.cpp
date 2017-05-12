@@ -863,7 +863,7 @@ bool AArch64DAGToDAGISel::SelectAddrModeWRO(SDValue N, unsigned Size,
 
   // We don't want to match immediate adds here, because they are better lowered
   // to the register-immediate addressing modes.
-  if (isa<ConstantSDNode>(LHS) || isa<ConstantSDNode>(RHS))
+  if (isoneof<ConstantSDNode, ConstantSDNode>(RHS))
     return false;
 
   // Check if this particular node is reused in any non-memory related

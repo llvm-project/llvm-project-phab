@@ -757,8 +757,7 @@ void DwarfUnit::updateAcceleratorTables(const DIScope *Context,
     unsigned Flags = IsImplementation ? dwarf::DW_FLAG_type_implementation : 0;
     DD->addAccelType(Ty->getName(), TyDIE, Flags);
 
-    if (!Context || isa<DICompileUnit>(Context) || isa<DIFile>(Context) ||
-        isa<DINamespace>(Context))
+    if (!Context || isoneof<DICompileUnit, DIFile, DINamespace>(Context))
       addGlobalType(Ty, TyDIE, Context);
   }
 }

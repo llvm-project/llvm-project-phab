@@ -58,7 +58,7 @@ void AssumptionCache::updateAffectedValues(CallInst *CI) {
       if (match(I, m_BitCast(m_Value(Op))) ||
           match(I, m_PtrToInt(m_Value(Op))) ||
           match(I, m_Not(m_Value(Op)))) {
-        if (isa<Instruction>(Op) || isa<Argument>(Op))
+        if (isoneof<Instruction, Argument>(Op))
           Affected.push_back(Op);
       }
     }

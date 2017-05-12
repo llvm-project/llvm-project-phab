@@ -2289,7 +2289,7 @@ const SCEV *ScalarEvolution::getAddExpr(SmallVectorImpl<const SCEV *> &Ops,
       // Evaluate the expression in the larger type.
       const SCEV *Fold = getAddExpr(LargeOps, Flags, Depth + 1);
       // If it folds to something simple, use it. Otherwise, don't.
-      if (isa<SCEVConstant>(Fold) || isa<SCEVUnknown>(Fold))
+      if (isoneof<SCEVConstant, SCEVUnknown>(Fold))
         return getTruncateExpr(Fold, DstType);
     }
   }
@@ -2591,7 +2591,7 @@ static bool containsConstantSomewhere(const SCEV *StartExpr) {
     if (isa<SCEVConstant>(*CurrentExpr))
       return true;
 
-    if (isa<SCEVAddExpr>(*CurrentExpr) || isa<SCEVMulExpr>(*CurrentExpr)) {
+    if (isoneof<SCEVAddExpr, SCEVMulExpr>(*CurrentExpr)) {
       const auto *CurrentNAry = cast<SCEVNAryExpr>(CurrentExpr);
       Ops.append(CurrentNAry->op_begin(), CurrentNAry->op_end());
     }
@@ -6676,9 +6676,8 @@ ScalarEvolution::ExitLimit ScalarEvolution::computeShiftCompareExitLimit(
 /// Return true if we can constant fold an instruction of the specified type,
 /// assuming that all operands were constants.
 static bool CanConstantFold(const Instruction *I) {
-  if (isa<BinaryOperator>(I) || isa<CmpInst>(I) ||
-      isa<SelectInst>(I) || isa<CastInst>(I) || isa<GetElementPtrInst>(I) ||
-      isa<LoadInst>(I))
+  if (isoneof<BinaryOperator, CmpInst, SelectInst, CastInst, GetElementPtrInst,
+              LoadInst>(I))
     return true;
 
   if (const CallInst *CI = dyn_cast<CallInst>(I))
@@ -7602,7 +7601,7 @@ static bool HasSameValue(const SCEV *A, const SCEV *B) {
     // Not all instructions that are "identical" compute the same value.  For
     // instance, two distinct alloca instructions allocating the same type are
     // identical and do not read memory; but compute distinct values.
-    return A->isIdenticalTo(B) && (isa<BinaryOperator>(A) || isa<GetElementPtrInst>(A));
+    return A->isIdenticalTo(B) && isoneof<BinaryOperator, GetElementPtrInst>(A);
   };
 
   // Otherwise, if they're both SCEVUnknown, it's possible that they hold
@@ -9410,8 +9409,7 @@ struct SCEVCollectTerms {
       : Terms(T) {}
 
   bool follow(const SCEV *S) {
-    if (isa<SCEVUnknown>(S) || isa<SCEVMulExpr>(S) ||
-        isa<SCEVSignExtendExpr>(S)) {
+    if (isoneof<SCEVUnknown, SCEVMulExpr, SCEVSignExtendExpr>(S)) {
       if (!containsUndefs(S))
         Terms.push_back(S);
 

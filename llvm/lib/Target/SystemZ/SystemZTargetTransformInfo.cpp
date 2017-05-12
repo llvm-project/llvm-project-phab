@@ -246,8 +246,7 @@ void SystemZTTIImpl::getUnrollingPreferences(Loop *L,
   unsigned NumStores = 0;
   for (auto &BB : L->blocks())
     for (auto &I : *BB) {
-      if (isa<CallInst>(&I) || isa<InvokeInst>(&I)) {
-        ImmutableCallSite CS(&I);
+      if (ImmutableCallSite CS{&I}) {
         if (const Function *F = CS.getCalledFunction()) {
           if (isLoweredToCall(F))
             HasCall = true;

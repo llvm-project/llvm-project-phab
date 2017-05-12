@@ -1055,7 +1055,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
   /// \brief Create a dirty shadow of a given shadow type.
   Constant *getPoisonedShadow(Type *ShadowTy) {
     assert(ShadowTy);
-    if (isa<IntegerType>(ShadowTy) || isa<VectorType>(ShadowTy))
+    if (isoneof<IntegerType, VectorType>(ShadowTy))
       return Constant::getAllOnesValue(ShadowTy);
     if (ArrayType *AT = dyn_cast<ArrayType>(ShadowTy)) {
       SmallVector<Constant *, 4> Vals(AT->getNumElements(),
@@ -1188,7 +1188,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     if (!MS.TrackOrigins) return nullptr;
     if (!PropagateShadow) return getCleanOrigin();
     if (isa<Constant>(V)) return getCleanOrigin();
-    assert((isa<Instruction>(V) || isa<Argument>(V)) &&
+    assert((isoneof<Instruction, Argument>(V)) &&
            "Unexpected value type in getOrigin()");
     Value *Origin = OriginMap[V];
     assert(Origin && "Missing origin");
@@ -1209,7 +1209,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     if (!InsertChecks) return;
 #ifndef NDEBUG
     Type *ShadowTy = Shadow->getType();
-    assert((isa<IntegerType>(ShadowTy) || isa<VectorType>(ShadowTy)) &&
+    assert((isoneof<IntegerType, VectorType>(ShadowTy)) &&
            "Can only insert checks for integer and vector shadow types");
 #endif
     InstrumentationList.push_back(
@@ -1315,7 +1315,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
   }
 
   void handleCASOrRMW(Instruction &I) {
-    assert(isa<AtomicRMWInst>(I) || isa<AtomicCmpXchgInst>(I));
+    assert((isoneof<AtomicRMWInst, AtomicCmpXchgInst>(I)));
 
     IRBuilder<> IRB(&I);
     Value *Addr = I.getOperand(0);

@@ -820,7 +820,7 @@ BasicBlock *HexagonCommonGEP::recalculatePlacementRec(GepNode *Node,
 }
 
 bool HexagonCommonGEP::isInvariantIn(Value *Val, Loop *L) {
-  if (isa<Constant>(Val) || isa<Argument>(Val))
+  if (isoneof<Constant, Argument>(Val))
     return true;
   Instruction *In = dyn_cast<Instruction>(Val);
   if (!In)
@@ -1258,7 +1258,7 @@ bool HexagonCommonGEP::runOnFunction(Function &F) {
   // For now bail out on C++ exception handling.
   for (Function::iterator A = F.begin(), Z = F.end(); A != Z; ++A)
     for (BasicBlock::iterator I = A->begin(), E = A->end(); I != E; ++I)
-      if (isa<InvokeInst>(I) || isa<LandingPadInst>(I))
+      if (isoneof<InvokeInst, LandingPadInst>(I))
         return false;
 
   Fn = &F;

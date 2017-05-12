@@ -192,7 +192,7 @@ DiagnosticInfoOptimizationBase::Argument::Argument(StringRef Key, const Value *V
 
   // Only include names that correspond to user variables.  FIXME: we should use
   // debug info if available to get the name of the user variable.
-  if (isa<llvm::Argument>(V) || isa<GlobalValue>(V))
+  if (isoneof<llvm::Argument, GlobalValue>(V))
     Val = GlobalValue::getRealLinkageName(V->getName());
   else if (isa<Constant>(V)) {
     raw_string_ostream OS(Val);

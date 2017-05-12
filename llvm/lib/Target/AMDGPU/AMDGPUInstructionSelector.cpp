@@ -223,8 +223,7 @@ static bool isInstrUniform(const MachineInstr &MI) {
   // Sometimes LDS instructions have constant pointers.
   // If Ptr is null, then that means this mem operand contains a
   // PseudoSourceValue like GOT.
-  if (!Ptr || isa<UndefValue>(Ptr) || isa<Argument>(Ptr) ||
-      isa<Constant>(Ptr) || isa<GlobalValue>(Ptr))
+  if (!Ptr || isoneof<UndefValue, Argument, Constant, GlobalValue>(Ptr))
     return true;
 
   const Instruction *I = dyn_cast<Instruction>(Ptr);

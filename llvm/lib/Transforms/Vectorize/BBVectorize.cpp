@@ -533,12 +533,12 @@ namespace {
       // subsequent iterations when looking for vectorization opportunities
       // while still tracking dependency chains that flow through those
       // instructions.
-      if (isa<InsertElementInst>(V) || isa<ExtractElementInst>(V))
+      if (isoneof<InsertElementInst, ExtractElementInst>(V))
         return 0;
 
       // Give a load or store half of the required depth so that load/store
       // pairs will vectorize.
-      if (!Config.NoMemOpBoost && (isa<LoadInst>(V) || isa<StoreInst>(V)))
+      if (!Config.NoMemOpBoost && isoneof<LoadInst, StoreInst>(V))
         return Config.ReqChainDepth/2;
 
       return 1;
@@ -907,8 +907,9 @@ namespace {
       // Currently, vector GEPs exist only with one index.
       if (G->getNumIndices() != 1)
         return false;
-    } else if (!(I->isBinaryOp() || isa<ShuffleVectorInst>(I) ||
-        isa<ExtractElementInst>(I) || isa<InsertElementInst>(I))) {
+    } else if (!(I->isBinaryOp() ||
+                 isoneof<ShuffleVectorInst, ExtractElementInst,
+                         InsertElementInst>(I))) {
       return false;
     }
 
@@ -1075,8 +1076,8 @@ namespace {
           // of constants.
           Value *IOp = I->getOperand(1);
           Value *JOp = J->getOperand(1);
-          if ((isa<ConstantVector>(IOp) || isa<ConstantDataVector>(IOp)) &&
-              (isa<ConstantVector>(JOp) || isa<ConstantDataVector>(JOp))) {
+          if (isoneof<ConstantVector, ConstantDataVector>(IOp) &&
+              isoneof<ConstantVector, ConstantDataVector>(JOp)) {
             Op2VK = TargetTransformInfo::OK_NonUniformConstantValue;
             Constant *SplatValue = cast<Constant>(IOp)->getSplatValue();
             if (SplatValue != nullptr &&

@@ -122,8 +122,7 @@ static bool IsSafeComputationToRemove(Value *V, const TargetLibraryInfo *TLI) {
       return true;
     if (!V->hasOneUse())
       return false;
-    if (isa<LoadInst>(V) || isa<InvokeInst>(V) || isa<Argument>(V) ||
-        isa<GlobalValue>(V))
+    if (isoneof<LoadInst, InvokeInst, Argument, GlobalValue>(V))
       return false;
     if (isAllocationFn(V, TLI))
       return true;
@@ -639,8 +638,7 @@ static bool OptimizeAwayTrappingUsesOfValue(Value *V, Constant *NewV) {
         SI->setOperand(1, NewV);
         Changed = true;
       }
-    } else if (isa<CallInst>(I) || isa<InvokeInst>(I)) {
-      CallSite CS(I);
+    } else if (CallSite CS{I}) {
       if (CS.getCalledValue() == V) {
         // Calling through the pointer!  Turn into a direct call, but be careful
         // that the pointer is not also being passed as an argument.
@@ -724,10 +722,8 @@ static bool OptimizeAwayTrappingUsesOfLoads(GlobalVariable *GV, Constant *LV,
 
       // If we get here we could have other crazy uses that are transitively
       // loaded.
-      assert((isa<PHINode>(GlobalUser) || isa<SelectInst>(GlobalUser) ||
-              isa<ConstantExpr>(GlobalUser) || isa<CmpInst>(GlobalUser) ||
-              isa<BitCastInst>(GlobalUser) ||
-              isa<GetElementPtrInst>(GlobalUser)) &&
+      assert((isoneof<PHINode, SelectInst, ConstantExpr, CmpInst, BitCastInst,
+                      GetElementPtrInst>(GlobalUser)) &&
              "Only expect load and stores!");
     }
   }
@@ -912,7 +908,7 @@ static bool ValueIsOnlyUsedLocallyOrStoredToOneGlobal(const Instruction *V,
   for (const User *U : V->users()) {
     const Instruction *Inst = cast<Instruction>(U);
 
-    if (isa<LoadInst>(Inst) || isa<CmpInst>(Inst)) {
+    if (isoneof<LoadInst, CmpInst>(Inst)) {
       continue; // Fine, ignore.
     }
 
@@ -1607,7 +1603,7 @@ static bool TryToShrinkGlobalToBoolean(GlobalVariable *GV, Constant *OtherVal) {
           StoreVal = new LoadInst(NewGV, LI->getName()+".b", false, 0,
                                   LI->getOrdering(), LI->getSynchScope(), LI);
         } else {
-          assert((isa<CastInst>(StoredVal) || isa<SelectInst>(StoredVal)) &&
+          assert((isoneof<CastInst, SelectInst>(StoredVal)) &&
                  "This is not a form that we understand!");
           StoreVal = StoredVal->getOperand(0);
           assert(isa<LoadInst>(StoreVal) && "Not a load of NewGV!");

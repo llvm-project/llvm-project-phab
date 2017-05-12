@@ -141,7 +141,7 @@ void AMDGPUAnnotateUniformValues::visitLoadInst(LoadInst &I) {
   bool NotClobbered = isKernelFunc &&   !isClobberedInFunction(&I);
   Instruction *PtrI = dyn_cast<Instruction>(Ptr);
   if (!PtrI && NotClobbered && isGlobalLoad(I)) {
-    if (isa<Argument>(Ptr) || isa<GlobalValue>(Ptr)) {
+    if (isoneof<Argument, GlobalValue>(Ptr)) {
       // Lookup for the existing GEP
       if (noClobberClones.count(Ptr)) {
         PtrI = noClobberClones[Ptr];

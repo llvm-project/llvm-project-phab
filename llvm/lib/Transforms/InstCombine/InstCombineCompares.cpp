@@ -631,7 +631,7 @@ static bool canRewriteGEPAsOffset(Value *Start, Value *Base,
         // the base. Therefore we can't do this transformation.
         return false;
 
-      if (isa<IntToPtrInst>(V) || isa<PtrToIntInst>(V)) {
+      if (isoneof<IntToPtrInst, PtrToIntInst>(V)) {
         auto *CI = dyn_cast<CastInst>(V);
         if (!CI->isNoopCast(DL))
           return false;
@@ -1087,8 +1087,7 @@ Instruction *InstCombiner::foldAllocaCmp(ICmpInst &ICI,
     const Value *V = U->getUser();
     --MaxIter;
 
-    if (isa<BitCastInst>(V) || isa<GetElementPtrInst>(V) || isa<PHINode>(V) ||
-        isa<SelectInst>(V)) {
+    if (isoneof<BitCastInst, GetElementPtrInst, PHINode, SelectInst>(V)) {
       // Track the uses.
     } else if (isa<LoadInst>(V)) {
       // Loading from the pointer doesn't escape it.
@@ -4407,8 +4406,7 @@ Instruction *InstCombiner::visitICmpInst(ICmpInst &I) {
   // values.  If the ptr->ptr cast can be stripped off both arguments, we do so
   // now.
   if (BitCastInst *CI = dyn_cast<BitCastInst>(Op0)) {
-    if (Op0->getType()->isPointerTy() &&
-        (isa<Constant>(Op1) || isa<BitCastInst>(Op1))) {
+    if (Op0->getType()->isPointerTy() && isoneof<Constant, BitCastInst>(Op1)) {
       // We keep moving the cast from the left operand over to the right
       // operand, where it can often be eliminated completely.
       Op0 = CI->getOperand(0);
@@ -4438,7 +4436,7 @@ Instruction *InstCombiner::visitICmpInst(ICmpInst &I) {
     //   if (X) ...
     // For generality, we handle any zero-extension of any operand comparison
     // with a constant or another cast from the same type.
-    if (isa<Constant>(Op1) || isa<CastInst>(Op1))
+    if (isoneof<Constant, CastInst>(Op1))
       if (Instruction *R = foldICmpWithCastAndCast(I))
         return R;
   }

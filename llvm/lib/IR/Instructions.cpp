@@ -1911,7 +1911,7 @@ bool ShuffleVectorInst::isValidOperands(const Value *V1, const Value *V2,
     return false;
 
   // Check to see if Mask is valid.
-  if (isa<UndefValue>(Mask) || isa<ConstantAggregateZero>(Mask))
+  if (isoneof<UndefValue, ConstantAggregateZero>(Mask))
     return true;
 
   if (const auto *MV = dyn_cast<ConstantVector>(Mask)) {

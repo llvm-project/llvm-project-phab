@@ -242,7 +242,7 @@ static UseListOrderStack predictUseListOrder(const Module *M) {
     for (const BasicBlock &BB : F)
       for (const Instruction &I : BB)
         for (const Value *Op : I.operands())
-          if (isa<Constant>(*Op) || isa<InlineAsm>(*Op)) // Visit GlobalValues.
+          if (isoneof<Constant, InlineAsm>(*Op)) // Visit GlobalValues.
             predictValueUseListOrder(Op, &F, OM, Stack);
     for (const BasicBlock &BB : F)
       for (const Instruction &I : BB)
@@ -1279,7 +1279,7 @@ static void WriteConstantInternal(raw_ostream &Out, const Constant *CV,
     return;
   }
 
-  if (isa<ConstantVector>(CV) || isa<ConstantDataVector>(CV)) {
+  if (isoneof<ConstantVector, ConstantDataVector>(CV)) {
     Type *ETy = CV->getType()->getVectorElementType();
     Out << '<';
     TypePrinter.print(ETy, Out);
@@ -3146,8 +3146,7 @@ void AssemblyWriter::printInstruction(const Instruction &I) {
     Type *TheType = Operand->getType();
 
     // Select, Store and ShuffleVector always print all types.
-    if (isa<SelectInst>(I) || isa<StoreInst>(I) || isa<ShuffleVectorInst>(I)
-        || isa<ReturnInst>(I)) {
+    if (isoneof<SelectInst, StoreInst, ShuffleVectorInst, ReturnInst>(I)) {
       PrintAllTypes = true;
     } else {
       for (unsigned i = 1, E = I.getNumOperands(); i != E; ++i) {
@@ -3441,7 +3440,7 @@ void Value::print(raw_ostream &ROS, ModuleSlotTracker &MST,
     TypePrinter.print(C->getType(), OS);
     OS << ' ';
     WriteConstantInternal(OS, C, TypePrinter, MST.getMachine(), nullptr);
-  } else if (isa<InlineAsm>(this) || isa<Argument>(this)) {
+  } else if (isoneof<InlineAsm, Argument>(this)) {
     this->printAsOperand(OS, /* PrintType */ true, MST);
   } else {
     llvm_unreachable("Unknown value to print out!");

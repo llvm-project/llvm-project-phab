@@ -2913,7 +2913,7 @@ void TargetLowering::ComputeConstraintToUse(AsmOperandInfo &OpInfo,
     // that matches labels).  For Functions, the type here is the type of
     // the result, which is not what we want to look at; leave them alone.
     Value *v = OpInfo.CallOperandVal;
-    if (isa<BasicBlock>(v) || isa<ConstantInt>(v) || isa<Function>(v)) {
+    if (isoneof<BasicBlock, ConstantInt, Function>(v)) {
       OpInfo.CallOperandVal = v;
       return;
     }

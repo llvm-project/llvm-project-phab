@@ -3523,8 +3523,8 @@ unsigned BoUpSLP::getVectorElementSize(Value *V) {
     // Otherwise, we need to visit the operands of the instruction. We only
     // handle the interesting cases from buildTree here. If an operand is an
     // instruction we haven't yet visited, we add it to the worklist.
-    else if (isa<PHINode>(I) || isa<CastInst>(I) || isa<GetElementPtrInst>(I) ||
-             isa<CmpInst>(I) || isa<SelectInst>(I) || isa<BinaryOperator>(I)) {
+    else if (isoneof<PHINode, CastInst, GetElementPtrInst, CmpInst, SelectInst,
+                     BinaryOperator>(I)) {
       for (Use &U : I->operands())
         if (auto *J = dyn_cast<Instruction>(U.get()))
           if (!Visited.count(J))
@@ -4188,7 +4188,7 @@ bool SLPVectorizerPass::tryToVectorizeList(ArrayRef<Value *> VL, BoUpSLP &R,
             IRBuilder<NoFolder> Builder(InsertAfter->getParent(),
                                         ++BasicBlock::iterator(InsertAfter));
             Instruction *I = cast<Instruction>(V);
-            assert(isa<InsertElementInst>(I) || isa<InsertValueInst>(I));
+            assert((isoneof<InsertElementInst, InsertValueInst>(I)));
             Instruction *Extract =
                 cast<Instruction>(Builder.CreateExtractElement(
                     VectorizedRoot, Builder.getInt32(VecIdx++)));

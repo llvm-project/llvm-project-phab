@@ -372,7 +372,7 @@ findBaseDefiningValueOfVector(Value *I) {
 
   // A PHI or Select is a base defining value.  The outer findBasePointer
   // algorithm is responsible for constructing a base value for this BDV.
-  assert((isa<SelectInst>(I) || isa<PHINode>(I)) &&
+  assert((isoneof<SelectInst, PHINode>(I)) &&
          "unknown vector instruction - no base found for vector element");
   return BaseDefiningValueResult(I, false);
 }
@@ -455,7 +455,7 @@ static BaseDefiningValueResult findBaseDefiningValue(Value *I) {
   // We assume that functions in the source language only return base
   // pointers.  This should probably be generalized via attributes to support
   // both source language and internal functions.
-  if (isa<CallInst>(I) || isa<InvokeInst>(I))
+  if (isoneof<CallInst, InvokeInst>(I))
     return BaseDefiningValueResult(I, true);
 
   // TODO: I have absolutely no idea how to implement this part yet.  It's not
@@ -496,7 +496,7 @@ static BaseDefiningValueResult findBaseDefiningValue(Value *I) {
   // return a value which dynamically selects from among several base
   // derived pointers (each with it's own base potentially).  It's the job of
   // the caller to resolve these.
-  assert((isa<SelectInst>(I) || isa<PHINode>(I)) &&
+  assert((isoneof<SelectInst, PHINode>(I)) &&
          "missing instruction case in findBaseDefiningValing");
   return BaseDefiningValueResult(I, false);
 }
@@ -680,9 +680,8 @@ static Value *findBasePointer(Value *I, DefiningValueMapTy &Cache) {
 
 #ifndef NDEBUG
   auto isExpectedBDVType = [](Value *BDV) {
-    return isa<PHINode>(BDV) || isa<SelectInst>(BDV) ||
-           isa<ExtractElementInst>(BDV) || isa<InsertElementInst>(BDV) ||
-           isa<ShuffleVectorInst>(BDV);
+    return isoneof<PHINode, SelectInst, ExtractElementInst, InsertElementInst,
+                   ShuffleVectorInst>(BDV);
   };
 #endif
 
@@ -1994,7 +1993,7 @@ static void rematerializeLiveValues(CallSite CS,
         // introduce any new uses of pointers not in the liveset.
         // Note that it's fine to introduce new uses of pointers which were
         // otherwise not used after this statepoint.
-        assert(isa<GetElementPtrInst>(Instr) || isa<CastInst>(Instr));
+        assert((isoneof<GetElementPtrInst, CastInst>(Instr)));
 
         Instruction *ClonedValue = Instr->clone();
         ClonedValue->insertBefore(InsertBefore);

@@ -210,8 +210,7 @@ bool AArch64TTIImpl::isWideningInstruction(Type *DstTy, unsigned Opcode,
   // second operand must be a sign- or zero extend having a single user. We
   // only consider extends having a single user because they may otherwise not
   // be eliminated.
-  if (Args.size() != 2 ||
-      (!isa<SExtInst>(Args[1]) && !isa<ZExtInst>(Args[1])) ||
+  if (Args.size() != 2 || !isoneof<SExtInst, ZExtInst>(Args[1]) ||
       !Args[1]->hasOneUse())
     return false;
   auto *Extend = cast<CastInst>(Args[1]);

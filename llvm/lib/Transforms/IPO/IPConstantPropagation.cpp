@@ -174,7 +174,7 @@ static bool PropagateConstantReturn(Function &F) {
             continue;
           
           // Try to see if all the rets return the same constant or argument.
-          if (isa<Constant>(V) || isa<Argument>(V)) {
+          if (isoneof<Constant, Argument>(V)) {
             if (isa<UndefValue>(RV)) {
               // No value found yet? Try the current one.
               RetVals[i] = V;

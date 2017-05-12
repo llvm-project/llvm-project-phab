@@ -167,8 +167,7 @@ static bool AreEquivalentAddressValues(const Value *A, const Value *B) {
   // this function is only used when one address use dominates the
   // other, which means that they'll always either have the same
   // value or one of them will have an undefined value.
-  if (isa<BinaryOperator>(A) || isa<CastInst>(A) || isa<PHINode>(A) ||
-      isa<GetElementPtrInst>(A))
+  if (isoneof<BinaryOperator, CastInst, PHINode, GetElementPtrInst>(A))
     if (const Instruction *BI = dyn_cast<Instruction>(B))
       if (cast<Instruction>(A)->isIdenticalToWhenDefined(BI))
         return true;
@@ -397,8 +396,8 @@ Value *llvm::FindAvailablePtrLoadStore(Value *Ptr, Type *AccessTy,
       // If both StrippedPtr and StorePtr reach all the way to an alloca or
       // global and they are different, ignore the store. This is a trivial form
       // of alias analysis that is important for reg2mem'd code.
-      if ((isa<AllocaInst>(StrippedPtr) || isa<GlobalVariable>(StrippedPtr)) &&
-          (isa<AllocaInst>(StorePtr) || isa<GlobalVariable>(StorePtr)) &&
+      if (isoneof<AllocaInst, GlobalVariable>(StrippedPtr) &&
+          isoneof<AllocaInst, GlobalVariable>(StorePtr) &&
           StrippedPtr != StorePtr)
         continue;
 

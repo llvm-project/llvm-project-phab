@@ -203,7 +203,7 @@ static void reservePreviousStackSlotForValue(const Value *IncomingValue,
 
   SDValue Incoming = Builder.getValue(IncomingValue);
 
-  if (isa<ConstantSDNode>(Incoming) || isa<FrameIndexSDNode>(Incoming)) {
+  if (isoneof<ConstantSDNode, FrameIndexSDNode>(Incoming)) {
     // We won't need to spill this, so no need to check for previously
     // allocated stack slots
     return;

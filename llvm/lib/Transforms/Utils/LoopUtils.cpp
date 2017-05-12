@@ -279,10 +279,9 @@ bool RecurrenceDescriptor::AddReductionVar(PHINode *Phi, RecurrenceKind Kind,
     if (IsAPhi && Cur != Phi && !areAllUsesIn(Cur, VisitedInsts))
       return false;
 
-    if (Kind == RK_IntegerMinMax &&
-        (isa<ICmpInst>(Cur) || isa<SelectInst>(Cur)))
+    if (Kind == RK_IntegerMinMax && isoneof<ICmpInst, SelectInst>(Cur))
       ++NumCmpSelectPatternInst;
-    if (Kind == RK_FloatMinMax && (isa<FCmpInst>(Cur) || isa<SelectInst>(Cur)))
+    if (Kind == RK_FloatMinMax && isoneof<FCmpInst, SelectInst>(Cur))
       ++NumCmpSelectPatternInst;
 
     // Check  whether we found a reduction operator.
@@ -381,7 +380,7 @@ bool RecurrenceDescriptor::AddReductionVar(PHINode *Phi, RecurrenceKind Kind,
 RecurrenceDescriptor::InstDesc
 RecurrenceDescriptor::isMinMaxSelectCmpPattern(Instruction *I, InstDesc &Prev) {
 
-  assert((isa<ICmpInst>(I) || isa<FCmpInst>(I) || isa<SelectInst>(I)) &&
+  assert((isoneof<ICmpInst, FCmpInst, SelectInst>(I)) &&
          "Expect a select instruction");
   Instruction *Cmp = nullptr;
   SelectInst *Select = nullptr;

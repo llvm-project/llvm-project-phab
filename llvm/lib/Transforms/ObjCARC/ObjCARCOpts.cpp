@@ -1697,7 +1697,7 @@ bool ObjCARCOpt::PerformCodePlacement(
     // If the object being released is in static or stack storage, we know it's
     // not being managed by ObjC reference counting, so we can delete pairs
     // regardless of what possible decrements or uses lie between them.
-    bool KnownSafe = isa<Constant>(Arg) || isa<AllocaInst>(Arg);
+    bool KnownSafe = isoneof<Constant, AllocaInst>(Arg);
 
     // A constant pointer can't be pointing to an object on the heap. It may
     // be reference-counted, but it won't be deleted.

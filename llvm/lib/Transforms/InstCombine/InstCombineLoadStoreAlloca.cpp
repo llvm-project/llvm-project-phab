@@ -75,7 +75,7 @@ isOnlyCopiedFromConstantGlobal(Value *V, MemTransferInst *&TheCopy,
         continue;
       }
 
-      if (isa<BitCastInst>(I) || isa<AddrSpaceCastInst>(I)) {
+      if (isoneof<BitCastInst, AddrSpaceCastInst>(I)) {
         // If uses of the bitcast are ok, we are ok.
         ValuesToInspect.emplace_back(I, IsOffset);
         continue;
@@ -192,7 +192,7 @@ static Instruction *simplifyAllocaArraySize(InstCombiner &IC, AllocaInst &AI) {
     // allocas if possible...also skip interleaved debug info
     //
     BasicBlock::iterator It(New);
-    while (isa<AllocaInst>(*It) || isa<DbgInfoIntrinsic>(*It))
+    while (isoneof<AllocaInst, DbgInfoIntrinsic>(*It))
       ++It;
 
     // Now that I is pointing to the first non-allocation-inst in the block,
@@ -262,7 +262,7 @@ void PointerReplacer::findLoadAndReplace(Instruction &I) {
       for (auto P : Path)
         replace(P);
       replace(Inst);
-    } else if (isa<GetElementPtrInst>(Inst) || isa<BitCastInst>(Inst)) {
+    } else if (isoneof<GetElementPtrInst, BitCastInst>(Inst)) {
       Path.push_back(Inst);
       findLoadAndReplace(*Inst);
       Path.pop_back();
@@ -1279,10 +1279,7 @@ static bool equivalentAddressValues(Value *A, Value *B) {
   // its only used to compare two uses within the same basic block, which
   // means that they'll always either have the same value or one of them
   // will have an undefined value.
-  if (isa<BinaryOperator>(A) ||
-      isa<CastInst>(A) ||
-      isa<PHINode>(A) ||
-      isa<GetElementPtrInst>(A))
+  if (isoneof<BinaryOperator, CastInst, PHINode, GetElementPtrInst>(A))
     if (Instruction *BI = dyn_cast<Instruction>(B))
       if (cast<Instruction>(A)->isIdenticalToWhenDefined(BI))
         return true;

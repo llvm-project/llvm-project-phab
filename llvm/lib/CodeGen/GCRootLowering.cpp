@@ -135,8 +135,7 @@ static bool CouldBecomeSafePoint(Instruction *I) {
   // libcalls upon lowering (e.g., div i64 on a 32-bit platform), so instead
   // it is necessary to take a conservative approach.
 
-  if (isa<AllocaInst>(I) || isa<GetElementPtrInst>(I) || isa<StoreInst>(I) ||
-      isa<LoadInst>(I))
+  if (isoneof<AllocaInst, GetElementPtrInst, StoreInst, LoadInst>(I))
     return false;
 
   // llvm.gcroot is safe because it doesn't do anything at runtime.

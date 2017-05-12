@@ -69,11 +69,9 @@ struct SimpleValue {
     // This can only handle non-void readnone functions.
     if (CallInst *CI = dyn_cast<CallInst>(Inst))
       return CI->doesNotAccessMemory() && !CI->getType()->isVoidTy();
-    return isa<CastInst>(Inst) || isa<BinaryOperator>(Inst) ||
-           isa<GetElementPtrInst>(Inst) || isa<CmpInst>(Inst) ||
-           isa<SelectInst>(Inst) || isa<ExtractElementInst>(Inst) ||
-           isa<InsertElementInst>(Inst) || isa<ShuffleVectorInst>(Inst) ||
-           isa<ExtractValueInst>(Inst) || isa<InsertValueInst>(Inst);
+    return isoneof<CastInst, BinaryOperator, GetElementPtrInst, CmpInst,
+                   SelectInst, ExtractElementInst, InsertElementInst,
+                   ShuffleVectorInst, ExtractValueInst, InsertValueInst>(Inst);
   }
 };
 }
@@ -126,10 +124,9 @@ unsigned DenseMapInfo<SimpleValue>::getHashValue(SimpleValue Val) {
                         IVI->getOperand(1),
                         hash_combine_range(IVI->idx_begin(), IVI->idx_end()));
 
-  assert((isa<CallInst>(Inst) || isa<BinaryOperator>(Inst) ||
-          isa<GetElementPtrInst>(Inst) || isa<SelectInst>(Inst) ||
-          isa<ExtractElementInst>(Inst) || isa<InsertElementInst>(Inst) ||
-          isa<ShuffleVectorInst>(Inst)) &&
+  assert((isoneof<CallInst, BinaryOperator, GetElementPtrInst, SelectInst,
+                  ExtractElementInst, InsertElementInst, ShuffleVectorInst>(
+             Inst)) &&
          "Invalid/unknown instruction");
 
   // Mix in the opcode.

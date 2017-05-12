@@ -73,7 +73,7 @@ ProfileSummaryInfo::getProfileCount(const Instruction *Inst,
                                     BlockFrequencyInfo *BFI) {
   if (!Inst)
     return None;
-  assert((isa<CallInst>(Inst) || isa<InvokeInst>(Inst)) &&
+  assert((isoneof<CallInst, InvokeInst>(Inst)) &&
          "We can only get profile count for call/invoke instruction.");
   if (computeSummary() && Summary->getKind() == ProfileSummary::PSK_Sample) {
     // In sample PGO mode, check if there is a profile metadata on the
@@ -114,7 +114,7 @@ bool ProfileSummaryInfo::isFunctionHotInCallGraph(const Function *F) {
   uint64_t TotalCallCount = 0;
   for (const auto &BB : *F)
     for (const auto &I : BB)
-      if (isa<CallInst>(I) || isa<InvokeInst>(I))
+      if (isoneof<CallInst, InvokeInst>(I))
         if (auto CallCount = getProfileCount(&I, nullptr))
           TotalCallCount += CallCount.getValue();
   return isHotCount(TotalCallCount);
@@ -132,8 +132,8 @@ bool ProfileSummaryInfo::isFunctionColdInCallGraph(const Function *F) {
   
   uint64_t TotalCallCount = 0;
   for (const auto &BB : *F)
-    for (const auto &I : BB) 
-      if (isa<CallInst>(I) || isa<InvokeInst>(I))
+    for (const auto &I : BB)
+      if (isoneof<CallInst, InvokeInst>(I))
         if (auto CallCount = getProfileCount(&I, nullptr))
           TotalCallCount += CallCount.getValue();
   return isColdCount(TotalCallCount);

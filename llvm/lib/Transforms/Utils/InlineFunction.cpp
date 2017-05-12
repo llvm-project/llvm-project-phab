@@ -265,7 +265,7 @@ static Value *getUnwindDestTokenHelper(Instruction *EHPad,
         Value *ChildUnwindDestToken;
         if (auto *Invoke = dyn_cast<InvokeInst>(U)) {
           ChildUnwindDestToken = Invoke->getUnwindDest()->getFirstNonPHI();
-        } else if (isa<CleanupPadInst>(U) || isa<CatchSwitchInst>(U)) {
+        } else if (isoneof<CleanupPadInst, CatchSwitchInst>(U)) {
           Instruction *ChildPad = cast<Instruction>(U);
           auto Memo = MemoMap.find(ChildPad);
           if (Memo == MemoMap.end()) {
@@ -461,7 +461,7 @@ static Value *getUnwindDestToken(Instruction *EHPad,
                     cast<InvokeInst>(U)->getUnwindDest()->getFirstNonPHI()) ==
                 CatchPad)) &&
               "Expected useless pad");
-          if (isa<CatchSwitchInst>(U) || isa<CleanupPadInst>(U))
+          if (isoneof<CatchSwitchInst, CleanupPadInst>(U))
             Worklist.push_back(cast<Instruction>(U));
         }
       }
@@ -474,7 +474,7 @@ static Value *getUnwindDestToken(Instruction *EHPad,
                      cast<InvokeInst>(U)->getUnwindDest()->getFirstNonPHI()) ==
                  UselessPad)) &&
                "Expected useless pad");
-        if (isa<CatchSwitchInst>(U) || isa<CleanupPadInst>(U))
+        if (isoneof<CatchSwitchInst, CleanupPadInst>(U))
           Worklist.push_back(cast<Instruction>(U));
       }
     }
@@ -1007,9 +1007,9 @@ static void AddAliasScopeMetadata(CallSite CS, ValueToValueMapTy &VMap,
         // Is this value a constant that cannot be derived from any pointer
         // value (we need to exclude constant expressions, for example, that
         // are formed from arithmetic on global symbols).
-        bool IsNonPtrConst = isa<ConstantInt>(V) || isa<ConstantFP>(V) ||
-                             isa<ConstantPointerNull>(V) ||
-                             isa<ConstantDataVector>(V) || isa<UndefValue>(V);
+        bool IsNonPtrConst =
+            isoneof<ConstantInt, ConstantFP, ConstantPointerNull,
+                    ConstantDataVector, UndefValue>(V);
         if (IsNonPtrConst)
           continue;
 

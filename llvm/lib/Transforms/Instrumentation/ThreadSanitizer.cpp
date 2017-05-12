@@ -423,9 +423,9 @@ bool ThreadSanitizer::runOnFunction(Function &F) {
     for (auto &Inst : BB) {
       if (isAtomic(&Inst))
         AtomicAccesses.push_back(&Inst);
-      else if (isa<LoadInst>(Inst) || isa<StoreInst>(Inst))
+      else if (isoneof<LoadInst, StoreInst>(Inst))
         LocalLoadsAndStores.push_back(&Inst);
-      else if (isa<CallInst>(Inst) || isa<InvokeInst>(Inst)) {
+      else if (isoneof<CallInst, InvokeInst>(Inst)) {
         if (CallInst *CI = dyn_cast<CallInst>(&Inst))
           maybeMarkSanitizerLibraryCallNoBuiltin(CI, TLI);
         if (isa<MemIntrinsic>(Inst))

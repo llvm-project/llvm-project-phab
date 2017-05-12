@@ -84,7 +84,7 @@ static Constant *getNegativeIsTrueBoolVec(ConstantDataVector *V) {
   IntegerType *BoolTy = Type::getInt1Ty(V->getContext());
   for (unsigned I = 0, E = V->getNumElements(); I != E; ++I) {
     Constant *Elt = V->getElementAsConstant(I);
-    assert((isa<ConstantInt>(Elt) || isa<ConstantFP>(Elt)) &&
+    assert((isoneof<ConstantInt, ConstantFP>(Elt)) &&
            "Unexpected constant data vector element type");
     bool Sign = V->getElementType()->isIntegerTy()
                     ? cast<ConstantInt>(Elt)->isNegative()
@@ -2989,7 +2989,7 @@ Instruction *InstCombiner::visitCallInst(CallInst &CI) {
       bool AllEltsOk = true;
       for (unsigned i = 0; i != 16; ++i) {
         Constant *Elt = Mask->getAggregateElement(i);
-        if (!Elt || !(isa<ConstantInt>(Elt) || isa<UndefValue>(Elt))) {
+        if (!Elt || !isoneof<ConstantInt, UndefValue>(Elt)) {
           AllEltsOk = false;
           break;
         }
@@ -3560,7 +3560,7 @@ Instruction *InstCombiner::visitCallInst(CallInst &CI) {
     // If the stack restore is in a return, resume, or unwind block and if there
     // are no allocas or calls between the restore and the return, nuke the
     // restore.
-    if (!CannotRemove && (isa<ReturnInst>(TI) || isa<ResumeInst>(TI)))
+    if (!CannotRemove && isoneof<ReturnInst, ResumeInst>(TI))
       return eraseInstFromFunction(CI);
     break;
   }
@@ -3902,7 +3902,7 @@ Instruction *InstCombiner::visitCallSite(CallSite CS) {
     }
   }
 
-  if (isa<ConstantPointerNull>(Callee) || isa<UndefValue>(Callee)) {
+  if (isoneof<ConstantPointerNull, UndefValue>(Callee)) {
     // If CS does not return void then replaceAllUsesWith undef.
     // This allows ValueHandlers and custom metadata to adjust itself.
     if (!CS.getInstruction()->getType()->isVoidTy())

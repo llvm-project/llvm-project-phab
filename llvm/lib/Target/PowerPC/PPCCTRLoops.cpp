@@ -401,8 +401,7 @@ bool PPCCTRLoops::mightUseCTR(const Triple &TT, BasicBlock *BB) {
                J->getType()->getScalarType()->isPPC_FP128Ty()) {
       // Most operations on ppc_f128 values become calls.
       return true;
-    } else if (isa<UIToFPInst>(J) || isa<SIToFPInst>(J) ||
-               isa<FPToUIInst>(J) || isa<FPToSIInst>(J)) {
+    } else if (isoneof<UIToFPInst, SIToFPInst, FPToUIInst, FPToSIInst>(J)) {
       CastInst *CI = cast<CastInst>(J);
       if (CI->getSrcTy()->getScalarType()->isPPC_FP128Ty() ||
           CI->getDestTy()->getScalarType()->isPPC_FP128Ty() ||
@@ -424,7 +423,7 @@ bool PPCCTRLoops::mightUseCTR(const Triple &TT, BasicBlock *BB) {
       // Only on PPC32, for 128-bit integers (specifically not 64-bit
       // integers), these might be runtime calls.
       return true;
-    } else if (isa<IndirectBrInst>(J) || isa<InvokeInst>(J)) {
+    } else if (isoneof<IndirectBrInst, InvokeInst>(J)) {
       // On PowerPC, indirect jumps use the counter register.
       return true;
     } else if (SwitchInst *SI = dyn_cast<SwitchInst>(J)) {

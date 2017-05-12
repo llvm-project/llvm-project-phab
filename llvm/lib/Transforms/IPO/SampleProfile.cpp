@@ -475,14 +475,13 @@ ErrorOr<uint64_t> SampleProfileLoader::getInstWeight(const Instruction &Inst) {
   // Ignore all intrinsics and branch instructions.
   // Branch instruction usually contains debug info from sources outside of
   // the residing basic block, thus we ignore them during annotation.
-  if (isa<BranchInst>(Inst) || isa<IntrinsicInst>(Inst))
+  if (isoneof<BranchInst, IntrinsicInst>(Inst))
     return std::error_code();
 
   // If a call/invoke instruction is inlined in profile, but not inlined here,
   // it means that the inlined callsite has no sample, thus the call
   // instruction should have 0 count.
-  if ((isa<CallInst>(Inst) || isa<InvokeInst>(Inst)) &&
-      findCalleeFunctionSamples(Inst))
+  if ((isoneof<CallInst, InvokeInst>(Inst)) && findCalleeFunctionSamples(Inst))
     return 0;
 
   const DILocation *DIL = DLoc;
@@ -676,8 +675,8 @@ bool SampleProfileLoader::inlineHotFunctions(
       SmallVector<Instruction *, 10> Candidates;
       for (auto &I : BB.getInstList()) {
         const FunctionSamples *FS = nullptr;
-        if ((isa<CallInst>(I) || isa<InvokeInst>(I)) &&
-            !isa<IntrinsicInst>(I) && (FS = findCalleeFunctionSamples(I))) {
+        if (isoneof<CallInst, InvokeInst>(I) && !isa<IntrinsicInst>(I) &&
+            (FS = findCalleeFunctionSamples(I))) {
           Candidates.push_back(&I);
           if (callsiteIsHot(Samples, FS))
             Hot = true;

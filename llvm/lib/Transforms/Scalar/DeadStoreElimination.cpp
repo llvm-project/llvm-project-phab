@@ -651,7 +651,7 @@ static void removeAccessedObjects(const MemoryLocation &LoadedLoc,
 
   // If the kill pointer can be easily reduced to an alloca, don't bother doing
   // extraneous AA queries.
-  if (isa<AllocaInst>(UnderlyingPointer) || isa<Argument>(UnderlyingPointer)) {
+  if (isoneof<AllocaInst, Argument>(UnderlyingPointer)) {
     DeadStackObjects.remove(const_cast<Value*>(UnderlyingPointer));
     return;
   }

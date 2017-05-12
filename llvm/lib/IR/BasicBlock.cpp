@@ -184,7 +184,7 @@ const Instruction* BasicBlock::getFirstNonPHIOrDbg() const {
 
 const Instruction* BasicBlock::getFirstNonPHIOrDbgOrLifetime() const {
   for (const Instruction &I : *this) {
-    if (isa<PHINode>(I) || isa<DbgInfoIntrinsic>(I))
+    if (isoneof<PHINode, DbgInfoIntrinsic>(I))
       continue;
 
     if (auto *II = dyn_cast<IntrinsicInst>(&I))

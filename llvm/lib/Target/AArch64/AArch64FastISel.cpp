@@ -307,7 +307,7 @@ public:
 
 /// \brief Check if the sign-/zero-extend will be a noop.
 static bool isIntExtFree(const Instruction *I) {
-  assert((isa<ZExtInst>(I) || isa<SExtInst>(I)) &&
+  assert((isoneof<ZExtInst, SExtInst>(I)) &&
          "Unexpected integer extend instruction.");
   assert(!I->getType()->isVectorTy() && I->getType()->isIntegerTy() &&
          "Unexpected value type.");
@@ -4475,7 +4475,7 @@ bool AArch64FastISel::optimizeIntExtLoad(const Instruction *I, MVT RetVT,
 }
 
 bool AArch64FastISel::selectIntExt(const Instruction *I) {
-  assert((isa<ZExtInst>(I) || isa<SExtInst>(I)) &&
+  assert((isoneof<ZExtInst, SExtInst>(I)) &&
          "Unexpected integer extend instruction.");
   MVT RetVT;
   MVT SrcVT;

@@ -1549,7 +1549,7 @@ Instruction *InstCombiner::visitSRem(BinaryOperator &I) {
   }
 
   // If it's a constant vector, flip any negative values positive.
-  if (isa<ConstantVector>(Op1) || isa<ConstantDataVector>(Op1)) {
+  if (isoneof<ConstantVector, ConstantDataVector>(Op1)) {
     Constant *C = cast<Constant>(Op1);
     unsigned VWidth = C->getType()->getVectorNumElements();
 

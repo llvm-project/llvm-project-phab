@@ -296,9 +296,9 @@ void collectCmpOps(CmpInst *Comparison, SmallVectorImpl<Value *> &CmpOperands) {
   // are only being used in the comparison, which means they will not be useful
   // for us to consider for predicateinfo.
   //
-  if ((isa<Instruction>(Op0) || isa<Argument>(Op0)) && !Op0->hasOneUse())
+  if (isoneof<Instruction, Argument>(Op0) && !Op0->hasOneUse())
     CmpOperands.push_back(Op0);
-  if ((isa<Instruction>(Op1) || isa<Argument>(Op1)) && !Op1->hasOneUse())
+  if (isoneof<Instruction, Argument>(Op1) && !Op1->hasOneUse())
     CmpOperands.push_back(Op1);
 }
 
@@ -426,7 +426,7 @@ void PredicateInfo::processBranch(BranchInst *BI, BasicBlock *BranchBB,
 void PredicateInfo::processSwitch(SwitchInst *SI, BasicBlock *BranchBB,
                                   SmallPtrSetImpl<Value *> &OpsToRename) {
   Value *Op = SI->getCondition();
-  if ((!isa<Instruction>(Op) && !isa<Argument>(Op)) || Op->hasOneUse())
+  if (!isoneof<Instruction, Argument>(Op) || Op->hasOneUse())
     return;
 
   // Remember how many outgoing edges there are to every successor.
