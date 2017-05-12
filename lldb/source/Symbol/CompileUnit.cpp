@@ -241,11 +241,16 @@ void CompileUnit::SetDebugMacros(const DebugMacrosSP &debug_macros_sp) {
 }
 
 VariableListSP CompileUnit::GetVariableList(bool can_create) {
-  if (m_variables.get() == nullptr && can_create) {
+  // Return NULL if m_variables are partially parsed
+  if (!can_create && m_flags.IsClear(flagsParsedVariables))
+    return NULL;
+  if ((m_variables.get() == nullptr || m_flags.IsClear(flagsParsedVariables)) &&
+      can_create) {
     SymbolContext sc;
     CalculateSymbolContext(&sc);
     assert(sc.module_sp);
     sc.module_sp->GetSymbolVendor()->ParseVariablesForContext(sc);
+    m_flags.Set(flagsParsedVariables);
   }
 
   return m_variables;
