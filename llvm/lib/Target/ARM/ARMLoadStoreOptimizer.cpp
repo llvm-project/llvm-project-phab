@@ -1888,7 +1888,15 @@ bool ARMLoadStoreOpt::MergeReturnIntoLDM(MachineBasicBlock &MBB) {
               Opcode == ARM::LDMIA_UPD) && "Unsupported multiple load-return!");
       PrevMI.setDesc(TII->get(NewOpc));
       MO.setReg(ARM::PC);
-      PrevMI.copyImplicitOps(*MBB.getParent(), *MBBI);
+      // Do not copy implicit uses from the return instructions that are
+      // defined by PrevMI.
+      for (MachineOperand &Op : MBBI->operands()) {
+        if (!Op.isReg() || !Op.isImplicit())
+          continue;
+        if (Op.isUse() && PrevMI.modifiesRegister(Op.getReg(), TRI))
+          continue;
+        PrevMI.addOperand(Op);
+      }
       MBB.erase(MBBI);
       return true;
     }
@@ -1909,10 +1917,16 @@ bool ARMLoadStoreOpt::CombineMovBx(MachineBasicBlock &MBB) {
 
   for (auto Use : Prev->uses())
     if (Use.isKill()) {
-      BuildMI(MBB, MBBI, MBBI->getDebugLoc(), TII->get(ARM::tBX))
+      auto NewMI = BuildMI(MBB, MBBI, MBBI->getDebugLoc(), TII->get(ARM::tBX))
           .addReg(Use.getReg(), RegState::Kill)
-          .add(predOps(ARMCC::AL))
-          .copyImplicitOps(*MBBI);
+          .add(predOps(ARMCC::AL));
+      for (MachineOperand &Op : MBBI->operands()) {
+        if (!Op.isReg() || !Op.isImplicit())
+          continue;
+        if (Op.isUse() && Prev->modifiesRegister(Op.getReg(), TRI))
+          continue;
+        NewMI.add(Op);
+      }
       MBB.erase(MBBI);
       MBB.erase(Prev);
       return true;

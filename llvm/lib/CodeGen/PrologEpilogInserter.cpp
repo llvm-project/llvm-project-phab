@@ -129,6 +129,21 @@ private:
   void replaceFrameIndices(MachineBasicBlock *BB, MachineFunction &Fn,
                            int &SPAdj);
   void insertPrologEpilogCode(MachineFunction &Fn);
+
+  void updateCalleeSavedLiveness(MachineFunction &Fn);
+  void getAllPaths(BitVector &Paths, const MachineFunction &Fn,
+                   const BitVector &Starts, const BitVector &Targets) const;
+  void addLiveInsToBlocks(MachineFunction &Fn, const BitVector &Blocks,
+                          const SmallVectorImpl<unsigned> &Regs) const;
+  void updateEntryPaths(MachineFunction &Fn, const BitVector &Entries,
+                        MachineBasicBlock &SaveBB,
+                        const SmallVectorImpl<unsigned> &Regs) const;
+  void updateExitPaths(MachineFunction &Fn, const BitVector &Returns,
+                       MachineBasicBlock &RestBB,
+                       const SmallVectorImpl<unsigned> &Regs) const;
+  void updatePathLiveIns(MachineFunction &Fn, BitVector &Starts,
+                         BitVector &Targets,
+                         SmallVectorImpl<unsigned> &Regs) const;
 };
 } // namespace
 
@@ -401,64 +416,6 @@ static void assignCalleeSavedSpillSlots(MachineFunction &F,
   MFI.setCalleeSavedInfo(CSI);
 }
 
-/// Helper function to update the liveness information for the callee-saved
-/// registers.
-static void updateLiveness(MachineFunction &MF) {
-  MachineFrameInfo &MFI = MF.getFrameInfo();
-  // Visited will contain all the basic blocks that are in the region
-  // where the callee saved registers are alive:
-  // - Anything that is not Save or Restore -> LiveThrough.
-  // - Save -> LiveIn.
-  // - Restore -> LiveOut.
-  // The live-out is not attached to the block, so no need to keep
-  // Restore in this set.
-  SmallPtrSet<MachineBasicBlock *, 8> Visited;
-  SmallVector<MachineBasicBlock *, 8> WorkList;
-  MachineBasicBlock *Entry = &MF.front();
-  MachineBasicBlock *Save = MFI.getSavePoint();
-
-  if (!Save)
-    Save = Entry;
-
-  if (Entry != Save) {
-    WorkList.push_back(Entry);
-    Visited.insert(Entry);
-  }
-  Visited.insert(Save);
-
-  MachineBasicBlock *Restore = MFI.getRestorePoint();
-  if (Restore)
-    // By construction Restore cannot be visited, otherwise it
-    // means there exists a path to Restore that does not go
-    // through Save.
-    WorkList.push_back(Restore);
-
-  while (!WorkList.empty()) {
-    const MachineBasicBlock *CurBB = WorkList.pop_back_val();
-    // By construction, the region that is after the save point is
-    // dominated by the Save and post-dominated by the Restore.
-    if (CurBB == Save && Save != Restore)
-      continue;
-    // Enqueue all the successors not already visited.
-    // Those are by construction either before Save or after Restore.
-    for (MachineBasicBlock *SuccBB : CurBB->successors())
-      if (Visited.insert(SuccBB).second)
-        WorkList.push_back(SuccBB);
-  }
-
-  const std::vector<CalleeSavedInfo> &CSI = MFI.getCalleeSavedInfo();
-
-  for (unsigned i = 0, e = CSI.size(); i != e; ++i) {
-    for (MachineBasicBlock *MBB : Visited) {
-      MCPhysReg Reg = CSI[i].getReg();
-      // Add the callee-saved register as live-in.
-      // It's killed at the spill.
-      if (!MBB->isLiveIn(Reg))
-        MBB->addLiveIn(Reg);
-    }
-  }
-}
-
 /// insertCSRSpillsAndRestores - Insert spill and restore code for
 /// callee saved registers used in the function.
 ///
@@ -492,8 +449,6 @@ static void insertCSRSpillsAndRestores(MachineFunction &Fn,
                                 RC, TRI);
       }
     }
-    // Update the live-in information of all the blocks up to the save point.
-    updateLiveness(Fn);
   }
 
   // Restore using target interface.
@@ -985,6 +940,8 @@ void PEI::insertPrologEpilogCode(MachineFunction &Fn) {
   for (MachineBasicBlock *RestoreBlock : RestoreBlocks)
     TFI.emitEpilogue(Fn, *RestoreBlock);
 
+  updateCalleeSavedLiveness(Fn);
+
   for (MachineBasicBlock *SaveBlock : SaveBlocks)
     TFI.inlineStackProbe(Fn, *SaveBlock);
 
@@ -1005,6 +962,139 @@ void PEI::insertPrologEpilogCode(MachineFunction &Fn) {
   if (Fn.getFunction()->getCallingConv() == CallingConv::HiPE)
     for (MachineBasicBlock *SaveBlock : SaveBlocks)
       TFI.adjustForHiPEPrologue(Fn, *SaveBlock);
+}
+
+void PEI::updateCalleeSavedLiveness(MachineFunction &Fn) {
+  const TargetFrameLowering &TFI = *Fn.getSubtarget().getFrameLowering();
+  MachineFrameInfo &MFI = Fn.getFrameInfo();
+  const TargetRegisterInfo *TRI = Fn.getSubtarget().getRegisterInfo();
+  const std::vector<CalleeSavedInfo> &CSI = MFI.getCalleeSavedInfo();
+  BitVector Pristine = MFI.getPristineRegs(Fn);
+
+  unsigned NumBN = Fn.getNumBlockIDs();
+  BitVector Entries(NumBN), Returns(NumBN);
+  for (MachineBasicBlock &B : Fn)
+    if (B.isReturnBlock())
+      Returns[B.getNumber()] = true;
+  Entries[Fn.front().getNumber()] = true;
+  for (MachineBasicBlock &B : Fn)
+    if (B.isEHFuncletEntry())
+      Entries[B.getNumber()] = true;
+
+  SmallVector<unsigned,4> Regs, PristRegs;
+  for (int x = Pristine.find_first(); x >= 0; x = Pristine.find_next(x))
+    PristRegs.push_back(x);
+
+  for (MachineBasicBlock *B : SaveBlocks) {
+    Regs.clear();
+    TFI.getSavedRegisters(Regs, *B, CSI, TRI);
+    Regs.insert(Regs.end(), PristRegs.begin(), PristRegs.end());
+    if (!Regs.empty())
+      updateEntryPaths(Fn, Entries, *B, Regs);
+  }
+
+  for (MachineBasicBlock *B : RestoreBlocks) {
+    Regs.clear();
+    TFI.getRestoredRegisters(Regs, *B, CSI, TRI);
+    Regs.insert(Regs.end(), PristRegs.begin(), PristRegs.end());
+    if (Regs.empty())
+      updateExitPaths(Fn, Returns, *B, Regs);
+  }
+}
+
+void PEI::getAllPaths(BitVector &Paths, const MachineFunction &Fn,
+                      const BitVector &Starts, const BitVector &Targets) const {
+  BitVector Up(Starts.size()); // Blocks reachable from Targets going upwards.
+  BitVector &Down = Paths;     // Blocks reachable from Starts going downwards.
+  SetVector<unsigned> Worklist;
+
+  for (int x = Starts.find_first(); x >= 0; x = Starts.find_next(x))
+    Worklist.insert(x);
+  for (unsigned i = 0; i < Worklist.size(); ++i) {
+    unsigned N = Worklist[i];
+    if (Down[N])
+      continue;
+    Down[N] = true;
+    if (Targets[N])
+      continue;
+    MachineBasicBlock &B = *Fn.getBlockNumbered(N);
+    for (MachineBasicBlock *SB : B.successors())
+      Worklist.insert(SB->getNumber());
+  }
+
+  Worklist.clear();
+  for (int x = Targets.find_first(); x >= 0; x = Targets.find_next(x))
+    Worklist.insert(x);
+
+  for (unsigned i = 0; i < Worklist.size(); ++i) {
+    unsigned N = Worklist[i];
+    if (Up[N])
+      continue;
+    Up[N] = true;
+    if (Starts[N])
+      continue;
+    MachineBasicBlock &B = *Fn.getBlockNumbered(N);
+    for (MachineBasicBlock *PB : B.predecessors())
+      Worklist.insert(PB->getNumber());
+  }
+
+  Down &= Up;
+}
+
+void PEI::addLiveInsToBlocks(MachineFunction &Fn, const BitVector &Blocks,
+                             const SmallVectorImpl<unsigned> &Regs) const {
+  for (int x = Blocks.find_first(); x >= 0; x = Blocks.find_next(x)) {
+    MachineBasicBlock &B = *Fn.getBlockNumbered(x);
+    for (unsigned R : Regs)
+      B.addLiveIn(R);
+    B.sortUniqueLiveIns();
+  }
+}
+
+void PEI::updateEntryPaths(MachineFunction &Fn, const BitVector &Entries,
+      MachineBasicBlock &SaveBB, const SmallVectorImpl<unsigned> &Regs) const {
+  unsigned NumBN = Fn.getNumBlockIDs();
+  BitVector Paths(NumBN), Saves(NumBN);
+
+  Saves[SaveBB.getNumber()] = true;
+  getAllPaths(Paths, Fn, Entries, Saves);
+  addLiveInsToBlocks(Fn, Paths, Regs);
+}
+
+void PEI::updateExitPaths(MachineFunction &Fn, const BitVector &Returns,
+      MachineBasicBlock &RestBB, const SmallVectorImpl<unsigned> &Regs) const {
+  unsigned NumBN = Fn.getNumBlockIDs();
+  BitVector Paths(NumBN), Restores(NumBN);
+
+  if (!Returns[RestBB.getNumber()]) {
+    // Start with the successors of the restore block because we don't want
+    // to add live-ins to the restore block itself.
+    for (MachineBasicBlock *SB : RestBB.successors())
+      Restores[SB->getNumber()] = true;
+    getAllPaths(Paths, Fn, Restores, Returns);
+    addLiveInsToBlocks(Fn, Paths, Regs);
+  } else
+    Paths[RestBB.getNumber()] = true;
+
+  // Add implicit uses to all reached return instructions.
+  Paths &= Returns;
+
+  const TargetRegisterInfo *TRI = Fn.getSubtarget().getRegisterInfo();
+  for (int x = Paths.find_first(); x >= 0; x = Paths.find_next(x)) {
+    MachineBasicBlock &RetB = *Fn.getBlockNumbered(x);
+    for (MachineInstr &T : RetB.terminators()) {
+      if (!T.isReturn())  // XXX or a tail call
+        continue;
+      for (unsigned R : Regs) {
+        // The returning instruction may actually be the one that does the
+        // restoring of the CS registers: a target may tail-call a stub
+        // that restores the registers and returns to the original caller.
+        // These instructions should not have the CS registers as uses.
+        if (!T.modifiesRegister(R, TRI))
+          T.addOperand(MachineOperand::CreateReg(R, false, true));
+      }
+    }
+  }
 }
 
 /// replaceFrameIndices - Replace all MO_FrameIndex operands with physical
