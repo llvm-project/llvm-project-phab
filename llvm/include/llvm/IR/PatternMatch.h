@@ -876,7 +876,7 @@ template <typename LHS_t> struct not_match {
 
 private:
   bool matchIfNot(Value *LHS, Value *RHS) {
-    return (isa<ConstantInt>(RHS) || isa<ConstantDataVector>(RHS) ||
+    return (isoneof<ConstantInt, ConstantDataVector>(RHS) ||
             // FIXME: Remove CV.
             isa<ConstantVector>(RHS)) &&
            cast<Constant>(RHS)->isAllOnesValue() && L.match(LHS);

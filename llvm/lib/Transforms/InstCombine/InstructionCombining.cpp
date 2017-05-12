@@ -1361,8 +1361,7 @@ Value *InstCombiner::SimplifyVectorOp(BinaryOperator &Inst) {
   if (isa<ShuffleVectorInst>(RHS)) Shuffle = cast<ShuffleVectorInst>(RHS);
   if (isa<Constant>(LHS)) C1 = cast<Constant>(LHS);
   if (isa<Constant>(RHS)) C1 = cast<Constant>(RHS);
-  if (Shuffle && C1 &&
-      (isa<ConstantVector>(C1) || isa<ConstantDataVector>(C1)) &&
+  if (Shuffle && C1 && isoneof<ConstantVector, ConstantDataVector>(C1) &&
       isa<UndefValue>(Shuffle->getOperand(1)) &&
       Shuffle->getType() == Shuffle->getOperand(0)->getType()) {
     SmallVector<int, 16> ShMask = Shuffle->getShuffleMask();
@@ -2064,7 +2063,7 @@ Instruction *InstCombiner::visitAllocSite(Instruction &MI) {
         replaceInstUsesWith(*C,
                             ConstantInt::get(Type::getInt1Ty(C->getContext()),
                                              C->isFalseWhenEqual()));
-      } else if (isa<BitCastInst>(I) || isa<GetElementPtrInst>(I)) {
+      } else if (isoneof<BitCastInst, GetElementPtrInst>(I)) {
         replaceInstUsesWith(*I, UndefValue::get(I->getType()));
       }
       eraseInstFromFunction(*I);

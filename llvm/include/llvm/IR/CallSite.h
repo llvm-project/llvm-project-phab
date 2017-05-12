@@ -110,7 +110,7 @@ public:
     Value *V = getCalledValue();
     if (!V)
       return false;
-    if (isa<FunTy>(V) || isa<Constant>(V))
+    if (isoneof<FunTy, Constant>(V))
       return false;
     if (CallInst *CI = dyn_cast<CallInst>(getInstruction())) {
       if (CI->isInlineAsm())

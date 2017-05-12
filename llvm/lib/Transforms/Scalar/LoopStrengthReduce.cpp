@@ -1189,11 +1189,9 @@ void Cost::RateRegister(const SCEV *Reg,
 
   // Rough heuristic; favor registers which don't require extra setup
   // instructions in the preheader.
-  if (!isa<SCEVUnknown>(Reg) &&
-      !isa<SCEVConstant>(Reg) &&
-      !(isa<SCEVAddRecExpr>(Reg) &&
-        (isa<SCEVUnknown>(cast<SCEVAddRecExpr>(Reg)->getStart()) ||
-         isa<SCEVConstant>(cast<SCEVAddRecExpr>(Reg)->getStart()))))
+  if (!isa<SCEVUnknown>(Reg) && !isa<SCEVConstant>(Reg) &&
+      !(isa<SCEVAddRecExpr>(Reg) && isoneof<SCEVUnknown, SCEVConstant>(
+                                        cast<SCEVAddRecExpr>(Reg)->getStart())))
     ++SetupCost;
 
   NumIVMuls += isa<SCEVMulExpr>(Reg) &&
@@ -1287,7 +1285,7 @@ void Cost::RateFormula(const TargetTransformInfo &TTI,
 
     // Check with target if this offset with this instruction is
     // specifically not supported.
-    if ((isa<LoadInst>(Fixup.UserInst) || isa<StoreInst>(Fixup.UserInst)) &&
+    if (isoneof<LoadInst, StoreInst>(Fixup.UserInst) &&
         !TTI.isFoldableMemAccessOffset(Fixup.UserInst, Offset))
       NumBaseAdds++;
   }
@@ -5108,8 +5106,7 @@ LSRInstance::LSRInstance(Loop *L, IVUsers &IU, ScalarEvolution &SE,
     // no good place to stick any instructions.
     if (auto *PN = dyn_cast<PHINode>(U.getUser())) {
        auto *FirstNonPHI = PN->getParent()->getFirstNonPHI();
-       if (isa<FuncletPadInst>(FirstNonPHI) ||
-           isa<CatchSwitchInst>(FirstNonPHI))
+       if (isoneof<FuncletPadInst, CatchSwitchInst>(FirstNonPHI))
          for (BasicBlock *PredBB : PN->blocks())
            if (isa<CatchSwitchInst>(PredBB->getFirstNonPHI()))
              return;

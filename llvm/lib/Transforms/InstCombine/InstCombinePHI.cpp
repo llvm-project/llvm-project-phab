@@ -43,7 +43,7 @@ DebugLoc InstCombiner::PHIArgMergedDebugLoc(PHINode &PN) {
 /// adds all have a single use, turn this into a phi and a single binop.
 Instruction *InstCombiner::FoldPHIArgBinOpIntoPHI(PHINode &PN) {
   Instruction *FirstInst = cast<Instruction>(PN.getIncomingValue(0));
-  assert(isa<BinaryOperator>(FirstInst) || isa<CmpInst>(FirstInst));
+  assert((isoneof<BinaryOperator, CmpInst>(FirstInst)));
   unsigned Opc = FirstInst->getOpcode();
   Value *LHSVal = FirstInst->getOperand(0);
   Value *RHSVal = FirstInst->getOperand(1);
@@ -510,7 +510,7 @@ Instruction *InstCombiner::FoldPHIArgOpIntoPHI(PHINode &PN) {
       if (!shouldChangeType(PN.getType(), CastSrcTy))
         return nullptr;
     }
-  } else if (isa<BinaryOperator>(FirstInst) || isa<CmpInst>(FirstInst)) {
+  } else if (isoneof<BinaryOperator, CmpInst>(FirstInst)) {
     // Can fold binop, compare or shift here if the RHS is a constant,
     // otherwise call FoldPHIArgBinOpIntoPHI.
     ConstantOp = dyn_cast<Constant>(FirstInst->getOperand(1));
@@ -917,7 +917,7 @@ Instruction *InstCombiner::visitPHINode(PHINode &PN) {
     // are induction variable analysis (sometimes) and ADCE, which is only run
     // late.
     if (PHIUser->hasOneUse() &&
-        (isa<BinaryOperator>(PHIUser) || isa<GetElementPtrInst>(PHIUser)) &&
+        isoneof<BinaryOperator, GetElementPtrInst>(PHIUser) &&
         PHIUser->user_back() == &PN) {
       return replaceInstUsesWith(PN, UndefValue::get(PN.getType()));
     }

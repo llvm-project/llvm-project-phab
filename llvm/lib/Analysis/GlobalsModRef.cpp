@@ -604,9 +604,8 @@ static bool isNonEscapingGlobalNoAliasWithLoad(const GlobalValue *GV,
   Inputs.push_back(V);
   do {
     const Value *Input = Inputs.pop_back_val();
-    
-    if (isa<GlobalValue>(Input) || isa<Argument>(Input) || isa<CallInst>(Input) ||
-        isa<InvokeInst>(Input))
+
+    if (isoneof<GlobalValue, Argument, CallInst, InvokeInst>(Input))
       // Arguments to functions or returns from functions are inherently
       // escaping, so we can immediately classify those as not aliasing any
       // non-addr-taken globals.
@@ -718,8 +717,7 @@ bool GlobalsAAResult::isNonEscapingGlobalNoAlias(const GlobalValue *GV,
       return false;
     }
 
-    if (isa<Argument>(Input) || isa<CallInst>(Input) ||
-        isa<InvokeInst>(Input)) {
+    if (isoneof<Argument, CallInst, InvokeInst>(Input)) {
       // Arguments to functions or returns from functions are inherently
       // escaping, so we can immediately classify those as not aliasing any
       // non-addr-taken globals.

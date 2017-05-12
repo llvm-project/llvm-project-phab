@@ -687,7 +687,7 @@ void Instruction::updateProfWeight(uint64_t S, uint64_t T) {
 }
 
 void Instruction::setProfWeight(uint64_t W) {
-  assert((isa<CallInst>(this) || isa<InvokeInst>(this)) &&
+  assert((isoneof<CallInst, InvokeInst>(this)) &&
          "Can only set weights for call and invoke instrucitons");
   SmallVector<uint32_t, 1> Weights;
   Weights.push_back(W);

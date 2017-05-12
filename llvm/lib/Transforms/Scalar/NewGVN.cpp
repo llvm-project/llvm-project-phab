@@ -760,7 +760,7 @@ PHIExpression *NewGVN::createPHIExpression(Instruction *I, bool &HasBackedge,
                    auto *DTN = DT->getNode(BB);
                    if (RPOOrdering.lookup(DTN) >= PHIRPO)
                      HasBackedge = true;
-                   AllConstant &= isa<UndefValue>(*U) || isa<Constant>(*U);
+                   AllConstant &= isoneof<UndefValue, Constant>(*U);
 
                    // Don't try to transform self-defined phis.
                    if (*U == PN)
@@ -836,7 +836,7 @@ const Expression *NewGVN::checkSimplificationResults(Expression *E,
            "We should always have had a basic expression here");
     deleteExpression(E);
     return createConstantExpression(C);
-  } else if (isa<Argument>(V) || isa<GlobalVariable>(V)) {
+  } else if (isoneof<Argument, GlobalVariable>(V)) {
     if (I)
       DEBUG(dbgs() << "Simplified " << *I << " to "
                    << " variable " << *V << "\n");
@@ -1695,7 +1695,7 @@ const Expression *NewGVN::performSymbolicEvaluation(Value *V) const {
   const Expression *E = nullptr;
   if (auto *C = dyn_cast<Constant>(V))
     E = createConstantExpression(C);
-  else if (isa<Argument>(V) || isa<GlobalVariable>(V)) {
+  else if (isoneof<Argument, GlobalVariable>(V)) {
     E = createVariableExpression(V);
   } else {
     // TODO: memory intrinsics.
@@ -2796,9 +2796,7 @@ bool NewGVN::runGVN() {
 // be placed anywhere) in the function.  We don't do globals here
 // because they are often worse to put in place.
 // TODO: Separate cost from availability
-static bool alwaysAvailable(Value *V) {
-  return isa<Constant>(V) || isa<Argument>(V);
-}
+static bool alwaysAvailable(Value *V) { return isoneof<Constant, Argument>(V); }
 
 struct NewGVN::ValueDFS {
   int DFSIn = 0;

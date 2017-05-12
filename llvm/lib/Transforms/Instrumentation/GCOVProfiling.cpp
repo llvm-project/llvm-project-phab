@@ -531,7 +531,7 @@ void GCOVProfiler::emitProfileNotes() {
       // single successor, so split the entry block to make sure of that.
       BasicBlock &EntryBlock = F.getEntryBlock();
       BasicBlock::iterator It = EntryBlock.begin();
-      while (isa<AllocaInst>(*It) || isa<DbgInfoIntrinsic>(*It))
+      while (isoneof<AllocaInst, DbgInfoIntrinsic>(*It))
         ++It;
       EntryBlock.splitBasicBlock(It);
 

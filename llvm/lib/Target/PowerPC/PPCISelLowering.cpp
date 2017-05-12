@@ -2077,7 +2077,7 @@ bool PPCTargetLowering::getPreIndexedAddressParts(SDNode *N, SDValue &Base,
     // those situations here, and try with swapped Base/Offset instead.
     bool Swap = false;
 
-    if (isa<FrameIndexSDNode>(Base) || isa<RegisterSDNode>(Base))
+    if (isoneof<FrameIndexSDNode, RegisterSDNode>(Base))
       Swap = true;
     else if (!isLoad) {
       SDValue Val = cast<StoreSDNode>(N)->getValue();

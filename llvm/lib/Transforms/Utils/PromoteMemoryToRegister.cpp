@@ -319,7 +319,7 @@ static void removeLifetimeIntrinsicUsers(AllocaInst *AI) {
   for (auto UI = AI->user_begin(), UE = AI->user_end(); UI != UE;) {
     Instruction *I = cast<Instruction>(*UI);
     ++UI;
-    if (isa<LoadInst>(I) || isa<StoreInst>(I))
+    if (isoneof<LoadInst, StoreInst>(I))
       continue;
 
     if (!I->getType()->isVoidTy()) {

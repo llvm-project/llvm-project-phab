@@ -179,9 +179,9 @@ bool BoundsChecking::runOnFunction(Function &F) {
   std::vector<Instruction*> WorkList;
   for (inst_iterator i = inst_begin(F), e = inst_end(F); i != e; ++i) {
     Instruction *I = &*i;
-    if (isa<LoadInst>(I) || isa<StoreInst>(I) || isa<AtomicCmpXchgInst>(I) ||
+    if (isoneof<LoadInst, StoreInst, AtomicCmpXchgInst>(I) ||
         isa<AtomicRMWInst>(I))
-        WorkList.push_back(I);
+      WorkList.push_back(I);
   }
 
   bool MadeChange = false;

@@ -23,8 +23,7 @@
 using namespace llvm;
 
 static bool CanPHITrans(Instruction *Inst) {
-  if (isa<PHINode>(Inst) ||
-      isa<GetElementPtrInst>(Inst))
+  if (isoneof<PHINode, GetElementPtrInst>(Inst))
     return true;
 
   if (isa<CastInst>(Inst) &&
@@ -36,7 +35,7 @@ static bool CanPHITrans(Instruction *Inst) {
     return true;
 
   //   cerr << "MEMDEP: Could not PHI translate: " << *Pointer;
-  //   if (isa<BitCastInst>(PtrInst) || isa<GetElementPtrInst>(PtrInst))
+  //   if (isoneof<BitCastInst, GetElementPtrInst>(PtrInst))
   //     cerr << "OP:\t\t\t\t" << *PtrInst->getOperand(0);
   return false;
 }

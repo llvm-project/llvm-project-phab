@@ -475,7 +475,7 @@ Vectorizer::getVectorizablePrefix(ArrayRef<Instruction *> Chain) {
   });
 
   for (Instruction &I : make_range(getBoundaryInstrs(Chain))) {
-    if (isa<LoadInst>(I) || isa<StoreInst>(I)) {
+    if (isoneof<LoadInst, StoreInst>(I)) {
       if (!is_contained(Chain, &I))
         MemoryInstrs.push_back(&I);
       else

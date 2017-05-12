@@ -342,7 +342,7 @@ ValueAsMetadata *ValueAsMetadata::get(Value *V) {
   auto &Context = V->getContext();
   auto *&Entry = Context.pImpl->ValuesAsMetadata[V];
   if (!Entry) {
-    assert((isa<Constant>(V) || isa<Argument>(V) || isa<Instruction>(V)) &&
+    assert((isoneof<Constant, Argument, Instruction>(V)) &&
            "Expected constant or function-local value");
     assert(!V->IsUsedByMD && "Expected this to be the only metadata use");
     V->IsUsedByMD = true;

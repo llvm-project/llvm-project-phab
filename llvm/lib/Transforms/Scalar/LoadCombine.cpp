@@ -100,7 +100,7 @@ PointerOffsetPair LoadCombine::getPointerOffsetPair(LoadInst &LI) {
   unsigned BitWidth = DL.getPointerSizeInBits(LI.getPointerAddressSpace());
   POP.Offset = APInt(BitWidth, 0);
 
-  while (isa<BitCastInst>(POP.Pointer) || isa<GetElementPtrInst>(POP.Pointer)) {
+  while (isoneof<BitCastInst, GetElementPtrInst>(POP.Pointer)) {
     if (auto *GEP = dyn_cast<GetElementPtrInst>(POP.Pointer)) {
       APInt LastOffset = POP.Offset;
       if (!GEP->accumulateConstantOffset(DL, POP.Offset)) {

@@ -1265,7 +1265,7 @@ static bool isUndefShift(Value *Amount) {
       return true;
 
   // If all lanes of a vector shift are undefined the whole shift is.
-  if (isa<ConstantVector>(C) || isa<ConstantDataVector>(C)) {
+  if (isoneof<ConstantVector, ConstantDataVector>(C)) {
     for (unsigned I = 0, E = C->getType()->getVectorNumElements(); I != E; ++I)
       if (!isUndefShift(C->getAggregateElement(I)))
         return false;
@@ -2118,8 +2118,7 @@ computePointerICmp(const DataLayout &DL, const TargetLibraryInfo *TLI,
     //
     // Note that it's not necessary to check for LHS being a global variable
     // address, due to canonicalization and constant folding.
-    if (isa<AllocaInst>(LHS) &&
-        (isa<AllocaInst>(RHS) || isa<GlobalVariable>(RHS))) {
+    if (isa<AllocaInst>(LHS) && isoneof<AllocaInst, GlobalVariable>(RHS)) {
       ConstantInt *LHSOffsetCI = dyn_cast<ConstantInt>(LHSOffset);
       ConstantInt *RHSOffsetCI = dyn_cast<ConstantInt>(RHSOffset);
       uint64_t LHSSize, RHSSize;
@@ -3108,7 +3107,7 @@ static Value *SimplifyICmpInst(unsigned Predicate, Value *LHS, Value *RHS,
   }
 
   // Compare of cast, for example (zext X) != 0 -> X != 0
-  if (isa<CastInst>(LHS) && (isa<Constant>(RHS) || isa<CastInst>(RHS))) {
+  if (isa<CastInst>(LHS) && isoneof<Constant, CastInst>(RHS)) {
     Instruction *LI = cast<CastInst>(LHS);
     Value *SrcOp = LI->getOperand(0);
     Type *SrcTy = SrcOp->getType();
@@ -4450,7 +4449,7 @@ static Value *SimplifyCall(Value *V, IterTy ArgBegin, IterTy ArgEnd,
 
   // call undef -> undef
   // call null -> undef
-  if (isa<UndefValue>(V) || isa<ConstantPointerNull>(V))
+  if (isoneof<UndefValue, ConstantPointerNull>(V))
     return UndefValue::get(FTy->getReturnType());
 
   Function *F = dyn_cast<Function>(V);

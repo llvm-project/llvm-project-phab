@@ -293,7 +293,7 @@ static Value *getPointerOperand(Value *I) {
 
 /// A helper function that returns the type of loaded or stored value.
 static Type *getMemInstValueType(Value *I) {
-  assert((isa<LoadInst>(I) || isa<StoreInst>(I)) &&
+  assert((isoneof<LoadInst, StoreInst>(I)) &&
          "Expected Load or Store instruction");
   if (auto *LI = dyn_cast<LoadInst>(I))
     return LI->getType();
@@ -302,7 +302,7 @@ static Type *getMemInstValueType(Value *I) {
 
 /// A helper function that returns the alignment of load or store instruction.
 static unsigned getMemInstAlignment(Value *I) {
-  assert((isa<LoadInst>(I) || isa<StoreInst>(I)) &&
+  assert((isoneof<LoadInst, StoreInst>(I)) &&
          "Expected Load or Store instruction");
   if (auto *LI = dyn_cast<LoadInst>(I))
     return LI->getAlignment();
@@ -312,7 +312,7 @@ static unsigned getMemInstAlignment(Value *I) {
 /// A helper function that returns the address space of the pointer operand of
 /// load or store instruction.
 static unsigned getMemInstAddressSpace(Value *I) {
-  assert((isa<LoadInst>(I) || isa<StoreInst>(I)) &&
+  assert((isoneof<LoadInst, StoreInst>(I)) &&
          "Expected Load or Store instruction");
   if (auto *LI = dyn_cast<LoadInst>(I))
     return LI->getPointerAddressSpace();
@@ -866,7 +866,7 @@ void InnerLoopVectorizer::addNewMetadata(Instruction *To,
                                          const Instruction *Orig) {
   // If the loop was versioned with memchecks, add the corresponding no-alias
   // metadata.
-  if (LVer && (isa<LoadInst>(Orig) || isa<StoreInst>(Orig)))
+  if (LVer && (isoneof<LoadInst, StoreInst>(Orig)))
     LVer->annotateInstWithNoAlias(To, Orig);
 }
 
@@ -3624,8 +3624,8 @@ void InnerLoopVectorizer::fixupIVUsers(PHINode *OrigPhi,
 namespace {
 struct CSEDenseMapInfo {
   static bool canHandle(const Instruction *I) {
-    return isa<InsertElementInst>(I) || isa<ExtractElementInst>(I) ||
-           isa<ShuffleVectorInst>(I) || isa<GetElementPtrInst>(I);
+    return isoneof<InsertElementInst, ExtractElementInst, ShuffleVectorInst,
+                   GetElementPtrInst>(I);
   }
   static inline Instruction *getEmptyKey() {
     return DenseMapInfo<Instruction *>::getEmptyKey();
@@ -4680,8 +4680,7 @@ static bool mayDivideByZero(Instruction &I) {
 
 void InnerLoopVectorizer::vectorizeInstruction(Instruction &I) {
   // Scalarize instructions that should remain scalar after vectorization.
-  if (VF > 1 &&
-      !(isa<BranchInst>(&I) || isa<PHINode>(&I) || isa<DbgInfoIntrinsic>(&I)) &&
+  if (VF > 1 && !isoneof<BranchInst, PHINode, DbgInfoIntrinsic>(&I) &&
       shouldScalarizeInstruction(&I)) {
     scalarizeInstruction(&I, Legal->isScalarWithPredication(&I));
     return;
@@ -5498,7 +5497,7 @@ void LoopVectorizationCostModel::collectLoopScalars(unsigned VF) {
     // pointer are memory accesses, place the pointer in ScalarPtrs. Otherwise,
     // place the pointer in PossibleNonScalarPtrs.
     if (isScalarUse(MemAccess, Ptr) && all_of(I->users(), [&](User *U) {
-          return isa<LoadInst>(U) || isa<StoreInst>(U);
+          return isoneof<LoadInst, StoreInst>(U);
         }))
       ScalarPtrs.insert(I);
     else
@@ -5565,8 +5564,7 @@ void LoopVectorizationCostModel::collectLoopScalars(unsigned VF) {
     if (all_of(Src->users(), [&](User *U) -> bool {
           auto *J = cast<Instruction>(U);
           return !TheLoop->contains(J) || Worklist.count(J) ||
-                 ((isa<LoadInst>(J) || isa<StoreInst>(J)) &&
-                  isScalarUse(J, Src));
+                 (isoneof<LoadInst, StoreInst>(J) && isScalarUse(J, Src));
         })) {
       Worklist.insert(Src);
       DEBUG(dbgs() << "LV: Found scalar instruction: " << *Src << "\n");
@@ -7335,7 +7333,7 @@ unsigned LoopVectorizationCostModel::getInstructionCost(Instruction *I,
       if (CInt && CInt->getValue().isPowerOf2())
         Op2VP = TargetTransformInfo::OP_PowerOf2;
       Op2VK = TargetTransformInfo::OK_UniformConstantValue;
-    } else if (isa<ConstantVector>(Op2) || isa<ConstantDataVector>(Op2)) {
+    } else if (isoneof<ConstantVector, ConstantDataVector>(Op2)) {
       Op2VK = TargetTransformInfo::OK_NonUniformConstantValue;
       Constant *SplatValue = cast<Constant>(Op2)->getSplatValue();
       if (SplatValue) {

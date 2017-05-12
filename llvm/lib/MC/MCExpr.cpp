@@ -81,7 +81,7 @@ void MCExpr::print(raw_ostream &OS, const MCAsmInfo *MAI, bool InParens) const {
     const MCBinaryExpr &BE = cast<MCBinaryExpr>(*this);
 
     // Only print parens around the LHS if it is non-trivial.
-    if (isa<MCConstantExpr>(BE.getLHS()) || isa<MCSymbolRefExpr>(BE.getLHS())) {
+    if (isoneof<MCConstantExpr, MCSymbolRefExpr>(BE.getLHS())) {
       BE.getLHS()->print(OS, MAI);
     } else {
       OS << '(';
@@ -122,7 +122,7 @@ void MCExpr::print(raw_ostream &OS, const MCAsmInfo *MAI, bool InParens) const {
     }
 
     // Only print parens around the LHS if it is non-trivial.
-    if (isa<MCConstantExpr>(BE.getRHS()) || isa<MCSymbolRefExpr>(BE.getRHS())) {
+    if (isoneof<MCConstantExpr, MCSymbolRefExpr>(BE.getRHS())) {
       BE.getRHS()->print(OS, MAI);
     } else {
       OS << '(';

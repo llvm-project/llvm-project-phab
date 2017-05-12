@@ -110,7 +110,7 @@ static bool isNonEscapingLocalObject(const Value *V) {
 /// Returns true if the pointer is one which would have been considered an
 /// escape by isNonEscapingLocalObject.
 static bool isEscapeSource(const Value *V) {
-  if (isa<CallInst>(V) || isa<InvokeInst>(V) || isa<Argument>(V))
+  if (isoneof<CallInst, InvokeInst, Argument>(V))
     return true;
 
   // The load case works because isNonEscapingLocalObject considers all
@@ -283,7 +283,7 @@ static bool isObjectSize(const Value *V, uint64_t Size, const DataLayout &DL,
   // Since GEP indices are sign extended anyway, we don't care about the high
   // bits of a sign or zero extended value - just scales and offsets.  The
   // extensions have to be consistent though.
-  if (isa<SExtInst>(V) || isa<ZExtInst>(V)) {
+  if (isoneof<SExtInst, ZExtInst>(V)) {
     Value *CastOp = cast<CastInst>(V)->getOperand(0);
     unsigned NewWidth = V->getType()->getPrimitiveSizeInBits();
     unsigned SmallWidth = CastOp->getType()->getPrimitiveSizeInBits();
@@ -1089,8 +1089,7 @@ bool BasicAAResult::isGEPBaseAtNegativeOffset(const GEPOperator *GEPOp,
   // We need the object to be an alloca or a globalvariable, and want to know
   // the offset of the pointer from the object precisely, so no variable
   // indices are allowed.
-  if (!(isa<AllocaInst>(DecompObject.Base) ||
-        isa<GlobalVariable>(DecompObject.Base)) ||
+  if (!isoneof<AllocaInst, GlobalVariable>(DecompObject.Base) ||
       !DecompObject.VarIndices.empty())
     return false;
 

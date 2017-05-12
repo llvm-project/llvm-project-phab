@@ -762,7 +762,7 @@ static bool canPaddingBeAccessed(Argument *arg) {
   while (!WorkList.empty()) {
     Value *V = WorkList.back();
     WorkList.pop_back();
-    if (isa<GetElementPtrInst>(V) || isa<PHINode>(V)) {
+    if (isoneof<GetElementPtrInst, PHINode>(V)) {
       if (PtrValues.insert(V).second)
         WorkList.insert(WorkList.end(), V->user_begin(), V->user_end());
     } else if (StoreInst *Store = dyn_cast<StoreInst>(V)) {

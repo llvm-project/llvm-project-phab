@@ -3360,7 +3360,7 @@ void PPCDAGToDAGISel::Select(SDNode *N) {
     SDNode *Tmp = CurDAG->getMachineNode(PPC::ADDIStocHA, dl, MVT::i64,
                                          TOCbase, GA);
 
-    if (isa<JumpTableSDNode>(GA) || isa<BlockAddressSDNode>(GA) ||
+    if (isoneof<JumpTableSDNode, BlockAddressSDNode>(GA) ||
         CModel == CodeModel::Large) {
       SDNode *MN = CurDAG->getMachineNode(PPC::LDtocL, dl, MVT::i64, GA,
                                           SDValue(Tmp, 0));

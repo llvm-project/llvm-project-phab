@@ -136,7 +136,7 @@ Constant *FoldBitCast(Constant *C, Type *DestTy, const DataLayout &DL) {
 
   // If this is a scalar -> vector cast, convert the input into a <1 x scalar>
   // vector so the code below can handle it uniformly.
-  if (isa<ConstantFP>(C) || isa<ConstantInt>(C)) {
+  if (isoneof<ConstantFP, ConstantInt>(C)) {
     Constant *Ops = C; // don't take the address of C!
     return FoldBitCast(ConstantVector::get(Ops), DestTy, DL);
   }
@@ -333,7 +333,7 @@ bool ReadDataFromGlobal(Constant *C, uint64_t ByteOffset, unsigned char *CurPtr,
 
   // If this element is zero or undefined, we can just return since *CurPtr is
   // zero initialized.
-  if (isa<ConstantAggregateZero>(C) || isa<UndefValue>(C))
+  if (isoneof<ConstantAggregateZero, UndefValue>(C))
     return true;
 
   if (auto *CI = dyn_cast<ConstantInt>(C)) {
@@ -407,8 +407,7 @@ bool ReadDataFromGlobal(Constant *C, uint64_t ByteOffset, unsigned char *CurPtr,
     // not reached.
   }
 
-  if (isa<ConstantArray>(C) || isa<ConstantVector>(C) ||
-      isa<ConstantDataSequential>(C)) {
+  if (isoneof<ConstantArray, ConstantVector, ConstantDataSequential>(C)) {
     Type *EltTy = C->getType()->getSequentialElementType();
     uint64_t EltSize = DL.getTypeAllocSize(EltTy);
     uint64_t Index = ByteOffset / EltSize;
@@ -1053,7 +1052,7 @@ ConstantFoldConstantImpl(const Constant *C, const DataLayout &DL,
     auto *NewC = cast<Constant>(&NewU);
     // Recursively fold the ConstantExpr's operands. If we have already folded
     // a ConstantExpr, we don't have to process it again.
-    if (isa<ConstantVector>(NewC) || isa<ConstantExpr>(NewC)) {
+    if (isoneof<ConstantVector, ConstantExpr>(NewC)) {
       auto It = FoldedOps.find(NewC);
       if (It == FoldedOps.end()) {
         if (auto *FoldedC =
@@ -1743,8 +1742,7 @@ Constant *ConstantFoldScalarCall(StringRef Name, unsigned IntrinsicID, Type *Ty,
     }
 
     // Support ConstantVector in case we have an Undef in the top.
-    if (isa<ConstantVector>(Operands[0]) ||
-        isa<ConstantDataVector>(Operands[0])) {
+    if (isoneof<ConstantVector, ConstantDataVector>(Operands[0])) {
       auto *Op = cast<Constant>(Operands[0]);
       switch (IntrinsicID) {
       default: break;

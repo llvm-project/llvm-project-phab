@@ -676,9 +676,7 @@ bool CodeGenPrepare::isMergingEmptyBlockProfitable(BasicBlock *BB,
   // such empty block (BB), ISel will place COPY instructions in BB, not in the
   // predecessor of BB.
   BasicBlock *Pred = BB->getUniquePredecessor();
-  if (!Pred ||
-      !(isa<SwitchInst>(Pred->getTerminator()) ||
-        isa<IndirectBrInst>(Pred->getTerminator())))
+  if (!Pred || !isoneof<SwitchInst, IndirectBrInst>(Pred->getTerminator()))
     return true;
 
   if (BB->getTerminator() != BB->getFirstNonPHI())
@@ -3333,8 +3331,7 @@ bool TypePromotionHelper::canGetThrough(const Instruction *Inst,
 TypePromotionHelper::Action TypePromotionHelper::getAction(
     Instruction *Ext, const SetOfInstrs &InsertedInsts,
     const TargetLowering &TLI, const InstrToOrigTy &PromotedInsts) {
-  assert((isa<SExtInst>(Ext) || isa<ZExtInst>(Ext)) &&
-         "Unexpected instruction type");
+  assert((isoneof<SExtInst, ZExtInst>(Ext)) && "Unexpected instruction type");
   Instruction *ExtOpnd = dyn_cast<Instruction>(Ext->getOperand(0));
   Type *ExtTy = Ext->getType();
   bool IsSExt = isa<SExtInst>(Ext);
@@ -3352,8 +3349,7 @@ TypePromotionHelper::Action TypePromotionHelper::getAction(
 
   // SExt or Trunc instructions.
   // Return the related handler.
-  if (isa<SExtInst>(ExtOpnd) || isa<TruncInst>(ExtOpnd) ||
-      isa<ZExtInst>(ExtOpnd))
+  if (isoneof<SExtInst, TruncInst, ZExtInst>(ExtOpnd))
     return promoteOperandForTruncAndAnyExt;
 
   // Regular instruction.
@@ -4920,7 +4916,7 @@ bool CodeGenPrepare::optimizeExtUses(Instruction *I) {
     if (UserBB == DefBB) continue;
     // Be conservative. We don't want this xform to end up introducing
     // reloads just before load / store instructions.
-    if (isa<PHINode>(UI) || isa<LoadInst>(UI) || isa<StoreInst>(UI))
+    if (isoneof<PHINode, LoadInst, StoreInst>(UI))
       return false;
   }
 
@@ -5584,8 +5580,7 @@ class VectorPromoteHelper {
       // Moreover, one argument is a constant that can be viewed as a splat
       // constant.
       Value *Arg0 = Inst->getOperand(0);
-      bool IsArg0Constant = isa<UndefValue>(Arg0) || isa<ConstantInt>(Arg0) ||
-                            isa<ConstantFP>(Arg0);
+      bool IsArg0Constant = isoneof<UndefValue, ConstantInt, ConstantFP>(Arg0);
       TargetTransformInfo::OperandValueKind Arg0OVK =
           IsArg0Constant ? TargetTransformInfo::OK_UniformConstantValue
                          : TargetTransformInfo::OK_AnyValue;
@@ -5767,8 +5762,7 @@ void VectorPromoteHelper::promoteImpl(Instruction *ToBePromoted) {
     Value *NewVal = nullptr;
     if (Val == Transition)
       NewVal = Transition->getOperand(getTransitionOriginalValueIdx());
-    else if (isa<UndefValue>(Val) || isa<ConstantInt>(Val) ||
-             isa<ConstantFP>(Val)) {
+    else if (isoneof<UndefValue, ConstantInt, ConstantFP>(Val)) {
       // Use a splat constant if it is not safe to use undef.
       NewVal = getConstantVector(
           cast<Constant>(Val),
@@ -5982,7 +5976,7 @@ bool CodeGenPrepare::optimizeInst(Instruction *I, bool& ModifiedDT) {
     if (TLI && OptimizeNoopCopyExpression(CI, *TLI, *DL))
       return true;
 
-    if (isa<ZExtInst>(I) || isa<SExtInst>(I)) {
+    if (isoneof<ZExtInst, SExtInst>(I)) {
       /// Sink a zext or sext into its user blocks if the target type doesn't
       /// fit in one register
       if (TLI &&

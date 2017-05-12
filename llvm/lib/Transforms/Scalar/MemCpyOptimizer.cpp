@@ -566,7 +566,7 @@ static bool moveUp(AliasAnalysis &AA, StoreInst *SI, Instruction *P,
           return false;
 
         CallSites.push_back(CS);
-      } else if (isa<LoadInst>(C) || isa<StoreInst>(C) || isa<VAArgInst>(C)) {
+      } else if (isoneof<LoadInst, StoreInst, VAArgInst>(C)) {
         // If we can't lift this before P, it's game over.
         auto ML = MemoryLocation::get(C);
         if (AA.getModRefInfo(P, ML) != MRI_NoModRef)
@@ -885,7 +885,7 @@ bool MemCpyOptPass::performCallSlotOptzn(Instruction *cpy, Value *cpyDest,
   while (!srcUseList.empty()) {
     User *U = srcUseList.pop_back_val();
 
-    if (isa<BitCastInst>(U) || isa<AddrSpaceCastInst>(U)) {
+    if (isoneof<BitCastInst, AddrSpaceCastInst>(U)) {
       for (User *UU : U->users())
         srcUseList.push_back(UU);
       continue;

@@ -136,8 +136,7 @@ DIScopeRef DIScope::getScope() const {
   if (auto *M = dyn_cast<DIModule>(this))
     return M->getScope();
 
-  assert((isa<DIFile>(this) || isa<DICompileUnit>(this)) &&
-         "Unhandled type of scope.");
+  assert((isoneof<DIFile, DICompileUnit>(this)) && "Unhandled type of scope.");
   return nullptr;
 }
 
@@ -150,8 +149,7 @@ StringRef DIScope::getName() const {
     return NS->getName();
   if (auto *M = dyn_cast<DIModule>(this))
     return M->getName();
-  assert((isa<DILexicalBlockBase>(this) || isa<DIFile>(this) ||
-          isa<DICompileUnit>(this)) &&
+  assert((isoneof<DILexicalBlockBase, DIFile, DICompileUnit>(this)) &&
          "Unhandled type of scope.");
   return "";
 }

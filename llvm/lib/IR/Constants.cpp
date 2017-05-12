@@ -98,8 +98,8 @@ bool Constant::isNullValue() const {
 
   // constant zero is zero for aggregates, cpnull is null for pointers, none for
   // tokens.
-  return isa<ConstantAggregateZero>(this) || isa<ConstantPointerNull>(this) ||
-         isa<ConstantTokenNone>(this);
+  return isoneof<ConstantAggregateZero, ConstantPointerNull, ConstantTokenNone>(
+      this);
 }
 
 bool Constant::isAllOnesValue() const {
@@ -1016,7 +1016,7 @@ Constant *ConstantVector::getImpl(ArrayRef<Constant*> V) {
 Constant *ConstantVector::getSplat(unsigned NumElts, Constant *V) {
   // If this splat is compatible with ConstantDataVector, use it instead of
   // ConstantVector.
-  if ((isa<ConstantFP>(V) || isa<ConstantInt>(V)) &&
+  if (isoneof<ConstantFP, ConstantInt>(V) &&
       ConstantDataSequential::isElementTypeCompatible(V->getType()))
     return ConstantDataVector::getSplat(NumElts, V);
 

@@ -1532,7 +1532,7 @@ static bool markAliveBlocks(Function &F,
 
       if (auto *CI = dyn_cast<CallInst>(&I)) {
         Value *Callee = CI->getCalledValue();
-        if (isa<ConstantPointerNull>(Callee) || isa<UndefValue>(Callee)) {
+        if (isoneof<ConstantPointerNull, UndefValue>(Callee)) {
           changeToUnreachable(CI, /*UseLLVMTrap=*/false);
           Changed = true;
           break;
@@ -1573,7 +1573,7 @@ static bool markAliveBlocks(Function &F,
     if (auto *II = dyn_cast<InvokeInst>(Terminator)) {
       // Turn invokes that call 'nounwind' functions into ordinary calls.
       Value *Callee = II->getCalledValue();
-      if (isa<ConstantPointerNull>(Callee) || isa<UndefValue>(Callee)) {
+      if (isoneof<ConstantPointerNull, UndefValue>(Callee)) {
         changeToUnreachable(II, true);
         Changed = true;
       } else if (II->doesNotThrow() && canSimplifyInvokeNoUnwind(&F)) {
@@ -1766,7 +1766,7 @@ void llvm::combineMetadata(Instruction *K, const Instruction *J,
   // FIXME: we should try to preserve both invariant.group md if they are
   // different, but right now instruction can only have one invariant.group.
   if (auto *JMD = J->getMetadata(LLVMContext::MD_invariant_group))
-    if (isa<LoadInst>(K) || isa<StoreInst>(K))
+    if (isoneof<LoadInst, StoreInst>(K))
       K->setMetadata(LLVMContext::MD_invariant_group, JMD);
 }
 

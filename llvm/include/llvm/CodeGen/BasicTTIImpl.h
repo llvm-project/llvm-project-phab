@@ -310,8 +310,7 @@ public:
       BasicBlock *BB = *I;
 
       for (BasicBlock::iterator J = BB->begin(), JE = BB->end(); J != JE; ++J)
-        if (isa<CallInst>(J) || isa<InvokeInst>(J)) {
-          ImmutableCallSite CS(&*J);
+        if (ImmutableCallSite CS{&*J}) {
           if (const Function *F = CS.getCalledFunction()) {
             if (!static_cast<T *>(this)->isLoweredToCall(F))
               continue;

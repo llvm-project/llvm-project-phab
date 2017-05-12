@@ -1976,7 +1976,7 @@ void NVPTXAsmPrinter::bufferLEByte(const Constant *CPV, int Bytes,
   case Type::ArrayTyID:
   case Type::VectorTyID:
   case Type::StructTyID: {
-    if (isa<ConstantAggregate>(CPV) || isa<ConstantDataSequential>(CPV)) {
+    if (isoneof<ConstantAggregate, ConstantDataSequential>(CPV)) {
       int ElementSize = DL.getTypeAllocSize(CPV->getType());
       bufferAggregateConstant(CPV, aggBuffer);
       if (Bytes > ElementSize)
@@ -2010,7 +2010,7 @@ void NVPTXAsmPrinter::bufferAggregateConstant(const Constant *CPV,
   }
 
   // Old constants
-  if (isa<ConstantArray>(CPV) || isa<ConstantVector>(CPV)) {
+  if (isoneof<ConstantArray, ConstantVector>(CPV)) {
     if (CPV->getNumOperands())
       for (unsigned i = 0, e = CPV->getNumOperands(); i != e; ++i)
         bufferLEByte(cast<Constant>(CPV->getOperand(i)), 0, aggBuffer);
@@ -2271,8 +2271,8 @@ void NVPTXAsmPrinter::printMCExpr(const MCExpr &Expr, raw_ostream &OS) {
     const MCBinaryExpr &BE = cast<MCBinaryExpr>(Expr);
 
     // Only print parens around the LHS if it is non-trivial.
-    if (isa<MCConstantExpr>(BE.getLHS()) || isa<MCSymbolRefExpr>(BE.getLHS()) ||
-        isa<NVPTXGenericMCSymbolRefExpr>(BE.getLHS())) {
+    if (isoneof<MCConstantExpr, MCSymbolRefExpr, NVPTXGenericMCSymbolRefExpr>(
+            BE.getLHS())) {
       printMCExpr(*BE.getLHS(), OS);
     } else {
       OS << '(';
@@ -2296,7 +2296,7 @@ void NVPTXAsmPrinter::printMCExpr(const MCExpr &Expr, raw_ostream &OS) {
     }
 
     // Only print parens around the LHS if it is non-trivial.
-    if (isa<MCConstantExpr>(BE.getRHS()) || isa<MCSymbolRefExpr>(BE.getRHS())) {
+    if (isoneof<MCConstantExpr, MCSymbolRefExpr>(BE.getRHS())) {
       printMCExpr(*BE.getRHS(), OS);
     } else {
       OS << '(';

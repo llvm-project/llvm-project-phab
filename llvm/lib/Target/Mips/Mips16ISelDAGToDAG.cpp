@@ -152,8 +152,8 @@ bool Mips16DAGToDAGISel::selectAddr(bool SPAllowed, SDValue Addr, SDValue &Base,
     if (Addr.getOperand(1).getOpcode() == MipsISD::Lo ||
         Addr.getOperand(1).getOpcode() == MipsISD::GPRel) {
       SDValue Opnd0 = Addr.getOperand(1).getOperand(0);
-      if (isa<ConstantPoolSDNode>(Opnd0) || isa<GlobalAddressSDNode>(Opnd0) ||
-          isa<JumpTableSDNode>(Opnd0)) {
+      if (isoneof<ConstantPoolSDNode, GlobalAddressSDNode, JumpTableSDNode>(
+              Opnd0)) {
         Base = Addr.getOperand(0);
         Offset = Opnd0;
         return true;

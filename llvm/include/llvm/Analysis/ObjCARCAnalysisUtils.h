@@ -127,7 +127,7 @@ inline Value *GetArgRCIdentityRoot(Value *Inst) {
 }
 
 inline bool IsNullOrUndef(const Value *V) {
-  return isa<ConstantPointerNull>(V) || isa<UndefValue>(V);
+  return isoneof<ConstantPointerNull, UndefValue>(V);
 }
 
 inline bool IsNoopInstruction(const Instruction *I) {
@@ -140,7 +140,7 @@ inline bool IsNoopInstruction(const Instruction *I) {
 inline bool IsPotentialRetainableObjPtr(const Value *Op) {
   // Pointers to static or stack storage are not valid retainable object
   // pointers.
-  if (isa<Constant>(Op) || isa<AllocaInst>(Op))
+  if (isoneof<Constant, AllocaInst>(Op))
     return false;
   // Special arguments can not be a valid retainable object pointer.
   if (const Argument *Arg = dyn_cast<Argument>(Op))
@@ -201,9 +201,7 @@ inline bool IsObjCIdentifiedObject(const Value *V) {
   // Assume that call results and arguments have their own "provenance".
   // Constants (including GlobalVariables) and Allocas are never
   // reference-counted.
-  if (isa<CallInst>(V) || isa<InvokeInst>(V) ||
-      isa<Argument>(V) || isa<Constant>(V) ||
-      isa<AllocaInst>(V))
+  if (isoneof<CallInst, InvokeInst, Argument, Constant, AllocaInst>(V))
     return true;
 
   if (const LoadInst *LI = dyn_cast<LoadInst>(V)) {

@@ -542,7 +542,7 @@ bool AArch64PromoteConstant::runOnFunction(Function &F,
       // There is no point in promoting global values as they are already
       // global. Do not promote constant expressions either, as they may
       // require some code expansion.
-      if (!Cst || isa<GlobalValue>(Cst) || isa<ConstantExpr>(Cst))
+      if (!Cst || isoneof<GlobalValue, ConstantExpr>(Cst))
         continue;
 
       // Check if this constant is worth promoting.

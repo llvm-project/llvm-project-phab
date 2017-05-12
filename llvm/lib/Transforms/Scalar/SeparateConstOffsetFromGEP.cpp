@@ -610,7 +610,7 @@ ConstantOffsetExtractor::distributeExtsAndCloneChain(unsigned ChainIndex) {
   }
 
   if (CastInst *Cast = dyn_cast<CastInst>(U)) {
-    assert((isa<SExtInst>(Cast) || isa<ZExtInst>(Cast)) &&
+    assert((isoneof<SExtInst, ZExtInst>(Cast)) &&
            "We only traced into two types of CastInst: sext and zext");
     ExtInsts.push_back(Cast);
     UserChain[ChainIndex] = nullptr;

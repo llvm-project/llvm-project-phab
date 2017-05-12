@@ -1291,7 +1291,7 @@ bool SCCPSolver::ResolvedUndefsIn(Function &F) {
 
         // extractvalue and insertvalue don't need to be marked; they are
         // tracked as precisely as their operands.
-        if (isa<ExtractValueInst>(I) || isa<InsertValueInst>(I))
+        if (isoneof<ExtractValueInst, InsertValueInst>(I))
           continue;
 
         // Send the results of everything else to overdefined.  We could be
@@ -1718,9 +1718,8 @@ static bool AddressIsTaken(const GlobalValue *GV) {
     if (const auto *SI = dyn_cast<StoreInst>(UR)) {
       if (SI->getOperand(0) == GV || SI->isVolatile())
         return true;  // Storing addr of GV.
-    } else if (isa<InvokeInst>(UR) || isa<CallInst>(UR)) {
+    } else if (ImmutableCallSite CS{UR}) {
       // Make sure we are calling the function, not passing the address.
-      ImmutableCallSite CS(cast<Instruction>(UR));
       if (!CS.isCallee(&U))
         return true;
     } else if (const auto *LI = dyn_cast<LoadInst>(UR)) {

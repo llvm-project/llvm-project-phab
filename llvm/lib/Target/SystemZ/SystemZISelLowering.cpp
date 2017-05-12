@@ -552,7 +552,7 @@ bool SystemZTargetLowering::isFoldableMemAccessOffset(Instruction *I,
   //   values (vector load / store instructions only support small
   //   offsets).
 
-  assert (isa<LoadInst>(I) || isa<StoreInst>(I));
+  assert((isoneof<LoadInst, StoreInst>(I)));
   Type *MemAccessTy = (isa<LoadInst>(I) ? I->getType() :
                        I->getOperand(0)->getType());
   bool IsFPAccess = MemAccessTy->isFloatingPointTy();

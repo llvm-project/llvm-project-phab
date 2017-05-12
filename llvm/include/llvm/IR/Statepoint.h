@@ -336,7 +336,7 @@ public:
   bool isTiedToInvoke() const {
     const Value *Token = getArgOperand(0);
 
-    return isa<LandingPadInst>(Token) || isa<InvokeInst>(Token);
+    return isoneof<LandingPadInst, InvokeInst>(Token);
   }
 
   /// The statepoint with which this gc.relocate is associated.

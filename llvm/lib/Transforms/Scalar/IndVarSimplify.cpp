@@ -1917,7 +1917,7 @@ static bool hasConcreteDefImpl(Value *V, SmallPtrSetImpl<Value*> &Visited,
     return false;
 
   // Load and return values may be undef.
-  if(I->mayReadFromMemory() || isa<CallInst>(I) || isa<InvokeInst>(I))
+  if (I->mayReadFromMemory() || isoneof<CallInst, InvokeInst>(I))
     return false;
 
   // Optimistically handle other instructions.
