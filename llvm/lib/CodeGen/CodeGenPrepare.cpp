@@ -158,7 +158,8 @@ class TypePromotionTransaction;
     const TargetRegisterInfo *TRI;
     const TargetTransformInfo *TTI;
     const TargetLibraryInfo *TLInfo;
-    const LoopInfo *LI;
+    LoopInfo *LI;
+
     std::unique_ptr<BlockFrequencyInfo> BFI;
     std::unique_ptr<BranchProbabilityInfo> BPI;
 
@@ -430,6 +431,9 @@ bool CodeGenPrepare::eliminateFallThrough(Function &F) {
       bool isEntry = SinglePred == &SinglePred->getParent()->getEntryBlock();
       MergeBasicBlockIntoOnlyPred(BB, nullptr);
 
+      if (LI->getLoopFor(SinglePred))
+        LI->removeBlock(SinglePred);
+
       if (isEntry && BB != &BB->getParent()->getEntryBlock())
         BB->moveBefore(&BB->getParent()->getEntryBlock());
 
@@ -620,6 +624,10 @@ bool CodeGenPrepare::splitIndirectCriticalEdges(Function &F) {
       IndPHI->eraseFromParent();
     }
 
+    if (Loop * L = LI->getLoopFor(Target)) {
+      L->addBasicBlockToLoop(BodyBlock, *LI);
+      L->addBasicBlockToLoop(DirectSucc, *LI);
+    }
     Changed = true;
   }
 
@@ -832,6 +840,9 @@ void CodeGenPrepare::eliminateMostlyEmptyBlock(BasicBlock *BB) {
       bool isEntry = SinglePred == &SinglePred->getParent()->getEntryBlock();
       MergeBasicBlockIntoOnlyPred(DestBB, nullptr);
 
+      if (LI->getLoopFor(SinglePred))
+        LI->removeBlock(SinglePred);
+
       if (isEntry && BB != &BB->getParent()->getEntryBlock())
         BB->moveBefore(&BB->getParent()->getEntryBlock());
 
@@ -872,6 +883,9 @@ void CodeGenPrepare::eliminateMostlyEmptyBlock(BasicBlock *BB) {
   // The PHIs are now updated, change everything that refers to BB to use
   // DestBB and remove BB.
   BB->replaceAllUsesWith(DestBB);
+  if (LI->getLoopFor(BB))
+    LI->removeBlock(BB);
+
   BB->eraseFromParent();
   ++NumBlocksElim;
 
@@ -1584,7 +1598,7 @@ static bool OptimizeExtractBits(BinaryOperator *ShiftI, ConstantInt *CI,
 //  %13 = icmp eq i1 %12, true
 //  br i1 %13, label %cond.load4, label %else5
 //
-static void scalarizeMaskedLoad(CallInst *CI) {
+static void scalarizeMaskedLoad(CallInst *CI, LoopInfo &LI) {
   Value *Ptr  = CI->getArgOperand(0);
   Value *Alignment = CI->getArgOperand(1);
   Value *Mask = CI->getArgOperand(2);
@@ -1648,6 +1662,8 @@ static void scalarizeMaskedLoad(CallInst *CI) {
   PHINode *Phi = nullptr;
   Value *PrevPhi = UndefVal;
 
+  Loop *L = LI.getLoopFor(CI->getParent());
+
   for (unsigned Idx = 0; Idx < VectorWidth; ++Idx) {
 
     // Fill the "else" block, created in the previous iteration
@@ -1689,6 +1705,12 @@ static void scalarizeMaskedLoad(CallInst *CI) {
     Builder.SetInsertPoint(InsertPt);
     Instruction *OldBr = IfBlock->getTerminator();
     BranchInst::Create(CondBlock, NewIfBlock, Cmp, OldBr);
+
+    if (L) {
+      L->addBasicBlockToLoop(CondBlock, LI);
+      L->addBasicBlockToLoop(NewIfBlock, LI);
+    }
+
     OldBr->eraseFromParent();
     PrevIfBlock = IfBlock;
     IfBlock = NewIfBlock;
@@ -1730,7 +1752,7 @@ static void scalarizeMaskedLoad(CallInst *CI) {
 //   store i32 %8, i32* %9
 //   br label %else2
 //   . . .
-static void scalarizeMaskedStore(CallInst *CI) {
+static void scalarizeMaskedStore(CallInst *CI, LoopInfo &LI) {
   Value *Src = CI->getArgOperand(0);
   Value *Ptr  = CI->getArgOperand(1);
   Value *Alignment = CI->getArgOperand(2);
@@ -1779,6 +1801,7 @@ static void scalarizeMaskedStore(CallInst *CI) {
     return;
   }
 
+  Loop *L = LI.getLoopFor(CI->getParent());
   for (unsigned Idx = 0; Idx < VectorWidth; ++Idx) {
 
     // Fill the "else" block, created in the previous iteration
@@ -1813,6 +1836,12 @@ static void scalarizeMaskedStore(CallInst *CI) {
     Instruction *OldBr = IfBlock->getTerminator();
     BranchInst::Create(CondBlock, NewIfBlock, Cmp, OldBr);
     OldBr->eraseFromParent();
+
+    if (L) {
+      L->addBasicBlockToLoop(CondBlock, LI);
+      L->addBasicBlockToLoop(NewIfBlock, LI);
+    }
+
     IfBlock = NewIfBlock;
   }
   CI->eraseFromParent();
@@ -1849,7 +1878,7 @@ static void scalarizeMaskedStore(CallInst *CI) {
 // . . .
 // % Result = select <16 x i1> %Mask, <16 x i32> %res.phi.select, <16 x i32> %Src
 // ret <16 x i32> %Result
-static void scalarizeMaskedGather(CallInst *CI) {
+static void scalarizeMaskedGather(CallInst *CI, LoopInfo &LI) {
   Value *Ptrs = CI->getArgOperand(0);
   Value *Alignment = CI->getArgOperand(1);
   Value *Mask = CI->getArgOperand(2);
@@ -1899,6 +1928,7 @@ static void scalarizeMaskedGather(CallInst *CI) {
   PHINode *Phi = nullptr;
   Value *PrevPhi = UndefVal;
 
+  Loop *L = LI.getLoopFor(CI->getParent());
   for (unsigned Idx = 0; Idx < VectorWidth; ++Idx) {
 
     // Fill the "else" block, created in the previous iteration
@@ -1944,6 +1974,12 @@ static void scalarizeMaskedGather(CallInst *CI) {
     Instruction *OldBr = IfBlock->getTerminator();
     BranchInst::Create(CondBlock, NewIfBlock, Cmp, OldBr);
     OldBr->eraseFromParent();
+
+    if (L) {
+      L->addBasicBlockToLoop(CondBlock, LI);
+      L->addBasicBlockToLoop(NewIfBlock, LI);
+    }
+
     PrevIfBlock = IfBlock;
     IfBlock = NewIfBlock;
   }
@@ -1984,7 +2020,7 @@ static void scalarizeMaskedGather(CallInst *CI) {
 // store i32 % Elt1, i32* % Ptr1, align 4
 // br label %else2
 //   . . .
-static void scalarizeMaskedScatter(CallInst *CI) {
+static void scalarizeMaskedScatter(CallInst *CI, LoopInfo &LI) {
   Value *Src = CI->getArgOperand(0);
   Value *Ptrs = CI->getArgOperand(1);
   Value *Alignment = CI->getArgOperand(2);
@@ -2021,6 +2057,8 @@ static void scalarizeMaskedScatter(CallInst *CI) {
     CI->eraseFromParent();
     return;
   }
+
+  Loop *L = LI.getLoopFor(CI->getParent());
   for (unsigned Idx = 0; Idx < VectorWidth; ++Idx) {
     // Fill the "else" block, created in the previous iteration
     //
@@ -2057,6 +2095,12 @@ static void scalarizeMaskedScatter(CallInst *CI) {
     Instruction *OldBr = IfBlock->getTerminator();
     BranchInst::Create(CondBlock, NewIfBlock, Cmp, OldBr);
     OldBr->eraseFromParent();
+
+    if (L) {
+      L->addBasicBlockToLoop(CondBlock, LI);
+      L->addBasicBlockToLoop(NewIfBlock, LI);
+    }
+
     IfBlock = NewIfBlock;
   }
   CI->eraseFromParent();
@@ -2082,7 +2126,8 @@ static void scalarizeMaskedScatter(CallInst *CI) {
 static bool despeculateCountZeros(IntrinsicInst *CountZeros,
                                   const TargetLowering *TLI,
                                   const DataLayout *DL,
-                                  bool &ModifiedDT) {
+                                  bool &ModifiedDT,
+                                  LoopInfo &LI) {
   if (!TLI || !DL)
     return false;
 
@@ -2112,6 +2157,8 @@ static bool despeculateCountZeros(IntrinsicInst *CountZeros,
   BasicBlock::iterator SplitPt = ++(BasicBlock::iterator(CountZeros));
   BasicBlock *EndBlock = CallBlock->splitBasicBlock(SplitPt, "cond.end");
 
+  Loop *L = LI.getLoopFor(StartBlock);
+
   // Set up a builder to create a compare, conditional branch, and PHI.
   IRBuilder<> Builder(CountZeros->getContext());
   Builder.SetInsertPoint(StartBlock->getTerminator());
@@ -2137,6 +2184,12 @@ static bool despeculateCountZeros(IntrinsicInst *CountZeros,
   // undefined zero argument to 'true'. This will also prevent reprocessing the
   // intrinsic; we only despeculate when a zero input is defined.
   CountZeros->setArgOperand(1, Builder.getTrue());
+
+  if (L) {
+    L->addBasicBlockToLoop(CallBlock, LI);
+    L->addBasicBlockToLoop(EndBlock, LI);
+  }
+
   ModifiedDT = true;
   return true;
 }
@@ -2245,7 +2298,7 @@ bool CodeGenPrepare::optimizeCallInst(CallInst *CI, bool& ModifiedDT) {
     case Intrinsic::masked_load: {
       // Scalarize unsupported vector masked load
       if (!TTI->isLegalMaskedLoad(CI->getType())) {
-        scalarizeMaskedLoad(CI);
+        scalarizeMaskedLoad(CI, *LI);
         ModifiedDT = true;
         return true;
       }
@@ -2253,7 +2306,7 @@ bool CodeGenPrepare::optimizeCallInst(CallInst *CI, bool& ModifiedDT) {
     }
     case Intrinsic::masked_store: {
       if (!TTI->isLegalMaskedStore(CI->getArgOperand(0)->getType())) {
-        scalarizeMaskedStore(CI);
+        scalarizeMaskedStore(CI, *LI);
         ModifiedDT = true;
         return true;
       }
@@ -2261,7 +2314,7 @@ bool CodeGenPrepare::optimizeCallInst(CallInst *CI, bool& ModifiedDT) {
     }
     case Intrinsic::masked_gather: {
       if (!TTI->isLegalMaskedGather(CI->getType())) {
-        scalarizeMaskedGather(CI);
+        scalarizeMaskedGather(CI, *LI);
         ModifiedDT = true;
         return true;
       }
@@ -2269,7 +2322,7 @@ bool CodeGenPrepare::optimizeCallInst(CallInst *CI, bool& ModifiedDT) {
     }
     case Intrinsic::masked_scatter: {
       if (!TTI->isLegalMaskedScatter(CI->getArgOperand(0)->getType())) {
-        scalarizeMaskedScatter(CI);
+        scalarizeMaskedScatter(CI, *LI);
         ModifiedDT = true;
         return true;
       }
@@ -2296,7 +2349,7 @@ bool CodeGenPrepare::optimizeCallInst(CallInst *CI, bool& ModifiedDT) {
     case Intrinsic::cttz:
     case Intrinsic::ctlz:
       // If counting zeros is expensive, try to avoid it.
-      return despeculateCountZeros(II, TLI, DL, ModifiedDT);
+      return despeculateCountZeros(II, TLI, DL, ModifiedDT, *LI);
     }
 
     if (TLI) {
@@ -2460,8 +2513,11 @@ bool CodeGenPrepare::dupRetToEnableTailCallOpts(BasicBlock *BB) {
   }
 
   // If we eliminated all predecessors of the block, delete the block now.
-  if (Changed && !BB->hasAddressTaken() && pred_begin(BB) == pred_end(BB))
+  if (Changed && !BB->hasAddressTaken() && pred_begin(BB) == pred_end(BB)) {
+    if (LI->getLoopFor(BB))
+      LI->removeBlock(BB);
     BB->eraseFromParent();
+  }
 
   return Changed;
 }
@@ -5148,7 +5204,8 @@ static bool sinkSelectOperand(const TargetTransformInfo *TTI, Value *V) {
 /// Returns true if a SelectInst should be turned into an explicit branch.
 static bool isFormingBranchFromSelectProfitable(const TargetTransformInfo *TTI,
                                                 const TargetLowering *TLI,
-                                                SelectInst *SI) {
+                                                SelectInst *SI,
+                                                const LoopInfo *LI) {
   // If even a predictable select is cheap, then a branch can't be cheaper.
   if (!TLI->isPredictableSelectExpensive())
     return false;
@@ -5176,6 +5233,13 @@ static bool isFormingBranchFromSelectProfitable(const TargetTransformInfo *TTI,
   // probably another cmov or setcc around, so it's not worth emitting a branch.
   if (!Cmp || !Cmp->hasOneUse())
     return false;
+
+  // If the select is in a critical path of a loop, we aggressively turn it into
+  // a branch so that we rely more on the branch predictor.
+  if (Loop *L = LI->getLoopFor(SI->getParent())) {
+    if (L->getLoopLatch() == SI->getParent())
+      return true;
+  }
 
   // If either operand of the select is expensive and only needed on one side
   // of the select, we should form a branch.
@@ -5241,7 +5305,7 @@ bool CodeGenPrepare::optimizeSelectInst(SelectInst *SI) {
     SelectKind = TargetLowering::ScalarValSelect;
 
   if (TLI->isSelectSupported(SelectKind) &&
-      !isFormingBranchFromSelectProfitable(TTI, TLI, SI))
+      !isFormingBranchFromSelectProfitable(TTI, TLI, SI, LI))
     return false;
 
   ModifiedDT = true;
@@ -5273,6 +5337,10 @@ bool CodeGenPrepare::optimizeSelectInst(SelectInst *SI) {
   BasicBlock *StartBlock = SI->getParent();
   BasicBlock::iterator SplitPt = ++(BasicBlock::iterator(LastSI));
   BasicBlock *EndBlock = StartBlock->splitBasicBlock(SplitPt, "select.end");
+  Loop *L = LI->getLoopFor(StartBlock);
+
+  if (L)
+    L->addBasicBlockToLoop(EndBlock, *LI);
 
   // Delete the unconditional branch that was just created by the split.
   StartBlock->getTerminator()->eraseFromParent();
@@ -5291,6 +5359,9 @@ bool CodeGenPrepare::optimizeSelectInst(SelectInst *SI) {
       if (TrueBlock == nullptr) {
         TrueBlock = BasicBlock::Create(SI->getContext(), "select.true.sink",
                                        EndBlock->getParent(), EndBlock);
+        if (L)
+          L->addBasicBlockToLoop(TrueBlock, *LI);
+
         TrueBranch = BranchInst::Create(EndBlock, TrueBlock);
       }
       auto *TrueInst = cast<Instruction>(SI->getTrueValue());
@@ -5300,6 +5371,9 @@ bool CodeGenPrepare::optimizeSelectInst(SelectInst *SI) {
       if (FalseBlock == nullptr) {
         FalseBlock = BasicBlock::Create(SI->getContext(), "select.false.sink",
                                         EndBlock->getParent(), EndBlock);
+        if (L)
+          L->addBasicBlockToLoop(FalseBlock, *LI);
+
         FalseBranch = BranchInst::Create(EndBlock, FalseBlock);
       }
       auto *FalseInst = cast<Instruction>(SI->getFalseValue());
@@ -5315,6 +5389,9 @@ bool CodeGenPrepare::optimizeSelectInst(SelectInst *SI) {
 
     FalseBlock = BasicBlock::Create(SI->getContext(), "select.false",
                                     EndBlock->getParent(), EndBlock);
+    if (L)
+      L->addBasicBlockToLoop(FalseBlock, *LI);
+
     BranchInst::Create(EndBlock, FalseBlock);
   }
 
@@ -6370,6 +6447,9 @@ bool CodeGenPrepare::splitBranchCondition(Function &F) {
     ModifiedDT = true;
 
     MadeChange = true;
+
+    if (Loop *L = LI->getLoopFor(TmpBB))
+      L->addBasicBlockToLoop(TmpBB, *LI);
 
     DEBUG(dbgs() << "After branch condition splitting\n"; BB.dump();
           TmpBB->dump());
