@@ -431,11 +431,14 @@ bool polly::isHoistableLoad(LoadInst *LInst, Region &R, LoopInfo &LI,
   Loop *L = LI.getLoopFor(LInst->getParent());
   auto *Ptr = LInst->getPointerOperand();
   const SCEV *PtrSCEV = SE.getSCEVAtScope(Ptr, L);
-  while (L && R.contains(L)) {
-    if (!SE.isLoopInvariant(PtrSCEV, L))
-      return false;
-    L = L->getParentLoop();
-  }
+
+  if (auto *SU = dyn_cast<SCEVUnknown>(SE.getPointerBase(PtrSCEV)))
+    if (!dyn_cast<LoadInst>(SU->getValue()))
+      while (L && R.contains(L)) {
+        if (!SE.isLoopInvariant(PtrSCEV, L))
+          return false;
+        L = L->getParentLoop();
+      }
 
   for (auto *User : Ptr->users()) {
     auto *UserI = dyn_cast<Instruction>(User);
