@@ -10,9 +10,13 @@
 #ifndef LLVM_DEBUGINFO_DWARF_DWARFVERIFIER_H
 #define LLVM_DEBUGINFO_DWARF_DWARFVERIFIER_H
 
+#include "llvm/DebugInfo/DWARF/DWARFDebugRangeList.h"
+#include "llvm/DebugInfo/DWARF/DWARFDie.h"
+
 #include <cstdint>
 #include <map>
 #include <set>
+#include <vector>
 
 namespace llvm {
 class raw_ostream;
@@ -23,14 +27,105 @@ class DWARFUnit;
 
 /// A class that verifies DWARF debug information given a DWARF Context.
 class DWARFVerifier {
+public:
+  struct DWARFRange {
+    uint64_t Start;
+    uint64_t End;
+    DWARFRange(uint64_t S, uint64_t E) : Start(S), End(E) {}
+    /// Returns true if [Start, End) intersects with [RHS.Start, RHS.End).
+    bool intersects(const DWARFRange &RHS) const {
+      // Empty ranges can't intersect.
+      if (Start == End || RHS.Start == RHS.End)
+        return false;
+      return (Start < RHS.End) && (End > RHS.Start);
+    }
+    /// Returns true if [Start, End) fully contains [RHS.Start, RHS.End).
+    bool contains(const DWARFRange &RHS) const {
+      if (Start <= RHS.Start && RHS.Start < End)
+        return Start < RHS.End && RHS.End <= End;
+      return false;
+    }
+    bool operator<(const DWARFRange &RHS) const {
+      if (Start == RHS.Start)
+        return End < RHS.End;
+      return Start < RHS.Start;
+    }
+  };
+
+  /// A class that keeps the address range information for a single DIE.
+  struct DieRangeInfo {
+    DWARFDie Die;
+    /// Sorted address ranges.
+    std::vector<DWARFRange> Ranges;
+    DieRangeInfo() = default;
+    /// Constructor used for unit testing.
+    DieRangeInfo(const DWARFAddressRangesVector &R) { insert(R); }
+    /// Return true if ranges in this object contains all ranges within RHS.
+    bool contains(const DieRangeInfo &RHS) const;
+    /// Return true if any ranges in RHS overlap with ranges in this object.
+    bool intersects(const DieRangeInfo &RHS) const;
+    void dump(raw_ostream &OS) const;
+    bool operator<(const DieRangeInfo &RHS) const;
+    /// Extract address ranges from the Die in this object and return true if
+    /// there are errors in the ranges.
+    bool extractRangesAndReportErrors(raw_ostream &OS);
+    /// Return true if this object doesn't fully contain the ranges in RI
+    /// and report errors to the stream.
+    bool reportErrorIfNotContained(raw_ostream &OS, const DieRangeInfo &RI,
+                                   const char *Error) const;
+    /// Inserts the unsorted ranges and returns true if errors were found
+    /// during insertion
+    bool insert(const DWARFAddressRangesVector &UnsortedRanges);
+  };
+
+  /// A class that ensures that no two DieRangeInfo's overlap.
+  struct NonOverlappingRanges {
+    std::set<DieRangeInfo> RangeSet;
+
+    /// Returns true if the sibling ranges
+    const DieRangeInfo *GetOverlappingRangeInfo(const DieRangeInfo &RI) const;
+
+    bool insertAndReportErrors(raw_ostream &OS, const DieRangeInfo &RI);
+  };
+
+  /// A class the keeps information for a DIE that contains child DIEs whose
+  /// address ranges must be contained within its ranges and whose direct
+  /// children that have address ranges must not overlap.
+  struct DieInfo {
+    DieRangeInfo RI;
+    NonOverlappingRanges NOR;
+    /// Returns true if an error was found when inserting Die.
+    bool addContainedDieAndReportErrors(raw_ostream &OS, DieRangeInfo &DieRI);
+  };
+
+private:
   raw_ostream &OS;
   DWARFContext &DCtx;
+  DieInfo UnitDI;
   /// A map that tracks all references (converted absolute references) so we
   /// can verify each reference points to a valid DIE and not an offset that
   /// lies between to valid DIEs.
   std::map<uint64_t, std::set<uint32_t>> ReferenceToDIEOffsets;
+
   uint32_t NumDebugInfoErrors;
   uint32_t NumDebugLineErrors;
+
+  /// Verifies the a DIE's tag and gathers information about all DIEs.
+  ///
+  /// This function currently checks for:
+  /// - Checks DW_TAG_compile_unit address range(s)
+  /// - Checks DW_TAG_subprogram address range(s) and if the compile unit
+  ///   has ranges, verifies that its address range is fully contained in
+  ///   the compile unit ranges. Also adds the functions address range info
+  ///   to AllFunctionDieRangeInfos to look for functions with overlapping
+  ///   ranges after all DIEs have been processed.
+  /// - Checks that DW_TAG_lexical_block and DW_TAG_inlined_subroutine DIEs
+  ///   have address range(s) that are fully contained in their parent DIEs
+  ///   address range(s).
+  ///
+  /// \param Die          The DWARF DIE to check
+  /// \param ParantDI     The parent DIE's range and overlap information.
+  void verifyDie(const DWARFDie &Die, DieInfo &ParentDI);
 
   /// Verifies the attribute's DWARF attribute and its value.
   ///
