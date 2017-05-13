@@ -149,7 +149,7 @@ namespace test3 {
   };
 }
 // CHECK: <Declaration>void f(const T &amp;t = T())</Declaration>
-// CHECK: <Declaration>friend void vector&lt;A&gt;::f(const test3::A &amp;)</Declaration>
+// CHECK: <Declaration>friend void vector&lt;test3::A&gt;::f(const test3::A &amp;)</Declaration>
 
 class MyClass
 {

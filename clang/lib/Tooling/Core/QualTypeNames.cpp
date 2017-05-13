@@ -465,7 +465,7 @@ std::string getFullyQualifiedName(QualType QT,
                                   const ASTContext &Ctx,
                                   bool WithGlobalNsPrefix) {
   PrintingPolicy Policy(Ctx.getPrintingPolicy());
-  Policy.SuppressScope = false;
+  Policy.Scope = ScopePrintingKind::DefaultScope;
   Policy.AnonymousTagLocations = false;
   Policy.PolishForDeclaration = true;
   Policy.SuppressUnwrittenScope = true;

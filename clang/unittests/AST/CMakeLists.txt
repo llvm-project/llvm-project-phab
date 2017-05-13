@@ -3,6 +3,7 @@ set(LLVM_LINK_COMPONENTS
   )
 
 add_clang_unittest(ASTTests
+  AbsoluteScopeTest.cpp
   ASTContextParentMapTest.cpp
   ASTImporterTest.cpp
   ASTTypeTraitsTest.cpp
@@ -17,6 +18,7 @@ add_clang_unittest(ASTTests
   PostOrderASTVisitor.cpp
   SourceLocationTest.cpp
   StmtPrinterTest.cpp
+  TypePrinterTest.cpp
   )
 
 target_link_libraries(ASTTests

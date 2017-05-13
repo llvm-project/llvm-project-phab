@@ -26,23 +26,21 @@
 #include "llvm/Support/raw_ostream.h"
 using namespace clang;
 
-namespace {
-  /// \brief RAII object that enables printing of the ARC __strong lifetime
-  /// qualifier.
-  class IncludeStrongLifetimeRAII {
-    PrintingPolicy &Policy;
-    bool Old;
-    
-  public:
-    explicit IncludeStrongLifetimeRAII(PrintingPolicy &Policy) 
+namespace clang {
+/// \brief RAII object that enables printing of the ARC __strong lifetime
+/// qualifier.
+class IncludeStrongLifetimeRAII {
+  PrintingPolicy &Policy;
+  bool Old;
+
+public:
+  explicit IncludeStrongLifetimeRAII(PrintingPolicy &Policy)
       : Policy(Policy), Old(Policy.SuppressStrongLifetime) {
-        if (!Policy.SuppressLifetimeQualifiers)
-          Policy.SuppressStrongLifetime = false;
-    }
-    
-    ~IncludeStrongLifetimeRAII() {
-      Policy.SuppressStrongLifetime = Old;
-    }
+    if (!Policy.SuppressLifetimeQualifiers)
+      Policy.SuppressStrongLifetime = false;
+  }
+
+  ~IncludeStrongLifetimeRAII() { Policy.SuppressStrongLifetime = Old; }
   };
 
   class ParamPolicyRAII {
@@ -63,19 +61,19 @@ namespace {
   class ElaboratedTypePolicyRAII {
     PrintingPolicy &Policy;
     bool SuppressTagKeyword;
-    bool SuppressScope;
     
   public:
-    explicit ElaboratedTypePolicyRAII(PrintingPolicy &Policy) : Policy(Policy) {
+    explicit ElaboratedTypePolicyRAII(PrintingPolicy &Policy,
+                                      bool TemporarySuppressScope = true)
+        : Policy(Policy) {
       SuppressTagKeyword = Policy.SuppressTagKeyword;
-      SuppressScope = Policy.SuppressScope;
       Policy.SuppressTagKeyword = true;
-      Policy.SuppressScope = true;
+      Policy.TemporarySuppressScope = TemporarySuppressScope;
     }
     
     ~ElaboratedTypePolicyRAII() {
       Policy.SuppressTagKeyword = SuppressTagKeyword;
-      Policy.SuppressScope = SuppressScope;
+      Policy.TemporarySuppressScope = false;
     }
   };
   
@@ -801,13 +799,11 @@ void TypePrinter::printFunctionNoProtoAfter(const FunctionNoProtoType *T,
 }
 
 void TypePrinter::printTypeSpec(NamedDecl *D, raw_ostream &OS) {
-
-  // Compute the full nested-name-specifier for this type.
-  // In C, this will always be empty except when the type
-  // being printed is anonymous within other Record.
-  if (!Policy.SuppressScope)
+  if (Policy.Scope != ScopePrintingKind::SuppressScope &&
+      !Policy.TemporarySuppressScope) {
+    // Print the scope:
     AppendScope(D->getDeclContext(), OS);
-
+  }
   IdentifierInfo *II = D->getIdentifier();
   OS << II->getName();
   spaceBeforePlaceHolder(OS);
@@ -820,10 +816,10 @@ void TypePrinter::printUnresolvedUsingBefore(const UnresolvedUsingType *T,
 void TypePrinter::printUnresolvedUsingAfter(const UnresolvedUsingType *T,
                                              raw_ostream &OS) { }
 
-void TypePrinter::printTypedefBefore(const TypedefType *T, raw_ostream &OS) { 
+void TypePrinter::printTypedefBefore(const TypedefType *T, raw_ostream &OS) {
   printTypeSpec(T->getDecl(), OS);
 }
-void TypePrinter::printTypedefAfter(const TypedefType *T, raw_ostream &OS) { } 
+void TypePrinter::printTypedefAfter(const TypedefType *T, raw_ostream &OS) {}
 
 void TypePrinter::printTypeOfExprBefore(const TypeOfExprType *T,
                                         raw_ostream &OS) {
@@ -942,7 +938,12 @@ void TypePrinter::printPipeAfter(const PipeType *T, raw_ostream &OS) {
 }
 /// Appends the given scope to the end of a string.
 void TypePrinter::AppendScope(DeclContext *DC, raw_ostream &OS) {
-  if (DC->isTranslationUnit()) return;
+  if (DC->isTranslationUnit()) {
+    if (Policy.Scope == ScopePrintingKind::FullScope) {
+      OS << "::";
+    }
+    return;
+  }
   if (DC->isFunctionOrMethod()) return;
   AppendScope(DC->getParent(), OS);
 
@@ -994,7 +995,8 @@ void TypePrinter::printTag(TagDecl *D, raw_ostream &OS) {
   // Compute the full nested-name-specifier for this type.
   // In C, this will always be empty except when the type
   // being printed is anonymous within other Record.
-  if (!Policy.SuppressScope)
+  if (Policy.Scope != ScopePrintingKind::SuppressScope &&
+      !Policy.TemporarySuppressScope)
     AppendScope(D->getDeclContext(), OS);
 
   if (const IdentifierInfo *II = D->getIdentifier())
@@ -1032,6 +1034,8 @@ void TypePrinter::printTag(TagDecl *D, raw_ostream &OS) {
 
     OS << (Policy.MSVCFormatting ? '\'' : ')');
   }
+
+  Policy.TemporarySuppressScope = false;
 
   // If this is a class template specialization, print the template
   // arguments.
@@ -1101,10 +1105,11 @@ void TypePrinter::printSubstTemplateTypeParmPackAfter(
 }
 
 void TypePrinter::printTemplateSpecializationBefore(
-                                            const TemplateSpecializationType *T, 
-                                            raw_ostream &OS) { 
+    const TemplateSpecializationType *T, raw_ostream &OS) {
   IncludeStrongLifetimeRAII Strong(Policy);
   T->getTemplateName().print(OS, Policy);
+
+  Policy.TemporarySuppressScope = false;
 
   TemplateSpecializationType::PrintTemplateArgumentList(
       OS, T->template_arguments(), Policy);
@@ -1123,18 +1128,36 @@ void TypePrinter::printInjectedClassNameAfter(const InjectedClassNameType *T,
 
 void TypePrinter::printElaboratedBefore(const ElaboratedType *T,
                                         raw_ostream &OS) {
+  bool ScopeHasBeenPrinted = false;
   // The tag definition will take care of these.
-  if (!Policy.IncludeTagDefinition)
-  {
+  if (!Policy.IncludeTagDefinition) {
     OS << TypeWithKeyword::getKeywordName(T->getKeyword());
     if (T->getKeyword() != ETK_None)
       OS << " ";
-    NestedNameSpecifier* Qualifier = T->getQualifier();
-    if (Qualifier)
+    NestedNameSpecifier *Qualifier = T->getQualifier();
+    if (Qualifier) {
       Qualifier->print(OS, Policy);
+      ScopeHasBeenPrinted = true;
+    }
+    // If there are no nested name specifiers, the complete scope will be
+    // printed later (location depends on the sub-type).
   }
-  
-  ElaboratedTypePolicyRAII PolicyRAII(Policy);
+
+  // Currently the following sub-types are known:
+  if (!isa<TagType>(T->getNamedType()) &&
+      !isa<TemplateSpecializationType>(T->getNamedType()) &&
+      !isa<TypedefType>(T->getNamedType()) &&
+      !isa<DeducedTemplateSpecializationType>(T->getNamedType())) {
+    llvm::errs() << "Unknown elaborated sub-type: "
+                 << T->getNamedType()->getTypeClassName() << "\n";
+    llvm_unreachable("Unknown elaborated sub-type (see error output)");
+  }
+
+  // Suppress the outer nested name specifier of the underlying type in case
+  // of DefaultScope and if a scope has already been printed.
+  bool temporarySuppressScope =
+      Policy.Scope == ScopePrintingKind::DefaultScope || ScopeHasBeenPrinted;
+  ElaboratedTypePolicyRAII PolicyRAII(Policy, temporarySuppressScope);
   printBefore(T->getNamedType(), OS);
 }
 void TypePrinter::printElaboratedAfter(const ElaboratedType *T,
@@ -1163,7 +1186,6 @@ void TypePrinter::printDependentNameBefore(const DependentNameType *T,
   OS << TypeWithKeyword::getKeywordName(T->getKeyword());
   if (T->getKeyword() != ETK_None)
     OS << " ";
-  
   T->getQualifier()->print(OS, Policy);
   
   OS << T->getIdentifier()->getName();
@@ -1179,10 +1201,13 @@ void TypePrinter::printDependentTemplateSpecializationBefore(
   OS << TypeWithKeyword::getKeywordName(T->getKeyword());
   if (T->getKeyword() != ETK_None)
     OS << " ";
-  
+
   if (T->getQualifier())
-    T->getQualifier()->print(OS, Policy);    
+    T->getQualifier()->print(OS, Policy);
   OS << T->getIdentifier()->getName();
+
+  Policy.TemporarySuppressScope = false;
+
   TemplateSpecializationType::PrintTemplateArgumentList(OS,
                                                         T->template_arguments(),
                                                         Policy);

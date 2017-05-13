@@ -92,7 +92,7 @@ namespace test3 {
 
   template <class T> class Outer::A<T, typename T::nature> {
   public:
-    static void foo(); // expected-note {{'Outer::A<B, Green>::foo' declared here}}
+    static void foo(); // expected-note {{'Outer::A<test3::B, test3::Green>::foo' declared here}}
   };
 
   class B {
@@ -102,7 +102,38 @@ namespace test3 {
 
   void test() {
     Outer::A<B, Green>::foo();
-    Outer::A<B, Blue>::foo(); // expected-error {{no member named 'foo' in 'test3::Outer::A<test3::B, test3::Blue>'; did you mean 'Outer::A<B, Green>::foo'?}}
+    Outer::A<B, Blue>::foo(); // expected-error {{no member named 'foo' in 'test3::Outer::A<test3::B, test3::Blue>'; did you mean 'Outer::A<test3::B, test3::Green>::foo'?}}
+  }
+}
+
+// Modified version of test3 showing that inner scopes of a nested name specifier are necessary to create a valid suggestion.
+namespace test3_1 {
+
+  namespace Colors {
+    class Green { };
+    class Blue { };
+  }
+
+  // We have to wrap this in a class because a partial specialization
+  // isn't actually in the context of the template.
+  struct Outer {
+    template <class T, class Nat> class A {
+    };
+  };
+
+  template <class T> class Outer::A<T, typename T::nature> {
+  public:
+    static void foo(); // expected-note {{'Outer::A<test3_1::B, test3_1::Colors::Green>::foo' declared here}}
+  };
+
+  class B {
+  private: typedef Colors::Green nature;
+    friend class Outer;
+  };
+
+  void test() {
+    Outer::A<B, Colors::Green>::foo();
+    Outer::A<B, Colors::Blue>::foo(); // expected-error {{no member named 'foo' in 'test3_1::Outer::A<test3_1::B, test3_1::Colors::Blue>'; did you mean 'Outer::A<test3_1::B, test3_1::Colors::Green>::foo'?}}
   }
 }
 
