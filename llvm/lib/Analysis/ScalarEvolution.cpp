@@ -1653,8 +1653,9 @@ const SCEV *ScalarEvolution::getZeroExtendExprImpl(const SCEV *Op, Type *Ty,
       // these to compute max backedge taken counts, but can still use
       // these to prove lack of overflow.  Use this fact to avoid
       // doing extra work that may not pay off.
+      auto assumptions = AC.assumptions();
       if (!isa<SCEVCouldNotCompute>(MaxBECount) || HasGuards ||
-          !AC.assumptions().empty()) {
+          assumptions.begin() != assumptions.end()) {
         // If the backedge is guarded by a comparison with the pre-inc
         // value the addrec is safe. Also, if the entry is guarded by
         // a comparison with the start value and the backedge is
@@ -1912,9 +1913,9 @@ const SCEV *ScalarEvolution::getSignExtendExprImpl(const SCEV *Op, Type *Ty,
       // these to compute max backedge taken counts, but can still use
       // these to prove lack of overflow.  Use this fact to avoid
       // doing extra work that may not pay off.
-
+      auto assumptions = AC.assumptions();
       if (!isa<SCEVCouldNotCompute>(MaxBECount) || HasGuards ||
-          !AC.assumptions().empty()) {
+          assumptions.begin() != assumptions.end()) {
         // If the backedge is guarded by a comparison with the pre-inc
         // value the addrec is safe. Also, if the entry is guarded by
         // a comparison with the start value and the backedge is
@@ -8182,10 +8183,8 @@ ScalarEvolution::isLoopBackedgeGuardedByCond(const Loop *L,
   }
 
   // Check conditions due to any @llvm.assume intrinsics.
-  for (auto &AssumeVH : AC.assumptions()) {
-    if (!AssumeVH)
-      continue;
-    auto *CI = cast<CallInst>(AssumeVH);
+  for (auto &AssumeV : AC.assumptions()) {
+    auto *CI = cast<CallInst>(&AssumeV);
     if (!DT.dominates(CI, Latch->getTerminator()))
       continue;
 
@@ -8276,10 +8275,8 @@ ScalarEvolution::isLoopEntryGuardedByCond(const Loop *L,
   }
 
   // Check conditions due to any @llvm.assume intrinsics.
-  for (auto &AssumeVH : AC.assumptions()) {
-    if (!AssumeVH)
-      continue;
-    auto *CI = cast<CallInst>(AssumeVH);
+  for (auto &AssumeV : AC.assumptions()) {
+    auto *CI = cast<CallInst>(&AssumeV);
     if (!DT.dominates(CI, L->getHeader()))
       continue;
 
