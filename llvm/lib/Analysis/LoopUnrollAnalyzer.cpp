@@ -35,6 +35,8 @@ bool UnrolledInstAnalyzer::simplifyInstWithSCEV(Instruction *I) {
     SimplifiedValues[I] = SC->getValue();
     return true;
   }
+  if (!CompleteUnroll)
+    return false;
 
   auto *AR = dyn_cast<SCEVAddRecExpr>(S);
   if (!AR || AR->getLoop() != L)
@@ -210,6 +212,10 @@ bool UnrolledInstAnalyzer::visitPHINode(PHINode &PN) {
   // analysis information.
   if (Base::visitPHINode(PN))
     return true;
+
+  // Consider PHI is foldable only after complete unroll.
+  if (!CompleteUnroll)
+    return false;
 
   // The loop induction PHI nodes are definitionally free.
   return PN.getParent() == L->getHeader();

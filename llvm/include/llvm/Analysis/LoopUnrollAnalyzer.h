@@ -48,8 +48,9 @@ class UnrolledInstAnalyzer : private InstVisitor<UnrolledInstAnalyzer, bool> {
 public:
   UnrolledInstAnalyzer(unsigned Iteration,
                        DenseMap<Value *, Constant *> &SimplifiedValues,
-                       ScalarEvolution &SE, const Loop *L)
-      : SimplifiedValues(SimplifiedValues), SE(SE), L(L) {
+                       ScalarEvolution &SE, const Loop *L, bool CompleteUnroll)
+      : SimplifiedValues(SimplifiedValues), SE(SE),
+        L(L), CompleteUnroll(CompleteUnroll) {
       IterationNumber = SE.getConstant(APInt(64, Iteration));
   }
 
@@ -81,6 +82,7 @@ private:
 
   ScalarEvolution &SE;
   const Loop *L;
+  bool CompleteUnroll;
 
   bool simplifyInstWithSCEV(Instruction *I);
 

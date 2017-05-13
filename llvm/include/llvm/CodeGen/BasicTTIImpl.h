@@ -326,6 +326,11 @@ public:
     UP.Partial = UP.Runtime = UP.UpperBound = true;
     UP.PartialThreshold = MaxOps;
 
+    const TargetMachine &TM = getTLI()->getTargetMachine();
+    // Unroll uncountable inner loops at O3 and higher.
+    if (L->getSubLoops().size() == 0 && TM.getOptLevel() > CodeGenOpt::Default)
+      UP.Force = true;
+
     // Avoid unrolling when optimizing for size.
     UP.OptSizeThreshold = 0;
     UP.PartialOptSizeThreshold = 0;
