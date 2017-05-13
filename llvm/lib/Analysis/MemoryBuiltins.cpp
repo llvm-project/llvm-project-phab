@@ -768,8 +768,7 @@ SizeOffsetEvalType ObjectSizeOffsetEvaluator::compute_(Value *V) {
   } else if (isa<Argument>(V) ||
              (isa<ConstantExpr>(V) &&
               cast<ConstantExpr>(V)->getOpcode() == Instruction::IntToPtr) ||
-             isa<GlobalAlias>(V) ||
-             isa<GlobalVariable>(V)) {
+             isoneof<GlobalAlias, GlobalVariable>(V)) {
     // Ignore values where we cannot do more than ObjectSizeVisitor.
     Result = unknown();
   } else {

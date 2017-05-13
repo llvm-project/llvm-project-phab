@@ -843,7 +843,7 @@ bool DataFlowSanitizer::runOnModule(Module &M) {
           Pos = I->getNextNode();
         else
           Pos = &DFSF.F->getEntryBlock().front();
-        while (isa<PHINode>(Pos) || isa<AllocaInst>(Pos))
+        while (isoneof<PHINode, AllocaInst>(Pos))
           Pos = Pos->getNextNode();
         IRBuilder<> IRB(Pos);
         Value *Ne = IRB.CreateICmpNE(V, DFSF.DFS.ZeroShadow);
@@ -1058,7 +1058,7 @@ Value *DFSanFunction::loadShadow(Value *Addr, uint64_t Size, uint64_t Align,
   GetUnderlyingObjects(Addr, Objs, Pos->getModule()->getDataLayout());
   bool AllConstants = true;
   for (Value *Obj : Objs) {
-    if (isa<Function>(Obj) || isa<BlockAddress>(Obj))
+    if (isoneof<Function, BlockAddress>(Obj))
       continue;
     if (isa<GlobalVariable>(Obj) && cast<GlobalVariable>(Obj)->isConstant())
       continue;

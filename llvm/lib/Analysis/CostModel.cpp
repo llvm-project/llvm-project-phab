@@ -148,7 +148,7 @@ static TargetTransformInfo::OperandValueKind getOperandInfo(Value *V) {
       TargetTransformInfo::OK_AnyValue;
 
   // Check for a splat of a constant or for a non uniform vector of constants.
-  if (isa<ConstantVector>(V) || isa<ConstantDataVector>(V)) {
+  if (isoneof<ConstantVector, ConstantDataVector>(V)) {
     OpInfo = TargetTransformInfo::OK_NonUniformConstantValue;
     if (cast<Constant>(V)->getSplatValue() != nullptr)
       OpInfo = TargetTransformInfo::OK_UniformConstantValue;
@@ -157,7 +157,7 @@ static TargetTransformInfo::OperandValueKind getOperandInfo(Value *V) {
   // Check for a splat of a uniform value. This is not loop aware, so return
   // true only for the obviously uniform cases (argument, globalvalue)
   const Value *Splat = getSplatValue(V);
-  if (Splat && (isa<Argument>(Splat) || isa<GlobalValue>(Splat)))
+  if (Splat && isoneof<Argument, GlobalValue>(Splat))
     OpInfo = TargetTransformInfo::OK_UniformValue;
 
   return OpInfo;

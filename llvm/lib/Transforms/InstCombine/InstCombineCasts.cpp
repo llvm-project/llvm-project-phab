@@ -311,8 +311,7 @@ static bool canEvaluateTruncated(Value *V, Type *Ty, InstCombiner &IC,
 
   // If this is an extension from the dest type, we can eliminate it, even if it
   // has multiple uses.
-  if ((isa<ZExtInst>(I) || isa<SExtInst>(I)) &&
-      I->getOperand(0)->getType() == Ty)
+  if (isoneof<ZExtInst, SExtInst>(I) && I->getOperand(0)->getType() == Ty)
     return true;
 
   // We can't extend or shrink something that has multiple uses: doing so would
@@ -2126,7 +2125,7 @@ Instruction *InstCombiner::visitBitCast(BitCastInst &CI) {
       // If this is a cast from an integer to vector, check to see if the input
       // is a trunc or zext of a bitcast from vector.  If so, we can replace all
       // the casts with a shuffle and (potentially) a bitcast.
-      if (isa<TruncInst>(Src) || isa<ZExtInst>(Src)) {
+      if (isoneof<TruncInst, ZExtInst>(Src)) {
         CastInst *SrcCast = cast<CastInst>(Src);
         if (BitCastInst *BCIn = dyn_cast<BitCastInst>(SrcCast->getOperand(0)))
           if (isa<VectorType>(BCIn->getOperand(0)->getType()))

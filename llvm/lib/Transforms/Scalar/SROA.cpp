@@ -921,7 +921,7 @@ private:
   }
 
   void visitPHINodeOrSelectInst(Instruction &I) {
-    assert(isa<PHINode>(I) || isa<SelectInst>(I));
+    assert((isoneof<PHINode, SelectInst>(I)));
     if (I.use_empty())
       return markAsDead(I);
 
@@ -3980,8 +3980,7 @@ bool SROA::splitAlloca(AllocaInst &AI, AllocaSlices &AS) {
     if (S.beginOffset() == 0 &&
         S.endOffset() >= DL.getTypeAllocSize(AI.getAllocatedType()))
       continue;
-    if (isa<LoadInst>(S.getUse()->getUser()) ||
-        isa<StoreInst>(S.getUse()->getUser())) {
+    if (isoneof<LoadInst, StoreInst>(S.getUse()->getUser())) {
       S.makeUnsplittable();
       IsSorted = false;
     }

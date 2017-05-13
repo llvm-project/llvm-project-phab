@@ -152,7 +152,7 @@ static Constant *FoldBitCast(Constant *V, Type *DestTy) {
     // Canonicalize scalar-to-vector bitcasts into vector-to-vector bitcasts
     // This allows for other simplifications (although some of them
     // can only be handled by Analysis/ConstantFolding.cpp).
-    if (isa<ConstantInt>(V) || isa<ConstantFP>(V))
+    if (isoneof<ConstantInt, ConstantFP>(V))
       return ConstantExpr::getBitCast(ConstantVector::get(V), DestPTy);
   }
 
@@ -566,7 +566,7 @@ Constant *llvm::ConstantFoldCastInstruction(unsigned opc, Constant *V,
   // If the cast operand is a constant vector, perform the cast by
   // operating on each element. In the cast of bitcasts, the element
   // count may be mismatched; don't attempt to handle that here.
-  if ((isa<ConstantVector>(V) || isa<ConstantDataVector>(V)) &&
+  if ((isoneof<ConstantVector, ConstantDataVector>(V)) &&
       DestTy->isVectorTy() &&
       DestTy->getVectorNumElements() == V->getType()->getVectorNumElements()) {
     SmallVector<Constant*, 16> res;
@@ -1511,7 +1511,7 @@ static ICmpInst::Predicate evaluateICmpRelation(Constant *V1, Constant *V2,
         return ICmpInst::ICMP_NE;
     } else {
       // Block addresses aren't null, don't equal the address of globals.
-      assert((isa<ConstantPointerNull>(V2) || isa<GlobalValue>(V2)) &&
+      assert((isoneof<ConstantPointerNull, GlobalValue>(V2)) &&
              "Canonicalization guarantee!");
       return ICmpInst::ICMP_NE;
     }

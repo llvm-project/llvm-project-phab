@@ -6646,10 +6646,10 @@ FailedModImm:
       continue;
     if (i > 0)
       isOnlyLowElement = false;
-    if (!isa<ConstantFPSDNode>(V) && !isa<ConstantSDNode>(V))
+    if (!isoneof<ConstantFPSDNode, ConstantSDNode>(V))
       isConstant = false;
 
-    if (isa<ConstantSDNode>(V) || isa<ConstantFPSDNode>(V)) {
+    if (isoneof<ConstantSDNode, ConstantFPSDNode>(V)) {
       ++NumConstantLanes;
       if (!ConstantValue.getNode())
         ConstantValue = V;

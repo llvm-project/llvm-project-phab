@@ -796,7 +796,7 @@ static void reportMayClobberedLoad(LoadInst *LI, MemDepResult DepInfo,
     << setExtraArgs();
 
   for (auto *U : LI->getPointerOperand()->users())
-    if (U != LI && (isa<LoadInst>(U) || isa<StoreInst>(U)) &&
+    if (U != LI && isoneof<LoadInst, StoreInst>(U) &&
         DT->dominates(cast<Instruction>(U), LI)) {
       // FIXME: for now give up if there are multiple memory accesses that
       // dominate the load.  We need further analysis to decide which one is
@@ -1543,7 +1543,7 @@ bool GVN::propagateEquality(Value *LHS, Value *RHS, const BasicBlockEdge &Root,
     // Prefer a constant on the right-hand side, or an Argument if no constants.
     if (isa<Constant>(LHS) || (isa<Argument>(LHS) && !isa<Constant>(RHS)))
       std::swap(LHS, RHS);
-    assert((isa<Argument>(LHS) || isa<Instruction>(LHS)) && "Unexpected value!");
+    assert((isoneof<Argument, Instruction>(LHS)) && "Unexpected value!");
 
     // If there is no obvious reason to prefer the left-hand side over the
     // right-hand side, ensure the longest lived term is on the right-hand side,
@@ -1781,7 +1781,7 @@ bool GVN::processInstruction(Instruction *I) {
 
   // Allocations are always uniquely numbered, so we can save time and memory
   // by fast failing them.
-  if (isa<AllocaInst>(I) || isa<TerminatorInst>(I) || isa<PHINode>(I)) {
+  if (isoneof<AllocaInst, TerminatorInst, PHINode>(I)) {
     addToLeaderTable(Num, I, I->getParent());
     return false;
   }
@@ -1935,7 +1935,7 @@ bool GVN::performScalarPREInsertion(Instruction *Instr, BasicBlock *Pred,
   bool success = true;
   for (unsigned i = 0, e = Instr->getNumOperands(); i != e; ++i) {
     Value *Op = Instr->getOperand(i);
-    if (isa<Argument>(Op) || isa<Constant>(Op) || isa<GlobalValue>(Op))
+    if (isoneof<Argument, Constant, GlobalValue>(Op))
       continue;
     // This could be a newly inserted instruction, in which case, we won't
     // find a value number, and should give up before we hurt ourselves.
@@ -1970,10 +1970,9 @@ bool GVN::performScalarPREInsertion(Instruction *Instr, BasicBlock *Pred,
 }
 
 bool GVN::performScalarPRE(Instruction *CurInst) {
-  if (isa<AllocaInst>(CurInst) || isa<TerminatorInst>(CurInst) ||
-      isa<PHINode>(CurInst) || CurInst->getType()->isVoidTy() ||
-      CurInst->mayReadFromMemory() || CurInst->mayHaveSideEffects() ||
-      isa<DbgInfoIntrinsic>(CurInst))
+  if (isoneof<AllocaInst, TerminatorInst, PHINode>(CurInst) ||
+      CurInst->getType()->isVoidTy() || CurInst->mayReadFromMemory() ||
+      CurInst->mayHaveSideEffects() || isa<DbgInfoIntrinsic>(CurInst))
     return false;
 
   // Don't do PRE on compares. The PHI would prevent CodeGenPrepare from

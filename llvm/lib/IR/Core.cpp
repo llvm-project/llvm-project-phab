@@ -681,8 +681,8 @@ LLVMValueRef LLVMGetMetadata(LLVMValueRef Inst, unsigned KindID) {
 // This undoes this canonicalization, reconstructing the MDNode.
 static MDNode *extractMDNode(MetadataAsValue *MAV) {
   Metadata *MD = MAV->getMetadata();
-  assert((isa<MDNode>(MD) || isa<ConstantAsMetadata>(MD)) &&
-      "Expected a metadata node or a canonicalized constant");
+  assert((isoneof<MDNode, ConstantAsMetadata>(MD)) &&
+         "Expected a metadata node or a canonicalized constant");
 
   if (MDNode *N = dyn_cast<MDNode>(MD))
     return N;
@@ -707,8 +707,7 @@ LLVM_FOR_EACH_VALUE_SUBCLASS(LLVM_DEFINE_VALUE_CAST)
 
 LLVMValueRef LLVMIsAMDNode(LLVMValueRef Val) {
   if (auto *MD = dyn_cast_or_null<MetadataAsValue>(unwrap(Val)))
-    if (isa<MDNode>(MD->getMetadata()) ||
-        isa<ValueAsMetadata>(MD->getMetadata()))
+    if (isoneof<MDNode, ValueAsMetadata>(MD->getMetadata()))
       return Val;
   return nullptr;
 }

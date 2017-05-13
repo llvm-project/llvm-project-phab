@@ -251,7 +251,7 @@ static UseListOrderStack predictUseListOrder(const Module &M) {
     for (const BasicBlock &BB : F)
       for (const Instruction &I : BB)
         for (const Value *Op : I.operands())
-          if (isa<Constant>(*Op) || isa<InlineAsm>(*Op)) // Visit GlobalValues.
+          if (isoneof<Constant, InlineAsm>(*Op)) // Visit GlobalValues.
             predictValueUseListOrder(Op, &F, OM, Stack);
     for (const BasicBlock &BB : F)
       for (const Instruction &I : BB)
@@ -634,9 +634,8 @@ const MDNode *ValueEnumerator::enumerateMetadataImpl(unsigned F, const Metadata 
   if (!MD)
     return nullptr;
 
-  assert(
-      (isa<MDNode>(MD) || isa<MDString>(MD) || isa<ConstantAsMetadata>(MD)) &&
-      "Invalid metadata kind");
+  assert((isoneof<MDNode, MDString, ConstantAsMetadata>(MD)) &&
+         "Invalid metadata kind");
 
   auto Insertion = MetadataMap.insert(std::make_pair(MD, MDIndex(F)));
   MDIndex &Entry = Insertion.first->second;

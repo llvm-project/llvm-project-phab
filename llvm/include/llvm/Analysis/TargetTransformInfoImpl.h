@@ -470,7 +470,7 @@ protected:
   // Obtain the minimum required size to hold the value (without the sign)
   // In case of a vector it returns the min required size for one element.
   unsigned minRequiredElementSize(const Value* Val, bool &isSigned) {
-    if (isa<ConstantDataVector>(Val) || isa<ConstantVector>(Val)) {
+    if (isoneof<ConstantDataVector, ConstantVector>(Val)) {
       const auto* VectorValue = cast<Constant>(Val);
 
       // In case of a vector need to pick the max between the min

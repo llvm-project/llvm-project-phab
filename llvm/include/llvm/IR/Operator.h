@@ -63,7 +63,7 @@ public:
   static inline bool classof(const Instruction *) { return true; }
   static inline bool classof(const ConstantExpr *) { return true; }
   static inline bool classof(const Value *V) {
-    return isa<Instruction>(V) || isa<ConstantExpr>(V);
+    return isoneof<Instruction, ConstantExpr>(V);
   }
 };
 

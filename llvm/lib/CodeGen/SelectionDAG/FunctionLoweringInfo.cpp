@@ -171,8 +171,7 @@ void FunctionLoweringInfo::set(const Function &fn, MachineFunction &mf,
       }
 
       // Look for inline asm that clobbers the SP register.
-      if (isa<CallInst>(I) || isa<InvokeInst>(I)) {
-        ImmutableCallSite CS(&I);
+      if (ImmutableCallSite CS{&I}) {
         if (isa<InlineAsm>(CS.getCalledValue())) {
           unsigned SP = TLI->getStackPointerRegisterToSaveRestore();
           const TargetRegisterInfo *TRI = MF->getSubtarget().getRegisterInfo();
@@ -405,7 +404,7 @@ void FunctionLoweringInfo::ComputePHILiveOutRegInfo(const PHINode *PN) {
   LiveOutInfo &DestLOI = LiveOutRegInfo[DestReg];
 
   Value *V = PN->getIncomingValue(0);
-  if (isa<UndefValue>(V) || isa<ConstantExpr>(V)) {
+  if (isoneof<UndefValue, ConstantExpr>(V)) {
     DestLOI.NumSignBits = 1;
     DestLOI.Known = KnownBits(BitWidth);
     return;
@@ -438,7 +437,7 @@ void FunctionLoweringInfo::ComputePHILiveOutRegInfo(const PHINode *PN) {
 
   for (unsigned i = 1, e = PN->getNumIncomingValues(); i != e; ++i) {
     Value *V = PN->getIncomingValue(i);
-    if (isa<UndefValue>(V) || isa<ConstantExpr>(V)) {
+    if (isoneof<UndefValue, ConstantExpr>(V)) {
       DestLOI.NumSignBits = 1;
       DestLOI.Known = KnownBits(BitWidth);
       return;

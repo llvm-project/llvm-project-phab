@@ -328,13 +328,12 @@ llvm::computeMinimumValueSizes(ArrayRef<BasicBlock *> Blocks, DemandedBits &DB,
     for (auto &I : *BB) {
       InstructionSet.insert(&I);
 
-      if (TTI && (isa<ZExtInst>(&I) || isa<SExtInst>(&I)) &&
+      if (TTI && isoneof<ZExtInst, SExtInst>(&I) &&
           !TTI->isTypeLegal(I.getOperand(0)->getType()))
         SeenExtFromIllegalType = true;
 
       // Only deal with non-vector integers up to 64-bits wide.
-      if ((isa<TruncInst>(&I) || isa<ICmpInst>(&I)) &&
-          !I.getType()->isVectorTy() &&
+      if (isoneof<TruncInst, ICmpInst>(&I) && !I.getType()->isVectorTy() &&
           I.getOperand(0)->getType()->getScalarSizeInBits() <= 64) {
         // Don't make work for ourselves. If we know the loaded type is legal,
         // don't add it to the worklist.
@@ -374,14 +373,13 @@ llvm::computeMinimumValueSizes(ArrayRef<BasicBlock *> Blocks, DemandedBits &DB,
 
     // Casts, loads and instructions outside of our range terminate a chain
     // successfully.
-    if (isa<SExtInst>(I) || isa<ZExtInst>(I) || isa<LoadInst>(I) ||
-        !InstructionSet.count(I))
+    if (isoneof<SExtInst, ZExtInst, LoadInst>(I) || !InstructionSet.count(I))
       continue;
 
     // Unsafe casts terminate a chain unsuccessfully. We can't do anything
     // useful with bitcasts, ptrtoints or inttoptrs and it'd be unsafe to
     // transform anything that relies on them.
-    if (isa<BitCastInst>(I) || isa<PtrToIntInst>(I) || isa<IntToPtrInst>(I) ||
+    if (isoneof<BitCastInst, PtrToIntInst, IntToPtrInst>(I) ||
         !I->getType()->isIntegerTy()) {
       DBits[Leader] |= ~0ULL;
       continue;

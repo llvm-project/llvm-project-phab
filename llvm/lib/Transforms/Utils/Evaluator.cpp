@@ -349,8 +349,7 @@ bool Evaluator::EvaluateBlock(BasicBlock::iterator CurInst,
                                       UndefValue::get(Ty), AI->getName()));
       InstResult = AllocaTmps.back().get();
       DEBUG(dbgs() << "Found an alloca. Result: " << *InstResult << "\n");
-    } else if (isa<CallInst>(CurInst) || isa<InvokeInst>(CurInst)) {
-      CallSite CS(&*CurInst);
+    } else if (CallSite CS{&*CurInst}) {
 
       // Debug info can safely be ignored here.
       if (isa<DbgInfoIntrinsic>(CS.getInstruction())) {

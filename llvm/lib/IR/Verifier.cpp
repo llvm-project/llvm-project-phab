@@ -642,8 +642,7 @@ void Verifier::visitGlobalVariable(const GlobalVariable &GV) {
                Init);
         for (Value *Op : InitArray->operands()) {
           Value *V = Op->stripPointerCastsNoFollowAliases();
-          Assert(isa<GlobalVariable>(V) || isa<Function>(V) ||
-                     isa<GlobalAlias>(V),
+          Assert((isoneof<GlobalVariable, Function, GlobalAlias>(V)),
                  "invalid llvm.used member", V);
           Assert(V->hasName(), "members of llvm.used must be named", V);
         }
@@ -724,7 +723,7 @@ void Verifier::visitGlobalAlias(const GlobalAlias &GA) {
   Assert(GA.getType() == Aliasee->getType(),
          "Alias and aliasee types should match!", &GA);
 
-  Assert(isa<GlobalValue>(Aliasee) || isa<ConstantExpr>(Aliasee),
+  Assert((isoneof<GlobalValue, ConstantExpr>(Aliasee)),
          "Aliasee should be either GlobalValue or ConstantExpr", &GA);
 
   visitAliaseeSubExpr(GA, *Aliasee);
@@ -1848,7 +1847,7 @@ void Verifier::verifyStatepoint(ImmutableCallSite CS) {
     const CallInst *Call = dyn_cast<const CallInst>(U);
     Assert(Call, "illegal use of statepoint token", &CI, U);
     if (!Call) continue;
-    Assert(isa<GCRelocateInst>(Call) || isa<GCResultInst>(Call),
+    Assert((isoneof<GCRelocateInst, GCResultInst>(Call)),
            "gc.result or gc.relocate are the only value uses "
            "of a gc.statepoint",
            &CI, U);
@@ -3154,8 +3153,7 @@ void Verifier::verifySwiftErrorValue(const Value *SwiftErrorVal) {
   // Check that swifterror value is only used by loads, stores, or as
   // a swifterror argument.
   for (const User *U : SwiftErrorVal->users()) {
-    Assert(isa<LoadInst>(U) || isa<StoreInst>(U) || isa<CallInst>(U) ||
-           isa<InvokeInst>(U),
+    Assert((isoneof<LoadInst, StoreInst, CallInst, InvokeInst>(U)),
            "swifterror value can only be loaded and stored from, or "
            "as a swifterror argument!",
            SwiftErrorVal, U);
@@ -3388,7 +3386,7 @@ void Verifier::visitLandingPadInst(LandingPadInst &LPI) {
              "Catch operand does not have pointer type!", &LPI);
     } else {
       Assert(LPI.isFilter(i), "Clause is neither catch nor filter!", &LPI);
-      Assert(isa<ConstantArray>(Clause) || isa<ConstantAggregateZero>(Clause),
+      Assert((isoneof<ConstantArray, ConstantAggregateZero>(Clause)),
              "Filter operand is not an array of constants!", &LPI);
     }
   }
@@ -3453,7 +3451,7 @@ void Verifier::visitCleanupPadInst(CleanupPadInst &CPI) {
          &CPI);
 
   auto *ParentPad = CPI.getParentPad();
-  Assert(isa<ConstantTokenNone>(ParentPad) || isa<FuncletPadInst>(ParentPad),
+  Assert((isoneof<ConstantTokenNone, FuncletPadInst>(ParentPad)),
          "CleanupPadInst has an invalid parent.", &CPI);
 
   visitEHPadPredecessors(CPI);
@@ -3634,7 +3632,7 @@ void Verifier::visitCatchSwitchInst(CatchSwitchInst &CatchSwitch) {
          &CatchSwitch);
 
   auto *ParentPad = CatchSwitch.getParentPad();
-  Assert(isa<ConstantTokenNone>(ParentPad) || isa<FuncletPadInst>(ParentPad),
+  Assert((isoneof<ConstantTokenNone, FuncletPadInst>(ParentPad)),
          "CatchSwitchInst has an invalid parent.", ParentPad);
 
   if (BasicBlock *UnwindDest = CatchSwitch.getUnwindDest()) {
@@ -3739,7 +3737,7 @@ void Verifier::visitInstruction(Instruction &I) {
 
   // Check that the instruction doesn't produce metadata. Calls are already
   // checked against the callee type.
-  Assert(!I.getType()->isMetadataTy() || isa<CallInst>(I) || isa<InvokeInst>(I),
+  Assert((!I.getType()->isMetadataTy() || isoneof<CallInst, InvokeInst>(I)),
          "Invalid use of metadata!", &I);
 
   // Check that all uses of the instruction, if they are instructions
@@ -3830,7 +3828,7 @@ void Verifier::visitInstruction(Instruction &I) {
   }
 
   if (MDNode *Range = I.getMetadata(LLVMContext::MD_range)) {
-    Assert(isa<LoadInst>(I) || isa<CallInst>(I) || isa<InvokeInst>(I),
+    Assert((isoneof<LoadInst, CallInst, InvokeInst>(I)),
            "Ranges are only for loads, calls and invokes!", &I);
     visitRangeMetadata(I, Range, I.getType());
   }
@@ -3944,9 +3942,9 @@ void Verifier::visitIntrinsicCallSite(Intrinsic::ID ID, CallSite CS) {
       "info argument of llvm.coro.begin must refer to an initialized "
       "constant");
     Constant *Init = GV->getInitializer();
-    Assert(isa<ConstantStruct>(Init) || isa<ConstantArray>(Init),
-      "info argument of llvm.coro.begin must refer to either a struct or "
-      "an array");
+    Assert((isoneof<ConstantStruct, ConstantArray>(Init)),
+           "info argument of llvm.coro.begin must refer to either a struct or "
+           "an array");
     break;
   }
   case Intrinsic::ctlz:  // llvm.ctlz
@@ -4785,9 +4783,8 @@ MDNode *TBAAVerifier::getFieldNodeFromTBAABaseNode(Instruction &I,
 }
 
 bool TBAAVerifier::visitTBAAMetadata(Instruction &I, const MDNode *MD) {
-  AssertTBAA(isa<LoadInst>(I) || isa<StoreInst>(I) || isa<CallInst>(I) ||
-                 isa<VAArgInst>(I) || isa<AtomicRMWInst>(I) ||
-                 isa<AtomicCmpXchgInst>(I),
+  AssertTBAA((isoneof<LoadInst, StoreInst, CallInst, VAArgInst, AtomicRMWInst,
+                      AtomicCmpXchgInst>(I)),
              "TBAA is only for loads, stores and calls!", &I);
 
   bool IsStructPathTBAA =

@@ -1514,7 +1514,7 @@ void computeKnownBits(const Value *V, KnownBits &Known, unsigned Depth,
     return;
   }
   // Null and aggregate-zero are all-zeros.
-  if (isa<ConstantPointerNull>(V) || isa<ConstantAggregateZero>(V)) {
+  if (isoneof<ConstantPointerNull, ConstantAggregateZero>(V)) {
     Known.setAllZero();
     return;
   }
@@ -1835,7 +1835,7 @@ bool isKnownNonZero(const Value *V, unsigned Depth, const Query &Q) {
     return isKnownNonZero(X, Depth, Q) || isKnownNonZero(Y, Depth, Q);
 
   // ext X != 0 if X != 0.
-  if (isa<SExtInst>(V) || isa<ZExtInst>(V))
+  if (isoneof<SExtInst, ZExtInst>(V))
     return isKnownNonZero(cast<Instruction>(V)->getOperand(0), Depth, Q);
 
   // shl X, Y != 0 if X is odd.  Note that the value of the shift is undefined
@@ -2553,7 +2553,7 @@ bool llvm::CannotBeNegativeZero(const Value *V, const TargetLibraryInfo *TLI,
         return true;
 
   // sitofp and uitofp turn into +0.0 for zero.
-  if (isa<SIToFPInst>(I) || isa<UIToFPInst>(I))
+  if (isoneof<SIToFPInst, UIToFPInst>(I))
     return true;
 
   if (const CallInst *CI = dyn_cast<CallInst>(I)) {
@@ -3418,7 +3418,7 @@ static bool isKnownNonNullFromDominatingCondition(const Value *V,
 
 bool llvm::isKnownNonNullAt(const Value *V, const Instruction *CtxI,
                             const DominatorTree *DT) {
-  if (isa<ConstantPointerNull>(V) || isa<UndefValue>(V))
+  if (isoneof<ConstantPointerNull, UndefValue>(V))
     return false;
 
   if (isKnownNonNull(V))

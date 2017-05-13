@@ -1732,7 +1732,7 @@ static bool SinkThenElseCodeToEnd(BranchInst *BI1) {
     auto *T = B->getTerminator();
     if (isa<BranchInst>(T) && cast<BranchInst>(T)->isUnconditional())
       UnconditionalPreds.push_back(B);
-    else if ((isa<BranchInst>(T) || isa<SwitchInst>(T)) && !Cond)
+    else if (isoneof<BranchInst, SwitchInst>(T) && !Cond)
       Cond = T;
     else
       return false;
@@ -2578,7 +2578,7 @@ bool llvm::FoldBranchToCommonDest(BranchInst *BI, unsigned BonusInstThreshold) {
       return false;
   }
 
-  if (!Cond || (!isa<CmpInst>(Cond) && !isa<BinaryOperator>(Cond)) ||
+  if (!Cond || !isoneof<CmpInst, BinaryOperator>(Cond) ||
       Cond->getParent() != BB || !Cond->hasOneUse())
     return false;
 
@@ -2925,11 +2925,10 @@ static bool mergeConditionalStoreToAddress(BasicBlock *PTB, BasicBlock *PFB,
     unsigned N = 0;
     for (auto &I : *BB) {
       // Cheap instructions viable for folding.
-      if (isa<BinaryOperator>(I) || isa<GetElementPtrInst>(I) ||
-          isa<StoreInst>(I))
+      if (isoneof<BinaryOperator, GetElementPtrInst, StoreInst>(I))
         ++N;
       // Free instructions.
-      else if (isa<TerminatorInst>(I) || isa<DbgInfoIntrinsic>(I) ||
+      else if (isoneof<TerminatorInst, DbgInfoIntrinsic>(I) ||
                IsaBitcastOfPointerType(I))
         continue;
       else

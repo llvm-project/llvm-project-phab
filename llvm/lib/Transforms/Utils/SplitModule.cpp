@@ -47,8 +47,7 @@ static void addNonConstUser(ClusterMapType &GVtoClusterMap,
   if (const Instruction *I = dyn_cast<Instruction>(U)) {
     const GlobalValue *F = I->getParent()->getParent();
     GVtoClusterMap.unionSets(GV, F);
-  } else if (isa<GlobalIndirectSymbol>(U) || isa<Function>(U) ||
-             isa<GlobalVariable>(U)) {
+  } else if (isoneof<GlobalIndirectSymbol, Function, GlobalVariable>(U)) {
     GVtoClusterMap.unionSets(GV, cast<GlobalValue>(U));
   } else {
     llvm_unreachable("Underimplemented use case");

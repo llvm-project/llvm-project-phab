@@ -624,8 +624,8 @@ bool EfficiencySanitizer::runOnFunction(Function &F, Module &M) {
 
   for (auto &BB : F) {
     for (auto &Inst : BB) {
-      if ((isa<LoadInst>(Inst) || isa<StoreInst>(Inst) ||
-           isa<AtomicRMWInst>(Inst) || isa<AtomicCmpXchgInst>(Inst)) &&
+      if (isoneof<LoadInst, StoreInst, AtomicRMWInst, AtomicCmpXchgInst>(
+              Inst) &&
           !shouldIgnoreMemoryAccess(&Inst))
         LoadsAndStores.push_back(&Inst);
       else if (isa<MemIntrinsic>(Inst))

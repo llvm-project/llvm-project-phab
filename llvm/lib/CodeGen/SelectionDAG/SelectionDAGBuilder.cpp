@@ -995,7 +995,7 @@ SDValue SelectionDAGBuilder::getNonRegisterValue(const Value *V) {
   // If we already have an SDValue for this value, use it.
   SDValue &N = NodeMap[V];
   if (N.getNode()) {
-    if (isa<ConstantSDNode>(N) || isa<ConstantFPSDNode>(N)) {
+    if (isoneof<ConstantSDNode, ConstantFPSDNode>(N)) {
       // Remove the debug location from the node as the node is about to be used
       // in a location which may differ from the original debug location.  This
       // is relevant to Constant and ConstantFP nodes because they can appear
@@ -1045,7 +1045,7 @@ SDValue SelectionDAGBuilder::getValueImpl(const Value *V) {
       return N1;
     }
 
-    if (isa<ConstantStruct>(C) || isa<ConstantArray>(C)) {
+    if (isoneof<ConstantStruct, ConstantArray>(C)) {
       SmallVector<SDValue, 4> Constants;
       for (User::const_op_iterator OI = C->op_begin(), OE = C->op_end();
            OI != OE; ++OI) {
@@ -1078,7 +1078,7 @@ SDValue SelectionDAGBuilder::getValueImpl(const Value *V) {
     }
 
     if (C->getType()->isStructTy() || C->getType()->isArrayTy()) {
-      assert((isa<ConstantAggregateZero>(C) || isa<UndefValue>(C)) &&
+      assert((isoneof<ConstantAggregateZero, UndefValue>(C)) &&
              "Unknown struct or array constant!");
 
       SmallVector<EVT, 4> ValueVTs;
@@ -1613,9 +1613,8 @@ void SelectionDAGBuilder::FindMergedConditions(const Value *Cond,
   }
 
   // If this node is not part of the or/and tree, emit it as a branch.
-  if (!BOp || !(isa<BinaryOperator>(BOp) || isa<CmpInst>(BOp)) ||
-      BOpc != Opc || !BOp->hasOneUse() ||
-      BOp->getParent() != CurBB->getBasicBlock() ||
+  if (!BOp || !isoneof<BinaryOperator, CmpInst>(BOp) || BOpc != Opc ||
+      !BOp->hasOneUse() || BOp->getParent() != CurBB->getBasicBlock() ||
       !InBlock(BOp->getOperand(0), CurBB->getBasicBlock()) ||
       !InBlock(BOp->getOperand(1), CurBB->getBasicBlock())) {
     EmitBranchForMergedCondition(Cond, TBB, FBB, CurBB, SwitchBB,
@@ -4982,7 +4981,7 @@ SelectionDAGBuilder::visitIntrinsicCall(const CallInst &I, unsigned Intrinsic) {
       return nullptr;
 
     SDDbgValue *SDV;
-    if (isa<ConstantInt>(V) || isa<ConstantFP>(V) || isa<UndefValue>(V)) {
+    if (isoneof<ConstantInt, ConstantFP, UndefValue>(V)) {
       SDV = DAG.getConstantDbgValue(Variable, Expression, V, Offset, dl,
                                     SDNodeOrder);
       DAG.AddDbgValue(SDV, nullptr, false);
@@ -6631,8 +6630,8 @@ static SDValue getAddressForMemoryInput(SDValue Chain, const SDLoc &Location,
   // If the operand is a float, integer, or vector constant, spill to a
   // constant pool entry to get its address.
   const Value *OpVal = OpInfo.CallOperandVal;
-  if (isa<ConstantFP>(OpVal) || isa<ConstantInt>(OpVal) ||
-      isa<ConstantVector>(OpVal) || isa<ConstantDataVector>(OpVal)) {
+  if (isoneof<ConstantFP, ConstantInt, ConstantVector, ConstantDataVector>(
+          OpVal)) {
     OpInfo.CallOperand = DAG.getConstantPool(
         cast<Constant>(OpVal), TLI.getPointerTy(DAG.getDataLayout()));
     return Chain;

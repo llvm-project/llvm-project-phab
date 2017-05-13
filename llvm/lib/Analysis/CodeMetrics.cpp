@@ -127,8 +127,7 @@ void CodeMetrics::analyzeBasicBlock(const BasicBlock *BB,
       continue;
 
     // Special handling for calls.
-    if (isa<CallInst>(I) || isa<InvokeInst>(I)) {
-      ImmutableCallSite CS(&I);
+    if (ImmutableCallSite CS{&I}) {
 
       if (const Function *F = CS.getCalledFunction()) {
         // If a function is both internal and has a single use, then it is

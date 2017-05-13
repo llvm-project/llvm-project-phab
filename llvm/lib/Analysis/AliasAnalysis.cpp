@@ -463,8 +463,7 @@ ModRefInfo AAResults::callCapturesBefore(const Instruction *I,
 
   const Value *Object =
       GetUnderlyingObject(MemLoc.Ptr, I->getModule()->getDataLayout());
-  if (!isIdentifiedObject(Object) || isa<GlobalValue>(Object) ||
-      isa<Constant>(Object))
+  if (!isIdentifiedObject(Object) || isoneof<GlobalValue, Constant>(Object))
     return MRI_ModRef;
 
   ImmutableCallSite CS(I);

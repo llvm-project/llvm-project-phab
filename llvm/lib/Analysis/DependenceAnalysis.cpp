@@ -166,10 +166,10 @@ static void dumpExampleDependence(raw_ostream &OS, DependenceInfo *DA) {
   auto *F = DA->getFunction();
   for (inst_iterator SrcI = inst_begin(F), SrcE = inst_end(F); SrcI != SrcE;
        ++SrcI) {
-    if (isa<StoreInst>(*SrcI) || isa<LoadInst>(*SrcI)) {
+    if (isoneof<StoreInst, LoadInst>(*SrcI)) {
       for (inst_iterator DstI = SrcI, DstE = inst_end(F);
            DstI != DstE; ++DstI) {
-        if (isa<StoreInst>(*DstI) || isa<LoadInst>(*DstI)) {
+        if (isoneof<StoreInst, LoadInst>(*DstI)) {
           OS << "da analyze - ";
           if (auto D = DA->depends(&*SrcI, &*DstI, true)) {
             D->dump(OS);

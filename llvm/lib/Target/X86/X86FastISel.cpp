@@ -3378,7 +3378,7 @@ bool X86FastISel::fastLowerCall(CallLoweringInfo &CLI) {
         SrcAM.Base.Reg = ArgReg;
         if (!TryEmitSmallMemcpy(AM, SrcAM, Flags.getByValSize()))
           return false;
-      } else if (isa<ConstantInt>(ArgVal) || isa<ConstantPointerNull>(ArgVal)) {
+      } else if (isoneof<ConstantInt, ConstantPointerNull>(ArgVal)) {
         // If this is a really simple value, emit this with the Value* version
         // of X86FastEmitStore.  If it isn't simple, we don't want to do this,
         // as it can cause us to reevaluate the argument.

@@ -134,13 +134,11 @@ class PPCBoolRetToInt : public FunctionPass {
     SmallVector<const PHINode *, 8> ToRemove;
     for (const PHINode *P : Promotable) {
       // Condition 2 and 3
-      auto IsValidUser = [] (const Value *V) -> bool {
-        return isa<ReturnInst>(V) || isa<CallInst>(V) || isa<PHINode>(V) ||
-        isa<DbgInfoIntrinsic>(V);
+      auto IsValidUser = [](const Value *V) -> bool {
+        return isoneof<ReturnInst, CallInst, PHINode, DbgInfoIntrinsic>(V);
       };
-      auto IsValidOperand = [] (const Value *V) -> bool {
-        return isa<Constant>(V) || isa<Argument>(V) || isa<CallInst>(V) ||
-        isa<PHINode>(V);
+      auto IsValidOperand = [](const Value *V) -> bool {
+        return isoneof<Constant, Argument, CallInst, PHINode>(V);
       };
       const auto &Users = P->users();
       const auto &Operands = P->operands();

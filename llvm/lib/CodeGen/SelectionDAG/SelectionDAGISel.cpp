@@ -439,7 +439,7 @@ bool SelectionDAGISel::runOnMachineFunction(MachineFunction &mf) {
         continue;
 
       const TerminatorInst *Term = BB.getTerminator();
-      if (isa<UnreachableInst>(Term) || isa<ReturnInst>(Term))
+      if (isoneof<UnreachableInst, ReturnInst>(Term))
         continue;
 
       // Bail out if the exit block is not Return nor Unreachable.

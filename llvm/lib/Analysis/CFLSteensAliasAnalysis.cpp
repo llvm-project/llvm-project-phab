@@ -116,9 +116,8 @@ static bool canSkipAddingToSets(Value *Val) {
     // TODO: Because all of these things are constant, we can determine whether
     // the data is *actually* mutable at graph building time. This will probably
     // come for free/cheap with offset awareness.
-    bool CanStoreMutableData = isa<GlobalValue>(Val) ||
-                               isa<ConstantExpr>(Val) ||
-                               isa<ConstantAggregate>(Val);
+    bool CanStoreMutableData =
+        isoneof<GlobalValue, ConstantExpr, ConstantAggregate>(Val);
     return !CanStoreMutableData;
   }
 

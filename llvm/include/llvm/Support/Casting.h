@@ -142,6 +142,23 @@ template <class X, class Y> LLVM_NODISCARD inline bool isa(const Y &Val) {
                        typename simplify_type<const Y>::SimpleType>::doit(Val);
 }
 
+// isoneof<X...> - Return true if the parameter to the template is an instance
+// of one of the template type argument.  Used like this:
+//
+//  if (isa<Type0, Type1, Type2>(myVal)) { ... }
+//
+//  which is equivalent to
+//
+//  if (isa<Type0>(myVal) || isa<Type1>(myVal) || isa<Type2>(myVal)) { ... }
+//
+template <class X, class Y> LLVM_NODISCARD inline bool isoneof(const Y &Val) {
+  return isa<X>(Val);
+}
+template <class Ty0, class Ty1, class... Tys, class Y>
+LLVM_NODISCARD inline bool isoneof(const Y &Val) {
+  return isa<Ty0>(Val) || isoneof<Ty1, Tys...>(Val);
+}
+
 //===----------------------------------------------------------------------===//
 //                          cast<x> Support Templates
 //===----------------------------------------------------------------------===//

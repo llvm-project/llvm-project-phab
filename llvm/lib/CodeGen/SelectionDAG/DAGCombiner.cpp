@@ -8524,7 +8524,7 @@ SDValue DAGCombiner::visitBITCAST(SDNode *N) {
   }
 
   // If the input is a constant, let getNode fold it.
-  if (isa<ConstantSDNode>(N0) || isa<ConstantFPSDNode>(N0)) {
+  if (isoneof<ConstantSDNode, ConstantFPSDNode>(N0)) {
     // If we can't allow illegal operations, we need to check that this is just
     // a fp -> int or int -> conversion and that the resulting operation will
     // be legal.
@@ -10924,7 +10924,7 @@ bool DAGCombiner::CombineToPreIndexedLoadStore(SDNode *N) {
 
   // Check #1.  Preinc'ing a frame index would require copying the stack pointer
   // (plus the implicit offset) to a register to preinc anyway.
-  if (isa<FrameIndexSDNode>(BasePtr) || isa<RegisterSDNode>(BasePtr))
+  if (isoneof<FrameIndexSDNode, RegisterSDNode>(BasePtr))
     return false;
 
   // Check #2.
@@ -11138,7 +11138,7 @@ bool DAGCombiner::CombineToPostIndexedLoadStore(SDNode *N) {
       //    nor a successor of N. Otherwise, if Op is folded that would
       //    create a cycle.
 
-      if (isa<FrameIndexSDNode>(BasePtr) || isa<RegisterSDNode>(BasePtr))
+      if (isoneof<FrameIndexSDNode, RegisterSDNode>(BasePtr))
         continue;
 
       // Check for #1.
@@ -12432,8 +12432,8 @@ void DAGCombiner::getStoreMergeCandidates(
     return;
 
   bool IsLoadSrc = isa<LoadSDNode>(St->getValue());
-  bool IsConstantSrc = isa<ConstantSDNode>(St->getValue()) ||
-                       isa<ConstantFPSDNode>(St->getValue());
+  bool IsConstantSrc =
+      isoneof<ConstantSDNode, ConstantFPSDNode>(St->getValue());
   bool IsExtractVecSrc =
       (St->getValue().getOpcode() == ISD::EXTRACT_VECTOR_ELT ||
        St->getValue().getOpcode() == ISD::EXTRACT_SUBVECTOR);
@@ -12449,8 +12449,7 @@ void DAGCombiner::getStoreMergeCandidates(
       if (!isa<LoadSDNode>(Other->getValue()))
         return false;
     if (IsConstantSrc)
-      if (!(isa<ConstantSDNode>(Other->getValue()) ||
-            isa<ConstantFPSDNode>(Other->getValue())))
+      if (!isoneof<ConstantSDNode, ConstantFPSDNode>(Other->getValue()))
         return false;
     if (IsExtractVecSrc)
       if (!(Other->getValue().getOpcode() == ISD::EXTRACT_VECTOR_ELT ||
@@ -12546,8 +12545,7 @@ bool DAGCombiner::MergeConsecutiveStores(StoreSDNode *St) {
   // are not constants, loads, or extracted vector elements.
   SDValue StoredVal = St->getValue();
   bool IsLoadSrc = isa<LoadSDNode>(StoredVal);
-  bool IsConstantSrc = isa<ConstantSDNode>(StoredVal) ||
-                       isa<ConstantFPSDNode>(StoredVal);
+  bool IsConstantSrc = isoneof<ConstantSDNode, ConstantFPSDNode>(StoredVal);
   bool IsExtractVecSrc = (StoredVal.getOpcode() == ISD::EXTRACT_VECTOR_ELT ||
                           StoredVal.getOpcode() == ISD::EXTRACT_SUBVECTOR);
 

@@ -550,15 +550,14 @@ static void rewritePHIs(Function &F) {
 // Check for instructions that we can recreate on resume as opposed to spill
 // the result into a coroutine frame.
 static bool materializable(Instruction &V) {
-  return isa<CastInst>(&V) || isa<GetElementPtrInst>(&V) ||
-         isa<BinaryOperator>(&V) || isa<CmpInst>(&V) || isa<SelectInst>(&V);
+  return isoneof<CastInst, GetElementPtrInst, BinaryOperator, CmpInst,
+                 SelectInst>(&V);
 }
 
 // Check for structural coroutine intrinsics that should not be spilled into
 // the coroutine frame.
 static bool isCoroutineStructureIntrinsic(Instruction &I) {
-  return isa<CoroIdInst>(&I) || isa<CoroBeginInst>(&I) ||
-         isa<CoroSaveInst>(&I) || isa<CoroSuspendInst>(&I);
+  return isoneof<CoroIdInst, CoroBeginInst, CoroSaveInst, CoroSuspendInst>(&I);
 }
 
 // For every use of the value that is across suspend point, recreate that value

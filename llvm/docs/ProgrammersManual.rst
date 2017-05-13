@@ -117,6 +117,20 @@ rarely have to include this file directly).
   an instance of the specified class.  This can be very useful for constraint
   checking of various sorts (example below).
 
+``isoneof<>``:
+  It's a facility function similar to ``isa<>`` but it can check for multiple
+  types in a single call:
+
+  .. code-block:: c++
+
+    if (isoneof<Constant, Argument, GlobalValue>(V))
+      return true;
+
+    // is equivalent to
+
+    if (isa<Constant>(V) || isa<Argument>(V) || isa<GlobalValue>(V))
+      return true;
+
 ``cast<>``:
   The ``cast<>`` operator is a "checked cast" operation.  It converts a pointer
   or reference from a base class to a derived class, causing an assertion

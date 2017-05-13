@@ -918,8 +918,8 @@ static bool CanShareConstantPoolEntry(const Constant *A, const Constant *B,
   if (A->getType() == B->getType()) return false;
 
   // We can't handle structs or arrays.
-  if (isa<StructType>(A->getType()) || isa<ArrayType>(A->getType()) ||
-      isa<StructType>(B->getType()) || isa<ArrayType>(B->getType()))
+  if (isoneof<StructType, ArrayType>(A->getType()) ||
+      isoneof<StructType, ArrayType>(B->getType()))
     return false;
 
   // For now, only support constants with the same size.
