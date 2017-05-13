@@ -149,12 +149,13 @@ struct ParenState {
   ParenState(unsigned Indent, unsigned LastSpace, bool AvoidBinPacking,
              bool NoLineBreak)
       : Indent(Indent), LastSpace(LastSpace), NestedBlockIndent(Indent),
-        BreakBeforeClosingBrace(false), AvoidBinPacking(AvoidBinPacking),
-        BreakBeforeParameter(false), NoLineBreak(NoLineBreak),
-        NoLineBreakInOperand(false), LastOperatorWrapped(true),
-        ContainsLineBreak(false), ContainsUnwrappedBuilder(false),
-        AlignColons(true), ObjCSelectorNameFound(false),
-        HasMultipleNestedBlocks(false), NestedBlockInlined(false) {}
+        BreakBeforeClosingBrace(false), BreakBeforeClosingParen(false),
+        AvoidBinPacking(AvoidBinPacking), BreakBeforeParameter(false),
+        NoLineBreak(NoLineBreak), NoLineBreakInOperand(false),
+        LastOperatorWrapped(true), ContainsLineBreak(false),
+        ContainsUnwrappedBuilder(false), AlignColons(true),
+        ObjCSelectorNameFound(false), HasMultipleNestedBlocks(false),
+        NestedBlockInlined(false) {}
 
   /// \brief The position to which a specific parenthesis level needs to be
   /// indented.
@@ -209,6 +210,13 @@ struct ParenState {
   /// We only want to insert a newline before the closing brace if there also
   /// was a newline after the beginning left brace.
   bool BreakBeforeClosingBrace : 1;
+
+  /// \brief Whether a newline needs to be inserted before the block's closing
+  /// paren.
+  ///
+  /// We only want to insert a newline before the closing paren if there also
+  /// was a newline after the beginning left paren.
+  bool BreakBeforeClosingParen : 1;
 
   /// \brief Avoid bin packing, i.e. multiple parameters/elements on multiple
   /// lines, in this context.
@@ -275,6 +283,8 @@ struct ParenState {
       return FirstLessLess < Other.FirstLessLess;
     if (BreakBeforeClosingBrace != Other.BreakBeforeClosingBrace)
       return BreakBeforeClosingBrace;
+    if (BreakBeforeClosingParen != Other.BreakBeforeClosingParen)
+      return BreakBeforeClosingParen;
     if (QuestionColumn != Other.QuestionColumn)
       return QuestionColumn < Other.QuestionColumn;
     if (AvoidBinPacking != Other.AvoidBinPacking)
