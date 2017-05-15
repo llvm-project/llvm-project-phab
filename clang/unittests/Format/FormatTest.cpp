@@ -8757,6 +8757,7 @@ TEST_F(FormatTest, ParsesConfigurationBools) {
   CHECK_PARSE_BOOL(BreakStringLiterals);
   CHECK_PARSE_BOOL(BreakBeforeInheritanceComma)
   CHECK_PARSE_BOOL(ConstructorInitializerAllOnOneLineOrOnePerLine);
+  CHECK_PARSE_BOOL(DanglingParenthesis);
   CHECK_PARSE_BOOL(DerivePointerAlignment);
   CHECK_PARSE_BOOL_FIELD(DerivePointerAlignment, "DerivePointerBinding");
   CHECK_PARSE_BOOL(DisableFormat);

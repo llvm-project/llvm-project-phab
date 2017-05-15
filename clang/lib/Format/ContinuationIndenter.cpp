@@ -143,6 +143,9 @@ bool ContinuationIndenter::canBreak(const LineState &State) {
       State.Stack.back().NoLineBreakInOperand)
     return false;
 
+  if(Current.is(tok::r_paren) && !State.Stack.back().BreakBeforeClosingParen)
+    return false;
+
   return !State.Stack.back().NoLineBreak;
 }
 
@@ -153,6 +156,8 @@ bool ContinuationIndenter::mustBreak(const LineState &State) {
     return true;
   if (State.Stack.back().BreakBeforeClosingBrace &&
       Current.closesBlockOrBlockTypeList(Style))
+    return true;
+  if(State.Stack.back().BreakBeforeClosingParen && Current.is(tok::r_paren))
     return true;
   if (Previous.is(tok::semi) && State.LineContainsContinuedForLoopSection)
     return true;
@@ -629,6 +634,9 @@ unsigned ContinuationIndenter::addTokenOnNewLine(LineState &State,
         PreviousNonComment->opensScope())))
     State.Stack.back().BreakBeforeClosingBrace = true;
 
+  if (PreviousNonComment && PreviousNonComment->is(tok::l_paren))
+    State.Stack.back().BreakBeforeClosingParen = Style.DanglingParenthesis;
+
   if (State.Stack.back().AvoidBinPacking) {
     // If we are breaking after '(', '{', '<', this is not bin packing
     // unless AllowAllParametersOfDeclarationOnNextLine is false or this is a
@@ -674,6 +682,8 @@ unsigned ContinuationIndenter::getNewLineColumn(const LineState &State) {
       return State.Stack[State.Stack.size() - 2].LastSpace;
     return State.FirstIndent;
   }
+  if (Style.DanglingParenthesis && Current.is(tok::r_paren) && State.Stack.size() > 1)
+    return State.Stack[State.Stack.size() - 2].LastSpace;
   if (NextNonComment->is(TT_TemplateString) && NextNonComment->closesScope())
     return State.Stack[State.Stack.size() - 2].LastSpace;
   if (Current.is(tok::identifier) && Current.Next &&
