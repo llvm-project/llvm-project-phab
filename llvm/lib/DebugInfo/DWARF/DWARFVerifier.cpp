@@ -8,6 +8,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/DebugInfo/DWARF/DWARFVerifier.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/DebugInfo/DWARF/DWARFCompileUnit.h"
 #include "llvm/DebugInfo/DWARF/DWARFContext.h"
 #include "llvm/DebugInfo/DWARF/DWARFDebugLine.h"
@@ -23,6 +24,220 @@ using namespace llvm;
 using namespace dwarf;
 using namespace object;
 
+bool DWARFVerifier::DieRangeInfo::insert(
+    const DWARFAddressRangesVector &UnsortedRanges) {
+  bool Error = false;
+  for (const auto &UR : UnsortedRanges) {
+    DWARFRange R(UR.first, UR.second);
+    if (R.Start >= R.End)
+      continue;
+    auto Begin = Ranges.begin();
+    auto End = Ranges.end();
+    auto InsertPos = std::lower_bound(Begin, End, R);
+    if (!Error) {
+      bool RangeOverlaps = false;
+      if (InsertPos != End) {
+        if (InsertPos->intersects(R))
+          RangeOverlaps = true;
+        else if (InsertPos != Begin) {
+          auto Iter = InsertPos - 1;
+          if (Iter->intersects(R))
+            RangeOverlaps = true;
+        }
+        if (RangeOverlaps) {
+          Error = true;
+        }
+      }
+      // Insert the range into our sorted list
+      Ranges.insert(InsertPos, R);
+    }
+  }
+  return Error;
+}
+
+bool DWARFVerifier::DieRangeInfo::extractRangesAndReportErrors(
+    raw_ostream &OS) {
+  Ranges.clear();
+  auto UnsortedRanges = Die.getAddressRanges();
+  bool HasErrors = false;
+
+  auto ErasePos =
+      remove_if(UnsortedRanges, [&](const std::pair<uint64_t, uint64_t> &R) {
+        if (R.first < R.second)
+          return false;
+        if (R.first > R.second)
+          HasErrors = true;
+        return false;
+      });
+  UnsortedRanges.erase(ErasePos, UnsortedRanges.end());
+
+  if (HasErrors)
+    OS << "error: invalid range in DIE:\n";
+
+  if (insert(UnsortedRanges)) {
+    OS << "error: ranges in DIE overlap:\n";
+    HasErrors = true;
+  }
+  if (HasErrors) {
+    Die.dump(OS, 0);
+    OS << "\n";
+  }
+  return HasErrors;
+}
+
+void DWARFVerifier::DieRangeInfo::dump(raw_ostream &OS) const {
+  OS << format("0x%08" PRIx32, Die.getOffset()) << ":";
+  for (const auto &R : Ranges)
+    OS << " [" << format("0x%" PRIx64, R.Start) << "-"
+       << format("0x%" PRIx64, R.End) << ")";
+  OS << "\n";
+}
+
+bool DWARFVerifier::DieRangeInfo::contains(const DieRangeInfo &RHS) const {
+  // Both list of ranges are sorted so we can make this fasts
+  auto Begin = Ranges.begin();
+  auto End = Ranges.end();
+  // Since the ranges are sorted we can advance where we start searching with
+  // this object's ranges as we traverse RHS.Ranges.
+  auto SearchBegin = Begin;
+  for (const auto &R : RHS.Ranges) {
+    auto Iter = std::lower_bound(SearchBegin, End, R);
+    if (Iter == Begin)
+      SearchBegin = Iter;
+    else {
+      SearchBegin = Iter - 1;
+      if (SearchBegin->contains(R))
+        continue;
+    }
+    if (Iter != End && Iter->contains(R))
+      continue;
+    return false;
+  }
+  return true;
+}
+
+bool DWARFVerifier::DieRangeInfo::intersects(const DieRangeInfo &RHS) const {
+  auto Begin = Ranges.begin();
+  auto End = Ranges.end();
+  auto SearchBegin = Begin;
+  for (const auto &R : RHS.Ranges) {
+    auto Iter = std::lower_bound(SearchBegin, End, R);
+    if (Iter != End && Iter->intersects(R))
+      return true;
+    if (Iter != Begin) {
+      auto Prev = Iter - 1;
+      if (Prev->intersects(R))
+        return true;
+    }
+    SearchBegin = Iter;
+  }
+  return false;
+}
+
+bool DWARFVerifier::DieRangeInfo::reportErrorIfNotContained(
+    raw_ostream &OS, const DieRangeInfo &RI, const char *Error) const {
+  if (contains(RI))
+    return false;
+  OS << Error;
+  Die.dump(OS, 0);
+  RI.Die.dump(OS, 0);
+  OS << "\n";
+  return true;
+}
+
+bool DWARFVerifier::DieInfo::addContainedDieAndReportErrors(
+    raw_ostream &OS, DieRangeInfo &DieRI) {
+  bool HasErrors = DieRI.extractRangesAndReportErrors(OS);
+
+  // If this DIE has not valid ranges to check then we are done.
+  if (DieRI.Ranges.empty())
+    return HasErrors;
+
+  // Die has address ranges so we need to check that its address ranges are
+  // contained in this DieInfo's address ranges except if this is a compile
+  // unit that doesn't have address range(s).
+  bool IsCompileUnit = RI.Die.getTag() == DW_TAG_compile_unit;
+  bool CheckContains = !IsCompileUnit || !RI.Ranges.empty();
+
+  const char *Error = "error: DIE has a child DIE whose address ranges are not "
+                      "contained in its ranges:";
+  if (CheckContains && RI.reportErrorIfNotContained(OS, DieRI, Error))
+    HasErrors = true;
+
+  // Check if this range overlaps with any previous sibling ranges and make an
+  // error if needed.
+  if (NOR.insertAndReportErrors(OS, DieRI))
+    HasErrors = true;
+  return HasErrors;
+}
+
+Optional<DWARFDie> DWARFVerifier::NonOverlappingRanges::GetOverlappingRangeInfo(
+    const DieRangeInfo &RI) const {
+  if (RangeSet.empty())
+    return None;
+  auto Iter = RangeSet.lower_bound(RI);
+  // Since we are searching using lower_bound, Iter  might the address range
+  // that follows RI, so we need to check it in case RI overlaps with the next
+  // range.
+  if (Iter != RangeSet.end() && Iter->intersects(RI))
+    return Iter->Die;
+  // We also need to check the previous range to ensure it doesn't overlap with
+  // this range.
+  if (Iter != RangeSet.begin() && (--Iter)->intersects(RI))
+    return Iter->Die;
+  return None;
+}
+
+bool DWARFVerifier::NonOverlappingRanges::insertAndReportErrors(
+    raw_ostream &OS, const DieRangeInfo &RI) {
+  bool Error = false;
+  if (auto OverlappingDie = GetOverlappingRangeInfo(RI)) {
+    OS << "error: DIEs have overlapping address ranges:\n";
+    OverlappingDie->dump(OS, 0);
+    RI.Die.dump(OS, 0);
+    OS << "\n";
+    Error = true;
+  }
+  RangeSet.insert(RI);
+  return Error;
+}
+
+void DWARFVerifier::verifyDie(const DWARFDie &Die, DieInfo &ParentDI) {
+  const auto Tag = Die.getTag();
+
+  DieInfo DI;
+  DI.RI.Die = Die;
+  switch (Tag) {
+  case DW_TAG_null:
+    return;
+  case DW_TAG_compile_unit:
+    // Set the Unit DIE info.
+    UnitDI.RI.Die = Die;
+    if (UnitDI.RI.extractRangesAndReportErrors(OS))
+      ++NumDebugInfoErrors;
+    break;
+  case DW_TAG_subprogram:
+    // Add the subprogram to the unit DIE and make it is contained.
+    if (UnitDI.addContainedDieAndReportErrors(OS, DI.RI))
+      ++NumDebugInfoErrors;
+    break;
+  case DW_TAG_lexical_block:
+  case DW_TAG_inlined_subroutine: {
+    if (ParentDI.addContainedDieAndReportErrors(OS, DI.RI))
+      ++NumDebugInfoErrors;
+  } break;
+  default:
+    break;
+  }
+  // Verify the attributes and forms.
+  for (auto AttrValue : Die.attributes()) {
+    verifyDebugInfoAttribute(Die, AttrValue);
+    verifyDebugInfoForm(Die, AttrValue);
+  }
+
+  for (DWARFDie Child : Die)
+    verifyDie(Child, DI);
+}
 void DWARFVerifier::verifyDebugInfoAttribute(const DWARFDie &Die,
                                              DWARFAttribute &AttrValue) {
   const auto Attr = AttrValue.Attr;
@@ -160,17 +375,9 @@ bool DWARFVerifier::handleDebugInfo() {
   NumDebugInfoErrors = 0;
   OS << "Verifying .debug_info...\n";
   for (const auto &CU : DCtx.compile_units()) {
-    unsigned NumDies = CU->getNumDIEs();
-    for (unsigned I = 0; I < NumDies; ++I) {
-      auto Die = CU->getDIEAtIndex(I);
-      const auto Tag = Die.getTag();
-      if (Tag == DW_TAG_null)
-        continue;
-      for (auto AttrValue : Die.attributes()) {
-        verifyDebugInfoAttribute(Die, AttrValue);
-        verifyDebugInfoForm(Die, AttrValue);
-      }
-    }
+    DieInfo DI;
+    DWARFDie Die = CU->getUnitDIE(/* ExtractUnitDIEOnly = */ false);
+    verifyDie(Die, DI);
   }
   verifyDebugInfoReferences();
   return NumDebugInfoErrors == 0;
