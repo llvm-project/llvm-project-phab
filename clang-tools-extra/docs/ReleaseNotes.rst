@@ -52,10 +52,13 @@ The improvements are...
 Improvements to clang-rename
 ----------------------------
 
-The improvements are...
-
 Improvements to clang-tidy
 --------------------------
+
+- New `misc-throw-with-noexcept
+  <http://clang.llvm.org/extra/clang-tidy/checks/misc-throw-with-noexcept.html>`_ check
+
+  Flags ``throw`` statements in functions marked as no-throw.
 
 - New `cert-dcl21-cpp
   <http://clang.llvm.org/extra/clang-tidy/checks/cert-dcl21-cpp.html>`_ check
@@ -71,7 +74,7 @@ Improvements to clang-tidy
   <http://clang.llvm.org/extra/clang-tidy/checks/cppcoreguidelines-no-malloc.html>`_ check
 
   Allow custom memory management functions to be considered as well.
-  
+
 - New `misc-forwarding-reference-overload
   <http://clang.llvm.org/extra/clang-tidy/checks/misc-forwarding-reference-overload.html>`_ check
 
@@ -87,7 +90,7 @@ Improvements to clang-tidy
 
   Finds and replaces explicit calls to the constructor in a return statement by
   a braced initializer list so that the return type is not needlessly repeated.
-  
+
 - Improved `modernize-use-emplace
   <http://clang.llvm.org/extra/clang-tidy/checks/modernize-use-emplace.html>`_ check
 
@@ -101,7 +104,7 @@ Improvements to clang-tidy
 
   Finds possible inefficient vector operations in for loops that may cause
   unnecessary memory reallocations.
-  
+
 - Added `ParameterThreshold` to `readability-function-size
   <http://clang.llvm.org/extra/clang-tidy/checks/readability-function-size.html>`_ check
 
@@ -111,10 +114,10 @@ Improvements to clang-tidy
   <http://clang.llvm.org/extra/clang-tidy/checks/readability-misleading-indentation.html>`_ check
 
   Finds misleading indentation where braces should be introduced or the code should be reformatted.
-  
+
 - Support clang-formatting of the code around applied fixes (``-format-style``
   command-line option).
-  
+
 - New `hicpp` module
 
   Adds checks that implement the `High Integrity C++ Coding Standard <http://www.codingstandard.com/section/index/>`_ and other safety
