@@ -3965,21 +3965,24 @@ bool SROA::splitAlloca(AllocaInst &AI, AllocaSlices &AS) {
   // First try to pre-split loads and stores.
   Changed |= presplitLoadsAndStores(AI, AS);
 
-  // Now that we have identified any pre-splitting opportunities, mark any
-  // splittable (non-whole-alloca) loads and stores as unsplittable. If we fail
-  // to split these during pre-splitting, we want to force them to be
+  // Now that we have identified any pre-splitting opportunities,
+  // mark loads and stores unsplittable except for the following case.
+  // We leave a slice splittable if all other slices are disjoint or fully
+  // included in the slice, such as whole-alloca splittable loads and stores.
+  // If we fail to split these during pre-splitting, we want to force them to be
   // rewritten into a partition.
   bool IsSorted = true;
   for (Slice &S : AS) {
     if (!S.isSplittable())
       continue;
-    // FIXME: We currently leave whole-alloca splittable loads and stores. This
-    // used to be the only splittable loads and stores and we need to be
-    // confident that the above handling of splittable loads and stores is
-    // completely sufficient before we forcibly disable the remaining handling.
-    if (S.beginOffset() == 0 &&
-        S.endOffset() >= DL.getTypeAllocSize(AI.getAllocatedType()))
-      continue;
+    if (all_of(AS, [S](Slice &S2) {
+      if (S == S2) return true;
+      if (S2.beginOffset() >= S.endOffset() ||
+          S2.endOffset()   <= S.beginOffset()) return true; // disjoint
+      if (S2.beginOffset() >= S.beginOffset() &&
+          S2.endOffset()   <= S.endOffset())   return true; // fully included
+      return false;
+    })) continue;
     if (isa<LoadInst>(S.getUse()->getUser()) ||
         isa<StoreInst>(S.getUse()->getUser())) {
       S.makeUnsplittable();
