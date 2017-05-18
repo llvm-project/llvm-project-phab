@@ -3358,7 +3358,7 @@ useful functionality beyond what the ``Type`` class offers except to distinguish
 themselves from other subclasses of ``Type``.
 
 All other types are subclasses of ``DerivedType``.  Types can be named, but this
-is not a requirement.  There exists exactly one instance of a given shape at any
+is not a requirement.  There exists exactly one instance of a given Type at any
 one time.  This allows type equality to be performed with address equality of
 the Type Instance.  That is, given two ``Type*`` values, the types are identical
 if the pointers are identical.
