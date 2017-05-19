@@ -20,12 +20,16 @@
 ;
 
 ; Verify that SROA creates a variable piece when splitting i1.
+; These three metadata are for Ourer. The latter two are created by splitting the second Inner object in Outer.
 ; CHECK:  call void @llvm.dbg.value(metadata i64 %outer.coerce0, i64 0, metadata ![[O:[0-9]+]], metadata ![[PIECE1:[0-9]+]]),
-; CHECK:  call void @llvm.dbg.value(metadata i64 %outer.coerce1, i64 0, metadata ![[O]], metadata ![[PIECE2:[0-9]+]]),
+; CHECK:  call void @llvm.dbg.value(metadata i32 {{.*}}, i64 0, metadata ![[O]], metadata ![[PIECE2A:[0-9]+]]),
+; CHECK:  call void @llvm.dbg.value(metadata i32 {{.*}}, i64 0, metadata ![[O]], metadata ![[PIECE2B:[0-9]+]]),
+; This metadata is for Inner.
 ; CHECK:  call void @llvm.dbg.value({{.*}}, i64 0, metadata ![[I1:[0-9]+]], metadata ![[PIECE3:[0-9]+]]),
 ; CHECK-DAG: ![[O]] = !DILocalVariable(name: "outer",{{.*}} line: 10
 ; CHECK-DAG: ![[PIECE1]] = !DIExpression(DW_OP_LLVM_fragment, 0, 64)
-; CHECK-DAG: ![[PIECE2]] = !DIExpression(DW_OP_LLVM_fragment, 64, 64)
+; CHECK-DAG: ![[PIECE2A]] = !DIExpression(DW_OP_LLVM_fragment, 64, 32)
+; CHECK-DAG: ![[PIECE2B]] = !DIExpression(DW_OP_LLVM_fragment, 96, 32)
 ; CHECK-DAG: ![[I1]] = !DILocalVariable(name: "i1",{{.*}} line: 11
 ; CHECK-DAG: ![[PIECE3]] = !DIExpression(DW_OP_LLVM_fragment, 0, 32)
 
