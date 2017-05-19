@@ -1573,6 +1573,14 @@ void ScopStmt::collectSurroundingLoops() {
   }
 }
 
+ScopStmt::ScopStmt(ScopStmt *Original, int CopyNo)
+	: Parent(*(Original->getParent())), InvalidDomain(nullptr), Domain(nullptr), BB(Original->getBasicBlock()), 
+	R(Original->getRegion()), Build(nullptr), SurroundingLoop(Original->getSurroundingLoop()){
+	BaseName = getIslCompatibleName((std::string) Original->getBaseName(), "_copy_no_", std::to_string(CopyNo));
+	Domain = Original->getDomain();
+	Domain = isl_set_set_tuple_name(Domain, BaseName.c_str());
+}
+
 ScopStmt::ScopStmt(Scop &parent, Region &R, Loop *SurroundingLoop)
     : Parent(parent), InvalidDomain(nullptr), Domain(nullptr), BB(nullptr),
       R(&R), Build(nullptr), SurroundingLoop(SurroundingLoop) {
@@ -4439,6 +4447,11 @@ mapToDimension(__isl_take isl_union_set *USet, int N) {
 
   isl_union_set_free(USet);
   return isl_multi_union_pw_aff_from_union_pw_multi_aff(Data.Res);
+}
+
+void Scop::addScopStmt(ScopStmt *newStmt, int CopyNo) {
+  assert(newStmt && "Unexpected nullptr!");
+  Stmts.emplace_back(newStmt, CopyNo);
 }
 
 void Scop::addScopStmt(BasicBlock *BB, Loop *SurroundingLoop) {

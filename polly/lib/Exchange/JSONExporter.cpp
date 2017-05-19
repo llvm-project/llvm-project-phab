@@ -17,6 +17,7 @@
 #include "polly/ScopInfo.h"
 #include "polly/ScopPass.h"
 #include "polly/Support/ScopLocation.h"
+#include "polly/Support/GICHelper.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/RegionInfo.h"
 #include "llvm/IR/Module.h"
@@ -29,6 +30,7 @@
 #include "isl/printer.h"
 #include "isl/set.h"
 #include "isl/union_map.h"
+#include "isl/union_set.h"
 #include "json/reader.h"
 #include "json/writer.h"
 #include <memory>
@@ -287,6 +289,122 @@ bool JSONImporter::importContext(Scop &S, Json::Value &JScop) {
   return true;
 }
 
+struct schedule_info{
+	isl_union_map *OriginalUmap;
+	isl_union_map *NewUmap;
+	int CopyNo;
+};
+
+struct print_info {
+	Scop *S;
+	int CopyNo;
+};
+
+// Adds a copy of the map corresponding to the set to the user->NewMap
+static isl_stat CopyScheduleStatements(__isl_take isl_set *set, void *user){
+  struct schedule_info *data = (schedule_info*) user;
+  isl_union_map *umap;
+  isl_set *range, *domain;
+  isl_map *NewMap;
+  std::string name;
+
+  umap = isl_union_map_copy(data->OriginalUmap);
+  umap = isl_union_map_intersect_domain(umap,
+					isl_union_set_from_set(isl_set_copy(set)));
+
+  range = isl_set_from_union_set(isl_union_map_range(umap));
+  name = getIslCompatibleName((std::string) isl_set_get_tuple_name(set), "_copy_no_", std::to_string(data->CopyNo));
+  domain = isl_set_set_tuple_name(set, name.c_str());
+  NewMap = isl_map_from_domain_and_range(domain, range);
+  data->NewUmap = isl_union_map_add_map(data->NewUmap, NewMap);
+  return isl_stat_ok;
+}
+
+// adds a copy to the SCoP for every ScopStmt corresponding to the set
+static isl_stat CopyScopStatements(__isl_take isl_set *set, void *user){
+  struct print_info *data = (print_info*) user;
+  isl_set *scopset;
+  ScopStmt *NewStmt;
+
+  for(ScopStmt &Stmt : *(data->S)) {
+	scopset = isl_map_domain(Stmt.getSchedule());
+	if(isl_set_is_equal(scopset, set)){
+	  NewStmt = &Stmt;
+	  isl_set_free(scopset);
+	  break;
+	}
+	isl_set_free(scopset);
+  }
+  data->S->addScopStmt(NewStmt, data->CopyNo);
+
+  isl_set_free(set);
+  return isl_stat_ok;
+}
+
+void print_union_map(std::string message, isl_printer *P, raw_ostream &OS, isl_union_map *ScheduleMap){
+	char *printer;
+	OS << "\n" << message << "\n";
+	P = isl_printer_flush(P);
+	P = isl_printer_print_union_map(P, ScheduleMap);
+	printer = isl_printer_get_str(P);
+	OS << printer << "\n";	
+}
+
+isl_union_map *MakeScheduleSingleValued(isl_union_map *ScheduleMap, Scop &S){
+	//create a printer for the printing of isl types
+	isl_printer *P = isl_printer_to_str(S.getIslCtx());
+	P = isl_printer_set_output_format(P, ISL_FORMAT_ISL);
+	P = isl_printer_flush(P);
+
+	isl_union_map *universe, *ScheduleDup, *FinalSchedule;
+	isl_union_map *NewSchedule;
+	isl_union_set *domain;
+
+	//create a schedule containing only duplicate elements
+	FinalSchedule = isl_union_map_lexmin(isl_union_map_copy(ScheduleMap));
+	ScheduleDup = isl_union_map_subtract(isl_union_map_copy(ScheduleMap), isl_union_map_copy(FinalSchedule));
+
+	// create struct to be used by the isl_union_set_foreach_set functions 
+	struct print_info ScopData = {&S};
+	struct schedule_info ScheduleData;
+	ScheduleData.OriginalUmap = isl_union_map_copy(FinalSchedule);
+	ScheduleData.NewUmap = isl_union_map_copy(FinalSchedule);
+	int i = 1;
+
+	while(!isl_union_map_is_empty(ScheduleDup)){
+		universe = isl_union_map_universe(isl_union_map_copy(ScheduleDup));
+		domain = isl_union_map_domain(universe);
+
+		//fix the Scop by duplicating statements which are executed multiple times
+		ScopData.CopyNo = i;
+		if (isl_union_set_foreach_set(domain,
+					&CopyScopStatements, &ScopData) < 0)
+			errs() << "error during foreach\n";
+
+		// fix the schedule
+		ScheduleData.CopyNo = i;
+		if (isl_union_set_foreach_set(domain,
+					&CopyScheduleStatements, &ScheduleData) < 0)
+			errs() << "error during foreach\n";
+
+		NewSchedule = isl_union_map_lexmin(isl_union_map_copy(ScheduleDup));
+		isl_union_map_free(ScheduleData.OriginalUmap);
+		ScheduleData.OriginalUmap = isl_union_map_copy(NewSchedule);
+		ScheduleDup = isl_union_map_subtract(ScheduleDup, NewSchedule);
+		isl_union_set_free(domain);
+		i++;
+	}
+
+	print_union_map("New Map:", P, errs(), ScheduleData.NewUmap);
+
+    isl_printer_free(P);
+	isl_union_map_free(ScheduleMap);
+	isl_union_map_free(ScheduleDup);
+	isl_union_map_free(ScheduleData.OriginalUmap);
+	isl_union_map_free(ScheduleData.NewUmap);
+	return FinalSchedule;
+}
+
 bool JSONImporter::importSchedule(Scop &S, Json::Value &JScop,
                                   const Dependences &D) {
   StatementToIslMapTy NewSchedule;
@@ -326,6 +444,16 @@ bool JSONImporter::importSchedule(Scop &S, Json::Value &JScop,
       ScheduleMap = isl_union_map_add_map(ScheduleMap, NewSchedule[&Stmt]);
     else
       ScheduleMap = isl_union_map_add_map(ScheduleMap, Stmt.getSchedule());
+  }
+
+  // Check if the map is single valued.
+  if(!isl_union_map_is_single_valued(ScheduleMap)){
+	errs() << "JScop file contains a schedule that is not single valued\n";
+
+	// Not Yet Finished, when ScheduleMap can be fixed by MakeScheduleSingleValued, the new ScheduleMap will be passed
+	ScheduleMap = MakeScheduleSingleValued(ScheduleMap, S);
+	isl_union_map_free(ScheduleMap);
+	return false;
   }
 
   S.setSchedule(ScheduleMap);
