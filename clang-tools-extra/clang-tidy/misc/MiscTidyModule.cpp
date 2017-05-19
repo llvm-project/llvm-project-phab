@@ -12,6 +12,7 @@
 #include "../ClangTidyModuleRegistry.h"
 #include "ArgumentCommentCheck.h"
 #include "AssertSideEffectCheck.h"
+#include "AssertionCountCheck.h"
 #include "BoolPointerImplicitConversionCheck.h"
 #include "DanglingHandleCheck.h"
 #include "DefinitionsInHeadersCheck.h"
@@ -66,6 +67,8 @@ public:
     CheckFactories.registerCheck<ArgumentCommentCheck>("misc-argument-comment");
     CheckFactories.registerCheck<AssertSideEffectCheck>(
         "misc-assert-side-effect");
+    CheckFactories.registerCheck<AssertionCountCheck>(
+        "misc-assertion-count");
     CheckFactories.registerCheck<ForwardingReferenceOverloadCheck>(
         "misc-forwarding-reference-overload");
     CheckFactories.registerCheck<MisplacedConstCheck>("misc-misplaced-const");
