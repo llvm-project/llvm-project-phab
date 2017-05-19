@@ -33,7 +33,7 @@ class SValBuilder {
   virtual void anchor();
 protected:
   ASTContext &Context;
-  
+
   /// Manager of APSInt values.
   BasicValueFactory BasicVals;
 
@@ -47,7 +47,7 @@ protected:
 
   /// The scalar type to use for array indices.
   const QualType ArrayIndexTy;
-  
+
   /// The width of the scalar type used for array indices.
   const unsigned ArrayIndexWidth;
 
@@ -109,22 +109,26 @@ public:
   virtual SVal evalBinOpLN(ProgramStateRef state, BinaryOperator::Opcode op,
                            Loc lhs, NonLoc rhs, QualType resultTy) = 0;
 
-  /// Evaluates a given SVal. If the SVal has only one possible (integer) value,
+  /// Evaluates a given SVal. If the SVal has only one possible integer value,
   /// that value is returned. Otherwise, returns NULL.
   virtual const llvm::APSInt *getKnownValue(ProgramStateRef state, SVal val) = 0;
+
+  /// Evaluates a given SVal. If the SVal has only one possible float value,
+  /// that value is returned. Otherwise, returns NULL.
+  virtual const llvm::APFloat *getKnownFloatValue(ProgramStateRef state, SVal val) = 0;
 
   /// Simplify symbolic expressions within a given SVal. Return an SVal
   /// that represents the same value, but is hopefully easier to work with
   /// than the original SVal.
   virtual SVal simplifySVal(ProgramStateRef State, SVal Val) = 0;
-  
+
   /// Constructs a symbolic expression for two non-location values.
   SVal makeSymExprValNN(ProgramStateRef state, BinaryOperator::Opcode op,
                       NonLoc lhs, NonLoc rhs, QualType resultTy);
 
   SVal evalBinOp(ProgramStateRef state, BinaryOperator::Opcode op,
                  SVal lhs, SVal rhs, QualType type);
-  
+
   DefinedOrUnknownSVal evalEQ(ProgramStateRef state, DefinedOrUnknownSVal lhs,
                               DefinedOrUnknownSVal rhs);
 
@@ -132,11 +136,11 @@ public:
   const ASTContext &getContext() const { return Context; }
 
   ProgramStateManager &getStateManager() { return StateMgr; }
-  
+
   QualType getConditionType() const {
     return Context.getLangOpts().CPlusPlus ? Context.BoolTy : Context.IntTy;
   }
-  
+
   QualType getArrayIndexType() const {
     return ArrayIndexTy;
   }
@@ -188,7 +192,7 @@ public:
                                         const LocationContext *LCtx,
                                         QualType type,
                                         unsigned count);
-  
+
   DefinedOrUnknownSVal conjureSymbolVal(const Stmt *stmt,
                                         const LocationContext *LCtx,
                                         QualType type,
@@ -212,7 +216,7 @@ public:
   DefinedSVal getMemberPointer(const DeclaratorDecl *DD);
 
   DefinedSVal getFunctionPointer(const FunctionDecl *func);
-  
+
   DefinedSVal getBlockPointer(const BlockDecl *block, CanQualType locTy,
                               const LocationContext *locContext,
                               unsigned blockCount);
@@ -227,7 +231,7 @@ public:
     return nonloc::CompoundVal(BasicVals.getCompoundValData(type, vals));
   }
 
-  NonLoc makeLazyCompoundVal(const StoreRef &store, 
+  NonLoc makeLazyCompoundVal(const StoreRef &store,
                              const TypedValueRegion *region) {
     return nonloc::LazyCompoundVal(
         BasicVals.getLazyCompoundValData(store, region));
@@ -295,11 +299,31 @@ public:
     return nonloc::LocAsInteger(BasicVals.getPersistentSValWithData(loc, bits));
   }
 
+  nonloc::ConcreteFloat makeFloatVal(const FloatingLiteral *F) {
+    return nonloc::ConcreteFloat(BasicVals.getValue(F->getValue()));
+  }
+
+  nonloc::ConcreteFloat makeFloatVal(const llvm::APFloat &F) {
+    return nonloc::ConcreteFloat(BasicVals.getValue(F));
+  }
+
+  DefinedSVal makeFloatVal(uint64_t V, QualType T) {
+    assert(!Loc::isLocType(T));
+    return nonloc::ConcreteFloat(BasicVals.getValue(V,
+                                             Context.getFloatTypeSemantics(T)));
+  }
+
   NonLoc makeNonLoc(const SymExpr *lhs, BinaryOperator::Opcode op,
                     const llvm::APSInt& rhs, QualType type);
 
   NonLoc makeNonLoc(const llvm::APSInt& rhs, BinaryOperator::Opcode op,
                     const SymExpr *lhs, QualType type);
+
+  NonLoc makeNonLoc(const SymExpr *lhs, BinaryOperator::Opcode op,
+                    const llvm::APFloat& rhs, QualType type);
+
+  NonLoc makeNonLoc(const llvm::APFloat& lhs, BinaryOperator::Opcode op,
+                    const SymExpr *rhs, QualType type);
 
   NonLoc makeNonLoc(const SymExpr *lhs, BinaryOperator::Opcode op,
                     const SymExpr *rhs, QualType type);

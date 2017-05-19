@@ -139,6 +139,16 @@ public:
     return nullptr;
   }
 
+  /// \brief If a symbol is perfectly constrained to a constant, attempt
+  /// to return the concrete value.
+  ///
+  /// Note that a ConstraintManager is not obligated to return a concretized
+  /// value for a symbol, even if it is perfectly constrained.
+  virtual const llvm::APFloat* getSymFloatVal(ProgramStateRef state,
+                                              SymbolRef sym) const {
+    return nullptr;
+  }
+
   /// Scan all symbols referenced by the constraints. If the symbol is not
   /// alive, remove it.
   virtual ProgramStateRef removeDeadBindings(ProgramStateRef state,
@@ -158,6 +168,11 @@ public:
 
     return checkNull(State, Sym);
   }
+
+  /// canReasonAbout - Not all ConstraintManagers can reason about floating-
+  ///  point values.  Instead of first instantiating a floating-point SVal to
+  ///  query whether it is supported, use this to ask directly.
+  virtual bool canReasonAboutFloat() const = 0;
 
 protected:
   /// A flag to indicate that clients should be notified of assumptions.

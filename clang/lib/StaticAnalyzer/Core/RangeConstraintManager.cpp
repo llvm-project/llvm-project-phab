@@ -293,6 +293,8 @@ public:
 
   bool canReasonAbout(SVal X) const override;
 
+  bool canReasonAboutFloat() const override;
+
   ConditionTruthVal checkNull(ProgramStateRef State, SymbolRef Sym) override;
 
   const llvm::APSInt *getSymVal(ProgramStateRef State,
@@ -370,44 +372,48 @@ ento::CreateRangeConstraintManager(ProgramStateManager &StMgr, SubEngine *Eng) {
 
 bool RangeConstraintManager::canReasonAbout(SVal X) const {
   Optional<nonloc::SymbolVal> SymVal = X.getAs<nonloc::SymbolVal>();
-  if (SymVal && SymVal->isExpression()) {
-    const SymExpr *SE = SymVal->getSymbol();
-
-    if (const SymIntExpr *SIE = dyn_cast<SymIntExpr>(SE)) {
-      switch (SIE->getOpcode()) {
-      // We don't reason yet about bitwise-constraints on symbolic values.
-      case BO_And:
-      case BO_Or:
-      case BO_Xor:
-        return false;
-      // We don't reason yet about these arithmetic constraints on
-      // symbolic values.
-      case BO_Mul:
-      case BO_Div:
-      case BO_Rem:
-      case BO_Shl:
-      case BO_Shr:
-        return false;
-      // All other cases.
-      default:
-        return true;
-      }
-    }
-
-    if (const SymSymExpr *SSE = dyn_cast<SymSymExpr>(SE)) {
-      if (BinaryOperator::isComparisonOp(SSE->getOpcode())) {
-        // We handle Loc <> Loc comparisons, but not (yet) NonLoc <> NonLoc.
-        if (Loc::isLocType(SSE->getLHS()->getType())) {
-          assert(Loc::isLocType(SSE->getRHS()->getType()));
+  if (SymVal) {
+    if (SymVal->getSymbol()->getType()->isFloatingType()) {
+      return false;
+    } else if (const SymExpr *SE = SymVal->getSymbol()) {
+      if (const SymIntExpr *SIE = dyn_cast<SymIntExpr>(SE)) {
+        switch (SIE->getOpcode()) {
+        // We don't reason yet about bitwise-constraints on symbolic values.
+        case BO_And:
+        case BO_Or:
+        case BO_Xor:
+          return false;
+        // We don't reason yet about these arithmetic constraints on
+        // symbolic values.
+        case BO_Mul:
+        case BO_Div:
+        case BO_Rem:
+        case BO_Shl:
+        case BO_Shr:
+          return false;
+        // All other cases.
+        default:
           return true;
         }
+      } else if (const SymSymExpr *SSE = dyn_cast<SymSymExpr>(SE)) {
+        if (BinaryOperator::isComparisonOp(SSE->getOpcode())) {
+          // We handle Loc <> Loc comparisons, but not (yet) NonLoc <> NonLoc.
+          if (Loc::isLocType(SSE->getLHS()->getType())) {
+            assert(Loc::isLocType(SSE->getRHS()->getType()));
+            return true;
+          }
+        }
       }
-    }
 
-    return false;
+      return false;
+    }
   }
 
   return true;
+}
+
+bool RangeConstraintManager::canReasonAboutFloat() const {
+  return false;
 }
 
 ConditionTruthVal RangeConstraintManager::checkNull(ProgramStateRef State,

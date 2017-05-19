@@ -89,11 +89,14 @@ public:
 class BasicValueFactory {
   typedef llvm::FoldingSet<llvm::FoldingSetNodeWrapper<llvm::APSInt> >
           APSIntSetTy;
+  typedef llvm::FoldingSet<llvm::FoldingSetNodeWrapper<llvm::APFloat> >
+          APFloatSetTy;
 
   ASTContext &Ctx;
   llvm::BumpPtrAllocator& BPAlloc;
 
   APSIntSetTy   APSIntSet;
+  APFloatSetTy  APFloatSet;
   void *        PersistentSVals;
   void *        PersistentSValPairs;
 
@@ -121,6 +124,9 @@ public:
   const llvm::APSInt& getValue(const llvm::APInt& X, bool isUnsigned);
   const llvm::APSInt& getValue(uint64_t X, QualType T);
 
+  const llvm::APFloat &getValue(const llvm::APFloat& X);
+  const llvm::APFloat &getValue(int64_t X, const llvm::fltSemantics &S);
+
   /// Returns the type of the APSInt used to store values of the given QualType.
   APSIntType getAPSIntType(QualType T) const {
     assert(T->isIntegralOrEnumerationType() || Loc::isLocType(T));
@@ -138,13 +144,61 @@ public:
 
     return getValue(TargetType.convert(From));
   }
-  
+
   const llvm::APSInt &Convert(QualType T, const llvm::APSInt &From) {
     APSIntType TargetType = getAPSIntType(T);
     if (TargetType == APSIntType(From))
       return From;
-    
+
     return getValue(TargetType.convert(From));
+  }
+
+  const llvm::APFloat &Convert(const llvm::APSInt &From,
+                               const llvm::fltSemantics &S) {
+    llvm::APFloat To(S, llvm::APFloat::uninitialized);
+    assert(Convert(To, From) && "Failed to convert integer to floating-point!");
+    return getValue(To);
+  }
+
+  const llvm::APFloat &Convert(QualType T, const llvm::APFloat &From) {
+    bool lossOfPrecision;
+    llvm::APFloat To = From;
+#ifndef NDEBUG
+    llvm::APFloat::opStatus Status = To.convert(Ctx.getFloatTypeSemantics(T),
+        llvm::APFloat::rmNearestTiesToEven, &lossOfPrecision);
+#else
+    To.convert(Ctx.getFloatTypeSemantics(T),
+        llvm::APFloat::rmNearestTiesToEven, &lossOfPrecision);
+#endif
+    assert(!(Status & (llvm::APFloat::opOverflow | llvm::APFloat::opInvalidOp)));
+    return getValue(To);
+  }
+
+  /// Fills an existing APFloat with the floating-point representation of an
+  /// APSInt. Returns true if the conversion is successful.
+  static bool Convert(llvm::APFloat &Float, const llvm::APSInt &Int) {
+    llvm::APFloat::opStatus Status = Float.convertFromAPInt(
+        Int, Int.isSigned(), llvm::APFloat::rmNearestTiesToEven);
+    // Cannot be represented in destination type, this is undefined behavior
+    if (llvm::APFloat::opOverflow & Status ||
+        llvm::APFloat::opInvalidOp & Status)
+      return false;
+
+    return true;
+  }
+
+  /// Fills an existing APSInt with the integer representation of an
+  /// APFloat. Returns true if the conversion is successful.
+  static bool Convert(llvm::APSInt &Int, const llvm::APFloat &Float) {
+    bool isExact;
+    llvm::APFloat::opStatus Status = Float.convertToInteger(
+        Int, llvm::APFloat::rmNearestTiesToEven, &isExact);
+    // Cannot be represented in destination type, this is undefined behavior
+    if (llvm::APFloat::opOverflow & Status ||
+        llvm::APFloat::opInvalidOp & Status)
+      return false;
+
+    return true;
   }
 
   const llvm::APSInt& getIntValue(uint64_t X, bool isUnsigned) {
@@ -229,8 +283,16 @@ public:
       const nonloc::PointerToMember &PTM);
 
   const llvm::APSInt* evalAPSInt(BinaryOperator::Opcode Op,
-                                     const llvm::APSInt& V1,
-                                     const llvm::APSInt& V2);
+                                 const llvm::APSInt& V1,
+                                 const llvm::APSInt& V2);
+
+  const llvm::APFloat* evalAPFloat(BinaryOperator::Opcode Op,
+                                   const llvm::APFloat& V1,
+                                   const llvm::APFloat& V2);
+
+  const llvm::APSInt* evalAPFloatComparison(BinaryOperator::Opcode Op,
+                                            const llvm::APFloat& V1,
+                                            const llvm::APFloat& V2);
 
   const std::pair<SVal, uintptr_t>&
   getPersistentSValWithData(const SVal& V, uintptr_t Data);

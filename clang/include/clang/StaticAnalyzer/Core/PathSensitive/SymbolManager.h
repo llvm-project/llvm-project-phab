@@ -391,6 +391,77 @@ public:
   }
 };
 
+
+/// \brief Represents a symbolic expression like 'x' + 3.0.
+class SymFloatExpr : public BinarySymExpr {
+  const SymExpr *LHS;
+  const llvm::APFloat& RHS;
+
+public:
+  SymFloatExpr(const SymExpr *lhs, BinaryOperator::Opcode op,
+             const llvm::APFloat& rhs, QualType t)
+    : BinarySymExpr(SymFloatExprKind, op, t), LHS(lhs), RHS(rhs) {}
+
+  void dumpToStream(raw_ostream &os) const override;
+
+  const SymExpr *getLHS() const { return LHS; }
+  const llvm::APFloat &getRHS() const { return RHS; }
+
+  static void Profile(llvm::FoldingSetNodeID& ID, const SymExpr *lhs,
+                      BinaryOperator::Opcode op, const llvm::APFloat& rhs,
+                      QualType t) {
+    ID.AddInteger((unsigned) SymFloatExprKind);
+    ID.AddPointer(lhs);
+    ID.AddInteger(op);
+    ID.AddPointer(&rhs);
+    ID.Add(t);
+  }
+
+  void Profile(llvm::FoldingSetNodeID& ID) override {
+    Profile(ID, LHS, getOpcode(), RHS, getType());
+  }
+
+  // Implement isa<T> support.
+  static inline bool classof(const SymExpr *SE) {
+    return SE->getKind() == SymFloatExprKind;
+  }
+};
+
+/// \brief Represents a symbolic expression like 3.0 - 'x'.
+class FloatSymExpr : public BinarySymExpr {
+  const llvm::APFloat& LHS;
+  const SymExpr *RHS;
+
+public:
+  FloatSymExpr(const llvm::APFloat& lhs, BinaryOperator::Opcode op,
+             const SymExpr *rhs, QualType t)
+    : BinarySymExpr(FloatSymExprKind, op, t), LHS(lhs), RHS(rhs) {}
+
+  void dumpToStream(raw_ostream &os) const override;
+
+  const SymExpr *getRHS() const { return RHS; }
+  const llvm::APFloat &getLHS() const { return LHS; }
+
+  static void Profile(llvm::FoldingSetNodeID& ID, const llvm::APFloat& lhs,
+                      BinaryOperator::Opcode op, const SymExpr *rhs,
+                      QualType t) {
+    ID.AddInteger((unsigned) FloatSymExprKind);
+    ID.AddPointer(&lhs);
+    ID.AddInteger(op);
+    ID.AddPointer(rhs);
+    ID.Add(t);
+  }
+
+  void Profile(llvm::FoldingSetNodeID& ID) override {
+    Profile(ID, LHS, getOpcode(), RHS, getType());
+  }
+
+  // Implement isa<T> support.
+  static inline bool classof(const SymExpr *SE) {
+    return SE->getKind() == FloatSymExprKind;
+  }
+};
+
 /// \brief Represents a symbolic expression like 'x' + 'y'.
 class SymSymExpr : public BinarySymExpr {
   const SymExpr *LHS;
@@ -496,6 +567,20 @@ public:
   const IntSymExpr *getIntSymExpr(const llvm::APSInt& lhs,
                                   BinaryOperator::Opcode op,
                                   const SymExpr *rhs, QualType t);
+
+  const SymFloatExpr *getSymFloatExpr(const SymExpr *lhs,
+                                      BinaryOperator::Opcode op,
+                                      const llvm::APFloat& rhs, QualType t);
+
+  const SymFloatExpr *getSymFloatExpr(const SymExpr &lhs,
+                                      BinaryOperator::Opcode op,
+                                      const llvm::APFloat& rhs, QualType t) {
+    return getSymFloatExpr(&lhs, op, rhs, t);
+  }
+
+  const FloatSymExpr *getFloatSymExpr(const llvm::APFloat& lhs,
+                                      BinaryOperator::Opcode op,
+                                      const SymExpr *rhs, QualType t);
 
   const SymSymExpr *getSymSymExpr(const SymExpr *lhs, BinaryOperator::Opcode op,
                                   const SymExpr *rhs, QualType t);

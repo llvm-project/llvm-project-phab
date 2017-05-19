@@ -40,12 +40,15 @@ DefinedOrUnknownSVal SValBuilder::makeZeroVal(QualType type) {
       type->isAnyComplexType())
     return makeCompoundVal(type, BasicVals.getEmptySValList());
 
-  // FIXME: Handle floats.
+  if (type->isRealFloatingType())
+    return makeFloatVal(0, type);
+
+  // FIXME: Handle structs.
   return UnknownVal();
 }
 
 NonLoc SValBuilder::makeNonLoc(const SymExpr *lhs, BinaryOperator::Opcode op,
-                                const llvm::APSInt& rhs, QualType type) {
+                               const llvm::APSInt& rhs, QualType type) {
   // The Environment ensures we always get a persistent APSInt in
   // BasicValueFactory, so we don't need to get the APSInt from
   // BasicValueFactory again.
@@ -60,6 +63,24 @@ NonLoc SValBuilder::makeNonLoc(const llvm::APSInt& lhs,
   assert(rhs);
   assert(!Loc::isLocType(type));
   return nonloc::SymbolVal(SymMgr.getIntSymExpr(lhs, op, rhs, type));
+}
+
+NonLoc SValBuilder::makeNonLoc(const SymExpr *lhs, BinaryOperator::Opcode op,
+                               const llvm::APFloat& rhs, QualType type) {
+  // The Environment ensures we always get a persistent APSInt in
+  // BasicValueFactory, so we don't need to get the APSInt from
+  // BasicValueFactory again.
+  assert(lhs);
+  assert(!Loc::isLocType(type));
+  return nonloc::SymbolVal(SymMgr.getSymFloatExpr(lhs, op, rhs, type));
+}
+
+NonLoc SValBuilder::makeNonLoc(const llvm::APFloat& lhs,
+                               BinaryOperator::Opcode op, const SymExpr *rhs,
+                               QualType type) {
+  assert(rhs);
+  assert(!Loc::isLocType(type));
+  return nonloc::SymbolVal(SymMgr.getFloatSymExpr(lhs, op, rhs, type));
 }
 
 NonLoc SValBuilder::makeNonLoc(const SymExpr *lhs, BinaryOperator::Opcode op,
@@ -304,6 +325,9 @@ Optional<SVal> SValBuilder::getConstantVal(const Expr *E) {
   case Stmt::IntegerLiteralClass:
     return makeIntVal(cast<IntegerLiteral>(E));
 
+  case Stmt::FloatingLiteralClass:
+    return makeFloatVal(cast<FloatingLiteral>(E));
+
   case Stmt::ObjCBoolLiteralExprClass:
     return makeBoolVal(cast<ObjCBoolLiteralExpr>(E));
 
@@ -316,7 +340,8 @@ Optional<SVal> SValBuilder::getConstantVal(const Expr *E) {
     default:
       break;
     case CK_ArrayToPointerDecay:
-    case CK_BitCast: {
+    case CK_BitCast:
+    case CK_IntegralToFloating: {
       const Expr *SE = CE->getSubExpr();
       Optional<SVal> Val = getConstantVal(SE);
       if (!Val)
@@ -353,23 +378,41 @@ SVal SValBuilder::makeSymExprValNN(ProgramStateRef State,
                                    BinaryOperator::Opcode Op,
                                    NonLoc LHS, NonLoc RHS,
                                    QualType ResultTy) {
+  ConstraintManager &CM = getStateManager().getConstraintManager();
+
   const SymExpr *symLHS = LHS.getAsSymExpr();
   const SymExpr *symRHS = RHS.getAsSymExpr();
   // TODO: When the Max Complexity is reached, we should conjure a symbol
   // instead of generating an Unknown value and propagate the taint info to it.
   const unsigned MaxComp = 1000; // 10000 28X
 
+  // If constraint manager doesn't support floating-point expressions, skip
+  // generating those constraints.
   if (symLHS && symRHS &&
-      (symLHS->computeComplexity() + symRHS->computeComplexity()) < MaxComp)
+      (symLHS->computeComplexity() + symRHS->computeComplexity()) < MaxComp) {
+    if (!CM.canReasonAboutFloat() &&
+        (symLHS->getType()->isFloatingType() || symRHS->getType()->isFloatingType()))
+      return UnknownVal();
     return makeNonLoc(symLHS, Op, symRHS, ResultTy);
+  }
 
-  if (symLHS && symLHS->computeComplexity() < MaxComp)
+  if (symLHS && symLHS->computeComplexity() < MaxComp) {
     if (Optional<nonloc::ConcreteInt> rInt = RHS.getAs<nonloc::ConcreteInt>())
       return makeNonLoc(symLHS, Op, rInt->getValue(), ResultTy);
+    if (Optional<nonloc::ConcreteFloat> rFloat = RHS.getAs<nonloc::ConcreteFloat>()) {
+      if (CM.canReasonAboutFloat())
+        return makeNonLoc(symLHS, Op, rFloat->getValue(), ResultTy);
+    }
+  }
 
-  if (symRHS && symRHS->computeComplexity() < MaxComp)
+  if (symRHS && symRHS->computeComplexity() < MaxComp) {
     if (Optional<nonloc::ConcreteInt> lInt = LHS.getAs<nonloc::ConcreteInt>())
       return makeNonLoc(lInt->getValue(), Op, symRHS, ResultTy);
+    if (Optional<nonloc::ConcreteFloat> lFloat = LHS.getAs<nonloc::ConcreteFloat>()) {
+      if (CM.canReasonAboutFloat())
+        return makeNonLoc(lFloat->getValue(), Op, symRHS, ResultTy);
+    }
+  }
 
   return UnknownVal();
 }
