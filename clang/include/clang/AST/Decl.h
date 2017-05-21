@@ -1778,11 +1778,26 @@ public:
 
   SourceRange getSourceRange() const override LLVM_READONLY;
 
-  /// \brief Returns true if the function has a body (definition). The
-  /// function body might be in any of the (re-)declarations of this
-  /// function. The variant that accepts a FunctionDecl pointer will
-  /// set that function declaration to the actual declaration
-  /// containing the body (if there is one).
+  // Function definitions.
+  //
+  // A function declaration may be:
+  // - a non defining declaration,
+  // - a definition. A function may be defined because:
+  //   - it has a body, or will have it in the case of late parsing.
+  //   - it has an uninstantiated body. The body does not exist because the
+  //     function is not used yet, but the declaration is considered a
+  //     definition, it does not allow other definition of this function.
+  //   - it does not have a user specified body, but it does not allow
+  //     redefinition, because it is deleted/defaulted or is defined through
+  //     some other mechanism (alias, ifunc).
+
+  /// Returns true if the function has a body.
+  ///
+  /// The function body might be in any of the (re-)declarations of this
+  /// function. The variant that accepts a FunctionDecl pointer will set that
+  /// function declaration to the actual declaration containing the body (if
+  /// there is one).
+  ///
   bool hasBody(const FunctionDecl *&Definition) const;
 
   bool hasBody() const override {
@@ -1794,14 +1809,45 @@ public:
   /// not require any specific codegen.
   bool hasTrivialBody() const;
 
-  /// isDefined - Returns true if the function is defined at all, including
-  /// a deleted definition. Except for the behavior when the function is
-  /// deleted, behaves like hasBody.
+  /// Returns true if the function has a definition that does not need to be
+  /// instantiated.
+  ///
+  /// The only difference to isOdrDefined is that this function does not take
+  /// into account functions where body is not instantiated because it is not
+  /// used.
+  ///
+  /// The variant that accepts a FunctionDecl pointer will set that function
+  /// declaration to the declaration that is a definition (if there is one).
+  ///
   bool isDefined(const FunctionDecl *&Definition) const;
 
   virtual bool isDefined() const {
     const FunctionDecl* Definition;
     return isDefined(Definition);
+  }
+
+  /// Returns true if the function is defined and other definitions are not
+  /// allowed in the redeclaration chain.
+  ///
+  /// \param [out] Definition is assigned defining declaration if the method
+  /// returns true.
+  ///
+  bool isOdrDefined(const FunctionDecl *&Definition) const;
+
+  bool isOdrDefined() const {
+    const FunctionDecl* Definition;
+    return isOdrDefined(Definition);
+  }
+
+  /// Returns true if this declaration is a definition is the sense of ODR
+  /// checks.
+  ///
+  bool isThisDeclarationAnOdrDefinition() const {
+    if (isThisDeclarationADefinition())
+      return true;
+    if (FunctionDecl *Original = getInstantiatedFromMemberFunction())
+      return Original->isOdrDefined();
+    return false;
   }
 
   /// \brief Get the definition for this declaration.
@@ -1829,19 +1875,19 @@ public:
     return getBody(Definition);
   }
 
-  /// isThisDeclarationADefinition - Returns whether this specific
-  /// declaration of the function is also a definition. This does not
-  /// determine whether the function has been defined (e.g., in a
-  /// previous definition); for that information, use isDefined. Note
-  /// that this returns false for a defaulted function unless that function
-  /// has been implicitly defined (possibly as deleted).
+  /// Returns whether this specific declaration of the function is also a
+  /// definition that does not contain uninstantiated body.
+  ///
+  /// This does not determine whether the function has been defined (e.g., in a
+  /// previous definition); for that information, use isDefined.
+  ///
   bool isThisDeclarationADefinition() const {
-    return IsDeleted || Body || IsLateTemplateParsed;
+    return IsDeleted || IsDefaulted || Body || IsLateTemplateParsed ||
+      hasDefiningAttr();
   }
 
-  /// doesThisDeclarationHaveABody - Returns whether this specific
-  /// declaration of the function has a body - that is, if it is a non-
-  /// deleted definition.
+  /// Returns whether this specific declaration of the function has a body.
+  ///
   bool doesThisDeclarationHaveABody() const {
     return Body || IsLateTemplateParsed;
   }
