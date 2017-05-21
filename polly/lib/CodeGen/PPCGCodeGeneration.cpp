@@ -127,8 +127,19 @@ static __isl_give isl_id_to_ast_expr *pollyBuildAstExprForStmt(
   isl_id_to_ast_expr *RefToExpr = isl_id_to_ast_expr_alloc(Ctx, 0);
 
   for (MemoryAccess *Acc : *Stmt) {
-    isl_map *AddrFunc = Acc->getAddressFunction();
-    AddrFunc = isl_map_intersect_domain(AddrFunc, Stmt->getDomain());
+    isl_map *AddrFunc = nullptr;
+
+    if (Acc->getLatestScopArrayInfo()->isFortranArray()) {
+      AddrFunc = Acc->getAccessRelation();
+      AddrFunc = isl_map_intersect_domain(AddrFunc, Stmt->getDomain());
+      AddrFunc = isl_map_lower_bound_si(AddrFunc, isl_dim_out, 0, 0);
+      AddrFunc = isl_map_lexmin(AddrFunc);
+    } else {
+      AddrFunc = Acc->getAddressFunction();
+      AddrFunc = isl_map_intersect_domain(AddrFunc, Stmt->getDomain());
+    }
+
+    assert(AddrFunc && "expected AddrFunc to be initialized.");
     isl_id *RefId = Acc->getId();
     isl_pw_multi_aff *PMA = isl_pw_multi_aff_from_map(AddrFunc);
     isl_multi_pw_aff *MPA = isl_multi_pw_aff_from_pw_multi_aff(PMA);
@@ -138,7 +149,6 @@ static __isl_give isl_id_to_ast_expr *pollyBuildAstExprForStmt(
     Access = FunctionExpr(Access, RefId, UserExpr);
     RefToExpr = isl_id_to_ast_expr_set(RefToExpr, RefId, Access);
   }
-
   return RefToExpr;
 }
 
@@ -2134,33 +2144,39 @@ public:
       return isl_set_universe(Array->getSpace());
     }
 
-    isl_set *AccessSet =
-        isl_union_set_extract_set(AccessUSet, Array->getSpace());
-
-    isl_union_set_free(AccessUSet);
-    isl_local_space *LS = isl_local_space_from_space(Array->getSpace());
-
-    isl_pw_aff *Val =
-        isl_pw_aff_from_aff(isl_aff_var_on_domain(LS, isl_dim_set, 0));
-
-    isl_pw_aff *OuterMin = isl_set_dim_min(isl_set_copy(AccessSet), 0);
-    isl_pw_aff *OuterMax = isl_set_dim_max(AccessSet, 0);
-    OuterMin = isl_pw_aff_add_dims(OuterMin, isl_dim_in,
-                                   isl_pw_aff_dim(Val, isl_dim_in));
-    OuterMax = isl_pw_aff_add_dims(OuterMax, isl_dim_in,
-                                   isl_pw_aff_dim(Val, isl_dim_in));
-    OuterMin =
-        isl_pw_aff_set_tuple_id(OuterMin, isl_dim_in, Array->getBasePtrId());
-    OuterMax =
-        isl_pw_aff_set_tuple_id(OuterMax, isl_dim_in, Array->getBasePtrId());
-
     isl_set *Extent = isl_set_universe(Array->getSpace());
 
-    Extent = isl_set_intersect(
-        Extent, isl_pw_aff_le_set(OuterMin, isl_pw_aff_copy(Val)));
-    Extent = isl_set_intersect(Extent, isl_pw_aff_ge_set(OuterMax, Val));
+    if (!Array->isFortranArray()) {
+      isl_set *AccessSet =
+          isl_union_set_extract_set(AccessUSet, Array->getSpace());
 
-    for (unsigned i = 1; i < NumDims; ++i)
+      isl_union_set_free(AccessUSet);
+      isl_local_space *LS = isl_local_space_from_space(Array->getSpace());
+
+      isl_pw_aff *Val =
+          isl_pw_aff_from_aff(isl_aff_var_on_domain(LS, isl_dim_set, 0));
+
+      isl_pw_aff *OuterMin = isl_set_dim_min(isl_set_copy(AccessSet), 0);
+      isl_pw_aff *OuterMax = isl_set_dim_max(AccessSet, 0);
+      OuterMin = isl_pw_aff_add_dims(OuterMin, isl_dim_in,
+                                     isl_pw_aff_dim(Val, isl_dim_in));
+      OuterMax = isl_pw_aff_add_dims(OuterMax, isl_dim_in,
+                                     isl_pw_aff_dim(Val, isl_dim_in));
+      OuterMin =
+          isl_pw_aff_set_tuple_id(OuterMin, isl_dim_in, Array->getBasePtrId());
+      OuterMax =
+          isl_pw_aff_set_tuple_id(OuterMax, isl_dim_in, Array->getBasePtrId());
+
+      Extent = isl_set_intersect(
+          Extent, isl_pw_aff_le_set(OuterMin, isl_pw_aff_copy(Val)));
+      Extent = isl_set_intersect(Extent, isl_pw_aff_ge_set(OuterMax, Val));
+    } else {
+      isl_union_set_free(AccessUSet);
+    }
+
+    const int StartLowerBoundDim = Array->isFortranArray() ? 0 : 1;
+
+    for (unsigned i = StartLowerBoundDim; i < NumDims; ++i)
       Extent = isl_set_lower_bound_si(Extent, isl_dim_set, i, 0);
 
     for (unsigned i = 0; i < NumDims; ++i) {
@@ -2424,7 +2440,8 @@ public:
   // We do not use here the Polly ScheduleOptimizer, as the schedule optimizer
   // is mostly CPU specific. Instead, we use PPCG's GPU code generation
   // strategy directly from this pass.
-  gpu_gen *generateGPU(ppcg_scop *PPCGScop, gpu_prog *PPCGProg) {
+  gpu_gen *generateGPU(bool hasFortranArrays, ppcg_scop *PPCGScop,
+                       gpu_prog *PPCGProg) {
 
     auto PPCGGen = isl_calloc_type(S->getIslCtx(), struct gpu_gen);
 
@@ -2450,7 +2467,9 @@ public:
 
     int has_permutable = has_any_permutable_node(Schedule);
 
-    if (!has_permutable || has_permutable < 0) {
+    // TODO: I've simply allowed this to test out the codegen, is this a bad
+    // idea?
+    if ((!has_permutable || has_permutable < 0) && !hasFortranArrays) {
       Schedule = isl_schedule_free(Schedule);
     } else {
       Schedule = map_to_device(PPCGGen, Schedule);
@@ -2683,7 +2702,8 @@ public:
 
     auto PPCGScop = createPPCGScop();
     auto PPCGProg = createPPCGProg(PPCGScop);
-    auto PPCGGen = generateGPU(PPCGScop, PPCGProg);
+    auto PPCGGen =
+        generateGPU(CurrentScop.hasFortranArrays(), PPCGScop, PPCGProg);
 
     if (PPCGGen->tree)
       generateCode(isl_ast_node_copy(PPCGGen->tree), PPCGProg);
