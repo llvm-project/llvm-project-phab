@@ -11874,9 +11874,35 @@ Sema::CheckForFunctionRedefinition(FunctionDecl *FD,
                                    const FunctionDecl *EffectiveDefinition,
                                    SkipBodyInfo *SkipBody) {
   const FunctionDecl *Definition = EffectiveDefinition;
-  if (!Definition)
-    if (!FD->isOdrDefined(Definition))
+  if (!Definition) {
+    if (FunctionTemplateDecl *FTD = FD->getDescribedFunctionTemplate()) {
+      FunctionTemplateDecl *DefTD = nullptr;
+      if (!FTD->isDefined(DefTD))
+        return;
+      const FunctionDecl *Def = DefTD->getTemplatedDecl();
+
+      // If the found definition is a template with uninstantiated body, it
+      // can be replaced in specialization:
+      //
+      //    template<typename T> struct X {
+      //      template<typename U> void f(T, U) { }
+      //    };
+      //    template<> template<typename U> void X<int>::f(int x, U y) {
+      //      x = y;
+      //    }
+      //
+      // In this example the specialization 'X<int>' contains declaration of
+      // 'f', which is considered a definition by 'isDefined' because it is
+      // obtained by instantiation of 'X<T>::f', which has a body.
+      //
+      if (isa<ClassTemplateSpecializationDecl>(Def->getLexicalDeclContext()) &&
+          !Def->isThisDeclarationADefinition() &&
+          Def->getFriendObjectKind() == Decl::FOK_None)
+        return;
+      Definition = Def;
+    } else if (!FD->isOdrDefined(Definition))
       return;
+  }
   assert(Definition);
 
   if (FD == Definition)

@@ -1005,6 +1005,16 @@ public:
     return getTemplatedDecl()->isThisDeclarationADefinition();
   }
 
+  /// Checks if this template declaration or some of its redeclaration defines
+  /// the template.
+  /// \param [out] FT is assigned defining declaration if it exists.
+  ///
+  /// The function can find a definition that has no body (as it is not
+  /// instantiated yet) if there are no other definitions. Call to
+  /// isThisDeclarationADefinition returns false for such definitions.
+  ///
+  bool isDefined(FunctionTemplateDecl *&FT) const;
+
   /// \brief Return the specialization with the provided arguments if it exists,
   /// otherwise return the insertion point.
   FunctionDecl *findSpecialization(ArrayRef<TemplateArgument> Args,

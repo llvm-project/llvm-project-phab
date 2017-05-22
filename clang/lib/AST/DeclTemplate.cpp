@@ -231,6 +231,30 @@ FunctionTemplateDecl::newCommon(ASTContext &C) const {
   return CommonPtr;
 }
 
+bool FunctionTemplateDecl::isDefined(FunctionTemplateDecl *&Def) const {
+  FunctionTemplateDecl *UninstantiatedDef = nullptr;
+  for (auto I : redecls()) {
+    auto FTD = cast<FunctionTemplateDecl>(I);
+    // If this declaration is a definition, return the result.
+    if (FTD->isThisDeclarationADefinition()) {
+      Def = FTD;
+      return true;
+    }
+    // If this declaration has uninstantiated body, return it if no other
+    // definition exists.
+    if (FunctionTemplateDecl *Orig = FTD->getInstantiatedFromMemberTemplate()) {
+      FunctionTemplateDecl *D;
+      if (Orig->isDefined(D))
+        UninstantiatedDef = FTD;
+    }
+  }
+  if (UninstantiatedDef) {
+    Def = UninstantiatedDef;
+    return true;
+  }
+  return false;
+}
+
 void FunctionTemplateDecl::LoadLazySpecializations() const {
   // Grab the most recent declaration to ensure we've loaded any lazy
   // redeclarations of this template.
