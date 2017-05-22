@@ -132,14 +132,37 @@ struct isa_impl_wrap<To, FromTy, FromTy> {
   }
 };
 
+template <typename... Tys> struct anyof {};
+
+template <class X, class Y> inline bool isa_impl_dispatcher(const Y &Val, X *) {
+  return isa_impl_wrap<X, const Y,
+                       typename simplify_type<const Y>::SimpleType>::doit(Val);
+}
+
+template <class X, class... Xs, class Y>
+inline bool isa_impl_dispatcher(const Y &Val, anyof<X, Xs...> *) {
+  return isa_impl_dispatcher(Val, (X *)nullptr) ||
+         isa_impl_dispatcher(Val, (anyof<Xs...> *)nullptr);
+}
+template <class Y> inline bool isa_impl_dispatcher(const Y &Val, anyof<> *) {
+  return false;
+}
+
 // isa<X> - Return true if the parameter to the template is an instance of the
 // template type argument.  Used like this:
 //
 //  if (isa<Type>(myVal)) { ... }
 //
+// If type is of the form anyof<Type0, Type1, Type2> as in:
+//
+//  if (isa<anyof<Type0, Type1, Type2>>(myVal)) { ... }
+//
+// Then the construct is equivalent to:
+//
+//  if (isa<Type0>(myVal) || isa<Type1>(myVal) || isa<Type2>(myVal)) { ... }
+//
 template <class X, class Y> LLVM_NODISCARD inline bool isa(const Y &Val) {
-  return isa_impl_wrap<X, const Y,
-                       typename simplify_type<const Y>::SimpleType>::doit(Val);
+  return isa_impl_dispatcher(Val, (X *)nullptr);
 }
 
 //===----------------------------------------------------------------------===//

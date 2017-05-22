@@ -802,19 +802,19 @@ template <> struct isa_impl<GlobalIFunc, Value> {
 
 template <> struct isa_impl<GlobalIndirectSymbol, Value> {
   static inline bool doit(const Value &Val) {
-    return isa<GlobalAlias>(Val) || isa<GlobalIFunc>(Val);
+    return isa<anyof<GlobalAlias, GlobalIFunc>>(Val);
   }
 };
 
 template <> struct isa_impl<GlobalValue, Value> {
   static inline bool doit(const Value &Val) {
-    return isa<GlobalObject>(Val) || isa<GlobalIndirectSymbol>(Val);
+    return isa<anyof<GlobalObject, GlobalIndirectSymbol>>(Val);
   }
 };
 
 template <> struct isa_impl<GlobalObject, Value> {
   static inline bool doit(const Value &Val) {
-    return isa<GlobalVariable>(Val) || isa<Function>(Val);
+    return isa<anyof<GlobalVariable, Function>>(Val);
   }
 };
 
