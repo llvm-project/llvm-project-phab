@@ -1903,7 +1903,7 @@ bool JumpThreadingPass::DuplicateCondBranchOnPHIIntoPred(
     // phi translation.
     if (Value *IV = SimplifyInstruction(
             New,
-            {BB->getModule()->getDataLayout(), TLI, nullptr, nullptr, New})) {
+            {BB->getModule()->getDataLayout(), TLI, nullptr, nullptr, nullptr, New})) {
       ValueMapping[&*BI] = IV;
       if (!New->mayHaveSideEffects()) {
         New->deleteValue();

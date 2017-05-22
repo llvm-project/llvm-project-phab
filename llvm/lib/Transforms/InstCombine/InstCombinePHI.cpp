@@ -937,7 +937,7 @@ Instruction *InstCombiner::visitPHINode(PHINode &PN) {
       for (unsigned i = 0, e = PN.getNumIncomingValues(); i != e; ++i) {
         Instruction *CtxI = PN.getIncomingBlock(i)->getTerminator();
         Value *VA = PN.getIncomingValue(i);
-        if (isKnownNonZero(VA, DL, 0, &AC, CtxI, &DT)) {
+        if (isKnownNonZero(VA, DL, 0, &AC, CtxI, &DT, KBC.get())) {
           if (!NonZeroConst)
             NonZeroConst = GetAnyNonZeroConstInt(PN);
           PN.setIncomingValue(i, NonZeroConst);

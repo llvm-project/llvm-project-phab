@@ -39,10 +39,11 @@ class Function;
 template <typename T, typename... TArgs> class AnalysisManager;
 template <class T> class ArrayRef;
 class AssumptionCache;
-class DominatorTree;
-class Instruction;
 class DataLayout;
+class DominatorTree;
 class FastMathFlags;
+class Instruction;
+class KBCache;
 struct LoopStandardAnalysisResults;
 class OptimizationRemarkEmitter;
 class Pass;
@@ -55,6 +56,7 @@ struct SimplifyQuery {
   const TargetLibraryInfo *TLI = nullptr;
   const DominatorTree *DT = nullptr;
   AssumptionCache *AC = nullptr;
+  KBCache *KBC = nullptr;
   const Instruction *CxtI = nullptr;
 
   SimplifyQuery(const DataLayout &DL, const Instruction *CXTI = nullptr)
@@ -63,8 +65,9 @@ struct SimplifyQuery {
   SimplifyQuery(const DataLayout &DL, const TargetLibraryInfo *TLI,
                 const DominatorTree *DT = nullptr,
                 AssumptionCache *AC = nullptr,
+                KBCache *KBC = nullptr,
                 const Instruction *CXTI = nullptr)
-      : DL(DL), TLI(TLI), DT(DT), AC(AC), CxtI(CXTI) {}
+      : DL(DL), TLI(TLI), DT(DT), AC(AC), KBC(KBC), CxtI(CXTI) {}
   SimplifyQuery getWithInstruction(Instruction *I) const {
     SimplifyQuery Copy(*this);
     Copy.CxtI = I;
@@ -217,7 +220,8 @@ struct SimplifyQuery {
   bool replaceAndRecursivelySimplify(Instruction *I, Value *SimpleV,
                                      const TargetLibraryInfo *TLI = nullptr,
                                      const DominatorTree *DT = nullptr,
-                                     AssumptionCache *AC = nullptr);
+                                     AssumptionCache *AC = nullptr,
+                                     KBCache *KBC = nullptr);
 
   /// Recursively attempt to simplify an instruction.
   ///
@@ -228,7 +232,8 @@ struct SimplifyQuery {
   bool recursivelySimplifyInstruction(Instruction *I,
                                       const TargetLibraryInfo *TLI = nullptr,
                                       const DominatorTree *DT = nullptr,
-                                      AssumptionCache *AC = nullptr);
+                                      AssumptionCache *AC = nullptr,
+                                      KBCache *KBC = nullptr);
   // These helper functions return a SimplifyQuery structure that contains as
   // many of the optional analysis we use as are currently valid.  This is the
   // strongly preferred way of constructing SimplifyQuery in passes.

@@ -1034,13 +1034,14 @@ unsigned llvm::getOrEnforceKnownAlignment(Value *V, unsigned PrefAlign,
                                           const DataLayout &DL,
                                           const Instruction *CxtI,
                                           AssumptionCache *AC,
-                                          const DominatorTree *DT) {
+                                          const DominatorTree *DT,
+                                          KBCache *KBC) {
   assert(V->getType()->isPointerTy() &&
          "getOrEnforceKnownAlignment expects a pointer!");
   unsigned BitWidth = DL.getPointerTypeSizeInBits(V->getType());
 
   KnownBits Known(BitWidth);
-  computeKnownBits(V, Known, DL, 0, AC, CxtI, DT);
+  computeKnownBits(V, Known, DL, 0, AC, CxtI, DT, KBC);
   unsigned TrailZ = Known.countMinTrailingZeros();
 
   // Avoid trouble with ridiculously large TrailZ values, such as

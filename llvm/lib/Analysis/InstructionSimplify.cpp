@@ -690,7 +690,7 @@ static Value *SimplifySubInst(Value *Op0, Value *Op1, bool isNSW, bool isNUW,
 
     unsigned BitWidth = Op1->getType()->getScalarSizeInBits();
     KnownBits Known(BitWidth);
-    computeKnownBits(Op1, Known, Q.DL, 0, Q.AC, Q.CxtI, Q.DT);
+    computeKnownBits(Op1, Known, Q.DL, 0, Q.AC, Q.CxtI, Q.DT, Q.KBC);
     if (Known.Zero.isMaxSignedValue()) {
       // Op1 is either 0 or the minimum signed value. If the sub is NSW, then
       // Op1 must be 0 because negating the minimum signed value is undefined.
@@ -1311,7 +1311,7 @@ static Value *SimplifyShift(Instruction::BinaryOps Opcode, Value *Op0,
   // the number of bits in the type, the shift is undefined.
   unsigned BitWidth = Op1->getType()->getScalarSizeInBits();
   KnownBits Known(BitWidth);
-  computeKnownBits(Op1, Known, Q.DL, 0, Q.AC, Q.CxtI, Q.DT);
+  computeKnownBits(Op1, Known, Q.DL, 0, Q.AC, Q.CxtI, Q.DT, Q.KBC);
   if (Known.One.getLimitedValue() >= BitWidth)
     return UndefValue::get(Op0->getType());
 
@@ -1345,7 +1345,7 @@ static Value *SimplifyRightShift(Instruction::BinaryOps Opcode, Value *Op0,
   if (isExact) {
     unsigned BitWidth = Op0->getType()->getScalarSizeInBits();
     KnownBits Op0Known(BitWidth);
-    computeKnownBits(Op0, Op0Known, Q.DL, /*Depth=*/0, Q.AC, Q.CxtI, Q.DT);
+    computeKnownBits(Op0, Op0Known, Q.DL, /*Depth=*/0, Q.AC, Q.CxtI, Q.DT, Q.KBC);
     if (Op0Known.One[0])
       return Op0;
   }
@@ -1416,7 +1416,8 @@ static Value *SimplifyAShrInst(Value *Op0, Value *Op1, bool isExact,
     return X;
 
   // Arithmetic shifting an all-sign-bit value is a no-op.
-  unsigned NumSignBits = ComputeNumSignBits(Op0, Q.DL, 0, Q.AC, Q.CxtI, Q.DT);
+  unsigned NumSignBits =
+    ComputeNumSignBits(Op0, Q.DL, 0, Q.AC, Q.CxtI, Q.DT, Q.KBC);
   if (NumSignBits == Op0->getType()->getScalarSizeInBits())
     return Op0;
 
@@ -1775,10 +1776,10 @@ static Value *SimplifyAndInst(Value *Op0, Value *Op1, const SimplifyQuery &Q,
   if (match(Op0, m_Neg(m_Specific(Op1))) ||
       match(Op1, m_Neg(m_Specific(Op0)))) {
     if (isKnownToBeAPowerOfTwo(Op0, Q.DL, /*OrZero*/ true, 0, Q.AC, Q.CxtI,
-                               Q.DT))
+                               Q.DT, Q.KBC))
       return Op0;
     if (isKnownToBeAPowerOfTwo(Op1, Q.DL, /*OrZero*/ true, 0, Q.AC, Q.CxtI,
-                               Q.DT))
+                               Q.DT, Q.KBC))
       return Op1;
   }
 
@@ -1943,10 +1944,12 @@ static Value *SimplifyOrInst(Value *Op0, Value *Op1, const SimplifyQuery &Q,
           match(A, m_Add(m_Value(V1), m_Value(V2)))) {
         // Add commutes, try both ways.
         if (V1 == B &&
-            MaskedValueIsZero(V2, C2->getValue(), Q.DL, 0, Q.AC, Q.CxtI, Q.DT))
+            MaskedValueIsZero(V2, C2->getValue(), Q.DL, 0, Q.AC, Q.CxtI, Q.DT,
+                              Q.KBC))
           return A;
         if (V2 == B &&
-            MaskedValueIsZero(V1, C2->getValue(), Q.DL, 0, Q.AC, Q.CxtI, Q.DT))
+            MaskedValueIsZero(V1, C2->getValue(), Q.DL, 0, Q.AC, Q.CxtI, Q.DT,
+                              Q.KBC))
           return A;
       }
       // Or commutes, try both ways.
@@ -1954,10 +1957,12 @@ static Value *SimplifyOrInst(Value *Op0, Value *Op1, const SimplifyQuery &Q,
           match(B, m_Add(m_Value(V1), m_Value(V2)))) {
         // Add commutes, try both ways.
         if (V1 == A &&
-            MaskedValueIsZero(V2, C1->getValue(), Q.DL, 0, Q.AC, Q.CxtI, Q.DT))
+            MaskedValueIsZero(V2, C1->getValue(), Q.DL, 0, Q.AC, Q.CxtI, Q.DT,
+                              Q.KBC))
           return B;
         if (V2 == A &&
-            MaskedValueIsZero(V1, C1->getValue(), Q.DL, 0, Q.AC, Q.CxtI, Q.DT))
+            MaskedValueIsZero(V1, C1->getValue(), Q.DL, 0, Q.AC, Q.CxtI, Q.DT,
+                              Q.KBC))
           return B;
       }
     }
@@ -2343,16 +2348,16 @@ static Value *simplifyICmpWithZero(CmpInst::Predicate Pred, Value *LHS,
     return getTrue(ITy);
   case ICmpInst::ICMP_EQ:
   case ICmpInst::ICMP_ULE:
-    if (isKnownNonZero(LHS, Q.DL, 0, Q.AC, Q.CxtI, Q.DT))
+    if (isKnownNonZero(LHS, Q.DL, 0, Q.AC, Q.CxtI, Q.DT, Q.KBC))
       return getFalse(ITy);
     break;
   case ICmpInst::ICMP_NE:
   case ICmpInst::ICMP_UGT:
-    if (isKnownNonZero(LHS, Q.DL, 0, Q.AC, Q.CxtI, Q.DT))
+    if (isKnownNonZero(LHS, Q.DL, 0, Q.AC, Q.CxtI, Q.DT, Q.KBC))
       return getTrue(ITy);
     break;
   case ICmpInst::ICMP_SLT: {
-    KnownBits LHSKnown = computeKnownBits(LHS, Q.DL, 0, Q.AC, Q.CxtI, Q.DT);
+    KnownBits LHSKnown = computeKnownBits(LHS, Q.DL, 0, Q.AC, Q.CxtI, Q.DT, Q.KBC);
     if (LHSKnown.isNegative())
       return getTrue(ITy);
     if (LHSKnown.isNonNegative())
@@ -2360,16 +2365,16 @@ static Value *simplifyICmpWithZero(CmpInst::Predicate Pred, Value *LHS,
     break;
   }
   case ICmpInst::ICMP_SLE: {
-    KnownBits LHSKnown = computeKnownBits(LHS, Q.DL, 0, Q.AC, Q.CxtI, Q.DT);
+    KnownBits LHSKnown = computeKnownBits(LHS, Q.DL, 0, Q.AC, Q.CxtI, Q.DT, Q.KBC);
     if (LHSKnown.isNegative())
       return getTrue(ITy);
     if (LHSKnown.isNonNegative() &&
-        isKnownNonZero(LHS, Q.DL, 0, Q.AC, Q.CxtI, Q.DT))
+        isKnownNonZero(LHS, Q.DL, 0, Q.AC, Q.CxtI, Q.DT, Q.KBC))
       return getFalse(ITy);
     break;
   }
   case ICmpInst::ICMP_SGE: {
-    KnownBits LHSKnown = computeKnownBits(LHS, Q.DL, 0, Q.AC, Q.CxtI, Q.DT);
+    KnownBits LHSKnown = computeKnownBits(LHS, Q.DL, 0, Q.AC, Q.CxtI, Q.DT, Q.KBC);
     if (LHSKnown.isNegative())
       return getFalse(ITy);
     if (LHSKnown.isNonNegative())
@@ -2377,11 +2382,11 @@ static Value *simplifyICmpWithZero(CmpInst::Predicate Pred, Value *LHS,
     break;
   }
   case ICmpInst::ICMP_SGT: {
-    KnownBits LHSKnown = computeKnownBits(LHS, Q.DL, 0, Q.AC, Q.CxtI, Q.DT);
+    KnownBits LHSKnown = computeKnownBits(LHS, Q.DL, 0, Q.AC, Q.CxtI, Q.DT, Q.KBC);
     if (LHSKnown.isNegative())
       return getFalse(ITy);
     if (LHSKnown.isNonNegative() &&
-        isKnownNonZero(LHS, Q.DL, 0, Q.AC, Q.CxtI, Q.DT))
+        isKnownNonZero(LHS, Q.DL, 0, Q.AC, Q.CxtI, Q.DT, Q.KBC))
       return getTrue(ITy);
     break;
   }
@@ -2668,8 +2673,8 @@ static Value *simplifyICmpWithBinOp(CmpInst::Predicate Pred, Value *LHS,
         return getTrue(ITy);
 
       if (Pred == ICmpInst::ICMP_SLT || Pred == ICmpInst::ICMP_SGE) {
-        KnownBits RHSKnown = computeKnownBits(RHS, Q.DL, 0, Q.AC, Q.CxtI, Q.DT);
-        KnownBits YKnown = computeKnownBits(Y, Q.DL, 0, Q.AC, Q.CxtI, Q.DT);
+        KnownBits RHSKnown = computeKnownBits(RHS, Q.DL, 0, Q.AC, Q.CxtI, Q.DT, Q.KBC);
+        KnownBits YKnown = computeKnownBits(Y, Q.DL, 0, Q.AC, Q.CxtI, Q.DT, Q.KBC);
         if (RHSKnown.isNonNegative() && YKnown.isNegative())
           return Pred == ICmpInst::ICMP_SLT ? getTrue(ITy) : getFalse(ITy);
         if (RHSKnown.isNegative() || YKnown.isNonNegative())
@@ -2684,8 +2689,8 @@ static Value *simplifyICmpWithBinOp(CmpInst::Predicate Pred, Value *LHS,
         return getFalse(ITy);
 
       if (Pred == ICmpInst::ICMP_SGT || Pred == ICmpInst::ICMP_SLE) {
-        KnownBits LHSKnown = computeKnownBits(LHS, Q.DL, 0, Q.AC, Q.CxtI, Q.DT);
-        KnownBits YKnown = computeKnownBits(Y, Q.DL, 0, Q.AC, Q.CxtI, Q.DT);
+        KnownBits LHSKnown = computeKnownBits(LHS, Q.DL, 0, Q.AC, Q.CxtI, Q.DT, Q.KBC);
+        KnownBits YKnown = computeKnownBits(Y, Q.DL, 0, Q.AC, Q.CxtI, Q.DT, Q.KBC);
         if (LHSKnown.isNonNegative() && YKnown.isNegative())
           return Pred == ICmpInst::ICMP_SGT ? getTrue(ITy) : getFalse(ITy);
         if (LHSKnown.isNegative() || YKnown.isNonNegative())
@@ -2740,7 +2745,7 @@ static Value *simplifyICmpWithBinOp(CmpInst::Predicate Pred, Value *LHS,
       break;
     case ICmpInst::ICMP_SGT:
     case ICmpInst::ICMP_SGE: {
-      KnownBits Known = computeKnownBits(RHS, Q.DL, 0, Q.AC, Q.CxtI, Q.DT);
+      KnownBits Known = computeKnownBits(RHS, Q.DL, 0, Q.AC, Q.CxtI, Q.DT, Q.KBC);
       if (!Known.isNonNegative())
         break;
       LLVM_FALLTHROUGH;
@@ -2751,7 +2756,7 @@ static Value *simplifyICmpWithBinOp(CmpInst::Predicate Pred, Value *LHS,
       return getFalse(ITy);
     case ICmpInst::ICMP_SLT:
     case ICmpInst::ICMP_SLE: {
-      KnownBits Known = computeKnownBits(RHS, Q.DL, 0, Q.AC, Q.CxtI, Q.DT);
+      KnownBits Known = computeKnownBits(RHS, Q.DL, 0, Q.AC, Q.CxtI, Q.DT, Q.KBC);
       if (!Known.isNonNegative())
         break;
       LLVM_FALLTHROUGH;
@@ -2770,7 +2775,7 @@ static Value *simplifyICmpWithBinOp(CmpInst::Predicate Pred, Value *LHS,
       break;
     case ICmpInst::ICMP_SGT:
     case ICmpInst::ICMP_SGE: {
-      KnownBits Known = computeKnownBits(LHS, Q.DL, 0, Q.AC, Q.CxtI, Q.DT);
+      KnownBits Known = computeKnownBits(LHS, Q.DL, 0, Q.AC, Q.CxtI, Q.DT, Q.KBC);
       if (!Known.isNonNegative())
         break;
       LLVM_FALLTHROUGH;
@@ -2781,7 +2786,7 @@ static Value *simplifyICmpWithBinOp(CmpInst::Predicate Pred, Value *LHS,
       return getTrue(ITy);
     case ICmpInst::ICMP_SLT:
     case ICmpInst::ICMP_SLE: {
-      KnownBits Known = computeKnownBits(LHS, Q.DL, 0, Q.AC, Q.CxtI, Q.DT);
+      KnownBits Known = computeKnownBits(LHS, Q.DL, 0, Q.AC, Q.CxtI, Q.DT, Q.KBC);
       if (!Known.isNonNegative())
         break;
       LLVM_FALLTHROUGH;
@@ -3316,7 +3321,7 @@ static Value *SimplifyICmpInst(unsigned Predicate, Value *LHS, Value *RHS,
 
   // icmp eq|ne X, Y -> false|true if X != Y
   if ((Pred == ICmpInst::ICMP_EQ || Pred == ICmpInst::ICMP_NE) &&
-      isKnownNonEqual(LHS, RHS, Q.DL, Q.AC, Q.CxtI, Q.DT)) {
+      isKnownNonEqual(LHS, RHS, Q.DL, Q.AC, Q.CxtI, Q.DT, Q.KBC)) {
     LLVMContext &Ctx = LHS->getType()->getContext();
     return Pred == ICmpInst::ICMP_NE ?
       ConstantInt::getTrue(Ctx) : ConstantInt::getFalse(Ctx);
@@ -3374,7 +3379,7 @@ static Value *SimplifyICmpInst(unsigned Predicate, Value *LHS, Value *RHS,
     if (match(RHS, m_APInt(RHSVal))) {
       unsigned BitWidth = RHSVal->getBitWidth();
       KnownBits LHSKnown(BitWidth);
-      computeKnownBits(LHS, LHSKnown, Q.DL, /*Depth=*/0, Q.AC, Q.CxtI, Q.DT);
+      computeKnownBits(LHS, LHSKnown, Q.DL, /*Depth=*/0, Q.AC, Q.CxtI, Q.DT, Q.KBC);
       if (LHSKnown.Zero.intersects(*RHSVal) ||
           !LHSKnown.One.isSubsetOf(*RHSVal))
         return Pred == ICmpInst::ICMP_EQ ? ConstantInt::getFalse(ITy)
@@ -4682,7 +4687,7 @@ Value *llvm::SimplifyInstruction(Instruction *I, const SimplifyQuery &SQ,
   if (!Result && I->getType()->isIntOrIntVectorTy()) {
     unsigned BitWidth = I->getType()->getScalarSizeInBits();
     KnownBits Known(BitWidth);
-    computeKnownBits(I, Known, Q.DL, /*Depth*/ 0, Q.AC, I, Q.DT, ORE);
+    computeKnownBits(I, Known, Q.DL, /*Depth*/ 0, Q.AC, I, Q.DT, Q.KBC, ORE);
     if (Known.isConstant())
       Result = ConstantInt::get(I->getType(), Known.getConstant());
   }
@@ -4707,7 +4712,8 @@ Value *llvm::SimplifyInstruction(Instruction *I, const SimplifyQuery &SQ,
 static bool replaceAndRecursivelySimplifyImpl(Instruction *I, Value *SimpleV,
                                               const TargetLibraryInfo *TLI,
                                               const DominatorTree *DT,
-                                              AssumptionCache *AC) {
+                                              AssumptionCache *AC,
+                                              KBCache *KBC) {
   bool Simplified = false;
   SmallSetVector<Instruction *, 8> Worklist;
   const DataLayout &DL = I->getModule()->getDataLayout();
@@ -4763,17 +4769,17 @@ static bool replaceAndRecursivelySimplifyImpl(Instruction *I, Value *SimpleV,
 bool llvm::recursivelySimplifyInstruction(Instruction *I,
                                           const TargetLibraryInfo *TLI,
                                           const DominatorTree *DT,
-                                          AssumptionCache *AC) {
-  return replaceAndRecursivelySimplifyImpl(I, nullptr, TLI, DT, AC);
+                                          AssumptionCache *AC, KBCache *KBC) {
+  return replaceAndRecursivelySimplifyImpl(I, nullptr, TLI, DT, AC, KBC);
 }
 
 bool llvm::replaceAndRecursivelySimplify(Instruction *I, Value *SimpleV,
                                          const TargetLibraryInfo *TLI,
                                          const DominatorTree *DT,
-                                         AssumptionCache *AC) {
+                                         AssumptionCache *AC, KBCache *KBC) {
   assert(I != SimpleV && "replaceAndRecursivelySimplify(X,X) is not valid!");
   assert(SimpleV && "Must provide a simplified value.");
-  return replaceAndRecursivelySimplifyImpl(I, SimpleV, TLI, DT, AC);
+  return replaceAndRecursivelySimplifyImpl(I, SimpleV, TLI, DT, AC, KBC);
 }
 
 namespace llvm {

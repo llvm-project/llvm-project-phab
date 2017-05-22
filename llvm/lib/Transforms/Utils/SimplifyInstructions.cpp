@@ -112,7 +112,8 @@ namespace {
       OptimizationRemarkEmitter *ORE =
           &getAnalysis<OptimizationRemarkEmitterWrapperPass>().getORE();
       const DataLayout &DL = F.getParent()->getDataLayout();
-      const SimplifyQuery SQ(DL, TLI, DT, AC);
+      // TODO add a KBCache here
+      const SimplifyQuery SQ(DL, TLI, DT, AC, nullptr);
       return runImpl(F, SQ, ORE);
     }
   };

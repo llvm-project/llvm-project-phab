@@ -1111,7 +1111,7 @@ Instruction *InstCombiner::visitAdd(BinaryOperator &I) {
     return replaceInstUsesWith(I, V);
 
   // A+B --> A|B iff A and B have no bits set in common.
-  if (haveNoCommonBitsSet(LHS, RHS, DL, &AC, &I, &DT))
+  if (haveNoCommonBitsSet(LHS, RHS, DL, &AC, &I, &DT, KBC.get()))
     return BinaryOperator::CreateOr(LHS, RHS);
 
   if (Constant *CRHS = dyn_cast<Constant>(RHS)) {
