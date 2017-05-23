@@ -75,6 +75,7 @@ Clang-Tidy Checks
    misc-assert-side-effect
    misc-bool-pointer-implicit-conversion
    misc-dangling-handle
+   misc-default-numerics
    misc-definitions-in-headers
    misc-fold-init-type
    misc-forward-declaration-namespace
