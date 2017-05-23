@@ -236,7 +236,7 @@ static PropertyDefinition g_properties[] = {
                                      "when displaying thread information."},
     {"thread-stop-format", OptionValue::eTypeFormatEntity, true, 0,
      DEFAULT_THREAD_STOP_FORMAT, nullptr, "The default thread format  "
-                                     "string to usewhen displaying thread "
+                                     "string to use when displaying thread "
                                      "information as part of the stop display."},
     {"use-external-editor", OptionValue::eTypeBoolean, true, false, nullptr,
      nullptr, "Whether to use an external editor or not."},
