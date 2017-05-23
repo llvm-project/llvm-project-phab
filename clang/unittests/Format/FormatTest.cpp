@@ -1976,6 +1976,16 @@ TEST_F(FormatTest, MacroCallsWithoutTrailingSemicolon) {
                    getLLVMStyleWithColumns(40)));
 
   verifyFormat("MACRO(>)");
+
+  // Some macros contain an implicit semicolon
+  verifyFormat("Q_UNUSED(a)\n"
+               "int b = 0;");
+  verifyFormat("Q_UNUSED(a);\n"
+               "int b = 0;");
+  verifyFormat("QT_REQUIRE_VERSION(argc, argv, \"4.0.2\")\n"
+               "int b = 0;");
+  verifyFormat("QT_REQUIRE_VERSION(argc, argv, \"4.0.2\");\n"
+               "int b = 0;");
 }
 
 TEST_F(FormatTest, LayoutMacroDefinitionsStatementsSpanningBlocks) {

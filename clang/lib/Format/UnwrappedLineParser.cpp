@@ -926,6 +926,17 @@ void UnwrappedLineParser::parseStructuralElement() {
         return;
       }
     }
+    if (Style.isCpp() && FormatTok->isOneOf(Keywords.kw_qunused,
+                                            Keywords.kw_qtrequireversion)) {
+      nextToken();
+      if (FormatTok->is(tok::l_paren)) {
+        parseParens();
+        if (FormatTok->is(tok::semi))
+          nextToken();
+        addUnwrappedLine();
+        return;
+      }
+    }
     // In all other cases, parse the declaration.
     break;
   default:

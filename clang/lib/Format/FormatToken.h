@@ -652,6 +652,8 @@ struct AdditionalKeywords {
     kw_qsignals = &IdentTable.get("Q_SIGNALS");
     kw_slots = &IdentTable.get("slots");
     kw_qslots = &IdentTable.get("Q_SLOTS");
+    kw_qunused = &IdentTable.get("Q_UNUSED");
+    kw_qtrequireversion = &IdentTable.get("QT_REQUIRE_VERSION");
   }
 
   // Context sensitive keywords.
@@ -711,6 +713,8 @@ struct AdditionalKeywords {
   IdentifierInfo *kw_qsignals;
   IdentifierInfo *kw_slots;
   IdentifierInfo *kw_qslots;
+  IdentifierInfo *kw_qunused;
+  IdentifierInfo *kw_qtrequireversion;
 };
 
 } // namespace format
