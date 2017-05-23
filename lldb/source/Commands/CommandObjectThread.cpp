@@ -42,7 +42,7 @@ using namespace lldb;
 using namespace lldb_private;
 
 //-------------------------------------------------------------------------
-// CommandObjectThreadBacktrace
+// CommandObjectIterateOverThreads
 //-------------------------------------------------------------------------
 
 class CommandObjectIterateOverThreads : public CommandObjectParsed {
@@ -289,6 +289,122 @@ protected:
   }
 
   CommandOptions m_options;
+};
+
+//-------------------------------------------------------------------------
+// CommandObjectUniqueThreadStacks
+//-------------------------------------------------------------------------
+
+class CommandObjectUniqueThreadStacks : public CommandObjectParsed {
+
+  class UniqueStack {
+
+  public:
+    UniqueStack(std::stack<Address> stackFrames, Thread* thread)
+      : m_stackFrames(stackFrames) {
+      m_threads.push_back(thread);
+    }
+
+    void AddThread(Thread* thread) {
+      m_threads.push_back(thread);
+    }
+
+    const std::vector<Thread*>& GetUniqueThreads() const { 
+      return m_threads;
+    }
+
+    Thread* GetRepresentativeThread() const {
+      return m_threads.front();
+    }
+
+    bool IsEqual(std::stack<Address> stackFrames) const {
+      return stackFrames == m_stackFrames;
+    }
+
+  protected:
+    std::vector<Thread*> m_threads;
+    std::stack<Address> m_stackFrames;
+  };
+
+public:
+  CommandObjectUniqueThreadStacks(CommandInterpreter &interpreter)
+      : CommandObjectParsed(
+            interpreter, "thread unique-stacks",
+            "Show unique call stacks for all threads in the process.",
+            nullptr,
+            eCommandRequiresThread | eCommandTryTargetAPILock |
+            eCommandProcessMustBeLaunched | eCommandProcessMustBePaused)
+    {
+    }
+
+  ~CommandObjectUniqueThreadStacks() override = default;
+
+  bool DoExecute(Args &command, CommandReturnObject &result) override {
+
+    std::vector<UniqueStack> uniqueStacks;
+    Process *process = m_exe_ctx.GetProcessPtr();
+
+    // Iterate over threads, finding unique stack buckets.
+    for (ThreadSP thread_sp : process->Threads()) {
+      Thread *thread = thread_sp.get();
+      BucketThread(thread, uniqueStacks);
+    }
+
+    const uint32_t start_frame = 0;
+    const uint32_t num_frames = UINT32_MAX;
+    const uint32_t num_frames_with_source = 0;// UINT32_MAX;
+    const bool stop_format = true;
+    const bool just_stack = true;
+
+    // Output all of the unique stack frames.
+    Stream &strm = result.GetOutputStream();
+    strm.IndentMore();
+    for (const UniqueStack& stack: uniqueStacks) {
+      // List the common thread ID's
+      strm.Indent("thread(s) ");
+      for (Thread* thread : stack.GetUniqueThreads()) {
+        strm.Printf("#%lu ", thread->GetID());
+      }
+      strm.EOL();
+
+      // List the shared call stack for this set of threads
+      stack.GetRepresentativeThread()->GetStatus(strm, start_frame,
+                                                 num_frames, num_frames_with_source,
+                                                 stop_format, just_stack);
+    }
+    strm.IndentLess();
+
+    return result.Succeeded();
+  }
+
+protected:
+
+  void BucketThread(Thread* thread, std::vector<UniqueStack>& uniqueStacks) {
+    // Grab each frame's address
+    std::stack<Address> stackFrames;
+    const uint32_t frameCount = thread->GetStackFrameCount();
+    for (uint32_t frameIndex = 0; frameIndex < frameCount; frameIndex++)
+    {
+      const Address stackFrameAddress = thread->GetStackFrameAtIndex(frameIndex)->GetFrameCodeAddress();
+      stackFrames.push(stackFrameAddress);
+    }
+
+    // Try to match the threads stack to and existing thread.
+    bool foundMatch = false;
+    for (UniqueStack& uniqueStack : uniqueStacks)
+    {
+      if (uniqueStack.IsEqual(stackFrames)) {
+        foundMatch = true;
+        uniqueStack.AddThread(thread);
+      }
+    }
+
+    // We failed to find an existing unique stack, so create a new one.
+    if (!foundMatch) {
+      UniqueStack newUniqueStack(stackFrames, thread);
+      uniqueStacks.push_back(newUniqueStack);
+    }
+  }
 };
 
 enum StepScope { eStepScopeSource, eStepScopeInstruction };
@@ -1925,6 +2041,8 @@ CommandObjectMultiwordThread::CommandObjectMultiwordThread(
                              "thread <subcommand> [<subcommand-options>]") {
   LoadSubCommand("backtrace", CommandObjectSP(new CommandObjectThreadBacktrace(
                                   interpreter)));
+  LoadSubCommand("unique-stacks",
+                 CommandObjectSP(new CommandObjectUniqueThreadStacks(interpreter)));
   LoadSubCommand("continue",
                  CommandObjectSP(new CommandObjectThreadContinue(interpreter)));
   LoadSubCommand("list",
