@@ -150,6 +150,7 @@ Clang-Tidy Checks
    performance-unnecessary-value-param
    readability-avoid-const-params-in-decls
    readability-braces-around-statements
+   readability-const-value-return
    readability-container-size-empty
    readability-delete-null-pointer
    readability-deleted-default

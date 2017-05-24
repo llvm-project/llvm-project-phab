@@ -3,6 +3,7 @@ set(LLVM_LINK_COMPONENTS support)
 add_clang_library(clangTidyReadabilityModule
   AvoidConstParamsInDecls.cpp
   BracesAroundStatementsCheck.cpp
+  ConstValueReturnCheck.cpp
   ContainerSizeEmptyCheck.cpp
   DeleteNullPointerCheck.cpp
   DeletedDefaultCheck.cpp
