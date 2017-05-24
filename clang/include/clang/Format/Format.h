@@ -115,16 +115,44 @@ struct FormatStyle {
   /// \endcode
   bool AlignEscapedNewlinesLeft;
 
+  enum OperandAlignmentStyle {
+      /// Do not align operands of binary and ternary expressions.
+      /// The wrapped lines are indented ``ContinuationIndentWidth`` spaces from
+      /// the start of the line.
+      OAS_DontAlign,
+
+      /// Horizontally align operands of binary and ternary expressions.
+      ///
+      /// Specifically, this aligns operands of a single expression that needs
+      /// to be split over multiple lines, e.g.:
+      /// \code
+      ///   int aaa = bbbbbbbbbbbbbbb +
+      ///             ccccccccccccccc;
+      /// \endcode
+      ///
+      /// When ``BreakBeforeBinaryOperators`` is set, the wrapped operator is
+      /// aligned with the operand on the first line.
+      /// \code
+      ///   int aaa = bbbbbbbbbbbbbbb
+      ///             + ccccccccccccccc;
+      /// \endcode
+      OAS_Align,
+
+      /// Horizontally align operands of binary and ternary expressions.
+      ///
+      /// This is similar to ``AO_Align``, except when
+      /// ``BreakBeforeBinaryOperators`` is set, the wrapped operands are
+      /// aligned with the operand on the first line.
+      /// \code
+      ///   int aaa = bbbbbbbbbbbbbbb
+      ///           + ccccccccccccccc;
+      /// \endcode
+      OAS_StrictAlign,
+  };
+
   /// \brief If ``true``, horizontally align operands of binary and ternary
   /// expressions.
-  ///
-  /// Specifically, this aligns operands of a single expression that needs to be
-  /// split over multiple lines, e.g.:
-  /// \code
-  ///   int aaa = bbbbbbbbbbbbbbb +
-  ///             ccccccccccccccc;
-  /// \endcode
-  bool AlignOperands;
+  OperandAlignmentStyle AlignOperands;
 
   /// \brief If ``true``, aligns trailing comments.
   /// \code
