@@ -17,6 +17,7 @@
 #include "polly/ScopInfo.h"
 #include "polly/ScopPass.h"
 #include "polly/Support/ScopLocation.h"
+#include "polly/Support/GICHelper.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/RegionInfo.h"
 #include "llvm/IR/Module.h"
@@ -29,6 +30,7 @@
 #include "isl/printer.h"
 #include "isl/set.h"
 #include "isl/union_map.h"
+#include "isl/union_set.h"
 #include "json/reader.h"
 #include "json/writer.h"
 #include <memory>
@@ -287,6 +289,90 @@ bool JSONImporter::importContext(Scop &S, Json::Value &JScop) {
   return true;
 }
 
+// Struct containing the info required for the copying of the statements in the scop and the schedule.
+struct copy_info{
+	isl_union_map *NewSchedule;
+	Scop *S;
+};
+
+// finds the ScopStmt corresponding to Map.
+ScopStmt *findStmtFromMap(Scop *S, __isl_take isl_map *Map){
+	isl_map *Universe;
+	isl_set *StmtDomain, *MapDomain;	
+	ScopStmt *CurrentStmt;
+	
+	Universe = isl_map_universe(isl_map_get_space(Map));
+	MapDomain = isl_map_domain(Universe);
+	
+	for(ScopStmt &Stmt : *S) {
+		StmtDomain = isl_map_domain(Stmt.getSchedule());
+		if(isl_set_is_equal(StmtDomain, MapDomain)){
+		  CurrentStmt = &Stmt;
+		  isl_set_free(StmtDomain);
+		  break;
+		}
+		isl_set_free(StmtDomain);
+	}
+	
+	isl_set_free(MapDomain);
+	isl_map_free(Map);
+	
+	return CurrentStmt;
+}
+
+// Transforms the schedule of the scopstmt, adds it to newSchedule and adds the required ScopStmts to S.
+static isl_stat makeStmtSingleValued(__isl_take isl_map *MapToAdd, void *User){
+	struct copy_info *Data = (copy_info*) User;
+	isl_union_map *NewSchedule = Data->NewSchedule;
+	Scop *S = Data->S;
+	
+	isl_map *LexMin;
+	ScopStmt *CurrentStmt;
+	std::string Name;
+	int i = 0;
+
+	CurrentStmt = findStmtFromMap(S, isl_map_copy(MapToAdd));
+	
+	while(!isl_map_is_empty(MapToAdd)){
+		assert(i < 11 && "More than 10 copies required!");
+		
+		LexMin = isl_map_lexmin(isl_map_copy(MapToAdd));
+		MapToAdd = isl_map_subtract(MapToAdd, isl_map_copy(LexMin));
+		
+		if(i != 0){
+			Name = getIslCompatibleName(isl_map_get_tuple_name(LexMin, isl_dim_in), "_copy_no_", std::to_string(i));
+			LexMin = isl_map_set_tuple_name(LexMin, isl_dim_in, Name.c_str());
+			S->copyScopStmt(CurrentStmt, i);
+		}
+		assert((NewSchedule = isl_union_map_add_map(NewSchedule, LexMin)) && "Adding map to schedule failed!");
+		
+		i++;
+	}	
+	isl_map_free(MapToAdd);
+
+	return isl_stat_ok;
+}
+
+///	Makes a single-valued schedule and adds the required ScopStmts to the Scop.
+///
+/// @param OldSchedule The non-single-valued schedule to be made single-valued.
+///
+/// @param S The Scop where the new ScopStmts need to be added.
+///
+/// @returns isl_union_map the new single valued schedule.
+isl_union_map *makeScheduleSingleValued(__isl_take isl_union_map *OldSchedule, Scop &S){
+	isl_union_map *NewSchedule = isl_union_map_empty(isl_union_map_get_space(OldSchedule));
+	struct copy_info CopyData = {NewSchedule, &S};
+	
+	assert(isl_union_map_foreach_map(OldSchedule, &makeStmtSingleValued, &CopyData) >= 0 &&
+		"error during fixing schedule!");
+		
+	errs() << "\nNew Map:\n" << CopyData.NewSchedule << "\n\n";
+	
+	isl_union_map_free(OldSchedule);
+	return CopyData.NewSchedule;
+}
+
 bool JSONImporter::importSchedule(Scop &S, Json::Value &JScop,
                                   const Dependences &D) {
   StatementToIslMapTy NewSchedule;
@@ -326,6 +412,16 @@ bool JSONImporter::importSchedule(Scop &S, Json::Value &JScop,
       ScheduleMap = isl_union_map_add_map(ScheduleMap, NewSchedule[&Stmt]);
     else
       ScheduleMap = isl_union_map_add_map(ScheduleMap, Stmt.getSchedule());
+  }
+
+  // Check if the map is single valued.
+  if(!isl_union_map_is_single_valued(ScheduleMap)){
+	DEBUG(dbgs() << "JScop file contains a schedule that is not single valued\n");
+
+	// Not Yet Finished, when ScheduleMap can be fixed by makeScheduleSingleValued, the new ScheduleMap will be passed.
+	ScheduleMap = makeScheduleSingleValued(ScheduleMap, S);
+	isl_union_map_free(ScheduleMap);
+	return false;
   }
 
   S.setSchedule(ScheduleMap);
