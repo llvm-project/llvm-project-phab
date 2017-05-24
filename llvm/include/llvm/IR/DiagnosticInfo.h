@@ -21,7 +21,9 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/IR/DebugLoc.h"
+#include "llvm/IR/Function.h"
 #include "llvm/Support/CBindingWrapping.h"
+#include "llvm/Support/Debug.h"
 #include "llvm/Support/YAMLTraits.h"
 #include "llvm-c/Types.h"
 #include <functional>
@@ -34,7 +36,6 @@ namespace llvm {
 
 // Forward declarations.
 class DiagnosticPrinter;
-class Function;
 class Instruction;
 class LLVMContext;
 class Module;
@@ -605,10 +606,17 @@ public:
     return DI->getKind() == DK_OptimizationRemark;
   }
 
-  static bool isEnabled(StringRef PassName);
+  //static bool isEnabled(StringRef PassName);
 
   /// \see DiagnosticInfoOptimizationBase::isEnabled.
-  bool isEnabled() const override { return isEnabled(getPassName()); }
+  bool isEnabled() const override {
+    const Function &Fn = getFunction();
+    LLVMContext &Ctx = Fn.getContext();
+    RemarkInfo RemarkInfoVal = Ctx.getDiagHandler().isRemarkEnable(getPassName().str());
+    if (RemarkInfoVal == RemarkInfo::OptRemarkEnable)
+      return true;
+  return false;
+}
 
 private:
   /// This is deprecated now and only used by the function API below.
@@ -653,10 +661,17 @@ public:
     return DI->getKind() == DK_OptimizationRemarkMissed;
   }
 
-  static bool isEnabled(StringRef PassName);
+  //static bool isEnabled(StringRef PassName);
 
   /// \see DiagnosticInfoOptimizationBase::isEnabled.
-  bool isEnabled() const override { return isEnabled(getPassName()); }
+  bool isEnabled() const override {
+    const Function &Fn = getFunction();
+    LLVMContext &Ctx = Fn.getContext();
+    RemarkInfo RemarkInfoVal = Ctx.getDiagHandler().isRemarkEnable(getPassName().str());
+    if (RemarkInfoVal == RemarkInfo::MissedOptRemarkEnable)
+      return true;
+    return false;
+  }
 
 private:
   /// This is deprecated now and only used by the function API below.
@@ -713,11 +728,16 @@ public:
     return DI->getKind() == DK_OptimizationRemarkAnalysis;
   }
 
-  static bool isEnabled(StringRef PassName);
+  //static bool isEnabled(StringRef PassName);
 
   /// \see DiagnosticInfoOptimizationBase::isEnabled.
   bool isEnabled() const override {
-    return shouldAlwaysPrint() || isEnabled(getPassName());
+    const Function &Fn = getFunction();
+    LLVMContext &Ctx = Fn.getContext();
+    RemarkInfo RemarkInfoVal = Ctx.getDiagHandler().isRemarkEnable(getPassName().str());
+    if (RemarkInfoVal == RemarkInfo::AnalysisRemarkEnable || shouldAlwaysPrint())
+      return true;
+    return false;
   }
 
   static const char *AlwaysPrint;

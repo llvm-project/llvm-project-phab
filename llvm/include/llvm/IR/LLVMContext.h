@@ -15,6 +15,7 @@
 #ifndef LLVM_IR_LLVMCONTEXT_H
 #define LLVM_IR_LLVMCONTEXT_H
 
+#include "DiagnosticHandler.h"
 #include "llvm-c/Types.h"
 #include "llvm/Support/CBindingWrapping.h"
 #include "llvm/Support/Options.h"
@@ -139,11 +140,6 @@ public:
   using InlineAsmDiagHandlerTy = void (*)(const SMDiagnostic&, void *Context,
                                           unsigned LocCookie);
 
-  /// Defines the type of a diagnostic handler.
-  /// \see LLVMContext::setDiagnosticHandler.
-  /// \see LLVMContext::diagnose.
-  using DiagnosticHandlerTy = void (*)(const DiagnosticInfo &DI, void *Context);
-
   /// Defines the type of a yield callback.
   /// \see LLVMContext::setYieldCallback.
   using YieldCallbackTy = void (*)(LLVMContext *Context, void *OpaqueHandle);
@@ -174,17 +170,19 @@ public:
   ///
   /// LLVMContext doesn't take ownership or interpret either of these
   /// pointers.
-  void setDiagnosticHandler(DiagnosticHandlerTy DiagHandler,
+  void setDiagnosticHandler(DiagnosticHandler::DiagnosticHandlerTy DiagHandler,
                             void *DiagContext = nullptr,
                             bool RespectFilters = false);
 
   /// getDiagnosticHandler - Return the diagnostic handler set by
   /// setDiagnosticHandler.
-  DiagnosticHandlerTy getDiagnosticHandler() const;
+  DiagnosticHandler::DiagnosticHandlerTy getDiagnosticHandler() const;
 
   /// getDiagnosticContext - Return the diagnostic context set by
   /// setDiagnosticContext.
   void *getDiagnosticContext() const;
+
+  DiagnosticHandler getDiagHandler() const;
 
   /// \brief Return if a code hotness metric should be included in optimization
   /// diagnostics.

@@ -1100,7 +1100,7 @@ public:
   LLVMContext::InlineAsmDiagHandlerTy InlineAsmDiagHandler;
   void *InlineAsmDiagContext;
 
-  LLVMContext::DiagnosticHandlerTy DiagnosticHandler;
+  DiagnosticHandler DiagHandler;
   void *DiagnosticContext;
   bool RespectDiagnosticFilters;
   bool DiagnosticHotnessRequested;

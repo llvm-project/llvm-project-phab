@@ -73,7 +73,12 @@ public:
 
   /// \see DiagnosticInfoOptimizationBase::isEnabled.
   bool isEnabled() const override {
-    return OptimizationRemark::isEnabled(getPassName());
+    const Function &Fn = getFunction();
+    LLVMContext &Ctx = Fn.getContext();
+    RemarkInfo RemarkInfoVal = Ctx.getDiagHandler().isRemarkEnable(getPassName().str());
+    if (RemarkInfoVal == RemarkInfo::OptRemarkEnable)
+      return true;
+    return false;
   }
 };
 
@@ -97,7 +102,12 @@ public:
 
   /// \see DiagnosticInfoOptimizationBase::isEnabled.
   bool isEnabled() const override {
-    return OptimizationRemarkMissed::isEnabled(getPassName());
+    const Function &Fn = getFunction();
+    LLVMContext &Ctx = Fn.getContext();
+    RemarkInfo RemarkInfoVal = Ctx.getDiagHandler().isRemarkEnable(getPassName().str());
+    if (RemarkInfoVal == RemarkInfo::MissedOptRemarkEnable)
+      return true;
+    return false;
   }
 };
 
@@ -121,7 +131,12 @@ public:
 
   /// \see DiagnosticInfoOptimizationBase::isEnabled.
   bool isEnabled() const override {
-    return OptimizationRemarkAnalysis::isEnabled(getPassName());
+    const Function &Fn = getFunction();
+    LLVMContext &Ctx = Fn.getContext();
+    RemarkInfo RemarkInfoVal = Ctx.getDiagHandler().isRemarkEnable(getPassName().str());
+    if (RemarkInfoVal == RemarkInfo::AnalysisRemarkEnable)
+      return true;
+    return false;
   }
 };
 

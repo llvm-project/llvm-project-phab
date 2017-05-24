@@ -42,7 +42,7 @@ LLVMContextImpl::LLVMContextImpl(LLVMContext &C)
     Int128Ty(C, 128) {
   InlineAsmDiagHandler = nullptr;
   InlineAsmDiagContext = nullptr;
-  DiagnosticHandler = nullptr;
+  DiagHandler = DiagnosticHandler();
   DiagnosticContext = nullptr;
   RespectDiagnosticFilters = false;
   DiagnosticHotnessRequested = false;

@@ -243,7 +243,7 @@ GetOutputStream(const char *TargetName, Triple::OSType OS,
   return FDOut;
 }
 
-static void DiagnosticHandler(const DiagnosticInfo &DI, void *Context) {
+static void DiagnosticHandlerImpl(const DiagnosticInfo &DI, void *Context) {
   bool *HasError = static_cast<bool *>(Context);
   if (DI.getSeverity() == DS_Error)
     *HasError = true;
@@ -313,7 +313,7 @@ int main(int argc, char **argv) {
 
   // Set a diagnostic handler that doesn't exit on the first error
   bool HasError = false;
-  Context.setDiagnosticHandler(DiagnosticHandler, &HasError);
+  Context.setDiagnosticHandler(DiagnosticHandlerImpl, &HasError);
   Context.setInlineAsmDiagnosticHandler(InlineAsmDiagHandler, &HasError);
 
   if (PassRemarksWithHotness)

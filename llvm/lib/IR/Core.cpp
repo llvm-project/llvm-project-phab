@@ -86,7 +86,7 @@ void LLVMContextSetDiagnosticHandler(LLVMContextRef C,
                                      LLVMDiagnosticHandler Handler,
                                      void *DiagnosticContext) {
   unwrap(C)->setDiagnosticHandler(
-      LLVM_EXTENSION reinterpret_cast<LLVMContext::DiagnosticHandlerTy>(
+      LLVM_EXTENSION reinterpret_cast<DiagnosticHandler::DiagnosticHandlerTy>(
           Handler),
       DiagnosticContext);
 }
