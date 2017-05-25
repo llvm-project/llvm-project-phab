@@ -47,10 +47,10 @@ return:                                           ; preds = %if.end, %land.lhs.t
 define i32 @combine_gt_lt_5() #0 {
 ; CHECK-LABEL: combine_gt_lt_5
 ; CHECK: cmp
-; CHECK: b.le
-; CHECK: ret
+; CHECK: b.gt
 ; CHECK-NOT: cmp
 ; CHECK: b.ge
+; CHECK: ret
 entry:
   %0 = load i32, i32* @a, align 4
   %cmp = icmp sgt i32 %0, 5
@@ -121,10 +121,10 @@ return:                                           ; preds = %if.end, %land.lhs.t
 define i32 @combine_lt_gt_5() #0 {
 ; CHECK-LABEL: combine_lt_gt_5
 ; CHECK: cmp
-; CHECK: b.ge
-; CHECK: ret
+; CHECK: b.lt
 ; CHECK-NOT: cmp
 ; CHECK: b.le
+; CHECK: ret
 entry:
   %0 = load i32, i32* @a, align 4
   %cmp = icmp slt i32 %0, 5
@@ -158,10 +158,10 @@ return:                                           ; preds = %if.end, %land.lhs.t
 define i32 @combine_gt_lt_n5() #0 {
 ; CHECK-LABEL: combine_gt_lt_n5
 ; CHECK: cmn
-; CHECK: b.le
-; CHECK: ret
+; CHECK: b.gt
 ; CHECK-NOT: cmn
 ; CHECK: b.ge
+; CHECK: ret
 entry:
   %0 = load i32, i32* @a, align 4
   %cmp = icmp sgt i32 %0, -5
@@ -195,10 +195,10 @@ return:                                           ; preds = %if.end, %land.lhs.t
 define i32 @combine_lt_gt_n5() #0 {
 ; CHECK-LABEL: combine_lt_gt_n5
 ; CHECK: cmn
-; CHECK: b.ge
-; CHECK: ret
+; CHECK: b.lt
 ; CHECK-NOT: cmn
 ; CHECK: b.le
+; CHECK: ret
 entry:
   %0 = load i32, i32* @a, align 4
   %cmp = icmp slt i32 %0, -5

@@ -126,10 +126,7 @@ return:                                           ; preds = %if.end5, %if.then4,
 
 ; CHECK-V8-LABEL: wrapDistance:
 ; CHECK-V8: cmp r1, #59
-; CHECK-V8-NEXT: bgt
-; CHECK-V8-NEXT: %if.then
-; CHECK-V8-NEXT: subs r0, r2, #1
-; CHECK-V8-NEXT: bx lr
+; CHECK-V8-NEXT: ble
 ; CHECK-V8-NEXT: %if.else
 ; CHECK-V8-NEXT: subs [[REG:r[0-9]+]], #120
 ; CHECK-V8-NEXT: cmp [[REG]], r1
@@ -139,6 +136,9 @@ return:                                           ; preds = %if.end5, %if.then4,
 ; CHECK-V8-NEXT: bgt
 ; CHECK-V8-NEXT: %if.then4
 ; CHECK-V8-NEXT: adds r0, r1, #1
+; CHECK-V8-NEXT: bx lr
+; CHECK-V8-NEXT: %if.then
+; CHECK-V8-NEXT: subs r0, r2, #1
 ; CHECK-V8-NEXT: bx lr
 ; CHECK-V8-NEXT: %if.end5
 ; CHECK-V8-NEXT: subs r0, r1, r0

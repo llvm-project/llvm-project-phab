@@ -16,13 +16,13 @@ declare void @f4()
 ; CHECK-NOT: # %{{[-_a-zA-Z0-9]+}}
 ; CHECK: # %entry
 ; CHECK-NOT: # %{{[-_a-zA-Z0-9]+}}
-; CHECK: # %sw.0
-; CHECK-NOT: # %{{[-_a-zA-Z0-9]+}}
-; CHECK: # %sw.1
-; CHECK-NOT: # %{{[-_a-zA-Z0-9]+}}
 ; CHECK: # %sw.default
 ; CHECK-NOT: # %{{[-_a-zA-Z0-9]+}}
 ; CHECK: # %if.then
+; CHECK-NOT: # %{{[-_a-zA-Z0-9]+}}
+; CHECK: # %sw.1
+; CHECK-NOT: # %{{[-_a-zA-Z0-9]+}}
+; CHECK: # %sw.0
 ; CHECK-NOT: # %{{[-_a-zA-Z0-9]+}}
 ; CHECK: # %if.else
 ; CHECK-NOT: # %{{[-_a-zA-Z0-9]+}}

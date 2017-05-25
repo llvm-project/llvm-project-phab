@@ -29,6 +29,7 @@
 #include "llvm/CodeGen/TargetPassConfig.h"
 #include "BranchFolding.h"
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
@@ -315,6 +316,9 @@ class MachineBlockPlacement : public MachineFunctionPass {
   /// Edges that have already been computed as optimal.
   DenseMap<const MachineBasicBlock *, BlockAndTailDupResult> ComputedEdges;
 
+  /// Branch Factor. Used to decide between Equal blocks.
+  DenseMap<const MachineBasicBlock *, uint32_t> BranchFactorMap;
+
   /// \brief Machine Function
   MachineFunction *F;
 
@@ -476,6 +480,11 @@ class MachineBlockPlacement : public MachineFunctionPass {
   /// Find chains of triangles to tail-duplicate where a global analysis works,
   /// but a local analysis would not find them.
   void precomputeTriangleChains();
+  /// Compute the branch factor of a block. Branch factor of a block with
+  /// multiple predecessors is 0, Otherwise the Branch factor of a block B with
+  /// n successors is sum(BF(successors(B))) + n - 1. Values are computed as
+  /// needed and placed in BranchFactorMap
+  uint32_t computeBranchFactor(const MachineBasicBlock *BB);
 
 public:
   static char ID; // Pass identification, replacement for typeid
@@ -1199,6 +1208,47 @@ void MachineBlockPlacement::precomputeTriangleChains() {
   }
 }
 
+uint32_t MachineBlockPlacement::computeBranchFactor(const MachineBasicBlock *BB) {
+
+  auto FindIt = BranchFactorMap.find(BB);
+  if (FindIt != BranchFactorMap.end())
+    return FindIt->second;
+
+  if (BB->pred_size() > 1 || BB->succ_size() == 0) {
+    BranchFactorMap[BB] = 1;
+    return 1;
+  }
+
+  typedef GraphTraits<const MachineBasicBlock*> GT;
+  typedef typename GT::ChildIteratorType ChildItTy;
+  SmallVector<std::pair<const MachineBasicBlock *, ChildItTy>, 16> VisitStack;
+
+  VisitStack.emplace_back(BB, GT::child_begin(BB));
+
+  // Walk the nodes from BB in post order. This won't get confused by loops
+  // because we don't traverse nodes with more than one successor.
+  while(!VisitStack.empty()) {
+    // Keep pushing things on the stack until we have a Node with all children
+    // visited.
+    while(VisitStack.back().second != GT::child_end(VisitStack.back().first)) {
+      MachineBasicBlock *NextChild = *VisitStack.back().second++;
+      if (!BranchFactorMap.count(NextChild)) {
+        if (NextChild->pred_size() == 1 && NextChild->succ_size() != 0)
+          VisitStack.emplace_back(NextChild, GT::child_begin(NextChild));
+        else
+          BranchFactorMap[NextChild] = 1;
+      }
+    }
+    auto TopBB = VisitStack.back().first;
+    VisitStack.pop_back();
+    int SumBranches = 0;
+    for (MachineBasicBlock *Succ : TopBB->successors())
+      SumBranches += BranchFactorMap[Succ];
+    BranchFactorMap[TopBB] = SumBranches;
+  }
+  return BranchFactorMap[BB];
+}
+
 // When profile is not present, return the StaticLikelyProb.
 // When profile is available, we need to handle the triangle-shape CFG.
 static BranchProbability getLayoutSuccessorProbThreshold(
@@ -1450,6 +1500,10 @@ MachineBlockPlacement::selectBestSuccessor(
   // calculations the minimum number of times.
   SmallVector<std::tuple<BranchProbability, MachineBasicBlock *>, 4>
       DupCandidates;
+  // If we didn't pick a tail-duplicate candidate, choose between the blocks
+  // within 10% of BestProb by <BranchFactor, prob>
+  SmallVector<std::tuple<uint32_t, BranchProbability, MachineBasicBlock *>, 4>
+      Candidates;
   for (MachineBasicBlock *Succ : Successors) {
     auto RealSuccProb = MBPI->getEdgeProbability(BB, Succ);
     BranchProbability SuccProb =
@@ -1462,7 +1516,7 @@ MachineBlockPlacement::selectBestSuccessor(
                                    Chain, BlockFilter)) {
       // If tail duplication would make Succ profitable, place it.
       if (TailDupPlacement && shouldTailDuplicate(Succ))
-        DupCandidates.push_back(std::make_tuple(SuccProb, Succ));
+        DupCandidates.emplace_back(SuccProb, Succ);
       continue;
     }
 
@@ -1472,14 +1526,15 @@ MachineBlockPlacement::selectBestSuccessor(
                << (SuccChain.UnscheduledPredecessors != 0 ? " (CFG break)" : "")
                << "\n");
 
-    if (BestSucc.BB && BestProb >= SuccProb) {
+    Candidates.emplace_back(0, SuccProb, Succ);
+    if (BestProb >= SuccProb) {
       DEBUG(dbgs() << "    Not the best candidate, continuing\n");
       continue;
     }
 
     DEBUG(dbgs() << "    Setting it as best candidate\n");
-    BestSucc.BB = Succ;
     BestProb = SuccProb;
+    BestSucc.BB = Succ;
   }
   // Handle the tail duplication candidates in order of decreasing probability.
   // Stop at the first one that is profitable. Also stop if they are less
@@ -1503,18 +1558,60 @@ MachineBlockPlacement::selectBestSuccessor(
     if (canTailDuplicateUnplacedPreds(BB, Succ, Chain, BlockFilter)
         && (isProfitableToTailDup(BB, Succ, BestProb, Chain, BlockFilter))) {
       DEBUG(
-          dbgs() << "    Candidate: " << getBlockName(Succ) << ", probability: "
+          dbgs() << "    Selected: " << getBlockName(Succ) << ", probability: "
                  << DupProb
                  << " (Tail Duplicate)\n");
       BestSucc.BB = Succ;
       BestSucc.ShouldTailDup = true;
-      break;
+      return BestSucc;
     }
   }
 
-  if (BestSucc.BB)
-    DEBUG(dbgs() << "    Selected: " << getBlockName(BestSucc.BB) << "\n");
+  // If we didn't find any suitable successor, return now.
+  if (!BestSucc.BB)
+    return BestSucc;
 
+  // The code from here to the end chooses blocks based on branch factor if they
+  // are close enough to the max probability. First we filter the vector down to
+  // the tuples that are close enough to the max probability. Then if there are
+  // more than one, we calculate the branch factor for those blocks. Finally we
+  // choose based on (branch factor, probability). We preserve order for
+  // determinism.
+  BranchProbability ScaledBestProb = BranchProbability(9, 10) * BestProb;
+  // If we didn't pick a tail-duplicate candidate, choose between the blocks
+  // within 10% of BestProb by <BranchFactor, prob>
+  auto NotProbableEnough = [&ScaledBestProb] (
+      std::tuple<uint32_t, BranchProbability, MachineBasicBlock *> Candidate) {
+    return std::get<1>(Candidate) < ScaledBestProb;
+  };
+
+  auto ValidCandidates = make_range(
+      Candidates.begin(), std::remove_if(
+          Candidates.begin(), Candidates.end(), NotProbableEnough));
+  // If we only have one remaining candidate, use that.
+  if (std::next(ValidCandidates.begin()) == ValidCandidates.end()) {
+    DEBUG(dbgs() << "    Selected: " << getBlockName(BestSucc.BB) << "\n");
+    BestSucc.BB = std::get<2>(*ValidCandidates.begin());
+    return BestSucc;
+  }
+  for (auto &Candidate : ValidCandidates) {
+    auto Succ = std::get<2>(Candidate);
+    std::get<0>(Candidate) = computeBranchFactor(Succ);
+  }
+  auto cmp =
+      [](const std::tuple<uint32_t, BranchProbability, MachineBasicBlock *> &a,
+         const std::tuple<uint32_t, BranchProbability, MachineBasicBlock *> &b) {
+        return (std::get<0>(a) < std::get<0>(b) ||
+                (std::get<0>(a) == std::get<0>(b) &&
+                 std::get<1>(a) < std::get<1>(b)));
+      };
+  BranchProbability Prob;
+  uint32_t BranchFactor;
+  std::tie(BranchFactor, Prob, BestSucc.BB) = *std::max_element(
+      ValidCandidates.begin(), ValidCandidates.end(), cmp);
+  DEBUG(dbgs() << "    Selected: " << getBlockName(BestSucc.BB)
+        << ", probability: " << Prob
+        << ", branch factor: " << BranchFactor << "\n");
   return BestSucc;
 }
 
@@ -2713,6 +2810,7 @@ bool MachineBlockPlacement::runOnMachineFunction(MachineFunction &MF) {
       // Redo the layout if tail merging creates/removes/moves blocks.
       BlockToChain.clear();
       ComputedEdges.clear();
+      BranchFactorMap.clear();
       // Must redo the post-dominator tree if blocks were changed.
       if (MPDT)
         MPDT->runOnMachineFunction(MF);
@@ -2726,6 +2824,7 @@ bool MachineBlockPlacement::runOnMachineFunction(MachineFunction &MF) {
 
   BlockToChain.clear();
   ComputedEdges.clear();
+  BranchFactorMap.clear();
   ChainAllocator.DestroyAll();
 
   if (AlignAllBlock)

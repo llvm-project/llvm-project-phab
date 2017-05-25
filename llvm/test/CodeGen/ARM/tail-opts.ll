@@ -15,16 +15,17 @@ declare i8* @choose(i8*, i8*)
 ; redundant branching.
 
 ; CHECK-LABEL: tail_duplicate_me:
-; CHECK:      qux
+; CHECK:      car
 ; CHECK:      movw r{{[0-9]+}}, :lower16:_GHJK
 ; CHECK:      movt r{{[0-9]+}}, :upper16:_GHJK
 ; CHECK:      str r
 ; CHECK-NEXT: bx r
-; CHECK:      qux
+; CHECK:      bar
 ; CHECK:      movw r{{[0-9]+}}, :lower16:_GHJK
 ; CHECK:      movt r{{[0-9]+}}, :upper16:_GHJK
 ; CHECK:      str r
 ; CHECK-NEXT: bx r
+; CHECK:      dar
 ; CHECK:      movw r{{[0-9]+}}, :lower16:_GHJK
 ; CHECK:      movt r{{[0-9]+}}, :upper16:_GHJK
 ; CHECK:      str r
