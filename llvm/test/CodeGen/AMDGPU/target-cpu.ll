@@ -1,4 +1,4 @@
-; RUN: llc -march=amdgcn -verify-machineinstrs < %s | FileCheck %s
+; RUN: llc -march=amdgcn -disable-promote-alloca-to-vector -verify-machineinstrs < %s | FileCheck %s
 
 declare i8 addrspace(2)* @llvm.amdgcn.kernarg.segment.ptr() #1
 
@@ -18,8 +18,7 @@ define amdgpu_kernel void @target_none() #0 {
   %kernargs = call i8 addrspace(2)* @llvm.amdgcn.kernarg.segment.ptr()
   %kernargs.gep = getelementptr inbounds i8, i8 addrspace(2)* %kernargs, i64 1024
   %kernargs.gep.cast = bitcast i8 addrspace(2)* %kernargs.gep to i32 addrspace(1)* addrspace(2)*
-  %ptr = load i32 addrspace(1)*, i32 addrspace(1)* addrspace(2)* %kernargs.gep.cast
-  %id = call i32 @llvm.amdgcn.workitem.id.x()
+  %ptr = load i32 addrspace(1)*, i32 addrspace(1)* addrspace(2)* %kernargs.gep.cast  %id = call i32 @llvm.amdgcn.workitem.id.x()
   %id.ext = sext i32 %id to i64
   %gep = getelementptr inbounds i32, i32 addrspace(1)* %ptr, i64 %id.ext
   store i32 0, i32 addrspace(1)* %gep

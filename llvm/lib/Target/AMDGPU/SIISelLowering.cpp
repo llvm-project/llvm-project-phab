@@ -1904,7 +1904,7 @@ static MachineBasicBlock *emitIndirectSrc(MachineInstr &MI,
       BuildMI(MBB, I, DL, TII->get(AMDGPU::S_SET_GPR_IDX_OFF));
     } else {
       BuildMI(MBB, I, DL, TII->get(AMDGPU::V_MOVRELS_B32_e32), Dst)
-        .addReg(SrcReg, RegState::Undef, SubReg)
+        .addReg(SrcReg, 0, SubReg)
         .addReg(SrcReg, RegState::Implicit);
     }
 
@@ -1941,7 +1941,7 @@ static MachineBasicBlock *emitIndirectSrc(MachineInstr &MI,
       .addReg(AMDGPU::M0, RegState::Implicit);
   } else {
     BuildMI(*LoopBB, InsPt, DL, TII->get(AMDGPU::V_MOVRELS_B32_e32), Dst)
-      .addReg(SrcReg, RegState::Undef, SubReg)
+      .addReg(SrcReg, 0, SubReg)
       .addReg(SrcReg, RegState::Implicit);
   }
 
