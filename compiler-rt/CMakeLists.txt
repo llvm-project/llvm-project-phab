@@ -34,6 +34,12 @@ mark_as_advanced(COMPILER_RT_BUILD_XRAY)
 set(COMPILER_RT_BAREMETAL_BUILD OFF CACHE BOOLEAN
   "Build for a bare-metal target.")
 
+set(COMPILER_RT_LIBRARY_INSTALL_DIR "" CACHE PATH
+  "compiler-rt library install path")
+
+set(COMPILER_RT_LIBNAME "" CACHE STRING 
+  "Customize the library installation name")
+
 if (COMPILER_RT_STANDALONE_BUILD)
   load_llvm_config()
 
