@@ -11113,9 +11113,9 @@ buildSingleCopyAssignRecursively(Sema &S, SourceLocation Loc, QualType T,
                                      VK_RValue, OK_Ordinary, Loc, FPOptions());
 
   // Create the pre-increment of the iteration variable.
-  Expr *Increment
-    = new (S.Context) UnaryOperator(IterationVarRef.build(S, Loc), UO_PreInc,
-                                    SizeType, VK_LValue, OK_Ordinary, Loc);
+  Expr *Increment = new (S.Context)
+      UnaryOperator(IterationVarRef.build(S, Loc), UO_PreInc, SizeType,
+                    VK_LValue, OK_Ordinary, Loc, true);
 
   // Construct the loop that copies all elements of this array.
   return S.ActOnForStmt(
