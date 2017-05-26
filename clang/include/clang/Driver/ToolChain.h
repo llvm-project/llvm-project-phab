@@ -140,6 +140,7 @@ public:
   // Accessors
 
   const Driver &getDriver() const { return D; }
+  const llvm::opt::ArgList &getArgs() const { return Args;}
   vfs::FileSystem &getVFS() const;
   const llvm::Triple &getTriple() const { return Triple; }
 
