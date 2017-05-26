@@ -155,6 +155,16 @@ static Error isTrivialOperatorNode(const TreePatternNode *N) {
   return failedImport(Explanation);
 }
 
+static Record *getInitValueAsRegClass(Init *V) {
+  if (DefInit *VDefInit = dyn_cast<DefInit>(V)) {
+    if (VDefInit->getDef()->isSubClassOf("RegisterOperand"))
+      return VDefInit->getDef()->getValueAsDef("RegClass");
+    if (VDefInit->getDef()->isSubClassOf("RegisterClass"))
+      return VDefInit->getDef();
+  }
+  return nullptr;
+}
+
 //===- Matchers -----------------------------------------------------------===//
 
 class OperandMatcher;
@@ -947,6 +957,7 @@ public:
 /// into the desired instruction when this is possible.
 class BuildMIAction : public MatchAction {
 private:
+  std::string Name;
   const CodeGenInstruction *I;
   const InstructionMatcher &Matched;
   std::vector<std::unique_ptr<OperandRenderer>> OperandRenderers;
@@ -970,8 +981,9 @@ private:
   }
 
 public:
-  BuildMIAction(const CodeGenInstruction *I, const InstructionMatcher &Matched)
-      : I(I), Matched(Matched) {}
+  BuildMIAction(const StringRef Name, const CodeGenInstruction *I,
+                const InstructionMatcher &Matched)
+      : Name(Name), I(I), Matched(Matched) {}
 
   template <class Kind, class... Args>
   Kind &addRenderer(Args&&... args) {
@@ -1006,7 +1018,7 @@ public:
         }
       }
 
-      OS << "    MachineInstr &NewI = " << RecycleVarName << ";\n";
+      OS << "    MachineInstr &" << Name << " = " << RecycleVarName << ";\n";
       return;
     }
 
@@ -1024,7 +1036,38 @@ public:
     OS << "      for (const auto &MMO : FromMI->memoperands())\n";
     OS << "        MIB.addMemOperand(MMO);\n";
     OS << "    " << RecycleVarName << ".eraseFromParent();\n";
-    OS << "    MachineInstr &NewI = *MIB;\n";
+    OS << "    MachineInstr &" << Name << " = *MIB;\n";
+  }
+};
+
+class ConstrainOperandsToDefinitionAction : public MatchAction {
+private:
+  std::string Name;
+
+public:
+  ConstrainOperandsToDefinitionAction(const StringRef Name) : Name(Name) {}
+
+  void emitCxxActionStmts(raw_ostream &OS, RuleMatcher &Rule,
+                          StringRef RecycleVarName) const override {
+    OS << "      constrainSelectedInstRegOperands(" << Name << ", TII, TRI, RBI);\n";
+  }
+};
+
+class ConstrainOperandToRegClassAction : public MatchAction {
+private:
+  std::string Name;
+  unsigned OpIdx;
+  const CodeGenRegisterClass &RC;
+
+public:
+  ConstrainOperandToRegClassAction(const StringRef Name, unsigned OpIdx,
+                                   const CodeGenRegisterClass &RC)
+      : Name(Name), OpIdx(OpIdx), RC(RC) {}
+
+  void emitCxxActionStmts(raw_ostream &OS, RuleMatcher &Rule,
+                          StringRef RecycleVarName) const override {
+    OS << "      constrainOperandRegToRegClass(" << Name << ", " << OpIdx
+       << ", &" << RC.getQualifiedName() << "RegClass, TII, TRI, RBI);\n";
   }
 };
 
@@ -1172,7 +1215,6 @@ void RuleMatcher::emit(raw_ostream &OS,
     MA->emitCxxActionStmts(OS, *this, "I");
   }
 
-  OS << "      constrainSelectedInstRegOperands(NewI, TII, TRI, RBI);\n";
   OS << "      return true;\n";
   OS << "    }\n";
   OS << "    return false;\n";
@@ -1388,15 +1430,10 @@ Error GlobalISelEmitter::importChildMatcher(InstructionMatcher &InsnMatcher,
     auto *ChildRec = ChildDefInit->getDef();
 
     // Check for register classes.
-    if (ChildRec->isSubClassOf("RegisterClass")) {
+    if (ChildRec->isSubClassOf("RegisterClass") ||
+        ChildRec->isSubClassOf("RegisterOperand")) {
       OM.addPredicate<RegisterBankOperandMatcher>(
-          Target.getRegisterClass(ChildRec));
-      return Error::success();
-    }
-
-    if (ChildRec->isSubClassOf("RegisterOperand")) {
-      OM.addPredicate<RegisterBankOperandMatcher>(
-          Target.getRegisterClass(ChildRec->getValueAsDef("RegClass")));
+          Target.getRegisterClass(getInitValueAsRegClass(ChildDefInit)));
       return Error::success();
     }
 
@@ -1503,22 +1540,32 @@ Expected<BuildMIAction &> GlobalISelEmitter::createAndImportInstructionRenderer(
           "Pattern operator isn't an instruction (it's a ValueType)");
     return failedImport("Pattern operator isn't an instruction");
   }
-  auto &DstI = Target.getInstruction(DstOp);
+  auto *DstI = &Target.getInstruction(DstOp);
 
-  auto &DstMIBuilder = M.addAction<BuildMIAction>(&DstI, InsnMatcher);
+  unsigned DstINumUses = DstI->Operands.size() - DstI->Operands.NumDefs;
+  unsigned ExpectedDstINumUses = Dst->getNumChildren();
+
+  // COPY_TO_REGCLASS is just a copy with a ConstrainOperandToRegClassAction
+  // attached.
+  if (DstI->TheDef->getName() == "COPY_TO_REGCLASS") {
+    DstI = &Target.getInstruction(RK.getDef("COPY"));
+    DstINumUses--; // Ignore the class constraint.
+    ExpectedDstINumUses--;
+  }
+
+  auto &DstMIBuilder = M.addAction<BuildMIAction>("NewI", DstI, InsnMatcher);
 
   // Render the explicit defs.
-  for (unsigned I = 0; I < DstI.Operands.NumDefs; ++I) {
-    const auto &DstIOperand = DstI.Operands[I];
+  for (unsigned I = 0; I < DstI->Operands.NumDefs; ++I) {
+    const auto &DstIOperand = DstI->Operands[I];
     DstMIBuilder.addRenderer<CopyRenderer>(InsnMatcher, DstIOperand.Name);
   }
 
   // Render the explicit uses.
   unsigned Child = 0;
-  unsigned DstINumUses = DstI.Operands.size() - DstI.Operands.NumDefs;
   unsigned NumDefaultOps = 0;
   for (unsigned I = 0; I != DstINumUses; ++I) {
-    const auto &DstIOperand = DstI.Operands[DstI.Operands.NumDefs + I];
+    const auto &DstIOperand = DstI->Operands[DstI->Operands.NumDefs + I];
 
     // If the operand has default values, introduce them now.
     // FIXME: Until we have a decent test case that dictates we should do
@@ -1539,10 +1586,10 @@ Expected<BuildMIAction &> GlobalISelEmitter::createAndImportInstructionRenderer(
     ++Child;
   }
 
-  if (NumDefaultOps + Dst->getNumChildren() != DstINumUses)
+  if (NumDefaultOps + ExpectedDstINumUses != DstINumUses)
     return failedImport("Expected " + llvm::to_string(DstINumUses) +
                         " used operands but found " +
-                        llvm::to_string(Dst->getNumChildren()) +
+                        llvm::to_string(ExpectedDstINumUses) +
                         " explicit ones and " + llvm::to_string(NumDefaultOps) +
                         " default ones");
 
@@ -1630,10 +1677,16 @@ Expected<RuleMatcher> GlobalISelEmitter::runOnPattern(const PatternToMatch &P) {
 
     const auto &DstIOperand = DstI.Operands[OpIdx];
     Record *DstIOpRec = DstIOperand.Rec;
-    if (DstIOpRec->isSubClassOf("RegisterOperand"))
+    if (DstI.TheDef->getName() == "COPY_TO_REGCLASS") {
+      DstIOpRec = getInitValueAsRegClass(Dst->getChild(1)->getLeafValue());
+
+      if (DstIOpRec == nullptr)
+        return failedImport(
+            "COPY_TO_REGCLASS operand #1 isn't a register class");
+    } else if (DstIOpRec->isSubClassOf("RegisterOperand"))
       DstIOpRec = DstIOpRec->getValueAsDef("RegClass");
-    if (!DstIOpRec->isSubClassOf("RegisterClass"))
-      return failedImport("Dst MI def isn't a register class");
+    else if (!DstIOpRec->isSubClassOf("RegisterClass"))
+      return failedImport("Dst MI def isn't a register class" + to_string(*Dst));
 
     OperandMatcher &OM = InsnMatcher.getOperand(OpIdx);
     OM.setSymbolicName(DstIOperand.Name);
@@ -1652,6 +1705,22 @@ Expected<RuleMatcher> GlobalISelEmitter::runOnPattern(const PatternToMatch &P) {
   // These are only added to the root of the result.
   if (auto Error = importImplicitDefRenderers(DstMIBuilder, P.getDstRegs()))
     return std::move(Error);
+
+  // Constrain the registers to classes. This is normally derived from the
+  // emitted instruction but a few instructions require special handling.
+  if (DstI.TheDef->getName() == "COPY_TO_REGCLASS") {
+    // COPY_TO_REGCLASS does not provide operand constraints itself but the
+    // result is constrained to the class given by the second child.
+    Record *DstIOpRec =
+        getInitValueAsRegClass(Dst->getChild(1)->getLeafValue());
+
+    if (DstIOpRec == nullptr)
+      return failedImport("COPY_TO_REGCLASS operand #1 isn't a register class");
+
+    M.addAction<ConstrainOperandToRegClassAction>(
+        "NewI", 0, Target.getRegisterClass(DstIOpRec));
+  } else
+    M.addAction<ConstrainOperandsToDefinitionAction>("NewI");
 
   // We're done with this pattern!  It's eligible for GISel emission; return it.
   ++NumPatternImported;

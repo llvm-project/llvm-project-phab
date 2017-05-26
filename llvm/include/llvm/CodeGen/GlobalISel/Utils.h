@@ -29,8 +29,15 @@ class RegisterBankInfo;
 class TargetInstrInfo;
 class TargetPassConfig;
 class TargetRegisterInfo;
+class TargetRegisterClass;
 class Twine;
 class ConstantFP;
+
+unsigned constrainRegToClass(MachineRegisterInfo &MRI,
+                             const TargetInstrInfo &TII,
+                             const RegisterBankInfo &RBI,
+                             MachineInstr &InsertPt, unsigned Reg,
+                             const TargetRegisterClass *RegClass);
 
 /// Try to constrain Reg so that it is usable by argument OpIdx of the
 /// provided MCInstrDesc \p II. If this fails, create a new virtual
