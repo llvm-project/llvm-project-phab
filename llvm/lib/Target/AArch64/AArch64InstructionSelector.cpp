@@ -940,6 +940,9 @@ bool AArch64InstructionSelector::select(MachineInstr &I) const {
     const LLT DstTy = MRI.getType(I.getOperand(0).getReg());
     const LLT SrcTy = MRI.getType(I.getOperand(1).getReg());
 
+    if (DstTy == LLT::scalar(32) && SrcTy == LLT::scalar(64))
+      llvm_unreachable("Tablegen code can import this");
+
     const unsigned DstReg = I.getOperand(0).getReg();
     const unsigned SrcReg = I.getOperand(1).getReg();
 

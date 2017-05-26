@@ -329,6 +329,9 @@ namespace llvm {
     const std::string &getName() const { return Name; }
     std::string getQualifiedName() const;
     ArrayRef<MVT::SimpleValueType> getValueTypes() const {return VTs;}
+    bool hasValueType(MVT::SimpleValueType VT) const {
+      return std::find(VTs.begin(), VTs.end(), VT) != VTs.end();
+    }
     unsigned getNumValueTypes() const { return VTs.size(); }
 
     MVT::SimpleValueType getValueTypeNum(unsigned VTNum) const {
@@ -370,7 +373,7 @@ namespace llvm {
     void getSuperRegClasses(const CodeGenSubRegIndex *SubIdx,
                             BitVector &Out) const;
 
-    // addSuperRegClass - Add a class containing only SudIdx super-registers.
+    // addSuperRegClass - Add a class containing only SubIdx super-registers.
     void addSuperRegClass(CodeGenSubRegIndex *SubIdx,
                           CodeGenRegisterClass *SuperRC) {
       SuperRegClasses[SubIdx].insert(SuperRC);
