@@ -342,22 +342,30 @@ __int64 _InterlockedAnd64(__int64 volatile *_Value, __int64 _Mask);
 \*----------------------------------------------------------------------------*/
 static __inline__ unsigned char __DEFAULT_FN_ATTRS
 _bittest(long const *_BitBase, long _BitPos) {
+  _BitBase += (_BitPos / 32);
+  _BitPos %= 32;
   return (*_BitBase >> _BitPos) & 1;
 }
 static __inline__ unsigned char __DEFAULT_FN_ATTRS
 _bittestandcomplement(long *_BitBase, long _BitPos) {
+  _BitBase += (_BitPos / 32);
+  _BitPos %= 32;
   unsigned char _Res = (*_BitBase >> _BitPos) & 1;
   *_BitBase = *_BitBase ^ (1 << _BitPos);
   return _Res;
 }
 static __inline__ unsigned char __DEFAULT_FN_ATTRS
 _bittestandreset(long *_BitBase, long _BitPos) {
+  _BitBase += (_BitPos / 32);
+  _BitPos %= 32;
   unsigned char _Res = (*_BitBase >> _BitPos) & 1;
   *_BitBase = *_BitBase & ~(1 << _BitPos);
   return _Res;
 }
 static __inline__ unsigned char __DEFAULT_FN_ATTRS
 _bittestandset(long *_BitBase, long _BitPos) {
+  _BitBase += (_BitPos / 32);
+  _BitPos %= 32;
   unsigned char _Res = (*_BitBase >> _BitPos) & 1;
   *_BitBase = *_BitBase | (1 << _BitPos);
   return _Res;
@@ -365,16 +373,22 @@ _bittestandset(long *_BitBase, long _BitPos) {
 #if defined(__arm__) || defined(__aarch64__)
 static __inline__ unsigned char __DEFAULT_FN_ATTRS
 _interlockedbittestandset_acq(long volatile *_BitBase, long _BitPos) {
+  _BitBase += (_BitPos / 32);
+  _BitPos %= 32;
   long _PrevVal = __atomic_fetch_or(_BitBase, 1l << _BitPos, __ATOMIC_ACQUIRE);
   return (_PrevVal >> _BitPos) & 1;
 }
 static __inline__ unsigned char __DEFAULT_FN_ATTRS
 _interlockedbittestandset_nf(long volatile *_BitBase, long _BitPos) {
+  _BitBase += (_BitPos / 32);
+  _BitPos %= 32;
   long _PrevVal = __atomic_fetch_or(_BitBase, 1l << _BitPos, __ATOMIC_RELAXED);
   return (_PrevVal >> _BitPos) & 1;
 }
 static __inline__ unsigned char __DEFAULT_FN_ATTRS
 _interlockedbittestandset_rel(long volatile *_BitBase, long _BitPos) {
+  _BitBase += (_BitPos / 32);
+  _BitPos %= 32;
   long _PrevVal = __atomic_fetch_or(_BitBase, 1l << _BitPos, __ATOMIC_RELEASE);
   return (_PrevVal >> _BitPos) & 1;
 }
@@ -382,28 +396,38 @@ _interlockedbittestandset_rel(long volatile *_BitBase, long _BitPos) {
 #ifdef __x86_64__
 static __inline__ unsigned char __DEFAULT_FN_ATTRS
 _bittest64(__int64 const *_BitBase, __int64 _BitPos) {
+  _BitBase += (_BitPos / 64);
+  _BitPos %= 64;
   return (*_BitBase >> _BitPos) & 1;
 }
 static __inline__ unsigned char __DEFAULT_FN_ATTRS
 _bittestandcomplement64(__int64 *_BitBase, __int64 _BitPos) {
+  _BitBase += (_BitPos / 64);
+  _BitPos %= 64;
   unsigned char _Res = (*_BitBase >> _BitPos) & 1;
   *_BitBase = *_BitBase ^ (1ll << _BitPos);
   return _Res;
 }
 static __inline__ unsigned char __DEFAULT_FN_ATTRS
 _bittestandreset64(__int64 *_BitBase, __int64 _BitPos) {
+  _BitBase += (_BitPos / 64);
+  _BitPos %= 64;
   unsigned char _Res = (*_BitBase >> _BitPos) & 1;
   *_BitBase = *_BitBase & ~(1ll << _BitPos);
   return _Res;
 }
 static __inline__ unsigned char __DEFAULT_FN_ATTRS
 _bittestandset64(__int64 *_BitBase, __int64 _BitPos) {
+  _BitBase += (_BitPos / 64);
+  _BitPos %= 64;
   unsigned char _Res = (*_BitBase >> _BitPos) & 1;
   *_BitBase = *_BitBase | (1ll << _BitPos);
   return _Res;
 }
 static __inline__ unsigned char __DEFAULT_FN_ATTRS
 _interlockedbittestandset64(__int64 volatile *_BitBase, __int64 _BitPos) {
+  _BitBase += (_BitPos / 64);
+  _BitPos %= 64;
   long long _PrevVal =
       __atomic_fetch_or(_BitBase, 1ll << _BitPos, __ATOMIC_SEQ_CST);
   return (_PrevVal >> _BitPos) & 1;
