@@ -137,8 +137,7 @@ define amdgpu_kernel void @constant_sextload_v1i16_to_v1i32(<1 x i32> addrspace(
 
 ; v2i16 is naturally 4 byte aligned
 ; EG: VTX_READ_32 [[DST:T[0-9]\.[XYZW]]], [[DST]], 0, #1
-; EG: BFE_UINT {{[* ]*}}T{{[0-9].[XYZW]}}, [[DST]], literal
-; EG: 16
+; EG: LSHR {{[* ]*}}T{{[0-9].[XYZW]}}, [[DST]], literal
 ; EG: 16
 define amdgpu_kernel void @constant_zextload_v2i16_to_v2i32(<2 x i32> addrspace(1)* %out, <2 x i16> addrspace(2)* %in) #0 {
   %load = load <2 x i16>, <2 x i16> addrspace(2)* %in
@@ -156,8 +155,7 @@ define amdgpu_kernel void @constant_zextload_v2i16_to_v2i32(<2 x i32> addrspace(
 ; EG: MEM_RAT_CACHELESS STORE_RAW [[ST:T[0-9]]].XY, {{T[0-9].[XYZW]}},
 ; EG: VTX_READ_32 [[DST:T[0-9]\.[XYZW]]], [[DST]], 0, #1
 ; EG-DAG: BFE_INT {{[* ]*}}[[ST]].X, [[DST]], 0.0, literal
-; TODO: We should use ASHR instead of LSHR + BFE
-; EG-DAG: BFE_INT {{[* ]*}}[[ST]].Y, {{PV\.[XYZW]}}, 0.0, literal
+; EG-DAG: ASHR {{[* ]*}}[[ST]].Y, {{.*}},  literal
 ; EG-DAG: 16
 ; EG-DAG: 16
 define amdgpu_kernel void @constant_sextload_v2i16_to_v2i32(<2 x i32> addrspace(1)* %out, <2 x i16> addrspace(2)* %in) #0 {
@@ -221,8 +219,8 @@ entry:
 ; EG: MEM_RAT_CACHELESS STORE_RAW [[ST:T[0-9]]].XYZW, {{T[0-9].[XYZW]}}
 ; EG: VTX_READ_64 [[LD:T[0-9]]].XY, {{T[0-9].[XYZW]}}, 0, #1
 ; TODO: This should use LD, but for some there are redundant MOVs
-; EG-DAG: BFE_UINT {{[* ]*}}[[ST]].Y, {{.*\.[XYZW]}}, literal
-; EG-DAG: BFE_UINT {{[* ]*}}[[ST]].W, {{.*\.[XYZW]}}, literal
+; EG-DAG: LSHR {{[* ]*}}[[ST]].Y, {{.*\.[XYZW]}}, literal
+; EG-DAG: LSHR {{[* ]*}}[[ST]].W, {{.*\.[XYZW]}}, literal
 ; EG-DAG: 16
 ; EG-DAG: 16
 ; EG-DAG: AND_INT {{[* ]*}}[[ST]].X, {{T[0-9]\.[XYZW]}}, literal
@@ -247,9 +245,8 @@ define amdgpu_kernel void @constant_zextload_v4i16_to_v4i32(<4 x i32> addrspace(
 ; TODO: This should use LD, but for some there are redundant MOVs
 ; EG-DAG: BFE_INT {{[* ]*}}[[ST]].X, {{.*}}, 0.0, literal
 ; EG-DAG: BFE_INT {{[* ]*}}[[ST]].Z, {{.*}}, 0.0, literal
-; TODO: We should use ASHR instead of LSHR + BFE
-; EG-DAG: BFE_INT {{[* ]*}}[[ST]].Y, {{.*}}, 0.0, literal
-; EG-DAG: BFE_INT {{[* ]*}}[[ST]].W, {{.*}}, 0.0, literal
+; EG-DAG: ASHR {{[* ]*}}[[ST]].Y, {{.*}}, literal
+; EG-DAG: ASHR {{[* ]*}}[[ST]].W, {{.*}}, literal
 ; EG-DAG: 16
 ; EG-DAG: 16
 ; EG-DAG: 16
@@ -270,12 +267,11 @@ define amdgpu_kernel void @constant_sextload_v4i16_to_v4i32(<4 x i32> addrspace(
 ; EG: MEM_RAT_CACHELESS STORE_RAW [[ST_HI:T[0-9]]].XYZW, {{T[0-9]+.[XYZW]}},
 ; EG: MEM_RAT_CACHELESS STORE_RAW [[ST_LO:T[0-9]]].XYZW, {{T[0-9]+.[XYZW]}},
 ; EG: VTX_READ_128 [[DST:T[0-9]]].XYZW, {{T[0-9].[XYZW]}}, 0, #1
-; TODO: These should use LSHR instead of BFE_UINT
 ; TODO: This should use DST, but for some there are redundant MOVs
-; EG-DAG: BFE_UINT {{[* ]*}}[[ST_LO]].Y, {{.*}}, literal
-; EG-DAG: BFE_UINT {{[* ]*}}[[ST_LO]].W, {{.*}}, literal
-; EG-DAG: BFE_UINT {{[* ]*}}[[ST_HI]].Y, {{.*}}, literal
-; EG-DAG: BFE_UINT {{[* ]*}}[[ST_HI]].W, {{.*}}, literal
+; EG-DAG: LSHR {{[* ]*}}[[ST_LO]].Y, {{.*}}, literal
+; EG-DAG: LSHR {{[* ]*}}[[ST_LO]].W, {{.*}}, literal
+; EG-DAG: LSHR {{[* ]*}}[[ST_HI]].Y, {{.*}}, literal
+; EG-DAG: LSHR {{[* ]*}}[[ST_HI]].W, {{.*}}, literal
 ; EG-DAG: AND_INT {{[* ]*}}[[ST_LO]].X, {{.*}}, literal
 ; EG-DAG: AND_INT {{[* ]*}}[[ST_LO]].Z, {{.*}}, literal
 ; EG-DAG: AND_INT {{[* ]*}}[[ST_HI]].X, {{.*}}, literal
@@ -304,12 +300,11 @@ define amdgpu_kernel void @constant_zextload_v8i16_to_v8i32(<8 x i32> addrspace(
 ; EG: MEM_RAT_CACHELESS STORE_RAW [[ST_HI:T[0-9]]].XYZW, {{T[0-9]+.[XYZW]}},
 ; EG: MEM_RAT_CACHELESS STORE_RAW [[ST_LO:T[0-9]]].XYZW, {{T[0-9]+.[XYZW]}},
 ; EG: VTX_READ_128 [[DST:T[0-9]]].XYZW, {{T[0-9].[XYZW]}}, 0, #1
-; TODO: 4 of these should use ASHR instead of LSHR + BFE_INT
 ; TODO: This should use DST, but for some there are redundant MOVs
-; EG-DAG: BFE_INT {{[* ]*}}[[ST_LO]].Y, {{.*}}, 0.0, literal
-; EG-DAG: BFE_INT {{[* ]*}}[[ST_LO]].W, {{.*}}, 0.0, literal
-; EG-DAG: BFE_INT {{[* ]*}}[[ST_HI]].Y, {{.*}}, 0.0, literal
-; EG-DAG: BFE_INT {{[* ]*}}[[ST_HI]].W, {{.*}}, 0.0, literal
+; EG-DAG: ASHR {{[* ]*}}[[ST_LO]].Y, {{.*}}, literal
+; EG-DAG: ASHR {{[* ]*}}[[ST_LO]].W, {{.*}}, literal
+; EG-DAG: ASHR {{[* ]*}}[[ST_HI]].Y, {{.*}}, literal
+; EG-DAG: ASHR {{[* ]*}}[[ST_HI]].W, {{.*}}, literal
 ; EG-DAG: BFE_INT {{[* ]*}}[[ST_LO]].X, {{.*}}, 0.0, literal
 ; EG-DAG: BFE_INT {{[* ]*}}[[ST_LO]].Z, {{.*}}, 0.0, literal
 ; EG-DAG: BFE_INT {{[* ]*}}[[ST_HI]].X, {{.*}}, 0.0, literal

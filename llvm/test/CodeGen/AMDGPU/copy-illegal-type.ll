@@ -59,8 +59,10 @@ define amdgpu_kernel void @test_copy_v4i8_x4(<4 x i8> addrspace(1)* %out0, <4 x 
 ; FUNC-LABEL: {{^}}test_copy_v4i8_extra_use:
 ; GCN: buffer_load_dword
 ; GCN-DAG: v_lshrrev_b32
-; GCN: v_and_b32
-; GCN: v_or_b32
+; SI: v_and_b32
+; SI: v_or_b32
+; VI: v_or_b32_sdwa
+; VI: v_or_b32_sdwa
 ; GCN-DAG: buffer_store_dword
 ; GCN-DAG: buffer_store_dword
 

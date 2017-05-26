@@ -299,7 +299,7 @@ define amdgpu_kernel void @v_uextract_bit_31_32_i64_trunc_i32(i32 addrspace(1)* 
 }
 
 ; GCN-LABEL: {{^}}and_not_mask_i64:
-; GCN-DAG: buffer_load_dwordx2 v{{\[}}[[VALLO:[0-9]+]]:[[VALHI:[0-9]+]]{{\]}}
+; GCN-DAG: buffer_load_dword v[[VALLO:[0-9]+]]
 ; GCN: v_mov_b32_e32 v[[SHRHI:[0-9]+]], 0{{$}}
 ; GCN: v_lshrrev_b32_e32 [[SHR:v[0-9]+]], 20, v[[VALLO]]
 ; GCN-DAG: v_and_b32_e32 v[[SHRLO:[0-9]+]], 4, [[SHR]]

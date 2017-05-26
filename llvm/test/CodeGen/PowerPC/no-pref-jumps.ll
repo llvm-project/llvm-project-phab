@@ -13,7 +13,7 @@ entry:
 ; CHECK-LABEL: @foo
 ; CHECK: cmpwi
 ; CHECK: cmpwi
-; CHECK: cror
+; CHECK: crand
 ; CHECK: blr
 
 if.then:                                          ; preds = %entry
