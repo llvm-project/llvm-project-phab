@@ -8542,6 +8542,36 @@ TEST_F(FormatTest, UnderstandPragmaOption) {
   EXPECT_EQ("#pragma option -C -A", format("#pragma    option   -C   -A"));
 }
 
+TEST_F(FormatTest, OptimizeBreakPenaltyVsExcess) {
+  FormatStyle Style = getLLVMStyle();
+  Style.ColumnLimit = 20;
+
+  verifyFormat("int a; // the\n"
+			   "       // comment", Style);
+  verifyFormat("int a; /* first line\n"
+               "        * second\n"
+			   "        * line third\n"
+               "        * line\n"
+               "        */", Style);
+
+  Style.PenaltyExcessCharacter = 30;
+  verifyFormat("int a; // the comment", Style);
+  EXPECT_EQ("int a; // the\n"
+            "       // comment aa",
+            format("int a; // the comment aa", Style));
+  verifyFormat("int a; /* first line\n"
+               "        * second line\n"
+			   "        * third line\n"
+               "        */", Style);
+  EXPECT_EQ("int a; /* first line\n"
+            "        * second\n"
+			"        * line third\n"
+            "        * line\n"
+            "        */",
+            format("int a; /* first line second line third line */",
+				   Style));
+}
+
 #define EXPECT_ALL_STYLES_EQUAL(Styles)                                        \
   for (size_t i = 1; i < Styles.size(); ++i)                                   \
   EXPECT_EQ(Styles[0], Styles[i]) << "Style #" << i << " of " << Styles.size() \
