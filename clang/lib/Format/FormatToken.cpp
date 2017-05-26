@@ -73,7 +73,7 @@ void TokenRole::precomputeFormattingInfos(const FormatToken *Token) {}
 
 unsigned CommaSeparatedList::formatAfterToken(LineState &State,
                                               ContinuationIndenter *Indenter,
-                                              bool DryRun) {
+                                              bool BreakToken, bool DryRun) {
   if (State.NextToken == nullptr || !State.NextToken->Previous)
     return 0;
 
@@ -125,7 +125,8 @@ unsigned CommaSeparatedList::formatAfterToken(LineState &State,
     }
 
     // Place token using the continuation indenter and store the penalty.
-    Penalty += Indenter->addTokenToState(State, NewLine, DryRun, ExtraSpaces);
+    Penalty += Indenter->addTokenToState(State, NewLine, BreakToken, DryRun,
+                                         ExtraSpaces);
   }
   return Penalty;
 }

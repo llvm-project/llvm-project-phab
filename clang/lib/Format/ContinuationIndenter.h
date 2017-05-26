@@ -56,6 +56,9 @@ public:
   /// \brief Returns \c true, if a line break after \p State is mandatory.
   bool mustBreak(const LineState &State);
 
+  /// \brief Returns \c true, if the first token after \p State can be split.
+  bool canSplit(LineState &State);
+
   /// \brief Appends the next token to \p State and updates information
   /// necessary for indentation.
   ///
@@ -64,7 +67,7 @@ public:
   ///
   /// If \p DryRun is \c false, also creates and stores the required
   /// \c Replacement.
-  unsigned addTokenToState(LineState &State, bool Newline, bool DryRun,
+  unsigned addTokenToState(LineState &State, bool Newline, bool BreakToken, bool DryRun,
                            unsigned ExtraSpaces = 0);
 
   /// \brief Get the column limit for this line. This is the style's column
@@ -74,7 +77,8 @@ public:
 private:
   /// \brief Mark the next token as consumed in \p State and modify its stacks
   /// accordingly.
-  unsigned moveStateToNextToken(LineState &State, bool DryRun, bool Newline);
+  unsigned moveStateToNextToken(LineState &State, bool DryRun, bool Newline,
+                                bool BreakToken);
 
   /// \brief Update 'State' according to the next token's fake left parentheses.
   void moveStatePastFakeLParens(LineState &State, bool Newline);
@@ -97,7 +101,7 @@ private:
   /// column limit violation in all lines except for the last one. The penalty
   /// for the column limit violation in the last line (and in single line
   /// tokens) is handled in \c addNextStateToQueue.
-  unsigned breakProtrudingToken(const FormatToken &Current, LineState &State,
+  unsigned breakProtrudingToken(const FormatToken &Current, LineState &State, bool BreakToken,
                                 bool DryRun);
 
   /// \brief Appends the next token to \p State and updates information

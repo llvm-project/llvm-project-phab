@@ -92,7 +92,7 @@ LineState ContinuationIndenter::getInitialState(unsigned FirstIndent,
   State.IgnoreStackForComparison = false;
 
   // The first token has already been indented and thus consumed.
-  moveStateToNextToken(State, DryRun, /*Newline=*/false);
+  moveStateToNextToken(State, DryRun, /*Newline=*/false, /*BreakToken*/true);
   return State;
 }
 
@@ -291,8 +291,14 @@ bool ContinuationIndenter::mustBreak(const LineState &State) {
   return false;
 }
 
+bool ContinuationIndenter::canSplit(LineState & State)
+{
+    return !State.Stack.back().NoLineBreak &&
+           !State.Stack.back().NoLineBreakInOperand;
+}
+
 unsigned ContinuationIndenter::addTokenToState(LineState &State, bool Newline,
-                                               bool DryRun,
+                                               bool BreakToken, bool DryRun,
                                                unsigned ExtraSpaces) {
   const FormatToken &Current = *State.NextToken;
 
@@ -313,7 +319,7 @@ unsigned ContinuationIndenter::addTokenToState(LineState &State, bool Newline,
       assert(EndColumn >= StartColumn);
       State.Column += EndColumn - StartColumn;
     }
-    moveStateToNextToken(State, DryRun, /*Newline=*/false);
+    moveStateToNextToken(State, DryRun, /*Newline=*/false, /*BreakToken=*/true);
     return 0;
   }
 
@@ -323,7 +329,7 @@ unsigned ContinuationIndenter::addTokenToState(LineState &State, bool Newline,
   else
     addTokenOnCurrentLine(State, DryRun, ExtraSpaces);
 
-  return moveStateToNextToken(State, DryRun, Newline) + Penalty;
+  return moveStateToNextToken(State, DryRun, Newline, BreakToken) + Penalty;
 }
 
 void ContinuationIndenter::addTokenOnCurrentLine(LineState &State, bool DryRun,
@@ -761,7 +767,8 @@ unsigned ContinuationIndenter::getNewLineColumn(const LineState &State) {
 }
 
 unsigned ContinuationIndenter::moveStateToNextToken(LineState &State,
-                                                    bool DryRun, bool Newline) {
+                                                    bool DryRun, bool Newline,
+                                                    bool BreakToken) {
   assert(State.Stack.size());
   const FormatToken &Current = *State.NextToken;
 
@@ -876,7 +883,7 @@ unsigned ContinuationIndenter::moveStateToNextToken(LineState &State,
   State.NextToken = State.NextToken->Next;
   unsigned Penalty = 0;
   if (CanBreakProtrudingToken)
-    Penalty = breakProtrudingToken(Current, State, DryRun);
+    Penalty = breakProtrudingToken(Current, State, BreakToken, DryRun);
   if (State.Column > getColumnLimit(State)) {
     unsigned ExcessCharacters = State.Column - getColumnLimit(State);
     Penalty += Style.PenaltyExcessCharacter * ExcessCharacters;
@@ -890,7 +897,7 @@ unsigned ContinuationIndenter::moveStateToNextToken(LineState &State,
   // after the "{" is already done and both options are tried and evaluated.
   // FIXME: This is ugly, find a better way.
   if (Previous && Previous->Role)
-    Penalty += Previous->Role->formatAfterToken(State, this, DryRun);
+    Penalty += Previous->Role->formatAfterToken(State, this, BreakToken, DryRun);
 
   return Penalty;
 }
@@ -1134,7 +1141,7 @@ unsigned ContinuationIndenter::addMultilineToken(const FormatToken &Current,
 
 unsigned ContinuationIndenter::breakProtrudingToken(const FormatToken &Current,
                                                     LineState &State,
-                                                    bool DryRun) {
+                                                    bool BreakToken, bool DryRun) {
   // Don't break multi-line tokens other than block comments. Instead, just
   // update the state.
   if (Current.isNot(TT_BlockComment) && Current.IsMultiline)
@@ -1264,6 +1271,12 @@ unsigned ContinuationIndenter::breakProtrudingToken(const FormatToken &Current,
         ReflowInProgress = true;
         if (!DryRun)
           Token->compressWhitespace(LineIndex, TailOffset, Split, Whitespaces);
+        break;
+      }
+
+      if (!BreakToken) {
+        Penalty += Style.PenaltyExcessCharacter *
+                   (RemainingTokenColumns - RemainingSpace);
         break;
       }
 

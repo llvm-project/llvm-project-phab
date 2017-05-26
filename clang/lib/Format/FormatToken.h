@@ -534,7 +534,7 @@ public:
   /// already been set thereby deciding on the first line break.
   virtual unsigned formatAfterToken(LineState &State,
                                     ContinuationIndenter *Indenter,
-                                    bool DryRun) {
+                                    bool BreakToken, bool DryRun) {
     return 0;
   }
 
@@ -553,7 +553,7 @@ public:
   void precomputeFormattingInfos(const FormatToken *Token) override;
 
   unsigned formatAfterToken(LineState &State, ContinuationIndenter *Indenter,
-                            bool DryRun) override;
+                            bool BreakToken, bool DryRun) override;
 
   unsigned formatFromToken(LineState &State, ContinuationIndenter *Indenter,
                            bool DryRun) override;
