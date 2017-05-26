@@ -120,6 +120,10 @@ Improvements to clang-tidy
   Adds checks that implement the `High Integrity C++ Coding Standard <http://www.codingstandard.com/section/index/>`_ and other safety
   standards. Many checks are aliased to other modules.
 
+- New `misc-exception-escape
+  <http://clang.llvm.org/extra/clang-tidy/checks/misc-exception-escape.html>`_ check
+
+
 Improvements to include-fixer
 -----------------------------
 

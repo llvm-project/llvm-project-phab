@@ -76,6 +76,7 @@ Clang-Tidy Checks
    misc-bool-pointer-implicit-conversion
    misc-dangling-handle
    misc-definitions-in-headers
+   misc-exception-escape
    misc-fold-init-type
    misc-forward-declaration-namespace
    misc-forwarding-reference-overload
