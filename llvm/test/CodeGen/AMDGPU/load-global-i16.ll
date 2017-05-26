@@ -146,7 +146,7 @@ define amdgpu_kernel void @global_sextload_v1i16_to_v1i32(<1 x i32> addrspace(1)
 ; GCN-HSA: flat_load_dword
 
 ; EGCM: VTX_READ_32 [[DST:T[0-9]\.[XYZW]]], [[DST]], 0, #1
-; EGCM: BFE_UINT {{[* ]*}}T{{[0-9].[XYZW]}}, [[DST]], literal
+; EGCM: LSHR {{[* ]*}}T{{[0-9].[XYZW]}}, [[DST]], literal
 ; EGCM: 16
 define amdgpu_kernel void @global_zextload_v2i16_to_v2i32(<2 x i32> addrspace(1)* %out, <2 x i16> addrspace(1)* %in) #0 {
   %load = load <2 x i16>, <2 x i16> addrspace(1)* %in
@@ -164,8 +164,8 @@ define amdgpu_kernel void @global_zextload_v2i16_to_v2i32(<2 x i32> addrspace(1)
 ; CM: MEM_RAT_CACHELESS STORE_DWORD [[ST:T[0-9]]], {{T[0-9]\.[XYZW]}}
 ; EGCM: VTX_READ_32 [[DST:T[0-9].[XYZW]]], [[DST]], 0, #1
 ; TODO: This should use ASHR instead of LSHR + BFE
+; EGCM-DAG: ASHR {{[* ]*}}[[ST]].Y, {{.*}}, literal
 ; EGCM-DAG: BFE_INT {{[* ]*}}[[ST]].X, [[DST]], 0.0, literal
-; EGCM-DAG: BFE_INT {{[* ]*}}[[ST]].Y, {{PV.[XYZW]}}, 0.0, literal
 ; EGCM-DAG: 16
 ; EGCM-DAG: 16
 define amdgpu_kernel void @global_sextload_v2i16_to_v2i32(<2 x i32> addrspace(1)* %out, <2 x i16> addrspace(1)* %in) #0 {
@@ -231,9 +231,9 @@ entry:
 ; EG: MEM_RAT_CACHELESS STORE_RAW [[ST:T[0-9]]].XYZW, {{T[0-9]\.[XYZW]}},
 ; EGCM: VTX_READ_64 [[DST:T[0-9]]].XY, {{T[0-9].[XYZW]}}, 0, #1
 ; TODO: This should use DST, but for some there are redundant MOVs
-; EGCM-DAG: BFE_UINT {{[* ]*}}[[ST]].Y, {{.*}}, literal
+; EGCM-DAG: LSHR {{[* ]*}}[[ST]].Y, {{.*}}, literal
 ; EGCM-DAG: 16
-; EGCM-DAG: BFE_UINT {{[* ]*}}[[ST]].W, {{.*}}, literal
+; EGCM-DAG: LSHR {{[* ]*}}[[ST]].W, {{.*}}, literal
 ; EGCM-DAG: AND_INT {{[* ]*}}[[ST]].X, {{.*}}, literal
 ; EGCM-DAG: AND_INT {{[* ]*}}[[ST]].Z, {{.*}}, literal
 ; EGCM-DAG: 16
@@ -254,10 +254,10 @@ define amdgpu_kernel void @global_zextload_v4i16_to_v4i32(<4 x i32> addrspace(1)
 ; EGCM: VTX_READ_64 [[DST:T[0-9]]].XY, {{T[0-9].[XYZW]}}, 0, #1
 ; TODO: We should use ASHR instead of LSHR + BFE
 ; TODO: This should use DST, but for some there are redundant MOVs
+; EGCM-DAG: ASHR {{[* ]*}}[[ST]].Y, {{.*}}, literal
+; EGCM-DAG: ASHR {{[* ]*}}[[ST]].W, {{.*}}, literal
 ; EGCM-DAG: BFE_INT {{[* ]*}}[[ST]].X, {{.*}}, 0.0, literal
-; EGCM-DAG: BFE_INT {{[* ]*}}[[ST]].Y, {{.*}}, 0.0, literal
 ; EGCM-DAG: BFE_INT {{[* ]*}}[[ST]].Z, {{.*}}, 0.0, literal
-; EGCM-DAG: BFE_INT {{[* ]*}}[[ST]].W, {{.*}}, 0.0, literal
 ; EGCM-DAG: 16
 ; EGCM-DAG: 16
 ; EGCM-DAG: 16
@@ -279,11 +279,10 @@ define amdgpu_kernel void @global_sextload_v4i16_to_v4i32(<4 x i32> addrspace(1)
 ; EG-DAG: MEM_RAT_CACHELESS STORE_RAW [[ST_HI:T[0-9]]].XYZW, {{T[0-9]\.[XYZW]}},
 ; EGCM: CF_END
 ; EGCM: VTX_READ_128 [[DST:T[0-9]]].XYZW, {{T[0-9].[XYZW]}}, 0, #1
-; TODO: These should use LSHR instead of BFE_UINT
-; EGCM-DAG: BFE_UINT {{[* ]*}}[[ST_LO]].Y, {{.*}}, literal
-; EGCM-DAG: BFE_UINT {{[* ]*}}[[ST_LO]].W, {{.*}}, literal
-; EGCM-DAG: BFE_UINT {{[* ]*}}[[ST_HI]].Y, {{.*}}, literal
-; EGCM-DAG: BFE_UINT {{[* ]*}}[[ST_HI]].W, {{.*}}, literal
+; EGCM-DAG: LSHR {{[* ]*}}[[ST_LO]].Y, {{.*}}, literal
+; EGCM-DAG: LSHR {{[* ]*}}[[ST_LO]].W, {{.*}}, literal
+; EGCM-DAG: LSHR {{[* ]*}}[[ST_HI]].Y, {{.*}}, literal
+; EGCM-DAG: LSHR {{[* ]*}}[[ST_HI]].W, {{.*}}, literal
 ; EGCM-DAG: AND_INT {{[* ]*}}[[ST_LO]].X, {{.*}}, literal
 ; EGCM-DAG: AND_INT {{[* ]*}}[[ST_LO]].Z, {{.*}}, literal
 ; EGCM-DAG: AND_INT {{[* ]*}}[[ST_HI]].X, {{.*}}, literal
@@ -313,11 +312,10 @@ define amdgpu_kernel void @global_zextload_v8i16_to_v8i32(<8 x i32> addrspace(1)
 ; EG-DAG: MEM_RAT_CACHELESS STORE_RAW [[ST_HI:T[0-9]]].XYZW, {{T[0-9]\.[XYZW]}},
 ; EGCM: CF_END
 ; EGCM: VTX_READ_128 [[DST:T[0-9]]].XYZW, {{T[0-9].[XYZW]}}, 0, #1
-; TODO: These should use ASHR instead of LSHR + BFE_INT
-; EGCM-DAG: BFE_INT {{[* ]*}}[[ST_LO]].Y, {{.*}}, 0.0, literal
-; EGCM-DAG: BFE_INT {{[* ]*}}[[ST_LO]].W, {{.*}}, 0.0, literal
-; EGCM-DAG: BFE_INT {{[* ]*}}[[ST_HI]].Y, {{.*}}, 0.0, literal
-; EGCM-DAG: BFE_INT {{[* ]*}}[[ST_HI]].W, {{.*}}, 0.0, literal
+; EGCM-DAG: ASHR {{[* ]*}}[[ST_HI]].Y, {{.*}}, literal
+; EGCM-DAG: ASHR {{[* ]*}}[[ST_LO]].W, {{.*}}, literal
+; EGCM-DAG: ASHR {{[* ]*}}[[ST_LO]].Y, {{.*}}, literal
+; EGCM-DAG: ASHR {{[* ]*}}[[ST_HI]].W, {{.*}}, literal
 ; EGCM-DAG: BFE_INT {{[* ]*}}[[ST_LO]].X, {{.*}}, 0.0, literal
 ; EGCM-DAG: BFE_INT {{[* ]*}}[[ST_LO]].Z, {{.*}}, 0.0, literal
 ; EGCM-DAG: BFE_INT {{[* ]*}}[[ST_HI]].X, {{.*}}, 0.0, literal

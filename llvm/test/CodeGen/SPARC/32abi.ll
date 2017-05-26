@@ -201,8 +201,7 @@ define void @call_floatarg(float %f1, double %d2, float %f5, double *%p) {
 ; CHECK-BE-NEXT: addcc %i2, %i1, %i1
 ; CHECK-BE-NEXT: addxcc %i0, 0, %i0
 ;
-; CHECK-LE: ld [%fp+96], %g2
-; CHECK-LE-NEXT: ld [%fp+100], %g3
+; CHECK-LE: ldd [%fp+96], %g2
 ; CHECK-LE-NEXT: ld [%fp+92], %g4
 ; CHECK-LE-NEXT: addcc %i0, %i2, %i0
 ; CHECK-LE-NEXT: addxcc %i1, 0, %i1
