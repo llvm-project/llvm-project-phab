@@ -140,19 +140,19 @@ exit:
 ; CHECK-NEXT: .LBB3_1:
 ; CHECK-NEXT:   callq   loop_header
 ;      CHECK:   jl .LBB3_7
-;      CHECK:   jge .LBB3_3
-; CHECK-NEXT:   callq   bar101
-; CHECK-NEXT:   jmp     .LBB3_1
-; CHECK-NEXT:   align
-; CHECK-NEXT: .LBB3_3:
-;      CHECK:   jge .LBB3_4
-; CHECK-NEXT:   callq   bar102
-; CHECK-NEXT:   jmp     .LBB3_1
-; CHECK-NEXT: .LBB3_4:
+;      CHECK:   jl .LBB3_8
+;      CHECK:   jl .LBB3_9
 ;      CHECK:   jl .LBB3_6
 ; CHECK-NEXT:   callq   loop_latch
 ; CHECK-NEXT:   jmp     .LBB3_1
+; CHECK: .LBB3_8:
+; CHECK-NEXT:   callq   bar101
+; CHECK-NEXT:   jmp     .LBB3_1
+; CHECK-NEXT: .LBB3_9:
+; CHECK-NEXT:   callq   bar102
+; CHECK-NEXT:   jmp     .LBB3_1
 ; CHECK-NEXT: .LBB3_6:
+; CHECK-NEXT:   callq exit
 
 define void @cfg_islands() nounwind {
 entry:
@@ -224,39 +224,6 @@ bb:
   br label %loop
 
 done:
-  call void @exit()
-  ret void
-}
-
-; This is exactly the same function as slightly_more_involved.
-; The difference is that when optimising for size, we do not want
-; to see this reordering.
-
-; CHECK-LABEL: slightly_more_involved_2:
-; CHECK-NOT:      jmp .LBB5_1
-; CHECK:          .LBB5_1:
-; CHECK-NEXT:     callq body
-
-define void @slightly_more_involved_2() #0 {
-entry:
-  br label %loop
-
-loop:
-  call void @body()
-  %t0 = call i32 @get()
-  %t1 = icmp slt i32 %t0, 2
-  br i1 %t1, label %block_a, label %bb
-
-bb:
-  %t2 = call i32 @get()
-  %t3 = icmp slt i32 %t2, 99
-  br i1 %t3, label %exit, label %loop
-
-block_a:
-  call void @bar99()
-  br label %loop
-
-exit:
   call void @exit()
   ret void
 }

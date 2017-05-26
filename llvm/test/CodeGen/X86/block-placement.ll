@@ -699,10 +699,10 @@ define void @unanalyzable_branch_to_free_block(float %x) {
 ;
 ; CHECK-LABEL: unanalyzable_branch_to_free_block
 ; CHECK: %entry
-; CHECK: %a
 ; CHECK: %b
-; CHECK: %c
 ; CHECK: %exit
+; CHECK: %a
+; CHECK: %c
 
 entry:
   br i1 undef, label %a, label %b

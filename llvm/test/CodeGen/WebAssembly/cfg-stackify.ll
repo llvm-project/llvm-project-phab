@@ -536,17 +536,16 @@ if.end:
 ; OPT:      block   {{$}}
 ; OPT-NEXT: block   {{$}}
 ; OPT:      br_if       0, $pop{{[0-9]+}}{{$}}
-; OPT:      br_if       1, $pop{{[0-9]+}}{{$}}
-; OPT:      br          1{{$}}
+; OPT:      block   {{$}}
+; OPT:      br_if       0, $pop{{[0-9]+}}{{$}}
+; OPT:      br_if       2, $pop{{[0-9]+}}{{$}}
 ; OPT-NEXT: .LBB13_3:
 ; OPT-NEXT: end_block{{$}}
-; OPT-NEXT: block   {{$}}
-; OPT:      br_if       0, $pop{{[0-9]+}}{{$}}
-; OPT:      br_if       1, $pop{{[0-9]+}}{{$}}
-; OPT-NEXT: .LBB13_5:
-; OPT-NEXT: end_block{{$}}
 ; OPT-NEXT: return{{$}}
-; OPT-NEXT: .LBB13_6:
+; OPT-NEXT: .LBB13_4:
+; OPT-NEXT: end_block{{$}}
+; OPT:      br_if       0, $pop{{[0-9]+}}{{$}}
+; OPT: .LBB13_6:
 ; OPT-NEXT: end_block{{$}}
 ; OPT-NEXT: return{{$}}
 define void @test4(i32 %t) {
@@ -1022,11 +1021,11 @@ bb6:
 ; OPT-NOT:   block
 ; OPT:       br_if        0, $pop{{[0-9]+}}{{$}}
 ; OPT-NOT:   block
-; OPT:       return{{$}}
-; OPT-NEXT:  .LBB20_6:
-; OPT-NEXT:  end_block{{$}}
+; OPT:       br_if        1, $pop{{[0-9]+}}{{$}}
 ; OPT-NOT:   block
-; OPT:       br_if        0, $pop{{[0-9]+}}{{$}}
+; OPT:       return{{$}}
+; OPT-NEXT:  .LBB20_7:
+; OPT-NEXT:  end_block{{$}}
 ; OPT-NOT:   block
 ; OPT:       return{{$}}
 ; OPT-NEXT:  .LBB20_8:

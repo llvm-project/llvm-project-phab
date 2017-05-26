@@ -13,7 +13,7 @@
 
 define void @combine-sign-comparisons-by-cse(i32 *%arg) {
 ; CHECK: cmp
-; CHECK: b.ge
+; CHECK: b.lt
 ; CHECK-NOT: cmp
 ; CHECK: b.le
 

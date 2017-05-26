@@ -1,0 +1,212 @@
+# RUN: llc -mtriple=x86_64-linux -run-pass=block-placement -o - %s | FileCheck %s
+#
+# Check that all but possibly the last if.else blocks get laid out first, before
+# any of the if.then blocks, due to the branch factor checking.
+# CHECK: bb.0.entry
+# CHECK: bb.2.if.else
+# CHECK: bb.4.if.else7
+# CHECK: bb.6.if.else17
+# One of these 2 blocks should follow else17 for fallthrough. As far as branch
+# factor is concerned, they are equals, so it doesn't matter.
+# CHECK: bb.{{[0-9]+}}.if.{{(then23|else27)}}
+# CHECK-DAG: bb.{{[0-9]+}}.if.else27
+# CHECK-DAG: bb.{{[0-9]+}}.if.then
+# CHECK-DAG: bb.{{[0-9]+}}.if.then4
+# CHECK-DAG: bb.{{[0-9]+}}.if.then13
+# The other block should be placed somewhere.
+# CHECK-DAG: bb.{{[0-9]+}}.if.{{(else27|then23)}}
+--- |
+  target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
+  target triple = "x86_64-unknown-linux-gnu"
+  
+  define i8* @varint_encode(i8* %sptr, i32 %v) local_unnamed_addr {
+  entry:
+    %cmp = icmp ult i32 %v, 128
+    %conv = trunc i32 %v to i8
+    br i1 %cmp, label %if.then, label %if.else
+  
+  if.then:                                          ; preds = %entry
+    %incdec.ptr = getelementptr inbounds i8, i8* %sptr, i64 1
+    store i8 %conv, i8* %sptr, align 1, !tbaa !1
+    br label %if.end37
+  
+  if.else:                                          ; preds = %entry
+    %conv1 = or i8 %conv, -128
+    store i8 %conv1, i8* %sptr, align 1, !tbaa !1
+    %cmp3 = icmp ult i32 %v, 16384
+    %shr = lshr i32 %v, 7
+    %conv5 = trunc i32 %shr to i8
+    br i1 %cmp3, label %if.then4, label %if.else7
+  
+  if.then4:                                         ; preds = %if.else
+    %incdec.ptr6 = getelementptr inbounds i8, i8* %sptr, i64 2
+    %sunkaddr = getelementptr i8, i8* %sptr, i64 1
+    store i8 %conv5, i8* %sunkaddr, align 1, !tbaa !1
+    br label %if.end37
+  
+  if.else7:                                         ; preds = %if.else
+    %conv10 = or i8 %conv5, -128
+    %sunkaddr1 = getelementptr i8, i8* %sptr, i64 1
+    store i8 %conv10, i8* %sunkaddr1, align 1, !tbaa !1
+    %cmp12 = icmp ult i32 %v, 2097152
+    %shr14 = lshr i32 %v, 14
+    %conv15 = trunc i32 %shr14 to i8
+    br i1 %cmp12, label %if.then13, label %if.else17
+  
+  if.then13:                                        ; preds = %if.else7
+    %incdec.ptr16 = getelementptr inbounds i8, i8* %sptr, i64 3
+    %sunkaddr2 = getelementptr i8, i8* %sptr, i64 2
+    store i8 %conv15, i8* %sunkaddr2, align 1, !tbaa !1
+    br label %if.end37
+  
+  if.else17:                                        ; preds = %if.else7
+    %conv20 = or i8 %conv15, -128
+    %sunkaddr3 = getelementptr i8, i8* %sptr, i64 2
+    store i8 %conv20, i8* %sunkaddr3, align 1, !tbaa !1
+    %cmp22 = icmp ult i32 %v, 268435456
+    %shr24 = lshr i32 %v, 21
+    %conv25 = trunc i32 %shr24 to i8
+    br i1 %cmp22, label %if.then23, label %if.else27
+  
+  if.then23:                                        ; preds = %if.else17
+    %incdec.ptr26 = getelementptr inbounds i8, i8* %sptr, i64 4
+    %sunkaddr4 = getelementptr i8, i8* %sptr, i64 3
+    store i8 %conv25, i8* %sunkaddr4, align 1, !tbaa !1
+    br label %if.end37
+  
+  if.else27:                                        ; preds = %if.else17
+    %conv30 = or i8 %conv25, -128
+    %incdec.ptr31 = getelementptr inbounds i8, i8* %sptr, i64 4
+    %sunkaddr5 = getelementptr i8, i8* %sptr, i64 3
+    store i8 %conv30, i8* %sunkaddr5, align 1, !tbaa !1
+    %shr32 = lshr i32 %v, 28
+    %conv33 = trunc i32 %shr32 to i8
+    %incdec.ptr34 = getelementptr inbounds i8, i8* %sptr, i64 5
+    store i8 %conv33, i8* %incdec.ptr31, align 1, !tbaa !1
+    br label %if.end37
+  
+  if.end37:                                         ; preds = %if.else27, %if.then23, %if.then13, %if.then4, %if.then
+    %ptr.0 = phi i8* [ %incdec.ptr, %if.then ], [ %incdec.ptr6, %if.then4 ], [ %incdec.ptr16, %if.then13 ], [ %incdec.ptr26, %if.then23 ], [ %incdec.ptr34, %if.else27 ]
+    ret i8* %ptr.0
+  }
+  
+  !llvm.ident = !{!0}
+  
+  !0 = !{!"clang version 5.0.0 (trunk 303077) (llvm/trunk 303082)"}
+  !1 = !{!2, !2, i64 0}
+  !2 = !{!"omnipotent char", !3, i64 0}
+  !3 = !{!"Simple C++ TBAA"}
+
+...
+---
+name:            varint_encode
+alignment:       4
+exposesReturnsTwice: false
+noVRegs:         true
+legalized:       false
+regBankSelected: false
+selected:        false
+tracksRegLiveness: true
+liveins:         
+  - { reg: '%rdi' }
+  - { reg: '%esi' }
+frameInfo:       
+  isFrameAddressTaken: false
+  isReturnAddressTaken: false
+  hasStackMap:     false
+  hasPatchPoint:   false
+  stackSize:       0
+  offsetAdjustment: 0
+  maxAlignment:    0
+  adjustsStack:    false
+  hasCalls:        false
+  maxCallFrameSize: 0
+  hasOpaqueSPAdjustment: false
+  hasVAStart:      false
+  hasMustTailInVarArgFunc: false
+body:             |
+  bb.0.entry:
+    successors: %bb.1.if.then(0x40000000), %bb.2.if.else(0x40000000)
+    liveins: %esi, %rdi
+  
+    CMP32ri8 %esi, 127, implicit-def %eflags
+    JA_1 %bb.2.if.else, implicit killed %eflags
+  
+  bb.1.if.then:
+    liveins: %esi, %rdi
+  
+    MOV8mr %rdi, 1, _, 0, _, %sil, implicit killed %esi :: (store 1 into %ir.sptr, !tbaa !1)
+    %rdi = INC64r killed %rdi, implicit-def dead %eflags
+    %rax = MOV64rr killed %rdi
+    RETQ %rax
+  
+  bb.2.if.else:
+    successors: %bb.3.if.then4(0x40000000), %bb.4.if.else7(0x40000000)
+    liveins: %esi, %rdi
+  
+    %al = MOV8rr %sil
+    %al = OR8ri killed %al, -128, implicit-def dead %eflags
+    MOV8mr %rdi, 1, _, 0, _, killed %al :: (store 1 into %ir.sptr, !tbaa !1)
+    %eax = MOV32rr %esi
+    %eax = SHR32ri killed %eax, 7, implicit-def dead %eflags
+    CMP32ri %esi, 16383, implicit-def %eflags
+    JA_1 %bb.4.if.else7, implicit killed %eflags
+  
+  bb.3.if.then4:
+    liveins: %eax, %rdi
+  
+    MOV8mr %rdi, 1, _, 1, _, %al, implicit killed %eax :: (store 1 into %ir.sunkaddr, !tbaa !1)
+    %rdi = ADD64ri8 killed %rdi, 2, implicit-def dead %eflags
+    %rax = MOV64rr killed %rdi
+    RETQ %rax
+  
+  bb.4.if.else7:
+    successors: %bb.5.if.then13(0x40000000), %bb.6.if.else17(0x40000000)
+    liveins: %eax, %esi, %rdi
+  
+    %al = OR8ri %al, -128, implicit-def dead %eflags, implicit killed %eax, implicit-def %eax
+    MOV8mr %rdi, 1, _, 1, _, %al, implicit killed %eax :: (store 1 into %ir.sunkaddr1, !tbaa !1)
+    %eax = MOV32rr %esi
+    %eax = SHR32ri killed %eax, 14, implicit-def dead %eflags
+    CMP32ri %esi, 2097151, implicit-def %eflags
+    JA_1 %bb.6.if.else17, implicit killed %eflags
+  
+  bb.5.if.then13:
+    liveins: %eax, %rdi
+  
+    MOV8mr %rdi, 1, _, 2, _, %al, implicit killed %eax :: (store 1 into %ir.sunkaddr2, !tbaa !1)
+    %rdi = ADD64ri8 killed %rdi, 3, implicit-def dead %eflags
+    %rax = MOV64rr killed %rdi
+    RETQ %rax
+  
+  bb.6.if.else17:
+    successors: %bb.7.if.then23(0x40000000), %bb.8.if.else27(0x40000000)
+    liveins: %eax, %esi, %rdi
+  
+    %al = OR8ri %al, -128, implicit-def dead %eflags, implicit killed %eax, implicit-def %eax
+    MOV8mr %rdi, 1, _, 2, _, %al, implicit killed %eax :: (store 1 into %ir.sunkaddr3, !tbaa !1)
+    %eax = MOV32rr %esi
+    %eax = SHR32ri killed %eax, 21, implicit-def dead %eflags
+    CMP32ri %esi, 268435455, implicit-def %eflags
+    JA_1 %bb.8.if.else27, implicit killed %eflags
+  
+  bb.7.if.then23:
+    liveins: %eax, %rdi
+  
+    MOV8mr %rdi, 1, _, 3, _, %al, implicit killed %eax :: (store 1 into %ir.sunkaddr4, !tbaa !1)
+    %rdi = ADD64ri8 killed %rdi, 4, implicit-def dead %eflags
+    %rax = MOV64rr killed %rdi
+    RETQ %rax
+  
+  bb.8.if.else27:
+    liveins: %eax, %esi, %rdi
+  
+    %al = OR8ri %al, -128, implicit-def dead %eflags, implicit killed %eax, implicit-def %eax
+    MOV8mr %rdi, 1, _, 3, _, %al, implicit killed %eax :: (store 1 into %ir.sunkaddr5, !tbaa !1)
+    %esi = SHR32ri killed %esi, 28, implicit-def dead %eflags
+    MOV8mr %rdi, 1, _, 4, _, %sil, implicit killed %esi :: (store 1 into %ir.incdec.ptr31, !tbaa !1)
+    %rdi = ADD64ri8 killed %rdi, 5, implicit-def dead %eflags
+    %rax = MOV64rr killed %rdi
+    RETQ %rax
+
+...
