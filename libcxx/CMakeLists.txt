@@ -141,6 +141,8 @@ endif()
 # Use a static copy of the ABI library when linking libc++. This option
 # cannot be used with LIBCXX_ENABLE_ABI_LINKER_SCRIPT.
 option(LIBCXX_ENABLE_STATIC_ABI_LIBRARY "Statically link the ABI library" OFF)
+option(LIBCXX_ENABLE_STATIC_ABI_LIBRARY_FOR_STATIC "Statically link the ABI library for Static Build" ${LIBCXX_ENABLE_STATIC_ABI_LIBRARY})
+option(LIBCXX_ENABLE_STATIC_ABI_LIBRARY_FOR_SHARED "Statically link the ABI library for Shared Build" ${LIBCXX_ENABLE_STATIC_ABI_LIBRARY})
 
 # Generate and install a linker script inplace of libc++.so. The linker script
 # will link libc++ to the correct ABI library. This option is on by default
@@ -148,7 +150,7 @@ option(LIBCXX_ENABLE_STATIC_ABI_LIBRARY "Statically link the ABI library" OFF)
 # is on. This option is also disabled when the ABI library is not specified
 # or is specified to be "none".
 set(ENABLE_LINKER_SCRIPT_DEFAULT_VALUE OFF)
-if (LLVM_HAVE_LINK_VERSION_SCRIPT AND NOT LIBCXX_ENABLE_STATIC_ABI_LIBRARY
+if (LLVM_HAVE_LINK_VERSION_SCRIPT AND NOT LIBCXX_ENABLE_STATIC_ABI_LIBRARY_FOR_SHARED
       AND NOT LIBCXX_CXX_ABI_LIBNAME STREQUAL "none"
       AND NOT LIBCXX_CXX_ABI_LIBNAME STREQUAL "default"
       AND PYTHONINTERP_FOUND
@@ -157,7 +159,7 @@ if (LLVM_HAVE_LINK_VERSION_SCRIPT AND NOT LIBCXX_ENABLE_STATIC_ABI_LIBRARY
 endif()
 
 option(LIBCXX_ENABLE_ABI_LINKER_SCRIPT
-      "Use and install a linker script for the given ABI library"
+      "Use and install a linker script for the given ABI library for Shared Build"
       ${ENABLE_LINKER_SCRIPT_DEFAULT_VALUE})
 
 set(ENABLE_NEW_DELETE_DEFAULT ON)
@@ -302,11 +304,11 @@ elseif(LIBCXX_BUILD_32_BITS)
 endif()
 
 # Check that this option is not enabled on Apple and emit a usage warning.
-if (LIBCXX_ENABLE_STATIC_ABI_LIBRARY)
+if (LIBCXX_ENABLE_STATIC_ABI_LIBRARY_FOR_STATIC OR LIBCXX_ENABLE_STATIC_ABI_LIBRARY_FOR_SHARED)
   if (APPLE)
-    message(FATAL_ERROR "LIBCXX_ENABLE_STATIC_ABI_LIBRARY is not supported on OS X")
+    message(FATAL_ERROR "LIBCXX_ENABLE_STATIC_ABI_LIBRARY options are not supported on OS X")
   else()
-    message(WARNING "LIBCXX_ENABLE_STATIC_ABI_LIBRARY is an experimental option")
+    message(WARNING "LIBCXX_ENABLE_STATIC_ABI_LIBRARY options are experimental")
   endif()
   if (LIBCXX_ENABLE_STATIC AND NOT PYTHONINTERP_FOUND)
     message(FATAL_ERROR "LIBCXX_ENABLE_STATIC_ABI_LIBRARY requires python but it was not found.")
@@ -325,9 +327,9 @@ if (LIBCXX_ENABLE_ABI_LINKER_SCRIPT)
     endif()
 endif()
 
-if (LIBCXX_ENABLE_STATIC_ABI_LIBRARY AND LIBCXX_ENABLE_ABI_LINKER_SCRIPT)
+if (LIBCXX_ENABLE_STATIC_ABI_LIBRARY_FOR_SHARED AND LIBCXX_ENABLE_ABI_LINKER_SCRIPT)
     message(FATAL_ERROR "Conflicting options given.
-        LIBCXX_ENABLE_STATIC_ABI_LIBRARY cannot be specified with
+        LIBCXX_ENABLE_STATIC_ABI_LIBRARY_FOR_SHARED cannot be specified with
         LIBCXX_ENABLE_ABI_LINKER_SCRIPT")
 endif()
 
@@ -385,10 +387,6 @@ endif()
 
 # Configure compiler.
 include(config-ix)
-
-if (LIBCXX_USE_COMPILER_RT)
-  list(APPEND LIBCXX_LINK_FLAGS "-rtlib=compiler-rt")
-endif()
 
 # Configure coverage options.
 if (LIBCXX_GENERATE_COVERAGE)
@@ -598,14 +596,6 @@ config_define_if(LIBCXX_HAS_PTHREAD_API _LIBCPP_HAS_THREAD_API_PTHREAD)
 config_define_if(LIBCXX_HAS_EXTERNAL_THREAD_API _LIBCPP_HAS_THREAD_API_EXTERNAL)
 config_define_if(LIBCXX_BUILD_EXTERNAL_THREAD_LIBRARY _LIBCPP_HAS_THREAD_LIBRARY_EXTERNAL)
 config_define_if(LIBCXX_HAS_MUSL_LIBC _LIBCPP_HAS_MUSL_LIBC)
-
-# By default libc++ on Windows expects to use a shared library, which requires
-# the headers to use DLL import/export semantics. However when building a
-# static library only we modify the headers to disable DLL import/export.
-if (DEFINED WIN32 AND LIBCXX_ENABLE_STATIC AND NOT LIBCXX_ENABLE_SHARED)
-  message(STATUS "Generating custom __config for non-DLL Windows build")
-  config_define(ON _LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS)
-endif()
 
 if (LIBCXX_NEEDS_SITE_CONFIG)
   configure_file("include/__config_site.in"
