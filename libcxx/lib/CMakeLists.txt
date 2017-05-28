@@ -101,12 +101,13 @@ if (LIBCXXABI_USE_LLVM_UNWINDER)
     add_interface_library(unwind)
   endif()
 endif()
-
-# Setup flags.
-if (NOT WIN32)
-  add_flags_if_supported(-fPIC)
+if (MINGW)
+  # MINGW_LIBRARIES is defined in config-ix.cmake
+  list(APPEND LIBCXX_LIBRARIES ${MINGW_LIBRARIES})
 endif()
 
+# Setup flags.
+add_flags_if_supported(-fPIC)
 add_link_flags_if_supported(-nodefaultlibs)
 
 if (LIBCXX_TARGETING_MSVC)
@@ -184,12 +185,19 @@ endif()
 
 split_list(LIBCXX_COMPILE_FLAGS)
 split_list(LIBCXX_LINK_FLAGS)
+set(LIBCXX_TARGETS)
 
-# Add an object library that contains the compiled source files.
-add_library(cxx_objects OBJECT ${exclude_from_all} ${LIBCXX_SOURCES} ${LIBCXX_HEADERS})
-if(WIN32 AND NOT MINGW)
-  target_compile_definitions(cxx_objects
-                             PRIVATE
+set(LIBCXX_SHARED_COMPILE_FLAGS "")
+# Build the shared library.
+if (LIBCXX_ENABLE_SHARED)
+  # Add an object library that contains the compiled source files.
+  add_library(cxx_shared_objects OBJECT ${exclude_from_all} ${LIBCXX_SOURCES} ${LIBCXX_HEADERS})
+  if(LIBCXX_ENABLE_STATIC_ABI_LIBRARY_FOR_SHARED)
+    set(LIBCXX_SHARED_COMPILE_FLAGS "-D_LIBCXXABI_DISABLE_VISIBILITY_ANNOTATIONS")
+  endif()
+  if(MSVC)
+    target_compile_definitions(cxx_shared_objects
+                               PRIVATE
                                # Ignore the -MSC_VER mismatch, as we may build
                                # with a different compatibility version.
                                _ALLOW_MSC_VER_MISMATCH
@@ -208,18 +216,12 @@ if(WIN32 AND NOT MINGW)
                                # Use the ISO conforming behaviour for conversion
                                # in printf, scanf.
                                _CRT_STDIO_ISO_WIDE_SPECIFIERS)
-endif()
-
-set_target_properties(cxx_objects
-  PROPERTIES
-    COMPILE_FLAGS "${LIBCXX_COMPILE_FLAGS}"
-)
-
-set(LIBCXX_TARGETS)
-
-# Build the shared library.
-if (LIBCXX_ENABLE_SHARED)
-  add_library(cxx_shared SHARED $<TARGET_OBJECTS:cxx_objects>)
+  endif()
+  set_target_properties(cxx_shared_objects
+    PROPERTIES
+      COMPILE_FLAGS "${LIBCXX_COMPILE_FLAGS} ${LIBCXX_SHARED_COMPILE_FLAGS}"
+  )
+  add_library(cxx_shared SHARED $<TARGET_OBJECTS:cxx_shared_objects>)
   target_link_libraries(cxx_shared ${LIBCXX_LIBRARIES})
   set_target_properties(cxx_shared
     PROPERTIES
@@ -238,9 +240,43 @@ if (LIBCXX_ENABLE_SHARED)
   endif()
 endif()
 
+set(LIBCXX_STATIC_COMPILE_FLAGS "")
 # Build the static library.
 if (LIBCXX_ENABLE_STATIC)
-  add_library(cxx_static STATIC $<TARGET_OBJECTS:cxx_objects>)
+  # Add an object library that contains the compiled source files.
+  add_library(cxx_static_objects OBJECT ${exclude_from_all} ${LIBCXX_SOURCES} ${LIBCXX_HEADERS})
+  list(APPEND LIBCXX_STATIC_COMPILE_FLAGS "-D_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS")
+  if(LIBCXX_ENABLE_STATIC_ABI_LIBRARY_FOR_STATIC)
+    list(APPEND LIBCXX_STATIC_COMPILE_FLAGS "-D_LIBCXXABI_DISABLE_VISIBILITY_ANNOTATIONS")
+  endif()
+  if(MSVC)
+    target_compile_definitions(cxx_static_objects
+                               PRIVATE
+                                 # Ignore the -MSC_VER mismatch, as we may build
+                                 # with a different compatibility version.
+                                 _ALLOW_MSC_VER_MISMATCH
+                                 # Don't check the msvcprt iterator debug levels
+                                 # as we will define the iterator types; libc++
+                                 # uses a different macro to identify the debug
+                                 # level.
+                                 _ALLOW_ITERATOR_DEBUG_LEVEL_MISMATCH
+                                 # We are building the c++ runtime, don't pull in
+                                 # msvcprt.
+                                 _CRTBLD
+                                 # Don't warn on the use of "deprecated"
+                                 # "insecure" functions which are standards
+                                 # specified.
+                                 _CRT_SECURE_NO_WARNINGS
+                                 # Use the ISO conforming behaviour for conversion
+                                 # in printf, scanf.
+                                 _CRT_STDIO_ISO_WIDE_SPECIFIERS)
+  endif()
+  split_list(LIBCXX_STATIC_COMPILE_FLAGS)
+  set_target_properties(cxx_static_objects
+    PROPERTIES
+      COMPILE_FLAGS "${LIBCXX_COMPILE_FLAGS} ${LIBCXX_STATIC_COMPILE_FLAGS}"
+  )
+  add_library(cxx_static STATIC $<TARGET_OBJECTS:cxx_static_objects>)
   target_link_libraries(cxx_static ${LIBCXX_LIBRARIES})
   set(CMAKE_STATIC_LIBRARY_PREFIX "lib")
   set_target_properties(cxx_static
@@ -251,7 +287,7 @@ if (LIBCXX_ENABLE_STATIC)
 
   list(APPEND LIBCXX_TARGETS "cxx_static")
   # Attempt to merge the libc++.a archive and the ABI library archive into one.
-  if (LIBCXX_ENABLE_STATIC_ABI_LIBRARY)
+  if (LIBCXX_ENABLE_STATIC_ABI_LIBRARY_FOR_STATIC)
     set(MERGE_ARCHIVES_SEARCH_PATHS "")
     if (LIBCXX_CXX_ABI_LIBRARY_PATH)
       set(MERGE_ARCHIVES_SEARCH_PATHS "-L${LIBCXX_CXX_ABI_LIBRARY_PATH}")
