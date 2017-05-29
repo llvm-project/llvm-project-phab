@@ -1277,6 +1277,8 @@ public:
     if (!Use)
       return;
     *Use = MD;
+    if(*Use)
+      MetadataTracking::track(*Use);
     Use = nullptr;
   }
 };
