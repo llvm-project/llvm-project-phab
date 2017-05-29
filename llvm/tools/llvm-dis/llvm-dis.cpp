@@ -144,7 +144,7 @@ static std::unique_ptr<Module> openInputFile(LLVMContext &Context) {
       ExitOnErr(errorOrToExpected(MemoryBuffer::getFileOrSTDIN(InputFilename)));
   std::unique_ptr<Module> M =
       ExitOnErr(getOwningLazyBitcodeModule(std::move(MB), Context,
-                                           /*ShouldLazyLoadMetadata=*/true));
+                                           /*ShouldLazyLoadMetadata=*/true, true));
   if (MaterializeMetadata)
     ExitOnErr(M->materializeMetadata());
   else
