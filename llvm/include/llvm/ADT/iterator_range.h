@@ -63,6 +63,29 @@ template<typename T>
 iterator_range<decltype(begin(std::declval<T>()))> drop_begin(T &&t, int n) {
   return make_range(std::next(begin(t), n), end(t));
 }
+
+/// \brief Convenience function for iterating over stl-like containers.
+///
+/// This provides a bit of syntactic sugar to make using ranges in loops a bit
+/// easier.
+template <typename T> iterator_range<typename T::iterator> make_range(T &C) {
+  return iterator_range<typename T::iterator>(C.begin(), C.end());
+}
+
+template <typename T>
+iterator_range<typename T::reverse_iterator> reverse_range(T &C) {
+  return iterator_range<typename T::reverse_iterator>(C.rbegin(), C.rend());
+}
+
+template <typename T>
+iterator_range<typename T::const_iterator> make_range(const T &C) {
+  return iterator_range<typename T::iterator>(C.begin(), C.end());
+}
+
+template <typename T>
+iterator_range<typename T::const_reverse_iterator> reverse_range(const T &C) {
+  return iterator_range<typename T::reverse_iterator>(C.rbegin(), C.rend());
+}
 }
 
 #endif
