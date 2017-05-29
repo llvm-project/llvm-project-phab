@@ -74,18 +74,27 @@ public:
   }
 
   void *Lookup(const char *Symbol) {
-    // Process handle gets first try.
+    // Iterate in reverse, so newer libraries/symbols override older.
+    for (auto &&I = Handles.rbegin(), E = Handles.rend(); I != E; ++I) {
+      if (void *Ptr = DLSym(*I, Symbol))
+        return Ptr;
+    }
+    return nullptr;
+  }
+
+  void *Lookup(const char *Symbol, DynamicLibrary::SearchOrdering Order) {
+    if (!Process || Order == DynamicLibrary::SO_LoadedFirst) {
+      if (void *Ptr = Lookup(Symbol))
+        return Ptr;
+    }
     if (Process) {
+      // Use OS facilities to search the current binary and all loaded libs.
       if (void *Ptr = DLSym(Process, Symbol))
         return Ptr;
-#ifndef NDEBUG
-      for (void *Handle : Handles)
-        assert(!DLSym(Handle, Symbol) && "Symbol exists in non process handle");
-#endif
-    } else {
-      // Iterate in reverse, so newer libraries/symbols override older.
-      for (auto &&I = Handles.rbegin(), E = Handles.rend(); I != E; ++I) {
-        if (void *Ptr = DLSym(*I, Symbol))
+
+      // Search any libs that might have been skipped because of RTLD_LOCAL.
+      if (Order == DynamicLibrary::SO_LoadedLast) {
+        if (void *Ptr = Lookup(Symbol))
           return Ptr;
       }
     }
@@ -113,6 +122,8 @@ static llvm::ManagedStatic<llvm::sys::SmartMutex<true>> SymbolsMutex;
 #endif
 
 char DynamicLibrary::Invalid;
+DynamicLibrary::SearchOrdering DynamicLibrary::SearchOrder =
+    DynamicLibrary::SO_Linker;
 
 namespace llvm {
 void *SearchForAddressOfSpecialSymbol(const char *SymbolName) {
@@ -170,7 +181,7 @@ void *DynamicLibrary::SearchForAddressOfSymbol(const char *SymbolName) {
 
     // Now search the libraries.
     if (OpenedHandles.isConstructed()) {
-      if (void *Ptr = OpenedHandles->Lookup(SymbolName))
+      if (void *Ptr = OpenedHandles->Lookup(SymbolName, SearchOrder))
         return Ptr;
     }
   }

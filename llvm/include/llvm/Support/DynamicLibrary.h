@@ -88,6 +88,19 @@ namespace sys {
       return !getPermanentLibrary(Filename, ErrMsg).isValid();
     }
 
+    enum SearchOrdering {
+      /// SO_Linker - Search as a call to dlsym(dlopen(NULL)) would when
+      /// DynamicLibrary::getPermanentLibrary(NULL) has been called or
+      /// search the list of explcitly loaded symbols if not.
+      SO_Linker,
+      /// SO_LoadedFirst - Search all loaded libraries then as SO_Linker would
+      SO_LoadedFirst,
+      /// SO_LoadedLast - Search as SO_Linker would, then loaded libraries.
+      /// Only usefull to search libraries with RTLD_LOCAL have been added.
+      SO_LoadedLast,
+    };
+    static SearchOrdering SearchOrder; // = SO_Linker
+
     /// This function will search through all previously loaded dynamic
     /// libraries for the symbol \p symbolName. If it is found, the address of
     /// that symbol is returned. If not, null is returned. Note that this will
