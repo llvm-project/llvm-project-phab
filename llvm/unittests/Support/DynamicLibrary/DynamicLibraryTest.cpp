@@ -58,12 +58,12 @@ static const char *OverloadTestA() { return "OverloadCall"; }
 
 std::string StdString(const char *Ptr) { return Ptr ? Ptr : ""; }
 
-TEST(DynamicLibrary, Overload) {
+static void TestOverload(bool RTLocal = false) {
   {
     std::string Err;
     llvm_shutdown_obj Shutdown;
     DynamicLibrary DL =
-        DynamicLibrary::getPermanentLibrary(LibPath().c_str(), &Err);
+        DynamicLibrary::getPermanentLibrary(LibPath().c_str(), &Err, RTLocal);
     EXPECT_TRUE(DL.isValid());
     EXPECT_TRUE(Err.empty());
 
@@ -88,11 +88,37 @@ TEST(DynamicLibrary, Overload) {
     EXPECT_TRUE(GS != nullptr && GS == &TestA);
     EXPECT_EQ(StdString(GS()), "ProcessCall");
 
-    // Test overloading by forcing library priority when searching for a symbol
-    DynamicLibrary::SearchOrder = DynamicLibrary::SO_LoadedFirst;
-    GS = FuncPtr<GetString>(DynamicLibrary::SearchForAddressOfSymbol("TestA"));
-    EXPECT_TRUE(GS != nullptr && GS != &TestA);
-    EXPECT_EQ(StdString(GS()), "LibCall");
+    // Test overloading by forcing a priority when searching for a symbol
+    if (RTLocal) {
+      // SetStrings un-resolved because RTLocal
+      SetStrings SS = FuncPtr<SetStrings>(
+          DynamicLibrary::SearchForAddressOfSymbol("SetStrings"));
+      EXPECT_TRUE(SS == nullptr);
+
+      DynamicLibrary::SearchOrder = DynamicLibrary::SO_LoadedLast;
+
+      // SetStrings now resolved because SO_LoadedLast
+      SS = FuncPtr<SetStrings>(
+          DynamicLibrary::SearchForAddressOfSymbol("SetStrings"));
+      EXPECT_TRUE(SS != nullptr);
+
+      // TestA resolved from Process first
+      GS = FuncPtr<GetString>(DynamicLibrary::SearchForAddressOfSymbol("TestA"));
+      EXPECT_TRUE(GS != nullptr && GS == &TestA);
+      EXPECT_EQ(StdString(GS()), "ProcessCall");
+    } else {
+      // SetStrings resolved because DynamicLibrary::getPermanentLibrary(nullptr)
+      SetStrings SS = FuncPtr<SetStrings>(
+          DynamicLibrary::SearchForAddressOfSymbol("SetStrings"));
+      EXPECT_TRUE(SS != nullptr);
+
+      DynamicLibrary::SearchOrder = DynamicLibrary::SO_LoadedFirst;
+
+      // TestA resolved from Library first
+      GS = FuncPtr<GetString>(DynamicLibrary::SearchForAddressOfSymbol("TestA"));
+      EXPECT_TRUE(GS != nullptr && GS != &TestA);
+      EXPECT_EQ(StdString(GS()), "LibCall");
+    }
 
     DynamicLibrary::AddSymbol("TestA", PtrFunc(&OverloadTestA));
     GS = FuncPtr<GetString>(DL.getAddressOfSymbol("TestA"));
@@ -108,6 +134,16 @@ TEST(DynamicLibrary, Overload) {
   // Check serach ordering is reset to default after call to llvm_shutdown
   EXPECT_TRUE(DynamicLibrary::SearchOrder == DynamicLibrary::SO_Linker);
 }
+
+TEST(DynamicLibrary, Overload) {
+  TestOverload();
+}
+
+#if defined(HAVE_DLFCN_H) && defined(HAVE_DLOPEN)
+TEST(DynamicLibrary, RTLocal) {
+  TestOverload(true);
+}
+#endif
 
 TEST(DynamicLibrary, Shutdown) {
   std::string A, B;
