@@ -7232,6 +7232,22 @@ void SelectionDAG::TransferDbgValues(SDValue From, SDValue To) {
     AddDbgValue(I, ToNode, false);
 }
 
+void SelectionDAG::bindChains(LoadSDNode *OldLoad, SDValue NewLoadVal) {
+  assert(isa<MemSDNode>(NewLoadVal.getNode()) && "Expected a memop node");
+  if (!OldLoad->hasAnyUseOfValue(1))
+    return;
+
+  // The new load must have the same position as the old load in terms of memory
+  // dependency. Create a TokenFactor for the old load and new load and update
+  // uses of the old load's output chain to use that TokenFactor.
+  SDValue OldChain = SDValue(OldLoad, 1);
+  SDValue NewChain = SDValue(NewLoadVal.getNode(), 1);
+  SDValue TokenFactor =
+      getNode(ISD::TokenFactor, SDLoc(OldLoad), MVT::Other, OldChain, NewChain);
+  ReplaceAllUsesOfValueWith(OldChain, TokenFactor);
+  UpdateNodeOperands(TokenFactor.getNode(), OldChain, NewChain);
+}
+
 //===----------------------------------------------------------------------===//
 //                              SDNode Class
 //===----------------------------------------------------------------------===//

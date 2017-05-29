@@ -6454,16 +6454,7 @@ static SDValue EltsFromConsecutiveLoads(EVT VT, ArrayRef<SDValue> Elts,
     SDValue NewLd =
         DAG.getLoad(VT, DL, LDBase->getChain(), LDBase->getBasePtr(),
                     LDBase->getPointerInfo(), LDBase->getAlignment(), MMOFlags);
-
-    if (LDBase->hasAnyUseOfValue(1)) {
-      SDValue NewChain =
-          DAG.getNode(ISD::TokenFactor, DL, MVT::Other, SDValue(LDBase, 1),
-                      SDValue(NewLd.getNode(), 1));
-      DAG.ReplaceAllUsesOfValueWith(SDValue(LDBase, 1), NewChain);
-      DAG.UpdateNodeOperands(NewChain.getNode(), SDValue(LDBase, 1),
-                             SDValue(NewLd.getNode(), 1));
-    }
-
+    DAG.bindChains(LDBase, NewLd);
     return NewLd;
   };
 
@@ -6522,19 +6513,7 @@ static SDValue EltsFromConsecutiveLoads(EVT VT, ArrayRef<SDValue> Elts,
                                   LDBase->getAlignment(),
                                   false/*isVolatile*/, true/*ReadMem*/,
                                   false/*WriteMem*/);
-
-      // Make sure the newly-created LOAD is in the same position as LDBase in
-      // terms of dependency. We create a TokenFactor for LDBase and ResNode,
-      // and update uses of LDBase's output chain to use the TokenFactor.
-      if (LDBase->hasAnyUseOfValue(1)) {
-        SDValue NewChain =
-            DAG.getNode(ISD::TokenFactor, DL, MVT::Other, SDValue(LDBase, 1),
-                        SDValue(ResNode.getNode(), 1));
-        DAG.ReplaceAllUsesOfValueWith(SDValue(LDBase, 1), NewChain);
-        DAG.UpdateNodeOperands(NewChain.getNode(), SDValue(LDBase, 1),
-                               SDValue(ResNode.getNode(), 1));
-      }
-
+      DAG.bindChains(LDBase, ResNode);
       return DAG.getBitcast(VT, ResNode);
     }
   }
@@ -9888,17 +9867,7 @@ static SDValue lowerVectorShuffleAsBroadcast(const SDLoc &DL, MVT VT,
     V = DAG.getLoad(SVT, DL, Ld->getChain(), NewAddr,
                     DAG.getMachineFunction().getMachineMemOperand(
                         Ld->getMemOperand(), Offset, SVT.getStoreSize()));
-
-    // Make sure the newly-created LOAD is in the same position as Ld in
-    // terms of dependency. We create a TokenFactor for Ld and V,
-    // and update uses of Ld's output chain to use the TokenFactor.
-    if (Ld->hasAnyUseOfValue(1)) {
-      SDValue NewChain = DAG.getNode(ISD::TokenFactor, DL, MVT::Other,
-                                     SDValue(Ld, 1), SDValue(V.getNode(), 1));
-      DAG.ReplaceAllUsesOfValueWith(SDValue(Ld, 1), NewChain);
-      DAG.UpdateNodeOperands(NewChain.getNode(), SDValue(Ld, 1),
-                             SDValue(V.getNode(), 1));
-    }
+    DAG.bindChains(Ld, V);
   } else if (!BroadcastFromReg) {
     // We can't broadcast from a vector register.
     return SDValue();
