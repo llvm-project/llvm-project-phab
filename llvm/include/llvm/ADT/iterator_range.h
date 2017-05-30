@@ -63,6 +63,9 @@ template<typename T>
 iterator_range<decltype(begin(std::declval<T>()))> drop_begin(T &&t, int n) {
   return make_range(std::next(begin(t), n), end(t));
 }
+
+/// Other convenience functions in STLExtras.h.
+
 }
 
 #endif
