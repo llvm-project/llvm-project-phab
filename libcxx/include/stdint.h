@@ -116,6 +116,10 @@ Macros:
 #   define __STDC_CONSTANT_MACROS
 #endif
 
+#if defined(_LIBCPP_HAS_NO_INCLUDE_NEXT)
+#include _LIBCPP_INCLUDE_NEXT_VC(stdint.h)
+#else
 #include_next <stdint.h>
+#endif
 
 #endif  // _LIBCPP_STDINT_H

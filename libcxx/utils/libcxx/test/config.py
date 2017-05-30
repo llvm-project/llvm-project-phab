@@ -632,6 +632,8 @@ class Configuration(object):
         for m in feature_macros:
             if m == '_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS':
                 continue
+            if m.startswith('_LIBCPP_INCLUDE_NEXT'):
+                continue
             if m == '_LIBCPP_ABI_VERSION':
                 self.config.available_features.add('libcpp-abi-version-v%s'
                     % feature_macros[m])

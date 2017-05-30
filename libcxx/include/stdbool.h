@@ -26,7 +26,11 @@ Macros:
 #pragma GCC system_header
 #endif
 
+#if defined(_LIBCPP_HAS_NO_INCLUDE_NEXT)
+#include _LIBCPP_INCLUDE_NEXT_VC(stdbool.h)
+#else
 #include_next <stdbool.h>
+#endif
 
 #ifdef __cplusplus
 #undef bool

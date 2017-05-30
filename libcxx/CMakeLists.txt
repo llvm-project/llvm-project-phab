@@ -599,6 +599,17 @@ config_define_if(LIBCXX_HAS_EXTERNAL_THREAD_API _LIBCPP_HAS_THREAD_API_EXTERNAL)
 config_define_if(LIBCXX_BUILD_EXTERNAL_THREAD_LIBRARY _LIBCPP_HAS_THREAD_LIBRARY_EXTERNAL)
 config_define_if(LIBCXX_HAS_MUSL_LIBC _LIBCPP_HAS_MUSL_LIBC)
 
+# The Windows headers are split between Visual Studio and the Windows SDK's
+# universal CRT.  Allow clients to specify both.
+if (LIBCXX_INCLUDE_NEXT_VC)
+  # Example for MSVC 2017: -D LIBCXX_INCLUDE_NEXT_VC=../../../MSVC/14.10.25017/include
+  config_define(${LIBCXX_INCLUDE_NEXT_VC} _LIBCPP_INCLUDE_NEXT_VC)
+endif()
+if (LIBCXX_INCLUDE_NEXT_UCRT)
+  # Example for Windows 10 SDK: -D LIBCXX_INCLUDE_NEXT_UCRT=../ucrt
+  config_define(${LIBCXX_INCLUDE_NEXT_UCRT} _LIBCPP_INCLUDE_NEXT_UCRT)
+endif()
+
 # By default libc++ on Windows expects to use a shared library, which requires
 # the headers to use DLL import/export semantics. However when building a
 # static library only we modify the headers to disable DLL import/export.

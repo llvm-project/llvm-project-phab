@@ -30,7 +30,11 @@
 
 #else  // __cplusplus
 
+#if defined(_LIBCPP_HAS_NO_INCLUDE_NEXT)
+#include _LIBCPP_INCLUDE_NEXT_UCRT(complex.h)
+#else
 #include_next <complex.h>
+#endif
 
 #endif  // __cplusplus
 
