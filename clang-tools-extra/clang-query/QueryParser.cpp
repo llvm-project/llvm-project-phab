@@ -15,6 +15,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSwitch.h"
 #include <set>
+#include <string>
 
 using namespace llvm;
 using namespace clang::ast_matchers::dynamic;
@@ -210,13 +211,27 @@ QueryRef QueryParser::doParse() {
     if (CompletionPos)
       return completeMatcherExpression();
 
-    Diagnostics Diag;
-    Optional<DynTypedMatcher> Matcher = Parser::parseMatcherExpression(
-        StringRef(Begin, End - Begin), nullptr, &QS.NamedValues, &Diag);
-    if (!Matcher) {
-      return makeInvalidQueryFromDiagnostics(Diag);
+    Diagnostics FirstDiag;
+    std::string Query = StringRef(Begin, End - Begin).str();
+    while (true) {
+      Diagnostics Diag;
+      Diagnostics* CurrentDiag = FirstDiag.errors().empty() ? &FirstDiag : &Diag;
+      Optional<DynTypedMatcher> Matcher = Parser::parseMatcherExpression(
+          Query, nullptr, &QS.NamedValues, CurrentDiag);
+      if (Matcher) {
+        return new MatchQuery(*Matcher);
+      }
+      for (const auto& Error : CurrentDiag->errors()) {
+        for (const auto &Message : Error.Messages) {
+          if (Message.Type == Diagnostics::ET_ParserNoCloseParen) {
+            Query += ")";
+          } else {
+            // Report the first error before we mucked with the query.
+            return makeInvalidQueryFromDiagnostics(FirstDiag);
+          }
+        }
+      }
     }
-    return new MatchQuery(*Matcher);
   }
 
   case PQK_Set: {
