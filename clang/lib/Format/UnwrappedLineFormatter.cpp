@@ -590,7 +590,8 @@ public:
           (Indenter->canBreak(State) && State.NextToken->NewlinesBefore > 0);
       unsigned Penalty = 0;
       formatChildren(State, Newline, /*DryRun=*/false, Penalty);
-      Indenter->addTokenToState(State, Newline, /*DryRun=*/false);
+      Indenter->addTokenToState(State, Newline, /*BreakToken=*/true,
+                                /*DryRun=*/false);
     }
     return 0;
   }
@@ -611,7 +612,8 @@ public:
     LineState State = Indenter->getInitialState(FirstIndent, &Line, DryRun);
     while (State.NextToken) {
       formatChildren(State, /*Newline=*/false, DryRun, Penalty);
-      Indenter->addTokenToState(State, /*Newline=*/false, DryRun);
+      Indenter->addTokenToState(State, /*Newline=*/false, /*BreakToken=*/true,
+                                DryRun);
     }
     return Penalty;
   }
@@ -658,10 +660,11 @@ private:
   /// \brief An edge in the solution space from \c Previous->State to \c State,
   /// inserting a newline dependent on the \c NewLine.
   struct StateNode {
-    StateNode(const LineState &State, bool NewLine, StateNode *Previous)
-        : State(State), NewLine(NewLine), Previous(Previous) {}
+    StateNode(const LineState &State, bool NewLine, bool BreakToken, StateNode *Previous)
+        : State(State), NewLine(NewLine), BreakToken(BreakToken), Previous(Previous) {}
     LineState State;
     bool NewLine;
+    bool BreakToken;
     StateNode *Previous;
   };
 
@@ -691,7 +694,7 @@ private:
 
     // Insert start element into queue.
     StateNode *Node =
-        new (Allocator.Allocate()) StateNode(InitialState, false, nullptr);
+        new (Allocator.Allocate()) StateNode(InitialState, false, true, nullptr);
     Queue.push(QueueItem(OrderedPenalty(0, Count), Node));
     ++Count;
 
@@ -718,9 +721,17 @@ private:
 
       FormatDecision LastFormat = Node->State.NextToken->Decision;
       if (LastFormat == FD_Unformatted || LastFormat == FD_Continue)
-        addNextStateToQueue(Penalty, Node, /*NewLine=*/false, &Count, &Queue);
+        addNextStateToQueue(Penalty, Node, /*NewLine=*/false,
+                            /*BreakToken=*/true, &Count, &Queue);
       if (LastFormat == FD_Unformatted || LastFormat == FD_Break)
-        addNextStateToQueue(Penalty, Node, /*NewLine=*/true, &Count, &Queue);
+        addNextStateToQueue(Penalty, Node, /*NewLine=*/true,
+                            /*BreakToken=*/true, &Count, &Queue);
+      if (LastFormat == FD_Unformatted || LastFormat == FD_Continue)
+        addNextStateToQueue(Penalty, Node, /*NewLine=*/false,
+                            /*BreakToken=*/false, &Count, &Queue);
+      if (LastFormat == FD_Unformatted || LastFormat == FD_Break)
+        addNextStateToQueue(Penalty, Node, /*NewLine=*/true,
+                            /*BreakToken=*/false, &Count, &Queue);
     }
 
     if (Queue.empty()) {
@@ -745,18 +756,20 @@ private:
   /// Assume the current state is \p PreviousNode and has been reached with a
   /// penalty of \p Penalty. Insert a line break if \p NewLine is \c true.
   void addNextStateToQueue(unsigned Penalty, StateNode *PreviousNode,
-                           bool NewLine, unsigned *Count, QueueType *Queue) {
+                           bool NewLine, bool BreakToken, unsigned *Count, QueueType *Queue) {
     if (NewLine && !Indenter->canBreak(PreviousNode->State))
       return;
     if (!NewLine && Indenter->mustBreak(PreviousNode->State))
       return;
+    if (!BreakToken && !Indenter->canSplit(PreviousNode->State))
+      return;
 
     StateNode *Node = new (Allocator.Allocate())
-        StateNode(PreviousNode->State, NewLine, PreviousNode);
+        StateNode(PreviousNode->State, NewLine, BreakToken, PreviousNode);
     if (!formatChildren(Node->State, NewLine, /*DryRun=*/true, Penalty))
       return;
 
-    Penalty += Indenter->addTokenToState(Node->State, NewLine, true);
+    Penalty += Indenter->addTokenToState(Node->State, NewLine, BreakToken, true);
 
     Queue->push(QueueItem(OrderedPenalty(Penalty, *Count), Node));
     ++(*Count);
@@ -775,7 +788,7 @@ private:
          I != E; ++I) {
       unsigned Penalty = 0;
       formatChildren(State, (*I)->NewLine, /*DryRun=*/false, Penalty);
-      Penalty += Indenter->addTokenToState(State, (*I)->NewLine, false);
+      Penalty += Indenter->addTokenToState(State, (*I)->NewLine, (*I)->BreakToken, false);
 
       DEBUG({
         printLineState((*I)->Previous->State);
