@@ -911,7 +911,10 @@ template <class ELFT> void Writer<ELFT>::addReservedSymbols() {
   // this symbol unconditionally even when using a linker script, which
   // differs from the behavior implemented by GNU linker which only define
   // this symbol if ELF headers are in the memory mapped segment.
-  addOptionalRegular<ELFT>("__ehdr_start", Out::ElfHeader, 0, STV_HIDDEN);
+  // __executable_start is not documented, but the expectation of at
+  // least the android libc is that it points to the elf header too.
+  for (const char *Name : {"__ehdr_start", "__executable_start"})
+    addOptionalRegular<ELFT>(Name, Out::ElfHeader, 0, STV_HIDDEN);
 
   // If linker script do layout we do not need to create any standart symbols.
   if (Script->Opt.HasSections)
