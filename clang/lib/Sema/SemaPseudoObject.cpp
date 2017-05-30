@@ -527,9 +527,12 @@ PseudoOpBuilder::buildIncDecOperation(Scope *Sc, SourceLocation opcLoc,
       (result.get()->isTypeDependent() || CanCaptureValue(result.get())))
     setResultToLastSemantic();
 
-  UnaryOperator *syntactic =
-    new (S.Context) UnaryOperator(syntacticOp, opcode, resultType,
-                                  VK_LValue, OK_Ordinary, opcLoc);
+  UnaryOperator *syntactic = new (S.Context) UnaryOperator(
+      syntacticOp, opcode, resultType, VK_LValue, OK_Ordinary, opcLoc,
+      !resultType->isDependentType()
+          ? S.Context.getTypeSize(resultType) >=
+                S.Context.getTypeSize(S.Context.IntTy)
+          : false);
   return complete(syntactic);
 }
 
@@ -1639,9 +1642,9 @@ Expr *Sema::recreateSyntacticForm(PseudoObjectExpr *E) {
   Expr *syntax = E->getSyntacticForm();
   if (UnaryOperator *uop = dyn_cast<UnaryOperator>(syntax)) {
     Expr *op = stripOpaqueValuesFromPseudoObjectRef(*this, uop->getSubExpr());
-    return new (Context) UnaryOperator(op, uop->getOpcode(), uop->getType(),
-                                       uop->getValueKind(), uop->getObjectKind(),
-                                       uop->getOperatorLoc());
+    return new (Context) UnaryOperator(
+        op, uop->getOpcode(), uop->getType(), uop->getValueKind(),
+        uop->getObjectKind(), uop->getOperatorLoc(), uop->canOverflow());
   } else if (CompoundAssignOperator *cop
                = dyn_cast<CompoundAssignOperator>(syntax)) {
     Expr *lhs = stripOpaqueValuesFromPseudoObjectRef(*this, cop->getLHS());
