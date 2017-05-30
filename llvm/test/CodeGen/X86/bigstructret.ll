@@ -19,10 +19,9 @@ entry:
 }
 
 ; CHECK: ReturnBigStruct2
-; CHECK: movl	$48, 4(%ecx)
-; CHECK: movb	$1, 2(%ecx)
-; CHECK: movb	$1, 1(%ecx)
-; CHECK: movb	$0, (%ecx)
+; CHECK-DAG: movl	$48, 4(%ecx)
+; CHECK-DAG: movb	$1, 2(%ecx)
+; CHECK-DAG: movw   $256, (%ecx)
 
 define fastcc %1 @ReturnBigStruct2() nounwind readnone {
 entry:

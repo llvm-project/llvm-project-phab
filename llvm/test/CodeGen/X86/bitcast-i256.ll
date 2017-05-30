@@ -5,7 +5,6 @@ define i256 @foo(<8 x i32> %a) {
   ret i256 %r
 ; CHECK: foo
 ; CHECK: vextractf128
-; CHECK: vpextrq
-; CHECK: vpextrq
+; CHECK: vmovups
 ; CHECK: ret
 }
