@@ -1671,9 +1671,9 @@ static bool GenerateAlternateExtensivePathDiagnostic(
         // Add an edge to the start of the function.
         const StackFrameContext *CalleeLC = CE->getCalleeContext();
         const Decl *D = CalleeLC->getDecl();
-        addEdgeToPath(PD.getActivePath(), PrevLoc,
-                      PathDiagnosticLocation::createBegin(D, SM),
-                      CalleeLC);
+        if (D->hasBody())
+          addEdgeToPath(PD.getActivePath(), PrevLoc,
+                        PathDiagnosticLocation::createBegin(D, SM), CalleeLC);
 
         // Did we visit an entire call?
         bool VisitedEntireCall = PD.isWithinCall();
