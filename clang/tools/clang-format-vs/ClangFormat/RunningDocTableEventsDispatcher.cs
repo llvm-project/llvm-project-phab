@@ -11,15 +11,27 @@ namespace LLVM.ClangFormat
     {
         private RunningDocumentTable _runningDocumentTable;
         private DTE _dte;
+        private SolutionEvents _solutionEvents;
+        private bool _isClosing = false;
 
         public delegate void OnBeforeSaveHander(object sender, Document document);
         public event OnBeforeSaveHander BeforeSave;
+
+        public delegate void OnBeforeShowHander(object sender, Document document);
+        public event OnBeforeShowHander BeforeShow;
+
+        private void SolutionIsClosing()
+        {
+            _isClosing = true;
+        }
 
         public RunningDocTableEventsDispatcher(Package package)
         {
             _runningDocumentTable = new RunningDocumentTable(package);
             _runningDocumentTable.Advise(this);
             _dte = (DTE)Package.GetGlobalService(typeof(DTE));
+            _solutionEvents = _dte.Events.SolutionEvents;
+            _solutionEvents.BeforeClosing += SolutionIsClosing;
         }
 
         public int OnAfterAttributeChange(uint docCookie, uint grfAttribs)
@@ -42,13 +54,19 @@ namespace LLVM.ClangFormat
             return VSConstants.S_OK;
         }
 
-        public int OnAfterSave(uint docCookie)
-        {
-            return VSConstants.S_OK;
-        }
-
         public int OnBeforeDocumentWindowShow(uint docCookie, int fFirstShow, IVsWindowFrame pFrame)
         {
+            if (fFirstShow != 0)
+            {
+                if (BeforeShow != null)
+                {
+                    var document = FindDocumentByCookie(docCookie);
+                    if (document != null) // Not sure why this happens sometimes
+                    {
+                        BeforeShow(this, document);
+                    }
+                }
+            }
             return VSConstants.S_OK;
         }
 
@@ -64,7 +82,25 @@ namespace LLVM.ClangFormat
                 var document = FindDocumentByCookie(docCookie);
                 if (document != null) // Not sure why this happens sometimes
                 {
-                    BeforeSave(this, FindDocumentByCookie(docCookie));
+                    BeforeSave(this, document);
+                }
+            }
+            return VSConstants.S_OK;
+        }
+
+        public int OnAfterSave(uint docCookie)
+        {
+            // If we're not closing the solution, re-run the open formatter
+            // (the idea is to always see your alt format if both format on open/save are enabled)
+            if (!_isClosing)
+            {
+                if (BeforeShow != null)
+                {
+                    var document = FindDocumentByCookie(docCookie);
+                    if (document != null) // Not sure why this happens sometimes
+                    {
+                        BeforeShow(this, document);
+                    }
                 }
             }
             return VSConstants.S_OK;
