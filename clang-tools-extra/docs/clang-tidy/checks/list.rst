@@ -109,6 +109,7 @@ Clang-Tidy Checks
    misc-throw-by-value-catch-by-reference
    misc-unconventional-assign-operator
    misc-undelegated-constructor
+   misc-undelegated-copy-of-base-classes
    misc-uniqueptr-reset-release
    misc-unused-alias-decls
    misc-unused-parameters
