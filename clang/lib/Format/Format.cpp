@@ -1960,6 +1960,8 @@ const char *StyleOptionHelpDescription =
     ".clang-format file located in one of the parent\n"
     "directories of the source file (or current\n"
     "directory for stdin).\n"
+    "Use -style=file:<configfile> to explicitly specify\n"
+    "the configuration file.\n"
     "Use -style=\"{key: value, ...}\" to set specific\n"
     "parameters, e.g.:\n"
     "  -style=\"{BasedOnStyle: llvm, IndentWidth: 8}\"";
@@ -2003,6 +2005,30 @@ llvm::Expected<FormatStyle> getStyle(StringRef StyleName, StringRef FileName,
     // Parse YAML/JSON style from the command line.
     if (std::error_code ec = parseConfiguration(StyleName, &Style))
       return make_string_error("Error parsing -style: " + ec.message());
+    return Style;
+  }
+
+  // Check for explicit config filename
+  if (StyleName.startswith_lower("file:")) {
+    SmallString<128> ConfigFile(StyleName.substr(5));
+    auto Status = FS->status(ConfigFile.str());
+    bool FoundConfigFile =
+        Status && (Status->getType() == llvm::sys::fs::file_type::regular_file);
+    if (!FoundConfigFile) {
+      return make_string_error("Configuration file " + ConfigFile + " not found");
+    }
+    llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> Text =
+        FS->getBufferForFile(ConfigFile.str());
+    if (std::error_code EC = Text.getError())
+      return make_string_error(EC.message());
+    if (std::error_code ec = parseConfiguration(Text.get()->getBuffer(), &Style)) {
+      if (ec == ParseError::Unsuitable) {
+        return make_string_error("Configuration file " + ConfigFile +
+          " does not support " + getLanguageName(Style.Language));
+      }
+      return make_string_error("Error reading " + ConfigFile + ": " + ec.message());
+    }
+    DEBUG(llvm::dbgs() << "Using configuration file " << ConfigFile << "\n");
     return Style;
   }
 
