@@ -77,6 +77,11 @@ Improvements to clang-tidy
 
   Finds perfect forwarding constructors that can unintentionally hide copy or move constructors.
 
+- New `misc-undelegated-copy-of-base-classes 
+  <http://clang.llvm.org/extra/clang-tidy/checks/misc-undelegated-copy-of-base-classes.html>`_ check
+
+  Finds copy constructors where the ctor don't call the constructor of the base class.
+
 - New `modernize-replace-random-shuffle
   <http://clang.llvm.org/extra/clang-tidy/checks/modernize-replace-random-shuffle.html>`_ check
 

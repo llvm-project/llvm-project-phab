@@ -40,6 +40,7 @@ add_clang_library(clangTidyMiscModule
   SwappedArgumentsCheck.cpp
   ThrowByValueCatchByReferenceCheck.cpp
   UndelegatedConstructor.cpp
+  UndelegatedCopyOfBaseClassesCheck.cpp
   UniqueptrResetReleaseCheck.cpp
   UnusedAliasDeclsCheck.cpp
   UnusedParametersCheck.cpp
