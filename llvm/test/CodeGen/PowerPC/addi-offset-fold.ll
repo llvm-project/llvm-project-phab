@@ -30,9 +30,8 @@ entry:
 ; CHECK: ori 2, 2, 0
 ; CHECK-DAG: lbz [[REG1:[0-9]+]], -16(1)
 ; CHECK-DAG: lwz [[REG2:[0-9]+]], -20(1)
-; CHECK-DAG: sldi [[REG3:[0-9]+]], [[REG1]], 32
-; CHECK-DAG: or [[REG4:[0-9]+]], [[REG2]], [[REG3]]
-; CHECK: rldicl 3, [[REG4]], 33, 57
+; CHECK-DAG: rldimi [[REG3:[0-9]+]], [[REG1]], 32, 24
+; CHECK: rldicl 3, [[REG3]], 33, 57
 ; CHECK: blr
 }
 

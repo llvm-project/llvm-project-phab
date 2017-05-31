@@ -207,7 +207,7 @@ entry:
   ret i64 %or
 
 ; CHECK-LABEL: @test11
-; CHECK: rlwinm 3, 3, 0, 1, 0
+; CHECK: rldimi 3, 3, 32, 0
 ; CHECK: blr
 }
 

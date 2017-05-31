@@ -161,7 +161,8 @@ namespace {
     // target-specific node if it hasn't already been changed.
     void Select(SDNode *N) override;
 
-    bool tryBitfieldInsert(SDNode *N);
+    bool tryBitfieldInsert32(SDNode *N, bool SimpleCaseOnly);
+    bool tryBitfieldInsert64(SDNode *N, bool SimpleCaseOnly);
     bool tryBitPermutation(SDNode *N);
 
     /// SelectCC - Select a comparison of the specified values with the
@@ -453,6 +454,12 @@ static bool isInt32Immediate(SDValue N, unsigned &Imm) {
   return isInt32Immediate(N.getNode(), Imm);
 }
 
+/// isInt64Immediate - This method tests to see if the value is a 64-bit 
+/// constant operand. If so Imm will receive the 64-bit value.
+static bool isInt64Immediate(SDValue N, uint64_t &Imm) {
+  return isInt64Immediate(N.getNode(), Imm);
+}
+
 static unsigned getBranchHint(unsigned PCC, FunctionLoweringInfo *FuncInfo,
                               const SDValue &DestMBB) {
   assert(isa<BasicBlockSDNode>(DestMBB));
@@ -568,10 +575,17 @@ bool PPCDAGToDAGISel::isRotateAndMask(SDNode *N, unsigned Mask,
 
 /// Turn an or of two masked values into the rotate left word immediate then
 /// mask insert (rlwimi) instruction.
-bool PPCDAGToDAGISel::tryBitfieldInsert(SDNode *N) {
+bool PPCDAGToDAGISel::tryBitfieldInsert32(SDNode *N, bool SimpleCaseOnly) {
   SDValue Op0 = N->getOperand(0);
   SDValue Op1 = N->getOperand(1);
   SDLoc dl(N);
+
+  // At the first run, we focus on simplest case only. We yield here 
+  // to allow tryBitPermutation handle a complicated case involving multiple 
+  // rldimi instructions.
+  if (SimpleCaseOnly &&
+      (Op0.getOpcode() == ISD::OR || Op1.getOpcode() == ISD::OR))
+    return false;
 
   KnownBits LKnown, RKnown;
   CurDAG->computeKnownBits(Op0, LKnown);
@@ -579,6 +593,12 @@ bool PPCDAGToDAGISel::tryBitfieldInsert(SDNode *N) {
 
   unsigned TargetMask = LKnown.Zero.getZExtValue();
   unsigned InsertMask = RKnown.Zero.getZExtValue();
+
+  // Again, we only handle simple case at first run.
+  // Typically, tryBitPermutation can handle complicated case
+  // with overwrapping masks better.
+  if (SimpleCaseOnly && (TargetMask & InsertMask) != 0)
+    return false;
 
   if ((TargetMask | InsertMask) == 0xFFFFFFFF) {
     unsigned Op0Opc = Op0.getOpcode();
@@ -610,12 +630,11 @@ bool PPCDAGToDAGISel::tryBitfieldInsert(SDNode *N) {
 
     unsigned MB, ME;
     if (isRunOfOnes(InsertMask, MB, ME)) {
-      SDValue Tmp1, Tmp2;
-
       if ((Op1Opc == ISD::SHL || Op1Opc == ISD::SRL) &&
           isInt32Immediate(Op1.getOperand(1), Value)) {
         Op1 = Op1.getOperand(0);
         SH  = (Op1Opc == ISD::SHL) ? Value : 32 - Value;
+        Op1Opc = Op1.getOpcode();
       }
       if (Op1Opc == ISD::AND) {
        // The AND mask might not be a constant, and we need to make sure that
@@ -632,14 +651,130 @@ bool PPCDAGToDAGISel::tryBitfieldInsert(SDNode *N) {
           // otherwise there would not be any bits set in InsertMask.
           Op1 = Op1.getOperand(0).getOperand(0);
           SH  = (SHOpc == ISD::SHL) ? Value : 32 - Value;
+          Op1Opc = Op1.getOpcode();
         }
       }
 
       SH &= 31;
+
+      // We eliminate AND instructions if they are already folded into rlwimi.
+      if (Op1Opc == ISD::AND && isInt32Immediate(Op1.getOperand(1), Value) &&
+          (Value << SH) == InsertMask)
+        Op1 = Op1.getOperand(0);
+      if (Op0Opc == ISD::AND && isInt32Immediate(Op0.getOperand(1), Value) &&
+          Value == ~InsertMask)
+        Op0 = Op0.getOperand(0);
+
       SDValue Ops[] = { Op0, Op1, getI32Imm(SH, dl), getI32Imm(MB, dl),
                           getI32Imm(ME, dl) };
       ReplaceNode(N, CurDAG->getMachineNode(PPC::RLWIMI, dl, MVT::i32, Ops));
       return true;
+    }
+  }
+  return false;
+}
+
+/// Turn an or of two masked values into the rotate left double word immediate
+/// then mask insert (rldimi) instruction.
+bool PPCDAGToDAGISel::tryBitfieldInsert64(SDNode *N, bool SimpleCaseOnly) {
+  SDValue Op0 = N->getOperand(0);
+  SDValue Op1 = N->getOperand(1);
+  SDLoc dl(N);
+
+  // At the first run, we focus on simplest case only. We yield here 
+  // to allow tryBitPermutation handle a complicated case involving multiple 
+  // rldimi instructions.
+  if (SimpleCaseOnly &&
+      (Op0.getOpcode() == ISD::OR || Op1.getOpcode() == ISD::OR))
+    return false;
+
+  KnownBits LKnown, RKnown;
+  CurDAG->computeKnownBits(Op0, LKnown);
+  CurDAG->computeKnownBits(Op1, RKnown);
+
+  uint64_t TargetMask = LKnown.Zero.getZExtValue();
+  uint64_t InsertMask = RKnown.Zero.getZExtValue();
+
+  // Again, we only handle simple case at first run.
+  // Typically, tryBitPermutation can handle complicated case
+  // with overwrapping masks better.
+  if (SimpleCaseOnly && (TargetMask & InsertMask) != 0)
+    return false;
+
+  if ((TargetMask | InsertMask) == 0xFFFFFFFFFFFFFFFFuLL) {
+    uint64_t Op0Opc = Op0.getOpcode();
+    uint64_t Op1Opc = Op1.getOpcode();
+    uint64_t Value64;
+    unsigned Value, SH = 0;
+    TargetMask = ~TargetMask;
+    InsertMask = ~InsertMask;
+
+    // If the LHS has a foldable shift and the RHS does not, then swap it to the
+    // RHS so that we can fold the shift into the insert.
+    if (Op0Opc == ISD::AND && Op1Opc == ISD::AND) {
+      if (Op0.getOperand(0).getOpcode() == ISD::SHL ||
+          Op0.getOperand(0).getOpcode() == ISD::SRL) {
+        if (Op1.getOperand(0).getOpcode() != ISD::SHL &&
+            Op1.getOperand(0).getOpcode() != ISD::SRL) {
+          std::swap(Op0, Op1);
+          std::swap(Op0Opc, Op1Opc);
+          std::swap(TargetMask, InsertMask);
+        }
+      }
+    } else if (Op0Opc == ISD::SHL || Op0Opc == ISD::SRL) {
+      if (Op1Opc == ISD::AND && Op1.getOperand(0).getOpcode() != ISD::SHL &&
+          Op1.getOperand(0).getOpcode() != ISD::SRL) {
+        std::swap(Op0, Op1);
+        std::swap(Op0Opc, Op1Opc);
+        std::swap(TargetMask, InsertMask);
+      }
+    }
+
+    unsigned MB, ME;
+    if (isRunOfOnes(InsertMask, MB, ME)) {
+      // to opt: We will have additional opportunity to use rldimi
+      // by supporting patterns with ZERO_EXTEND in Op0Opc or Op1Opc
+      if ((Op1Opc == ISD::SHL || Op1Opc == ISD::SRL) &&
+          isInt32Immediate(Op1.getOperand(1), Value)) {
+        Op1 = Op1.getOperand(0);
+        SH  = (Op1Opc == ISD::SHL) ? Value : 64 - Value;
+        Op1Opc = Op1.getOpcode();
+      }
+      if (Op1Opc == ISD::AND) {
+       // The AND mask might not be a constant, and we need to make sure that
+       // if we're going to fold the masking with the insert, all bits not
+       // know to be zero in the mask are known to be one.
+        KnownBits MKnown;
+        CurDAG->computeKnownBits(Op1.getOperand(1), MKnown);
+        bool CanFoldMask = InsertMask == MKnown.One.getZExtValue();
+
+        unsigned SHOpc = Op1.getOperand(0).getOpcode();
+        if ((SHOpc == ISD::SHL || SHOpc == ISD::SRL) && CanFoldMask &&
+            isInt32Immediate(Op1.getOperand(0).getOperand(1), Value)) {
+          // Note that Value must be in range here (less than 32) because
+          // otherwise there would not be any bits set in InsertMask.
+          Op1 = Op1.getOperand(0).getOperand(0);
+          SH  = (SHOpc == ISD::SHL) ? Value : 64 - Value;
+          Op1Opc = Op1.getOpcode();
+        }
+      }
+
+      SH &= 63;
+
+      // We cannot specify ME for rldimi; ~SH is used instead.
+      if (ME == 63 - SH) {
+        // We eliminate AND instructions if they are already folded into rldimi.
+        if (Op1Opc == ISD::AND && isInt64Immediate(Op1.getOperand(1), Value64) &&
+            (Value64 << SH) == InsertMask)
+          Op1 = Op1.getOperand(0);
+        if (Op0Opc == ISD::AND && isInt64Immediate(Op0.getOperand(1), Value64) &&
+            Value64 == ~InsertMask)
+          Op0 = Op0.getOperand(0);
+
+        SDValue Ops[] = { Op0, Op1, getI32Imm(SH, dl), getI32Imm(MB, dl) };
+        ReplaceNode(N, CurDAG->getMachineNode(PPC::RLDIMI, dl, MVT::i64, Ops));
+        return true;
+      }
     }
   }
   return false;
@@ -2743,7 +2878,16 @@ void PPCDAGToDAGISel::Select(SDNode *N) {
       N->getOperand(1).getOpcode() == ISD::TargetConstant)
     llvm_unreachable("Invalid ADD with TargetConstant operand");
 
-  // Try matching complex bit permutations before doing anything else.
+  // Find opportunity to use rotate left immediate then mask insert instruction
+  // before tryBitPermutation, which may generate suboptimal machine IR.
+  // At this first pass, we limit the targets to simple bitfield insert case
+  // since tryBitPermutation handles complicated bit manipulation better.
+  if (N->getOpcode() == ISD::OR)
+    if ((N->getValueType(0) == MVT::i32 && tryBitfieldInsert32(N, true)) ||
+        (N->getValueType(0) == MVT::i64 && tryBitfieldInsert64(N, true)))
+      return;
+
+  // Try matching complex bit permutations next.
   if (tryBitPermutation(N))
     return;
 
@@ -3021,9 +3165,9 @@ void PPCDAGToDAGISel::Select(SDNode *N) {
     break;
   }
   case ISD::OR: {
-    if (N->getValueType(0) == MVT::i32)
-      if (tryBitfieldInsert(N))
-        return;
+    if ((N->getValueType(0) == MVT::i32 && tryBitfieldInsert32(N, false)) ||
+        (N->getValueType(0) == MVT::i64 && tryBitfieldInsert64(N, false)))
+      return;
 
     short Imm;
     if (N->getOperand(0)->getOpcode() == ISD::FrameIndex &&
