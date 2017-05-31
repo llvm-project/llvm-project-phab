@@ -1164,7 +1164,7 @@ public:
 
   size_t GetStatus(Stream &strm, uint32_t start_frame, uint32_t num_frames,
                    uint32_t num_frames_with_source,
-                   bool stop_format);
+                   bool stop_format, bool only_stacks = false);
 
   size_t GetStackFrameStatus(Stream &strm, uint32_t first_frame,
                              uint32_t num_frames, bool show_frame_info,

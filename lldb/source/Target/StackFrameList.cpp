@@ -801,7 +801,7 @@ StackFrameList::GetStackFrameSPForStackFramePtr(StackFrame *stack_frame_ptr) {
 
 size_t StackFrameList::GetStatus(Stream &strm, uint32_t first_frame,
                                  uint32_t num_frames, bool show_frame_info,
-                                 uint32_t num_frames_with_source,
+                                 uint32_t num_frames_with_source, bool show_unique,
                                  const char *selected_frame_marker) {
   size_t num_frames_displayed = 0;
 
@@ -842,7 +842,7 @@ size_t StackFrameList::GetStatus(Stream &strm, uint32_t first_frame,
 
     if (!frame_sp->GetStatus(strm, show_frame_info,
                              num_frames_with_source > (first_frame - frame_idx),
-                             marker))
+                             show_unique, marker))
       break;
     ++num_frames_displayed;
   }

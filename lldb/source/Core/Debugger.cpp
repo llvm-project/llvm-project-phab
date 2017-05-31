@@ -112,6 +112,12 @@ OptionEnumValueElement g_language_enumerators[] = {
   "{ "                                                                         \
   "${module.file.basename}{`${function.name-with-args}"                        \
   "{${frame.no-debug}${function.pc-offset}}}}"
+
+#define MODULE_WITH_FUNC_NO_ARGS                                               \
+  "{ "                                                                         \
+  "${module.file.basename}{`${function.name-without-args}"                     \
+  "{${frame.no-debug}${function.pc-offset}}}}"
+
 #define FILE_AND_LINE "{ at ${line.file.basename}:${line.number}}"
 #define IS_OPTIMIZED "{${function.is-optimized} [opt]}"
 
@@ -140,6 +146,11 @@ OptionEnumValueElement g_language_enumerators[] = {
 #define DEFAULT_FRAME_FORMAT                                                   \
   "frame #${frame.index}: ${frame.pc}" MODULE_WITH_FUNC FILE_AND_LINE          \
       IS_OPTIMIZED "\\n"
+
+#define DEFAULT_FRAME_FORMAT_NO_ARGS                                           \
+  "frame #${frame.index}: ${frame.pc}" MODULE_WITH_FUNC_NO_ARGS FILE_AND_LINE  \
+      IS_OPTIMIZED "\\n"
+
 
 // Three parts to this disassembly format specification:
 //   1. If this is a new function/symbol (no previous symbol/function), print
@@ -236,7 +247,7 @@ static PropertyDefinition g_properties[] = {
                                      "when displaying thread information."},
     {"thread-stop-format", OptionValue::eTypeFormatEntity, true, 0,
      DEFAULT_THREAD_STOP_FORMAT, nullptr, "The default thread format  "
-                                     "string to usewhen displaying thread "
+                                     "string to use when displaying thread "
                                      "information as part of the stop display."},
     {"use-external-editor", OptionValue::eTypeBoolean, true, false, nullptr,
      nullptr, "Whether to use an external editor or not."},
@@ -257,6 +268,10 @@ static PropertyDefinition g_properties[] = {
     {"escape-non-printables", OptionValue::eTypeBoolean, true, true, nullptr,
      nullptr, "If true, LLDB will automatically escape non-printable and "
               "escape characters when formatting strings."},
+    {"frame-format-unique", OptionValue::eTypeFormatEntity, true, 0,
+     DEFAULT_FRAME_FORMAT_NO_ARGS, nullptr,
+     "The default frame format string to use when displaying stack frame"
+     "information for threads from thread backtrace unique."},
     {nullptr, OptionValue::eTypeInvalid, true, 0, nullptr, nullptr, nullptr}};
 
 enum {
@@ -282,7 +297,8 @@ enum {
   ePropertyAutoIndent,
   ePropertyPrintDecls,
   ePropertyTabSize,
-  ePropertyEscapeNonPrintables
+  ePropertyEscapeNonPrintables,
+  ePropertyFrameFormatUnique,
 };
 
 LoadPluginCallbackType Debugger::g_load_plugin_callback = nullptr;
@@ -355,6 +371,11 @@ const FormatEntity::Entry *Debugger::GetDisassemblyFormat() const {
 
 const FormatEntity::Entry *Debugger::GetFrameFormat() const {
   const uint32_t idx = ePropertyFrameFormat;
+  return m_collection_sp->GetPropertyAtIndexAsFormatEntity(nullptr, idx);
+}
+
+const FormatEntity::Entry *Debugger::GetFrameFormatUnique() const {
+  const uint32_t idx = ePropertyFrameFormatUnique;
   return m_collection_sp->GetPropertyAtIndexAsFormatEntity(nullptr, idx);
 }
 

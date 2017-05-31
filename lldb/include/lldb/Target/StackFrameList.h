@@ -70,7 +70,7 @@ public:
 
   size_t GetStatus(Stream &strm, uint32_t first_frame, uint32_t num_frames,
                    bool show_frame_info, uint32_t num_frames_with_source,
-                   const char *frame_marker = nullptr);
+                   bool show_unique = false, const char *frame_marker = nullptr);
 
 protected:
   friend class Thread;
