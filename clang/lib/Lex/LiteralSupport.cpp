@@ -583,6 +583,13 @@ NumericLiteralParser::NumericLiteralParser(StringRef TokSpelling,
       if (isHalf || isFloat || isLong || isFloat128)
         break; // HF, FF, LF, QF invalid.
       isFloat = true;
+
+      if (s+1 < ThisTokEnd && s[1] == '1') {
+        if(s+2 < ThisTokEnd && s[2] == '6') {
+          s += 2; // success, eat up 2 tokens.
+        } else
+          break; // only accept 'f16'
+      }
       continue;  // Success.
     case 'q':    // FP Suffix for "__float128"
     case 'Q':
