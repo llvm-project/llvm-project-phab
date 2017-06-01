@@ -22,8 +22,3 @@ Target &getTheAAPTarget() {
 extern "C" void LLVMInitializeAAPTargetInfo() {
   RegisterTarget<Triple::aap> X(getTheAAPTarget(), "aap", "AAP [experimental]");
 }
-
-// Placeholder. This will be removed when the MC support has been
-// introduced
-extern "C" void LLVMInitializeAAPTargetMC() {
-}
