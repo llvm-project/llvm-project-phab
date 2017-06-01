@@ -707,7 +707,7 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
   if (TC.getTriple().isOSBinFormatMachO())
     BuildUniversalActions(*C, C->getDefaultToolChain(), Inputs);
   else
-    BuildActions(*C, C->getArgs(), Inputs, C->getActions());
+    BuildActions(*C, C->getArgs(), Inputs, C->getActions(), false);
 
   if (CCCPrintPhases) {
     PrintActions(*C);
@@ -910,7 +910,7 @@ void Driver::generateCompilationDiagnostics(Compilation &C,
   if (TC.getTriple().isOSBinFormatMachO())
     BuildUniversalActions(C, TC, Inputs);
   else
-    BuildActions(C, C.getArgs(), Inputs, C.getActions());
+    BuildActions(C, C.getArgs(), Inputs, C.getActions(), false);
 
   BuildJobs(C);
 
@@ -1392,7 +1392,8 @@ void Driver::BuildUniversalActions(Compilation &C, const ToolChain &TC,
     Archs.push_back(Args.MakeArgString(TC.getDefaultUniversalArchName()));
 
   ActionList SingleActions;
-  BuildActions(C, Args, BAInputs, SingleActions);
+  bool MultipleArchs = Archs.size() > 1;
+  BuildActions(C, Args, BAInputs, SingleActions, MultipleArchs);
 
   // Add in arch bindings for every top level action, as well as lipo and
   // dsymutil steps if needed.
@@ -2389,7 +2390,8 @@ public:
 } // anonymous namespace.
 
 void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
-                          const InputList &Inputs, ActionList &Actions) const {
+                          const InputList &Inputs, ActionList &Actions,
+                          bool MultipleArchs) const {
   llvm::PrettyStackTraceString CrashInfo("Building compilation actions");
 
   if (!SuppressMissingInputWarning && Inputs.empty()) {
@@ -2593,6 +2595,21 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
         LinkerInputs.push_back(Current);
         Current = nullptr;
         break;
+      }
+
+      // When saving temps, add extra actions to write unoptimized and optimized
+      // IR besides the normal bitcode outputs if possible. This is not possible
+      // for multi-arch builds because in these builds we check that we can lipo
+      // all action outputs.
+      if (!MultipleArchs) {
+        if (isSaveTempsEnabled() && Phase == phases::Compile) {
+          Actions.push_back(
+              C.MakeAction<CompileJobAction>(Current, types::TY_LLVM_IR));
+        }
+        if (isSaveTempsEnabled() && Phase == phases::Backend) {
+          Actions.push_back(
+              C.MakeAction<BackendJobAction>(Current, types::TY_LLVM_IR));
+        }
       }
 
       // Otherwise construct the appropriate action.
@@ -3544,6 +3561,11 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
     if (!AtTopLevel && C.getArgs().hasArg(options::OPT_emit_llvm) &&
         JA.getType() == types::TY_LLVM_BC)
       Suffixed += ".tmp";
+    // When using -save-temps, append a ".unoptimized" suffix so that the
+    // optimized .ll file doesn't overwrite the unoptimized one.
+    if (isSaveTempsEnabled() && JA.getType() == types::TY_LLVM_IR &&
+        JA.getKind() == Action::CompileJobClass)
+      Suffixed += ".unoptimized";
     Suffixed += '.';
     Suffixed += Suffix;
     NamedOutput = C.getArgs().MakeArgString(Suffixed.c_str());
