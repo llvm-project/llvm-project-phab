@@ -176,3 +176,28 @@ define arm_aapcs_vfpcc double @lower_const_f64_xo() {
 ; CHECK-XO-DOUBLE-BE-NOT: vldr
   ret double 3.140000e-01
 }
+
+; This is a target independant optimization, performed by the
+; DAG Combiner and should be disabled for execute-only code:
+; (a cond b) ? 1.0f : 2.0f -> load (tmp + ((a cond b) ? 0 : 4)
+
+define arm_aapcs_vfpcc float @lower_fpconst_select(float %f) {
+
+; CHECK-NO-XO-LABEL: lower_fpconst_select
+; CHECK-NO-XO: adr [[REG:r[0-9]+]], {{.?LCPI[0-9]+_[0-9]+}}
+; CHECK-NO-XO: vldr {{s[0-9]+}}, {{[[]}}[[REG]]{{[]]}}
+
+; CHECK-XO-FLOAT-LABEL: lower_fpconst_select
+; CHECK-XO-FLOAT-DAG: movw [[REG1:r[0-9]+]], #27432
+; CHECK-XO-FLOAT-DAG: movw [[REG2:r[0-9]+]], #761
+; CHECK-XO-FLOAT-DAG: movt [[REG1]], #19950
+; CHECK-XO-FLOAT-DAG: movt [[REG2]], #20373
+; CHECK-XO-FLOAT-DAG: vmov {{s[0-9]+}}, [[REG1]]
+; CHECK-XO-FLOAT-DAG: vmov {{s[0-9]+}}, [[REG2]]
+; CHECK-XO-FLOAT-NOT: adr
+; CHECK-XO-FLOAT-NOT: vldr
+
+  %cmp = fcmp nnan oeq float %f, 0.000000e+00
+  %sel = select i1 %cmp, float 5.000000e+08, float 5.000000e+09
+  ret float %sel
+}

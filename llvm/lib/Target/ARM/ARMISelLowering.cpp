@@ -13233,6 +13233,8 @@ bool ARM::isBitFieldInvertedMask(unsigned v) {
 /// specified FP immediate natively. If false, the legalizer will
 /// materialize the FP immediate as a load from a constant pool.
 bool ARMTargetLowering::isFPImmLegal(const APFloat &Imm, EVT VT) const {
+  if (Subtarget->genExecuteOnly())
+    return true;
   if (!Subtarget->hasVFP3())
     return false;
   if (VT == MVT::f32)
