@@ -73,6 +73,11 @@ const std::string &CIndexer::getClangResourcesPath() {
   llvm::sys::path::append(LibClangPath, "clang", CLANG_VERSION_STRING);
 
   // Cache our result.
-  ResourcesPath = LibClangPath.str();
+  SmallString<260> RealPath;
+  if (!llvm::sys::fs::real_path(LibClangPath, RealPath, /*expand_tilde=*/false))
+    ResourcesPath = RealPath.str();
+  else
+    ResourcesPath = LibClangPath.str();
+
   return ResourcesPath;
 }
