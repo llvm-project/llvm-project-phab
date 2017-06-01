@@ -328,6 +328,9 @@ void SelectionDAGISel::getAnalysisUsage(AnalysisUsage &AU) const {
   if (UseMBPI && OptLevel != CodeGenOpt::None)
     AU.addRequired<BranchProbabilityInfoWrapperPass>();
   MachineFunctionPass::getAnalysisUsage(AU);
+
+  // The dominator tree is preserved in MachineFunctionPass::getAnalysisUsage()
+  AU.addRequired<DominatorTreeWrapperPass>();
 }
 
 /// SplitCriticalSideEffectEdges - Look for critical edges with a PHI value that
@@ -337,7 +340,7 @@ void SelectionDAGISel::getAnalysisUsage(AnalysisUsage &AU) const {
 ///
 /// This is required for correctness, so it must be done at -O0.
 ///
-static void SplitCriticalSideEffectEdges(Function &Fn) {
+static void SplitCriticalSideEffectEdges(Function &Fn, DominatorTree *DT) {
   // Loop for blocks with phi nodes.
   for (BasicBlock &BB : Fn) {
     PHINode *PN = dyn_cast<PHINode>(BB.begin());
@@ -363,7 +366,7 @@ static void SplitCriticalSideEffectEdges(Function &Fn) {
         // Okay, we have to split this edge.
         SplitCriticalEdge(
             Pred->getTerminator(), GetSuccessorNumber(Pred, &BB),
-            CriticalEdgeSplittingOptions().setMergeIdenticalEdges());
+            CriticalEdgeSplittingOptions(DT).setMergeIdenticalEdges());
         goto ReprocessBlock;
       }
   }
@@ -399,10 +402,11 @@ bool SelectionDAGISel::runOnMachineFunction(MachineFunction &mf) {
   LibInfo = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
   GFI = Fn.hasGC() ? &getAnalysis<GCModuleInfo>().getFunctionInfo(Fn) : nullptr;
   ORE = make_unique<OptimizationRemarkEmitter>(&Fn);
+  DominatorTree *DT = &getAnalysis<DominatorTreeWrapperPass>().getDomTree();
 
   DEBUG(dbgs() << "\n\n\n=== " << Fn.getName() << "\n");
 
-  SplitCriticalSideEffectEdges(const_cast<Function &>(Fn));
+  SplitCriticalSideEffectEdges(const_cast<Function &>(Fn), DT);
 
   CurDAG->init(*MF, *ORE);
   FuncInfo->set(Fn, *MF, CurDAG);
