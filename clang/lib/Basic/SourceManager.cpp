@@ -1055,11 +1055,22 @@ const char *SourceManager::getCharacterData(SourceLocation SL,
   return Buffer->getBufferStart() + (CharDataInvalid? 0 : LocInfo.second);
 }
 
+static unsigned correctForMultiByteChars(const char *Buf, unsigned LineStart,
+                                         unsigned Column)
+{
+    unsigned CorrectedColumn = Column;
+    for (unsigned I = 0; I < Column; ++I) {
+        if ((Buf[LineStart + I] & 0xc0) == 0x80)
+            --CorrectedColumn;
+    }
+    return CorrectedColumn;
+}
 
 /// getColumnNumber - Return the column # for the specified file position.
 /// this is significantly cheaper to compute than the line number.
 unsigned SourceManager::getColumnNumber(FileID FID, unsigned FilePos,
-                                        bool *Invalid) const {
+                                        bool *Invalid,
+                                        bool BytePosition) const {
   bool MyInvalid = false;
   llvm::MemoryBuffer *MemBuf = getBuffer(FID, &MyInvalid);
   if (Invalid)
@@ -1093,14 +1104,18 @@ unsigned SourceManager::getColumnNumber(FileID FID, unsigned FilePos,
         if (Buf[FilePos - 1] == '\r' || Buf[FilePos - 1] == '\n')
           --FilePos;
       }
-      return FilePos - LineStart + 1;
+      unsigned Column = FilePos - LineStart + 1;
+      return BytePosition ? Column : correctForMultiByteChars(Buf, LineStart,
+                                                              Column);
     }
   }
 
   unsigned LineStart = FilePos;
   while (LineStart && Buf[LineStart-1] != '\n' && Buf[LineStart-1] != '\r')
     --LineStart;
-  return FilePos-LineStart+1;
+  unsigned Column = FilePos - LineStart + 1;
+  return BytePosition ? Column : correctForMultiByteChars(Buf, LineStart,
+                                                          Column);
 }
 
 // isInvalid - Return the result of calling loc.isInvalid(), and
@@ -1425,7 +1440,8 @@ PresumedLoc SourceManager::getPresumedLoc(SourceLocation Loc,
   unsigned LineNo = getLineNumber(LocInfo.first, LocInfo.second, &Invalid);
   if (Invalid)
     return PresumedLoc();
-  unsigned ColNo  = getColumnNumber(LocInfo.first, LocInfo.second, &Invalid);
+  unsigned ColNo  = getColumnNumber(LocInfo.first, LocInfo.second, &Invalid,
+                                    false);
   if (Invalid)
     return PresumedLoc();
   
