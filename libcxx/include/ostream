@@ -56,6 +56,7 @@ public:
     basic_ostream& operator<<(double f);
     basic_ostream& operator<<(long double f);
     basic_ostream& operator<<(const void* p);
+    basic_ostream& operator<<(nullptr_t);
     basic_ostream& operator<<(basic_streambuf<char_type,traits>* sb);
 
     // 27.7.2.7 Unformatted output:
@@ -140,6 +141,7 @@ template <class charT, class traits, class T>
 #include <locale>
 #include <iterator>
 #include <bitset>
+#include <cstddef>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #pragma GCC system_header
@@ -217,6 +219,10 @@ public:
     basic_ostream& operator<<(long double __f);
     basic_ostream& operator<<(const void* __p);
     basic_ostream& operator<<(basic_streambuf<char_type, traits_type>* __sb);
+
+    inline _LIBCPP_EXTERN_TEMPLATE_INLINE_VISIBILITY
+    basic_ostream& operator<<(nullptr_t)
+    { return *this << (const void*)0; }
 
     // 27.7.2.7 Unformatted output:
     basic_ostream& put(char_type __c);
