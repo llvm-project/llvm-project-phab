@@ -82,8 +82,7 @@ define amdgpu_kernel void @v2i16_to_v4i8(<4 x i8> addrspace(1)* %out, <2 x i16> 
 ; FUNC-LABEL: {{^}}v4i16_extract_i8:
 ; EG: MEM_RAT MSKOR {{T[0-9]+\.XW}}, [[ST_PTR:T[0-9]+\.[XYZW]]]
 ; EG: VTX_READ_16
-; EG: VTX_READ_16
-; EG-DAG: BFE_UINT
+; EG: LSHR {{[* ]*}}T{{[0-9]+}}.W, T{{[0-9]+}}.X, literal
 ; EG-DAG: LSHR {{[\* ]*}}[[ST_PTR]], KC0[2].Y, literal
 define amdgpu_kernel void @v4i16_extract_i8(i8 addrspace(1)* %out, <4 x i16> addrspace(1)* %in) nounwind {
   %load = load <4 x i16>, <4 x i16>  addrspace(1)* %in, align 2
