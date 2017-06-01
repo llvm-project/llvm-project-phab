@@ -1804,6 +1804,7 @@ void CodeGenModule::ConstructAttributeList(
     if (TargetDecl->hasAttr<ConstAttr>()) {
       FuncAttrs.addAttribute(llvm::Attribute::ReadNone);
       FuncAttrs.addAttribute(llvm::Attribute::NoUnwind);
+      FuncAttrs.addAttribute(llvm::Attribute::Speculatable);
     } else if (TargetDecl->hasAttr<PureAttr>()) {
       FuncAttrs.addAttribute(llvm::Attribute::ReadOnly);
       FuncAttrs.addAttribute(llvm::Attribute::NoUnwind);
