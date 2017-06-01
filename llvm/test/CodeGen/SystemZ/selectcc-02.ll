@@ -68,8 +68,8 @@ define i32 @f5(float %a, float %b) {
 define i32 @f6(float %a, float %b) {
 ; CHECK-LABEL: f6:
 ; CHECK: ipm %r2
-; CHECK-NEXT: afi %r2, -268435456
 ; CHECK-NEXT: sll %r2, 2
+; CHECK-NEXT: afi %r2, -1073741824
 ; CHECK-NEXT: sra %r2, 31
 ; CHECK: br %r14
   %cond = fcmp one float %a, %b
@@ -105,8 +105,8 @@ define i32 @f8(float %a, float %b) {
 define i32 @f9(float %a, float %b) {
 ; CHECK-LABEL: f9:
 ; CHECK: ipm %r2
-; CHECK-NEXT: afi %r2, 268435456
 ; CHECK-NEXT: sll %r2, 2
+; CHECK-NEXT: afi %r2, 1073741824
 ; CHECK-NEXT: sra %r2, 31
 ; CHECK: br %r14
   %cond = fcmp ueq float %a, %b

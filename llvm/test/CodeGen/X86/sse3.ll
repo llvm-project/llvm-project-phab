@@ -270,8 +270,7 @@ entry:
 define <4 x i32> @t17() nounwind {
 ; X64-LABEL: t17:
 ; X64:       ## BB#0: ## %entry
-; X64-NEXT:    movaps (%rax), %xmm0
-; X64-NEXT:    unpcklps {{.*#+}} xmm0 = xmm0[0,0,1,1]
+; X64-NEXT:    pshufd {{.*#+}} xmm0 = mem[0,0,1,1]
 ; X64-NEXT:    pxor %xmm1, %xmm1
 ; X64-NEXT:    punpckldq {{.*#+}} xmm0 = xmm0[0],xmm1[0],xmm0[1],xmm1[1]
 ; X64-NEXT:    retq

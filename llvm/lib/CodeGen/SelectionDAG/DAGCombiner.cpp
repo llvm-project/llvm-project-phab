@@ -1308,98 +1308,106 @@ void DAGCombiner::Run(CombineLevel AtLevel) {
   LegalOperations = Level >= AfterLegalizeVectorOps;
   LegalTypes = Level >= AfterLegalizeTypes;
 
-  // Add all the dag nodes to the worklist.
-  for (SDNode &Node : DAG.allnodes())
-    AddToWorklist(&Node);
-
   // Create a dummy node (which is not added to allnodes), that adds a reference
   // to the root node, preventing it from being deleted, and tracking any
   // changes of the root.
   HandleSDNode Dummy(DAG.getRoot());
 
-  // While the worklist isn't empty, find a node and try to combine it.
-  while (!WorklistMap.empty()) {
-    SDNode *N;
-    // The Worklist holds the SDNodes in order, but it may contain null entries.
-    do {
-      N = Worklist.pop_back_val();
-    } while (!N);
+  for (unsigned Iteration = 0; Iteration < 3; Iteration++) {
+    // Add all the dag nodes to the worklist.
+    for (SDNode &Node : DAG.allnodes())
+      AddToWorklist(&Node);
 
-    bool GoodWorklistEntry = WorklistMap.erase(N);
-    (void)GoodWorklistEntry;
-    assert(GoodWorklistEntry &&
-           "Found a worklist entry without a corresponding map entry!");
+    bool Changed = false;
 
-    // If N has no uses, it is dead.  Make sure to revisit all N's operands once
-    // N is deleted from the DAG, since they too may now be dead or may have a
-    // reduced number of uses, allowing other xforms.
-    if (recursivelyDeleteUnusedNodes(N))
-      continue;
+    // While the worklist isn't empty, find a node and try to combine it.
+    while (!WorklistMap.empty()) {
+      SDNode *N;
+      // The Worklist holds the SDNodes in order, but it may contain null entries.
+      do {
+        N = Worklist.pop_back_val();
+      } while (!N);
 
-    WorklistRemover DeadNodes(*this);
+      bool GoodWorklistEntry = WorklistMap.erase(N);
+      (void)GoodWorklistEntry;
+      assert(GoodWorklistEntry &&
+             "Found a worklist entry without a corresponding map entry!");
 
-    // If this combine is running after legalizing the DAG, re-legalize any
-    // nodes pulled off the worklist.
-    if (Level == AfterLegalizeDAG) {
-      SmallSetVector<SDNode *, 16> UpdatedNodes;
-      bool NIsValid = DAG.LegalizeOp(N, UpdatedNodes);
-
-      for (SDNode *LN : UpdatedNodes) {
-        AddToWorklist(LN);
-        AddUsersToWorklist(LN);
-      }
-      if (!NIsValid)
+      // If N has no uses, it is dead.  Make sure to revisit all N's operands once
+      // N is deleted from the DAG, since they too may now be dead or may have a
+      // reduced number of uses, allowing other xforms.
+      if (recursivelyDeleteUnusedNodes(N))
         continue;
+
+      WorklistRemover DeadNodes(*this);
+
+      // If this combine is running after legalizing the DAG, re-legalize any
+      // nodes pulled off the worklist.
+      if (Level == AfterLegalizeDAG) {
+        SmallSetVector<SDNode *, 16> UpdatedNodes;
+        bool NIsValid = DAG.LegalizeOp(N, UpdatedNodes);
+
+        for (SDNode *LN : UpdatedNodes) {
+          AddToWorklist(LN);
+          AddUsersToWorklist(LN);
+        }
+        if (!NIsValid)
+          continue;
+      }
+
+      DEBUG(dbgs() << "\nCombining: "; N->dump(&DAG));
+
+      // Add any operands of the new node which have not yet been combined to
+      // the worklist as well. Because the worklist uniques things already,
+      // this won't repeatedly process the same operand.
+      CombinedNodes.insert(N);
+      for (const SDValue &ChildN : N->op_values())
+        if (!CombinedNodes.count(ChildN.getNode()))
+          AddToWorklist(ChildN.getNode());
+
+      SDValue RV = combine(N);
+
+      if (!RV.getNode())
+        continue;
+
+      ++NodesCombined;
+      Changed = true;
+
+      // If we get back the same node we passed in, rather than a new node or
+      // zero, we know that the node must have defined multiple values and
+      // CombineTo was used.  Since CombineTo takes care of the worklist
+      // mechanics for us, we have no work to do in this case.
+      if (RV.getNode() == N)
+        continue;
+
+      assert(N->getOpcode() != ISD::DELETED_NODE &&
+             RV.getOpcode() != ISD::DELETED_NODE &&
+             "Node was deleted but visit returned new node!");
+
+      DEBUG(dbgs() << " ... into: ";
+            RV.getNode()->dump(&DAG));
+
+      if (N->getNumValues() == RV.getNode()->getNumValues())
+        DAG.ReplaceAllUsesWith(N, RV.getNode());
+      else {
+        assert(N->getValueType(0) == RV.getValueType() &&
+               N->getNumValues() == 1 && "Type mismatch");
+        DAG.ReplaceAllUsesWith(N, &RV);
+      }
+
+      // Push the new node and any users onto the worklist
+      AddToWorklist(RV.getNode());
+      AddUsersToWorklist(RV.getNode());
+
+      // Finally, if the node is now dead, remove it from the graph.  The node
+      // may not be dead if the replacement process recursively simplified to
+      // something else needing this node. This will also take care of adding any
+      // operands which have lost a user to the worklist.
+      recursivelyDeleteUnusedNodes(N);
     }
 
-    DEBUG(dbgs() << "\nCombining: "; N->dump(&DAG));
-
-    // Add any operands of the new node which have not yet been combined to the
-    // worklist as well. Because the worklist uniques things already, this
-    // won't repeatedly process the same operand.
-    CombinedNodes.insert(N);
-    for (const SDValue &ChildN : N->op_values())
-      if (!CombinedNodes.count(ChildN.getNode()))
-        AddToWorklist(ChildN.getNode());
-
-    SDValue RV = combine(N);
-
-    if (!RV.getNode())
-      continue;
-
-    ++NodesCombined;
-
-    // If we get back the same node we passed in, rather than a new node or
-    // zero, we know that the node must have defined multiple values and
-    // CombineTo was used.  Since CombineTo takes care of the worklist
-    // mechanics for us, we have no work to do in this case.
-    if (RV.getNode() == N)
-      continue;
-
-    assert(N->getOpcode() != ISD::DELETED_NODE &&
-           RV.getOpcode() != ISD::DELETED_NODE &&
-           "Node was deleted but visit returned new node!");
-
-    DEBUG(dbgs() << " ... into: ";
-          RV.getNode()->dump(&DAG));
-
-    if (N->getNumValues() == RV.getNode()->getNumValues())
-      DAG.ReplaceAllUsesWith(N, RV.getNode());
-    else {
-      assert(N->getValueType(0) == RV.getValueType() &&
-             N->getNumValues() == 1 && "Type mismatch");
-      DAG.ReplaceAllUsesWith(N, &RV);
-    }
-
-    // Push the new node and any users onto the worklist
-    AddToWorklist(RV.getNode());
-    AddUsersToWorklist(RV.getNode());
-
-    // Finally, if the node is now dead, remove it from the graph.  The node
-    // may not be dead if the replacement process recursively simplified to
-    // something else needing this node. This will also take care of adding any
-    // operands which have lost a user to the worklist.
-    recursivelyDeleteUnusedNodes(N);
+    if (!Changed)
+      break;
   }
 
   // If the root changed (e.g. it was a dead load, update the root).
@@ -5742,7 +5750,6 @@ SDValue DAGCombiner::visitSRA(SDNode *N) {
   // Simplify, based on bits shifted out of the LHS.
   if (N1C && SimplifyDemandedBits(SDValue(N, 0)))
     return SDValue(N, 0);
-
 
   // If the sign bit is known to be zero, switch this to a SRL.
   if (DAG.SignBitIsZero(N0))

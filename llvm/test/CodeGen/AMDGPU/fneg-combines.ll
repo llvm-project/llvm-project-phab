@@ -1004,7 +1004,7 @@ define amdgpu_kernel void @v_fneg_fmad_f32(float addrspace(1)* %out, float addrs
 ; GCN-SAFE: v_xor_b32_e32 [[NEG_MAD:v[0-9]+]], 0x80000000, [[C]]
 ; GCN-SAFE-NEXT: v_mul_f32_e32 [[MUL:v[0-9]+]], 4.0, [[C]]
 
-; GCN-NSZ: v_mad_f32 [[NEG_MAD:v[0-9]+]], -[[A]], [[B]], -[[C]]
+; GCN-NSZ: v_mad_f32 [[NEG_MAD:v[0-9]+]], [[A]], -[[B]], -[[C]]
 ; GCN-NSZ-NEXT: v_mul_f32_e32 [[MUL:v[0-9]+]], -4.0, [[NEG_MAD]]
 
 ; GCN: buffer_store_dword [[NEG_MAD]]

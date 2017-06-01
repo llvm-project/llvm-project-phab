@@ -180,7 +180,6 @@ define amdgpu_kernel void @local_zextload_v2i16_to_v2i32(<2 x i32> addrspace(3)*
 
 ; EG: LDS_READ_RET
 ; EG: BFE_INT
-; EG: BFE_INT
 define amdgpu_kernel void @local_sextload_v2i16_to_v2i32(<2 x i32> addrspace(3)* %out, <2 x i16> addrspace(3)* %in) #0 {
   %load = load <2 x i16>, <2 x i16> addrspace(3)* %in
   %ext = sext <2 x i16> %load to <2 x i32>
