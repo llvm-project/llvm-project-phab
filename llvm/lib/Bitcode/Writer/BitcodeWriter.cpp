@@ -336,17 +336,32 @@ public:
                          *ModuleToSummariesForIndex = nullptr)
       : BitcodeWriterBase(Stream), Index(Index),
         ModuleToSummariesForIndex(ModuleToSummariesForIndex) {
-    // Assign unique value ids to all summaries to be written, for use
-    // in writing out the call graph edges. Save the mapping from GUID
+    // Assign unique value ids to all unique GUID with summaries to be written,
+    // for use in writing out the call graph edges. Save the mapping from GUID
     // to the new global value id to use when writing those edges, which
     // are currently saved in the index in terms of GUID.
-    forEachSummary([&](GVInfo I) {
-      GUIDToValueIdMap[I.first] = ++GlobalValueId;
+    forEachGUID([&](GlobalValue::GUID GUID) {
+      GUIDToValueIdMap[GUID] = ++GlobalValueId;
     });
   }
 
   /// The below iterator returns the GUID and associated summary.
   typedef std::pair<GlobalValue::GUID, GlobalValueSummary *> GVInfo;
+
+  /// Calls the callback for each value GUID with a summary to be written to
+  /// bitcode. This hides the details of whether they are being pulled from the
+  /// entire index or just those in a provided ModuleToSummariesForIndex map.
+  void forEachGUID(std::function<void(GlobalValue::GUID)> Callback) {
+    if (ModuleToSummariesForIndex) {
+      for (auto &M : *ModuleToSummariesForIndex)
+        for (auto &Summary : M.second)
+          Callback(Summary.first);
+    } else {
+      for (auto &Summaries : Index)
+        if (Summaries.second.SummaryList.size())
+          Callback(Summaries.first);
+    }
+  }
 
   /// Calls the callback for each value GUID and summary to be written to
   /// bitcode. This hides the details of whether they are being pulled from the
