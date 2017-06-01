@@ -1,0 +1,139 @@
+{
+   "arrays" : [
+      {
+         "name" : "MemRef_k1_idata",
+         "sizes" : [ "*" ],
+         "type" : "i32"
+      },
+      {
+         "name" : "MemRef_l1_ucdata",
+         "sizes" : [ "*" ],
+         "type" : "i8"
+      },
+      {
+         "name" : "MemRef_l2_ucdata",
+         "sizes" : [ "*" ],
+         "type" : "i8"
+      },
+      {
+         "name" : "MemRef_k2_idata",
+         "sizes" : [ "*" ],
+         "type" : "i32"
+      },
+      {
+         "name" : "MemRef_l3_ucdata",
+         "sizes" : [ "*" ],
+         "type" : "i8"
+      }
+   ],
+   "context" : "{  :  }",
+   "name" : "%for.cond1.preheader---%for.end37",
+   "statements" : [
+      {
+         "accesses" : [
+            {
+               "kind" : "write",
+               "relation" : "{ Stmt_for_cond1_preheader[i0] -> MemRef_output1_04__phi[] }"
+            }
+         ],
+         "domain" : "{ Stmt_for_cond1_preheader[i0] : 0 <= i0 <= 95 }",
+         "name" : "Stmt_for_cond1_preheader",
+         "schedule" : "{ Stmt_for_cond1_preheader[i0] -> [t0, 0, i0, 0, 0] : 0 <= t0 <= i0 <= t0 + 2 <= 95}"
+      },
+      {
+         "accesses" : [
+            {
+               "kind" : "write",
+               "relation" : "{ Stmt_for_inc[i0, i1] -> MemRef_output1_04__phi[] }"
+            },
+            {
+               "kind" : "read",
+               "relation" : "{ Stmt_for_inc[i0, i1] -> MemRef_output1_04__phi[] }"
+            },
+            {
+               "kind" : "read",
+               "relation" : "{ Stmt_for_inc[i0, i1] -> MemRef_k1_idata[i1] }"
+            },
+            {
+               "kind" : "read",
+               "relation" : "{ Stmt_for_inc[i0, i1] -> MemRef_l1_ucdata[i0 + i1] }"
+            },
+            {
+               "kind" : "write",
+               "relation" : "{ Stmt_for_inc[i0, i1] -> MemRef_add6_lcssa__phi[] }"
+            }
+         ],
+         "domain" : "{ Stmt_for_inc[i0, i1] : 0 <= i0 <= 95 and 0 <= i1 <= 4 }",
+         "name" : "Stmt_for_inc",
+         "schedule" : "{ Stmt_for_inc[i0, i1] -> [t0, 0, i0, 1, i1] : 0 <= t0 <= i0 <= t0 + 2 <= 95}"
+      },
+      {
+         "accesses" : [
+            {
+               "kind" : "read",
+               "relation" : "{ Stmt_for_end[i0] -> MemRef_add6_lcssa__phi[] }"
+            },
+            {
+               "kind" : "write",
+               "relation" : "{ Stmt_for_end[i0] -> MemRef_l2_ucdata[i0] }"
+            }
+         ],
+         "domain" : "{ Stmt_for_end[i0] : 0 <= i0 <= 95 }",
+         "name" : "Stmt_for_end",
+         "schedule" : "{ Stmt_for_end[i0] -> [t0, 0, i0, 2, 0] : 0 <= t0 <= i0 <= t0 + 2 <= 95}"
+      },
+      {
+         "accesses" : [
+            {
+               "kind" : "write",
+               "relation" : "{ Stmt_for_cond17_preheader[i0] -> MemRef_output2_01__phi[] }"
+            }
+         ],
+         "domain" : "{ Stmt_for_cond17_preheader[i0] : 0 <= i0 <= 93 }",
+         "name" : "Stmt_for_cond17_preheader",
+         "schedule" : "{ Stmt_for_cond17_preheader[i0] -> [i0, 1, t0, 0, 0] : 0 <= t0}"
+      },
+      {
+         "accesses" : [
+            {
+               "kind" : "write",
+               "relation" : "{ Stmt_for_inc29[i0, i1] -> MemRef_output2_01__phi[] }"
+            },
+            {
+               "kind" : "read",
+               "relation" : "{ Stmt_for_inc29[i0, i1] -> MemRef_output2_01__phi[] }"
+            },
+            {
+               "kind" : "read",
+               "relation" : "{ Stmt_for_inc29[i0, i1] -> MemRef_k2_idata[i1] }"
+            },
+            {
+               "kind" : "read",
+               "relation" : "{ Stmt_for_inc29[i0, i1] -> MemRef_l2_ucdata[i0 + i1] }"
+            },
+            {
+               "kind" : "write",
+               "relation" : "{ Stmt_for_inc29[i0, i1] -> MemRef_add28_lcssa__phi[] }"
+            }
+         ],
+         "domain" : "{ Stmt_for_inc29[i0, i1] : 0 <= i0 <= 93 and 0 <= i1 <= 2 }",
+         "name" : "Stmt_for_inc29",
+         "schedule" : "{ Stmt_for_inc29[i0, i1] -> [i0, 1, t0, 1, i1] : 0 <= t0}"
+      },
+      {
+         "accesses" : [
+            {
+               "kind" : "read",
+               "relation" : "{ Stmt_for_end31[i0] -> MemRef_add28_lcssa__phi[] }"
+            },
+            {
+               "kind" : "write",
+               "relation" : "{ Stmt_for_end31[i0] -> MemRef_l3_ucdata[i0] }"
+            }
+         ],
+         "domain" : "{ Stmt_for_end31[i0] : 0 <= i0 <= 93 }",
+         "name" : "Stmt_for_end31",
+         "schedule" : "{ Stmt_for_end31[i0] -> [i0, 1, t0, 2, 0] : 0 <= t0}"
+      }
+   ]
+}

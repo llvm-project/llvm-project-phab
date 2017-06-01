@@ -1112,6 +1112,9 @@ public:
   ScopStmt(const ScopStmt &) = delete;
   const ScopStmt &operator=(const ScopStmt &) = delete;
 
+  /// Create the ScopStmt from another ScopStmt.
+  ScopStmt(ScopStmt *Original, isl_set *NewDomain, int CopyNo);
+
   /// Create the ScopStmt from a BasicBlock.
   ScopStmt(Scop &parent, BasicBlock &bb, Loop *SurroundingLoop);
 
@@ -2084,6 +2087,9 @@ public:
   ///
   /// @return The count of copy statements added to this Scop.
   unsigned getCopyStmtsNum() { return CopyStmtsNum; }
+
+  /// Create a new SCoP statement for @p ScopStmt.
+  void copyScopStmt(ScopStmt *NewStmt, isl_set *NewDomain, int CopyNo);
 
   /// Create a new copy statement.
   ///
