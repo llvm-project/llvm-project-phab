@@ -1,9 +1,11 @@
 // RUN: %clang -target x86_64-apple-darwin -save-temps -arch x86_64 %s -### 2>&1 \
 // RUN:   | FileCheck %s
 // CHECK: "-o" "save-temps.i"
+// CHECK: "-o" "save-temps.unoptimized.ll"
 // CHECK: "-emit-llvm-uselists"
 // CHECK: "-disable-llvm-passes"
 // CHECK: "-o" "save-temps.bc"
+// CHECK: "-o" "save-temps.ll"
 // CHECK: "-o" "save-temps.s"
 // CHECK: "-o" "save-temps.o"
 // CHECK: "-o" "a.out"

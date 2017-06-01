@@ -151,6 +151,12 @@
 // NOARCH-SM35-NOT: "-cc1"{{.*}}"-target-cpu" "sm_35"
 // ARCHALLERROR: error: Unsupported CUDA gpu architecture: all
 
+// Match host-side preprocessor job with -save-temps.
+// HOST-SAVE: "-cc1" "-triple" "x86_64--linux-gnu"
+// HOST-SAVE-SAME: "-aux-triple" "nvptx64-nvidia-cuda"
+// HOST-SAVE-NOT: "-fcuda-is-device"
+// HOST-SAVE-SAME: "-x" "cuda"
+
 // Match device-side preprocessor and compiler phases with -save-temps.
 // DEVICE-SAVE: "-cc1" "-triple" "nvptx64-nvidia-cuda"
 // DEVICE-SAVE-SAME: "-aux-triple" "x86_64--linux-gnu"
@@ -193,12 +199,6 @@
 // INCLUDES-DEVICE-DAG: "--create" "[[FATBINARY:[^"]*]]"
 // INCLUDES-DEVICE-DAG: "--image=profile=sm_{{[0-9]+}},file=[[CUBINFILE]]"
 // INCLUDES-DEVICE-DAG: "--image=profile=compute_{{[0-9]+}},file=[[PTXFILE]]"
-
-// Match host-side preprocessor job with -save-temps.
-// HOST-SAVE: "-cc1" "-triple" "x86_64--linux-gnu"
-// HOST-SAVE-SAME: "-aux-triple" "nvptx64-nvidia-cuda"
-// HOST-SAVE-NOT: "-fcuda-is-device"
-// HOST-SAVE-SAME: "-x" "cuda"
 
 // Match host-side compilation.
 // HOST: "-cc1" "-triple" "x86_64--linux-gnu"

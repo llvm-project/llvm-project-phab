@@ -359,8 +359,11 @@ public:
   /// \param C - The compilation that is being built.
   /// \param Args - The input arguments.
   /// \param Actions - The list to store the resulting actions onto.
+  /// \param MultiArchUniversalBuild - Whether a universal build for multiple
+  /// architectures is being performed.
   void BuildActions(Compilation &C, llvm::opt::DerivedArgList &Args,
-                    const InputList &Inputs, ActionList &Actions) const;
+                    const InputList &Inputs, ActionList &Actions,
+                    bool MultiArchUniversalBuild) const;
 
   /// BuildUniversalActions - Construct the list of actions to perform
   /// for the given arguments, which may require a universal build.
