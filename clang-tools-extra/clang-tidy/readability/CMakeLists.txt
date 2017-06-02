@@ -20,6 +20,7 @@ add_clang_library(clangTidyReadabilityModule
   RedundantControlFlowCheck.cpp
   RedundantDeclarationCheck.cpp
   RedundantFunctionPtrDereferenceCheck.cpp
+  RedundantKeywordCheck.cpp
   RedundantMemberInitCheck.cpp
   RedundantStringCStrCheck.cpp
   RedundantSmartptrGetCheck.cpp

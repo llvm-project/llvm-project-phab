@@ -27,6 +27,7 @@
 #include "RedundantControlFlowCheck.h"
 #include "RedundantDeclarationCheck.h"
 #include "RedundantFunctionPtrDereferenceCheck.h"
+#include "RedundantKeywordCheck.h"
 #include "RedundantMemberInitCheck.h"
 #include "RedundantSmartptrGetCheck.h"
 #include "RedundantStringCStrCheck.h"
@@ -68,6 +69,8 @@ public:
         "readability-misplaced-array-index");
     CheckFactories.registerCheck<RedundantFunctionPtrDereferenceCheck>(
         "readability-redundant-function-ptr-dereference");
+    CheckFactories.registerCheck<RedundantKeywordCheck>(
+        "readability-redundant-keyword");
     CheckFactories.registerCheck<RedundantMemberInitCheck>(
         "readability-redundant-member-init");
     CheckFactories.registerCheck<StaticDefinitionInAnonymousNamespaceCheck>(
