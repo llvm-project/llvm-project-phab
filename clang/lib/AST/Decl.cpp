@@ -2534,10 +2534,39 @@ bool FunctionDecl::hasTrivialBody() const
 
 bool FunctionDecl::isDefined(const FunctionDecl *&Definition) const {
   for (auto I : redecls()) {
-    if (I->IsDeleted || I->IsDefaulted || I->Body || I->IsLateTemplateParsed ||
-        I->hasDefiningAttr()) {
-      Definition = I->IsDeleted ? I->getCanonicalDecl() : I;
+    if (I->isThisDeclarationADefinition()) {
+      Definition = I;
       return true;
+    }
+  }
+
+  return false;
+}
+
+bool FunctionDecl::isOdrDefined(const FunctionDecl *&Definition) const {
+  // First try to find a declaration that has existing definition.
+  if (isDefined(Definition))
+    return true;
+
+  // If no existing definition exist, look for a definition which can be
+  // instantiated.
+  for (auto I : redecls()) {
+    if (I->getFriendObjectKind() != Decl::FOK_None) {
+      // If this is a friend function defined in a class template, it does not
+      // have a body until it is used, nevertheless it is a definition. The
+      // following code must produce redeclaration error:
+      //
+      //     template<typename T> struct C20 { friend void func_20() {} };
+      //     C20<int> c20i;
+      //     void func_20() {}
+      //
+      if (FunctionDecl *Original = I->getInstantiatedFromMemberFunction()) {
+        const FunctionDecl *D;
+        if (Original->isOdrDefined(D)) {
+          Definition = I;
+          return true;
+        }
+      }
     }
   }
 
