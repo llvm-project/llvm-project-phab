@@ -105,6 +105,7 @@ Clang-Tidy Checks
    misc-suspicious-semicolon
    misc-suspicious-string-compare
    misc-swapped-arguments
+   misc-terminating-continue
    misc-throw-by-value-catch-by-reference
    misc-unconventional-assign-operator
    misc-undelegated-constructor

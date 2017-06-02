@@ -45,6 +45,7 @@
 #include "SuspiciousSemicolonCheck.h"
 #include "SuspiciousStringCompareCheck.h"
 #include "SwappedArgumentsCheck.h"
+#include "TerminatingContinueCheck.h"
 #include "ThrowByValueCatchByReferenceCheck.h"
 #include "UnconventionalAssignOperatorCheck.h"
 #include "UndelegatedConstructor.h"
@@ -69,6 +70,8 @@ public:
     CheckFactories.registerCheck<ForwardingReferenceOverloadCheck>(
         "misc-forwarding-reference-overload");
     CheckFactories.registerCheck<MisplacedConstCheck>("misc-misplaced-const");
+    CheckFactories.registerCheck<TerminatingContinueCheck>(
+        "misc-terminating-continue");
     CheckFactories.registerCheck<UnconventionalAssignOperatorCheck>(
         "misc-unconventional-assign-operator");
     CheckFactories.registerCheck<BoolPointerImplicitConversionCheck>(
