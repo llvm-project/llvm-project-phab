@@ -34,6 +34,28 @@ namespace LLVM.ClangFormat
             return textDocument?.IsDirty == true;
         }
 
+        public static DateTime LastContentModifiedTime(Document document)
+        {
+            DateTime when = DateTime.MinValue;
+            var textView = GetDocumentView(document);
+            var textDocument = GetTextDocument(textView);
+            if (textDocument != null)
+            {
+                when = textDocument.LastContentModifiedTime;
+            }
+            return when;
+        }
+
+        public static void CleanDocument(Document document, DateTime lastContentModifiedTime)
+        {
+            var textView = GetDocumentView(document);
+            var textDocument = GetTextDocument(textView);
+            if (textDocument != null)
+            {
+                textDocument.UpdateDirtyState(false, lastContentModifiedTime);
+            }
+        }
+
         public static IWpfTextView GetDocumentView(Document document)
         {
             var textView = GetVsTextViewFrompPath(document.FullName);

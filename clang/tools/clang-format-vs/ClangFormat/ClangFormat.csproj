@@ -14,7 +14,7 @@
     <SignAssembly>true</SignAssembly>
     <AssemblyOriginatorKeyFile>Key.snk</AssemblyOriginatorKeyFile>
     <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
-    <MinimumVisualStudioVersion>15.0</MinimumVisualStudioVersion>
+    <MinimumVisualStudioVersion>14.0</MinimumVisualStudioVersion>
     <FileUpgradeFlags>
     </FileUpgradeFlags>
     <UpgradeBackupLocation>
@@ -202,10 +202,8 @@
   <ItemGroup>
     <VSCTCompile Include="ClangFormat.vsct">
       <ResourceName>Menus.ctmenu</ResourceName>
+      <SubType>Designer</SubType>
     </VSCTCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="Resources\Images_32bit.bmp" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="clang-format.exe">
@@ -214,6 +212,7 @@
     <Content Include="license.txt">
       <IncludeInVSIX>true</IncludeInVSIX>
     </Content>
+    <Resource Include="Resources\Images_32bit.png" />
     <Content Include="Resources\Package.ico" />
   </ItemGroup>
   <ItemGroup>
@@ -251,7 +250,7 @@
   <PropertyGroup>
     <PreBuildEvent>if not exist $(ProjectDir)Key.snk ("$(FrameworkSDKDir)Bin\NETFX 4.6 Tools\sn.exe" -k $(ProjectDir)Key.snk)</PreBuildEvent>
   </PropertyGroup>
-  <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
+  <!-- To modify your build process, add your task inside one of the targets below and uncomment it.
        Other similar extension points exist, see Microsoft.Common.targets.
   <Target Name="BeforeBuild">
   </Target>
