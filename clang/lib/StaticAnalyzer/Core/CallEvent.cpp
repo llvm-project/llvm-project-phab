@@ -957,6 +957,9 @@ RuntimeDefinition ObjCMethodCall::getRuntimeDefinition() const {
         return RuntimeDefinition();
 
       DynamicTypeInfo DTI = getDynamicTypeInfo(getState(), Receiver);
+      if (!DTI.isValid()) // Might be AllocaRegion.
+        return RuntimeDefinition();
+
       QualType DynType = DTI.getType();
       CanBeSubClassed = DTI.canBeASubClass();
       ReceiverT = dyn_cast<ObjCObjectPointerType>(DynType.getCanonicalType());
