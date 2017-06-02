@@ -5,6 +5,7 @@ Clang-Tidy Checks
 
 .. toctree::
    boost-use-to-string
+   cert-exp36-c
    cert-dcl03-c (redirects to misc-static-assert) <cert-dcl03-c>
    cert-dcl21-cpp
    cert-dcl50-cpp

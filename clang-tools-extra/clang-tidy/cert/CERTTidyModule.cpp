@@ -16,6 +16,7 @@
 #include "../misc/NonCopyableObjects.h"
 #include "../misc/StaticAssertCheck.h"
 #include "../misc/ThrowByValueCatchByReferenceCheck.h"
+#include "AvoidPointerCastToMoreStrictAlignmentCheck.h"
 #include "CommandProcessorCheck.h"
 #include "DontModifyStdNamespaceCheck.h"
 #include "FloatLoopCounter.h"
@@ -64,6 +65,9 @@ public:
     CheckFactories.registerCheck<misc::StaticAssertCheck>("cert-dcl03-c");
     // ENV
     CheckFactories.registerCheck<CommandProcessorCheck>("cert-env33-c");
+    // EXP
+    CheckFactories.registerCheck<AvoidPointerCastToMoreStrictAlignmentCheck>(
+        "cert-exp36-c");
     // FLP
     CheckFactories.registerCheck<FloatLoopCounter>("cert-flp30-c");
     // FIO
