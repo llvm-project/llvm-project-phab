@@ -10409,6 +10409,24 @@ TEST(FormatStyle, GetStyleOfFile) {
   auto Style7 = getStyle("file", "/d/.clang-format", "LLVM", "", &FS);
   ASSERT_FALSE((bool)Style7);
   llvm::consumeError(Style7.takeError());
+
+  // Test 8: explicit format file in parent directory.
+  ASSERT_TRUE(
+      FS.addFile("/e/.clang-format", 0,
+                 llvm::MemoryBuffer::getMemBuffer("BasedOnStyle: LLVM")));
+  ASSERT_TRUE(
+      FS.addFile("/e/explicit.clang-format", 0,
+                 llvm::MemoryBuffer::getMemBuffer("BasedOnStyle: Google")));
+  ASSERT_TRUE(FS.addFile("/e/sub/sub/sub/test.cpp", 0,
+                         llvm::MemoryBuffer::getMemBuffer("int i;")));
+  auto Style8 = getStyle("file:/e/explicit.clang-format", "/e/sub/sub/sub/test.cpp", "LLVM", "", &FS);
+  ASSERT_TRUE((bool)Style8);
+  ASSERT_EQ(*Style8, getGoogleStyle());
+
+  // Test 9: missing explicit format file
+  auto Style9 = getStyle("file:/e/missing.clang-format", "/e/sub/sub/sub/test.cpp", "LLVM", "", &FS);
+  ASSERT_FALSE((bool)Style9);
+  llvm::consumeError(Style9.takeError());
 }
 
 TEST_F(ReplacementTest, FormatCodeAfterReplacements) {
