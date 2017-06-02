@@ -22,6 +22,7 @@
 #include "LimitedRandomnessCheck.h"
 #include "PostfixOperatorCheck.h"
 #include "SetLongJmpCheck.h"
+#include "SignalHandlerMustBePlainOldFunctionCheck.h"
 #include "StaticObjectExceptionCheck.h"
 #include "StrToNumCheck.h"
 #include "ThrownExceptionTypeCheck.h"
@@ -58,7 +59,8 @@ public:
         "cert-err61-cpp");
     // MSC
     CheckFactories.registerCheck<LimitedRandomnessCheck>("cert-msc50-cpp");
-
+    CheckFactories.registerCheck<SignalHandlerMustBePlainOldFunctionCheck>(
+        "cert-msc54-cpp");
     // C checkers
     // DCL
     CheckFactories.registerCheck<misc::StaticAssertCheck>("cert-dcl03-c");

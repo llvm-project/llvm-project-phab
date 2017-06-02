@@ -67,6 +67,11 @@ Improvements to clang-tidy
 
   Finds modification of the ``std`` or ``posix`` namespace.
 
+- New `cert-msc54-cpp
+  <http://clang.llvm.org/extra/clang-tidy/checks/cert-msc54-cpp.html>`_ check
+
+  Checks if a signal handler is not a plain old function.
+
 - Improved `cppcoreguidelines-no-malloc
   <http://clang.llvm.org/extra/clang-tidy/checks/cppcoreguidelines-no-malloc.html>`_ check
 

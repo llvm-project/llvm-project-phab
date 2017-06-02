@@ -22,6 +22,7 @@ Clang-Tidy Checks
    cert-flp30-c
    cert-msc30-c (redirects to cert-msc50-cpp) <cert-msc30-c>
    cert-msc50-cpp
+   cert-msc54-cpp
    cert-oop11-cpp (redirects to misc-move-constructor-init) <cert-oop11-cpp>
    cppcoreguidelines-interfaces-global-init
    cppcoreguidelines-no-malloc
