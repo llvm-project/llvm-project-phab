@@ -62,6 +62,11 @@ Improvements to clang-tidy
 
   Checks if the overloaded postfix ``operator++/--`` returns a constant object.
 
+- New `cert-dcl51-cpp
+  <http://clang.llvm.org/extra/clang-tidy/checks/cert-dcl51-cpp.html>`_ check
+
+  Checks if a name is declared or defined with a reserved identifier.
+
 - New `cert-dcl58-cpp
   <http://clang.llvm.org/extra/clang-tidy/checks/cert-dcl58-cpp.html>`_ check
 
