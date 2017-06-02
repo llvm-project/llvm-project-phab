@@ -913,8 +913,6 @@ void RAFast::AllocateBasicBlock() {
 
     // First scan.
     // Mark physreg uses and early clobbers as used.
-    // Find the end of the virtreg operands
-    unsigned VirtOpEnd = 0;
     bool hasTiedOps = false;
     bool hasEarlyClobbers = false;
     bool hasPartialRedefs = false;
@@ -930,7 +928,6 @@ void RAFast::AllocateBasicBlock() {
       unsigned Reg = MO.getReg();
       if (!Reg) continue;
       if (TargetRegisterInfo::isVirtualRegister(Reg)) {
-        VirtOpEnd = i+1;
         if (MO.isUse()) {
           hasTiedOps = hasTiedOps ||
                               MCID.getOperandConstraint(i, MCOI::TIED_TO) != -1;
@@ -974,18 +971,50 @@ void RAFast::AllocateBasicBlock() {
 
     // Second scan.
     // Allocate virtreg uses.
-    for (unsigned i = 0; i != VirtOpEnd; ++i) {
-      MachineOperand &MO = MI->getOperand(i);
-      if (!MO.isReg()) continue;
+    // HACK(strager): Allocate larger registers first.
+    SmallVector<unsigned, 8> VirtOps;
+    for (unsigned i = 0, e = MI->getNumOperands(); i != e; ++i) {
+      const MachineOperand &MO = MI->getOperand(i);
+      if (!MO.isReg())
+        continue;
       unsigned Reg = MO.getReg();
-      if (!TargetRegisterInfo::isVirtualRegister(Reg)) continue;
-      if (MO.isUse()) {
-        LiveRegMap::iterator LRI = reloadVirtReg(*MI, i, Reg, CopyDst);
-        unsigned PhysReg = LRI->PhysReg;
-        CopySrc = (CopySrc == Reg || CopySrc == PhysReg) ? PhysReg : 0;
-        if (setPhysReg(MI, i, PhysReg))
-          killVirtReg(LRI);
-      }
+      if (!TargetRegisterInfo::isVirtualRegister(Reg))
+        continue;
+      if (!MO.isUse())
+        continue;
+      VirtOps.emplace_back(i);
+    }
+    std::sort(VirtOps.begin(), VirtOps.end(),
+              [this, &MI](unsigned i, unsigned j) {
+                auto OpSize = [this](const MachineOperand &MO) -> unsigned {
+                  unsigned Reg = MO.getReg();
+                  if (auto RC = MRI->getRegClassOrRegBank(Reg)) {
+                    if (RC.is<const TargetRegisterClass *>()) {
+#if LLVM_VERSION_MAJOR >= 5
+                      // LLVM 5.0.0.
+                      return TRI->getRegSizeInBits(
+                          *RC.get<const TargetRegisterClass *>());
+#else
+                      // LLVM 4.0.0.
+                      return RC.get<const TargetRegisterClass *>()->getSize();
+#endif
+                    } else {
+                      return 0;
+                    }
+                  } else {
+                    return 0;
+                  }
+                };
+                return OpSize(MI->getOperand(i)) >= OpSize(MI->getOperand(j));
+              });
+    for (unsigned i : VirtOps) {
+      const MachineOperand &MO = MI->getOperand(i);
+      unsigned Reg = MO.getReg();
+      LiveRegMap::iterator LRI = reloadVirtReg(*MI, i, Reg, CopyDst);
+      unsigned PhysReg = LRI->PhysReg;
+      CopySrc = (CopySrc == Reg || CopySrc == PhysReg) ? PhysReg : 0;
+      if (setPhysReg(MI, i, PhysReg))
+        killVirtReg(LRI);
     }
 
     // Track registers defined by instruction - early clobbers and tied uses at
