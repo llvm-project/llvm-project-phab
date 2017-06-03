@@ -61,6 +61,7 @@ public:
   };
 
   IRMover(Module &M);
+  IRMover(Module &M, bool OnlyNamedTypes);
 
   typedef std::function<void(GlobalValue &)> ValueAdder;
 

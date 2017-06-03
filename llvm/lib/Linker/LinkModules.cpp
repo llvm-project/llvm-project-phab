@@ -561,6 +561,9 @@ bool ModuleLinker::run() {
 
 Linker::Linker(Module &M) : Mover(M) {}
 
+Linker::Linker(Module &M, unsigned Flags) :
+  Mover(M, (Flags & DontLinkUnnamedTypes) != 0) {}
+
 bool Linker::linkInModule(
     std::unique_ptr<Module> Src, unsigned Flags,
     std::function<void(Module &, const StringSet<> &)> InternalizeCallback) {
@@ -581,7 +584,7 @@ bool Linker::linkInModule(
 bool Linker::linkModules(
     Module &Dest, std::unique_ptr<Module> Src, unsigned Flags,
     std::function<void(Module &, const StringSet<> &)> InternalizeCallback) {
-  Linker L(Dest);
+  Linker L(Dest, Flags);
   return L.linkInModule(std::move(Src), Flags, std::move(InternalizeCallback));
 }
 

@@ -1411,9 +1411,10 @@ bool IRMover::IdentifiedStructTypeSet::hasType(StructType *Ty) {
   return I == NonOpaqueStructTypes.end() ? false : *I == Ty;
 }
 
-IRMover::IRMover(Module &M) : Composite(M) {
+IRMover::IRMover(Module &M) : IRMover::IRMover(M, false) {}
+IRMover::IRMover(Module &M, bool OnlyNamedTypes) : Composite(M) {
   TypeFinder StructTypes;
-  StructTypes.run(M, /* OnlyNamed */ false);
+  StructTypes.run(M, OnlyNamedTypes);
   for (StructType *Ty : StructTypes) {
     if (Ty->isOpaque())
       IdentifiedStructTypes.addOpaque(Ty);
