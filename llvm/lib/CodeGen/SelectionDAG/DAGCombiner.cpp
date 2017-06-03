@@ -9529,6 +9529,13 @@ SDValue DAGCombiner::visitFADD(SDNode *N) {
   const TargetOptions &Options = DAG.getTarget().Options;
   const SDNodeFlags Flags = N->getFlags();
 
+  // fold (fadd x, undef) -> undef
+  if (N0.isUndef())
+    return N0;
+
+  if (N1.isUndef())
+    return N1;
+
   // fold vector ops
   if (VT.isVector())
     if (SDValue FoldedVOp = SimplifyVBinOp(N))
@@ -9763,6 +9770,13 @@ SDValue DAGCombiner::visitFMUL(SDNode *N) {
   SDLoc DL(N);
   const TargetOptions &Options = DAG.getTarget().Options;
   const SDNodeFlags Flags = N->getFlags();
+
+  // fold (fmul x, undef) -> undef
+  if (N0.isUndef())
+    return N0;
+
+  if (N1.isUndef())
+    return N1;
 
   // fold vector ops
   if (VT.isVector()) {
