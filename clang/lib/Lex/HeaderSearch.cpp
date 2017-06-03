@@ -191,14 +191,15 @@ std::string HeaderSearch::getModuleFileName(StringRef ModuleName,
   return Result.str().str();
 }
 
-Module *HeaderSearch::lookupModule(StringRef ModuleName, bool AllowSearch) {
+Module *HeaderSearch::lookupModule(StringRef ModuleName, bool AllowSearch,
+                                   bool SearchTopLevelOnly) {
   // Look in the module map to determine if there is a module by this name.
   Module *Module = ModMap.findModule(ModuleName);
   if (Module || !AllowSearch || !HSOpts->ImplicitModuleMaps)
     return Module;
 
   StringRef SearchName = ModuleName;
-  Module = lookupModule(ModuleName, SearchName);
+  Module = lookupModule(ModuleName, SearchName, SearchTopLevelOnly);
 
   // The facility for "private modules" -- adjacent, optional module maps named
   // module.private.modulemap that are supposed to define private submodules --
@@ -208,11 +209,12 @@ Module *HeaderSearch::lookupModule(StringRef ModuleName, bool AllowSearch) {
   // Foo.framework, when we previously looked and failed to find a
   // FooPrivate.framework.
   if (!Module && SearchName.consume_back("Private"))
-    Module = lookupModule(ModuleName, SearchName);
+    Module = lookupModule(ModuleName, SearchName, SearchTopLevelOnly);
   return Module;
 }
 
-Module *HeaderSearch::lookupModule(StringRef ModuleName, StringRef SearchName) {
+Module *HeaderSearch::lookupModule(StringRef ModuleName, StringRef SearchName,
+                                   bool SearchTopLevelOnly) {
   Module *Module = nullptr;
 
   // Look through the various header search paths to load any available module
@@ -267,7 +269,7 @@ Module *HeaderSearch::lookupModule(StringRef ModuleName, StringRef SearchName) {
 
     // If we've already performed the exhaustive search for module maps in this
     // search directory, don't do it again.
-    if (SearchDirs[Idx].haveSearchedAllModuleMaps())
+    if (SearchTopLevelOnly || SearchDirs[Idx].haveSearchedAllModuleMaps())
       continue;
 
     // Load all module maps in the immediate subdirectories of this search

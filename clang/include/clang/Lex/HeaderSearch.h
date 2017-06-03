@@ -503,8 +503,12 @@ public:
   /// search directories to produce a module definition. If not, this lookup
   /// will only return an already-known module.
   ///
+  /// \param SearchTopLevelOnly Whether we are allowed to search the
+  /// subdirectories to produce a module definition.
+  ///
   /// \returns The module with the given name.
-  Module *lookupModule(StringRef ModuleName, bool AllowSearch = true);
+  Module *lookupModule(StringRef ModuleName, bool AllowSearch = true,
+                       bool SearchTopLevelOnly = false);
 
   /// \brief Try to find a module map file in the given directory, returning
   /// \c nullptr if none is found.
@@ -560,7 +564,6 @@ public:
   void loadTopLevelSystemModules();
 
 private:
-
   /// \brief Lookup a module with the given module name and search-name.
   ///
   /// \param ModuleName The name of the module we're looking for.
@@ -570,8 +573,12 @@ private:
   /// but for compatibility with some buggy frameworks, additional attempts
   /// may be made to find the module under a related-but-different search-name.
   ///
+  /// \param SearchTopLevelOnly Whether we are allowed to search the
+  /// subdirectories to produce a module definition.
+  ///
   /// \returns The module named ModuleName.
-  Module *lookupModule(StringRef ModuleName, StringRef SearchName);
+  Module *lookupModule(StringRef ModuleName, StringRef SearchName,
+                       bool SearchTopLevelOnly);
 
   /// \brief Retrieve a module with the given name, which may be part of the
   /// given framework.
