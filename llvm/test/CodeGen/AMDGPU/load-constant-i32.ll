@@ -28,7 +28,8 @@ entry:
 ; FUNC-LABEL: {{^}}constant_load_v3i32:
 ; GCN: s_load_dwordx4
 
-; EG: VTX_READ_128
+; EG: VTX_READ_64
+; EG: VTX_READ_32
 define amdgpu_kernel void @constant_load_v3i32(<3 x i32> addrspace(1)* %out, <3 x i32> addrspace(2)* %in) #0 {
 entry:
   %ld = load <3 x i32>, <3 x i32> addrspace(2)* %in
@@ -151,7 +152,8 @@ define amdgpu_kernel void @constant_sextload_v2i32_to_v2i64(<2 x i64> addrspace(
 }
 
 ; FUNC-LABEL: {{^}}constant_zextload_v4i32_to_v4i64:
-; GCN: s_load_dwordx4
+; GCN: s_load_dwordx2
+; GCN: s_load_dwordx2
 
 ; GCN: store_dwordx4
 ; GCN: store_dwordx4
@@ -163,7 +165,8 @@ define amdgpu_kernel void @constant_zextload_v4i32_to_v4i64(<4 x i64> addrspace(
 }
 
 ; FUNC-LABEL: {{^}}constant_sextload_v4i32_to_v4i64:
-; GCN: s_load_dwordx4
+; GCN: s_load_dwordx2
+; GCN: s_load_dwordx2
 
 ; GCN: s_ashr_i32
 ; GCN: s_ashr_i32
@@ -180,7 +183,10 @@ define amdgpu_kernel void @constant_sextload_v4i32_to_v4i64(<4 x i64> addrspace(
 }
 
 ; FUNC-LABEL: {{^}}constant_zextload_v8i32_to_v8i64:
-; GCN: s_load_dwordx8
+; GCN: s_load_dwordx2
+; GCN: s_load_dwordx2
+; GCN: s_load_dwordx2
+; GCN: s_load_dwordx2
 
 ; GCN-NOHSA-DAG: buffer_store_dwordx4
 ; GCN-NOHSA-DAG: buffer_store_dwordx4
@@ -199,7 +205,10 @@ define amdgpu_kernel void @constant_zextload_v8i32_to_v8i64(<8 x i64> addrspace(
 }
 
 ; FUNC-LABEL: {{^}}constant_sextload_v8i32_to_v8i64:
-; GCN: s_load_dwordx8
+; GCN: s_load_dwordx2
+; GCN: s_load_dwordx2
+; GCN: s_load_dwordx2
+; GCN: s_load_dwordx2
 
 ; GCN: s_ashr_i32
 ; GCN: s_ashr_i32
@@ -227,7 +236,14 @@ define amdgpu_kernel void @constant_sextload_v8i32_to_v8i64(<8 x i64> addrspace(
 }
 
 ; FUNC-LABEL: {{^}}constant_sextload_v16i32_to_v16i64:
-; GCN: s_load_dwordx16
+; GCN: s_load_dwordx2
+; GCN: s_load_dwordx2
+; GCN: s_load_dwordx2
+; GCN: s_load_dwordx2
+; GCN: s_load_dwordx2
+; GCN: s_load_dwordx2
+; GCN: s_load_dwordx2
+; GCN: s_load_dwordx2
 
 
 ; GCN-DAG: s_ashr_i32
@@ -248,7 +264,14 @@ define amdgpu_kernel void @constant_sextload_v16i32_to_v16i64(<16 x i64> addrspa
 }
 
 ; FUNC-LABEL: {{^}}constant_zextload_v16i32_to_v16i64
-; GCN: s_load_dwordx16
+; GCN: s_load_dwordx2
+; GCN: s_load_dwordx2
+; GCN: s_load_dwordx2
+; GCN: s_load_dwordx2
+; GCN: s_load_dwordx2
+; GCN: s_load_dwordx2
+; GCN: s_load_dwordx2
+; GCN: s_load_dwordx2
 
 ; GCN-NOHSA: buffer_store_dwordx4
 ; GCN-NOHSA: buffer_store_dwordx4
@@ -259,8 +282,6 @@ define amdgpu_kernel void @constant_sextload_v16i32_to_v16i64(<16 x i64> addrspa
 ; GCN-NOHSA: buffer_store_dwordx4
 ; GCN-NOHSA: buffer_store_dwordx4
 
-; GCN-HSA: flat_store_dwordx4
-; GCN-HSA: flat_store_dwordx4
 ; GCN-HSA: flat_store_dwordx4
 ; GCN-HSA: flat_store_dwordx4
 ; GCN-HSA: flat_store_dwordx4
@@ -276,8 +297,22 @@ define amdgpu_kernel void @constant_zextload_v16i32_to_v16i64(<16 x i64> addrspa
 
 ; FUNC-LABEL: {{^}}constant_sextload_v32i32_to_v32i64:
 
-; GCN: s_load_dwordx16
-; GCN-DAG: s_load_dwordx16
+; GCN: s_load_dwordx2
+; GCN: s_load_dwordx2
+; GCN: s_load_dwordx2
+; GCN: s_load_dwordx2
+; GCN: s_load_dwordx2
+; GCN: s_load_dwordx2
+; GCN: s_load_dwordx2
+; GCN: s_load_dwordx2
+; GCN-DAG: s_load_dwordx2
+; GCN-DAG: s_load_dwordx2
+; GCN-DAG: s_load_dwordx2
+; GCN-DAG: s_load_dwordx2
+; GCN-DAG: s_load_dwordx2
+; GCN-DAG: s_load_dwordx2
+; GCN-DAG: s_load_dwordx2
+; GCN-DAG: s_load_dwordx2
 
 ; GCN-NOHSA-DAG: buffer_store_dwordx4
 ; GCN-NOHSA-DAG: buffer_store_dwordx4
@@ -327,8 +362,22 @@ define amdgpu_kernel void @constant_sextload_v32i32_to_v32i64(<32 x i64> addrspa
 }
 
 ; FUNC-LABEL: {{^}}constant_zextload_v32i32_to_v32i64:
-; GCN: s_load_dwordx16
-; GCN: s_load_dwordx16
+; GCN: s_load_dwordx2
+; GCN: s_load_dwordx2
+; GCN: s_load_dwordx2
+; GCN: s_load_dwordx2
+; GCN: s_load_dwordx2
+; GCN: s_load_dwordx2
+; GCN: s_load_dwordx2
+; GCN: s_load_dwordx2
+; GCN: s_load_dwordx2
+; GCN: s_load_dwordx2
+; GCN: s_load_dwordx2
+; GCN: s_load_dwordx2
+; GCN: s_load_dwordx2
+; GCN: s_load_dwordx2
+; GCN: s_load_dwordx2
+; GCN: s_load_dwordx2
 
 ; GCN-NOHSA-DAG: buffer_store_dwordx4
 ; GCN-NOHSA-DAG: buffer_store_dwordx4

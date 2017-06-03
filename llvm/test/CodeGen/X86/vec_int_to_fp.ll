@@ -3648,13 +3648,13 @@ define <8 x float> @sitofp_load_8i64_to_8f32(<8 x i64> *%a) {
 ; AVX512F-LABEL: sitofp_load_8i64_to_8f32:
 ; AVX512F:       # BB#0:
 ; AVX512F-NEXT:    vmovdqa64 (%rdi), %zmm0
-; AVX512F-NEXT:    vextracti32x4 $2, %zmm0, %xmm1
+; AVX512F-NEXT:    vmovdqa 32(%rdi), %xmm1
 ; AVX512F-NEXT:    vpextrq $1, %xmm1, %rax
 ; AVX512F-NEXT:    vcvtsi2ssq %rax, %xmm2, %xmm2
 ; AVX512F-NEXT:    vmovq %xmm1, %rax
 ; AVX512F-NEXT:    vcvtsi2ssq %rax, %xmm3, %xmm1
 ; AVX512F-NEXT:    vinsertps {{.*#+}} xmm1 = xmm1[0],xmm2[0],xmm1[2,3]
-; AVX512F-NEXT:    vextracti32x4 $3, %zmm0, %xmm2
+; AVX512F-NEXT:    vmovdqa 48(%rdi), %xmm2
 ; AVX512F-NEXT:    vmovq %xmm2, %rax
 ; AVX512F-NEXT:    vcvtsi2ssq %rax, %xmm3, %xmm3
 ; AVX512F-NEXT:    vinsertps {{.*#+}} xmm1 = xmm1[0,1],xmm3[0],xmm1[3]
@@ -3679,13 +3679,13 @@ define <8 x float> @sitofp_load_8i64_to_8f32(<8 x i64> *%a) {
 ; AVX512VL-LABEL: sitofp_load_8i64_to_8f32:
 ; AVX512VL:       # BB#0:
 ; AVX512VL-NEXT:    vmovdqa64 (%rdi), %zmm0
-; AVX512VL-NEXT:    vextracti32x4 $2, %zmm0, %xmm1
+; AVX512VL-NEXT:    vmovdqa 32(%rdi), %xmm1
 ; AVX512VL-NEXT:    vpextrq $1, %xmm1, %rax
 ; AVX512VL-NEXT:    vcvtsi2ssq %rax, %xmm2, %xmm2
 ; AVX512VL-NEXT:    vmovq %xmm1, %rax
 ; AVX512VL-NEXT:    vcvtsi2ssq %rax, %xmm3, %xmm1
 ; AVX512VL-NEXT:    vinsertps {{.*#+}} xmm1 = xmm1[0],xmm2[0],xmm1[2,3]
-; AVX512VL-NEXT:    vextracti32x4 $3, %zmm0, %xmm2
+; AVX512VL-NEXT:    vmovdqa 48(%rdi), %xmm2
 ; AVX512VL-NEXT:    vmovq %xmm2, %rax
 ; AVX512VL-NEXT:    vcvtsi2ssq %rax, %xmm3, %xmm3
 ; AVX512VL-NEXT:    vinsertps {{.*#+}} xmm1 = xmm1[0,1],xmm3[0],xmm1[3]
@@ -4579,13 +4579,13 @@ define <8 x float> @uitofp_load_8i64_to_8f32(<8 x i64> *%a) {
 ; AVX512F-LABEL: uitofp_load_8i64_to_8f32:
 ; AVX512F:       # BB#0:
 ; AVX512F-NEXT:    vmovdqa64 (%rdi), %zmm0
-; AVX512F-NEXT:    vextracti32x4 $2, %zmm0, %xmm1
+; AVX512F-NEXT:    vmovdqa 32(%rdi), %xmm1
 ; AVX512F-NEXT:    vpextrq $1, %xmm1, %rax
 ; AVX512F-NEXT:    vcvtusi2ssq %rax, %xmm2, %xmm2
 ; AVX512F-NEXT:    vmovq %xmm1, %rax
 ; AVX512F-NEXT:    vcvtusi2ssq %rax, %xmm3, %xmm1
 ; AVX512F-NEXT:    vinsertps {{.*#+}} xmm1 = xmm1[0],xmm2[0],xmm1[2,3]
-; AVX512F-NEXT:    vextracti32x4 $3, %zmm0, %xmm2
+; AVX512F-NEXT:    vmovdqa 48(%rdi), %xmm2
 ; AVX512F-NEXT:    vmovq %xmm2, %rax
 ; AVX512F-NEXT:    vcvtusi2ssq %rax, %xmm3, %xmm3
 ; AVX512F-NEXT:    vinsertps {{.*#+}} xmm1 = xmm1[0,1],xmm3[0],xmm1[3]
@@ -4610,13 +4610,13 @@ define <8 x float> @uitofp_load_8i64_to_8f32(<8 x i64> *%a) {
 ; AVX512VL-LABEL: uitofp_load_8i64_to_8f32:
 ; AVX512VL:       # BB#0:
 ; AVX512VL-NEXT:    vmovdqa64 (%rdi), %zmm0
-; AVX512VL-NEXT:    vextracti32x4 $2, %zmm0, %xmm1
+; AVX512VL-NEXT:    vmovdqa 32(%rdi), %xmm1
 ; AVX512VL-NEXT:    vpextrq $1, %xmm1, %rax
 ; AVX512VL-NEXT:    vcvtusi2ssq %rax, %xmm2, %xmm2
 ; AVX512VL-NEXT:    vmovq %xmm1, %rax
 ; AVX512VL-NEXT:    vcvtusi2ssq %rax, %xmm3, %xmm1
 ; AVX512VL-NEXT:    vinsertps {{.*#+}} xmm1 = xmm1[0],xmm2[0],xmm1[2,3]
-; AVX512VL-NEXT:    vextracti32x4 $3, %zmm0, %xmm2
+; AVX512VL-NEXT:    vmovdqa 48(%rdi), %xmm2
 ; AVX512VL-NEXT:    vmovq %xmm2, %rax
 ; AVX512VL-NEXT:    vcvtusi2ssq %rax, %xmm3, %xmm3
 ; AVX512VL-NEXT:    vinsertps {{.*#+}} xmm1 = xmm1[0,1],xmm3[0],xmm1[3]

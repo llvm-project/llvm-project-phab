@@ -4,7 +4,7 @@
 @g0 = external global <3 x float>, align 16
 @g1 = external global <3 x float>, align 4
 
-; CHECK: ldr q[[R0:[0-9]+]], {{\[}}[[R1:x[0-9]+]], :lo12:g0
+; CHECK: ldr d[[R0:[0-9]+]], {{\[}}[[R1:x[0-9]+]], :lo12:g0
 ; CHECK: str d[[R0]]
 
 define void @blam() {

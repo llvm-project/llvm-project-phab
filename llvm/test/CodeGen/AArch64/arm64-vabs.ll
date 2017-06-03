@@ -138,7 +138,7 @@ declare i16 @llvm.experimental.vector.reduce.add.i16.v16i16(<16 x i16>)
 
 define i16 @uabdl8h_rdx(<16 x i8>* %a, <16 x i8>* %b) {
 ; CHECK-LABEL: uabdl8h_rdx
-; CHECK: uabdl2.8h
+; CHECK: uabdl.8h
 ; CHECK: uabdl.8h
   %aload = load <16 x i8>, <16 x i8>* %a, align 1
   %bload = load <16 x i8>, <16 x i8>* %b, align 1
@@ -156,7 +156,7 @@ declare i32 @llvm.experimental.vector.reduce.add.i32.v8i32(<8 x i32>)
 
 define i32 @uabdl4s_rdx(<8 x i16>* %a, <8 x i16>* %b) {
 ; CHECK-LABEL: uabdl4s_rdx
-; CHECK: uabdl2.4s
+; CHECK: uabdl.4s
 ; CHECK: uabdl.4s
   %aload = load <8 x i16>, <8 x i16>* %a, align 1
   %bload = load <8 x i16>, <8 x i16>* %b, align 1
@@ -174,7 +174,7 @@ declare i64 @llvm.experimental.vector.reduce.add.i64.v4i64(<4 x i64>)
 
 define i64 @uabdl2d_rdx(<4 x i32>* %a, <4 x i32>* %b, i32 %h) {
 ; CHECK: uabdl2d_rdx
-; CHECK: uabdl2.2d
+; CHECK: uabdl.2d
 ; CHECK: uabdl.2d
   %aload = load <4 x i32>, <4 x i32>* %a, align 1
   %bload = load <4 x i32>, <4 x i32>* %b, align 1

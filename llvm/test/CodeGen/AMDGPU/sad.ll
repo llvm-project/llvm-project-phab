@@ -168,11 +168,13 @@ define amdgpu_kernel void @v_sad_u32_vector_pat1(<4 x i32> addrspace(1)* %out, <
   ret void
 }
 
+; FIXME: This should lower to sad?
+
 ; GCN-LABEL: {{^}}v_sad_u32_vector_pat2:
-; GCN: v_sad_u32 v{{[0-9]+}}, s{{[0-9]+}}, v{{[0-9]+}}, v{{[0-9]+}}
-; GCN: v_sad_u32 v{{[0-9]+}}, s{{[0-9]+}}, v{{[0-9]+}}, v{{[0-9]+}}
-; GCN: v_sad_u32 v{{[0-9]+}}, s{{[0-9]+}}, v{{[0-9]+}}, v{{[0-9]+}}
-; GCN: v_sad_u32 v{{[0-9]+}}, s{{[0-9]+}}, v{{[0-9]+}}, v{{[0-9]+}}
+; GCN: v_cmp_gt_u32_e32 vcc, s{{[0-9]+}}, v{{[0-9]+}}
+; GCN: v_cmp_gt_u32_e64 s[{{[0-9]+}}:{{[0-9]+}}], s{{[0-9]+}}, v{{[0-9]+}}
+; GCN: v_cmp_gt_u32_e64 s[{{[0-9]+}}:{{[0-9]+}}], s{{[0-9]+}}, v{{[0-9]+}}
+; GCN: v_cmp_gt_u32_e64 s[{{[0-9]+}}:{{[0-9]+}}], s{{[0-9]+}}, v{{[0-9]+}}
 define amdgpu_kernel void @v_sad_u32_vector_pat2(<4 x i32> addrspace(1)* %out, <4 x i32> %a, <4 x i32> %b, <4 x i32> %c) {
   %icmp0 = icmp ugt <4 x i32> %a, %b
   %sub0 = sub <4 x i32> %a, %b

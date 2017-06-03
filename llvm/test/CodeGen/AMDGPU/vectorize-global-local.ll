@@ -1,8 +1,12 @@
 ; RUN: llc -march=amdgcn -mcpu=tonga -verify-machineinstrs < %s | FileCheck %s
-; CHECK-DAG: flat_load_dwordx4
-; CHECK-DAG: flat_load_dwordx4
-; CHECK-DAG: flat_load_dwordx4
-; CHECK-DAG: flat_load_dwordx4
+; CHECK-DAG: flat_load_dwordx2
+; CHECK-DAG: flat_load_dwordx2
+; CHECK-DAG: flat_load_dwordx2
+; CHECK-DAG: flat_load_dwordx2
+; CHECK-DAG: flat_load_dwordx2
+; CHECK-DAG: flat_load_dwordx2
+; CHECK-DAG: flat_load_dwordx2
+; CHECK-DAG: flat_load_dwordx2
 ; CHECK-DAG: ds_write2_b32
 ; CHECK-DAG: ds_write2_b32
 ; CHECK-DAG: ds_write2_b32

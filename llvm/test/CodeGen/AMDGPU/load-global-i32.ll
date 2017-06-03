@@ -32,7 +32,8 @@ entry:
 ; GCN-NOHSA: buffer_load_dwordx4
 ; GCN-HSA: flat_load_dwordx4
 
-; EG: VTX_READ_128
+; EG: VTX_READ_64
+; EG: VTX_READ_32
 define amdgpu_kernel void @global_load_v3i32(<3 x i32> addrspace(1)* %out, <3 x i32> addrspace(1)* %in) #0 {
 entry:
   %ld = load <3 x i32>, <3 x i32> addrspace(1)* %in
@@ -180,11 +181,13 @@ define amdgpu_kernel void @global_sextload_v2i32_to_v2i64(<2 x i64> addrspace(1)
 }
 
 ; FUNC-LABEL: {{^}}global_zextload_v4i32_to_v4i64:
-; GCN-NOHSA: buffer_load_dwordx4
+; GCN-NOHSA: buffer_load_dwordx2
+; GCN-NOHSA: buffer_load_dwordx2
 ; GCN-NOHSA: buffer_store_dwordx4
 ; GCN-NOHSA: buffer_store_dwordx4
 
-; GCN-HSA: flat_load_dwordx4
+; GCN-HSA: flat_load_dwordx2
+; GCN-HSA: flat_load_dwordx2
 ; GCN-HSA: flat_store_dwordx4
 ; GCN-HSA: flat_store_dwordx4
 define amdgpu_kernel void @global_zextload_v4i32_to_v4i64(<4 x i64> addrspace(1)* %out, <4 x i32> addrspace(1)* %in) #0 {
@@ -195,8 +198,10 @@ define amdgpu_kernel void @global_zextload_v4i32_to_v4i64(<4 x i64> addrspace(1)
 }
 
 ; FUNC-LABEL: {{^}}global_sextload_v4i32_to_v4i64:
-; GCN-NOHSA: buffer_load_dwordx4
-; GCN-HSA: flat_load_dwordx4
+; GCN-NOHSA: buffer_load_dwordx2
+; GCN-NOHSA: buffer_load_dwordx2
+; GCN-HSA: flat_load_dwordx2
+; GCN-HSA: flat_load_dwordx2
 
 ; GCN-DAG: v_ashrrev_i32
 ; GCN-DAG: v_ashrrev_i32
@@ -216,11 +221,15 @@ define amdgpu_kernel void @global_sextload_v4i32_to_v4i64(<4 x i64> addrspace(1)
 }
 
 ; FUNC-LABEL: {{^}}global_zextload_v8i32_to_v8i64:
-; GCN-NOHSA: buffer_load_dwordx4
-; GCN-NOHSA: buffer_load_dwordx4
+; GCN-NOHSA: buffer_load_dwordx2
+; GCN-NOHSA: buffer_load_dwordx2
+; GCN-NOHSA: buffer_load_dwordx2
+; GCN-NOHSA: buffer_load_dwordx2
 
-; GCN-HSA: flat_load_dwordx4
-; GCN-HSA: flat_load_dwordx4
+; GCN-HSA: flat_load_dwordx2
+; GCN-HSA: flat_load_dwordx2
+; GCN-HSA: flat_load_dwordx2
+; GCN-HSA: flat_load_dwordx2
 
 ; GCN-NOHSA-DAG: buffer_store_dwordx4
 ; GCN-NOHSA-DAG: buffer_store_dwordx4
@@ -239,11 +248,15 @@ define amdgpu_kernel void @global_zextload_v8i32_to_v8i64(<8 x i64> addrspace(1)
 }
 
 ; FUNC-LABEL: {{^}}global_sextload_v8i32_to_v8i64:
-; GCN-NOHSA: buffer_load_dwordx4
-; GCN-NOHSA: buffer_load_dwordx4
+; GCN-NOHSA: buffer_load_dwordx2
+; GCN-NOHSA: buffer_load_dwordx2
+; GCN-NOHSA: buffer_load_dwordx2
+; GCN-NOHSA: buffer_load_dwordx2
 
-; GCN-HSA: flat_load_dwordx4
-; GCN-HSA: flat_load_dwordx4
+; GCN-HSA: flat_load_dwordx2
+; GCN-HSA: flat_load_dwordx2
+; GCN-HSA: flat_load_dwordx2
+; GCN-HSA: flat_load_dwordx2
 
 ; GCN-DAG: v_ashrrev_i32
 ; GCN-DAG: v_ashrrev_i32
@@ -271,15 +284,23 @@ define amdgpu_kernel void @global_sextload_v8i32_to_v8i64(<8 x i64> addrspace(1)
 }
 
 ; FUNC-LABEL: {{^}}global_sextload_v16i32_to_v16i64:
-; GCN-NOHSA: buffer_load_dwordx4
-; GCN-NOHSA: buffer_load_dwordx4
-; GCN-NOHSA: buffer_load_dwordx4
-; GCN-NOHSA: buffer_load_dwordx4
+; GCN-NOHSA: buffer_load_dwordx2
+; GCN-NOHSA: buffer_load_dwordx2
+; GCN-NOHSA: buffer_load_dwordx2
+; GCN-NOHSA: buffer_load_dwordx2
+; GCN-NOHSA: buffer_load_dwordx2
+; GCN-NOHSA: buffer_load_dwordx2
+; GCN-NOHSA: buffer_load_dwordx2
+; GCN-NOHSA: buffer_load_dwordx2
 
-; GCN-HSA: flat_load_dwordx4
-; GCN-HSA: flat_load_dwordx4
-; GCN-HSA: flat_load_dwordx4
-; GCN-HSA: flat_load_dwordx4
+; GCN-HSA: flat_load_dwordx2
+; GCN-HSA: flat_load_dwordx2
+; GCN-HSA: flat_load_dwordx2
+; GCN-HSA: flat_load_dwordx2
+; GCN-HSA: flat_load_dwordx2
+; GCN-HSA: flat_load_dwordx2
+; GCN-HSA: flat_load_dwordx2
+; GCN-HSA: flat_load_dwordx2
 
 
 ; GCN-DAG: v_ashrrev_i32
@@ -317,15 +338,23 @@ define amdgpu_kernel void @global_sextload_v16i32_to_v16i64(<16 x i64> addrspace
 }
 
 ; FUNC-LABEL: {{^}}global_zextload_v16i32_to_v16i64
-; GCN-NOHSA: buffer_load_dwordx4
-; GCN-NOHSA: buffer_load_dwordx4
-; GCN-NOHSA: buffer_load_dwordx4
-; GCN-NOHSA: buffer_load_dwordx4
+; GCN-NOHSA: buffer_load_dwordx2
+; GCN-NOHSA: buffer_load_dwordx2
+; GCN-NOHSA: buffer_load_dwordx2
+; GCN-NOHSA: buffer_load_dwordx2
+; GCN-NOHSA: buffer_load_dwordx2
+; GCN-NOHSA: buffer_load_dwordx2
+; GCN-NOHSA: buffer_load_dwordx2
+; GCN-NOHSA: buffer_load_dwordx2
 
-; GCN-HSA: flat_load_dwordx4
-; GCN-HSA: flat_load_dwordx4
-; GCN-HSA: flat_load_dwordx4
-; GCN-HSA: flat_load_dwordx4
+; GCN-HSA: flat_load_dwordx2
+; GCN-HSA: flat_load_dwordx2
+; GCN-HSA: flat_load_dwordx2
+; GCN-HSA: flat_load_dwordx2
+; GCN-HSA: flat_load_dwordx2
+; GCN-HSA: flat_load_dwordx2
+; GCN-HSA: flat_load_dwordx2
+; GCN-HSA: flat_load_dwordx2
 
 ; GCN-NOHSA: buffer_store_dwordx4
 ; GCN-NOHSA: buffer_store_dwordx4
@@ -353,23 +382,39 @@ define amdgpu_kernel void @global_zextload_v16i32_to_v16i64(<16 x i64> addrspace
 
 ; FUNC-LABEL: {{^}}global_sextload_v32i32_to_v32i64:
 
-; GCN-NOHSA: buffer_load_dwordx4
-; GCN-NOHSA: buffer_load_dwordx4
-; GCN-NOHSA: buffer_load_dwordx4
-; GCN-NOHSA: buffer_load_dwordx4
-; GCN-NOHSA: buffer_load_dwordx4
-; GCN-NOHSA: buffer_load_dwordx4
-; GCN-NOHSA: buffer_load_dwordx4
-; GCN-NOHSA-DAG: buffer_load_dwordx4
+; GCN-NOHSA: buffer_load_dwordx2
+; GCN-NOHSA: buffer_load_dwordx2
+; GCN-NOHSA: buffer_load_dwordx2
+; GCN-NOHSA: buffer_load_dwordx2
+; GCN-NOHSA: buffer_load_dwordx2
+; GCN-NOHSA: buffer_load_dwordx2
+; GCN-NOHSA: buffer_load_dwordx2
+; GCN-NOHSA: buffer_load_dwordx2
+; GCN-NOHSA: buffer_load_dwordx2
+; GCN-NOHSA: buffer_load_dwordx2
+; GCN-NOHSA: buffer_load_dwordx2
+; GCN-NOHSA: buffer_load_dwordx2
+; GCN-NOHSA: buffer_load_dwordx2
+; GCN-NOHSA: buffer_load_dwordx2
+; GCN-NOHSA-DAG: buffer_load_dwordx2
+; GCN-NOHSA-DAG: buffer_load_dwordx2
 
-; GCN-HSA: flat_load_dwordx4
-; GCN-HSA: flat_load_dwordx4
-; GCN-HSA: flat_load_dwordx4
-; GCN-HSA: flat_load_dwordx4
-; GCN-HSA: flat_load_dwordx4
-; GCN-HSA: flat_load_dwordx4
-; GCN-HSA: flat_load_dwordx4
-; GCN-HSA: flat_load_dwordx4
+; GCN-HSA: flat_load_dwordx2
+; GCN-HSA: flat_load_dwordx2
+; GCN-HSA: flat_load_dwordx2
+; GCN-HSA: flat_load_dwordx2
+; GCN-HSA: flat_load_dwordx2
+; GCN-HSA: flat_load_dwordx2
+; GCN-HSA: flat_load_dwordx2
+; GCN-HSA: flat_load_dwordx2
+; GCN-HSA: flat_load_dwordx2
+; GCN-HSA: flat_load_dwordx2
+; GCN-HSA: flat_load_dwordx2
+; GCN-HSA: flat_load_dwordx2
+; GCN-HSA: flat_load_dwordx2
+; GCN-HSA: flat_load_dwordx2
+; GCN-HSA: flat_load_dwordx2
+; GCN-HSA: flat_load_dwordx2
 
 ; GCN-DAG: v_ashrrev_i32
 ; GCN-DAG: v_ashrrev_i32
@@ -424,20 +469,20 @@ define amdgpu_kernel void @global_zextload_v16i32_to_v16i64(<16 x i64> addrspace
 ; GCN-NOHSA: buffer_store_dwordx4
 ; GCN-NOHSA: buffer_store_dwordx4
 
-; GCN-HSA: flat_store_dwordx4
-; GCN-HSA: flat_store_dwordx4
-; GCN-HSA: flat_store_dwordx4
-; GCN-HSA: flat_store_dwordx4
+; GCN-HSA-DAG: flat_store_dwordx4
+; GCN-HSA-DAG: flat_store_dwordx4
+; GCN-HSA-DAG: flat_store_dwordx4
+; GCN-HSA-DAG: flat_store_dwordx4
 
-; GCN-HSA: flat_store_dwordx4
-; GCN-HSA: flat_store_dwordx4
-; GCN-HSA: flat_store_dwordx4
-; GCN-HSA: flat_store_dwordx4
+; GCN-HSA-DAG: flat_store_dwordx4
+; GCN-HSA-DAG: flat_store_dwordx4
+; GCN-HSA-DAG: flat_store_dwordx4
+; GCN-HSA-DAG: flat_store_dwordx4
 
-; GCN-HSA: flat_store_dwordx4
-; GCN-HSA: flat_store_dwordx4
-; GCN-HSA: flat_store_dwordx4
-; GCN-HSA: flat_store_dwordx4
+; GCN-HSA-DAG: flat_store_dwordx4
+; GCN-HSA-DAG: flat_store_dwordx4
+; GCN-HSA-DAG: flat_store_dwordx4
+; GCN-HSA-DAG: flat_store_dwordx4
 
 ; GCN-HSA: flat_store_dwordx4
 ; GCN-HSA: flat_store_dwordx4
@@ -452,23 +497,39 @@ define amdgpu_kernel void @global_sextload_v32i32_to_v32i64(<32 x i64> addrspace
 }
 
 ; FUNC-LABEL: {{^}}global_zextload_v32i32_to_v32i64:
-; GCN-NOHSA: buffer_load_dwordx4
-; GCN-NOHSA: buffer_load_dwordx4
-; GCN-NOHSA: buffer_load_dwordx4
-; GCN-NOHSA: buffer_load_dwordx4
-; GCN-NOHSA: buffer_load_dwordx4
-; GCN-NOHSA: buffer_load_dwordx4
-; GCN-NOHSA: buffer_load_dwordx4
-; GCN-NOHSA: buffer_load_dwordx4
+; GCN-NOHSA: buffer_load_dwordx2
+; GCN-NOHSA: buffer_load_dwordx2
+; GCN-NOHSA: buffer_load_dwordx2
+; GCN-NOHSA: buffer_load_dwordx2
+; GCN-NOHSA: buffer_load_dwordx2
+; GCN-NOHSA: buffer_load_dwordx2
+; GCN-NOHSA: buffer_load_dwordx2
+; GCN-NOHSA: buffer_load_dwordx2
+; GCN-NOHSA: buffer_load_dwordx2
+; GCN-NOHSA: buffer_load_dwordx2
+; GCN-NOHSA: buffer_load_dwordx2
+; GCN-NOHSA: buffer_load_dwordx2
+; GCN-NOHSA: buffer_load_dwordx2
+; GCN-NOHSA: buffer_load_dwordx2
+; GCN-NOHSA: buffer_load_dwordx2
+; GCN-NOHSA: buffer_load_dwordx2
 
-; GCN-HSA: flat_load_dwordx4
-; GCN-HSA: flat_load_dwordx4
-; GCN-HSA: flat_load_dwordx4
-; GCN-HSA: flat_load_dwordx4
-; GCN-HSA: flat_load_dwordx4
-; GCN-HSA: flat_load_dwordx4
-; GCN-HSA: flat_load_dwordx4
-; GCN-HSA: flat_load_dwordx4
+; GCN-HSA: flat_load_dwordx2
+; GCN-HSA: flat_load_dwordx2
+; GCN-HSA: flat_load_dwordx2
+; GCN-HSA: flat_load_dwordx2
+; GCN-HSA: flat_load_dwordx2
+; GCN-HSA: flat_load_dwordx2
+; GCN-HSA: flat_load_dwordx2
+; GCN-HSA: flat_load_dwordx2
+; GCN-HSA: flat_load_dwordx2
+; GCN-HSA: flat_load_dwordx2
+; GCN-HSA: flat_load_dwordx2
+; GCN-HSA: flat_load_dwordx2
+; GCN-HSA: flat_load_dwordx2
+; GCN-HSA: flat_load_dwordx2
+; GCN-HSA: flat_load_dwordx2
+; GCN-HSA: flat_load_dwordx2
 
 
 ; GCN-NOHSA-DAG: buffer_store_dwordx4

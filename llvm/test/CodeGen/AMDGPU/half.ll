@@ -502,7 +502,8 @@ define amdgpu_kernel void @global_truncstore_v3f32_to_v3f16(<3 x half> addrspace
 }
 
 ; GCN-LABEL: {{^}}global_truncstore_v4f32_to_v4f16:
-; GCN: buffer_load_dwordx4
+; GCN: buffer_load_dwordx2
+; GCN: buffer_load_dwordx2
 ; GCN-DAG: v_cvt_f16_f32_e32
 ; SI-DAG:  v_cvt_f16_f32_e32
 ; SI-DAG:  v_cvt_f16_f32_e32
@@ -519,8 +520,10 @@ define amdgpu_kernel void @global_truncstore_v4f32_to_v4f16(<4 x half> addrspace
 }
 
 ; GCN-LABEL: {{^}}global_truncstore_v8f32_to_v8f16:
-; GCN: buffer_load_dwordx4
-; GCN: buffer_load_dwordx4
+; GCN: buffer_load_dwordx2
+; GCN: buffer_load_dwordx2
+; GCN: buffer_load_dwordx2
+; GCN: buffer_load_dwordx2
 ; SI:  v_cvt_f16_f32_e32
 ; SI:  v_cvt_f16_f32_e32
 ; SI:  v_cvt_f16_f32_e32
@@ -547,10 +550,14 @@ define amdgpu_kernel void @global_truncstore_v8f32_to_v8f16(<8 x half> addrspace
 }
 
 ; GCN-LABEL: {{^}}global_truncstore_v16f32_to_v16f16:
-; GCN: buffer_load_dwordx4
-; GCN: buffer_load_dwordx4
-; GCN: buffer_load_dwordx4
-; GCN: buffer_load_dwordx4
+; GCN: buffer_load_dwordx2
+; GCN: buffer_load_dwordx2
+; GCN: buffer_load_dwordx2
+; GCN: buffer_load_dwordx2
+; GCN: buffer_load_dwordx2
+; GCN: buffer_load_dwordx2
+; GCN: buffer_load_dwordx2
+; GCN: buffer_load_dwordx2
 ; GCN-DAG: v_cvt_f16_f32_e32
 ; GCN-DAG: v_cvt_f16_f32_e32
 ; GCN-DAG: v_cvt_f16_f32_e32
