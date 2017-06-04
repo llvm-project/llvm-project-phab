@@ -11886,9 +11886,31 @@ Sema::CheckForFunctionRedefinition(FunctionDecl *FD,
                                    const FunctionDecl *EffectiveDefinition,
                                    SkipBodyInfo *SkipBody) {
   const FunctionDecl *Definition = EffectiveDefinition;
+  if (!Definition &&
+      !FD->isDefined(Definition)
+      && FD->getDeclContext()->isFileContext()) {
+    // If this is a friend function defined in a class template, it does not
+    // have a body until it is used, nevertheless it is a definition. The
+    // following code must produce redefinition error:
+    //
+    //     template<typename T> struct C20 { friend void func_20() {} };
+    //     C20<int> c20i;
+    //     void func_20() {}
+    //
+    for (auto I : FD->redecls()) {
+      if (I != FD && !I->isInvalidDecl() &&
+          I->getFriendObjectKind() != Decl::FOK_None) {
+        if (FunctionDecl *Original = I->getInstantiatedFromMemberFunction()) {
+          if (Original->isThisDeclarationADefinition()) {
+            Definition = I;
+            break;
+          }
+        }
+      }
+    }
+  }
   if (!Definition)
-    if (!FD->isDefined(Definition))
-      return;
+    return;
 
   if (canRedefineFunction(Definition, getLangOpts()))
     return;
