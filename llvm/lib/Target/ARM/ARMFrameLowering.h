@@ -41,6 +41,11 @@ public:
                                   const std::vector<CalleeSavedInfo> &CSI,
                                   const TargetRegisterInfo *TRI) const override;
 
+  void getRestoredRegisters(SmallVectorImpl<MCPhysReg> &Regs,
+                            MachineBasicBlock &RestoreBB,
+                            const std::vector<CalleeSavedInfo> &CSI,
+                            const TargetRegisterInfo *TRI) const override;
+
   bool noFramePointerElim(const MachineFunction &MF) const override;
 
   bool hasFP(const MachineFunction &MF) const override;

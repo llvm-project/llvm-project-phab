@@ -28,6 +28,26 @@ using namespace llvm;
 TargetFrameLowering::~TargetFrameLowering() {
 }
 
+/// By default, all callee-saved registers are considered to be saved in
+/// each save block.
+void TargetFrameLowering::getSavedRegisters(SmallVectorImpl<MCPhysReg> &Regs,
+                                       MachineBasicBlock &SaveBB,
+                                       const std::vector<CalleeSavedInfo> &CSI,
+                                       const TargetRegisterInfo *TRI) const {
+  for (const CalleeSavedInfo &I : CSI)
+    Regs.push_back(I.getReg());
+}
+
+/// By default, all callee-saved registers are considered to be restored in
+/// each restore block.
+void TargetFrameLowering::getRestoredRegisters(SmallVectorImpl<MCPhysReg> &Regs,
+                                      MachineBasicBlock &RestoreBB,
+                                      const std::vector<CalleeSavedInfo> &CSI,
+                                      const TargetRegisterInfo *TRI) const {
+  for (const CalleeSavedInfo &I : CSI)
+    Regs.push_back(I.getReg());
+}
+
 /// The default implementation just looks at attribute "no-frame-pointer-elim".
 bool TargetFrameLowering::noFramePointerElim(const MachineFunction &MF) const {
   auto Attr = MF.getFunction()->getFnAttribute("no-frame-pointer-elim");

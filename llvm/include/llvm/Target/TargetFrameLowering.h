@@ -201,6 +201,20 @@ public:
     return false;
   }
 
+  /// Get the set of callee-saved registers that were saved in this basic
+  /// block. SaveBB must be a save block.
+  virtual void getSavedRegisters(SmallVectorImpl<MCPhysReg> &Regs,
+                                 MachineBasicBlock &SaveBB,
+                                 const std::vector<CalleeSavedInfo> &CSI,
+                                 const TargetRegisterInfo *TRI) const;
+
+  /// Get the set of callee-saved registers that were restored in this basic
+  /// block. RestoreBB must be a restore block.
+  virtual void getRestoredRegisters(SmallVectorImpl<MCPhysReg> &Regs,
+                                    MachineBasicBlock &RestoreBB,
+                                    const std::vector<CalleeSavedInfo> &CSI,
+                                    const TargetRegisterInfo *TRI) const;
+
   /// Return true if the target needs to disable frame pointer elimination.
   virtual bool noFramePointerElim(const MachineFunction &MF) const;
 

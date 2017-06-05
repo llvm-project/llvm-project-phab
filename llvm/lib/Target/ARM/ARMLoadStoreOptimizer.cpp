@@ -160,6 +160,8 @@ namespace {
     bool LoadStoreMultipleOpti(MachineBasicBlock &MBB);
     bool MergeReturnIntoLDM(MachineBasicBlock &MBB);
     bool CombineMovBx(MachineBasicBlock &MBB);
+
+    void copyUnmodifiedImplicitOps(MachineInstr &Dst, const MachineInstr &Src);
   };
   char ARMLoadStoreOpt::ID = 0;
 }
@@ -1851,6 +1853,19 @@ bool ARMLoadStoreOpt::LoadStoreMultipleOpti(MachineBasicBlock &MBB) {
   return Changed;
 }
 
+void ARMLoadStoreOpt::copyUnmodifiedImplicitOps(MachineInstr &Dst,
+                                                const MachineInstr &Src) {
+  // Do not copy implicit uses from the source instruction that are
+  // modified by the target instruction.
+  for (const MachineOperand &Op : Src.operands()) {
+    if (!Op.isReg() || !Op.isImplicit())
+      continue;
+    if (Op.isUse() && Dst.modifiesRegister(Op.getReg(), TRI))
+      continue;
+    Dst.addOperand(Op);
+  }
+}
+
 /// If this is a exit BB, try merging the return ops ("bx lr" and "mov pc, lr")
 /// into the preceding stack restore so it directly restore the value of LR
 /// into pc.
@@ -1888,7 +1903,7 @@ bool ARMLoadStoreOpt::MergeReturnIntoLDM(MachineBasicBlock &MBB) {
               Opcode == ARM::LDMIA_UPD) && "Unsupported multiple load-return!");
       PrevMI.setDesc(TII->get(NewOpc));
       MO.setReg(ARM::PC);
-      PrevMI.copyImplicitOps(*MBB.getParent(), *MBBI);
+      copyUnmodifiedImplicitOps(PrevMI, *MBBI);
       MBB.erase(MBBI);
       return true;
     }
@@ -1909,10 +1924,10 @@ bool ARMLoadStoreOpt::CombineMovBx(MachineBasicBlock &MBB) {
 
   for (auto Use : Prev->uses())
     if (Use.isKill()) {
-      BuildMI(MBB, MBBI, MBBI->getDebugLoc(), TII->get(ARM::tBX))
+      auto NewMI = BuildMI(MBB, MBBI, MBBI->getDebugLoc(), TII->get(ARM::tBX))
           .addReg(Use.getReg(), RegState::Kill)
-          .add(predOps(ARMCC::AL))
-          .copyImplicitOps(*MBBI);
+          .add(predOps(ARMCC::AL));
+      copyUnmodifiedImplicitOps(*NewMI, *MBBI);
       MBB.erase(MBBI);
       MBB.erase(Prev);
       return true;

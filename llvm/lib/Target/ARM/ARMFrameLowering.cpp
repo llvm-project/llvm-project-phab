@@ -1449,6 +1449,16 @@ bool ARMFrameLowering::restoreCalleeSavedRegisters(MachineBasicBlock &MBB,
   return true;
 }
 
+void ARMFrameLowering::getRestoredRegisters(SmallVectorImpl<MCPhysReg> &Regs,
+                                        MachineBasicBlock &RestoreBB,
+                                        const std::vector<CalleeSavedInfo> &CSI,
+                                        const TargetRegisterInfo *TRI) const {
+  for (const CalleeSavedInfo &I : CSI)
+    if (I.getReg() != ARM::LR)
+      Regs.push_back(I.getReg());
+}
+
+
 // FIXME: Make generic?
 static unsigned GetFunctionSizeInBytes(const MachineFunction &MF,
                                        const ARMBaseInstrInfo &TII) {

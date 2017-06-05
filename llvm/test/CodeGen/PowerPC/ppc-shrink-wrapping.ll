@@ -395,14 +395,14 @@ entry:
 ; CHECK: bdnz .[[LOOP_LABEL]]
 ;
 ; Epilogue code.
-; CHECK: li 3, 0
+; CHECK-DAG: li 3, 0
 ; CHECK-DAG: ld 14, -[[STACK_OFFSET]](1) # 8-byte Folded Reload
 ; CHECK: nop
 ; CHECK: blr
 ;
 ; CHECK: [[ELSE_LABEL]]
-; CHECK-NEXT: slwi 3, 4, 1
-; DISABLE: ld 14, -[[STACK_OFFSET]](1) # 8-byte Folded Reload
+; CHECK-DAG: slwi 3, 4, 1
+; DISABLE-DAG: ld 14, -[[STACK_OFFSET]](1) # 8-byte Folded Reload
 ; CHECK-NEXT: blr
 ; 
 define i32 @inlineAsm(i32 %cond, i32 %N) {

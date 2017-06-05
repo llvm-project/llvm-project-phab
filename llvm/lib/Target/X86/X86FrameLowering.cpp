@@ -2049,6 +2049,38 @@ bool X86FrameLowering::restoreCalleeSavedRegisters(MachineBasicBlock &MBB,
   return true;
 }
 
+void X86FrameLowering::getSavedRegisters(SmallVectorImpl<MCPhysReg> &Regs,
+                                        MachineBasicBlock &SaveBB,
+                                        const std::vector<CalleeSavedInfo> &CSI,
+                                        const TargetRegisterInfo *TRI) const {
+  if (!SaveBB.isEHFuncletEntry() || !STI.is32Bit() || !STI.isOSWindows())
+    return TargetFrameLowering::getSavedRegisters(Regs, SaveBB, CSI, TRI);
+}
+
+void X86FrameLowering::getRestoredRegisters(SmallVectorImpl<MCPhysReg> &Regs,
+                                        MachineBasicBlock &RestoreBB,
+                                        const std::vector<CalleeSavedInfo> &CSI,
+                                        const TargetRegisterInfo *TRI) const {
+  assert(!RestoreBB.empty());
+  MachineInstr &LastI = RestoreBB.back();
+  if (isFuncletReturnInstr(LastI) && STI.isOSWindows()) {
+    // Don't restore CSRs in 32-bit EH funclets. Matches
+    // spillCalleeSavedRegisters.
+    if (STI.is32Bit())
+      return;
+    // Don't restore CSRs before an SEH catchret. SEH except blocks do not form
+    // funclets. emitEpilogue transforms these to normal jumps.
+    if (LastI.getOpcode() == X86::CATCHRET) {
+      const Function *Func = RestoreBB.getParent()->getFunction();
+      bool IsSEH = isAsynchronousEHPersonality(
+          classifyEHPersonality(Func->getPersonalityFn()));
+      if (IsSEH)
+        return;
+    }
+  }
+  return TargetFrameLowering::getRestoredRegisters(Regs, RestoreBB, CSI, TRI);
+}
+
 void X86FrameLowering::determineCalleeSaves(MachineFunction &MF,
                                             BitVector &SavedRegs,
                                             RegScavenger *RS) const {
