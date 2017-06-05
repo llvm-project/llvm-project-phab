@@ -224,7 +224,7 @@ define amdgpu_kernel void @use_flat_to_constant_addrspacecast(i32 addrspace(4)* 
 attributes #0 = { nounwind readnone speculatable }
 attributes #1 = { nounwind }
 
-; HSA: attributes #0 = { nounwind readnone speculatable }
+; HSA: attributes #0 = { norecurse nounwind readnone speculatable }
 ; HSA: attributes #1 = { nounwind }
 ; HSA: attributes #2 = { nounwind "amdgpu-work-group-id-y" }
 ; HSA: attributes #3 = { nounwind "amdgpu-work-group-id-z" }

@@ -343,7 +343,7 @@ terminate:
 ; CHECK-NEXT: call void @_ZSt9terminatev()
 
 ; CHECK: attributes [[NUW]] = { nounwind }
-; CHECK: attributes #1 = { nounwind readnone }
+; CHECK: attributes #1 = { norecurse nounwind readnone }
 ; CHECK: attributes #2 = { ssp uwtable }
-; CHECK: attributes #3 = { argmemonly nounwind }
+; CHECK: attributes #3 = { argmemonly norecurse nounwind }
 ; CHECK: attributes #4 = { noreturn nounwind }

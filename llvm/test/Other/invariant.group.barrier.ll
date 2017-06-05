@@ -54,7 +54,7 @@ entry:
 declare void @use(i8* readonly)
 
 declare void @clobber(i8*)
-; CHECK: Function Attrs: argmemonly nounwind readonly
+; CHECK: Function Attrs: argmemonly norecurse nounwind readonly
 ; CHECK-NEXT: declare i8* @llvm.invariant.group.barrier(i8*)
 declare i8* @llvm.invariant.group.barrier(i8*)
 

@@ -2,10 +2,13 @@
 target datalayout = "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-s0:64:64-f80:128:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"
 
+; CHECK: declare void @llvm.memcpy.p0i8.p0i8.i64(i8* nocapture writeonly, i8* nocapture readonly, i64, i32, i1) #0
+; CHECK: declare void @hey() #1
 declare void @llvm.memcpy.p0i8.p0i8.i64(i8* nocapture, i8* nocapture readonly, i64, i32, i1) #0
-declare void @hey() #0
+declare void @hey() #1
 
-define void @hello(i8* noalias nocapture %a, i8* noalias nocapture readonly %c, i8* nocapture %b) #1 {
+; CHECK: define void @hello(i8* noalias nocapture %a, i8* noalias nocapture readonly %c, i8* nocapture %b) #2
+define void @hello(i8* noalias nocapture %a, i8* noalias nocapture readonly %c, i8* nocapture %b) #2 {
 entry:
   %l = alloca i8, i32 512, align 1
   call void @llvm.memcpy.p0i8.p0i8.i64(i8* %a, i8* %b, i64 16, i32 16, i1 0)
@@ -16,25 +19,31 @@ entry:
   ret void
 }
 
-define void @foo(i8* nocapture %a, i8* nocapture readonly %c, i8* nocapture %b) #2 {
+define void @foo(i8* nocapture %a, i8* nocapture readonly %c, i8* nocapture %b) #3 {
 entry:
   tail call void @hello(i8* %a, i8* %c, i8* %b)
   ret void
 }
 
-; CHECK: define void @foo(i8* nocapture %a, i8* nocapture readonly %c, i8* nocapture %b) #2 {
+; CHECK: define void @foo(i8* nocapture %a, i8* nocapture readonly %c, i8* nocapture %b) #3 {
 ; CHECK: entry:
-; CHECK:   call void @llvm.memcpy.p0i8.p0i8.i64(i8* %a, i8* %b, i64 16, i32 16, i1 false) #1, !noalias !0
-; CHECK:   call void @llvm.memcpy.p0i8.p0i8.i64(i8* %b, i8* %c, i64 16, i32 16, i1 false) #1, !noalias !3
-; CHECK:   call void @llvm.memcpy.p0i8.p0i8.i64(i8* %a, i8* %c, i64 16, i32 16, i1 false) #1, !alias.scope !5
-; CHECK:   call void @hey() #1, !noalias !5
-; CHECK:   call void @llvm.memcpy.p0i8.p0i8.i64(i8* %{{.*}}, i8* %c, i64 16, i32 16, i1 false) #1, !noalias !3
+; CHECK:   call void @llvm.memcpy.p0i8.p0i8.i64(i8* %a, i8* %b, i64 16, i32 16, i1 false) #2, !noalias !0
+; CHECK:   call void @llvm.memcpy.p0i8.p0i8.i64(i8* %b, i8* %c, i64 16, i32 16, i1 false) #2, !noalias !3
+; CHECK:   call void @llvm.memcpy.p0i8.p0i8.i64(i8* %a, i8* %c, i64 16, i32 16, i1 false) #2, !alias.scope !5
+; CHECK:   call void @hey() #2, !noalias !5
+; CHECK:   call void @llvm.memcpy.p0i8.p0i8.i64(i8* %{{.*}}, i8* %c, i64 16, i32 16, i1 false) #2, !noalias !3
 ; CHECK:   ret void
 ; CHECK: }
 
-attributes #0 = { nounwind argmemonly }
-attributes #1 = { nounwind }
-attributes #2 = { nounwind uwtable }
+; CHECK: attributes #0 = { argmemonly norecurse nounwind }
+; CHECK: attributes #1 = { argmemonly nounwind }
+; CHECK: attributes #2 = { nounwind }
+; CHECK: attributes #3 = { nounwind uwtable }
+attributes #0 = { argmemonly norecurse nounwind }
+attributes #1 = { argmemonly nounwind }
+attributes #2 = { nounwind }
+attributes #3 = { nounwind uwtable }
+
 
 ; CHECK: !0 = !{!1}
 ; CHECK: !1 = distinct !{!1, !2, !"hello: %c"}

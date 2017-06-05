@@ -30,7 +30,8 @@ define i32 @extern() {
 }
 declare i32 @k() readnone
 
-; CHECK: define void @intrinsic(i8* nocapture %dest, i8* nocapture readonly %src, i32 %len) {
+; CHECK: Function Attrs: norecurse
+; CHECK-NEXT: define void @intrinsic(i8* nocapture %dest, i8* nocapture readonly %src, i32 %len)
 define void @intrinsic(i8* %dest, i8* %src, i32 %len) {
   call void @llvm.memcpy.p0i8.p0i8.i32(i8* %dest, i8* %src, i32 %len, i32 1, i1 false)
   ret void
@@ -60,6 +61,17 @@ define void @p() norecurse {
   call void @o()
   ret void
 }
+
+; CHECK: define void @checkRecursiveIntrinsics() {
+define void @checkRecursiveIntrinsics() {
+  %result = tail call i64 (i64, i32, i8*, i32, ...) @llvm.experimental.patchpoint.i64(i64 2, i32 15, i8* null, i32 4, i64 0, i64 0, i64 0, i64 0)
+  tail call void (i64, i32, i8*, i32, ...) @llvm.experimental.patchpoint.void(i64 3, i32 15, i8* null, i32 2, i64 0, i64 %result)
+  ret void
+}
+
+; CHECK: declare void @llvm.experimental.patchpoint.void
+declare void @llvm.experimental.patchpoint.void(i64, i32, i8*, i32, ...)
+declare i64 @llvm.experimental.patchpoint.i64(i64, i32, i8*, i32, ...)
 
 ; CHECK: attributes #0 = { norecurse readnone }
 ; CHECK: attributes #1 = { readnone }

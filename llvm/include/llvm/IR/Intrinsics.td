@@ -58,6 +58,9 @@ def Commutative : IntrinsicProperty;
 // Throws - This intrinsic can throw.
 def Throws : IntrinsicProperty;
 
+// Recursive - This intrinsic can be recursive.
+def Recursive : IntrinsicProperty;
+
 // NoCapture - The specified argument pointer is not captured by the intrinsic.
 class NoCapture<int argNo> : IntrinsicProperty {
   int ArgNo = argNo;
@@ -706,12 +709,12 @@ def int_experimental_patchpoint_void : Intrinsic<[],
                                                  [llvm_i64_ty, llvm_i32_ty,
                                                   llvm_ptr_ty, llvm_i32_ty,
                                                   llvm_vararg_ty],
-                                                  [Throws]>;
+                                                  [Throws, Recursive]>;
 def int_experimental_patchpoint_i64 : Intrinsic<[llvm_i64_ty],
                                                 [llvm_i64_ty, llvm_i32_ty,
                                                  llvm_ptr_ty, llvm_i32_ty,
                                                  llvm_vararg_ty],
-                                                 [Throws]>;
+                                                 [Throws, Recursive]>;
 
 
 //===------------------------ Garbage Collection Intrinsics ---------------===//
