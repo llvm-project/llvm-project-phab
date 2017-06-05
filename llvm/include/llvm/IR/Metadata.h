@@ -19,18 +19,18 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseMapInfo.h"
-#include "llvm/ADT/ilist_node.h"
-#include "llvm/ADT/iterator_range.h"
 #include "llvm/ADT/None.h"
 #include "llvm/ADT/PointerUnion.h"
-#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/ilist_node.h"
+#include "llvm/ADT/iterator_range.h"
 #include "llvm/IR/Constant.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Value.h"
-#include "llvm/Support/Casting.h"
 #include "llvm/Support/CBindingWrapping.h"
+#include "llvm/Support/Casting.h"
 #include "llvm/Support/ErrorHandling.h"
 #include <cassert>
 #include <cstddef>
@@ -139,7 +139,7 @@ DEFINE_ISA_CONVERSION_FUNCTIONS(Metadata, LLVMMetadataRef)
 
 // Specialized opaque metadata conversions.
 inline Metadata **unwrap(LLVMMetadataRef *MDs) {
-  return reinterpret_cast<Metadata**>(MDs);
+  return reinterpret_cast<Metadata **>(MDs);
 }
 
 #define HANDLE_METADATA(CLASS) class CLASS;
@@ -418,8 +418,7 @@ public:
 class LocalAsMetadata : public ValueAsMetadata {
   friend class ValueAsMetadata;
 
-  LocalAsMetadata(Value *Local)
-      : ValueAsMetadata(LocalAsMetadataKind, Local) {
+  LocalAsMetadata(Value *Local) : ValueAsMetadata(LocalAsMetadataKind, Local) {
     assert(!isa<Constant>(Local) && "Expected local value");
   }
 
@@ -656,16 +655,14 @@ struct AAMDNodes {
 };
 
 // Specialize DenseMapInfo for AAMDNodes.
-template<>
-struct DenseMapInfo<AAMDNodes> {
+template <> struct DenseMapInfo<AAMDNodes> {
   static inline AAMDNodes getEmptyKey() {
-    return AAMDNodes(DenseMapInfo<MDNode *>::getEmptyKey(),
-                     nullptr, nullptr);
+    return AAMDNodes(DenseMapInfo<MDNode *>::getEmptyKey(), nullptr, nullptr);
   }
 
   static inline AAMDNodes getTombstoneKey() {
-    return AAMDNodes(DenseMapInfo<MDNode *>::getTombstoneKey(),
-                     nullptr, nullptr);
+    return AAMDNodes(DenseMapInfo<MDNode *>::getTombstoneKey(), nullptr,
+                     nullptr);
   }
 
   static unsigned getHashValue(const AAMDNodes &Val) {
@@ -1278,6 +1275,11 @@ public:
     if (!Use)
       return;
     *Use = MD;
+
+    if (*Use)
+      MetadataTracking::track(*Use);
+
+    // Equivalent to MetadataTracking::untrack
     Use = nullptr;
   }
 };
@@ -1301,13 +1303,13 @@ class NamedMDNode : public ilist_node<NamedMDNode> {
 
   explicit NamedMDNode(const Twine &N);
 
-  template<class T1, class T2>
-  class op_iterator_impl :
-      public std::iterator<std::bidirectional_iterator_tag, T2> {
+  template <class T1, class T2>
+  class op_iterator_impl
+      : public std::iterator<std::bidirectional_iterator_tag, T2> {
     const NamedMDNode *Node = nullptr;
     unsigned Idx = 0;
 
-    op_iterator_impl(const NamedMDNode *N, unsigned i) : Node(N), Idx(i) { }
+    op_iterator_impl(const NamedMDNode *N, unsigned i) : Node(N), Idx(i) {}
 
     friend class NamedMDNode;
 
@@ -1373,13 +1375,15 @@ public:
   //
   typedef op_iterator_impl<MDNode *, MDNode> op_iterator;
   op_iterator op_begin() { return op_iterator(this, 0); }
-  op_iterator op_end()   { return op_iterator(this, getNumOperands()); }
+  op_iterator op_end() { return op_iterator(this, getNumOperands()); }
 
   typedef op_iterator_impl<const MDNode *, MDNode> const_op_iterator;
   const_op_iterator op_begin() const { return const_op_iterator(this, 0); }
-  const_op_iterator op_end()   const { return const_op_iterator(this, getNumOperands()); }
+  const_op_iterator op_end() const {
+    return const_op_iterator(this, getNumOperands());
+  }
 
-  inline iterator_range<op_iterator>  operands() {
+  inline iterator_range<op_iterator> operands() {
     return make_range(op_begin(), op_end());
   }
   inline iterator_range<const_op_iterator> operands() const {

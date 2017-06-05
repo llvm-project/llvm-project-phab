@@ -16,13 +16,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "llvm/IR/LLVMContext.h"
 #include "llvm/Bitcode/BitcodeReader.h"
 #include "llvm/IR/AssemblyAnnotationWriter.h"
 #include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/DiagnosticInfo.h"
 #include "llvm/IR/DiagnosticPrinter.h"
 #include "llvm/IR/IntrinsicInst.h"
+#include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
 #include "llvm/Support/CommandLine.h"
@@ -38,21 +38,26 @@
 using namespace llvm;
 
 static cl::opt<std::string>
-InputFilename(cl::Positional, cl::desc("<input bitcode>"), cl::init("-"));
+    InputFilename(cl::Positional, cl::desc("<input bitcode>"), cl::init("-"));
 
-static cl::opt<std::string>
-OutputFilename("o", cl::desc("Override output filename"),
-               cl::value_desc("filename"));
+static cl::opt<std::string> OutputFilename("o",
+                                           cl::desc("Override output filename"),
+                                           cl::value_desc("filename"));
+
+static cl::opt<bool> Force("f", cl::desc("Enable binary output on terminals"));
+
+static cl::opt<bool> DontPrint("disable-output",
+                               cl::desc("Don't output the .ll file"),
+                               cl::Hidden);
 
 static cl::opt<bool>
-Force("f", cl::desc("Enable binary output on terminals"));
+    SetImporting("set-importing",
+                 cl::desc("Set lazy loading to pretend to import a module"),
+                 cl::Hidden);
 
 static cl::opt<bool>
-DontPrint("disable-output", cl::desc("Don't output the .ll file"), cl::Hidden);
-
-static cl::opt<bool>
-ShowAnnotations("show-annotations",
-                cl::desc("Add informational comments to the .ll file"));
+    ShowAnnotations("show-annotations",
+                    cl::desc("Add informational comments to the .ll file"));
 
 static cl::opt<bool> PreserveAssemblyUseListOrder(
     "preserve-ll-uselistorder",
@@ -77,7 +82,7 @@ class CommentWriter : public AssemblyAnnotationWriter {
 public:
   void emitFunctionAnnot(const Function *F,
                          formatted_raw_ostream &OS) override {
-    OS << "; [#uses=" << F->getNumUses() << ']';  // Output # uses
+    OS << "; [#uses=" << F->getNumUses() << ']'; // Output # uses
     OS << '\n';
   }
   void printInfoComment(const Value &V, formatted_raw_ostream &OS) override {
@@ -96,7 +101,7 @@ public:
           OS << ";";
         }
         OS << " [debug line = ";
-        printDebugLoc(DL,OS);
+        printDebugLoc(DL, OS);
         OS << "]";
       }
       if (const DbgDeclareInst *DDI = dyn_cast<DbgDeclareInst>(I)) {
@@ -105,8 +110,7 @@ public:
           OS << ";";
         }
         OS << " [debug variable = " << DDI->getVariable()->getName() << "]";
-      }
-      else if (const DbgValueInst *DVI = dyn_cast<DbgValueInst>(I)) {
+      } else if (const DbgValueInst *DVI = dyn_cast<DbgValueInst>(I)) {
         if (!Padded) {
           OS.PadToColumn(50);
           OS << ";";
@@ -123,10 +127,18 @@ static void diagnosticHandler(const DiagnosticInfo &DI, void *Context) {
   raw_ostream &OS = errs();
   OS << (char *)Context << ": ";
   switch (DI.getSeverity()) {
-  case DS_Error: OS << "error: "; break;
-  case DS_Warning: OS << "warning: "; break;
-  case DS_Remark: OS << "remark: "; break;
-  case DS_Note: OS << "note: "; break;
+  case DS_Error:
+    OS << "error: ";
+    break;
+  case DS_Warning:
+    OS << "warning: ";
+    break;
+  case DS_Remark:
+    OS << "remark: ";
+    break;
+  case DS_Note:
+    OS << "note: ";
+    break;
   }
 
   DiagnosticPrinterRawOStream DP(OS);
@@ -142,9 +154,9 @@ static ExitOnError ExitOnErr;
 static std::unique_ptr<Module> openInputFile(LLVMContext &Context) {
   std::unique_ptr<MemoryBuffer> MB =
       ExitOnErr(errorOrToExpected(MemoryBuffer::getFileOrSTDIN(InputFilename)));
-  std::unique_ptr<Module> M =
-      ExitOnErr(getOwningLazyBitcodeModule(std::move(MB), Context,
-                                           /*ShouldLazyLoadMetadata=*/true));
+  std::unique_ptr<Module> M = ExitOnErr(getOwningLazyBitcodeModule(
+      std::move(MB), Context,
+      /*ShouldLazyLoadMetadata=*/true, SetImporting));
   if (MaterializeMetadata)
     ExitOnErr(M->materializeMetadata());
   else
@@ -160,7 +172,7 @@ int main(int argc, char **argv) {
   ExitOnErr.setBanner(std::string(argv[0]) + ": error: ");
 
   LLVMContext Context;
-  llvm_shutdown_obj Y;  // Call llvm_shutdown() on exit.
+  llvm_shutdown_obj Y; // Call llvm_shutdown() on exit.
 
   Context.setDiagnosticHandler(diagnosticHandler, argv[0]);
 
