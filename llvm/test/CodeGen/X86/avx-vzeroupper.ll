@@ -97,8 +97,8 @@ define <4 x float> @test02(<8 x float> %a, <8 x float> %b) nounwind {
   ret <4 x float> %call3
 }
 
-;; Test the pass convergence and also that vzeroupper is only issued when necessary,
-;; for this function it should be only once
+;; Test the pass convergence and also that vzeroupper is only issued when necessary.
+;; For this function, there is no vzeroupper because only half of the 32-byte load was used.
 
 define <4 x float> @test03(<4 x float> %a, <4 x float> %b) nounwind {
 ; VZ-LABEL: test03:
@@ -121,9 +121,7 @@ define <4 x float> @test03(<4 x float> %a, <4 x float> %b) nounwind {
 ; VZ-NEXT:    # =>This Inner Loop Header: Depth=1
 ; VZ-NEXT:    callq do_sse
 ; VZ-NEXT:    callq do_sse
-; VZ-NEXT:    vmovaps {{.*}}(%rip), %ymm0
-; VZ-NEXT:    vextractf128 $1, %ymm0, %xmm0
-; VZ-NEXT:    vzeroupper
+; VZ-NEXT:    vmovaps g+{{.*}}(%rip), %xmm0
 ; VZ-NEXT:    callq do_sse
 ; VZ-NEXT:    decl %ebx
 ; VZ-NEXT:    jne .LBB3_3
@@ -152,8 +150,7 @@ define <4 x float> @test03(<4 x float> %a, <4 x float> %b) nounwind {
 ; FAST-YMM-ZMM-NEXT:    # =>This Inner Loop Header: Depth=1
 ; FAST-YMM-ZMM-NEXT:    callq do_sse
 ; FAST-YMM-ZMM-NEXT:    callq do_sse
-; FAST-YMM-ZMM-NEXT:    vmovaps {{.*}}(%rip), %ymm0
-; FAST-YMM-ZMM-NEXT:    vextractf128 $1, %ymm0, %xmm0
+; FAST-YMM-ZMM-NEXT:    vmovaps g+{{.*}}(%rip), %xmm0
 ; FAST-YMM-ZMM-NEXT:    callq do_sse
 ; FAST-YMM-ZMM-NEXT:    decl %ebx
 ; FAST-YMM-ZMM-NEXT:    jne .LBB3_3
@@ -182,8 +179,7 @@ define <4 x float> @test03(<4 x float> %a, <4 x float> %b) nounwind {
 ; BTVER2-NEXT:    # =>This Inner Loop Header: Depth=1
 ; BTVER2-NEXT:    callq do_sse
 ; BTVER2-NEXT:    callq do_sse
-; BTVER2-NEXT:    vmovaps {{.*}}(%rip), %ymm0
-; BTVER2-NEXT:    vextractf128 $1, %ymm0, %xmm0
+; BTVER2-NEXT:    vmovaps g+{{.*}}(%rip), %xmm0
 ; BTVER2-NEXT:    callq do_sse
 ; BTVER2-NEXT:    decl %ebx
 ; BTVER2-NEXT:    jne .LBB3_3

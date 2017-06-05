@@ -53,7 +53,7 @@ define <8 x float> @shuffle_v8f32_01230123_mem(<8 x float>* %pa, <8 x float>* %p
 ; AVX1-LABEL: shuffle_v8f32_01230123_mem:
 ; AVX1:       ## BB#0: ## %entry
 ; AVX1-NEXT:    vmovaps (%rdi), %ymm0
-; AVX1-NEXT:    vinsertf128 $1, %xmm0, %ymm0, %ymm0
+; AVX1-NEXT:    vinsertf128 $1, (%rdi), %ymm0, %ymm0
 ; AVX1-NEXT:    retq
 ;
 ; AVX2-LABEL: shuffle_v8f32_01230123_mem:
@@ -194,10 +194,10 @@ entry:
 define <16 x i16> @shuffle_v16i16_4501_mem(<16 x i16>* %a, <16 x i16>* %b) nounwind uwtable readnone ssp {
 ; AVX1-LABEL: shuffle_v16i16_4501_mem:
 ; AVX1:       ## BB#0: ## %entry
-; AVX1-NEXT:    vmovdqa (%rdi), %ymm0
-; AVX1-NEXT:    vmovaps (%rsi), %ymm1
-; AVX1-NEXT:    vpaddw {{.*}}(%rip), %xmm0, %xmm0
-; AVX1-NEXT:    vinsertf128 $1, %xmm0, %ymm1, %ymm0
+; AVX1-NEXT:    vmovaps (%rsi), %ymm0
+; AVX1-NEXT:    vmovdqa (%rdi), %xmm1
+; AVX1-NEXT:    vpaddw {{.*}}(%rip), %xmm1, %xmm1
+; AVX1-NEXT:    vinsertf128 $1, %xmm1, %ymm0, %ymm0
 ; AVX1-NEXT:    retq
 ;
 ; AVX2-LABEL: shuffle_v16i16_4501_mem:

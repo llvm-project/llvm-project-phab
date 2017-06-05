@@ -10,7 +10,8 @@ declare <8 x i8> @llvm.arm.neon.vtbl2(<8 x i8> %shuffle.i.i307, <8 x i8> %shuffl
 ;
 ; CHECK-LABEL: motivatingExample:
 ; CHECK: vldr [[ARG2_VAL:d[0-9]+]], [r1]
-; CHECK-NEXT: vld1.32 {[[ARG1_VALlo:d[0-9]+]], [[ARG1_VALhi:d[0-9]+]]}, [r0]
+; CHECK-NEXT: vld1.8 {[[ARG1_VALlo:d[0-9]+]]}, [r0]
+; CHECK-NEXT: vldr [[ARG1_VALhi:d[0-9]+]], [r0]
 ; CHECK-NEXT: vtbl.8 [[RES:d[0-9]+]], {[[ARG1_VALlo]], [[ARG1_VALhi]]}, [[ARG2_VAL]]
 ; CHECK-NEXT: vstr [[RES]], [r1]
 ; CHECK-NEXT: bx lr

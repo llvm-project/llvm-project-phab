@@ -35,8 +35,8 @@ define void @shuffle_v64i8_to_v32i8(<64 x i8>* %L, <32 x i8>* %S) nounwind {
 ;
 ; AVX512BW-LABEL: shuffle_v64i8_to_v32i8:
 ; AVX512BW:       # BB#0:
-; AVX512BW-NEXT:    vmovdqu8 (%rdi), %zmm0
-; AVX512BW-NEXT:    vextracti64x4 $1, %zmm0, %ymm1
+; AVX512BW-NEXT:    vmovdqa (%rdi), %ymm0
+; AVX512BW-NEXT:    vmovdqa 32(%rdi), %ymm1
 ; AVX512BW-NEXT:    vpshufb {{.*#+}} ymm1 = ymm1[u,u,u,u,u,u,u,u,0,2,4,6,8,10,12,14,u,u,u,u,u,u,u,u,16,18,20,22,24,26,28,30]
 ; AVX512BW-NEXT:    vpshufb {{.*#+}} ymm0 = ymm0[0,2,4,6,8,10,12,14,u,u,u,u,u,u,u,u,16,18,20,22,24,26,28,30,u,u,u,u,u,u,u,u]
 ; AVX512BW-NEXT:    vpblendd {{.*#+}} ymm0 = ymm0[0,1],ymm1[2,3],ymm0[4,5],ymm1[6,7]
@@ -47,8 +47,8 @@ define void @shuffle_v64i8_to_v32i8(<64 x i8>* %L, <32 x i8>* %S) nounwind {
 ;
 ; AVX512BWVL-LABEL: shuffle_v64i8_to_v32i8:
 ; AVX512BWVL:       # BB#0:
-; AVX512BWVL-NEXT:    vmovdqu8 (%rdi), %zmm0
-; AVX512BWVL-NEXT:    vextracti64x4 $1, %zmm0, %ymm1
+; AVX512BWVL-NEXT:    vmovdqu (%rdi), %ymm0
+; AVX512BWVL-NEXT:    vmovdqu 32(%rdi), %ymm1
 ; AVX512BWVL-NEXT:    vpshufb {{.*#+}} ymm1 = ymm1[u,u,u,u,u,u,u,u,0,2,4,6,8,10,12,14,u,u,u,u,u,u,u,u,16,18,20,22,24,26,28,30]
 ; AVX512BWVL-NEXT:    vpshufb {{.*#+}} ymm0 = ymm0[0,2,4,6,8,10,12,14,u,u,u,u,u,u,u,u,16,18,20,22,24,26,28,30,u,u,u,u,u,u,u,u]
 ; AVX512BWVL-NEXT:    vpblendd {{.*#+}} ymm0 = ymm0[0,1],ymm1[2,3],ymm0[4,5],ymm1[6,7]
@@ -132,13 +132,11 @@ define void @shuffle_v32i16_to_v16i16(<32 x i16>* %L, <16 x i16>* %S) nounwind {
 ;
 ; AVX512BW-LABEL: shuffle_v32i16_to_v16i16:
 ; AVX512BW:       # BB#0:
-; AVX512BW-NEXT:    vmovdqu16 (%rdi), %zmm0
-; AVX512BW-NEXT:    vextracti64x4 $1, %zmm0, %ymm1
-; AVX512BW-NEXT:    vpshuflw {{.*#+}} ymm1 = ymm1[0,2,2,3,4,5,6,7,8,10,10,11,12,13,14,15]
-; AVX512BW-NEXT:    vpshufhw {{.*#+}} ymm1 = ymm1[0,1,2,3,4,6,6,7,8,9,10,11,12,14,14,15]
-; AVX512BW-NEXT:    vpshuflw {{.*#+}} ymm0 = ymm0[0,2,2,3,4,5,6,7,8,10,10,11,12,13,14,15]
+; AVX512BW-NEXT:    vpshuflw {{.*#+}} ymm0 = mem[0,2,2,3,4,5,6,7,8,10,10,11,12,13,14,15]
 ; AVX512BW-NEXT:    vpshufhw {{.*#+}} ymm0 = ymm0[0,1,2,3,4,6,6,7,8,9,10,11,12,14,14,15]
-; AVX512BW-NEXT:    vshufps {{.*#+}} ymm0 = ymm0[0,2],ymm1[0,2],ymm0[4,6],ymm1[4,6]
+; AVX512BW-NEXT:    vpshuflw {{.*#+}} ymm1 = mem[0,2,2,3,4,5,6,7,8,10,10,11,12,13,14,15]
+; AVX512BW-NEXT:    vpshufhw {{.*#+}} ymm1 = ymm1[0,1,2,3,4,6,6,7,8,9,10,11,12,14,14,15]
+; AVX512BW-NEXT:    vshufps {{.*#+}} ymm0 = ymm1[0,2],ymm0[0,2],ymm1[4,6],ymm0[4,6]
 ; AVX512BW-NEXT:    vpermq {{.*#+}} ymm0 = ymm0[0,2,1,3]
 ; AVX512BW-NEXT:    vmovdqa %ymm0, (%rsi)
 ; AVX512BW-NEXT:    vzeroupper
@@ -146,11 +144,10 @@ define void @shuffle_v32i16_to_v16i16(<32 x i16>* %L, <16 x i16>* %S) nounwind {
 ;
 ; AVX512BWVL-LABEL: shuffle_v32i16_to_v16i16:
 ; AVX512BWVL:       # BB#0:
-; AVX512BWVL-NEXT:    vmovdqu16 (%rdi), %zmm0
-; AVX512BWVL-NEXT:    vextracti64x4 $1, %zmm0, %ymm1
-; AVX512BWVL-NEXT:    vmovdqu {{.*#+}} ymm2 = [0,2,4,6,16,18,20,22,8,10,12,14,24,26,28,30]
-; AVX512BWVL-NEXT:    vpermi2w %ymm1, %ymm0, %ymm2
-; AVX512BWVL-NEXT:    vpermq {{.*#+}} ymm0 = ymm2[0,2,1,3]
+; AVX512BWVL-NEXT:    vmovdqu (%rdi), %ymm0
+; AVX512BWVL-NEXT:    vmovdqu {{.*#+}} ymm1 = [0,2,4,6,16,18,20,22,8,10,12,14,24,26,28,30]
+; AVX512BWVL-NEXT:    vpermi2w 32(%rdi), %ymm0, %ymm1
+; AVX512BWVL-NEXT:    vpermq {{.*#+}} ymm0 = ymm1[0,2,1,3]
 ; AVX512BWVL-NEXT:    vmovdqu %ymm0, (%rsi)
 ; AVX512BWVL-NEXT:    vzeroupper
 ; AVX512BWVL-NEXT:    retq
@@ -177,9 +174,8 @@ define void @trunc_v16i32_to_v16i16(<32 x i16>* %L, <16 x i16>* %S) nounwind {
 define void @shuffle_v16i32_to_v8i32(<16 x i32>* %L, <8 x i32>* %S) nounwind {
 ; AVX512-LABEL: shuffle_v16i32_to_v8i32:
 ; AVX512:       # BB#0:
-; AVX512-NEXT:    vmovdqa32 (%rdi), %zmm0
-; AVX512-NEXT:    vextracti64x4 $1, %zmm0, %ymm1
-; AVX512-NEXT:    vshufps {{.*#+}} ymm0 = ymm0[0,2],ymm1[0,2],ymm0[4,6],ymm1[4,6]
+; AVX512-NEXT:    vmovaps (%rdi), %ymm0
+; AVX512-NEXT:    vshufps {{.*#+}} ymm0 = ymm0[0,2],mem[0,2],ymm0[4,6],mem[4,6]
 ; AVX512-NEXT:    vpermq {{.*#+}} ymm0 = ymm0[0,2,1,3]
 ; AVX512-NEXT:    vmovdqa %ymm0, (%rsi)
 ; AVX512-NEXT:    vzeroupper
