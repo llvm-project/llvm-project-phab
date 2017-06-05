@@ -241,10 +241,10 @@ define <4 x i16> @test_multisource(<32 x i16>* %B) nounwind {
 define <4 x i16> @test_largespan(<8 x i16>* %B) nounwind {
 ; CHECK-LABEL: test_largespan:
 ; CHECK:       @ BB#0:
-; CHECK-NEXT:    vld1.64 {d16, d17}, [r0]
-; CHECK-NEXT:    vorr d18, d16, d16
-; CHECK-NEXT:    vuzp.16 d18, d17
-; CHECK-NEXT:    vmov r0, r1, d18
+; CHECK-NEXT:    vld1.16 {d16}, [r0:64]!
+; CHECK-NEXT:    vldr d17, [r0]
+; CHECK-NEXT:    vuzp.16 d16, d17
+; CHECK-NEXT:    vmov r0, r1, d16
 ; CHECK-NEXT:    mov pc, lr
         %tmp1 = load <8 x i16>, <8 x i16>* %B
         %tmp2 = shufflevector <8 x i16> %tmp1, <8 x i16> undef, <4 x i32> <i32 0, i32 2, i32 4, i32 6>
