@@ -1,0 +1,67 @@
+# Executable created as :
+# a.cpp
+# int bar() {
+#   throw (1);
+#   return 0;
+# }
+#
+# int foo() {
+#   int x;
+#   try{
+#     x = bar();
+#   } catch (int a) {
+#     x = 0;
+#   }
+#   return x;
+# }
+#
+# int main() {
+#   return foo();
+# }
+#  clang++ a.cpp
+#RUN: llvm-readobj -u %p/Inputs/unwind.exe | FileCheck %s
+#CHECK: UnwindInformation {
+#CHECK:   UnwindIndexTable {
+#CHECK:     SectionIndex: 16
+#CHECK:     SectionName: .ARM.exidx
+#CHECK:     SectionOffset: 0x784
+#CHECK:     Entries [
+#CHECK:       Entry {
+#CHECK:         FunctionAddress: 0x8534
+#CHECK:         FunctionName: _start
+#CHECK:         Model: CantUnwind
+#CHECK:       }
+#CHECK:       Entry {
+#CHECK:         FunctionAddress: 0x8620
+#CHECK:         FunctionName: _Z3barv
+#CHECK:         Model: Compact (Inline)
+#CHECK:         PersonalityIndex: 0
+#CHECK:         Opcodes [
+#CHECK:           0x9B      ; vsp = r11
+#CHECK:           0x84 0x80 ; pop {fp, lr}
+#CHECK:         ]
+#CHECK:       }
+#CHECK:       Entry {
+#CHECK:         FunctionAddress: 0x864C
+#CHECK:         FunctionName: _Z3foov
+#CHECK:         ExceptionHandlingTable: .ARM.extab
+#CHECK:         TableEntryOffset: 0x8754
+#CHECK:         Model: Generic
+#CHECK:         PersonalityRoutineAddress: 0x8528
+#CHECK:       }
+#CHECK:       Entry {
+#CHECK:         FunctionAddress: 0x86B0
+#CHECK:         FunctionName: main
+#CHECK:         Model: Compact (Inline)
+#CHECK:         PersonalityIndex: 0
+#CHECK:         Opcodes [
+#CHECK:           0x9B      ; vsp = r11
+#CHECK:           0x84 0x80 ; pop {fp, lr}
+#CHECK:         ]
+#CHECK:       }
+#CHECK:       Entry {
+#CHECK:         FunctionAddress: 0x86D4
+#CHECK:         FunctionName: __libc_csu_init
+#CHECK:         Model: CantUnwind
+#CHECK:       }
+#CHECK:     ]

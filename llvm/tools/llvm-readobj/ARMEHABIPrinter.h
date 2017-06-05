@@ -306,6 +306,7 @@ void OpcodeDecoder::Decode(const uint8_t *Opcodes, off_t Offset, size_t Length) 
 
 template <typename ET>
 class PrinterContext {
+  typedef typename object::ELFFile<ET>::Elf_Ehdr Elf_Ehdr;
   typedef typename object::ELFFile<ET>::Elf_Sym Elf_Sym;
   typedef typename object::ELFFile<ET>::Elf_Shdr Elf_Shdr;
   typedef typename object::ELFFile<ET>::Elf_Rel Elf_Rel;
@@ -320,14 +321,15 @@ class PrinterContext {
 
   static uint64_t PREL31(uint32_t Address, uint32_t Place) {
     uint64_t Location = Address & 0x7fffffff;
-    if (Location & 0x04000000)
+    if (Location & 0x40000000)
       Location |= (uint64_t) ~0x7fffffff;
     return Location + Place;
   }
 
   ErrorOr<StringRef> FunctionAtAddress(unsigned Section, uint64_t Address) const;
   const Elf_Shdr *FindExceptionTable(unsigned IndexTableIndex,
-                                     off_t IndexTableOffset) const;
+                                     off_t IndexTableOffset,
+                                     uint64_t IndexTableAddress) const;
 
   void PrintIndexTable(unsigned SectionIndex, const Elf_Shdr *IT) const;
   void PrintExceptionTable(const Elf_Shdr *IT, const Elf_Shdr *EHT,
@@ -371,7 +373,8 @@ PrinterContext<ET>::FunctionAtAddress(unsigned Section,
 template <typename ET>
 const typename object::ELFFile<ET>::Elf_Shdr *
 PrinterContext<ET>::FindExceptionTable(unsigned IndexSectionIndex,
-                                       off_t IndexTableOffset) const {
+                                       off_t IndexTableOffset,
+                                       uint64_t IndexTableAddress) const {
   /// Iterate through the sections, searching for the relocation section
   /// associated with the unwind index table section specified by
   /// IndexSectionIndex.  Iterate the associated section searching for the
@@ -379,33 +382,49 @@ PrinterContext<ET>::FindExceptionTable(unsigned IndexSectionIndex,
   /// IndexTableOffset.  The symbol is the section symbol for the exception
   /// handling table.  Use this symbol to recover the actual exception handling
   /// table.
+  const Elf_Ehdr *Header = ELF->getHeader();
+  bool IsRelocatable = Header->e_type == ELF::ET_REL;
 
-  for (const Elf_Shdr &Sec : unwrapOrError(ELF->sections())) {
-    if (Sec.sh_type != ELF::SHT_REL || Sec.sh_info != IndexSectionIndex)
-      continue;
-
-    auto SymTabOrErr = ELF->getSection(Sec.sh_link);
-    if (!SymTabOrErr)
-      error(SymTabOrErr.takeError());
-    const Elf_Shdr *SymTab = *SymTabOrErr;
-
-    for (const Elf_Rel &R : unwrapOrError(ELF->rels(&Sec))) {
-      if (R.r_offset != static_cast<unsigned>(IndexTableOffset))
+  if (IsRelocatable) {
+    for (const Elf_Shdr &Sec : unwrapOrError(ELF->sections())) {
+      if (Sec.sh_type != ELF::SHT_REL || Sec.sh_info != IndexSectionIndex)
         continue;
 
-      typename object::ELFFile<ET>::Elf_Rela RelA;
-      RelA.r_offset = R.r_offset;
-      RelA.r_info = R.r_info;
-      RelA.r_addend = 0;
+      auto SymTabOrErr = ELF->getSection(Sec.sh_link);
+      if (!SymTabOrErr)
+        error(SymTabOrErr.takeError());
+      const Elf_Shdr *SymTab = *SymTabOrErr;
 
-      const Elf_Sym *Symbol =
-          unwrapOrError(ELF->getRelocationSymbol(&RelA, SymTab));
+      for (const Elf_Rel &R : unwrapOrError(ELF->rels(&Sec))) {
+        if (R.r_offset != static_cast<unsigned>(IndexTableOffset))
+          continue;
 
-      auto Ret = ELF->getSection(Symbol, SymTab, ShndxTable);
-      if (!Ret)
-        report_fatal_error(errorToErrorCode(Ret.takeError()).message());
-      return *Ret;
+        typename object::ELFFile<ET>::Elf_Rela RelA;
+        RelA.r_offset = R.r_offset;
+        RelA.r_info = R.r_info;
+        RelA.r_addend = 0;
+
+        const Elf_Sym *Symbol =
+            unwrapOrError(ELF->getRelocationSymbol(&RelA, SymTab));
+
+        auto Ret = ELF->getSection(Symbol, SymTab, ShndxTable);
+        if (!Ret)
+          report_fatal_error(errorToErrorCode(Ret.takeError()).message());
+        return *Ret;
+      }
     }
+  } else {
+    unsigned SectionIndex = 0;
+    for (const Elf_Shdr &Sec : unwrapOrError(ELF->sections())) {
+      if (IndexTableAddress >= Sec.sh_addr &&
+          IndexTableAddress < Sec.sh_addr + Sec.sh_size)
+        break;
+      ++SectionIndex;
+    }
+    auto Ret = ELF->getSection(SectionIndex);
+    if (!Ret)
+      report_fatal_error(errorToErrorCode(Ret.takeError()).message());
+    return *Ret;
   }
   return nullptr;
 }
@@ -442,7 +461,8 @@ void PrinterContext<ET>::PrintExceptionTable(const Elf_Shdr *IT,
   /// |  more personality routine data   |
 
   const support::ulittle32_t Word =
-    *reinterpret_cast<const support::ulittle32_t *>(Contents->data() + TableEntryOffset);
+      *reinterpret_cast<const support::ulittle32_t *>(
+          Contents->data() + TableEntryOffset - EHT->sh_addr);
 
   if (Word & 0x80000000) {
     SW.printString("Model", StringRef("Compact"));
@@ -499,6 +519,9 @@ void PrinterContext<ET>::PrintIndexTable(unsigned SectionIndex,
     reinterpret_cast<const support::ulittle32_t *>(Contents->data());
   const unsigned Entries = IT->sh_size / IndexTableEntrySize;
 
+  const Elf_Ehdr *Header = ELF->getHeader();
+  bool IsRelocatable = Header->e_type == ELF::ET_REL;
+
   ListScope E(SW, "Entries");
   for (unsigned Entry = 0; Entry < Entries; ++Entry) {
     DictScope E(SW, "Entry");
@@ -513,7 +536,12 @@ void PrinterContext<ET>::PrintIndexTable(unsigned SectionIndex,
       continue;
     }
 
-    const uint64_t Offset = PREL31(Word0, IT->sh_addr);
+    // Relocatables have a section relocation for the Table entry that is fixed
+    // by the linker. Executables already have real prel31 address inside the
+    // table entry
+    uint32_t IdxTabEntry =
+        IsRelocatable ? IT->sh_addr : IT->sh_addr + IndexTableEntrySize * Entry;
+    const uint64_t Offset = PREL31(Word0, IdxTabEntry);
     SW.printHex("FunctionAddress", Offset);
     if (ErrorOr<StringRef> Name = FunctionAtAddress(IT->sh_link, Offset))
       SW.printString("FunctionName", *Name);
@@ -531,13 +559,17 @@ void PrinterContext<ET>::PrintIndexTable(unsigned SectionIndex,
 
       PrintOpcodes(Contents->data() + Entry * IndexTableEntrySize + 4, 3, 1);
     } else {
-      const Elf_Shdr *EHT =
-        FindExceptionTable(SectionIndex, Entry * IndexTableEntrySize + 4);
+      uint64_t ExtabAddr =
+          PREL31(Word1, IT->sh_addr + Entry * IndexTableEntrySize + 4);
+
+      const Elf_Shdr *EHT = FindExceptionTable(
+          SectionIndex, Entry * IndexTableEntrySize + 4, ExtabAddr);
 
       if (auto Name = ELF->getSectionName(EHT))
         SW.printString("ExceptionHandlingTable", *Name);
 
-      uint64_t TableEntryOffset = PREL31(Word1, IT->sh_addr);
+      uint64_t TableEntryOffset =
+          PREL31(Word1, IsRelocatable ? IT->sh_addr : IdxTabEntry + 4);
       SW.printHex("TableEntryOffset", TableEntryOffset);
 
       PrintExceptionTable(IT, EHT, TableEntryOffset);
