@@ -1133,11 +1133,10 @@ def tLSRrr :                    // A8.6.91
                 [(set tGPR:$Rdn, (srl tGPR:$Rn, tGPR:$Rm))]>, Sched<[WriteALU]>;
 
 // Move register
-let isMoveImm = 1 in
+let isMoveImm = 1, isReMaterializable = 1 in
 def tMOVi8 : T1sI<(outs tGPR:$Rd), (ins imm0_255:$imm8), IIC_iMOVi,
                   "mov", "\t$Rd, $imm8",
-                  [(set tGPR:$Rd, imm0_255:$imm8)]>,
-             T1General<{1,0,0,?,?}>, Sched<[WriteALU]> {
+                  [(set tGPR:$Rd, imm0_255:$imm8)]>,             T1General<{1,0,0,?,?}>, Sched<[WriteALU]> {
   // A8.6.96
   bits<3> Rd;
   bits<8> imm8;

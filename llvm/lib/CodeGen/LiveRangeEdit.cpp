@@ -70,7 +70,8 @@ bool LiveRangeEdit::checkRematerializable(VNInfo *VNI,
                                           AliasAnalysis *aa) {
   assert(DefMI && "Missing instruction");
   ScannedRemattable = true;
-  if (!TII.isTriviallyReMaterializable(*DefMI, aa))
+  if (TII.isTriviallyReMaterializable(*DefMI, aa)
+      == TargetInstrInfo::Rematerializability::NO)
     return false;
   Remattable.insert(VNI);
   return true;
@@ -151,6 +152,40 @@ bool LiveRangeEdit::canRematerializeAt(Remat &RM, VNInfo *OrigVNI,
   // If only cheap remats were requested, bail out early.
   if (cheapAsAMove && !TII.isAsCheapAsAMove(*RM.OrigMI))
     return false;
+
+  // The instruction passed the checkRematerializable criterions. Now
+  // that we know the context, we need to make sure the instruction does
+  // not def any additional live registers.
+  if (TII.isTriviallyReMaterializable(*RM.OrigMI, nullptr)
+      == TargetInstrInfo::Rematerializability::YES_BUT_EXTRA_DEFS)
+  {
+    for (unsigned i = 0, e = RM.OrigMI->getNumOperands(); i != e; ++i) {
+      const MachineOperand &MO = RM.OrigMI->getOperand(i);
+      if (!MO.isReg()) continue;
+      unsigned Reg = MO.getReg();
+
+      // Check for a well-behaved physical register.
+      if (TargetRegisterInfo::isPhysicalRegister(Reg) && MO.isDef()) {
+        // A physreg def. We need to make sure the register is dead.
+        SlotIndexes       *Indexes;
+        MachineInstr      *Instruction;
+        MachineBasicBlock *BasicBlock;
+
+        // The interaction with the register allocator isn't entirely clear
+        // to me, so to be on the safe side, never assume registers to be
+        // dead if they are allocatable.
+        if (MRI.isAllocatable(Reg) ||
+            !(Indexes     = LIS.getSlotIndexes()) ||
+            !(Instruction = Indexes->getInstructionFromIndex(UseIdx)) ||
+            !(BasicBlock  = Instruction->getParent()) ||
+            (BasicBlock->computeRegisterLiveness(
+                MRI.getTargetRegisterInfo(), Reg, Instruction)
+              != MachineBasicBlock::LivenessQueryResult::LQR_Dead)) {
+          return false;
+        }
+      }
+    }
+  }
 
   // Verify that all used registers are available with the same values.
   if (!allUsesAvailableAt(RM.OrigMI, DefIdx, UseIdx))
@@ -356,7 +391,9 @@ void LiveRangeEdit::eliminateDeadDef(MachineInstr *MI, ToShrinkSet &ToShrink,
     // the inst for remat of other siblings. The inst is saved in
     // LiveRangeEdit::DeadRemats and will be deleted after all the
     // allocations of the func are done.
-    if (isOrigDef && DeadRemats && TII.isTriviallyReMaterializable(*MI, AA)) {
+    if (isOrigDef && DeadRemats &&
+        TII.isTriviallyReMaterializable(*MI, AA)
+        == TargetInstrInfo::Rematerializability::YES) {
       LiveInterval &NewLI = createEmptyIntervalFrom(Dest);
       NewLI.removeEmptySubRanges();
       VNInfo *VNI = NewLI.getNextValue(Idx, LIS.getVNInfoAllocator());

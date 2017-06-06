@@ -1057,7 +1057,8 @@ bool RegisterCoalescer::reMaterializeTrivialDef(const CoalescerPair &CP,
   }
   if (!TII->isAsCheapAsAMove(*DefMI))
     return false;
-  if (!TII->isTriviallyReMaterializable(*DefMI, AA))
+  if (TII->isTriviallyReMaterializable(*DefMI, AA)
+      != TargetInstrInfo::Rematerializability::YES)
     return false;
   if (!definesFullReg(*DefMI, SrcReg))
     return false;
