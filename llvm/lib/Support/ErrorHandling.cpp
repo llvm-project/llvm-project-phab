@@ -101,7 +101,13 @@ void llvm::report_fatal_error(const Twine &Reason, bool GenCrashDiag) {
   // files registered with RemoveFileOnSignal.
   sys::RunInterruptHandlers();
 
+#ifdef NDEBUG
   exit(1);
+#else
+  // Call abort() in debug builds so the debugger stops at the point of the
+  // error and allows to inspect the backtrace.
+  abort();
+#endif
 }
 
 void llvm::llvm_unreachable_internal(const char *msg, const char *file,
