@@ -60,7 +60,7 @@ public:
     bool hasType(StructType *Ty);
   };
 
-  IRMover(Module &M);
+  IRMover(Module &M, bool OnlyNamedTypes = false);
 
   typedef std::function<void(GlobalValue &)> ValueAdder;
 

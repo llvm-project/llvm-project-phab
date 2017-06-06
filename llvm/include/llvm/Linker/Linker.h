@@ -30,9 +30,10 @@ public:
     None = 0,
     OverrideFromSrc = (1 << 0),
     LinkOnlyNeeded = (1 << 1),
+    DontLinkUnnamedTypes = (1 << 2),
   };
 
-  Linker(Module &M);
+  Linker(Module &M, bool OnlyNamedTypes = false);
 
   /// \brief Link \p Src into the composite.
   ///

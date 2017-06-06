@@ -97,6 +97,10 @@ static cl::opt<bool>
 DumpAsm("d", cl::desc("Print assembly as linked"), cl::Hidden);
 
 static cl::opt<bool>
+NoLinkUnnamedTypes("no-link-unnamed", cl::desc("Don't link unnamed types"),
+                   cl::Hidden);
+
+static cl::opt<bool>
 SuppressWarnings("suppress-warnings", cl::desc("Suppress all linking warnings"),
                  cl::init(false));
 
@@ -361,6 +365,8 @@ int main(int argc, char **argv) {
   unsigned Flags = Linker::Flags::None;
   if (OnlyNeeded)
     Flags |= Linker::Flags::LinkOnlyNeeded;
+  if (NoLinkUnnamedTypes)
+    Flags |= Linker::Flags::DontLinkUnnamedTypes;
 
   // First add all the regular input files
   if (!linkFiles(argv[0], Context, L, InputFilenames, Flags))
