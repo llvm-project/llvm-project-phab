@@ -2571,6 +2571,14 @@ def DIVWE : XOForm_1<31, 427, 0, (outs gprc:$rT), (ins gprc:$rA, gprc:$rB),
                      "divwe $rT, $rA, $rB", IIC_IntDivW,
                      [(set i32:$rT, (int_ppc_divwe gprc:$rA, gprc:$rB))]>,
                      Requires<[HasExtDiv]>;
+
+def MODSW : XForm_8<31, 779, (outs gprc:$rT), (ins gprc:$rA, gprc:$rB),
+                        "modsw $rT, $rA, $rB", IIC_IntDivW,
+                        [(set i32:$rT, (srem i32:$rA, i32:$rB))]>;
+def MODUW : XForm_8<31, 267, (outs gprc:$rT), (ins gprc:$rA, gprc:$rB),
+                        "moduw $rT, $rA, $rB", IIC_IntDivW,
+                        [(set i32:$rT, (urem i32:$rA, i32:$rB))]>;
+
 let Defs = [CR0] in
 def DIVWEo : XOForm_1<31, 427, 0, (outs gprc:$rT), (ins gprc:$rA, gprc:$rB),
                       "divwe. $rT, $rA, $rB", IIC_IntDivW,
