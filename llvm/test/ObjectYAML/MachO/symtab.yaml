@@ -121,7 +121,7 @@ LoadCommands:
       timestamp:       2
       current_version: 7864576
       compatibility_version: 65536
-    PayloadString:   '/usr/lib/libc++.1.dylib'
+    PayloadString:   "/usr/lib/libc++.1.dylib"
     ZeroPadBytes:    1
   - cmd:             LC_LOAD_DYLIB
     cmdsize:         56
@@ -293,7 +293,7 @@ LinkEditData:
       n_desc:          512
       n_value:         0
   StringTable:     
-    - ' '
+    - " "
     - __ZNSt3__1lsINS_11char_traitsIcEEEERNS_13basic_ostreamIcT_EES6_PKc
     - __ZNSt3__124__put_character_sequenceIcNS_11char_traitsIcEEEERNS_13basic_ostreamIT_T0_EES7_PKS4_m
     - __ZNSt3__111char_traitsIcE6lengthEPKc
@@ -478,7 +478,7 @@ LinkEditData:
 #CHECK:       n_desc:          512
 #CHECK:       n_value:         0
 #CHECK:   StringTable:     
-#CHECK:     - ' '
+#CHECK:     - " "
 #CHECK:     - __ZNSt3__1lsINS_11char_traitsIcEEEERNS_13basic_ostreamIcT_EES6_PKc
 #CHECK:     - __ZNSt3__124__put_character_sequenceIcNS_11char_traitsIcEEEERNS_13basic_ostreamIT_T0_EES7_PKS4_m
 #CHECK:     - __ZNSt3__111char_traitsIcE6lengthEPKc

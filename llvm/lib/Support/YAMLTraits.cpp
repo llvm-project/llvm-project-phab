@@ -605,9 +605,9 @@ void Output::endBitSetScalar() {
 void Output::scalarString(StringRef &S, bool MustQuote) {
   this->newLineCheck();
   if (S.empty()) {
-    // Print '' for the empty string because leaving the field empty is not
+    // Print "" for the empty string because leaving the field empty is not
     // allowed.
-    this->outputUpToEndOfLine("''");
+    this->outputUpToEndOfLine("\"\"");
     return;
   }
   if (!MustQuote) {
@@ -615,22 +615,25 @@ void Output::scalarString(StringRef &S, bool MustQuote) {
     this->outputUpToEndOfLine(S);
     return;
   }
-  unsigned i = 0;
-  unsigned j = 0;
   unsigned End = S.size();
-  output("'"); // Starting single quote.
+  SmallString<24> Encoded("\"");
   const char *Base = S.data();
-  while (j < End) {
-    // Escape a single quote by doubling it.
-    if (S[j] == '\'') {
-      output(StringRef(&Base[i], j - i + 1));
-      output("'");
-      i = j + 1;
+  for (unsigned i = 0; i < End; i++) {
+    char C = Base[i];
+    if (C < 32 || C > 126) {
+      static const char hexits[17] = "0123456789abcdef";
+      Encoded += "\\x";
+      Encoded += hexits[(C >> 4) & 0xf];
+      Encoded += hexits[C & 0xf];
+    } else {
+      if (C == '\"' || C == '\\') {
+        Encoded += '\\';
+      }
+      Encoded += C;
     }
-    ++j;
   }
-  output(StringRef(&Base[i], j - i));
-  this->outputUpToEndOfLine("'"); // Ending single quote.
+  Encoded += '\"';
+  this->outputUpToEndOfLine(Encoded);
 }
 
 void Output::blockScalarString(StringRef &S) {

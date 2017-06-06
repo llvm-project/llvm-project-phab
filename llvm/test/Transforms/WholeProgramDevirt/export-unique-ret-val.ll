@@ -11,7 +11,7 @@
 ; SUMMARY-NEXT:     WPDRes:
 ; SUMMARY-NEXT:       0:
 ; SUMMARY-NEXT:         Kind:            Indir
-; SUMMARY-NEXT:         SingleImplName:  ''
+; SUMMARY-NEXT:         SingleImplName:  ""
 ; SUMMARY-NEXT:         ResByArg:
 ; SUMMARY-NEXT:           12,24:
 ; SUMMARY-NEXT:             Kind:            UniqueRetVal
@@ -23,7 +23,7 @@
 ; SUMMARY-NEXT:     WPDRes:
 ; SUMMARY-NEXT:       0:
 ; SUMMARY-NEXT:         Kind:            Indir
-; SUMMARY-NEXT:         SingleImplName:  ''
+; SUMMARY-NEXT:         SingleImplName:  ""
 ; SUMMARY-NEXT:         ResByArg:
 ; SUMMARY-NEXT:           24,12:
 ; SUMMARY-NEXT:             Kind:            UniqueRetVal

@@ -36,7 +36,7 @@
 ; SUMMARY-NEXT:     WPDRes:
 ; SUMMARY-NEXT:       0:
 ; SUMMARY-NEXT:         Kind:            SingleImpl
-; SUMMARY-NEXT:         SingleImplName:  'vf4$merged'
+; SUMMARY-NEXT:         SingleImplName:  "vf4$merged"
 ; SUMMARY-NEXT:         ResByArg:
 ; SUMMARY-NEXT: WithGlobalValueDeadStripping: false
 ; SUMMARY-NEXT: ...

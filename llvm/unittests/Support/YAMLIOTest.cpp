@@ -505,6 +505,8 @@ struct StringTypes {
   llvm::StringRef str9;
   llvm::StringRef str10;
   llvm::StringRef str11;
+  llvm::StringRef str12;
+  llvm::StringRef str13;
   std::string stdstr1;
   std::string stdstr2;
   std::string stdstr3;
@@ -516,6 +518,8 @@ struct StringTypes {
   std::string stdstr9;
   std::string stdstr10;
   std::string stdstr11;
+  std::string stdstr12;
+  std::string stdstr13;
 };
 
 namespace llvm {
@@ -534,6 +538,8 @@ namespace yaml {
       io.mapRequired("str9",      st.str9);
       io.mapRequired("str10",     st.str10);
       io.mapRequired("str11",     st.str11);
+      io.mapRequired("str12",     st.str12);
+      io.mapRequired("str13",     st.str13);
       io.mapRequired("stdstr1",   st.stdstr1);
       io.mapRequired("stdstr2",   st.stdstr2);
       io.mapRequired("stdstr3",   st.stdstr3);
@@ -545,12 +551,21 @@ namespace yaml {
       io.mapRequired("stdstr9",   st.stdstr9);
       io.mapRequired("stdstr10",  st.stdstr10);
       io.mapRequired("stdstr11",  st.stdstr11);
+      io.mapRequired("stdstr12",  st.stdstr12);
+      io.mapRequired("stdstr13",  st.stdstr13);
     }
   };
 }
 }
 
 TEST(YAMLIO, TestReadWriteStringTypes) {
+  static const char quoted[34] =
+      "\001\002\003\004\005\006\007\010\011\012\013\014\015\016\017"
+      "\020\021\022\023\024\025\026\027\030\031\032\033\034\035\036"
+      "\037\000\177";
+  static const char unquoted[] =
+      "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+      "0123456789_-/^.,";
   std::string intermediate;
   {
     StringTypes map;
@@ -565,6 +580,8 @@ TEST(YAMLIO, TestReadWriteStringTypes) {
     map.str9 = "~";
     map.str10 = "0.2e20";
     map.str11 = "0x30";
+    map.str12 = unquoted;
+    map.str13 = llvm::StringRef(quoted, 33);
     map.stdstr1 = "'eee";
     map.stdstr2 = "\"fff";
     map.stdstr3 = "`ggg";
@@ -576,6 +593,8 @@ TEST(YAMLIO, TestReadWriteStringTypes) {
     map.stdstr9 = "~";
     map.stdstr10 = "0.2e20";
     map.stdstr11 = "0x30";
+    map.stdstr12 = unquoted;
+    map.stdstr13 = std::string(quoted, 33);
 
     llvm::raw_string_ostream ostr(intermediate);
     Output yout(ostr);
@@ -583,23 +602,33 @@ TEST(YAMLIO, TestReadWriteStringTypes) {
   }
 
   llvm::StringRef flowOut(intermediate);
-  EXPECT_NE(llvm::StringRef::npos, flowOut.find("'''aaa"));
-  EXPECT_NE(llvm::StringRef::npos, flowOut.find("'\"bbb'"));
-  EXPECT_NE(llvm::StringRef::npos, flowOut.find("'`ccc'"));
-  EXPECT_NE(llvm::StringRef::npos, flowOut.find("'@ddd'"));
-  EXPECT_NE(llvm::StringRef::npos, flowOut.find("''\n"));
-  EXPECT_NE(llvm::StringRef::npos, flowOut.find("'0000000004000000'\n"));
-  EXPECT_NE(llvm::StringRef::npos, flowOut.find("'true'\n"));
-  EXPECT_NE(llvm::StringRef::npos, flowOut.find("'FALSE'\n"));
-  EXPECT_NE(llvm::StringRef::npos, flowOut.find("'~'\n"));
-  EXPECT_NE(llvm::StringRef::npos, flowOut.find("'0.2e20'\n"));
-  EXPECT_NE(llvm::StringRef::npos, flowOut.find("'0x30'\n"));
-  EXPECT_NE(std::string::npos, flowOut.find("'''eee"));
-  EXPECT_NE(std::string::npos, flowOut.find("'\"fff'"));
-  EXPECT_NE(std::string::npos, flowOut.find("'`ggg'"));
-  EXPECT_NE(std::string::npos, flowOut.find("'@hhh'"));
-  EXPECT_NE(std::string::npos, flowOut.find("''\n"));
-  EXPECT_NE(std::string::npos, flowOut.find("'0000000004000000'\n"));
+  EXPECT_NE(llvm::StringRef::npos, flowOut.find("\"'aaa\""));
+  EXPECT_NE(llvm::StringRef::npos, flowOut.find("\"\\\"bbb\""));
+  EXPECT_NE(llvm::StringRef::npos, flowOut.find("\"`ccc\""));
+  EXPECT_NE(llvm::StringRef::npos, flowOut.find("\"@ddd\""));
+  EXPECT_NE(llvm::StringRef::npos, flowOut.find("\"\"\n"));
+  EXPECT_NE(llvm::StringRef::npos, flowOut.find("\"0000000004000000\"\n"));
+  EXPECT_NE(llvm::StringRef::npos, flowOut.find("\"true\"\n"));
+  EXPECT_NE(llvm::StringRef::npos, flowOut.find("\"FALSE\"\n"));
+  EXPECT_NE(llvm::StringRef::npos, flowOut.find("\"~\"\n"));
+  EXPECT_NE(llvm::StringRef::npos, flowOut.find("\"0.2e20\"\n"));
+  EXPECT_NE(llvm::StringRef::npos, flowOut.find("\"0x30\"\n"));
+  EXPECT_NE(llvm::StringRef::npos, flowOut.find(unquoted));
+  EXPECT_NE(llvm::StringRef::npos, flowOut.find(
+      "\"\\x01\\x02\\x03\\x04\\x05\\x06\\x07\\x08\\x09\\x0a\\x0b\\x0c\\x0d\\x0e"
+      "\\x0f\\x10\\x11\\x12\\x13\\x14\\x15\\x16\\x17\\x18\\x19\\x1a\\x1b\\x1c"
+      "\\x1d\\x1e\\x1f\\x00\\x7f\""));
+  EXPECT_NE(std::string::npos, flowOut.find("\"'eee\""));
+  EXPECT_NE(std::string::npos, flowOut.find("\"\\\"fff\""));
+  EXPECT_NE(std::string::npos, flowOut.find("\"`ggg\""));
+  EXPECT_NE(std::string::npos, flowOut.find("\"@hhh\""));
+  EXPECT_NE(std::string::npos, flowOut.find("\"\"\n"));
+  EXPECT_NE(std::string::npos, flowOut.find("\"0000000004000000\"\n"));
+  EXPECT_NE(std::string::npos, flowOut.find(unquoted));
+  EXPECT_NE(llvm::StringRef::npos, flowOut.find(
+      "\"\\x01\\x02\\x03\\x04\\x05\\x06\\x07\\x08\\x09\\x0a\\x0b\\x0c\\x0d\\x0e"
+      "\\x0f\\x10\\x11\\x12\\x13\\x14\\x15\\x16\\x17\\x18\\x19\\x1a\\x1b\\x1c"
+      "\\x1d\\x1e\\x1f\\x00\\x7f\""));
 
   {
     Input yin(intermediate);
@@ -613,12 +642,16 @@ TEST(YAMLIO, TestReadWriteStringTypes) {
     EXPECT_TRUE(map.str4.equals("@ddd"));
     EXPECT_TRUE(map.str5.equals(""));
     EXPECT_TRUE(map.str6.equals("0000000004000000"));
+    EXPECT_TRUE(map.str12.equals(unquoted));
+    EXPECT_TRUE(map.str13.equals(llvm::StringRef(quoted, 33)));
     EXPECT_TRUE(map.stdstr1 == "'eee");
     EXPECT_TRUE(map.stdstr2 == "\"fff");
     EXPECT_TRUE(map.stdstr3 == "`ggg");
     EXPECT_TRUE(map.stdstr4 == "@hhh");
     EXPECT_TRUE(map.stdstr5 == "");
     EXPECT_TRUE(map.stdstr6 == "0000000004000000");
+    EXPECT_TRUE(map.stdstr12 == unquoted);
+    EXPECT_TRUE(map.stdstr13 == std::string(quoted, 33));
   }
 }
 

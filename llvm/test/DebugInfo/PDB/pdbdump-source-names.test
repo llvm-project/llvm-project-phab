@@ -14,7 +14,7 @@ RUN: llvm-pdbdump pdb2yaml -dbi-module-source-info %T/source-names-2.pdb \
 RUN:     | FileCheck -check-prefix=CHECK2 %s
 
 CHECK1: SourceFiles:
-CHECK1: 'C:\src\test.c'
+CHECK1: "C:\\src\\test.c"
 
 CHECK2: SourceFiles:
-CHECK2: 'C:\src\test.cc'
+CHECK2: "C:\\src\\test.cc"

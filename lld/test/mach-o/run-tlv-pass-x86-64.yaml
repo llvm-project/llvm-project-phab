@@ -68,7 +68,7 @@ sections:
                        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 		       0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 ]
 local-symbols:
-  - name:            '_x$tlv$init'
+  - name:            "_x$tlv$init"
     type:            N_SECT
     sect:            2
     value:           0x0000000000000014
@@ -83,17 +83,17 @@ global-symbols:
     scope:           [ N_EXT ]
     sect:            3
     value:           0x0000000000000018
-  - name:            '__tlv_bootstrap'
+  - name:            "__tlv_bootstrap"
     type:            N_SECT
     scope:           [ N_EXT ]
     sect:            4
     value:           0x00000000000000C0
-  - name:            'dyld_stub_binder'
+  - name:            "dyld_stub_binder"
     type:            N_SECT
     scope:           [ N_EXT ]
     sect:            4
     value:           0x00000000000000C8
-  - name:            'start'
+  - name:            "start"
     type:            N_SECT
     scope:           [ N_EXT ]
     sect:            4
@@ -111,8 +111,8 @@ page-size:       0x00000000
 # CHECK-NEXT:         target:          __tlv_bootstrap
 # CHECK-NEXT:       - kind:            tlvInitSectionOffset
 # CHECK-NEXT:         offset:          16
-# CHECK-NEXT:         target:          '_x$tlv$init'
-# CHECK:       - name:            '_x$tlv$init'
+# CHECK-NEXT:         target:          "_x$tlv$init"
+# CHECK:       - name:            "_x$tlv$init"
 # CHECK-NEXT:    type:            tlv-zero-fill
 # CHECK:        - name:            _main
 # CHECK-NOT:    - name:

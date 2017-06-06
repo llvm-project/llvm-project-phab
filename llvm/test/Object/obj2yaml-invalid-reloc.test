@@ -20,7 +20,7 @@ CHECK-NEXT:     AddressAlign:    0x0000000000000008
 CHECK-NEXT:     Info:            .text
 CHECK-NEXT:     Relocations:
 CHECK-NEXT:       - Offset:          0x0000000000000000
-CHECK-NEXT:         Symbol:          ''
+CHECK-NEXT:         Symbol:          ""
 CHECK-NEXT:         Type:            R_X86_64_NONE
 CHECK-NEXT: Symbols:
 CHECK-NEXT:   Local:
@@ -30,7 +30,7 @@ CHECK-NEXT:       Section:         .text
 CHECK-NEXT:       Size:            0x0000000000000005
 CHECK-NEXT:   Global:
 CHECK-NEXT:     - Name:            __dtraceenabled_ruby___array-create
-CHECK-NEXT:     - Name:            '$dtrace1316529.rb_ary_new_capa'
+CHECK-NEXT:     - Name:            "$dtrace1316529.rb_ary_new_capa"
 CHECK-NEXT:       Type:            STT_FUNC
 CHECK-NEXT:       Section:         .text
 CHECK-NEXT:       Size:            0x0000000000000005

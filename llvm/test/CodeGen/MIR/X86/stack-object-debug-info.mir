@@ -1,5 +1,5 @@
 # RUN: llc -march=x86-64 -run-pass none -o - %s | FileCheck %s
-# This test ensures that the MIR parser parses the stack object's debug info
+# This test ensures that the MIR parser parses the stack object"s debug info
 # correctly.
 --- |
   declare void @llvm.dbg.declare(metadata, metadata, metadata) #0
@@ -52,11 +52,11 @@ frameInfo:
 # CHECK-LABEL: foo
 # CHECK: stack:
 # CHECK:  - { id: 0, name: y.i, type: default, offset: 0, size: 256, alignment: 16,
-# CHECK-NEXT: callee-saved-register: '', di-variable: '!4', di-expression: '!10',
-# CHECK-NEXT: di-location: '!11' }
+# CHECK-NEXT: callee-saved-register: "", di-variable: "!4", di-expression: "!10",
+# CHECK-NEXT: di-location: "!11" }
 stack:
-  - { id: 0, name: y.i, offset: 0, size: 256, alignment: 16, di-variable: '!4',
-      di-expression: '!7', di-location: '!8' }
+  - { id: 0, name: y.i, offset: 0, size: 256, alignment: 16, di-variable: "!4",
+      di-expression: "!7", di-location: "!8" }
 body: |
   bb.0.entry:
     successors: %bb.1.for.body

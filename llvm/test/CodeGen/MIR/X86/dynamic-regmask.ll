@@ -24,7 +24,7 @@ define x86_regcallcc {i32, i32, i32} @test_callee(i32 %a0, i32 %b0, i32 %c0, i32
   ret {i32, i32, i32} %b6
 }
 ; CHECK: name:            test_callee
-; CHECK: calleeSavedRegisters: [ '%rbx', '%rbp', '%rsp', '%r10', '%r11', '%r12',
-; CHECK:                         '%r13', '%r14', '%r15', '%xmm8', '%xmm9', '%xmm10',
-; CHECK:                         '%xmm11', '%xmm12', '%xmm13', '%xmm14', '%xmm15' ]
+; CHECK: calleeSavedRegisters: [ "%rbx", "%rbp", "%rsp", "%r10", "%r11", "%r12",
+; CHECK:                         "%r13", "%r14", "%r15", "%xmm8", "%xmm9", "%xmm10",
+; CHECK:                         "%xmm11", "%xmm12", "%xmm13", "%xmm14", "%xmm15" ]
 ; CHECK: RET 0, %eax, %ecx, %edx

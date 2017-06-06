@@ -55,16 +55,16 @@ YAML:       Enum:
 YAML:         NumEnumerators:  5
 YAML:         Options:         [ None, Nested, HasUniqueName ]
 YAML:         FieldList:       4098
-YAML:         Name:            '__vc_attributes::threadingAttribute::threading_e'
-YAML:         UniqueName:      '.?AW4threading_e@threadingAttribute@__vc_attributes@@'
+YAML:         Name:            "__vc_attributes::threadingAttribute::threading_e"
+YAML:         UniqueName:      ".?AW4threading_e@threadingAttribute@__vc_attributes@@"
 YAML:         UnderlyingType:  116
 YAML:     - Kind:            LF_STRUCTURE
 YAML:       Class:           
 YAML:         MemberCount:     0
 YAML:         Options:         [ None, ForwardReference, HasUniqueName ]
 YAML:         FieldList:       0
-YAML:         Name:            '__vc_attributes::threadingAttribute'
-YAML:         UniqueName:      '.?AUthreadingAttribute@__vc_attributes@@'
+YAML:         Name:            "__vc_attributes::threadingAttribute"
+YAML:         UniqueName:      ".?AUthreadingAttribute@__vc_attributes@@"
 YAML:         DerivationList:  0
 YAML:         VTableShape:     0
 YAML:         Size:            0
@@ -101,11 +101,11 @@ YAML:         Methods:
 YAML:           - Type:            4103
 YAML:             Attrs:           3
 YAML:             VFTableOffset:   -1
-YAML:             Name:            ''
+YAML:             Name:            ""
 YAML:           - Type:            4104
 YAML:             Attrs:           3
 YAML:             VFTableOffset:   -1
-YAML:             Name:            ''
+YAML:             Name:            ""
 YAML:     - Kind:            LF_FIELDLIST
 YAML:       FieldList:       
 YAML:         - Kind:            LF_NESTTYPE
@@ -128,8 +128,8 @@ YAML:       Class:
 YAML:         MemberCount:     4
 YAML:         Options:         [ None, HasConstructorOrDestructor, ContainsNestedClass, HasUniqueName ]
 YAML:         FieldList:       4106
-YAML:         Name:            '__vc_attributes::threadingAttribute'
-YAML:         UniqueName:      '.?AUthreadingAttribute@__vc_attributes@@'
+YAML:         Name:            "__vc_attributes::threadingAttribute"
+YAML:         UniqueName:      ".?AUthreadingAttribute@__vc_attributes@@"
 YAML:         DerivationList:  0
 YAML:         VTableShape:     0
 YAML:         Size:            4
@@ -155,16 +155,16 @@ YAML:       Enum:
 YAML:         NumEnumerators:  3
 YAML:         Options:         [ None, Nested, HasUniqueName ]
 YAML:         FieldList:       4108
-YAML:         Name:            '__vc_attributes::event_receiverAttribute::type_e'
-YAML:         UniqueName:      '.?AW4type_e@event_receiverAttribute@__vc_attributes@@'
+YAML:         Name:            "__vc_attributes::event_receiverAttribute::type_e"
+YAML:         UniqueName:      ".?AW4type_e@event_receiverAttribute@__vc_attributes@@"
 YAML:         UnderlyingType:  116
 YAML:     - Kind:            LF_STRUCTURE
 YAML:       Class:           
 YAML:         MemberCount:     0
 YAML:         Options:         [ None, ForwardReference, HasUniqueName ]
 YAML:         FieldList:       0
-YAML:         Name:            '__vc_attributes::event_receiverAttribute'
-YAML:         UniqueName:      '.?AUevent_receiverAttribute@__vc_attributes@@'
+YAML:         Name:            "__vc_attributes::event_receiverAttribute"
+YAML:         UniqueName:      ".?AUevent_receiverAttribute@__vc_attributes@@"
 YAML:         DerivationList:  0
 YAML:         VTableShape:     0
 YAML:         Size:            0
@@ -214,15 +214,15 @@ YAML:         Methods:
 YAML:           - Type:            4113
 YAML:             Attrs:           3
 YAML:             VFTableOffset:   -1
-YAML:             Name:            ''
+YAML:             Name:            ""
 YAML:           - Type:            4115
 YAML:             Attrs:           3
 YAML:             VFTableOffset:   -1
-YAML:             Name:            ''
+YAML:             Name:            ""
 YAML:           - Type:            4116
 YAML:             Attrs:           3
 YAML:             VFTableOffset:   -1
-YAML:             Name:            ''
+YAML:             Name:            ""
 YAML:     - Kind:            LF_FIELDLIST
 YAML:       FieldList:       
 YAML:         - Kind:            LF_NESTTYPE
@@ -251,8 +251,8 @@ YAML:       Class:
 YAML:         MemberCount:     6
 YAML:         Options:         [ None, HasConstructorOrDestructor, ContainsNestedClass, HasUniqueName ]
 YAML:         FieldList:       4118
-YAML:         Name:            '__vc_attributes::event_receiverAttribute'
-YAML:         UniqueName:      '.?AUevent_receiverAttribute@__vc_attributes@@'
+YAML:         Name:            "__vc_attributes::event_receiverAttribute"
+YAML:         UniqueName:      ".?AUevent_receiverAttribute@__vc_attributes@@"
 YAML:         DerivationList:  0
 YAML:         VTableShape:     0
 YAML:         Size:            8
@@ -278,16 +278,16 @@ YAML:       Enum:
 YAML:         NumEnumerators:  3
 YAML:         Options:         [ None, Nested, HasUniqueName ]
 YAML:         FieldList:       4120
-YAML:         Name:            '__vc_attributes::aggregatableAttribute::type_e'
-YAML:         UniqueName:      '.?AW4type_e@aggregatableAttribute@__vc_attributes@@'
+YAML:         Name:            "__vc_attributes::aggregatableAttribute::type_e"
+YAML:         UniqueName:      ".?AW4type_e@aggregatableAttribute@__vc_attributes@@"
 YAML:         UnderlyingType:  116
 YAML:     - Kind:            LF_STRUCTURE
 YAML:       Class:           
 YAML:         MemberCount:     0
 YAML:         Options:         [ None, ForwardReference, HasUniqueName ]
 YAML:         FieldList:       0
-YAML:         Name:            '__vc_attributes::aggregatableAttribute'
-YAML:         UniqueName:      '.?AUaggregatableAttribute@__vc_attributes@@'
+YAML:         Name:            "__vc_attributes::aggregatableAttribute"
+YAML:         UniqueName:      ".?AUaggregatableAttribute@__vc_attributes@@"
 YAML:         DerivationList:  0
 YAML:         VTableShape:     0
 YAML:         Size:            0
@@ -324,11 +324,11 @@ YAML:         Methods:
 YAML:           - Type:            4125
 YAML:             Attrs:           3
 YAML:             VFTableOffset:   -1
-YAML:             Name:            ''
+YAML:             Name:            ""
 YAML:           - Type:            4126
 YAML:             Attrs:           3
 YAML:             VFTableOffset:   -1
-YAML:             Name:            ''
+YAML:             Name:            ""
 YAML:     - Kind:            LF_FIELDLIST
 YAML:       FieldList:       
 YAML:         - Kind:            LF_NESTTYPE
@@ -351,8 +351,8 @@ YAML:       Class:
 YAML:         MemberCount:     4
 YAML:         Options:         [ None, HasConstructorOrDestructor, ContainsNestedClass, HasUniqueName ]
 YAML:         FieldList:       4128
-YAML:         Name:            '__vc_attributes::aggregatableAttribute'
-YAML:         UniqueName:      '.?AUaggregatableAttribute@__vc_attributes@@'
+YAML:         Name:            "__vc_attributes::aggregatableAttribute"
+YAML:         UniqueName:      ".?AUaggregatableAttribute@__vc_attributes@@"
 YAML:         DerivationList:  0
 YAML:         VTableShape:     0
 YAML:         Size:            4
@@ -361,8 +361,8 @@ YAML:       Enum:
 YAML:         NumEnumerators:  3
 YAML:         Options:         [ None, Nested, HasUniqueName ]
 YAML:         FieldList:       4108
-YAML:         Name:            '__vc_attributes::event_sourceAttribute::type_e'
-YAML:         UniqueName:      '.?AW4type_e@event_sourceAttribute@__vc_attributes@@'
+YAML:         Name:            "__vc_attributes::event_sourceAttribute::type_e"
+YAML:         UniqueName:      ".?AW4type_e@event_sourceAttribute@__vc_attributes@@"
 YAML:         UnderlyingType:  116
 YAML:     - Kind:            LF_FIELDLIST
 YAML:       FieldList:       
@@ -381,16 +381,16 @@ YAML:       Enum:
 YAML:         NumEnumerators:  2
 YAML:         Options:         [ None, Nested, HasUniqueName ]
 YAML:         FieldList:       4131
-YAML:         Name:            '__vc_attributes::event_sourceAttribute::optimize_e'
-YAML:         UniqueName:      '.?AW4optimize_e@event_sourceAttribute@__vc_attributes@@'
+YAML:         Name:            "__vc_attributes::event_sourceAttribute::optimize_e"
+YAML:         UniqueName:      ".?AW4optimize_e@event_sourceAttribute@__vc_attributes@@"
 YAML:         UnderlyingType:  116
 YAML:     - Kind:            LF_STRUCTURE
 YAML:       Class:           
 YAML:         MemberCount:     0
 YAML:         Options:         [ None, ForwardReference, HasUniqueName ]
 YAML:         FieldList:       0
-YAML:         Name:            '__vc_attributes::event_sourceAttribute'
-YAML:         UniqueName:      '.?AUevent_sourceAttribute@__vc_attributes@@'
+YAML:         Name:            "__vc_attributes::event_sourceAttribute"
+YAML:         UniqueName:      ".?AUevent_sourceAttribute@__vc_attributes@@"
 YAML:         DerivationList:  0
 YAML:         VTableShape:     0
 YAML:         Size:            0
@@ -427,11 +427,11 @@ YAML:         Methods:
 YAML:           - Type:            4136
 YAML:             Attrs:           3
 YAML:             VFTableOffset:   -1
-YAML:             Name:            ''
+YAML:             Name:            ""
 YAML:           - Type:            4137
 YAML:             Attrs:           3
 YAML:             VFTableOffset:   -1
-YAML:             Name:            ''
+YAML:             Name:            ""
 YAML:     - Kind:            LF_FIELDLIST
 YAML:       FieldList:       
 YAML:         - Kind:            LF_NESTTYPE
@@ -470,8 +470,8 @@ YAML:       Class:
 YAML:         MemberCount:     7
 YAML:         Options:         [ None, HasConstructorOrDestructor, ContainsNestedClass, HasUniqueName ]
 YAML:         FieldList:       4139
-YAML:         Name:            '__vc_attributes::event_sourceAttribute'
-YAML:         UniqueName:      '.?AUevent_sourceAttribute@__vc_attributes@@'
+YAML:         Name:            "__vc_attributes::event_sourceAttribute"
+YAML:         UniqueName:      ".?AUevent_sourceAttribute@__vc_attributes@@"
 YAML:         DerivationList:  0
 YAML:         VTableShape:     0
 YAML:         Size:            12
@@ -512,16 +512,16 @@ YAML:       Enum:
 YAML:         NumEnumerators:  6
 YAML:         Options:         [ None, Nested, HasUniqueName ]
 YAML:         FieldList:       4141
-YAML:         Name:            '__vc_attributes::moduleAttribute::type_e'
-YAML:         UniqueName:      '.?AW4type_e@moduleAttribute@__vc_attributes@@'
+YAML:         Name:            "__vc_attributes::moduleAttribute::type_e"
+YAML:         UniqueName:      ".?AW4type_e@moduleAttribute@__vc_attributes@@"
 YAML:         UnderlyingType:  116
 YAML:     - Kind:            LF_STRUCTURE
 YAML:       Class:           
 YAML:         MemberCount:     0
 YAML:         Options:         [ None, ForwardReference, HasUniqueName ]
 YAML:         FieldList:       0
-YAML:         Name:            '__vc_attributes::moduleAttribute'
-YAML:         UniqueName:      '.?AUmoduleAttribute@__vc_attributes@@'
+YAML:         Name:            "__vc_attributes::moduleAttribute"
+YAML:         UniqueName:      ".?AUmoduleAttribute@__vc_attributes@@"
 YAML:         DerivationList:  0
 YAML:         VTableShape:     0
 YAML:         Size:            0
@@ -580,15 +580,15 @@ YAML:         Methods:
 YAML:           - Type:            4148
 YAML:             Attrs:           3
 YAML:             VFTableOffset:   -1
-YAML:             Name:            ''
+YAML:             Name:            ""
 YAML:           - Type:            4150
 YAML:             Attrs:           3
 YAML:             VFTableOffset:   -1
-YAML:             Name:            ''
+YAML:             Name:            ""
 YAML:           - Type:            4151
 YAML:             Attrs:           3
 YAML:             VFTableOffset:   -1
-YAML:             Name:            ''
+YAML:             Name:            ""
 YAML:     - Kind:            LF_FIELDLIST
 YAML:       FieldList:       
 YAML:         - Kind:            LF_NESTTYPE
@@ -695,8 +695,8 @@ YAML:       Class:
 YAML:         MemberCount:     19
 YAML:         Options:         [ None, HasConstructorOrDestructor, ContainsNestedClass, HasUniqueName ]
 YAML:         FieldList:       4153
-YAML:         Name:            '__vc_attributes::moduleAttribute'
-YAML:         UniqueName:      '.?AUmoduleAttribute@__vc_attributes@@'
+YAML:         Name:            "__vc_attributes::moduleAttribute"
+YAML:         UniqueName:      ".?AUmoduleAttribute@__vc_attributes@@"
 YAML:         DerivationList:  0
 YAML:         VTableShape:     0
 YAML:         Size:            56
@@ -857,16 +857,16 @@ YAML:       Enum:
 YAML:         NumEnumerators:  30
 YAML:         Options:         [ None, Nested, HasUniqueName ]
 YAML:         FieldList:       4155
-YAML:         Name:            '__vc_attributes::helper_attributes::usageAttribute::usage_e'
-YAML:         UniqueName:      '.?AW4usage_e@usageAttribute@helper_attributes@__vc_attributes@@'
+YAML:         Name:            "__vc_attributes::helper_attributes::usageAttribute::usage_e"
+YAML:         UniqueName:      ".?AW4usage_e@usageAttribute@helper_attributes@__vc_attributes@@"
 YAML:         UnderlyingType:  116
 YAML:     - Kind:            LF_STRUCTURE
 YAML:       Class:           
 YAML:         MemberCount:     0
 YAML:         Options:         [ None, ForwardReference, HasUniqueName ]
 YAML:         FieldList:       0
-YAML:         Name:            '__vc_attributes::helper_attributes::usageAttribute'
-YAML:         UniqueName:      '.?AUusageAttribute@helper_attributes@__vc_attributes@@'
+YAML:         Name:            "__vc_attributes::helper_attributes::usageAttribute"
+YAML:         UniqueName:      ".?AUusageAttribute@helper_attributes@__vc_attributes@@"
 YAML:         DerivationList:  0
 YAML:         VTableShape:     0
 YAML:         Size:            0
@@ -910,8 +910,8 @@ YAML:       Class:
 YAML:         MemberCount:     3
 YAML:         Options:         [ None, HasConstructorOrDestructor, ContainsNestedClass, HasUniqueName ]
 YAML:         FieldList:       4161
-YAML:         Name:            '__vc_attributes::helper_attributes::usageAttribute'
-YAML:         UniqueName:      '.?AUusageAttribute@helper_attributes@__vc_attributes@@'
+YAML:         Name:            "__vc_attributes::helper_attributes::usageAttribute"
+YAML:         UniqueName:      ".?AUusageAttribute@helper_attributes@__vc_attributes@@"
 YAML:         DerivationList:  0
 YAML:         VTableShape:     0
 YAML:         Size:            4
@@ -942,16 +942,16 @@ YAML:       Enum:
 YAML:         NumEnumerators:  4
 YAML:         Options:         [ None, Nested, HasUniqueName ]
 YAML:         FieldList:       4163
-YAML:         Name:            '__vc_attributes::helper_attributes::v1_alttypeAttribute::type_e'
-YAML:         UniqueName:      '.?AW4type_e@v1_alttypeAttribute@helper_attributes@__vc_attributes@@'
+YAML:         Name:            "__vc_attributes::helper_attributes::v1_alttypeAttribute::type_e"
+YAML:         UniqueName:      ".?AW4type_e@v1_alttypeAttribute@helper_attributes@__vc_attributes@@"
 YAML:         UnderlyingType:  116
 YAML:     - Kind:            LF_STRUCTURE
 YAML:       Class:           
 YAML:         MemberCount:     0
 YAML:         Options:         [ None, ForwardReference, HasUniqueName ]
 YAML:         FieldList:       0
-YAML:         Name:            '__vc_attributes::helper_attributes::v1_alttypeAttribute'
-YAML:         UniqueName:      '.?AUv1_alttypeAttribute@helper_attributes@__vc_attributes@@'
+YAML:         Name:            "__vc_attributes::helper_attributes::v1_alttypeAttribute"
+YAML:         UniqueName:      ".?AUv1_alttypeAttribute@helper_attributes@__vc_attributes@@"
 YAML:         DerivationList:  0
 YAML:         VTableShape:     0
 YAML:         Size:            0
@@ -995,8 +995,8 @@ YAML:       Class:
 YAML:         MemberCount:     3
 YAML:         Options:         [ None, HasConstructorOrDestructor, ContainsNestedClass, HasUniqueName ]
 YAML:         FieldList:       4169
-YAML:         Name:            '__vc_attributes::helper_attributes::v1_alttypeAttribute'
-YAML:         UniqueName:      '.?AUv1_alttypeAttribute@helper_attributes@__vc_attributes@@'
+YAML:         Name:            "__vc_attributes::helper_attributes::v1_alttypeAttribute"
+YAML:         UniqueName:      ".?AUv1_alttypeAttribute@helper_attributes@__vc_attributes@@"
 YAML:         DerivationList:  0
 YAML:         VTableShape:     0
 YAML:         Size:            4

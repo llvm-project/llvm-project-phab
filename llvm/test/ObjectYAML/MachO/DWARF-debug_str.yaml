@@ -235,14 +235,14 @@ LinkEditData:
       n_desc:          0
       n_value:         4294971296
   StringTable:     
-    - ''
-    - ''
+    - ""
+    - ""
     - __mh_execute_header
     - _main
 DWARF:           
   debug_str:    
-    - ''
-    - 'clang version 4.0.0 (trunk 288677) (llvm/trunk 288676)'
+    - ""
+    - "clang version 4.0.0 (trunk 288677) (llvm/trunk 288676)"
     - hello_world.c
     - /Users/cbieneman/dev/open-source/llvm-build-rel
     - main
@@ -254,8 +254,8 @@ DWARF:
 
 #CHECK: DWARF:           
 #CHECK:   debug_str:    
-#CHECK:     - ''
-#CHECK:     - 'clang version 4.0.0 (trunk 288677) (llvm/trunk 288676)'
+#CHECK:     - ""
+#CHECK:     - "clang version 4.0.0 (trunk 288677) (llvm/trunk 288676)"
 #CHECK:     - hello_world.c
 #CHECK:     - /Users/cbieneman/dev/open-source/llvm-build-rel
 #CHECK:     - main

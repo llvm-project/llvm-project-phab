@@ -2,7 +2,7 @@
 # RUN:   %p/Inputs/hw.raw_bytes -print_atoms | FileCheck %s
 
 # CHECK: --- !native
-# CHECK: path:            '<linker-internal>'
+# CHECK: path:            "<linker-internal>"
 # CHECK: defined-atoms:
 # CHECK:   - scope:           global
 # CHECK:     type:            sectcreate

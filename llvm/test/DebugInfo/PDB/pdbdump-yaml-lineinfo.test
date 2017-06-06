@@ -24,10 +24,10 @@ YAML:   PdbDllRbld:      0
 YAML:   Flags:           1
 YAML:   MachineType:     x86
 YAML:   Modules:
-YAML:   - Module:          'd:\src\llvm\test\DebugInfo\PDB\Inputs\empty.obj'
-YAML:     ObjFile:         'd:\src\llvm\test\DebugInfo\PDB\Inputs\empty.obj'
+YAML:   - Module:          "d:\\src\\llvm\\test\\DebugInfo\\PDB\\Inputs\\empty.obj"
+YAML:     ObjFile:         "d:\\src\\llvm\\test\\DebugInfo\\PDB\\Inputs\\empty.obj"
 YAML:     SourceFiles:
-YAML:       - 'd:\src\llvm\test\debuginfo\pdb\inputs\empty.cpp'
+YAML:       - "d:\\src\\llvm\\test\\debuginfo\\pdb\\inputs\\empty.cpp"
 YAML:     Subsections:
 YAML:       - !Lines
 YAML:         CodeSize:        10
@@ -35,7 +35,7 @@ YAML:         Flags:           [  ]
 YAML:         RelocOffset:     16
 YAML:         RelocSegment:    1
 YAML:         Blocks:
-YAML:           - FileName:        'd:\src\llvm\test\debuginfo\pdb\inputs\empty.cpp'
+YAML:           - FileName:        "d:\\src\\llvm\\test\\debuginfo\\pdb\\inputs\\empty.cpp"
 YAML:             Lines:
 YAML:               - Offset:          0
 YAML:                 LineStart:       5
@@ -52,9 +52,9 @@ YAML:                 EndDelta:        0
 YAML:             Columns:
 YAML:       - !FileChecksums
 YAML:         Checksums:
-YAML:           - FileName:        'd:\src\llvm\test\debuginfo\pdb\inputs\empty.cpp'
+YAML:           - FileName:        "d:\\src\\llvm\\test\\debuginfo\\pdb\\inputs\\empty.cpp"
 YAML:             Kind:            MD5
 YAML:             Checksum:        A0A5BD0D3ECD93FC29D19DE826FBF4BC
-YAML:  - Module:          '* Linker *'
-YAML:    ObjFile:         ''
+YAML:  - Module:          "* Linker *"
+YAML:    ObjFile:         ""
 YAML: ...

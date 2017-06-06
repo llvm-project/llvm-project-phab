@@ -24,10 +24,10 @@
 ; YAML-NEXT: Hotness:         30
 ; YAML-NEXT: Args:
 ; YAML-NEXT:   - Callee: foo
-; YAML-NEXT:   - String: ' will not be inlined into '
+; YAML-NEXT:   - String: " will not be inlined into "
 ; YAML-NEXT:   - Caller: baz
 ; YAML-NEXT:     DebugLoc:        { File: /tmp/s.c, Line: 4, Column: 0 }
-; YAML-NEXT:   - String: ' because its definition is unavailable'
+; YAML-NEXT:   - String: " because its definition is unavailable"
 ; YAML-NEXT: ...
 ; YAML-NEXT: --- !Missed
 ; YAML-NEXT: Pass:            inline
@@ -37,13 +37,13 @@
 ; YAML-NEXT: Hotness:         30
 ; YAML-NEXT: Args:
 ; YAML-NEXT:   - Callee: bar
-; YAML-NEXT:   - String: ' will not be inlined into '
+; YAML-NEXT:   - String: " will not be inlined into "
 ; YAML-NEXT:   - Caller: baz
 ; YAML-NEXT:     DebugLoc:        { File: /tmp/s.c, Line: 4, Column: 0 }
-; YAML-NEXT:   - String: ' because its definition is unavailable'
+; YAML-NEXT:   - String: " because its definition is unavailable"
 ; YAML-NEXT: ...
 
-; ModuleID = '/tmp/s.c'
+; ModuleID = "/tmp/s.c"
 source_filename = "/tmp/s.c"
 target datalayout = "e-m:o-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-apple-macosx10.11.0"
