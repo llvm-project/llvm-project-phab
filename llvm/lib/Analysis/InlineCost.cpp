@@ -142,6 +142,14 @@ class CallAnalyzer : public InstVisitor<CallAnalyzer, bool> {
   /// Keep track of values which map to a pointer base and constant offset.
   DenseMap<Value *, std::pair<Value *, APInt>> ConstantOffsetPtrs;
 
+  /// After SROA finds Stores that can be simplified, the identical loads
+  /// clobbered by these Stores can also be removed.  The simple CSE analysis
+  /// only supports single block callee and quits if there are Stores cannot be
+  /// simplified or function calls in the callee.
+  bool EnableCSELoad;
+  SmallPtrSet<Value *, 12> LoadAddrSet;
+  int CSELoadCost;
+
   // Custom simplification helper routines.
   bool isAllocaDerivedArg(Value *V);
   bool lookupSROAArgAndCost(Value *V, Value *&Arg,
@@ -150,6 +158,7 @@ class CallAnalyzer : public InstVisitor<CallAnalyzer, bool> {
   void disableSROA(Value *V);
   void accumulateSROACost(DenseMap<Value *, int>::iterator CostIt,
                           int InstructionCost);
+  void disableCSELoad();
   bool isGEPFree(GetElementPtrInst &GEP);
   bool accumulateGEPOffset(GEPOperator &GEP, APInt &Offset);
   bool simplifyCallSite(Function *F, CallSite CS);
@@ -232,10 +241,11 @@ public:
         ContainsNoDuplicateCall(false), HasReturn(false), HasIndirectBr(false),
         HasFrameEscape(false), AllocatedSize(0), NumInstructions(0),
         NumVectorInstructions(0), FiftyPercentVectorBonus(0),
-        TenPercentVectorBonus(0), VectorBonus(0), NumConstantArgs(0),
-        NumConstantOffsetPtrArgs(0), NumAllocaArgs(0), NumConstantPtrCmps(0),
-        NumConstantPtrDiffs(0), NumInstructionsSimplified(0),
-        SROACostSavings(0), SROACostSavingsLost(0) {}
+        TenPercentVectorBonus(0), VectorBonus(0), EnableCSELoad(false),
+        CSELoadCost(0), NumConstantArgs(0), NumConstantOffsetPtrArgs(0),
+        NumAllocaArgs(0), NumConstantPtrCmps(0), NumConstantPtrDiffs(0),
+        NumInstructionsSimplified(0), SROACostSavings(0),
+        SROACostSavingsLost(0), CSELoadCostSavings(0) {}
 
   bool analyzeCall(CallSite CS);
 
@@ -252,6 +262,7 @@ public:
   unsigned NumInstructionsSimplified;
   unsigned SROACostSavings;
   unsigned SROACostSavingsLost;
+  unsigned CSELoadCostSavings;
 
   void dump();
 };
@@ -290,6 +301,7 @@ void CallAnalyzer::disableSROA(DenseMap<Value *, int>::iterator CostIt) {
   SROACostSavings -= CostIt->second;
   SROACostSavingsLost += CostIt->second;
   SROAArgCosts.erase(CostIt);
+  disableCSELoad();
 }
 
 /// \brief If 'V' maps to a SROA candidate, disable SROA for it.
@@ -305,6 +317,12 @@ void CallAnalyzer::accumulateSROACost(DenseMap<Value *, int>::iterator CostIt,
                                       int InstructionCost) {
   CostIt->second += InstructionCost;
   SROACostSavings += InstructionCost;
+}
+
+void CallAnalyzer::disableCSELoad() {
+  Cost += CSELoadCost;
+  CSELoadCostSavings = 0;
+  EnableCSELoad = false;
 }
 
 /// \brief Accumulate a constant GEP offset into an APInt if possible.
@@ -821,6 +839,14 @@ bool CallAnalyzer::visitLoad(LoadInst &I) {
     disableSROA(CostIt);
   }
 
+  if(EnableCSELoad) {
+    if (!LoadAddrSet.insert(I.getPointerOperand()).second) {
+      CSELoadCost += InlineConstants::InstrCost;
+      CSELoadCostSavings += InlineConstants::InstrCost;
+      return true;
+    }
+  }
+
   return false;
 }
 
@@ -835,7 +861,8 @@ bool CallAnalyzer::visitStore(StoreInst &I) {
 
     disableSROA(CostIt);
   }
-
+  if (EnableCSELoad)
+    disableCSELoad();
   return false;
 }
 
@@ -899,6 +926,8 @@ bool CallAnalyzer::simplifyCallSite(Function *F, CallSite CS) {
 }
 
 bool CallAnalyzer::visitCallSite(CallSite CS) {
+  if (EnableCSELoad)
+    disableCSELoad();
   if (CS.hasFnAttr(Attribute::ReturnsTwice) &&
       !F.hasFnAttribute(Attribute::ReturnsTwice)) {
     // This aborts the entire analysis.
@@ -1355,6 +1384,9 @@ bool CallAnalyzer::analyzeCall(CallSite CS) {
   NumConstantOffsetPtrArgs = ConstantOffsetPtrs.size();
   NumAllocaArgs = SROAArgValues.size();
 
+  // Only set EnableCSELoad true when there are SROA opportunities.
+  EnableCSELoad = (NumAllocaArgs > 0);
+
   // FIXME: If a caller has multiple calls to a callee, we end up recomputing
   // the ephemeral values multiple times (and they're completely determined by
   // the callee, so this is purely duplicate work).
@@ -1434,6 +1466,8 @@ bool CallAnalyzer::analyzeCall(CallSite CS) {
       // Take off the bonus we applied to the threshold.
       Threshold -= SingleBBBonus;
       SingleBB = false;
+      if (EnableCSELoad)
+        disableCSELoad();
     }
   }
 
@@ -1467,6 +1501,7 @@ LLVM_DUMP_METHOD void CallAnalyzer::dump() {
   DEBUG_PRINT_STAT(NumInstructions);
   DEBUG_PRINT_STAT(SROACostSavings);
   DEBUG_PRINT_STAT(SROACostSavingsLost);
+  DEBUG_PRINT_STAT(CSELoadCostSavings);
   DEBUG_PRINT_STAT(ContainsNoDuplicateCall);
   DEBUG_PRINT_STAT(Cost);
   DEBUG_PRINT_STAT(Threshold);
