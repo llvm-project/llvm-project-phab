@@ -36,11 +36,18 @@ class OrderedInstructions {
   DominatorTree *DT;
 
 public:
-  /// Constructor.
+  /// Constructors.
+  OrderedInstructions() = default;
   OrderedInstructions(DominatorTree *DT) : DT(DT) {}
 
-  /// Return true if first instruction dominates the second.
+  /// Return true if first instruction dominates the second. Use the class
+  /// member dominator tree.
   bool dominates(const Instruction *, const Instruction *) const;
+
+  /// Return true if first instruction dominates the second. Use the passed
+  /// dominator tree.
+  bool dominates(const Instruction *, const Instruction *,
+                 const DominatorTree *) const;
 
   /// Invalidate the OrderedBasicBlock cache when its basic block changes.
   void invalidateBlock(BasicBlock *BB) { OBBMap.erase(BB); }

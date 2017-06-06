@@ -91,16 +91,14 @@ static bool inSubLoop(BasicBlock *BB, Loop *CurLoop, LoopInfo *LI);
 static bool isNotUsedInLoop(const Instruction &I, const Loop *CurLoop,
                             const LoopSafetyInfo *SafetyInfo);
 static bool hoist(Instruction &I, const DominatorTree *DT, const Loop *CurLoop,
-                  const LoopSafetyInfo *SafetyInfo,
-                  OptimizationRemarkEmitter *ORE);
+                  LoopSafetyInfo *SafetyInfo, OptimizationRemarkEmitter *ORE);
 static bool sink(Instruction &I, const LoopInfo *LI, const DominatorTree *DT,
                  const Loop *CurLoop, AliasSetTracker *CurAST,
-                 const LoopSafetyInfo *SafetyInfo,
-                 OptimizationRemarkEmitter *ORE);
+                 LoopSafetyInfo *SafetyInfo, OptimizationRemarkEmitter *ORE);
 static bool isSafeToExecuteUnconditionally(Instruction &Inst,
                                            const DominatorTree *DT,
                                            const Loop *CurLoop,
-                                           const LoopSafetyInfo *SafetyInfo,
+                                           LoopSafetyInfo *SafetyInfo,
                                            OptimizationRemarkEmitter *ORE,
                                            const Instruction *CtxI = nullptr);
 static bool pointerInvalidatedByLoop(Value *V, uint64_t Size,
@@ -245,7 +243,7 @@ bool LoopInvariantCodeMotion::runOnLoop(Loop *L, AliasAnalysis *AA,
 
   // Compute loop safety information.
   LoopSafetyInfo SafetyInfo;
-  computeLoopSafetyInfo(&SafetyInfo, L);
+  computeLoopSafetyInfo(&SafetyInfo, L, true);
 
   // We want to visit all of the instructions in this loop... that are not parts
   // of our subloops (they have already had their invariants hoisted out of
@@ -476,17 +474,27 @@ bool llvm::hoistRegion(DomTreeNode *N, AliasAnalysis *AA, LoopInfo *LI,
 /// Computes loop safety information, checks loop body & header
 /// for the possibility of may throw exception.
 ///
-void llvm::computeLoopSafetyInfo(LoopSafetyInfo *SafetyInfo, Loop *CurLoop) {
+void llvm::computeLoopSafetyInfo(LoopSafetyInfo *SafetyInfo, Loop *CurLoop,
+                                 bool ComputeEarlyExits) {
   assert(CurLoop != nullptr && "CurLoop cant be null");
   BasicBlock *Header = CurLoop->getHeader();
   // Setting default safety values.
   SafetyInfo->MayThrow = false;
   SafetyInfo->HeaderMayThrow = false;
+  SafetyInfo->EarlyExits.clear();
+  SafetyInfo->ComputedEarlyExits = ComputeEarlyExits;
   // Iterate over header and compute safety info.
-  for (BasicBlock::iterator I = Header->begin(), E = Header->end();
-       (I != E) && !SafetyInfo->HeaderMayThrow; ++I)
-    SafetyInfo->HeaderMayThrow |=
-        !isGuaranteedToTransferExecutionToSuccessor(&*I);
+  for (BasicBlock::iterator I = Header->begin(), E = Header->end(); I != E;
+       ++I) {
+    bool MayThrow = !isGuaranteedToTransferExecutionToSuccessor(&*I);
+    SafetyInfo->HeaderMayThrow |= MayThrow;
+    // Exit as soon as we find an instruction that may throw in case we are
+    // not computing early exits.
+    if (!ComputeEarlyExits && SafetyInfo->HeaderMayThrow)
+      break;
+    if (MayThrow)
+      SafetyInfo->EarlyExits.push_back(&*I);
+  }
 
   SafetyInfo->MayThrow = SafetyInfo->HeaderMayThrow;
   // Iterate over loop instructions and compute safety info.
@@ -495,10 +503,18 @@ void llvm::computeLoopSafetyInfo(LoopSafetyInfo *SafetyInfo, Loop *CurLoop) {
   assert(Header == *CurLoop->getBlocks().begin() && "First block must be header");
   for (Loop::block_iterator BB = std::next(CurLoop->block_begin()),
                             BBE = CurLoop->block_end();
-       (BB != BBE) && !SafetyInfo->MayThrow; ++BB)
-    for (BasicBlock::iterator I = (*BB)->begin(), E = (*BB)->end();
-         (I != E) && !SafetyInfo->MayThrow; ++I)
-      SafetyInfo->MayThrow |= !isGuaranteedToTransferExecutionToSuccessor(&*I);
+       BB != BBE; ++BB)
+    for (BasicBlock::iterator I = (*BB)->begin(), E = (*BB)->end(); I != E;
+         ++I) {
+      bool MayThrow = !isGuaranteedToTransferExecutionToSuccessor(&*I);
+      SafetyInfo->MayThrow |= MayThrow;
+      // Exit as soon as we find an instruction that may throw in case we are
+      // not computing early exits.
+      if (!ComputeEarlyExits && SafetyInfo->MayThrow)
+        break;
+      if (MayThrow)
+        SafetyInfo->EarlyExits.push_back(&*I);
+    }
 
   // Compute funclet colors if we might sink/hoist in a function with a funclet
   // personality routine.
@@ -794,8 +810,7 @@ CloneInstructionInExitBlock(Instruction &I, BasicBlock &ExitBlock, PHINode &PN,
 ///
 static bool sink(Instruction &I, const LoopInfo *LI, const DominatorTree *DT,
                  const Loop *CurLoop, AliasSetTracker *CurAST,
-                 const LoopSafetyInfo *SafetyInfo,
-                 OptimizationRemarkEmitter *ORE) {
+                 LoopSafetyInfo *SafetyInfo, OptimizationRemarkEmitter *ORE) {
   DEBUG(dbgs() << "LICM sinking instruction: " << I << "\n");
   ORE->emit(OptimizationRemark(DEBUG_TYPE, "InstSunk", &I)
             << "sinking " << ore::NV("Inst", &I));
@@ -813,6 +828,9 @@ static bool sink(Instruction &I, const LoopInfo *LI, const DominatorTree *DT,
   SmallPtrSet<BasicBlock *, 32> ExitBlockSet(ExitBlocks.begin(),
                                              ExitBlocks.end());
 #endif
+
+  // The OBB for this basic block is no longer valid.
+  SafetyInfo->OI.invalidateBlock(I.getParent());
 
   // Clones of this instruction. Don't create more than one per exit block!
   SmallDenseMap<BasicBlock *, Instruction *, 32> SunkCopies;
@@ -865,13 +883,15 @@ static bool sink(Instruction &I, const LoopInfo *LI, const DominatorTree *DT,
 /// is safe to hoist, this instruction is called to do the dirty work.
 ///
 static bool hoist(Instruction &I, const DominatorTree *DT, const Loop *CurLoop,
-                  const LoopSafetyInfo *SafetyInfo,
-                  OptimizationRemarkEmitter *ORE) {
+                  LoopSafetyInfo *SafetyInfo, OptimizationRemarkEmitter *ORE) {
   auto *Preheader = CurLoop->getLoopPreheader();
   DEBUG(dbgs() << "LICM hoisting to " << Preheader->getName() << ": " << I
                << "\n");
   ORE->emit(OptimizationRemark(DEBUG_TYPE, "Hoisted", &I)
             << "hoisting " << ore::NV("Inst", &I));
+
+  // The OBB for this basic block is no longer valid.
+  SafetyInfo->OI.invalidateBlock(I.getParent());
 
   // Metadata can be dependent on conditions we are hoisting above.
   // Conservatively strip all metadata on the instruction unless we were
@@ -909,7 +929,7 @@ static bool hoist(Instruction &I, const DominatorTree *DT, const Loop *CurLoop,
 static bool isSafeToExecuteUnconditionally(Instruction &Inst,
                                            const DominatorTree *DT,
                                            const Loop *CurLoop,
-                                           const LoopSafetyInfo *SafetyInfo,
+                                           LoopSafetyInfo *SafetyInfo,
                                            OptimizationRemarkEmitter *ORE,
                                            const Instruction *CtxI) {
   if (isSafeToSpeculativelyExecute(&Inst, CtxI, DT))
