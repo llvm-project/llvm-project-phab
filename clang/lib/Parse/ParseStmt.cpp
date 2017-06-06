@@ -840,7 +840,8 @@ StmtResult Parser::ParseDefaultStatement() {
 }
 
 StmtResult Parser::ParseCompoundStatement(bool isStmtExpr) {
-  return ParseCompoundStatement(isStmtExpr, Scope::DeclScope);
+  return ParseCompoundStatement(isStmtExpr,
+                                Scope::DeclScope | Scope::CompoundStmtScope);
 }
 
 /// ParseCompoundStatement - Parse a "{}" block.
