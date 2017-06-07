@@ -112,9 +112,10 @@ RUN:   FileCheck --check-prefix=ELEMENT-TYPE %s
 RUN: not llvm-dis -disable-output %p/Inputs/invalid-vector-element-type.bc 2>&1 | \
 RUN:   FileCheck --check-prefix=ELEMENT-TYPE %s
 RUN: not llvm-dis -disable-output %p/Inputs/invalid-pointer-element-type.bc 2>&1 | \
-RUN:   FileCheck --check-prefix=ELEMENT-TYPE %s
+RUN:   FileCheck --check-prefix=ELEMENT-TYPE2 %s
 
 ELEMENT-TYPE: Invalid type
+ELEMENT-TYPE2: Invalid record
 
 RUN: not llvm-dis -disable-output %p/Inputs/invalid-cast.bc 2>&1 | \
 RUN:   FileCheck --check-prefix=INVALID-CAST %s

@@ -33,7 +33,9 @@
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/Program.h"
 #include "llvm/Support/SHA1.h"
+#include "llvm/Support/TargetRegistry.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Object/IRSymtab.h"
 #include <cctype>
 #include <map>
 using namespace llvm;
@@ -3792,6 +3794,38 @@ void BitcodeWriter::writeBlob(unsigned Block, unsigned Record, StringRef Blob) {
   Stream->ExitBlock();
 }
 
+void BitcodeWriter::writeSymtab() {
+  assert(!WroteStrtab && !WroteSymtab);
+
+  // If any module has module-level inline asm, we will require a registered asm
+  // parser for the target so that we can create an accurate symbol table for
+  // the module.
+  for (Module *M : Mods) {
+    if (M->getModuleInlineAsm().empty())
+      continue;
+
+    std::string Err;
+    const Triple TT(M->getTargetTriple());
+    const Target *T = TargetRegistry::lookupTarget(TT.str(), Err);
+    if (!T || !T->hasMCAsmParser())
+      return;
+  }
+
+  WroteSymtab = true;
+  SmallVector<char, 0> Symtab;
+  // The irsymtab::build function may be unable to create a symbol table if the
+  // module is malformed (e.g. it contains an invalid alias). Writing a symbol
+  // table is not required for correctness, but we still want to be able to
+  // write malformed modules to bitcode files, so swallow the error.
+  if (Error E = irsymtab::build(Mods, Symtab, StrtabBuilder, Alloc)) {
+    consumeError(std::move(E));
+    return;
+  }
+
+  writeBlob(bitc::SYMTAB_BLOCK_ID, bitc::SYMTAB_BLOB,
+            {Symtab.data(), Symtab.size()});
+}
+
 void BitcodeWriter::writeStrtab() {
   assert(!WroteStrtab);
 
@@ -3815,6 +3849,15 @@ void BitcodeWriter::writeModule(const Module *M,
                                 bool ShouldPreserveUseListOrder,
                                 const ModuleSummaryIndex *Index,
                                 bool GenerateHash, ModuleHash *ModHash) {
+  assert(!WroteStrtab);
+
+  // The Mods vector is used by irsymtab::build, which requires non-const
+  // Modules in case it needs to materialize metadata. But the bitcode writer
+  // requires that the module is materialized, so we can cast to non-const here,
+  // after checking that it is in fact materialized.
+  assert(M->isMaterialized());
+  Mods.push_back(const_cast<Module *>(M));
+
   ModuleBitcodeWriter ModuleWriter(M, Buffer, StrtabBuilder, *Stream,
                                    ShouldPreserveUseListOrder, Index,
                                    GenerateHash, ModHash);
@@ -3839,6 +3882,7 @@ void llvm::WriteBitcodeToFile(const Module *M, raw_ostream &Out,
   BitcodeWriter Writer(Buffer);
   Writer.writeModule(M, ShouldPreserveUseListOrder, Index, GenerateHash,
                      ModHash);
+  Writer.writeSymtab();
   Writer.writeStrtab();
 
   if (TT.isOSDarwin() || TT.isOSBinFormatMachO())
