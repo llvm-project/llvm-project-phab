@@ -566,6 +566,19 @@ static bool useFramePointerForTargetByDefault(const ArgList &Args,
     }
   }
 
+  if (!Triple.isOSDarwin() && !Triple.isOSNetBSD() &&
+      (Triple.getEnvironment() == llvm::Triple::EABI ||
+       Triple.getEnvironment() == llvm::Triple::EABIHF)) {
+    // Don't use a frame pointer on AAPCS when optimizing.
+    switch (Triple.getArch()) {
+    case llvm::Triple::arm:
+    case llvm::Triple::thumb:
+      return !areOptimizationsEnabled(Args);
+    default:
+      return true;
+    }
+  }
+
   return true;
 }
 
