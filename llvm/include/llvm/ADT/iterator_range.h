@@ -33,12 +33,12 @@ class iterator_range {
   IteratorT begin_iterator, end_iterator;
 
 public:
-  //TODO: Add SFINAE to test that the Container's iterators match the range's
-  //      iterators.
-  template <typename Container>
+  template <
+      typename Container,
+      typename = typename std::enable_if<std::is_convertible<
+          decltype(std::begin(std::declval<Container&>())), IteratorT>::value>::type>
   iterator_range(Container &&c)
-  //TODO: Consider ADL/non-member begin/end calls.
-      : begin_iterator(c.begin()), end_iterator(c.end()) {}
+      : begin_iterator(std::begin(c)), end_iterator(std::end(c)) {}
   iterator_range(IteratorT begin_iterator, IteratorT end_iterator)
       : begin_iterator(std::move(begin_iterator)),
         end_iterator(std::move(end_iterator)) {}
