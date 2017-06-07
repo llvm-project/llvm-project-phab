@@ -302,9 +302,8 @@ public:
           TargetLibraryInfo *TLi, AliasAnalysis *Aa, LoopInfo *Li,
           DominatorTree *Dt, AssumptionCache *AC, DemandedBits *DB,
           const DataLayout *DL, OptimizationRemarkEmitter *ORE)
-      : NumLoadsWantToKeepOrder(0), NumLoadsWantToChangeOrder(0), F(Func),
-        SE(Se), TTI(Tti), TLI(TLi), AA(Aa), LI(Li), DT(Dt), AC(AC), DB(DB),
-        DL(DL), ORE(ORE), Builder(Se->getContext()) {
+      : F(Func), SE(Se), TTI(Tti), TLI(TLi), AA(Aa), LI(Li), DT(Dt), AC(AC),
+        DB(DB), DL(DL), ORE(ORE), Builder(Se->getContext()) {
     CodeMetrics::collectEphemeralValues(F, AC, EphValues);
     // Use the vector register size specified by the target unless overridden
     // by a command-line option.
@@ -357,8 +356,7 @@ public:
     ScalarToTreeEntry.clear();
     MustGather.clear();
     ExternalUses.clear();
-    NumLoadsWantToKeepOrder = 0;
-    NumLoadsWantToChangeOrder = 0;
+    NumOpsWantToKeepOrder.clear();
     for (auto &Iter : BlocksSchedules) {
       BlockScheduling *BS = Iter.second.get();
       BS->clear();
@@ -373,7 +371,12 @@ public:
 
   /// \returns true if it is beneficial to reverse the vector order.
   bool shouldReorder() const {
-    return NumLoadsWantToChangeOrder > NumLoadsWantToKeepOrder;
+    return std::accumulate(
+               NumOpsWantToKeepOrder.begin(), NumOpsWantToKeepOrder.end(), 0,
+               [](int Val1,
+                  const decltype(NumOpsWantToKeepOrder)::value_type &Val2) {
+                 return Val1 + (Val2.second < 0 ? 1 : -1);
+               }) > 0;
   }
 
   /// \return The vector element size in bits to use when vectorizing the
@@ -920,11 +923,10 @@ private:
   /// List of users to ignore during scheduling and that don't need extracting.
   ArrayRef<Value *> UserIgnoreList;
 
-  // Number of load bundles that contain consecutive loads.
-  int NumLoadsWantToKeepOrder;
-
-  // Number of load bundles that contain consecutive loads in reversed order.
-  int NumLoadsWantToChangeOrder;
+  /// Number of operation bundles that contain consecutive operations - number
+  /// of operation bundles that contain consecutive operations in reversed
+  /// order.
+  DenseMap<unsigned, int> NumOpsWantToKeepOrder;
 
   // Analysis and block reference.
   Function *F;
@@ -1268,7 +1270,11 @@ void BoUpSLP::buildTree_rec(ArrayRef<Value *> VL, unsigned Depth,
       bool Reuse = canReuseExtract(VL, Opcode);
       if (Reuse) {
         DEBUG(dbgs() << "SLP: Reusing extract sequence.\n");
+        ++NumOpsWantToKeepOrder[Opcode];
       } else {
+        SmallVector<Value *, 4> ReverseVL(VL.rbegin(), VL.rend());
+        if (canReuseExtract(ReverseVL, Opcode))
+          --NumOpsWantToKeepOrder[Opcode];
         BS.cancelScheduling(VL);
       }
       newTreeEntry(VL, Reuse, UserTreeIdx);
@@ -1319,7 +1325,7 @@ void BoUpSLP::buildTree_rec(ArrayRef<Value *> VL, unsigned Depth,
       }
 
       if (Consecutive) {
-        ++NumLoadsWantToKeepOrder;
+        ++NumOpsWantToKeepOrder[Opcode];
         newTreeEntry(VL, true, UserTreeIdx);
         DEBUG(dbgs() << "SLP: added a vector of loads.\n");
         return;
@@ -1338,7 +1344,7 @@ void BoUpSLP::buildTree_rec(ArrayRef<Value *> VL, unsigned Depth,
       newTreeEntry(VL, false, UserTreeIdx);
 
       if (ReverseConsecutive) {
-        ++NumLoadsWantToChangeOrder;
+        --NumOpsWantToKeepOrder[Opcode];
         DEBUG(dbgs() << "SLP: Gathering reversed loads.\n");
       } else {
         DEBUG(dbgs() << "SLP: Gathering non-consecutive loads.\n");
