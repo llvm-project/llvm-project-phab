@@ -40,6 +40,8 @@ class TargetSchedModel {
   unsigned ResourceLCM;   // Resource units per cycle. Latency normalization factor.
 
   unsigned computeInstrLatency(const MCSchedClassDesc &SCDesc) const;
+  Optional<double>
+  getRThroughputFromInstrSchedModel(const MCSchedClassDesc *SCDesc) const;
 
 public:
   TargetSchedModel() : SchedModel(MCSchedModel::GetDefaultSchedModel()) {}

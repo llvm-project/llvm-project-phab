@@ -338,7 +338,7 @@ computeOutputLatency(const MachineInstr *DefMI, unsigned DefOperIdx,
 
 static Optional<double>
 getRThroughputFromItineraries(unsigned schedClass,
-                              const InstrItineraryData *IID){
+                              const InstrItineraryData *IID) {
   double Unknown = std::numeric_limits<double>::infinity();
   double Throughput = Unknown;
 
@@ -351,28 +351,31 @@ getRThroughputFromItineraries(unsigned schedClass,
     Throughput =
         std::min(Throughput, countPopulation(IS->getUnits()) * 1.0 / Cycles);
   }
+  if (Throughput == Unknown)
+    return Optional<double>();
   // We need reciprocal throughput that's why we return such value.
   return 1 / Throughput;
 }
 
-static Optional<double>
-getRThroughputFromInstrSchedModel(const MCSchedClassDesc *SCDesc,
-                                  const TargetSubtargetInfo *STI,
-                                  const MCSchedModel &SchedModel) {
+Optional<double> TargetSchedModel::getRThroughputFromInstrSchedModel(
+    const MCSchedClassDesc *SCDesc) const {
   double Unknown = std::numeric_limits<double>::infinity();
   double Throughput = Unknown;
-
-  for (const MCWriteProcResEntry *WPR = STI->getWriteProcResBegin(SCDesc),
-                                 *WEnd = STI->getWriteProcResEnd(SCDesc);
-       WPR != WEnd; ++WPR) {
+  const MCWriteProcResEntry *WPR = STI->getWriteProcResBegin(SCDesc),
+                            *WEnd = STI->getWriteProcResEnd(SCDesc);
+  if ((WPR == WEnd) && SCDesc->isValid())
+    return computeInstrLatency(*SCDesc);
+  for (; WPR != WEnd; ++WPR) {
     unsigned Cycles = WPR->Cycles;
     if (!Cycles)
-      return Optional<double>();
+      continue;
 
     unsigned NumUnits =
         SchedModel.getProcResource(WPR->ProcResourceIdx)->NumUnits;
     Throughput = std::min(Throughput, NumUnits * 1.0 / Cycles);
   }
+  if (Throughput == Unknown)
+    return Optional<double>();
   // We need reciprocal throughput that's why we return such value.
   return 1 / Throughput;
 }
@@ -383,8 +386,7 @@ TargetSchedModel::computeInstrRThroughput(const MachineInstr *MI) const {
     return getRThroughputFromItineraries(MI->getDesc().getSchedClass(),
                                          getInstrItineraries());
   if (hasInstrSchedModel())
-    return getRThroughputFromInstrSchedModel(resolveSchedClass(MI), STI,
-                                             SchedModel);
+    return getRThroughputFromInstrSchedModel(resolveSchedClass(MI));
   return Optional<double>();
 }
 
@@ -396,7 +398,7 @@ TargetSchedModel::computeInstrRThroughput(unsigned Opcode) const {
   if (hasInstrSchedModel()) {
     const MCSchedClassDesc *SCDesc = SchedModel.getSchedClassDesc(SchedClass);
     if (SCDesc->isValid() && !SCDesc->isVariant())
-      return getRThroughputFromInstrSchedModel(SCDesc, STI, SchedModel);
+      return getRThroughputFromInstrSchedModel(SCDesc);
   }
   return Optional<double>();
 }

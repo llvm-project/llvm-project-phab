@@ -332,6 +332,18 @@ def : WriteRes<WriteCLMulLd, [JLAGU, JVIMUL]> {
   let ResourceCycles = [1, 1];
 }
 
+def WriteJVZEROALL: SchedWriteRes<[]> {
+  let Latency = 90;
+  let NumMicroOps = 73;
+}
+def : InstRW<[WriteJVZEROALL], (instregex "VZEROALL")>;
+
+def WriteJVZEROUPPER: SchedWriteRes<[]> {
+  let Latency = 46;
+  let NumMicroOps = 37;
+}
+def : InstRW<[WriteJVZEROUPPER], (instregex "VZEROUPPER")>;
+
 // FIXME: pipe for system/microcode?
 def : WriteRes<WriteSystem,     [JAny]> { let Latency = 100; }
 def : WriteRes<WriteMicrocoded, [JAny]> { let Latency = 100; }
