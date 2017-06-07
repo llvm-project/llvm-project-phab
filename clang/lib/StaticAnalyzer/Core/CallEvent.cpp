@@ -16,6 +16,10 @@
 #include "clang/StaticAnalyzer/Core/PathSensitive/CallEvent.h"
 #include "clang/AST/ParentMap.h"
 #include "clang/Analysis/ProgramPoint.h"
+#include "clang/Frontend/ASTUnit.h"
+#include "clang/Frontend/CompilerInstance.h"
+#include "clang/Frontend/TextDiagnosticPrinter.h"
+#include "clang/Index/USRGeneration.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/CheckerContext.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/DynamicTypeMap.h"
 #include "llvm/ADT/SmallSet.h"
@@ -354,6 +358,49 @@ void AnyFunctionCall::getInitialStackFrameContents(
   addParameterValuesToBindings(CalleeCtx, Bindings, SVB, *this,
                                D->parameters());
 }
+
+RuntimeDefinition AnyFunctionCall::getRuntimeDefinition() const {
+  const FunctionDecl *FD = getDecl();
+  // Note that the AnalysisDeclContext will have the FunctionDecl with
+  // the definition (if one exists).
+  if (!FD)
+    return RuntimeDefinition();
+
+  AnalysisDeclContext *AD =
+    getLocationContext()->getAnalysisDeclContext()->
+    getManager()->getContext(FD);
+  if (AD->getBody())
+    return RuntimeDefinition(AD->getDecl());
+
+  auto Engine = static_cast<ExprEngine *>(
+      getState()->getStateManager().getOwningEngine());
+  CompilerInstance &CI = Engine->getCompilerInstance();
+
+  auto ASTLoader = [&](StringRef ASTFileName) {
+    IntrusiveRefCntPtr<DiagnosticOptions> DiagOpts = new DiagnosticOptions();
+    TextDiagnosticPrinter *DiagClient =
+        new TextDiagnosticPrinter(llvm::errs(), &*DiagOpts);
+    IntrusiveRefCntPtr<DiagnosticIDs> DiagID(new DiagnosticIDs());
+    IntrusiveRefCntPtr<DiagnosticsEngine> Diags(
+        new DiagnosticsEngine(DiagID, &*DiagOpts, DiagClient));
+    return ASTUnit::LoadFromASTFile(
+               ASTFileName, CI.getPCHContainerOperations()->getRawReader(),
+               Diags, CI.getFileSystemOpts());
+  };
+
+  const FunctionDecl *CTUDecl = AD->getASTContext().getCTUDefinition(
+      FD, Engine->getAnalysisManager().options.getCTUDir(),
+      [](const Decl *D) {
+        SmallString<128> DeclUSR;
+        bool Ret = index::generateUSRForDecl(D, DeclUSR);
+        assert(!Ret);
+        return DeclUSR.str().str();
+      },
+      ASTLoader);
+
+  return RuntimeDefinition(CTUDecl);
+}
+
 
 bool AnyFunctionCall::argumentsMayEscape() const {
   if (CallEvent::argumentsMayEscape() || hasVoidPointerToNonConstArg())
