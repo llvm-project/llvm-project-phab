@@ -1178,7 +1178,7 @@ void PPCAsmParser::ProcessInstruction(MCInst &Inst,
   case PPC::RLWINMbm:
   case PPC::RLWINMobm: {
     unsigned MB, ME;
-    int64_t BM = Inst.getOperand(3).getImm();
+    unsigned BM = Inst.getOperand(3).getImm();
     if (!isRunOfOnes(BM, MB, ME))
       break;
 
@@ -1195,7 +1195,7 @@ void PPCAsmParser::ProcessInstruction(MCInst &Inst,
   case PPC::RLWIMIbm:
   case PPC::RLWIMIobm: {
     unsigned MB, ME;
-    int64_t BM = Inst.getOperand(3).getImm();
+    unsigned BM = Inst.getOperand(3).getImm();
     if (!isRunOfOnes(BM, MB, ME))
       break;
 
@@ -1213,7 +1213,7 @@ void PPCAsmParser::ProcessInstruction(MCInst &Inst,
   case PPC::RLWNMbm:
   case PPC::RLWNMobm: {
     unsigned MB, ME;
-    int64_t BM = Inst.getOperand(3).getImm();
+    unsigned BM = Inst.getOperand(3).getImm();
     if (!isRunOfOnes(BM, MB, ME))
       break;
 
