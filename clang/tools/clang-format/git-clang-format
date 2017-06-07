@@ -92,6 +92,8 @@ def main():
   p.add_argument('--binary',
                  default=config.get('clangformat.binary', 'clang-format'),
                  help='path to clang-format'),
+  p.add_argument('--cached', action='store_true',
+                 help='format index instead of working directory'),
   p.add_argument('--commit',
                  default=config.get('clangformat.commit', 'HEAD'),
                  help='default commit to use if none is specified'),
@@ -129,10 +131,12 @@ def main():
   if len(commits) > 1:
     if not opts.diff:
       die('--diff is required when two commits are given')
+    if opts.cached:
+      die('--cached is not applicable when two commits are given')
   else:
     if len(commits) > 2:
       die('at most two commits allowed; %d given' % len(commits))
-  changed_lines = compute_diff_and_extract_lines(commits, files)
+  changed_lines = compute_diff_and_extract_lines(commits, files, opts.cached)
   if opts.verbose >= 1:
     ignored_files = set(changed_lines)
   filter_by_extension(changed_lines, opts.extensions.lower().split(','))
@@ -154,15 +158,17 @@ def main():
   cd_to_toplevel()
   if len(commits) > 1:
     old_tree = commits[1]
-    new_tree = run_clang_format_and_save_to_tree(changed_lines,
-                                                 revision=commits[1],
-                                                 binary=opts.binary,
-                                                 style=opts.style)
+    fmt_tree = commits[1]
+  elif opts.cached:
+    old_tree = run('git', 'write-tree')
+    fmt_tree = old_tree
   else:
     old_tree = create_tree_from_workdir(changed_lines)
-    new_tree = run_clang_format_and_save_to_tree(changed_lines,
-                                                 binary=opts.binary,
-                                                 style=opts.style)
+    fmt_tree = None
+  new_tree = run_clang_format_and_save_to_tree(changed_lines,
+                                               revision=fmt_tree,
+                                               binary=opts.binary,
+                                               style=opts.style)
   if opts.verbose >= 1:
     print('old tree: %s' % old_tree)
     print('new tree: %s' % new_tree)
@@ -173,7 +179,7 @@ def main():
     print_diff(old_tree, new_tree)
   else:
     changed_files = apply_changes(old_tree, new_tree, force=opts.force,
-                                  patch_mode=opts.patch)
+                                  patch_mode=opts.patch, cached=opts.cached)
     if (opts.verbose >= 0 and not opts.patch) or opts.verbose >= 1:
       print('changed files:')
       for filename in changed_files:
@@ -261,9 +267,9 @@ def get_object_type(value):
   return convert_string(stdout.strip())
 
 
-def compute_diff_and_extract_lines(commits, files):
+def compute_diff_and_extract_lines(commits, files, cached=False):
   """Calls compute_diff() followed by extract_lines()."""
-  diff_process = compute_diff(commits, files)
+  diff_process = compute_diff(commits, files, cached)
   changed_lines = extract_lines(diff_process.stdout)
   diff_process.stdout.close()
   diff_process.wait()
@@ -273,7 +279,7 @@ def compute_diff_and_extract_lines(commits, files):
   return changed_lines
 
 
-def compute_diff(commits, files):
+def compute_diff(commits, files, cached=False):
   """Return a subprocess object producing the diff from `commits`.
 
   The return value's `stdin` file object will produce a patch with the
@@ -283,7 +289,11 @@ def compute_diff(commits, files):
   git_tool = 'diff-index'
   if len(commits) > 1:
     git_tool = 'diff-tree'
-  cmd = ['git', git_tool, '-p', '-U0'] + commits + ['--']
+  cmd = ['git', git_tool, '-p', '-U0']
+  if cached:
+    cmd.append('--cached')
+  cmd.extend(commits)
+  cmd.append('--')
   cmd.extend(files)
   p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
   p.stdin.close()
@@ -487,23 +497,43 @@ def print_diff(old_tree, new_tree):
                          '--'])
 
 
-def apply_changes(old_tree, new_tree, force=False, patch_mode=False):
-  """Apply the changes in `new_tree` to the working directory.
+def apply_changes(old_tree, new_tree, force=False, patch_mode=False,
+                  cached=False):
+  """Apply the changes in `new_tree` to the working directory or index.
 
   Bails if there are local changes in those files and not `force`.  If
-  `patch_mode`, runs `git checkout --patch` to select hunks interactively."""
+  `patch_mode`, adds `--patch` option to select hunks interactively."""
   changed_files = run('git', 'diff-tree', '--diff-filter=M', '-r', '-z',
                       '--name-only', old_tree,
                       new_tree).rstrip('\0').split('\0')
+  if changed_files == ['']:
+      # Early exit if no files have changes.  Can occur when
+      # old_tree != new_tree because new_tree only contains formatted files.
+      return []
   if not force:
-    unstaged_files = run('git', 'diff-files', '--name-status', *changed_files)
-    if unstaged_files:
+    if cached:
+      localmod_files = run('git', 'diff-index', '--cached', '--name-status',
+                           'HEAD', '--', *changed_files)
+    else:
+      localmod_files = run('git', 'diff-files', '--name-status', *changed_files)
+    if localmod_files:
       print('The following files would be modified but '
-                'have unstaged changes:', file=sys.stderr)
-      print(unstaged_files, file=sys.stderr)
-      print('Please commit, stage, or stash them first.', file=sys.stderr)
+                'have existing changes:', file=sys.stderr)
+      print(localmod_files, file=sys.stderr)
+      if cached:
+        print('Please commit or reset them first.', file=sys.stderr)
+      else:
+        print('Please commit, stage, or stash them first.', file=sys.stderr)
       sys.exit(2)
-  if patch_mode:
+  if cached:
+    cmd = ['git', 'reset']
+    if patch_mode:
+      cmd.append('--patch')
+    cmd.append(new_tree)
+    cmd.append('--')
+    cmd.extend(changed_files)
+    subprocess.check_call(cmd)
+  elif patch_mode:
     # In patch mode, we could just as well create an index from the new tree
     # and checkout from that, but then the user will be presented with a
     # message saying "Discard ... from worktree".  Instead, we use the old
