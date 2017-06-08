@@ -8156,6 +8156,8 @@ def err_c99_array_usage_cxx : Error<
   "feature, not permitted in C++">;
 def err_type_unsupported : Error<
   "%0 is not supported on this target">;
+def err_ocl_type_reserved : Error<
+  "'%0' is a reserved type in OpenCL">;
 def err_nsconsumed_attribute_mismatch : Error<
   "overriding method has mismatched ns_consumed attribute on its"
   " parameter">;

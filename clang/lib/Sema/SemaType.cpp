@@ -1363,6 +1363,11 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
           else
             S.Diag(DS.getTypeSpecWidthLoc(), diag::ext_c99_longlong);
         }
+        else if (S.getLangOpts().OpenCL) {
+          // OpenCL v2.0 s6.1.4: 'long long' is a reserved data type.
+          S.Diag(DS.getTypeSpecWidthLoc(), diag::err_ocl_type_reserved)
+            << "long long";
+        }
         break;
       }
     } else {
@@ -1382,6 +1387,11 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
           else
             S.Diag(DS.getTypeSpecWidthLoc(), diag::ext_c99_longlong);
         }
+        else if (S.getLangOpts().OpenCL) {
+          // OpenCL v2.0 s6.1.4: 'unsigned long long' is a reserved data type.
+          S.Diag(DS.getTypeSpecWidthLoc(), diag::err_ocl_type_reserved)
+            << "unsigned long long";
+        }
         break;
       }
     }
@@ -1399,9 +1409,14 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
   case DeclSpec::TST_half: Result = Context.HalfTy; break;
   case DeclSpec::TST_float: Result = Context.FloatTy; break;
   case DeclSpec::TST_double:
-    if (DS.getTypeSpecWidth() == DeclSpec::TSW_long)
+    if (DS.getTypeSpecWidth() == DeclSpec::TSW_long) {
       Result = Context.LongDoubleTy;
-    else
+      if (S.getLangOpts().OpenCL) {
+        // OpenCL v2.0 s6.1.4: 'long double' is a reserved data type.
+        S.Diag(DS.getTypeSpecWidthLoc(), diag::err_ocl_type_reserved)
+          << "long double";
+      }
+    } else
       Result = Context.DoubleTy;
     break;
   case DeclSpec::TST_float128:
