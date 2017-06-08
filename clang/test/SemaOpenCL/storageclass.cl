@@ -47,3 +47,10 @@ void f() {
   static int L7 = 0;     // expected-error{{variables in function scope cannot be declared static}}
   static int L8;         // expected-error{{variables in function scope cannot be declared static}}
 }
+
+kernel void invalidScope() {
+  if (true) {
+    local int lInt; // expected-error {{variables in the local address space can only be declared in the outermost scope of a kernel function}}
+    constant int cInt = 42; // expected-error {{variables in the constant address space can only be declared in the outermost scope of a kernel function}}
+  }
+}
