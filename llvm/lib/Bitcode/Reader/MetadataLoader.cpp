@@ -588,6 +588,25 @@ public:
   unsigned size() const { return MetadataList.size(); }
   void shrinkTo(unsigned N) { MetadataList.shrinkTo(N); }
   void upgradeDebugIntrinsics(Function &F) { upgradeDeclareExpressions(F); }
+
+  void upgradeThumbMode(Function &F) {
+    const Triple TT(TheModule.getTargetTriple());
+    if (TT.getArch() != Triple::thumb && TT.getArch() != Triple::thumbeb &&
+        TT.getArch() != Triple::arm && TT.getArch() != Triple::armeb)
+      return;
+
+    std::string TargetFeatures;
+    if (F.hasFnAttribute("target-features"))
+      TargetFeatures = F.getFnAttribute("target-features").getValueAsString();
+    if (TargetFeatures.find("thumb-mode") != std::string::npos)
+      return;
+
+    bool isArm = TT.getArch() == Triple::arm || TT.getArch() == Triple::armeb;
+    TargetFeatures += TargetFeatures.empty() ? "" : ",";
+    TargetFeatures += isArm ? "-" : "+";
+    TargetFeatures += "thumb-mode";
+    F.addFnAttr("target-features", TargetFeatures);
+  }
 };
 
 static Error error(const Twine &Message) {
@@ -1910,4 +1929,8 @@ void MetadataLoader::shrinkTo(unsigned N) { return Pimpl->shrinkTo(N); }
 
 void MetadataLoader::upgradeDebugIntrinsics(Function &F) {
   return Pimpl->upgradeDebugIntrinsics(F);
+}
+
+void MetadataLoader::upgradeThumbMode(Function &F) {
+  return Pimpl->upgradeThumbMode(F);
 }
