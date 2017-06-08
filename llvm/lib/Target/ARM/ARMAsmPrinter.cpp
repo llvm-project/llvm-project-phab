@@ -61,6 +61,14 @@ ARMAsmPrinter::ARMAsmPrinter(TargetMachine &TM,
     : AsmPrinter(TM, std::move(Streamer)), AFI(nullptr), MCP(nullptr),
       InConstantPool(false), OptimizationGoals(-1) {}
 
+// When generating execute-only code invoke the generic AsmPrinter
+// in order to place the literals in the data section, otherwise
+// handle Constant Pools in EmitInstruction.
+void ARMAsmPrinter::EmitConstantPool() {
+  if (Subtarget->genExecuteOnly())
+    AsmPrinter::EmitConstantPool();
+}
+
 void ARMAsmPrinter::EmitFunctionBodyEnd() {
   // Make sure to terminate any constant pools that were at the end
   // of the function.
@@ -1504,6 +1512,10 @@ void ARMAsmPrinter::EmitInstruction(const MachineInstr *MI) {
     return;
   }
   case ARM::CONSTPOOL_ENTRY: {
+    // Handle this case in EmitConstantPool.
+    if (Subtarget->genExecuteOnly())
+      return;
+
     /// CONSTPOOL_ENTRY - This instruction represents a floating constant pool
     /// in the function.  The first operand is the ID# for this instruction, the
     /// second is the index into the MachineConstantPool that this is, the third

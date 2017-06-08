@@ -7634,10 +7634,7 @@ SDValue ARMTargetLowering::LowerOperation(SDValue Op, SelectionDAG &DAG) const {
   switch (Op.getOpcode()) {
   default: llvm_unreachable("Don't know how to custom lower this!");
   case ISD::WRITE_REGISTER: return LowerWRITE_REGISTER(Op, DAG);
-  case ISD::ConstantPool:
-    if (Subtarget->genExecuteOnly())
-      llvm_unreachable("execute-only should not generate constant pools");
-    return LowerConstantPool(Op, DAG);
+  case ISD::ConstantPool: return LowerConstantPool(Op, DAG);
   case ISD::BlockAddress:  return LowerBlockAddress(Op, DAG);
   case ISD::GlobalAddress:
     switch (Subtarget->getTargetTriple().getObjectFormat()) {
