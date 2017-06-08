@@ -15,6 +15,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/SourceMgr.h"
+#include "llvm/Support/KnownBits.h"
 #include "gtest/gtest.h"
 
 using namespace llvm;
@@ -257,4 +258,32 @@ TEST(ValueTracking, ComputeNumSignBits_PR32045) {
   auto *RVal =
       cast<ReturnInst>(F->getEntryBlock().getTerminator())->getOperand(0);
   EXPECT_EQ(ComputeNumSignBits(RVal, M->getDataLayout()), 1u);
+}
+
+TEST(ValueTracking, ComputeKnownBits) {
+  StringRef Assembly = "define i32 @f(i32 %a, i32 %b) { "
+                       "  %ash = mul i32 %a, 8 "
+                       "  %aad = add i32 %ash, 7 "
+                       "  %aan = and i32 %aad, 4095 "
+                       "  %bsh = shl i32 %b, 4 "
+                       "  %bad = add i32 %bsh, 6 "
+                       "  %ban = and i32 %bad, 4095 "
+                       "  %mul = mul i32 %aan, %ban "
+                       "  ret i32 %mul "
+                       "} ";
+
+  LLVMContext Context;
+  SMDiagnostic Error;
+  auto M = parseAssemblyString(Assembly, Error, Context);
+  assert(M && "Bad assembly?");
+
+  auto *F = M->getFunction("f");
+  assert(F && "Bad assembly?");
+
+  auto *RVal =
+      cast<ReturnInst>(F->getEntryBlock().getTerminator())->getOperand(0);
+  auto Known = computeKnownBits(RVal, M->getDataLayout());
+  ASSERT_FALSE(Known.hasConflict());
+  EXPECT_EQ(Known.One.getZExtValue(), 42u);
+  EXPECT_EQ(Known.Zero.getZExtValue(), 4278190101u);
 }
