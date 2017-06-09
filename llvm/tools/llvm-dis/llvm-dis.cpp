@@ -152,6 +152,43 @@ static std::unique_ptr<Module> openInputFile(LLVMContext &Context) {
   return M;
 }
 
+void printModuleSummaryIndex(raw_ostream &Out, const ModuleSummaryIndex *S) {
+  Out << "; Module summary:\n";
+  for (const_gvsummary_iterator i = S->begin(); i != S->end(); i++) {
+    ValueInfo V = S->getValueInfo(i->first);
+    auto L = V.getSummaryList();
+    for (auto i = L.begin(); i != L.end(); i++) {
+      Out << "; " << S->findOidToValueName((*i)->getOriginalName()) << ": ";
+      switch ((*i)->getSummaryKind()) {
+      case GlobalValueSummary::SummaryKind::AliasKind: {
+        AliasSummary *a = cast<AliasSummary>(i->get());
+        Out << "Alias (aliasee "
+            << S->findOidToValueName(a->getAliasee().getOriginalName())
+            << ")\n";
+      } break;
+      case GlobalValueSummary::SummaryKind::FunctionKind: {
+        Out << "Function";
+        FunctionSummary *f = cast<FunctionSummary>(i->get());
+        Out << " (" << f->instCount() << " instruction"
+            << (f->instCount() == 1 ? "" : "s") << ")\n";
+        for (FunctionSummary::EdgeTy c : f->calls()) {
+          Out << ";  called by: " << S->findOidToValueName(c.first.getGUID())
+              << "\n";
+        }
+      } break;
+      case GlobalValueSummary::SummaryKind::GlobalVarKind:
+        Out << "Global Variable\n";
+        break;
+      }
+      const std::string LinkageTypeStr[] = {
+          "external", "available external", "link once any", "link once odr",
+          "weak any", "weak odr",           "appending",     "internal",
+          "private",  "external weak",      "common"};
+      Out << ";  " << LinkageTypeStr[(*i)->flags().Linkage] << " linkage \n";
+    }
+  }
+}
+
 int main(int argc, char **argv) {
   // Print a stack trace if we signal out.
   sys::PrintStackTraceOnErrorSignal(argv[0]);
@@ -195,8 +232,13 @@ int main(int argc, char **argv) {
     Annotator.reset(new CommentWriter());
 
   // All that llvm-dis does is write the assembly to a file.
-  if (!DontPrint)
+  if (!DontPrint) {
     M->print(Out->os(), Annotator.get(), PreserveAssemblyUseListOrder);
+
+    std::unique_ptr<ModuleSummaryIndex> MSI =
+        ExitOnErr(getModuleSummaryIndexForFile(InputFilename));
+    printModuleSummaryIndex(Out->os(), MSI.get());
+  }
 
   // Declare success.
   Out->keep();
