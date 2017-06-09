@@ -91,12 +91,12 @@ define i32 @test5(double %d) nounwind {
 ; CHECK-NEXT:    fistps {{[0-9]+}}(%esp)
 ; CHECK-NEXT:    fldcw (%esp)
 ; CHECK-NEXT:    testb $1, {{[0-9]+}}(%esp)
-; CHECK-NEXT:    je .LBB4_2
+; CHECK-NEXT:    je .LBB4_3
 ; CHECK-NEXT:  # BB#1: # %cond_true
 ; CHECK-NEXT:    movl $21, %eax
 ; CHECK-NEXT:    popl %ecx
 ; CHECK-NEXT:    retl
-; CHECK-NEXT:  .LBB4_2: # %cond_false
+; CHECK-NEXT:  .LBB4_3: # %cond_false
 ; CHECK-NEXT:    movl $42, %eax
 ; CHECK-NEXT:    popl %ecx
 ; CHECK-NEXT:    retl

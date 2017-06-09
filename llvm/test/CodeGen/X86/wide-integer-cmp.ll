@@ -103,12 +103,12 @@ define i32 @test_wide(i128 %a, i128 %b) {
 ; CHECK-NEXT:    sbbl {{[0-9]+}}(%esp), %esi
 ; CHECK-NEXT:    sbbl {{[0-9]+}}(%esp), %eax
 ; CHECK-NEXT:    sbbl {{[0-9]+}}(%esp), %ecx
-; CHECK-NEXT:    jge .LBB4_2
+; CHECK-NEXT:    jge .LBB4_3
 ; CHECK-NEXT:  # BB#1: # %bb1
 ; CHECK-NEXT:    movl $1, %eax
 ; CHECK-NEXT:    popl %esi
 ; CHECK-NEXT:    retl
-; CHECK-NEXT:  .LBB4_2: # %bb2
+; CHECK-NEXT:  .LBB4_3: # %bb2
 ; CHECK-NEXT:    movl $2, %eax
 ; CHECK-NEXT:    popl %esi
 ; CHECK-NEXT:    retl

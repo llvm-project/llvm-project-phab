@@ -106,20 +106,19 @@ altret:
 
 ; BranchFolding shouldn't try to merge the tails of two blocks
 ; with only a branch in common, regardless of the fallthrough situation.
-
 ; CHECK-LABEL: dont_merge_oddly:
 ; CHECK-NOT:   ret
 ; CHECK:        ucomiss %xmm{{[0-2]}}, %xmm{{[0-2]}}
-; CHECK-NEXT:   jbe .LBB2_3
+; CHECK-NEXT:   jbe .LBB2_4
 ; CHECK-NEXT:   ucomiss %xmm{{[0-2]}}, %xmm{{[0-2]}}
-; CHECK-NEXT:   ja .LBB2_4
-; CHECK-NEXT: .LBB2_2:
+; CHECK-NEXT:   ja .LBB2_5
+; CHECK-NEXT: .LBB2_3:
 ; CHECK-NEXT:   movb $1, %al
 ; CHECK-NEXT:   ret
-; CHECK-NEXT: .LBB2_3:
-; CHECK-NEXT:   ucomiss %xmm{{[0-2]}}, %xmm{{[0-2]}}
-; CHECK-NEXT:   jbe .LBB2_2
 ; CHECK-NEXT: .LBB2_4:
+; CHECK-NEXT:   ucomiss %xmm{{[0-2]}}, %xmm{{[0-2]}}
+; CHECK-NEXT:   jbe .LBB2_3
+; CHECK-NEXT: .LBB2_5:
 ; CHECK-NEXT:   xorl %eax, %eax
 ; CHECK-NEXT:   ret
 
@@ -412,10 +411,7 @@ return:
 
 ; two_nosize - Same as two, but without the optsize attribute.
 ; Now two instructions are enough to be tail-duplicated.
-
 ; CHECK-LABEL: two_nosize:
-; CHECK: movl $0, XYZ(%rip)
-; CHECK: jmp tail_call_me
 ; CHECK: movl $0, XYZ(%rip)
 ; CHECK: jmp tail_call_me
 

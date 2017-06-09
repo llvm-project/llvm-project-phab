@@ -1,4 +1,4 @@
-; RUN: llc < %s -mtriple=aarch64-linux-gnu | FileCheck %s
+; RUN: llc < %s -mtriple=aarch64-linux-gnu -tail-merge-size=3 | FileCheck %s
 
 ; marked as external to prevent possible optimizations
 @a = external global i32

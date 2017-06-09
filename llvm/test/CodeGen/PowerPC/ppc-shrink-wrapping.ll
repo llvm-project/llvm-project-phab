@@ -397,7 +397,6 @@ entry:
 ; Epilogue code.
 ; CHECK: li 3, 0
 ; CHECK-DAG: ld 14, -[[STACK_OFFSET]](1) # 8-byte Folded Reload
-; CHECK: nop
 ; CHECK: blr
 ;
 ; CHECK: [[ELSE_LABEL]]
