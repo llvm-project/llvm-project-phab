@@ -92,6 +92,7 @@ public:
 private:
   std::vector<SymbolBody *> findByVersion(SymbolVersion Ver);
   std::vector<SymbolBody *> findAllByVersion(SymbolVersion Ver);
+  void scanSymbolVersions();
 
   llvm::StringMap<std::vector<SymbolBody *>> &getDemangledSyms();
   void handleAnonymousVersion();

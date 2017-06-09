@@ -29,6 +29,10 @@ using namespace llvm::ELF;
 using namespace lld;
 using namespace lld::elf;
 
+static void copy(Symbol *A, Symbol *B) {
+  memcpy(A->Body.buffer, B->Body.buffer, sizeof(Symbol::Body));
+}
+
 // All input object files must be for the same architecture
 // (e.g. it does not make sense to link x86 object files with
 // MIPS object files.) This function checks for that error.
@@ -200,7 +204,7 @@ template <class ELFT> void SymbolTable<ELFT>::applySymbolRenames() {
     // We rename symbols by replacing the old symbol's SymbolBody with the new
     // symbol's SymbolBody. This causes all SymbolBody pointers referring to the
     // old symbol to instead refer to the new symbol.
-    memcpy(Sym->Body.buffer, Rename->Body.buffer, sizeof(Sym->Body));
+    copy(Sym, Rename);
   }
 }
 
@@ -718,12 +722,8 @@ void SymbolTable<ELFT>::assignWildcardVersion(SymbolVersion Ver,
 // This function processes version scripts by updating VersionId
 // member of symbols.
 template <class ELFT> void SymbolTable<ELFT>::scanVersionScript() {
-  // Symbol themselves might know their versions because symbols
-  // can contain versions in the form of <name>@<version>.
-  // Let them parse their names.
   if (!Config->VersionDefinitions.empty())
-    for (Symbol *Sym : SymVector)
-      Sym->body()->parseSymbolVersion();
+    scanSymbolVersions();
 
   // Handle edge cases first.
   handleAnonymousVersion();
@@ -748,6 +748,68 @@ template <class ELFT> void SymbolTable<ELFT>::scanVersionScript() {
   for (VersionDefinition &V : llvm::reverse(Config->VersionDefinitions))
     for (SymbolVersion &Ver : V.Globals)
       assignWildcardVersion(Ver, V.Id);
+}
+
+// Parse a symbol name as a versioned symbol. It recognizes
+// <name>@<version> or <name>@@<version>.
+static void parseSymbolVersion(const SymbolBody &B, uint16_t &Version,
+                               bool &IsDefault, StringRef &NewName) {
+  StringRef S = B.getName();
+  size_t Pos = S.find('@');
+  if (Pos == 0 || Pos == StringRef::npos)
+    return;
+  StringRef Verstr = S.substr(Pos + 1);
+  if (Verstr.empty())
+    return;
+
+  // Truncate the symbol name so that it doesn't include the version string.
+  NewName = S.substr(0, Pos);
+
+  // If this is not in this DSO, it is not a definition.
+  if (!B.isInCurrentDSO())
+    return;
+
+  // '@@' in a symbol name means the default version.
+  // It is usually the most recent one.
+  IsDefault = (Verstr[0] == '@');
+  if (IsDefault)
+    Verstr = Verstr.substr(1);
+
+  for (VersionDefinition &Ver : Config->VersionDefinitions) {
+    if (Ver.Name == Verstr) {
+      Version = Ver.Id;
+      return;
+    }
+  }
+
+  // It is an error if the specified version is not defined.
+  error(toString(B.File) + ": symbol " + S + " has undefined version " +
+        Verstr);
+}
+
+// There is a way to specify sybmol versions besides version scripts.
+// If a symbol name is in the form of <name>@<version> or <name>@@<version>,
+// the strings after '@' specifies versions.
+template <class ELFT> void SymbolTable<ELFT>::scanSymbolVersions() {
+  for (Symbol *Sym : SymVector) {
+    SymbolBody *B = Sym->body();
+    uint16_t Ver = 0;
+    bool IsDefault = false;
+    StringRef NewName;
+
+    // Parse the symbol name.
+    parseSymbolVersion(*B, Ver, IsDefault, NewName);
+    if (!NewName.empty())
+      B->setName(NewName);
+    if (Ver != 0)
+      Sym->VersionId = IsDefault ? Ver : (Ver | VERSYM_HIDDEN);
+
+    // If versioned symbols are default ones (which contains "@@" as opposed
+    // to "@"), they are used to resolved remaining unversioned symbols.
+    if (IsDefault)
+      if (auto *U = dyn_cast_or_null<Undefined>(find(NewName)))
+        copy(U->symbol(), Sym);
+  }
 }
 
 template class elf::SymbolTable<ELF32LE>;

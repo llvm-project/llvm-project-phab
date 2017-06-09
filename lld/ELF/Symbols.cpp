@@ -220,45 +220,6 @@ OutputSection *SymbolBody::getOutputSection() const {
   return nullptr;
 }
 
-// If a symbol name contains '@', the characters after that is
-// a symbol version name. This function parses that.
-void SymbolBody::parseSymbolVersion() {
-  StringRef S = getName();
-  size_t Pos = S.find('@');
-  if (Pos == 0 || Pos == StringRef::npos)
-    return;
-  StringRef Verstr = S.substr(Pos + 1);
-  if (Verstr.empty())
-    return;
-
-  // Truncate the symbol name so that it doesn't include the version string.
-  Name = {S.data(), Pos};
-
-  // If this is not in this DSO, it is not a definition.
-  if (!isInCurrentDSO())
-    return;
-
-  // '@@' in a symbol name means the default version.
-  // It is usually the most recent one.
-  bool IsDefault = (Verstr[0] == '@');
-  if (IsDefault)
-    Verstr = Verstr.substr(1);
-
-  for (VersionDefinition &Ver : Config->VersionDefinitions) {
-    if (Ver.Name != Verstr)
-      continue;
-
-    if (IsDefault)
-      symbol()->VersionId = Ver.Id;
-    else
-      symbol()->VersionId = Ver.Id | VERSYM_HIDDEN;
-    return;
-  }
-
-  // It is an error if the specified version is not defined.
-  error(toString(File) + ": symbol " + S + " has undefined version " + Verstr);
-}
-
 Defined::Defined(Kind K, StringRefZ Name, bool IsLocal, uint8_t StOther,
                  uint8_t Type)
     : SymbolBody(K, Name, IsLocal, StOther, Type) {}
