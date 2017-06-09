@@ -176,3 +176,37 @@ define arm_aapcs_vfpcc double @lower_const_f64_xo() {
 ; CHECK-XO-DOUBLE-BE-NOT: vldr
   ret double 3.140000e-01
 }
+
+; This is a target independent optimization, performed by the
+; DAG Combiner, which promotes floating point literals into
+; constant pools:
+;
+; (a cond b) ? 1.0f : 2.0f -> load (ConstPoolAddr + ((a cond b) ? 0 : 4)
+;
+; We need to make sure that the constant pools are placed in
+; the data section when generating execute-only code:
+
+define arm_aapcs_vfpcc float @lower_fpconst_select(float %f) {
+
+; CHECK-NO-XO-LABEL: lower_fpconst_select
+; CHECK-NO-XO: adr [[REG:r[0-9]+]], [[LABEL:.?LCPI[0-9]+_[0-9]+]]
+; CHECK-NO-XO: vldr {{s[0-9]+}}, {{[[]}}[[REG]]{{[]]}}
+; CHECK-NO-XO-NOT: .rodata
+; CHECK-NO-XO: [[LABEL]]:
+; CHECK-NO-XO: .long   1335165689
+; CHECK-NO-XO: .long   1307470632
+
+; CHECK-XO-FLOAT: .rodata
+; CHECK-XO-FLOAT: [[LABEL:.?LCPI[0-9]+_[0-9]+]]:
+; CHECK-XO-FLOAT: .long   1335165689
+; CHECK-XO-FLOAT: .long   1307470632
+; CHECK-XO-FLOAT: .section        .text,"axy",%progbits,unique,0
+; CHECK-XO-FLOAT: lower_fpconst_select:
+; CHECK-XO-FLOAT: movw [[REG:r[0-9]+]], :lower16:[[LABEL]]
+; CHECK-XO-FLOAT: movt [[REG]], :upper16:[[LABEL]]
+; CHECK-XO-FLOAT: vldr {{s[0-9]+}}, {{[[]}}[[REG]]{{[]]}}
+
+  %cmp = fcmp nnan oeq float %f, 0.000000e+00
+  %sel = select i1 %cmp, float 5.000000e+08, float 5.000000e+09
+  ret float %sel
+}

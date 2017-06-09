@@ -61,6 +61,14 @@ ARMAsmPrinter::ARMAsmPrinter(TargetMachine &TM,
     : AsmPrinter(TM, std::move(Streamer)), AFI(nullptr), MCP(nullptr),
       InConstantPool(false), OptimizationGoals(-1) {}
 
+// When generating execute-only code invoke the generic AsmPrinter
+// in order to place the literals in the data section, otherwise
+// handle Constant Pools in EmitInstruction.
+void ARMAsmPrinter::EmitConstantPool() {
+  if (Subtarget->genExecuteOnly())
+    AsmPrinter::EmitConstantPool();
+}
+
 void ARMAsmPrinter::EmitFunctionBodyEnd() {
   // Make sure to terminate any constant pools that were at the end
   // of the function.
@@ -1236,6 +1244,31 @@ void ARMAsmPrinter::EmitInstruction(const MachineInstr *MI) {
   case ARM::t2LEApcrel: {
     // FIXME: Need to also handle globals and externals
     MCSymbol *CPISymbol = GetCPISymbol(MI->getOperand(1).getIndex());
+
+    // When generating execute-only code use MOVW/MOVT to materialize the
+    // address of a Constant Pool.
+    if (Subtarget->genExecuteOnly()) {
+      const MCExpr *SymExpr = MCSymbolRefExpr::create(CPISymbol, OutContext);
+      EmitToStreamer(*OutStreamer, MCInstBuilder(ARM::t2MOVi16)
+                     .addReg(MI->getOperand(0).getReg())
+                     .addExpr(ARMMCExpr::createLower16(SymExpr, OutContext))
+                     // Add predicate operands.
+                     .addImm(MI->getOperand(2).getImm())
+                     .addReg(MI->getOperand(3).getReg())
+                     // Add 's' bit operand (always reg0 for this)
+                     .addReg(MI->getOperand(0).getReg()));
+      EmitToStreamer(*OutStreamer, MCInstBuilder(ARM::t2MOVTi16)
+                     .addReg(MI->getOperand(0).getReg())
+                     .addReg(MI->getOperand(0).getReg())
+                     .addExpr(ARMMCExpr::createUpper16(SymExpr, OutContext))
+                     // Add predicate operands.
+                     .addImm(MI->getOperand(2).getImm())
+                     .addReg(MI->getOperand(3).getReg())
+                     // Add 's' bit operand (always reg0 for this)
+                     .addReg(MI->getOperand(0).getReg()));
+      return;
+    }
+
     EmitToStreamer(*OutStreamer, MCInstBuilder(MI->getOpcode() ==
                                                ARM::t2LEApcrel ? ARM::t2ADR
                   : (MI->getOpcode() == ARM::tLEApcrel ? ARM::tADR
@@ -1504,6 +1537,10 @@ void ARMAsmPrinter::EmitInstruction(const MachineInstr *MI) {
     return;
   }
   case ARM::CONSTPOOL_ENTRY: {
+    // Handle this case in EmitConstantPool.
+    if (Subtarget->genExecuteOnly())
+      return;
+
     /// CONSTPOOL_ENTRY - This instruction represents a floating constant pool
     /// in the function.  The first operand is the ID# for this instruction, the
     /// second is the index into the MachineConstantPool that this is, the third

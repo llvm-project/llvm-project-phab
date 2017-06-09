@@ -92,9 +92,7 @@ public:
   void EmitInstruction(const MachineInstr *MI) override;
   bool runOnMachineFunction(MachineFunction &F) override;
 
-  void EmitConstantPool() override {
-    // we emit constant pools customly!
-  }
+  void EmitConstantPool() override;
   void EmitFunctionBodyEnd() override;
   void EmitFunctionEntryLabel() override;
   void EmitStartOfAsmFile(Module &M) override;
