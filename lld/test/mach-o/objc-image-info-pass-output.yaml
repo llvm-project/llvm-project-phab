@@ -21,7 +21,7 @@ sections:
 ...
 
 # CHECK: --- !native
-# CHECK: path:            '<linker-internal>'
+# CHECK: path:            "<linker-internal>"
 # CHECK: defined-atoms:
 # CHECK:   - scope:           hidden
 # CHECK:     type:            objc-image-info

@@ -9,6 +9,7 @@
 
 #include "llvm/Support/YAMLTraits.h"
 #include "llvm/ADT/SmallString.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Errc.h"
@@ -605,9 +606,9 @@ void Output::endBitSetScalar() {
 void Output::scalarString(StringRef &S, bool MustQuote) {
   this->newLineCheck();
   if (S.empty()) {
-    // Print '' for the empty string because leaving the field empty is not
+    // Print "" for the empty string because leaving the field empty is not
     // allowed.
-    this->outputUpToEndOfLine("''");
+    this->outputUpToEndOfLine("\"\"");
     return;
   }
   if (!MustQuote) {
@@ -615,22 +616,22 @@ void Output::scalarString(StringRef &S, bool MustQuote) {
     this->outputUpToEndOfLine(S);
     return;
   }
-  unsigned i = 0;
-  unsigned j = 0;
   unsigned End = S.size();
-  output("'"); // Starting single quote.
+  SmallString<24> Encoded("\"");
   const char *Base = S.data();
-  while (j < End) {
-    // Escape a single quote by doubling it.
-    if (S[j] == '\'') {
-      output(StringRef(&Base[i], j - i + 1));
-      output("'");
-      i = j + 1;
+  for (unsigned i = 0; i < End; i++) {
+    char C = Base[i];
+    if (isprint(C)) {
+      if (C == '\"' || C == '\\') {
+        Encoded += '\\';
+      }
+      Encoded += C;
+    } else {
+      Encoded += "\\x" + toHex(StringRef(&C, 1));
     }
-    ++j;
   }
-  output(StringRef(&Base[i], j - i));
-  this->outputUpToEndOfLine("'"); // Ending single quote.
+  Encoded += '\"';
+  this->outputUpToEndOfLine(Encoded);
 }
 
 void Output::blockScalarString(StringRef &S) {

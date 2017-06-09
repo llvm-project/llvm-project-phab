@@ -1120,9 +1120,9 @@ TEST_F(AtomicChangeTest, AtomicChangeToYAML) {
 
   // NOTE: If this test starts to fail for no obvious reason, check whitespace.
   ASSERT_STREQ("---\n"
-               "Key:             'input.cpp:20'\n"
+               "Key:             \"input.cpp:20\"\n"
                "FilePath:        input.cpp\n"
-               "Error:           ''\n"
+               "Error:           \"\"\n"
                "InsertedHeaders: [ a.h ]\n"
                "RemovedHeaders:  [ b.h ]\n"
                "Replacements:    \n" // Extra whitespace here!
@@ -1140,9 +1140,9 @@ TEST_F(AtomicChangeTest, AtomicChangeToYAML) {
 
 TEST_F(AtomicChangeTest, YAMLToAtomicChange) {
   std::string YamlContent = "---\n"
-                            "Key:             'input.cpp:20'\n"
+                            "Key:             \"input.cpp:20\"\n"
                             "FilePath:        input.cpp\n"
-                            "Error:           'ok'\n"
+                            "Error:           \"ok\"\n"
                             "InsertedHeaders: [ a.h ]\n"
                             "RemovedHeaders:  [ b.h ]\n"
                             "Replacements:    \n" // Extra whitespace here!

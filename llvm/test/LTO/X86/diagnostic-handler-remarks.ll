@@ -1,5 +1,5 @@
 ; RUN: llvm-as < %s >%t.bc
-; PR21108: Diagnostic handlers get pass remarks, even if they're not enabled.
+; PR21108: Diagnostic handlers get pass remarks, even if they"re not enabled.
 
 ; Confirm that there are -pass-remarks.
 ; RUN: llvm-lto -pass-remarks=inline \
@@ -51,7 +51,7 @@
 ; YAML-NEXT: Function:        main
 ; YAML-NEXT: Args:
 ; YAML-NEXT:   - Callee:          foo
-; YAML-NEXT:   - String:          ' inlined into '
+; YAML-NEXT:   - String:          " inlined into "
 ; YAML-NEXT:   - Caller:          main
 ; YAML-NEXT: ...
 

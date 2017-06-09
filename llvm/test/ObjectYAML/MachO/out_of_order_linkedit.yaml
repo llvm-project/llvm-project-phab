@@ -119,7 +119,7 @@ LoadCommands:
       timestamp:       2
       current_version: 7864576
       compatibility_version: 65536
-    PayloadString:   '/usr/lib/libc++.1.dylib'
+    PayloadString:   "/usr/lib/libc++.1.dylib"
     ZeroPadBytes:    1
   - cmd:             LC_LOAD_DYLIB
     cmdsize:         56
@@ -155,45 +155,45 @@ LinkEditData:
   BindOpcodes:     
     - Opcode:          BIND_OPCODE_SET_DYLIB_ORDINAL_IMM
       Imm:             1
-      Symbol:          ''
+      Symbol:          ""
     - Opcode:          BIND_OPCODE_SET_SYMBOL_TRAILING_FLAGS_IMM
       Imm:             0
       Symbol:          __ZNSt3__14coutE
     - Opcode:          BIND_OPCODE_SET_TYPE_IMM
       Imm:             1
-      Symbol:          ''
+      Symbol:          ""
     - Opcode:          BIND_OPCODE_SET_SEGMENT_AND_OFFSET_ULEB
       Imm:             2
       ULEBExtraData:   
         - 0x0000000000000000
-      Symbol:          ''
+      Symbol:          ""
     - Opcode:          BIND_OPCODE_DO_BIND
       Imm:             0
-      Symbol:          ''
+      Symbol:          ""
     - Opcode:          BIND_OPCODE_SET_SYMBOL_TRAILING_FLAGS_IMM
       Imm:             0
       Symbol:          __ZNSt3__15ctypeIcE2idE
     - Opcode:          BIND_OPCODE_DO_BIND
       Imm:             0
-      Symbol:          ''
+      Symbol:          ""
     - Opcode:          BIND_OPCODE_SET_SYMBOL_TRAILING_FLAGS_IMM
       Imm:             0
       Symbol:          ___gxx_personality_v0
     - Opcode:          BIND_OPCODE_DO_BIND
       Imm:             0
-      Symbol:          ''
+      Symbol:          ""
     - Opcode:          BIND_OPCODE_SET_DYLIB_ORDINAL_IMM
       Imm:             2
-      Symbol:          ''
+      Symbol:          ""
     - Opcode:          BIND_OPCODE_SET_SYMBOL_TRAILING_FLAGS_IMM
       Imm:             0
       Symbol:          dyld_stub_binder
     - Opcode:          BIND_OPCODE_DO_BIND
       Imm:             0
-      Symbol:          ''
+      Symbol:          ""
     - Opcode:          BIND_OPCODE_DONE
       Imm:             0
-      Symbol:          ''
+      Symbol:          ""
 ...
 
 #CHECK:   - cmd:             LC_DYLD_INFO_ONLY
@@ -225,42 +225,42 @@ LinkEditData:
 #CHECK:   BindOpcodes:     
 #CHECK:     - Opcode:          BIND_OPCODE_SET_DYLIB_ORDINAL_IMM
 #CHECK:       Imm:             1
-#CHECK:       Symbol:          ''
+#CHECK:       Symbol:          ""
 #CHECK:     - Opcode:          BIND_OPCODE_SET_SYMBOL_TRAILING_FLAGS_IMM
 #CHECK:       Imm:             0
 #CHECK:       Symbol:          __ZNSt3__14coutE
 #CHECK:     - Opcode:          BIND_OPCODE_SET_TYPE_IMM
 #CHECK:       Imm:             1
-#CHECK:       Symbol:          ''
+#CHECK:       Symbol:          ""
 #CHECK:     - Opcode:          BIND_OPCODE_SET_SEGMENT_AND_OFFSET_ULEB
 #CHECK:       Imm:             2
 #CHECK:       ULEBExtraData:   
 #CHECK:         - 0x0000000000000000
-#CHECK:       Symbol:          ''
+#CHECK:       Symbol:          ""
 #CHECK:     - Opcode:          BIND_OPCODE_DO_BIND
 #CHECK:       Imm:             0
-#CHECK:       Symbol:          ''
+#CHECK:       Symbol:          ""
 #CHECK:     - Opcode:          BIND_OPCODE_SET_SYMBOL_TRAILING_FLAGS_IMM
 #CHECK:       Imm:             0
 #CHECK:       Symbol:          __ZNSt3__15ctypeIcE2idE
 #CHECK:     - Opcode:          BIND_OPCODE_DO_BIND
 #CHECK:       Imm:             0
-#CHECK:       Symbol:          ''
+#CHECK:       Symbol:          ""
 #CHECK:     - Opcode:          BIND_OPCODE_SET_SYMBOL_TRAILING_FLAGS_IMM
 #CHECK:       Imm:             0
 #CHECK:       Symbol:          ___gxx_personality_v0
 #CHECK:     - Opcode:          BIND_OPCODE_DO_BIND
 #CHECK:       Imm:             0
-#CHECK:       Symbol:          ''
+#CHECK:       Symbol:          ""
 #CHECK:     - Opcode:          BIND_OPCODE_SET_DYLIB_ORDINAL_IMM
 #CHECK:       Imm:             2
-#CHECK:       Symbol:          ''
+#CHECK:       Symbol:          ""
 #CHECK:     - Opcode:          BIND_OPCODE_SET_SYMBOL_TRAILING_FLAGS_IMM
 #CHECK:       Imm:             0
 #CHECK:       Symbol:          dyld_stub_binder
 #CHECK:     - Opcode:          BIND_OPCODE_DO_BIND
 #CHECK:       Imm:             0
-#CHECK:       Symbol:          ''
+#CHECK:       Symbol:          ""
 #CHECK:     - Opcode:          BIND_OPCODE_DONE
 #CHECK:       Imm:             0
-#CHECK:       Symbol:          ''
+#CHECK:       Symbol:          ""

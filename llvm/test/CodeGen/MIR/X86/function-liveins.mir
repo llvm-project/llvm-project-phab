@@ -1,5 +1,5 @@
 # RUN: llc -march=x86-64 -run-pass none -o - %s | FileCheck %s
-# This test ensures that the MIR parser parses machine function's liveins
+# This test ensures that the MIR parser parses machine function"s liveins
 # correctly.
 
 --- |
@@ -19,11 +19,11 @@ registers:
   - { id: 1, class: gr32 }
   - { id: 2, class: gr32 }
 # CHECK: liveins:
-# CHECK-NEXT: - { reg: '%edi', virtual-reg: '%0' }
-# CHECK-NEXT: - { reg: '%esi', virtual-reg: '%1' }
+# CHECK-NEXT: - { reg: "%edi", virtual-reg: "%0" }
+# CHECK-NEXT: - { reg: "%esi", virtual-reg: "%1" }
 liveins:
-  - { reg: '%edi', virtual-reg: '%0' }
-  - { reg: '%esi', virtual-reg: '%1' }
+  - { reg: "%edi", virtual-reg: "%0" }
+  - { reg: "%esi", virtual-reg: "%1" }
 body: |
   bb.0.body:
     liveins: %edi, %esi

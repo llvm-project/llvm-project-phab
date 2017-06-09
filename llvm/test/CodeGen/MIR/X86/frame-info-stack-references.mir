@@ -41,11 +41,11 @@ frameInfo:
   hasCalls:        true
 # CHECK-LABEL: name: test
 # CHECK: frameInfo
-# CHECK: stackProtector: '%stack.0.StackGuardSlot'
-  stackProtector:  '%stack.0.StackGuardSlot'
+# CHECK: stackProtector: "%stack.0.StackGuardSlot"
+  stackProtector:  "%stack.0.StackGuardSlot"
 fixedStack:
   - { id: 0, type: spill-slot, offset: -16, size: 8, alignment: 16,
-      callee-saved-register: '%rbx' }
+      callee-saved-register: "%rbx" }
 stack:
   - { id: 0, name: StackGuardSlot, offset: -24, size: 8, alignment: 8 }
   - { id: 1, name: test, offset: -40, size: 8, alignment: 8 }

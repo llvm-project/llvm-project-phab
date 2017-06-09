@@ -13,7 +13,7 @@
 ; YAML-NEXT: Function:        main
 ; YAML-NEXT: Args:
 ; YAML-NEXT:   - Callee:          tinkywinky
-; YAML-NEXT:   - String:          ' inlined into '
+; YAML-NEXT:   - String:          " inlined into "
 ; YAML-NEXT:   - Caller:          main
 ; YAML-NEXT: ...
 

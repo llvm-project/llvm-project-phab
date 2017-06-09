@@ -15,7 +15,7 @@
 ; YAML-NEXT: Hotness:         300
 ; YAML-NEXT: Args:
 ; YAML-NEXT:   - Callee:          tinkywinky
-; YAML-NEXT:   - String:          ' inlined into '
+; YAML-NEXT:   - String:          " inlined into "
 ; YAML-NEXT:   - Caller:          main
 ; YAML-NEXT: ...
 

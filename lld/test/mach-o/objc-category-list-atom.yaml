@@ -46,7 +46,7 @@ page-size:       0x00000000
 
 # Make sure we atomize the category list section by pointer sized atoms.
 
-# CHECK: path:            '<linker-internal>'
+# CHECK: path:            "<linker-internal>"
 # CHECK: defined-atoms:
 # CHECK:   - type:            objc-category-list
 # CHECK:     content:         [ 00, 00, 00, 00, 00, 00, 00, 00 ]

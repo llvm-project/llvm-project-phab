@@ -3,7 +3,7 @@ looking at the dumped debug maps is enough to validate their effects.
 
 RUN: llvm-dsymutil -oso-prepend-path %p -dump-debug-map %p/Inputs/fat-test.arm.dylib | FileCheck %s -check-prefix=ARM64 -check-prefix=ARMV7S -check-prefix=ARMV7 -check-prefix=CHECK
 RUN: llvm-dsymutil -oso-prepend-path %p -dump-debug-map %p/Inputs/fat-test.arm.dylib -arch all | FileCheck %s -check-prefix=ARM64 -check-prefix=ARMV7S -check-prefix=ARMV7 -check-prefix=CHECK
-RUN: llvm-dsymutil -oso-prepend-path %p -dump-debug-map %p/Inputs/fat-test.arm.dylib -arch='*' | FileCheck %s -check-prefix=ARM64 -check-prefix=ARMV7S -check-prefix=ARMV7 -check-prefix=CHECK
+RUN: llvm-dsymutil -oso-prepend-path %p -dump-debug-map %p/Inputs/fat-test.arm.dylib -arch="*" | FileCheck %s -check-prefix=ARM64 -check-prefix=ARMV7S -check-prefix=ARMV7 -check-prefix=CHECK
 RUN: llvm-dsymutil -oso-prepend-path %p -dump-debug-map %p/Inputs/fat-test.arm.dylib -arch arm64 | FileCheck %s -check-prefix=ARM64 -check-prefix=CHECK
 RUN: llvm-dsymutil -oso-prepend-path %p -dump-debug-map %p/Inputs/fat-test.arm.dylib -arch arm | FileCheck %s -check-prefix=ARMV7S -check-prefix=ARMV7 -check-prefix=CHECK
 RUN: llvm-dsymutil -oso-prepend-path %p -dump-debug-map %p/Inputs/fat-test.arm.dylib -arch armv7 | FileCheck %s -check-prefix=ARMV7 -check-prefix=CHECK
@@ -14,21 +14,21 @@ RUN: not llvm-dsymutil -oso-prepend-path %p -dump-debug-map %p/Inputs/fat-test.a
 
 ARMV7: ---
 ARMV7-NOT: ...
-ARMV7: triple:          'armv7-apple-darwin'
+ARMV7: triple:          "armv7-apple-darwin"
 ARMV7-NOT: ...
 ARMV7: sym: _armv7_var
 ARMV7-NOT: ---
 
 ARMV7S: ---
 ARMV7S-NOT: ...
-ARMV7S: triple:          'armv7s-apple-darwin'
+ARMV7S: triple:          "armv7s-apple-darwin"
 ARMV7S-NOT: ...
 ARMV7S: sym: _armv7s_var
 ARMV7S-NOT: ---
 
 ARM64: ---
 ARM64-NOT: ...
-ARM64: triple:          'arm64-apple-darwin'
+ARM64: triple:          "arm64-apple-darwin"
 ARM64-NOT: ...
 ARM64: sym: _arm64_var
 ARM64-NOT: ---

@@ -38,11 +38,11 @@ TEST(ReplacementsYamlTest, serializesReplacements) {
                "  - FilePath:        /path/to/file1.h\n"
                "    Offset:          232\n"
                "    Length:          56\n"
-               "    ReplacementText: 'replacement #1'\n"
+               "    ReplacementText: \"replacement #1\"\n"
                "  - FilePath:        /path/to/file2.h\n"
                "    Offset:          301\n"
                "    Length:          2\n"
-               "    ReplacementText: 'replacement #2'\n"
+               "    ReplacementText: \"replacement #2\"\n"
                "...\n",
                YamlContentStream.str().c_str());
 }
@@ -54,11 +54,11 @@ TEST(ReplacementsYamlTest, deserializesReplacements) {
                             "  - FilePath:        /path/to/file1.h\n"
                             "    Offset:          232\n"
                             "    Length:          56\n"
-                            "    ReplacementText: 'replacement #1'\n"
+                            "    ReplacementText: \"replacement #1\"\n"
                             "  - FilePath:        /path/to/file2.h\n"
                             "    Offset:          301\n"
                             "    Length:          2\n"
-                            "    ReplacementText: 'replacement #2'\n"
+                            "    ReplacementText: \"replacement #2\"\n"
                             "...\n";
   TranslationUnitReplacements DocActual;
   yaml::Input YAML(YamlContent);

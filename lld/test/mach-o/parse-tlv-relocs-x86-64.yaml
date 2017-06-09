@@ -57,7 +57,7 @@ sections:
         extern:          true
         symbol:          3
 local-symbols:
-  - name:            '_x$tlv$init'
+  - name:            "_x$tlv$init"
     type:            N_SECT
     sect:            2
     value:           0x0000000000000014
@@ -90,7 +90,7 @@ page-size:       0x00000000
 # CHECK-NEXT:         target:          __tlv_bootstrap
 # CHECK-NEXT:       - kind:            tlvInitSectionOffset
 # CHECK-NEXT:         offset:          16
-# CHECK-NEXT:         target:          '_x$tlv$init'
+# CHECK-NEXT:         target:          "_x$tlv$init"
 # CHECK:        - name:            _main
 # CHECK-NOT:    - name:
 # CHECK-NEXT:     scope:           global

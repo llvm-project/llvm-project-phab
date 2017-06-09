@@ -24,14 +24,14 @@
 ; YAML-NEXT: Args:
 ; YAML-NEXT:   - Callee: foo
 ; YAML-NEXT:     DebugLoc:        { File: /tmp/s.c, Line: 1, Column: 0 }
-; YAML-NEXT:   - String: ' can be inlined into '
+; YAML-NEXT:   - String: " can be inlined into "
 ; YAML-NEXT:   - Caller: bar
 ; YAML-NEXT:     DebugLoc:        { File: /tmp/s.c, Line: 3, Column: 0 }
-; YAML-NEXT:   - String: ' with cost='
-; YAML-NEXT:   - Cost: '{{[0-9\-]+}}'
-; YAML-NEXT:   - String: ' (threshold='
-; YAML-NEXT:   - Threshold: '{{[0-9]+}}'
-; YAML-NEXT:   - String: ')'
+; YAML-NEXT:   - String: " with cost="
+; YAML-NEXT:   - Cost: "{{[0-9\-]+}}"
+; YAML-NEXT:   - String: " (threshold="
+; YAML-NEXT:   - Threshold: "{{[0-9]+}}"
+; YAML-NEXT:   - String: ")"
 ; YAML-NEXT: ...
 ; YAML-NEXT: --- !Passed
 ; YAML-NEXT: Pass:            inline
@@ -42,12 +42,12 @@
 ; YAML-NEXT: Args:
 ; YAML-NEXT:   - Callee: foo
 ; YAML-NEXT:     DebugLoc:        { File: /tmp/s.c, Line: 1, Column: 0 }
-; YAML-NEXT:   - String: ' inlined into '
+; YAML-NEXT:   - String: " inlined into "
 ; YAML-NEXT:   - Caller: bar
 ; YAML-NEXT:     DebugLoc:        { File: /tmp/s.c, Line: 3, Column: 0 }
 ; YAML-NEXT: ...
 
-; ModuleID = '/tmp/s.c'
+; ModuleID = "/tmp/s.c"
 source_filename = "/tmp/s.c"
 target datalayout = "e-m:o-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-apple-macosx10.11.0"

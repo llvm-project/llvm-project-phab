@@ -61,13 +61,13 @@ name:            test_jumptable
 # CHECK-NEXT: kind: label-difference32
 # CHECK-NEXT: entries:
 # CHECK-NEXT: - id: 0
-# CHECK-NEXT: blocks: [ '%bb.3.lbl1', '%bb.4.lbl2', '%bb.5.lbl3', '%bb.6.lbl4' ]
+# CHECK-NEXT: blocks: [ "%bb.3.lbl1", "%bb.4.lbl2", "%bb.5.lbl3", "%bb.6.lbl4" ]
 # CHECK-NEXT: body:
 jumpTable:
   kind:          label-difference32
   entries:
     - id:        0
-      blocks:    [ '%bb.3.lbl1', '%bb.4.lbl2', '%bb.5.lbl3', '%bb.6.lbl4' ]
+      blocks:    [ "%bb.3.lbl1", "%bb.4.lbl2", "%bb.5.lbl3", "%bb.6.lbl4" ]
 body: |
   bb.0.entry:
     successors: %bb.2.def, %bb.1.entry
@@ -110,7 +110,7 @@ jumpTable:
   kind:          label-difference32
   entries:
     - id:        1
-      blocks:    [ '%bb.3.lbl1', '%bb.4.lbl2', '%bb.5.lbl3', '%bb.6.lbl4' ]
+      blocks:    [ "%bb.3.lbl1", "%bb.4.lbl2", "%bb.5.lbl3", "%bb.6.lbl4" ]
 body: |
   bb.0.entry:
     successors: %bb.2.def, %bb.1.entry

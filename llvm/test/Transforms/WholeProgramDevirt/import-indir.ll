@@ -35,11 +35,11 @@
 ; SUMMARY-NEXT:     WPDRes:
 ; SUMMARY-NEXT:       0:
 ; SUMMARY-NEXT:         Kind:            Indir
-; SUMMARY-NEXT:         SingleImplName:  ''
+; SUMMARY-NEXT:         SingleImplName:  ""
 ; SUMMARY-NEXT:         ResByArg:
 ; SUMMARY-NEXT:       4:
 ; SUMMARY-NEXT:         Kind:            Indir
-; SUMMARY-NEXT:         SingleImplName:  ''
+; SUMMARY-NEXT:         SingleImplName:  ""
 ; SUMMARY-NEXT:         ResByArg:
 ; SUMMARY-NEXT:           :
 ; SUMMARY-NEXT:             Kind:            UniformRetVal

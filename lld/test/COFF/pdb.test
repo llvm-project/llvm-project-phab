@@ -79,22 +79,22 @@
 # CHECK-NEXT:     - Kind:            LF_STRING_ID
 # CHECK-NEXT:       StringId:
 # CHECK-NEXT:         Id:              0
-# CHECK-NEXT:         String:          'D:\b'
+# CHECK-NEXT:         String:          "D:\\b"
 # CHECK-NEXT:     - Kind:            LF_STRING_ID
 # CHECK-NEXT:       StringId:
 # CHECK-NEXT:         Id:              0
-# CHECK-NEXT:         String:          'C:\vs14\VC\BIN\amd64\cl.exe'
+# CHECK-NEXT:         String:          "C:\\vs14\\VC\\BIN\\amd64\\cl.exe"
 # CHECK-NEXT:     - Kind:            LF_STRING_ID
 # CHECK-NEXT:       StringId:
 # CHECK-NEXT:         Id:              0
-# CHECK-NEXT:         String:          '-Z7 -c -MT -IC:\vs14\VC\INCLUDE -IC:\vs14\VC\ATLMFC\INCLUDE -I"C:\Program Files (x86)\Windows Kits\10\include\10.0.10150.0\ucrt" -I"C:\Program Files (x86)\Windows Kits\NETFXSDK\4.6\include\um" -I"C:\Program Files (x86)\Windows Kits\8.1\include\shared"'
+# CHECK-NEXT:         String:          "-Z7 -c -MT -IC:\\vs14\\VC\\INCLUDE -IC:\\vs14\\VC\\ATLMFC\\INCLUDE -I\"C:\\Program Files (x86)\\Windows Kits\\10\\include\\10.0.10150.0\\ucrt\" -I\"C:\\Program Files (x86)\\Windows Kits\\NETFXSDK\\4.6\\include\\um\" -I\"C:\\Program Files (x86)\\Windows Kits\\8.1\\include\\shared\""
 # CHECK-NEXT:     - Kind:            LF_SUBSTR_LIST
 # CHECK-NEXT:       StringList:
 # CHECK-NEXT:         StringIndices:   [ 4100 ]
 # CHECK-NEXT:     - Kind:            LF_STRING_ID
 # CHECK-NEXT:       StringId:
 # CHECK-NEXT:         Id:              4101
-# CHECK-NEXT:         String:          ' -I"C:\Program Files (x86)\Windows Kits\8.1\include\um" -I"C:\Program Files (x86)\Windows Kits\8.1\include\winrt" -TC -X'
+# CHECK-NEXT:         String:          " -I\"C:\\Program Files (x86)\\Windows Kits\\8.1\\include\\um\" -I\"C:\\Program Files (x86)\\Windows Kits\\8.1\\include\\winrt\" -TC -X"
 # CHECK-NEXT:     - Kind:            LF_STRING_ID
 # CHECK-NEXT:       StringId:
 # CHECK-NEXT:         Id:              0
@@ -102,7 +102,7 @@
 # CHECK-NEXT:     - Kind:            LF_STRING_ID
 # CHECK-NEXT:       StringId:
 # CHECK-NEXT:         Id:              0
-# CHECK-NEXT:         String:          'D:\b\vc140.pdb'
+# CHECK-NEXT:         String:          "D:\\b\\vc140.pdb"
 # CHECK-NEXT:     - Kind:            LF_BUILDINFO
 # CHECK-NEXT:       BuildInfo:
 # CHECK-NEXT:         ArgIndices:      [ 4098, 4099, 4103, 4104, 4102 ]

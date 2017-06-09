@@ -12,7 +12,7 @@ Sections:
         Offset:
           Opcode:          I32_CONST
           Value:           4
-        Content:         '10001000'
+        Content:         "10001000"
     Relocations:
       - Type:            R_WEBASSEMBLY_GLOBAL_ADDR_I32
         Index:           0
@@ -42,5 +42,5 @@ Sections:
 # CHECK-NEXT:         Offset:
 # CHECK-NEXT:           Opcode:          I32_CONST
 # CHECK-NEXT:           Value:           4
-# CHECK-NEXT:         Content:         '10001000'
+# CHECK-NEXT:         Content:         "10001000"
 # CHECK-NEXT: ...

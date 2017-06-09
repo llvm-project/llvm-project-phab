@@ -37,9 +37,9 @@
 ; YAML-NEXT: Name:            StackProtectorRequested
 ; YAML-NEXT: Function:        attribute_ssp
 ; YAML-NEXT: Args:
-; YAML-NEXT:   - String:          'Stack protection applied to function '
+; YAML-NEXT:   - String:          "Stack protection applied to function "
 ; YAML-NEXT:   - Function:        attribute_ssp
-; YAML-NEXT:   - String:          ' due to a function attribute or command-line switch'
+; YAML-NEXT:   - String:          " due to a function attribute or command-line switch"
 ; YAML-NEXT: ...
 
 define void @nossp() ssp {

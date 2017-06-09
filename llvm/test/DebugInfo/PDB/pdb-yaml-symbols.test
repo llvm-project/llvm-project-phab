@@ -24,15 +24,15 @@ YAML:   PdbDllRbld:      0
 YAML:   Flags:           1
 YAML:   MachineType:     x86
 YAML:   Modules:
-YAML:     - Module:          'd:\src\llvm\test\DebugInfo\PDB\Inputs\empty.obj'
-YAML:       ObjFile:         'd:\src\llvm\test\DebugInfo\PDB\Inputs\empty.obj'
+YAML:     - Module:          "d:\\src\\llvm\\test\\DebugInfo\\PDB\\Inputs\\empty.obj"
+YAML:       ObjFile:         "d:\\src\\llvm\\test\\DebugInfo\\PDB\\Inputs\\empty.obj"
 YAML:       Modi:
 YAML:         Signature:       4
 YAML:         Records:
 YAML:           - Kind:            S_OBJNAME
 YAML:             ObjNameSym:
 YAML:               Signature:       0
-YAML:               ObjectName:      'd:\src\llvm\test\DebugInfo\PDB\Inputs\empty.obj'
+YAML:               ObjectName:      "d:\\src\\llvm\\test\\DebugInfo\\PDB\\Inputs\\empty.obj"
 YAML:           - Kind:            S_COMPILE3
 YAML:             Compile3Sym:
 YAML:               Flags:           [ SecurityChecks ]
@@ -45,7 +45,7 @@ YAML:               BackendMajor:    18
 YAML:               BackendMinor:    0
 YAML:               BackendBuild:    31101
 YAML:               BackendQFE:      0
-YAML:               Version:         'Microsoft (R) Optimizing Compiler'
+YAML:               Version:         "Microsoft (R) Optimizing Compiler"
 YAML:           - Kind:            S_GPROC32
 YAML:             ProcSym:
 YAML:               PtrParent:       0
@@ -72,15 +72,15 @@ YAML:             ScopeEndSym:
 YAML:           - Kind:            S_BUILDINFO
 YAML:             BuildInfoSym:
 YAML:               BuildId:         4110
-YAML:     - Module:          '* Linker *'
-YAML:       ObjFile:         ''
+YAML:     - Module:          "* Linker *"
+YAML:       ObjFile:         ""
 YAML:       Modi:
 YAML:         Signature:       4
 YAML:         Records:
 YAML:           - Kind:            S_OBJNAME
 YAML:             ObjNameSym:
 YAML:               Signature:       0
-YAML:               ObjectName:      '* Linker *'
+YAML:               ObjectName:      "* Linker *"
 YAML:           - Kind:            S_COMPILE3
 YAML:             Compile3Sym:
 YAML:               Flags:           [  ]
@@ -93,16 +93,16 @@ YAML:               BackendMajor:    12
 YAML:               BackendMinor:    0
 YAML:               BackendBuild:    31101
 YAML:               BackendQFE:      0
-YAML:               Version:         'Microsoft (R) LINK'
+YAML:               Version:         "Microsoft (R) LINK"
 YAML:           - Kind:            S_ENVBLOCK
 YAML:             EnvBlockSym:
 YAML:               Entries:
 YAML:                 - cwd
-YAML:                 - 'd:\src\llvm\test\DebugInfo\PDB\Inputs'
+YAML:                 - "d:\\src\\llvm\\test\\DebugInfo\\PDB\\Inputs"
 YAML:                 - exe
-YAML:                 - 'C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\BIN\link.exe'
+YAML:                 - "C:\\Program Files (x86)\\Microsoft Visual Studio 12.0\\VC\\BIN\\link.exe"
 YAML:                 - pdb
-YAML:                 - 'd:\src\llvm\test\DebugInfo\PDB\Inputs\empty.pdb'
+YAML:                 - "d:\\src\\llvm\\test\\DebugInfo\\PDB\\Inputs\\empty.pdb"
 YAML:           - Kind:            S_TRAMPOLINE
 YAML:             TrampolineSym:
 YAML:               Type:            TrampIncremental
@@ -125,7 +125,7 @@ YAML:               Size:            4122
 YAML:               Characteristics: 1610612768
 YAML:               Offset:          0
 YAML:               Segment:         1
-YAML:               Name:            '.text$mn'
+YAML:               Name:            ".text$mn"
 YAML:           - Kind:            S_SECTION
 YAML:             SectionSym:
 YAML:               SectionNumber:   2
@@ -154,7 +154,7 @@ YAML:               Size:            366
 YAML:               Characteristics: 1073741888
 YAML:               Offset:          324
 YAML:               Segment:         2
-YAML:               Name:            '.rdata$debug'
+YAML:               Name:            ".rdata$debug"
 YAML:           - Kind:            S_SECTION
 YAML:             SectionSym:
 YAML:               SectionNumber:   3

@@ -1,7 +1,7 @@
 # RUN: lld -flavor darwin -arch i386 %s %p/Inputs/hello-world-x86.yaml -o %t
 # RUN: obj2yaml %t | FileCheck %s
 #
-# Test that the string table contains a ' ' as its first symbol
+# Test that the string table contains a " " as its first symbol
 #
 
 --- !mach-o
@@ -58,9 +58,9 @@ undefined-symbols:
 ...
 
 # CHECK:  StringTable:
-# CHECK-NEXT:  - ' '
+# CHECK-NEXT:  - " "
 # CHECK-NEXT:  - __mh_execute_header
 # CHECK-NEXT:  - _main
 # CHECK-NEXT:  - _printf
 # CHECK-NEXT:  - dyld_stub_binder
-# CHECK-NEXT:  - ''
+# CHECK-NEXT:  - ""

@@ -118,7 +118,7 @@ LoadCommands:
       timestamp:       2
       current_version: 7864576
       compatibility_version: 65536
-    PayloadString:   '/usr/lib/libc++.1.dylib'
+    PayloadString:   "/usr/lib/libc++.1.dylib"
     ZeroPadBytes:    1
   - cmd:             LC_LOAD_DYLIB
     cmdsize:         52
@@ -139,10 +139,10 @@ LoadCommands:
     datasize:        0
 LinkEditData:
   StringTable:     
-    - ''
-    - ''
-    - ''
-    - ''
+    - ""
+    - ""
+    - ""
+    - ""
     - __mh_execute_header
     - __Unwind_Resume
     - __ZNKSt3__16locale9use_facetERNS0_2idE
@@ -167,17 +167,17 @@ LinkEditData:
     - _strlen
     - _strnlen
     - dyld_stub_binder
-    - 'radr://5614542'
-    - ''
-    - ''
-    - ''
+    - "radr://5614542"
+    - ""
+    - ""
+    - ""
 ...
 
 #CHECK: StringTable:     
-#CHECK:     - ''
-#CHECK:     - ''
-#CHECK:     - ''
-#CHECK:     - ''
+#CHECK:     - ""
+#CHECK:     - ""
+#CHECK:     - ""
+#CHECK:     - ""
 #CHECK:     - __mh_execute_header
 #CHECK:     - __Unwind_Resume
 #CHECK:     - __ZNKSt3__16locale9use_facetERNS0_2idE
@@ -202,7 +202,7 @@ LinkEditData:
 #CHECK:     - _strlen
 #CHECK:     - _strnlen
 #CHECK:     - dyld_stub_binder
-#CHECK:     - 'radr://5614542'
-#CHECK:     - ''
-#CHECK:     - ''
-#CHECK:     - ''
+#CHECK:     - "radr://5614542"
+#CHECK:     - ""
+#CHECK:     - ""
+#CHECK:     - ""

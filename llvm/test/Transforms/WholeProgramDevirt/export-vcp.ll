@@ -12,7 +12,7 @@ target triple = "x86_64-unknown-linux-gnu"
 ; SUMMARY-NEXT:     WPDRes:
 ; SUMMARY-NEXT:       0:
 ; SUMMARY-NEXT:         Kind:            Indir
-; SUMMARY-NEXT:         SingleImplName:  ''
+; SUMMARY-NEXT:         SingleImplName:  ""
 ; SUMMARY-NEXT:         ResByArg:
 ; SUMMARY-NEXT:           12,24:
 ; SUMMARY-NEXT:             Kind:            VirtualConstProp
@@ -24,7 +24,7 @@ target triple = "x86_64-unknown-linux-gnu"
 ; SUMMARY-NEXT:     WPDRes:
 ; SUMMARY-NEXT:       0:
 ; SUMMARY-NEXT:         Kind:            Indir
-; SUMMARY-NEXT:         SingleImplName:  ''
+; SUMMARY-NEXT:         SingleImplName:  ""
 ; SUMMARY-NEXT:         ResByArg:
 ; SUMMARY-NEXT:           24,12:
 ; SUMMARY-NEXT:             Kind:            VirtualConstProp

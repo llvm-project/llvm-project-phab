@@ -14,7 +14,7 @@ FileHeader:
 LoadCommands:    
   - cmd:             LC_SEGMENT_64
     cmdsize:         1272
-    segname:         ''
+    segname:         ""
     vmaddr:          0
     vmsize:          1086
     fileoff:         1424
@@ -247,13 +247,13 @@ LinkEditData:
       n_desc:          0
       n_value:         0
   StringTable:     
-    - ''
+    - ""
     - _compilerrt_abort_impl
     - ___absvdi2
-    - ''
+    - ""
 DWARF:           
   debug_str:       
-    - 'clang version 4.0.0 (trunk 290181) (llvm/trunk 290209)'
+    - "clang version 4.0.0 (trunk 290181) (llvm/trunk 290209)"
     - ../compiler-rt/lib/builtins/absvdi2.c
     - /Users/cbieneman/dev/open-source/llvm-build-rel
     - int
@@ -364,7 +364,7 @@ DWARF:
 
 #CHECK: DWARF:           
 #CHECK:   debug_str:       
-#CHECK:     - 'clang version 4.0.0 (trunk 290181) (llvm/trunk 290209)'
+#CHECK:     - "clang version 4.0.0 (trunk 290181) (llvm/trunk 290209)"
 #CHECK:     - ../compiler-rt/lib/builtins/absvdi2.c
 #CHECK:     - /Users/cbieneman/dev/open-source/llvm-build-rel
 #CHECK:     - int

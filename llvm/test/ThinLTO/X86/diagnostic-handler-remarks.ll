@@ -20,7 +20,7 @@
 ; YAML1-NEXT: Function:        main
 ; YAML1-NEXT: Args:
 ; YAML1-NEXT:   - Callee:          foo
-; YAML1-NEXT:   - String:          ' inlined into '
+; YAML1-NEXT:   - String:          " inlined into "
 ; YAML1-NEXT:   - Caller:          main
 ; YAML1-NEXT: ...
 
@@ -33,7 +33,7 @@
 ; YAML2-NEXT: Function:        foo
 ; YAML2-NEXT: Args:
 ; YAML2-NEXT:   - Callee:          bar
-; YAML2-NEXT:   - String:          ' inlined into '
+; YAML2-NEXT:   - String:          " inlined into "
 ; YAML2-NEXT:   - Caller:          foo
 ; YAML2-NEXT: ...
 

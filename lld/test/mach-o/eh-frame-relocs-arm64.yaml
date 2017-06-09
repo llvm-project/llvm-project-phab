@@ -210,7 +210,7 @@ page-size:       0x00000000
 ...
 
 # CHECK: --- !native
-# CHECK: path:            '<linker-internal>'
+# CHECK: path:            "<linker-internal>"
 # CHECK: defined-atoms:
 # CHECK:   - ref-name:        L000
 # CHECK:     type:            unwind-cfi
@@ -296,7 +296,7 @@ page-size:       0x00000000
 # CHECK:     alignment:       4
 # CHECK: ...
 
-# # Make sure we don't have any relocations in the __eh_frame section
+# # Make sure we don"t have any relocations in the __eh_frame section
 # CODE-NOT: RELOCATION RECORDS FOR [__eh_frame]
 
 # Also make sure the reloc for the CIE->personality function is the
