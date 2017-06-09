@@ -588,6 +588,31 @@ public:
   unsigned size() const { return MetadataList.size(); }
   void shrinkTo(unsigned N) { MetadataList.shrinkTo(N); }
   void upgradeDebugIntrinsics(Function &F) { upgradeDeclareExpressions(F); }
+
+  void upgradeThumbMode(Function &F) {
+    const Triple TT(TheModule.getTargetTriple());
+    if (TT.getArch() != Triple::thumb && TT.getArch() != Triple::thumbeb &&
+        TT.getArch() != Triple::arm && TT.getArch() != Triple::armeb)
+      return;
+
+    std::string TargetFeatures =
+      F.getFnAttribute("target-features").getValueAsString();
+
+    // Check that the target features do not already contain the thumb-mode
+    // feature.
+    auto Start = TargetFeatures.find("thumb-mode");
+    auto End = Start + std::string("thumb-mode").size();
+    if (Start != std::string::npos &&
+        (TargetFeatures[Start-1] == '-' || TargetFeatures[Start-1] == '+') &&
+        (End == TargetFeatures.size() || TargetFeatures[End] == ','))
+      return;
+
+    bool isArm = TT.getArch() == Triple::arm || TT.getArch() == Triple::armeb;
+    TargetFeatures += TargetFeatures.empty() ? "" : ",";
+    TargetFeatures += isArm ? "-" : "+";
+    TargetFeatures += "thumb-mode";
+    F.addFnAttr("target-features", TargetFeatures);
+  }
 };
 
 static Error error(const Twine &Message) {
@@ -1910,4 +1935,8 @@ void MetadataLoader::shrinkTo(unsigned N) { return Pimpl->shrinkTo(N); }
 
 void MetadataLoader::upgradeDebugIntrinsics(Function &F) {
   return Pimpl->upgradeDebugIntrinsics(F);
+}
+
+void MetadataLoader::upgradeThumbMode(Function &F) {
+  return Pimpl->upgradeThumbMode(F);
 }

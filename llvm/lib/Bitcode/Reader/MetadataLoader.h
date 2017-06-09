@@ -82,6 +82,9 @@ public:
 
   /// Perform bitcode upgrades on llvm.dbg.* calls.
   void upgradeDebugIntrinsics(Function &F);
+
+  /// Add thumb-mode target-feature for arm and thumb triples.
+  void upgradeThumbMode(Function &F);
 };
 }
 
