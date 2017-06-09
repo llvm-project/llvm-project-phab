@@ -533,6 +533,9 @@ private:
   // FIXME: Add bitcode read/write support for this field.
   std::map<std::string, TypeIdSummary> TypeIdMap;
 
+  // Maps GUID to the value name (for disassembly/debugging)
+  std::map<GlobalValue::GUID, std::string> OidToValueName;
+
   /// Mapping from original ID to GUID. If original ID can map to multiple
   /// GUIDs, it will be mapped to 0.
   std::map<GlobalValue::GUID, GlobalValue::GUID> OidGuidMap;
@@ -599,6 +602,12 @@ public:
                           std::move(Summary));
   }
 
+  // Add an OID to ValueName to the map tracking them for disassembly
+  void addOidToValueName(GlobalValue::GUID OID, std::string ValueName) {
+    OidToValueName.insert(
+        std::pair<GlobalValue::GUID, std::string>(OID, ValueName));
+  }
+
   /// Add a global value summary for the given ValueInfo.
   void addGlobalValueSummary(ValueInfo VI,
                              std::unique_ptr<GlobalValueSummary> Summary) {
@@ -636,6 +645,14 @@ public:
     if (Summary == CalleeInfo.getSummaryList().end())
       return nullptr;
     return Summary->get();
+  }
+
+  const std::string getOidToValueNameOrEmpty(const GlobalValue::GUID G) const {
+    auto s = OidToValueName.find(G);
+    if (s != OidToValueName.end()) {
+      return s->second;
+    }
+    return "";
   }
 
   /// Returns the first GlobalValueSummary for \p GV, asserting that there

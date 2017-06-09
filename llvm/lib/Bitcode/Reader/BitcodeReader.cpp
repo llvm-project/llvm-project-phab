@@ -4712,6 +4712,7 @@ void ModuleSummaryIndexBitcodeReader::setValueGUID(
   auto OriginalNameID = ValueGUID;
   if (GlobalValue::isLocalLinkage(Linkage))
     OriginalNameID = GlobalValue::getGUID(ValueName);
+  TheIndex.addOidToValueName(OriginalNameID, GlobalId);
   if (PrintSummaryGUIDs)
     dbgs() << "GUID " << ValueGUID << "(" << OriginalNameID << ") is "
            << ValueName << "\n";
