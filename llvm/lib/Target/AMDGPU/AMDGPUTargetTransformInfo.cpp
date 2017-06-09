@@ -489,6 +489,17 @@ bool AMDGPUTTIImpl::isSourceOfDivergence(const Value *V) const {
   return false;
 }
 
+bool AMDGPUTTIImpl::isAlwaysUniform(const Value *V) const {
+  if (const IntrinsicInst *Intrinsic = dyn_cast<IntrinsicInst>(V)) {
+    if (Intrinsic->getIntrinsicID() == Intrinsic::amdgcn_readfirstlane)
+     return true;
+  } else if (const Instruction * Inst = dyn_cast<Instruction>(V)) {
+    if (Inst->getOpcode() == AMDGPU::V_READFIRSTLANE_B32)
+      return true;
+  }
+  return false;
+}
+
 unsigned AMDGPUTTIImpl::getShuffleCost(TTI::ShuffleKind Kind, Type *Tp, int Index,
                                        Type *SubTp) {
   if (ST->hasVOP3PInsts()) {
