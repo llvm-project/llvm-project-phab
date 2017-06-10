@@ -1278,6 +1278,11 @@ public:
     if (!Use)
       return;
     *Use = MD;
+
+    if (*Use)
+      MetadataTracking::track(*Use);
+
+    // Equivalent to MetadataTracking::untrack
     Use = nullptr;
   }
 };
