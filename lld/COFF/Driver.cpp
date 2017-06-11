@@ -30,6 +30,7 @@
 #include "llvm/Support/Process.h"
 #include "llvm/Support/TarWriter.h"
 #include "llvm/Support/TargetSelect.h"
+#include "llvm/Support/Timer.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/ToolDrivers/llvm-lib/LibDriver.h"
 #include <algorithm>
@@ -1075,6 +1076,10 @@ void LinkerDriver::link(ArrayRef<const char *> ArgsArr) {
   // This is useful because MSVC link.exe can generate complete PDBs.
   if (Args.hasArg(OPT_msvclto)) {
     invokeMSVC(Args);
+
+    // If any timers were active, print their results now.
+    TimerGroup::printAll(errs());
+
     exit(0);
   }
 
@@ -1125,6 +1130,9 @@ void LinkerDriver::link(ArrayRef<const char *> ArgsArr) {
 
   // Write the result.
   writeResult(&Symtab);
+
+  // If any timers were active, print their results now.
+  TimerGroup::printAll(errs());
 
   // Call exit to avoid calling destructors.
   exit(0);
