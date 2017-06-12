@@ -658,7 +658,8 @@ public:
   typename std::enable_if<has_SequenceTraits<T>::value, void>::type
   mapOptionalWithContext(const char *Key, T &Val, Context &Ctx) {
     // omit key/value instead of outputting empty sequence
-    if (this->canElideEmptySequence() && !(Val.begin() != Val.end()))
+    if (this->canElideEmptySequence() &&
+        SequenceTraits<T>::size(*this, Val) == 0)
       return;
     this->processKey(Key, Val, false, Ctx);
   }
