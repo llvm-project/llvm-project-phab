@@ -12849,20 +12849,12 @@ bool DAGCombiner::MergeConsecutiveStores(StoreSDNode *St) {
       if (!Ld)
         break;
 
-      // Loads must only have one use.
-      if (!Ld->hasNUsesOfValue(1, 0))
-        break;
-
       // The memory operands must not be volatile.
       if (Ld->isVolatile() || Ld->isIndexed())
         break;
 
       // We do not accept ext loads.
       if (Ld->getExtensionType() != ISD::NON_EXTLOAD)
-        break;
-
-      // The stored memory type must be the same.
-      if (Ld->getMemoryVT() != MemVT)
         break;
 
       BaseIndexOffset LdPtr = BaseIndexOffset::match(Ld->getBasePtr(), DAG);
@@ -13012,8 +13004,16 @@ bool DAGCombiner::MergeConsecutiveStores(StoreSDNode *St) {
     // Transfer chain users from old loads to the new load.
     for (unsigned i = 0; i < NumElem; ++i) {
       LoadSDNode *Ld = cast<LoadSDNode>(LoadNodes[i].MemNode);
-      DAG.ReplaceAllUsesOfValueWith(SDValue(Ld, 1),
-                                    SDValue(NewLoad.getNode(), 1));
+      if (SDValue(Ld, 0).hasOneUse()) {
+        // Only the original store used value so just replace chain.
+        DAG.ReplaceAllUsesOfValueWith(SDValue(Ld, 1),
+                                      SDValue(NewLoad.getNode(), 1));
+      } else {
+        // Multiple uses exist. Keep the old load in line with the new
+        // load.
+        DAG.makeEquivalentMemoryOrdering(Ld, NewLoad);
+        AddToWorklist(Ld);
+      }
     }
 
     // Replace the all stores with the new store.
