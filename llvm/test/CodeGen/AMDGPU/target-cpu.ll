@@ -1,4 +1,4 @@
-; RUN: llc -march=amdgcn -verify-machineinstrs < %s | FileCheck %s
+; RUN: llc -march=amdgcn -disable-promote-alloca-to-vector -verify-machineinstrs < %s | FileCheck %s
 
 declare i8 addrspace(2)* @llvm.amdgcn.kernarg.segment.ptr() #1
 
@@ -9,7 +9,6 @@ declare void @llvm.amdgcn.s.dcache.inv.vol() #0
 
 ; VI+ intrinsic
 declare void @llvm.amdgcn.s.dcache.wb() #0
-
 ; CHECK-LABEL: {{^}}target_none:
 ; CHECK: s_movk_i32 [[OFFSETREG:s[0-9]+]], 0x400
 ; CHECK: s_load_dwordx2 s{{\[[0-9]+:[0-9]+\]}}, s{{\[[0-9]+:[0-9]+\]}}, [[OFFSETREG]]
