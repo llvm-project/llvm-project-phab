@@ -1239,7 +1239,12 @@ enum CXTranslationUnit_Flags {
   /**
    * \brief Sets the preprocessor in a mode for parsing a single file only.
    */
-  CXTranslationUnit_SingleFileParse = 0x400
+  CXTranslationUnit_SingleFileParse = 0x400,
+
+  /**
+   * \brief Do incremental processing
+   */
+  CXTranslationUnit_IncrementalProcessing = 0x800
 };
 
 /**

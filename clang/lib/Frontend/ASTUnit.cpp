@@ -1985,8 +1985,8 @@ ASTUnit *ASTUnit::LoadFromCommandLine(
     bool CacheCodeCompletionResults, bool IncludeBriefCommentsInCodeCompletion,
     bool AllowPCHWithCompilerErrors, bool SkipFunctionBodies,
     bool SingleFileParse, bool UserFilesAreVolatile, bool ForSerialization,
-    llvm::Optional<StringRef> ModuleFormat, std::unique_ptr<ASTUnit> *ErrAST,
-    IntrusiveRefCntPtr<vfs::FileSystem> VFS) {
+    bool IncrementalProcessing, llvm::Optional<StringRef> ModuleFormat,
+    std::unique_ptr<ASTUnit> *ErrAST, IntrusiveRefCntPtr<vfs::FileSystem> VFS) {
   assert(Diags.get() && "no DiagnosticsEngine was provided");
 
   SmallVector<StoredDiagnostic, 4> StoredDiagnostics;
@@ -2014,6 +2014,7 @@ ASTUnit *ASTUnit::LoadFromCommandLine(
   PPOpts.AllowPCHWithCompilerErrors = AllowPCHWithCompilerErrors;
   PPOpts.GeneratePreamble = PrecompilePreambleAfterNParses != 0;
   PPOpts.SingleFileParseMode = SingleFileParse;
+  PPOpts.IncrementalProcessing = IncrementalProcessing;
   
   // Override the resources path.
   CI->getHeaderSearchOpts().ResourceDir = ResourceFilesPath;

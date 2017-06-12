@@ -942,6 +942,14 @@ bool Preprocessor::HandleComment(Token &result, SourceRange Comment) {
   return true;
 }
 
+bool Preprocessor::isIncrementalProcessingEnabled() const {
+  return PPOpts->IncrementalProcessing;
+}
+
+void Preprocessor::enableIncrementalProcessing(bool value) {
+  PPOpts->IncrementalProcessing = value;
+}
+
 ModuleLoader::~ModuleLoader() { }
 
 CommentHandler::~CommentHandler() { }

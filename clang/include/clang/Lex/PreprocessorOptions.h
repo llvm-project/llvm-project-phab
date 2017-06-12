@@ -98,6 +98,9 @@ public:
   /// When enabled, preprocessor is in a mode for parsing a single file only.
   bool SingleFileParseMode = false;
 
+  /// Do incremental processing
+  bool IncrementalProcessing = false;
+
   /// \brief True if the SourceManager should report the original file name for
   /// contents of files that were remapped to other files. Defaults to true.
   bool RemappedFilesKeepOriginalName;

@@ -3309,6 +3309,7 @@ clang_parseTranslationUnit_Impl(CXIndex CIdx, const char *source_filename,
   bool SkipFunctionBodies = options & CXTranslationUnit_SkipFunctionBodies;
   bool SingleFileParse = options & CXTranslationUnit_SingleFileParse;
   bool ForSerialization = options & CXTranslationUnit_ForSerialization;
+  bool IncrementalProcessing = options & CXTranslationUnit_IncrementalProcessing;
 
   // Configure the diagnostics.
   IntrusiveRefCntPtr<DiagnosticsEngine>
@@ -3393,7 +3394,7 @@ clang_parseTranslationUnit_Impl(CXIndex CIdx, const char *source_filename,
       /*RemappedFilesKeepOriginalName=*/true, PrecompilePreambleAfterNParses,
       TUKind, CacheCodeCompletionResults, IncludeBriefCommentsInCodeCompletion,
       /*AllowPCHWithCompilerErrors=*/true, SkipFunctionBodies, SingleFileParse,
-      /*UserFilesAreVolatile=*/true, ForSerialization,
+      /*UserFilesAreVolatile=*/true, ForSerialization, IncrementalProcessing,
       CXXIdx->getPCHContainerOperations()->getRawReader().getFormat(),
       &ErrUnit));
 

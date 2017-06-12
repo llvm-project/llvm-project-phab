@@ -881,6 +881,7 @@ public:
       bool AllowPCHWithCompilerErrors = false, bool SkipFunctionBodies = false,
       bool SingleFileParse = false,
       bool UserFilesAreVolatile = false, bool ForSerialization = false,
+      bool IncrementalProcessing = false,
       llvm::Optional<StringRef> ModuleFormat = llvm::None,
       std::unique_ptr<ASTUnit> *ErrAST = nullptr,
       IntrusiveRefCntPtr<vfs::FileSystem> VFS = nullptr);

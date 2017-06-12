@@ -1314,12 +1314,10 @@ public:
   void recomputeCurLexerKind();
 
   /// \brief Returns true if incremental processing is enabled
-  bool isIncrementalProcessingEnabled() const { return IncrementalProcessing; }
+  bool isIncrementalProcessingEnabled() const;
 
   /// \brief Enables the incremental processing
-  void enableIncrementalProcessing(bool value = true) {
-    IncrementalProcessing = value;
-  }
+  void enableIncrementalProcessing(bool value = true);
   
   /// \brief Specify the point at which code-completion will be performed.
   ///
