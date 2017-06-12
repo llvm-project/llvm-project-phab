@@ -160,11 +160,10 @@ class ServerHandler(http.server.BaseHTTPRequestHandler):
 
             linemap = self.symcov_data.compute_linemap(filename)
 
-            with open(filepath, 'r') as f:
+            with open(filepath, 'r', encoding='utf-8', errors='replace') as f:
                 content = "\n".join(
                         ["<span class='{cls}'>{line}&nbsp;</span>".format(
-                            line=html.escape(line.rstrip()), 
-                            cls=linemap.get(line_no, ""))
+                            line=html.escape(line.rstrip()),                            cls=linemap.get(line_no, ""))
                             for line_no, line in enumerate(f, start=1)])
 
             response = string.Template(CONTENT_PAGE_TMPL).safe_substitute(
