@@ -38,6 +38,11 @@ def CoreAlpha : Package<"core">, InPackage<Alpha>, Hidden;
 // default. Such checkers belong in the alpha package.
 def OptIn : Package<"optin">;
 
+// In the Portability package reside checkers for finding code that relies on
+// implementation-defined behavior. Such checks are wanted for cross-platform
+// development, but unwanted for developers who target only a single platform.
+def PortabilityOptIn : Package<"portability">, InPackage<OptIn>;
+
 def Nullability : Package<"nullability">;
 
 def Cplusplus : Package<"cplusplus">;
@@ -57,6 +62,7 @@ def SecurityAlpha : Package<"security">, InPackage<Alpha>, Hidden;
 def Taint : Package<"taint">, InPackage<SecurityAlpha>, Hidden;
 
 def Unix : Package<"unix">;
+def UnixPortabilityOptIn : Package<"unix">, InPackage<PortabilityOptIn>;
 def UnixAlpha : Package<"unix">, InPackage<Alpha>, Hidden;
 def CString : Package<"cstring">, InPackage<Unix>, Hidden;
 def CStringAlpha : Package<"cstring">, InPackage<UnixAlpha>, Hidden;
@@ -416,7 +422,7 @@ def GenericTaintChecker : Checker<"TaintPropagation">,
 
 let ParentPackage = Unix in {
 
-def UnixAPIChecker : Checker<"API">,
+def UnixAPIMisuseChecker : Checker<"API">,
   HelpText<"Check calls to various UNIX/Posix functions">,
   DescFile<"UnixAPIChecker.cpp">;
 
@@ -441,6 +447,14 @@ def StdCLibraryFunctionsChecker : Checker<"StdCLibraryFunctions">,
   DescFile<"StdLibraryFunctionsChecker.cpp">;
 
 } // end "unix"
+
+let ParentPackage = UnixPortabilityOptIn in {
+
+def UnixAPIPortabilityChecker : Checker<"API">,
+  HelpText<"Finds implementation-defined behavior in UNIX/Posix functions">,
+  DescFile<"UnixAPIChecker.cpp">;
+
+} // end optin.portability.unix
 
 let ParentPackage = UnixAlpha in {
 
