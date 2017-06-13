@@ -473,6 +473,9 @@ struct AttributeComparator {
     if (L->canThrow != R->canThrow)
       return R->canThrow;
 
+    if (L->isRecursive != R->isRecursive)
+      return R->isRecursive;
+
     if (L->isNoDuplicate != R->isNoDuplicate)
       return R->isNoDuplicate;
 
@@ -610,7 +613,7 @@ void IntrinsicEmitter::EmitAttributes(const CodeGenIntrinsicTable &Ints,
       }
     }
 
-    if (!intrinsic.canThrow ||
+    if (!intrinsic.canThrow || !intrinsic.isRecursive ||
         intrinsic.ModRef != CodeGenIntrinsic::ReadWriteMem ||
         intrinsic.isNoReturn || intrinsic.isNoDuplicate ||
         intrinsic.isConvergent || intrinsic.isSpeculatable) {
@@ -620,6 +623,14 @@ void IntrinsicEmitter::EmitAttributes(const CodeGenIntrinsicTable &Ints,
         OS << "Attribute::NoUnwind";
         addComma = true;
       }
+      if (!intrinsic.isRecursive) {
+        if (addComma)
+          OS << ",";
+        OS << "Attribute::NoRecurse";
+        addComma = true;
+      } else
+        assert(false && "This is recursive");
+
       if (intrinsic.isNoReturn) {
         if (addComma)
           OS << ",";

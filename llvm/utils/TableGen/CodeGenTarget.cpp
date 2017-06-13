@@ -519,6 +519,7 @@ CodeGenIntrinsic::CodeGenIntrinsic(Record *R) {
   isConvergent = false;
   isSpeculatable = false;
   hasSideEffects = false;
+  isRecursive = false;
 
   if (DefName.size() <= 4 ||
       std::string(DefName.begin(), DefName.begin() + 4) != "int_")
@@ -651,6 +652,8 @@ CodeGenIntrinsic::CodeGenIntrinsic(Record *R) {
       isCommutative = true;
     else if (Property->getName() == "Throws")
       canThrow = true;
+    else if (Property->getName() == "Recursive")
+      isRecursive = true;
     else if (Property->getName() == "IntrNoDuplicate")
       isNoDuplicate = true;
     else if (Property->getName() == "IntrConvergent")
