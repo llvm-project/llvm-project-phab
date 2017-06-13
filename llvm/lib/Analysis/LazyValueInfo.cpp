@@ -1344,6 +1344,15 @@ getValueFromCondition(Value *Val, Value *Cond, bool isTrueDest,
   if (I != Visited.end())
     return I->second;
 
+  // Add a pessimistic initial result to avoid infinite recursion in case
+  // we find self referencing stuff like:
+  //
+  //  %0 = and i1 %0, %1
+  //
+  // The above is legal, as long as the instruction is not reachable from the
+  // entry bb.
+  Visited[Cond] = LVILatticeVal::getOverdefined();
+
   auto Result = getValueFromConditionImpl(Val, Cond, isTrueDest, Visited);
   Visited[Cond] = Result;
   return Result;
