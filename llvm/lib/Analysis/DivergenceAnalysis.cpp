@@ -73,6 +73,7 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Value.h"
+#include "llvm/IR/InlineAsm.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 #include <vector>
@@ -241,7 +242,8 @@ void DivergencePropagator::exploreDataDependency(Value *V) {
   // Follow def-use chains of V.
   for (User *U : V->users()) {
     Instruction *UserInst = cast<Instruction>(U);
-    if (DV.insert(UserInst).second)
+    bool Flag = TTI.isAlwaysUniform(U);
+    if (!TTI.isAlwaysUniform(U) && DV.insert(UserInst).second)
       Worklist.push_back(UserInst);
   }
 }

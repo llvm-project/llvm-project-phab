@@ -489,6 +489,23 @@ bool AMDGPUTTIImpl::isSourceOfDivergence(const Value *V) const {
   return false;
 }
 
+bool AMDGPUTTIImpl::isAlwaysUniform(const Value *V) const {
+  if (const IntrinsicInst *Intrinsic = dyn_cast<IntrinsicInst>(V)) {
+    if (Intrinsic->getIntrinsicID() == Intrinsic::amdgcn_readfirstlane)
+     return true;
+    if (Intrinsic->getIntrinsicID() == Intrinsic::amdgcn_readlane)
+      return true;
+  } else if (const CallInst * Call = dyn_cast<CallInst>(V)) {
+    if (const InlineAsm * Asm = dyn_cast<InlineAsm>(Call->getCalledValue()))
+    {
+      StringRef AsmString = Asm->getAsmString();
+      if (AsmString.contains("v_readfirstlane"))
+        return true;
+    }
+  }
+  return false;
+}
+
 unsigned AMDGPUTTIImpl::getShuffleCost(TTI::ShuffleKind Kind, Type *Tp, int Index,
                                        Type *SubTp) {
   if (ST->hasVOP3PInsts()) {

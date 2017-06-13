@@ -95,7 +95,9 @@ bool AMDGPUAnnotateUniformValues::isClobberedInFunction(LoadInst * Load) {
   Checklist.insert(Start);
   const Value *Ptr = Load->getPointerOperand();
   const Loop *L = LI->getLoopFor(Start);
+  bool InLoop = false;
   if (L) {
+    InLoop = true;
     const Loop *P = L;
     do {
       L = P;
@@ -107,7 +109,7 @@ bool AMDGPUAnnotateUniformValues::isClobberedInFunction(LoadInst * Load) {
 
   DFS(Start, Checklist);
   for (auto &BB : Checklist) {
-    BasicBlock::iterator StartIt = (BB == Load->getParent()) ?
+    BasicBlock::iterator StartIt = (!InLoop && (BB == Load->getParent())) ?
      BasicBlock::iterator(Load) : BB->end();
      if (MDR->getPointerDependencyFrom(MemoryLocation(Ptr),
        true, StartIt, BB, Load).isClobber())
