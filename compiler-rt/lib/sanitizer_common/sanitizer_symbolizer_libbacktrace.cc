@@ -110,12 +110,14 @@ static int SymbolizeCodePCInfoCallback(void *vdata, uintptr_t addr,
                                        const char *filename, int lineno,
                                        const char *function) {
   SymbolizeCodeCallbackArg *cdata = (SymbolizeCodeCallbackArg *)vdata;
+  if (function == NULL && cdata->frames_symbolized)
+    return 0;
+  AddressInfo *info = cdata->get_new_frame(addr);
+  if (filename)
+    info->file = internal_strdup(filename);
+  info->line = lineno;
   if (function) {
-    AddressInfo *info = cdata->get_new_frame(addr);
     info->function = DemangleAlloc(function, /*always_alloc*/ true);
-    if (filename)
-      info->file = internal_strdup(filename);
-    info->line = lineno;
     cdata->frames_symbolized++;
   }
   return 0;
