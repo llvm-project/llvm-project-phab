@@ -1771,6 +1771,16 @@ bool Generic_GCC::GCCInstallationDetector::getBiarchSibling(Multilib &M) const {
   return false;
 }
 
+void Generic_GCC::GCCInstallationDetector::AddGnuIncludeArgs(
+    const ArgList &DriverArgs, ArgStringList &CC1Args) const {
+  if (!DriverArgs.hasArg(options::OPT_ffreestanding) &&
+      !DriverArgs.hasArg(clang::driver::options::OPT_nostdinc) &&
+      !Version.isOlderThan(4, 8, 0)) {
+    CC1Args.push_back("-include");
+    CC1Args.push_back("stdc-predef.h");
+  }
+}
+
 /*static*/ void Generic_GCC::GCCInstallationDetector::CollectLibDirsAndTriples(
     const llvm::Triple &TargetTriple, const llvm::Triple &BiarchTriple,
     SmallVectorImpl<StringRef> &LibDirs,

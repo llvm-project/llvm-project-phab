@@ -189,5 +189,6 @@ void Solaris::AddClangCXXStdlibIncludeArgs(const ArgList &DriverArgs,
                      "." + Version.MinorStr + "/include/c++/" +
                      Version.Text + "/" +
                      GCCInstallation.getTriple().str());
+    GCCInstallation.AddGnuIncludeArgs(DriverArgs, CC1Args);
   }
 }
