@@ -3772,6 +3772,18 @@ let Predicates = [HasMSA] in {
   let usesCustomInserter = 1;
  }
 
+ def MSA_UINT_TO_FP : MipsPseudo<(outs MSA128F16:$wd), (ins GPR32Opnd:$rs),
+                                 [(set MSA128F16:$wd,
+                                       (f16 (uint_to_fp GPR32Opnd:$rs)))]> {
+   let usesCustomInserter = 1;
+ }
+
+ def MSA_FP_TO_UINT : MipsPseudo<(outs GPR32Opnd:$rd), (ins MSA128F16:$ws),
+                                 [(set GPR32Opnd:$rd,
+                                       (i32 (fp_to_uint MSA128F16:$ws)))]> {
+   let usesCustomInserter = 1;
+ }
+
  def : MipsPat<(MipsTruncIntFP MSA128F16:$ws),
                (TRUNC_W_D64 (MSA_FP_EXTEND_D_PSEUDO MSA128F16:$ws))>;
 

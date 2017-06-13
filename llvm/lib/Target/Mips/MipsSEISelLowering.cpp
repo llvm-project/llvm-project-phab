@@ -1225,6 +1225,32 @@ MipsSETargetLowering::EmitInstrWithCustomInserter(MachineInstr &MI,
     return emitFPEXTEND_PSEUDO(MI, BB, true);
   case Mips::MSA_FP_ROUND_D_PSEUDO:
     return emitFPROUND_PSEUDO(MI, BB, true);
+  case Mips::MSA_UINT_TO_FP:
+    return emitUINT_TO_FP_MSA(MI, BB);
+  case Mips::MSA_FP_TO_UINT:
+    return emitFP_TO_UINT_MSA(MI, BB);
+  case Mips::UInt32ToFp32Pseudo_32:
+    return emitUINT_TO_FP(MI, BB, Mips::CVT_D32_W, Mips::FADD_D32, false);
+  case Mips::UInt32ToFp32Pseudo_64:
+    return emitUINT_TO_FP(MI, BB, Mips::CVT_S_L, 0, true);
+  case Mips::UInt32ToFp64Pseudo_32:
+    return emitUINT_TO_FP(MI, BB, Mips::CVT_D32_W, Mips::FADD_D32, false);
+  case Mips::UInt32ToFp64Pseudo_64:
+    return emitUINT_TO_FP(MI, BB, Mips::CVT_D64_L, Mips::FADD_D64, true);
+  case Mips::UInt64ToFp64Pseudo_64:
+    return emitUINT_TO_FP(MI, BB, Mips::CVT_D64_L, Mips::FADD_D64, true);
+  case Mips::Fp32ToUInt32Pseudo_32:
+    return emitFP_TO_UINT(MI, BB, Mips::TRUNC_W_S, Mips::FSUB_S, false);
+  case Mips::Fp32ToUInt32Pseudo_64:
+    return emitFP_TO_UINT(MI, BB, Mips::TRUNC_W_S, Mips::FSUB_S, true);
+  case Mips::Fp32ToUInt64Pseudo_64:
+    return emitFP_TO_UINT(MI, BB, Mips::TRUNC_L_S, Mips::FSUB_S, true);
+  case Mips::Fp64ToUInt32Pseudo_32:
+    return emitFP_TO_UINT(MI, BB, Mips::TRUNC_W_D32, Mips::FSUB_D32, false);
+  case Mips::Fp64ToUInt32Pseudo_64:
+    return emitFP_TO_UINT(MI, BB, Mips::TRUNC_W_D64, Mips::FSUB_D64, true);
+  case Mips::Fp64ToUInt64Pseudo_64:
+    return emitFP_TO_UINT(MI, BB, Mips::TRUNC_L_D64, Mips::FSUB_D64, true);
   }
 }
 
@@ -3842,6 +3868,544 @@ MipsSETargetLowering::emitFPEXTEND_PSEUDO(MachineInstr &MI,
 
   MI.eraseFromParent();
   return BB;
+}
+
+// Emit the MSA_UINT_TO_FP pseudo instruction.
+//
+//  fill.w    $wtemp, $rs
+//  ffint_u.w $wtemp2, $wtemp
+//  fexdo.h   $wtemp3, $wtemp2, $wtemp2
+//
+MachineBasicBlock *
+MipsSETargetLowering::emitUINT_TO_FP_MSA(MachineInstr &MI,
+                                         MachineBasicBlock *BB) const {
+
+  const TargetInstrInfo *TII = Subtarget.getInstrInfo();
+  MachineRegisterInfo &RegInfo = BB->getParent()->getRegInfo();
+  const TargetRegisterClass *RC = &Mips::MSA128WRegClass;
+  DebugLoc DL = MI.getDebugLoc();
+  unsigned Wd1 = RegInfo.createVirtualRegister(RC);
+  unsigned Wd2 = RegInfo.createVirtualRegister(RC);
+  BuildMI(*BB, MI, DL, TII->get(Mips::FILL_W), Wd1)
+      .addReg(MI.getOperand(1).getReg());
+  BuildMI(*BB, MI, DL, TII->get(Mips::FFINT_U_W), Wd2).addReg(Wd1);
+  BuildMI(*BB, MI, DL, TII->get(Mips::FEXDO_H), MI.getOperand(0).getReg())
+      .addReg(Wd2)
+      .addReg(Wd2);
+
+  MI.eraseFromParent();
+  return BB;
+}
+
+// Emit the MSA_FP_TO_UINT pseudo instruction.
+//
+//  fill.w    $wtemp, $rs
+//  ftint_u.w $wtemp2, $wtemp
+//  fexdo.h   $wtemp3, $wtemp2, $wtemp2
+//
+MachineBasicBlock *
+MipsSETargetLowering::emitFP_TO_UINT_MSA(MachineInstr &MI,
+                                         MachineBasicBlock *BB) const {
+
+  const TargetInstrInfo *TII = Subtarget.getInstrInfo();
+  MachineRegisterInfo &RegInfo = BB->getParent()->getRegInfo();
+  const TargetRegisterClass *RC = &Mips::MSA128WRegClass;
+  DebugLoc DL = MI.getDebugLoc();
+  unsigned Wd1 = RegInfo.createVirtualRegister(RC);
+  unsigned Wd2 = RegInfo.createVirtualRegister(RC);
+  BuildMI(*BB, MI, DL, TII->get(Mips::FEXUPR_W), Wd1)
+      .addReg(MI.getOperand(1).getReg());
+  BuildMI(*BB, MI, DL, TII->get(Mips::FTINT_U_W), Wd2).addReg(Wd1);
+  BuildMI(*BB, MI, DL, TII->get(Mips::COPY_U_W), MI.getOperand(0).getReg())
+      .addReg(Wd2)
+      .addImm(0);
+
+  MI.eraseFromParent();
+  return BB;
+}
+
+// Emit the UIntToFpPseudo pseudo instruction.
+//
+// UINT_TO_FP GPR32Opnd:$rs, FGR32Opnd:$fd
+// For Mips32r2:
+// =>
+//     mtc1    $rs, $ft
+//     cvt.d.w $ft1, $ft
+//     bgez    $rs, $BB0_2
+//     nop
+//     lui     $rt, 16880
+//     mtc1    $zero, $ft2
+//     mthc1   $1, $ft2
+//     add.d   $ft1, $ft1, $ft2
+// $BB0_2:
+//     cvt.s.d $fd, $ft1
+//
+// For Mips32r2 with 64-bit FPU:
+// =>
+//     mtc1    $rs, $ft
+//     mthc1   $zero, $ft
+//     cvt.s.l $fd, $ft
+//
+// For Mips64r2:
+// =>
+//     dext    $rt, $rs, 0, 32
+//     dmtc1   $rt, $ft
+//     cvt.s.l $fd, $ft
+//
+// UINT_TO_FP GPR32Opnd:$rs, FGR64Opnd:$fd
+// For Mips32r2:
+// =>
+//     mtc1    $rs, $ft
+//     cvt.d.w $ft, $ft
+//     bgez    $rs, $BB0_2
+//     nop
+//     lui     $rt, 16880
+//     mtc1    $zero, $ft1
+//     mthc1   $rt, $ft1
+//     add.d   $fd, $ft, $ft1
+// $BB0_2:
+//
+// For Mips32r2 with 64-bit FPU:
+// =>
+//     mtc1    $rs, $ft
+//     mthc1   $zero, $ft
+//     cvt.d.l $fd, $ft
+//
+// For Mips64r2:
+// =>
+//     dext    $rt, $rs, 0, 32
+//     dmtc1   $rt, $ft
+//     cvt.d.l $fd, $ft
+//
+// UINT_TO_FP GPR64Opnd:$rs, FGR64Opnd:$fd
+// For mips32: Lowered to libcall
+// For Mips32 with 64-bit FPU: Lowered by custom hook
+// For Mips64:
+// =>
+//     dmtc1   $rs, $ft
+//     cvt.d.l $ft1, $ft
+//     bgez    $rs, .LBB0_2
+//     nop
+//     lui     $rt, 17392
+//     dsll    $rt, $rt, 32
+//     dmtc1   $rt, $ft2
+//     add.d   $fd, $ft1, $ft2
+// .LBB0_2
+//
+MachineBasicBlock *MipsSETargetLowering::emitUINT_TO_FP(MachineInstr &MI,
+                                                        MachineBasicBlock *BB,
+                                                        unsigned CvtOp,
+                                                        unsigned FAddOp,
+                                                        bool IsFP64) const {
+
+  const TargetInstrInfo *TII = Subtarget.getInstrInfo();
+  MachineRegisterInfo &RegInfo = BB->getParent()->getRegInfo();
+  DebugLoc DL = MI.getDebugLoc();
+  const BasicBlock *LLVM_BB = BB->getBasicBlock();
+
+  const bool IsFGR64onMips64 = Subtarget.hasMips64() && IsFP64;
+  const bool IsFGR64onMips32 = !Subtarget.hasMips64() && IsFP64;
+
+  unsigned Dest = MI.getOperand(0).getReg();
+  unsigned Src = MI.getOperand(1).getReg();
+
+  const TargetRegisterClass *FPDestClass = RegInfo.getRegClass(Dest);
+  const TargetRegisterClass *GPSrcClass = RegInfo.getRegClass(Src);
+
+  const bool IsSrc64 = GPSrcClass == &Mips::GPR64RegClass;
+  const bool IsDest64 = FPDestClass != &Mips::FGR32RegClass;
+
+  const TargetRegisterClass *FPTempRegClass =
+      !IsFP64 ? &Mips::AFGR64RegClass : &Mips::FGR64RegClass;
+
+  if (IsFGR64onMips64 && !IsSrc64) {
+    unsigned GPTemp = RegInfo.createVirtualRegister(&Mips::GPR64RegClass);
+    unsigned FPSrc = RegInfo.createVirtualRegister(&Mips::FGR64RegClass);
+    unsigned GPTemp1 = RegInfo.createVirtualRegister(&Mips::GPR64RegClass);
+    if (Subtarget.hasMips64r2()) {
+      BuildMI(*BB, MI, DL, TII->get(Mips::DEXT64_32), GPTemp)
+          .addReg(Src, RegState::Kill)
+          .addImm(0)
+          .addImm(32);
+    } else {
+      BuildMI(*BB, MI, DL, TII->get(Mips::DSLL), GPTemp1)
+          .addReg(Src, RegState::Kill)
+          .addImm(32);
+      BuildMI(*BB, MI, DL, TII->get(Mips::DSRL), GPTemp)
+          .addReg(GPTemp1)
+          .addImm(32);
+    }
+    BuildMI(*BB, MI, DL, TII->get(Mips::DMTC1), FPSrc).addReg(GPTemp);
+    BuildMI(*BB, MI, DL, TII->get(CvtOp), Dest).addReg(FPSrc);
+    MI.eraseFromParent();
+    return BB;
+  } else if (IsFGR64onMips32 && !IsSrc64) {
+    unsigned FPTemp = RegInfo.createVirtualRegister(&Mips::FGR64RegClass);
+    BuildMI(*BB, MI, DL, TII->get(Mips::BuildPairF64_64), FPTemp)
+        .addReg(Src, RegState::Kill)
+        .addReg(Mips::ZERO);
+    BuildMI(*BB, MI, DL, TII->get(CvtOp), Dest).addReg(FPTemp);
+    MI.eraseFromParent();
+    return BB;
+  }
+
+  // Transfer the remainder of BB and its successor edges to exitMBB.
+  MachineFunction *MF = BB->getParent();
+  MachineBasicBlock *newMBB = MF->CreateMachineBasicBlock(LLVM_BB);
+  MachineBasicBlock *exitMBB = MF->CreateMachineBasicBlock(LLVM_BB);
+
+  MachineFunction::iterator It = ++BB->getIterator();
+  MF->insert(It, newMBB);
+  MF->insert(It, exitMBB);
+
+  exitMBB->splice(exitMBB->begin(), BB,
+                  std::next(MachineBasicBlock::iterator(MI)), BB->end());
+  exitMBB->transferSuccessorsAndUpdatePHIs(BB);
+
+  BB->addSuccessor(newMBB);
+  BB->addSuccessor(exitMBB);
+  newMBB->addSuccessor(exitMBB, BranchProbability::getOne());
+
+  unsigned FPSrc = RegInfo.createVirtualRegister(!IsSrc64 ? &Mips::FGR32RegClass
+                                                          : FPTempRegClass);
+  unsigned FPCvtResult = RegInfo.createVirtualRegister(FPTempRegClass);
+  unsigned FPAddValue = RegInfo.createVirtualRegister(FPTempRegClass);
+  unsigned FPAddResult = RegInfo.createVirtualRegister(FPTempRegClass);
+  unsigned FPDest = RegInfo.createVirtualRegister(FPTempRegClass);
+  unsigned GPAddValue = RegInfo.createVirtualRegister(GPSrcClass);
+  unsigned GPTemp = RegInfo.createVirtualRegister(GPSrcClass);
+
+  const uint64_t AddValue = IsSrc64 ? 0x43F0 : 0x41F0;
+
+  if (Subtarget.hasMips64() && IsSrc64)
+    BuildMI(BB, DL, TII->get(Mips::DMTC1), FPSrc).addReg(Src);
+  else
+    BuildMI(BB, DL, TII->get(Mips::MTC1), FPSrc).addReg(Src);
+
+  BuildMI(BB, DL, TII->get(CvtOp), FPCvtResult).addReg(FPSrc);
+  BuildMI(BB, DL, TII->get(IsSrc64 ? Mips::BGEZ64 : Mips::BGEZ))
+      .addReg(Src, RegState::Kill)
+      .addMBB(exitMBB);
+
+  BuildMI(newMBB, DL, TII->get(IsSrc64 ? Mips::LUi64 : Mips::LUi), GPAddValue)
+      .addImm(AddValue);
+
+  if (!IsFP64)
+    BuildMI(newMBB, DL, TII->get(Mips::BuildPairF64), FPAddValue)
+        .addReg(Mips::ZERO)
+        .addReg(GPAddValue);
+  else if (IsFGR64onMips32)
+    BuildMI(newMBB, DL, TII->get(Mips::BuildPairF64_64), FPAddValue)
+        .addReg(Mips::ZERO)
+        .addReg(GPAddValue);
+  else if (IsFGR64onMips64) {
+    BuildMI(newMBB, DL, TII->get(Mips::DSLL), GPTemp)
+        .addReg(GPAddValue)
+        .addImm(32);
+    BuildMI(newMBB, DL, TII->get(Mips::DMTC1), FPAddValue).addReg(GPTemp);
+  }
+
+  if (!IsSrc64 && !IsDest64 && !IsFP64) {
+    MachineBasicBlock::iterator exitMBBI = exitMBB->begin();
+    BuildMI(newMBB, DL, TII->get(FAddOp), FPAddResult)
+        .addReg(FPCvtResult)
+        .addReg(FPAddValue);
+    BuildMI(*exitMBB, exitMBBI, DL, TII->get(Mips::PHI), FPDest)
+        .addReg(FPCvtResult)
+        .addMBB(BB)
+        .addReg(FPAddResult)
+        .addMBB(newMBB);
+    BuildMI(*exitMBB, exitMBBI, DL, TII->get(Mips::CVT_S_D32), Dest)
+        .addReg(FPDest);
+  } else {
+    BuildMI(newMBB, DL, TII->get(FAddOp), FPDest)
+        .addReg(FPCvtResult)
+        .addReg(FPAddValue);
+    BuildMI(*exitMBB, exitMBB->begin(), DL, TII->get(Mips::PHI), Dest)
+        .addReg(FPCvtResult)
+        .addMBB(BB)
+        .addReg(FPDest)
+        .addMBB(newMBB);
+  }
+
+  MI.eraseFromParent();
+  return exitMBB;
+}
+
+// Emit the FpToUIntPseudo pseudo instruction.
+//
+// FP_TO_UINT FGR32Opnd:$fs, GPR32Opnd:$rd
+// =>
+//        lui     $rt1, 0x4F00
+//        mtc1    $ft1, $rt1
+//        c.le.s  $fcc0, $ft1, $fs
+//        bc1t    $fcc0,$L2
+//        nop
+//        trunc.w.s $f0,$f0
+//        mfc1    $2,$f0
+//        b       $L3
+//        nop
+// $L2:
+//        sub.s   $f0,$f0,$f1
+//        li      $3,-2147483648
+//        trunc.w.s $f0,$f0
+//        mfc1    $2,$f0
+//        or      $2,$2,$3
+// $L3:
+
+//
+// FP_TO_UINT FGR64Opnd:$fs, GPR32Opnd:$rd
+// For Mips32: Lowered to libcall
+// For Mips32r2 with FP64
+//
+//        c.le.s  $fcc0,$f1,$f0
+//        bc1t    $fcc0,$L2
+//        nop
+//        trunc.l.s $f0,$f0
+//        mfc1    $2,$f0
+//        mfhc1   $3,$f0
+//        b       $L3
+//        nop
+// $L2:
+//        lw      $2,%got($LC0)($28)
+//        lwc1    $f1,%lo($LC0)($2)
+//        sub.s   $f0,$f0,$f1
+//        trunc.l.s $f0,$f0
+//        mfc1    $2,$f0
+//        mfhc1   $3,$f0
+//        xori    $4,$2,0
+//        li      $6,-2147483648
+//        xor     $5,$3,$6
+//        move    $2,$4
+//        move    $3,$5
+// $L3:
+//
+// For Mips64r2:
+// =>
+//        c.le.s  $fcc0,$f1,$f0
+//        bc1t    $fcc0,.L2
+//        nop
+//        trunc.l.s $f0,$f0
+//        dmfc1   $3,$f0
+//        b       .L3
+//        nop
+// .L2:
+//        sub.s   $f0,$f0,$f1
+//        li      $2,1
+//        dsll    $2,$2,31
+//        dsll    $2,$2,32
+//        trunc.l.s $f0,$f0
+//        dmfc1   $3,$f0
+//        or      $3,$3,$2
+// .L3:
+//
+// FP_TO_UINT FGR64Opnd:$rs, GPR64Opnd:$fd
+// For Mips32: Lowered to libcall
+// For Mips32 with 64-bit FPU:
+// =>
+//        c.le.d  $fcc0,$f1,$f0
+//        bc1t    $fcc0,$L2
+//        nop
+//        trunc.l.d $f0,$f0
+//        mfc1    $2,$f0
+//        mfhc1   $3,$f0
+//        b       $L3
+//        nop
+// $L2:
+//        lw      $2,%got($LC0)($28)
+//        ldc1    $f1,%lo($LC0)($2)
+//        sub.d   $f0,$f0,$f1
+//        trunc.l.d $f0,$f0
+//        mfc1    $2,$f0
+//        mfhc1   $3,$f0
+//        xori    $4,$2,0
+//        li      $6,-2147483648
+//        xor     $5,$3,$6
+//        move    $2,$4
+//        move    $3,$5
+// $L3:
+//
+// For Mips64r2:
+// =>
+//        c.le.d  $fcc0,$f1,$f0
+//        bc1t    $fcc0,.L2
+//        nop
+//        trunc.l.d $f0,$f0
+//        dmfc1   $3,$f0
+//        b       .L3
+//        nop
+// .L2:
+//        sub.d   $f0,$f0,$f1
+//        li      $2,1                    # 0x1
+//        dsll    $2,$2,31
+//        dsll    $2,$2,32
+//        trunc.l.d $f0,$f0
+//        dmfc1   $3,$f0
+//        or      $3,$3,$2
+// .L3:
+//
+MachineBasicBlock *MipsSETargetLowering::emitFP_TO_UINT(MachineInstr &MI,
+                                                        MachineBasicBlock *BB,
+                                                        unsigned TruncOp,
+                                                        unsigned FSubOp,
+                                                        bool IsFP64) const {
+
+  const TargetInstrInfo *TII = Subtarget.getInstrInfo();
+  MachineRegisterInfo &RegInfo = BB->getParent()->getRegInfo();
+  DebugLoc DL = MI.getDebugLoc();
+  const BasicBlock *LLVM_BB = BB->getBasicBlock();
+
+  const bool IsFGR64onMips64 = Subtarget.hasMips64() && IsFP64;
+  const bool IsFGR64onMips32 = !Subtarget.hasMips64() && IsFP64;
+
+  unsigned Dest = MI.getOperand(0).getReg();
+  unsigned Src = MI.getOperand(1).getReg();
+
+  const TargetRegisterClass *GPDestClass = RegInfo.getRegClass(Dest);
+  const TargetRegisterClass *FPSrcClass = RegInfo.getRegClass(Src);
+
+  const bool IsSrc64 = FPSrcClass != &Mips::FGR32RegClass;
+  const bool IsDest64 = GPDestClass == &Mips::GPR64RegClass;
+
+  // Transfer the remainder of BB and its successor edges to exitMBB.
+  MachineFunction *MF = BB->getParent();
+  MachineBasicBlock *truncateMBB = MF->CreateMachineBasicBlock(LLVM_BB);
+  MachineBasicBlock *correctionMBB = MF->CreateMachineBasicBlock(LLVM_BB);
+  MachineBasicBlock *exitMBB = MF->CreateMachineBasicBlock(LLVM_BB);
+
+  MachineFunction::iterator It = ++BB->getIterator();
+  MF->insert(It, truncateMBB);
+  MF->insert(It, correctionMBB);
+  MF->insert(It, exitMBB);
+
+  exitMBB->splice(exitMBB->begin(), BB,
+                  std::next(MachineBasicBlock::iterator(MI)), BB->end());
+  exitMBB->transferSuccessorsAndUpdatePHIs(BB);
+
+  BB->addSuccessor(truncateMBB);
+  BB->addSuccessor(correctionMBB);
+  correctionMBB->addSuccessor(exitMBB, BranchProbability::getOne());
+  truncateMBB->addSuccessor(exitMBB, BranchProbability::getOne());
+
+  unsigned GPSubValue = RegInfo.createVirtualRegister(
+      (IsSrc64 && IsFGR64onMips64) ? &Mips::GPR64RegClass
+                                   : &Mips::GPR32RegClass);
+  unsigned FPSubValue = RegInfo.createVirtualRegister(
+      IsSrc64 ? (IsFP64 ? &Mips::FGR64RegClass : &Mips::AFGR64RegClass)
+              : &Mips::FGR32RegClass);
+  unsigned TruncatedValue1 = RegInfo.createVirtualRegister(
+      IsDest64 ? &Mips::FGR64RegClass : &Mips::FGR32RegClass);
+  unsigned TruncatedValue2 = RegInfo.createVirtualRegister(
+      IsDest64 ? &Mips::FGR64RegClass : &Mips::FGR32RegClass);
+  unsigned TempResult1 = RegInfo.createVirtualRegister(
+      IsDest64 ? &Mips::GPR64RegClass : &Mips::GPR32RegClass);
+  unsigned TempResult2 = RegInfo.createVirtualRegister(
+      IsDest64 ? &Mips::GPR64RegClass : &Mips::GPR32RegClass);
+  unsigned SubtractedValue = RegInfo.createVirtualRegister(
+      IsSrc64 ? (IsFP64 ? &Mips::FGR64RegClass : &Mips::AFGR64RegClass)
+              : &Mips::FGR32RegClass);
+  unsigned TruncatedValueGP = RegInfo.createVirtualRegister(
+      IsDest64 ? &Mips::GPR64RegClass : &Mips::GPR32RegClass);
+  unsigned MSBBit = RegInfo.createVirtualRegister(
+      IsDest64 ? &Mips::GPR64RegClass : &Mips::GPR32RegClass);
+
+  const uint64_t SubValue = IsSrc64 ? 0x41E0 : (IsDest64 ? 0x5F00 : 0x4F00);
+
+  BuildMI(BB, DL,
+          TII->get((IsSrc64 && IsFGR64onMips64) ? Mips::LUi64 : Mips::LUi),
+          GPSubValue)
+      .addImm(SubValue);
+
+  if (IsSrc64) {
+    if (!IsFP64)
+      BuildMI(BB, DL, TII->get(Mips::BuildPairF64), FPSubValue)
+          .addReg(Mips::ZERO)
+          .addReg(GPSubValue);
+    else if (IsFGR64onMips32)
+      BuildMI(BB, DL, TII->get(Mips::BuildPairF64_64), FPSubValue)
+          .addReg(Mips::ZERO)
+          .addReg(GPSubValue);
+    else if (IsFGR64onMips64) {
+      unsigned GPTemp = RegInfo.createVirtualRegister(&Mips::GPR64RegClass);
+      BuildMI(BB, DL, TII->get(Mips::DSLL), GPTemp)
+          .addReg(GPSubValue)
+          .addImm(32);
+      BuildMI(BB, DL, TII->get(Mips::DMTC1), FPSubValue).addReg(GPTemp);
+    }
+  } else
+    BuildMI(BB, DL, TII->get(Mips::MTC1), FPSubValue).addReg(GPSubValue);
+
+  BuildMI(BB, DL,
+          TII->get(IsSrc64 ? (IsFP64 ? Mips::C_LE_D64 : Mips::C_LE_D32)
+                           : Mips::C_LE_S),
+          Mips::FCC0)
+      .addReg(FPSubValue)
+      .addReg(Src);
+  BuildMI(BB, DL, TII->get(Mips::BC1T))
+      .addReg(Mips::FCC0)
+      .addMBB(correctionMBB);
+
+  BuildMI(truncateMBB, DL, TII->get(TruncOp), TruncatedValue1)
+      .addReg(Src, RegState::Kill);
+
+  if (IsDest64) {
+    if (IsFGR64onMips32)
+      BuildMI(truncateMBB, DL, TII->get(Mips::ExtractElementF64_64),
+              TempResult1)
+          .addReg(TruncatedValue1);
+    else if (IsFGR64onMips64)
+      BuildMI(truncateMBB, DL, TII->get(Mips::DMFC1), TempResult1)
+          .addReg(TruncatedValue1);
+  } else {
+    BuildMI(truncateMBB, DL, TII->get(Mips::MFC1), TempResult1)
+        .addReg(TruncatedValue1);
+  }
+
+  BuildMI(truncateMBB, DL, TII->get(Mips::B)).addMBB(exitMBB);
+
+  BuildMI(correctionMBB, DL, TII->get(FSubOp), SubtractedValue)
+      .addReg(Src, RegState::Kill)
+      .addReg(FPSubValue);
+  BuildMI(correctionMBB, DL, TII->get(TruncOp), TruncatedValue2)
+      .addReg(SubtractedValue);
+
+  if (IsDest64) {
+    if (IsFGR64onMips32)
+      BuildMI(correctionMBB, DL, TII->get(Mips::ExtractElementF64_64),
+              TruncatedValueGP)
+          .addReg(TruncatedValue2);
+    else if (IsFGR64onMips64)
+      BuildMI(correctionMBB, DL, TII->get(Mips::DMFC1), TruncatedValueGP)
+          .addReg(TruncatedValue2);
+  } else {
+    BuildMI(correctionMBB, DL, TII->get(Mips::MFC1), TruncatedValueGP)
+        .addReg(TruncatedValue2);
+  }
+
+  if (IsDest64) {
+    unsigned GPTemp = RegInfo.createVirtualRegister(&Mips::GPR64RegClass);
+    BuildMI(correctionMBB, DL, TII->get(Mips::LUi64), MSBBit).addImm(0x8000);
+    BuildMI(correctionMBB, DL, TII->get(Mips::DSLL32), GPTemp)
+        .addReg(MSBBit)
+        .addImm(0);
+    BuildMI(correctionMBB, DL, TII->get(Mips::OR64), TempResult2)
+        .addReg(TruncatedValueGP)
+        .addReg(GPTemp);
+  } else {
+    BuildMI(correctionMBB, DL, TII->get(Mips::LUi), MSBBit).addImm(0x8000);
+    BuildMI(correctionMBB, DL, TII->get(Mips::OR), TempResult2)
+        .addReg(TruncatedValueGP)
+        .addReg(MSBBit);
+  }
+
+  BuildMI(*exitMBB, exitMBB->begin(), DL, TII->get(Mips::PHI), Dest)
+      .addReg(TempResult1)
+      .addMBB(truncateMBB)
+      .addReg(TempResult2)
+      .addMBB(correctionMBB);
+
+  MI.eraseFromParent();
+  return exitMBB;
 }
 
 // Emit the FEXP2_W_1 pseudo instructions.
