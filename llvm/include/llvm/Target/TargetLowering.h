@@ -508,6 +508,10 @@ public:
     return false;
   }
 
+  /// Return true if the target prefers arithmetic instructions instead of
+  /// load from memory.
+  virtual bool isSubShrCheaperThanLoad() const { return false; }
+
   /// Return true if target supports floating point exceptions.
   bool hasFloatingPointExceptions() const {
     return HasFloatingPointExceptions;

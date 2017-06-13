@@ -24511,6 +24511,10 @@ const char *X86TargetLowering::getTargetNodeName(unsigned Opcode) const {
   return nullptr;
 }
 
+/// Return true if the target prefers arithmetic instructions instead of
+/// load from memory.
+bool X86TargetLowering::isSubShrCheaperThanLoad() const { return true; }
+
 /// Return true if the addressing mode represented by AM is legal for this
 /// target, for a load/store of the specified type.
 bool X86TargetLowering::isLegalAddressingMode(const DataLayout &DL,
