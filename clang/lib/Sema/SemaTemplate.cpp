@@ -3418,7 +3418,9 @@ DeclResult Sema::ActOnVarTemplateSpecialization(
             InstantiationDependent)) {
       Diag(TemplateNameLoc, diag::err_partial_spec_fully_specialized)
           << VarTemplate->getDeclName();
-      IsPartialSpecialization = false;
+      // FIXME: Can this ever get triggered?  If so, we need test.  If not,
+      // should this if be removed?
+      return true;
     }
 
     if (isSameAsPrimaryTemplate(VarTemplate->getTemplateParameters(),
@@ -7276,7 +7278,7 @@ Sema::ActOnClassTemplateSpecialization(Scope *S, unsigned TagSpec,
             TemplateArgs.arguments(), InstantiationDependent)) {
       Diag(TemplateNameLoc, diag::err_partial_spec_fully_specialized)
         << ClassTemplate->getDeclName();
-      isPartialSpecialization = false;
+      return true;
     }
   }
 
