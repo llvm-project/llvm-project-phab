@@ -216,6 +216,9 @@ public:
     /// \brief Check whether we detected a valid GCC install.
     bool isValid() const { return IsValid; }
 
+    void AddGnuIncludeArgs(const llvm::opt::ArgList &DriverArgs,
+                          llvm::opt::ArgStringList &CC1Args) const;
+
     /// \brief Get the GCC triple for the detected install.
     const llvm::Triple &getTriple() const { return GCCTriple; }
 

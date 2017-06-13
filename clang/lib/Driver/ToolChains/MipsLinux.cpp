@@ -64,6 +64,12 @@ void MipsLLVMToolChain::AddClangSystemIncludeArgs(
   }
 }
 
+void MipsLLVMToolChain::AddGnuIncludeArgs(const llvm::opt::ArgList &DriverArgs,
+                                     llvm::opt::ArgStringList &CC1Args) const {
+  if (GCCInstallation.isValid())
+    GCCInstallation.AddGnuIncludeArgs(DriverArgs, CC1Args);
+}
+
 Tool *MipsLLVMToolChain::buildLinker() const {
   return new tools::gnutools::Linker(*this);
 }
