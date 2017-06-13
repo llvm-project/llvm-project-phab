@@ -486,7 +486,7 @@ void EmitAssemblyHelper::CreatePasses(legacy::PassManager &MPM,
     PMBuilder.Inliner = createFunctionInliningPass(
         CodeGenOpts.OptimizationLevel, CodeGenOpts.OptimizeSize,
         (!CodeGenOpts.SampleProfileFile.empty() &&
-         CodeGenOpts.EmitSummaryIndex));
+         CodeGenOpts.PrepareForThinLTO));
   }
 
   PMBuilder.OptLevel = CodeGenOpts.OptimizationLevel;
@@ -497,7 +497,7 @@ void EmitAssemblyHelper::CreatePasses(legacy::PassManager &MPM,
 
   PMBuilder.DisableUnrollLoops = !CodeGenOpts.UnrollLoops;
   PMBuilder.MergeFunctions = CodeGenOpts.MergeFunctions;
-  PMBuilder.PrepareForThinLTO = CodeGenOpts.EmitSummaryIndex;
+  PMBuilder.PrepareForThinLTO = CodeGenOpts.PrepareForThinLTO;
   PMBuilder.PrepareForLTO = CodeGenOpts.PrepareForLTO;
   PMBuilder.RerollLoops = CodeGenOpts.RerollLoops;
 
@@ -738,7 +738,7 @@ void EmitAssemblyHelper::EmitAssembly(BackendAction Action,
     break;
 
   case Backend_EmitBC:
-    if (CodeGenOpts.EmitSummaryIndex) {
+    if (CodeGenOpts.PrepareForThinLTO) {
       if (!CodeGenOpts.ThinLinkBitcodeFile.empty()) {
         std::error_code EC;
         ThinLinkOS.reset(new llvm::raw_fd_ostream(
@@ -752,10 +752,13 @@ void EmitAssemblyHelper::EmitAssembly(BackendAction Action,
       }
       PerModulePasses.add(
           createWriteThinLTOBitcodePass(*OS, ThinLinkOS.get()));
-    }
-    else
+    } else {
+      if (CodeGenOpts.EmitSummaryIndex)
+         TheModule->addModuleFlag(Module::Error, "ThinLTO", uint32_t(0));
       PerModulePasses.add(
-          createBitcodeWriterPass(*OS, CodeGenOpts.EmitLLVMUseLists));
+          createBitcodeWriterPass(*OS, CodeGenOpts.EmitLLVMUseLists,
+                                  CodeGenOpts.EmitSummaryIndex));
+    }
     break;
 
   case Backend_EmitLL:
@@ -907,7 +910,7 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
     break;
 
   case Backend_EmitBC:
-    if (CodeGenOpts.EmitSummaryIndex) {
+    if (CodeGenOpts.PrepareForThinLTO) {
       if (!CodeGenOpts.ThinLinkBitcodeFile.empty()) {
         std::error_code EC;
         ThinLinkOS.emplace(CodeGenOpts.ThinLinkBitcodeFile, EC,
@@ -921,8 +924,9 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
       MPM.addPass(
           ThinLTOBitcodeWriterPass(*OS, ThinLinkOS ? &*ThinLinkOS : nullptr));
     } else {
+      if (CodeGenOpts.EmitSummaryIndex)
+         TheModule->addModuleFlag(Module::Error, "ThinLTO", uint32_t(0));
       MPM.addPass(BitcodeWriterPass(*OS, CodeGenOpts.EmitLLVMUseLists,
-                                    CodeGenOpts.EmitSummaryIndex,
                                     CodeGenOpts.EmitSummaryIndex));
     }
     break;

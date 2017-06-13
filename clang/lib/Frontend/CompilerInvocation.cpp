@@ -649,8 +649,10 @@ static bool ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args, InputKind IK,
   Opts.NoUseJumpTables = Args.hasArg(OPT_fno_jump_tables);
 
   Opts.PrepareForLTO = Args.hasArg(OPT_flto, OPT_flto_EQ);
+  Opts.EmitSummaryIndex = Args.hasArg(OPT_femit_summary_index);
   const Arg *A = Args.getLastArg(OPT_flto, OPT_flto_EQ);
-  Opts.EmitSummaryIndex = A && A->containsValue("thin");
+  if (A && A->containsValue("thin"))
+    Opts.PrepareForThinLTO = Opts.EmitSummaryIndex = true;
   Opts.LTOUnit = Args.hasFlag(OPT_flto_unit, OPT_fno_lto_unit, false);
   if (Arg *A = Args.getLastArg(OPT_fthinlto_index_EQ)) {
     if (IK.getLanguage() != InputKind::LLVM_IR)
