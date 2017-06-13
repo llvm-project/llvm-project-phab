@@ -6039,6 +6039,67 @@ static bool splitMergedValStore(StoreInst &SI, const DataLayout &DL,
   return true;
 }
 
+// In case of loading integer value from an array of constants which is defined
+// as follows:
+// int array[SIZE] = {0x0, 0x1, 0x3, 0x7, 0xF ..., 2^(SIZE-1) - 1}
+// array[idx] can be replaced with (0xFFFFFFFF >> (sub 32, idx))
+static bool ReplaceLoadWithSubShr(const TargetLowering *TLI, LoadInst *LI) {
+  if (!TLI || !TLI->isSubShrCheaperThanLoad())
+    return false;
+
+  if (GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(LI->getOperand(0))) {
+    if (GlobalVariable *GV = dyn_cast<GlobalVariable>(GEP->getOperand(0))) {
+      if (GV->isConstant() && GV->hasDefinitiveInitializer()) {
+
+        Constant *Init = GV->getInitializer();
+        Type *Ty = Init->getType();
+        if ((!isa<ConstantArray>(Init) && !isa<ConstantDataArray>(Init)) ||
+            !Ty->getArrayElementType()->isIntegerTy() ||
+            Ty->getArrayNumElements() >
+                Ty->getArrayElementType()->getScalarSizeInBits())
+          return nullptr;
+
+        // Check if the array's constant elements are suitable to our case.
+        uint64_t ArrayElementCount = Init->getType()->getArrayNumElements();
+        for (uint64_t i = 0; i < ArrayElementCount; i++) {
+          ConstantInt *Elem =
+              dyn_cast<ConstantInt>(Init->getAggregateElement(i));
+          if (Elem->getZExtValue() != (((uint64_t)1 << i) - 1))
+            return nullptr;
+        }
+
+        IRBuilder<> Builder(LI->getContext());
+        Builder.SetInsertPoint(LI);
+
+        // Do the transformation (assuming 32-bit elements):
+        // -> elemPtr = getelementptr @array, 0, idx
+        //    elem = load elemPtr
+        // <- hiBit = 32 - idx
+        //    elem = 0xFFFFFFFF >> hiBit
+        Type *ElemTy = Ty->getArrayElementType();
+        Value *LoadIdx = Builder.CreateZExtOrTrunc(GEP->getOperand(2), ElemTy);
+
+        APInt ElemSize =
+            APInt(ElemTy->getScalarSizeInBits(), ElemTy->getScalarSizeInBits());
+        Constant *ElemSizeConst = Constant::getIntegerValue(ElemTy, ElemSize);
+        Value *Sub = Builder.CreateSub(ElemSizeConst, LoadIdx);
+
+        Constant *AllOnes = Constant::getAllOnesValue(ElemTy);
+        Value *LShr = Builder.CreateLShr(AllOnes, Sub);
+
+        LI->replaceAllUsesWith(LShr);
+        RecursivelyDeleteTriviallyDeadInstructions(LI);
+
+        // Remove the array if possible.
+        if (GV->use_empty() && GV->isDiscardableIfUnused())
+          GV->eraseFromParent();
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 bool CodeGenPrepare::optimizeInst(Instruction *I, bool &ModifiedDT) {
   // Bail out if we inserted the instruction to prevent optimizations from
   // stepping on each other's toes.
@@ -6093,6 +6154,11 @@ bool CodeGenPrepare::optimizeInst(Instruction *I, bool &ModifiedDT) {
 
   if (LoadInst *LI = dyn_cast<LoadInst>(I)) {
     LI->setMetadata(LLVMContext::MD_invariant_group, nullptr);
+
+    // Try to get rid of the load if possible (replace with sub & shr).
+    if (ReplaceLoadWithSubShr(TLI, LI))
+      return true;
+
     if (TLI) {
       bool Modified = optimizeLoadExt(LI);
       unsigned AS = LI->getPointerAddressSpace();
