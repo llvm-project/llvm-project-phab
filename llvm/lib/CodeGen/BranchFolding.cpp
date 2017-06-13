@@ -82,7 +82,7 @@ TailMergeThreshold("tail-merge-threshold",
 static cl::opt<unsigned>
 TailMergeSize("tail-merge-size",
           cl::desc("Min number of instructions to consider tail merging"),
-                              cl::init(3), cl::Hidden);
+                              cl::init(2), cl::Hidden);
 
 namespace {
 

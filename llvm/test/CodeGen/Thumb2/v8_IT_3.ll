@@ -58,7 +58,8 @@ bb4:
 ; CHECK-PIC-NEXT: bne
 ; CHECK-PIC: %bb6
 ; CHECK-PIC-NEXT: movs
-; CHECK-PIC-NEXT: add
+; CHECK-PIC-NEXT: b
+; CHECK-PIC: add
 ; CHECK-PIC-NEXT: pop
   ret i32 0
 
