@@ -10612,6 +10612,40 @@ TEST_F(FormatTest, UTF8CharacterLiteralCpp11) {
   EXPECT_EQ("auto c = u8'a';", format("auto c = u8'a';"));
 }
 
+TEST_F(FormatTest, CoawaitForRangeCpp11) {
+  EXPECT_EQ("for co_await (auto x : range())\n  ;",
+            format("for co_await(auto x : range());"));
+}
+
+TEST_F(FormatTest, Coawait) {
+  EXPECT_EQ("int x = co_await foo();",
+            format("int x = co_await foo();"));
+  EXPECT_EQ("int x = (co_await foo());",
+            format("int x = (co_await foo());"));
+  EXPECT_EQ("co_await (42);",
+            format("co_await(42);"));
+  EXPECT_EQ("void operator co_await(int);",
+            format("void operator co_await (int);"));
+}
+
+TEST_F(FormatTest, Coyield) {
+  EXPECT_EQ("int x = co_yield foo();",
+            format("int x = co_yield foo();"));
+  EXPECT_EQ("int x = (co_yield foo());",
+            format("int x = (co_yield foo());"));
+  EXPECT_EQ("co_yield (42);",
+            format("co_yield(42);"));
+}
+
+TEST_F(FormatTest, Coreturn) {
+  EXPECT_EQ("int x = co_return foo();",
+            format("int x = co_return foo();"));
+  EXPECT_EQ("int x = (co_return foo());",
+            format("int x = (co_return foo());"));
+  EXPECT_EQ("co_return (42);",
+            format("co_return(42);"));
+}
+
 } // end namespace
 } // end namespace format
 } // end namespace clang

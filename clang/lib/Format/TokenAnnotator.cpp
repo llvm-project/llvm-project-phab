@@ -586,6 +586,9 @@ private:
         if (CurrentToken && CurrentToken->is(Keywords.kw_await))
           next();
       }
+      if (Style.isCpp())
+        if (CurrentToken && CurrentToken->is(tok::kw_co_await))
+          next();
       Contexts.back().ColonIsForRangeExpr = true;
       next();
       if (!parseParens())
@@ -2206,6 +2209,11 @@ bool TokenAnnotator::spaceRequiredBetween(const AnnotatedLine &Line,
   if (Right.is(tok::l_paren)) {
     if (Left.is(tok::r_paren) && Left.is(TT_AttributeParen))
       return true;
+    if (Left.is(tok::kw_co_await) && Left.Previous &&
+        Left.Previous->is(tok::kw_operator))
+      return false;
+    if (Left.isOneOf(tok::kw_co_await, tok::kw_co_yield, tok::kw_co_return))
+      return true;
     return Line.Type == LT_ObjCDecl || Left.is(tok::semi) ||
            (Style.SpaceBeforeParens != FormatStyle::SBPO_Never &&
             (Left.isOneOf(tok::kw_if, tok::pp_elif, tok::kw_for, tok::kw_while,
@@ -2252,6 +2260,18 @@ bool TokenAnnotator::spaceRequiredBefore(const AnnotatedLine &Line,
   if (Style.isCpp()) {
     if (Left.is(tok::kw_operator))
       return Right.is(tok::coloncolon);
+    // for await ( ...
+    if (Right.is(tok::l_paren) && Left.is(tok::kw_co_await) &&
+        Left.Previous && Left.Previous->is(tok::kw_for))
+      return true;
+    if (Right.is(tok::l_paren) && Left.is(tok::kw_co_await) &&
+        Left.Previous && Left.Previous->is(tok::kw_operator))
+      return false;
+    if (Right.is(tok::star) && Left.is(tok::kw_co_yield))
+      return false;
+    if (Right.isOneOf(tok::l_brace, tok::l_square) &&
+        Left.isOneOf(tok::kw_co_yield, tok::kw_co_await))
+      return true;
   } else if (Style.Language == FormatStyle::LK_Proto) {
     if (Right.is(tok::period) &&
         Left.isOneOf(Keywords.kw_optional, Keywords.kw_required,

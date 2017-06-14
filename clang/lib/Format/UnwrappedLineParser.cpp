@@ -430,6 +430,7 @@ void UnwrappedLineParser::calculateBraceTypes(bool ExpectClassBody) {
     case tok::kw_switch:
     case tok::kw_try:
     case tok::kw___try:
+      assert(!Tok->is(tok::kw_co_await));
       if (!LBraceStack.empty() && LBraceStack.back()->BlockKind == BK_Unknown)
         LBraceStack.back()->BlockKind = BK_Block;
       break;
@@ -1673,6 +1674,8 @@ void UnwrappedLineParser::parseForOrWhileLoop() {
   // JS' for await ( ...
   if (Style.Language == FormatStyle::LK_JavaScript &&
       FormatTok->is(Keywords.kw_await))
+    nextToken();
+  if (Style.isCpp() && FormatTok->is(tok::kw_co_await))
     nextToken();
   if (FormatTok->Tok.is(tok::l_paren))
     parseParens();
