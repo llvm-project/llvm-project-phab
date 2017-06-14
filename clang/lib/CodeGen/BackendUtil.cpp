@@ -486,7 +486,7 @@ void EmitAssemblyHelper::CreatePasses(legacy::PassManager &MPM,
     PMBuilder.Inliner = createFunctionInliningPass(
         CodeGenOpts.OptimizationLevel, CodeGenOpts.OptimizeSize,
         (!CodeGenOpts.SampleProfileFile.empty() &&
-         CodeGenOpts.EmitSummaryIndex));
+         CodeGenOpts.PrepareForThinLTO));
   }
 
   PMBuilder.OptLevel = CodeGenOpts.OptimizationLevel;
@@ -497,7 +497,7 @@ void EmitAssemblyHelper::CreatePasses(legacy::PassManager &MPM,
 
   PMBuilder.DisableUnrollLoops = !CodeGenOpts.UnrollLoops;
   PMBuilder.MergeFunctions = CodeGenOpts.MergeFunctions;
-  PMBuilder.PrepareForThinLTO = CodeGenOpts.EmitSummaryIndex;
+  PMBuilder.PrepareForThinLTO = CodeGenOpts.PrepareForThinLTO;
   PMBuilder.PrepareForLTO = CodeGenOpts.PrepareForLTO;
   PMBuilder.RerollLoops = CodeGenOpts.RerollLoops;
 
@@ -733,12 +733,20 @@ void EmitAssemblyHelper::EmitAssembly(BackendAction Action,
 
   std::unique_ptr<raw_fd_ostream> ThinLinkOS;
 
+  // Emit a module summary by default for Regular LTO except for ld64 targets
+  bool EmitLTOSummary =
+      (CodeGenOpts.PrepareForLTO && !CodeGenOpts.PrepareForThinLTO &&
+       llvm::Triple(TheModule->getTargetTriple()).getVendor() !=
+           llvm::Triple::Apple);
+  if (EmitLTOSummary)
+    TheModule->addModuleFlag(Module::Error, "ThinLTO", uint32_t(0));
+
   switch (Action) {
   case Backend_EmitNothing:
     break;
 
   case Backend_EmitBC:
-    if (CodeGenOpts.EmitSummaryIndex) {
+    if (CodeGenOpts.PrepareForThinLTO) {
       if (!CodeGenOpts.ThinLinkBitcodeFile.empty()) {
         std::error_code EC;
         ThinLinkOS.reset(new llvm::raw_fd_ostream(
@@ -755,7 +763,8 @@ void EmitAssemblyHelper::EmitAssembly(BackendAction Action,
     }
     else
       PerModulePasses.add(
-          createBitcodeWriterPass(*OS, CodeGenOpts.EmitLLVMUseLists));
+          createBitcodeWriterPass(*OS, CodeGenOpts.EmitLLVMUseLists,
+                                  EmitLTOSummary));
     break;
 
   case Backend_EmitLL:
@@ -895,6 +904,14 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
     }
   }
 
+  // Emit a module summary by default for Regular LTO except for ld64 targets
+  bool EmitLTOSummary =
+      (CodeGenOpts.PrepareForLTO && !CodeGenOpts.PrepareForThinLTO &&
+       llvm::Triple(TheModule->getTargetTriple()).getVendor() !=
+           llvm::Triple::Apple);
+  if (EmitLTOSummary)
+    TheModule->addModuleFlag(Module::Error, "ThinLTO", uint32_t(0));
+
   // FIXME: We still use the legacy pass manager to do code generation. We
   // create that pass manager here and use it as needed below.
   legacy::PassManager CodeGenPasses;
@@ -907,7 +924,7 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
     break;
 
   case Backend_EmitBC:
-    if (CodeGenOpts.EmitSummaryIndex) {
+    if (CodeGenOpts.PrepareForThinLTO) {
       if (!CodeGenOpts.ThinLinkBitcodeFile.empty()) {
         std::error_code EC;
         ThinLinkOS.emplace(CodeGenOpts.ThinLinkBitcodeFile, EC,
@@ -922,8 +939,7 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
           ThinLTOBitcodeWriterPass(*OS, ThinLinkOS ? &*ThinLinkOS : nullptr));
     } else {
       MPM.addPass(BitcodeWriterPass(*OS, CodeGenOpts.EmitLLVMUseLists,
-                                    CodeGenOpts.EmitSummaryIndex,
-                                    CodeGenOpts.EmitSummaryIndex));
+                                    EmitLTOSummary));
     }
     break;
 
