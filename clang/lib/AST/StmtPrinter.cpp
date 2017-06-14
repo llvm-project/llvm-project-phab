@@ -1431,6 +1431,7 @@ static void PrintFloatingLiteral(raw_ostream &OS, FloatingLiteral *Node,
   // Emit suffixes.  Float literals are always a builtin float type.
   switch (Node->getType()->getAs<BuiltinType>()->getKind()) {
   default: llvm_unreachable("Unexpected type for float literal!");
+  case BuiltinType::Float16:
   case BuiltinType::Half:       break; // FIXME: suffix?
   case BuiltinType::Double:     break; // no suffix.
   case BuiltinType::Float:      OS << 'F'; break;

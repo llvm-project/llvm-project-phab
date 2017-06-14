@@ -1929,7 +1929,9 @@ ScalarExprEmitter::EmitScalarPrePostIncDec(const UnaryOperator *E, LValue LV,
         FS = &CGF.getTarget().getFloat128Format();
       else if (value->getType()->isHalfTy())
         FS = &CGF.getTarget().getHalfFormat();
-      else
+      else if (value->getType()->isFloat16Ty()) {
+        FS = &CGF.getTarget().getHalfFormat();  //FIXME?
+      } else
         FS = &CGF.getTarget().getLongDoubleFormat();
       F.convert(*FS, llvm::APFloat::rmTowardZero, &ignored);
       amt = llvm::ConstantFP::get(VMContext, F);

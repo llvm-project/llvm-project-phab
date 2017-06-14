@@ -3419,6 +3419,8 @@ ExprResult Sema::ActOnNumericConstant(const Token &Tok, Scope *UDLScope) {
       Ty = Context.FloatTy;
     else if (Literal.isLong)
       Ty = Context.LongDoubleTy;
+    else if (Literal.isFloat16)
+      Ty = Context.Float16Ty;
     else if (Literal.isFloat128)
       Ty = Context.Float128Ty;
     else
