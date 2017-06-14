@@ -4101,6 +4101,11 @@ static bool CheckUnaryTypeTraitTypeCompleteness(Sema &S, TypeTrait UTT,
   case UTT_IsDestructible:
   case UTT_IsNothrowDestructible:
   case UTT_IsTriviallyDestructible:
+    if (ArgTy->isIncompleteArrayType() || ArgTy->isVoidType())
+      return true;
+
+    return !S.RequireCompleteType(
+        Loc, ArgTy, diag::err_incomplete_type_used_in_type_trait_expr);
   // Per the GCC type traits documentation, the same constraints apply to these.
   case UTT_HasNothrowAssign:
   case UTT_HasNothrowMoveAssign:
@@ -4113,8 +4118,14 @@ static bool CheckUnaryTypeTraitTypeCompleteness(Sema &S, TypeTrait UTT,
   case UTT_HasTrivialCopy:
   case UTT_HasTrivialDestructor:
   case UTT_HasVirtualDestructor:
-    if (ArgTy->isIncompleteArrayType() || ArgTy->isVoidType())
+    if(ArgTy->isVoidType())
       return true;
+
+    if (ArgTy->isIncompleteArrayType()) {
+      QualType ElTy = QualType(ArgTy->getBaseElementTypeUnsafe(), 0);
+      if (!ElTy->isIncompleteType())
+        return true;
+    }
 
     return !S.RequireCompleteType(
         Loc, ArgTy, diag::err_incomplete_type_used_in_type_trait_expr);
