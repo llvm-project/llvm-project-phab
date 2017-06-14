@@ -2281,7 +2281,7 @@ void is_destructible_test() {
 
   { int arr[T(__is_destructible(ACompleteType))]; }
   { int arr[F(__is_destructible(AnIncompleteType))]; } // expected-error {{incomplete type}}
-  { int arr[F(__is_destructible(AnIncompleteType[]))]; }
+  { int arr[F(__is_destructible(AnIncompleteType[]))]; } // expected-error {{incomplete type}}
   { int arr[F(__is_destructible(AnIncompleteType[1]))]; } // expected-error {{incomplete type}}
   { int arr[F(__is_destructible(void))]; }
   { int arr[F(__is_destructible(const volatile void))]; }
@@ -2304,7 +2304,7 @@ void is_nothrow_destructible_test() {
 
   { int arr[T(__is_nothrow_destructible(ACompleteType))]; }
   { int arr[F(__is_nothrow_destructible(AnIncompleteType))]; } // expected-error {{incomplete type}}
-  { int arr[F(__is_nothrow_destructible(AnIncompleteType[]))]; }
+  { int arr[F(__is_nothrow_destructible(AnIncompleteType[]))]; } // expected-error {{incomplete type}}
   { int arr[F(__is_nothrow_destructible(AnIncompleteType[1]))]; } // expected-error {{incomplete type}}
   { int arr[F(__is_nothrow_destructible(void))]; }
   { int arr[F(__is_nothrow_destructible(const volatile void))]; }
@@ -2326,7 +2326,7 @@ void is_trivially_destructible_test() {
 
   { int arr[T(__is_trivially_destructible(ACompleteType))]; }
   { int arr[F(__is_trivially_destructible(AnIncompleteType))]; } // expected-error {{incomplete type}}
-  { int arr[F(__is_trivially_destructible(AnIncompleteType[]))]; }
+  { int arr[F(__is_trivially_destructible(AnIncompleteType[]))]; } // expected-error {{incomplete type}}
   { int arr[F(__is_trivially_destructible(AnIncompleteType[1]))]; } // expected-error {{incomplete type}}
   { int arr[F(__is_trivially_destructible(void))]; }
   { int arr[F(__is_trivially_destructible(const volatile void))]; }

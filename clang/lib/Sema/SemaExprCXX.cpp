@@ -4113,8 +4113,15 @@ static bool CheckUnaryTypeTraitTypeCompleteness(Sema &S, TypeTrait UTT,
   case UTT_HasTrivialCopy:
   case UTT_HasTrivialDestructor:
   case UTT_HasVirtualDestructor:
-    if (ArgTy->isIncompleteArrayType() || ArgTy->isVoidType())
+
+    if(ArgTy->isVoidType())
       return true;
+
+    if (ArgTy->isIncompleteArrayType()) {
+      QualType ElTy = QualType(ArgTy->getBaseElementTypeUnsafe(), 0);
+      if (!ElTy->isIncompleteType())
+        return true;
+    }
 
     return !S.RequireCompleteType(
         Loc, ArgTy, diag::err_incomplete_type_used_in_type_trait_expr);
