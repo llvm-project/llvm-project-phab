@@ -112,6 +112,7 @@ void Driver::setDriverModeFromOption(StringRef Opt) {
                          .Case("g++", GXXMode)
                          .Case("cpp", CPPMode)
                          .Case("cl", CLMode)
+                         .Case("fortran", FortranMode)
                          .Default(~0U);
 
   if (M != ~0U)
@@ -2631,6 +2632,10 @@ Action *Driver::ConstructPhaseAction(Compilation &C, const ArgList &Args,
       OutputTy = types::TY_Nothing;
     }
     return C.MakeAction<PrecompileJobAction>(Input, OutputTy);
+  }
+  case phases::FortranFrontend: {
+    return C.MakeAction<FortranFrontendJobAction>(Input,
+                                               types::TY_LLVM_IR);
   }
   case phases::Compile: {
     if (Args.hasArg(options::OPT_fsyntax_only))
