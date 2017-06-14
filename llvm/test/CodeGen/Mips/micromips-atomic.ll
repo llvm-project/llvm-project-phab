@@ -12,7 +12,7 @@ entry:
 ; CHECK:   lw      $[[R0:[0-9]+]], %got(x)
 ; CHECK:   $[[BB0:[A-Z_0-9]+]]:
 ; CHECK:   ll      $[[R1:[0-9]+]], 0($[[R0]])
-; CHECK:   addu    $[[R2:[0-9]+]], $[[R1]], $4
+; CHECK:   addu16  $[[R2:[0-9]+]], $[[R1]], $4
 ; CHECK:   sc      $[[R2]], 0($[[R0]])
 ; CHECK:   beqzc   $[[R2]], $[[BB0]]
 }

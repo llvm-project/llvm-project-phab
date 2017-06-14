@@ -33,6 +33,7 @@ namespace llvm {
   FunctionPass *createMipsLongBranchPass();
   FunctionPass *createMipsConstantIslandPass();
   FunctionPass *createMicroMipsSizeReductionPass();
+  FunctionPass *createMipsExpandPseudoPass();
 } // end namespace llvm;
 
 #endif

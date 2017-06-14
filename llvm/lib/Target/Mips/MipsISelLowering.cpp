@@ -1124,76 +1124,76 @@ MipsTargetLowering::EmitInstrWithCustomInserter(MachineInstr &MI,
   default:
     llvm_unreachable("Unexpected instr type to insert");
   case Mips::ATOMIC_LOAD_ADD_I8:
-    return emitAtomicBinaryPartword(MI, BB, 1, Mips::ADDu);
+    return emitAtomicBinaryPartword(MI, BB, 1);
   case Mips::ATOMIC_LOAD_ADD_I16:
-    return emitAtomicBinaryPartword(MI, BB, 2, Mips::ADDu);
+    return emitAtomicBinaryPartword(MI, BB, 2);
   case Mips::ATOMIC_LOAD_ADD_I32:
-    return emitAtomicBinary(MI, BB, 4, Mips::ADDu);
+    return emitAtomicBinary(MI, BB);
   case Mips::ATOMIC_LOAD_ADD_I64:
-    return emitAtomicBinary(MI, BB, 8, Mips::DADDu);
+    return emitAtomicBinary(MI, BB);
 
   case Mips::ATOMIC_LOAD_AND_I8:
-    return emitAtomicBinaryPartword(MI, BB, 1, Mips::AND);
+    return emitAtomicBinaryPartword(MI, BB, 1);
   case Mips::ATOMIC_LOAD_AND_I16:
-    return emitAtomicBinaryPartword(MI, BB, 2, Mips::AND);
+    return emitAtomicBinaryPartword(MI, BB, 2);
   case Mips::ATOMIC_LOAD_AND_I32:
-    return emitAtomicBinary(MI, BB, 4, Mips::AND);
+    return emitAtomicBinary(MI, BB);
   case Mips::ATOMIC_LOAD_AND_I64:
-    return emitAtomicBinary(MI, BB, 8, Mips::AND64);
+    return emitAtomicBinary(MI, BB);
 
   case Mips::ATOMIC_LOAD_OR_I8:
-    return emitAtomicBinaryPartword(MI, BB, 1, Mips::OR);
+    return emitAtomicBinaryPartword(MI, BB, 1);
   case Mips::ATOMIC_LOAD_OR_I16:
-    return emitAtomicBinaryPartword(MI, BB, 2, Mips::OR);
+    return emitAtomicBinaryPartword(MI, BB, 2);
   case Mips::ATOMIC_LOAD_OR_I32:
-    return emitAtomicBinary(MI, BB, 4, Mips::OR);
+    return emitAtomicBinary(MI, BB);
   case Mips::ATOMIC_LOAD_OR_I64:
-    return emitAtomicBinary(MI, BB, 8, Mips::OR64);
+    return emitAtomicBinary(MI, BB);
 
   case Mips::ATOMIC_LOAD_XOR_I8:
-    return emitAtomicBinaryPartword(MI, BB, 1, Mips::XOR);
+    return emitAtomicBinaryPartword(MI, BB, 1);
   case Mips::ATOMIC_LOAD_XOR_I16:
-    return emitAtomicBinaryPartword(MI, BB, 2, Mips::XOR);
+    return emitAtomicBinaryPartword(MI, BB, 2);
   case Mips::ATOMIC_LOAD_XOR_I32:
-    return emitAtomicBinary(MI, BB, 4, Mips::XOR);
+    return emitAtomicBinary(MI, BB);
   case Mips::ATOMIC_LOAD_XOR_I64:
-    return emitAtomicBinary(MI, BB, 8, Mips::XOR64);
+    return emitAtomicBinary(MI, BB);
 
   case Mips::ATOMIC_LOAD_NAND_I8:
-    return emitAtomicBinaryPartword(MI, BB, 1, 0, true);
+    return emitAtomicBinaryPartword(MI, BB, 1);
   case Mips::ATOMIC_LOAD_NAND_I16:
-    return emitAtomicBinaryPartword(MI, BB, 2, 0, true);
+    return emitAtomicBinaryPartword(MI, BB, 2);
   case Mips::ATOMIC_LOAD_NAND_I32:
-    return emitAtomicBinary(MI, BB, 4, 0, true);
+    return emitAtomicBinary(MI, BB);
   case Mips::ATOMIC_LOAD_NAND_I64:
-    return emitAtomicBinary(MI, BB, 8, 0, true);
+    return emitAtomicBinary(MI, BB);
 
   case Mips::ATOMIC_LOAD_SUB_I8:
-    return emitAtomicBinaryPartword(MI, BB, 1, Mips::SUBu);
+    return emitAtomicBinaryPartword(MI, BB, 1);
   case Mips::ATOMIC_LOAD_SUB_I16:
-    return emitAtomicBinaryPartword(MI, BB, 2, Mips::SUBu);
+    return emitAtomicBinaryPartword(MI, BB, 2);
   case Mips::ATOMIC_LOAD_SUB_I32:
-    return emitAtomicBinary(MI, BB, 4, Mips::SUBu);
+    return emitAtomicBinary(MI, BB);
   case Mips::ATOMIC_LOAD_SUB_I64:
-    return emitAtomicBinary(MI, BB, 8, Mips::DSUBu);
+    return emitAtomicBinary(MI, BB);
 
   case Mips::ATOMIC_SWAP_I8:
-    return emitAtomicBinaryPartword(MI, BB, 1, 0);
+    return emitAtomicBinaryPartword(MI, BB, 1);
   case Mips::ATOMIC_SWAP_I16:
-    return emitAtomicBinaryPartword(MI, BB, 2, 0);
+    return emitAtomicBinaryPartword(MI, BB, 2);
   case Mips::ATOMIC_SWAP_I32:
-    return emitAtomicBinary(MI, BB, 4, 0);
+    return emitAtomicBinary(MI, BB);
   case Mips::ATOMIC_SWAP_I64:
-    return emitAtomicBinary(MI, BB, 8, 0);
+    return emitAtomicBinary(MI, BB);
 
   case Mips::ATOMIC_CMP_SWAP_I8:
     return emitAtomicCmpSwapPartword(MI, BB, 1);
   case Mips::ATOMIC_CMP_SWAP_I16:
     return emitAtomicCmpSwapPartword(MI, BB, 2);
   case Mips::ATOMIC_CMP_SWAP_I32:
-    return emitAtomicCmpSwap(MI, BB, 4);
+    return emitAtomicCmpSwap(MI, BB);
   case Mips::ATOMIC_CMP_SWAP_I64:
-    return emitAtomicCmpSwap(MI, BB, 8);
+    return emitAtomicCmpSwap(MI, BB);
   case Mips::PseudoSDIV:
   case Mips::PseudoUDIV:
   case Mips::DIV:
@@ -1250,99 +1250,114 @@ MipsTargetLowering::EmitInstrWithCustomInserter(MachineInstr &MI,
 
 // This function also handles Mips::ATOMIC_SWAP_I32 (when BinOpcode == 0), and
 // Mips::ATOMIC_LOAD_NAND_I32 (when Nand == true)
-MachineBasicBlock *MipsTargetLowering::emitAtomicBinary(MachineInstr &MI,
-                                                        MachineBasicBlock *BB,
-                                                        unsigned Size,
-                                                        unsigned BinOpcode,
-                                                        bool Nand) const {
-  assert((Size == 4 || Size == 8) && "Unsupported size for EmitAtomicBinary.");
+MachineBasicBlock *
+MipsTargetLowering::emitAtomicBinary(MachineInstr &MI,
+                                     MachineBasicBlock *BB) const {
 
   MachineFunction *MF = BB->getParent();
   MachineRegisterInfo &RegInfo = MF->getRegInfo();
-  const TargetRegisterClass *RC = getRegClassFor(MVT::getIntegerVT(Size * 8));
   const TargetInstrInfo *TII = Subtarget.getInstrInfo();
-  const bool ArePtrs64bit = ABI.ArePtrs64bit();
   DebugLoc DL = MI.getDebugLoc();
-  unsigned LL, SC, AND, NOR, ZERO, BEQ;
 
-  if (Size == 4) {
-    if (isMicroMips) {
-      LL = Mips::LL_MM;
-      SC = Mips::SC_MM;
-    } else {
-      LL = Subtarget.hasMips32r6()
-               ? (ArePtrs64bit ? Mips::LL64_R6 : Mips::LL_R6)
-               : (ArePtrs64bit ? Mips::LL64 : Mips::LL);
-      SC = Subtarget.hasMips32r6()
-               ? (ArePtrs64bit ? Mips::SC64_R6 : Mips::SC_R6)
-               : (ArePtrs64bit ? Mips::SC64 : Mips::SC);
-    }
-
-    AND = Mips::AND;
-    NOR = Mips::NOR;
-    ZERO = Mips::ZERO;
-    BEQ = Mips::BEQ;
-  } else {
-    LL = Subtarget.hasMips64r6() ? Mips::LLD_R6 : Mips::LLD;
-    SC = Subtarget.hasMips64r6() ? Mips::SCD_R6 : Mips::SCD;
-    AND = Mips::AND64;
-    NOR = Mips::NOR64;
-    ZERO = Mips::ZERO_64;
-    BEQ = Mips::BEQ64;
+  unsigned AtomicOp;
+  switch (MI.getOpcode()) {
+  case Mips::ATOMIC_LOAD_ADD_I32:
+    AtomicOp = Mips::ATOMIC_LOAD_ADD_I32_POSTRA;
+    break;
+  case Mips::ATOMIC_LOAD_SUB_I32:
+    AtomicOp = Mips::ATOMIC_LOAD_SUB_I32_POSTRA;
+    break;
+  case Mips::ATOMIC_LOAD_AND_I32:
+    AtomicOp = Mips::ATOMIC_LOAD_AND_I32_POSTRA;
+    break;
+  case Mips::ATOMIC_LOAD_OR_I32:
+    AtomicOp = Mips::ATOMIC_LOAD_OR_I32_POSTRA;
+    break;
+  case Mips::ATOMIC_LOAD_XOR_I32:
+    AtomicOp = Mips::ATOMIC_LOAD_XOR_I32_POSTRA;
+    break;
+  case Mips::ATOMIC_LOAD_NAND_I32:
+    AtomicOp = Mips::ATOMIC_LOAD_NAND_I32_POSTRA;
+    break;
+  case Mips::ATOMIC_SWAP_I32:
+    AtomicOp = Mips::ATOMIC_SWAP_I32_POSTRA;
+    break;
+  case Mips::ATOMIC_LOAD_ADD_I64:
+    AtomicOp = Mips::ATOMIC_LOAD_ADD_I64_POSTRA;
+    break;
+  case Mips::ATOMIC_LOAD_SUB_I64:
+    AtomicOp = Mips::ATOMIC_LOAD_SUB_I64_POSTRA;
+    break;
+  case Mips::ATOMIC_LOAD_AND_I64:
+    AtomicOp = Mips::ATOMIC_LOAD_AND_I64_POSTRA;
+    break;
+  case Mips::ATOMIC_LOAD_OR_I64:
+    AtomicOp = Mips::ATOMIC_LOAD_OR_I64_POSTRA;
+    break;
+  case Mips::ATOMIC_LOAD_XOR_I64:
+    AtomicOp = Mips::ATOMIC_LOAD_XOR_I64_POSTRA;
+    break;
+  case Mips::ATOMIC_LOAD_NAND_I64:
+    AtomicOp = Mips::ATOMIC_LOAD_NAND_I64_POSTRA;
+    break;
+  case Mips::ATOMIC_SWAP_I64:
+    AtomicOp = Mips::ATOMIC_SWAP_I64_POSTRA;
+    break;
+  default:
+    llvm_unreachable("Unknown pseudo atomic for replacement!");
   }
 
   unsigned OldVal = MI.getOperand(0).getReg();
   unsigned Ptr = MI.getOperand(1).getReg();
   unsigned Incr = MI.getOperand(2).getReg();
+  unsigned Scratch = RegInfo.createVirtualRegister(RegInfo.getRegClass(OldVal));
 
-  unsigned StoreVal = RegInfo.createVirtualRegister(RC);
-  unsigned AndRes = RegInfo.createVirtualRegister(RC);
-  unsigned Success = RegInfo.createVirtualRegister(RC);
+  MachineBasicBlock::iterator II(MI);
 
-  // insert new blocks after the current block
-  const BasicBlock *LLVM_BB = BB->getBasicBlock();
-  MachineBasicBlock *loopMBB = MF->CreateMachineBasicBlock(LLVM_BB);
-  MachineBasicBlock *exitMBB = MF->CreateMachineBasicBlock(LLVM_BB);
-  MachineFunction::iterator It = ++BB->getIterator();
-  MF->insert(It, loopMBB);
-  MF->insert(It, exitMBB);
+  // The scratch registers here with the EarlyClobber | Define | Dead flags
+  // | Implicit is used to persuade the register allocator and the machine
+  // verifier to accept the usage of this register. This has to be a real
+  // register which has an UNDEF value but is dead after the instruction which
+  // is unique amoung the registers chosen for the instruction.
 
-  // Transfer the remainder of BB and its successor edges to exitMBB.
-  exitMBB->splice(exitMBB->begin(), BB,
-                  std::next(MachineBasicBlock::iterator(MI)), BB->end());
-  exitMBB->transferSuccessorsAndUpdatePHIs(BB);
+  // The EarlyClobber flag has the semantic properties that the operand it is
+  // attached to is clobbered before the rest of the inputs are read. Hence it
+  // must be unique amoung the operands to the instruction.
+  // The Define flag is needed to coerce the machine verifier that an Undef
+  // value isn't a problem.
+  // The Dead flag is needed as the value in scratch isn't used by any other
+  // instruction.
+  // The implicit flag is here due to the interaction between the other flags
+  // and the machine verifier.
 
-  //  thisMBB:
-  //    ...
-  //    fallthrough --> loopMBB
-  BB->addSuccessor(loopMBB);
-  loopMBB->addSuccessor(loopMBB);
-  loopMBB->addSuccessor(exitMBB);
+  // For correctness purpose, a new pseudo is introduced here. We need this
+  // new pseudo, so that FastRegisterAllocator does not see an ll/sc sequence
+  // that is spread over >1 basic blocks. A register allocator which
+  // introduces (or any codegen infact) a store, can violate the expactations
+  // of the hardware.
+  //
+  // An atomic read-modify-write sequence starts with a linked load
+  // instruction and ends with a store conditional instruction. The atomic
+  // read-modify-write sequence fails if any of the following conditions
+  // occur between the execution of ll and sc:
+  //   * A coherent store is completed by another processor or coherent I/O
+  //     module into the block of synchronizable physical memory containing
+  //     the word. The size and alignment of the block is
+  //     implementation-dependent.
+  //   * A memory operation such as a lood, store or pretch is executed
+  //     between the ll and sc. The memory operation may cause a cache
+  //     eviction that results in the sc failing.
 
-  //  loopMBB:
-  //    ll oldval, 0(ptr)
-  //    <binop> storeval, oldval, incr
-  //    sc success, storeval, 0(ptr)
-  //    beq success, $0, loopMBB
-  BB = loopMBB;
-  BuildMI(BB, DL, TII->get(LL), OldVal).addReg(Ptr).addImm(0);
-  if (Nand) {
-    //  and andres, oldval, incr
-    //  nor storeval, $0, andres
-    BuildMI(BB, DL, TII->get(AND), AndRes).addReg(OldVal).addReg(Incr);
-    BuildMI(BB, DL, TII->get(NOR), StoreVal).addReg(ZERO).addReg(AndRes);
-  } else if (BinOpcode) {
-    //  <binop> storeval, oldval, incr
-    BuildMI(BB, DL, TII->get(BinOpcode), StoreVal).addReg(OldVal).addReg(Incr);
-  } else {
-    StoreVal = Incr;
-  }
-  BuildMI(BB, DL, TII->get(SC), Success).addReg(StoreVal).addReg(Ptr).addImm(0);
-  BuildMI(BB, DL, TII->get(BEQ)).addReg(Success).addReg(ZERO).addMBB(loopMBB);
+  BuildMI(*BB, II, DL, TII->get(AtomicOp))
+      .addReg(OldVal, RegState::EarlyClobber | RegState::Define)
+      .addReg(Ptr)
+      .addReg(Incr)
+      .addReg(Scratch, RegState::Define | RegState::Dead |
+                           RegState::EarlyClobber | RegState::Implicit);
 
-  MI.eraseFromParent(); // The instruction is gone now.
+  MI.eraseFromParent();
 
-  return exitMBB;
+  return BB;
 }
 
 MachineBasicBlock *MipsTargetLowering::emitSignExtendToI32InReg(
@@ -1376,72 +1391,83 @@ MachineBasicBlock *MipsTargetLowering::emitSignExtendToI32InReg(
 }
 
 MachineBasicBlock *MipsTargetLowering::emitAtomicBinaryPartword(
-    MachineInstr &MI, MachineBasicBlock *BB, unsigned Size, unsigned BinOpcode,
-    bool Nand) const {
+    MachineInstr &MI, MachineBasicBlock *BB, unsigned Size) const {
   assert((Size == 1 || Size == 2) &&
          "Unsupported size for EmitAtomicBinaryPartial.");
 
   MachineFunction *MF = BB->getParent();
   MachineRegisterInfo &RegInfo = MF->getRegInfo();
-  const TargetRegisterClass *RC = getRegClassFor(MVT::i32);
   const bool ArePtrs64bit = ABI.ArePtrs64bit();
-  const TargetRegisterClass *RCp =
-    getRegClassFor(ArePtrs64bit ? MVT::i64 : MVT::i32);
   const TargetInstrInfo *TII = Subtarget.getInstrInfo();
   DebugLoc DL = MI.getDebugLoc();
+  MachineBasicBlock::iterator II(MI);
 
   unsigned Dest = MI.getOperand(0).getReg();
   unsigned Ptr = MI.getOperand(1).getReg();
   unsigned Incr = MI.getOperand(2).getReg();
 
+  const TargetRegisterClass *RC = RegInfo.getRegClass(Incr);
+  const TargetRegisterClass *RCp = RegInfo.getRegClass(Ptr);
+
   unsigned AlignedAddr = RegInfo.createVirtualRegister(RCp);
   unsigned ShiftAmt = RegInfo.createVirtualRegister(RC);
   unsigned Mask = RegInfo.createVirtualRegister(RC);
   unsigned Mask2 = RegInfo.createVirtualRegister(RC);
-  unsigned NewVal = RegInfo.createVirtualRegister(RC);
-  unsigned OldVal = RegInfo.createVirtualRegister(RC);
   unsigned Incr2 = RegInfo.createVirtualRegister(RC);
   unsigned MaskLSB2 = RegInfo.createVirtualRegister(RCp);
   unsigned PtrLSB2 = RegInfo.createVirtualRegister(RC);
   unsigned MaskUpper = RegInfo.createVirtualRegister(RC);
-  unsigned AndRes = RegInfo.createVirtualRegister(RC);
-  unsigned BinOpRes = RegInfo.createVirtualRegister(RC);
-  unsigned MaskedOldVal0 = RegInfo.createVirtualRegister(RC);
-  unsigned StoreVal = RegInfo.createVirtualRegister(RC);
-  unsigned MaskedOldVal1 = RegInfo.createVirtualRegister(RC);
-  unsigned SrlRes = RegInfo.createVirtualRegister(RC);
-  unsigned Success = RegInfo.createVirtualRegister(RC);
+  unsigned Scratch = RegInfo.createVirtualRegister(RC);
+  unsigned Scratch2 = RegInfo.createVirtualRegister(RC);
+  unsigned Scratch3 = RegInfo.createVirtualRegister(RC);
 
-  unsigned LL, SC;
-  if (isMicroMips) {
-    LL = Mips::LL_MM;
-    SC = Mips::SC_MM;
-  } else {
-    LL = Subtarget.hasMips32r6() ? (ArePtrs64bit ? Mips::LL64_R6 : Mips::LL_R6)
-                                 : (ArePtrs64bit ? Mips::LL64 : Mips::LL);
-    SC = Subtarget.hasMips32r6() ? (ArePtrs64bit ? Mips::SC64_R6 : Mips::SC_R6)
-                                 : (ArePtrs64bit ? Mips::SC64 : Mips::SC);
+  unsigned AtomicOp = 0;
+  switch (MI.getOpcode()) {
+  case Mips::ATOMIC_LOAD_NAND_I8:
+    AtomicOp = Mips::ATOMIC_LOAD_NAND_I8_POSTRA;
+    break;
+  case Mips::ATOMIC_LOAD_NAND_I16:
+    AtomicOp = Mips::ATOMIC_LOAD_NAND_I16_POSTRA;
+    break;
+  case Mips::ATOMIC_SWAP_I8:
+    AtomicOp = Mips::ATOMIC_SWAP_I8_POSTRA;
+    break;
+  case Mips::ATOMIC_SWAP_I16:
+    AtomicOp = Mips::ATOMIC_SWAP_I16_POSTRA;
+    break;
+  case Mips::ATOMIC_LOAD_ADD_I8:
+    AtomicOp = Mips::ATOMIC_LOAD_ADD_I8_POSTRA;
+    break;
+  case Mips::ATOMIC_LOAD_ADD_I16:
+    AtomicOp = Mips::ATOMIC_LOAD_ADD_I16_POSTRA;
+    break;
+  case Mips::ATOMIC_LOAD_SUB_I8:
+    AtomicOp = Mips::ATOMIC_LOAD_SUB_I8_POSTRA;
+    break;
+  case Mips::ATOMIC_LOAD_SUB_I16:
+    AtomicOp = Mips::ATOMIC_LOAD_SUB_I16_POSTRA;
+    break;
+  case Mips::ATOMIC_LOAD_AND_I8:
+    AtomicOp = Mips::ATOMIC_LOAD_AND_I8_POSTRA;
+    break;
+  case Mips::ATOMIC_LOAD_AND_I16:
+    AtomicOp = Mips::ATOMIC_LOAD_AND_I16_POSTRA;
+    break;
+  case Mips::ATOMIC_LOAD_OR_I8:
+    AtomicOp = Mips::ATOMIC_LOAD_OR_I8_POSTRA;
+    break;
+  case Mips::ATOMIC_LOAD_OR_I16:
+    AtomicOp = Mips::ATOMIC_LOAD_OR_I16_POSTRA;
+    break;
+  case Mips::ATOMIC_LOAD_XOR_I8:
+    AtomicOp = Mips::ATOMIC_LOAD_XOR_I8_POSTRA;
+    break;
+  case Mips::ATOMIC_LOAD_XOR_I16:
+    AtomicOp = Mips::ATOMIC_LOAD_XOR_I16_POSTRA;
+    break;
+  default:
+    llvm_unreachable("Unknown subword atomic pseudo for expansion!");
   }
-
-  // insert new blocks after the current block
-  const BasicBlock *LLVM_BB = BB->getBasicBlock();
-  MachineBasicBlock *loopMBB = MF->CreateMachineBasicBlock(LLVM_BB);
-  MachineBasicBlock *sinkMBB = MF->CreateMachineBasicBlock(LLVM_BB);
-  MachineBasicBlock *exitMBB = MF->CreateMachineBasicBlock(LLVM_BB);
-  MachineFunction::iterator It = ++BB->getIterator();
-  MF->insert(It, loopMBB);
-  MF->insert(It, sinkMBB);
-  MF->insert(It, exitMBB);
-
-  // Transfer the remainder of BB and its successor edges to exitMBB.
-  exitMBB->splice(exitMBB->begin(), BB,
-                  std::next(MachineBasicBlock::iterator(MI)), BB->end());
-  exitMBB->transferSuccessorsAndUpdatePHIs(BB);
-
-  BB->addSuccessor(loopMBB);
-  loopMBB->addSuccessor(loopMBB);
-  loopMBB->addSuccessor(sinkMBB);
-  sinkMBB->addSuccessor(exitMBB);
 
   //  thisMBB:
   //    addiu   masklsb2,$0,-4                # 0xfffffffc
@@ -1454,180 +1480,97 @@ MachineBasicBlock *MipsTargetLowering::emitAtomicBinaryPartword(
   //    sll     incr2,incr,shiftamt
 
   int64_t MaskImm = (Size == 1) ? 255 : 65535;
-  BuildMI(BB, DL, TII->get(ABI.GetPtrAddiuOp()), MaskLSB2)
+  BuildMI(*BB, II, DL, TII->get(ABI.GetPtrAddiuOp()), MaskLSB2)
     .addReg(ABI.GetNullPtr()).addImm(-4);
-  BuildMI(BB, DL, TII->get(ABI.GetPtrAndOp()), AlignedAddr)
+  BuildMI(*BB, II, DL, TII->get(ABI.GetPtrAndOp()), AlignedAddr)
     .addReg(Ptr).addReg(MaskLSB2);
-  BuildMI(BB, DL, TII->get(Mips::ANDi), PtrLSB2)
+  BuildMI(*BB, II, DL, TII->get(Mips::ANDi), PtrLSB2)
       .addReg(Ptr, 0, ArePtrs64bit ? Mips::sub_32 : 0).addImm(3);
   if (Subtarget.isLittle()) {
-    BuildMI(BB, DL, TII->get(Mips::SLL), ShiftAmt).addReg(PtrLSB2).addImm(3);
+    BuildMI(*BB, II, DL, TII->get(Mips::SLL), ShiftAmt).addReg(PtrLSB2).addImm(3);
   } else {
     unsigned Off = RegInfo.createVirtualRegister(RC);
-    BuildMI(BB, DL, TII->get(Mips::XORi), Off)
+    BuildMI(*BB, II, DL, TII->get(Mips::XORi), Off)
       .addReg(PtrLSB2).addImm((Size == 1) ? 3 : 2);
-    BuildMI(BB, DL, TII->get(Mips::SLL), ShiftAmt).addReg(Off).addImm(3);
+    BuildMI(*BB, II, DL, TII->get(Mips::SLL), ShiftAmt).addReg(Off).addImm(3);
   }
-  BuildMI(BB, DL, TII->get(Mips::ORi), MaskUpper)
+  BuildMI(*BB, II, DL, TII->get(Mips::ORi), MaskUpper)
     .addReg(Mips::ZERO).addImm(MaskImm);
-  BuildMI(BB, DL, TII->get(Mips::SLLV), Mask)
+  BuildMI(*BB, II, DL, TII->get(Mips::SLLV), Mask)
     .addReg(MaskUpper).addReg(ShiftAmt);
-  BuildMI(BB, DL, TII->get(Mips::NOR), Mask2).addReg(Mips::ZERO).addReg(Mask);
-  BuildMI(BB, DL, TII->get(Mips::SLLV), Incr2).addReg(Incr).addReg(ShiftAmt);
+  BuildMI(*BB, II, DL, TII->get(Mips::NOR), Mask2)
+      .addReg(Mips::ZERO)
+      .addReg(Mask);
+  BuildMI(*BB, II, DL, TII->get(Mips::SLLV), Incr2)
+      .addReg(Incr)
+      .addReg(ShiftAmt);
 
-  // atomic.load.binop
-  // loopMBB:
-  //   ll      oldval,0(alignedaddr)
-  //   binop   binopres,oldval,incr2
-  //   and     newval,binopres,mask
-  //   and     maskedoldval0,oldval,mask2
-  //   or      storeval,maskedoldval0,newval
-  //   sc      success,storeval,0(alignedaddr)
-  //   beq     success,$0,loopMBB
+  // The purposes of the flags on the scratch registers is explained in
+  // emitAtomicBinary. In summary, we need a scratch register which is going to
+  // be undef, that is unique amoung the register chosen for the instruction.
 
-  // atomic.swap
-  // loopMBB:
-  //   ll      oldval,0(alignedaddr)
-  //   and     newval,incr2,mask
-  //   and     maskedoldval0,oldval,mask2
-  //   or      storeval,maskedoldval0,newval
-  //   sc      success,storeval,0(alignedaddr)
-  //   beq     success,$0,loopMBB
-
-  BB = loopMBB;
-  BuildMI(BB, DL, TII->get(LL), OldVal).addReg(AlignedAddr).addImm(0);
-  if (Nand) {
-    //  and andres, oldval, incr2
-    //  nor binopres, $0, andres
-    //  and newval, binopres, mask
-    BuildMI(BB, DL, TII->get(Mips::AND), AndRes).addReg(OldVal).addReg(Incr2);
-    BuildMI(BB, DL, TII->get(Mips::NOR), BinOpRes)
-      .addReg(Mips::ZERO).addReg(AndRes);
-    BuildMI(BB, DL, TII->get(Mips::AND), NewVal).addReg(BinOpRes).addReg(Mask);
-  } else if (BinOpcode) {
-    //  <binop> binopres, oldval, incr2
-    //  and newval, binopres, mask
-    BuildMI(BB, DL, TII->get(BinOpcode), BinOpRes).addReg(OldVal).addReg(Incr2);
-    BuildMI(BB, DL, TII->get(Mips::AND), NewVal).addReg(BinOpRes).addReg(Mask);
-  } else { // atomic.swap
-    //  and newval, incr2, mask
-    BuildMI(BB, DL, TII->get(Mips::AND), NewVal).addReg(Incr2).addReg(Mask);
-  }
-
-  BuildMI(BB, DL, TII->get(Mips::AND), MaskedOldVal0)
-    .addReg(OldVal).addReg(Mask2);
-  BuildMI(BB, DL, TII->get(Mips::OR), StoreVal)
-    .addReg(MaskedOldVal0).addReg(NewVal);
-  BuildMI(BB, DL, TII->get(SC), Success)
-    .addReg(StoreVal).addReg(AlignedAddr).addImm(0);
-  BuildMI(BB, DL, TII->get(Mips::BEQ))
-    .addReg(Success).addReg(Mips::ZERO).addMBB(loopMBB);
-
-  //  sinkMBB:
-  //    and     maskedoldval1,oldval,mask
-  //    srl     srlres,maskedoldval1,shiftamt
-  //    sign_extend dest,srlres
-  BB = sinkMBB;
-
-  BuildMI(BB, DL, TII->get(Mips::AND), MaskedOldVal1)
-    .addReg(OldVal).addReg(Mask);
-  BuildMI(BB, DL, TII->get(Mips::SRLV), SrlRes)
-      .addReg(MaskedOldVal1).addReg(ShiftAmt);
-  BB = emitSignExtendToI32InReg(MI, BB, Size, Dest, SrlRes);
+  BuildMI(*BB, II, DL, TII->get(AtomicOp), Dest)
+      .addReg(AlignedAddr)
+      .addReg(Incr2)
+      .addReg(Mask)
+      .addReg(Mask2)
+      .addReg(ShiftAmt)
+      .addReg(Scratch, RegState::EarlyClobber | RegState::Define |
+                           RegState::Dead | RegState::Implicit)
+      .addReg(Scratch2, RegState::EarlyClobber | RegState::Define |
+                            RegState::Dead | RegState::Implicit)
+      .addReg(Scratch3, RegState::EarlyClobber | RegState::Define |
+                            RegState::Dead | RegState::Implicit);
 
   MI.eraseFromParent(); // The instruction is gone now.
 
-  return exitMBB;
+  return BB;
 }
 
-MachineBasicBlock *MipsTargetLowering::emitAtomicCmpSwap(MachineInstr &MI,
-                                                         MachineBasicBlock *BB,
-                                                         unsigned Size) const {
-  assert((Size == 4 || Size == 8) && "Unsupported size for EmitAtomicCmpSwap.");
+// Lower atomic compare and swap to a pseudo instruction, taking care to
+// define a scratch register for the pseudo instruction's expansion. The
+// instruction is expanded after the register allocator as to prevent
+// the insertion of stores between the linked load and the store conditional.
+
+MachineBasicBlock *
+MipsTargetLowering::emitAtomicCmpSwap(MachineInstr &MI,
+                                      MachineBasicBlock *BB) const {
+
+  assert((MI.getOpcode() == Mips::ATOMIC_CMP_SWAP_I32 ||
+          MI.getOpcode() == Mips::ATOMIC_CMP_SWAP_I64) &&
+         "Unsupported atomic psseudo for EmitAtomicCmpSwap.");
 
   MachineFunction *MF = BB->getParent();
-  MachineRegisterInfo &RegInfo = MF->getRegInfo();
-  const TargetRegisterClass *RC = getRegClassFor(MVT::getIntegerVT(Size * 8));
+  MachineRegisterInfo &MRI = MF->getRegInfo();
   const TargetInstrInfo *TII = Subtarget.getInstrInfo();
-  const bool ArePtrs64bit = ABI.ArePtrs64bit();
   DebugLoc DL = MI.getDebugLoc();
-  unsigned LL, SC, ZERO, BNE, BEQ;
-
-  if (Size == 4) {
-    if (isMicroMips) {
-      LL = Mips::LL_MM;
-      SC = Mips::SC_MM;
-    } else {
-      LL = Subtarget.hasMips32r6()
-               ? (ArePtrs64bit ? Mips::LL64_R6 : Mips::LL_R6)
-               : (ArePtrs64bit ? Mips::LL64 : Mips::LL);
-      SC = Subtarget.hasMips32r6()
-               ? (ArePtrs64bit ? Mips::SC64_R6 : Mips::SC_R6)
-               : (ArePtrs64bit ? Mips::SC64 : Mips::SC);
-    }
-
-    ZERO = Mips::ZERO;
-    BNE = Mips::BNE;
-    BEQ = Mips::BEQ;
-  } else {
-    LL = Subtarget.hasMips64r6() ? Mips::LLD_R6 : Mips::LLD;
-    SC = Subtarget.hasMips64r6() ? Mips::SCD_R6 : Mips::SCD;
-    ZERO = Mips::ZERO_64;
-    BNE = Mips::BNE64;
-    BEQ = Mips::BEQ64;
-  }
+  unsigned AtomicOp = MI.getOpcode() == Mips::ATOMIC_CMP_SWAP_I32
+                          ? Mips::ATOMIC_CMP_SWAP_I32_POSTRA
+                          : Mips::ATOMIC_CMP_SWAP_I64_POSTRA;
 
   unsigned Dest = MI.getOperand(0).getReg();
   unsigned Ptr = MI.getOperand(1).getReg();
   unsigned OldVal = MI.getOperand(2).getReg();
   unsigned NewVal = MI.getOperand(3).getReg();
 
-  unsigned Success = RegInfo.createVirtualRegister(RC);
+  unsigned Scratch = MRI.createVirtualRegister(MRI.getRegClass(OldVal));
+  MachineBasicBlock::iterator II(MI);
 
-  // insert new blocks after the current block
-  const BasicBlock *LLVM_BB = BB->getBasicBlock();
-  MachineBasicBlock *loop1MBB = MF->CreateMachineBasicBlock(LLVM_BB);
-  MachineBasicBlock *loop2MBB = MF->CreateMachineBasicBlock(LLVM_BB);
-  MachineBasicBlock *exitMBB = MF->CreateMachineBasicBlock(LLVM_BB);
-  MachineFunction::iterator It = ++BB->getIterator();
-  MF->insert(It, loop1MBB);
-  MF->insert(It, loop2MBB);
-  MF->insert(It, exitMBB);
+  // The purposes of the flags on the scratch registers is explained in
+  // emitAtomicBinary. In summary, we need a scratch register which is going to
+  // be undef, that is unique amoung the register chosen for the instruction.
 
-  // Transfer the remainder of BB and its successor edges to exitMBB.
-  exitMBB->splice(exitMBB->begin(), BB,
-                  std::next(MachineBasicBlock::iterator(MI)), BB->end());
-  exitMBB->transferSuccessorsAndUpdatePHIs(BB);
-
-  //  thisMBB:
-  //    ...
-  //    fallthrough --> loop1MBB
-  BB->addSuccessor(loop1MBB);
-  loop1MBB->addSuccessor(exitMBB);
-  loop1MBB->addSuccessor(loop2MBB);
-  loop2MBB->addSuccessor(loop1MBB);
-  loop2MBB->addSuccessor(exitMBB);
-
-  // loop1MBB:
-  //   ll dest, 0(ptr)
-  //   bne dest, oldval, exitMBB
-  BB = loop1MBB;
-  BuildMI(BB, DL, TII->get(LL), Dest).addReg(Ptr).addImm(0);
-  BuildMI(BB, DL, TII->get(BNE))
-    .addReg(Dest).addReg(OldVal).addMBB(exitMBB);
-
-  // loop2MBB:
-  //   sc success, newval, 0(ptr)
-  //   beq success, $0, loop1MBB
-  BB = loop2MBB;
-  BuildMI(BB, DL, TII->get(SC), Success)
-    .addReg(NewVal).addReg(Ptr).addImm(0);
-  BuildMI(BB, DL, TII->get(BEQ))
-    .addReg(Success).addReg(ZERO).addMBB(loop1MBB);
+  BuildMI(*BB, II, DL, TII->get(AtomicOp))
+      .addReg(Dest, RegState::EarlyClobber | RegState::Define)
+      .addReg(Ptr)
+      .addReg(OldVal)
+      .addReg(NewVal)
+      .addReg(Scratch, RegState::EarlyClobber | RegState::Define |
+                           RegState::Dead | RegState::Implicit);
 
   MI.eraseFromParent(); // The instruction is gone now.
 
-  return exitMBB;
+  return BB;
 }
 
 MachineBasicBlock *MipsTargetLowering::emitAtomicCmpSwapPartword(
@@ -1637,72 +1580,37 @@ MachineBasicBlock *MipsTargetLowering::emitAtomicCmpSwapPartword(
 
   MachineFunction *MF = BB->getParent();
   MachineRegisterInfo &RegInfo = MF->getRegInfo();
-  const TargetRegisterClass *RC = getRegClassFor(MVT::i32);
   const bool ArePtrs64bit = ABI.ArePtrs64bit();
-  const TargetRegisterClass *RCp =
-    getRegClassFor(ArePtrs64bit ? MVT::i64 : MVT::i32);
   const TargetInstrInfo *TII = Subtarget.getInstrInfo();
   DebugLoc DL = MI.getDebugLoc();
 
-  unsigned Dest = MI.getOperand(0).getReg();
+  unsigned Res = MI.getOperand(0).getReg();
   unsigned Ptr = MI.getOperand(1).getReg();
   unsigned CmpVal = MI.getOperand(2).getReg();
   unsigned NewVal = MI.getOperand(3).getReg();
+
+  const TargetRegisterClass *RC = RegInfo.getRegClass(CmpVal);
+  const TargetRegisterClass *RCp = RegInfo.getRegClass(Ptr);
 
   unsigned AlignedAddr = RegInfo.createVirtualRegister(RCp);
   unsigned ShiftAmt = RegInfo.createVirtualRegister(RC);
   unsigned Mask = RegInfo.createVirtualRegister(RC);
   unsigned Mask2 = RegInfo.createVirtualRegister(RC);
   unsigned ShiftedCmpVal = RegInfo.createVirtualRegister(RC);
-  unsigned OldVal = RegInfo.createVirtualRegister(RC);
-  unsigned MaskedOldVal0 = RegInfo.createVirtualRegister(RC);
   unsigned ShiftedNewVal = RegInfo.createVirtualRegister(RC);
   unsigned MaskLSB2 = RegInfo.createVirtualRegister(RCp);
   unsigned PtrLSB2 = RegInfo.createVirtualRegister(RC);
   unsigned MaskUpper = RegInfo.createVirtualRegister(RC);
   unsigned MaskedCmpVal = RegInfo.createVirtualRegister(RC);
   unsigned MaskedNewVal = RegInfo.createVirtualRegister(RC);
-  unsigned MaskedOldVal1 = RegInfo.createVirtualRegister(RC);
-  unsigned StoreVal = RegInfo.createVirtualRegister(RC);
-  unsigned SrlRes = RegInfo.createVirtualRegister(RC);
-  unsigned Success = RegInfo.createVirtualRegister(RC);
-  unsigned LL, SC;
+  unsigned AtomicOp = MI.getOpcode() == Mips::ATOMIC_CMP_SWAP_I8
+                          ? Mips::ATOMIC_CMP_SWAP_I8_POSTRA
+                          : Mips::ATOMIC_CMP_SWAP_I16_POSTRA;
 
-  if (isMicroMips) {
-    LL = Mips::LL_MM;
-    SC = Mips::SC_MM;
-  } else {
-    LL = Subtarget.hasMips32r6() ? (ArePtrs64bit ? Mips::LL64_R6 : Mips::LL_R6)
-                                 : (ArePtrs64bit ? Mips::LL64 : Mips::LL);
-    SC = Subtarget.hasMips32r6() ? (ArePtrs64bit ? Mips::SC64_R6 : Mips::SC_R6)
-                                 : (ArePtrs64bit ? Mips::SC64 : Mips::SC);
-  }
+  unsigned Scratch = RegInfo.createVirtualRegister(RC);
+  unsigned Scratch2 = RegInfo.createVirtualRegister(RC);
+  MachineBasicBlock::iterator II(MI);
 
-  // insert new blocks after the current block
-  const BasicBlock *LLVM_BB = BB->getBasicBlock();
-  MachineBasicBlock *loop1MBB = MF->CreateMachineBasicBlock(LLVM_BB);
-  MachineBasicBlock *loop2MBB = MF->CreateMachineBasicBlock(LLVM_BB);
-  MachineBasicBlock *sinkMBB = MF->CreateMachineBasicBlock(LLVM_BB);
-  MachineBasicBlock *exitMBB = MF->CreateMachineBasicBlock(LLVM_BB);
-  MachineFunction::iterator It = ++BB->getIterator();
-  MF->insert(It, loop1MBB);
-  MF->insert(It, loop2MBB);
-  MF->insert(It, sinkMBB);
-  MF->insert(It, exitMBB);
-
-  // Transfer the remainder of BB and its successor edges to exitMBB.
-  exitMBB->splice(exitMBB->begin(), BB,
-                  std::next(MachineBasicBlock::iterator(MI)), BB->end());
-  exitMBB->transferSuccessorsAndUpdatePHIs(BB);
-
-  BB->addSuccessor(loop1MBB);
-  loop1MBB->addSuccessor(sinkMBB);
-  loop1MBB->addSuccessor(loop2MBB);
-  loop2MBB->addSuccessor(loop1MBB);
-  loop2MBB->addSuccessor(sinkMBB);
-  sinkMBB->addSuccessor(exitMBB);
-
-  // FIXME: computation of newval2 can be moved to loop2MBB.
   //  thisMBB:
   //    addiu   masklsb2,$0,-4                # 0xfffffffc
   //    and     alignedaddr,ptr,masklsb2
@@ -1717,72 +1625,67 @@ MachineBasicBlock *MipsTargetLowering::emitAtomicCmpSwapPartword(
   //    andi    maskednewval,newval,255
   //    sll     shiftednewval,maskednewval,shiftamt
   int64_t MaskImm = (Size == 1) ? 255 : 65535;
-  BuildMI(BB, DL, TII->get(ArePtrs64bit ? Mips::DADDiu : Mips::ADDiu), MaskLSB2)
-    .addReg(ABI.GetNullPtr()).addImm(-4);
-  BuildMI(BB, DL, TII->get(ArePtrs64bit ? Mips::AND64 : Mips::AND), AlignedAddr)
-    .addReg(Ptr).addReg(MaskLSB2);
-  BuildMI(BB, DL, TII->get(Mips::ANDi), PtrLSB2)
-      .addReg(Ptr, 0, ArePtrs64bit ? Mips::sub_32 : 0).addImm(3);
+  BuildMI(*BB, II, DL, TII->get(ArePtrs64bit ? Mips::DADDiu : Mips::ADDiu),
+          MaskLSB2)
+      .addReg(ABI.GetNullPtr())
+      .addImm(-4);
+  BuildMI(*BB, II, DL, TII->get(ArePtrs64bit ? Mips::AND64 : Mips::AND),
+          AlignedAddr)
+      .addReg(Ptr)
+      .addReg(MaskLSB2);
+  BuildMI(*BB, II, DL, TII->get(Mips::ANDi), PtrLSB2)
+      .addReg(Ptr, 0, ArePtrs64bit ? Mips::sub_32 : 0)
+      .addImm(3);
   if (Subtarget.isLittle()) {
-    BuildMI(BB, DL, TII->get(Mips::SLL), ShiftAmt).addReg(PtrLSB2).addImm(3);
+    BuildMI(*BB, II, DL, TII->get(Mips::SLL), ShiftAmt).addReg(PtrLSB2).addImm(3);
   } else {
     unsigned Off = RegInfo.createVirtualRegister(RC);
-    BuildMI(BB, DL, TII->get(Mips::XORi), Off)
+    BuildMI(*BB, II, DL, TII->get(Mips::XORi), Off)
       .addReg(PtrLSB2).addImm((Size == 1) ? 3 : 2);
-    BuildMI(BB, DL, TII->get(Mips::SLL), ShiftAmt).addReg(Off).addImm(3);
+    BuildMI(*BB, II, DL, TII->get(Mips::SLL), ShiftAmt).addReg(Off).addImm(3);
   }
-  BuildMI(BB, DL, TII->get(Mips::ORi), MaskUpper)
+  BuildMI(*BB, II, DL, TII->get(Mips::ORi), MaskUpper)
     .addReg(Mips::ZERO).addImm(MaskImm);
-  BuildMI(BB, DL, TII->get(Mips::SLLV), Mask)
+  BuildMI(*BB, II, DL, TII->get(Mips::SLLV), Mask)
     .addReg(MaskUpper).addReg(ShiftAmt);
-  BuildMI(BB, DL, TII->get(Mips::NOR), Mask2).addReg(Mips::ZERO).addReg(Mask);
-  BuildMI(BB, DL, TII->get(Mips::ANDi), MaskedCmpVal)
+  BuildMI(*BB, II, DL, TII->get(Mips::NOR), Mask2)
+      .addReg(Mips::ZERO)
+      .addReg(Mask);
+  BuildMI(*BB, II, DL, TII->get(Mips::ANDi), MaskedCmpVal)
     .addReg(CmpVal).addImm(MaskImm);
-  BuildMI(BB, DL, TII->get(Mips::SLLV), ShiftedCmpVal)
+  BuildMI(*BB, II, DL, TII->get(Mips::SLLV), ShiftedCmpVal)
     .addReg(MaskedCmpVal).addReg(ShiftAmt);
-  BuildMI(BB, DL, TII->get(Mips::ANDi), MaskedNewVal)
+  BuildMI(*BB, II, DL, TII->get(Mips::ANDi), MaskedNewVal)
     .addReg(NewVal).addImm(MaskImm);
-  BuildMI(BB, DL, TII->get(Mips::SLLV), ShiftedNewVal)
+  BuildMI(*BB, II, DL, TII->get(Mips::SLLV), ShiftedNewVal)
     .addReg(MaskedNewVal).addReg(ShiftAmt);
 
-  //  loop1MBB:
-  //    ll      oldval,0(alginedaddr)
-  //    and     maskedoldval0,oldval,mask
-  //    bne     maskedoldval0,shiftedcmpval,sinkMBB
-  BB = loop1MBB;
-  BuildMI(BB, DL, TII->get(LL), OldVal).addReg(AlignedAddr).addImm(0);
-  BuildMI(BB, DL, TII->get(Mips::AND), MaskedOldVal0)
-    .addReg(OldVal).addReg(Mask);
-  BuildMI(BB, DL, TII->get(Mips::BNE))
-    .addReg(MaskedOldVal0).addReg(ShiftedCmpVal).addMBB(sinkMBB);
-
-  //  loop2MBB:
-  //    and     maskedoldval1,oldval,mask2
-  //    or      storeval,maskedoldval1,shiftednewval
-  //    sc      success,storeval,0(alignedaddr)
-  //    beq     success,$0,loop1MBB
-  BB = loop2MBB;
-  BuildMI(BB, DL, TII->get(Mips::AND), MaskedOldVal1)
-    .addReg(OldVal).addReg(Mask2);
-  BuildMI(BB, DL, TII->get(Mips::OR), StoreVal)
-    .addReg(MaskedOldVal1).addReg(ShiftedNewVal);
-  BuildMI(BB, DL, TII->get(SC), Success)
-      .addReg(StoreVal).addReg(AlignedAddr).addImm(0);
-  BuildMI(BB, DL, TII->get(Mips::BEQ))
-      .addReg(Success).addReg(Mips::ZERO).addMBB(loop1MBB);
-
-  //  sinkMBB:
-  //    srl     srlres,maskedoldval0,shiftamt
-  //    sign_extend dest,srlres
-  BB = sinkMBB;
-
-  BuildMI(BB, DL, TII->get(Mips::SRLV), SrlRes)
-      .addReg(MaskedOldVal0).addReg(ShiftAmt);
-  BB = emitSignExtendToI32InReg(MI, BB, Size, Dest, SrlRes);
+  // The scratch registers here with the EarlyClobber | Define | Dead flags is
+  // used to coerce the register allocator and the machine verifier to accept
+  // the usage of this register.
+  // The EarlyClobber flag has the semantic properties that the operand it is
+  // attached to is clobbered before the rest of the inputs are read. Hence it
+  // must be unique amoung the operands to the instruction.
+  // The Define flag is needed to coerce the machine verifier that an Undef
+  // value isn't a problem.
+  // The Dead flag is needed as the value in scratch isn't used by any other
+  // instruction.
+  BuildMI(*BB, II, DL, TII->get(AtomicOp), Res)
+      .addReg(AlignedAddr)
+      .addReg(Mask)
+      .addReg(ShiftedCmpVal)
+      .addReg(Mask2)
+      .addReg(ShiftedNewVal)
+      .addReg(ShiftAmt)
+      .addReg(Scratch, RegState::EarlyClobber | RegState::Define |
+                           RegState::Dead | RegState::Implicit |
+                           RegState::EarlyClobber)
+      .addReg(Scratch2, RegState::EarlyClobber | RegState::Define |
+                            RegState::Dead | RegState::Implicit);
 
   MI.eraseFromParent(); // The instruction is gone now.
 
-  return exitMBB;
+  return BB;
 }
 
 MachineBasicBlock *MipsTargetLowering::emitSEL_D(MachineInstr &MI,

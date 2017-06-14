@@ -10,8 +10,12 @@
 
 ; ALL: ll ${{[0-9]+}}, 0($[[R0]])
 
-define {i16, i1} @foo(i16* %addr, i16 signext %r, i16 zeroext %new) {
-  %res = cmpxchg i16* %addr, i16 %r, i16 %new seq_cst seq_cst
-  ret {i16, i1} %res
+@sym = external global i32 *
+
+define void @foo(i32 %new, i32 %old) {
+entry:
+  %0 = load i32 *, i32 ** @sym
+  cmpxchg i32 * %0, i32 %new, i32 %old seq_cst seq_cst
+  ret void
 }
 
