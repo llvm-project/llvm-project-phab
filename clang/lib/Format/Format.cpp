@@ -1967,6 +1967,8 @@ const char *StyleOptionHelpDescription =
     ".clang-format file located in one of the parent\n"
     "directories of the source file (or current\n"
     "directory for stdin).\n"
+    "Use -style=file,<filename> to load style \n"
+    "configuration from an explicitly defined file.\n"
     "Use -style=\"{key: value, ...}\" to set specific\n"
     "parameters, e.g.:\n"
     "  -style=\"{BasedOnStyle: llvm, IndentWidth: 8}\"";
@@ -2014,8 +2016,44 @@ llvm::Expected<FormatStyle> getStyle(StringRef StyleName, StringRef FileName,
   }
 
   if (!StyleName.equals_lower("file")) {
+    SmallString<128> ConfigFile(StyleName.substr(5));
+    if (StyleName.startswith_lower("file,")) {
+      DEBUG(llvm::dbgs() << "Trying explicit file" << ConfigFile << "...\n");
+
+      auto Status = FS->status(ConfigFile.str());
+      bool FoundConfigFile =
+        Status && (Status->getType() == llvm::sys::fs::file_type::regular_file);
+      if (FoundConfigFile) {
+        llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> Text =
+          FS->getBufferForFile(ConfigFile.str());
+        if (std::error_code EC = Text.getError()) {
+          DEBUG(llvm::dbgs() << "Text Error getting contents.\n");
+          return make_string_error(EC.message());
+        }
+        if (std::error_code ec =
+            parseConfiguration(Text.get()->getBuffer(), &Style)) {
+          if (ec == ParseError::Unsuitable) {
+
+            DEBUG(llvm::dbgs() << "Config file error.\n");
+            return make_string_error(
+                "Configuration file does not support " +
+                getLanguageName(Style.Language) + ": " +
+                ConfigFile);
+          }
+          DEBUG(llvm::dbgs() << "Error reading " << ConfigFile << ".\n");
+          return make_string_error("Error reading " + ConfigFile + ": " +
+              ec.message());
+        }
+        DEBUG(llvm::dbgs() << "Using configuration file " << ConfigFile << "\n");
+        return Style;
+      }
+      DEBUG(llvm::dbgs() << "Could not find file: " << ConfigFile << "\n");
+      return FallbackStyle;
+    }
     if (!getPredefinedStyle(StyleName, Style.Language, &Style))
       return make_string_error("Invalid value for -style");
+
+    DEBUG(llvm::dbgs() << "Using configuration file " << ConfigFile << "\n");
     return Style;
   }
 
