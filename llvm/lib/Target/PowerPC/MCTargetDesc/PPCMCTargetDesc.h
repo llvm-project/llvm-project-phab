@@ -58,11 +58,23 @@ MCObjectWriter *createPPCMachObjectWriter(raw_pwrite_stream &OS, bool Is64Bit,
 /// 0s on either side.  The 1s are allowed to wrap from LSB to MSB, so
 /// 0x000FFF0, 0x0000FFFF, and 0xFF0000FF are all runs.  0x0F0F0000 is not,
 /// since all 1s are not contiguous.
-static inline bool isRunOfOnes(unsigned Val, unsigned &MB, unsigned &ME) {
+/// So far, isRunOfOnes supports only 32-bit and 64-bit unsigned integer types.
+template <typename T>
+static inline bool isRunOfOnes(T Val, unsigned &MB, unsigned &ME) {
+  static_assert(std::numeric_limits<T>::is_integer &&
+                !std::numeric_limits<T>::is_signed &&
+                (std::numeric_limits<T>::digits == 32 ||
+                 std::numeric_limits<T>::digits == 64),
+                "isRunOfOnes supports only 32-bit and 64-bit unsigned integer");
+
   if (!Val)
     return false;
 
-  if (isShiftedMask_32(Val)) {
+  const bool Is64Bit = (std::numeric_limits<T>::digits == 64);
+
+  bool IsShiftedMask = Is64Bit ? isShiftedMask_64(Val):
+                                 isShiftedMask_32(Val);
+ if (IsShiftedMask) {
     // look for the first non-zero bit
     MB = countLeadingZeros(Val);
     // look for the first zero bit after the run of ones
@@ -70,7 +82,9 @@ static inline bool isRunOfOnes(unsigned Val, unsigned &MB, unsigned &ME) {
     return true;
   } else {
     Val = ~Val; // invert mask
-    if (isShiftedMask_32(Val)) {
+    IsShiftedMask = Is64Bit ? isShiftedMask_64(Val):
+                              isShiftedMask_32(Val);
+    if (IsShiftedMask) {
       // effectively look for the first zero bit
       ME = countLeadingZeros(Val) - 1;
       // effectively look for the first one bit after the run of zeros
