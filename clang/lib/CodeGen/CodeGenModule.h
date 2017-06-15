@@ -33,6 +33,7 @@
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/StringMap.h"
+#include "llvm/ADT/StringSet.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/ValueHandle.h"
 #include "llvm/Transforms/Utils/SanitizerStats.h"
@@ -1204,6 +1205,8 @@ public:
   /// Create and attach type metadata for the given vtable.
   void AddVTableTypeMetadata(llvm::GlobalVariable *VTable, CharUnits Offset,
                              const CXXRecordDecl *RD);
+  void AddVTableTypeMetadata(llvm::GlobalVariable *VTable, CharUnits Offset,
+                             llvm::Metadata *MD);
 
   /// \brief Get the declaration of std::terminate for the platform.
   llvm::Constant *getTerminateFn();
@@ -1212,6 +1215,9 @@ public:
 
   llvm::Value *
   createOpenCLIntToSamplerConversion(const Expr *E, CodeGenFunction &CGF);
+
+  void GetSupplementalClasslinks(const CXXRecordDecl *BaseClass,
+                                 llvm::StringSet<> &SupplementalClasslinks);
 
   /// Get target specific null pointer.
   /// \param T is the LLVM type of the null pointer.

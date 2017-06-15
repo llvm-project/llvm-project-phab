@@ -44,3 +44,9 @@ bool SanitizerBlacklist::isBlacklistedLocation(SourceLocation Loc,
          isBlacklistedFile(SM.getFilename(SM.getFileLoc(Loc)), Category);
 }
 
+void SanitizerBlacklist::getSupplementalClasslinks(StringRef mangledClassName,
+                             llvm::StringSet<> &SupplementalClasslinks) const {
+  SCL->getEntriesInSection("classlink", SupplementalClasslinks,
+                           mangledClassName);
+}
+

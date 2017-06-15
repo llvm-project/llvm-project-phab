@@ -986,7 +986,20 @@ void CodeGenModule::EmitVTableTypeMetadata(llvm::GlobalVariable *VTable,
     return E1.second < E2.second;
   });
 
-  for (auto BitsetEntry : BitsetEntries)
+  for (auto BitsetEntry : BitsetEntries){
+    const CXXRecordDecl *BaseClassOfVTable = BitsetEntry.first;
     AddVTableTypeMetadata(VTable, PointerWidth * BitsetEntry.second,
-                          BitsetEntry.first);
+                          BaseClassOfVTable);
+
+    // Check if user has defined supplemental class links for BaseClass.
+    llvm::StringSet<> SupplementalClasslinks;
+    GetSupplementalClasslinks(BaseClassOfVTable, SupplementalClasslinks);
+    for (auto I = SupplementalClasslinks.begin(),
+              E = SupplementalClasslinks.end(); I != E; I++){
+      llvm::Metadata* LinkedClassMD = llvm::MDString::get(getLLVMContext(),
+                                                                  I->getKey());
+      AddVTableTypeMetadata(VTable, PointerWidth * BitsetEntry.second,
+                            LinkedClassMD);
+    }
+  }
 }

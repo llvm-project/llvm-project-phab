@@ -2486,6 +2486,17 @@ llvm::Constant *CodeGenFunction::EmitCheckTypeDescriptor(QualType T) {
                                     StringRef(), StringRef(), None, Buffer,
                                     None);
 
+  // Add mangled name of the type
+  if(isExternallyVisible(T->getLinkage())){
+    std::string OutName;
+    llvm::raw_string_ostream Out(OutName);
+    CGM.getCXXABI().getMangleContext().mangleTypeName(T, Out);
+
+    Buffer += '(';
+    Buffer += Out.str().c_str();
+    Buffer += ')';
+  }
+
   llvm::Constant *Components[] = {
     Builder.getInt16(TypeKind), Builder.getInt16(TypeInfo),
     llvm::ConstantDataArray::getString(getLLVMContext(), Buffer)
