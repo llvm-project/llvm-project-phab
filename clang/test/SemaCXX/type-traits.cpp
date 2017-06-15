@@ -1572,8 +1572,10 @@ void has_trivial_destructor() {
   { int arr[T(__has_trivial_destructor(AllDefaulted))]; }
   { int arr[T(__has_trivial_destructor(AllDeleted))]; }
   { int arr[T(__has_trivial_destructor(DerivesHasRef))]; }
+  { int arr[T(__has_trivial_destructor(ACompleteType[]))]; }
 
   { int arr[F(__has_trivial_destructor(HasDest))]; }
+  { int arr[F(__has_trivial_destructor(AnIncompleteType[]))]; } // expected-error {{incomplete type}}
   { int arr[F(__has_trivial_destructor(void))]; }
   { int arr[F(__has_trivial_destructor(cvoid))]; }
   { int arr[F(__has_trivial_destructor(AllPrivate))]; }
