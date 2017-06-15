@@ -4417,6 +4417,12 @@ void CodeGenModule::AddVTableTypeMetadata(llvm::GlobalVariable *VTable,
                                           const CXXRecordDecl *RD) {
   llvm::Metadata *MD =
       CreateMetadataIdentifierForType(QualType(RD->getTypeForDecl(), 0));
+  AddVTableTypeMetadata(VTable, Offset, MD);
+}
+
+void CodeGenModule::AddVTableTypeMetadata(llvm::GlobalVariable *VTable,
+                                          CharUnits Offset,
+                                          llvm::Metadata *MD) {
   VTable->addTypeMetadata(Offset.getQuantity(), MD);
 
   if (CodeGenOpts.SanitizeCfiCrossDso)
@@ -4474,4 +4480,17 @@ CodeGenModule::createOpenCLIntToSamplerConversion(const Expr *E,
   return CGF.Builder.CreateCall(CreateRuntimeFunction(FTy,
                                 "__translate_sampler_initializer"),
                                 {C});
+}
+
+void
+CodeGenModule::GetSupplementalClasslinks(const CXXRecordDecl *BaseClass,
+                                    llvm::StringSet<> &SupplementalClasslinks){
+  std::string mangledClassName;
+  llvm::raw_string_ostream Out(mangledClassName);
+  getCXXABI().getMangleContext().mangleTypeName(
+      QualType(BaseClass->getTypeForDecl(), 0), Out);
+  Out.flush();
+
+  getContext().getSanitizerBlacklist().getSupplementalClasslinks(
+                                     mangledClassName, SupplementalClasslinks);
 }

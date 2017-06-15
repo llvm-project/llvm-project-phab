@@ -18,6 +18,7 @@
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/StringSet.h"
 #include "llvm/Support/SpecialCaseList.h"
 #include <memory>
 
@@ -39,6 +40,8 @@ public:
                          StringRef Category = StringRef()) const;
   bool isBlacklistedLocation(SourceLocation Loc,
                              StringRef Category = StringRef()) const;
+  void getSupplementalClasslinks(StringRef mangledClassName,
+                              llvm::StringSet<> &SupplementalClasslinks) const;
 };
 
 }  // end namespace clang
