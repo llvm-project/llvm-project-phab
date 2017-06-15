@@ -169,4 +169,16 @@ bool SpecialCaseList::inSection(StringRef Section, StringRef Query,
   return II->getValue().match(Query);
 }
 
+void SpecialCaseList::getEntriesInSection(StringRef Section,
+                                          StringSet<>& EntriesOut,
+                                          StringRef Category) const {
+  assert(IsCompiled && "SpecialCaseList::compile() was not called!");
+  StringMap<StringMap<Entry> >::const_iterator I = Entries.find(Section);
+  if (I == Entries.end()) return;
+  StringMap<Entry>::const_iterator II = I->second.find(Category);
+  if (II == I->second.end()) return;
+
+  EntriesOut = II->getValue().Strings;
+}
+
 }  // namespace llvm

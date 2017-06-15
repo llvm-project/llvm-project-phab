@@ -49,6 +49,7 @@
 #define LLVM_SUPPORT_SPECIALCASELIST_H
 
 #include "llvm/ADT/StringMap.h"
+#include "llvm/ADT/StringSet.h"
 #include <string>
 #include <vector>
 
@@ -81,6 +82,9 @@ public:
   /// and @Query satisfies a wildcard expression <E>.
   bool inSection(StringRef Section, StringRef Query,
                  StringRef Category = StringRef()) const;
+
+  void getEntriesInSection(StringRef Section, StringSet<>& EntriesOut,
+                           StringRef Category = StringRef()) const;
 
 private:
   SpecialCaseList(SpecialCaseList const &) = delete;
