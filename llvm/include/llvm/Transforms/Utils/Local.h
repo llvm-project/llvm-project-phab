@@ -380,6 +380,14 @@ unsigned replaceDominatedUsesWith(Value *From, Value *To, DominatorTree &DT,
 /// during lowering by the GC infrastructure.
 bool callsGCLeafFunction(ImmutableCallSite CS);
 
+/// Copy metadata from load instructions between load instructions.
+///
+///     sameValue - copy metadata about the value (!nonnull, !range)
+///     sameAddress - copy metadata about the address (!noalias, !invariant, etc.)
+void copyLoadMetadata(const DataLayout &DL,
+		      LoadInst &NewLI, const LoadInst &OldLI,
+		      bool sameValue, bool sameAddress);
+
 //===----------------------------------------------------------------------===//
 //  Intrinsic pattern matching
 //

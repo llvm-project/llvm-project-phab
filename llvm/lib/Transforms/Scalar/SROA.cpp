@@ -2394,13 +2394,12 @@ private:
         NewLI->setAtomic(LI.getOrdering(), LI.getSynchScope());
 
       // Try to preserve nonnull metadata
-      if (TargetTy->isPointerTy())
-        NewLI->copyMetadata(LI, LLVMContext::MD_nonnull);
       V = NewLI;
 
       // If this is an integer load past the end of the slice (which means the
       // bytes outside the slice are undef or this load is dead) just forcibly
       // fix the integer size with correct handling of endianness.
+      bool DidZext = false;
       if (auto *AITy = dyn_cast<IntegerType>(NewAllocaTy))
         if (auto *TITy = dyn_cast<IntegerType>(TargetTy))
           if (AITy->getBitWidth() < TITy->getBitWidth()) {
@@ -2408,7 +2407,11 @@ private:
             if (DL.isBigEndian())
               V = IRB.CreateShl(V, TITy->getBitWidth() - AITy->getBitWidth(),
                                 "endian_shift");
+	    DidZext = true;
           }
+
+      if (!DidZext)
+	copyLoadMetadata(DL, *NewLI, LI, true, false);
     } else {
       Type *LTy = TargetTy->getPointerTo(AS);
       LoadInst *NewLI = IRB.CreateAlignedLoad(getNewAllocaSlicePtr(IRB, LTy),
@@ -3578,7 +3581,7 @@ bool SROA::presplitLoadsAndStores(AllocaInst &AI, AllocaSlices &AS) {
                          PartPtrTy, BasePtr->getName() + "."),
           getAdjustedAlignment(LI, PartOffset, DL), /*IsVolatile*/ false,
           LI->getName());
-      PLoad->copyMetadata(*LI, LLVMContext::MD_mem_parallel_loop_access); 
+      PLoad->copyMetadata(*LI, LLVMContext::MD_mem_parallel_loop_access);
 
       // Append this load onto the list of split loads so we can find it later
       // to rewrite the stores.
