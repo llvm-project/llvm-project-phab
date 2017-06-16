@@ -21,7 +21,6 @@ struct Format : public FormatAdapter<int> {
 };
 
 using detail::uses_format_member;
-using detail::uses_missing_provider;
 
 static_assert(uses_format_member<Format>::value, "");
 static_assert(uses_format_member<Format &>::value, "");
@@ -30,9 +29,6 @@ static_assert(uses_format_member<const Format>::value, "");
 static_assert(uses_format_member<const Format &>::value, "");
 static_assert(uses_format_member<const volatile Format>::value, "");
 static_assert(uses_format_member<const volatile Format &>::value, "");
-
-struct NoFormat {};
-static_assert(uses_missing_provider<NoFormat>::value, "");
 }
 
 TEST(FormatVariadicTest, EmptyFormatString) {

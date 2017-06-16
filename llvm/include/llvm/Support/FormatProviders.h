@@ -25,8 +25,26 @@
 #include <type_traits>
 #include <vector>
 
+#define FORMATTER(Type)                                                        \
+  namespace llvm {                                                             \
+  void format_one_item(Type &&Item, raw_ostream &S, StringRef Options);        \
+  }                                                                            \
+  inline void llvm::format_one_item(Type &&Value, raw_ostream &Stream,         \
+                                    StringRef Style)
+
+#define FORMAT_IF(Condition)                                                   \
+  namespace llvm {                                                             \
+  template <typename T>                                                        \
+  typename std::enable_if<Condition::value>::type                              \
+  format_one_item(T &&Item, raw_ostream &S, StringRef Options);                \
+  }                                                                            \
+  template <typename T>                                                        \
+  typename std::enable_if<Condition::value>::type llvm::format_one_item(       \
+      T &&Value, llvm::raw_ostream &Stream, llvm::StringRef Style)
+
 namespace llvm {
 namespace detail {
+
 template <typename T>
 struct use_integral_formatter
     : public std::integral_constant<
@@ -186,93 +204,6 @@ public:
   }
 };
 
-/// Implementation of format_provider<T> for c-style strings and string
-/// objects such as std::string and llvm::StringRef.
-///
-/// The options string of a string type has the grammar:
-///
-///   string_options :: [length]
-///
-/// where `length` is an optional integer specifying the maximum number of
-/// characters in the string to print.  If `length` is omitted, the string is
-/// printed up to the null terminator.
-
-template <typename T>
-struct format_provider<
-    T, typename std::enable_if<detail::use_string_formatter<T>::value>::type> {
-  static void format(const T &V, llvm::raw_ostream &Stream, StringRef Style) {
-    size_t N = StringRef::npos;
-    if (!Style.empty() && Style.getAsInteger(10, N)) {
-      assert(false && "Style is not a valid integer");
-    }
-    llvm::StringRef S = V;
-    Stream << S.substr(0, N);
-  }
-};
-
-/// Implementation of format_provider<T> for llvm::Twine.
-///
-/// This follows the same rules as the string formatter.
-
-template <> struct format_provider<Twine> {
-  static void format(const Twine &V, llvm::raw_ostream &Stream,
-                     StringRef Style) {
-    format_provider<std::string>::format(V.str(), Stream, Style);
-  }
-};
-
-/// Implementation of format_provider<T> for characters.
-///
-/// The options string of a character type has the grammar:
-///
-///   char_options :: (empty) | [integer_options]
-///
-/// If `char_options` is empty, the character is displayed as an ASCII
-/// character.  Otherwise, it is treated as an integer options string.
-///
-template <typename T>
-struct format_provider<
-    T, typename std::enable_if<detail::use_char_formatter<T>::value>::type> {
-  static void format(const char &V, llvm::raw_ostream &Stream,
-                     StringRef Style) {
-    if (Style.empty())
-      Stream << V;
-    else {
-      int X = static_cast<int>(V);
-      format_provider<int>::format(X, Stream, Style);
-    }
-  }
-};
-
-/// Implementation of format_provider<T> for type `bool`
-///
-/// The options string of a boolean type has the grammar:
-///
-///   bool_options :: "" | "Y" | "y" | "D" | "d" | "T" | "t"
-///
-///   ==================================
-///   |    C    |     Meaning          |
-///   ==================================
-///   |    Y    |       YES / NO       |
-///   |    y    |       yes / no       |
-///   |  D / d  |    Integer 0 or 1    |
-///   |    T    |     TRUE / FALSE     |
-///   |    t    |     true / false     |
-///   | (empty) |   Equivalent to 't'  |
-///   ==================================
-template <> struct format_provider<bool> {
-  static void format(const bool &B, llvm::raw_ostream &Stream,
-                     StringRef Style) {
-    Stream << StringSwitch<const char *>(Style)
-                  .Case("Y", B ? "YES" : "NO")
-                  .Case("y", B ? "yes" : "no")
-                  .CaseLower("D", B ? "1" : "0")
-                  .Case("T", B ? "TRUE" : "FALSE")
-                  .Cases("t", "", B ? "true" : "false")
-                  .Default(B ? "1" : "0");
-  }
-};
-
 /// Implementation of format_provider<T> for floating point types.
 ///
 /// The options string of a floating point type has the format:
@@ -320,16 +251,6 @@ struct format_provider<
     write_double(Stream, static_cast<double>(V), S, Precision);
   }
 };
-
-namespace detail {
-template <typename IterT>
-using IterValue = typename std::iterator_traits<IterT>::value_type;
-
-template <typename IterT>
-struct range_item_has_provider
-    : public std::integral_constant<
-          bool, !uses_missing_provider<IterValue<IterT>>::value> {};
-}
 
 /// Implementation of format_provider<T> for ranges.
 ///
@@ -394,8 +315,6 @@ template <typename IterT> class format_provider<llvm::iterator_range<IterT>> {
   }
 
 public:
-  static_assert(detail::range_item_has_provider<IterT>::value,
-                "Range value_type does not have a format provider!");
   static void format(const llvm::iterator_range<IterT> &V,
                      llvm::raw_ostream &Stream, StringRef Style) {
     StringRef Sep;
@@ -404,20 +323,84 @@ public:
     auto Begin = V.begin();
     auto End = V.end();
     if (Begin != End) {
-      auto Adapter =
-          detail::build_format_adapter(std::forward<reference>(*Begin));
-      Adapter.format(Stream, ArgStyle);
+      format_one_item(*Begin, Stream, ArgStyle);
       ++Begin;
     }
     while (Begin != End) {
       Stream << Sep;
-      auto Adapter =
-          detail::build_format_adapter(std::forward<reference>(*Begin));
-      Adapter.format(Stream, ArgStyle);
+      format_one_item(*Begin, Stream, ArgStyle);
       ++Begin;
     }
   }
 };
 }
+
+/// Implementation of format_provider<T> for type `bool`
+///
+/// The options string of a boolean type has the grammar:
+///
+///   bool_options :: "" | "Y" | "y" | "D" | "d" | "T" | "t"
+///
+///   ==================================
+///   |    C    |     Meaning          |
+///   ==================================
+///   |    Y    |       YES / NO       |
+///   |    y    |       yes / no       |
+///   |  D / d  |    Integer 0 or 1    |
+///   |    T    |     TRUE / FALSE     |
+///   |    t    |     true / false     |
+///   | (empty) |   Equivalent to 't'  |
+///   ==================================
+FORMATTER(bool) {
+  Stream << StringSwitch<const char *>(Style)
+                .Case("Y", Value ? "YES" : "NO")
+                .Case("y", Value ? "yes" : "no")
+                .CaseLower("D", Value ? "1" : "0")
+                .Case("T", Value ? "TRUE" : "FALSE")
+                .Cases("t", "", Value ? "true" : "false")
+                .Default(Value ? "1" : "0");
+}
+
+/// Implementation of format_provider<T> for characters.
+///
+/// The options string of a character type has the grammar:
+///
+///   char_options :: (empty) | [integer_options]
+///
+/// If `char_options` is empty, the character is displayed as an ASCII
+/// character.  Otherwise, it is treated as an integer options string.
+///
+FORMATTER(char) {
+  if (Style.empty())
+    Stream << Value;
+  else {
+    int X = static_cast<int>(Value);
+    format_provider<int>::format(X, Stream, Style);
+  }
+}
+
+/// Implementation of format_provider<T> for c-style strings and string
+/// objects such as std::string and llvm::StringRef.
+///
+/// The options string of a string type has the grammar:
+///
+///   string_options :: [length]
+///
+/// where `length` is an optional integer specifying the maximum number of
+/// characters in the string to print.  If `length` is omitted, the string is
+/// printed up to the null terminator.
+FORMAT_IF(llvm::detail::use_string_formatter<T>) {
+  size_t N = StringRef::npos;
+  if (!Style.empty() && Style.getAsInteger(10, N)) {
+    assert(false && "Style is not a valid integer");
+  }
+  llvm::StringRef S = Value;
+  Stream << S.substr(0, N);
+}
+
+/// Implementation of format_provider<T> for llvm::Twine.
+///
+/// This follows the same rules as the string formatter.
+FORMATTER(llvm::Twine) { format_one_item(Value.str(), Stream, Style); };
 
 #endif

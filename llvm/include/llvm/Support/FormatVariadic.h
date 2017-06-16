@@ -137,16 +137,17 @@ public:
   operator std::string() const { return str(); }
 };
 
-template <typename Tuple> class formatv_object : public formatv_object_base {
+template <typename... Ts> class formatv_object : public formatv_object_base {
+  using Tuple = std::tuple<detail::value_holder<Ts>...>;
   // Storage for the parameter adapters.  Since the base class erases the type
   // of the parameters, we have to own the storage for the parameters here, and
   // have the base class store type-erased pointers into this tuple.
   Tuple Parameters;
 
 public:
-  formatv_object(StringRef Fmt, Tuple &&Params)
-      : formatv_object_base(Fmt, std::tuple_size<Tuple>::value),
-        Parameters(std::move(Params)) {
+  formatv_object(StringRef Fmt, Ts &&... Params)
+      : formatv_object_base(Fmt, sizeof...(Params)),
+        Parameters(detail::value_holder<Ts>(std::forward<Ts>(Params))...) {
     Adapters = apply_tuple(create_adapters(), Parameters);
   }
 };
@@ -233,13 +234,8 @@ public:
 // the details of what that is are undefined.
 //
 template <typename... Ts>
-inline auto formatv(const char *Fmt, Ts &&... Vals) -> formatv_object<decltype(
-    std::make_tuple(detail::build_format_adapter(std::forward<Ts>(Vals))...))> {
-  using ParamTuple = decltype(
-      std::make_tuple(detail::build_format_adapter(std::forward<Ts>(Vals))...));
-  return formatv_object<ParamTuple>(
-      Fmt,
-      std::make_tuple(detail::build_format_adapter(std::forward<Ts>(Vals))...));
+inline formatv_object<Ts...> formatv(const char *Fmt, Ts &&... Vals) {
+  return formatv_object<Ts...>(Fmt, std::forward<Ts>(Vals)...);
 }
 
 } // end namespace llvm

@@ -27,14 +27,12 @@ public:
   virtual void format(raw_ostream &S, StringRef Options) = 0;
 };
 
-template <typename T> class provider_format_adapter : public format_adapter {
+template <typename T> class value_holder : public format_adapter {
   T Item;
-
 public:
-  explicit provider_format_adapter(T &&Item) : Item(Item) {}
-
-  void format(llvm::raw_ostream &S, StringRef Options) override {
-    format_provider<typename std::decay<T>::type>::format(Item, S, Options);
+  explicit value_holder(T &&Item) : Item(Item) {}
+  virtual void format(raw_ostream &S, StringRef Options) {
+    format_one_item(std::forward<T>(Item), S, Options);
   }
 };
 
@@ -76,36 +74,19 @@ struct uses_format_provider
     : public std::integral_constant<
           bool, !uses_format_member<T>::value && has_FormatProvider<T>::value> {
 };
-
-// Simple template that decides whether a type T has neither a member-function
-// nor format_provider based implementation that it can use.  Mostly used so
-// that the compiler spits out a nice diagnostic when a type with no format
-// implementation can be located.
-template <typename T>
-struct uses_missing_provider
-    : public std::integral_constant<bool,
-                                    !uses_format_member<T>::value &&
-                                        !uses_format_provider<T>::value> {};
-
-template <typename T>
-typename std::enable_if<uses_format_member<T>::value, T>::type
-build_format_adapter(T &&Item) {
-  return std::forward<T>(Item);
 }
 
 template <typename T>
-typename std::enable_if<uses_format_provider<T>::value,
-                        provider_format_adapter<T>>::type
-build_format_adapter(T &&Item) {
-  return provider_format_adapter<T>(std::forward<T>(Item));
+typename std::enable_if<detail::uses_format_member<T>::value, void>::type
+format_one_item(T &&Item, raw_ostream &S, StringRef Options) {
+  Item.format(S, Options);
 }
 
 template <typename T>
-typename std::enable_if<uses_missing_provider<T>::value,
-                        missing_format_adapter<T>>::type
-build_format_adapter(T &&Item) {
-  return missing_format_adapter<T>();
-}
+typename std::enable_if<detail::uses_format_provider<T>::value, void>::type
+format_one_item(T &&Item, raw_ostream &S, StringRef Options) {
+  format_provider<typename std::decay<T>::type>::format(std::forward<T>(Item),
+                                                        S, Options);
 }
 }
 
