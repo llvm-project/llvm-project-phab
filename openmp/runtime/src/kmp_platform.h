@@ -21,6 +21,7 @@
 #define KMP_OS_LINUX 0
 #define KMP_OS_FREEBSD 0
 #define KMP_OS_NETBSD 0
+#define KMP_OS_OPENBSD 0
 #define KMP_OS_DARWIN 0
 #define KMP_OS_WINDOWS 0
 #define KMP_OS_CNK 0
@@ -56,18 +57,23 @@
 #define KMP_OS_NETBSD 1
 #endif
 
+#if (defined __OpenBSD__)
+#undef KMP_OS_OPENBSD
+#define KMP_OS_OPENBSD 1
+#endif
+
 #if (defined __bgq__)
 #undef KMP_OS_CNK
 #define KMP_OS_CNK 1
 #endif
 
 #if (1 !=                                                                      \
-     KMP_OS_LINUX + KMP_OS_FREEBSD + KMP_OS_NETBSD + KMP_OS_DARWIN +           \
-         KMP_OS_WINDOWS)
+     KMP_OS_LINUX + KMP_OS_FREEBSD + KMP_OS_NETBSD + KMP_OS_OPENBSD +          \
+         KMP_OS_DARWIN + KMP_OS_WINDOWS)
 #error Unknown OS
 #endif
 
-#if KMP_OS_LINUX || KMP_OS_FREEBSD || KMP_OS_NETBSD || KMP_OS_DARWIN
+#if KMP_OS_LINUX || KMP_OS_FREEBSD || KMP_OS_NETBSD || KMP_OS_OPENBSD || KMP_OS_DARWIN
 #undef KMP_OS_UNIX
 #define KMP_OS_UNIX 1
 #endif
@@ -95,6 +101,9 @@
 
 #if KMP_OS_UNIX
 #if defined __x86_64
+#undef KMP_ARCH_X86_64
+#define KMP_ARCH_X86_64 1
+#elif defined __amd64__
 #undef KMP_ARCH_X86_64
 #define KMP_ARCH_X86_64 1
 #elif defined __i386
