@@ -41,6 +41,7 @@ namespace llvm {
 namespace yaml {
 
 template <typename T> struct MappingTraits;
+struct ModuleSummaryIndexWithModule;
 
 } // end namespace yaml
 
@@ -544,6 +545,7 @@ private:
 
   // YAML I/O support.
   friend yaml::MappingTraits<ModuleSummaryIndex>;
+  friend yaml::MappingTraits<yaml::ModuleSummaryIndexWithModule>;
 
   GlobalValueSummaryMapTy::value_type *
   getOrInsertValuePtr(GlobalValue::GUID GUID) {

@@ -534,6 +534,14 @@ struct unvalidatedMappingTraits
           bool, has_MappingTraits<T, Context>::value &&
                     !has_MappingValidateTraits<T, Context>::value> {};
 
+struct Comment {
+  StringRef Str;
+  bool NewLine = true;
+
+  Comment(StringRef S) : Str(S) {};
+  Comment(StringRef S, bool N) : Str(S), NewLine(N) {};
+};
+
 // Base class for Input and Output.
 class IO {
 public:
@@ -571,6 +579,8 @@ public:
   virtual bool beginBitSetScalar(bool &) = 0;
   virtual bool bitSetMatch(const char*, bool) = 0;
   virtual void endBitSetScalar() = 0;
+
+  virtual void comment(StringRef &S, bool) = 0;
 
   virtual void scalarString(StringRef &, bool) = 0;
   virtual void blockScalarString(StringRef &) = 0;
@@ -641,6 +651,12 @@ public:
   template <typename T, typename Context>
   void mapRequired(const char *Key, T &Val, Context &Ctx) {
     this->processKey(Key, Val, true, Ctx);
+  }
+
+  void addComment(Comment C) {
+    if(outputting() && !C.Str.empty()) {
+      comment(C.Str, C.NewLine);
+    }
   }
 
   template <typename T> void mapOptional(const char *Key, T &Val) {
@@ -1136,6 +1152,7 @@ private:
   bool beginBitSetScalar(bool &) override;
   bool bitSetMatch(const char *, bool ) override;
   void endBitSetScalar() override;
+  void comment(StringRef &S, bool) override;
   void scalarString(StringRef &, bool) override;
   void blockScalarString(StringRef &) override;
   void setError(const Twine &message) override;
@@ -1283,6 +1300,7 @@ public:
   bool beginBitSetScalar(bool &) override;
   bool bitSetMatch(const char *, bool ) override;
   void endBitSetScalar() override;
+  void comment(StringRef &S, bool) override;
   void scalarString(StringRef &, bool) override;
   void blockScalarString(StringRef &) override;
   void setError(const Twine &message) override;
