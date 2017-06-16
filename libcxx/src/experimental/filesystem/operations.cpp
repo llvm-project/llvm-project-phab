@@ -19,7 +19,25 @@
 #include <sys/stat.h>
 #include <sys/statvfs.h>
 #include <fcntl.h>  /* values for fchmodat */
-#if !defined(UTIME_OMIT)
+#if defined(__APPLE__)
+#include <Availability.h>
+#endif
+
+// We can use the presence of UTIME_OMIT to detect platforms that do not
+// provide utimensat, with some exceptions on OS X.
+#if !defined(UTIME_OMIT) ||                                                    \
+    (defined(__IPHONE_OS_VERSION_MIN_REQUIRED) &&                              \
+     __IPHONE_OS_VERSION_MIN_REQUIRED < __IPHONE_11_0) ||                      \
+    (defined(__WATCH_OS_VERSION_MIN_REQUIRED) &&                               \
+     __WATCH_OS_VERSION_MIN_REQUIRED < __WATCHOS_4_0) ||                       \
+    (defined(__TV_OS_VERSION_MIN_REQUIRED) &&                                  \
+     __TV_OS_VERSION_MIN_REQUIRED < __TVOS_11_0) ||                            \
+    (defined(__MAC_OS_X_VERSION_MIN_REQUIRED) &&                               \
+     __MAC_OS_X_VERSION_MIN_REQUIRED < __MAC_10_13)
+#define _LIBCPP_HAS_NO_UTIMENSAT
+#endif
+
+#if defined(_LIBCPP_HAS_NO_UTIMENSAT)
 #include <sys/time.h> // for ::utimes as used in __last_write_time
 #endif
 
@@ -682,9 +700,7 @@ void __last_write_time(const path& p, file_time_type new_time,
     using namespace std::chrono;
     std::error_code m_ec;
 
-    // We can use the presence of UTIME_OMIT to detect platforms that do not
-    // provide utimensat.
-#if !defined(UTIME_OMIT)
+#if defined(_LIBCPP_HAS_NO_UTIMENSAT)
     // This implementation has a race condition between determining the
     // last access time and attempting to set it to the same value using
     // ::utimes
