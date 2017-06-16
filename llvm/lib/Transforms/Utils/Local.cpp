@@ -26,6 +26,7 @@
 #include "llvm/Analysis/MemoryBuiltins.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/CFG.h"
+#include "llvm/IR/ConstantRange.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DIBuilder.h"
 #include "llvm/IR/DataLayout.h"
@@ -1081,7 +1082,7 @@ static bool LdStHasDebugValue(DILocalVariable *DIVar, DIExpression *DIExpr,
 }
 
 /// See if there is a dbg.value intrinsic for DIVar for the PHI node.
-static bool PhiHasDebugValue(DILocalVariable *DIVar, 
+static bool PhiHasDebugValue(DILocalVariable *DIVar,
                              DIExpression *DIExpr,
                              PHINode *APN) {
   // Since we can't guarantee that the original dbg.declare instrinsic
@@ -1159,7 +1160,7 @@ void llvm::ConvertDebugDeclareToDebugValue(DbgDeclareInst *DDI,
   DbgValue->insertAfter(LI);
 }
 
-/// Inserts a llvm.dbg.value intrinsic after a phi 
+/// Inserts a llvm.dbg.value intrinsic after a phi
 /// that has an associated llvm.dbg.decl intrinsic.
 void llvm::ConvertDebugDeclareToDebugValue(DbgDeclareInst *DDI,
                                            PHINode *APN, DIBuilder &Builder) {
@@ -1742,12 +1743,12 @@ void llvm::combineMetadata(Instruction *K, const Instruction *J,
         // Preserve !invariant.group in K.
         break;
       case LLVMContext::MD_align:
-        K->setMetadata(Kind, 
+        K->setMetadata(Kind,
           MDNode::getMostGenericAlignmentOrDereferenceable(JMD, KMD));
         break;
       case LLVMContext::MD_dereferenceable:
       case LLVMContext::MD_dereferenceable_or_null:
-        K->setMetadata(Kind, 
+        K->setMetadata(Kind,
           MDNode::getMostGenericAlignmentOrDereferenceable(JMD, KMD));
         break;
     }
@@ -1845,6 +1846,89 @@ bool llvm::callsGCLeafFunction(ImmutableCallSite CS) {
   }
 
   return false;
+}
+
+void llvm::copyLoadMetadata(const DataLayout &DL,
+			    LoadInst &NewLoad, const LoadInst &OldLoad,
+			    bool sameValue, bool sameAddress) {
+  SmallVector<std::pair<unsigned, MDNode *>, 8> MD;
+  OldLoad.getAllMetadata(MD);
+  MDBuilder MDB(NewLoad.getContext());
+  Type *NewTy = NewLoad.getType();
+  const Value *Ptr = OldLoad.getPointerOperand();
+
+  for (const auto &MDPair : MD) {
+    unsigned ID = MDPair.first;
+    MDNode *N = MDPair.second;
+    // Note, essentially every kind of metadata should be preserved here! This
+    // routine is supposed to clone a load instruction changing *only its type*.
+    // The only metadata it makes sense to drop is metadata which is invalidated
+    // when the pointer type changes. This should essentially never be the case
+    // in LLVM, but we explicitly switch over only known metadata to be
+    // conservatively correct. If you are adding metadata to LLVM which pertains
+    // to loads, you almost certainly want to add it here.
+    switch (ID) {
+    case LLVMContext::MD_dbg:
+    case LLVMContext::MD_tbaa:
+    case LLVMContext::MD_prof:
+    case LLVMContext::MD_fpmath:
+    case LLVMContext::MD_tbaa_struct:
+    case LLVMContext::MD_invariant_load:
+    case LLVMContext::MD_alias_scope:
+    case LLVMContext::MD_noalias:
+    case LLVMContext::MD_nontemporal:
+    case LLVMContext::MD_mem_parallel_loop_access:
+      if (sameAddress) {
+	// All of these apply to the address.
+	NewLoad.setMetadata(ID, N);
+      }
+      break;
+
+    case LLVMContext::MD_nonnull:
+      if (sameValue) {
+	if (NewTy->isPointerTy()) {
+	  // If it's a pointer, copy the !nonnull metadata
+	  NewLoad.setMetadata(ID, N);
+	} else if (NewTy->isIntegerTy()) {
+	  // If it's integral now, translate it to !range metadata.
+	  auto *ITy = cast<IntegerType>(NewTy);
+	  auto *NullInt = ConstantExpr::getPtrToInt(
+              ConstantPointerNull::get(cast<PointerType>(Ptr->getType())), ITy);
+	  auto *NonNullInt =
+              ConstantExpr::getAdd(NullInt, ConstantInt::get(ITy, 1));
+	  NewLoad.setMetadata(LLVMContext::MD_range,
+			      MDB.createRange(NonNullInt, NullInt));
+	}
+      }
+      break;
+    case LLVMContext::MD_align:
+    case LLVMContext::MD_dereferenceable:
+    case LLVMContext::MD_dereferenceable_or_null:
+      if (sameValue) {
+	// These only directly apply if the new type is also a pointer.
+	if (NewTy->isPointerTy())
+	  NewLoad.setMetadata(ID, N);
+      }
+      break;
+    case LLVMContext::MD_range:
+      if (sameValue) {
+	if (NewTy == OldLoad.getType()) {
+	  NewLoad.setMetadata(ID, N);
+	} else if (NewTy->isPointerTy()) {
+	  // If it's a pointer now and the range does not contain 0, make it !nonnull
+	  unsigned BitWidth = DL.getTypeSizeInBits(NewTy);
+	  if (!getConstantRangeFromMetadata(*N).contains(APInt(BitWidth, 0))) {
+	    MDNode *NN = MDNode::get(OldLoad.getContext(), None);
+	    NewLoad.setMetadata(LLVMContext::MD_nonnull, NN);
+	  }
+	} else {
+	  // FIXME: It would be nice to propagate this in some way, but the type
+	  // conversions make it hard.
+	}
+      }
+      break;
+    }
+  }
 }
 
 namespace {
@@ -1968,7 +2052,7 @@ collectBitParts(Value *V, bool MatchBSwaps, bool MatchBitReversals,
       unsigned NumMaskedBits = AndMask.countPopulation();
       if (!MatchBitReversals && NumMaskedBits % 8 != 0)
         return Result;
-      
+
       auto &Res = collectBitParts(I->getOperand(0), MatchBSwaps,
                                   MatchBitReversals, BPS);
       if (!Res)
