@@ -19,7 +19,7 @@ namespace llvm {
 /// Invariant opcodes: All instruction sets have these as their low opcodes.
 ///
 namespace TargetOpcode {
-enum {
+enum : unsigned {
 #define HANDLE_TARGET_OPCODE(OPC) OPC,
 #define HANDLE_TARGET_OPCODE_MARKER(IDENT, OPC) IDENT = OPC,
 #include "llvm/Target/TargetOpcodes.def"
