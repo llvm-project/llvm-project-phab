@@ -404,7 +404,7 @@ static unsigned GetAutoSenseRadix(StringRef &Str) {
     Str = Str.substr(2);
     return 16;
   }
-  
+
   if (Str.startswith("0b") || Str.startswith("0B")) {
     Str = Str.substr(2);
     return 2;
@@ -428,7 +428,18 @@ bool llvm::consumeUnsignedInteger(StringRef &Str, unsigned Radix,
   // Autosense radix if not specified.
   if (Radix == 0)
     Radix = GetAutoSenseRadix(Str);
-
+  else {
+    // Even if the radix is specified, there might still be a radix prefix.
+    if (Radix == 2 && Str.startswith_lower("0b"))
+      Str = Str.drop_front(2);
+    else if (Radix == 8) {
+      if (Str.startswith("0o"))
+        Str = Str.drop_front(2);
+      else if (Str[0] == '0' && Str.size() > 1 && ascii_isdigit(Str[1]))
+        Str = Str.drop_front();
+    } else if (Radix == 16 && Str.startswith_lower("0x"))
+      Str = Str.drop_front(2);
+  }
   // Empty strings (after the radix autosense) are invalid.
   if (Str.empty()) return true;
 
