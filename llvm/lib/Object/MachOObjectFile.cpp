@@ -2877,7 +2877,7 @@ void MachORebaseEntry::moveNext() {
       break;
     case MachO::REBASE_OPCODE_ADD_ADDR_IMM_SCALED:
       error = O->RebaseEntryCheckSegAndOffset(SegmentIndex, SegmentOffset,
-                                              true);
+                                              false);
       if (error) {
         *E = malformedError("for REBASE_OPCODE_ADD_ADDR_IMM_SCALED " +
              Twine(error) + " for opcode at: 0x" +
