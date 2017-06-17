@@ -66,6 +66,15 @@ static cl::opt<int>
                          cl::ZeroOrMore,
                          cl::desc("Threshold for hot callsites "));
 
+static cl::opt<int>
+    ColdCallSiteRelFreq("cold-callsite-rel-freq", cl::Hidden, cl::init(1),
+                        cl::ZeroOrMore,
+                        cl::desc("Maxmimum block frequency, expressed as"
+                                 " a percentage of caller's entry"
+                                 " frequency, for a callsite to be"
+                                 " cold in the absence of profile "
+                                 " information."));
+
 namespace {
 
 class CallAnalyzer : public InstVisitor<CallAnalyzer, bool> {
@@ -679,6 +688,13 @@ void CallAnalyzer::updateThreshold(CallSite CS, Function &Callee) {
         } else if (PSI->isColdCallSite(CS, CallerBFI)) {
           DEBUG(dbgs() << "Cold callsite.\n");
           Threshold = MinIfValid(Threshold, Params.ColdCallSiteThreshold);
+        } else if (!PSI->hasProfileSummary()) {
+          auto CallSiteBB = CS.getInstruction()->getParent();
+          auto CallSiteFreq =
+              CallerBFI->getBlockFreq(CallSiteBB).getFrequency();
+          auto CallerEntryFreq = CallerBFI->getEntryFreq();
+          if (CallSiteFreq * 100 <= CallerEntryFreq * ColdCallSiteRelFreq)
+            Threshold = MinIfValid(Threshold, Params.ColdCallSiteThreshold);
         }
       } else {
         if (PSI->isFunctionEntryHot(&Callee)) {
