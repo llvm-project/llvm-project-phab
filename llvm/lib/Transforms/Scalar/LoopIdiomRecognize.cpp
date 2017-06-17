@@ -283,7 +283,7 @@ bool LoopIdiomRecognize::runOnCountableLoop() {
 
   // The following transforms hoist stores/memsets into the loop pre-header.
   // Give up if the loop has instructions may throw.
-  LoopSafetyInfo SafetyInfo;
+  LoopSafetyInfo SafetyInfo(DT);
   computeLoopSafetyInfo(&SafetyInfo, CurLoop);
   if (SafetyInfo.MayThrow)
     return MadeChange;
