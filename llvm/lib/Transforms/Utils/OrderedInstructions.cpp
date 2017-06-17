@@ -19,6 +19,16 @@ using namespace llvm;
 /// tree.
 bool OrderedInstructions::dominates(const Instruction *InstA,
                                     const Instruction *InstB) const {
+  assert(DT && "Uninitialized dominator tree");
+  return dominates(InstA, InstB, DT);
+}
+
+/// Given 2 instructions, use OrderedBasicBlock to check for dominance relation
+/// if the instructions are in the same basic block, Otherwise, use dominator
+/// tree.
+bool OrderedInstructions::dominates(const Instruction *InstA,
+                                    const Instruction *InstB,
+                                    const DominatorTree *DT) const {
   const BasicBlock *IBB = InstA->getParent();
   // Use ordered basic block to do dominance check in case the 2 instructions
   // are in the same basic block.
