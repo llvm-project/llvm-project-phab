@@ -134,7 +134,7 @@ ExplodedNode *ExprInspectionChecker::reportBug(llvm::StringRef Msg,
     return nullptr;
 
   if (!BT)
-    BT.reset(new BugType(this, "Checking analyzer assumptions", "debug"));
+    BT = llvm::make_unique<BugType>(this, "Checking analyzer assumptions", "debug");
 
   BR.emitReport(llvm::make_unique<BugReport>(*BT, Msg, N));
   return N;

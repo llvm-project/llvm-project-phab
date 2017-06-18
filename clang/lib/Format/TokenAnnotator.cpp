@@ -463,7 +463,7 @@ private:
     if (Current->is(tok::comma)) {
       ++Left->ParameterCount;
       if (!Left->Role)
-        Left->Role.reset(new CommaSeparatedList(Style));
+        Left->Role = llvm::make_unique<CommaSeparatedList>(Style);
       Left->Role->CommaFound(Current);
     } else if (Left->ParameterCount == 0 && Current->isNot(tok::comment)) {
       Left->ParameterCount = 1;

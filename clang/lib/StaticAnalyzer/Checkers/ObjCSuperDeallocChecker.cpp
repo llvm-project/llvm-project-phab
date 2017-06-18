@@ -222,9 +222,9 @@ void ObjCSuperDeallocChecker::diagnoseCallArguments(const CallEvent &CE,
 ObjCSuperDeallocChecker::ObjCSuperDeallocChecker()
     : IIdealloc(nullptr), IINSObject(nullptr) {
 
-  DoubleSuperDeallocBugType.reset(
-      new BugType(this, "[super dealloc] should not be called more than once",
-                  categories::CoreFoundationObjectiveC));
+  DoubleSuperDeallocBugType = llvm::make_unique<BugType>(
+      this, "[super dealloc] should not be called more than once",
+                  categories::CoreFoundationObjectiveC);
 }
 
 void

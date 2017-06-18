@@ -67,9 +67,9 @@ void ArrayBoundChecker::checkLocation(SVal l, bool isLoad, const Stmt* LoadS,
       return;
 
     if (!BT)
-      BT.reset(new BuiltinBug(
+      BT = llvm::make_unique<BuiltinBug>(
           this, "Out-of-bound array access",
-          "Access out-of-bound array element (buffer overflow)"));
+          "Access out-of-bound array element (buffer overflow)");
 
     // FIXME: It would be nice to eventually make this diagnostic more clear,
     // e.g., by referencing the original declaration or by saying *why* this

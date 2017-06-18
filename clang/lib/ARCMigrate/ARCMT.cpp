@@ -174,7 +174,7 @@ static CompilerInvocation *
 createInvocationForMigration(CompilerInvocation &origCI,
                              const PCHContainerReader &PCHContainerRdr) {
   std::unique_ptr<CompilerInvocation> CInvok;
-  CInvok.reset(new CompilerInvocation(origCI));
+  CInvok = llvm::make_unique<CompilerInvocation>(origCI);
   PreprocessorOptions &PPOpts = CInvok->getPreprocessorOpts();
   if (!PPOpts.ImplicitPCHInclude.empty()) {
     // We can't use a PCH because it was likely built in non-ARC mode and we
@@ -544,7 +544,7 @@ bool MigrationProcess::applyTransform(TransformFn trans,
   Diags->setClient(&errRec, /*ShouldOwnClient=*/false);
 
   std::unique_ptr<ARCMTMacroTrackerAction> ASTAction;
-  ASTAction.reset(new ARCMTMacroTrackerAction(ARCMTMacroLocs));
+  ASTAction = llvm::make_unique<ARCMTMacroTrackerAction>(ARCMTMacroLocs);
 
   std::unique_ptr<ASTUnit> Unit(ASTUnit::LoadFromCompilerInvocationAction(
       std::move(CInvok), PCHContainerOps, Diags, ASTAction.get()));

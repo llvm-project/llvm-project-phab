@@ -106,10 +106,10 @@ Sema::Sema(Preprocessor &pp, ASTContext &ctxt, ASTConsumer &consumer,
     NSNumberLiteralMethods[I] = nullptr;
 
   if (getLangOpts().ObjC1)
-    NSAPIObj.reset(new NSAPI(Context));
+    NSAPIObj = llvm::make_unique<NSAPI>(Context);
 
   if (getLangOpts().CPlusPlus)
-    FieldCollector.reset(new CXXFieldCollector());
+    FieldCollector = llvm::make_unique<CXXFieldCollector>();
 
   // Tell diagnostics how to render things from the AST library.
   Diags.SetArgToStringFn(&FormatASTNodeDiagnosticArgument, &Context);

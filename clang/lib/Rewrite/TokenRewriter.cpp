@@ -20,7 +20,7 @@ using namespace clang;
 
 TokenRewriter::TokenRewriter(FileID FID, SourceManager &SM,
                              const LangOptions &LangOpts) {
-  ScratchBuf.reset(new ScratchBuffer(SM));
+  ScratchBuf = llvm::make_unique<ScratchBuffer>(SM);
 
   // Create a lexer to lex all the tokens of the main file in raw mode.
   const llvm::MemoryBuffer *FromFile = SM.getBuffer(FID);

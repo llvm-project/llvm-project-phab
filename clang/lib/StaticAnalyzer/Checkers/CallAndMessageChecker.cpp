@@ -87,7 +87,7 @@ private:
 
   void LazyInit_BT(const char *desc, std::unique_ptr<BugType> &BT) const {
     if (!BT)
-      BT.reset(new BuiltinBug(this, desc));
+      BT = llvm::make_unique<BuiltinBug>(this, desc);
   }
   bool uninitRefOrPointer(CheckerContext &C, const SVal &V,
                           SourceRange ArgRange, const Expr *ArgEx,
@@ -326,8 +326,8 @@ void CallAndMessageChecker::checkPreStmt(const CallExpr *CE,
 
   if (L.isUndef()) {
     if (!BT_call_undef)
-      BT_call_undef.reset(new BuiltinBug(
-          this, "Called function pointer is an uninitialized pointer value"));
+      BT_call_undef = llvm::make_unique<BuiltinBug>(
+          this, "Called function pointer is an uninitialized pointer value");
     emitBadCall(BT_call_undef.get(), C, Callee);
     return;
   }
@@ -337,8 +337,8 @@ void CallAndMessageChecker::checkPreStmt(const CallExpr *CE,
 
   if (StNull && !StNonNull) {
     if (!BT_call_null)
-      BT_call_null.reset(new BuiltinBug(
-          this, "Called function pointer is null (null dereference)"));
+      BT_call_null = llvm::make_unique<BuiltinBug>(
+          this, "Called function pointer is null (null dereference)");
     emitBadCall(BT_call_null.get(), C, Callee);
     return;
   }
@@ -356,8 +356,8 @@ void CallAndMessageChecker::checkPreStmt(const CXXDeleteExpr *DE,
     if (!N)
       return;
     if (!BT_cxx_delete_undef)
-      BT_cxx_delete_undef.reset(
-          new BuiltinBug(this, "Uninitialized argument value"));
+      BT_cxx_delete_undef = llvm::make_unique<BuiltinBug>(
+          this, "Uninitialized argument value");
     if (DE->isArrayFormAsWritten())
       Desc = "Argument to 'delete[]' is uninitialized";
     else
@@ -380,8 +380,8 @@ void CallAndMessageChecker::checkPreCall(const CallEvent &Call,
     SVal V = CC->getCXXThisVal();
     if (V.isUndef()) {
       if (!BT_cxx_call_undef)
-        BT_cxx_call_undef.reset(
-            new BuiltinBug(this, "Called C++ object pointer is uninitialized"));
+        BT_cxx_call_undef = llvm::make_unique<BuiltinBug>(
+            this, "Called C++ object pointer is uninitialized");
       emitBadCall(BT_cxx_call_undef.get(), C, CC->getCXXThisExpr());
       return;
     }
@@ -392,8 +392,8 @@ void CallAndMessageChecker::checkPreCall(const CallEvent &Call,
 
     if (StNull && !StNonNull) {
       if (!BT_cxx_call_null)
-        BT_cxx_call_null.reset(
-            new BuiltinBug(this, "Called C++ object pointer is null"));
+        BT_cxx_call_null = llvm::make_unique<BuiltinBug>(
+            this, "Called C++ object pointer is null");
       emitBadCall(BT_cxx_call_null.get(), C, CC->getCXXThisExpr());
       return;
     }
@@ -467,21 +467,21 @@ void CallAndMessageChecker::checkPreObjCMessage(const ObjCMethodCall &msg,
       switch (msg.getMessageKind()) {
       case OCM_Message:
         if (!BT_msg_undef)
-          BT_msg_undef.reset(new BuiltinBug(this,
+          BT_msg_undef = llvm::make_unique<BuiltinBug>(this,
                                             "Receiver in message expression "
-                                            "is an uninitialized value"));
+                                            "is an uninitialized value");
         BT = BT_msg_undef.get();
         break;
       case OCM_PropertyAccess:
         if (!BT_objc_prop_undef)
-          BT_objc_prop_undef.reset(new BuiltinBug(
-              this, "Property access on an uninitialized object pointer"));
+          BT_objc_prop_undef = llvm::make_unique<BuiltinBug>(
+              this, "Property access on an uninitialized object pointer");
         BT = BT_objc_prop_undef.get();
         break;
       case OCM_Subscript:
         if (!BT_objc_subscript_undef)
-          BT_objc_subscript_undef.reset(new BuiltinBug(
-              this, "Subscript access on an uninitialized object pointer"));
+          BT_objc_subscript_undef = llvm::make_unique<BuiltinBug>(
+              this, "Subscript access on an uninitialized object pointer");
         BT = BT_objc_subscript_undef.get();
         break;
       }
@@ -510,8 +510,8 @@ void CallAndMessageChecker::emitNilReceiverBug(CheckerContext &C,
                                                ExplodedNode *N) const {
 
   if (!BT_msg_ret)
-    BT_msg_ret.reset(
-        new BuiltinBug(this, "Receiver in message expression is 'nil'"));
+    BT_msg_ret = llvm::make_unique<BuiltinBug>(
+        this, "Receiver in message expression is 'nil'");
 
   const ObjCMessageExpr *ME = msg.getOriginExpr();
 

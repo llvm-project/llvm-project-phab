@@ -51,8 +51,8 @@ void VLASizeChecker::reportBug(VLASize_Kind Kind,
     return;
 
   if (!BT)
-    BT.reset(new BuiltinBug(
-        this, "Dangerous variable-length array (VLA) declaration"));
+    BT = llvm::make_unique<BuiltinBug>(
+        this, "Dangerous variable-length array (VLA) declaration");
 
   SmallString<256> buf;
   llvm::raw_svector_ostream os(buf);

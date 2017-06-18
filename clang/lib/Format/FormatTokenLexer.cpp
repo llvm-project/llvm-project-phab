@@ -32,8 +32,8 @@ FormatTokenLexer::FormatTokenLexer(const SourceManager &SourceMgr, FileID ID,
       Keywords(IdentTable), Encoding(Encoding), FirstInLineIndex(0),
       FormattingDisabled(false), MacroBlockBeginRegex(Style.MacroBlockBegin),
       MacroBlockEndRegex(Style.MacroBlockEnd) {
-  Lex.reset(new Lexer(ID, SourceMgr.getBuffer(ID), SourceMgr,
-                      getFormattingLangOpts(Style)));
+  Lex = llvm::make_unique<Lexer>(ID, SourceMgr.getBuffer(ID), SourceMgr,
+                      getFormattingLangOpts(Style));
   Lex->SetKeepWhitespaceMode(true);
 
   for (const std::string &ForEachMacro : Style.ForEachMacros)
@@ -659,9 +659,9 @@ void FormatTokenLexer::readRawToken(FormatToken &Tok) {
 
 void FormatTokenLexer::resetLexer(unsigned Offset) {
   StringRef Buffer = SourceMgr.getBufferData(ID);
-  Lex.reset(new Lexer(SourceMgr.getLocForStartOfFile(ID),
+  Lex = llvm::make_unique<Lexer>(SourceMgr.getLocForStartOfFile(ID),
                       getFormattingLangOpts(Style), Buffer.begin(),
-                      Buffer.begin() + Offset, Buffer.end()));
+                      Buffer.begin() + Offset, Buffer.end());
   Lex->SetKeepWhitespaceMode(true);
   TrailingWhitespace = 0;
 }

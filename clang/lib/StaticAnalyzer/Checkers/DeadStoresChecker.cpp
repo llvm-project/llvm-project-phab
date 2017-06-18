@@ -150,7 +150,7 @@ public:
     // Lazily construct the set that records which VarDecls are in
     // EH code.
     if (!InEH.get()) {
-      InEH.reset(new llvm::DenseSet<const VarDecl *>());
+      InEH = llvm::make_unique<llvm::DenseSet<const VarDecl *>>();
       EHCodeVisitor V(*InEH.get());
       V.TraverseStmt(AC->getBody());
     }
@@ -169,7 +169,7 @@ public:
     // Compute reachable blocks within the CFG for trivial cases
     // where a bogus dead store can be reported because itself is unreachable.
     if (!reachableCode.get()) {
-      reachableCode.reset(new ReachableCode(cfg));
+      reachableCode = llvm::make_unique<ReachableCode>(cfg);
       reachableCode->computeReachableBlocks();
     }
 

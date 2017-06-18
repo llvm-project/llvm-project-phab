@@ -272,10 +272,10 @@ void StreamChecker::Fseek(CheckerContext &C, const CallExpr *CE) const {
 
   if (ExplodedNode *N = C.generateNonFatalErrorNode(state)) {
     if (!BT_illegalwhence)
-      BT_illegalwhence.reset(
-          new BuiltinBug(this, "Illegal whence argument",
+      BT_illegalwhence = llvm::make_unique<BuiltinBug>(
+          this, "Illegal whence argument",
                          "The whence argument to fseek() should be "
-                         "SEEK_SET, SEEK_END, or SEEK_CUR."));
+                         "SEEK_SET, SEEK_END, or SEEK_CUR.");
     C.emitReport(llvm::make_unique<BugReport>(
         *BT_illegalwhence, BT_illegalwhence->getDescription(), N));
   }
@@ -350,8 +350,8 @@ ProgramStateRef StreamChecker::CheckNullStream(SVal SV, ProgramStateRef state,
   if (!stateNotNull && stateNull) {
     if (ExplodedNode *N = C.generateErrorNode(stateNull)) {
       if (!BT_nullfp)
-        BT_nullfp.reset(new BuiltinBug(this, "NULL stream pointer",
-                                       "Stream pointer might be NULL."));
+        BT_nullfp = llvm::make_unique<BuiltinBug>(this, "NULL stream pointer",
+                                       "Stream pointer might be NULL.");
       C.emitReport(llvm::make_unique<BugReport>(
           *BT_nullfp, BT_nullfp->getDescription(), N));
     }
@@ -380,9 +380,9 @@ ProgramStateRef StreamChecker::CheckDoubleClose(const CallExpr *CE,
     ExplodedNode *N = C.generateErrorNode();
     if (N) {
       if (!BT_doubleclose)
-        BT_doubleclose.reset(new BuiltinBug(
+        BT_doubleclose = llvm::make_unique<BuiltinBug>(
             this, "Double fclose", "Try to close a file Descriptor already"
-                                   " closed. Cause undefined behaviour."));
+                                   " closed. Cause undefined behaviour.");
       C.emitReport(llvm::make_unique<BugReport>(
           *BT_doubleclose, BT_doubleclose->getDescription(), N));
     }
@@ -408,9 +408,9 @@ void StreamChecker::checkDeadSymbols(SymbolReaper &SymReaper,
       ExplodedNode *N = C.generateErrorNode();
       if (N) {
         if (!BT_ResourceLeak)
-          BT_ResourceLeak.reset(new BuiltinBug(
+          BT_ResourceLeak = llvm::make_unique<BuiltinBug>(
               this, "Resource Leak",
-              "Opened File never closed. Potential Resource leak."));
+              "Opened File never closed. Potential Resource leak.");
         C.emitReport(llvm::make_unique<BugReport>(
             *BT_ResourceLeak, BT_ResourceLeak->getDescription(), N));
       }

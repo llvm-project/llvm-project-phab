@@ -69,8 +69,8 @@ class DynamicTypePropagation:
   mutable std::unique_ptr<BugType> ObjCGenericsBugType;
   void initBugType() const {
     if (!ObjCGenericsBugType)
-      ObjCGenericsBugType.reset(
-          new BugType(this, "Generics", categories::CoreFoundationObjectiveC));
+      ObjCGenericsBugType = llvm::make_unique<BugType>(
+          this, "Generics", categories::CoreFoundationObjectiveC);
   }
 
   class GenericsBugVisitor : public BugReporterVisitorImpl<GenericsBugVisitor> {

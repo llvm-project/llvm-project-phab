@@ -94,14 +94,14 @@ public:
 bool FixItAction::BeginSourceFileAction(CompilerInstance &CI) {
   const FrontendOptions &FEOpts = getCompilerInstance().getFrontendOpts();
   if (!FEOpts.FixItSuffix.empty()) {
-    FixItOpts.reset(new FixItActionSuffixInserter(FEOpts.FixItSuffix,
-                                                  FEOpts.FixWhatYouCan));
+    FixItOpts = llvm::make_unique<FixItActionSuffixInserter>(FEOpts.FixItSuffix,
+                                                  FEOpts.FixWhatYouCan);
   } else {
-    FixItOpts.reset(new FixItRewriteInPlace);
+    FixItOpts = llvm::make_unique<FixItRewriteInPlace>();
     FixItOpts->FixWhatYouCan = FEOpts.FixWhatYouCan;
   }
-  Rewriter.reset(new FixItRewriter(CI.getDiagnostics(), CI.getSourceManager(),
-                                   CI.getLangOpts(), FixItOpts.get()));
+  Rewriter = llvm::make_unique<FixItRewriter>(CI.getDiagnostics(), CI.getSourceManager(),
+                                   CI.getLangOpts(), FixItOpts.get());
   return true;
 }
 
@@ -120,9 +120,9 @@ bool FixItRecompile::BeginInvocation(CompilerInstance &CI) {
     if (FixAction->BeginSourceFile(CI, FEOpts.Inputs[0])) {
       std::unique_ptr<FixItOptions> FixItOpts;
       if (FEOpts.FixToTemporaries)
-        FixItOpts.reset(new FixItRewriteToTemp());
+        FixItOpts = llvm::make_unique<FixItRewriteToTemp>();
       else
-        FixItOpts.reset(new FixItRewriteInPlace());
+        FixItOpts = llvm::make_unique<FixItRewriteInPlace>();
       FixItOpts->Silent = true;
       FixItOpts->FixWhatYouCan = FEOpts.FixWhatYouCan;
       FixItOpts->FixOnlyWarnings = FEOpts.FixOnlyWarnings;

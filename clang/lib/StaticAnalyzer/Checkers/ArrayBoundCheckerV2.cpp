@@ -235,7 +235,7 @@ void ArrayBoundCheckerV2::reportOOB(CheckerContext &checkerContext,
     return;
 
   if (!BT)
-    BT.reset(new BuiltinBug(this, "Out-of-bound access"));
+    BT = llvm::make_unique<BuiltinBug>(this, "Out-of-bound access");
 
   // FIXME: This diagnostics are preliminary.  We should get far better
   // diagnostics for explaining buffer overruns.

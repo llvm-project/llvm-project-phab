@@ -125,10 +125,10 @@ public:
 
 protected:
   void Initialize(ASTContext &Context) override {
-    NSAPIObj.reset(new NSAPI(Context));
-    Editor.reset(new edit::EditedSource(Context.getSourceManager(),
+    NSAPIObj = llvm::make_unique<NSAPI>(Context);
+    Editor = llvm::make_unique<edit::EditedSource>(Context.getSourceManager(),
                                         Context.getLangOpts(),
-                                        PPRec));
+                                        PPRec);
   }
 
   bool HandleTopLevelDecl(DeclGroupRef DG) override {
@@ -364,7 +364,7 @@ public:
   bool shouldWalkTypesOfTypeLocs() const { return false; }
 
   bool TraverseStmt(Stmt *S) {
-    PMap.reset(new ParentMap(S));
+    PMap = llvm::make_unique<ParentMap>(S);
     ObjCMigrator(Consumer, *PMap).TraverseStmt(S);
     return true;
   }

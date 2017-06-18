@@ -2629,7 +2629,7 @@ static void CheckProtocolMethodDefs(Sema &S,
   // protocols for now for controlled evaluation.
   if (PDecl->hasAttr<ObjCExplicitProtocolImplAttr>()) {
     if (!ProtocolsExplictImpl) {
-      ProtocolsExplictImpl.reset(new ProtocolNameSet);
+      ProtocolsExplictImpl = llvm::make_unique<ProtocolNameSet>();
       findProtocolsWithExplicitImpls(Super, *ProtocolsExplictImpl);
     }
     if (ProtocolsExplictImpl->find(PDecl->getIdentifier()) !=

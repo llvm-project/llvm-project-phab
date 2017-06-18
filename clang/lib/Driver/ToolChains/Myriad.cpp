@@ -269,11 +269,11 @@ Tool *MyriadToolChain::SelectTool(const JobAction &JA) const {
   case Action::PreprocessJobClass:
   case Action::CompileJobClass:
     if (!Compiler)
-      Compiler.reset(new tools::SHAVE::Compiler(*this));
+      Compiler = llvm::make_unique<tools::SHAVE::Compiler>(*this);
     return Compiler.get();
   case Action::AssembleJobClass:
     if (!Assembler)
-      Assembler.reset(new tools::SHAVE::Assembler(*this));
+      Assembler = llvm::make_unique<tools::SHAVE::Assembler>(*this);
     return Assembler.get();
   default:
     return ToolChain::getTool(JA.getKind());

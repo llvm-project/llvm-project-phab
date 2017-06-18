@@ -254,9 +254,9 @@ void ValistChecker::reportUninitializedAccess(const MemRegion *VAList,
     return;
   if (ExplodedNode *N = C.generateErrorNode()) {
     if (!BT_uninitaccess)
-      BT_uninitaccess.reset(new BugType(CheckNames[CK_Uninitialized],
+      BT_uninitaccess = llvm::make_unique<BugType>(CheckNames[CK_Uninitialized],
                                         "Uninitialized va_list",
-                                        categories::MemoryError));
+                                        categories::MemoryError);
     auto R = llvm::make_unique<BugReport>(*BT_uninitaccess, Msg, N);
     R->markInteresting(VAList);
     R->addVisitor(llvm::make_unique<ValistBugVisitor>(VAList));
@@ -273,9 +273,9 @@ void ValistChecker::reportLeakedVALists(const RegionVector &LeakedVALists,
     return;
   for (auto Reg : LeakedVALists) {
     if (!BT_leakedvalist) {
-      BT_leakedvalist.reset(new BugType(CheckNames[CK_Unterminated],
+      BT_leakedvalist = llvm::make_unique<BugType>(CheckNames[CK_Unterminated],
                                         "Leaked va_list",
-                                        categories::MemoryError));
+                                        categories::MemoryError);
       BT_leakedvalist->setSuppressOnSink(true);
     }
 

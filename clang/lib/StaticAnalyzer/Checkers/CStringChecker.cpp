@@ -246,9 +246,9 @@ ProgramStateRef CStringChecker::checkNonNull(CheckerContext &C,
       return nullptr;
 
     if (!BT_Null)
-      BT_Null.reset(new BuiltinBug(
+      BT_Null = llvm::make_unique<BuiltinBug>(
           Filter.CheckNameCStringNullArg, categories::UnixAPI,
-          "Null pointer argument in call to byte string function"));
+          "Null pointer argument in call to byte string function");
 
     SmallString<80> buf;
     llvm::raw_svector_ostream os(buf);
@@ -309,9 +309,9 @@ ProgramStateRef CStringChecker::CheckLocation(CheckerContext &C,
       return nullptr;
 
     if (!BT_Bounds) {
-      BT_Bounds.reset(new BuiltinBug(
+      BT_Bounds = llvm::make_unique<BuiltinBug>(
           Filter.CheckNameCStringOutOfBounds, "Out-of-bound array access",
-          "Byte string function accesses out-of-bound array element"));
+          "Byte string function accesses out-of-bound array element");
     }
     BuiltinBug *BT = static_cast<BuiltinBug*>(BT_Bounds.get());
 
@@ -542,8 +542,8 @@ void CStringChecker::emitOverlapBug(CheckerContext &C, ProgramStateRef state,
     return;
 
   if (!BT_Overlap)
-    BT_Overlap.reset(new BugType(Filter.CheckNameCStringBufferOverlap,
-                                 categories::UnixAPI, "Improper arguments"));
+    BT_Overlap = llvm::make_unique<BugType>(Filter.CheckNameCStringBufferOverlap,
+                                 categories::UnixAPI, "Improper arguments");
 
   // Generate a report for this bug.
   auto report = llvm::make_unique<BugReport>(
@@ -602,9 +602,9 @@ ProgramStateRef CStringChecker::checkAdditionOverflow(CheckerContext &C,
         return nullptr;
 
       if (!BT_AdditionOverflow)
-        BT_AdditionOverflow.reset(
-            new BuiltinBug(Filter.CheckNameCStringOutOfBounds, "API",
-                           "Sum of expressions causes overflow"));
+        BT_AdditionOverflow = llvm::make_unique<BuiltinBug>(
+            Filter.CheckNameCStringOutOfBounds, "API",
+                           "Sum of expressions causes overflow");
 
       // This isn't a great error message, but this should never occur in real
       // code anyway -- you'd have to create a buffer longer than a size_t can
@@ -721,9 +721,9 @@ SVal CStringChecker::getCStringLength(CheckerContext &C, ProgramStateRef &state,
 
       if (ExplodedNode *N = C.generateNonFatalErrorNode(state)) {
         if (!BT_NotCString)
-          BT_NotCString.reset(new BuiltinBug(
+          BT_NotCString = llvm::make_unique<BuiltinBug>(
               Filter.CheckNameCStringNotNullTerm, categories::UnixAPI,
-              "Argument is not a null-terminated string."));
+              "Argument is not a null-terminated string.");
 
         SmallString<120> buf;
         llvm::raw_svector_ostream os(buf);
@@ -781,9 +781,9 @@ SVal CStringChecker::getCStringLength(CheckerContext &C, ProgramStateRef &state,
 
     if (ExplodedNode *N = C.generateNonFatalErrorNode(state)) {
       if (!BT_NotCString)
-        BT_NotCString.reset(new BuiltinBug(
+        BT_NotCString = llvm::make_unique<BuiltinBug>(
             Filter.CheckNameCStringNotNullTerm, categories::UnixAPI,
-            "Argument is not a null-terminated string."));
+            "Argument is not a null-terminated string.");
 
       SmallString<120> buf;
       llvm::raw_svector_ostream os(buf);

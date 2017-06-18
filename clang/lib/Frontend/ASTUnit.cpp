@@ -699,11 +699,11 @@ std::unique_ptr<ASTUnit> ASTUnit::LoadFromASTFile(
   AST->PCMCache = new MemoryBufferCache;
   AST->HSOpts = std::make_shared<HeaderSearchOptions>();
   AST->HSOpts->ModuleFormat = PCHContainerRdr.getFormat();
-  AST->HeaderInfo.reset(new HeaderSearch(AST->HSOpts,
+  AST->HeaderInfo = llvm::make_unique<HeaderSearch>(AST->HSOpts,
                                          AST->getSourceManager(),
                                          AST->getDiagnostics(),
                                          AST->getLangOpts(),
-                                         /*Target=*/nullptr));
+                                         /*Target=*/nullptr);
   AST->PPOpts = std::make_shared<PreprocessorOptions>();
 
   for (const auto &RemappedFile : RemappedFiles)
@@ -765,10 +765,10 @@ std::unique_ptr<ASTUnit> ASTUnit::LoadFromASTFile(
   PP.setCounterValue(Counter);
 
   // Create an AST consumer, even though it isn't used.
-  AST->Consumer.reset(new ASTConsumer);
+  AST->Consumer = llvm::make_unique<ASTConsumer>();
   
   // Create a semantic analysis object and tell the AST reader about it.
-  AST->TheSema.reset(new Sema(PP, Context, *AST->Consumer));
+  AST->TheSema = llvm::make_unique<Sema>(PP, Context, *AST->Consumer);
   AST->TheSema->Initialize();
   AST->Reader->InitializeSema(*AST->TheSema);
 
@@ -1605,7 +1605,7 @@ ASTUnit::getMainBufferWithPrecompiledPreamble(
   Clang->addDependencyCollector(PreambleDepCollector);
 
   std::unique_ptr<PrecompilePreambleAction> Act;
-  Act.reset(new PrecompilePreambleAction(*this));
+  Act = llvm::make_unique<PrecompilePreambleAction>(*this);
   if (!Act->BeginSourceFile(*Clang.get(), Clang->getFrontendOpts().Inputs[0])) {
     llvm::sys::fs::remove(FrontendOpts.OutputFile);
     Preamble.clear();
@@ -1857,7 +1857,7 @@ ASTUnit *ASTUnit::LoadFromCompilerInvocationAction(
 
   std::unique_ptr<TopLevelDeclTrackerAction> TrackerAct;
   if (!Act) {
-    TrackerAct.reset(new TopLevelDeclTrackerAction(*AST));
+    TrackerAct = llvm::make_unique<TopLevelDeclTrackerAction>(*AST);
     Act = TrackerAct.get();
   }
 
@@ -2047,7 +2047,7 @@ ASTUnit *ASTUnit::LoadFromCommandLine(
   AST->StoredDiagnostics.swap(StoredDiagnostics);
   AST->Invocation = CI;
   if (ForSerialization)
-    AST->WriterData.reset(new ASTWriterData(*AST->PCMCache));
+    AST->WriterData = llvm::make_unique<ASTWriterData>(*AST->PCMCache);
   // Zero out now to ease cleanup during crash recovery.
   CI = nullptr;
   Diags = nullptr;
@@ -2525,7 +2525,7 @@ void ASTUnit::CodeComplete(
     PreprocessorOpts.DetailedRecord = false;
 
   std::unique_ptr<SyntaxOnlyAction> Act;
-  Act.reset(new SyntaxOnlyAction);
+  Act = llvm::make_unique<SyntaxOnlyAction>();
   if (Act->BeginSourceFile(*Clang.get(), Clang->getFrontendOpts().Inputs[0])) {
     Act->Execute();
     Act->EndSourceFile();

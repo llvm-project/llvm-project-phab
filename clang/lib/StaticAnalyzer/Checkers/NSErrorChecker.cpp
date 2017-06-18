@@ -267,12 +267,12 @@ void NSOrCFErrorDerefChecker::checkEvent(ImplicitNullDerefEvent event) const {
   BugType *bug = nullptr;
   if (isNSError) {
     if (!NSBT)
-      NSBT.reset(new NSErrorDerefBug(this));
+      NSBT = llvm::make_unique<NSErrorDerefBug>(this);
     bug = NSBT.get();
   }
   else {
     if (!CFBT)
-      CFBT.reset(new CFErrorDerefBug(this));
+      CFBT = llvm::make_unique<CFErrorDerefBug>(this);
     bug = CFBT.get();
   }
   BR.emitReport(llvm::make_unique<BugReport>(*bug, os.str(), event.SinkNode));

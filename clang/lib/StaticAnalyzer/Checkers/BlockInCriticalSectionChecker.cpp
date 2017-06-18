@@ -70,9 +70,9 @@ BlockInCriticalSectionChecker::BlockInCriticalSectionChecker()
       MtxTryLock("mtx_trylock"),
       MtxUnlock("mtx_unlock") {
   // Initialize the bug type.
-  BlockInCritSectionBugType.reset(
-      new BugType(this, "Call to blocking function in critical section",
-                        "Blocking Error"));
+  BlockInCritSectionBugType = llvm::make_unique<BugType>(
+      this, "Call to blocking function in critical section",
+                        "Blocking Error");
 }
 
 bool BlockInCriticalSectionChecker::isBlockingFunction(const CallEvent &Call) const {

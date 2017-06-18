@@ -759,17 +759,17 @@ ObjCDeallocChecker::ObjCDeallocChecker()
     : NSObjectII(nullptr), SenTestCaseII(nullptr), XCTestCaseII(nullptr),
       CIFilterII(nullptr) {
 
-  MissingReleaseBugType.reset(
-      new BugType(this, "Missing ivar release (leak)",
-                  categories::MemoryCoreFoundationObjectiveC));
+  MissingReleaseBugType = llvm::make_unique<BugType>(
+      this, "Missing ivar release (leak)",
+                  categories::MemoryCoreFoundationObjectiveC);
 
-  ExtraReleaseBugType.reset(
-      new BugType(this, "Extra ivar release",
-                  categories::MemoryCoreFoundationObjectiveC));
+  ExtraReleaseBugType = llvm::make_unique<BugType>(
+      this, "Extra ivar release",
+                  categories::MemoryCoreFoundationObjectiveC);
 
-  MistakenDeallocBugType.reset(
-      new BugType(this, "Mistaken dealloc",
-                  categories::MemoryCoreFoundationObjectiveC));
+  MistakenDeallocBugType = llvm::make_unique<BugType>(
+      this, "Mistaken dealloc",
+                  categories::MemoryCoreFoundationObjectiveC);
 }
 
 void ObjCDeallocChecker::initIdentifierInfoAndSelectors(

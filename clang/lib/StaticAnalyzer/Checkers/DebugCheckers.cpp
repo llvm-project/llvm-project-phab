@@ -224,7 +224,7 @@ public:
 
   void checkPostStmt(const Stmt *S, CheckerContext &C) const {
     if (!BT)
-      BT.reset(new BugType(this, "Dump hash components", "debug"));
+      BT = llvm::make_unique<BugType>(this, "Dump hash components", "debug");
 
     ExplodedNode *N = C.generateNonFatalErrorNode();
     if (!N)

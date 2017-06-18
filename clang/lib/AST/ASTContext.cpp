@@ -9136,9 +9136,9 @@ bool ASTContext::isNearlyEmpty(const CXXRecordDecl *RD) const {
 VTableContextBase *ASTContext::getVTableContext() {
   if (!VTContext.get()) {
     if (Target->getCXXABI().isMicrosoft())
-      VTContext.reset(new MicrosoftVTableContext(*this));
+      VTContext = llvm::make_unique<MicrosoftVTableContext>(*this);
     else
-      VTContext.reset(new ItaniumVTableContext(*this));
+      VTContext = llvm::make_unique<ItaniumVTableContext>(*this);
   }
   return VTContext.get();
 }

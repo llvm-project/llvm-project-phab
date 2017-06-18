@@ -5259,7 +5259,7 @@ void Sema::DiagnoseAbstractType(const CXXRecordDecl *RD) {
   }
 
   if (!PureVirtualClassDiagSet)
-    PureVirtualClassDiagSet.reset(new RecordDeclSetTy);
+    PureVirtualClassDiagSet = llvm::make_unique<RecordDeclSetTy>();
   PureVirtualClassDiagSet->insert(RD);
 }
 

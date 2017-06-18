@@ -328,11 +328,11 @@ Tool *toolchains::MinGW::getTool(Action::ActionClass AC) const {
   switch (AC) {
   case Action::PreprocessJobClass:
     if (!Preprocessor)
-      Preprocessor.reset(new tools::gcc::Preprocessor(*this));
+      Preprocessor = llvm::make_unique<tools::gcc::Preprocessor>(*this);
     return Preprocessor.get();
   case Action::CompileJobClass:
     if (!Compiler)
-      Compiler.reset(new tools::gcc::Compiler(*this));
+      Compiler = llvm::make_unique<tools::gcc::Compiler>(*this);
     return Compiler.get();
   default:
     return ToolChain::getTool(AC);

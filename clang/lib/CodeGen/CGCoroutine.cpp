@@ -95,7 +95,7 @@ static void createCoroData(CodeGenFunction &CGF,
     return;
   }
 
-  CurCoro.Data = std::unique_ptr<CGCoroData>(new CGCoroData);
+  CurCoro.Data = llvm::make_unique<CGCoroData>();
   CurCoro.Data->CoroId = CoroId;
   CurCoro.Data->CoroIdExpr = CoroIdExpr;
 }

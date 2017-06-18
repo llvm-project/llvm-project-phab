@@ -78,7 +78,7 @@ private:
   void LazyInitialize(std::unique_ptr<BugType> &BT, const char *name) const {
     if (BT)
       return;
-    BT.reset(new BugType(this, name, categories::UnixAPI));
+    BT = llvm::make_unique<BugType>(this, name, categories::UnixAPI);
   }
   void ReportOpenBug(CheckerContext &C,
                      ProgramStateRef State,

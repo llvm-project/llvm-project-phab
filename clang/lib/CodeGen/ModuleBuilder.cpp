@@ -124,9 +124,9 @@ namespace {
 
       M->setTargetTriple(Ctx->getTargetInfo().getTriple().getTriple());
       M->setDataLayout(Ctx->getTargetInfo().getDataLayout());
-      Builder.reset(new CodeGen::CodeGenModule(Context, HeaderSearchOpts,
+      Builder = llvm::make_unique<CodeGen::CodeGenModule>(Context, HeaderSearchOpts,
                                                PreprocessorOpts, CodeGenOpts,
-                                               *M, Diags, CoverageInfo));
+                                               *M, Diags, CoverageInfo);
 
       for (auto &&Lib : CodeGenOpts.DependentLibraries)
         Builder->AddDependentLib(Lib);

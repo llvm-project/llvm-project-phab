@@ -97,13 +97,13 @@ bool ToolChain::useIntegratedAs() const {
 
 const SanitizerArgs& ToolChain::getSanitizerArgs() const {
   if (!SanitizerArguments.get())
-    SanitizerArguments.reset(new SanitizerArgs(*this, Args));
+    SanitizerArguments = llvm::make_unique<SanitizerArgs>(*this, Args);
   return *SanitizerArguments.get();
 }
 
 const XRayArgs& ToolChain::getXRayArgs() const {
   if (!XRayArguments.get())
-    XRayArguments.reset(new XRayArgs(*this, Args));
+    XRayArguments = llvm::make_unique<XRayArgs>(*this, Args);
   return *XRayArguments.get();
 }
 
@@ -223,7 +223,7 @@ bool ToolChain::IsUnwindTablesDefault() const {
 
 Tool *ToolChain::getClang() const {
   if (!Clang)
-    Clang.reset(new tools::Clang(*this));
+    Clang = llvm::make_unique<tools::Clang>(*this);
   return Clang.get();
 }
 
@@ -243,7 +243,7 @@ Tool *ToolChain::getAssemble() const {
 
 Tool *ToolChain::getClangAs() const {
   if (!Assemble)
-    Assemble.reset(new tools::ClangAs(*this));
+    Assemble = llvm::make_unique<tools::ClangAs>(*this);
   return Assemble.get();
 }
 
@@ -255,7 +255,7 @@ Tool *ToolChain::getLink() const {
 
 Tool *ToolChain::getOffloadBundler() const {
   if (!OffloadBundler)
-    OffloadBundler.reset(new tools::OffloadBundler(*this));
+    OffloadBundler = llvm::make_unique<tools::OffloadBundler>(*this);
   return OffloadBundler.get();
 }
 

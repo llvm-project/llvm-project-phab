@@ -38,7 +38,7 @@ public:
 
 inline void TaintTesterChecker::initBugType() const {
   if (!BT)
-    BT.reset(new BugType(this, "Tainted data", "General"));
+    BT = llvm::make_unique<BugType>(this, "Tainted data", "General");
 }
 
 void TaintTesterChecker::checkPostStmt(const Expr *E,

@@ -881,7 +881,7 @@ void VerifyDiagnosticConsumer::CheckDiagnostics() {
   Diags.setClient(CurClient, Owner.release() != nullptr);
 
   // Reset the buffer, we have processed all the diagnostics in it.
-  Buffer.reset(new TextDiagnosticBuffer());
+  Buffer = llvm::make_unique<TextDiagnosticBuffer>();
   ED.Reset();
 }
 

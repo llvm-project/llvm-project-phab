@@ -2560,18 +2560,18 @@ public:
                                      bool GCEnabled) const {
     if (GCEnabled) {
       if (!leakWithinFunctionGC)
-        leakWithinFunctionGC.reset(new Leak(this, "Leak of object when using "
-                                                  "garbage collection"));
+        leakWithinFunctionGC = llvm::make_unique<Leak>(this, "Leak of object when using "
+                                                  "garbage collection");
       return leakWithinFunctionGC.get();
     } else {
       if (!leakWithinFunction) {
         if (LOpts.getGC() == LangOptions::HybridGC) {
-          leakWithinFunction.reset(new Leak(this,
+          leakWithinFunction = llvm::make_unique<Leak>(this,
                                             "Leak of object when not using "
                                             "garbage collection (GC) in "
-                                            "dual GC/non-GC code"));
+                                            "dual GC/non-GC code");
         } else {
-          leakWithinFunction.reset(new Leak(this, "Leak"));
+          leakWithinFunction = llvm::make_unique<Leak>(this, "Leak");
         }
       }
       return leakWithinFunction.get();
@@ -2581,19 +2581,19 @@ public:
   CFRefBug *getLeakAtReturnBug(const LangOptions &LOpts, bool GCEnabled) const {
     if (GCEnabled) {
       if (!leakAtReturnGC)
-        leakAtReturnGC.reset(new Leak(this,
+        leakAtReturnGC = llvm::make_unique<Leak>(this,
                                       "Leak of returned object when using "
-                                      "garbage collection"));
+                                      "garbage collection");
       return leakAtReturnGC.get();
     } else {
       if (!leakAtReturn) {
         if (LOpts.getGC() == LangOptions::HybridGC) {
-          leakAtReturn.reset(new Leak(this,
+          leakAtReturn = llvm::make_unique<Leak>(this,
                                       "Leak of returned object when not using "
                                       "garbage collection (GC) in dual "
-                                      "GC/non-GC code"));
+                                      "GC/non-GC code");
         } else {
-          leakAtReturn.reset(new Leak(this, "Leak of returned object"));
+          leakAtReturn = llvm::make_unique<Leak>(this, "Leak of returned object");
         }
       }
       return leakAtReturn.get();
@@ -2607,13 +2607,13 @@ public:
     bool ARCEnabled = (bool)Ctx.getLangOpts().ObjCAutoRefCount;
     if (GCEnabled) {
       if (!SummariesGC)
-        SummariesGC.reset(new RetainSummaryManager(Ctx, true, ARCEnabled));
+        SummariesGC = llvm::make_unique<RetainSummaryManager>(Ctx, true, ARCEnabled);
       else
         assert(SummariesGC->isARCEnabled() == ARCEnabled);
       return *SummariesGC;
     } else {
       if (!Summaries)
-        Summaries.reset(new RetainSummaryManager(Ctx, false, ARCEnabled));
+        Summaries = llvm::make_unique<RetainSummaryManager>(Ctx, false, ARCEnabled);
       else
         assert(Summaries->isARCEnabled() == ARCEnabled);
       return *Summaries;
@@ -3324,22 +3324,22 @@ void RetainCountChecker::processNonLeakError(ProgramStateRef St,
       llvm_unreachable("Unhandled error.");
     case RefVal::ErrorUseAfterRelease:
       if (!useAfterRelease)
-        useAfterRelease.reset(new UseAfterRelease(this));
+        useAfterRelease = llvm::make_unique<UseAfterRelease>(this);
       BT = useAfterRelease.get();
       break;
     case RefVal::ErrorReleaseNotOwned:
       if (!releaseNotOwned)
-        releaseNotOwned.reset(new BadRelease(this));
+        releaseNotOwned = llvm::make_unique<BadRelease>(this);
       BT = releaseNotOwned.get();
       break;
     case RefVal::ErrorDeallocGC:
       if (!deallocGC)
-        deallocGC.reset(new DeallocGC(this));
+        deallocGC = llvm::make_unique<DeallocGC>(this);
       BT = deallocGC.get();
       break;
     case RefVal::ErrorDeallocNotOwned:
       if (!deallocNotOwned)
-        deallocNotOwned.reset(new DeallocNotOwned(this));
+        deallocNotOwned = llvm::make_unique<DeallocNotOwned>(this);
       BT = deallocNotOwned.get();
       break;
   }
@@ -3604,7 +3604,7 @@ void RetainCountChecker::checkReturnWithRetEffect(const ReturnStmt *S,
         ExplodedNode *N = C.addTransition(state, Pred, &ReturnNotOwnedTag);
         if (N) {
           if (!returnNotOwnedForOwned)
-            returnNotOwnedForOwned.reset(new ReturnedNotOwnedForOwned(this));
+            returnNotOwnedForOwned = llvm::make_unique<ReturnedNotOwnedForOwned>(this);
 
           C.emitReport(std::unique_ptr<BugReport>(new CFRefReport(
               *returnNotOwnedForOwned, C.getASTContext().getLangOpts(),
@@ -3808,7 +3808,7 @@ RetainCountChecker::handleAutoreleaseCounts(ProgramStateRef state,
     os << "has a +" << V.getCount() << " retain count";
 
     if (!overAutorelease)
-      overAutorelease.reset(new OverAutorelease(this));
+      overAutorelease = llvm::make_unique<OverAutorelease>(this);
 
     const LangOptions &LOpts = Ctx.getASTContext().getLangOpts();
     Ctx.emitReport(std::unique_ptr<BugReport>(

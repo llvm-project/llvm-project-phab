@@ -2249,11 +2249,11 @@ Tool *Generic_GCC::getTool(Action::ActionClass AC) const {
   switch (AC) {
   case Action::PreprocessJobClass:
     if (!Preprocess)
-      Preprocess.reset(new clang::driver::tools::gcc::Preprocessor(*this));
+      Preprocess = llvm::make_unique<clang::driver::tools::gcc::Preprocessor>(*this);
     return Preprocess.get();
   case Action::CompileJobClass:
     if (!Compile)
-      Compile.reset(new tools::gcc::Compiler(*this));
+      Compile = llvm::make_unique<tools::gcc::Compiler>(*this);
     return Compile.get();
   default:
     return ToolChain::getTool(AC);

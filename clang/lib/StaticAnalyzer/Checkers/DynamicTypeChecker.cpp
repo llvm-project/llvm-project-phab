@@ -34,8 +34,8 @@ class DynamicTypeChecker : public Checker<check::PostStmt<ImplicitCastExpr>> {
   mutable std::unique_ptr<BugType> BT;
   void initBugType() const {
     if (!BT)
-      BT.reset(
-          new BugType(this, "Dynamic and static type mismatch", "Type Error"));
+      BT = llvm::make_unique<BugType>(
+          this, "Dynamic and static type mismatch", "Type Error");
   }
 
   class DynamicTypeBugVisitor

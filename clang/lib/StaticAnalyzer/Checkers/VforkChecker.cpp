@@ -122,8 +122,8 @@ void VforkChecker::reportBug(const char *What, CheckerContext &C,
                              const char *Details) const {
   if (ExplodedNode *N = C.generateErrorNode(C.getState())) {
     if (!BT)
-      BT.reset(new BuiltinBug(this,
-                              "Dangerous construct in a vforked process"));
+      BT = llvm::make_unique<BuiltinBug>(this,
+                              "Dangerous construct in a vforked process");
 
     SmallString<256> buf;
     llvm::raw_svector_ostream os(buf);

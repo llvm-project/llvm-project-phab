@@ -407,8 +407,8 @@ void DumpModuleInfoAction::ExecuteAction() {
   StringRef OutputFileName = getCompilerInstance().getFrontendOpts().OutputFile;
   if (!OutputFileName.empty() && OutputFileName != "-") {
     std::error_code EC;
-    OutFile.reset(new llvm::raw_fd_ostream(OutputFileName.str(), EC,
-                                           llvm::sys::fs::F_Text));
+    OutFile = llvm::make_unique<llvm::raw_fd_ostream>(OutputFileName.str(), EC,
+                                           llvm::sys::fs::F_Text);
   }
   llvm::raw_ostream &Out = OutFile.get()? *OutFile.get() : llvm::outs();
 

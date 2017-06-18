@@ -971,7 +971,7 @@ BeforeSet::BeforeInfo* BeforeSet::insertAttrExprs(const ValueDecl* Vd,
     // reference becomes invalid.
     std::unique_ptr<BeforeInfo> &InfoPtr = BMap[Vd];
     if (!InfoPtr)
-      InfoPtr.reset(new BeforeInfo());
+      InfoPtr = llvm::make_unique<BeforeInfo>();
     Info = InfoPtr.get();
   }
 

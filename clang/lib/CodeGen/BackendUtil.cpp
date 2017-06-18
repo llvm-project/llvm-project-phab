@@ -741,9 +741,9 @@ void EmitAssemblyHelper::EmitAssembly(BackendAction Action,
     if (CodeGenOpts.EmitSummaryIndex) {
       if (!CodeGenOpts.ThinLinkBitcodeFile.empty()) {
         std::error_code EC;
-        ThinLinkOS.reset(new llvm::raw_fd_ostream(
+        ThinLinkOS = llvm::make_unique<llvm::raw_fd_ostream>(
             CodeGenOpts.ThinLinkBitcodeFile, EC,
-            llvm::sys::fs::F_None));
+            llvm::sys::fs::F_None);
         if (EC) {
           Diags.Report(diag::err_fe_unable_to_open_output) << CodeGenOpts.ThinLinkBitcodeFile
                                                            << EC.message();

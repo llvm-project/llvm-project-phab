@@ -45,8 +45,8 @@ void ObjCAtSyncChecker::checkPreStmt(const ObjCAtSynchronizedStmt *S,
   if (V.getAs<UndefinedVal>()) {
     if (ExplodedNode *N = C.generateErrorNode()) {
       if (!BT_undef)
-        BT_undef.reset(new BuiltinBug(this, "Uninitialized value used as mutex "
-                                            "for @synchronized"));
+        BT_undef = llvm::make_unique<BuiltinBug>(this, "Uninitialized value used as mutex "
+                                            "for @synchronized");
       auto report =
           llvm::make_unique<BugReport>(*BT_undef, BT_undef->getDescription(), N);
       bugreporter::trackNullOrUndefValue(N, Ex, *report);
@@ -68,9 +68,9 @@ void ObjCAtSyncChecker::checkPreStmt(const ObjCAtSynchronizedStmt *S,
       // a null mutex just means no synchronization occurs.
       if (ExplodedNode *N = C.generateNonFatalErrorNode(nullState)) {
         if (!BT_null)
-          BT_null.reset(new BuiltinBug(
+          BT_null = llvm::make_unique<BuiltinBug>(
               this, "Nil value used as mutex for @synchronized() "
-                    "(no synchronization will occur)"));
+                    "(no synchronization will occur)");
         auto report =
             llvm::make_unique<BugReport>(*BT_null, BT_null->getDescription(), N);
         bugreporter::trackNullOrUndefValue(N, Ex, *report);

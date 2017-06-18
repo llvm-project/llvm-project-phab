@@ -50,7 +50,7 @@ UndefinedArraySubscriptChecker::checkPreStmt(const ArraySubscriptExpr *A,
   if (!N)
     return;
   if (!BT)
-    BT.reset(new BuiltinBug(this, "Array subscript is undefined"));
+    BT = llvm::make_unique<BuiltinBug>(this, "Array subscript is undefined");
 
   // Generate a report for this bug.
   auto R = llvm::make_unique<BugReport>(*BT, BT->getName(), N);

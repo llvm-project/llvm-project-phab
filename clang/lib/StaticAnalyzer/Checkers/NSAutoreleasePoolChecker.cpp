@@ -59,8 +59,8 @@ void NSAutoreleasePoolChecker::checkPreObjCMessage(const ObjCMethodCall &msg,
     return;
 
   if (!BT)
-    BT.reset(new BugType(this, "Use -drain instead of -release",
-                         "API Upgrade (Apple)"));
+    BT = llvm::make_unique<BugType>(this, "Use -drain instead of -release",
+                         "API Upgrade (Apple)");
 
   ExplodedNode *N = C.generateNonFatalErrorNode();
   if (!N) {

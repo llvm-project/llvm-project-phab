@@ -1988,7 +1988,7 @@ AnalysisBasedWarnings::IssueWarnings(sema::AnalysisBasedWarnings::Policy P,
   std::unique_ptr<LogicalErrorHandler> LEH;
   if (!Diags.isIgnored(diag::warn_tautological_overlap_comparison,
                        D->getLocStart())) {
-    LEH.reset(new LogicalErrorHandler(S));
+    LEH = llvm::make_unique<LogicalErrorHandler>(S);
     AC.getCFGBuildOptions().Observer = LEH.get();
   }
 

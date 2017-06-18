@@ -398,8 +398,8 @@ public:
       Filename = Path.str();
     }
     auto it = UnsavedFileContents.insert(std::make_pair(
-        fixed_addr_string(new std::string(Filename)),
-        fixed_addr_string(new std::string(Contents))));
+        llvm::make_unique<std::string>(Filename),
+        llvm::make_unique<std::string>(Contents)));
     UnsavedFiles.push_back({
         it.first->first->c_str(),   // filename
         it.first->second->c_str(),  // contents

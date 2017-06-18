@@ -1859,7 +1859,7 @@ void Sema::DiagnoseUnimplementedProperties(Scope *S, ObjCImplDecl* IMPDecl,
       // analyzing the @implementation.
       if (!LazyMap) {
         ObjCContainerDecl::PropertyMap NoNeedToImplPropMap;
-        LazyMap.reset(new ObjCContainerDecl::PropertyMap());
+        LazyMap = llvm::make_unique<ObjCContainerDecl::PropertyMap>();
         CollectImmediateProperties(CDecl, *LazyMap, NoNeedToImplPropMap,
                                    /* CollectClassPropsOnly */ false,
                                    /* IncludeProtocols */ false);

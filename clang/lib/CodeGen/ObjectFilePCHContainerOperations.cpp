@@ -162,11 +162,11 @@ public:
     assert(!Ctx && "initialized multiple times");
 
     Ctx = &Context;
-    VMContext.reset(new llvm::LLVMContext());
-    M.reset(new llvm::Module(MainFileName, *VMContext));
+    VMContext = llvm::make_unique<llvm::LLVMContext>();
+    M = llvm::make_unique<llvm::Module>(MainFileName, *VMContext);
     M->setDataLayout(Ctx->getTargetInfo().getDataLayout());
-    Builder.reset(new CodeGen::CodeGenModule(
-        *Ctx, HeaderSearchOpts, PreprocessorOpts, CodeGenOpts, *M, Diags));
+    Builder = llvm::make_unique<CodeGen::CodeGenModule>(
+        *Ctx, HeaderSearchOpts, PreprocessorOpts, CodeGenOpts, *M, Diags);
 
     // Prepare CGDebugInfo to emit debug info for a clang module.
     auto *DI = Builder->getModuleDebugInfo();

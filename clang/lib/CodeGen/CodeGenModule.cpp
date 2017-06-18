@@ -131,19 +131,19 @@ CodeGenModule::CodeGenModule(ASTContext &C, const HeaderSearchOptions &HSO,
   // Enable TBAA unless it's suppressed. ThreadSanitizer needs TBAA even at O0.
   if (LangOpts.Sanitize.has(SanitizerKind::Thread) ||
       (!CodeGenOpts.RelaxedAliasing && CodeGenOpts.OptimizationLevel > 0))
-    TBAA.reset(new CodeGenTBAA(Context, VMContext, CodeGenOpts, getLangOpts(),
-                               getCXXABI().getMangleContext()));
+    TBAA = llvm::make_unique<CodeGenTBAA>(Context, VMContext, CodeGenOpts, getLangOpts(),
+                               getCXXABI().getMangleContext());
 
   // If debug info or coverage generation is enabled, create the CGDebugInfo
   // object.
   if (CodeGenOpts.getDebugInfo() != codegenoptions::NoDebugInfo ||
       CodeGenOpts.EmitGcovArcs || CodeGenOpts.EmitGcovNotes)
-    DebugInfo.reset(new CGDebugInfo(*this));
+    DebugInfo = llvm::make_unique<CGDebugInfo>(*this);
 
   Block.GlobalUniqueCount = 0;
 
   if (C.getLangOpts().ObjC1)
-    ObjCData.reset(new ObjCEntrypoints());
+    ObjCData = llvm::make_unique<ObjCEntrypoints>();
 
   if (CodeGenOpts.hasProfileClangUse()) {
     auto ReaderOrErr = llvm::IndexedInstrProfReader::create(
@@ -162,7 +162,7 @@ CodeGenModule::CodeGenModule(ASTContext &C, const HeaderSearchOptions &HSO,
   // If coverage mapping generation is enabled, create the
   // CoverageMappingModuleGen object.
   if (CodeGenOpts.CoverageMapping)
-    CoverageMapping.reset(new CoverageMappingModuleGen(*this, *CoverageInfo));
+    CoverageMapping = llvm::make_unique<CoverageMappingModuleGen>(*this, *CoverageInfo);
 }
 
 CodeGenModule::~CodeGenModule() {}
@@ -188,7 +188,7 @@ void CodeGenModule::createObjCRuntime() {
 }
 
 void CodeGenModule::createOpenCLRuntime() {
-  OpenCLRuntime.reset(new CGOpenCLRuntime(*this));
+  OpenCLRuntime = llvm::make_unique<CGOpenCLRuntime>(*this);
 }
 
 void CodeGenModule::createOpenMPRuntime() {
@@ -199,10 +199,10 @@ void CodeGenModule::createOpenMPRuntime() {
   case llvm::Triple::nvptx64:
     assert(getLangOpts().OpenMPIsDevice &&
            "OpenMP NVPTX is only prepared to deal with device code.");
-    OpenMPRuntime.reset(new CGOpenMPRuntimeNVPTX(*this));
+    OpenMPRuntime = llvm::make_unique<CGOpenMPRuntimeNVPTX>(*this);
     break;
   default:
-    OpenMPRuntime.reset(new CGOpenMPRuntime(*this));
+    OpenMPRuntime = llvm::make_unique<CGOpenMPRuntime>(*this);
     break;
   }
 }

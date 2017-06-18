@@ -395,27 +395,27 @@ TEST_F(RegistryTest, Errors) {
   EXPECT_TRUE(constructMatcher("hasInitializer", Error.get()).isNull());
   EXPECT_EQ("Incorrect argument count. (Expected = 1) != (Actual = 0)",
             Error->toString());
-  Error.reset(new Diagnostics());
+  Error = llvm::make_unique<Diagnostics>();
   EXPECT_TRUE(constructMatcher("isArrow", StringRef(), Error.get()).isNull());
   EXPECT_EQ("Incorrect argument count. (Expected = 0) != (Actual = 1)",
             Error->toString());
-  Error.reset(new Diagnostics());
+  Error = llvm::make_unique<Diagnostics>();
   EXPECT_TRUE(constructMatcher("anyOf", Error.get()).isNull());
   EXPECT_EQ("Incorrect argument count. (Expected = (2, )) != (Actual = 0)",
             Error->toString());
-  Error.reset(new Diagnostics());
+  Error = llvm::make_unique<Diagnostics>();
   EXPECT_TRUE(constructMatcher("unless", StringRef(), StringRef(),
                                Error.get()).isNull());
   EXPECT_EQ("Incorrect argument count. (Expected = (1, 1)) != (Actual = 2)",
             Error->toString());
 
   // Bad argument type
-  Error.reset(new Diagnostics());
+  Error = llvm::make_unique<Diagnostics>();
   EXPECT_TRUE(constructMatcher("ofClass", StringRef(), Error.get()).isNull());
   EXPECT_EQ("Incorrect type for arg 1. (Expected = Matcher<CXXRecordDecl>) != "
             "(Actual = String)",
             Error->toString());
-  Error.reset(new Diagnostics());
+  Error = llvm::make_unique<Diagnostics>();
   EXPECT_TRUE(
       constructMatcher("cxxRecordDecl", constructMatcher("cxxRecordDecl"),
                        constructMatcher("parameterCountIs", 3), Error.get())
@@ -425,13 +425,13 @@ TEST_F(RegistryTest, Errors) {
             Error->toString());
 
   // Bad argument type with variadic.
-  Error.reset(new Diagnostics());
+  Error = llvm::make_unique<Diagnostics>();
   EXPECT_TRUE(constructMatcher("anyOf", StringRef(), StringRef(),
                                Error.get()).isNull());
   EXPECT_EQ(
       "Incorrect type for arg 1. (Expected = Matcher<>) != (Actual = String)",
       Error->toString());
-  Error.reset(new Diagnostics());
+  Error = llvm::make_unique<Diagnostics>();
   EXPECT_TRUE(constructMatcher(
       "cxxRecordDecl",
       constructMatcher("allOf",

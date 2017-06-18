@@ -63,7 +63,7 @@ Parser::Parser(Preprocessor &pp, Sema &actions, bool skipFunctionBodies)
   // destructor.
   initializePragmaHandlers();
 
-  CommentSemaHandler.reset(new ActionCommentHandler(actions));
+  CommentSemaHandler = llvm::make_unique<ActionCommentHandler>(actions);
   PP.addCommentHandler(CommentSemaHandler.get());
 
   PP.setCodeCompletionHandler(*this);

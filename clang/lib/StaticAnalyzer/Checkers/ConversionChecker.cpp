@@ -115,8 +115,8 @@ void ConversionChecker::checkPreStmt(const ImplicitCastExpr *Cast,
 void ConversionChecker::reportBug(ExplodedNode *N, CheckerContext &C,
                                   const char Msg[]) const {
   if (!BT)
-    BT.reset(
-        new BuiltinBug(this, "Conversion", "Possible loss of sign/precision."));
+    BT = llvm::make_unique<BuiltinBug>(
+        this, "Conversion", "Possible loss of sign/precision.");
 
   // Generate a report for this bug.
   auto R = llvm::make_unique<BugReport>(*BT, Msg, N);

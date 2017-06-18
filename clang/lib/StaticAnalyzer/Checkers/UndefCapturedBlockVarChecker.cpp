@@ -76,8 +76,8 @@ UndefCapturedBlockVarChecker::checkPostStmt(const BlockExpr *BE,
           state->getSVal(I.getOriginalRegion()).getAs<UndefinedVal>()) {
       if (ExplodedNode *N = C.generateErrorNode()) {
         if (!BT)
-          BT.reset(
-              new BuiltinBug(this, "uninitialized variable captured by block"));
+          BT = llvm::make_unique<BuiltinBug>(
+              this, "uninitialized variable captured by block");
 
         // Generate a bug report.
         SmallString<128> buf;

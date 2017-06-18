@@ -206,8 +206,8 @@ void PthreadLockChecker::AcquireLock(CheckerContext &C, const CallExpr *CE,
   if (const LockState *LState = state->get<LockMap>(lockR)) {
     if (LState->isLocked()) {
       if (!BT_doublelock)
-        BT_doublelock.reset(new BugType(this, "Double locking",
-                                        "Lock checker"));
+        BT_doublelock = llvm::make_unique<BugType>(this, "Double locking",
+                                        "Lock checker");
       ExplodedNode *N = C.generateErrorNode();
       if (!N)
         return;
@@ -271,8 +271,8 @@ void PthreadLockChecker::ReleaseLock(CheckerContext &C, const CallExpr *CE,
   if (const LockState *LState = state->get<LockMap>(lockR)) {
     if (LState->isUnlocked()) {
       if (!BT_doubleunlock)
-        BT_doubleunlock.reset(new BugType(this, "Double unlocking",
-                                          "Lock checker"));
+        BT_doubleunlock = llvm::make_unique<BugType>(this, "Double unlocking",
+                                          "Lock checker");
       ExplodedNode *N = C.generateErrorNode();
       if (!N)
         return;
@@ -295,7 +295,7 @@ void PthreadLockChecker::ReleaseLock(CheckerContext &C, const CallExpr *CE,
     const MemRegion *firstLockR = LS.getHead();
     if (firstLockR != lockR) {
       if (!BT_lor)
-        BT_lor.reset(new BugType(this, "Lock order reversal", "Lock checker"));
+        BT_lor = llvm::make_unique<BugType>(this, "Lock order reversal", "Lock checker");
       ExplodedNode *N = C.generateErrorNode();
       if (!N)
         return;
@@ -365,8 +365,8 @@ void PthreadLockChecker::DestroyLock(CheckerContext &C, const CallExpr *CE,
   }
 
   if (!BT_destroylock)
-    BT_destroylock.reset(new BugType(this, "Destroy invalid lock",
-                                     "Lock checker"));
+    BT_destroylock = llvm::make_unique<BugType>(this, "Destroy invalid lock",
+                                     "Lock checker");
   ExplodedNode *N = C.generateErrorNode();
   if (!N)
     return;
@@ -404,8 +404,8 @@ void PthreadLockChecker::InitLock(CheckerContext &C, const CallExpr *CE,
   }
 
   if (!BT_initlock)
-    BT_initlock.reset(new BugType(this, "Init invalid lock",
-                                  "Lock checker"));
+    BT_initlock = llvm::make_unique<BugType>(this, "Init invalid lock",
+                                  "Lock checker");
   ExplodedNode *N = C.generateErrorNode();
   if (!N)
     return;
@@ -417,8 +417,8 @@ void PthreadLockChecker::InitLock(CheckerContext &C, const CallExpr *CE,
 void PthreadLockChecker::reportUseDestroyedBug(CheckerContext &C,
                                                const CallExpr *CE) const {
   if (!BT_destroylock)
-    BT_destroylock.reset(new BugType(this, "Use destroyed lock",
-                                     "Lock checker"));
+    BT_destroylock = llvm::make_unique<BugType>(this, "Use destroyed lock",
+                                     "Lock checker");
   ExplodedNode *N = C.generateErrorNode();
   if (!N)
     return;

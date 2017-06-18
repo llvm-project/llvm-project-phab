@@ -95,9 +95,9 @@ bool FixItRewriter::WriteFixedFiles(
     std::error_code EC;
     std::unique_ptr<llvm::raw_fd_ostream> OS;
     if (fd != -1) {
-      OS.reset(new llvm::raw_fd_ostream(fd, /*shouldClose=*/true));
+      OS = llvm::make_unique<llvm::raw_fd_ostream>(fd, /*shouldClose=*/true);
     } else {
-      OS.reset(new llvm::raw_fd_ostream(Filename, EC, llvm::sys::fs::F_None));
+      OS = llvm::make_unique<llvm::raw_fd_ostream>(Filename, EC, llvm::sys::fs::F_None);
     }
     if (EC) {
       Diags.Report(clang::diag::err_fe_unable_to_open_output) << Filename

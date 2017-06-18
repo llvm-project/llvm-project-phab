@@ -4852,7 +4852,7 @@ void Clang::AddClangCLArgs(const ArgList &Args, types::ID InputType,
 
 visualstudio::Compiler *Clang::getCLFallback() const {
   if (!CLFallback)
-    CLFallback.reset(new visualstudio::Compiler(getToolChain()));
+    CLFallback = llvm::make_unique<visualstudio::Compiler>(getToolChain());
   return CLFallback.get();
 }
 

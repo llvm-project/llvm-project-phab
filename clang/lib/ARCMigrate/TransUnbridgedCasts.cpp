@@ -74,7 +74,7 @@ public:
   void transformBody(Stmt *body, Decl *ParentD) {
     this->ParentD = ParentD;
     Body = body;
-    StmtMap.reset(new ParentMap(body));
+    StmtMap = llvm::make_unique<ParentMap>(body);
     TraverseStmt(body);
   }
 
@@ -323,7 +323,7 @@ private:
 
   bool tryRemoving(Expr *E) const {
     if (!Removables) {
-      Removables.reset(new ExprSet);
+      Removables = llvm::make_unique<ExprSet>();
       collectRemovables(Body, *Removables);
     }
 

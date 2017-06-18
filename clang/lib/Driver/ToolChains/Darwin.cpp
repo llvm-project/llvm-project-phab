@@ -811,15 +811,15 @@ Tool *MachO::getTool(Action::ActionClass AC) const {
   switch (AC) {
   case Action::LipoJobClass:
     if (!Lipo)
-      Lipo.reset(new tools::darwin::Lipo(*this));
+      Lipo = llvm::make_unique<tools::darwin::Lipo>(*this);
     return Lipo.get();
   case Action::DsymutilJobClass:
     if (!Dsymutil)
-      Dsymutil.reset(new tools::darwin::Dsymutil(*this));
+      Dsymutil = llvm::make_unique<tools::darwin::Dsymutil>(*this);
     return Dsymutil.get();
   case Action::VerifyDebugInfoJobClass:
     if (!VerifyDebug)
-      VerifyDebug.reset(new tools::darwin::VerifyDebug(*this));
+      VerifyDebug = llvm::make_unique<tools::darwin::VerifyDebug>(*this);
     return VerifyDebug.get();
   default:
     return ToolChain::getTool(AC);

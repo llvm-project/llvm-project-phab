@@ -266,7 +266,7 @@ CFGReverseBlockReachabilityAnalysis *AnalysisDeclContext::getCFGReachablityAnaly
     return CFA.get();
   
   if (CFG *c = getCFG()) {
-    CFA.reset(new CFGReverseBlockReachabilityAnalysis(*c));
+    CFA = llvm::make_unique<CFGReverseBlockReachabilityAnalysis>(*c);
     return CFA.get();
   }
 
@@ -279,7 +279,7 @@ void AnalysisDeclContext::dumpCFG(bool ShowColors) {
 
 ParentMap &AnalysisDeclContext::getParentMap() {
   if (!PM) {
-    PM.reset(new ParentMap(getBody()));
+    PM = llvm::make_unique<ParentMap>(getBody());
     if (const CXXConstructorDecl *C = dyn_cast<CXXConstructorDecl>(getDecl())) {
       for (const auto *I : C->inits()) {
         PM->addStmt(I->getInit());
@@ -295,7 +295,7 @@ ParentMap &AnalysisDeclContext::getParentMap() {
 
 PseudoConstantAnalysis *AnalysisDeclContext::getPseudoConstantAnalysis() {
   if (!PCA)
-    PCA.reset(new PseudoConstantAnalysis(getBody()));
+    PCA = llvm::make_unique<PseudoConstantAnalysis>(getBody());
   return PCA.get();
 }
 

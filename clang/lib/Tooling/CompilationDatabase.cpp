@@ -300,8 +300,8 @@ FixedCompilationDatabase::loadFromCommandLine(int &Argc,
   std::vector<std::string> StrippedArgs;
   if (!stripPositionalArgs(CommandLine, StrippedArgs, ErrorMsg))
     return nullptr;
-  return std::unique_ptr<FixedCompilationDatabase>(
-      new FixedCompilationDatabase(Directory, StrippedArgs));
+  return llvm::make_unique<FixedCompilationDatabase>(
+      Directory, StrippedArgs);
 }
 
 FixedCompilationDatabase::

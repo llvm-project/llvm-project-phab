@@ -187,8 +187,8 @@ NonNullParamChecker::genReportNullAttrNonNull(const ExplodedNode *ErrorNode,
   // created. Ownership is transferred to the BugReporter object once
   // the BugReport is passed to 'EmitWarning'.
   if (!BTAttrNonNull)
-    BTAttrNonNull.reset(new BugType(
-        this, "Argument with 'nonnull' attribute passed null", "API"));
+    BTAttrNonNull = llvm::make_unique<BugType>(
+        this, "Argument with 'nonnull' attribute passed null", "API");
 
   auto R = llvm::make_unique<BugReport>(
       *BTAttrNonNull,
@@ -202,7 +202,7 @@ NonNullParamChecker::genReportNullAttrNonNull(const ExplodedNode *ErrorNode,
 std::unique_ptr<BugReport> NonNullParamChecker::genReportReferenceToNullPointer(
     const ExplodedNode *ErrorNode, const Expr *ArgE) const {
   if (!BTNullRefArg)
-    BTNullRefArg.reset(new BuiltinBug(this, "Dereference of null pointer"));
+    BTNullRefArg = llvm::make_unique<BuiltinBug>(this, "Dereference of null pointer");
 
   auto R = llvm::make_unique<BugReport>(
       *BTNullRefArg, "Forming reference to null pointer", ErrorNode);

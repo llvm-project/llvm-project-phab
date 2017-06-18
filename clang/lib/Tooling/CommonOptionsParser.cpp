@@ -139,8 +139,8 @@ CommonOptionsParser::CommonOptionsParser(
     if (!Compilations) {
       llvm::errs() << "Error while trying to load a compilation database:\n"
                    << ErrorMessage << "Running without flags.\n";
-      Compilations.reset(
-          new FixedCompilationDatabase(".", std::vector<std::string>()));
+      Compilations = llvm::make_unique<FixedCompilationDatabase>(
+          ".", std::vector<std::string>());
     }
   }
   auto AdjustingCompilations =

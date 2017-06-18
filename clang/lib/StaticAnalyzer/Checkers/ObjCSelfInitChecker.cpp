@@ -158,8 +158,8 @@ void ObjCSelfInitChecker::checkForInvalidSelf(const Expr *E, CheckerContext &C,
     return;
 
   if (!BT)
-    BT.reset(new BugType(this, "Missing \"self = [(super or self) init...]\"",
-                         categories::CoreFoundationObjectiveC));
+    BT = llvm::make_unique<BugType>(this, "Missing \"self = [(super or self) init...]\"",
+                         categories::CoreFoundationObjectiveC);
   C.emitReport(llvm::make_unique<BugReport>(*BT, errorStr, N));
 }
 

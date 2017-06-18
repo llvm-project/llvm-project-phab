@@ -112,7 +112,7 @@ void CloneChecker::reportClones(
     std::vector<CloneDetector::CloneGroup> &CloneGroups) const {
 
   if (!BT_Exact)
-    BT_Exact.reset(new BugType(this, "Exact code clone", "Code clone"));
+    BT_Exact = llvm::make_unique<BugType>(this, "Exact code clone", "Code clone");
 
   for (const CloneDetector::CloneGroup &Group : CloneGroups) {
     // We group the clones by printing the first as a warning and all others
@@ -158,8 +158,8 @@ void CloneChecker::reportSuspiciousClones(
   }
 
   if (!BT_Suspicious)
-    BT_Suspicious.reset(
-        new BugType(this, "Suspicious code clone", "Code clone"));
+    BT_Suspicious = llvm::make_unique<BugType>(
+        this, "Suspicious code clone", "Code clone");
 
   ASTContext &ACtx = BR.getContext();
   SourceManager &SM = ACtx.getSourceManager();

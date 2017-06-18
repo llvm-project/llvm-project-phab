@@ -180,8 +180,8 @@ ExplodedNode *MisusedMovedObjectChecker::reportBug(const MemRegion *Region,
                                                    bool isCopy = false) const {
   if (ExplodedNode *N = C.generateNonFatalErrorNode()) {
     if (!BT)
-      BT.reset(new BugType(this, "Usage of a 'moved-from' object",
-                           "C++ move semantics"));
+      BT = llvm::make_unique<BugType>(this, "Usage of a 'moved-from' object",
+                           "C++ move semantics");
 
     // Uniqueing report to the same object.
     PathDiagnosticLocation LocUsedForUniqueing;

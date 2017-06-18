@@ -235,7 +235,7 @@ UnwrappedLineParser::UnwrappedLineParser(const FormatStyle &Style,
 
 void UnwrappedLineParser::reset() {
   PPBranchLevel = -1;
-  Line.reset(new UnwrappedLine);
+  Line = llvm::make_unique<UnwrappedLine>();
   CommentsBeforeNextToken.clear();
   FormatTok = nullptr;
   MustBreakBeforeNextToken = false;

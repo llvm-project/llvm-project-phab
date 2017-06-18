@@ -34,8 +34,8 @@ class ObjCContainersChecker : public Checker< check::PreStmt<CallExpr>,
   mutable std::unique_ptr<BugType> BT;
   inline void initBugType() const {
     if (!BT)
-      BT.reset(new BugType(this, "CFArray API",
-                           categories::CoreFoundationObjectiveC));
+      BT = llvm::make_unique<BugType>(this, "CFArray API",
+                           categories::CoreFoundationObjectiveC);
   }
 
   inline SymbolRef getArraySym(const Expr *E, CheckerContext &C) const {

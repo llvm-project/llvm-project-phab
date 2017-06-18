@@ -83,7 +83,7 @@ public:
   }
 
   void initialize(ASTContext &Ctx) override {
-    CGNameGen.reset(new CodegenNameGenerator(Ctx));
+    CGNameGen = llvm::make_unique<CodegenNameGenerator>(Ctx);
   }
 
   bool handleDeclOccurence(const Decl *D, SymbolRoleSet Roles,

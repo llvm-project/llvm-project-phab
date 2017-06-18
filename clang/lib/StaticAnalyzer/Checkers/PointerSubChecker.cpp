@@ -62,10 +62,10 @@ void PointerSubChecker::checkPreStmt(const BinaryOperator *B,
 
   if (ExplodedNode *N = C.generateNonFatalErrorNode()) {
     if (!BT)
-      BT.reset(
-          new BuiltinBug(this, "Pointer subtraction",
+      BT = llvm::make_unique<BuiltinBug>(
+          this, "Pointer subtraction",
                          "Subtraction of two pointers that do not point to "
-                         "the same memory chunk may cause incorrect result."));
+                         "the same memory chunk may cause incorrect result.");
     auto R = llvm::make_unique<BugReport>(*BT, BT->getDescription(), N);
     R->addRange(B->getSourceRange());
     C.emitReport(std::move(R));

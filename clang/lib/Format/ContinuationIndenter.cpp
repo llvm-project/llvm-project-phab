@@ -1241,9 +1241,9 @@ unsigned ContinuationIndenter::breakProtrudingToken(const FormatToken &Current,
           Text.startswith(Prefix = "u8\"") ||
           Text.startswith(Prefix = "L\""))) ||
         (Text.startswith(Prefix = "_T(\"") && Text.endswith(Postfix = "\")"))) {
-      Token.reset(new BreakableStringLiteral(Current, StartColumn, Prefix,
+      Token = llvm::make_unique<BreakableStringLiteral>(Current, StartColumn, Prefix,
                                              Postfix, State.Line->InPPDirective,
-                                             Encoding, Style));
+                                             Encoding, Style);
     } else {
       return 0;
     }
@@ -1254,9 +1254,9 @@ unsigned ContinuationIndenter::breakProtrudingToken(const FormatToken &Current,
         // but we may still want to adjust its indentation.
         switchesFormatting(Current))
       return addMultilineToken(Current, State);
-    Token.reset(new BreakableBlockComment(
+    Token = llvm::make_unique<BreakableBlockComment>(
         Current, StartColumn, Current.OriginalColumn, !Current.Previous,
-        State.Line->InPPDirective, Encoding, Style));
+        State.Line->InPPDirective, Encoding, Style);
   } else if (Current.is(TT_LineComment) &&
              (Current.Previous == nullptr ||
               Current.Previous->isNot(TT_ImplicitStringLiteral))) {
@@ -1264,9 +1264,9 @@ unsigned ContinuationIndenter::breakProtrudingToken(const FormatToken &Current,
         CommentPragmasRegex.match(Current.TokenText.substr(2)) ||
         switchesFormatting(Current))
       return 0;
-    Token.reset(new BreakableLineCommentSection(
+    Token = llvm::make_unique<BreakableLineCommentSection>(
         Current, StartColumn, Current.OriginalColumn, !Current.Previous,
-        /*InPPDirective=*/false, Encoding, Style));
+        /*InPPDirective=*/false, Encoding, Style);
     // We don't insert backslashes when breaking line comments.
     ColumnLimit = Style.ColumnLimit;
   } else {

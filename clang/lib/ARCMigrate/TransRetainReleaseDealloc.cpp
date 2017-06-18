@@ -54,7 +54,7 @@ public:
   void transformBody(Stmt *body, Decl *ParentD) {
     Body = body;
     collectRemovables(body, Removables);
-    StmtMap.reset(new ParentMap(body));
+    StmtMap = llvm::make_unique<ParentMap>(body);
     TraverseStmt(body);
   }
 

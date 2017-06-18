@@ -96,8 +96,8 @@ private:
 
   inline void initBugType() const {
     if (!BT)
-      BT.reset(new BugType(this, "Improper use of SecKeychain API",
-                           "API Misuse (Apple)"));
+      BT = llvm::make_unique<BugType>(this, "Improper use of SecKeychain API",
+                           "API Misuse (Apple)");
   }
 
   void generateDeallocatorMismatchReport(const AllocationPair &AP,

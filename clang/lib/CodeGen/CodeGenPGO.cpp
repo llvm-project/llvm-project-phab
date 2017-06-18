@@ -650,7 +650,7 @@ void CodeGenPGO::assignRegionCounters(GlobalDecl GD, llvm::Function *Fn) {
 }
 
 void CodeGenPGO::mapRegionCounters(const Decl *D) {
-  RegionCounterMap.reset(new llvm::DenseMap<const Stmt *, unsigned>);
+  RegionCounterMap = llvm::make_unique<llvm::DenseMap<const Stmt *, unsigned>>();
   MapRegionCounters Walker(*RegionCounterMap);
   if (const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(D))
     Walker.TraverseDecl(const_cast<FunctionDecl *>(FD));
@@ -717,7 +717,7 @@ CodeGenPGO::emitEmptyCounterMapping(const Decl *D, StringRef Name,
 }
 
 void CodeGenPGO::computeRegionCounts(const Decl *D) {
-  StmtCountMap.reset(new llvm::DenseMap<const Stmt *, uint64_t>);
+  StmtCountMap = llvm::make_unique<llvm::DenseMap<const Stmt *, uint64_t>>();
   ComputeRegionCounts Walker(*StmtCountMap, *this);
   if (const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(D))
     Walker.VisitFunctionDecl(FD);

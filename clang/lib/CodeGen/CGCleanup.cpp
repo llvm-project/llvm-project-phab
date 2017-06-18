@@ -745,7 +745,7 @@ void CodeGenFunction::PopCleanupBlock(bool FallthroughIsBranchThrough) {
     memcpy(CleanupBufferStack.buffer, CleanupSource, CleanupSize);
     Fn = reinterpret_cast<EHScopeStack::Cleanup *>(CleanupBufferStack.buffer);
   } else {
-    CleanupBufferHeap.reset(new char[CleanupSize]);
+    CleanupBufferHeap = llvm::make_unique<char[]>(CleanupSize);
     memcpy(CleanupBufferHeap.get(), CleanupSource, CleanupSize);
     Fn = reinterpret_cast<EHScopeStack::Cleanup *>(CleanupBufferHeap.get());
   }

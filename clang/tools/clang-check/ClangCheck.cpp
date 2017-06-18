@@ -125,9 +125,9 @@ public:
 class FixItAction : public clang::FixItAction {
 public:
   bool BeginSourceFileAction(clang::CompilerInstance& CI) override {
-    FixItOpts.reset(new FixItOptions);
-    Rewriter.reset(new FixItRewriter(CI.getDiagnostics(), CI.getSourceManager(),
-                                     CI.getLangOpts(), FixItOpts.get()));
+    FixItOpts = llvm::make_unique<FixItOptions>();
+    Rewriter = llvm::make_unique<FixItRewriter>(CI.getDiagnostics(), CI.getSourceManager(),
+                                     CI.getLangOpts(), FixItOpts.get());
     return true;
   }
 };

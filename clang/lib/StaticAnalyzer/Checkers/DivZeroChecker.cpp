@@ -37,7 +37,7 @@ void DivZeroChecker::reportBug(const char *Msg,
                                CheckerContext &C) const {
   if (ExplodedNode *N = C.generateErrorNode(StateZero)) {
     if (!BT)
-      BT.reset(new BuiltinBug(this, "Division by zero"));
+      BT = llvm::make_unique<BuiltinBug>(this, "Division by zero");
 
     auto R = llvm::make_unique<BugReport>(*BT, Msg, N);
     bugreporter::trackNullOrUndefValue(N, bugreporter::GetDenomExpr(N), *R);

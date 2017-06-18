@@ -412,7 +412,7 @@ public:
       Diagnostics.Report(clang::diag::err_unable_to_make_temp)
         << TempFilename;
     } else {
-      FileStream.reset(new llvm::raw_fd_ostream(FD, /*shouldClose=*/true));
+      FileStream = llvm::make_unique<llvm::raw_fd_ostream>(FD, /*shouldClose=*/true);
     }
   }
 

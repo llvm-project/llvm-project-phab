@@ -258,8 +258,8 @@ bool isOutOfRange(ProgramStateRef State, const IteratorPosition &Pos);
 } // namespace
 
 IteratorChecker::IteratorChecker() {
-  OutOfRangeBugType.reset(
-      new BugType(this, "Iterator out of range", "Misuse of STL APIs"));
+  OutOfRangeBugType = llvm::make_unique<BugType>(
+      this, "Iterator out of range", "Misuse of STL APIs");
   OutOfRangeBugType->setSuppressOnSink(true);
 }
 

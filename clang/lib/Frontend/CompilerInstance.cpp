@@ -606,11 +606,11 @@ void CompilerInstance::createCodeCompletionConsumer() {
 }
 
 void CompilerInstance::createFrontendTimer() {
-  FrontendTimerGroup.reset(
-      new llvm::TimerGroup("frontend", "Clang front-end time report"));
-  FrontendTimer.reset(
-      new llvm::Timer("frontend", "Clang front-end timer",
-                      *FrontendTimerGroup));
+  FrontendTimerGroup = llvm::make_unique<llvm::TimerGroup>(
+      "frontend", "Clang front-end time report");
+  FrontendTimer = llvm::make_unique<llvm::Timer>(
+      "frontend", "Clang front-end timer",
+                      *FrontendTimerGroup);
 }
 
 CodeCompleteConsumer *
@@ -629,8 +629,8 @@ CompilerInstance::createCodeCompletionConsumer(Preprocessor &PP,
 
 void CompilerInstance::createSema(TranslationUnitKind TUKind,
                                   CodeCompleteConsumer *CompletionConsumer) {
-  TheSema.reset(new Sema(getPreprocessor(), getASTContext(), getASTConsumer(),
-                         TUKind, CompletionConsumer));
+  TheSema = llvm::make_unique<Sema>(getPreprocessor(), getASTContext(), getASTConsumer(),
+                         TUKind, CompletionConsumer);
   // Attach the external sema source if there is any.
   if (ExternalSemaSrc) {
     TheSema->addExternalSource(ExternalSemaSrc.get());
@@ -775,7 +775,7 @@ std::unique_ptr<llvm::raw_pwrite_stream> CompilerInstance::createOutputFile(
     }
 
     if (!EC) {
-      OS.reset(new llvm::raw_fd_ostream(fd, /*shouldClose=*/true));
+      OS = llvm::make_unique<llvm::raw_fd_ostream>(fd, /*shouldClose=*/true);
       OSFile = TempFile = TempPath.str();
     }
     // If we failed to create the temporary, fallback to writing to the file
@@ -785,9 +785,9 @@ std::unique_ptr<llvm::raw_pwrite_stream> CompilerInstance::createOutputFile(
 
   if (!OS) {
     OSFile = OutFile;
-    OS.reset(new llvm::raw_fd_ostream(
+    OS = llvm::make_unique<llvm::raw_fd_ostream>(
         OSFile, Error,
-        (Binary ? llvm::sys::fs::F_None : llvm::sys::fs::F_Text)));
+        (Binary ? llvm::sys::fs::F_None : llvm::sys::fs::F_Text));
     if (Error)
       return nullptr;
   }

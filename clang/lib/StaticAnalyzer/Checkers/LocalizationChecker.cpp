@@ -106,8 +106,8 @@ REGISTER_MAP_WITH_PROGRAMSTATE(LocalizedMemMap, const MemRegion *,
                                LocalizedState)
 
 NonLocalizedStringChecker::NonLocalizedStringChecker() {
-  BT.reset(new BugType(this, "Unlocalizable string",
-                       "Localizability Issue (Apple)"));
+  BT = llvm::make_unique<BugType>(this, "Unlocalizable string",
+                       "Localizability Issue (Apple)");
 }
 
 namespace {

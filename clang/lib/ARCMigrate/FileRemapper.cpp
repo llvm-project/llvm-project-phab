@@ -21,7 +21,7 @@ using namespace clang;
 using namespace arcmt;
 
 FileRemapper::FileRemapper() {
-  FileMgr.reset(new FileManager(FileSystemOptions()));
+  FileMgr = llvm::make_unique<FileManager>(FileSystemOptions());
 }
 
 FileRemapper::~FileRemapper() {

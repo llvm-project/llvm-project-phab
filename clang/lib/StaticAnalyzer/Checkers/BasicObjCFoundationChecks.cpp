@@ -204,7 +204,7 @@ void NilArgChecker::generateBugReport(ExplodedNode *N,
                                       const Expr *E,
                                       CheckerContext &C) const {
   if (!BT)
-    BT.reset(new APIMisuse(this, "nil argument"));
+    BT = llvm::make_unique<APIMisuse>(this, "nil argument");
 
   auto R = llvm::make_unique<BugReport>(*BT, Msg, N);
   R->addRange(Range);
@@ -514,7 +514,7 @@ void CFNumberChecker::checkPreStmt(const CallExpr *CE,
       << (isCreate ? "lost." : "garbage.");
 
     if (!BT)
-      BT.reset(new APIMisuse(this, "Bad use of CFNumber APIs"));
+      BT = llvm::make_unique<APIMisuse>(this, "Bad use of CFNumber APIs");
 
     auto report = llvm::make_unique<BugReport>(*BT, os.str(), N);
     report->addRange(CE->getArg(2)->getSourceRange());
@@ -556,8 +556,8 @@ void CFRetainReleaseChecker::checkPreStmt(const CallExpr *CE,
     Release = &Ctx.Idents.get("CFRelease");
     MakeCollectable = &Ctx.Idents.get("CFMakeCollectable");
     Autorelease = &Ctx.Idents.get("CFAutorelease");
-    BT.reset(new APIMisuse(
-        this, "null passed to CF memory management function"));
+    BT = llvm::make_unique<APIMisuse>(
+        this, "null passed to CF memory management function");
   }
 
   // Check if we called CFRetain/CFRelease/CFMakeCollectable/CFAutorelease.
@@ -636,8 +636,8 @@ public:
 void ClassReleaseChecker::checkPreObjCMessage(const ObjCMethodCall &msg,
                                               CheckerContext &C) const {
   if (!BT) {
-    BT.reset(new APIMisuse(
-        this, "message incorrectly sent to class instead of class instance"));
+    BT = llvm::make_unique<APIMisuse>(
+        this, "message incorrectly sent to class instead of class instance");
 
     ASTContext &Ctx = C.getASTContext();
     releaseS = GetNullarySelector("release", Ctx);
@@ -744,9 +744,9 @@ VariadicMethodTypeChecker::isVariadicMessage(const ObjCMethodCall &msg) const {
 void VariadicMethodTypeChecker::checkPreObjCMessage(const ObjCMethodCall &msg,
                                                     CheckerContext &C) const {
   if (!BT) {
-    BT.reset(new APIMisuse(this,
+    BT = llvm::make_unique<APIMisuse>(this,
                            "Arguments passed to variadic method aren't all "
-                           "Objective-C pointer types"));
+                           "Objective-C pointer types");
 
     ASTContext &Ctx = C.getASTContext();
     arrayWithObjectsS = GetUnarySelector("arrayWithObjects", Ctx);

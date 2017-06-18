@@ -183,7 +183,7 @@ static bool performTransformations(StringRef resourcesPath,
 
   std::unique_ptr<PrintTransforms> transformPrinter;
   if (OutputTransformations)
-    transformPrinter.reset(new PrintTransforms(llvm::outs()));
+    transformPrinter = llvm::make_unique<PrintTransforms>(llvm::outs());
 
   for (unsigned i=0, e = transforms.size(); i != e; ++i) {
     bool err = migration.applyTransform(transforms[i], transformPrinter.get());

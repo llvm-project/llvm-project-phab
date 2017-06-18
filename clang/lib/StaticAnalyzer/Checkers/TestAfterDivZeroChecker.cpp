@@ -168,7 +168,7 @@ bool TestAfterDivZeroChecker::hasDivZeroMap(SVal Var,
 void TestAfterDivZeroChecker::reportBug(SVal Val, CheckerContext &C) const {
   if (ExplodedNode *N = C.generateErrorNode(C.getState())) {
     if (!DivZeroBug)
-      DivZeroBug.reset(new BuiltinBug(this, "Division by zero"));
+      DivZeroBug = llvm::make_unique<BuiltinBug>(this, "Division by zero");
 
     auto R = llvm::make_unique<BugReport>(
         *DivZeroBug, "Value being compared against zero has already been used "

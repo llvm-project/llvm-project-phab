@@ -171,10 +171,10 @@ void PointerArithChecker::reportPointerArithMisuse(const Expr *E,
       return;
     if (ExplodedNode *N = C.generateNonFatalErrorNode()) {
       if (!BT_polyArray)
-        BT_polyArray.reset(new BuiltinBug(
+        BT_polyArray = llvm::make_unique<BuiltinBug>(
             this, "Dangerous pointer arithmetic",
             "Pointer arithmetic on a pointer to base class is dangerous "
-            "because derived and base class may have different size."));
+            "because derived and base class may have different size.");
       auto R = llvm::make_unique<BugReport>(*BT_polyArray,
                                             BT_polyArray->getDescription(), N);
       R->addRange(E->getSourceRange());
@@ -194,10 +194,10 @@ void PointerArithChecker::reportPointerArithMisuse(const Expr *E,
 
   if (ExplodedNode *N = C.generateNonFatalErrorNode()) {
     if (!BT_pointerArith)
-      BT_pointerArith.reset(new BuiltinBug(this, "Dangerous pointer arithmetic",
+      BT_pointerArith = llvm::make_unique<BuiltinBug>(this, "Dangerous pointer arithmetic",
                                            "Pointer arithmetic on non-array "
                                            "variables relies on memory layout, "
-                                           "which is dangerous."));
+                                           "which is dangerous.");
     auto R = llvm::make_unique<BugReport>(*BT_pointerArith,
                                           BT_pointerArith->getDescription(), N);
     R->addRange(SR);

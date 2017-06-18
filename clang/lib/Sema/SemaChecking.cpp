@@ -11905,8 +11905,8 @@ void Sema::RegisterTypeTagForDatatype(const IdentifierInfo *ArgumentKind,
                                       bool LayoutCompatible,
                                       bool MustBeNull) {
   if (!TypeTagForDatatypeMagicValues)
-    TypeTagForDatatypeMagicValues.reset(
-        new llvm::DenseMap<TypeTagMagicValue, TypeTagData>);
+    TypeTagForDatatypeMagicValues = llvm::make_unique<llvm::DenseMap<TypeTagMagicValue, TypeTagData>>(
+        );
 
   TypeTagMagicValue Magic(ArgumentKind, MagicValue);
   (*TypeTagForDatatypeMagicValues)[Magic] =
