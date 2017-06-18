@@ -264,7 +264,7 @@ void CallGraphWrapperPass::getAnalysisUsage(AnalysisUsage &AU) const {
 
 bool CallGraphWrapperPass::runOnModule(Module &M) {
   // All the real work is done in the constructor for the CallGraph.
-  G.reset(new CallGraph(M));
+  G = llvm::make_unique<CallGraph>(M);
   return false;
 }
 

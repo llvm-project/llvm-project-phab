@@ -785,11 +785,11 @@ ErrorOr<std::unique_ptr<SampleProfileReader>>
 SampleProfileReader::create(std::unique_ptr<MemoryBuffer> &B, LLVMContext &C) {
   std::unique_ptr<SampleProfileReader> Reader;
   if (SampleProfileReaderBinary::hasFormat(*B))
-    Reader.reset(new SampleProfileReaderBinary(std::move(B), C));
+    Reader = llvm::make_unique<SampleProfileReaderBinary>(std::move(B), C);
   else if (SampleProfileReaderGCC::hasFormat(*B))
-    Reader.reset(new SampleProfileReaderGCC(std::move(B), C));
+    Reader = llvm::make_unique<SampleProfileReaderGCC>(std::move(B), C);
   else if (SampleProfileReaderText::hasFormat(*B))
-    Reader.reset(new SampleProfileReaderText(std::move(B), C));
+    Reader = llvm::make_unique<SampleProfileReaderText>(std::move(B), C);
   else
     return sampleprof_error::unrecognized_format;
 

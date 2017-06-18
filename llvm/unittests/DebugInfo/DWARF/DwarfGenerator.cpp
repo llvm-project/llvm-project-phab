@@ -151,8 +151,8 @@ llvm::Error dwarfgen::Generator::init(Triple TheTriple, uint16_t V) {
     return make_error<StringError>("no asm info for target " + TripleName,
                                    inconvertibleErrorCode());
 
-  MOFI.reset(new MCObjectFileInfo);
-  MC.reset(new MCContext(MAI.get(), MRI.get(), MOFI.get()));
+  MOFI = llvm::make_unique<MCObjectFileInfo>();
+  MC = llvm::make_unique<MCContext>(MAI.get(), MRI.get(), MOFI.get());
   MOFI->InitMCObjectFileInfo(TheTriple, /*PIC*/ false, CodeModel::Default, *MC);
 
   MCTargetOptions Options;
@@ -266,7 +266,7 @@ bool dwarfgen::Generator::saveFile(StringRef Path) {
 }
 
 dwarfgen::CompileUnit &dwarfgen::Generator::addCompileUnit() {
-  CompileUnits.push_back(std::unique_ptr<CompileUnit>(
-      new CompileUnit(*this, Version, Asm->getPointerSize())));
+  CompileUnits.push_back(
+      llvm::make_unique<CompileUnit>(*this, Version, Asm->getPointerSize()));
   return *CompileUnits.back();
 }

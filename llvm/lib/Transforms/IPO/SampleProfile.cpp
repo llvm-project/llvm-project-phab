@@ -1277,13 +1277,13 @@ unsigned SampleProfileLoader::getFunctionLoc(Function &F) {
 }
 
 void SampleProfileLoader::computeDominanceAndLoopInfo(Function &F) {
-  DT.reset(new DominatorTree);
+  DT = llvm::make_unique<DominatorTree>();
   DT->recalculate(F);
 
-  PDT.reset(new DominatorTreeBase<BasicBlock>(true));
+  PDT = llvm::make_unique<DominatorTreeBase<BasicBlock>>(true);
   PDT->recalculate(F);
 
-  LI.reset(new LoopInfo);
+  LI = llvm::make_unique<LoopInfo>();
   LI->analyze(*DT);
 }
 

@@ -132,8 +132,8 @@ SCEVAAWrapperPass::SCEVAAWrapperPass() : FunctionPass(ID) {
 }
 
 bool SCEVAAWrapperPass::runOnFunction(Function &F) {
-  Result.reset(
-      new SCEVAAResult(getAnalysis<ScalarEvolutionWrapperPass>().getSE()));
+  Result = llvm::make_unique<SCEVAAResult>(
+      getAnalysis<ScalarEvolutionWrapperPass>().getSE());
   return false;
 }
 

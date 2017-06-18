@@ -148,7 +148,7 @@ ObjCARCAAWrapperPass::ObjCARCAAWrapperPass() : ImmutablePass(ID) {
 }
 
 bool ObjCARCAAWrapperPass::doInitialization(Module &M) {
-  Result.reset(new ObjCARCAAResult(M.getDataLayout()));
+  Result = llvm::make_unique<ObjCARCAAResult>(M.getDataLayout());
   return false;
 }
 

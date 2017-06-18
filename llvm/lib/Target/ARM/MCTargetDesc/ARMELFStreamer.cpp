@@ -471,7 +471,7 @@ public:
       LastEMSInfo = std::move(LastMappingSymbol->second);
       return;
     }
-    LastEMSInfo.reset(new ElfMappingSymbolInfo(SMLoc(), nullptr, 0));
+    LastEMSInfo = llvm::make_unique<ElfMappingSymbolInfo>(SMLoc(), nullptr, 0);
   }
 
   /// This function is the one used to emit instruction data into the ELF

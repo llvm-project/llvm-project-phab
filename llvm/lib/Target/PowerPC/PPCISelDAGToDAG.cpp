@@ -1009,7 +1009,7 @@ class BitPermutationSelector {
     auto &ValueEntry = Memoizer[V];
     if (ValueEntry)
       return std::make_pair(ValueEntry->first, &ValueEntry->second);
-    ValueEntry.reset(new ValueBitsMemoizedValue());
+    ValueEntry = llvm::make_unique<ValueBitsMemoizedValue>();
     bool &Interesting = ValueEntry->first;
     SmallVector<ValueBit, 64> &Bits = ValueEntry->second;
     Bits.resize(NumBits);

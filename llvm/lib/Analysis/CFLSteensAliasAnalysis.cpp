@@ -361,7 +361,7 @@ CFLSteensAAWrapperPass::CFLSteensAAWrapperPass() : ImmutablePass(ID) {
 
 void CFLSteensAAWrapperPass::initializePass() {
   auto &TLIWP = getAnalysis<TargetLibraryInfoWrapperPass>();
-  Result.reset(new CFLSteensAAResult(TLIWP.getTLI()));
+  Result = llvm::make_unique<CFLSteensAAResult>(TLIWP.getTLI());
 }
 
 void CFLSteensAAWrapperPass::getAnalysisUsage(AnalysisUsage &AU) const {

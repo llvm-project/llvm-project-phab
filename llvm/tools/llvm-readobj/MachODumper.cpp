@@ -74,7 +74,7 @@ std::error_code createMachODumper(const object::ObjectFile *Obj,
   if (!MachOObj)
     return readobj_error::unsupported_obj_file_format;
 
-  Result.reset(new MachODumper(MachOObj, Writer));
+  Result = llvm::make_unique<MachODumper>(MachOObj, Writer);
   return readobj_error::success;
 }
 

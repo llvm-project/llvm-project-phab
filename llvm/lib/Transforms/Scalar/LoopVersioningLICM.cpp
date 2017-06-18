@@ -526,7 +526,7 @@ bool LoopVersioningLICM::runOnLoop(Loop *L, LPPassManager &LPM) {
   LAI = nullptr;
   // Set Current Loop
   CurLoop = L;
-  CurAST.reset(new AliasSetTracker(*AA));
+  CurAST = llvm::make_unique<AliasSetTracker>(*AA);
 
   // Loop over the body of this loop, construct AST.
   LoopInfo *LI = &getAnalysis<LoopInfoWrapperPass>().getLoopInfo();

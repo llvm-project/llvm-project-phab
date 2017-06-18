@@ -27,7 +27,7 @@ namespace {
 class IRBuilderTest : public testing::Test {
 protected:
   void SetUp() override {
-    M.reset(new Module("MyModule", Ctx));
+    M = llvm::make_unique<Module>("MyModule", Ctx);
     FunctionType *FTy = FunctionType::get(Type::getVoidTy(Ctx),
                                           /*isVarArg=*/false);
     F = Function::Create(FTy, Function::ExternalLinkage, "", M.get());

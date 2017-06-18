@@ -974,9 +974,9 @@ GlobalsAAWrapperPass::GlobalsAAWrapperPass() : ModulePass(ID) {
 }
 
 bool GlobalsAAWrapperPass::runOnModule(Module &M) {
-  Result.reset(new GlobalsAAResult(GlobalsAAResult::analyzeModule(
+  Result = llvm::make_unique<GlobalsAAResult>(GlobalsAAResult::analyzeModule(
       M, getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(),
-      getAnalysis<CallGraphWrapperPass>().getCallGraph())));
+      getAnalysis<CallGraphWrapperPass>().getCallGraph()));
   return false;
 }
 

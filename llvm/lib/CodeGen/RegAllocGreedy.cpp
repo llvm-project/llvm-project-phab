@@ -2752,8 +2752,8 @@ bool RAGreedy::runOnMachineFunction(MachineFunction &mf) {
 
   DEBUG(LIS->dump());
 
-  SA.reset(new SplitAnalysis(*VRM, *LIS, *Loops));
-  SE.reset(new SplitEditor(*SA, *AA, *LIS, *VRM, *DomTree, *MBFI));
+  SA = llvm::make_unique<SplitAnalysis>(*VRM, *LIS, *Loops);
+  SE = llvm::make_unique<SplitEditor>(*SA, *AA, *LIS, *VRM, *DomTree, *MBFI);
   ExtraRegInfo.clear();
   ExtraRegInfo.resize(MRI->getNumVirtRegs());
   NextCascade = 1;

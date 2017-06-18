@@ -800,10 +800,10 @@ bool Filler::searchSuccBBs(MachineBasicBlock &MBB, Iter Slot) const {
   // Only allow moving loads from stack or constants if any of the SuccBB's
   // predecessors have multiple successors.
   if (HasMultipleSuccs) {
-    IM.reset(new LoadFromStackOrConst());
+    IM = llvm::make_unique<LoadFromStackOrConst>();
   } else {
     const MachineFrameInfo &MFI = Fn->getFrameInfo();
-    IM.reset(new MemDefsUses(Fn->getDataLayout(), &MFI));
+    IM = llvm::make_unique<MemDefsUses>(Fn->getDataLayout(), &MFI);
   }
 
   if (!searchRange(MBB, SuccBB->begin(), SuccBB->end(), RegDU, *IM, Slot,

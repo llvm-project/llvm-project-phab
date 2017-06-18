@@ -434,7 +434,7 @@ public:
     symbolize::LLVMSymbolizer::Options SymbolizerOpts(
         DILineInfoSpecifier::FunctionNameKind::None, true, false, false,
         DefaultArch);
-    Symbolizer.reset(new symbolize::LLVMSymbolizer(SymbolizerOpts));
+    Symbolizer = llvm::make_unique<symbolize::LLVMSymbolizer>(SymbolizerOpts);
   }
   virtual void printSourceLine(raw_ostream &OS, uint64_t Address,
                                StringRef Delimiter = "; ");

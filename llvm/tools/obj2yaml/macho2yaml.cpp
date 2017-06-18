@@ -503,7 +503,7 @@ Error macho2yaml(raw_ostream &Out, const object::MachOObjectFile &Obj) {
 
 Error macho2yaml(raw_ostream &Out, const object::MachOUniversalBinary &Obj) {
   yaml::YamlObjectFile YAMLFile;
-  YAMLFile.FatMachO.reset(new MachOYAML::UniversalBinary());
+  YAMLFile.FatMachO = llvm::make_unique<MachOYAML::UniversalBinary>();
   MachOYAML::UniversalBinary &YAML = *YAMLFile.FatMachO;
   YAML.Header.magic = Obj.getMagic();
   YAML.Header.nfat_arch = Obj.getNumberOfObjects();

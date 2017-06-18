@@ -27,7 +27,7 @@ namespace {
 class LinkModuleTest : public testing::Test {
 protected:
   void SetUp() override {
-    M.reset(new Module("MyModule", Ctx));
+    M = llvm::make_unique<Module>("MyModule", Ctx);
     FunctionType *FTy = FunctionType::get(
         Type::getInt8PtrTy(Ctx), Type::getInt32Ty(Ctx), false /*=isVarArg*/);
     F = Function::Create(FTy, Function::ExternalLinkage, "ba_func", M.get());

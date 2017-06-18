@@ -323,7 +323,7 @@ public:
   std::unordered_map<PDB_SymType, std::unique_ptr<PDBSymbol>> SymbolMap;
 
   void SetUp() override {
-    Session.reset(new MockSession());
+    Session = llvm::make_unique<MockSession>();
 
     InsertItemWithTag(PDB_SymType::None);
     InsertItemWithTag(PDB_SymType::Exe);

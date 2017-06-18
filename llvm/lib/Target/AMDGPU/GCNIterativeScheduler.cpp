@@ -326,8 +326,8 @@ GCNIterativeScheduler::detachSchedule(ScheduleRef Schedule) const {
 void GCNIterativeScheduler::setBestSchedule(Region &R,
                                             ScheduleRef Schedule,
                                             const GCNRegPressure &MaxRP) {
-  R.BestSchedule.reset(
-    new TentativeSchedule{ detachSchedule(Schedule), MaxRP });
+  R.BestSchedule = llvm::make_unique<TentativeSchedule>(
+      TentativeSchedule{detachSchedule(Schedule), MaxRP});
 }
 
 void GCNIterativeScheduler::scheduleBest(Region &R) {

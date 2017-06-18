@@ -368,7 +368,7 @@ bool IVUsersWrapperPass::runOnLoop(Loop *L, LPPassManager &LPM) {
   auto *DT = &getAnalysis<DominatorTreeWrapperPass>().getDomTree();
   auto *SE = &getAnalysis<ScalarEvolutionWrapperPass>().getSE();
 
-  IU.reset(new IVUsers(L, AC, LI, DT, SE));
+  IU = llvm::make_unique<IVUsers>(L, AC, LI, DT, SE);
   return false;
 }
 

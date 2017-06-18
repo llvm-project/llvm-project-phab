@@ -573,7 +573,7 @@ TypeBasedAAWrapperPass::TypeBasedAAWrapperPass() : ImmutablePass(ID) {
 }
 
 bool TypeBasedAAWrapperPass::doInitialization(Module &M) {
-  Result.reset(new TypeBasedAAResult());
+  Result = llvm::make_unique<TypeBasedAAResult>();
   return false;
 }
 

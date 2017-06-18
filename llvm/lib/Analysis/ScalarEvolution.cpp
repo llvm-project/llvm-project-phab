@@ -10579,11 +10579,11 @@ ScalarEvolutionWrapperPass::ScalarEvolutionWrapperPass() : FunctionPass(ID) {
 }
 
 bool ScalarEvolutionWrapperPass::runOnFunction(Function &F) {
-  SE.reset(new ScalarEvolution(
+  SE = llvm::make_unique<ScalarEvolution>(
       F, getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(),
       getAnalysis<AssumptionCacheTracker>().getAssumptionCache(F),
       getAnalysis<DominatorTreeWrapperPass>().getDomTree(),
-      getAnalysis<LoopInfoWrapperPass>().getLoopInfo()));
+      getAnalysis<LoopInfoWrapperPass>().getLoopInfo());
   return false;
 }
 

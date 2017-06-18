@@ -481,7 +481,7 @@ int main(int argc, char **argv, char * const *envp) {
 
   std::unique_ptr<LLIObjectCache> CacheManager;
   if (EnableCacheManager) {
-    CacheManager.reset(new LLIObjectCache(ObjectCacheDir));
+    CacheManager = llvm::make_unique<LLIObjectCache>(ObjectCacheDir);
     EE->setObjectCache(CacheManager.get());
   }
 
@@ -728,15 +728,15 @@ std::unique_ptr<FDRawChannel> launchRemote() {
     // Execute the child process.
     std::unique_ptr<char[]> ChildPath, ChildIn, ChildOut;
     {
-      ChildPath.reset(new char[ChildExecPath.size() + 1]);
+      ChildPath = llvm::make_unique<char[]>(ChildExecPath.size() + 1);
       std::copy(ChildExecPath.begin(), ChildExecPath.end(), &ChildPath[0]);
       ChildPath[ChildExecPath.size()] = '\0';
       std::string ChildInStr = utostr(PipeFD[0][0]);
-      ChildIn.reset(new char[ChildInStr.size() + 1]);
+      ChildIn = llvm::make_unique<char[]>(ChildInStr.size() + 1);
       std::copy(ChildInStr.begin(), ChildInStr.end(), &ChildIn[0]);
       ChildIn[ChildInStr.size()] = '\0';
       std::string ChildOutStr = utostr(PipeFD[1][1]);
-      ChildOut.reset(new char[ChildOutStr.size() + 1]);
+      ChildOut = llvm::make_unique<char[]>(ChildOutStr.size() + 1);
       std::copy(ChildOutStr.begin(), ChildOutStr.end(), &ChildOut[0]);
       ChildOut[ChildOutStr.size()] = '\0';
     }

@@ -51,16 +51,20 @@ ObjectFile::createELFObjectFile(MemoryBufferRef Obj) {
   std::unique_ptr<ObjectFile> R;
   if (Ident.first == ELF::ELFCLASS32) {
     if (Ident.second == ELF::ELFDATA2LSB)
-      R.reset(new ELFObjectFile<ELFType<support::little, false>>(Obj, EC));
+      R = llvm::make_unique<ELFObjectFile<ELFType<support::little, false>>>(Obj,
+                                                                            EC);
     else if (Ident.second == ELF::ELFDATA2MSB)
-      R.reset(new ELFObjectFile<ELFType<support::big, false>>(Obj, EC));
+      R = llvm::make_unique<ELFObjectFile<ELFType<support::big, false>>>(Obj,
+                                                                         EC);
     else
       return object_error::parse_failed;
   } else if (Ident.first == ELF::ELFCLASS64) {
     if (Ident.second == ELF::ELFDATA2LSB)
-      R.reset(new ELFObjectFile<ELFType<support::little, true>>(Obj, EC));
+      R = llvm::make_unique<ELFObjectFile<ELFType<support::little, true>>>(Obj,
+                                                                           EC);
     else if (Ident.second == ELF::ELFDATA2MSB)
-      R.reset(new ELFObjectFile<ELFType<support::big, true>>(Obj, EC));
+      R = llvm::make_unique<ELFObjectFile<ELFType<support::big, true>>>(Obj,
+                                                                        EC);
     else
       return object_error::parse_failed;
   } else {

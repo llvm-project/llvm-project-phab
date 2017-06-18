@@ -176,7 +176,7 @@ void MachineBlockFrequencyInfo::calculate(
     const MachineFunction &F, const MachineBranchProbabilityInfo &MBPI,
     const MachineLoopInfo &MLI) {
   if (!MBFI)
-    MBFI.reset(new ImplType);
+    MBFI = llvm::make_unique<ImplType>();
   MBFI->calculate(F, MBPI, MLI);
   if (ViewMachineBlockFreqPropagationDAG != GVDT_None &&
       (ViewBlockFreqFuncName.empty() ||

@@ -226,7 +226,7 @@ std::error_code createCOFFDumper(const object::ObjectFile *Obj,
   if (!COFFObj)
     return readobj_error::unsupported_obj_file_format;
 
-  Result.reset(new COFFDumper(COFFObj, Writer));
+  Result = llvm::make_unique<COFFDumper>(COFFObj, Writer);
   return readobj_error::success;
 }
 

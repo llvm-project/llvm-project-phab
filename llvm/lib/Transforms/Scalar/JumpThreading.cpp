@@ -132,8 +132,8 @@ bool JumpThreading::runOnFunction(Function &F) {
   bool HasProfileData = F.getEntryCount().hasValue();
   if (HasProfileData) {
     LoopInfo LI{DominatorTree(F)};
-    BPI.reset(new BranchProbabilityInfo(F, LI, TLI));
-    BFI.reset(new BlockFrequencyInfo(F, *BPI, LI));
+    BPI = llvm::make_unique<BranchProbabilityInfo>(F, LI, TLI);
+    BFI = llvm::make_unique<BlockFrequencyInfo>(F, *BPI, LI);
   }
 
   return Impl.runImpl(F, TLI, LVI, AA, HasProfileData, std::move(BFI),
@@ -152,8 +152,8 @@ PreservedAnalyses JumpThreadingPass::run(Function &F,
   bool HasProfileData = F.getEntryCount().hasValue();
   if (HasProfileData) {
     LoopInfo LI{DominatorTree(F)};
-    BPI.reset(new BranchProbabilityInfo(F, LI, &TLI));
-    BFI.reset(new BlockFrequencyInfo(F, *BPI, LI));
+    BPI = llvm::make_unique<BranchProbabilityInfo>(F, LI, &TLI);
+    BFI = llvm::make_unique<BlockFrequencyInfo>(F, *BPI, LI);
   }
 
   bool Changed = runImpl(F, &TLI, &LVI, &AA, HasProfileData, std::move(BFI),

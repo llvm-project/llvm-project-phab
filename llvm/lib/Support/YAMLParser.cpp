@@ -1762,7 +1762,7 @@ document_iterator Stream::begin() {
   // Skip Stream-Start.
   scanner->getNext();
 
-  CurrentDoc.reset(new Document(*this));
+  CurrentDoc = llvm::make_unique<Document>(*this);
   return document_iterator(CurrentDoc);
 }
 

@@ -597,7 +597,7 @@ void MCContext::finalizeDwarfSections(MCStreamer &MCOS) {
 
 CodeViewContext &MCContext::getCVContext() {
   if (!CVContext.get())
-    CVContext.reset(new CodeViewContext);
+    CVContext = llvm::make_unique<CodeViewContext>();
   return *CVContext.get();
 }
 

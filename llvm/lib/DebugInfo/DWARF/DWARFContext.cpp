@@ -723,7 +723,7 @@ const DWARFDebugAbbrev *DWARFContext::getDebugAbbrev() {
 
   DataExtractor abbrData(getAbbrevSection(), isLittleEndian(), 0);
 
-  Abbrev.reset(new DWARFDebugAbbrev());
+  Abbrev = llvm::make_unique<DWARFDebugAbbrev>();
   Abbrev->extract(abbrData);
   return Abbrev.get();
 }
@@ -733,7 +733,7 @@ const DWARFDebugAbbrev *DWARFContext::getDebugAbbrevDWO() {
     return AbbrevDWO.get();
 
   DataExtractor abbrData(getAbbrevDWOSection(), isLittleEndian(), 0);
-  AbbrevDWO.reset(new DWARFDebugAbbrev());
+  AbbrevDWO = llvm::make_unique<DWARFDebugAbbrev>();
   AbbrevDWO->extract(abbrData);
   return AbbrevDWO.get();
 }
@@ -743,7 +743,7 @@ const DWARFDebugLoc *DWARFContext::getDebugLoc() {
     return Loc.get();
 
   DataExtractor LocData(getLocSection().Data, isLittleEndian(), 0);
-  Loc.reset(new DWARFDebugLoc(getLocSection().Relocs));
+  Loc = llvm::make_unique<DWARFDebugLoc>(getLocSection().Relocs);
   // assume all compile units have the same address byte size
   if (getNumCompileUnits())
     Loc->parse(LocData, getCompileUnitAtIndex(0)->getAddressByteSize());
@@ -755,7 +755,7 @@ const DWARFDebugLocDWO *DWARFContext::getDebugLocDWO() {
     return LocDWO.get();
 
   DataExtractor LocData(getLocDWOSection().Data, isLittleEndian(), 0);
-  LocDWO.reset(new DWARFDebugLocDWO());
+  LocDWO = llvm::make_unique<DWARFDebugLocDWO>();
   LocDWO->parse(LocData);
   return LocDWO.get();
 }
@@ -764,7 +764,7 @@ const DWARFDebugAranges *DWARFContext::getDebugAranges() {
   if (Aranges)
     return Aranges.get();
 
-  Aranges.reset(new DWARFDebugAranges());
+  Aranges = llvm::make_unique<DWARFDebugAranges>();
   Aranges->generate(this);
   return Aranges.get();
 }
@@ -784,7 +784,7 @@ const DWARFDebugFrame *DWARFContext::getDebugFrame() {
   // http://lists.dwarfstd.org/htdig.cgi/dwarf-discuss-dwarfstd.org/2011-December/001173.html
   DataExtractor debugFrameData(getDebugFrameSection(), isLittleEndian(),
                                getAddressSize());
-  DebugFrame.reset(new DWARFDebugFrame(false /* IsEH */));
+  DebugFrame = llvm::make_unique<DWARFDebugFrame>(false /* IsEH */);
   DebugFrame->parse(debugFrameData);
   return DebugFrame.get();
 }
@@ -795,7 +795,7 @@ const DWARFDebugFrame *DWARFContext::getEHFrame() {
 
   DataExtractor debugFrameData(getEHFrameSection(), isLittleEndian(),
                                getAddressSize());
-  DebugFrame.reset(new DWARFDebugFrame(true /* IsEH */));
+  DebugFrame = llvm::make_unique<DWARFDebugFrame>(true /* IsEH */);
   DebugFrame->parse(debugFrameData);
   return DebugFrame.get();
 }
@@ -805,7 +805,7 @@ const DWARFDebugMacro *DWARFContext::getDebugMacro() {
     return Macro.get();
 
   DataExtractor MacinfoData(getMacinfoSection(), isLittleEndian(), 0);
-  Macro.reset(new DWARFDebugMacro());
+  Macro = llvm::make_unique<DWARFDebugMacro>();
   Macro->parse(MacinfoData);
   return Macro.get();
 }
@@ -813,7 +813,7 @@ const DWARFDebugMacro *DWARFContext::getDebugMacro() {
 const DWARFLineTable *
 DWARFContext::getLineTableForUnit(DWARFUnit *U) {
   if (!Line)
-    Line.reset(new DWARFDebugLine(&getLineSection().Relocs));
+    Line = llvm::make_unique<DWARFDebugLine>(&getLineSection().Relocs);
 
   auto UnitDIE = U->getUnitDIE();
   if (!UnitDIE)

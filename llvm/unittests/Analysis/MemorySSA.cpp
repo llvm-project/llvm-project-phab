@@ -61,7 +61,7 @@ protected:
 
   void setupAnalyses() {
     assert(F);
-    Analyses.reset(new TestAnalyses(*this));
+    Analyses = llvm::make_unique<TestAnalyses>(*this);
   }
 
 public:

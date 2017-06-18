@@ -149,7 +149,8 @@ void SpecialCaseList::compile() {
     for (StringMap<std::string>::const_iterator II = I->second.begin(),
                                                 IE = I->second.end();
          II != IE; ++II) {
-      Entries[I->getKey()][II->getKey()].RegEx.reset(new Regex(II->getValue()));
+      Entries[I->getKey()][II->getKey()].RegEx =
+          llvm::make_unique<Regex>(II->getValue());
     }
   }
   Regexps.clear();

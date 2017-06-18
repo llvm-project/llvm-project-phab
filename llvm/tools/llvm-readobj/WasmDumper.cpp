@@ -195,7 +195,7 @@ std::error_code createWasmDumper(const object::ObjectFile *Obj,
   const WasmObjectFile *WasmObj = dyn_cast<WasmObjectFile>(Obj);
   assert(WasmObj && "createWasmDumper called with non-wasm object");
 
-  Result.reset(new WasmDumper(WasmObj, Writer));
+  Result = llvm::make_unique<WasmDumper>(WasmObj, Writer);
   return readobj_error::success;
 }
 

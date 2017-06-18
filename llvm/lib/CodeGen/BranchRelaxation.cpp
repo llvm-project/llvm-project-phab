@@ -489,7 +489,7 @@ bool BranchRelaxation::runOnMachineFunction(MachineFunction &mf) {
 
   TRI = ST.getRegisterInfo();
   if (TRI->trackLivenessAfterRegAlloc(*MF))
-    RS.reset(new RegScavenger());
+    RS = llvm::make_unique<RegScavenger>();
 
   // Renumber all of the machine basic blocks in the function, guaranteeing that
   // the numbers agree with the position of the block in the function.

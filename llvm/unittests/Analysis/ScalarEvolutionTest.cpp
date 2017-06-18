@@ -45,9 +45,9 @@ protected:
   ScalarEvolutionsTest() : M("", Context), TLII(), TLI(TLII) {}
 
   ScalarEvolution buildSE(Function &F) {
-    AC.reset(new AssumptionCache(F));
-    DT.reset(new DominatorTree(F));
-    LI.reset(new LoopInfo(*DT));
+    AC = llvm::make_unique<AssumptionCache>(F);
+    DT = llvm::make_unique<DominatorTree>(F);
+    LI = llvm::make_unique<LoopInfo>(*DT);
     return ScalarEvolution(F, TLI, *AC, *DT, *LI);
   }
 

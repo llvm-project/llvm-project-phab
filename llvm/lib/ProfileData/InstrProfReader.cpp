@@ -70,13 +70,13 @@ InstrProfReader::create(std::unique_ptr<MemoryBuffer> Buffer) {
   std::unique_ptr<InstrProfReader> Result;
   // Create the reader.
   if (IndexedInstrProfReader::hasFormat(*Buffer))
-    Result.reset(new IndexedInstrProfReader(std::move(Buffer)));
+    Result = llvm::make_unique<IndexedInstrProfReader>(std::move(Buffer));
   else if (RawInstrProfReader64::hasFormat(*Buffer))
-    Result.reset(new RawInstrProfReader64(std::move(Buffer)));
+    Result = llvm::make_unique<RawInstrProfReader64>(std::move(Buffer));
   else if (RawInstrProfReader32::hasFormat(*Buffer))
-    Result.reset(new RawInstrProfReader32(std::move(Buffer)));
+    Result = llvm::make_unique<RawInstrProfReader32>(std::move(Buffer));
   else if (TextInstrProfReader::hasFormat(*Buffer))
-    Result.reset(new TextInstrProfReader(std::move(Buffer)));
+    Result = llvm::make_unique<TextInstrProfReader>(std::move(Buffer));
   else
     return make_error<InstrProfError>(instrprof_error::unrecognized_format);
 
@@ -136,7 +136,7 @@ bool TextInstrProfReader::hasFormat(const MemoryBuffer &Buffer) {
 // generated profile. ":IR" means this is an IR level profile. Other strings
 // with a leading ':' will be reported an error format.
 Error TextInstrProfReader::readHeader() {
-  Symtab.reset(new InstrProfSymtab());
+  Symtab = llvm::make_unique<InstrProfSymtab>();
   bool IsIRInstr = false;
   if (!Line->startswith(":")) {
     IsIRLevelProfile = false;

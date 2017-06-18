@@ -1514,7 +1514,7 @@ TargetLibraryInfoImpl &TargetLibraryAnalysis::lookupInfoImpl(const Triple &T) {
   std::unique_ptr<TargetLibraryInfoImpl> &Impl =
       Impls[T.normalize()];
   if (!Impl)
-    Impl.reset(new TargetLibraryInfoImpl(T));
+    Impl = llvm::make_unique<TargetLibraryInfoImpl>(T);
 
   return *Impl;
 }

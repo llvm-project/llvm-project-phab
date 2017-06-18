@@ -193,7 +193,7 @@ ScopedNoAliasAAWrapperPass::ScopedNoAliasAAWrapperPass() : ImmutablePass(ID) {
 }
 
 bool ScopedNoAliasAAWrapperPass::doInitialization(Module &M) {
-  Result.reset(new ScopedNoAliasAAResult());
+  Result = llvm::make_unique<ScopedNoAliasAAResult>();
   return false;
 }
 

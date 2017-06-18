@@ -1923,7 +1923,7 @@ void MemorySSAWrapperPass::getAnalysisUsage(AnalysisUsage &AU) const {
 bool MemorySSAWrapperPass::runOnFunction(Function &F) {
   auto &DT = getAnalysis<DominatorTreeWrapperPass>().getDomTree();
   auto &AA = getAnalysis<AAResultsWrapperPass>().getAAResults();
-  MSSA.reset(new MemorySSA(F, &AA, &DT));
+  MSSA = llvm::make_unique<MemorySSA>(F, &AA, &DT);
   return false;
 }
 

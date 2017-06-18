@@ -121,13 +121,10 @@ static void ContractNodes(std::unique_ptr<Matcher> &MatcherPtr,
       if (ResultsMatch) {
         const SmallVectorImpl<MVT::SimpleValueType> &VTs = EN->getVTList();
         const SmallVectorImpl<unsigned> &Operands = EN->getOperandList();
-        MatcherPtr.reset(new MorphNodeToMatcher(EN->getOpcodeName(),
-                                                VTs, Operands,
-                                                EN->hasChain(), EN->hasInFlag(),
-                                                EN->hasOutFlag(),
-                                                EN->hasMemRefs(),
-                                                EN->getNumFixedArityOperands(),
-                                                Pattern));
+        MatcherPtr = llvm::make_unique<MorphNodeToMatcher>(
+            EN->getOpcodeName(), VTs, Operands, EN->hasChain(), EN->hasInFlag(),
+            EN->hasOutFlag(), EN->hasMemRefs(), EN->getNumFixedArityOperands(),
+            Pattern);
         return;
       }
 
@@ -399,8 +396,8 @@ static void FactorNodes(std::unique_ptr<Matcher> &InputMatcherPtr) {
       Cases.push_back(std::make_pair(&COM->getOpcode(), COM->takeNext()));
       delete COM;
     }
-    
-    MatcherPtr.reset(new SwitchOpcodeMatcher(Cases));
+
+    MatcherPtr = llvm::make_unique<SwitchOpcodeMatcher>(Cases);
     return;
   }
   
@@ -446,10 +443,10 @@ static void FactorNodes(std::unique_ptr<Matcher> &InputMatcherPtr) {
     }
 
     if (Cases.size() != 1) {
-      MatcherPtr.reset(new SwitchTypeMatcher(Cases));
+      MatcherPtr = llvm::make_unique<SwitchTypeMatcher>(Cases);
     } else {
       // If we factored and ended up with one case, create it now.
-      MatcherPtr.reset(new CheckTypeMatcher(Cases[0].first, 0));
+      MatcherPtr = llvm::make_unique<CheckTypeMatcher>(Cases[0].first, 0);
       MatcherPtr->setNext(Cases[0].second);
     }
     return;

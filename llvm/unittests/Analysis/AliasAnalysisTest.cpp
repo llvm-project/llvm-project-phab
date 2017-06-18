@@ -115,7 +115,7 @@ public:
   }
 
   bool doInitialization(Module &M) override {
-    Result.reset(new TestCustomAAResult(std::move(CB)));
+    Result = llvm::make_unique<TestCustomAAResult>(std::move(CB));
     return true;
   }
 
@@ -152,11 +152,11 @@ protected:
 
   AAResults &getAAResults(Function &F) {
     // Reset the Function AA results first to clear out any references.
-    AAR.reset(new AAResults(TLI));
+    AAR = llvm::make_unique<AAResults>(TLI);
 
     // Build the various AA results and register them.
-    AC.reset(new AssumptionCache(F));
-    BAR.reset(new BasicAAResult(M.getDataLayout(), TLI, *AC));
+    AC = llvm::make_unique<AssumptionCache>(F);
+    BAR = llvm::make_unique<BasicAAResult>(M.getDataLayout(), TLI, *AC);
     AAR->addAAResult(*BAR);
 
     return *AAR;

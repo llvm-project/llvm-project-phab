@@ -123,62 +123,62 @@ void MappingTraits<std::unique_ptr<WasmYAML::Section>>::mapping(
   switch (SectionType) {
   case wasm::WASM_SEC_CUSTOM:
     if (!IO.outputting())
-      Section.reset(new WasmYAML::CustomSection());
+      Section = llvm::make_unique<WasmYAML::CustomSection>();
     sectionMapping(IO, *cast<WasmYAML::CustomSection>(Section.get()));
     break;
   case wasm::WASM_SEC_TYPE:
     if (!IO.outputting())
-      Section.reset(new WasmYAML::TypeSection());
+      Section = llvm::make_unique<WasmYAML::TypeSection>();
     sectionMapping(IO, *cast<WasmYAML::TypeSection>(Section.get()));
     break;
   case wasm::WASM_SEC_IMPORT:
     if (!IO.outputting())
-      Section.reset(new WasmYAML::ImportSection());
+      Section = llvm::make_unique<WasmYAML::ImportSection>();
     sectionMapping(IO, *cast<WasmYAML::ImportSection>(Section.get()));
     break;
   case wasm::WASM_SEC_FUNCTION:
     if (!IO.outputting())
-      Section.reset(new WasmYAML::FunctionSection());
+      Section = llvm::make_unique<WasmYAML::FunctionSection>();
     sectionMapping(IO, *cast<WasmYAML::FunctionSection>(Section.get()));
     break;
   case wasm::WASM_SEC_TABLE:
     if (!IO.outputting())
-      Section.reset(new WasmYAML::TableSection());
+      Section = llvm::make_unique<WasmYAML::TableSection>();
     sectionMapping(IO, *cast<WasmYAML::TableSection>(Section.get()));
     break;
   case wasm::WASM_SEC_MEMORY:
     if (!IO.outputting())
-      Section.reset(new WasmYAML::MemorySection());
+      Section = llvm::make_unique<WasmYAML::MemorySection>();
     sectionMapping(IO, *cast<WasmYAML::MemorySection>(Section.get()));
     break;
   case wasm::WASM_SEC_GLOBAL:
     if (!IO.outputting())
-      Section.reset(new WasmYAML::GlobalSection());
+      Section = llvm::make_unique<WasmYAML::GlobalSection>();
     sectionMapping(IO, *cast<WasmYAML::GlobalSection>(Section.get()));
     break;
   case wasm::WASM_SEC_EXPORT:
     if (!IO.outputting())
-      Section.reset(new WasmYAML::ExportSection());
+      Section = llvm::make_unique<WasmYAML::ExportSection>();
     sectionMapping(IO, *cast<WasmYAML::ExportSection>(Section.get()));
     break;
   case wasm::WASM_SEC_START:
     if (!IO.outputting())
-      Section.reset(new WasmYAML::StartSection());
+      Section = llvm::make_unique<WasmYAML::StartSection>();
     sectionMapping(IO, *cast<WasmYAML::StartSection>(Section.get()));
     break;
   case wasm::WASM_SEC_ELEM:
     if (!IO.outputting())
-      Section.reset(new WasmYAML::ElemSection());
+      Section = llvm::make_unique<WasmYAML::ElemSection>();
     sectionMapping(IO, *cast<WasmYAML::ElemSection>(Section.get()));
     break;
   case wasm::WASM_SEC_CODE:
     if (!IO.outputting())
-      Section.reset(new WasmYAML::CodeSection());
+      Section = llvm::make_unique<WasmYAML::CodeSection>();
     sectionMapping(IO, *cast<WasmYAML::CodeSection>(Section.get()));
     break;
   case wasm::WASM_SEC_DATA:
     if (!IO.outputting())
-      Section.reset(new WasmYAML::DataSection());
+      Section = llvm::make_unique<WasmYAML::DataSection>();
     sectionMapping(IO, *cast<WasmYAML::DataSection>(Section.get()));
     break;
   default:

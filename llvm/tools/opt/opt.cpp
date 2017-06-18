@@ -475,15 +475,16 @@ int main(int argc, char **argv) {
       OutputFilename = "-";
 
     std::error_code EC;
-    Out.reset(new tool_output_file(OutputFilename, EC, sys::fs::F_None));
+    Out = llvm::make_unique<tool_output_file>(OutputFilename, EC,
+                                              sys::fs::F_None);
     if (EC) {
       errs() << EC.message() << '\n';
       return 1;
     }
 
     if (!ThinLinkBitcodeFile.empty()) {
-      ThinLinkOut.reset(
-          new tool_output_file(ThinLinkBitcodeFile, EC, sys::fs::F_None));
+      ThinLinkOut = llvm::make_unique<tool_output_file>(ThinLinkBitcodeFile, EC,
+                                                        sys::fs::F_None);
       if (EC) {
         errs() << EC.message() << '\n';
         return 1;
@@ -559,7 +560,7 @@ int main(int argc, char **argv) {
   std::unique_ptr<legacy::FunctionPassManager> FPasses;
   if (OptLevelO0 || OptLevelO1 || OptLevelO2 || OptLevelOs || OptLevelOz ||
       OptLevelO3) {
-    FPasses.reset(new legacy::FunctionPassManager(M.get()));
+    FPasses = llvm::make_unique<legacy::FunctionPassManager>(M.get());
     FPasses->add(createTargetTransformInfoWrapperPass(
         TM ? TM->getTargetIRAnalysis() : TargetIRAnalysis()));
   }

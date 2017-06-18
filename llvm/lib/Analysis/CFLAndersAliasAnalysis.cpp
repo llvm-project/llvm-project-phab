@@ -885,7 +885,7 @@ CFLAndersAAWrapperPass::CFLAndersAAWrapperPass() : ImmutablePass(ID) {
 
 void CFLAndersAAWrapperPass::initializePass() {
   auto &TLIWP = getAnalysis<TargetLibraryInfoWrapperPass>();
-  Result.reset(new CFLAndersAAResult(TLIWP.getTLI()));
+  Result = llvm::make_unique<CFLAndersAAResult>(TLIWP.getTLI());
 }
 
 void CFLAndersAAWrapperPass::getAnalysisUsage(AnalysisUsage &AU) const {

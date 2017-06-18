@@ -59,7 +59,7 @@ bool LiveRegMatrix::runOnMachineFunction(MachineFunction &MF) {
 
   unsigned NumRegUnits = TRI->getNumRegUnits();
   if (NumRegUnits != Matrix.size())
-    Queries.reset(new LiveIntervalUnion::Query[NumRegUnits]);
+    Queries = llvm::make_unique<LiveIntervalUnion::Query[]>(NumRegUnits);
   Matrix.init(LIUAlloc, NumRegUnits);
 
   // Make sure no stale queries get reused.

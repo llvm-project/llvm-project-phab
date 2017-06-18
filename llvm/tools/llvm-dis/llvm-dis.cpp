@@ -192,7 +192,7 @@ int main(int argc, char **argv) {
 
   std::unique_ptr<AssemblyAnnotationWriter> Annotator;
   if (ShowAnnotations)
-    Annotator.reset(new CommentWriter());
+    Annotator = llvm::make_unique<CommentWriter>();
 
   // All that llvm-dis does is write the assembly to a file.
   if (!DontPrint)

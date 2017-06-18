@@ -593,8 +593,8 @@ bool DwarfStreamer::init(Triple TheTriple, StringRef OutputFilename) {
   if (!MAI)
     return error("no asm info for target " + TripleName, Context);
 
-  MOFI.reset(new MCObjectFileInfo);
-  MC.reset(new MCContext(MAI.get(), MRI.get(), MOFI.get()));
+  MOFI = llvm::make_unique<MCObjectFileInfo>();
+  MC = llvm::make_unique<MCContext>(MAI.get(), MRI.get(), MOFI.get());
   MOFI->InitMCObjectFileInfo(TheTriple, /*PIC*/ false, CodeModel::Default, *MC);
 
   MCTargetOptions Options;

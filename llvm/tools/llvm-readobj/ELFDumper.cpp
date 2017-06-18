@@ -413,7 +413,7 @@ template <class ELFT>
 static std::error_code createELFDumper(const ELFFile<ELFT> *Obj,
                                        ScopedPrinter &Writer,
                                        std::unique_ptr<ObjDumper> &Result) {
-  Result.reset(new ELFDumper<ELFT>(Obj, Writer));
+  Result = llvm::make_unique<ELFDumper<ELFT>>(Obj, Writer);
   return readobj_error::success;
 }
 
@@ -1321,9 +1321,9 @@ ELFDumper<ELFT>::ELFDumper(const ELFFile<ELFT> *Obj, ScopedPrinter &Writer)
   parseDynamicTable(LoadSegments);
 
   if (opts::Output == opts::GNU)
-    ELFDumperStyle.reset(new GNUStyle<ELFT>(Writer, this));
+    ELFDumperStyle = llvm::make_unique<GNUStyle<ELFT>>(Writer, this);
   else
-    ELFDumperStyle.reset(new LLVMStyle<ELFT>(Writer, this));
+    ELFDumperStyle = llvm::make_unique<LLVMStyle<ELFT>>(Writer, this);
 }
 
 template <typename ELFT>

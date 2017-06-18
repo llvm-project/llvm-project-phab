@@ -742,27 +742,27 @@ void MappingTraits<std::unique_ptr<ELFYAML::Section>>::mapping(
   case ELF::SHT_REL:
   case ELF::SHT_RELA:
     if (!IO.outputting())
-      Section.reset(new ELFYAML::RelocationSection());
+      Section = llvm::make_unique<ELFYAML::RelocationSection>();
     sectionMapping(IO, *cast<ELFYAML::RelocationSection>(Section.get()));
     break;
   case ELF::SHT_GROUP:
     if (!IO.outputting())
-      Section.reset(new ELFYAML::Group());
+      Section = llvm::make_unique<ELFYAML::Group>();
     groupSectionMapping(IO, *cast<ELFYAML::Group>(Section.get()));
     break;
   case ELF::SHT_NOBITS:
     if (!IO.outputting())
-      Section.reset(new ELFYAML::NoBitsSection());
+      Section = llvm::make_unique<ELFYAML::NoBitsSection>();
     sectionMapping(IO, *cast<ELFYAML::NoBitsSection>(Section.get()));
     break;
   case ELF::SHT_MIPS_ABIFLAGS:
     if (!IO.outputting())
-      Section.reset(new ELFYAML::MipsABIFlags());
+      Section = llvm::make_unique<ELFYAML::MipsABIFlags>();
     sectionMapping(IO, *cast<ELFYAML::MipsABIFlags>(Section.get()));
     break;
   default:
     if (!IO.outputting())
-      Section.reset(new ELFYAML::RawContentSection());
+      Section = llvm::make_unique<ELFYAML::RawContentSection>();
     sectionMapping(IO, *cast<ELFYAML::RawContentSection>(Section.get()));
   }
 }

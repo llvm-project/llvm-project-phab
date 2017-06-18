@@ -48,9 +48,9 @@ void RegisterClassInfo::runOnMachineFunction(const MachineFunction &mf) {
   // Allocate new array the first time we see a new target.
   if (MF->getSubtarget().getRegisterInfo() != TRI) {
     TRI = MF->getSubtarget().getRegisterInfo();
-    RegClass.reset(new RCInfo[TRI->getNumRegClasses()]);
+    RegClass = llvm::make_unique<RCInfo[]>(TRI->getNumRegClasses());
     unsigned NumPSets = TRI->getNumRegPressureSets();
-    PSetLimits.reset(new unsigned[NumPSets]);
+    PSetLimits = llvm::make_unique<unsigned[]>(NumPSets);
     std::fill(&PSetLimits[0], &PSetLimits[NumPSets], 0);
     Update = true;
   }
@@ -95,7 +95,7 @@ void RegisterClassInfo::compute(const TargetRegisterClass *RC) const {
   unsigned NumRegs = RC->getNumRegs();
 
   if (!RCI.Order)
-    RCI.Order.reset(new MCPhysReg[NumRegs]);
+    RCI.Order = llvm::make_unique<MCPhysReg[]>(NumRegs);
 
   unsigned N = 0;
   SmallVector<MCPhysReg, 16> CSRAlias;

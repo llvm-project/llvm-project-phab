@@ -3069,8 +3069,8 @@ void SelectionDAGISel::SelectCodeCommon(SDNode *NodeToMatch,
       // consistent.
       std::unique_ptr<MatchStateUpdater> MSU;
       if (ComplexPatternFuncMutatesDAG())
-        MSU.reset(new MatchStateUpdater(*CurDAG, &NodeToMatch, RecordedNodes,
-                                        MatchScopes));
+        MSU = llvm::make_unique<MatchStateUpdater>(*CurDAG, &NodeToMatch,
+                                                   RecordedNodes, MatchScopes);
 
       if (!CheckComplexPattern(NodeToMatch, RecordedNodes[RecNo].second,
                                RecordedNodes[RecNo].first, CPNum,

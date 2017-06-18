@@ -60,8 +60,8 @@ SymbolizableObjectFile::create(object::ObjectFile *Obj,
       if (Name == ".opd") {
         if (auto EC = Section->getContents(Data))
           return EC;
-        OpdExtractor.reset(new DataExtractor(Data, Obj->isLittleEndian(),
-                                             Obj->getBytesInAddress()));
+        OpdExtractor = llvm::make_unique<DataExtractor>(
+            Data, Obj->isLittleEndian(), Obj->getBytesInAddress());
         OpdAddress = Section->getAddress();
         break;
       }

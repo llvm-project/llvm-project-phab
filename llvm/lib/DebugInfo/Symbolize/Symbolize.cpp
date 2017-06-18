@@ -405,11 +405,11 @@ LLVMSymbolizer::getOrCreateModuleInfo(const std::string &ModuleName) {
             std::make_pair(ModuleName, std::unique_ptr<SymbolizableModule>()));
         return std::move(Err);
       }
-      Context.reset(new PDBContext(*CoffObject, std::move(Session)));
+      Context = llvm::make_unique<PDBContext>(*CoffObject, std::move(Session));
     }
   }
   if (!Context)
-    Context.reset(new DWARFContextInMemory(*Objects.second));
+    Context = llvm::make_unique<DWARFContextInMemory>(*Objects.second);
   assert(Context);
   auto InfoOrErr =
       SymbolizableObjectFile::create(Objects.first, std::move(Context));

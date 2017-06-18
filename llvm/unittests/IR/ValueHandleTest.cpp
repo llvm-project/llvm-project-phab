@@ -363,9 +363,9 @@ TEST_F(ValueHandle, DestroyingOtherVHOnSameValueDoesntBreakIteration) {
   public:
     std::unique_ptr<WeakTrackingVH> ToClear[2];
     DestroyingVH(Value *V) {
-      ToClear[0].reset(new WeakTrackingVH(V));
+      ToClear[0] = llvm::make_unique<WeakTrackingVH>(V);
       setValPtr(V);
-      ToClear[1].reset(new WeakTrackingVH(V));
+      ToClear[1] = llvm::make_unique<WeakTrackingVH>(V);
     }
     void deleted() override {
       ToClear[0].reset();
@@ -512,7 +512,8 @@ TEST_F(ValueHandle, PoisoningVH_Asserts) {
   PoisoningVH<Value> VH(BitcastV.get());
 
   // The poisoned handle shouldn't assert when the value is deleted.
-  BitcastV.reset(new BitCastInst(ConstantV, Type::getInt32Ty(Context)));
+  BitcastV =
+      llvm::make_unique<BitCastInst>(ConstantV, Type::getInt32Ty(Context));
   // But should when we access the handle.
   EXPECT_DEATH((void)*VH, "Accessed a poisoned value handle!");
 
@@ -531,7 +532,8 @@ TEST_F(ValueHandle, TrackingVH_Asserts) {
     TrackingVH<Value> VH(BitcastV.get());
 
     // The tracking handle shouldn't assert when the value is deleted.
-    BitcastV.reset(new BitCastInst(ConstantV, Type::getInt32Ty(Context)));
+    BitcastV =
+        llvm::make_unique<BitCastInst>(ConstantV, Type::getInt32Ty(Context));
     // But should when we access the handle.
     EXPECT_DEATH((void)*VH,
                  "TrackingVH must be non-null and valid on dereference!");

@@ -613,8 +613,8 @@ bool AAResultsWrapperPass::runOnFunction(Function &F) {
   // unregistering themselves with them. We need to carefully tear down the
   // previous object first, in this case replacing it with an empty one, before
   // registering new results.
-  AAR.reset(
-      new AAResults(getAnalysis<TargetLibraryInfoWrapperPass>().getTLI()));
+  AAR = llvm::make_unique<AAResults>(
+      getAnalysis<TargetLibraryInfoWrapperPass>().getTLI());
 
   // BasicAA is always available for function analyses. Also, we add it first
   // so that it can trump TBAA results when it proves MustAlias.

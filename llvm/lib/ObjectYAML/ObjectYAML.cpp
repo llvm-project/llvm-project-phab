@@ -31,20 +31,20 @@ void MappingTraits<YamlObjectFile>::mapping(IO &IO,
                                                          *ObjectFile.FatMachO);
   } else {
     if (IO.mapTag("!ELF")) {
-      ObjectFile.Elf.reset(new ELFYAML::Object());
+      ObjectFile.Elf = llvm::make_unique<ELFYAML::Object>();
       MappingTraits<ELFYAML::Object>::mapping(IO, *ObjectFile.Elf);
     } else if (IO.mapTag("!COFF")) {
-      ObjectFile.Coff.reset(new COFFYAML::Object());
+      ObjectFile.Coff = llvm::make_unique<COFFYAML::Object>();
       MappingTraits<COFFYAML::Object>::mapping(IO, *ObjectFile.Coff);
     } else if (IO.mapTag("!mach-o")) {
-      ObjectFile.MachO.reset(new MachOYAML::Object());
+      ObjectFile.MachO = llvm::make_unique<MachOYAML::Object>();
       MappingTraits<MachOYAML::Object>::mapping(IO, *ObjectFile.MachO);
     } else if (IO.mapTag("!fat-mach-o")) {
-      ObjectFile.FatMachO.reset(new MachOYAML::UniversalBinary());
+      ObjectFile.FatMachO = llvm::make_unique<MachOYAML::UniversalBinary>();
       MappingTraits<MachOYAML::UniversalBinary>::mapping(IO,
                                                          *ObjectFile.FatMachO);
     } else if (IO.mapTag("!WASM")) {
-      ObjectFile.Wasm.reset(new WasmYAML::Object());
+      ObjectFile.Wasm = llvm::make_unique<WasmYAML::Object>();
       MappingTraits<WasmYAML::Object>::mapping(IO, *ObjectFile.Wasm);
     } else {
       Input &In = (Input &)IO;

@@ -1817,9 +1817,9 @@ bool BasicAAWrapperPass::runOnFunction(Function &F) {
   auto &DTWP = getAnalysis<DominatorTreeWrapperPass>();
   auto *LIWP = getAnalysisIfAvailable<LoopInfoWrapperPass>();
 
-  Result.reset(new BasicAAResult(F.getParent()->getDataLayout(), TLIWP.getTLI(),
-                                 ACT.getAssumptionCache(F), &DTWP.getDomTree(),
-                                 LIWP ? &LIWP->getLoopInfo() : nullptr));
+  Result = llvm::make_unique<BasicAAResult>(
+      F.getParent()->getDataLayout(), TLIWP.getTLI(), ACT.getAssumptionCache(F),
+      &DTWP.getDomTree(), LIWP ? &LIWP->getLoopInfo() : nullptr);
 
   return false;
 }

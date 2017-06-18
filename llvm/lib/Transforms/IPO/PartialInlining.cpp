@@ -615,7 +615,7 @@ void PartialInlinerImpl::computeCallsiteToProfCountMap(
         DominatorTree DT(*Caller);
         LoopInfo LI(DT);
         BranchProbabilityInfo BPI(*Caller, LI);
-        TempBFI.reset(new BlockFrequencyInfo(*Caller, BPI, LI));
+        TempBFI = llvm::make_unique<BlockFrequencyInfo>(*Caller, BPI, LI);
         CurrentCallerBFI = TempBFI.get();
       } else {
         // New pass manager:

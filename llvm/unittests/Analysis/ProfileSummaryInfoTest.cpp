@@ -40,9 +40,9 @@ protected:
     return ProfileSummaryInfo(*M);
   }
   BlockFrequencyInfo buildBFI(Function &F) {
-    DT.reset(new DominatorTree(F));
-    LI.reset(new LoopInfo(*DT));
-    BPI.reset(new BranchProbabilityInfo(F, *LI));
+    DT = llvm::make_unique<DominatorTree>(F);
+    LI = llvm::make_unique<LoopInfo>(*DT);
+    BPI = llvm::make_unique<BranchProbabilityInfo>(F, *LI);
     return BlockFrequencyInfo(F, *BPI, *LI);
   }
   std::unique_ptr<Module> makeLLVMModule(const char *ProfKind = nullptr) {

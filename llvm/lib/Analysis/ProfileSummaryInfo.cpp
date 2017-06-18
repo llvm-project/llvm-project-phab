@@ -211,7 +211,7 @@ ProfileSummaryInfoWrapperPass::ProfileSummaryInfoWrapperPass()
 }
 
 bool ProfileSummaryInfoWrapperPass::doInitialization(Module &M) {
-  PSI.reset(new ProfileSummaryInfo(M));
+  PSI = llvm::make_unique<ProfileSummaryInfo>(M);
   return false;
 }
 

@@ -362,7 +362,7 @@ public:
   }
 
   bool doInitialization(Module &M) override {
-    P.reset(new AAEvaluator());
+    P = llvm::make_unique<AAEvaluator>();
     return false;
   }
 

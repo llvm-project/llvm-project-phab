@@ -49,7 +49,7 @@ void MachineDominatorTree::getAnalysisUsage(AnalysisUsage &AU) const {
 bool MachineDominatorTree::runOnMachineFunction(MachineFunction &F) {
   CriticalEdgesToSplit.clear();
   NewBBs.clear();
-  DT.reset(new DominatorTreeBase<MachineBasicBlock>(false));
+  DT = llvm::make_unique<DominatorTreeBase<MachineBasicBlock>>(false);
   DT->recalculate(F);
   return false;
 }

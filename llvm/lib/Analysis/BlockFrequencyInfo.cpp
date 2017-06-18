@@ -163,7 +163,7 @@ void BlockFrequencyInfo::calculate(const Function &F,
                                    const BranchProbabilityInfo &BPI,
                                    const LoopInfo &LI) {
   if (!BFI)
-    BFI.reset(new ImplType);
+    BFI = llvm::make_unique<ImplType>();
   BFI->calculate(F, BPI, LI);
   if (ViewBlockFreqPropagationDAG != GVDT_None &&
       (ViewBlockFreqFuncName.empty() ||

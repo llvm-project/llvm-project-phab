@@ -743,8 +743,8 @@ bool CodeGenPrepare::isMergingEmptyBlockProfitable(BasicBlock *BB,
   if (!BFI) {
     Function &F = *BB->getParent();
     LoopInfo LI{DominatorTree(F)};
-    BPI.reset(new BranchProbabilityInfo(F, LI));
-    BFI.reset(new BlockFrequencyInfo(F, *BPI, LI));
+    BPI = llvm::make_unique<BranchProbabilityInfo>(F, LI);
+    BFI = llvm::make_unique<BlockFrequencyInfo>(F, *BPI, LI);
   }
 
   BlockFrequency PredFreq = BFI->getBlockFreq(Pred);
