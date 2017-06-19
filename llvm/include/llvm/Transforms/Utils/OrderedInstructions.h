@@ -10,11 +10,6 @@
 // This file defines an efficient way to check for dominance relation between 2
 // instructions.
 //
-// This interface dispatches to appropriate dominance check given 2
-// instructions, i.e. in case the instructions are in the same basic block,
-// OrderedBasicBlock (with instruction numbering and caching) are used.
-// Otherwise, dominator tree is used.
-//
 //===----------------------------------------------------------------------===//
 
 #ifndef LLVM_TRANSFORMS_UTILS_ORDEREDINSTRUCTIONS_H
@@ -27,6 +22,12 @@
 
 namespace llvm {
 
+/// This interface dispatches to appropriate dominance check given 2
+/// instructions, i.e. in case the instructions are in the same basic block,
+/// OrderedBasicBlock (with instruction numbering and caching) are used.
+/// Otherwise, dominator tree is used. This interface relies on the
+/// transformations to invalidate the basic blocks in case instructions in it
+/// are changed.
 class OrderedInstructions {
   /// Used to check dominance for instructions in same basic block.
   mutable DenseMap<const BasicBlock *, std::unique_ptr<OrderedBasicBlock>>
