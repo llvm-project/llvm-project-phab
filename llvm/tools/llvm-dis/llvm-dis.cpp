@@ -51,6 +51,9 @@ static cl::opt<bool>
 DontPrint("disable-output", cl::desc("Don't output the .ll file"), cl::Hidden);
 
 static cl::opt<bool>
+SetImporting("set-importing", cl::desc("Set lazy loading to pretend to import a module"), cl::Hidden);
+
+static cl::opt<bool>
 ShowAnnotations("show-annotations",
                 cl::desc("Add informational comments to the .ll file"));
 
@@ -144,7 +147,7 @@ static std::unique_ptr<Module> openInputFile(LLVMContext &Context) {
       ExitOnErr(errorOrToExpected(MemoryBuffer::getFileOrSTDIN(InputFilename)));
   std::unique_ptr<Module> M =
       ExitOnErr(getOwningLazyBitcodeModule(std::move(MB), Context,
-                                           /*ShouldLazyLoadMetadata=*/true));
+                                           /*ShouldLazyLoadMetadata=*/true, SetImporting));
   if (MaterializeMetadata)
     ExitOnErr(M->materializeMetadata());
   else
