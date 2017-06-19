@@ -1626,22 +1626,34 @@ void CompilerInvocation::setLangDefaults(LangOptions &Opts, InputKind IK,
       break;
     case InputKind::Asm:
     case InputKind::C:
+#if defined(CLANG_DEFAULT_STD_C)
+      LangStd = CLANG_DEFAULT_STD_C;
+#else
       // The PS4 uses C99 as the default C standard.
       if (T.isPS4())
         LangStd = LangStandard::lang_gnu99;
       else
         LangStd = LangStandard::lang_gnu11;
+#endif
       break;
     case InputKind::ObjC:
+#if defined(CLANG_DEFAULT_STD_C)
+      LangStd = CLANG_DEFAULT_STD_C;
+#else
       LangStd = LangStandard::lang_gnu11;
+#endif
       break;
     case InputKind::CXX:
     case InputKind::ObjCXX:
+#if defined(CLANG_DEFAULT_STD_CXX)
+      LangStd = CLANG_DEFAULT_STD_CXX;
+#else
       // The PS4 uses C++11 as the default C++ standard.
       if (T.isPS4())
         LangStd = LangStandard::lang_gnucxx11;
       else
         LangStd = LangStandard::lang_gnucxx98;
+#endif
       break;
     case InputKind::RenderScript:
       LangStd = LangStandard::lang_c99;
