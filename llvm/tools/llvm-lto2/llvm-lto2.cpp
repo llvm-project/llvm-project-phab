@@ -16,9 +16,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "llvm/LTO/Caching.h"
+#include "llvm/Bitcode/BitcodeReader.h"
 #include "llvm/CodeGen/CommandFlags.h"
 #include "llvm/IR/DiagnosticPrinter.h"
+#include "llvm/IR/ModuleSummaryIndexYAML.h"
+#include "llvm/LTO/Caching.h"
 #include "llvm/LTO/LTO.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
@@ -132,7 +134,7 @@ template <typename T> static T check(ErrorOr<T> E, std::string Msg) {
 }
 
 static int usage() {
-  errs() << "Available subcommands: dump-symtab run\n";
+  errs() << "Available subcommands: dump-symtab dump-summary run\n";
   return 1;
 }
 
@@ -351,6 +353,20 @@ static int dumpSymtab(int argc, char **argv) {
   return 0;
 }
 
+// Used to dump module summaries in YAML for debugging purposes.
+static int dumpSummary(int argc, char **argv) {
+  for (StringRef F : make_range(argv + 1, argv + argc)) {
+    std::unique_ptr<MemoryBuffer> MB = check(MemoryBuffer::getFile(F), F);
+    std::unique_ptr<ModuleSummaryIndex> Index =
+        check(getModuleSummaryIndex(*MB), F);
+
+    yaml::Output Out(outs());
+    Out << *Index;
+  }
+
+  return 0;
+}
+
 int main(int argc, char **argv) {
   InitializeAllTargets();
   InitializeAllTargetMCs();
@@ -368,6 +384,8 @@ int main(int argc, char **argv) {
   argv[1] = argv[0];
   if (Subcommand == "dump-symtab")
     return dumpSymtab(argc - 1, argv + 1);
+  if (Subcommand == "dump-summary")
+    return dumpSummary(argc - 1, argv + 1);
   if (Subcommand == "run")
     return run(argc - 1, argv + 1);
   return usage();
