@@ -58,4 +58,11 @@ kernel void foo(sampler_t smp_par) {
   fnc4smp(5);
   // CHECK: [[SAMP:%[0-9]+]] = call %opencl.sampler_t addrspace(2)* @__translate_sampler_initializer(i32 5)
   // CHECK: call spir_func void @fnc4smp(%opencl.sampler_t addrspace(2)* [[SAMP]])
+
+  const sampler_t const_smp = CLK_ADDRESS_CLAMP_TO_EDGE | CLK_NORMALIZED_COORDS_TRUE | CLK_FILTER_LINEAR;
+  // CHECK: [[CONST_SAMP:%[0-9]+]] = call %opencl.sampler_t addrspace(2)* @__translate_sampler_initializer(i32 35)
+  // CHECK: store %opencl.sampler_t addrspace(2)* [[CONST_SAMP]], %opencl.sampler_t addrspace(2)** [[CONST_SMP_PTR:%[a-zA-Z0-9]+]]
+  fnc4smp(const_smp);
+  // CHECK: [[SAMP:%[0-9]+]] = load %opencl.sampler_t addrspace(2)*, %opencl.sampler_t addrspace(2)** [[CONST_SMP_PTR]]
+  // CHECK: call spir_func void @fnc4smp(%opencl.sampler_t addrspace(2)* [[SAMP]])
 }
