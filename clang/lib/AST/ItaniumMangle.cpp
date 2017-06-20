@@ -2454,6 +2454,7 @@ void CXXNameMangler::mangleType(const BuiltinType *T) {
   case BuiltinType::Int128:
     Out << 'n';
     break;
+  case BuiltinType::Float16:
   case BuiltinType::Half:
     Out << "Dh";
     break;
