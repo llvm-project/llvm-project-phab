@@ -19,7 +19,13 @@
 
 namespace __xray {
 
+bool probeRequiredCPUFeatures();
+
 ALWAYS_INLINE uint64_t readTSC(uint8_t &CPU) XRAY_NEVER_INSTRUMENT {
+  static bool TSCSupported = probeRequiredCPUFeatures();
+  if (UNLIKELY(!TSCSupported)) {
+    return emulateReadTSC(CPU);
+  }
   unsigned LongCPU;
   uint64_t TSC = __rdtscp(&LongCPU);
   CPU = LongCPU;
@@ -27,7 +33,5 @@ ALWAYS_INLINE uint64_t readTSC(uint8_t &CPU) XRAY_NEVER_INSTRUMENT {
 }
 
 uint64_t getTSCFrequency();
-
-bool probeRequiredCPUFeatures();
 
 } // namespace __xray

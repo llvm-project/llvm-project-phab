@@ -15,6 +15,23 @@
 
 namespace __xray {
 static constexpr uint64_t NanosecondsPerSecond = 1000ULL * 1000 * 1000;
+
+// Even if an architecture supports a TSC-like mechanism, a particular box can
+// still prevent us from using it; be it for security (SECCOMP), virtualization
+// (VMware's deterministic lockstep emulating RDTSC using APIC to eliminate VM
+// randomness) or age (older CPUs with broken/missing TSC support).  Therefore,
+// we always keep this function around.
+ALWAYS_INLINE uint64_t emulateReadTSC(uint8_t &CPU) XRAY_NEVER_INSTRUMENT {
+  timespec TS;
+  int result = clock_gettime(CLOCK_REALTIME, &TS);
+  if (result != 0) {
+    Report("clock_gettime(2) returned %d, errno=%d.", result, int(errno));
+    TS = {0, 0};
+  }
+  CPU = 0;
+  return TS.tv_sec * NanosecondsPerSecond + TS.tv_nsec;
+}
+
 }
 
 #if defined(__x86_64__)
@@ -44,15 +61,7 @@ namespace __xray {
 inline bool probeRequiredCPUFeatures() XRAY_NEVER_INSTRUMENT { return true; }
 
 ALWAYS_INLINE uint64_t readTSC(uint8_t &CPU) XRAY_NEVER_INSTRUMENT {
-  timespec TS;
-  int result = clock_gettime(CLOCK_REALTIME, &TS);
-  if (result != 0) {
-    Report("clock_gettime(2) returned %d, errno=%d.", result, int(errno));
-    TS.tv_sec = 0;
-    TS.tv_nsec = 0;
-  }
-  CPU = 0;
-  return TS.tv_sec * NanosecondsPerSecond + TS.tv_nsec;
+  return emulateReadTSC(CPU);
 }
 
 inline uint64_t getTSCFrequency() XRAY_NEVER_INSTRUMENT {

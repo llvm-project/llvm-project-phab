@@ -98,7 +98,6 @@ static void writeTSCWrapMetadata(uint64_t TSC);
 /// polluting the log and may use the buffer queue to obtain or release a
 /// buffer.
 static void processFunctionHook(int32_t FuncId, XRayEntryType Entry,
-                                uint64_t TSC, unsigned char CPU,
                                 int (*wall_clock_reader)(clockid_t,
                                                          struct timespec *),
                                 __sanitizer::atomic_sint32_t &LoggingStatus,
@@ -545,7 +544,7 @@ inline void endBufferIfFull() XRAY_NEVER_INSTRUMENT {
 }
 
 inline void processFunctionHook(
-    int32_t FuncId, XRayEntryType Entry, uint64_t TSC, unsigned char CPU,
+    int32_t FuncId, XRayEntryType Entry,
     int (*wall_clock_reader)(clockid_t, struct timespec *),
     __sanitizer::atomic_sint32_t &LoggingStatus,
     const std::shared_ptr<BufferQueue> &BQ) XRAY_NEVER_INSTRUMENT {
@@ -566,6 +565,8 @@ inline void processFunctionHook(
   if (LocalBQ == nullptr)
     LocalBQ = BQ;
 
+  uint8_t CPU;
+  uint64_t TSC = readTSC(CPU);
   if (!isLogInitializedAndReady(LocalBQ, TSC, CPU, wall_clock_reader))
     return;
 
