@@ -1,0 +1,314 @@
+# RUN: llc -mcpu=haswell -filetype=obj -start-before stack-protector -O2 %s -o - | llvm-objdump -d - | FileCheck %s
+
+# Source C code:
+# volatile int y;
+# volatile int x;
+# 
+# int perfNopsInsertion(int z, int w) {
+# 	int result = 0;
+# 	while (x > 0 && y < 0) {
+# 		switch(z) {
+# 			case 0:
+# 			result++; break;
+# 			case 1:
+# 			result--; break;
+# 			case 2:
+# 			result *= result; break;
+# 		}
+# 		
+# 		if(z == 8 && y == 9) {
+# 			result += 7;
+# 		}
+# 		else if (z < 6 || y > 11) {
+# 			result -= 18;
+# 		}
+# 		else if (z > 35 != y <= 55) {
+# 			result *= 19;
+# 		}
+# 	}
+# 	return result;
+# }
+--- |
+  ; ModuleID = 'perf_nops.ll'
+  source_filename = "perf_nops.c"
+  target datalayout = "e-m:w-i64:64-f80:128-n8:16:32:64-S128"
+  
+  @x = common global i32 0, align 4
+  @y = common global i32 0, align 4
+  
+  ; Function Attrs: norecurse nounwind
+  define i32 @perfNopsInsertion(i32 %z, i32 %w) local_unnamed_addr #0 {
+  entry:
+    %0 = load volatile i32, i32* @x, align 4, !tbaa !1
+    %cmp37 = icmp sgt i32 %0, 0
+    br i1 %cmp37, label %land.rhs.lr.ph, label %while.end
+  
+  land.rhs.lr.ph:                                   ; preds = %entry
+    br label %land.rhs
+  
+  land.rhs:                                         ; preds = %while.cond.backedge, %land.rhs.lr.ph
+    %result.038 = phi i32 [ 0, %land.rhs.lr.ph ], [ %result.0.be, %while.cond.backedge ]
+    %1 = load volatile i32, i32* @y, align 4, !tbaa !1
+    %cmp1 = icmp slt i32 %1, 0
+    br i1 %cmp1, label %while.body, label %while.end
+  
+  while.body:                                       ; preds = %land.rhs
+    switch i32 %z, label %if.else [
+      i32 0, label %sw.bb
+      i32 1, label %sw.bb2
+      i32 2, label %sw.bb3
+      i32 8, label %land.lhs.true
+    ]
+  
+  sw.bb:                                            ; preds = %while.body
+    %inc = add nsw i32 %result.038, 1
+    br label %if.then8
+  
+  sw.bb2:                                           ; preds = %while.body
+    %dec = add nsw i32 %result.038, -1
+    br label %if.then8
+  
+  sw.bb3:                                           ; preds = %while.body
+    %mul = mul nsw i32 %result.038, %result.038
+    br label %if.then8
+  
+  land.lhs.true:                                    ; preds = %while.body
+    %2 = load volatile i32, i32* @y, align 4, !tbaa !1
+    %cmp5 = icmp eq i32 %2, 9
+    br i1 %cmp5, label %if.then, label %lor.lhs.false
+  
+  if.then:                                          ; preds = %land.lhs.true
+    %add = add nsw i32 %result.038, 7
+    br label %while.cond.backedge
+  
+  if.else:                                          ; preds = %while.body
+    %3 = icmp slt i32 %z, 6
+    br i1 %3, label %if.then8, label %lor.lhs.false
+  
+  lor.lhs.false:                                    ; preds = %if.else, %land.lhs.true
+    %4 = load volatile i32, i32* @y, align 4, !tbaa !1
+    %cmp7 = icmp sgt i32 %4, 11
+    br i1 %cmp7, label %if.then8, label %if.else9
+  
+  if.then8:                                         ; preds = %lor.lhs.false, %if.else, %sw.bb3, %sw.bb2, %sw.bb
+    %result.13133 = phi i32 [ %result.038, %lor.lhs.false ], [ %result.038, %if.else ], [ %inc, %sw.bb ], [ %dec, %sw.bb2 ], [ %mul, %sw.bb3 ]
+    %sub = add nsw i32 %result.13133, -18
+    br label %while.cond.backedge
+  
+  while.cond.backedge:                              ; preds = %if.else9, %if.then8, %if.then
+    %result.0.be = phi i32 [ %add, %if.then ], [ %sub, %if.then8 ], [ %mul16.result.1, %if.else9 ]
+    %5 = load volatile i32, i32* @x, align 4, !tbaa !1
+    %cmp = icmp sgt i32 %5, 0
+    br i1 %cmp, label %land.rhs, label %while.end
+  
+  if.else9:                                         ; preds = %lor.lhs.false
+    %6 = icmp sgt i32 %z, 35
+    %7 = load volatile i32, i32* @y, align 4, !tbaa !1
+    %cmp11 = icmp slt i32 %7, 56
+    %cmp13 = xor i1 %6, %cmp11
+    %mul16 = mul nsw i32 %result.038, 19
+    %mul16.result.1 = select i1 %cmp13, i32 %mul16, i32 %result.038
+    br label %while.cond.backedge
+  
+  while.end:                                        ; preds = %land.rhs, %while.cond.backedge, %entry
+    %result.0.lcssa = phi i32 [ 0, %entry ], [ %result.0.be, %while.cond.backedge ], [ %result.038, %land.rhs ]
+    ret i32 %result.0.lcssa
+  }
+  
+  attributes #0 = { norecurse nounwind "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="haswell" "target-features"="+aes,+avx,+avx2,+bmi,+bmi2,+cx16,+f16c,+fma,+fsgsbase,+fxsr,+lzcnt,+mmx,+movbe,+pclmul,+popcnt,+rdrnd,+rtm,+sse,+sse2,+sse3,+sse4.1,+sse4.2,+ssse3,+x87,+xsave,+xsaveopt" "unsafe-fp-math"="false" "use-soft-float"="false" }
+  
+  !llvm.ident = !{!0}
+  
+  !0 = !{!"clang version 5.0.0 (cfe/trunk)"}
+  !1 = !{!2, !2, i64 0}
+  !2 = !{!"int", !3, i64 0}
+  !3 = !{!"omnipotent char", !4, i64 0}
+  !4 = !{!"Simple C/C++ TBAA"}
+
+...
+---
+name:            perfNopsInsertion
+alignment:       4
+exposesReturnsTwice: false
+legalized:       false
+regBankSelected: false
+selected:        false
+tracksRegLiveness: true
+liveins:         
+  - { reg: '%ecx' }
+frameInfo:       
+  isFrameAddressTaken: false
+  isReturnAddressTaken: false
+  hasStackMap:     false
+  hasPatchPoint:   false
+  stackSize:       0
+  offsetAdjustment: 0
+  maxAlignment:    8
+  adjustsStack:    false
+  hasCalls:        false
+  maxCallFrameSize: 0
+  hasOpaqueSPAdjustment: false
+  hasVAStart:      false
+  hasMustTailInVarArgFunc: false
+jumpTable:       
+  kind:            label-difference32
+  entries:         
+    - id:              0
+      blocks:          [ '%bb.6.sw.bb', '%bb.7.sw.bb2', '%bb.8.sw.bb3', 
+                         '%bb.11.if.else', '%bb.11.if.else', '%bb.11.if.else', 
+                         '%bb.11.if.else', '%bb.11.if.else', '%bb.9.land.lhs.true' ]
+
+# The test:    Two branches in the same 16B window with the same target address.
+#              Expect insertion of nops in unreachable code space to avoid this.
+# CHECK:       4f: eb 3f     jmp     63      <perfNopsInsertion+0x90>
+# CHECK-NEXT:  51: 66 0f 1f 84 00 00 00 00 00      nopw    (%rax,%rax)
+# CHECK:       5f: eb 2f     jmp     47      <perfNopsInsertion+0x90>
+# CHECK-NEXT:  61:
+
+body:             |
+  bb.0.entry:
+    successors: %bb.2.land.rhs.lr.ph(0x50000000), %bb.1(0x30000000)
+    liveins: %ecx
+  
+    CMP32mi8 %rip, 1, _, @x, _, 0, implicit-def %eflags :: (volatile dereferenceable load 4 from @x, !tbaa !1)
+    JG_1 %bb.2.land.rhs.lr.ph, implicit killed %eflags
+  
+  bb.1:
+    successors: %bb.16.while.end(0x80000000)
+  
+    %eax = MOV32r0 implicit-def dead %eflags
+    JMP_1 %bb.16.while.end
+  
+  bb.2.land.rhs.lr.ph:
+    successors: %bb.3.land.rhs(0x80000000)
+    liveins: %ecx
+  
+    %eax = MOV32r0 implicit-def dead %eflags
+    %r9d = MOV32rr %ecx, implicit-def %r9
+    %r8 = LEA64r %rip, 1, _, %jump-table.0, _
+  
+  bb.3.land.rhs:
+    successors: %bb.4.while.body(0x7c000000), %bb.19(0x04000000)
+    liveins: %eax, %ecx, %r8, %r9
+  
+    CMP32mi8 %rip, 1, _, @y, _, 0, implicit-def %eflags :: (volatile dereferenceable load 4 from @y, !tbaa !1)
+    JS_1 %bb.4.while.body, implicit killed %eflags
+  
+  bb.19:
+    successors: %bb.16.while.end(0x80000000)
+    liveins: %eax
+  
+    JMP_1 %bb.16.while.end
+  
+  bb.4.while.body:
+    successors: %bb.11.if.else(0x0ccccccb), %bb.5.while.body(0x73333335)
+    liveins: %eax, %ecx, %r8, %r9
+  
+    CMP32ri8 %ecx, 8, implicit-def %eflags
+    JA_1 %bb.11.if.else, implicit killed %eflags
+  
+  bb.5.while.body:
+    successors: %bb.6.sw.bb(0x1c71c71c), %bb.7.sw.bb2(0x1c71c71c), %bb.8.sw.bb3(0x1c71c71c), %bb.11.if.else(0x0e38e38e), %bb.9.land.lhs.true(0x1c71c71c)
+    liveins: %eax, %ecx, %r8, %r9
+  
+    %rdx = MOVSX64rm32 %r8, 4, %r9, 0, _ :: (load 4 from jump-table)
+    %rdx = ADD64rr killed %rdx, %r8, implicit-def dead %eflags
+    JMP64r killed %rdx
+  
+  bb.6.sw.bb:
+    successors: %bb.13.if.then8(0x80000000)
+    liveins: %eax, %ecx, %r8, %r9
+  
+    %eax = ADD32ri8 killed %eax, 1, implicit-def dead %eflags
+    JMP_1 %bb.13.if.then8
+  
+  bb.7.sw.bb2:
+    successors: %bb.13.if.then8(0x80000000)
+    liveins: %eax, %ecx, %r8, %r9
+  
+    %eax = ADD32ri8 killed %eax, -1, implicit-def dead %eflags
+    JMP_1 %bb.13.if.then8
+  
+  bb.8.sw.bb3:
+    successors: %bb.13.if.then8(0x80000000)
+    liveins: %eax, %ecx, %r8, %r9
+  
+    %eax = IMUL32rr killed %eax, %eax, implicit-def dead %eflags
+    JMP_1 %bb.13.if.then8
+  
+  bb.9.land.lhs.true:
+    successors: %bb.10.if.then(0x40000000), %bb.12.lor.lhs.false(0x40000000)
+    liveins: %eax, %ecx, %r8, %r9
+  
+    %edx = MOV32rm %rip, 1, _, @y, _ :: (volatile dereferenceable load 4 from @y, !tbaa !1)
+    CMP32ri8 killed %edx, 9, implicit-def %eflags
+    JNE_1 %bb.12.lor.lhs.false, implicit killed %eflags
+    JMP_1 %bb.10.if.then
+  
+  bb.10.if.then:
+    successors: %bb.14.while.cond.backedge(0x80000000)
+    liveins: %eax, %ecx, %r8, %r9
+  
+    %eax = ADD32ri8 killed %eax, 7, implicit-def dead %eflags
+    JMP_1 %bb.14.while.cond.backedge
+  
+  bb.11.if.else:
+    successors: %bb.17(0x40000000), %bb.12.lor.lhs.false(0x40000000)
+    liveins: %eax, %ecx, %r8, %r9
+  
+    CMP32ri8 %ecx, 6, implicit-def %eflags
+    JGE_1 %bb.12.lor.lhs.false, implicit killed %eflags
+  
+  bb.17:
+    successors: %bb.13.if.then8(0x80000000)
+    liveins: %eax, %ecx, %r8, %r9
+  
+    JMP_1 %bb.13.if.then8
+  
+  bb.12.lor.lhs.false:
+    successors: %bb.18(0x40000000), %bb.15.if.else9(0x40000000)
+    liveins: %eax, %ecx, %r8, %r9
+  
+    %edx = MOV32rm %rip, 1, _, @y, _ :: (volatile dereferenceable load 4 from @y, !tbaa !1)
+    CMP32ri8 killed %edx, 12, implicit-def %eflags
+    JL_1 %bb.15.if.else9, implicit killed %eflags
+  
+  bb.18:
+    successors: %bb.13.if.then8(0x80000000)
+    liveins: %eax, %ecx, %r8, %r9
+  
+  
+  bb.13.if.then8:
+    successors: %bb.14.while.cond.backedge(0x80000000)
+    liveins: %eax, %ecx, %r8, %r9
+  
+    %eax = ADD32ri8 killed %eax, -18, implicit-def dead %eflags
+  
+  bb.14.while.cond.backedge:
+    successors: %bb.3.land.rhs(0x7c000000), %bb.16.while.end(0x04000000)
+    liveins: %eax, %ecx, %r8, %r9
+  
+    CMP32mi8 %rip, 1, _, @x, _, 0, implicit-def %eflags :: (volatile dereferenceable load 4 from @x, !tbaa !1)
+    JG_1 %bb.3.land.rhs, implicit killed %eflags
+    JMP_1 %bb.16.while.end
+  
+  bb.15.if.else9:
+    successors: %bb.14.while.cond.backedge(0x80000000)
+    liveins: %eax, %ecx, %r8, %r9
+  
+    CMP32ri8 %ecx, 35, implicit-def %eflags
+    %r10b = SETGr implicit killed %eflags
+    %edx = MOV32rm %rip, 1, _, @y, _ :: (volatile dereferenceable load 4 from @y, !tbaa !1)
+    CMP32ri8 killed %edx, 56, implicit-def %eflags
+    %dl = SETLr implicit killed %eflags
+    %r11d = IMUL32rri8 %eax, 19, implicit-def dead %eflags
+    dead %dl = XOR8rr killed %dl, killed %r10b, implicit-def %eflags
+    %eax = CMOVNE32rr killed %eax, killed %r11d, implicit killed %eflags
+    JMP_1 %bb.14.while.cond.backedge
+  
+  bb.16.while.end:
+    liveins: %eax
+  
+    RET 0, %eax
+
+...

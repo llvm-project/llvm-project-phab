@@ -8,6 +8,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "MCTargetDesc/X86BaseInfo.h"
+#include "MCTargetDesc/X86MCCodePadder.h"
 #include "MCTargetDesc/X86FixupKinds.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/BinaryFormat/ELF.h"
@@ -73,6 +74,12 @@ class X86AsmBackend : public MCAsmBackend {
   const StringRef CPU;
   bool HasNopl;
   const uint64_t MaxNopLength;
+
+protected:
+  MCCodePadder *createCodePadder() override {
+    return new X86::X86MCCodePadder(CPU);
+  }
+
 public:
   X86AsmBackend(const Target &T, StringRef CPU)
       : MCAsmBackend(), CPU(CPU),
