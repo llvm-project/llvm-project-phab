@@ -2442,8 +2442,12 @@ SDValue PPCTargetLowering::LowerConstantPool(SDValue Op,
 // This trades 32 bits per jump table entry for one or two instructions
 // on the jump site.
 unsigned PPCTargetLowering::getJumpTableEncoding() const {
-  if (isJumpTableRelative())
+  if (isJumpTableRelative()) {
+    if (Subtarget.isPPC64() && getTargetMachine().getCodeModel() == CodeModel::Large) {
+      return MachineJumpTableInfo::EK_LabelDifference64;
+    }
     return MachineJumpTableInfo::EK_LabelDifference32;
+  }
 
   return TargetLowering::getJumpTableEncoding();
 }

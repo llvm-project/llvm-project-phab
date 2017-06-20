@@ -288,12 +288,22 @@ unsigned TargetLowering::getJumpTableEncoding() const {
   if (!isPositionIndependent())
     return MachineJumpTableInfo::EK_BlockAddress;
 
-  // In PIC mode, if the target supports a GPRel32 directive, use it.
-  if (getTargetMachine().getMCAsmInfo()->getGPRel32Directive() != nullptr)
-    return MachineJumpTableInfo::EK_GPRel32BlockAddress;
+  const auto &TM = getTargetMachine();
+  if (TM.getPointerSize() == 8 && TM.getCodeModel() == CodeModel::Large) {
+    // In PIC mode, if the target supports a GPRel64 directive, use it.
+    if (TM.getMCAsmInfo()->getGPRel64Directive() != nullptr)
+      return MachineJumpTableInfo::EK_GPRel64BlockAddress;
 
-  // Otherwise, use a label difference.
-  return MachineJumpTableInfo::EK_LabelDifference32;
+    // Otherwise, use a label difference.
+    return MachineJumpTableInfo::EK_LabelDifference64;
+  } else {
+    // In PIC mode, if the target supports a GPRel32 directive, use it.
+    if (TM.getMCAsmInfo()->getGPRel32Directive() != nullptr)
+      return MachineJumpTableInfo::EK_GPRel32BlockAddress;
+
+    // Otherwise, use a label difference.
+    return MachineJumpTableInfo::EK_LabelDifference32;
+  }
 }
 
 SDValue TargetLowering::getPICJumpTableRelocBase(SDValue Table,
