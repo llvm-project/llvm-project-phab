@@ -154,7 +154,8 @@ struct ParenState {
         NoLineBreakInOperand(false), LastOperatorWrapped(true),
         ContainsLineBreak(false), ContainsUnwrappedBuilder(false),
         AlignColons(true), ObjCSelectorNameFound(false),
-        HasMultipleNestedBlocks(false), NestedBlockInlined(false) {}
+        HasMultipleNestedBlocks(false), NestedBlockInlined(false),
+        UnindentOperator(false) {}
 
   /// \brief The position to which a specific parenthesis level needs to be
   /// indented.
@@ -264,6 +265,10 @@ struct ParenState {
   // "function" in JavaScript) is not wrapped to a new line.
   bool NestedBlockInlined : 1;
 
+  /// \brief Indicates the indent should be reduced by the length of the
+  /// operator.
+  bool UnindentOperator : 1;
+
   bool operator<(const ParenState &Other) const {
     if (Indent != Other.Indent)
       return Indent < Other.Indent;
@@ -301,6 +306,8 @@ struct ParenState {
       return ContainsUnwrappedBuilder;
     if (NestedBlockInlined != Other.NestedBlockInlined)
       return NestedBlockInlined;
+    if (UnindentOperator != Other.UnindentOperator)
+      return UnindentOperator;
     return false;
   }
 };
