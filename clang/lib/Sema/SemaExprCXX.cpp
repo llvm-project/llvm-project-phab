@@ -7246,10 +7246,13 @@ class TransformTypos : public TreeTransform<TransformTypos> {
   /// TransformCache). Returns true if there is still any untried combinations
   /// of corrections.
   bool CheckAndAdvanceTypoExprCorrectionStreams() {
+	bool CheckLimitExceeded =
+        SemaRef.TyposCorrected >=
+        SemaRef.getDiagnostics().getDiagnosticOptions().SpellCheckingLimit;
     for (auto TE : TypoExprs) {
       auto &State = SemaRef.getTypoExprState(TE);
       TransformCache.erase(TE);
-      if (!State.Consumer->finished())
+	  if (!CheckLimitExceeded && !State.Consumer->finished())
         return true;
       State.Consumer->resetCorrectionStream();
     }
