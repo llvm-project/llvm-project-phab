@@ -28,6 +28,7 @@
 #include "llvm/IR/Operator.h"
 #include "llvm/IR/ValueHandle.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Transforms/Utils/OrderedInstructions.h"
 
 namespace llvm {
 
@@ -51,10 +52,25 @@ struct LoopSafetyInfo {
   bool MayThrow = false;       // The current loop contains an instruction which
                                // may throw.
   bool HeaderMayThrow = false; // Same as previous, but specific to loop header
+
+  // Whether we have computed all the early exits.
+  bool ComputedEarlyExits = false;
+  // The early exits in the loop, excluding loop exits.
+  // These are calls that might throw, infinite loop, etc.
+  DenseSet<AssertingVH<Instruction>> EarlyExits;
+
+  // Utility to check for dominance information with caching.
+  OrderedInstructions OI;
+
   // Used to update funclet bundle operands.
   DenseMap<BasicBlock *, ColorVector> BlockColors;
 
-  LoopSafetyInfo() = default;
+  // Delete the specified early exit. This can happen if the early exit
+  // is removed from the loop.
+  void deleteExit(Instruction *E) { EarlyExits.erase(E); }
+
+  // Constructor.
+  LoopSafetyInfo(DominatorTree *DT) : OI(DT) {}
 };
 
 /// The RecurrenceDescriptor is used to identify recurrences variables in a
@@ -444,13 +460,14 @@ bool promoteLoopAccessesToScalars(AliasSet &, SmallVectorImpl<BasicBlock *> &,
 /// checks loop body & header for the possibility of may throw
 /// exception, it takes LoopSafetyInfo and loop as argument.
 /// Updates safety information in LoopSafetyInfo argument.
-void computeLoopSafetyInfo(LoopSafetyInfo *, Loop *);
+/// In case ComputeEarlyExits is true, all the early exit points are recorded.
+void computeLoopSafetyInfo(LoopSafetyInfo *, Loop *,
+                           bool ComputeEarlyExits = false);
 
 /// Returns true if the instruction in a loop is guaranteed to execute at least
 /// once.
 bool isGuaranteedToExecute(const Instruction &Inst, const DominatorTree *DT,
-                           const Loop *CurLoop,
-                           const LoopSafetyInfo *SafetyInfo);
+                           const Loop *CurLoop, LoopSafetyInfo *SafetyInfo);
 
 /// \brief Returns the instructions that use values defined in the loop.
 SmallVector<Instruction *, 8> findDefsUsedOutsideOfLoop(Loop *L);
