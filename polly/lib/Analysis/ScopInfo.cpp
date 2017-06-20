@@ -1643,6 +1643,20 @@ void ScopStmt::collectSurroundingLoops() {
   }
 }
 
+ScopStmt::ScopStmt(ScopStmt *Original, isl_set *NewDomain, int CopyNo)
+    : Parent(*(Original->getParent())), InvalidDomain(nullptr), Domain(nullptr),
+      BB(Original->getBasicBlock()), R(Original->getRegion()), Build(nullptr),
+      SurroundingLoop(Original->getSurroundingLoop()) {
+  BaseName = getIslCompatibleName(Original->getBaseName(), "_copy_no_",
+                                  std::to_string(CopyNo));
+  Domain = NewDomain;
+  isl_id *Id = isl_id_alloc(getIslCtx(), getBaseName(), this);
+  Domain = isl_set_set_tuple_id(Domain, Id);
+  for (MemoryAccess *Access : Original->MemAccs) {
+    addAccess(Access);
+  }
+}
+
 ScopStmt::ScopStmt(Scop &parent, Region &R, Loop *SurroundingLoop)
     : Parent(parent), InvalidDomain(nullptr), Domain(nullptr), BB(nullptr),
       R(&R), Build(nullptr), SurroundingLoop(SurroundingLoop) {
@@ -4659,6 +4673,12 @@ static isl::multi_union_pw_aff mapToDimension(isl::union_set USet, int N) {
   assert(Res == isl::stat::ok);
 
   return isl::multi_union_pw_aff(isl::union_pw_multi_aff(Result));
+}
+
+isl_id *Scop::copyScopStmt(ScopStmt *NewStmt, isl_set *NewDomain, int CopyNo) {
+  assert(NewStmt && "Unexpected nullptr!");
+  Stmts.emplace_back(NewStmt, NewDomain, CopyNo);
+  return Stmts.back().getDomainId();
 }
 
 void Scop::addScopStmt(BasicBlock *BB, Loop *SurroundingLoop,
