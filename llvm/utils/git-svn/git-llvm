@@ -320,6 +320,16 @@ def cmd_push(args):
         svn_push_one_rev(svn_root, r, dry_run)
 
 
+def cmd_svn2git(args):
+    '''Map svn revisions onto git revisions.'''
+    dot_git_dir = git('rev-parse', '--git-common-dir')
+    os.chdir(dot_git_dir)
+
+    # refs/notes/commits:09/c4/b68e68c4fcff64b00e1ac077c4f4a524cbcc
+    grep_result = git('grep', '-l', '^git-svn-rev: ' + args.rev + '$', 'refs/notes/commits')
+    print(grep_result.split(':')[1].replace('/', ''))
+
+
 if __name__ == '__main__':
     if not program_exists('svn'):
         die('error: git-llvm needs svn command, but svn is not installed.')
@@ -357,6 +367,17 @@ if __name__ == '__main__':
         'upstream, or not in origin/master if the branch lacks '
         'an explicit upstream)')
     parser_push.set_defaults(func=cmd_push)
+
+    parser_svn2git = subcommands.add_parser(
+        'svn2git', description=cmd_svn2git.__doc__,
+        help='map svn revisions to git revisions')
+    parser_svn2git.add_argument(
+        'rev',
+        metavar='SVN_REV',
+        type=str,
+        help="rev to map")
+    parser_svn2git.set_defaults(func=cmd_svn2git)
+
     args = p.parse_args(argv)
     VERBOSE = args.verbose
     QUIET = args.quiet
