@@ -102,9 +102,8 @@ static int __xray_OpenLogFile() XRAY_NEVER_INSTRUMENT {
   return F;
 }
 
-template <class RDTSC>
-void __xray_InMemoryRawLog(int32_t FuncId, XRayEntryType Type,
-                           RDTSC ReadTSC) XRAY_NEVER_INSTRUMENT {
+void __xray_InMemoryRawLog(int32_t FuncId,
+                           XRayEntryType Type) XRAY_NEVER_INSTRUMENT {
   using Buffer =
       std::aligned_storage<sizeof(XRayRecord), alignof(XRayRecord)>::type;
   static constexpr size_t BuffLen = 1024;
@@ -121,7 +120,7 @@ void __xray_InMemoryRawLog(int32_t FuncId, XRayEntryType Type,
   // through a pointer offset.
   auto &R = reinterpret_cast<__xray::XRayRecord *>(InMemoryBuffer)[Offset];
   R.RecordType = RecordTypes::NORMAL;
-  R.TSC = ReadTSC(R.CPU);
+  R.TSC = __xray::readTSC(R.CPU);
   R.TId = TId;
   R.Type = Type;
   R.FuncId = FuncId;
@@ -135,32 +134,8 @@ void __xray_InMemoryRawLog(int32_t FuncId, XRayEntryType Type,
   }
 }
 
-void __xray_InMemoryRawLogRealTSC(int32_t FuncId,
-                                  XRayEntryType Type) XRAY_NEVER_INSTRUMENT {
-  __xray_InMemoryRawLog(FuncId, Type, __xray::readTSC);
-}
-
-void __xray_InMemoryEmulateTSC(int32_t FuncId,
-                               XRayEntryType Type) XRAY_NEVER_INSTRUMENT {
-  __xray_InMemoryRawLog(FuncId, Type, [](uint8_t &CPU) XRAY_NEVER_INSTRUMENT {
-    timespec TS;
-    int result = clock_gettime(CLOCK_REALTIME, &TS);
-    if (result != 0) {
-      Report("clock_gettimg(2) return %d, errno=%d.", result, int(errno));
-      TS = {0, 0};
-    }
-    CPU = 0;
-    return TS.tv_sec * __xray::NanosecondsPerSecond + TS.tv_nsec;
-  });
-}
-
 static auto UNUSED Unused = [] {
-  auto UseRealTSC = probeRequiredCPUFeatures();
-  if (!UseRealTSC)
-    Report("WARNING: Required CPU features missing for XRay instrumentation, "
-           "using emulation instead.\n");
   if (flags()->xray_naive_log)
-    __xray_set_handler(UseRealTSC ? __xray_InMemoryRawLogRealTSC
-                                  : __xray_InMemoryEmulateTSC);
+    __xray_set_handler(__xray_InMemoryRawLog);
   return true;
 }();

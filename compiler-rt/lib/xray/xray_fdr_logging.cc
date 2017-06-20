@@ -163,47 +163,17 @@ XRayLogInitStatus fdrLoggingReset() XRAY_NEVER_INSTRUMENT {
   return XRayLogInitStatus::XRAY_LOG_UNINITIALIZED;
 }
 
-static std::tuple<uint64_t, unsigned char>
-getTimestamp() XRAY_NEVER_INSTRUMENT {
-  // We want to get the TSC as early as possible, so that we can check whether
-  // we've seen this CPU before. We also do it before we load anything else, to
-  // allow for forward progress with the scheduling.
-  unsigned char CPU;
-  uint64_t TSC;
-
-  // Test once for required CPU features
-  static bool TSCSupported = probeRequiredCPUFeatures();
-
-  if (TSCSupported) {
-    TSC = __xray::readTSC(CPU);
-  } else {
-    // FIXME: This code needs refactoring as it appears in multiple locations
-    timespec TS;
-    int result = clock_gettime(CLOCK_REALTIME, &TS);
-    if (result != 0) {
-      Report("clock_gettime(2) return %d, errno=%d", result, int(errno));
-      TS = {0, 0};
-    }
-    CPU = 0;
-    TSC = TS.tv_sec * __xray::NanosecondsPerSecond + TS.tv_nsec;
-  }
-  return std::make_tuple(TSC, CPU);
-}
-
 void fdrLoggingHandleArg0(int32_t FuncId,
                           XRayEntryType Entry) XRAY_NEVER_INSTRUMENT {
-  auto TSC_CPU = getTimestamp();
-  __xray_fdr_internal::processFunctionHook(FuncId, Entry, std::get<0>(TSC_CPU),
-                                           std::get<1>(TSC_CPU), clock_gettime,
+  __xray_fdr_internal::processFunctionHook(FuncId, Entry, clock_gettime,
                                            LoggingStatus, BQ);
 }
 
 void fdrLoggingHandleCustomEvent(void *Event,
                                  std::size_t EventSize) XRAY_NEVER_INSTRUMENT {
   using namespace __xray_fdr_internal;
-  auto TSC_CPU = getTimestamp();
-  auto &TSC = std::get<0>(TSC_CPU);
-  auto &CPU = std::get<1>(TSC_CPU);
+  uint8_t CPU;
+  uint64_t TSC = __xray::readTSC(CPU);
   thread_local bool Running = false;
   RecursionGuard Guard{Running};
   if (!Guard) {
@@ -240,9 +210,8 @@ void fdrLoggingHandleCustomEvent(void *Event,
   CustomEvent.Type = uint8_t(RecordType::Metadata);
   CustomEvent.RecordKind =
       uint8_t(MetadataRecord::RecordKinds::CustomEventMarker);
-  constexpr auto TSCSize = sizeof(std::get<0>(TSC_CPU));
   std::memcpy(&CustomEvent.Data, &ReducedEventSize, sizeof(int32_t));
-  std::memcpy(&CustomEvent.Data[sizeof(int32_t)], &TSC, TSCSize);
+  std::memcpy(&CustomEvent.Data[sizeof(int32_t)], &TSC, sizeof(TSC));
   std::memcpy(RecordPtr, &CustomEvent, sizeof(CustomEvent));
   RecordPtr += sizeof(CustomEvent);
   std::memcpy(RecordPtr, Event, ReducedEventSize);
