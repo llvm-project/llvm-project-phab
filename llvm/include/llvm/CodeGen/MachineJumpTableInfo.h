@@ -67,6 +67,15 @@ public:
     ///      .word L4_5_set_123
     EK_LabelDifference32,
 
+    /// EK_LabelDifference64 - Each entry is the address of the block minus
+    /// the address of the jump table.  This is used for PIC jump tables where
+    /// gprel64 is not supported.  e.g.:
+    ///      .word LBB123 - LJTI1_2
+    /// If the .set directive is supported, this is emitted as:
+    ///      .set L4_5_set_123, LBB123 - LJTI1_2
+    ///      .word L4_5_set_123
+    EK_LabelDifference64,
+
     /// EK_Inline - Jump table entries are emitted inline at their point of
     /// use. It is the responsibility of the target to emit the entries.
     EK_Inline,

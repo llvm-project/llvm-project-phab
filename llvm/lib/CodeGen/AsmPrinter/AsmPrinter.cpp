@@ -1538,7 +1538,8 @@ void AsmPrinter::EmitJumpTableInfo() {
   const Function *F = MF->getFunction();
   const TargetLoweringObjectFile &TLOF = getObjFileLowering();
   bool JTInDiffSection = !TLOF.shouldPutJumpTableInFunctionSection(
-      MJTI->getEntryKind() == MachineJumpTableInfo::EK_LabelDifference32,
+      MJTI->getEntryKind() == MachineJumpTableInfo::EK_LabelDifference32 ||
+      MJTI->getEntryKind() == MachineJumpTableInfo::EK_LabelDifference64,
       *F);
   if (JTInDiffSection) {
     // Drop it in the readonly section.
@@ -1559,9 +1560,10 @@ void AsmPrinter::EmitJumpTableInfo() {
     // If this jump table was deleted, ignore it.
     if (JTBBs.empty()) continue;
 
-    // For the EK_LabelDifference32 entry, if using .set avoids a relocation,
+    // For the EK_LabelDifference(32|64) entry, if using .set avoids a relocation,
     /// emit a .set directive for each unique entry.
-    if (MJTI->getEntryKind() == MachineJumpTableInfo::EK_LabelDifference32 &&
+    if ((MJTI->getEntryKind() == MachineJumpTableInfo::EK_LabelDifference32 ||
+         MJTI->getEntryKind() == MachineJumpTableInfo::EK_LabelDifference64) &&
         MAI->doesSetDirectiveSuppressReloc()) {
       SmallPtrSet<const MachineBasicBlock*, 16> EmittedSets;
       const TargetLowering *TLI = MF->getSubtarget().getTargetLowering();
@@ -1635,9 +1637,11 @@ void AsmPrinter::EmitJumpTableEntry(const MachineJumpTableInfo *MJTI,
     return;
   }
 
+
+  case MachineJumpTableInfo::EK_LabelDifference64:
   case MachineJumpTableInfo::EK_LabelDifference32: {
     // Each entry is the address of the block minus the address of the jump
-    // table. This is used for PIC jump tables where gprel32 is not supported.
+    // table. This is used for PIC jump tables where gprel32 or gprel64 is not supported.
     // e.g.:
     //      .word LBB123 - LJTI1_2
     // If the .set directive avoids relocations, this is emitted as:
