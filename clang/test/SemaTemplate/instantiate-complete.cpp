@@ -134,6 +134,14 @@ namespace pr7199 {
   template class B<int>; // expected-note {{in instantiation}}
 }
 
+namespace PR32953 {
+  struct bar {};
+  template <typename A> struct Temp; // expected-note {{template is declared here}}
+  PR32953::bar struct Temp<int>::foo(); // expected-error {{implicit instantiation of undefined template 'PR32953::Temp<int>'}} \
+                                         expected-error {{cannot combine with previous 'type-name' declaration specifier}} \
+                                         expected-error {{expected unqualified-id}}
+}
+
 namespace PR8425 {
   template <typename T>
   class BaseT {};

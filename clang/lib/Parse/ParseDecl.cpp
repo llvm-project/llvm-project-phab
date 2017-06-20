@@ -3581,6 +3581,8 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
       tok::TokenKind Kind = Tok.getKind();
       ConsumeToken();
 
+      DS.getTypeSpecScope() = CXXScopeSpec();
+
       // These are attributes following class specifiers.
       // To produce better diagnostic, we parse them when
       // parsing class specifier.
