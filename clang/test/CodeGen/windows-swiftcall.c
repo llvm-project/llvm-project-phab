@@ -455,4 +455,4 @@ typedef struct {
   int3 v __attribute__((packed));
 } misaligned_int3;
 TEST(misaligned_int3)
-// CHECK-LABEL: define swiftcc void @take_misaligned_int3(i64, i64)
+// CHECK-LABEL: define swiftcc void @take_misaligned_int3(i64, i64, i32)

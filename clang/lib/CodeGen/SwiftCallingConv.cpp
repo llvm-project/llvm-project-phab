@@ -57,6 +57,10 @@ static CharUnits getTypeStoreSize(CodeGenModule &CGM, llvm::Type *type) {
   return CharUnits::fromQuantity(CGM.getDataLayout().getTypeStoreSize(type));
 }
 
+static CharUnits getTypeAllocSize(CodeGenModule &CGM, llvm::Type *type) {
+  return CharUnits::fromQuantity(CGM.getDataLayout().getTypeAllocSize(type));
+}
+
 void SwiftAggLowering::addTypedData(QualType type, CharUnits begin) {
   // Deal with various aggregate types as special cases:
 
@@ -189,24 +193,24 @@ void SwiftAggLowering::addBitFieldData(const FieldDecl *bitfield,
 
 void SwiftAggLowering::addTypedData(llvm::Type *type, CharUnits begin) {
   assert(type && "didn't provide type for typed data");
-  addTypedData(type, begin, begin + getTypeStoreSize(CGM, type));
+  addTypedData(type, begin, begin + getTypeAllocSize(CGM, type));
 }
 
 void SwiftAggLowering::addTypedData(llvm::Type *type,
                                     CharUnits begin, CharUnits end) {
   assert(type && "didn't provide type for typed data");
-  assert(getTypeStoreSize(CGM, type) == end - begin);
+  assert(getTypeAllocSize(CGM, type) == end - begin);
 
   // Legalize vector types.
   if (auto vecTy = dyn_cast<llvm::VectorType>(type)) {
     SmallVector<llvm::Type*, 4> componentTys;
-    legalizeVectorType(CGM, end - begin, vecTy, componentTys);
+    legalizeVectorType(CGM, getTypeStoreSize(CGM, type), vecTy, componentTys);
     assert(componentTys.size() >= 1);
 
     // Walk the initial components.
     for (size_t i = 0, e = componentTys.size(); i != e - 1; ++i) {
       llvm::Type *componentTy = componentTys[i];
-      auto componentSize = getTypeStoreSize(CGM, componentTy);
+      auto componentSize = getTypeAllocSize(CGM, componentTy);
       assert(componentSize < end - begin);
       addLegalTypedData(componentTy, begin, begin + componentSize);
       begin += componentSize;
@@ -236,14 +240,15 @@ void SwiftAggLowering::addLegalTypedData(llvm::Type *type,
       auto eltTy = split.first;
       auto numElts = split.second;
 
-      auto eltSize = (end - begin) / numElts;
-      assert(eltSize == getTypeStoreSize(CGM, eltTy));
-      for (size_t i = 0, e = numElts; i != e; ++i) {
-        addLegalTypedData(eltTy, begin, begin + eltSize);
-        begin += eltSize;
+      auto eltSize = getTypeAllocSize(CGM, eltTy);
+      if (eltSize * numElts == end - begin) {
+        for (size_t i = 0, e = numElts; i != e; ++i) {
+          addLegalTypedData(eltTy, begin, begin + eltSize);
+          begin += eltSize;
+        }
+        assert(begin == end);
+        return;
       }
-      assert(begin == end);
-      return;
     }
 
     return addOpaqueData(begin, end);
@@ -318,12 +323,13 @@ restartAfterSplit:
   if (auto vecTy = dyn_cast_or_null<llvm::VectorType>(type)) {
     auto eltTy = vecTy->getElementType();
     CharUnits eltSize = (end - begin) / vecTy->getNumElements();
-    assert(eltSize == getTypeStoreSize(CGM, eltTy));
-    for (unsigned i = 0, e = vecTy->getNumElements(); i != e; ++i) {
-      addEntry(eltTy, begin, begin + eltSize);
-      begin += eltSize;
-    }
-    assert(begin == end);
+    if (eltSize == getTypeAllocSize(CGM, eltTy)) {
+      for (unsigned i = 0, e = vecTy->getNumElements(); i != e; ++i) {
+        addEntry(eltTy, begin, begin + eltSize);
+        begin += eltSize;
+      }
+      assert(begin == end);
+    } else { addOpaqueData(begin, end); }
     return;
   }
 
@@ -382,7 +388,7 @@ void SwiftAggLowering::splitVectorEntry(unsigned index) {
   auto split = splitLegalVectorType(CGM, Entries[index].getWidth(), vecTy);
 
   auto eltTy = split.first;
-  CharUnits eltSize = getTypeStoreSize(CGM, eltTy);
+  CharUnits eltSize = getTypeAllocSize(CGM, eltTy);
   auto numElts = split.second;
   Entries.insert(Entries.begin() + index + 1, numElts - 1, StorageEntry());
 

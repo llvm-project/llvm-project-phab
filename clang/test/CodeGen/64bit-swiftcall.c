@@ -1,4 +1,5 @@
 // RUN: %clang_cc1 -triple x86_64-apple-darwin10 -target-cpu core2 -emit-llvm -o - %s | FileCheck %s
+// RUN: %clang_cc1 -triple x86_64-apple-darwin10 -target-cpu core2 -emit-llvm -o - %s | FileCheck %s --check-prefix=X86-64
 // RUN: %clang_cc1 -triple arm64-apple-ios9 -target-cpu cyclone -emit-llvm -o - %s | FileCheck %s
 // RUN: %clang_cc1 -triple arm64-apple-ios9 -target-cpu cyclone -emit-llvm -o - %s | FileCheck %s --check-prefix=ARM64
 
@@ -463,7 +464,7 @@ typedef struct {
   int3 v __attribute__((packed));
 } misaligned_int3;
 TEST(misaligned_int3)
-// CHECK-LABEL: define swiftcc void @take_misaligned_int3(i64, i64)
+// CHECK-LABEL: define swiftcc void @take_misaligned_int3(i64, i64, i32)
 
 typedef struct {
   float f0;
@@ -1014,3 +1015,19 @@ typedef struct {
 TEST(struct_v1f3)
 // ARM64-LABEL: define swiftcc { <2 x float>, float } @return_struct_v1f3()
 // ARM64-LABEL: define swiftcc void @take_struct_v1f3(<2 x float>, float)
+
+typedef struct {
+  int3 vect;
+  unsigned long long val;
+} __attribute__((packed)) padded_alloc_size_vector;
+TEST(padded_alloc_size_vector)
+// X86-64-LABEL: take_padded_alloc_size_vector(<3 x i32>, i64)
+// ARM64-LABEL: take_padded_alloc_size_vector(<2 x i32>, i32, i64)
+
+typedef union {
+  float f1;
+  float3 fv2;
+} union_hom_fp_partial2;
+TEST(union_hom_fp_partial2)
+// X86-64-LABEL: take_union_hom_fp_partial2(i64, i64)
+// ARM64-LABEL: take_union_hom_fp_partial2(i64, float)
