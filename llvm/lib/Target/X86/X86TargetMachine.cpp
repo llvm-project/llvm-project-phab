@@ -377,8 +377,10 @@ void X86PassConfig::addIRPasses() {
 
   TargetPassConfig::addIRPasses();
 
-  if (TM->getOptLevel() != CodeGenOpt::None)
+  if (TM->getOptLevel() != CodeGenOpt::None) {
     addPass(createInterleavedAccessPass());
+    addPass(createSubstituteLoadWithSubShrPass());
+  }
 }
 
 bool X86PassConfig::addInstSelector() {

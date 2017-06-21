@@ -137,6 +137,7 @@ add_llvm_library(LLVMCodeGen
   StackMaps.cpp
   StackProtector.cpp
   StackSlotColoring.cpp
+  SubstituteLoadWithSubShr.cpp
   TailDuplication.cpp
   TailDuplicator.cpp
   TargetFrameLoweringImpl.cpp

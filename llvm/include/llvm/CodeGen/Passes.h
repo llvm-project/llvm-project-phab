@@ -420,6 +420,8 @@ namespace llvm {
   /// shuffles.
   FunctionPass *createExpandReductionsPass();
 
+  FunctionPass *createSubstituteLoadWithSubShrPass();
+
 } // End llvm namespace
 
 #endif
