@@ -1,4 +1,5 @@
 import os
+import sys
 from xml.sax.saxutils import escape
 from json import JSONEncoder
 
@@ -224,7 +225,14 @@ class Test:
             self.result.output = str(e)
         
     def getFullName(self):
-        return self.suite.config.name + ' :: ' + '/'.join(self.path_in_suite)
+        testpath = '/'.join(self.path_in_suite)
+        # Test names should be unicode strings. In python2 filepaths are not
+        # necessarily unicode strings yet as listdir() tends to return them
+        # as str objects when they don't decode cleanly.
+        if sys.version_info < (3,0,0):
+            testpath = testpath.decode(sys.getfilesystemencoding(),
+                                       errors='replace')
+        return self.suite.config.name + ' :: ' + testpath
 
     def getFilePath(self):
         if self.file_path:
