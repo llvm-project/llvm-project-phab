@@ -15,8 +15,5 @@ define i1 @t3(i32 %x) {
 	ret i1 %tmp
 }
 
-; CHECK: cmp
 ; CHECK-NOT: cmp
-
-
 

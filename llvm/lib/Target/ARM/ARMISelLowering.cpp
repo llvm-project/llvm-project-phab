@@ -9886,6 +9886,40 @@ static SDValue PerformAddcSubcCombine(SDNode *N, SelectionDAG &DAG,
   return SDValue();
 }
 
+static SDValue PerformADDCCombine(SDNode *N,
+                                  TargetLowering::DAGCombinerInfo &DCI,
+                                  const ARMSubtarget *Subtarget) {
+  SelectionDAG &DAG = DCI.DAG;
+
+  SDValue LHS = N->getOperand(0);
+  SDValue RHS = N->getOperand(1);
+  EVT VT = LHS.getValueType();
+  SDLoc DL(N);
+
+  // If the flag result is dead, turn this into an ADD.
+  if (!N->hasAnyUseOfValue(1))
+    return DCI.CombineTo(N, DAG.getNode(ISD::ADD, DL, VT, LHS, RHS),
+                         DAG.getConstant(0, DL, MVT::i32));
+
+  // Canonicalize constant to RHS.
+  ConstantSDNode *N0C = dyn_cast<ConstantSDNode>(LHS);
+  ConstantSDNode *N1C = dyn_cast<ConstantSDNode>(RHS);
+  if (N0C && !N1C)
+    return DAG.getNode(ARMISD::ADDC, DL, N->getVTList(), RHS, LHS);
+
+  // fold (addc x, 0) -> x + no carry out
+  if (isNullConstant(RHS))
+    return DCI.CombineTo(N, LHS, DAG.getConstant(0, DL, MVT::i32));
+
+  // If it cannot overflow, transform into an add.
+  if (DAG.computeOverflowKind(LHS, RHS) == SelectionDAG::OFK_Never)
+    return DCI.CombineTo(N, DAG.getNode(ISD::ADD, DL, VT, LHS, RHS),
+                         DAG.getConstant(0, DL, MVT::i32));
+
+  // Handle negative addend.
+  return PerformAddcSubcCombine(N, DAG, Subtarget);
+}
+
 static SDValue PerformAddeSubeCombine(SDNode *N, SelectionDAG &DAG,
                                       const ARMSubtarget *Subtarget) {
   if (Subtarget->isThumb1Only()) {
@@ -9916,6 +9950,37 @@ static SDValue PerformAddeSubeCombine(SDNode *N, SelectionDAG &DAG,
 static SDValue PerformADDECombine(SDNode *N,
                                   TargetLowering::DAGCombinerInfo &DCI,
                                   const ARMSubtarget *Subtarget) {
+  SelectionDAG &DAG = DCI.DAG;
+
+  SDValue LHS = N->getOperand(0);
+  SDValue RHS = N->getOperand(1);
+  SDValue Carry = N->getOperand(2);
+
+  // canonicalize constant to RHS
+  ConstantSDNode *N0C = dyn_cast<ConstantSDNode>(LHS);
+  ConstantSDNode *N1C = dyn_cast<ConstantSDNode>(RHS);
+  if (N0C && !N1C)
+    return DAG.getNode(ARMISD::ADDE, SDLoc(N), N->getVTList(),
+                       RHS, LHS, Carry);
+
+  // fold (adde x, y, false) -> (addc x, y)
+  if (isNullConstant(Carry))
+    return DAG.getNode(ARMISD::ADDC, SDLoc(N), N->getVTList(), LHS, RHS);
+
+  // fold (adde x, const, 1) -> (addc x, const+1)
+  if (isOneConstant(Carry) && N1C) {
+    SDLoc DL(N);
+    EVT VT = RHS.getValueType();
+    uint64_t plus1 = N1C->getZExtValue() + 1;
+    uint64_t max_uint = (1LL<<VT.getSizeInBits()) - 1;
+    RHS = DAG.getConstant(plus1 & max_uint, DL, VT);
+    if (plus1 <= max_uint)
+      return DAG.getNode(ARMISD::ADDC, DL, N->getVTList(), LHS, RHS);
+    else
+      return DCI.CombineTo(N, DAG.getNode(ISD::ADD, DL, VT, LHS, RHS),
+                           DAG.getConstant(1, DL, MVT::i32));
+  }
+
   // Only ARM and Thumb2 support UMLAL/SMLAL.
   if (Subtarget->isThumb1Only())
     return PerformAddeSubeCombine(N, DCI.DAG, Subtarget);
@@ -9925,6 +9990,54 @@ static SDValue PerformADDECombine(SDNode *N,
 
   return AddCombineTo64bitUMAAL(N, DCI, Subtarget);
 }
+
+static SDValue PerformSUBCCombine(SDNode *N,
+                                  TargetLowering::DAGCombinerInfo &DCI,
+                                  const ARMSubtarget *Subtarget) {
+  SelectionDAG &DAG = DCI.DAG;
+
+  SDValue LHS = N->getOperand(0);
+  SDValue RHS = N->getOperand(1);
+  EVT VT = LHS.getValueType();
+  SDLoc DL(N);
+
+  // If the flag result is dead, turn this into an SUB.
+  if (!N->hasAnyUseOfValue(1))
+    return DCI.CombineTo(N, DAG.getNode(ISD::SUB, DL, VT, LHS, RHS),
+                         DAG.getConstant(1, DL, MVT::i32));
+
+  // fold (subc x, x) -> 0 + no borrow
+  if (LHS == RHS)
+    return DCI.CombineTo(N, DAG.getConstant(0, DL, VT),
+                         DAG.getConstant(1, DL, MVT::i32));
+
+  // fold (subc x, 0) -> x + no borrow
+  if (isNullConstant(RHS))
+    return DCI.CombineTo(N, LHS, DAG.getConstant(1, DL, MVT::i32));
+
+  // Canonicalize (sub -1, x) -> ~x, i.e. (xor x, -1) + no borrow
+  if (isAllOnesConstant(LHS))
+    return DCI.CombineTo(N, DAG.getNode(ISD::XOR, DL, VT, RHS, LHS),
+                         DAG.getConstant(1, DL, MVT::i32));
+
+  // Handle negative subtrahend.
+  return PerformAddcSubcCombine(N, DAG, Subtarget);
+}
+
+static SDValue PerformSUBECombine(SDNode *N, SelectionDAG &DAG,
+                                  const ARMSubtarget *Subtarget) {
+
+  SDValue LHS = N->getOperand(0);
+  SDValue RHS = N->getOperand(1);
+  SDValue Carry = N->getOperand(2);
+
+  // fold (sube x, y, false) -> (subc x, y)
+  if (isOneConstant(Carry))
+    return DAG.getNode(ARMISD::SUBC, SDLoc(N), N->getVTList(), LHS, RHS);
+
+  return PerformAddeSubeCombine(N, DAG, Subtarget);
+}
+
 
 /// PerformADDCombineWithOperands - Try DAG combinations for an ADD with
 /// operands N0 and N1.  This is a helper for PerformADDCombine that is
@@ -11758,6 +11871,14 @@ static SDValue PerformExtendCombine(SDNode *N, SelectionDAG &DAG,
   return SDValue();
 }
 
+static const APInt *isPowerOf2Constant(SDValue V) {
+  ConstantSDNode *C = dyn_cast<ConstantSDNode>(V);
+  if (!C)
+    return nullptr;
+  const APInt *CV = &C->getAPIntValue();
+  return CV->isPowerOf2() ? CV : nullptr;
+}
+
 SDValue ARMTargetLowering::PerformCMOVToBFICombine(SDNode *CMOV, SelectionDAG &DAG) const {
   // If we have a CMOV, OR and AND combination such as:
   //   if (x & CN)
@@ -11786,8 +11907,8 @@ SDValue ARMTargetLowering::PerformCMOVToBFICombine(SDNode *CMOV, SelectionDAG &D
   SDValue And = CmpZ->getOperand(0);
   if (And->getOpcode() != ISD::AND)
     return SDValue();
-  ConstantSDNode *AndC = dyn_cast<ConstantSDNode>(And->getOperand(1));
-  if (!AndC || !AndC->getAPIntValue().isPowerOf2())
+  const APInt *AndC = isPowerOf2Constant(And->getOperand(1));
+  if (!AndC)
     return SDValue();
   SDValue X = And->getOperand(0);
 
@@ -11827,7 +11948,7 @@ SDValue ARMTargetLowering::PerformCMOVToBFICombine(SDNode *CMOV, SelectionDAG &D
   SDValue V = Y;
   SDLoc dl(X);
   EVT VT = X.getValueType();
-  unsigned BitInX = AndC->getAPIntValue().logBase2();
+  unsigned BitInX = AndC->logBase2();
 
   if (BitInX != 0) {
     // We must shift X first.
@@ -11942,6 +12063,75 @@ ARMTargetLowering::PerformCMOVCombine(SDNode *N, SelectionDAG &DAG) const {
                       N->getOperand(3), NewCmp);
   }
 
+  // Materialize a boolean comparison for integers so we can avoid branching.
+  if (VT.isInteger()) {
+    if (isNullConstant(FalseVal)) {
+      if (CC == ARMCC::EQ && isOneConstant(TrueVal)) {
+        if (!Subtarget->isThumb1Only() && Subtarget->hasV5TOps()) {
+          // If x == y then x - y == 0 and ARM's CLZ will return 32, shifting it
+          // right 5 bits will make that 32 be 1, otherwise it will be 0.
+          // CMOV 0, 1, ==, (CMPZ x, y) -> SRL (CTLZ (SUB x, y)), 5
+          SDValue Sub = DAG.getNode(ISD::SUB, dl, VT, LHS, RHS);
+          Res =
+              DAG.getNode(ISD::SRL, dl, VT, DAG.getNode(ISD::CTLZ, dl, VT, Sub),
+                          DAG.getConstant(5, dl, MVT::i32));
+        } else {
+          // ARMISD::SUBC will set the carry only when x == y which means that
+          // the final ARMISD::ADDE (which uses the carry generated by
+          // ARMISD::SUBC) will be 1. If x != y then the rightmost SUB will
+          // give a nonzero unsigned number which will always be higher than 0
+          // so the carry won't be set in that case and the two operands of
+          // ARMISD::ADDE will cancel each other.
+          // CMOV 0, 1, ==, (CMPZ x, y) ->
+          //      ARMISD::ADDE ((SUB x, y), (ARMISD::SUBC 0, (SUB x, y)))
+          SDValue Sub = DAG.getNode(ISD::SUB, dl, VT, LHS, RHS);
+          SDVTList VTs = DAG.getVTList(VT, MVT::i32);
+          SDValue Neg = DAG.getNode(ARMISD::SUBC, dl, VTs, FalseVal, Sub);
+          Res = DAG.getNode(ARMISD::ADDE, dl, VTs, Sub, Neg, Neg.getValue(1));
+        }
+      } else if (CC == ARMCC::NE && LHS != RHS &&
+                 (!Subtarget->isThumb1Only() || isPowerOf2Constant(TrueVal))) {
+        // This seems pointless but will allow us to combine it further below.
+        // CMOV 0, z, !=, (CMPZ x, y) -> CMOV (SUB x, y), z, !=, (CMPZ x, y)
+        SDValue Sub = DAG.getNode(ISD::SUB, dl, VT, LHS, RHS);
+        Res = DAG.getNode(ARMISD::CMOV, dl, VT, Sub, TrueVal, ARMcc,
+                          N->getOperand(3), Cmp);
+      }
+    } else if (isNullConstant(TrueVal)) {
+      if (CC == ARMCC::EQ && LHS != RHS &&
+          (!Subtarget->isThumb1Only() || isPowerOf2Constant(FalseVal))) {
+        // This seems pointless but will allow us to combine it further below
+        // Note that we change == for != as this is the dual for the case above.
+        // CMOV z, 0, ==, (CMPZ x, y) -> CMOV (SUB x, y), z, !=, (CMPZ x, y)
+        SDValue Sub = DAG.getNode(ISD::SUB, dl, VT, LHS, RHS);
+        Res = DAG.getNode(ARMISD::CMOV, dl, VT, Sub, FalseVal,
+                          DAG.getConstant(ARMCC::NE, dl, MVT::i32),
+                          N->getOperand(3), Cmp);
+      }
+    }
+
+    // On Thumb1, the DAG above may be further combined.
+    //  CMOV (SUB x, y), z, !=, (CMPZ x, y) ->
+    //      ARMISD::SUBE ((SUB x, y), (ARMISD::SUBC (SUB x, y), z))
+    // to avoid branching.
+    const APInt *TrueConst;
+    if (Subtarget->isThumb1Only() && CC == ARMCC::NE &&
+        (FalseVal.getOpcode() == ISD::SUB) && (FalseVal.getOperand(0) == LHS) &&
+        (FalseVal.getOperand(1) == RHS) &&
+        (TrueConst = isPowerOf2Constant(TrueVal))) {
+      SDVTList VTs = DAG.getVTList(VT, MVT::i32);
+      unsigned ShAmt = TrueConst->logBase2();
+      if (ShAmt)
+        TrueVal = DAG.getConstant(1, dl, VT);
+      SDValue Subc = DAG.getNode(ARMISD::SUBC, dl, VTs, FalseVal, TrueVal);
+      Res =
+          DAG.getNode(ARMISD::SUBE, dl, VTs, FalseVal, Subc, Subc.getValue(1));
+      if (ShAmt)
+        Res = DAG.getNode(ISD::SHL, dl, VT, Res,
+                          DAG.getConstant(ShAmt, dl, MVT::i32));
+    }
+  }
+
   // (cmov F T ne CPSR (cmpz (cmov 0 1 CC CPSR Cmp) 0))
   // -> (cmov F T CC CPSR Cmp)
   if (CC == ARMCC::NE && LHS.getOpcode() == ARMISD::CMOV && LHS->hasOneUse()) {
@@ -11979,7 +12169,10 @@ SDValue ARMTargetLowering::PerformDAGCombine(SDNode *N,
                                              DAGCombinerInfo &DCI) const {
   switch (N->getOpcode()) {
   default: break;
+  case ARMISD::ADDC:    return PerformADDCCombine(N, DCI, Subtarget);
   case ARMISD::ADDE:    return PerformADDECombine(N, DCI, Subtarget);
+  case ARMISD::SUBC:    return PerformSUBCCombine(N, DCI, Subtarget);
+  case ARMISD::SUBE:    return PerformSUBECombine(N, DCI.DAG, Subtarget);
   case ARMISD::UMLAL:   return PerformUMLALCombine(N, DCI.DAG, Subtarget);
   case ISD::ADD:        return PerformADDCombine(N, DCI, Subtarget);
   case ISD::SUB:        return PerformSUBCombine(N, DCI);
@@ -11987,9 +12180,6 @@ SDValue ARMTargetLowering::PerformDAGCombine(SDNode *N,
   case ISD::OR:         return PerformORCombine(N, DCI, Subtarget);
   case ISD::XOR:        return PerformXORCombine(N, DCI, Subtarget);
   case ISD::AND:        return PerformANDCombine(N, DCI, Subtarget);
-  case ARMISD::ADDC:
-  case ARMISD::SUBC:    return PerformAddcSubcCombine(N, DCI.DAG, Subtarget);
-  case ARMISD::SUBE:    return PerformAddeSubeCombine(N, DCI.DAG, Subtarget);
   case ARMISD::BFI:     return PerformBFICombine(N, DCI);
   case ARMISD::VMOVRRD: return PerformVMOVRRDCombine(N, DCI, Subtarget);
   case ARMISD::VMOVDRR: return PerformVMOVDRRCombine(N, DCI.DAG);
