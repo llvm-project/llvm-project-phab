@@ -47,6 +47,34 @@ namespace object {
 
 class WindowsResource;
 
+const size_t WIN_RES_MAGIC_SIZE = 16;
+const size_t WIN_RES_NULL_ENTRY_SIZE = 16;
+const uint32_t WIN_RES_HEADER_ALIGNMENT = 4;
+const uint32_t WIN_RES_DATA_ALIGNMENT = 4;
+const uint16_t WIN_RES_PURE_MOVEABLE = 0x0030;
+
+struct WinResHeaderPrefix {
+  support::ulittle32_t DataSize;
+  support::ulittle32_t HeaderSize;
+};
+
+// Type and Name may each either be an integer ID or a string.  This struct is
+// only used in the case where they are both IDs.
+struct WinResIDs {
+  const uint16_t TypeFlag = 0xffff;
+  support::ulittle16_t TypeID;
+  const uint16_t NameFlag = 0xffff;
+  support::ulittle16_t NameID;
+};
+
+struct WinResHeaderSuffix {
+  support::ulittle32_t DataVersion;
+  support::ulittle16_t MemoryFlags;
+  support::ulittle16_t Language;
+  support::ulittle32_t Version;
+  support::ulittle32_t Characteristics;
+};
+
 class ResourceEntryRef {
 public:
   Error moveNext(bool &End);
@@ -70,14 +98,6 @@ private:
 
   Error loadNext();
 
-  struct HeaderSuffix {
-    support::ulittle32_t DataVersion;
-    support::ulittle16_t MemoryFlags;
-    support::ulittle16_t Language;
-    support::ulittle32_t Version;
-    support::ulittle32_t Characteristics;
-  };
-
   BinaryStreamReader Reader;
   bool IsStringType;
   ArrayRef<UTF16> Type;
@@ -85,7 +105,7 @@ private:
   bool IsStringName;
   ArrayRef<UTF16> Name;
   uint16_t NameID;
-  const HeaderSuffix *Suffix = nullptr;
+  const WinResHeaderSuffix *Suffix = nullptr;
   ArrayRef<uint8_t> Data;
   const WindowsResource *OwningRes = nullptr;
 };

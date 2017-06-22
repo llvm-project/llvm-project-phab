@@ -76,7 +76,7 @@ const char macho_dsym_companion[] =
     "\xfe\xed\xfa\xce........\x00\x00\x00\x0a............";
 const char macho_kext_bundle[] =
     "\xfe\xed\xfa\xce........\x00\x00\x00\x0b............";
-const char windows_resource[] = "\x00\x00\x00\x00\x020\x00\x00\x00\xff";
+const char windows_resource[] = "\x00\x00\x00\x00\x020\x00\x00\x00\xff\xff\x00\x00\xff\xff\x00\x00";
 const char macho_dynamically_linked_shared_lib_stub[] =
     "\xfe\xed\xfa\xce........\x00\x00\x00\x09............";
 
@@ -122,6 +122,7 @@ TEST_F(MagicTest, Magic) {
     StringRef magic(i->magic_str, i->magic_str_len);
     file << magic;
     file.close();
+    llvm::errs() << magic << "\n";
     EXPECT_EQ(i->magic, identify_magic(magic));
     ASSERT_NO_ERROR(fs::remove(Twine(file_pathname)));
   }
