@@ -172,7 +172,6 @@ namespace {
     BasicBlock *loopPreheader;
 
     bool SanitizeMemory;
-    LoopSafetyInfo SafetyInfo;
 
     // LoopBlocks contains all of the basic blocks of the loop, including the
     // preheader of the loop, the body of the loop, and the exit blocks of the
@@ -193,7 +192,7 @@ namespace {
       }
 
     bool runOnLoop(Loop *L, LPPassManager &LPM) override;
-    bool processCurrentLoop();
+    bool processCurrentLoop(LoopSafetyInfo *SafetyInfo);
     bool isUnreachableDueToPreviousUnswitching(BasicBlock *);
     /// This transformation requires natural loop information & requires that
     /// loop preheaders be inserted into the CFG.
@@ -508,6 +507,7 @@ bool LoopUnswitch::runOnLoop(Loop *L, LPPassManager &LPM_Ref) {
   Function *F = currentLoop->getHeader()->getParent();
 
   SanitizeMemory = F->hasFnAttribute(Attribute::SanitizeMemory);
+  LoopSafetyInfo SafetyInfo(DT);
   if (SanitizeMemory)
     computeLoopSafetyInfo(&SafetyInfo, L);
 
@@ -515,7 +515,7 @@ bool LoopUnswitch::runOnLoop(Loop *L, LPPassManager &LPM_Ref) {
   do {
     assert(currentLoop->isLCSSAForm(*DT));
     redoLoop = false;
-    Changed |= processCurrentLoop();
+    Changed |= processCurrentLoop(&SafetyInfo);
   } while(redoLoop);
 
   // FIXME: Reconstruct dom info, because it is not preserved properly.
@@ -554,7 +554,7 @@ bool LoopUnswitch::isUnreachableDueToPreviousUnswitching(BasicBlock *BB) {
 }
 
 /// Do actual work and unswitch loop if possible and profitable.
-bool LoopUnswitch::processCurrentLoop() {
+bool LoopUnswitch::processCurrentLoop(LoopSafetyInfo *SafetyInfo) {
   bool Changed = false;
 
   initLoopData();
@@ -649,7 +649,7 @@ bool LoopUnswitch::processCurrentLoop() {
     // This is a workaround for the discrepancy between LLVM IR and MSan
     // semantics. See PR28054 for more details.
     if (SanitizeMemory &&
-        !isGuaranteedToExecute(*TI, DT, currentLoop, &SafetyInfo))
+        !isGuaranteedToExecute(*TI, DT, currentLoop, SafetyInfo))
       continue;
 
     if (BranchInst *BI = dyn_cast<BranchInst>(TI)) {
