@@ -17,9 +17,11 @@
 
 #include "clang/StaticAnalyzer/Core/PathSensitive/SVals.h"
 #include "llvm/ADT/FoldingSet.h"
+#include "llvm/ADT/SmallSet.h"
 
 namespace clang {
 class CFGBlock;
+class LocationContext;
 
 namespace ento {
 
@@ -28,6 +30,7 @@ class BugReporterContext;
 class ExplodedNode;
 class MemRegion;
 class PathDiagnosticPiece;
+class PathDiagnosticEventPiece;
 
 /// \brief BugReporterVisitors are used to add custom diagnostics along a path.
 ///
@@ -343,6 +346,28 @@ public:
                                                  BugReport &BR) override;
 };
 
+class VariableValuesBRVisitor final
+    : public BugReporterVisitorImpl<VariableValuesBRVisitor> {
+
+  llvm::SmallSet<const VarDecl *, 16> Visited;
+
+public:
+  VariableValuesBRVisitor() {}
+
+  void Profile(llvm::FoldingSetNodeID &ID) const override {
+    static int Tag = 0;
+    ID.AddPointer(&Tag);
+  }
+
+  static const char *getTag();
+
+  std::shared_ptr<PathDiagnosticPiece> VisitNode(const ExplodedNode *Succ,
+                                                 const ExplodedNode *Pred,
+                                                 BugReporterContext &BRC,
+                                                 BugReport &BR) override;
+  std::shared_ptr<PathDiagnosticEventPiece> VisitVariables(const Stmt *St, ProgramStateRef State, const LocationContext *LCtx, BugReporterContext &BRC);
+};
+
 namespace bugreporter {
 
 /// Attempts to add visitors to trace a null or undefined value back to its
@@ -370,10 +395,8 @@ const Stmt *GetDenomExpr(const ExplodedNode *N);
 const Stmt *GetRetValExpr(const ExplodedNode *N);
 bool isDeclRefExprToReference(const Expr *E);
 
-
 } // end namespace clang
 } // end namespace ento
 } // end namespace bugreporter
-
 
 #endif

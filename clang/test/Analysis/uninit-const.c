@@ -158,13 +158,14 @@ void f_variadic_unp_inv(void) {
   int* tp = &t;           // expected-note {{'tp' initialized here}}
   doStuff_variadic(tp,v);  // expected-warning {{1st function call argument is a pointer to uninitialized value}}
                           // expected-note@-1 {{1st function call argument is a pointer to uninitialized value}}
+                          // expected-note@-2 {{Assuming 'v' == 3}}
 }
 
 // init pointer, uninit val
 void f_variadic_inp_unv(void) {
   int t=5;
   int v;                  // expected-note {{'v' declared without an initial value}}
-  int* tp = &t;
+  int* tp = &t;           // expected-note {{Assuming 't' == 5}}
   doStuff_variadic(tp,v);// expected-warning {{2nd function call argument is an uninitialized value}}
                           // expected-note@-1 {{2nd function call argument is an uninitialized value}}
 }
@@ -190,7 +191,7 @@ void f_variadic_inp_inp(void) {
 void f_variadic_unp_inp(void) {
   int t;
   int u=3;
-  int *vp = &u ;
+  int *vp = &u ;            // expected-note {{Assuming 'u' == 3}}
   int *tp = &t;             // expected-note {{'tp' initialized here}}
   doStuff_variadic(tp,vp); // expected-warning {{1st function call argument is a pointer to uninitialized value}}
                             // expected-note@-1 {{1st function call argument is a pointer to uninitialized value}}

@@ -14,7 +14,9 @@
 void testBOOLMacro(BOOL b) {
   if (b == YES) { // expected-note {{Assuming 'b' is equal to YES}}
                   // expected-note@-1 {{Taking true branch}}
+                  // expected-note@-2 {{Assuming 'b' == 1}}
     char *p = NULL;// expected-note {{'p' initialized to a null pointer value}}
+                   // expected-note@-1 {{Assuming 'p' == 0}}
     *p = 7;  // expected-warning {{Dereference of null pointer (loaded from variable 'p')}}
              // expected-note@-1 {{Dereference of null pointer (loaded from variable 'p')}}
   }

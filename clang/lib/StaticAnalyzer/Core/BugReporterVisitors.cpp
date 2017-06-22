@@ -1846,3 +1846,97 @@ CXXSelfAssignmentBRVisitor::VisitNode(const ExplodedNode *Succ,
 
   return std::move(Piece);
 }
+
+const char *VariableValuesBRVisitor::getTag() {
+  return "VariableValuesBRVisitor";
+}
+
+std::shared_ptr<PathDiagnosticPiece>
+VariableValuesBRVisitor::VisitNode(const ExplodedNode *Succ,
+                                   const ExplodedNode *Pred,
+                                   BugReporterContext &BRC, BugReport &BR) {
+  const auto PP = Succ->getLocation();
+  auto State = Succ->getState();
+  const auto *LCtx = PP.getLocationContext();
+
+  const Stmt *St = nullptr;
+  if (const auto SP = PP.getAs<PostStmt>()) {
+    St = SP->getStmt();
+  } else if (const auto BE = PP.getAs<BlockEdge>()) {
+    const auto *Src = BE->getSrc();
+    if (const auto Term = Src->getTerminator())
+      St = Term;
+  }
+
+  if (!St)
+    return nullptr;
+
+  return VisitVariables(St, State, LCtx, BRC);
+}
+
+std::shared_ptr<PathDiagnosticEventPiece> VariableValuesBRVisitor::VisitVariables(const Stmt *St,
+                                             ProgramStateRef State,
+                                             const LocationContext *LCtx,
+                                             BugReporterContext &BRC) {
+  PathDiagnosticLocation L(St, BRC.getSourceManager(), LCtx);
+  if(!L.isValid() || !L.asLocation().isValid())
+    return nullptr;
+
+  SmallString<256> Buf;
+  llvm::raw_svector_ostream Out(Buf);
+
+
+  if (const auto *DRE = dyn_cast<DeclRefExpr>(St)) {
+    const auto *VD = dyn_cast<VarDecl>(DRE->getDecl());
+    if (!VD || Visited.count(VD))
+      return nullptr;
+
+    Visited.insert(VD);
+    const auto Value = State->getSVal(State->getLValue(VD, LCtx));
+
+    if (const auto IntValue = Value.getAs<nonloc::ConcreteInt>()) {
+      Out << "Assuming '" << VD->getName() << "' == " << IntValue->getValue();
+      auto Piece = std::make_shared<PathDiagnosticEventPiece>(L, Out.str());
+      Piece->addRange(St->getSourceRange());
+      Piece->setTag(getTag());
+      Piece->setPrunable(true);
+      return std::move(Piece);
+    } else if (const auto IntValue = Value.getAs<loc::ConcreteInt>()) {
+      Out << "Assuming '" << VD->getName() << "' == " << IntValue->getValue();
+      auto Piece = std::make_shared<PathDiagnosticEventPiece>(L, Out.str());
+      Piece->addRange(St->getSourceRange());
+      Piece->setTag(getTag());
+      Piece->setPrunable(true);
+      return std::move(Piece);
+    } else if (const auto SymValue = Value.getAs<nonloc::SymbolVal>()) {
+      if (const auto *Value = State->getConstraintManager().getSymVal(
+              State, SymValue->getSymbol())) {
+        Out << "Assuming '" << VD->getName() << "' == " << *Value;
+        auto Piece = std::make_shared<PathDiagnosticEventPiece>(L, Out.str());
+        Piece->addRange(St->getSourceRange());
+        Piece->setTag(getTag());
+        Piece->setPrunable(true);
+        return std::move(Piece);
+      }
+    }
+    return nullptr;
+  }
+
+  std::shared_ptr<PathDiagnosticEventPiece> Piece = nullptr;
+  for (const auto *Child : St->children()) {
+    if (Child) {
+      if(auto NewPiece = VisitVariables(Child, State, LCtx, BRC)) {
+        if (Piece) {
+          Out << Piece->getString() << ", " << NewPiece->getString().drop_front(9);
+          Piece = std::make_shared<PathDiagnosticEventPiece>(L, Out.str());
+          Piece->addRange(St->getSourceRange());
+          Piece->setTag(getTag());
+          Piece->setPrunable(true);
+        } else {
+          Piece = NewPiece;
+        }
+      }
+    }
+  }
+  return std::move(Piece);
+}

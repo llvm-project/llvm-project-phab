@@ -6,9 +6,11 @@
 void testIntMacro(unsigned int i) {
   if (i == UINT32_MAX) { // expected-note {{Assuming 'i' is equal to UINT32_MAX}}
                          // expected-note@-1 {{Taking true branch}}
+                         // expected-note@-2 {{Assuming 'i' == 4294967295}}
     char *p = NULL; // expected-note {{'p' initialized to a null pointer value}}
     *p = 7;  // expected-warning {{Dereference of null pointer (loaded from variable 'p')}}
              // expected-note@-1 {{Dereference of null pointer (loaded from variable 'p')}}
+             // expected-note@-2 {{Assuming 'p' == 0}}
   }
 }
 
@@ -35,6 +37,7 @@ void testDoubleMacro(double d) {
     char *p = NULL; // expected-note {{'p' initialized to a null pointer value}}
     *p = 7;         // expected-warning {{Dereference of null pointer (loaded from variable 'p')}}
                     // expected-note@-1 {{Dereference of null pointer (loaded from variable 'p')}}
+                    // expected-note@-2 {{Assuming 'p' == 0}}
   }
 }
 
@@ -42,7 +45,9 @@ void testboolMacro(bool b, int *p) {
   p = nullptr;      // expected-note {{Null pointer value stored to 'p'}}
   if (b == false) { // expected-note {{Assuming the condition is true}}
                     // expected-note@-1 {{Taking true branch}}
+                    // expected-note@-2 {{Assuming 'b' == 0}}
     *p = 7;         // expected-warning {{Dereference of null pointer (loaded from variable 'p')}}
                     // expected-note@-1 {{Dereference of null pointer (loaded from variable 'p')}}
+                    // expected-note@-2 {{Assuming 'p' == 0}}
   }
 }

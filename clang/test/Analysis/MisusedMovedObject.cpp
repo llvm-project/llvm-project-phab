@@ -165,6 +165,10 @@ void reinitializationTest(int i) {
   {
     int a1 = 1, a2 = 2;
     std::swap(a1, a2);
+    // expected-note@-1 {{Assuming 'a1' == 1}}
+    // expected-note@-2 {{Assuming 'a2' == 2}}
+    // expected-note@-3 {{Assuming 'a1' == 1}}
+    // expected-note@-4 {{Assuming 'a2' == 2}}
   }
   // A std::move() after the assignment makes the variable invalid again.
   {
@@ -200,76 +204,87 @@ void loopTest() {
   {
     A a;
     for (int i = 0; i < bignum(); i++) { // expected-note {{Loop condition is false. Execution jumps to the end of the function}}
+      // expected-note@-1 {{Assuming 'i' == 0}}
       rightRefCall(std::move(a));        // no-warning
     }
   }
   {
     A a;
     for (int i = 0; i < 2; i++) { // expected-note {{Loop condition is true.  Entering loop body}}
-      //expected-note@-1 {{Loop condition is true.  Entering loop body}}
-			//expected-note@-2 {{Loop condition is false. Execution jumps to the end of the function}}
+      //expected-note@-1 {{Assuming 'i' == 2}}
+      //expected-note@-2 {{Loop condition is true.  Entering loop body}}
+			//expected-note@-3 {{Loop condition is false. Execution jumps to the end of the function}}
       rightRefCall(std::move(a)); // no-warning
     }
   }
   {
     A a;
     for (int i = 0; i < bignum(); i++) { // expected-note {{Loop condition is false. Execution jumps to the end of the function}}
+      // expected-note@-1 {{Assuming 'i' == 0}}
       leftRefCall(a);                    // no-warning
     }
   }
   {
     A a;
     for (int i = 0; i < 2; i++) { // expected-note {{Loop condition is true.  Entering loop body}} 
-      //expected-note@-1 {{Loop condition is true.  Entering loop body}}
-			//expected-note@-2 {{Loop condition is false. Execution jumps to the end of the function}}
+      //expected-note@-1 {{Assuming 'i' == 2}}
+      //expected-note@-2 {{Loop condition is true.  Entering loop body}}
+			//expected-note@-3 {{Loop condition is false. Execution jumps to the end of the function}}
       leftRefCall(a);             // no-warning
     }
   }
   {
     A a;
     for (int i = 0; i < bignum(); i++) { // expected-note {{Loop condition is false. Execution jumps to the end of the function}}
+      // expected-note@-1 {{Assuming 'i' == 0}}
       constCopyOrMoveCall(a);            // no-warning
     }
   }
   {
     A a;
     for (int i = 0; i < 2; i++) { // expected-note {{Loop condition is true.  Entering loop body}} 
-      //expected-note@-1 {{Loop condition is true.  Entering loop body}}
-			//expected-note@-2 {{Loop condition is false. Execution jumps to the end of the function}}
+      //expected-note@-1 {{Assuming 'i' == 2}}
+      //expected-note@-2 {{Loop condition is true.  Entering loop body}}
+			//expected-note@-3 {{Loop condition is false. Execution jumps to the end of the function}}
       constCopyOrMoveCall(a);     // no-warning
     }
   }
   {
     A a;
     for (int i = 0; i < bignum(); i++) { // expected-note {{Loop condition is false. Execution jumps to the end of the function}}
+      // expected-note@-1 {{Assuming 'i' == 0}}
       moveInsideFunctionCall(a);         // no-warning
     }
   }
   {
     A a;
     for (int i = 0; i < 2; i++) { // expected-note {{Loop condition is true.  Entering loop body}}
-      //expected-note@-1 {{Loop condition is true.  Entering loop body}}
-			//expected-note@-2 {{Loop condition is false. Execution jumps to the end of the function}}
+      //expected-note@-1 {{Assuming 'i' == 2}}
+      //expected-note@-2 {{Loop condition is true.  Entering loop body}}
+			//expected-note@-3 {{Loop condition is false. Execution jumps to the end of the function}}
       moveInsideFunctionCall(a);  // no-warning
     }
   }
   {
     A a;
     for (int i = 0; i < bignum(); i++) { // expected-note {{Loop condition is false. Execution jumps to the end of the function}}
+      // expected-note@-1 {{Assuming 'i' == 0}}
       copyOrMoveCall(a);                 // no-warning
     }
   }
   {
     A a;
     for (int i = 0; i < 2; i++) { // expected-note {{Loop condition is true.}}
-      //expected-note@-1 {{Loop condition is true.  Entering loop body}}
-			//expected-note@-2 {{Loop condition is false. Execution jumps to the end of the function}}
+      //expected-note@-1 {{Assuming 'i' == 2}}
+      //expected-note@-2 {{Loop condition is true.  Entering loop body}}
+			//expected-note@-3 {{Loop condition is false. Execution jumps to the end of the function}}
       copyOrMoveCall(a);          // no-warning
     }
   }
   {
     A a;
     for (int i = 0; i < bignum(); i++) { // expected-note {{Loop condition is true.  Entering loop body}} expected-note {{Loop condition is true.  Entering loop body}}
+      // expected-note@-1 {{Assuming 'i' == 1}}
       constCopyOrMoveCall(std::move(a)); // expected-warning {{Copying a 'moved-from' object 'a'}} expected-note {{Copying a 'moved-from' object 'a'}}
       // expected-note@-1 {{'a' became 'moved-from' here}}
     }
@@ -444,7 +459,7 @@ void differentBranchesTest(int i) {
   // Same thing, but with a switch statement.
   {
     A a, b;
-    switch (i) { // expected-note {{Control jumps to 'case 1:'  at line 448}}
+    switch (i) { // expected-note {{Control jumps to 'case 1:'  at line 463}}
     case 1:
       b = std::move(a); // no-warning
       break;            // expected-note {{Execution jumps to the end of the function}}
@@ -456,7 +471,8 @@ void differentBranchesTest(int i) {
   // However, if there's a fallthrough, we do warn.
   {
     A a, b;
-    switch (i) { // expected-note {{Control jumps to 'case 1:'  at line 460}}
+    switch (i) { // expected-note {{Control jumps to 'case 1:'  at line 476}}
+      // expected-note@-1 {{Assuming 'i' == 1}}
     case 1:
       b = std::move(a); // expected-note {{'a' became 'moved-from' here}}
     case 2:

@@ -60,6 +60,7 @@ void err_orig_checker(int x) {
   if (x != 0) // expected-note {{Assuming 'x' is equal to 0}} expected-note {{Taking false branch}}
     return;
   var = 77 / x; // expected-warning {{Division by zero}} expected-note {{Division by zero}}
+                // expected-note@-1 {{Assuming 'x' == 0}}
   if (!x) {} // no-warning
 }
 

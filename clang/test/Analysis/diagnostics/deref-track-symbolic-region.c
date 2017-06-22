@@ -22,6 +22,7 @@ void test(struct S syz, int *pp) {
 
   m += *syz.x; // expected-warning{{Dereference of null pointer (loaded from field 'x')}}
   // expected-note@-1{{Dereference of null pointer (loaded from field 'x')}}
+  // expected-note@-2{{Assuming 'm' == 0}}
 }
 
 void testTrackConstraintBRVisitorIsTrackingTurnedOn(struct S syz, int *pp) {
@@ -32,11 +33,12 @@ void testTrackConstraintBRVisitorIsTrackingTurnedOn(struct S syz, int *pp) {
   if (ps->x)
     //expected-note@-1{{Taking false branch}}
     //expected-note@-2{{Assuming pointer value is null}}
-
+    //expected-note@-3{{Assuming 'm' == 0}}
     m++;
   int *p = syz.x; //expected-note {{'p' initialized to a null pointer value}}
   m = *p; // expected-warning {{Dereference of null pointer (loaded from variable 'p')}}
           // expected-note@-1 {{Dereference of null pointer (loaded from variable 'p')}}
+    //expected-note@-2{{Assuming 'p' == 0}}
 }
 
 // CHECK:  <key>diagnostics</key>

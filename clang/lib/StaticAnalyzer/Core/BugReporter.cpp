@@ -82,17 +82,53 @@ eventsDescribeSameCondition(PathDiagnosticEventPiece *X,
   // those that came from TrackConstraintBRVisitor,
   // unless the one from ConditionBRVisitor is
   // its generic fallback diagnostic.
-  const void *tagPreferred = ConditionBRVisitor::getTag();
-  const void *tagLesser = TrackConstraintBRVisitor::getTag();
+  // Also prefer diagnostics from ConditionBRVisiotor over
+  // those from VariableValuesVBRVisitor if the condition is
+  // either a boolean variable or an equality comparison.
+  const void *tagCondition = ConditionBRVisitor::getTag();
+  const void *tagTrackConstraint = TrackConstraintBRVisitor::getTag();
+  const void *tagVariableValues = VariableValuesBRVisitor::getTag();
 
-  if (X->getLocation() != Y->getLocation())
+  PathDiagnosticEventPiece *C = nullptr, *TC = nullptr, *VV = nullptr;
+
+  if (X->getTag() == tagCondition && Y->getTag() == tagVariableValues) {
+    C = X; VV = Y;
+  } else if (Y->getTag() == tagCondition && X->getTag() == tagVariableValues) {
+    C = Y; VV = X;
+  } else if (X->getTag() == tagCondition && Y->getTag() == tagTrackConstraint) {
+    C = X; TC = Y;
+  } else if (Y->getTag() == tagCondition && X->getTag() == tagTrackConstraint) {
+    C = Y; TC = X;
+  } else {
     return nullptr;
+  }
 
-  if (X->getTag() == tagPreferred && Y->getTag() == tagLesser)
-    return ConditionBRVisitor::isPieceMessageGeneric(X) ? Y : X;
+  if (TC) {
+    if (C->getLocation() != TC->getLocation())
+      return nullptr;
+    
+    return ConditionBRVisitor::isPieceMessageGeneric(C) ? TC : C;
+  }
 
-  if (Y->getTag() == tagPreferred && X->getTag() == tagLesser)
-    return ConditionBRVisitor::isPieceMessageGeneric(Y) ? X : Y;
+  if (ConditionBRVisitor::isPieceMessageGeneric(C)) {
+    return VV;
+  }
+
+  if(C->getLocation() == VV->getLocation()) {
+    return C;
+  }
+
+  if (const auto* St = C->getLocation().asStmt()) {
+    if (const auto* BO = dyn_cast<BinaryOperator>(St)) {
+      if (BO->getOpcode() == BO_EQ) {
+        const auto *E = dyn_cast<Expr>(VV->getLocation().asStmt());
+        if (BO->getLHS()->IgnoreCasts() == E ||
+            BO->getRHS()->IgnoreCasts() == E) {
+          return C;
+        }
+      }
+    }
+  }
 
   return nullptr;
 }
@@ -127,10 +163,19 @@ static void removeRedundantMsgs(PathPieces &path) {
         if (i == N-1)
           break;
 
-        if (PathDiagnosticEventPiece *nextEvent =
-            dyn_cast<PathDiagnosticEventPiece>(path.front().get())) {
+        PathDiagnosticEventPiece *nextEvent =
+          dyn_cast<PathDiagnosticEventPiece>(path.front().get());
+        std::shared_ptr<PathDiagnosticPiece> intermediateEvent = nullptr;
+        if (!nextEvent && path.size() > 1 &&
+            isa<PathDiagnosticControlFlowPiece>(path.front().get())) {
+          intermediateEvent = std::move(path.front());
+          path.pop_front();
+          nextEvent =
+            dyn_cast<PathDiagnosticEventPiece>(path.front().get());
+        }
+        if (nextEvent) {
           PathDiagnosticEventPiece *event =
-              cast<PathDiagnosticEventPiece>(piece.get());
+            cast<PathDiagnosticEventPiece>(piece.get());
           // Check to see if we should keep one of the two pieces.  If we
           // come up with a preference, record which piece to keep, and consume
           // another piece from the path.
@@ -140,6 +185,10 @@ static void removeRedundantMsgs(PathPieces &path) {
             path.pop_front();
             ++i;
           }
+        }
+        if (intermediateEvent) {
+          path.push_front(std::move(intermediateEvent));
+          intermediateEvent = nullptr;
         }
         break;
       }
@@ -3118,6 +3167,7 @@ bool GRBugReporter::generatePathDiagnostic(PathDiagnostic& PD,
     R->addVisitor(llvm::make_unique<ConditionBRVisitor>());
     R->addVisitor(llvm::make_unique<LikelyFalsePositiveSuppressionBRVisitor>());
     R->addVisitor(llvm::make_unique<CXXSelfAssignmentBRVisitor>());
+    R->addVisitor(llvm::make_unique<VariableValuesBRVisitor>());
 
     BugReport::VisitorList visitors;
     unsigned origReportConfigToken, finalReportConfigToken;

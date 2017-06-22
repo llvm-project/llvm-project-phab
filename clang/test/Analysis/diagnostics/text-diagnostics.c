@@ -7,6 +7,7 @@ void testA() {
   // CHECK-LABEL: text-diagnostics.c:{{.*}}:6: warning: Dereference of null pointer (loaded from variable 'p')
   // CHECK-NEXT: text-diagnostics.c:[[@LINE-4]]:3: note: 'p' initialized to a null pointer value
   // CHECK-NEXT: text-diagnostics.c:[[@LINE-4]]:6: note: Dereference of null pointer (loaded from variable 'p')
+  // CHECK-NEXT: text-diagnostics.c:[[@LINE-5]]:3: note: Assuming 'p' == 0
 }
 
 void testB(int *q) {
