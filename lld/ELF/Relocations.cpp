@@ -399,6 +399,11 @@ static bool isStaticLinkTimeConstant(RelExpr E, uint32_t Type,
   if (Body.isUndefined() && !Body.isLocal() && Body.symbol()->isWeak())
     return true;
 
+  // Relative relocation against the beginning of .got can always be computed
+  // at link-time as each ELF module has its own .got section.
+  if (&Body == ElfSym::GlobalOffsetTable)
+    return true;
+
   error("relocation " + toString(Type) + " cannot refer to absolute symbol: " +
         toString(Body) + getLocation<ELFT>(S, Body, RelOff));
   return true;

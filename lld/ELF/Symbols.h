@@ -317,6 +317,9 @@ struct ElfSym {
   static DefinedRegular *End1;
   static DefinedRegular *End2;
 
+  // _GLOBAL_OFFSET_TABLE_
+  static DefinedRegular *GlobalOffsetTable;
+
   // _gp, _gp_disp and __gnu_local_gp symbols. Only for MIPS.
   static DefinedRegular *MipsGp;
   static DefinedRegular *MipsGpDisp;

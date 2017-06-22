@@ -827,7 +827,8 @@ template <class ELFT> void Writer<ELFT>::addReservedSymbols() {
   // an undefined symbol in the .o files.
   // Given that the symbol is effectively unused, we just create a dummy
   // hidden one to avoid the undefined symbol error.
-  Symtab<ELFT>::X->addIgnored("_GLOBAL_OFFSET_TABLE_");
+  ElfSym::GlobalOffsetTable =
+      Symtab<ELFT>::X->addIgnored("_GLOBAL_OFFSET_TABLE_");
 
   // __tls_get_addr is defined by the dynamic linker for dynamic ELFs. For
   // static linking the linker is required to optimize away any references to
@@ -1750,6 +1751,9 @@ template <class ELFT> void Writer<ELFT>::fixPredefinedSymbols() {
 
   if (ElfSym::Bss)
     ElfSym::Bss->Section = findSectionInScript(".bss");
+
+  if (ElfSym::GlobalOffsetTable && InX::Got)
+    ElfSym::GlobalOffsetTable->Value = InX::Got->getVA();
 
   // Setup MIPS _gp_disp/__gnu_local_gp symbols which should
   // be equal to the _gp symbol's value.
