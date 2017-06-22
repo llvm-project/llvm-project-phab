@@ -55,6 +55,8 @@ set(PROFILE_SOURCES
   InstrProfilingRuntime.cc
   InstrProfilingUtil.c)
 
+include_directories(../../include)
+
 if(WIN32)
     list(APPEND PROFILE_SOURCES WindowsMMap.c)
 endif()
