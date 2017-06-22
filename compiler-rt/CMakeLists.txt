@@ -93,6 +93,32 @@ endif()
 option(SANITIZER_CAN_USE_CXXABI "Sanitizers can use cxxabi" ${use_cxxabi_default})
 pythonize_bool(SANITIZER_CAN_USE_CXXABI)
 
+set(SANITIZER_CXX_ABI "default" CACHE STRING
+    "Specify C++ ABI library to use.")
+set(CXXABIS none default libcxxabi libstdc++)
+set_property(CACHE SANITIZER_CXX_ABI PROPERTY STRINGS ;${CXXABIS})
+
+if (SANITIZER_CXX_ABI STREQUAL "default")
+  find_path(
+    SANITIZER_LIBCXXABI_INCLUDES_INTERNAL
+    cxxabi.h
+    PATHS ${LLVM_MAIN_SRC_DIR}/projects/libcxxabi/include
+          ${LLVM_MAIN_SRC_DIR}/runtimes/libcxxabi/include
+    NO_DEFAULT_PATH
+  )
+  if (IS_DIRECTORY "${SANITIZER_LIBCXXABI_INCLUDES_INTERNAL}" OR HAVE_LIBCXXABI)
+    set(SANITIZER_CXX_ABI_LIBNAME "libcxxabi")
+    set(SANITIZER_CXX_ABI_INTREE 1)
+  elseif (APPLE)
+    set(SANITIZER_CXX_ABI_LIBNAME "libcxxabi")
+    set(SANITIZER_CXX_ABI_SYSTEM 1)
+  else()
+    set(SANITIZER_CXX_ABI_LIBNAME "libstdc++")
+  endif()
+elseif()
+  set(SANITIZER_CXX_ABI_LIBNAME "${SANITIZER_CXX_ABI}")
+endif()
+
 #================================
 # Setup Compiler Flags
 #================================
@@ -221,6 +247,13 @@ append_list_if(COMPILER_RT_HAS_WD4291_FLAG /wd4291 SANITIZER_COMMON_CFLAGS)
 append_list_if(COMPILER_RT_HAS_WD4391_FLAG /wd4391 SANITIZER_COMMON_CFLAGS)
 append_list_if(COMPILER_RT_HAS_WD4722_FLAG /wd4722 SANITIZER_COMMON_CFLAGS)
 append_list_if(COMPILER_RT_HAS_WD4800_FLAG /wd4800 SANITIZER_COMMON_CFLAGS)
+
+# Set common link flags
+append_list_if(COMPILER_RT_HAS_NODEFAULTLIBS_FLAG -nodefaultlibs SANITIZER_COMMON_LINK_FLAGS)
+
+if (COMPILER_RT_USE_COMPILER_RT)
+  list(APPEND SANITIZER_COMMON_LINK_FLAGS -rtlib=compiler-rt)
+endif()
 
 # Warnings to turn off for all libraries, not just sanitizers.
 append_string_if(COMPILER_RT_HAS_WUNUSED_PARAMETER_FLAG -Wno-unused-parameter CMAKE_C_FLAGS CMAKE_CXX_FLAGS)

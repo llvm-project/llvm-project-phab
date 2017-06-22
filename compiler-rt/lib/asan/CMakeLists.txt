@@ -39,7 +39,7 @@ set(ASAN_CFLAGS ${SANITIZER_COMMON_CFLAGS})
 
 append_rtti_flag(OFF ASAN_CFLAGS)
 
-set(ASAN_DYNAMIC_LINK_FLAGS)
+set(ASAN_DYNAMIC_LINK_FLAGS ${SANITIZER_COMMON_LINK_FLAGS})
 
 if(ANDROID)
 # On Android, -z global does not do what it is documented to do.
@@ -69,8 +69,18 @@ append_list_if(COMPILER_RT_HAS_LIBDL dl ASAN_DYNAMIC_LIBS)
 append_list_if(COMPILER_RT_HAS_LIBRT rt ASAN_DYNAMIC_LIBS)
 append_list_if(COMPILER_RT_HAS_LIBM m ASAN_DYNAMIC_LIBS)
 append_list_if(COMPILER_RT_HAS_LIBPTHREAD pthread ASAN_DYNAMIC_LIBS)
-append_list_if(COMPILER_RT_HAS_LIBSTDCXX stdc++ ASAN_DYNAMIC_LIBS)
 append_list_if(COMPILER_RT_HAS_LIBLOG log ASAN_DYNAMIC_LIBS)
+
+if (SANITIZER_CXX_ABI_LIBNAME STREQUAL "libcxxabi")
+  if (TARGET unwind_shared OR HAVE_LIBUNWIND)
+    list(APPEND ASAN_DYNAMIC_LIBS unwind_shared)
+  endif()
+  if (TARGET cxxabi_shared OR HAVE_LIBCXXABI)
+    list(APPEND ASAN_DYNAMIC_LIBS cxxabi_shared)
+  endif()
+elseif (SANITIZER_CXX_ABI_LIBNAME STREQUAL "libstdc++")
+  append_list_if(COMPILER_RT_HAS_LIBSTDCXX stdc++ ASAN_DYNAMIC_LIBS)
+endif()
 
 # Compile ASan sources into an object library.
 

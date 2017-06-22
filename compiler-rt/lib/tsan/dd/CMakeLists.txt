@@ -10,10 +10,24 @@ set(DD_SOURCES
   dd_interceptors.cc
 )
 
+set(DD_LINK_FLAGS ${SANITIZER_COMMON_LINK_FLAGS})
+
 set(DD_LINKLIBS)
+append_list_if(COMPILER_RT_HAS_LIBC c DD_LINKLIBS)
 append_list_if(COMPILER_RT_HAS_LIBDL dl DD_LINKLIBS)
 append_list_if(COMPILER_RT_HAS_LIBRT rt DD_LINKLIBS)
 append_list_if(COMPILER_RT_HAS_LIBPTHREAD pthread DD_LINKLIBS)
+
+if (SANITIZER_CXX_ABI_LIBNAME STREQUAL "libcxxabi")
+  if (TARGET unwind_shared OR HAVE_LIBUNWIND)
+    list(APPEND DD_LINKLIBS unwind_shared)
+  endif()
+  if (TARGET cxxabi_shared OR HAVE_LIBCXXABI)
+    list(APPEND DD_LINKLIBS cxxabi_shared)
+  endif()
+elseif (SANITIZER_CXX_ABI_LIBNAME STREQUAL "libstdc++")
+  append_list_if(COMPILER_RT_HAS_LIBSTDCXX stdc++ DD_LINKLIBS)
+endif()
 
 add_custom_target(dd)
 # Deadlock detector is currently supported on 64-bit Linux only.
@@ -40,6 +54,7 @@ if(CAN_TARGET_x86_64 AND UNIX AND NOT APPLE AND NOT ANDROID)
             $<TARGET_OBJECTS:RTInterception.${arch}>
             $<TARGET_OBJECTS:RTSanitizerCommon.${arch}>
             $<TARGET_OBJECTS:RTSanitizerCommonLibc.${arch}>
+    LINK_FLAGS ${DD_LINK_FLAGS}
     LINK_LIBS ${DD_LINKLIBS}
     PARENT_TARGET dd)
 endif()
