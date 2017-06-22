@@ -27,6 +27,7 @@
 #include "llvm/Option/Option.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileUtilities.h"
+#include "llvm/Support/MathExtras.h"
 #include "llvm/Support/Process.h"
 #include "llvm/Support/Program.h"
 #include "llvm/Support/raw_ostream.h"
@@ -41,6 +42,9 @@ using llvm::sys::Process;
 namespace lld {
 namespace coff {
 namespace {
+
+const uint16_t SUBLANG_ENGLISH_US = 0x0409;
+const uint16_t RT_MANIFEST = 24;
 
 class Executor {
 public:
@@ -258,26 +262,6 @@ void parseManifestUAC(StringRef Arg) {
   }
 }
 
-// Quote each line with "". Existing double-quote is converted
-// to two double-quotes.
-static void quoteAndPrint(raw_ostream &Out, StringRef S) {
-  while (!S.empty()) {
-    StringRef Line;
-    std::tie(Line, S) = S.split("\n");
-    if (Line.empty())
-      continue;
-    Out << '\"';
-    for (int I = 0, E = Line.size(); I != E; ++I) {
-      if (Line[I] == '\"') {
-        Out << "\"\"";
-      } else {
-        Out << Line[I];
-      }
-    }
-    Out << "\"\n";
-  }
-}
-
 // An RAII temporary file class that automatically removes a temporary file.
 namespace {
 class TemporaryFile {
@@ -393,36 +377,44 @@ static std::string createManifestXml() {
 
 // Create a resource file containing a manifest XML.
 std::unique_ptr<MemoryBuffer> createManifestRes() {
-  // Create a temporary file for the resource script file.
-  TemporaryFile RCFile("manifest", "rc");
+  std::string Manifest = createManifestXml();
+  // Strip all newlines from the Manifest.
+  Manifest.erase(std::remove(Manifest.begin(), Manifest.end(), '\n'),
+                 Manifest.end());
 
-  // Open the temporary file for writing.
-  std::error_code EC;
-  raw_fd_ostream Out(RCFile.Path, EC, sys::fs::F_Text);
-  if (EC)
-    fatal(EC, "failed to open " + RCFile.Path);
+  size_t ResSize = object::WIN_RES_MAGIC_SIZE + object::WIN_RES_NULL_ENTRY_SIZE;
+  ResSize += sizeof(object::WinResHeaderPrefix);
+  ResSize += sizeof(object::WinResIDs);
+  ResSize += sizeof(object::WinResHeaderSuffix);
+  ResSize += Manifest.size();
+  ResSize = alignTo(ResSize, object::WIN_RES_DATA_ALIGNMENT);
+  std::unique_ptr<MemoryBuffer> Buf = MemoryBuffer::getNewMemBuffer(ResSize);
 
-  // Write resource script to the RC file.
-  Out << "#define LANG_ENGLISH 9\n"
-      << "#define SUBLANG_DEFAULT 1\n"
-      << "#define APP_MANIFEST " << Config->ManifestID << "\n"
-      << "#define RT_MANIFEST 24\n"
-      << "LANGUAGE LANG_ENGLISH, SUBLANG_DEFAULT\n"
-      << "APP_MANIFEST RT_MANIFEST {\n";
-  quoteAndPrint(Out, createManifestXml());
-  Out << "}\n";
-  Out.close();
+  char *Current = const_cast<char *>(Buf->getBufferStart());
 
-  // Create output resource file.
-  TemporaryFile ResFile("output-resource", "res");
+  auto *Prefix = reinterpret_cast<object::WinResHeaderPrefix *>(Current);
+  Prefix->DataSize = Manifest.size();
+  Prefix->HeaderSize = sizeof(object::WinResHeaderPrefix) +
+                       sizeof(object::WinResIDs) +
+                       sizeof(object::WinResHeaderSuffix);
+  Current += sizeof(object::WinResHeaderPrefix);
 
-  Executor E("rc.exe");
-  E.add("/fo");
-  E.add(ResFile.Path);
-  E.add("/nologo");
-  E.add(RCFile.Path);
-  E.run();
-  return ResFile.getMemoryBuffer();
+  auto *IDs = reinterpret_cast<object::WinResIDs *>(Current);
+  IDs->TypeID = RT_MANIFEST;
+  IDs->NameID = Config->ManifestID;
+  Current += sizeof(object::WinResIDs);
+
+  auto *Suffix = reinterpret_cast<object::WinResHeaderSuffix *>(Current);
+  Suffix->DataVersion = 0;
+  Suffix->MemoryFlags = object::WIN_RES_PURE_MOVEABLE;
+  Suffix->Language = SUBLANG_ENGLISH_US;
+  Suffix->Version = 0;
+  Suffix->Characteristics = 0;
+  Current += sizeof(object::WinResHeaderSuffix);
+
+  std::copy(Manifest.begin(), Manifest.end(), Current);
+
+  return std::move(Buf);
 }
 
 void createSideBySideManifest() {
