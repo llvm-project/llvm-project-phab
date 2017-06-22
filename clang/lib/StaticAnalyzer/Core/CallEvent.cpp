@@ -872,7 +872,7 @@ bool ObjCMethodCall::canBeOverridenInSubclass(ObjCInterfaceDecl *IDecl,
   // the selector.
   ObjCMethodDecl *D = nullptr;
   while (true) {
-    D = IDecl->lookupMethod(Sel, true);
+    D = IDecl->lookupMethod(Sel, true, AllDeclsVisible);
 
     // Cannot find a public definition.
     if (!D)
@@ -1026,7 +1026,7 @@ RuntimeDefinition ObjCMethodCall::getRuntimeDefinition() const {
 
         // Query lookupPrivateMethod() if the cache does not hit.
         if (!Val.hasValue()) {
-          Val = IDecl->lookupPrivateMethod(Sel);
+          Val = IDecl->lookupPrivateMethod(Sel, AllDeclsVisible);
 
           // If the method is a property accessor, we should try to "inline" it
           // even if we don't actually have an implementation.
@@ -1048,13 +1048,14 @@ RuntimeDefinition ObjCMethodCall::getRuntimeDefinition() const {
                   auto *ID = CompileTimeMD->getClassInterface();
                   for (auto *CatDecl : ID->visible_extensions()) {
                     Val = CatDecl->getMethod(Sel,
-                                             CompileTimeMD->isInstanceMethod());
+                                             CompileTimeMD->isInstanceMethod(),
+                                             AllDeclsVisible);
                     if (*Val)
                       break;
                   }
                 }
                 if (!*Val)
-                  Val = IDecl->lookupInstanceMethod(Sel);
+                  Val = IDecl->lookupInstanceMethod(Sel, AllDeclsVisible);
               }
         }
 
@@ -1071,7 +1072,8 @@ RuntimeDefinition ObjCMethodCall::getRuntimeDefinition() const {
     // class name.
     if (ObjCInterfaceDecl *IDecl = E->getReceiverInterface()) {
       // Find/Return the method implementation.
-      return RuntimeDefinition(IDecl->lookupPrivateClassMethod(Sel));
+      return RuntimeDefinition(
+          IDecl->lookupPrivateClassMethod(Sel, AllDeclsVisible));
     }
   }
 

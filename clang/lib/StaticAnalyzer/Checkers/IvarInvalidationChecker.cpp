@@ -430,8 +430,8 @@ visit(const ObjCImplementationDecl *ImplD) const {
     const ObjCMethodDecl *InterfD = *I;
 
     // Get the corresponding method in the @implementation.
-    const ObjCMethodDecl *D = ImplD->getMethod(InterfD->getSelector(),
-                                               InterfD->isInstanceMethod());
+    const ObjCMethodDecl *D = ImplD->getMethod(
+        InterfD->getSelector(), InterfD->isInstanceMethod(), AllDeclsVisible);
     if (D && D->hasBody()) {
       AtImplementationContainsAtLeastOnePartialInvalidationMethod = true;
 
@@ -482,8 +482,8 @@ visit(const ObjCImplementationDecl *ImplD) const {
     const ObjCMethodDecl *InterfD = *I;
 
     // Get the corresponding method in the @implementation.
-    const ObjCMethodDecl *D = ImplD->getMethod(InterfD->getSelector(),
-                                               InterfD->isInstanceMethod());
+    const ObjCMethodDecl *D = ImplD->getMethod(
+        InterfD->getSelector(), InterfD->isInstanceMethod(), AllDeclsVisible);
     if (D && D->hasBody()) {
       AtImplementationContainsAtLeastOneInvalidationMethod = true;
 

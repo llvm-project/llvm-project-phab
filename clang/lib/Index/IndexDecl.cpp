@@ -47,8 +47,8 @@ public:
   /// user.
   static bool hasUserDefined(const ObjCMethodDecl *D,
                              const ObjCImplDecl *Container) {
-    const ObjCMethodDecl *MD = Container->getMethod(D->getSelector(),
-                                                    D->isInstanceMethod());
+    const ObjCMethodDecl *MD = Container->getMethod(
+        D->getSelector(), D->isInstanceMethod(), AllDeclsVisible);
     return MD && !MD->isImplicit() && MD->isThisDeclarationADefinition();
   }
 

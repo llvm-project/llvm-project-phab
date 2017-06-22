@@ -443,7 +443,8 @@ Sema::HandlePropertyInClassExtension(Scope *S,
   // Find the property in the extended class's primary class or
   // extensions.
   ObjCPropertyDecl *PIDecl = CCPrimary->FindPropertyVisibleInPrimaryClass(
-      PropertyId, ObjCPropertyDecl::getQueryKind(isClassProperty));
+      PropertyId, ObjCPropertyDecl::getQueryKind(isClassProperty),
+      IsHiddenCallback(*this));
 
   // If we found a property in an extension, complain. 
   if (PIDecl && isa<ObjCCategoryDecl>(PIDecl->getDeclContext())) {
@@ -628,7 +629,8 @@ ObjCPropertyDecl *Sema::CreatePropertyDecl(Scope *S,
                          (Attributes & ObjCDeclSpec::DQ_PR_class);
   // Class property and instance property can have the same name.
   if (ObjCPropertyDecl *prevDecl = ObjCPropertyDecl::findPropertyDecl(
-          DC, PropertyId, ObjCPropertyDecl::getQueryKind(isClassProperty))) {
+          DC, PropertyId, ObjCPropertyDecl::getQueryKind(isClassProperty),
+          IsHiddenCallback(*this))) {
     Diag(PDecl->getLocation(), diag::err_duplicate_property);
     Diag(prevDecl->getLocation(), diag::note_property_declare);
     PDecl->setInvalidDecl();
@@ -864,7 +866,7 @@ DiagnosePropertyMismatchDeclInProtocols(Sema &S, SourceLocation AtLoc,
 }
 
 /// Determine whether any storage attributes were written on the property.
-static bool hasWrittenStorageAttribute(ObjCPropertyDecl *Prop,
+static bool hasWrittenStorageAttribute(Sema &S, ObjCPropertyDecl *Prop,
                                        ObjCPropertyQueryKind QueryKind) {
   if (Prop->getPropertyAttributesAsWritten() & OwnershipMask) return true;
 
@@ -889,7 +891,7 @@ static bool hasWrittenStorageAttribute(ObjCPropertyDecl *Prop,
   // Look through all of the protocols.
   for (const auto *Proto : OrigClass->all_referenced_protocols()) {
     if (ObjCPropertyDecl *OrigProp = Proto->FindPropertyDeclaration(
-            Prop->getIdentifier(), QueryKind))
+            Prop->getIdentifier(), QueryKind, Sema::IsHiddenCallback(S)))
       return OrigProp->getPropertyAttributesAsWritten() & OwnershipMask;
   }
 
@@ -934,7 +936,8 @@ Decl *Sema::ActOnPropertyImplDecl(Scope *S,
            "ActOnPropertyImplDecl - @implementation without @interface");
 
     // Look for this property declaration in the @implementation's @interface
-    property = IDecl->FindPropertyDeclaration(PropertyId, QueryKind);
+    property = IDecl->FindPropertyDeclaration(PropertyId, QueryKind,
+                                              IsHiddenCallback(*this));
     if (!property) {
       Diag(PropertyLoc, diag::err_bad_property_decl) << IDecl->getDeclName();
       return nullptr;
@@ -1016,7 +1019,8 @@ Decl *Sema::ActOnPropertyImplDecl(Scope *S,
     if (!Category)
       return nullptr;
     // Look for this property declaration in @implementation's category
-    property = Category->FindPropertyDeclaration(PropertyId, QueryKind);
+    property = Category->FindPropertyDeclaration(PropertyId, QueryKind,
+                                                 IsHiddenCallback(*this));
     if (!property) {
       Diag(PropertyLoc, diag::err_bad_category_property_decl)
       << Category->getDeclName();
@@ -1128,7 +1132,7 @@ Decl *Sema::ActOnPropertyImplDecl(Scope *S,
 
         // It's an error if we have to do this and the user didn't
         // explicitly write an ownership attribute on the property.
-        if (!hasWrittenStorageAttribute(property, QueryKind) &&
+        if (!hasWrittenStorageAttribute(*this, property, QueryKind) &&
             !(kind & ObjCPropertyDecl::OBJC_PR_strong)) {
           Diag(PropertyDiagLoc,
                diag::err_arc_objc_property_default_assign_on_object);
@@ -1629,8 +1633,9 @@ Sema::IvarBacksCurrentMethodAccessor(ObjCInterfaceDecl *IFace,
                                      ObjCMethodDecl *Method, ObjCIvarDecl *IV) {
   if (!IV->getSynthesize())
     return false;
-  ObjCMethodDecl *IMD = IFace->lookupMethod(Method->getSelector(),
-                                            Method->isInstanceMethod());
+  ObjCMethodDecl *IMD =
+      IFace->lookupMethod(Method->getSelector(), Method->isInstanceMethod(),
+                          IsHiddenCallback(*this));
   if (!IMD || !IMD->isPropertyAccessor())
     return false;
   
@@ -1653,7 +1658,7 @@ Sema::IvarBacksCurrentMethodAccessor(ObjCInterfaceDecl *IFace,
   return false;
 }
 
-static bool SuperClassImplementsProperty(ObjCInterfaceDecl *IDecl,
+static bool SuperClassImplementsProperty(Sema &S, ObjCInterfaceDecl *IDecl,
                                          ObjCPropertyDecl *Prop) {
   bool SuperClassImplementsGetter = false;
   bool SuperClassImplementsSetter = false;
@@ -1662,10 +1667,14 @@ static bool SuperClassImplementsProperty(ObjCInterfaceDecl *IDecl,
 
   while (IDecl->getSuperClass()) {
     ObjCInterfaceDecl *SDecl = IDecl->getSuperClass();
-    if (!SuperClassImplementsGetter && SDecl->getInstanceMethod(Prop->getGetterName()))
+    if (!SuperClassImplementsGetter &&
+        SDecl->getInstanceMethod(Prop->getGetterName(),
+                                 Sema::IsHiddenCallback(S)))
       SuperClassImplementsGetter = true;
 
-    if (!SuperClassImplementsSetter && SDecl->getInstanceMethod(Prop->getSetterName()))
+    if (!SuperClassImplementsSetter &&
+        SDecl->getInstanceMethod(Prop->getSetterName(),
+                                 Sema::IsHiddenCallback(S)))
       SuperClassImplementsSetter = true;
     if (SuperClassImplementsGetter && SuperClassImplementsSetter)
       return true;
@@ -1697,10 +1706,12 @@ void Sema::DefaultSynthesizeProperties(Scope *S, ObjCImplDecl* IMPDecl,
     if (IMPDecl->FindPropertyImplDecl(
             Prop->getIdentifier(), Prop->getQueryKind()))
       continue;
-    if (IMPDecl->getInstanceMethod(Prop->getGetterName())) {
+    if (IMPDecl->getInstanceMethod(Prop->getGetterName(),
+                                   IsHiddenCallback(*this))) {
       if (Prop->getPropertyAttributes() & ObjCPropertyDecl::OBJC_PR_readonly)
         continue;
-      if (IMPDecl->getInstanceMethod(Prop->getSetterName()))
+      if (IMPDecl->getInstanceMethod(Prop->getSetterName(),
+                                     IsHiddenCallback(*this)))
         continue;
     }
     if (ObjCPropertyImplDecl *PID =
@@ -1720,7 +1731,8 @@ void Sema::DefaultSynthesizeProperties(Scope *S, ObjCImplDecl* IMPDecl,
       // Suppress the warning if class's superclass implements property's
       // getter and implements property's setter (if readwrite property).
       // Or, if property is going to be implemented in its super class.
-      if (!SuperClassImplementsProperty(IDecl, Prop) && !PropInSuperClass) {
+      if (!SuperClassImplementsProperty(*this, IDecl, Prop) &&
+          !PropInSuperClass) {
         Diag(IMPDecl->getLocation(),
              diag::warn_auto_synthesizing_protocol_property)
           << Prop << Proto;
@@ -1730,11 +1742,13 @@ void Sema::DefaultSynthesizeProperties(Scope *S, ObjCImplDecl* IMPDecl,
     }
     // If property to be implemented in the super class, ignore.
     if (PropInSuperClass) {
-      if ((Prop->getPropertyAttributes() & ObjCPropertyDecl::OBJC_PR_readwrite) &&
+      if ((Prop->getPropertyAttributes() &
+           ObjCPropertyDecl::OBJC_PR_readwrite) &&
           (PropInSuperClass->getPropertyAttributes() &
            ObjCPropertyDecl::OBJC_PR_readonly) &&
-          !IMPDecl->getInstanceMethod(Prop->getSetterName()) &&
-          !IDecl->HasUserDeclaredSetterMethod(Prop)) {
+          !IMPDecl->getInstanceMethod(Prop->getSetterName(),
+                                      IsHiddenCallback(*this)) &&
+          !IDecl->HasUserDeclaredSetterMethod(Prop, IsHiddenCallback(*this))) {
         Diag(Prop->getLocation(), diag::warn_no_autosynthesis_property)
         << Prop->getIdentifier();
         Diag(PropInSuperClass->getLocation(), diag::note_property_declare);
@@ -1793,8 +1807,8 @@ static void DiagnoseUnimplementedAccessor(
   // the class is going to implement them.
   if (I == SMap.end() &&
       (PrimaryClass == nullptr ||
-       !PrimaryClass->lookupPropertyAccessor(Method, C,
-                                             Prop->isClassProperty()))) {
+       !PrimaryClass->lookupPropertyAccessor(Method, Sema::IsHiddenCallback(S),
+                                             C, Prop->isClassProperty()))) {
     unsigned diag =
         isa<ObjCCategoryDecl>(CDecl)
             ? (Prop->isClassProperty()
@@ -1935,8 +1949,10 @@ void Sema::diagnoseNullResettableSynthesizedSetters(const ObjCImplDecl *impDecl)
         property->getSetterMethodDecl()) {
       auto *getterMethod = property->getGetterMethodDecl();
       auto *setterMethod = property->getSetterMethodDecl();
-      if (!impDecl->getInstanceMethod(setterMethod->getSelector()) &&
-          !impDecl->getInstanceMethod(getterMethod->getSelector())) {
+      if (!impDecl->getInstanceMethod(setterMethod->getSelector(),
+                                      IsHiddenCallback(*this)) &&
+          !impDecl->getInstanceMethod(getterMethod->getSelector(),
+                                      IsHiddenCallback(*this))) {
         SourceLocation loc = propertyImpl->getLocation();
         if (loc.isInvalid())
           loc = impDecl->getLocStart();
@@ -1973,12 +1989,12 @@ Sema::AtomicPropertySetterGetterRules (ObjCImplDecl* IMPDecl,
 
     if (!(AttributesAsWritten & ObjCPropertyDecl::OBJC_PR_atomic) &&
         !(AttributesAsWritten & ObjCPropertyDecl::OBJC_PR_nonatomic)) {
-      GetterMethod = Property->isClassProperty() ?
-                     IMPDecl->getClassMethod(Property->getGetterName()) :
-                     IMPDecl->getInstanceMethod(Property->getGetterName());
-      SetterMethod = Property->isClassProperty() ?
-                     IMPDecl->getClassMethod(Property->getSetterName()) :
-                     IMPDecl->getInstanceMethod(Property->getSetterName());
+      GetterMethod = IMPDecl->getMethod(Property->getGetterName(),
+                                        !Property->isClassProperty(),
+                                        IsHiddenCallback(*this));
+      SetterMethod = IMPDecl->getMethod(Property->getSetterName(),
+                                        !Property->isClassProperty(),
+                                        IsHiddenCallback(*this));
       LookedUpGetterSetter = true;
       if (GetterMethod) {
         Diag(GetterMethod->getLocation(),
@@ -2003,12 +2019,12 @@ Sema::AtomicPropertySetterGetterRules (ObjCImplDecl* IMPDecl,
       if (PIDecl->getPropertyImplementation() == ObjCPropertyImplDecl::Dynamic)
         continue;
       if (!LookedUpGetterSetter) {
-        GetterMethod = Property->isClassProperty() ?
-                       IMPDecl->getClassMethod(Property->getGetterName()) :
-                       IMPDecl->getInstanceMethod(Property->getGetterName());
-        SetterMethod = Property->isClassProperty() ?
-                       IMPDecl->getClassMethod(Property->getSetterName()) :
-                       IMPDecl->getInstanceMethod(Property->getSetterName());
+        GetterMethod = IMPDecl->getMethod(Property->getGetterName(),
+                                          !Property->isClassProperty(),
+                                          IsHiddenCallback(*this));
+        SetterMethod = IMPDecl->getMethod(Property->getSetterName(),
+                                          !Property->isClassProperty(),
+                                          IsHiddenCallback(*this));
       }
       if ((GetterMethod && !SetterMethod) || (!GetterMethod && SetterMethod)) {
         SourceLocation MethodLoc =
@@ -2052,7 +2068,7 @@ void Sema::DiagnoseOwningPropertyGetterSynthesis(const ObjCImplementationDecl *D
     const ObjCPropertyDecl *PD = PID->getPropertyDecl();
     if (PD && !PD->hasAttr<NSReturnsNotRetainedAttr>() &&
         !PD->isClassProperty() &&
-        !D->getInstanceMethod(PD->getGetterName())) {
+        !D->getInstanceMethod(PD->getGetterName(), IsHiddenCallback(*this))) {
       ObjCMethodDecl *method = PD->getGetterMethodDecl();
       if (!method)
         continue;
@@ -2121,7 +2137,8 @@ void Sema::DiagnoseMissingDesignatedInitOverrides(
     const ObjCMethodDecl *MD = *I;
     if (!InitSelSet.count(MD->getSelector())) {
       bool Ignore = false;
-      if (auto *IMD = IFD->getInstanceMethod(MD->getSelector())) {
+      if (auto *IMD = IFD->getInstanceMethod(MD->getSelector(),
+                                             IsHiddenCallback(*this))) {
         Ignore = IMD->isUnavailable();
       }
       if (!Ignore) {
@@ -2158,30 +2175,26 @@ void Sema::ProcessPropertyDecl(ObjCPropertyDecl *property) {
     return;
 
   bool IsClassProperty = property->isClassProperty();
-  GetterMethod = IsClassProperty ?
-    CD->getClassMethod(property->getGetterName()) :
-    CD->getInstanceMethod(property->getGetterName());
+  GetterMethod = CD->getMethod(property->getGetterName(), !IsClassProperty,
+                               IsHiddenCallback(*this));
 
   // if setter or getter is not found in class extension, it might be
   // in the primary class.
   if (!GetterMethod)
     if (const ObjCCategoryDecl *CatDecl = dyn_cast<ObjCCategoryDecl>(CD))
       if (CatDecl->IsClassExtension())
-        GetterMethod = IsClassProperty ? CatDecl->getClassInterface()->
-                         getClassMethod(property->getGetterName()) :
-                       CatDecl->getClassInterface()->
-                         getInstanceMethod(property->getGetterName());
-        
-  SetterMethod = IsClassProperty ?
-                 CD->getClassMethod(property->getSetterName()) :
-                 CD->getInstanceMethod(property->getSetterName());
+        GetterMethod = CatDecl->getClassInterface()->getMethod(
+            property->getGetterName(), !IsClassProperty,
+            IsHiddenCallback(*this));
+
+  SetterMethod = CD->getMethod(property->getSetterName(), !IsClassProperty,
+                               IsHiddenCallback(*this));
   if (!SetterMethod)
     if (const ObjCCategoryDecl *CatDecl = dyn_cast<ObjCCategoryDecl>(CD))
       if (CatDecl->IsClassExtension())
-        SetterMethod = IsClassProperty ? CatDecl->getClassInterface()->
-                          getClassMethod(property->getSetterName()) :
-                       CatDecl->getClassInterface()->
-                          getInstanceMethod(property->getSetterName());
+        SetterMethod = CatDecl->getClassInterface()->getMethod(
+            property->getSetterName(), !IsClassProperty,
+            IsHiddenCallback(*this));
   DiagnosePropertyAccessorMismatch(property, GetterMethod,
                                    property->getLocation());
 

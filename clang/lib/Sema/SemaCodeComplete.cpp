@@ -5658,14 +5658,16 @@ static ObjCMethodDecl *AddSuperSendCompletion(
   ObjCMethodDecl *SuperMethod = nullptr;
   while ((Class = Class->getSuperClass()) && !SuperMethod) {
     // Check in the class
-    SuperMethod = Class->getMethod(CurMethod->getSelector(), 
-                                   CurMethod->isInstanceMethod());
+    SuperMethod = Class->getMethod(CurMethod->getSelector(),
+                                   CurMethod->isInstanceMethod(),
+                                   Sema::IsHiddenCallback(S));
 
     // Check in categories or class extensions.
     if (!SuperMethod) {
       for (const auto *Cat : Class->known_categories()) {
         if ((SuperMethod = Cat->getMethod(CurMethod->getSelector(),
-                                               CurMethod->isInstanceMethod())))
+                                          CurMethod->isInstanceMethod(),
+                                          Sema::IsHiddenCallback(S))))
           break;
       }
     }
@@ -6520,7 +6522,8 @@ void Sema::CodeCompleteObjCPropertySynthesizeIvar(Scope *S,
   QualType PropertyType = Context.getObjCIdType();
   if (Class) {
     if (ObjCPropertyDecl *Property = Class->FindPropertyDeclaration(
-            PropertyName, ObjCPropertyQueryKind::OBJC_PR_query_instance)) {
+            PropertyName, ObjCPropertyQueryKind::OBJC_PR_query_instance,
+            IsHiddenCallback(*this))) {
       PropertyType 
         = Property->getType().getNonReferenceType().getUnqualifiedType();
       

@@ -186,9 +186,9 @@ void DirectIvarAssignment::MethodCrawler::VisitBinaryOperator(
         return;
 
       ObjCMethodDecl *GetterMethod =
-          InterfD->getInstanceMethod(PD->getGetterName());
+          InterfD->getInstanceMethod(PD->getGetterName(), AllDeclsVisible);
       ObjCMethodDecl *SetterMethod =
-          InterfD->getInstanceMethod(PD->getSetterName());
+          InterfD->getInstanceMethod(PD->getSetterName(), AllDeclsVisible);
 
       if (SetterMethod && SetterMethod->getCanonicalDecl() == MD)
         return;

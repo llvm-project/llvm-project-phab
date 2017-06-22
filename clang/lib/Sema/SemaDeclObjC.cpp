@@ -364,9 +364,10 @@ void Sema::ActOnStartOfObjCMethodDef(Scope *FnBodyScope, Decl *D) {
   // Warn on deprecated methods under -Wdeprecated-implementations,
   // and prepare for warning on missing super calls.
   if (ObjCInterfaceDecl *IC = MDecl->getClassInterface()) {
-    ObjCMethodDecl *IMD = 
-      IC->lookupMethod(MDecl->getSelector(), MDecl->isInstanceMethod());
-    
+    ObjCMethodDecl *IMD =
+        IC->lookupMethod(MDecl->getSelector(), MDecl->isInstanceMethod(),
+                         IsHiddenCallback(*this));
+
     if (IMD) {
       ObjCImplDecl *ImplDeclOfMethodDef = 
         dyn_cast<ObjCImplDecl>(MDecl->getDeclContext());
@@ -391,7 +392,8 @@ void Sema::ActOnStartOfObjCMethodDef(Scope *FnBodyScope, Decl *D) {
     }
 
     if (MDecl->getMethodFamily() == OMF_init) {
-      if (MDecl->isDesignatedInitializerForTheInterface()) {
+      if (MDecl->isDesignatedInitializerForTheInterface(
+              IsHiddenCallback(*this))) {
         getCurFunction()->ObjCIsDesignatedInit = true;
         getCurFunction()->ObjCWarnForNoDesignatedInitChain =
             IC->getSuperClass() != nullptr;
@@ -417,9 +419,9 @@ void Sema::ActOnStartOfObjCMethodDef(Scope *FnBodyScope, Decl *D) {
           getCurFunction()->ObjCShouldCallSuper = true;
         
       } else {
-        const ObjCMethodDecl *SuperMethod =
-          SuperClass->lookupMethod(MDecl->getSelector(),
-                                   MDecl->isInstanceMethod());
+        const ObjCMethodDecl *SuperMethod = SuperClass->lookupMethod(
+            MDecl->getSelector(), MDecl->isInstanceMethod(),
+            IsHiddenCallback(*this));
         getCurFunction()->ObjCShouldCallSuper = 
           (SuperMethod && SuperMethod->hasAttr<ObjCRequiresSuperAttr>());
       }
@@ -2675,6 +2677,7 @@ static void CheckProtocolMethodDefs(Sema &S,
           !InsMap.count(method->getSelector()) &&
           (!Super || !Super->lookupMethod(method->getSelector(),
                                           true /* instance */,
+                                          Sema::IsHiddenCallback(S),
                                           false /* shallowCategory */,
                                           true /* followsSuper */,
                                           nullptr /* category */))) {
@@ -2690,6 +2693,7 @@ static void CheckProtocolMethodDefs(Sema &S,
             if (ObjCMethodDecl *MethodInClass =
                   IDecl->lookupMethod(method->getSelector(),
                                       true /* instance */,
+                                      Sema::IsHiddenCallback(S),
                                       true /* shallowCategoryLookup */,
                                       false /* followSuper */))
               if (C || MethodInClass->isPropertyAccessor())
@@ -2707,12 +2711,14 @@ static void CheckProtocolMethodDefs(Sema &S,
         !ClsMap.count(method->getSelector()) &&
         (!Super || !Super->lookupMethod(method->getSelector(),
                                         false /* class method */,
+                                        Sema::IsHiddenCallback(S),
                                         false /* shallowCategoryLookup */,
                                         true  /* followSuper */,
                                         nullptr /* category */))) {
       // See above comment for instance method lookups.
       if (C && IDecl->lookupMethod(method->getSelector(),
                                    false /* class */,
+                                   Sema::IsHiddenCallback(S),
                                    true /* shallowCategoryLookup */,
                                    false /* followSuper */))
         continue;
@@ -2754,8 +2760,8 @@ void Sema::MatchAllMethodDeclarations(const SelectorSet &InsMap,
       continue;
     } else {
       ObjCMethodDecl *ImpMethodDecl =
-        IMPDecl->getInstanceMethod(I->getSelector());
-      assert(CDecl->getInstanceMethod(I->getSelector(), true/*AllowHidden*/) &&
+          IMPDecl->getInstanceMethod(I->getSelector(), IsHiddenCallback(*this));
+      assert(CDecl->getInstanceMethod(I->getSelector(), AllDeclsVisible) &&
              "Expected to find the method through lookup as well");
       // ImpMethodDecl may be null as in a @dynamic property.
       if (ImpMethodDecl) {
@@ -2780,8 +2786,8 @@ void Sema::MatchAllMethodDeclarations(const SelectorSet &InsMap,
                             diag::warn_undef_method_impl);
     } else {
       ObjCMethodDecl *ImpMethodDecl =
-        IMPDecl->getClassMethod(I->getSelector());
-      assert(CDecl->getClassMethod(I->getSelector(), true/*AllowHidden*/) &&
+        IMPDecl->getClassMethod(I->getSelector(), IsHiddenCallback(*this));
+      assert(CDecl->getClassMethod(I->getSelector(), AllDeclsVisible) &&
              "Expected to find the method through lookup as well");
       // ImpMethodDecl may be null as in a @dynamic property.
       if (ImpMethodDecl) {
@@ -2856,14 +2862,16 @@ void Sema::CheckCategoryVsClassMethodMatches(
     // When checking for methods implemented in the category, skip over
     // those declared in category class's super class. This is because
     // the super class must implement the method.
-    if (SuperIDecl && SuperIDecl->lookupMethod(Sel, true))
+    if (SuperIDecl &&
+        SuperIDecl->lookupMethod(Sel, true, IsHiddenCallback(*this)))
       continue;
     InsMap.insert(Sel);
   }
   
   for (const auto *I : CatIMPDecl->class_methods()) {
     Selector Sel = I->getSelector();
-    if (SuperIDecl && SuperIDecl->lookupMethod(Sel, false))
+    if (SuperIDecl &&
+        SuperIDecl->lookupMethod(Sel, false, IsHiddenCallback(*this)))
       continue;
     ClsMap.insert(Sel);
   }
@@ -3822,12 +3830,12 @@ Decl *Sema::ActOnAtEnd(Scope *S, SourceRange AtEnd, ArrayRef<Decl *> allMethods,
               continue;
 
           for (const auto *Ext : IDecl->visible_extensions()) {
-            if (ObjCMethodDecl *GetterMethod
-                  = Ext->getInstanceMethod(Property->getGetterName()))
+            if (ObjCMethodDecl *GetterMethod = Ext->getInstanceMethod(
+                    Property->getGetterName(), IsHiddenCallback(*this)))
               GetterMethod->setPropertyAccessor(true);
             if (!Property->isReadOnly())
-              if (ObjCMethodDecl *SetterMethod
-                    = Ext->getInstanceMethod(Property->getSetterName()))
+              if (ObjCMethodDecl *SetterMethod = Ext->getInstanceMethod(
+                      Property->getSetterName(), IsHiddenCallback(*this)))
                 SetterMethod->setPropertyAccessor(true);
           }
         }
@@ -4108,7 +4116,7 @@ private:
     // Check for a method in this container which matches this selector.
     ObjCMethodDecl *meth = container->getMethod(Method->getSelector(),
                                                 Method->isInstanceMethod(),
-                                                /*AllowHidden=*/true);
+                                                AllDeclsVisible);
 
     // If we find one, record it and bail out.
     if (meth) {
@@ -4480,10 +4488,10 @@ Decl *Sema::ActOnMethodDeclaration(
   const ObjCMethodDecl *PrevMethod = nullptr;
   if (ObjCImplDecl *ImpDecl = dyn_cast<ObjCImplDecl>(ClassDecl)) {
     if (MethodType == tok::minus) {
-      PrevMethod = ImpDecl->getInstanceMethod(Sel);
+      PrevMethod = ImpDecl->getInstanceMethod(Sel, IsHiddenCallback(*this));
       ImpDecl->addInstanceMethod(ObjCMethod);
     } else {
-      PrevMethod = ImpDecl->getClassMethod(Sel);
+      PrevMethod = ImpDecl->getClassMethod(Sel, IsHiddenCallback(*this));
       ImpDecl->addClassMethod(ObjCMethod);
     }
 
@@ -4491,7 +4499,8 @@ Decl *Sema::ActOnMethodDeclaration(
     // @implementation.
     if (ObjCInterfaceDecl *IDecl = ImpDecl->getClassInterface()) {
       if (auto *IMD = IDecl->lookupMethod(ObjCMethod->getSelector(),
-                                          ObjCMethod->isInstanceMethod())) {
+                                          ObjCMethod->isInstanceMethod(),
+                                          IsHiddenCallback(*this))) {
         mergeInterfaceMethodToImpl(*this, ObjCMethod, IMD);
 
         // Warn about defining -dealloc in a category.
@@ -4776,13 +4785,14 @@ void Sema::DiagnoseUseOfUnimplementedSelectors() {
 
 ObjCIvarDecl *
 Sema::GetIvarBackingPropertyAccessor(const ObjCMethodDecl *Method,
-                                     const ObjCPropertyDecl *&PDecl) const {
+                                     const ObjCPropertyDecl *&PDecl) {
   if (Method->isClassMethod())
     return nullptr;
   const ObjCInterfaceDecl *IDecl = Method->getClassInterface();
   if (!IDecl)
     return nullptr;
   Method = IDecl->lookupMethod(Method->getSelector(), /*isInstance=*/true,
+                               IsHiddenCallback(*this),
                                /*shallowCategoryLookup=*/false,
                                /*followSuper=*/false);
   if (!Method || !Method->isPropertyAccessor())

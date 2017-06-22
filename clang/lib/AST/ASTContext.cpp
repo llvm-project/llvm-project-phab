@@ -410,8 +410,8 @@ static void addRedeclaredMethods(const ObjCMethodDecl *ObjCMethod,
     // Add redeclared method here.
     for (const auto *Ext : ID->known_extensions()) {
       if (ObjCMethodDecl *RedeclaredMethod =
-            Ext->getMethod(ObjCMethod->getSelector(),
-                                  ObjCMethod->isInstanceMethod()))
+              Ext->getMethod(ObjCMethod->getSelector(),
+                             ObjCMethod->isInstanceMethod(), AllDeclsVisible))
         Redeclared.push_back(RedeclaredMethod);
     }
   }

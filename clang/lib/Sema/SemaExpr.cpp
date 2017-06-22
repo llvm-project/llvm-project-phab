@@ -87,7 +87,8 @@ static void DiagnoseUnusedOfDecl(Sema &S, NamedDecl *D, SourceLocation Loc) {
   }
 }
 
-static bool HasRedeclarationWithoutAvailabilityInCategory(const Decl *D) {
+static bool HasRedeclarationWithoutAvailabilityInCategory(Sema &S,
+                                                          const Decl *D) {
   const auto *OMD = dyn_cast<ObjCMethodDecl>(D);
   if (!OMD)
     return false;
@@ -97,7 +98,8 @@ static bool HasRedeclarationWithoutAvailabilityInCategory(const Decl *D) {
 
   for (const ObjCCategoryDecl *Cat : OID->visible_categories())
     if (ObjCMethodDecl *CatMeth =
-            Cat->getMethod(OMD->getSelector(), OMD->isInstanceMethod()))
+            Cat->getMethod(OMD->getSelector(), OMD->isInstanceMethod(),
+                           Sema::IsHiddenCallback(S)))
       if (!CatMeth->hasAttr<AvailabilityAttr>())
         return true;
   return false;
@@ -144,7 +146,7 @@ Sema::ShouldDiagnoseAvailabilityOfDecl(NamedDecl *&D, std::string *Message) {
     // Objective-C method declarations in categories are not modelled as
     // redeclarations, so manually look for a redeclaration in a category
     // if necessary.
-    if (Warn && HasRedeclarationWithoutAvailabilityInCategory(D))
+    if (Warn && HasRedeclarationWithoutAvailabilityInCategory(*this, D))
       Warn = false;
     // In general, D will point to the most recent redeclaration. However,
     // for `@class A;` decls, this isn't true -- manually go through the

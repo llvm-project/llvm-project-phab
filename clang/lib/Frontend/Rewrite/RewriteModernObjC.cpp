@@ -592,7 +592,7 @@ namespace {
     bool ImplementationIsNonLazy(const ObjCImplDecl *OD) const {
       IdentifierInfo* II = &Context->Idents.get("load");
       Selector LoadSel = Context->Selectors.getSelector(0, &II);
-      return OD->getClassMethod(LoadSel) != nullptr;
+      return OD->getClassMethod(LoadSel, AllDeclsVisible) != nullptr;
     }
 
     StringLiteral *getStringLiteral(StringRef Str) {
@@ -910,9 +910,8 @@ RewriteModernObjC::getIvarAccessString(ObjCIvarDecl *D) {
 static bool mustSynthesizeSetterGetterMethod(ObjCImplementationDecl *IMP,
                                              ObjCPropertyDecl *PD,
                                              bool getter) {
-  return getter ? !IMP->getInstanceMethod(PD->getGetterName())
-                : !IMP->getInstanceMethod(PD->getSetterName());
-  
+  return !IMP->getInstanceMethod(
+      getter ? PD->getGetterName() : PD->getSetterName(), AllDeclsVisible);
 }
 
 void RewriteModernObjC::RewritePropertyImplDecl(ObjCPropertyImplDecl *PID,

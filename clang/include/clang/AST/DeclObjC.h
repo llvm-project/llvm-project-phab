@@ -89,6 +89,14 @@ public:
            const SourceLocation *Locs, ASTContext &Ctx);
 };
 
+/// A callback used to determine which declarations should be visible to ObjC
+/// name lookups.
+// FIXME: This should not be necessary; the name lookup logic should be in Sema.
+typedef llvm::function_ref<bool(const NamedDecl*)> IsHiddenFunction;
+
+/// An IsHiddenFunction callback for the case where all declarations should be
+/// considered to be visible.
+bool AllDeclsVisible(const NamedDecl*);
 
 /// ObjCMethodDecl - Represents an instance or class method declaration.
 /// ObjC methods can be declared within 4 contexts: class interfaces,
@@ -480,6 +488,7 @@ public:
   /// the method declaration that was marked with the designated initializer
   /// attribute.
   bool isDesignatedInitializerForTheInterface(
+      IsHiddenFunction IsHidden,
       const ObjCMethodDecl **InitMethod = nullptr) const;
 
   /// \brief Determine whether this method has a body.
@@ -906,7 +915,8 @@ public:
   /// Lookup a property by name in the specified DeclContext.
   static ObjCPropertyDecl *findPropertyDecl(const DeclContext *DC,
                                             const IdentifierInfo *propertyID,
-                                            ObjCPropertyQueryKind queryKind);
+                                            ObjCPropertyQueryKind queryKind,
+                                            IsHiddenFunction IsHidden);
 
   static bool classof(const Decl *D) { return classofKind(D->getKind()); }
   static bool classofKind(Kind K) { return K == ObjCProperty; }
@@ -1021,20 +1031,22 @@ public:
 
   // Get the local instance/class method declared in this interface.
   ObjCMethodDecl *getMethod(Selector Sel, bool isInstance,
-                            bool AllowHidden = false) const;
+                            IsHiddenFunction IsHidden) const;
   ObjCMethodDecl *getInstanceMethod(Selector Sel,
-                                    bool AllowHidden = false) const {
-    return getMethod(Sel, true/*isInstance*/, AllowHidden);
+                                    IsHiddenFunction IsHidden) const {
+    return getMethod(Sel, true/*isInstance*/, IsHidden);
   }
-  ObjCMethodDecl *getClassMethod(Selector Sel, bool AllowHidden = false) const {
-    return getMethod(Sel, false/*isInstance*/, AllowHidden);
+  ObjCMethodDecl *getClassMethod(Selector Sel,
+                                 IsHiddenFunction IsHidden) const {
+    return getMethod(Sel, false/*isInstance*/, IsHidden);
   }
-  bool HasUserDeclaredSetterMethod(const ObjCPropertyDecl *P) const;
+  bool HasUserDeclaredSetterMethod(const ObjCPropertyDecl *P,
+                                   IsHiddenFunction IsHidden) const;
   ObjCIvarDecl *getIvarDecl(IdentifierInfo *Id) const;
 
-  ObjCPropertyDecl *
-  FindPropertyDeclaration(const IdentifierInfo *PropertyId,
-                          ObjCPropertyQueryKind QueryKind) const;
+  ObjCPropertyDecl *FindPropertyDeclaration(const IdentifierInfo *PropertyId,
+                                            ObjCPropertyQueryKind QueryKind,
+                                            IsHiddenFunction IsHidden) const;
 
   typedef llvm::DenseMap<std::pair<IdentifierInfo*,
                                    unsigned/*isClassProperty*/>,
@@ -1283,11 +1295,14 @@ public:
   ObjCCategoryDecl *FindCategoryDeclaration(IdentifierInfo *CategoryId) const;
 
   // Get the local instance/class method declared in a category.
-  ObjCMethodDecl *getCategoryInstanceMethod(Selector Sel) const;
-  ObjCMethodDecl *getCategoryClassMethod(Selector Sel) const;
-  ObjCMethodDecl *getCategoryMethod(Selector Sel, bool isInstance) const {
-    return isInstance ? getCategoryInstanceMethod(Sel)
-                      : getCategoryClassMethod(Sel);
+  ObjCMethodDecl *getCategoryInstanceMethod(Selector Sel,
+                                            IsHiddenFunction IsHidden) const;
+  ObjCMethodDecl *getCategoryClassMethod(Selector Sel,
+                                         IsHiddenFunction IsHidden) const;
+  ObjCMethodDecl *getCategoryMethod(Selector Sel, bool isInstance,
+                                    IsHiddenFunction IsHidden) const {
+    return isInstance ? getCategoryInstanceMethod(Sel, IsHidden)
+                      : getCategoryClassMethod(Sel, IsHidden);
   }
 
   typedef ObjCProtocolList::iterator protocol_iterator;
@@ -1444,9 +1459,13 @@ public:
   ///
   /// \param InitMethod if non-null and the function returns true, it receives
   /// the method that was marked as a designated initializer.
-  bool
-  isDesignatedInitializer(Selector Sel,
-                          const ObjCMethodDecl **InitMethod = nullptr) const;
+  bool isDesignatedInitializer(Selector Sel,
+                               const ObjCMethodDecl **InitMethod,
+                               IsHiddenFunction IsHidden) const;
+  bool isDesignatedInitializer(Selector Sel,
+                               IsHiddenFunction IsHidden) const {
+    return isDesignatedInitializer(Sel, nullptr, IsHidden);
+  }
 
   /// \brief Determine whether this particular declaration of this class is
   /// actually also a definition.
@@ -1720,7 +1739,8 @@ public:
 
   ObjCPropertyDecl
     *FindPropertyVisibleInPrimaryClass(IdentifierInfo *PropertyId,
-                                       ObjCPropertyQueryKind QueryKind) const;
+                                       ObjCPropertyQueryKind QueryKind,
+                                       IsHiddenFunction IsHidden) const;
 
   void collectPropertiesToImplement(PropertyMap &PM,
                                     PropertyDeclOrder &PO) const override;
@@ -1759,36 +1779,45 @@ public:
   // Lookup a method. First, we search locally. If a method isn't
   // found, we search referenced protocols and class categories.
   ObjCMethodDecl *lookupMethod(Selector Sel, bool isInstance,
+                               IsHiddenFunction IsHidden,
                                bool shallowCategoryLookup = false,
                                bool followSuper = true,
                                const ObjCCategoryDecl *C = nullptr) const;
 
   /// Lookup an instance method for a given selector.
-  ObjCMethodDecl *lookupInstanceMethod(Selector Sel) const {
-    return lookupMethod(Sel, true/*isInstance*/);
+  ObjCMethodDecl *lookupInstanceMethod(Selector Sel,
+                                       IsHiddenFunction IsHidden) const {
+    return lookupMethod(Sel, true/*isInstance*/, IsHidden);
   }
 
   /// Lookup a class method for a given selector.
-  ObjCMethodDecl *lookupClassMethod(Selector Sel) const {
-    return lookupMethod(Sel, false/*isInstance*/);
+  ObjCMethodDecl *lookupClassMethod(Selector Sel,
+                                    IsHiddenFunction IsHidden) const {
+    return lookupMethod(Sel, false/*isInstance*/, IsHidden);
   }
   ObjCInterfaceDecl *lookupInheritedClass(const IdentifierInfo *ICName);
 
   /// \brief Lookup a method in the classes implementation hierarchy.
   ObjCMethodDecl *lookupPrivateMethod(const Selector &Sel,
-                                      bool Instance=true) const;
-
-  ObjCMethodDecl *lookupPrivateClassMethod(const Selector &Sel) {
-    return lookupPrivateMethod(Sel, false);
+                                      bool Instance,
+                                      IsHiddenFunction IsHidden) const;
+  ObjCMethodDecl *lookupPrivateMethod(const Selector &Sel,
+                                      IsHiddenFunction IsHidden) const {
+    return lookupPrivateMethod(Sel, true, IsHidden);
+  }
+  ObjCMethodDecl *lookupPrivateClassMethod(const Selector &Sel,
+                                           IsHiddenFunction IsHidden) {
+    return lookupPrivateMethod(Sel, false, IsHidden);
   }
 
   /// \brief Lookup a setter or getter in the class hierarchy,
   /// including in all categories except for category passed
   /// as argument.
   ObjCMethodDecl *lookupPropertyAccessor(const Selector Sel,
+                                         IsHiddenFunction IsHidden,
                                          const ObjCCategoryDecl *Cat,
                                          bool IsClassProperty) const {
-    return lookupMethod(Sel, !IsClassProperty/*isInstance*/,
+    return lookupMethod(Sel, !IsClassProperty/*isInstance*/, IsHidden,
                         false/*shallowCategoryLookup*/,
                         true /* followsSuper */,
                         Cat);
@@ -2092,12 +2121,15 @@ public:
 
   // Lookup a method. First, we search locally. If a method isn't
   // found, we search referenced protocols and class categories.
-  ObjCMethodDecl *lookupMethod(Selector Sel, bool isInstance) const;
-  ObjCMethodDecl *lookupInstanceMethod(Selector Sel) const {
-    return lookupMethod(Sel, true/*isInstance*/);
+  ObjCMethodDecl *lookupMethod(Selector Sel, bool isInstance,
+                               IsHiddenFunction IsHidden) const;
+  ObjCMethodDecl *lookupInstanceMethod(Selector Sel,
+                                       IsHiddenFunction IsHidden) const {
+    return lookupMethod(Sel, true/*isInstance*/, IsHidden);
   }
-  ObjCMethodDecl *lookupClassMethod(Selector Sel) const {
-    return lookupMethod(Sel, false/*isInstance*/);
+  ObjCMethodDecl *lookupClassMethod(Selector Sel,
+                                    IsHiddenFunction IsHidden) const {
+    return lookupMethod(Sel, false/*isInstance*/, IsHidden);
   }
 
   /// \brief Determine whether this protocol has a definition.

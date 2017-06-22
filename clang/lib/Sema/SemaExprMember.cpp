@@ -426,20 +426,21 @@ CheckExtVectorComponent(Sema &S, QualType baseType, ExprValueKind &VK,
   return VT; // should never get here (a typedef type should always be found).
 }
 
-static Decl *FindGetterSetterNameDeclFromProtocolList(const ObjCProtocolDecl*PDecl,
-                                                IdentifierInfo *Member,
-                                                const Selector &Sel,
-                                                ASTContext &Context) {
+static Decl *
+FindGetterSetterNameDeclFromProtocolList(const ObjCProtocolDecl *PDecl,
+                                         IdentifierInfo *Member,
+                                         const Selector &Sel, Sema &S) {
   if (Member)
     if (ObjCPropertyDecl *PD = PDecl->FindPropertyDeclaration(
-            Member, ObjCPropertyQueryKind::OBJC_PR_query_instance))
+            Member, ObjCPropertyQueryKind::OBJC_PR_query_instance,
+            Sema::IsHiddenCallback(S)))
       return PD;
-  if (ObjCMethodDecl *OMD = PDecl->getInstanceMethod(Sel))
+  if (ObjCMethodDecl *OMD =
+          PDecl->getInstanceMethod(Sel, Sema::IsHiddenCallback(S)))
     return OMD;
 
   for (const auto *I : PDecl->protocols()) {
-    if (Decl *D = FindGetterSetterNameDeclFromProtocolList(I, Member, Sel,
-                                                           Context))
+    if (Decl *D = FindGetterSetterNameDeclFromProtocolList(I, Member, Sel, S))
       return D;
   }
   return nullptr;
@@ -448,18 +449,20 @@ static Decl *FindGetterSetterNameDeclFromProtocolList(const ObjCProtocolDecl*PDe
 static Decl *FindGetterSetterNameDecl(const ObjCObjectPointerType *QIdTy,
                                       IdentifierInfo *Member,
                                       const Selector &Sel,
-                                      ASTContext &Context) {
+                                      Sema &S) {
   // Check protocols on qualified interfaces.
   Decl *GDecl = nullptr;
   for (const auto *I : QIdTy->quals()) {
     if (Member)
       if (ObjCPropertyDecl *PD = I->FindPropertyDeclaration(
-              Member, ObjCPropertyQueryKind::OBJC_PR_query_instance)) {
+              Member, ObjCPropertyQueryKind::OBJC_PR_query_instance,
+              Sema::IsHiddenCallback(S))) {
         GDecl = PD;
         break;
       }
     // Also must look for a getter or setter name which uses property syntax.
-    if (ObjCMethodDecl *OMD = I->getInstanceMethod(Sel)) {
+    if (ObjCMethodDecl *OMD =
+            I->getInstanceMethod(Sel, Sema::IsHiddenCallback(S))) {
       GDecl = OMD;
       break;
     }
@@ -467,7 +470,7 @@ static Decl *FindGetterSetterNameDecl(const ObjCObjectPointerType *QIdTy,
   if (!GDecl) {
     for (const auto *I : QIdTy->quals()) {
       // Search in the protocol-qualifier list of current protocol.
-      GDecl = FindGetterSetterNameDeclFromProtocolList(I, Member, Sel, Context);
+      GDecl = FindGetterSetterNameDeclFromProtocolList(I, Member, Sel, S);
       if (GDecl)
         return GDecl;
     }
@@ -1439,7 +1442,8 @@ static ExprResult LookupMemberExpr(Sema &S, LookupResult &R,
       } else {
         if (IsArrow &&
             IDecl->FindPropertyDeclaration(
-                Member, ObjCPropertyQueryKind::OBJC_PR_query_instance)) {
+                Member, ObjCPropertyQueryKind::OBJC_PR_query_instance,
+                Sema::IsHiddenCallback(S))) {
           S.Diag(MemberLoc, diag::err_property_found_suggest)
               << Member << BaseExpr.get()->getType()
               << FixItHint::CreateReplacement(OpLoc, ".");
@@ -1557,7 +1561,7 @@ static ExprResult LookupMemberExpr(Sema &S, LookupResult &R,
       // Check protocols on qualified interfaces.
       Selector Sel = S.PP.getSelectorTable().getNullarySelector(Member);
       if (Decl *PMDecl =
-              FindGetterSetterNameDecl(OPT, Member, Sel, S.Context)) {
+              FindGetterSetterNameDecl(OPT, Member, Sel, S)) {
         if (ObjCPropertyDecl *PD = dyn_cast<ObjCPropertyDecl>(PMDecl)) {
           // Check the use of this declaration
           if (S.DiagnoseUseOfDecl(PD, MemberLoc))
@@ -1579,7 +1583,7 @@ static ExprResult LookupMemberExpr(Sema &S, LookupResult &R,
           ObjCMethodDecl *SMD = nullptr;
           if (Decl *SDecl = FindGetterSetterNameDecl(OPT,
                                                      /*Property id*/ nullptr,
-                                                     SetterSel, S.Context))
+                                                     SetterSel, S))
             SMD = dyn_cast<ObjCMethodDecl>(SDecl);
 
           return new (S.Context)
@@ -1613,23 +1617,26 @@ static ExprResult LookupMemberExpr(Sema &S, LookupResult &R,
       Selector Sel = S.PP.getSelectorTable().getNullarySelector(Member);
       ObjCInterfaceDecl *IFace = MD->getClassInterface();
       ObjCMethodDecl *Getter;
-      if ((Getter = IFace->lookupClassMethod(Sel))) {
+      if ((Getter = IFace->lookupClassMethod(Sel, Sema::IsHiddenCallback(S)))) {
         // Check the use of this method.
         if (S.DiagnoseUseOfDecl(Getter, MemberLoc))
           return ExprError();
       } else
-        Getter = IFace->lookupPrivateMethod(Sel, false);
+        Getter =
+            IFace->lookupPrivateClassMethod(Sel, Sema::IsHiddenCallback(S));
       // If we found a getter then this may be a valid dot-reference, we
       // will look for the matching setter, in case it is needed.
       Selector SetterSel =
         SelectorTable::constructSetterSelector(S.PP.getIdentifierTable(),
                                                S.PP.getSelectorTable(),
                                                Member);
-      ObjCMethodDecl *Setter = IFace->lookupClassMethod(SetterSel);
+      ObjCMethodDecl *Setter =
+          IFace->lookupClassMethod(SetterSel, Sema::IsHiddenCallback(S));
       if (!Setter) {
         // If this reference is in an @implementation, also check for 'private'
         // methods.
-        Setter = IFace->lookupPrivateMethod(SetterSel, false);
+        Setter = IFace->lookupPrivateClassMethod(SetterSel,
+                                                 Sema::IsHiddenCallback(S));
       }
 
       if (Setter && S.DiagnoseUseOfDecl(Setter, MemberLoc))

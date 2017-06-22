@@ -1750,8 +1750,9 @@ Sema::CheckObjCForCollectionOperand(SourceLocation forLoc, Expr *collection) {
 
     // If there's an interface, look in both the public and private APIs.
     if (iface) {
-      method = iface->lookupInstanceMethod(selector);
-      if (!method) method = iface->lookupPrivateMethod(selector);
+      method = iface->lookupInstanceMethod(selector, IsHiddenCallback(*this));
+      if (!method)
+        method = iface->lookupPrivateMethod(selector, IsHiddenCallback(*this));
     }
 
     // Also check protocol qualifiers.

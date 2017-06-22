@@ -1533,7 +1533,7 @@ RetainSummaryManager::getInstanceMethodSummary(const ObjCMethodCall &Msg,
   Selector S = Msg.getSelector();
   const ObjCMethodDecl *Method = Msg.getDecl();
   if (!Method && ReceiverClass)
-    Method = ReceiverClass->getInstanceMethod(S);
+    Method = ReceiverClass->getInstanceMethod(S, AllDeclsVisible);
 
   return getMethodSummary(S, ReceiverClass, Method, Msg.getResultType(),
                           ObjCMethodSummaries);
