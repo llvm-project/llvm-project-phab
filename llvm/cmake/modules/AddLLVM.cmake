@@ -300,7 +300,7 @@ function(set_windows_version_resource_properties name resource_file)
   endif()
 
   set_property(SOURCE ${resource_file}
-               PROPERTY COMPILE_FLAGS /nologo)
+               PROPERTY COMPILE_FLAGS)
   set_property(SOURCE ${resource_file}
                PROPERTY COMPILE_DEFINITIONS
                "RC_VERSION_FIELD_1=${ARG_VERSION_MAJOR}"
@@ -672,7 +672,7 @@ macro(add_llvm_executable name)
     # it forces Xcode to properly link the static library.
     list(APPEND ALL_FILES "${LLVM_MAIN_SRC_DIR}/cmake/dummy.cpp")
   endif()
-  
+
   if( EXCLUDE_FROM_ALL )
     add_executable(${name} EXCLUDE_FROM_ALL ${ALL_FILES})
   else()
@@ -1328,7 +1328,7 @@ function(add_llvm_tool_symlink link_name target)
   # magic. First we grab one of the types, and a type-specific path. Then from
   # the type-specific path we find the last occurrence of the type in the path,
   # and replace it with CMAKE_CFG_INTDIR. This allows the build step to be type
-  # agnostic again. 
+  # agnostic again.
   if(NOT ARG_OUTPUT_DIR)
     # If you're not overriding the OUTPUT_DIR, we can make the link relative in
     # the same directory.
