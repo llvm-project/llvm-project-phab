@@ -24,4 +24,9 @@ add_subdirectory(Fuzzer)
 add_subdirectory(Passes)
 add_subdirectory(ToolDrivers)
 add_subdirectory(XRay)
-add_subdirectory(Testing)
+
+if (LLVM_INCLUDE_TESTS AND LLVM_INCLUDE_UTILS)
+  # Testing library depends on gtest, which is only included if
+  # both of these variables are ON.
+  add_subdirectory(Testing)
+endif()
