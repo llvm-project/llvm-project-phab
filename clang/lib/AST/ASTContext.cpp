@@ -410,8 +410,8 @@ static void addRedeclaredMethods(const ObjCMethodDecl *ObjCMethod,
     // Add redeclared method here.
     for (const auto *Ext : ID->known_extensions()) {
       if (ObjCMethodDecl *RedeclaredMethod =
-            Ext->getMethod(ObjCMethod->getSelector(),
-                                  ObjCMethod->isInstanceMethod()))
+              Ext->getMethod(ObjCMethod->getSelector(),
+                             ObjCMethod->isInstanceMethod(), AllDeclsVisible))
         Redeclared.push_back(RedeclaredMethod);
     }
   }
@@ -465,7 +465,8 @@ comments::FullComment *ASTContext::getCommentForDecl(
       SmallVector<const NamedDecl*, 8> Overridden;
       const ObjCMethodDecl *OMD = dyn_cast<ObjCMethodDecl>(D);
       if (OMD && OMD->isPropertyAccessor())
-        if (const ObjCPropertyDecl *PDecl = OMD->findPropertyDecl())
+        if (const ObjCPropertyDecl *PDecl =
+                OMD->findPropertyDecl(AllDeclsVisible))
           if (comments::FullComment *FC = getCommentForDecl(PDecl, PP))
             return cloneFullComment(FC, D);
       if (OMD)
@@ -2074,27 +2075,28 @@ void ASTContext::DeepCollectObjCIvars(const ObjCInterfaceDecl *OI,
 
 /// CollectInheritedProtocols - Collect all protocols in current class and
 /// those inherited by it.
-void ASTContext::CollectInheritedProtocols(const Decl *CDecl,
-                          llvm::SmallPtrSet<ObjCProtocolDecl*, 8> &Protocols) {
+void ASTContext::CollectInheritedProtocols(
+    const Decl *CDecl, llvm::SmallPtrSet<ObjCProtocolDecl *, 8> &Protocols,
+    IsHiddenFunction IsHidden) {
   if (const ObjCInterfaceDecl *OI = dyn_cast<ObjCInterfaceDecl>(CDecl)) {
     // We can use protocol_iterator here instead of
     // all_referenced_protocol_iterator since we are walking all categories.    
     for (auto *Proto : OI->all_referenced_protocols()) {
-      CollectInheritedProtocols(Proto, Protocols);
+      CollectInheritedProtocols(Proto, Protocols, IsHidden);
     }
     
     // Categories of this Interface.
-    for (const auto *Cat : OI->visible_categories())
-      CollectInheritedProtocols(Cat, Protocols);
+    for (const auto *Cat : OI->visible_categories(IsHidden))
+      CollectInheritedProtocols(Cat, Protocols, IsHidden);
 
     if (ObjCInterfaceDecl *SD = OI->getSuperClass())
       while (SD) {
-        CollectInheritedProtocols(SD, Protocols);
+        CollectInheritedProtocols(SD, Protocols, IsHidden);
         SD = SD->getSuperClass();
       }
   } else if (const ObjCCategoryDecl *OC = dyn_cast<ObjCCategoryDecl>(CDecl)) {
     for (auto *Proto : OC->protocols()) {
-      CollectInheritedProtocols(Proto, Protocols);
+      CollectInheritedProtocols(Proto, Protocols, IsHidden);
     }
   } else if (const ObjCProtocolDecl *OP = dyn_cast<ObjCProtocolDecl>(CDecl)) {
     // Insert the protocol.
@@ -2103,7 +2105,7 @@ void ASTContext::CollectInheritedProtocols(const Decl *CDecl,
       return;
 
     for (auto *Proto : OP->protocols())
-      CollectInheritedProtocols(Proto, Protocols);
+      CollectInheritedProtocols(Proto, Protocols, IsHidden);
   }
 }
 
@@ -4185,14 +4187,15 @@ ASTContext::getObjCTypeParamType(const ObjCTypeParamDecl *Decl,
 /// protocol list adopt all protocols in QT's qualified-id protocol
 /// list.
 bool ASTContext::ObjCObjectAdoptsQTypeProtocols(QualType QT,
-                                                ObjCInterfaceDecl *IC) {
+                                                ObjCInterfaceDecl *IC,
+                                                IsHiddenFunction IsHidden) {
   if (!QT->isObjCQualifiedIdType())
     return false;
   
   if (const ObjCObjectPointerType *OPT = QT->getAs<ObjCObjectPointerType>()) {
     // If both the right and left sides have qualifiers.
     for (auto *Proto : OPT->quals()) {
-      if (!IC->ClassImplementsProtocol(Proto, false))
+      if (!IC->ClassImplementsProtocol(Proto, false, IsHidden))
         return false;
     }
     return true;
@@ -4204,7 +4207,8 @@ bool ASTContext::ObjCObjectAdoptsQTypeProtocols(QualType QT,
 /// QT's qualified-id protocol list adopt all protocols in IDecl's list
 /// of protocols.
 bool ASTContext::QIdProtocolsAdoptObjCObjectProtocols(QualType QT,
-                                                ObjCInterfaceDecl *IDecl) {
+                                                ObjCInterfaceDecl *IDecl,
+                                                IsHiddenFunction IsHidden) {
   if (!QT->isObjCQualifiedIdType())
     return false;
   const ObjCObjectPointerType *OPT = QT->getAs<ObjCObjectPointerType>();
@@ -4213,7 +4217,7 @@ bool ASTContext::QIdProtocolsAdoptObjCObjectProtocols(QualType QT,
   if (!IDecl->hasDefinition())
     return false;
   llvm::SmallPtrSet<ObjCProtocolDecl *, 8> InheritedProtocols;
-  CollectInheritedProtocols(IDecl, InheritedProtocols);
+  CollectInheritedProtocols(IDecl, InheritedProtocols, IsHidden);
   if (InheritedProtocols.empty())
     return false;
   // Check that if every protocol in list of id<plist> conforms to a protcol
@@ -7239,7 +7243,8 @@ bool ASTContext::ObjCQualifiedClassTypesAreCompatible(QualType lhs,
 /// ObjCQualifiedIdTypesAreCompatible - We know that one of lhs/rhs is an
 /// ObjCQualifiedIDType.
 bool ASTContext::ObjCQualifiedIdTypesAreCompatible(QualType lhs, QualType rhs,
-                                                   bool compare) {
+                                                   bool compare,
+                                                   IsHiddenFunction IsHidden) {
   // Allow id<P..> and an 'id' or void* type in all cases.
   if (lhs->isVoidPointerType() ||
       lhs->isObjCIdType() || lhs->isObjCClassType())
@@ -7261,7 +7266,7 @@ bool ASTContext::ObjCQualifiedIdTypesAreCompatible(QualType lhs, QualType rhs,
           // when comparing an id<P> on lhs with a static type on rhs,
           // see if static class implements all of id's protocols, directly or
           // through its super class and categories.
-          if (!rhsID->ClassImplementsProtocol(I, true))
+          if (!rhsID->ClassImplementsProtocol(I, true, IsHidden))
             return false;
         }
       }
@@ -7289,7 +7294,7 @@ bool ASTContext::ObjCQualifiedIdTypesAreCompatible(QualType lhs, QualType rhs,
           // when comparing an id<P> on lhs with a static type on rhs,
           // see if static class implements all of id's protocols, directly or
           // through its super class and categories.
-          if (rhsID->ClassImplementsProtocol(I, true)) {
+          if (rhsID->ClassImplementsProtocol(I, true, IsHidden)) {
             match = true;
             break;
           }
@@ -7326,12 +7331,13 @@ bool ASTContext::ObjCQualifiedIdTypesAreCompatible(QualType lhs, QualType rhs,
       if (!match)
         return false;
     }
-    
+
     // Static class's protocols, or its super class or category protocols
-    // must be found, direct or indirect in rhs's qualifier list or it is a mismatch.
+    // must be found, direct or indirect in rhs's qualifier list or it is a
+    // mismatch.
     if (ObjCInterfaceDecl *lhsID = lhsOPT->getInterfaceDecl()) {
       llvm::SmallPtrSet<ObjCProtocolDecl *, 8> LHSInheritedProtocols;
-      CollectInheritedProtocols(lhsID, LHSInheritedProtocols);
+      CollectInheritedProtocols(lhsID, LHSInheritedProtocols, IsHidden);
       // This is rather dubious but matches gcc's behavior. If lhs has
       // no type qualifier and its class has no static protocol(s)
       // assume that it is mismatch.
@@ -7360,7 +7366,8 @@ bool ASTContext::ObjCQualifiedIdTypesAreCompatible(QualType lhs, QualType rhs,
 /// protocol qualifiers on the LHS or RHS.
 ///
 bool ASTContext::canAssignObjCInterfaces(const ObjCObjectPointerType *LHSOPT,
-                                         const ObjCObjectPointerType *RHSOPT) {
+                                         const ObjCObjectPointerType *RHSOPT,
+                                         IsHiddenFunction IsHidden) {
   const ObjCObjectType* LHS = LHSOPT->getObjectType();
   const ObjCObjectType* RHS = RHSOPT->getObjectType();
 
@@ -7381,13 +7388,15 @@ bool ASTContext::canAssignObjCInterfaces(const ObjCObjectPointerType *LHSOPT,
     // Strip off __kindof and protocol qualifiers, then check whether
     // we can assign the other way.
     return canAssignObjCInterfaces(RHSOPT->stripObjCKindOfTypeAndQuals(*this),
-                                   LHSOPT->stripObjCKindOfTypeAndQuals(*this));
+                                   LHSOPT->stripObjCKindOfTypeAndQuals(*this),
+                                   IsHidden);
   };
 
   if (LHS->isObjCQualifiedId() || RHS->isObjCQualifiedId()) {
     return finish(ObjCQualifiedIdTypesAreCompatible(QualType(LHSOPT,0),
                                                     QualType(RHSOPT,0),
-                                                    false));
+                                                    false,
+                                                    IsHidden));
   }
   
   if (LHS->isObjCQualifiedClass() && RHS->isObjCQualifiedClass()) {
@@ -7397,7 +7406,7 @@ bool ASTContext::canAssignObjCInterfaces(const ObjCObjectPointerType *LHSOPT,
   
   // If we have 2 user-defined types, fall into that path.
   if (LHS->getInterface() && RHS->getInterface()) {
-    return finish(canAssignObjCInterfaces(LHS, RHS));
+    return finish(canAssignObjCInterfaces(LHS, RHS, IsHidden));
   }
 
   return false;
@@ -7409,10 +7418,8 @@ bool ASTContext::canAssignObjCInterfaces(const ObjCObjectPointerType *LHSOPT,
 /// 'id' is expected is not OK. Passing 'Sub *" where 'Super *" is expected is
 /// not OK. For the return type, the opposite is not OK.
 bool ASTContext::canAssignObjCInterfacesInBlockPointer(
-                                         const ObjCObjectPointerType *LHSOPT,
-                                         const ObjCObjectPointerType *RHSOPT,
-                                         bool BlockReturnType) {
-
+    const ObjCObjectPointerType *LHSOPT, const ObjCObjectPointerType *RHSOPT,
+    bool BlockReturnType, IsHiddenFunction IsHidden) {
   // Function object that propagates a successful result or handles
   // __kindof types.
   auto finish = [&](bool succeeded) -> bool {
@@ -7428,7 +7435,7 @@ bool ASTContext::canAssignObjCInterfacesInBlockPointer(
     return canAssignObjCInterfacesInBlockPointer(
              RHSOPT->stripObjCKindOfTypeAndQuals(*this),
              LHSOPT->stripObjCKindOfTypeAndQuals(*this),
-             BlockReturnType);
+             BlockReturnType, IsHidden);
   };
 
   if (RHSOPT->isObjCBuiltinType() || LHSOPT->isObjCIdType())
@@ -7442,7 +7449,7 @@ bool ASTContext::canAssignObjCInterfacesInBlockPointer(
   if (LHSOPT->isObjCQualifiedIdType() || RHSOPT->isObjCQualifiedIdType())
     return finish(ObjCQualifiedIdTypesAreCompatible(QualType(LHSOPT,0),
                                                     QualType(RHSOPT,0),
-                                                    false));
+                                                    false, IsHidden));
   
   const ObjCInterfaceType* LHS = LHSOPT->getInterfaceType();
   const ObjCInterfaceType* RHS = RHSOPT->getInterfaceType();
@@ -7472,13 +7479,12 @@ static int compareObjCProtocolsByName(ObjCProtocolDecl * const *lhs,
 /// the given common base.
 /// It is used to build composite qualifier list of the composite type of
 /// the conditional expression involving two objective-c pointer objects.
-static 
-void getIntersectionOfProtocols(ASTContext &Context,
-                                const ObjCInterfaceDecl *CommonBase,
-                                const ObjCObjectPointerType *LHSOPT,
-                                const ObjCObjectPointerType *RHSOPT,
-      SmallVectorImpl<ObjCProtocolDecl *> &IntersectionSet) {
-  
+static void getIntersectionOfProtocols(
+    ASTContext &Context, const ObjCInterfaceDecl *CommonBase,
+    const ObjCObjectPointerType *LHSOPT, const ObjCObjectPointerType *RHSOPT,
+    SmallVectorImpl<ObjCProtocolDecl *> &IntersectionSet,
+    IsHiddenFunction IsHidden) {
+
   const ObjCObjectType* LHS = LHSOPT->getObjectType();
   const ObjCObjectType* RHS = RHSOPT->getObjectType();
   assert(LHS->getInterface() && "LHS must have an interface base");
@@ -7489,22 +7495,24 @@ void getIntersectionOfProtocols(ASTContext &Context,
 
   // Start with the protocol qualifiers.
   for (auto proto : LHS->quals()) {
-    Context.CollectInheritedProtocols(proto, LHSProtocolSet);
+    Context.CollectInheritedProtocols(proto, LHSProtocolSet, IsHidden);
   }
 
   // Also add the protocols associated with the LHS interface.
-  Context.CollectInheritedProtocols(LHS->getInterface(), LHSProtocolSet);
+  Context.CollectInheritedProtocols(LHS->getInterface(), LHSProtocolSet,
+                                    IsHidden);
 
   // Add all of the protocls for the RHS.
   llvm::SmallPtrSet<ObjCProtocolDecl *, 8> RHSProtocolSet;
 
   // Start with the protocol qualifiers.
   for (auto proto : RHS->quals()) {
-    Context.CollectInheritedProtocols(proto, RHSProtocolSet);
+    Context.CollectInheritedProtocols(proto, RHSProtocolSet, IsHidden);
   }
 
   // Also add the protocols associated with the RHS interface.
-  Context.CollectInheritedProtocols(RHS->getInterface(), RHSProtocolSet);
+  Context.CollectInheritedProtocols(RHS->getInterface(), RHSProtocolSet,
+                                    IsHidden);
 
   // Compute the intersection of the collected protocol sets.
   for (auto proto : LHSProtocolSet) {
@@ -7515,7 +7523,7 @@ void getIntersectionOfProtocols(ASTContext &Context,
   // Compute the set of protocols that is implied by either the common type or
   // the protocols within the intersection.
   llvm::SmallPtrSet<ObjCProtocolDecl *, 8> ImpliedProtocols;
-  Context.CollectInheritedProtocols(CommonBase, ImpliedProtocols);
+  Context.CollectInheritedProtocols(CommonBase, ImpliedProtocols, IsHidden);
 
   // Remove any implied protocols from the list of inherited protocols.
   if (!ImpliedProtocols.empty()) {
@@ -7719,7 +7727,8 @@ QualType ASTContext::areCommonBaseCompatible(
 }
 
 bool ASTContext::canAssignObjCInterfaces(const ObjCObjectType *LHS,
-                                         const ObjCObjectType *RHS) {
+                                         const ObjCObjectType *RHS,
+                                         IsHiddenFunction IsHidden) {
   assert(LHS->getInterface() && "LHS is not an interface type");
   assert(RHS->getInterface() && "RHS is not an interface type");
 
@@ -7739,11 +7748,12 @@ bool ASTContext::canAssignObjCInterfaces(const ObjCObjectType *LHS,
     // in LHS's protocol list. Example, SuperObj<P1> = lhs<P1,P2> is ok.
     // But not SuperObj<P1,P2,P3> = lhs<P1,P2>.
     llvm::SmallPtrSet<ObjCProtocolDecl *, 8> SuperClassInheritedProtocols;
-    CollectInheritedProtocols(RHS->getInterface(), SuperClassInheritedProtocols);
+    CollectInheritedProtocols(RHS->getInterface(), SuperClassInheritedProtocols,
+                              IsHidden);
     // Also, if RHS has explicit quelifiers, include them for comparing with LHS's
     // qualifiers.
     for (auto *RHSPI : RHS->quals())
-      CollectInheritedProtocols(RHSPI, SuperClassInheritedProtocols);
+      CollectInheritedProtocols(RHSPI, SuperClassInheritedProtocols, IsHidden);
     // If there is no protocols associated with RHS, it is not a match.
     if (SuperClassInheritedProtocols.empty())
       return false;
@@ -7780,7 +7790,8 @@ bool ASTContext::canAssignObjCInterfaces(const ObjCObjectType *LHS,
   return true;
 }
 
-bool ASTContext::areComparableObjCPointerTypes(QualType LHS, QualType RHS) {
+bool ASTContext::areComparableObjCPointerTypes(QualType LHS, QualType RHS,
+                                               IsHiddenFunction IsHidden) {
   // get the "pointed to" types
   const ObjCObjectPointerType *LHSOPT = LHS->getAs<ObjCObjectPointerType>();
   const ObjCObjectPointerType *RHSOPT = RHS->getAs<ObjCObjectPointerType>();
@@ -7788,14 +7799,15 @@ bool ASTContext::areComparableObjCPointerTypes(QualType LHS, QualType RHS) {
   if (!LHSOPT || !RHSOPT)
     return false;
 
-  return canAssignObjCInterfaces(LHSOPT, RHSOPT) ||
-         canAssignObjCInterfaces(RHSOPT, LHSOPT);
+  return canAssignObjCInterfaces(LHSOPT, RHSOPT, IsHidden) ||
+         canAssignObjCInterfaces(RHSOPT, LHSOPT, IsHidden);
 }
 
-bool ASTContext::canBindObjCObjectType(QualType To, QualType From) {
+bool ASTContext::canBindObjCObjectType(QualType To, QualType From,
+                                       IsHiddenFunction IsHidden) {
   return canAssignObjCInterfaces(
-                getObjCObjectPointerType(To)->getAs<ObjCObjectPointerType>(),
-                getObjCObjectPointerType(From)->getAs<ObjCObjectPointerType>());
+      getObjCObjectPointerType(To)->getAs<ObjCObjectPointerType>(),
+      getObjCObjectPointerType(From)->getAs<ObjCObjectPointerType>(), IsHidden);
 }
 
 /// typesAreCompatible - C99 6.7.3p9: For two qualified types to be compatible,

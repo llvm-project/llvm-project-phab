@@ -668,9 +668,9 @@ findMethodDecl(const ObjCMessageExpr *MessageExpr,
       const ObjCInterfaceDecl *InterfaceDecl = TrackedType->getInterfaceDecl();
       // The method might not be found.
       Selector Sel = MessageExpr->getSelector();
-      Method = InterfaceDecl->lookupInstanceMethod(Sel);
+      Method = InterfaceDecl->lookupInstanceMethod(Sel, AllDeclsVisible);
       if (!Method)
-        Method = InterfaceDecl->lookupClassMethod(Sel);
+        Method = InterfaceDecl->lookupClassMethod(Sel, AllDeclsVisible);
     }
   }
 

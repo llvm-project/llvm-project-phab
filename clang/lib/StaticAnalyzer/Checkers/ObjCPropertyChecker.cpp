@@ -62,7 +62,7 @@ void ObjCPropertyChecker::checkCopyMutable(const ObjCPropertyDecl *D,
     ImplD = CatD->getClassInterface()->getImplementation();
   }
 
-  if (!ImplD || ImplD->HasUserDeclaredSetterMethod(D))
+  if (!ImplD || ImplD->HasUserDeclaredSetterMethod(D, AllDeclsVisible))
     return;
 
   SmallString<128> Str;

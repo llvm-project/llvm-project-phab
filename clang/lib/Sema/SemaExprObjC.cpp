@@ -279,7 +279,8 @@ static ObjCMethodDecl *getNSNumberFactoryMethod(Sema &S, SourceLocation Loc,
   }
   
   // Look for the appropriate method within NSNumber.
-  ObjCMethodDecl *Method = S.NSNumberDecl->lookupClassMethod(Sel);
+  ObjCMethodDecl *Method =
+      S.NSNumberDecl->lookupClassMethod(Sel, Sema::IsHiddenCallback(S));
   if (!Method && S.getLangOpts().DebuggerObjCLiteral) {
     // create a stub definition this NSNumber factory method.
     TypeSourceInfo *ReturnTInfo = nullptr;
@@ -531,7 +532,8 @@ ExprResult Sema::BuildObjCBoxedExpr(SourceRange SR, Expr *ValueExpr) {
         Selector stringWithUTF8String = Context.Selectors.getUnarySelector(II);
 
         // Look for the appropriate method within NSString.
-        BoxingMethod = NSStringDecl->lookupClassMethod(stringWithUTF8String);
+        BoxingMethod = NSStringDecl->lookupClassMethod(
+            stringWithUTF8String, Sema::IsHiddenCallback(*this));
         if (!BoxingMethod && getLangOpts().DebuggerObjCLiteral) {
           // Debugger needs to work even if NSString hasn't been defined.
           TypeSourceInfo *ReturnTInfo = nullptr;
@@ -636,7 +638,8 @@ ExprResult Sema::BuildObjCBoxedExpr(SourceRange SR, Expr *ValueExpr) {
       Selector ValueWithBytesObjCType = Context.Selectors.getSelector(2, II);
       
       // Look for the appropriate method within NSValue.
-      BoxingMethod = NSValueDecl->lookupClassMethod(ValueWithBytesObjCType);
+      BoxingMethod = NSValueDecl->lookupClassMethod(ValueWithBytesObjCType,
+                                                    IsHiddenCallback(*this));
       if (!BoxingMethod && getLangOpts().DebuggerObjCLiteral) {
         // Debugger needs to work even if NSValue hasn't been defined.
         TypeSourceInfo *ReturnTInfo = nullptr;
@@ -778,7 +781,8 @@ ExprResult Sema::BuildObjCArrayLiteral(SourceRange SR, MultiExprArg Elements) {
   if (!ArrayWithObjectsMethod) {
     Selector
       Sel = NSAPIObj->getNSArraySelector(NSAPI::NSArr_arrayWithObjectsCount);
-    ObjCMethodDecl *Method = NSArrayDecl->lookupClassMethod(Sel);
+    ObjCMethodDecl *Method =
+        NSArrayDecl->lookupClassMethod(Sel, IsHiddenCallback(*this));
     if (!Method && getLangOpts().DebuggerObjCLiteral) {
       TypeSourceInfo *ReturnTInfo = nullptr;
       Method = ObjCMethodDecl::Create(
@@ -884,7 +888,8 @@ ExprResult Sema::BuildObjCDictionaryLiteral(SourceRange SR,
   if (!DictionaryWithObjectsMethod) {
     Selector Sel = NSAPIObj->getNSDictionarySelector(
                                NSAPI::NSDict_dictionaryWithObjectsForKeysCount);
-    ObjCMethodDecl *Method = NSDictionaryDecl->lookupClassMethod(Sel);
+    ObjCMethodDecl *Method =
+        NSDictionaryDecl->lookupClassMethod(Sel, IsHiddenCallback(*this));
     if (!Method && getLangOpts().DebuggerObjCLiteral) {
       Method = ObjCMethodDecl::Create(Context,  
                            SourceLocation(), SourceLocation(), Sel,
@@ -1402,7 +1407,7 @@ QualType Sema::getMessageSendResultType(QualType ReceiverType,
 
 /// Look for an ObjC method whose result type exactly matches the given type.
 static const ObjCMethodDecl *
-findExplicitInstancetypeDeclarer(const ObjCMethodDecl *MD,
+findExplicitInstancetypeDeclarer(Sema &S, const ObjCMethodDecl *MD,
                                  QualType instancetype) {
   if (MD->getReturnType() == instancetype)
     return MD;
@@ -1419,16 +1424,17 @@ findExplicitInstancetypeDeclarer(const ObjCMethodDecl *MD,
       iface = impl->getClassInterface();
     }
 
-    const ObjCMethodDecl *ifaceMD = 
-      iface->getMethod(MD->getSelector(), MD->isInstanceMethod());
-    if (ifaceMD) return findExplicitInstancetypeDeclarer(ifaceMD, instancetype);
+    const ObjCMethodDecl *ifaceMD = iface->getMethod(
+        MD->getSelector(), MD->isInstanceMethod(), Sema::IsHiddenCallback(S));
+    if (ifaceMD)
+      return findExplicitInstancetypeDeclarer(S, ifaceMD, instancetype);
   }
 
   SmallVector<const ObjCMethodDecl *, 4> overrides;
   MD->getOverriddenMethods(overrides);
   for (unsigned i = 0, e = overrides.size(); i != e; ++i) {
     if (const ObjCMethodDecl *result =
-          findExplicitInstancetypeDeclarer(overrides[i], instancetype))
+            findExplicitInstancetypeDeclarer(S, overrides[i], instancetype))
       return result;
   }
 
@@ -1445,8 +1451,8 @@ void Sema::EmitRelatedResultTypeNoteForReturn(QualType destType) {
 
   // Look for a method overridden by this method which explicitly uses
   // 'instancetype'.
-  if (const ObjCMethodDecl *overridden =
-        findExplicitInstancetypeDeclarer(MD, Context.getObjCInstanceType())) {
+  if (const ObjCMethodDecl *overridden = findExplicitInstancetypeDeclarer(
+          *this, MD, Context.getObjCInstanceType())) {
     SourceRange range = overridden->getReturnTypeSourceRange();
     SourceLocation loc = range.getBegin();
     if (loc.isInvalid())
@@ -1556,7 +1562,7 @@ bool Sema::CheckMessageArgumentTypes(QualType ReceiverType,
             ReceiverType->getAs<ObjCObjectPointerType>()->getInterfaceDecl()) {
           Diag(ThisClass->getLocation(), diag::note_receiver_class_declared);
           if (!RecRange.isInvalid())
-            if (ThisClass->lookupClassMethod(Sel))
+            if (ThisClass->lookupClassMethod(Sel, IsHiddenCallback(*this)))
               Diag(RecRange.getBegin(),diag::note_receiver_expr_here)
                 << FixItHint::CreateReplacement(RecRange,
                                                 ThisClass->getNameAsString());
@@ -1717,18 +1723,21 @@ ObjCMethodDecl *Sema::LookupMethodInObjectType(Selector sel, QualType type,
   const ObjCObjectType *objType = type->castAs<ObjCObjectType>();
   if (ObjCInterfaceDecl *iface = objType->getInterface()) {
     // Look it up in the main interface (and categories, etc.)
-    if (ObjCMethodDecl *method = iface->lookupMethod(sel, isInstance))
+    if (ObjCMethodDecl *method =
+            iface->lookupMethod(sel, isInstance, IsHiddenCallback(*this)))
       return method;
 
     // Okay, look for "private" methods declared in any
     // @implementations we've seen.
-    if (ObjCMethodDecl *method = iface->lookupPrivateMethod(sel, isInstance))
+    if (ObjCMethodDecl *method = iface->lookupPrivateMethod(
+            sel, isInstance, IsHiddenCallback(*this)))
       return method;
   }
 
   // Check qualifiers.
   for (const auto *I : objType->quals())
-    if (ObjCMethodDecl *method = I->lookupMethod(sel, isInstance))
+    if (ObjCMethodDecl *method =
+            I->lookupMethod(sel, isInstance, IsHiddenCallback(*this)))
       return method;
 
   return nullptr;
@@ -1742,7 +1751,7 @@ ObjCMethodDecl *Sema::LookupMethodInQualifiedType(Selector Sel,
 {
   ObjCMethodDecl *MD = nullptr;
   for (const auto *PROTO : OPT->quals()) {
-    if ((MD = PROTO->lookupMethod(Sel, Instance))) {
+    if ((MD = PROTO->lookupMethod(Sel, Instance, IsHiddenCallback(*this)))) {
       return MD;
     }
   }
@@ -1775,9 +1784,10 @@ HandleExprPropertyRefExpr(const ObjCObjectPointerType *OPT,
                           diag::err_property_not_found_forward_class,
                           MemberName, BaseRange))
     return ExprError();
- 
+
   if (ObjCPropertyDecl *PD = IFace->FindPropertyDeclaration(
-          Member, ObjCPropertyQueryKind::OBJC_PR_query_instance)) {
+          Member, ObjCPropertyQueryKind::OBJC_PR_query_instance,
+          IsHiddenCallback(*this))) {
     // Check whether we can reference this property.
     if (DiagnoseUseOfDecl(PD, MemberLoc))
       return ExprError();
@@ -1793,7 +1803,8 @@ HandleExprPropertyRefExpr(const ObjCObjectPointerType *OPT,
   // Check protocols on qualified interfaces.
   for (const auto *I : OPT->quals())
     if (ObjCPropertyDecl *PD = I->FindPropertyDeclaration(
-            Member, ObjCPropertyQueryKind::OBJC_PR_query_instance)) {
+            Member, ObjCPropertyQueryKind::OBJC_PR_query_instance,
+            IsHiddenCallback(*this))) {
       // Check whether we can reference this property.
       if (DiagnoseUseOfDecl(PD, MemberLoc))
         return ExprError();
@@ -1814,15 +1825,16 @@ HandleExprPropertyRefExpr(const ObjCObjectPointerType *OPT,
   // shared with the code in ActOnInstanceMessage.
 
   Selector Sel = PP.getSelectorTable().getNullarySelector(Member);
-  ObjCMethodDecl *Getter = IFace->lookupInstanceMethod(Sel);
-  
+  ObjCMethodDecl *Getter =
+      IFace->lookupInstanceMethod(Sel, IsHiddenCallback(*this));
+
   // May be found in property's qualified list.
   if (!Getter)
     Getter = LookupMethodInQualifiedType(Sel, OPT, true);
 
   // If this reference is in an @implementation, check for 'private' methods.
   if (!Getter)
-    Getter = IFace->lookupPrivateMethod(Sel);
+    Getter = IFace->lookupPrivateMethod(Sel, IsHiddenCallback(*this));
 
   if (Getter) {
     // Check if we can reference this property.
@@ -1834,8 +1846,9 @@ HandleExprPropertyRefExpr(const ObjCObjectPointerType *OPT,
   Selector SetterSel =
     SelectorTable::constructSetterSelector(PP.getIdentifierTable(),
                                            PP.getSelectorTable(), Member);
-  ObjCMethodDecl *Setter = IFace->lookupInstanceMethod(SetterSel);
-      
+  ObjCMethodDecl *Setter =
+      IFace->lookupInstanceMethod(SetterSel, IsHiddenCallback(*this));
+
   // May be found in property's qualified list.
   if (!Setter)
     Setter = LookupMethodInQualifiedType(SetterSel, OPT, true);
@@ -1843,7 +1856,7 @@ HandleExprPropertyRefExpr(const ObjCObjectPointerType *OPT,
   if (!Setter) {
     // If this reference is in an @implementation, also check for 'private'
     // methods.
-    Setter = IFace->lookupPrivateMethod(SetterSel);
+    Setter = IFace->lookupPrivateMethod(SetterSel, IsHiddenCallback(*this));
   }
     
   if (Setter && DiagnoseUseOfDecl(Setter, MemberLoc))
@@ -1854,16 +1867,17 @@ HandleExprPropertyRefExpr(const ObjCObjectPointerType *OPT,
   // name 'x'.
   if (Setter && Setter->isImplicit() && Setter->isPropertyAccessor() &&
       !IFace->FindPropertyDeclaration(
-          Member, ObjCPropertyQueryKind::OBJC_PR_query_instance)) {
-      if (const ObjCPropertyDecl *PDecl = Setter->findPropertyDecl()) {
-        // Do not warn if user is using property-dot syntax to make call to
-        // user named setter.
-        if (!(PDecl->getPropertyAttributes() & ObjCPropertyDecl::OBJC_PR_setter))
-          Diag(MemberLoc,
-               diag::warn_property_access_suggest)
-          << MemberName << QualType(OPT, 0) << PDecl->getName()
-          << FixItHint::CreateReplacement(MemberLoc, PDecl->getName());
-      }
+          Member, ObjCPropertyQueryKind::OBJC_PR_query_instance,
+          IsHiddenCallback(*this))) {
+    if (const ObjCPropertyDecl *PDecl =
+            Setter->findPropertyDecl(IsHiddenCallback(*this))) {
+      // Do not warn if user is using property-dot syntax to make call to
+      // user named setter.
+      if (!(PDecl->getPropertyAttributes() & ObjCPropertyDecl::OBJC_PR_setter))
+        Diag(MemberLoc, diag::warn_property_access_suggest)
+            << MemberName << QualType(OPT, 0) << PDecl->getName()
+            << FixItHint::CreateReplacement(MemberLoc, PDecl->getName());
+    }
   }
 
   if (Getter || Setter) {
@@ -1909,8 +1923,8 @@ HandleExprPropertyRefExpr(const ObjCObjectPointerType *OPT,
     }
   }
   ObjCInterfaceDecl *ClassDeclared;
-  if (ObjCIvarDecl *Ivar = 
-      IFace->lookupInstanceVariable(Member, ClassDeclared)) {
+  if (ObjCIvarDecl *Ivar = IFace->lookupInstanceVariable(
+          Member, IsHiddenCallback(*this), ClassDeclared)) {
     QualType T = Ivar->getType();
     if (const ObjCObjectPointerType * OBJPT = 
         T->getAsObjCInterfacePointerType()) {
@@ -1986,7 +2000,8 @@ ActOnClassPropertyRefExpr(IdentifierInfo &receiverName,
   Selector GetterSel;
   Selector SetterSel;
   if (auto PD = IFace->FindPropertyDeclaration(
-          &propertyName, ObjCPropertyQueryKind::OBJC_PR_query_class)) {
+          &propertyName, ObjCPropertyQueryKind::OBJC_PR_query_class,
+          IsHiddenCallback(*this))) {
     GetterSel = PD->getGetterName();
     SetterSel = PD->getSetterName();
   } else {
@@ -1996,11 +2011,13 @@ ActOnClassPropertyRefExpr(IdentifierInfo &receiverName,
   }
 
   // Search for a declared property first.
-  ObjCMethodDecl *Getter = IFace->lookupClassMethod(GetterSel);
+  ObjCMethodDecl *Getter =
+      IFace->lookupClassMethod(GetterSel, IsHiddenCallback(*this));
 
   // If this reference is in an @implementation, check for 'private' methods.
   if (!Getter)
-    Getter = IFace->lookupPrivateClassMethod(GetterSel);
+    Getter =
+        IFace->lookupPrivateClassMethod(GetterSel, IsHiddenCallback(*this));
 
   if (Getter) {
     // FIXME: refactor/share with ActOnMemberReference().
@@ -2010,15 +2027,17 @@ ActOnClassPropertyRefExpr(IdentifierInfo &receiverName,
   }
 
   // Look for the matching setter, in case it is needed.
-  ObjCMethodDecl *Setter = IFace->lookupClassMethod(SetterSel);
+  ObjCMethodDecl *Setter =
+      IFace->lookupClassMethod(SetterSel, IsHiddenCallback(*this));
   if (!Setter) {
     // If this reference is in an @implementation, also check for 'private'
     // methods.
-    Setter = IFace->lookupPrivateClassMethod(SetterSel);
+    Setter =
+        IFace->lookupPrivateClassMethod(SetterSel, IsHiddenCallback(*this));
   }
   // Look through local category implementations associated with the class.
   if (!Setter)
-    Setter = IFace->getCategoryClassMethod(SetterSel);
+    Setter = IFace->getCategoryClassMethod(SetterSel, IsHiddenCallback(*this));
 
   if (Setter && DiagnoseUseOfDecl(Setter, propertyNameLoc))
     return ExprError();
@@ -2282,19 +2301,20 @@ static void checkFoundationAPI(Sema &S, SourceLocation Loc,
     const auto *OPT = ReceiverType->getAs<ObjCObjectPointerType>();
     if (!OPT || !OPT->getInterfaceDecl())
       return;
-    ImpliedMethod =
-        OPT->getInterfaceDecl()->lookupInstanceMethod(SE->getSelector());
+    ImpliedMethod = OPT->getInterfaceDecl()->lookupInstanceMethod(
+        SE->getSelector(), Sema::IsHiddenCallback(S));
     if (!ImpliedMethod)
-      ImpliedMethod =
-          OPT->getInterfaceDecl()->lookupPrivateMethod(SE->getSelector());
+      ImpliedMethod = OPT->getInterfaceDecl()->lookupPrivateMethod(
+          SE->getSelector(), Sema::IsHiddenCallback(S));
   } else {
     const auto *IT = ReceiverType->getAs<ObjCInterfaceType>();
     if (!IT)
       return;
-    ImpliedMethod = IT->getDecl()->lookupClassMethod(SE->getSelector());
+    ImpliedMethod = IT->getDecl()->lookupClassMethod(SE->getSelector(),
+                                                     Sema::IsHiddenCallback(S));
     if (!ImpliedMethod)
-      ImpliedMethod =
-          IT->getDecl()->lookupPrivateClassMethod(SE->getSelector());
+      ImpliedMethod = IT->getDecl()->lookupPrivateClassMethod(
+          SE->getSelector(), Sema::IsHiddenCallback(S));
   }
   if (!ImpliedMethod)
     return;
@@ -2444,11 +2464,11 @@ ExprResult Sema::BuildClassMessage(TypeSourceInfo *ReceiverTypeInfo,
           << Method->getDeclName();
     }
     if (!Method)
-      Method = Class->lookupClassMethod(Sel);
+      Method = Class->lookupClassMethod(Sel, IsHiddenCallback(*this));
 
     // If we have an implementation in scope, check "private" methods.
     if (!Method)
-      Method = Class->lookupPrivateClassMethod(Sel);
+      Method = Class->lookupPrivateClassMethod(Sel, IsHiddenCallback(*this));
 
     if (Method && DiagnoseUseOfDecl(Method, SelLoc))
       return ExprError();
@@ -2760,10 +2780,12 @@ ExprResult Sema::BuildInstanceMessage(Expr *Receiver,
         if (ObjCMethodDecl *CurMeth = getCurMethodDecl()) {
           if (ObjCInterfaceDecl *ClassDecl = CurMeth->getClassInterface()) {
             // First check the public methods in the class interface.
-            Method = ClassDecl->lookupClassMethod(Sel);
+            Method =
+                ClassDecl->lookupClassMethod(Sel, IsHiddenCallback(*this));
 
             if (!Method)
-              Method = ClassDecl->lookupPrivateClassMethod(Sel);
+              Method = ClassDecl->lookupPrivateClassMethod(
+                  Sel, IsHiddenCallback(*this));
           }
           if (Method && DiagnoseUseOfDecl(Method, SelLoc))
             return ExprError();
@@ -2838,7 +2860,8 @@ ExprResult Sema::BuildInstanceMessage(Expr *Receiver,
                         : SuperLoc, diag::note_receiver_is_id);
           Method = nullptr;
         } else {
-          Method = ClassDecl->lookupInstanceMethod(Sel);
+          Method =
+              ClassDecl->lookupInstanceMethod(Sel, IsHiddenCallback(*this));
         }
 
         if (!Method)
@@ -2847,7 +2870,7 @@ ExprResult Sema::BuildInstanceMessage(Expr *Receiver,
         
         if (!Method) {
           // If we have implementations in scope, check "private" methods.
-          Method = ClassDecl->lookupPrivateMethod(Sel);
+          Method = ClassDecl->lookupPrivateMethod(Sel, IsHiddenCallback(*this));
 
           if (!Method && getLangOpts().ObjCAutoRefCount) {
             Diag(SelLoc, diag::err_arc_may_not_respond)
@@ -2912,8 +2935,9 @@ ExprResult Sema::BuildInstanceMessage(Expr *Receiver,
         if (const ObjCInterfaceDecl *ID = OCIType->getInterfaceDecl()) {
           // Either we know this is a designated initializer or we
           // conservatively assume it because we don't know for sure.
-          if (!ID->declaresOrInheritsDesignatedInitializers() ||
-              ID->isDesignatedInitializer(Sel)) {
+          if (!ID->declaresOrInheritsDesignatedInitializers(
+                  IsHiddenCallback(*this)) ||
+              ID->isDesignatedInitializer(Sel, IsHiddenCallback(*this))) {
             isDesignatedInitChain = true;
             DIFunctionScopeInfo->ObjCWarnForNoDesignatedInitChain = false;
           }
@@ -2923,7 +2947,8 @@ ExprResult Sema::BuildInstanceMessage(Expr *Receiver,
     if (!isDesignatedInitChain) {
       const ObjCMethodDecl *InitMethod = nullptr;
       bool isDesignated =
-        getCurMethodDecl()->isDesignatedInitializerForTheInterface(&InitMethod);
+          getCurMethodDecl()->isDesignatedInitializerForTheInterface(
+              IsHiddenCallback(*this), &InitMethod);
       assert(isDesignated && InitMethod);
       (void)isDesignated;
       Diag(SelLoc, SuperLoc.isValid() ?
@@ -3103,7 +3128,8 @@ ExprResult Sema::BuildInstanceMessage(Expr *Receiver,
 
   if (getLangOpts().ObjCWeak) {
     if (!isImplicit && Method) {
-      if (const ObjCPropertyDecl *Prop = Method->findPropertyDecl()) {
+      if (const ObjCPropertyDecl *Prop =
+              Method->findPropertyDecl(IsHiddenCallback(*this))) {
         bool IsWeak =
           Prop->getPropertyAttributes() & ObjCPropertyDecl::OBJC_PR_weak;
         if (!IsWeak && Sel.isUnarySelector())
@@ -3755,7 +3781,7 @@ static bool CheckObjCBridgeNSCast(Sema &S, QualType castType, Expr *castExpr,
               return false;
             } else if (castType->isObjCIdType() ||
                        (S.Context.ObjCObjectAdoptsQTypeProtocols(
-                          castType, ExprClass)))
+                          castType, ExprClass, Sema::IsHiddenCallback(S))))
               // ok to cast to 'id'.
               // casting to id<p-list> is ok if bridge type adopts all of
               // p-list protocols.
@@ -3822,7 +3848,8 @@ static bool CheckObjCBridgeCFCast(Sema &S, QualType castType, Expr *castExpr,
               return false;
             } else if (castExpr->getType()->isObjCIdType() ||
                        (S.Context.QIdProtocolsAdoptObjCObjectProtocols(
-                          castExpr->getType(), CastClass)))
+                           castExpr->getType(), CastClass,
+                           Sema::IsHiddenCallback(S))))
               // ok to cast an 'id' expression to a CFtype.
               // ok to cast an 'id<plist>' expression to CFtype provided plist
               // adopts all of CFtype's ObjetiveC's class plist.
@@ -3986,7 +4013,8 @@ bool Sema::checkObjCBridgeRelatedComponents(SourceLocation Loc,
   // Check for an existing class method with the given selector name.
   if (CfToNs && CMId) {
     Selector Sel = Context.Selectors.getUnarySelector(CMId);
-    ClassMethod = RelatedClass->lookupMethod(Sel, false);
+    ClassMethod =
+        RelatedClass->lookupMethod(Sel, false, IsHiddenCallback(*this));
     if (!ClassMethod) {
       if (Diagnose) {
         Diag(Loc, diag::err_objc_bridged_related_known_method)
@@ -4000,7 +4028,8 @@ bool Sema::checkObjCBridgeRelatedComponents(SourceLocation Loc,
   // Check for an existing instance method with the given selector name.
   if (!CfToNs && IMId) {
     Selector Sel = Context.Selectors.getNullarySelector(IMId);
-    InstanceMethod = RelatedClass->lookupMethod(Sel, true);
+    InstanceMethod =
+        RelatedClass->lookupMethod(Sel, true, IsHiddenCallback(*this));
     if (!InstanceMethod) {
       if (Diagnose) {
         Diag(Loc, diag::err_objc_bridged_related_known_method)
@@ -4071,7 +4100,7 @@ Sema::CheckObjCBridgeRelatedConversions(SourceLocation Loc,
             getLocForEndOfToken(SrcExpr->getLocEnd());
         if (InstanceMethod->isPropertyAccessor())
           if (const ObjCPropertyDecl *PDecl =
-                  InstanceMethod->findPropertyDecl()) {
+                  InstanceMethod->findPropertyDecl(IsHiddenCallback(*this))) {
             // fixit: ObjectExpr.propertyname when it is  aproperty accessor.
             ExpressionString = ".";
             ExpressionString += PDecl->getNameAsString();

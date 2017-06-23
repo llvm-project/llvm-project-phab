@@ -123,6 +123,8 @@ struct TypeInfo {
       : Width(Width), Align(Align), AlignIsRequired(AlignIsRequired) {}
 };
 
+typedef llvm::function_ref<bool(const NamedDecl*)> IsHiddenFunction;
+
 /// \brief Holds long-lived AST nodes (such as types and decls) that can be
 /// referred to throughout the semantic analysis of a file.
 class ASTContext : public RefCountedBase<ASTContext> {
@@ -1395,12 +1397,14 @@ public:
                                 ArrayRef<ObjCProtocolDecl *> protocols,
                                 QualType Canonical = QualType()) const;
 
-  bool ObjCObjectAdoptsQTypeProtocols(QualType QT, ObjCInterfaceDecl *Decl);
+  bool ObjCObjectAdoptsQTypeProtocols(QualType QT, ObjCInterfaceDecl *Decl,
+                                      IsHiddenFunction IsHidden);
   /// QIdProtocolsAdoptObjCObjectProtocols - Checks that protocols in
   /// QT's qualified-id protocol list adopt all protocols in IDecl's list
   /// of protocols.
   bool QIdProtocolsAdoptObjCObjectProtocols(QualType QT,
-                                            ObjCInterfaceDecl *IDecl);
+                                            ObjCInterfaceDecl *IDecl,
+                                            IsHiddenFunction IsHidden);
 
   /// \brief Return a ObjCObjectPointerType type for the given ObjCObjectType.
   QualType getObjCObjectPointerType(QualType OIT) const;
@@ -2060,8 +2064,10 @@ public:
                             SmallVectorImpl<const ObjCIvarDecl*> &Ivars) const;
 
   unsigned CountNonClassIvars(const ObjCInterfaceDecl *OI) const;
-  void CollectInheritedProtocols(const Decl *CDecl,
-                          llvm::SmallPtrSet<ObjCProtocolDecl*, 8> &Protocols);
+  void
+  CollectInheritedProtocols(const Decl *CDecl,
+                            llvm::SmallPtrSet<ObjCProtocolDecl *, 8> &Protocols,
+                            IsHiddenFunction IsHidden);
 
   //===--------------------------------------------------------------------===//
   //                            Type Operators
@@ -2353,23 +2359,26 @@ public:
     return T == getObjCSelType();
   }
   bool ObjCQualifiedIdTypesAreCompatible(QualType LHS, QualType RHS,
-                                         bool ForCompare);
+                                         bool ForCompare,
+                                         IsHiddenFunction IsHidden);
 
   bool ObjCQualifiedClassTypesAreCompatible(QualType LHS, QualType RHS);
 
   // Check the safety of assignment from LHS to RHS
   bool canAssignObjCInterfaces(const ObjCObjectPointerType *LHSOPT,
-                               const ObjCObjectPointerType *RHSOPT);
+                               const ObjCObjectPointerType *RHSOPT,
+                               IsHiddenFunction IsHidden);
   bool canAssignObjCInterfaces(const ObjCObjectType *LHS,
-                               const ObjCObjectType *RHS);
+                               const ObjCObjectType *RHS,
+                               IsHiddenFunction IsHidden);
   bool canAssignObjCInterfacesInBlockPointer(
-                                          const ObjCObjectPointerType *LHSOPT,
-                                          const ObjCObjectPointerType *RHSOPT,
-                                          bool BlockReturnType);
+      const ObjCObjectPointerType *LHSOPT, const ObjCObjectPointerType *RHSOPT,
+      bool BlockReturnType, IsHiddenFunction IsHidden);
   bool areComparableObjCPointerTypes(QualType LHS, QualType RHS);
   QualType areCommonBaseCompatible(const ObjCObjectPointerType *LHSOPT,
                                    const ObjCObjectPointerType *RHSOPT);
-  bool canBindObjCObjectType(QualType To, QualType From);
+  bool canBindObjCObjectType(QualType To, QualType From,
+                             IsHiddenFunction IsHidden);
 
   // Functions for calculating composite types
   QualType mergeTypes(QualType, QualType, bool OfBlockPointer=false,

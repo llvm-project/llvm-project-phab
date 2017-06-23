@@ -1172,7 +1172,8 @@ bool ObjCMigrateASTConsumer::migrateProperty(ASTContext &Ctx,
   SelectorTable::constructSetterSelector(PP.getIdentifierTable(),
                                          PP.getSelectorTable(),
                                          getterName);
-  ObjCMethodDecl *SetterMethod = D->getInstanceMethod(SetterSelector);
+  ObjCMethodDecl *SetterMethod =
+      D->getInstanceMethod(SetterSelector, AllDeclsVisible);
   unsigned LengthOfPrefix = 0;
   if (!SetterMethod) {
     // try a different naming convention for getter: isXxxxx
@@ -1195,7 +1196,7 @@ bool ObjCMigrateASTConsumer::migrateProperty(ASTContext &Ctx,
         SelectorTable::constructSetterSelector(PP.getIdentifierTable(),
                                                PP.getSelectorTable(),
                                                getterName);
-        SetterMethod = D->getInstanceMethod(SetterSelector);
+        SetterMethod = D->getInstanceMethod(SetterSelector, AllDeclsVisible);
       }
     }
   }
@@ -1703,12 +1704,12 @@ void ObjCMigrateASTConsumer::inferDesignatedInitializers(
     return;
 
   for (const auto *MD : ImplD->instance_methods()) {
-    if (MD->isDeprecated() ||
-        MD->getMethodFamily() != OMF_init ||
-        MD->isDesignatedInitializerForTheInterface())
+    if (MD->isDeprecated() || MD->getMethodFamily() != OMF_init ||
+        MD->isDesignatedInitializerForTheInterface(AllDeclsVisible))
       continue;
-    const ObjCMethodDecl *IFaceM = IFace->getMethod(MD->getSelector(),
-                                                    /*isInstance=*/true);
+    const ObjCMethodDecl *IFaceM =
+        IFace->getMethod(MD->getSelector(),
+                         /*isInstance=*/true, AllDeclsVisible);
     if (!IFaceM)
       continue;
     if (hasSuperInitCall(MD)) {

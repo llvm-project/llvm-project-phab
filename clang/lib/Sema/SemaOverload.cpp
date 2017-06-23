@@ -2367,7 +2367,8 @@ bool Sema::isObjCPointerConversion(QualType FromType, QualType ToType,
       return false;
 
     // Conversion between Objective-C pointers.
-    if (Context.canAssignObjCInterfaces(ToObjCPtr, FromObjCPtr)) {
+    if (Context.canAssignObjCInterfaces(ToObjCPtr, FromObjCPtr,
+                                        IsHiddenCallback(*this))) {
       const ObjCInterfaceType* LHS = ToObjCPtr->getInterfaceType();
       const ObjCInterfaceType* RHS = FromObjCPtr->getInterfaceType();
       if (getLangOpts().CPlusPlus && LHS && RHS &&
@@ -2381,7 +2382,8 @@ bool Sema::isObjCPointerConversion(QualType FromType, QualType ToType,
       return true;
     }
 
-    if (Context.canAssignObjCInterfaces(FromObjCPtr, ToObjCPtr)) {
+    if (Context.canAssignObjCInterfaces(FromObjCPtr, ToObjCPtr,
+                                        IsHiddenCallback(*this))) {
       // Okay: this is some kind of implicit downcast of Objective-C
       // interfaces, which is permitted. However, we're going to
       // complain about it.
@@ -3769,10 +3771,10 @@ CompareStandardConversionSequences(Sema &S, SourceLocation Loc,
     const ObjCObjectPointerType* FromObjCPtr2
       = FromType2->getAs<ObjCObjectPointerType>();
     if (FromObjCPtr1 && FromObjCPtr2) {
-      bool AssignLeft = S.Context.canAssignObjCInterfaces(FromObjCPtr1,
-                                                          FromObjCPtr2);
-      bool AssignRight = S.Context.canAssignObjCInterfaces(FromObjCPtr2,
-                                                           FromObjCPtr1);
+      bool AssignLeft = S.Context.canAssignObjCInterfaces(
+          FromObjCPtr1, FromObjCPtr2, Sema::IsHiddenCallback(S));
+      bool AssignRight = S.Context.canAssignObjCInterfaces(
+          FromObjCPtr2, FromObjCPtr1, Sema::IsHiddenCallback(S));
       if (AssignLeft != AssignRight) {
         return AssignLeft? ImplicitConversionSequence::Better
                          : ImplicitConversionSequence::Worse;
@@ -4039,14 +4041,14 @@ CompareDerivedToBaseConversions(Sema &S, SourceLocation Loc,
       // that we do for C++ pointers to class types. However, we employ the
       // Objective-C pseudo-subtyping relationship used for assignment of
       // Objective-C pointer types.
-      bool FromAssignLeft
-        = S.Context.canAssignObjCInterfaces(FromPtr1, FromPtr2);
-      bool FromAssignRight
-        = S.Context.canAssignObjCInterfaces(FromPtr2, FromPtr1);
-      bool ToAssignLeft
-        = S.Context.canAssignObjCInterfaces(ToPtr1, ToPtr2);
-      bool ToAssignRight
-        = S.Context.canAssignObjCInterfaces(ToPtr2, ToPtr1);
+      bool FromAssignLeft = S.Context.canAssignObjCInterfaces(
+          FromPtr1, FromPtr2, Sema::IsHiddenCallback(S));
+      bool FromAssignRight = S.Context.canAssignObjCInterfaces(
+          FromPtr2, FromPtr1, Sema::IsHiddenCallback(S));
+      bool ToAssignLeft = S.Context.canAssignObjCInterfaces(
+          ToPtr1, ToPtr2, Sema::IsHiddenCallback(S));
+      bool ToAssignRight = S.Context.canAssignObjCInterfaces(
+          ToPtr2, ToPtr1, Sema::IsHiddenCallback(S));
 
       // A conversion to an a non-id object pointer type or qualified 'id'
       // type is better than a conversion to 'id'.
@@ -4222,7 +4224,8 @@ Sema::CompareReferenceRelationship(SourceLocation Loc,
     DerivedToBase = true;
   else if (UnqualT1->isObjCObjectOrInterfaceType() &&
            UnqualT2->isObjCObjectOrInterfaceType() &&
-           Context.canBindObjCObjectType(UnqualT1, UnqualT2))
+           Context.canBindObjCObjectType(UnqualT1, UnqualT2,
+                                         IsHiddenCallback(*this)))
     ObjCConversion = true;
   else if (UnqualT2->isFunctionType() &&
            IsFunctionConversion(UnqualT2, UnqualT1, ConvertedT2))

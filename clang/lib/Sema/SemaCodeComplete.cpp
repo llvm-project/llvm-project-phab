@@ -2295,8 +2295,9 @@ static std::string FormatFunctionParameter(const PrintingPolicy &Policy,
   // parameter in a setter.
   if (!Block && ObjCMethodParam &&
       cast<ObjCMethodDecl>(Param->getDeclContext())->isPropertyAccessor()) {
-    if (const auto *PD = cast<ObjCMethodDecl>(Param->getDeclContext())
-                             ->findPropertyDecl(/*CheckOverrides=*/false))
+    if (const auto *PD =
+            cast<ObjCMethodDecl>(Param->getDeclContext())
+                ->findPropertyDecl(AllDeclsVisible, /*CheckOverrides=*/false))
       findTypeLocationForBlockDecl(PD->getTypeSourceInfo(), Block, BlockProto,
                                    SuppressBlock);
   }
@@ -2704,7 +2705,8 @@ CodeCompletionResult::CreateCodeCompletionString(ASTContext &Ctx,
       const NamedDecl *ND = Declaration;
       if (const ObjCMethodDecl *M = dyn_cast<ObjCMethodDecl>(ND))
         if (M->isPropertyAccessor())
-          if (const ObjCPropertyDecl *PDecl = M->findPropertyDecl())
+          if (const ObjCPropertyDecl *PDecl =
+                  M->findPropertyDecl(AllDeclsVisible))
             if (PDecl->getGetterName() == M->getSelector() &&
                 PDecl->getIdentifier() != M->getIdentifier()) {
               if (const RawComment *RC = 
@@ -2782,7 +2784,8 @@ CodeCompletionResult::CreateCodeCompletionString(ASTContext &Ctx,
     } 
     else if (const ObjCMethodDecl *OMD = dyn_cast<ObjCMethodDecl>(ND))
       if (OMD->isPropertyAccessor())
-        if (const ObjCPropertyDecl *PDecl = OMD->findPropertyDecl())
+        if (const ObjCPropertyDecl *PDecl =
+                OMD->findPropertyDecl(AllDeclsVisible))
           if (const RawComment *RC = Ctx.getRawCommentForAnyRedecl(PDecl))
             Result.addBriefComment(RC->getBriefText(Ctx));
   }
@@ -5658,14 +5661,16 @@ static ObjCMethodDecl *AddSuperSendCompletion(
   ObjCMethodDecl *SuperMethod = nullptr;
   while ((Class = Class->getSuperClass()) && !SuperMethod) {
     // Check in the class
-    SuperMethod = Class->getMethod(CurMethod->getSelector(), 
-                                   CurMethod->isInstanceMethod());
+    SuperMethod = Class->getMethod(CurMethod->getSelector(),
+                                   CurMethod->isInstanceMethod(),
+                                   Sema::IsHiddenCallback(S));
 
     // Check in categories or class extensions.
     if (!SuperMethod) {
       for (const auto *Cat : Class->known_categories()) {
         if ((SuperMethod = Cat->getMethod(CurMethod->getSelector(),
-                                               CurMethod->isInstanceMethod())))
+                                          CurMethod->isInstanceMethod(),
+                                          Sema::IsHiddenCallback(S))))
           break;
       }
     }
@@ -6390,7 +6395,7 @@ void Sema::CodeCompleteObjCInterfaceCategory(Scope *S,
   NamedDecl *CurClass
     = LookupSingleName(TUScope, ClassName, ClassNameLoc, LookupOrdinaryName);
   if (ObjCInterfaceDecl *Class = dyn_cast_or_null<ObjCInterfaceDecl>(CurClass)){
-    for (const auto *Cat : Class->visible_categories())
+    for (const auto *Cat : Class->visible_categories(IsHiddenCallback(*this)))
       CategoryNames.insert(Cat->getIdentifier());
   }
 
@@ -6435,7 +6440,7 @@ void Sema::CodeCompleteObjCImplementationCategory(Scope *S,
   Results.EnterNewScope();
   bool IgnoreImplemented = true;
   while (Class) {
-    for (const auto *Cat : Class->visible_categories()) {
+    for (const auto *Cat : Class->visible_categories(IsHiddenCallback(*this))) {
       if ((!IgnoreImplemented || !Cat->getImplementation()) &&
           CategoryNames.insert(Cat->getIdentifier()).second)
         Results.AddResult(Result(Cat, Results.getBasePriority(Cat), nullptr),
@@ -6520,7 +6525,8 @@ void Sema::CodeCompleteObjCPropertySynthesizeIvar(Scope *S,
   QualType PropertyType = Context.getObjCIdType();
   if (Class) {
     if (ObjCPropertyDecl *Property = Class->FindPropertyDeclaration(
-            PropertyName, ObjCPropertyQueryKind::OBJC_PR_query_instance)) {
+            PropertyName, ObjCPropertyQueryKind::OBJC_PR_query_instance,
+            IsHiddenCallback(*this))) {
       PropertyType 
         = Property->getType().getNonReferenceType().getUnqualifiedType();
       
@@ -6617,7 +6623,7 @@ static void FindImplementableMethods(ASTContext &Context,
                                KnownMethods, InOriginalClass);
 
     // Add methods from any class extensions and categories.
-    for (auto *Cat : IFace->visible_categories()) {
+    for (auto *Cat : IFace->known_categories()) {
       FindImplementableMethods(Context, Cat, WantInstanceMethods, ReturnType,
                                KnownMethods, false);      
     }
@@ -7495,7 +7501,7 @@ void Sema::CodeCompleteObjCMethodDecl(Scope *S,
         IFace = Category->getClassInterface();
     
     if (IFace)
-      for (auto *Cat : IFace->visible_categories())
+      for (auto *Cat : IFace->visible_categories(IsHiddenCallback(*this)))
         Containers.push_back(Cat);
     
     for (unsigned I = 0, N = Containers.size(); I != N; ++I)

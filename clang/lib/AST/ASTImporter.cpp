@@ -2686,8 +2686,8 @@ Decl *ASTNodeImporter::VisitObjCCategoryDecl(ObjCCategoryDecl *D) {
     return nullptr;
 
   // Determine if we've already encountered this category.
-  ObjCCategoryDecl *MergeWithCategory
-    = ToInterface->FindCategoryDeclaration(Name.getAsIdentifierInfo());
+  ObjCCategoryDecl *MergeWithCategory = ToInterface->FindCategoryDeclaration(
+      Name.getAsIdentifierInfo(), AllDeclsVisible);
   ObjCCategoryDecl *ToCategory = MergeWithCategory;
   if (!ToCategory) {
     ToCategory = ObjCCategoryDecl::Create(Importer.getToContext(), DC,

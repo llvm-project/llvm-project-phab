@@ -73,9 +73,9 @@ public:
       // Find the callee definition within the same translation unit.
       Decl *D = nullptr;
       if (ME->isInstanceMessage())
-        D = IDecl->lookupPrivateMethod(Sel);
+        D = IDecl->lookupPrivateMethod(Sel, AllDeclsVisible);
       else
-        D = IDecl->lookupPrivateClassMethod(Sel);
+        D = IDecl->lookupPrivateClassMethod(Sel, AllDeclsVisible);
       if (D) {
         addCalledDecl(D);
         NumObjCCallEdges++;

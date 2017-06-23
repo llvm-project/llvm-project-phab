@@ -921,7 +921,8 @@ static QualType applyObjCTypeArgs(Sema &S, SourceLocation loc, QualType type,
         // parameter bound is 'id'.
         if (boundObjC->isObjCIdType())
           continue;
-      } else if (S.Context.canAssignObjCInterfaces(boundObjC, typeArgObjC)) {
+      } else if (S.Context.canAssignObjCInterfaces(boundObjC, typeArgObjC,
+                                                   Sema::IsHiddenCallback(S))) {
         // Otherwise, we follow the assignability rules.
         continue;
       }

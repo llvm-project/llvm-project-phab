@@ -660,7 +660,7 @@ bool ObjCPropertyOpBuilder::findSetter(bool warn) {
         PropertyName[0] = front;
         IdentifierInfo *AltMember = &S.PP.getIdentifierTable().get(PropertyName);
         if (ObjCPropertyDecl *prop1 = IFace->FindPropertyDeclaration(
-                AltMember, prop->getQueryKind()))
+                AltMember, prop->getQueryKind(), Sema::IsHiddenCallback(S)))
           if (prop != prop1 && (prop1->getSetterMethodDecl() == setter)) {
             S.Diag(RefExpr->getExprLoc(), diag::err_property_setter_ambiguous_use)
               << prop << prop1 << setter->getSelector();

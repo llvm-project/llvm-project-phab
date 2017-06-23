@@ -414,7 +414,7 @@ static const ObjCIvarDecl *findBackingIvar(const ObjCPropertyDecl *Prop) {
   // is guaranteed to find the shadowing property, if it exists, rather than
   // the shadowed property.
   auto *ShadowingProp = PrimaryInterface->FindPropertyVisibleInPrimaryClass(
-      Prop->getIdentifier(), Prop->getQueryKind());
+      Prop->getIdentifier(), Prop->getQueryKind(), AllDeclsVisible);
   if (ShadowingProp && ShadowingProp != Prop) {
     IVar = ShadowingProp->getPropertyIvarDecl();
   }
@@ -495,7 +495,7 @@ Stmt *BodyFarm::getBody(const ObjCMethodDecl *D) {
     return Val.getValue();
   Val = nullptr;
 
-  const ObjCPropertyDecl *Prop = D->findPropertyDecl();
+  const ObjCPropertyDecl *Prop = D->findPropertyDecl(AllDeclsVisible);
   if (!Prop)
     return nullptr;
 

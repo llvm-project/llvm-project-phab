@@ -1087,7 +1087,7 @@ bool CursorVisitor::VisitObjCPropertyDecl(ObjCPropertyDecl *PD) {
   IdentifierInfo *PropertyId = PD->getIdentifier();
   ObjCPropertyDecl *prevDecl =
     ObjCPropertyDecl::findPropertyDecl(cast<DeclContext>(ID), PropertyId,
-                                       PD->getQueryKind());
+                                       PD->getQueryKind(), AllDeclsVisible);
 
   if (!prevDecl)
     return false;
@@ -5949,8 +5949,9 @@ CXCursor clang_getCursorDefinition(CXCursor C) {
     if (const ObjCInterfaceDecl *Class
                        = dyn_cast<ObjCInterfaceDecl>(Method->getDeclContext()))
       if (ObjCImplementationDecl *ClassImpl = Class->getImplementation())
-        if (ObjCMethodDecl *Def = ClassImpl->getMethod(Method->getSelector(),
-                                                  Method->isInstanceMethod()))
+        if (ObjCMethodDecl *Def = ClassImpl->getMethod(
+                Method->getSelector(), Method->isInstanceMethod(),
+                AllDeclsVisible))
           if (Def->isThisDeclarationADefinition())
             return MakeCXCursor(Def, TU);
 

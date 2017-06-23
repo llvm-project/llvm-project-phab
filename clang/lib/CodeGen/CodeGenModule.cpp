@@ -3770,11 +3770,11 @@ void CodeGenModule::EmitObjCPropertyImplementations(const
       // we want, that just indicates if the decl came from a
       // property. What we want to know is if the method is defined in
       // this implementation.
-      if (!D->getInstanceMethod(PD->getGetterName()))
+      if (!D->getInstanceMethod(PD->getGetterName(), AllDeclsVisible))
         CodeGenFunction(*this).GenerateObjCGetter(
                                  const_cast<ObjCImplementationDecl *>(D), PID);
       if (!PD->isReadOnly() &&
-          !D->getInstanceMethod(PD->getSetterName()))
+          !D->getInstanceMethod(PD->getSetterName(), AllDeclsVisible))
         CodeGenFunction(*this).GenerateObjCSetter(
                                  const_cast<ObjCImplementationDecl *>(D), PID);
     }

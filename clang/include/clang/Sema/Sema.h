@@ -1531,6 +1531,13 @@ public:
     return !D->isHidden() || isVisibleSlow(D);
   }
 
+  /// "Is this declaration hidden?" callback used for ObjC lookups.
+  struct IsHiddenCallback {
+    Sema &S;
+    IsHiddenCallback(Sema &S) : S(S) {}
+    bool operator()(const NamedDecl *D) const { return !S.isVisible(D); }
+  };
+
   /// Determine whether any declaration of an entity is visible.
   bool
   hasVisibleDeclaration(const NamedDecl *D,
@@ -3364,7 +3371,7 @@ public:
   /// it property has a backing ivar, returns this ivar; otherwise, returns NULL.
   /// It also returns ivar's property on success.
   ObjCIvarDecl *GetIvarBackingPropertyAccessor(const ObjCMethodDecl *Method,
-                                               const ObjCPropertyDecl *&PDecl) const;
+                                               const ObjCPropertyDecl *&PDecl);
 
   /// Called by ActOnProperty to handle \@property declarations in
   /// class extensions.

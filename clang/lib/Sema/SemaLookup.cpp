@@ -1175,8 +1175,7 @@ bool Sema::CppLookupName(LookupResult &R, Scope *S) {
               if (ObjCInterfaceDecl *Class = Method->getClassInterface()) {
                 ObjCInterfaceDecl *ClassDeclared;
                 if (ObjCIvarDecl *Ivar = Class->lookupInstanceVariable(
-                                                 Name.getAsIdentifierInfo(),
-                                                             ClassDeclared)) {
+                        Name.getAsIdentifierInfo(), ClassDeclared)) {
                   if (NamedDecl *ND = R.getAcceptableDecl(Ivar)) {
                     R.addDecl(ND);
                     R.resolveKind();
@@ -3529,7 +3528,8 @@ static void LookupVisibleDecls(DeclContext *Ctx, LookupResult &Result,
   // Traverse the contexts of Objective-C classes.
   if (ObjCInterfaceDecl *IFace = dyn_cast<ObjCInterfaceDecl>(Ctx)) {
     // Traverse categories.
-    for (auto *Cat : IFace->visible_categories()) {
+    for (auto *Cat :
+         IFace->visible_categories(Sema::IsHiddenCallback(Result.getSema()))) {
       ShadowContextRAII Shadow(Visited);
       LookupVisibleDecls(Cat, Result, QualifiedNameLookup, false,
                          Consumer, Visited);
@@ -4263,7 +4263,8 @@ static void LookupPotentialTypoResult(Sema &SemaRef,
   if (MemberContext) {
     if (ObjCInterfaceDecl *Class = dyn_cast<ObjCInterfaceDecl>(MemberContext)) {
       if (isObjCIvarLookup) {
-        if (ObjCIvarDecl *Ivar = Class->lookupInstanceVariable(Name)) {
+        if (ObjCIvarDecl *Ivar = Class->lookupInstanceVariable(
+                Name, Sema::IsHiddenCallback(SemaRef))) {
           Res.addDecl(Ivar);
           Res.resolveKind();
           return;
@@ -4271,7 +4272,8 @@ static void LookupPotentialTypoResult(Sema &SemaRef,
       }
 
       if (ObjCPropertyDecl *Prop = Class->FindPropertyDeclaration(
-              Name, ObjCPropertyQueryKind::OBJC_PR_query_instance)) {
+              Name, ObjCPropertyQueryKind::OBJC_PR_query_instance,
+              Sema::IsHiddenCallback(SemaRef))) {
         Res.addDecl(Prop);
         Res.resolveKind();
         return;
@@ -4292,12 +4294,13 @@ static void LookupPotentialTypoResult(Sema &SemaRef,
         (Res.empty() ||
          (Res.isSingleResult() &&
           Res.getFoundDecl()->isDefinedOutsideFunctionOrMethod()))) {
-       if (ObjCIvarDecl *IV
-             = Method->getClassInterface()->lookupInstanceVariable(Name)) {
-         Res.addDecl(IV);
-         Res.resolveKind();
-       }
-     }
+      if (ObjCIvarDecl *IV =
+              Method->getClassInterface()->lookupInstanceVariable(
+                  Name, Sema::IsHiddenCallback(SemaRef))) {
+        Res.addDecl(IV);
+        Res.resolveKind();
+      }
+    }
   }
 }
 
