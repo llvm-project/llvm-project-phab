@@ -165,7 +165,11 @@ int DwarfInstructions<A, R>::stepWithDwarf(A &addressSpace, pint_t pc,
 
        // restore registers that DWARF says were saved
       R newRegisters = registers;
-      pint_t returnAddress = 0;
+      // assume the return address is in the return address register, first,
+      // then if we find CFI for it, we get it from there. this allows
+      // shrink-wrapping to be possible for the return address register
+      pint_t returnAddress =
+          registers.getRegister((int)cieInfo.returnAddressRegister);
       const int lastReg = R::lastDwarfRegNum();
       assert((int)CFI_Parser<A>::kMaxRegisterNumber > lastReg &&
              "register range too large");
