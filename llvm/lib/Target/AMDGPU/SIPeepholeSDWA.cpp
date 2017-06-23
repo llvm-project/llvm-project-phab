@@ -715,7 +715,7 @@ bool SIPeepholeSDWA::convertToSDWA(MachineInstr &MI,
 
   // Copy omod if present, initialize otherwise if needed
   MachineOperand *OMod = TII->getNamedOperand(MI, AMDGPU::OpName::omod);
-  if (OMod) {
+  if (OMod && TII->hasModifiersSet(MI, AMDGPU::OpName::omod)) {
     assert(AMDGPU::getNamedOperandIdx(SDWAOpcode, AMDGPU::OpName::omod) != -1);
     SDWAInst.add(*OMod);
   } else if (AMDGPU::getNamedOperandIdx(SDWAOpcode, AMDGPU::OpName::omod) != -1) {
