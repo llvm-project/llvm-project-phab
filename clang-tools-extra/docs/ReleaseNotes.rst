@@ -72,6 +72,10 @@ Improvements to clang-tidy
 
   Allow custom memory management functions to be considered as well.
 
+- New `misc-default-numerics
+  <http://clang.llvm.org/extra/clang-tidy/checks/misc-default-numerics.html>`_ check
+  Finds uses of ``std::numeric_limits<T>`` for unspecialized types
+
 - New `misc-forwarding-reference-overload
   <http://clang.llvm.org/extra/clang-tidy/checks/misc-forwarding-reference-overload.html>`_ check
 
