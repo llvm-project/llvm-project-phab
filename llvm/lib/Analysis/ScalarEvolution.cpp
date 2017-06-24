@@ -4095,6 +4095,7 @@ static Optional<BinaryOp> MatchBinaryOp(Value *V, DominatorTree &DT) {
   case Instruction::Sub:
   case Instruction::Mul:
   case Instruction::UDiv:
+  case Instruction::URem:
   case Instruction::And:
   case Instruction::Or:
   case Instruction::AShr:
@@ -5417,6 +5418,13 @@ const SCEV *ScalarEvolution::createSCEV(Value *V) {
     }
     case Instruction::UDiv:
       return getUDivExpr(getSCEV(BO->LHS), getSCEV(BO->RHS));
+    case Instruction::URem: {
+      const SCEV *LSCEV = getSCEV(BO->LHS);
+      const SCEV *RSCEV = getSCEV(BO->RHS);
+      const SCEV *UDiv = getUDivExpr(LSCEV, RSCEV);
+      const SCEV *Mult = getMulExpr(UDiv, RSCEV, SCEV::FlagNUW);
+      return getMinusSCEV(LSCEV, Mult, SCEV::FlagNUW);
+    }
     case Instruction::Sub: {
       SCEV::NoWrapFlags Flags = SCEV::FlagAnyWrap;
       if (BO->Op)
