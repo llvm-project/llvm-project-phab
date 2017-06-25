@@ -887,6 +887,27 @@ private:
 #endif
 };
 
+/// assert if an Error condition is present, but check it regardless.  This
+/// method should be used when an error condition is not expected and you want
+/// to forego checking the value.  For example, you may wish to write the code:
+///
+/// if (willOperationSucceed()) {
+///   expectSuccess(doOperation());
+/// }
+///
+/// and save the extra line(s) that would normally be needed to check the return
+/// value.
+inline void expectSuccess(Error Err) {
+  assert(!Err);
+  consumeError(std::move(Err));
+}
+
+/// Similar to expectSuccess(Error), but for Expected<T>
+template <typename T> T expectSuccess(Expected<T> &&Value) {
+  expectSuccess(Value.takeError());
+  return *Value;
+}
+
 /// Helper for Expected<T>s used as out-parameters.
 ///
 /// See ErrorAsOutParameter.
