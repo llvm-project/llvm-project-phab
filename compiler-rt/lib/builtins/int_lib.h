@@ -93,14 +93,14 @@ COMPILER_RT_ABI tu_int __udivmodti4(tu_int a, tu_int b, tu_int* rem);
 #if defined(_MSC_VER) && !defined(__clang__)
 #include <intrin.h>
 
-uint32_t __inline __builtin_ctz(uint32_t value) {
+static uint32_t __inline __builtin_ctz(uint32_t value) {
   unsigned long trailing_zero = 0;
   if (_BitScanForward(&trailing_zero, value))
     return trailing_zero;
   return 32;
 }
 
-uint32_t __inline __builtin_clz(uint32_t value) {
+static uint32_t __inline __builtin_clz(uint32_t value) {
   unsigned long leading_zero = 0;
   if (_BitScanReverse(&leading_zero, value))
     return 31 - leading_zero;
@@ -108,14 +108,14 @@ uint32_t __inline __builtin_clz(uint32_t value) {
 }
 
 #if defined(_M_ARM) || defined(_M_X64)
-uint32_t __inline __builtin_clzll(uint64_t value) {
+static uint32_t __inline __builtin_clzll(uint64_t value) {
   unsigned long leading_zero = 0;
   if (_BitScanReverse64(&leading_zero, value))
     return 63 - leading_zero;
   return 64;
 }
 #else
-uint32_t __inline __builtin_clzll(uint64_t value) {
+static uint32_t __inline __builtin_clzll(uint64_t value) {
   if (value == 0)
     return 64;
   uint32_t msh = (uint32_t)(value >> 32);
