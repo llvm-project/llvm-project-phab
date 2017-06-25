@@ -705,6 +705,8 @@ void Linux::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
   addExternCSystemInclude(DriverArgs, CC1Args, SysRoot + "/include");
 
   addExternCSystemInclude(DriverArgs, CC1Args, SysRoot + "/usr/include");
+
+  AddGnuIncludeArgs(DriverArgs, CC1Args);
 }
 
 static std::string DetectLibcxxIncludePath(StringRef base) {
@@ -742,6 +744,13 @@ std::string Linux::findLibCxxIncludePath() const {
   }
   return "";
 }
+
+void Linux::AddGnuIncludeArgs(const llvm::opt::ArgList &DriverArgs,
+                              llvm::opt::ArgStringList &CC1Args) const {
+  if (GCCInstallation.isValid())
+    addGnuIncludeArgs(DriverArgs, CC1Args);
+}
+
 
 void Linux::addLibStdCxxIncludePaths(const llvm::opt::ArgList &DriverArgs,
                                      llvm::opt::ArgStringList &CC1Args) const {

@@ -2329,6 +2329,24 @@ bool Generic_GCC::IsIntegratedAssemblerDefault() const {
   }
 }
 
+void Generic_GCC::addGnuIncludeArgs(const ArgList &DriverArgs, 
+                                    ArgStringList &CC1Args) const {
+  const Generic_GCC::GCCVersion &Version = GCCInstallation.getVersion();
+  if (!DriverArgs.hasArg(options::OPT_ffreestanding) &&
+      !DriverArgs.hasArg(clang::driver::options::OPT_nostdinc) &&
+      !Version.isOlderThan(4, 8, 0)) {
+    // If stdc-predef.h exists in the sytem includes, then -include it.
+    for (const auto Path : DriverArgs.getAllArgValues(options::OPT_isystem)) {
+      const auto FilePath = Path + "stdc-predef.h";
+      if (llvm::sys::fs::exists(Path)) {
+        CC1Args.push_back("-include");
+        CC1Args.push_back(FilePath.c_str());
+        break;
+      }
+    }
+  }
+}
+
 void Generic_GCC::AddClangCXXStdlibIncludeArgs(const ArgList &DriverArgs,
                                                ArgStringList &CC1Args) const {
   if (DriverArgs.hasArg(options::OPT_nostdlibinc) ||
