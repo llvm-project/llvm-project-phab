@@ -16,10 +16,11 @@
 #include "clang/Basic/LLVM.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/Support/Format.h"
-#include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/Path.h"
-using namespace clang::clangd;
+#include "llvm/Support/raw_ostream.h"
 
+namespace clang {
+namespace clangd {
 
 URI URI::fromUri(llvm::StringRef uri) {
   URI Result;
@@ -31,20 +32,20 @@ URI URI::fromUri(llvm::StringRef uri) {
   if (uri.size() > 2 && uri[0] == '/' && uri[2] == ':')
     uri.consume_front("/");
   // Make sure that file paths are in native separators
-  Result.file = llvm::sys::path::convert_to_slash(uri);
+  Result.File = llvm::sys::path::convert_to_slash(uri);
   return Result;
 }
 
-URI URI::fromFile(llvm::StringRef file) {
+URI URI::fromFile(llvm::StringRef Filename) {
   using namespace llvm::sys;
   URI Result;
-  Result.file = file;
+  Result.File = Filename;
   Result.uri = "file://";
   // For Windows paths e.g. X:
-  if (file.size() > 1 && file[1] == ':')
+  if (Filename.size() > 1 && Filename[1] == ':')
     Result.uri += "/";
   // Make sure that uri paths are with posix separators
-  Result.uri += path::convert_to_slash(file, path::Style::posix);
+  Result.uri += path::convert_to_slash(Filename, path::Style::posix);
   return Result;
 }
 
@@ -53,9 +54,7 @@ URI URI::parse(llvm::yaml::ScalarNode *Param) {
   return URI::fromUri(Param->getValue(Storage));
 }
 
-std::string URI::unparse(const URI &U) {
-  return U.uri;
-}
+std::string URI::unparse(const URI &U) { return U.uri; }
 
 llvm::Optional<TextDocumentIdentifier>
 TextDocumentIdentifier::parse(llvm::yaml::MappingNode *Params) {
@@ -102,12 +101,12 @@ llvm::Optional<Position> Position::parse(llvm::yaml::MappingNode *Params) {
       long long Val;
       if (llvm::getAsSignedInteger(Value->getValue(Storage), 0, Val))
         return llvm::None;
-      Result.line = Val;
+      Result.Line = Val;
     } else if (KeyValue == "character") {
       long long Val;
       if (llvm::getAsSignedInteger(Value->getValue(Storage), 0, Val))
         return llvm::None;
-      Result.character = Val;
+      Result.LineOffset = Val;
     } else {
       return llvm::None;
     }
@@ -118,7 +117,7 @@ llvm::Optional<Position> Position::parse(llvm::yaml::MappingNode *Params) {
 std::string Position::unparse(const Position &P) {
   std::string Result;
   llvm::raw_string_ostream(Result)
-      << llvm::format(R"({"line": %d, "character": %d})", P.line, P.character);
+      << llvm::format(R"({"line": %d, "character": %d})", P.Line, P.LineOffset);
   return Result;
 }
 
@@ -141,12 +140,12 @@ llvm::Optional<Range> Range::parse(llvm::yaml::MappingNode *Params) {
       auto Parsed = Position::parse(Value);
       if (!Parsed)
         return llvm::None;
-      Result.start = std::move(*Parsed);
+      Result.Start = std::move(*Parsed);
     } else if (KeyValue == "end") {
       auto Parsed = Position::parse(Value);
       if (!Parsed)
         return llvm::None;
-      Result.end = std::move(*Parsed);
+      Result.End = std::move(*Parsed);
     } else {
       return llvm::None;
     }
@@ -157,8 +156,8 @@ llvm::Optional<Range> Range::parse(llvm::yaml::MappingNode *Params) {
 std::string Range::unparse(const Range &P) {
   std::string Result;
   llvm::raw_string_ostream(Result) << llvm::format(
-      R"({"start": %s, "end": %s})", Position::unparse(P.start).c_str(),
-      Position::unparse(P.end).c_str());
+      R"({"start": %s, "end": %s})", Position::unparse(P.Start).c_str(),
+      Position::unparse(P.End).c_str());
   return Result;
 }
 
@@ -181,14 +180,14 @@ TextDocumentItem::parse(llvm::yaml::MappingNode *Params) {
     if (KeyValue == "uri") {
       Result.uri = URI::parse(Value);
     } else if (KeyValue == "languageId") {
-      Result.languageId = Value->getValue(Storage);
+      Result.LanguageId = Value->getValue(Storage);
     } else if (KeyValue == "version") {
       long long Val;
       if (llvm::getAsSignedInteger(Value->getValue(Storage), 0, Val))
         return llvm::None;
-      Result.version = Val;
+      Result.Version = Val;
     } else if (KeyValue == "text") {
-      Result.text = Value->getValue(Storage);
+      Result.Text = Value->getValue(Storage);
     } else {
       return llvm::None;
     }
@@ -215,12 +214,12 @@ llvm::Optional<TextEdit> TextEdit::parse(llvm::yaml::MappingNode *Params) {
       auto Parsed = Range::parse(Map);
       if (!Parsed)
         return llvm::None;
-      Result.range = std::move(*Parsed);
+      Result.Range = std::move(*Parsed);
     } else if (KeyValue == "newText") {
       auto *Node = dyn_cast<llvm::yaml::ScalarNode>(Value);
       if (!Node)
         return llvm::None;
-      Result.newText = Node->getValue(Storage);
+      Result.NewText = Node->getValue(Storage);
     } else {
       return llvm::None;
     }
@@ -231,8 +230,8 @@ llvm::Optional<TextEdit> TextEdit::parse(llvm::yaml::MappingNode *Params) {
 std::string TextEdit::unparse(const TextEdit &P) {
   std::string Result;
   llvm::raw_string_ostream(Result) << llvm::format(
-      R"({"range": %s, "newText": "%s"})", Range::unparse(P.range).c_str(),
-      llvm::yaml::escape(P.newText).c_str());
+      R"({"range": %s, "newText": "%s"})", Range::unparse(P.Range).c_str(),
+      llvm::yaml::escape(P.NewText).c_str());
   return Result;
 }
 
@@ -256,7 +255,7 @@ DidOpenTextDocumentParams::parse(llvm::yaml::MappingNode *Params) {
       auto Parsed = TextDocumentItem::parse(Value);
       if (!Parsed)
         return llvm::None;
-      Result.textDocument = std::move(*Parsed);
+      Result.TextDocument = std::move(*Parsed);
     } else {
       return llvm::None;
     }
@@ -283,7 +282,7 @@ DidCloseTextDocumentParams::parse(llvm::yaml::MappingNode *Params) {
       auto Parsed = TextDocumentIdentifier::parse(Map);
       if (!Parsed)
         return llvm::None;
-      Result.textDocument = std::move(*Parsed);
+      Result.TextDocument = std::move(*Parsed);
     } else {
       return llvm::None;
     }
@@ -311,7 +310,7 @@ DidChangeTextDocumentParams::parse(llvm::yaml::MappingNode *Params) {
       auto Parsed = TextDocumentIdentifier::parse(Map);
       if (!Parsed)
         return llvm::None;
-      Result.textDocument = std::move(*Parsed);
+      Result.TextDocument = std::move(*Parsed);
     } else if (KeyValue == "contentChanges") {
       auto *Seq = dyn_cast<llvm::yaml::SequenceNode>(Value);
       if (!Seq)
@@ -349,7 +348,7 @@ TextDocumentContentChangeEvent::parse(llvm::yaml::MappingNode *Params) {
 
     llvm::SmallString<10> Storage;
     if (KeyValue == "text") {
-      Result.text = Value->getValue(Storage);
+      Result.Text = Value->getValue(Storage);
     } else {
       return llvm::None;
     }
@@ -377,7 +376,7 @@ FormattingOptions::parse(llvm::yaml::MappingNode *Params) {
       long long Val;
       if (llvm::getAsSignedInteger(Value->getValue(Storage), 0, Val))
         return llvm::None;
-      Result.tabSize = Val;
+      Result.TabSize = Val;
     } else if (KeyValue == "insertSpaces") {
       long long Val;
       StringRef Str = Value->getValue(Storage);
@@ -389,7 +388,7 @@ FormattingOptions::parse(llvm::yaml::MappingNode *Params) {
         else
           return llvm::None;
       }
-      Result.insertSpaces = Val;
+      Result.InsertSpaces = Val;
     } else {
       return llvm::None;
     }
@@ -400,7 +399,7 @@ FormattingOptions::parse(llvm::yaml::MappingNode *Params) {
 std::string FormattingOptions::unparse(const FormattingOptions &P) {
   std::string Result;
   llvm::raw_string_ostream(Result) << llvm::format(
-      R"({"tabSize": %d, "insertSpaces": %d})", P.tabSize, P.insertSpaces);
+      R"({"tabSize": %d, "insertSpaces": %d})", P.TabSize, P.InsertSpaces);
   return Result;
 }
 
@@ -424,17 +423,17 @@ DocumentRangeFormattingParams::parse(llvm::yaml::MappingNode *Params) {
       auto Parsed = TextDocumentIdentifier::parse(Value);
       if (!Parsed)
         return llvm::None;
-      Result.textDocument = std::move(*Parsed);
+      Result.TextDocument = std::move(*Parsed);
     } else if (KeyValue == "range") {
       auto Parsed = Range::parse(Value);
       if (!Parsed)
         return llvm::None;
-      Result.range = std::move(*Parsed);
+      Result.FormatRange = std::move(*Parsed);
     } else if (KeyValue == "options") {
       auto Parsed = FormattingOptions::parse(Value);
       if (!Parsed)
         return llvm::None;
-      Result.options = std::move(*Parsed);
+      Result.Options = std::move(*Parsed);
     } else {
       return llvm::None;
     }
@@ -459,7 +458,7 @@ DocumentOnTypeFormattingParams::parse(llvm::yaml::MappingNode *Params) {
       if (!ScalarValue)
         return llvm::None;
       llvm::SmallString<10> Storage;
-      Result.ch = ScalarValue->getValue(Storage);
+      Result.TypedCharacter = ScalarValue->getValue(Storage);
       continue;
     }
 
@@ -471,17 +470,17 @@ DocumentOnTypeFormattingParams::parse(llvm::yaml::MappingNode *Params) {
       auto Parsed = TextDocumentIdentifier::parse(Value);
       if (!Parsed)
         return llvm::None;
-      Result.textDocument = std::move(*Parsed);
+      Result.TextDocument = std::move(*Parsed);
     } else if (KeyValue == "position") {
       auto Parsed = Position::parse(Value);
       if (!Parsed)
         return llvm::None;
-      Result.position = std::move(*Parsed);
+      Result.RequestPosition = std::move(*Parsed);
     } else if (KeyValue == "options") {
       auto Parsed = FormattingOptions::parse(Value);
       if (!Parsed)
         return llvm::None;
-      Result.options = std::move(*Parsed);
+      Result.Options = std::move(*Parsed);
     } else {
       return llvm::None;
     }
@@ -509,12 +508,12 @@ DocumentFormattingParams::parse(llvm::yaml::MappingNode *Params) {
       auto Parsed = TextDocumentIdentifier::parse(Value);
       if (!Parsed)
         return llvm::None;
-      Result.textDocument = std::move(*Parsed);
+      Result.TextDocument = std::move(*Parsed);
     } else if (KeyValue == "options") {
       auto Parsed = FormattingOptions::parse(Value);
       if (!Parsed)
         return llvm::None;
-      Result.options = std::move(*Parsed);
+      Result.Options = std::move(*Parsed);
     } else {
       return llvm::None;
     }
@@ -541,7 +540,7 @@ llvm::Optional<Diagnostic> Diagnostic::parse(llvm::yaml::MappingNode *Params) {
       auto Parsed = Range::parse(Value);
       if (!Parsed)
         return llvm::None;
-      Result.range = std::move(*Parsed);
+      Result.Range = std::move(*Parsed);
     } else if (KeyValue == "severity") {
       auto *Value =
           dyn_cast_or_null<llvm::yaml::ScalarNode>(NextKeyValue.getValue());
@@ -550,13 +549,13 @@ llvm::Optional<Diagnostic> Diagnostic::parse(llvm::yaml::MappingNode *Params) {
       long long Val;
       if (llvm::getAsSignedInteger(Value->getValue(Storage), 0, Val))
         return llvm::None;
-      Result.severity = Val;
+      Result.Severity = Val;
     } else if (KeyValue == "message") {
       auto *Value =
           dyn_cast_or_null<llvm::yaml::ScalarNode>(NextKeyValue.getValue());
       if (!Value)
         return llvm::None;
-      Result.message = Value->getValue(Storage);
+      Result.Message = Value->getValue(Storage);
     } else {
       return llvm::None;
     }
@@ -588,7 +587,7 @@ CodeActionContext::parse(llvm::yaml::MappingNode *Params) {
         auto Parsed = Diagnostic::parse(I);
         if (!Parsed)
           return llvm::None;
-        Result.diagnostics.push_back(std::move(*Parsed));
+        Result.Diagnostics.push_back(std::move(*Parsed));
       }
     } else {
       return llvm::None;
@@ -617,17 +616,17 @@ CodeActionParams::parse(llvm::yaml::MappingNode *Params) {
       auto Parsed = TextDocumentIdentifier::parse(Value);
       if (!Parsed)
         return llvm::None;
-      Result.textDocument = std::move(*Parsed);
+      Result.TextDocument = std::move(*Parsed);
     } else if (KeyValue == "range") {
       auto Parsed = Range::parse(Value);
       if (!Parsed)
         return llvm::None;
-      Result.range = std::move(*Parsed);
+      Result.Range = std::move(*Parsed);
     } else if (KeyValue == "context") {
       auto Parsed = CodeActionContext::parse(Value);
       if (!Parsed)
         return llvm::None;
-      Result.context = std::move(*Parsed);
+      Result.Context = std::move(*Parsed);
     } else {
       return llvm::None;
     }
@@ -655,12 +654,12 @@ TextDocumentPositionParams::parse(llvm::yaml::MappingNode *Params) {
       auto Parsed = TextDocumentIdentifier::parse(Value);
       if (!Parsed)
         return llvm::None;
-      Result.textDocument = std::move(*Parsed);
+      Result.TextDocument = std::move(*Parsed);
     } else if (KeyValue == "position") {
       auto Parsed = Position::parse(Value);
       if (!Parsed)
         return llvm::None;
-      Result.position = std::move(*Parsed);
+      Result.Position = std::move(*Parsed);
     } else {
       return llvm::None;
     }
@@ -670,39 +669,42 @@ TextDocumentPositionParams::parse(llvm::yaml::MappingNode *Params) {
 
 std::string CompletionItem::unparse(const CompletionItem &CI) {
   std::string Result = "{";
-  llvm::raw_string_ostream Os(Result);
+  llvm::raw_string_ostream OS(Result);
   assert(!CI.label.empty() && "completion item label is required");
-  Os << R"("label":")" << llvm::yaml::escape(CI.label) << R"(",)";
-  if (CI.kind != CompletionItemKind::Missing)
-    Os << R"("kind":)" << static_cast<int>(CI.kind) << R"(,)";
-  if (!CI.detail.empty())
-    Os << R"("detail":")" << llvm::yaml::escape(CI.detail) << R"(",)";
-  if (!CI.documentation.empty())
-    Os << R"("documentation":")" << llvm::yaml::escape(CI.documentation)
+  OS << R"("label":")" << llvm::yaml::escape(CI.Label) << R"(",)";
+  if (CI.Kind != CompletionItemKind::Missing)
+    OS << R"("kind":)" << static_cast<int>(CI.Kind) << R"(,)";
+  if (!CI.Detail.empty())
+    OS << R"("detail":")" << llvm::yaml::escape(CI.Detail) << R"(",)";
+  if (!CI.Documentation.empty())
+    OS << R"("documentation":")" << llvm::yaml::escape(CI.Documentation)
        << R"(",)";
-  if (!CI.sortText.empty())
-    Os << R"("sortText":")" << llvm::yaml::escape(CI.sortText) << R"(",)";
-  if (!CI.filterText.empty())
-    Os << R"("filterText":")" << llvm::yaml::escape(CI.filterText) << R"(",)";
-  if (!CI.insertText.empty())
-    Os << R"("insertText":")" << llvm::yaml::escape(CI.insertText) << R"(",)";
-  if (CI.insertTextFormat != InsertTextFormat::Missing) {
-    Os << R"("insertTextFormat":")" << static_cast<int>(CI.insertTextFormat)
+  if (!CI.SortText.empty())
+    OS << R"("sortText":")" << llvm::yaml::escape(CI.SortText) << R"(",)";
+  if (!CI.FilterText.empty())
+    OS << R"("filterText":")" << llvm::yaml::escape(CI.FilterText) << R"(",)";
+  if (!CI.InsertText.empty())
+    OS << R"("insertText":")" << llvm::yaml::escape(CI.InsertText) << R"(",)";
+  if (CI.InsertTextFormat != InsertTextFormat::Missing) {
+    OS << R"("insertTextFormat":")" << static_cast<int>(CI.InsertTextFormat)
        << R"(",)";
   }
-  if (CI.textEdit)
-    Os << R"("textEdit":)" << TextEdit::unparse(*CI.textEdit) << ',';
-  if (!CI.additionalTextEdits.empty()) {
-    Os << R"("additionalTextEdits":[)";
-    for (const auto &Edit : CI.additionalTextEdits)
-      Os << TextEdit::unparse(Edit) << ",";
-    Os.flush();
+  if (CI.Edit)
+    OS << R"("textEdit":)" << TextEdit::unparse(*CI.Edit) << ',';
+  if (!CI.AdditionalTextEdits.empty()) {
+    OS << R"("additionalTextEdits":[)";
+    for (const auto &Edit : CI.AdditionalTextEdits)
+      OS << TextEdit::unparse(Edit) << ",";
+    OS.flush();
     // The list additionalTextEdits is guaranteed nonempty at this point.
     // Replace the trailing comma with right brace.
     Result.back() = ']';
   }
-  Os.flush();
+  OS.flush();
   // Label is required, so Result is guaranteed to have a trailing comma.
   Result.back() = '}';
   return Result;
 }
+
+} // namespace clangd
+} // namespace clang

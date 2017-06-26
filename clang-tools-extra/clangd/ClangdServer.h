@@ -112,12 +112,12 @@ public:
   /// separate worker thread.
   /// \p Request is scheduled to be executed before all currently added
   /// requests.
-  void addToFront(std::function<void()> Request);
+  void addToFront(const std::function<void()> &Request);
   /// Add \p Request to the end of the queue. \p Request will be run on a
   /// separate worker thread.
   /// \p Request is scheduled to be executed after all currently added
   /// requests.
-  void addToEnd(std::function<void()> Request);
+  void addToEnd(const std::function<void()> &Request);
 
 private:
   bool RunSynchronously;

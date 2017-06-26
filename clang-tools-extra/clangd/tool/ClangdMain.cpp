@@ -22,7 +22,7 @@ using namespace clang::clangd;
 
 static llvm::cl::opt<bool>
     RunSynchronously("run-synchronously",
-                     llvm::cl::desc("parse on main thread"),
+                     llvm::cl::desc("Parse code in main thread"),
                      llvm::cl::init(false), llvm::cl::Hidden);
 
 int main(int argc, char *argv[]) {

@@ -21,6 +21,7 @@ class raw_ostream;
 }
 
 namespace clang {
+
 class ASTUnit;
 class PCHContainerOperations;
 
@@ -75,4 +76,5 @@ private:
 
 } // namespace clangd
 } // namespace clang
+
 #endif

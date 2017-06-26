@@ -12,8 +12,8 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
 
-using namespace clang::clangd;
-using namespace clang;
+namespace clang {
+namespace clangd {
 
 std::vector<tooling::CompileCommand>
 DirectoryBasedGlobalCompilationDatabase::getCompileCommands(PathRef File) {
@@ -63,3 +63,6 @@ DirectoryBasedGlobalCompilationDatabase::getCompilationDatabase(PathRef File) {
   // "\n");
   return nullptr;
 }
+
+} // namespace clangd
+} // namespace clang

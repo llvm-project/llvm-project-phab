@@ -139,7 +139,7 @@ public:
       // FIXME: severities returned by clangd should have a descriptive
       // diagnostic severity enum
       const int ErrorSeverity = 1;
-      HadError = DiagAndFixIts.Diag.severity == ErrorSeverity;
+      HadError = DiagAndFixIts.Diag.Severity == ErrorSeverity;
     }
 
     std::lock_guard<std::mutex> Lock(Mutex);
@@ -398,7 +398,7 @@ class ClangdCompletionTest : public ClangdVFSTest {
 protected:
   bool ContainsItem(std::vector<CompletionItem> const &Items, StringRef Name) {
     for (const auto &Item : Items) {
-      if (Item.insertText == Name)
+      if (Item.InsertText == Name)
         return true;
     }
     return false;

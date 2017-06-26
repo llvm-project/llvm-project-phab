@@ -14,8 +14,8 @@
 #include "llvm/Support/YAMLParser.h"
 #include <istream>
 
-using namespace clang;
-using namespace clangd;
+namespace clang {
+namespace clangd {
 
 void JSONOutput::writeMessage(const Twine &Message) {
   llvm::SmallString<128> Storage;
@@ -57,15 +57,13 @@ void JSONRPCDispatcher::registerHandler(StringRef Method,
 
 static void
 callHandler(const llvm::StringMap<std::unique_ptr<Handler>> &Handlers,
-            llvm::yaml::ScalarNode *Method, llvm::yaml::ScalarNode *Id,
+            llvm::yaml::ScalarNode *Method, llvm::yaml::ScalarNode *ID,
             llvm::yaml::MappingNode *Params, Handler *UnknownHandler) {
   llvm::SmallString<10> MethodStorage;
   auto I = Handlers.find(Method->getValue(MethodStorage));
   auto *Handler = I != Handlers.end() ? I->second.get() : UnknownHandler;
-  if (Id)
-    Handler->handleMethod(Params, Id->getRawValue());
-  else
-    Handler->handleNotification(Params);
+  return (ID) ? Handler->handleMethod(Params, ID->getRawValue())
+              : Handler->handleNotification(Params);
 }
 
 bool JSONRPCDispatcher::call(StringRef Content) const {
@@ -102,7 +100,7 @@ bool JSONRPCDispatcher::call(StringRef Content) const {
     if (KeyValue == "jsonrpc") {
       // This should be "2.0". Always.
       Version = dyn_cast<llvm::yaml::ScalarNode>(Value);
-      if (!Version || Version->getRawValue() != "\"2.0\"")
+      if (!Version || Version->getRawValue() != R"("2.0")")
         return false;
     } else if (KeyValue == "method") {
       Method = dyn_cast<llvm::yaml::ScalarNode>(Value);
@@ -132,9 +130,8 @@ bool JSONRPCDispatcher::call(StringRef Content) const {
   return true;
 }
 
-void clangd::runLanguageServerLoop(std::istream &In, JSONOutput &Out,
-                                   JSONRPCDispatcher &Dispatcher,
-                                   bool &IsDone) {
+void runLanguageServerLoop(std::istream &In, JSONOutput &Out,
+                           JSONRPCDispatcher &Dispatcher, bool &IsDone) {
   while (In.good()) {
     // A Language Server Protocol message starts with a HTTP header, delimited
     // by \r\n.
@@ -152,6 +149,7 @@ void clangd::runLanguageServerLoop(std::istream &In, JSONOutput &Out,
 
     // We allow YAML-style comments. Technically this isn't part of the
     // LSP specification, but makes writing tests easier.
+    // FIXME: It's probably worth to reflect that in documentation.
     if (LineRef.startswith("#"))
       continue;
 
@@ -189,3 +187,6 @@ void clangd::runLanguageServerLoop(std::istream &In, JSONOutput &Out,
     }
   }
 }
+
+} // namespace clangd
+} // namespace clang

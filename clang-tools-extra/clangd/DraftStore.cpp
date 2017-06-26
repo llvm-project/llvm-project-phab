@@ -9,8 +9,8 @@
 
 #include "DraftStore.h"
 
-using namespace clang;
-using namespace clang::clangd;
+namespace clang {
+namespace clangd {
 
 VersionedDraft DraftStore::getDraft(PathRef File) const {
   std::lock_guard<std::mutex> Lock(Mutex);
@@ -47,3 +47,6 @@ DocVersion DraftStore::removeDraft(PathRef File) {
   Entry.Draft = llvm::None;
   return NewVersion;
 }
+
+} // namespace clangd
+} // namespace clang

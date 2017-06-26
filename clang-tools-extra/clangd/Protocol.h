@@ -31,10 +31,10 @@ namespace clangd {
 
 struct URI {
   std::string uri;
-  std::string file;
+  std::string File;
 
   static URI fromUri(llvm::StringRef uri);
-  static URI fromFile(llvm::StringRef file);
+  static URI fromFile(llvm::StringRef Filename);
 
   static URI parse(llvm::yaml::ScalarNode *Param);
   static std::string unparse(const URI &U);
@@ -50,18 +50,19 @@ struct TextDocumentIdentifier {
 
 struct Position {
   /// Line position in a document (zero-based).
-  int line;
+  unsigned Line;
 
   /// Character offset on a line in a document (zero-based).
-  int character;
+  unsigned LineOffset;
 
   friend bool operator==(const Position &LHS, const Position &RHS) {
-    return std::tie(LHS.line, LHS.character) ==
-           std::tie(RHS.line, RHS.character);
+    return std::tie(LHS.Line, LHS.LineOffset) ==
+           std::tie(RHS.Line, RHS.LineOffset);
   }
+
   friend bool operator<(const Position &LHS, const Position &RHS) {
-    return std::tie(LHS.line, LHS.character) <
-           std::tie(RHS.line, RHS.character);
+    return std::tie(LHS.Line, LHS.LineOffset) <
+           std::tie(RHS.Line, RHS.LineOffset);
   }
 
   static llvm::Optional<Position> parse(llvm::yaml::MappingNode *Params);
@@ -70,16 +71,16 @@ struct Position {
 
 struct Range {
   /// The range's start position.
-  Position start;
+  Position Start;
 
   /// The range's end position.
-  Position end;
+  Position End;
 
   friend bool operator==(const Range &LHS, const Range &RHS) {
-    return std::tie(LHS.start, LHS.end) == std::tie(RHS.start, RHS.end);
+    return std::tie(LHS.Start, LHS.End) == std::tie(RHS.Start, RHS.End);
   }
   friend bool operator<(const Range &LHS, const Range &RHS) {
-    return std::tie(LHS.start, LHS.end) < std::tie(RHS.start, RHS.end);
+    return std::tie(LHS.Start, LHS.End) < std::tie(RHS.Start, RHS.End);
   }
 
   static llvm::Optional<Range> parse(llvm::yaml::MappingNode *Params);
@@ -89,11 +90,11 @@ struct Range {
 struct TextEdit {
   /// The range of the text document to be manipulated. To insert
   /// text into a document create a range where start === end.
-  Range range;
+  Range Range;
 
   /// The string to be inserted. For delete operations use an
   /// empty string.
-  std::string newText;
+  std::string NewText;
 
   static llvm::Optional<TextEdit> parse(llvm::yaml::MappingNode *Params);
   static std::string unparse(const TextEdit &P);
@@ -104,13 +105,13 @@ struct TextDocumentItem {
   URI uri;
 
   /// The text document's language identifier.
-  std::string languageId;
+  std::string LanguageId;
 
   /// The version number of this document (it will strictly increase after each
-  int version;
+  int Version;
 
   /// The content of the opened text document.
-  std::string text;
+  std::string Text;
 
   static llvm::Optional<TextDocumentItem>
   parse(llvm::yaml::MappingNode *Params);
@@ -118,7 +119,7 @@ struct TextDocumentItem {
 
 struct DidOpenTextDocumentParams {
   /// The document that was opened.
-  TextDocumentItem textDocument;
+  TextDocumentItem TextDocument;
 
   static llvm::Optional<DidOpenTextDocumentParams>
   parse(llvm::yaml::MappingNode *Params);
@@ -126,7 +127,7 @@ struct DidOpenTextDocumentParams {
 
 struct DidCloseTextDocumentParams {
   /// The document that was closed.
-  TextDocumentIdentifier textDocument;
+  TextDocumentIdentifier TextDocument;
 
   static llvm::Optional<DidCloseTextDocumentParams>
   parse(llvm::yaml::MappingNode *Params);
@@ -134,7 +135,7 @@ struct DidCloseTextDocumentParams {
 
 struct TextDocumentContentChangeEvent {
   /// The new text of the document.
-  std::string text;
+  std::string Text;
 
   static llvm::Optional<TextDocumentContentChangeEvent>
   parse(llvm::yaml::MappingNode *Params);
@@ -144,7 +145,7 @@ struct DidChangeTextDocumentParams {
   /// The document that did change. The version number points
   /// to the version after all provided content changes have
   /// been applied.
-  TextDocumentIdentifier textDocument;
+  TextDocumentIdentifier TextDocument;
 
   /// The actual content changes.
   std::vector<TextDocumentContentChangeEvent> contentChanges;
@@ -155,10 +156,10 @@ struct DidChangeTextDocumentParams {
 
 struct FormattingOptions {
   /// Size of a tab in spaces.
-  int tabSize;
+  unsigned TabSize;
 
   /// Prefer spaces over tabs.
-  bool insertSpaces;
+  bool InsertSpaces;
 
   static llvm::Optional<FormattingOptions>
   parse(llvm::yaml::MappingNode *Params);
@@ -167,13 +168,13 @@ struct FormattingOptions {
 
 struct DocumentRangeFormattingParams {
   /// The document to format.
-  TextDocumentIdentifier textDocument;
+  TextDocumentIdentifier TextDocument;
 
   /// The range to format
-  Range range;
+  Range FormatRange;
 
   /// The format options
-  FormattingOptions options;
+  FormattingOptions Options;
 
   static llvm::Optional<DocumentRangeFormattingParams>
   parse(llvm::yaml::MappingNode *Params);
@@ -181,16 +182,16 @@ struct DocumentRangeFormattingParams {
 
 struct DocumentOnTypeFormattingParams {
   /// The document to format.
-  TextDocumentIdentifier textDocument;
+  TextDocumentIdentifier TextDocument;
 
   /// The position at which this request was sent.
-  Position position;
+  Position RequestPosition;
 
   /// The character that has been typed.
-  std::string ch;
+  std::string TypedCharacter;
 
   /// The format options.
-  FormattingOptions options;
+  FormattingOptions Options;
 
   static llvm::Optional<DocumentOnTypeFormattingParams>
   parse(llvm::yaml::MappingNode *Params);
@@ -198,10 +199,10 @@ struct DocumentOnTypeFormattingParams {
 
 struct DocumentFormattingParams {
   /// The document to format.
-  TextDocumentIdentifier textDocument;
+  TextDocumentIdentifier TextDocument;
 
   /// The format options
-  FormattingOptions options;
+  FormattingOptions Options;
 
   static llvm::Optional<DocumentFormattingParams>
   parse(llvm::yaml::MappingNode *Params);
@@ -209,22 +210,22 @@ struct DocumentFormattingParams {
 
 struct Diagnostic {
   /// The range at which the message applies.
-  Range range;
+  Range Range;
 
   /// The diagnostic's severity. Can be omitted. If omitted it is up to the
   /// client to interpret diagnostics as error, warning, info or hint.
-  int severity;
+  int Severity;
 
   /// The diagnostic's message.
-  std::string message;
+  std::string Message;
 
   friend bool operator==(const Diagnostic &LHS, const Diagnostic &RHS) {
-    return std::tie(LHS.range, LHS.severity, LHS.message) ==
-           std::tie(RHS.range, RHS.severity, RHS.message);
+    return std::tie(LHS.Range, LHS.Severity, LHS.Message) ==
+           std::tie(RHS.Range, RHS.Severity, RHS.Message);
   }
   friend bool operator<(const Diagnostic &LHS, const Diagnostic &RHS) {
-    return std::tie(LHS.range, LHS.severity, LHS.message) <
-           std::tie(RHS.range, RHS.severity, RHS.message);
+    return std::tie(LHS.Range, LHS.Severity, LHS.Message) <
+           std::tie(RHS.Range, RHS.Severity, RHS.Message);
   }
 
   static llvm::Optional<Diagnostic> parse(llvm::yaml::MappingNode *Params);
@@ -232,7 +233,7 @@ struct Diagnostic {
 
 struct CodeActionContext {
   /// An array of diagnostics.
-  std::vector<Diagnostic> diagnostics;
+  std::vector<Diagnostic> Diagnostics;
 
   static llvm::Optional<CodeActionContext>
   parse(llvm::yaml::MappingNode *Params);
@@ -240,13 +241,13 @@ struct CodeActionContext {
 
 struct CodeActionParams {
   /// The document in which the command was invoked.
-  TextDocumentIdentifier textDocument;
+  TextDocumentIdentifier TextDocument;
 
   /// The range for which the command was invoked.
-  Range range;
+  Range Range;
 
   /// Context carrying additional information.
-  CodeActionContext context;
+  CodeActionContext Context;
 
   static llvm::Optional<CodeActionParams>
   parse(llvm::yaml::MappingNode *Params);
@@ -254,10 +255,10 @@ struct CodeActionParams {
 
 struct TextDocumentPositionParams {
   /// The text document.
-  TextDocumentIdentifier textDocument;
+  TextDocumentIdentifier TextDocument;
 
   /// The position inside the text document.
-  Position position;
+  Position Position;
 
   static llvm::Optional<TextDocumentPositionParams>
   parse(llvm::yaml::MappingNode *Params);
@@ -307,46 +308,46 @@ enum class InsertTextFormat {
 struct CompletionItem {
   /// The label of this completion item. By default also the text that is
   /// inserted when selecting this completion.
-  std::string label;
+  std::string Label;
 
   /// The kind of this completion item. Based of the kind an icon is chosen by
   /// the editor.
-  CompletionItemKind kind = CompletionItemKind::Missing;
+  CompletionItemKind Kind = CompletionItemKind::Missing;
 
   /// A human-readable string with additional information about this item, like
   /// type or symbol information.
-  std::string detail;
+  std::string Detail;
 
   /// A human-readable string that represents a doc-comment.
-  std::string documentation;
+  std::string Documentation;
 
   /// A string that should be used when comparing this item with other items.
   /// When `falsy` the label is used.
-  std::string sortText;
+  std::string SortText;
 
   /// A string that should be used when filtering a set of completion items.
   /// When `falsy` the label is used.
-  std::string filterText;
+  std::string FilterText;
 
   /// A string that should be inserted to a document when selecting this
   /// completion. When `falsy` the label is used.
-  std::string insertText;
+  std::string InsertText;
 
   /// The format of the insert text. The format applies to both the `insertText`
   /// property and the `newText` property of a provided `textEdit`.
-  InsertTextFormat insertTextFormat = InsertTextFormat::Missing;
+  InsertTextFormat InsertTextFormat = InsertTextFormat::Missing;
 
   /// An edit which is applied to a document when selecting this completion.
   /// When an edit is provided `insertText` is ignored.
   ///
   /// Note: The range of the edit must be a single line range and it must
   /// contain the position at which completion has been requested.
-  llvm::Optional<TextEdit> textEdit;
+  llvm::Optional<TextEdit> Edit;
 
   /// An optional array of additional text edits that are applied when selecting
   /// this completion. Edits must not overlap with the main edit nor with
   /// themselves.
-  std::vector<TextEdit> additionalTextEdits;
+  std::vector<TextEdit> AdditionalTextEdits;
 
   // TODO(krasimir): The following optional fields defined by the language
   // server protocol are unsupported:

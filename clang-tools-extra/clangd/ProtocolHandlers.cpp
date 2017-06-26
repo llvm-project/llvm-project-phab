@@ -11,8 +11,9 @@
 #include "ClangdLSPServer.h"
 #include "ClangdServer.h"
 #include "DraftStore.h"
-using namespace clang;
-using namespace clangd;
+
+namespace clang {
+namespace clangd {
 
 namespace {
 
@@ -188,7 +189,7 @@ private:
 
 } // namespace
 
-void clangd::regiterCallbackHandlers(JSONRPCDispatcher &Dispatcher,
+void regiterCallbackHandlers(JSONRPCDispatcher &Dispatcher,
                                      JSONOutput &Out,
                                      ProtocolCallbacks &Callbacks) {
   Dispatcher.registerHandler(
@@ -220,3 +221,6 @@ void clangd::regiterCallbackHandlers(JSONRPCDispatcher &Dispatcher,
       "textDocument/completion",
       llvm::make_unique<CompletionHandler>(Out, Callbacks));
 }
+
+} // namespace clangd
+} // namespace clang

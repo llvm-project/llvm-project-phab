@@ -15,8 +15,8 @@
 #include "clang/Tooling/CompilationDatabase.h"
 #include "llvm/Support/Format.h"
 
-using namespace clang::clangd;
-using namespace clang;
+namespace clang {
+namespace clangd {
 
 ClangdUnit::ClangdUnit(PathRef FileName, StringRef Contents,
                        std::shared_ptr<PCHContainerOperations> PCHs,
@@ -143,17 +143,17 @@ public:
         for (CodeCompletionString::Chunk C : *CCS) {
           switch (C.Kind) {
           case CodeCompletionString::CK_ResultType:
-            Item.detail = C.Text;
+            Item.Detail = C.Text;
             break;
           case CodeCompletionString::CK_Optional:
             break;
           default:
-            Item.label += C.Text;
+            Item.Label += C.Text;
             break;
           }
         }
         assert(CCS->getTypedText());
-        Item.kind = getKind(Result.CursorKind);
+        Item.Kind = getKind(Result.CursorKind);
         // Priority is a 16-bit integer, hence at most 5 digits.
         // Since identifiers with higher priority need to come first,
         // we subtract the priority from 99999.
@@ -162,11 +162,11 @@ public:
         assert(CCS->getPriority() < 99999 && "Expecting code completion result "
                                              "priority to have at most "
                                              "5-digits");
-        llvm::raw_string_ostream(Item.sortText) << llvm::format(
+        llvm::raw_string_ostream(Item.SortText) << llvm::format(
             "%05d%s", 99999 - CCS->getPriority(), CCS->getTypedText());
-        Item.insertText = Item.filterText = CCS->getTypedText();
+        Item.InsertText = Item.FilterText = CCS->getTypedText();
         if (CCS->getBriefComment())
-          Item.documentation = CCS->getBriefComment();
+          Item.Documentation = CCS->getBriefComment();
         Items->push_back(std::move(Item));
       }
     }
@@ -203,8 +203,8 @@ ClangdUnit::codeComplete(StringRef Contents, Position Pos,
   // CodeComplete seems to require fresh LangOptions.
   LangOptions LangOpts = Unit->getLangOpts();
   // The language server protocol uses zero-based line and column numbers.
-  // The clang code completion uses one-based numbers.
-  Unit->CodeComplete(FileName, Pos.line + 1, Pos.character + 1, RemappedSource,
+  // The Clang code completion uses one-based numbers.
+  Unit->CodeComplete(FileName, Pos.Line + 1, Pos.LineOffset + 1, RemappedSource,
                      CCO.IncludeMacros, CCO.IncludeCodePatterns,
                      CCO.IncludeBriefComments, Collector, PCHs, *DiagEngine,
                      LangOpts, *SourceMgr, *FileMgr, StoredDiagnostics,
@@ -243,8 +243,8 @@ std::vector<DiagWithFixIts> ClangdUnit::getLocalDiagnostics() const {
         !D->getLocation().getManager().isInMainFile(D->getLocation()))
       continue;
     Position P;
-    P.line = D->getLocation().getSpellingLineNumber() - 1;
-    P.character = D->getLocation().getSpellingColumnNumber();
+    P.Line= D->getLocation().getSpellingLineNumber() - 1;
+    P.LineOffset= D->getLocation().getSpellingColumnNumber();
     Range R = {P, P};
     clangd::Diagnostic Diag = {R, getSeverity(D->getLevel()), D->getMessage()};
 
@@ -261,3 +261,6 @@ std::vector<DiagWithFixIts> ClangdUnit::getLocalDiagnostics() const {
 void ClangdUnit::dumpAST(llvm::raw_ostream &OS) const {
   Unit->getASTContext().getTranslationUnitDecl()->dump(OS, true);
 }
+
+} // namespace clangd
+} // namespace clang

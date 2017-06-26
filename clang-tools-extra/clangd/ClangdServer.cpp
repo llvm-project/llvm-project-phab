@@ -18,8 +18,8 @@
 #include "llvm/Support/raw_ostream.h"
 #include <future>
 
-using namespace clang;
-using namespace clang::clangd;
+namespace clang {
+namespace clangd {
 
 namespace {
 
@@ -35,9 +35,9 @@ std::vector<tooling::Replacement> formatCode(StringRef Code, StringRef Filename,
 
 } // namespace
 
-size_t clangd::positionToOffset(StringRef Code, Position P) {
+size_t positionToOffset(StringRef Code, Position P) {
   size_t Offset = 0;
-  for (int I = 0; I != P.line; ++I) {
+  for (unsigned I = 0; I != P.Line; ++I) {
     // FIXME: \r\n
     // FIXME: UTF-8
     size_t F = Code.find('\n', Offset);
@@ -45,16 +45,16 @@ size_t clangd::positionToOffset(StringRef Code, Position P) {
       return 0; // FIXME: Is this reasonable?
     Offset = F + 1;
   }
-  return (Offset == 0 ? 0 : (Offset - 1)) + P.character;
+  return (Offset == 0 ? 0 : (Offset - 1)) + P.LineOffset;
 }
 
 /// Turn an offset in Code into a [line, column] pair.
-Position clangd::offsetToPosition(StringRef Code, size_t Offset) {
+Position offsetToPosition(StringRef Code, size_t Offset) {
   StringRef JustBefore = Code.substr(0, Offset);
   // FIXME: \r\n
   // FIXME: UTF-8
-  int Lines = JustBefore.count('\n');
-  int Cols = JustBefore.size() - JustBefore.rfind('\n') - 1;
+  unsigned Lines = JustBefore.count('\n');
+  unsigned Cols = JustBefore.size() - JustBefore.rfind('\n') - 1;
   return {Lines, Cols};
 }
 
@@ -112,7 +112,7 @@ ClangdScheduler::~ClangdScheduler() {
   Worker.join();
 }
 
-void ClangdScheduler::addToFront(std::function<void()> Request) {
+void ClangdScheduler::addToFront(const std::function<void()> &Request) {
   if (RunSynchronously) {
     Request();
     return;
@@ -125,7 +125,7 @@ void ClangdScheduler::addToFront(std::function<void()> Request) {
   RequestCV.notify_one();
 }
 
-void ClangdScheduler::addToEnd(std::function<void()> Request) {
+void ClangdScheduler::addToEnd(const std::function<void()> &Request) {
   if (RunSynchronously) {
     Request();
     return;
@@ -213,8 +213,8 @@ std::vector<tooling::Replacement> ClangdServer::formatRange(PathRef File,
                                                             Range Rng) {
   std::string Code = getDocument(File);
 
-  size_t Begin = positionToOffset(Code, Rng.start);
-  size_t Len = positionToOffset(Code, Rng.end) - Begin;
+  size_t Begin = positionToOffset(Code, Rng.Start);
+  size_t Len = positionToOffset(Code, Rng.End) - Begin;
   return formatCode(Code, File, {tooling::Range(Begin, Len)});
 }
 
@@ -264,3 +264,6 @@ std::string ClangdServer::dumpAST(PathRef File) {
   });
   return DumpFuture.get();
 }
+
+} // namespace clangd
+} // namespace clang

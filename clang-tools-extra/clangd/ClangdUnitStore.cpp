@@ -10,8 +10,8 @@
 #include "ClangdUnitStore.h"
 #include "llvm/Support/Path.h"
 
-using namespace clang::clangd;
-using namespace clang;
+namespace clang {
+namespace clangd {
 
 void ClangdUnitStore::removeUnitIfPresent(PathRef File) {
   std::lock_guard<std::mutex> Lock(Mutex);
@@ -22,7 +22,9 @@ void ClangdUnitStore::removeUnitIfPresent(PathRef File) {
   OpenedFiles.erase(It);
 }
 
-std::vector<tooling::CompileCommand> ClangdUnitStore::getCompileCommands(GlobalCompilationDatabase &CDB, PathRef File) {
+std::vector<tooling::CompileCommand>
+ClangdUnitStore::getCompileCommands(GlobalCompilationDatabase &CDB,
+                                    PathRef File) {
   std::vector<tooling::CompileCommand> Commands = CDB.getCompileCommands(File);
   if (Commands.empty()) {
     // Add a fake command line if we know nothing.
@@ -32,3 +34,6 @@ std::vector<tooling::CompileCommand> ClangdUnitStore::getCompileCommands(GlobalC
   }
   return Commands;
 }
+
+} // namespace clangd
+} // namespace clang
