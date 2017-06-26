@@ -37,8 +37,12 @@ FormatTokenLexer::FormatTokenLexer(const SourceManager &SourceMgr, FileID ID,
   Lex->SetKeepWhitespaceMode(true);
 
   for (const std::string &ForEachMacro : Style.ForEachMacros)
-    ForEachMacros.push_back(&IdentTable.get(ForEachMacro));
-  std::sort(ForEachMacros.begin(), ForEachMacros.end());
+    Macros.emplace_back(&IdentTable.get(ForEachMacro), TT_ForEachMacro);
+  for (const std::string &StatementMacro : Style.StatementMacros)
+    Macros.emplace_back(&IdentTable.get(StatementMacro), TT_StatementMacro);
+  for (const std::string &NamespaceMacro : Style.NamespaceMacros)
+    Macros.emplace_back(&IdentTable.get(NamespaceMacro), TT_NamespaceMacro);
+  std::sort(Macros.begin(), Macros.end());
 }
 
 ArrayRef<FormatToken *> FormatTokenLexer::lex() {
@@ -605,12 +609,13 @@ FormatToken *FormatTokenLexer::getNextToken() {
   }
 
   if (Style.isCpp()) {
+    auto it = std::find(Macros.begin(), Macros.end(),
+                        FormatTok->Tok.getIdentifierInfo());
     if (!(Tokens.size() > 0 && Tokens.back()->Tok.getIdentifierInfo() &&
           Tokens.back()->Tok.getIdentifierInfo()->getPPKeywordID() ==
               tok::pp_define) &&
-        std::find(ForEachMacros.begin(), ForEachMacros.end(),
-                  FormatTok->Tok.getIdentifierInfo()) != ForEachMacros.end()) {
-      FormatTok->Type = TT_ForEachMacro;
+        it != Macros.end()) {
+      FormatTok->Type = it->TokType;
     } else if (FormatTok->is(tok::identifier)) {
       if (MacroBlockBeginRegex.match(Text)) {
         FormatTok->Type = TT_MacroBlockBegin;
