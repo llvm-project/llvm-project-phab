@@ -40,6 +40,7 @@ Configuration files:
     Checks:          '-*,some-check'
     WarningsAsErrors: ''
     HeaderFilterRegex: ''
+    ExcludeHeaderFilterRegex: ''
     AnalyzeTemporaryDtors: false
     FormatStyle:     none
     User:            user
@@ -84,6 +85,19 @@ from the main file of each translation unit are
 always displayed.
 Can be used together with -line-filter.
 This option overrides the 'HeaderFilter' option
+in .clang-tidy file, if any.
+)"),
+                                         cl::init(""),
+                                         cl::cat(ClangTidyCategory));
+
+static cl::opt<std::string>
+    ExcludeHeaderFilter("exclude-header-filter", cl::desc(R"(
+Regular expression matching the names of the
+headers to exclude when outputting diagnostics.
+Diagnostics from the main file of each translation
+unit are always displayed.
+Can be used together with -line-filter.
+This option overrides the 'ExcludeHeaderFilter' option
 in .clang-tidy file, if any.
 )"),
                                          cl::init(""),
@@ -233,9 +247,10 @@ static void printStats(const ClangTidyStats &Stats) {
                    << " with check filters";
     llvm::errs() << ").\n";
     if (Stats.ErrorsIgnoredNonUserCode)
-      llvm::errs() << "Use -header-filter=.* to display errors from all "
-                      "non-system headers. Use -system-headers to display "
-                      "errors from system headers as well.\n";
+      llvm::errs() << "Use -header-filter=.* -exclude-header-filter='' to "
+                      "display errors from all non-system headers. Use "
+                      "-system-headers to display errors from system headers "
+                      "as well.\n";
   }
 }
 
@@ -290,6 +305,7 @@ static std::unique_ptr<ClangTidyOptionsProvider> createOptionsProvider() {
   DefaultOptions.Checks = DefaultChecks;
   DefaultOptions.WarningsAsErrors = "";
   DefaultOptions.HeaderFilterRegex = HeaderFilter;
+  DefaultOptions.ExcludeHeaderFilterRegex = ExcludeHeaderFilter;
   DefaultOptions.SystemHeaders = SystemHeaders;
   DefaultOptions.AnalyzeTemporaryDtors = AnalyzeTemporaryDtors;
   DefaultOptions.FormatStyle = FormatStyle;
@@ -305,6 +321,8 @@ static std::unique_ptr<ClangTidyOptionsProvider> createOptionsProvider() {
     OverrideOptions.WarningsAsErrors = WarningsAsErrors;
   if (HeaderFilter.getNumOccurrences() > 0)
     OverrideOptions.HeaderFilterRegex = HeaderFilter;
+  if (ExcludeHeaderFilter.getNumOccurrences() > 0)
+    OverrideOptions.ExcludeHeaderFilterRegex = ExcludeHeaderFilter;
   if (SystemHeaders.getNumOccurrences() > 0)
     OverrideOptions.SystemHeaders = SystemHeaders;
   if (AnalyzeTemporaryDtors.getNumOccurrences() > 0)

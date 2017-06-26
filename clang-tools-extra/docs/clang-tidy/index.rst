@@ -239,6 +239,7 @@ An overview of all the command-line options:
       Checks:          '-*,some-check'
       WarningsAsErrors: ''
       HeaderFilterRegex: ''
+      ExcludeHeaderFilterRegex: ''
       AnalyzeTemporaryDtors: false
       FormatStyle:     none
       User:            user
