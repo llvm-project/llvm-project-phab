@@ -1463,9 +1463,9 @@ bool llvm::InlineFunction(CallSite CS, InlineFunctionInfo &IFI,
   IFI.reset();
 
   Function *CalledFunc = CS.getCalledFunction();
-  if (!CalledFunc ||              // Can't inline external function or indirect
-      CalledFunc->isDeclaration() || // call, or call to a vararg function!
-      CalledFunc->getFunctionType()->isVarArg()) return false;
+  if (!CalledFunc || // Can't inline external function or indirect calls
+      CalledFunc->isDeclaration())
+    return false;
 
   // The inliner does not know how to inline through calls with operand bundles
   // in general ...
@@ -1592,8 +1592,12 @@ bool llvm::InlineFunction(CallSite CS, InlineFunctionInfo &IFI,
 
     auto &DL = Caller->getParent()->getDataLayout();
 
-    assert(CalledFunc->arg_size() == CS.arg_size() &&
-           "No varargs calls can be inlined!");
+    if (CalledFunc->getFunctionType()->isVarArg())
+      assert(CalledFunc->arg_size() <= CS.arg_size() &&
+             "Not enough arguments passed to vararg function");
+    else
+      assert(CalledFunc->arg_size() == CS.arg_size() &&
+             "No varargs calls can be inlined!");
 
     // Calculate the vector of arguments to pass into the function cloner, which
     // matches up the formal to the actual argument values.
@@ -1781,16 +1785,25 @@ bool llvm::InlineFunction(CallSite CS, InlineFunctionInfo &IFI,
     if (CallInst *CI = dyn_cast<CallInst>(TheCall))
       CallSiteTailKind = CI->getTailCallKind();
 
+    bool CalleeIsVararg = CalledFunc->isVarArg(); // Just for asserts below.
     for (Function::iterator BB = FirstNewBlock, E = Caller->end(); BB != E;
          ++BB) {
       for (Instruction &I : *BB) {
         CallInst *CI = dyn_cast<CallInst>(&I);
         if (!CI)
           continue;
+        if (CalleeIsVararg) {
+          assert((!CI->isMustTailCall()) &&
+                 "Inlined musttailcall in vararg function");
+        }
 
-        if (Function *F = CI->getCalledFunction())
+        if (Function *F = CI->getCalledFunction()) {
           InlinedDeoptimizeCalls |=
               F->getIntrinsicID() == Intrinsic::experimental_deoptimize;
+          if (CalleeIsVararg)
+            assert((F->getIntrinsicID() != Intrinsic::vastart) &&
+                   "Inlined vastart");
+        }
 
         // We need to reduce the strength of any inlined tail calls.  For
         // musttail, we have to avoid introducing potential unbounded stack
