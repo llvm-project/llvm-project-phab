@@ -2402,9 +2402,15 @@ private:
       if (LI.isVolatile())
         NewLI->setAtomic(LI.getOrdering(), LI.getSynchScope());
 
-      // Try to preserve nonnull metadata
-      if (TargetTy->isPointerTy())
-        NewLI->copyMetadata(LI, LLVMContext::MD_nonnull);
+      // Any !nonnull metadata on the old load is also valid on the new load,
+      // so we can add it to the new load. This is valid even if there is a
+      // `zext` (which does not make much sense, but can occur if someone
+      // is treating pointers as integers) - if the loaded value is a 0,
+      // the extended value will also be `null`.
+      if (MDNode *N = LI.getMetadata(LLVMContext::MD_nonnull)) {
+	  copyNonnullMetadata(LI, N, *NewLI);
+      }
+
       V = NewLI;
 
       // If this is an integer load past the end of the slice (which means the
@@ -3587,7 +3593,7 @@ bool SROA::presplitLoadsAndStores(AllocaInst &AI, AllocaSlices &AS) {
                          PartPtrTy, BasePtr->getName() + "."),
           getAdjustedAlignment(LI, PartOffset, DL), /*IsVolatile*/ false,
           LI->getName());
-      PLoad->copyMetadata(*LI, LLVMContext::MD_mem_parallel_loop_access); 
+      PLoad->copyMetadata(*LI, LLVMContext::MD_mem_parallel_loop_access);
 
       // Append this load onto the list of split loads so we can find it later
       // to rewrite the stores.
