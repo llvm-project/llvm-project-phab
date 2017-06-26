@@ -134,23 +134,29 @@ private:
   unsigned Indent = 0;
 };
 
-bool isNamespaceDeclaration(const AnnotatedLine *Line) {
-  const FormatToken *NamespaceTok = Line->First;
-  // Detect "(inline)? namespace" in the beginning of a line.
-  if (NamespaceTok->is(tok::kw_inline))
-    NamespaceTok = NamespaceTok->getNextNonComment();
-  return NamespaceTok && NamespaceTok->is(tok::kw_namespace);
-}
-
-bool isEndOfNamespace(const AnnotatedLine *Line,
-                      const SmallVectorImpl<AnnotatedLine *> &AnnotatedLines) {
+const FormatToken *getMatchingNamespaceToken(
+    const AnnotatedLine *Line,
+    const SmallVectorImpl<AnnotatedLine *> &AnnotatedLines) {
   if (!Line->startsWith(tok::r_brace))
-    return false;
+    return nullptr;
   size_t StartLineIndex = Line->MatchingOpeningBlockLineIndex;
   if (StartLineIndex == UnwrappedLine::kInvalidIndex)
-    return false;
+    return nullptr;
   assert(StartLineIndex < AnnotatedLines.size());
-  return isNamespaceDeclaration(AnnotatedLines[StartLineIndex]);
+  return AnnotatedLines[StartLineIndex]->First->getNamespaceToken();
+}
+
+StringRef getNamespaceTokenText(const AnnotatedLine *Line) {
+  const FormatToken *NamespaceToken = Line->First->getNamespaceToken();
+  return NamespaceToken ? NamespaceToken->TokenText : StringRef();
+}
+
+StringRef getMatchingNamespaceTokenText(
+    const AnnotatedLine *Line,
+    const SmallVectorImpl<AnnotatedLine *> &AnnotatedLines) {
+  const FormatToken *NamespaceToken =
+      getMatchingNamespaceToken(Line, AnnotatedLines);
+  return NamespaceToken ? NamespaceToken->TokenText : StringRef();
 }
 
 class LineJoiner {
@@ -230,10 +236,11 @@ private:
          TheLine->Level != 0);
 
     if (Style.CompactNamespaces) {
-      if (isNamespaceDeclaration(TheLine)) {
+      if (auto nsToken = TheLine->First->getNamespaceToken()) {
         int i = 0;
         unsigned closingLine = TheLine->MatchingOpeningBlockLineIndex - 1;
-        for (; I + 1 + i != E && isNamespaceDeclaration(I[i + 1]) &&
+        for (; I + 1 + i != E &&
+               nsToken->TokenText == getNamespaceTokenText(I[i + 1]) &&
                closingLine == I[i + 1]->MatchingOpeningBlockLineIndex &&
                I[i + 1]->Last->TotalLength < Limit;
              i++, closingLine--) {
@@ -245,10 +252,12 @@ private:
         return i;
       }
 
-      if (isEndOfNamespace(TheLine, AnnotatedLines)) {
+      if (auto nsToken = getMatchingNamespaceToken(TheLine, AnnotatedLines)) {
         int i = 0;
         unsigned openingLine = TheLine->MatchingOpeningBlockLineIndex - 1;
-        for (; I + 1 + i != E && isEndOfNamespace(I[i + 1], AnnotatedLines) &&
+        for (; I + 1 + i != E &&
+               nsToken->TokenText ==
+                   getMatchingNamespaceTokenText(I[i + 1], AnnotatedLines) &&
                openingLine == I[i + 1]->MatchingOpeningBlockLineIndex;
              i++, openingLine--) {
           // No space between consecutive braces
@@ -432,6 +441,7 @@ private:
       Tok->CanBreakBefore = true;
       return 1;
     } else if (Limit != 0 && !Line.startsWith(tok::kw_namespace) &&
+               !Line.startsWith(TT_NamespaceMacro) &&
                !startsExternCBlock(Line)) {
       // We don't merge short records.
       FormatToken *RecordTok =
@@ -1004,6 +1014,7 @@ void UnwrappedLineFormatter::formatFirstToken(const AnnotatedLine &Line,
   if (!Style.KeepEmptyLinesAtTheStartOfBlocks && PreviousLine &&
       PreviousLine->Last->is(tok::l_brace) &&
       PreviousLine->First->isNot(tok::kw_namespace) &&
+      PreviousLine->First->isNot(TT_NamespaceMacro) &&
       !startsExternCBlock(*PreviousLine))
     Newlines = 1;
 
