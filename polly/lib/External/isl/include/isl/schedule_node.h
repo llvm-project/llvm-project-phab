@@ -149,6 +149,8 @@ __isl_give isl_set *isl_schedule_node_context_get_context(
 	__isl_keep isl_schedule_node *node);
 __isl_give isl_union_set *isl_schedule_node_domain_get_domain(
 	__isl_keep isl_schedule_node *node);
+__isl_give isl_schedule_node *isl_schedule_node_domain_union_domain(
+	__isl_take isl_schedule_node *node, __isl_take isl_union_set *domain);
 __isl_give isl_union_map *isl_schedule_node_expansion_get_expansion(
 	__isl_keep isl_schedule_node *node);
 __isl_give isl_union_pw_multi_aff *isl_schedule_node_expansion_get_contraction(
@@ -157,6 +159,8 @@ __isl_give isl_union_map *isl_schedule_node_extension_get_extension(
 	__isl_keep isl_schedule_node *node);
 __isl_give isl_union_set *isl_schedule_node_filter_get_filter(
 	__isl_keep isl_schedule_node *node);
+__isl_give  isl_schedule_node *isl_schedule_node_filter_union_filter(
+	__isl_take isl_schedule_node *node, __isl_take isl_union_set *filter);
 __isl_give isl_set *isl_schedule_node_guard_get_guard(
 	__isl_keep isl_schedule_node *node);
 __isl_give isl_id *isl_schedule_node_mark_get_id(

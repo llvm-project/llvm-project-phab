@@ -1070,13 +1070,147 @@ __isl_give isl_map *getMatMulAccRel(__isl_take isl_map *MapOldIndVar,
   return isl_map_apply_range(MapOldIndVar, AccessRel);
 }
 
-__isl_give isl_schedule_node *
-createExtensionNode(__isl_take isl_schedule_node *Node,
-                    __isl_take isl_map *ExtensionMap) {
-  auto *Extension = isl_union_map_from_map(ExtensionMap);
-  auto *NewNode = isl_schedule_node_from_extension(Extension);
-  return isl_schedule_node_graft_before(Node, NewNode);
+namespace {
+/// Access the array that could store  all elements of the access relation
+/// range.
+///
+/// @param AccRel The access relation to be modified.
+/// @param ArrayName The name of the array that should be created.
+/// @param ElemType The type of elements of the array that should be created.
+/// @return The modified access relation.
+__isl_give isl_map *getAccessToArray(__isl_take isl_map *AccRel,
+                                     const char *ArrayName, Type *ElemType) {
+  auto InputDimsId = isl_map_get_tuple_id(AccRel, isl_dim_in);
+  auto *Stmt = static_cast<ScopStmt *>(isl_id_get_user(InputDimsId));
+  isl_id_free(InputDimsId);
+  auto *AccRelRange = isl_set_lexmax(isl_map_range(isl_map_copy(AccRel)));
+  assert(isl_set_is_singleton(AccRelRange) &&
+         "The range of the access relation should have fixed bounds.");
+  auto *DimBound = isl_set_plain_get_val_if_fixed(AccRelRange, isl_dim_set, 0);
+  unsigned FirstDimSize = isl_val_get_num_si(DimBound) + 1;
+  isl_val_free(DimBound);
+  DimBound = isl_set_plain_get_val_if_fixed(AccRelRange, isl_dim_set, 1);
+  unsigned SecondDimSize = isl_val_get_num_si(DimBound) + 1;
+  isl_val_free(DimBound);
+  DimBound = isl_set_plain_get_val_if_fixed(AccRelRange, isl_dim_set, 2);
+  unsigned ThirdDimSize = isl_val_get_num_si(DimBound) + 1;
+  isl_val_free(DimBound);
+  isl_set_free(AccRelRange);
+  auto *SAI = Stmt->getParent()->createScopArrayInfo(
+      ElemType, ArrayName, {FirstDimSize, SecondDimSize, ThirdDimSize});
+  return isl_map_set_tuple_id(AccRel, isl_dim_out, SAI->getBasePtrId());
 }
+
+/// Create and add the copy statement to the SCoP
+///
+/// @param ReadAcc Memory access that reads from the memory.
+/// @param WriteAccRel The access relation to be used to write to memory.
+/// @param UnusedDim The dimension of the SCoP domain that is not used for
+///                  the copying.
+/// @return The newly created copy statement.
+ScopStmt *addCopyStmt(MemoryAccess *ReadAcc, __isl_take isl_map *WriteAccRel,
+                      unsigned UnusedDim) {
+  auto *ReadAccRel = ReadAcc->getAccessRelation();
+  auto InputDimsId = isl_map_get_tuple_id(ReadAccRel, isl_dim_in);
+  auto *Stmt = static_cast<ScopStmt *>(isl_id_get_user(InputDimsId));
+  isl_id_free(InputDimsId);
+  ReadAcc->setNewAccessRelation(isl_map_copy(WriteAccRel));
+  auto *Domain = isl_set_fix_si(Stmt->getDomain(), isl_dim_set, UnusedDim, 0);
+  return Stmt->getParent()->addScopStmt(ReadAccRel, WriteAccRel, Domain);
+}
+
+/// Union the node domain and @p UnionSet.
+///
+/// @param Node The node with the domain to be modified.
+/// @param UnionSet The union set to be united with the node domain.
+/// @return The node with modified domain.
+__isl_give isl_schedule_node *
+unionDomainNodeDomain(__isl_take isl_schedule_node *Node,
+                      __isl_take isl_union_set *UnionSet) {
+  auto *ScheduleDomain = isl_schedule_node_get_domain(Node);
+  Node = isl_schedule_node_root(Node);
+  Node =
+      isl_schedule_node_domain_union_domain(Node, isl_union_set_copy(UnionSet));
+  Node = isl_schedule_node_child(isl_schedule_node_root(Node), 0);
+  if (isl_schedule_node_get_type(Node) == isl_schedule_node_sequence) {
+    for (int i = 0; i < isl_schedule_node_n_children(Node); i++) {
+      Node = isl_schedule_node_child(Node, i);
+      auto *Filter = isl_schedule_node_filter_get_filter(Node);
+      if (isl_union_set_is_subset(ScheduleDomain, Filter)) {
+        Filter = isl_union_set_union(Filter, isl_union_set_copy(UnionSet));
+        Node = isl_schedule_node_filter_union_filter(Node, Filter);
+        Node = isl_schedule_node_child(Node, 0);
+        break;
+      }
+      isl_union_set_free(Filter);
+      Node = isl_schedule_node_parent(Node);
+    }
+  }
+  isl_union_set_free(UnionSet);
+  isl_union_set_free(ScheduleDomain);
+  return isl_schedule_node_child(isl_schedule_node_child(Node, 0), 0);
+}
+
+/// Insert the childless filter node.
+///
+/// @param Node The node to be modified.
+/// @param Filter The union set to be used as a filter.
+/// @return The child of the newly created filter node.
+__isl_give isl_schedule_node *
+insertChildlessFilterNode(__isl_take isl_schedule_node *Node,
+                          __isl_take isl_union_set_list *Filter) {
+  Node = isl_schedule_node_insert_sequence(Node, Filter);
+  Node = isl_schedule_node_child(isl_schedule_node_child(Node, 0), 0);
+  while (isl_schedule_node_get_type(Node) != isl_schedule_node_leaf)
+    isl_schedule_node_delete(Node);
+  return isl_schedule_node_parent(isl_schedule_node_parent(Node));
+}
+
+/// Get the band dimensions of the optimized GEMM.
+///
+/// @param CopyStmtA The copy statement that accesses the packed array A.
+/// @param CopyStmtB The copy statement that accesses the packed array B.
+/// @param Pos The position of the first dimension that should not be
+///            considered.
+/// @param Number The number of  dimensions that should not be considered.
+/// @param Node The position of 1st level tiles.
+/// @return The desired band dimensions.
+__isl_give isl_multi_union_pw_aff *
+getMatMulBandDimensions(ScopStmt *CopyStmtA, ScopStmt *CopyStmtB, unsigned Pos,
+                        unsigned Number, __isl_take isl_schedule_node *Node) {
+  assert((isl_schedule_node_get_type(Node) == isl_schedule_node_band) &&
+         "Subsequently examine the dimensions.");
+  auto *PartialSchedule =
+      isl_schedule_node_band_get_partial_schedule_union_map(Node);
+  assert((isl_union_map_n_map(PartialSchedule) == 1) &&
+         "The node contains dimensions of the single SCoP statement.");
+  auto *PartialScheduleMap = isl_map_from_union_map(PartialSchedule);
+  assert((isl_map_dim(PartialScheduleMap, isl_dim_out) >= Pos + Number) &&
+         "Operate on the output dimensions of the map.");
+  auto *CopyARel = isl_map_set_tuple_id(isl_map_copy(PartialScheduleMap),
+                                        isl_dim_in, CopyStmtA->getDomainId());
+  auto *CopyBRel = isl_map_set_tuple_id(isl_map_copy(PartialScheduleMap),
+                                        isl_dim_in, CopyStmtB->getDomainId());
+  CopyARel =
+      isl_map_drop_constraints_involving_dims(CopyARel, isl_dim_out, 0, 1);
+  CopyARel = isl_map_fix_si(CopyARel, isl_dim_out, 0, 0);
+  CopyBRel =
+      isl_map_drop_constraints_involving_dims(CopyBRel, isl_dim_out, 2, 1);
+  CopyBRel = isl_map_fix_si(CopyBRel, isl_dim_out, 2, 0);
+  CopyARel = isl_map_project_out(CopyARel, isl_dim_out, Pos, Number);
+  CopyBRel = isl_map_project_out(CopyBRel, isl_dim_out, Pos, Number);
+  auto *CopyADimensions = isl_union_map_from_map(CopyARel);
+  auto *CopyBDimensions = isl_union_map_from_map(CopyBRel);
+  auto *UnionOfDimensions =
+      isl_union_map_union(CopyADimensions, CopyBDimensions);
+  PartialScheduleMap =
+      isl_map_project_out(PartialScheduleMap, isl_dim_out, Pos, Number);
+  auto *PartialScheduleUnionMap = isl_union_map_from_map(PartialScheduleMap);
+  UnionOfDimensions =
+      isl_union_map_union(PartialScheduleUnionMap, UnionOfDimensions);
+  return isl_multi_union_pw_aff_from_union_map(UnionOfDimensions);
+}
+} // namespace
 
 /// Apply the packing transformation.
 ///
@@ -1114,68 +1248,33 @@ static __isl_give isl_schedule_node *optimizeDataLayoutMatrMulPattern(
     __isl_take isl_schedule_node *Node, __isl_take isl_map *MapOldIndVar,
     MicroKernelParamsTy MicroParams, MacroKernelParamsTy MacroParams,
     MatMulInfoTy &MMI) {
-  auto InputDimsId = isl_map_get_tuple_id(MapOldIndVar, isl_dim_in);
-  auto *Stmt = static_cast<ScopStmt *>(isl_id_get_user(InputDimsId));
-  isl_id_free(InputDimsId);
-
-  // Create a copy statement that corresponds to the memory access to the
-  // matrix B, the second operand of the matrix multiplication.
-  Node = isl_schedule_node_parent(isl_schedule_node_parent(Node));
-  Node = isl_schedule_node_parent(isl_schedule_node_parent(Node));
-  Node = isl_schedule_node_parent(Node);
-  Node = isl_schedule_node_child(isl_schedule_node_band_split(Node, 2), 0);
   auto *AccRel = getMatMulAccRel(isl_map_copy(MapOldIndVar), 3, 7);
-  unsigned FirstDimSize = MacroParams.Nc / MicroParams.Nr;
-  unsigned SecondDimSize = MacroParams.Kc;
-  unsigned ThirdDimSize = MicroParams.Nr;
-  auto *SAI = Stmt->getParent()->createScopArrayInfo(
-      MMI.B->getElementType(), "Packed_B",
-      {FirstDimSize, SecondDimSize, ThirdDimSize});
-  AccRel = isl_map_set_tuple_id(AccRel, isl_dim_out, SAI->getBasePtrId());
-  auto *OldAcc = MMI.B->getAccessRelation();
-  MMI.B->setNewAccessRelation(AccRel);
-  auto *ExtMap =
-      isl_map_project_out(isl_map_copy(MapOldIndVar), isl_dim_out, 2,
-                          isl_map_dim(MapOldIndVar, isl_dim_out) - 2);
-  ExtMap = isl_map_reverse(ExtMap);
-  ExtMap = isl_map_fix_si(ExtMap, isl_dim_out, MMI.i, 0);
-  auto *Domain = Stmt->getDomain();
-
-  // Restrict the domains of the copy statements to only execute when also its
-  // originating statement is executed.
-  auto *DomainId = isl_set_get_tuple_id(Domain);
-  auto *NewStmt = Stmt->getParent()->addScopStmt(
-      OldAcc, MMI.B->getAccessRelation(), isl_set_copy(Domain));
-  ExtMap = isl_map_set_tuple_id(ExtMap, isl_dim_out, isl_id_copy(DomainId));
-  ExtMap = isl_map_intersect_range(ExtMap, isl_set_copy(Domain));
-  ExtMap = isl_map_set_tuple_id(ExtMap, isl_dim_out, NewStmt->getDomainId());
-  Node = createExtensionNode(Node, ExtMap);
-
-  // Create a copy statement that corresponds to the memory access
-  // to the matrix A, the first operand of the matrix multiplication.
+  AccRel = getAccessToArray(AccRel, "Packed_B", MMI.B->getElementType());
+  auto *StmtB = addCopyStmt(MMI.B, AccRel, MMI.i);
+  AccRel = getAccessToArray(getMatMulAccRel(MapOldIndVar, 4, 6), "Packed_A",
+                            MMI.A->getElementType());
+  auto *StmtA = addCopyStmt(MMI.A, AccRel, MMI.j);
+  auto *StmtADomain = isl_union_set_from_set(StmtA->getDomain());
+  auto *StmtBDomain = isl_union_set_from_set(StmtB->getDomain());
+  auto *Domain = isl_union_set_union(isl_union_set_copy(StmtADomain),
+                                     isl_union_set_copy(StmtBDomain));
+  Node = unionDomainNodeDomain(Node, Domain);
+  auto *Stage1Dimensions = getMatMulBandDimensions(StmtA, StmtB, 2, 1, Node);
+  auto *Stage2Dimensions = getMatMulBandDimensions(StmtA, StmtB, 0, 2, Node);
+  Node = isl_schedule_node_delete(Node);
+  Node = isl_schedule_node_insert_partial_schedule(Node, Stage1Dimensions);
   Node = isl_schedule_node_child(Node, 0);
-  AccRel = getMatMulAccRel(isl_map_copy(MapOldIndVar), 4, 6);
-  FirstDimSize = MacroParams.Mc / MicroParams.Mr;
-  ThirdDimSize = MicroParams.Mr;
-  SAI = Stmt->getParent()->createScopArrayInfo(
-      MMI.A->getElementType(), "Packed_A",
-      {FirstDimSize, SecondDimSize, ThirdDimSize});
-  AccRel = isl_map_set_tuple_id(AccRel, isl_dim_out, SAI->getBasePtrId());
-  OldAcc = MMI.A->getAccessRelation();
-  MMI.A->setNewAccessRelation(AccRel);
-  ExtMap = isl_map_project_out(MapOldIndVar, isl_dim_out, 3,
-                               isl_map_dim(MapOldIndVar, isl_dim_out) - 3);
-  ExtMap = isl_map_reverse(ExtMap);
-  ExtMap = isl_map_fix_si(ExtMap, isl_dim_out, MMI.j, 0);
-  NewStmt = Stmt->getParent()->addScopStmt(OldAcc, MMI.A->getAccessRelation(),
-                                           isl_set_copy(Domain));
-
-  // Restrict the domains of the copy statements to only execute when also its
-  // originating statement is executed.
-  ExtMap = isl_map_set_tuple_id(ExtMap, isl_dim_out, DomainId);
-  ExtMap = isl_map_intersect_range(ExtMap, Domain);
-  ExtMap = isl_map_set_tuple_id(ExtMap, isl_dim_out, NewStmt->getDomainId());
-  Node = createExtensionNode(Node, ExtMap);
+  auto *ScheduleDomain = isl_schedule_node_get_domain(Node);
+  auto *Filter = isl_union_set_list_from_union_set(StmtBDomain);
+  Filter = isl_union_set_list_add(Filter, isl_union_set_copy(ScheduleDomain));
+  Node = insertChildlessFilterNode(Node, Filter);
+  Node = isl_schedule_node_child(isl_schedule_node_child(Node, 1), 0);
+  Node = isl_schedule_node_insert_partial_schedule(Node, Stage2Dimensions);
+  Node = isl_schedule_node_child(Node, 0);
+  Filter = isl_union_set_list_from_union_set(StmtADomain);
+  Filter = isl_union_set_list_add(Filter, ScheduleDomain);
+  Node = insertChildlessFilterNode(Node, Filter);
+  Node = isl_schedule_node_child(isl_schedule_node_child(Node, 1), 0);
   Node = isl_schedule_node_child(isl_schedule_node_child(Node, 0), 0);
   return isl_schedule_node_child(isl_schedule_node_child(Node, 0), 0);
 }
@@ -1322,10 +1421,10 @@ __isl_give isl_schedule_node *ScheduleTreeOptimizer::optimizeMatMulPattern(
       Node, MicroKernelParams, MacroKernelParams);
   if (!MapOldIndVar)
     return Node;
-  Node =
-      isolateAndUnrollMatMulInnerLoops(give(Node), MicroKernelParams).release();
-  return optimizeDataLayoutMatrMulPattern(Node, MapOldIndVar, MicroKernelParams,
+  Node = optimizeDataLayoutMatrMulPattern(Node, MapOldIndVar, MicroKernelParams,
                                           MacroKernelParams, MMI);
+  return isolateAndUnrollMatMulInnerLoops(give(Node), MicroKernelParams)
+      .release();
 }
 
 bool ScheduleTreeOptimizer::isMatrMultPattern(
@@ -1590,6 +1689,8 @@ bool IslScheduleOptimizer::runOnScop(Scop &S) {
 
   S.setScheduleTree(NewSchedule);
   S.markAsOptimized();
+
+  getAnalysis<DependenceInfo>().releaseMemory();
 
   if (OptimizedScops)
     S.dump();

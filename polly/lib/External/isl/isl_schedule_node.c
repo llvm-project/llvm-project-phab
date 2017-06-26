@@ -2103,6 +2103,24 @@ error:
 	return NULL;
 }
 
+/* Union the filter of filter node "node" with "filter".
+ */
+__isl_give isl_schedule_node *isl_schedule_node_filter_union_filter(
+	__isl_take isl_schedule_node *node, __isl_take isl_union_set *filter)
+{
+	isl_union_set *node_filter = NULL;
+	if (!node || !filter)
+		goto error;
+
+	node_filter = isl_schedule_tree_filter_get_filter(node->tree);
+	node_filter = isl_union_set_union(filter, node_filter);
+	return isl_schedule_node_filter_set_filter(node, node_filter);
+error:
+	isl_schedule_node_free(node);
+	isl_union_set_free(filter);
+	return NULL;
+}
+
 /* Intersect the filter of filter node "node" with "filter".
  *
  * If the filter of the node is already a subset of "filter",
@@ -3548,6 +3566,37 @@ error:
 	isl_union_set_free(domain);
 	return NULL;
 }
+
+/* Union the domain of domain node "node" with "domain".
+*/
+__isl_give isl_schedule_node *isl_schedule_node_domain_union_domain(
+	__isl_take isl_schedule_node *node, __isl_take isl_union_set *domain)
+{
+	isl_schedule_tree *tree;
+	isl_union_set *uset;
+
+	if (!node || !domain ||
+	    !(isl_schedule_node_get_type(node) == isl_schedule_node_domain))
+		goto error;
+
+	tree = isl_schedule_tree_copy(node->tree);
+	uset = isl_schedule_tree_domain_get_domain(tree);
+	uset = isl_union_set_union(uset, domain);
+	tree = isl_schedule_tree_domain_set_domain(tree,
+						    isl_union_set_copy(uset));
+	node = isl_schedule_node_graft_tree(node, tree);
+
+	node = isl_schedule_node_child(node, 0);
+	node = isl_schedule_node_gist(node, uset);
+	node = isl_schedule_node_parent(node);
+
+	return node;
+error:
+	isl_schedule_node_free(node);
+	isl_union_set_free(domain);
+	return NULL;
+}
+
 
 /* Replace the domain of domain node "node" with the gist
  * of the original domain with respect to the parameter domain "context".

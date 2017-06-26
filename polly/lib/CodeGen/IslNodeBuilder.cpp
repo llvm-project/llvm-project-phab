@@ -220,18 +220,20 @@ isl_stat addReferencesFromStmt(const ScopStmt *Stmt, void *UserPtr,
                                bool CreateScalarRefs) {
   auto &References = *static_cast<struct SubtreeReferences *>(UserPtr);
 
-  if (Stmt->isBlockStmt())
-    findReferencesInBlock(References, Stmt, Stmt->getBasicBlock());
-  else {
-    assert(Stmt->isRegionStmt() &&
-           "Stmt was neither block nor region statement");
-    for (const BasicBlock *BB : Stmt->getRegion()->blocks())
-      findReferencesInBlock(References, Stmt, BB);
+  if (!Stmt->isCopyStmt()) {
+    if (Stmt->isBlockStmt())
+      findReferencesInBlock(References, Stmt, Stmt->getBasicBlock());
+    else {
+      assert(Stmt->isRegionStmt() &&
+             "Stmt was neither block nor region statement");
+      for (const BasicBlock *BB : Stmt->getRegion()->blocks())
+        findReferencesInBlock(References, Stmt, BB);
+    }
   }
 
   for (auto &Access : *Stmt) {
-    if (Access->isArrayKind()) {
-      auto *BasePtr = Access->getScopArrayInfo()->getBasePtr();
+    if (Access->isLatestArrayKind()) {
+      auto *BasePtr = Access->getLatestScopArrayInfo()->getBasePtr();
       if (Instruction *OpInst = dyn_cast<Instruction>(BasePtr))
         if (Stmt->getParent()->contains(OpInst))
           continue;

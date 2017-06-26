@@ -54,6 +54,8 @@ __isl_give isl_schedule_node *isl_schedule_node_gist(
 
 __isl_give isl_schedule_node *isl_schedule_node_domain_intersect_domain(
 	__isl_take isl_schedule_node *node, __isl_take isl_union_set *domain);
+__isl_give isl_schedule_node *isl_schedule_node_domain_union_domain(
+	__isl_take isl_schedule_node *node, __isl_take isl_union_set *domain);
 __isl_give isl_schedule_node *isl_schedule_node_domain_gist_params(
 	__isl_take isl_schedule_node *node, __isl_take isl_set *context);
 
