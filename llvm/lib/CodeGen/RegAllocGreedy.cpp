@@ -66,6 +66,7 @@
 #include "llvm/Support/Timer.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetInstrInfo.h"
+#include "llvm/Target/TargetLowering.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetRegisterInfo.h"
 #include "llvm/Target/TargetSubtargetInfo.h"
@@ -148,6 +149,7 @@ class RAGreedy : public MachineFunctionPass,
   // Shortcuts to some useful interface.
   const TargetInstrInfo *TII;
   const TargetRegisterInfo *TRI;
+  const TargetLowering *TLI;
   RegisterClassInfo RCI;
 
   // analyses
@@ -416,6 +418,7 @@ private:
                                  unsigned PhysReg, unsigned &CostPerUseLimit,
                                  SmallVectorImpl<unsigned> &NewVRegs);
   void initializeCSRCost();
+  BlockFrequency getFirstTimeCSRCost(LiveInterval &VirtReg);
   unsigned tryBlockSplit(LiveInterval&, AllocationOrder&,
                          SmallVectorImpl<unsigned>&);
   unsigned tryInstructionSplit(LiveInterval&, AllocationOrder&,
@@ -1502,6 +1505,7 @@ unsigned RAGreedy::calculateRegionSplitCost(LiveInterval &VirtReg,
     }
 
     Cost += calcGlobalSplitCost(Cand);
+
     DEBUG({
       dbgs() << ", total = "; MBFI->printBlockFreq(dbgs(), Cost)
                                 << " with bundles";
@@ -2334,9 +2338,9 @@ unsigned RAGreedy::tryAssignCSRFirstTime(LiveInterval &VirtReg,
                                          SmallVectorImpl<unsigned> &NewVRegs) {
   if (getStage(VirtReg) == RS_Spill && VirtReg.isSpillable()) {
     // We choose spill over using the CSR for the first time if the spill cost
-    // is lower than CSRCost.
+    // is lower than the CSR cost.
     SA->analyze(&VirtReg);
-    if (calcSpillCost() >= CSRCost)
+    if (calcSpillCost() >= getFirstTimeCSRCost(VirtReg))
       return PhysReg;
 
     // We are going to spill, set CostPerUseLimit to 1 to make sure that
@@ -2346,10 +2350,10 @@ unsigned RAGreedy::tryAssignCSRFirstTime(LiveInterval &VirtReg,
   }
   if (getStage(VirtReg) < RS_Split) {
     // We choose pre-splitting over using the CSR for the first time if
-    // the cost of splitting is lower than CSRCost.
+    // the cost of splitting is lower than the CSR cost.
     SA->analyze(&VirtReg);
     unsigned NumCands = 0;
-    BlockFrequency BestCost = CSRCost; // Don't modify CSRCost.
+    BlockFrequency BestCost = getFirstTimeCSRCost(VirtReg);
     unsigned BestCand = calculateRegionSplitCost(VirtReg, Order, BestCost,
                                                  NumCands, true /*IgnoreCSR*/);
     if (BestCand == NoCand)
@@ -2366,6 +2370,37 @@ unsigned RAGreedy::tryAssignCSRFirstTime(LiveInterval &VirtReg,
 void RAGreedy::aboutToRemoveInterval(LiveInterval &LI) {
   // Do not keep invalid information around.
   SetOfBrokenHints.remove(&LI);
+}
+
+// Increase the cost for the first use of a callee-saved register if the live
+// range of the value spans basic blocks in which we'd prefer not to use one.
+// This will often defer use of a CSR and give shrink-wrapping an opportunity
+// to sink/hoist the save/restore from entry/exit blocks respectively.
+BlockFrequency RAGreedy::getFirstTimeCSRCost(LiveInterval &VirtReg) {
+  BlockFrequency BestCost = CSRCost;
+  if (TLI->useCSRInsteadOfSplit(VirtReg))
+    return BestCost;
+
+  // Conservatively, we try to increase the CSR cost only when all blocks in
+  // the live range have no call.
+  ArrayRef<SplitAnalysis::BlockInfo> UseBlocks = SA->getUseBlocks();
+  for (int i = 0, e = UseBlocks.size(); i < e; ++i)
+    for (auto &MI : *UseBlocks[i].MBB)
+      if (MI.isCall())
+        return BestCost;
+
+  // Now, we prefer to defering the first use of CSR. Try to increase the CSR
+  // cost by multipling the frequency of entry block with the number of tradable
+  // splits or spills.
+  uint64_t EntryFreq = MBFI->getEntryFreq();
+  if (getStage(VirtReg) == RS_Spill && VirtReg.isSpillable())
+    return std::max(BestCost.getFrequency(),
+                    EntryFreq * TLI->getNumberOfTradableSpillsAgainstCSR());
+  else if (getStage(VirtReg) < RS_Split)
+    return std::max(BestCost.getFrequency(),
+                    EntryFreq * TLI->getNumberOfTradableSplitsAgainstCSR());
+  else
+    llvm_unreachable ("Unexpected stage to find the first time CSR cost.");
 }
 
 void RAGreedy::initializeCSRCost() {
@@ -2568,8 +2603,8 @@ unsigned RAGreedy::selectOrSplitImpl(LiveInterval &VirtReg,
     // When NewVRegs is not empty, we may have made decisions such as evicting
     // a virtual register, go with the earlier decisions and use the physical
     // register.
-    if (CSRCost.getFrequency() && isUnusedCalleeSavedReg(PhysReg) &&
-        NewVRegs.empty()) {
+    if ((CSRCost.getFrequency() || !TLI->useCSRInsteadOfSplit(VirtReg)) &&
+        isUnusedCalleeSavedReg(PhysReg) && NewVRegs.empty()) {
       unsigned CSRReg = tryAssignCSRFirstTime(VirtReg, Order, PhysReg,
                                               CostPerUseLimit, NewVRegs);
       if (CSRReg || !NewVRegs.empty())
@@ -2723,6 +2758,7 @@ bool RAGreedy::runOnMachineFunction(MachineFunction &mf) {
   MF = &mf;
   TRI = MF->getSubtarget().getRegisterInfo();
   TII = MF->getSubtarget().getInstrInfo();
+  TLI = MF->getSubtarget().getTargetLowering();
   RCI.runOnMachineFunction(mf);
 
   EnableLocalReassign = EnableLocalReassignment ||
@@ -2747,7 +2783,6 @@ bool RAGreedy::runOnMachineFunction(MachineFunction &mf) {
   AA = &getAnalysis<AAResultsWrapperPass>().getAAResults();
 
   initializeCSRCost();
-
   calculateSpillWeightsAndHints(*LIS, mf, VRM, *Loops, *MBFI);
 
   DEBUG(LIS->dump());
