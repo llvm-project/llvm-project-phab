@@ -50,7 +50,11 @@ public:
   // Decide whether a Thunk is needed for the relocation from File
   // targeting S.
   virtual bool needsThunk(RelExpr Expr, uint32_t RelocType,
-                          const InputFile *File, const SymbolBody &S) const;
+                          const InputFile *File, uint64_t BranchAddr,
+                          const SymbolBody &S) const;
+  // Return true if we can reach Dst from Src with Relocation RelocType
+  virtual bool inBranchRange(uint32_t RelocType, uint64_t Src,
+                             uint64_t Dst) const;
   virtual RelExpr getRelExpr(uint32_t Type, const SymbolBody &S,
                              const uint8_t *Loc) const = 0;
   virtual void relocateOne(uint8_t *Loc, uint32_t Type, uint64_t Val) const = 0;
@@ -69,6 +73,13 @@ public:
   // Offset of _GLOBAL_OFFSET_TABLE_ from base of .got section. Use -1 for
   // end of .got
   uint64_t GotBaseSymOff = 0;
+
+  // On systems with range extensions we place collections of Thunks at
+  // regular spacings that enable the majority of branches reach the Thunks.
+  uint32_t ThunkSectionSpacing = 0x0;
+
+  // An estimate of size of the Thunks that will be created per ThunkSection
+  uint32_t ThunkSectionSize = 0x0;
 
   uint32_t CopyRel;
   uint32_t GotRel;

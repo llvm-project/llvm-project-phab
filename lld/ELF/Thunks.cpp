@@ -52,48 +52,52 @@ namespace {
 // Source State, TargetState, Target Requirement, ABS or PI, Range
 class ARMV7ABSLongThunk final : public Thunk {
 public:
-  ARMV7ABSLongThunk(const SymbolBody &Dest) : Thunk(Dest) {}
+  ARMV7ABSLongThunk(SymbolBody &Dest) : Thunk(Dest) {}
 
   uint32_t size() const override { return 12; }
   void writeTo(uint8_t *Buf, ThunkSection &IS) const override;
   void addSymbols(ThunkSection &IS) override;
+  bool compatibleWith(uint32_t RelocType) const override;
 };
 
 class ARMV7PILongThunk final : public Thunk {
 public:
-  ARMV7PILongThunk(const SymbolBody &Dest) : Thunk(Dest) {}
+  ARMV7PILongThunk(SymbolBody &Dest) : Thunk(Dest) {}
 
   uint32_t size() const override { return 16; }
   void writeTo(uint8_t *Buf, ThunkSection &IS) const override;
   void addSymbols(ThunkSection &IS) override;
+  bool compatibleWith(uint32_t RelocType) const override;
 };
 
 class ThumbV7ABSLongThunk final : public Thunk {
 public:
-  ThumbV7ABSLongThunk(const SymbolBody &Dest) : Thunk(Dest) {
+  ThumbV7ABSLongThunk(SymbolBody &Dest) : Thunk(Dest) {
     this->alignment = 2;
   }
 
   uint32_t size() const override { return 10; }
   void writeTo(uint8_t *Buf, ThunkSection &IS) const override;
   void addSymbols(ThunkSection &IS) override;
+  bool compatibleWith(uint32_t RelocType) const override;
 };
 
 class ThumbV7PILongThunk final : public Thunk {
 public:
-  ThumbV7PILongThunk(const SymbolBody &Dest) : Thunk(Dest) {
+  ThumbV7PILongThunk(SymbolBody &Dest) : Thunk(Dest) {
     this->alignment = 2;
   }
 
   uint32_t size() const override { return 12; }
   void writeTo(uint8_t *Buf, ThunkSection &IS) const override;
   void addSymbols(ThunkSection &IS) override;
+  bool compatibleWith(uint32_t RelocType) const override;
 };
 
 // MIPS LA25 thunk
 class MipsThunk final : public Thunk {
 public:
-  MipsThunk(const SymbolBody &Dest) : Thunk(Dest) {}
+  MipsThunk(SymbolBody &Dest) : Thunk(Dest) {}
 
   uint32_t size() const override { return 16; }
   void writeTo(uint8_t *Buf, ThunkSection &IS) const override;
@@ -128,6 +132,11 @@ void ARMV7ABSLongThunk::addSymbols(ThunkSection &IS) {
   addSyntheticLocal("$a", STT_NOTYPE, Offset, 0, &IS);
 }
 
+bool ARMV7ABSLongThunk::compatibleWith(uint32_t RelocType) const {
+  // Thumb branch relocations can't use BLX
+  return RelocType != R_ARM_THM_JUMP19 && RelocType != R_ARM_THM_JUMP24;
+}
+
 void ThumbV7ABSLongThunk::writeTo(uint8_t *Buf, ThunkSection &IS) const {
   const uint8_t Data[] = {
       0x40, 0xf2, 0x00, 0x0c, // movw         ip, :lower16:S
@@ -145,6 +154,12 @@ void ThumbV7ABSLongThunk::addSymbols(ThunkSection &IS) {
       Saver.save("__Thumbv7ABSLongThunk_" + Destination.getName()), STT_FUNC,
       Offset | 0x1, size(), &IS);
   addSyntheticLocal("$t", STT_NOTYPE, Offset, 0, &IS);
+}
+
+bool ThumbV7ABSLongThunk::compatibleWith(uint32_t RelocType) const {
+  // ARM branch relocations can't use BLX
+  return RelocType != R_ARM_JUMP24 && RelocType != R_ARM_PC24 &&
+         RelocType != R_ARM_PLT32;
 }
 
 void ARMV7PILongThunk::writeTo(uint8_t *Buf, ThunkSection &IS) const {
@@ -168,6 +183,11 @@ void ARMV7PILongThunk::addSymbols(ThunkSection &IS) {
   addSyntheticLocal("$a", STT_NOTYPE, Offset, 0, &IS);
 }
 
+bool ARMV7PILongThunk::compatibleWith(uint32_t RelocType) const {
+  // Thumb branch relocations can't use BLX
+  return RelocType != R_ARM_THM_JUMP19 && RelocType != R_ARM_THM_JUMP24;
+}
+
 void ThumbV7PILongThunk::writeTo(uint8_t *Buf, ThunkSection &IS) const {
   const uint8_t Data[] = {
       0x4f, 0xf6, 0xf4, 0x7c, // P:  movw ip,:lower16:S - (P + (L1-P) + 4)
@@ -187,6 +207,12 @@ void ThumbV7PILongThunk::addSymbols(ThunkSection &IS) {
       Saver.save("__ThumbV7PILongThunk_" + Destination.getName()), STT_FUNC,
       Offset | 0x1, size(), &IS);
   addSyntheticLocal("$t", STT_NOTYPE, Offset, 0, &IS);
+}
+
+bool ThumbV7PILongThunk::compatibleWith(uint32_t RelocType) const {
+  // ARM branch relocations can't use BLX
+  return RelocType != R_ARM_JUMP24 && RelocType != R_ARM_PC24 &&
+         RelocType != R_ARM_PLT32;
 }
 
 // Write MIPS LA25 thunk code to call PIC function from the non-PIC one.
@@ -211,7 +237,7 @@ InputSection *MipsThunk::getTargetInputSection() const {
   return dyn_cast<InputSection>(DR->Section);
 }
 
-Thunk::Thunk(const SymbolBody &D) : Destination(D), Offset(0) {}
+Thunk::Thunk(SymbolBody &D) : Destination(D), Offset(0) {}
 
 Thunk::~Thunk() = default;
 
@@ -224,11 +250,13 @@ static Thunk *addThunkArm(uint32_t Reloc, SymbolBody &S) {
   case R_ARM_PC24:
   case R_ARM_PLT32:
   case R_ARM_JUMP24:
+  case R_ARM_CALL:
     if (Config->Pic)
       return make<ARMV7PILongThunk>(S);
     return make<ARMV7ABSLongThunk>(S);
   case R_ARM_THM_JUMP19:
   case R_ARM_THM_JUMP24:
+  case R_ARM_THM_CALL:
     if (Config->Pic)
       return make<ThumbV7PILongThunk>(S);
     return make<ThumbV7ABSLongThunk>(S);

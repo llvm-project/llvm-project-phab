@@ -38,7 +38,7 @@ public:
   void writePlt(uint8_t *Buf, uint64_t GotPltEntryAddr, uint64_t PltEntryAddr,
                 int32_t Index, unsigned RelOff) const override;
   bool needsThunk(RelExpr Expr, uint32_t RelocType, const InputFile *File,
-                  const SymbolBody &S) const override;
+                  uint64_t BranchAddr, const SymbolBody &S) const override;
   void relocateOne(uint8_t *Loc, uint32_t Type, uint64_t Val) const override;
   bool usesOnlyLowPageBits(uint32_t Type) const override;
 };
@@ -228,7 +228,7 @@ void MIPS<ELFT>::writePlt(uint8_t *Buf, uint64_t GotPltEntryAddr,
 
 template <class ELFT>
 bool MIPS<ELFT>::needsThunk(RelExpr Expr, uint32_t Type, const InputFile *File,
-                            const SymbolBody &S) const {
+                            uint64_t BranchAddr, const SymbolBody &S) const {
   // Any MIPS PIC code function is invoked with its address in register $t9.
   // So if we have a branch instruction from non-PIC code to the PIC one
   // we cannot make the jump directly and need to create a small stubs

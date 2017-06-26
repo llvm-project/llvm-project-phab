@@ -281,8 +281,9 @@ public:
   void assignOffsets(OutputSectionCommand *Cmd);
   void createOrphanCommands();
   void processNonSectionCommands();
-  void assignAddresses(std::vector<PhdrEntry> &Phdrs);
-
+  void resetAddressState();
+  void assignAddresses();
+  void allocateHeaders(std::vector<PhdrEntry> &Phdrs);
   void addSymbol(SymbolAssignment *Cmd);
   void processCommands(OutputSectionFactory &Factory);
 

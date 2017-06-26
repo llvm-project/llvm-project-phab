@@ -218,7 +218,8 @@ template <class ELFT> void Writer<ELFT>::run() {
       OutputSectionCommands.begin(), OutputSectionCommands.end(),
       [](OutputSectionCommand *Cmd) { Cmd->maybeCompress<ELFT>(); });
 
-  Script->assignAddresses(Phdrs);
+  Script->assignAddresses();
+  Script->allocateHeaders(Phdrs);
 
   // Remove empty PT_LOAD to avoid causing the dynamic linker to try to mmap a
   // 0 sized region. This has to be done late since only after assignAddresses
@@ -1286,11 +1287,11 @@ template <class ELFT> void Writer<ELFT>::finalizeSections() {
     // are out of range. This will need to turn into a loop that converges
     // when no more Thunks are added
     ThunkCreator TC;
-    if (TC.createThunks(OutputSectionCommands)) {
+    Script->assignAddresses();
+    while (TC.createThunks(OutputSectionCommands)) {
       applySynthetic({InX::MipsGot},
                      [](SyntheticSection *SS) { SS->updateAllocSize(); });
-      if (TC.createThunks(OutputSectionCommands))
-        fatal("All non-range thunks should be created in first call");
+      Script->assignAddresses();
     }
   }
 
