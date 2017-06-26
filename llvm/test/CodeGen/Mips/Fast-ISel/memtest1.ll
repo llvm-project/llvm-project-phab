@@ -24,7 +24,7 @@ define void @cpy(i8* %src, i32 %i) {
   ; ALL-DAG:        lw    $[[T1:[0-9]+]], 24($sp)
   ; ALL-DAG:        move  $5, $[[T1]]
   ; ALL-DAG:        lw    $6, 20($sp)
-  ; ALL-DAG:        lw    $[[T2:[0-9]+]], %got(memcpy)(${{[0-9]+}})
+  ; ALL-DAG:        lw    $[[T2:[0-9]+]], %call16(memcpy)(${{[0-9]+}})
   ; ALL:            jalr  $[[T2]]
   ; ALL-NEXT:       nop
   ; ALL-NOT:        {{.*}}$2{{.*}}
@@ -44,7 +44,7 @@ define void @mov(i8* %src, i32 %i) {
   ; ALL-DAG:        lw    $[[T1:[0-9]+]], 24($sp)
   ; ALL-DAG:        move  $5, $[[T1]]
   ; ALL-DAG:        lw    $6, 20($sp)
-  ; ALL-DAG:        lw    $[[T2:[0-9]+]], %got(memmove)(${{[0-9]+}})
+  ; ALL-DAG:        lw    $[[T2:[0-9]+]], %call16(memmove)(${{[0-9]+}})
   ; ALL:            jalr  $[[T2]]
   ; ALL-NEXT:       nop
   ; ALL-NOT:        {{.*}}$2{{.*}}
@@ -64,7 +64,7 @@ define void @clear(i32 %i) {
   ; 32R1-DAG:       sra   $5, $[[T2]], 24
   ; 32R2-DAG:       seb   $5, $[[T1]]
   ; ALL-DAG:        lw    $6, 16($sp)
-  ; ALL-DAG:        lw    $[[T2:[0-9]+]], %got(memset)(${{[0-9]+}})
+  ; ALL-DAG:        lw    $[[T2:[0-9]+]], %call16(memset)(${{[0-9]+}})
   ; ALL:            jalr  $[[T2]]
   ; ALL-NEXT:       nop
   ; ALL-NOT:        {{.*}}$2{{.*}}

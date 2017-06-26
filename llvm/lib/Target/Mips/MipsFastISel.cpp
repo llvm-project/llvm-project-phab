@@ -418,11 +418,34 @@ unsigned MipsFastISel::materializeGV(const GlobalValue *GV, MVT VT) {
   // TLS not supported at this time.
   if (IsThreadLocal)
     return 0;
+
+  // Materializing the address an object which _is not_ visible outside the
+  // translation unit has a sequence which is:
+  //
+  //    lw $tmp, %got($SYMBOL)($gp)
+  //    addiu $dest, $temp, %lo($SYMBOL)
+  //
+  // Data which _is_ visible outside the translation unit has a materialization
+  // sequence which is:
+  //
+  //    lw $dest, %got($SYMBOL)($gp)
+  //
+  // For functions this uses %call16 relocation operator:
+  //
+  //    lw $25, %call16($SYMBOL)($gp)
+  //
+  // Functions that are visible outside their translation unit are presumed to
+  // be subject to lazy binding, even within their defining translation unit.
+  unsigned TOF = (isa<Function>(GV) && !GV->hasInternalLinkage())
+                     ? MipsII::MO_GOT_CALL
+                     : MipsII::MO_GOT;
   emitInst(Mips::LW, DestReg)
       .addReg(MFI->getGlobalBaseReg())
-      .addGlobalAddress(GV, 0, MipsII::MO_GOT);
-  if ((GV->hasInternalLinkage() ||
-       (GV->hasLocalLinkage() && !isa<Function>(GV)))) {
+      .addGlobalAddress(GV, 0, TOF);
+
+  if (GV->hasInternalLinkage() || GV->hasLocalLinkage()) {
+    // FIXME: Ideally, this component of the address would be folded into the
+    //        offset of the load.
     unsigned TempReg = createResultReg(RC);
     emitInst(Mips::ADDiu, TempReg)
         .addReg(DestReg)
@@ -437,7 +460,7 @@ unsigned MipsFastISel::materializeExternalCallSym(MCSymbol *Sym) {
   unsigned DestReg = createResultReg(RC);
   emitInst(Mips::LW, DestReg)
       .addReg(MFI->getGlobalBaseReg())
-      .addSym(Sym, MipsII::MO_GOT);
+      .addSym(Sym, MipsII::MO_GOT_CALL);
   return DestReg;
 }
 

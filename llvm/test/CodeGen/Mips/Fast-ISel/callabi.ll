@@ -41,7 +41,7 @@ define void @cxi() {
   ; ALL-LABEL:    cxi:
 
   ; ALL-DAG:        addiu   $4, $zero, 10
-  ; ALL-DAG:        lw      $25, %got(xi)(${{[0-9]+}})
+  ; ALL-DAG:        lw      $25, %call16(xi)(${{[0-9]+}})
   ; ALL:            jalr    $25
   call void @xi(i32 10)
   ret void
@@ -92,7 +92,7 @@ define void @cxii() {
 
   ; ALL-DAG:        addiu   $4, $zero, 746
   ; ALL-DAG:        addiu   $5, $zero, 892
-  ; ALL-DAG:        lw      $25, %got(xii)(${{[0-9]+}})
+  ; ALL-DAG:        lw      $25, %call16(xii)(${{[0-9]+}})
   ; ALL:            jalr    $25
   call void @xii(i32 746, i32 892)
   ret void
@@ -152,7 +152,7 @@ define void @cxiii() {
   ; ALL-DAG:        addiu   $4, $zero, 88
   ; ALL-DAG:        addiu   $5, $zero, 44
   ; ALL-DAG:        addiu   $6, $zero, 11
-  ; ALL-DAG:        lw      $25, %got(xiii)(${{[0-9]+}})
+  ; ALL-DAG:        lw      $25, %call16(xiii)(${{[0-9]+}})
   ; ALL:            jalr    $25
   call void @xiii(i32 88, i32 44, i32 11)
   ret void
@@ -237,7 +237,7 @@ define void @cxiiii() {
   ; ALL-DAG:        addiu   $5, $zero, 320
   ; ALL-DAG:        addiu   $6, $zero, 97
   ; ALL-DAG:        addiu   $7, $zero, 14
-  ; ALL-DAG:        lw      $25, %got(xiiii)(${{[0-9]+}})
+  ; ALL-DAG:        lw      $25, %call16(xiiii)(${{[0-9]+}})
   ; ALL:            jalr    $25
   call void @xiiii(i32 167, i32 320, i32 97, i32 14)
   ret void
@@ -292,7 +292,7 @@ define void @cxf() {
   ; ALL:            lui     $[[REG_FPCONST_1:[0-9]+]], 17886
   ; ALL:            ori     $[[REG_FPCONST:[0-9]+]], $[[REG_FPCONST_1]], 17067
   ; ALL:            mtc1    $[[REG_FPCONST]], $f12
-  ; ALL:            lw      $25, %got(xf)($[[REG_GP]])
+  ; ALL:            lw      $25, %call16(xf)($[[REG_GP]])
   ; ALL:            jalr    $25
   call void @xf(float 0x40BBC85560000000)
   ret void
@@ -310,7 +310,7 @@ define void @cxff() {
   ; ALL-DAG:        lui     $[[REG_FPCONST_2:[0-9]+]], 16593
   ; ALL-DAG:        ori     $[[REG_FPCONST_3:[0-9]+]], $[[REG_FPCONST_2]], 24642
   ; ALL-DAG:        mtc1    $[[REG_FPCONST_3]], $f14
-  ; ALL-DAG:        lw      $25, %got(xff)($[[REG_GP]])
+  ; ALL-DAG:        lw      $25, %call16(xff)($[[REG_GP]])
   ; ALL:            jalr    $25
   call void @xff(float 0x3FF74A6CA0000000, float 0x401A2C0840000000)
   ret void
@@ -326,7 +326,7 @@ define void @cxfi() {
   ; ALL-DAG:        ori     $[[REG_FPCONST:[0-9]+]], $[[REG_FPCONST_1]], 33554
   ; ALL-DAG:        mtc1    $[[REG_FPCONST]], $f12
   ; ALL-DAG:        addiu   $5, $zero, 102
-  ; ALL-DAG:        lw      $25, %got(xfi)($[[REG_GP]])
+  ; ALL-DAG:        lw      $25, %call16(xfi)($[[REG_GP]])
   ; ALL:            jalr    $25
   call void @xfi(float 0x4013906240000000, i32 102)
   ret void
@@ -343,7 +343,7 @@ define void @cxfii() {
   ; ALL-DAG:        mtc1    $[[REG_FPCONST]], $f12
   ; ALL-DAG:        addiu   $5, $zero, 9993
   ; ALL-DAG:        addiu   $6, $zero, 10922
-  ; ALL-DAG:        lw      $25, %got(xfii)($[[REG_GP]])
+  ; ALL-DAG:        lw      $25, %call16(xfii)($[[REG_GP]])
   ; ALL:            jalr    $25
   call void @xfii(float 0x405EC7EE00000000, i32 9993, i32 10922)
   ret void
@@ -363,7 +363,7 @@ define void @cxfiii() {
   ; ALL-DAG:        ori     $6, $[[REG_I_1]], 23475
   ; ALL-DAG:        lui     $[[REG_I_2:[0-9]+]], 1
   ; ALL-DAG:        ori     $7, $[[REG_I_2]], 45686
-  ; ALL-DAG:        lw      $25, %got(xfiii)($[[REG_GP]])
+  ; ALL-DAG:        lw      $25, %call16(xfiii)($[[REG_GP]])
   ; ALL:            jalr    $25
   call void @xfiii(float 0x405C072B20000000, i32 3948, i32 89011, i32 111222)
   ret void
@@ -382,7 +382,7 @@ define void @cxd() {
   ; ALL-DAG:        mtc1    $[[REG_FPCONST_4]], $f12
   ; 32R1-DAG:       mtc1    $[[REG_FPCONST_2]], $f13
   ; 32R2-DAG:       mthc1   $[[REG_FPCONST_2]], $f12
-  ; ALL-DAG:        lw      $25, %got(xd)($[[REG_GP]])
+  ; ALL-DAG:        lw      $25, %call16(xd)($[[REG_GP]])
   ; ALL:            jalr    $25
   call void @xd(double 5.994560e+02)
   ret void
@@ -408,7 +408,7 @@ define void @cxdd() {
   ; ALL-DAG:        mtc1    $[[REG_FPCONST_4]], $f14
   ; 32R1-DAG:       mtc1    $[[REG_FPCONST_2]], $f15
   ; 32R2-DAG:       mthc1   $[[REG_FPCONST_2]], $f14
-  ; ALL-DAG:        lw      $25, %got(xdd)($[[REG_GP]])
+  ; ALL-DAG:        lw      $25, %call16(xdd)($[[REG_GP]])
   ; ALL:            jalr    $25
   call void @xdd(double 1.234980e+03, double 0x40F5B331F7CED917)
   ret void
@@ -425,7 +425,7 @@ define void @cxif() {
   ; ALL-DAG:        ori     $[[REGF_2:[0-9]+]], $[[REGF_1]], 29393
   ; ALL-DAG:        mtc1    $[[REGF_2]], $f[[REGF_3:[0-9]+]]
   ; ALL-DAG:        mfc1    $5, $f[[REGF_3]]
-  ; ALL-DAG:        lw      $25, %got(xif)($[[REG_GP]])
+  ; ALL-DAG:        lw      $25, %call16(xif)($[[REG_GP]])
   ; ALL:            jalr    $25
   call void @xif(i32 345, float 0x407BCE5A20000000)
   ret void
@@ -446,7 +446,7 @@ define void @cxiff() {
   ; ALL:            mtc1    $[[REGF1_2]], $f[[REGF1_3:[0-9]+]]
   ; ALL-DAG:        mfc1    $5, $f[[REGF0_3]]
   ; ALL-DAG:        mfc1    $6, $f[[REGF1_3]]
-  ; ALL-DAG:        lw      $25, %got(xiff)($[[REG_GP]])
+  ; ALL-DAG:        lw      $25, %call16(xiff)($[[REG_GP]])
   ; ALL:            jalr    $25
   call void @xiff(i32 12239, float 0x408EDB3340000000, float 0x4013FFE5C0000000)
   ret void
@@ -464,7 +464,7 @@ define void @cxifi() {
   ; ALL-DAG:        mtc1    $[[REGF_2]], $f[[REGF_3:[0-9]+]]
   ; ALL-DAG:        mfc1    $5, $f[[REGF_3]]
   ; ALL-DAG:        addiu   $6, $zero, 888
-  ; ALL-DAG:        lw      $25, %got(xifi)($[[REG_GP]])
+  ; ALL-DAG:        lw      $25, %call16(xifi)($[[REG_GP]])
   ; ALL:            jalr    $25
   call void @xifi(i32 887, float 0x402277CEE0000000, i32 888)
   ret void
@@ -487,7 +487,7 @@ define void @cxifif() {
   ; ALL:            mtc1    $[[REGF1_2]], $f[[REGF1_3:[0-9]+]]
   ; ALL-DAG:        mfc1    $5, $f[[REGF0_3]]
   ; ALL-DAG:        mfc1    $7, $f[[REGF1_3]]
-  ; ALL-DAG:        lw      $25, %got(xifif)($[[REG_GP]])
+  ; ALL-DAG:        lw      $25, %call16(xifif)($[[REG_GP]])
   ; ALL:            jalr    $25
   call void @xifif(i32 67774, float 0x408EE0FBE0000000,
                    i32 9991, float 0x40B15C8CC0000000)
@@ -510,7 +510,7 @@ define void @cxiffi() {
   ; ALL-DAG:        addiu   $7, $zero, 234
   ; ALL-DAG:        mfc1    $5, $f[[REGF0_3]]
   ; ALL-DAG:        mfc1    $6, $f[[REGF1_3]]
-  ; ALL-DAG:        lw      $25, %got(xiffi)($[[REG_GP]])
+  ; ALL-DAG:        lw      $25, %call16(xiffi)($[[REG_GP]])
   ; ALL:            jalr    $25
   call void @xiffi(i32 45, float 0x3FF6666660000000,
                    float 0x408F333340000000, i32 234)
@@ -531,8 +531,50 @@ define void @cxifii() {
   ; ALL-DAG:    lui     $[[REGI2:[0-9]+]], 15
   ; ALL-DAG:    ori     $6, $[[REGI2]], 15837
   ; ALL-DAG:    addiu   $7, $zero, 1234
-  ; ALL-DAG:    lw      $25, %got(xifii)($[[REG_GP]])
+  ; ALL-DAG:    lw      $25, %call16(xifii)($[[REG_GP]])
   ; ALL:        jalr    $25
   call void @xifii(i32 12239, float 0x408EDB3340000000, i32 998877, i32 1234)
   ret void
+}
+
+define internal void @call_cxifii() {
+  ; ALL-LABEL: call_cxifii:
+  ; ALL: lw     $[[R0:[0-9]+]], %call16(cxifii)(${{[0-9gp]+}})
+  ; ALL: jalr   $[[R0]]
+  call void @cxifii()
+  ret void
+}
+
+define void @call_call_cxifii() {
+  ; ALL-LABEL: call_call_cxifii:
+  ; ALL: lw $[[R0:[0-9]+]], %got(call_cxifii)(${{[0-9gp]+}})
+  ; ALL: addiu $[[R1:[0-9]+]], $[[R0]], %lo(call_cxifii)
+  ; ALL: jalr $[[R1]]
+  call void @call_cxifii()
+  ret void
+}
+
+@ab = global i32 1, align 4
+@ab2 = internal global i32 2, align 4
+
+declare i32 @ciii(i32)
+
+define i32 @call_ciii() {
+entry:
+  ; ALL-LABEL: call_ciii:
+  ; ALL: lw    $[[R0:[0-9]+]], %got(ab)(${{[0-9]+}})
+  ; ALL: lw    ${{[0-9]+}}, 0($[[R0]])
+  ; ALL: lw    $25, %call16(ciii)(${{[0-9]+}})
+  ; ALL: jalr  $25
+  ; ALL: lw    $[[R1:[0-9]+]], %got(ab2)(${{[0-9]+}})
+  ; ALL: addiu $[[R2:[0-9]+]], $[[R1]], %lo(ab2)
+  ; ALL: lw   ${{[0-9]+}}, 0($[[R2]])
+  ; ALL: lw    $25, %call16(ciii)(${{[0-9]+}})
+  ; ALL: jalr  $25
+  %0 = load i32, i32 * @ab
+  %1 = call i32 @ciii(i32 %0)
+  %2 = load i32, i32 * @ab2
+  %3 = call i32 @ciii(i32 %2)
+  %4 = add i32 %3, %1
+  ret i32 %4
 }
