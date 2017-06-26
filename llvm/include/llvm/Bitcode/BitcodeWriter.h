@@ -64,9 +64,14 @@ namespace llvm {
     /// Can be used to produce the same module hash for a minimized bitcode
     /// used just for the thin link as in the regular full bitcode that will
     /// be used in the backend.
+    /// 
+    /// If \p IsSummaryOnly is true, that means we are writing a summary file, so
+    /// we just have to write the parts of the module that we need for thinlink
+    /// phase instead of the whole module.
     void writeModule(const Module *M, bool ShouldPreserveUseListOrder = false,
                      const ModuleSummaryIndex *Index = nullptr,
-                     bool GenerateHash = false, ModuleHash *ModHash = nullptr);
+                     bool GenerateHash = false, ModuleHash *ModHash = nullptr,
+                     bool IsSummaryOnly = false);
 
     void writeIndex(
         const ModuleSummaryIndex *Index,
@@ -94,11 +99,16 @@ namespace llvm {
   /// Can be used to produce the same module hash for a minimized bitcode
   /// used just for the thin link as in the regular full bitcode that will
   /// be used in the backend.
+  /// 
+  /// If \p IsSummaryOnly is true, that means we are writing a summary file, so
+  /// we just have to write the parts of the module that we need for thinlink
+  /// phase instead of the whole module.
   void WriteBitcodeToFile(const Module *M, raw_ostream &Out,
                           bool ShouldPreserveUseListOrder = false,
                           const ModuleSummaryIndex *Index = nullptr,
                           bool GenerateHash = false,
-                          ModuleHash *ModHash = nullptr);
+                          ModuleHash *ModHash = nullptr,
+                          bool IsSummaryOnly = false);
 
   /// Write the specified module summary index to the given raw output stream,
   /// where it will be written in a new bitcode block. This is used when
