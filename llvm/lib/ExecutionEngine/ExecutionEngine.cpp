@@ -341,7 +341,7 @@ void *ArgvArray::reset(LLVMContext &C, ExecutionEngine *EE,
                        const std::vector<std::string> &InputArgv) {
   Values.clear();  // Free the old contents.
   Values.reserve(InputArgv.size());
-  unsigned PtrSize = EE->getDataLayout().getPointerSize();
+  unsigned PtrSize = EE->getDataLayout().getPointerSize(0);
   Array = make_unique<char[]>((InputArgv.size()+1)*PtrSize);
 
   DEBUG(dbgs() << "JIT: ARGV = " << (void*)Array.get() << "\n");
@@ -416,7 +416,7 @@ void ExecutionEngine::runStaticConstructorsDestructors(bool isDtors) {
 #ifndef NDEBUG
 /// isTargetNullPtr - Return whether the target pointer stored at Loc is null.
 static bool isTargetNullPtr(ExecutionEngine *EE, void *Loc) {
-  unsigned PtrSize = EE->getDataLayout().getPointerSize();
+  unsigned PtrSize = EE->getDataLayout().getPointerSize(0);
   for (unsigned i = 0; i < PtrSize; ++i)
     if (*(i + (uint8_t*)Loc))
       return false;

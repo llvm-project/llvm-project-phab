@@ -1030,7 +1030,7 @@ void DevirtModule::rebuildGlobal(VTableBits &B) {
     return;
 
   // Align each byte array to pointer width.
-  unsigned PointerSize = M.getDataLayout().getPointerSize();
+  unsigned PointerSize = M.getDataLayout().getPointerSize(0);
   B.Before.Bytes.resize(alignTo(B.Before.Bytes.size(), PointerSize));
   B.After.Bytes.resize(alignTo(B.After.Bytes.size(), PointerSize));
 

@@ -1287,7 +1287,7 @@ TargetLoweringBase::emitPatchPoint(MachineInstr &InitialMI,
     }
     MachineMemOperand *MMO = MF.getMachineMemOperand(
         MachinePointerInfo::getFixedStack(MF, FI), Flags,
-        MF.getDataLayout().getPointerSize(), MFI.getObjectAlignment(FI));
+        MF.getDataLayout().getPointerSize(0), MFI.getObjectAlignment(FI));
     MIB->addMemOperand(MF, MMO);
 
     // Replace the instruction and update the operand index.

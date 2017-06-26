@@ -309,19 +309,13 @@ public:
   }
 
   /// Layout pointer alignment
-  /// FIXME: The defaults need to be removed once all of
-  /// the backends/clients are updated.
-  unsigned getPointerABIAlignment(unsigned AS = 0) const;
+  unsigned getPointerABIAlignment(unsigned AS) const;
 
   /// Return target's alignment for stack-based pointers
-  /// FIXME: The defaults need to be removed once all of
-  /// the backends/clients are updated.
-  unsigned getPointerPrefAlignment(unsigned AS = 0) const;
+  unsigned getPointerPrefAlignment(unsigned AS) const;
 
   /// Layout pointer size
-  /// FIXME: The defaults need to be removed once all of
-  /// the backends/clients are updated.
-  unsigned getPointerSize(unsigned AS = 0) const;
+  unsigned getPointerSize(unsigned AS) const;
 
   /// Return the address spaces containing non-integral pointers.  Pointers in
   /// this address space don't have a well-defined bitwise representation.

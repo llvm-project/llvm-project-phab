@@ -177,7 +177,7 @@ DIE *DwarfCompileUnit::getOrCreateGlobalVariableDIE(
           // TODO: add debug info for emulated thread local mode.
         } else {
           // FIXME: Make this work with -gsplit-dwarf.
-          unsigned PointerSize = Asm->getDataLayout().getPointerSize();
+          unsigned PointerSize = Asm->getDataLayout().getPointerSize(0);
           assert((PointerSize == 4 || PointerSize == 8) &&
                  "Add support for other sizes if necessary");
           // Based on GCC's support for TLS:

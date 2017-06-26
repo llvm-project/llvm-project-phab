@@ -1300,7 +1300,7 @@ bool AsmPrinter::doFinalization(Module &M) {
       for (const auto &Stub : Stubs) {
         OutStreamer->EmitLabel(Stub.first);
         OutStreamer->EmitSymbolValue(Stub.second.getPointer(),
-                                     DL.getPointerSize());
+                                     DL.getPointerSize(0));
       }
     }
   }
@@ -1762,7 +1762,7 @@ void AsmPrinter::EmitXXStructorList(const DataLayout &DL, const Constant *List,
   }
 
   // Emit the function pointers in the target-specific order
-  unsigned Align = Log2_32(DL.getPointerPrefAlignment());
+  unsigned Align = Log2_32(DL.getPointerPrefAlignment(0));
   std::stable_sort(Structors.begin(), Structors.end(),
                    [](const Structor &L,
                       const Structor &R) { return L.Priority < R.Priority; });

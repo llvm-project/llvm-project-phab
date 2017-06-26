@@ -45,7 +45,7 @@ static GCMetadataPrinterRegistry::Add<ErlangGCPrinter>
 void ErlangGCPrinter::finishAssembly(Module &M, GCModuleInfo &Info,
                                      AsmPrinter &AP) {
   MCStreamer &OS = *AP.OutStreamer;
-  unsigned IntPtrSize = M.getDataLayout().getPointerSize();
+  unsigned IntPtrSize = M.getDataLayout().getPointerSize(0);
 
   // Put this in a custom .note section.
   OS.SwitchSection(

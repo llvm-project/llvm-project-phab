@@ -136,7 +136,7 @@ bool CallLowering::handleAssignments(MachineIRBuilder &MIRBuilder,
       Handler.assignValueToReg(Args[i].Reg, VA.getLocReg(), VA);
     else if (VA.isMemLoc()) {
       unsigned Size = VA.getValVT() == MVT::iPTR
-                          ? DL.getPointerSize()
+                          ? DL.getPointerSize(0)
                           : alignTo(VA.getValVT().getSizeInBits(), 8) / 8;
       unsigned Offset = VA.getLocMemOffset();
       MachinePointerInfo MPO;
