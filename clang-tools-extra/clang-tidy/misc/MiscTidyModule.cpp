@@ -14,6 +14,7 @@
 #include "AssertSideEffectCheck.h"
 #include "BoolPointerImplicitConversionCheck.h"
 #include "DanglingHandleCheck.h"
+#include "DefaultNumericsCheck.h"
 #include "DefinitionsInHeadersCheck.h"
 #include "FoldInitTypeCheck.h"
 #include "ForwardDeclarationNamespaceCheck.h"
@@ -67,6 +68,7 @@ public:
     CheckFactories.registerCheck<ArgumentCommentCheck>("misc-argument-comment");
     CheckFactories.registerCheck<AssertSideEffectCheck>(
         "misc-assert-side-effect");
+    CheckFactories.registerCheck<DefaultNumericsCheck>("misc-default-numerics");
     CheckFactories.registerCheck<ForwardingReferenceOverloadCheck>(
         "misc-forwarding-reference-overload");
     CheckFactories.registerCheck<LambdaFunctionNameCheck>(
