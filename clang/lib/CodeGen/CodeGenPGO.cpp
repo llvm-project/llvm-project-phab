@@ -249,9 +249,12 @@ struct ComputeRegionCounts : public ConstStmtVisitor<ComputeRegionCounts> {
 
   void VisitFunctionDecl(const FunctionDecl *D) {
     // Counter tracks entry to the function body.
-    uint64_t BodyCount = setCount(PGO.getRegionCount(D->getBody()));
-    CountMap[D->getBody()] = BodyCount;
-    Visit(D->getBody());
+    auto* body = D->getBody();
+    if (!body)
+      return;
+    uint64_t BodyCount = setCount(PGO.getRegionCount(body));
+    CountMap[body] = BodyCount;
+    Visit(body);
   }
 
   // Skip lambda expressions. We visit these as FunctionDecls when we're
