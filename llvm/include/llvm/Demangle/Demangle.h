@@ -8,6 +8,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <cstddef>
+#include <string>
 
 namespace llvm {
 /// This is a llvm local version of __cxa_demangle. Other than the name and
@@ -25,4 +26,8 @@ namespace llvm {
 
 char *itaniumDemangle(const char *mangled_name, char *buf, size_t *n,
                       int *status);
+
+// This is an experimental function to demangle MSVC-style symbols.
+std::string microsoftDemangle(const std::string &mangled_name,
+                              std::string error);
 }
