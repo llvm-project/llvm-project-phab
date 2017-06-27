@@ -321,6 +321,9 @@ void Input::endBitSetScalar() {
   }
 }
 
+// ignore comments
+void Input::comment(StringRef &S, bool) {}
+
 void Input::scalarString(StringRef &S, bool) {
   if (ScalarHNode *SN = dyn_cast<ScalarHNode>(CurrentNode)) {
     S = SN->value();
@@ -602,6 +605,23 @@ bool Output::bitSetMatch(const char *Str, bool Matches) {
 
 void Output::endBitSetScalar() {
   this->outputUpToEndOfLine(" ]");
+}
+
+void Output::comment(StringRef &S, bool NewLine) {
+  if (NewLine) {
+    this->outputNewLine();
+    unsigned Indent = StateStack.size();
+    for (unsigned i = 0; i < Indent; i++)
+      output(" ");
+  } else
+    this->output(" ");
+
+  if (S.empty()) {
+    this->outputUpToEndOfLine("#");
+  } else {
+    this->output("# ");
+    this->outputUpToEndOfLine(S);
+  }
 }
 
 void Output::scalarString(StringRef &S, bool MustQuote) {

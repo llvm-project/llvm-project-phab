@@ -16,6 +16,19 @@
 namespace llvm {
 namespace yaml {
 
+using NameMapTy = std::map<GlobalValue::GUID, StringRef>;
+
+template <typename T> struct NameMapWrapper {
+  T *Val;
+  NameMapTy *NameMap;
+
+  StringRef getNameOrEmpty(GlobalValue::GUID G) {
+    if (NameMap)
+      return (*NameMap)[G];
+    return StringRef("");
+  }
+};
+
 template <> struct ScalarEnumerationTraits<TypeTestResolution::Kind> {
   static void enumeration(IO &io, TypeTestResolution::Kind &value) {
     io.enumCase(value, "Unsat", TypeTestResolution::Unsat);
@@ -23,6 +36,25 @@ template <> struct ScalarEnumerationTraits<TypeTestResolution::Kind> {
     io.enumCase(value, "Inline", TypeTestResolution::Inline);
     io.enumCase(value, "Single", TypeTestResolution::Single);
     io.enumCase(value, "AllOnes", TypeTestResolution::AllOnes);
+  }
+};
+
+template <> struct ScalarEnumerationTraits<CalleeInfo::HotnessType> {
+  static void enumeration(IO &io, CalleeInfo::HotnessType &value) {
+    io.enumCase(value, "Unknown", CalleeInfo::HotnessType::Unknown);
+    io.enumCase(value, "Cold", CalleeInfo::HotnessType::Cold);
+    io.enumCase(value, "None", CalleeInfo::HotnessType::None);
+    io.enumCase(value, "Hot", CalleeInfo::HotnessType::Hot);
+  }
+};
+
+template <> struct ScalarEnumerationTraits<GlobalValueSummary::SummaryKind> {
+  static void enumeration(IO &io, GlobalValueSummary::SummaryKind &value) {
+    io.enumCase(value, "Alias", GlobalValueSummary::SummaryKind::AliasKind);
+    io.enumCase(value, "Function",
+                GlobalValueSummary::SummaryKind::FunctionKind);
+    io.enumCase(value, "GlobalVar",
+                GlobalValueSummary::SummaryKind::GlobalVarKind);
   }
 };
 
@@ -127,14 +159,45 @@ template <> struct MappingTraits<TypeIdSummary> {
   }
 };
 
-struct FunctionSummaryYaml {
-  unsigned Linkage;
+struct RefYaml {
+  StringRef Name;
+  GlobalValue::GUID GUID;
+};
+
+struct CalleeInfoYaml {
+  StringRef Name;
+  GlobalValue::GUID GUID;
+  CalleeInfo::HotnessType Hotness;
+};
+
+struct GlobalValueSummaryYaml {
+  StringRef Name;
+  GlobalValueSummary::SummaryKind Kind;
+  GlobalValue::LinkageTypes Linkage;
   bool NotEligibleToImport, Live;
+  std::vector<RefYaml> Refs;
+};
+
+struct FunctionSummaryYaml {
+  GlobalValueSummaryYaml GVSum;
+  unsigned InstCount;
+  std::vector<CalleeInfoYaml> Calls;
+
   std::vector<uint64_t> TypeTests;
   std::vector<FunctionSummary::VFuncId> TypeTestAssumeVCalls,
       TypeCheckedLoadVCalls;
   std::vector<FunctionSummary::ConstVCall> TypeTestAssumeConstVCalls,
       TypeCheckedLoadConstVCalls;
+};
+
+struct GlobalVarSummaryYaml {
+  GlobalValueSummaryYaml GVSum;
+};
+
+struct AliasSummaryYaml {
+  GlobalValueSummaryYaml GVSum;
+  GlobalValue::GUID Aliasee;
+  StringRef AliaseeName;
 };
 
 } // End yaml namespace
@@ -168,11 +231,35 @@ LLVM_YAML_IS_SEQUENCE_VECTOR(FunctionSummary::ConstVCall)
 namespace llvm {
 namespace yaml {
 
+template <> struct MappingTraits<RefYaml> {
+  static void mapping(IO &io, RefYaml &summary) {
+    io.mapOptional("GUID", summary.GUID);
+    io.addComment(Comment(summary.Name, false));
+  }
+};
+
+template <> struct MappingTraits<CalleeInfoYaml> {
+  static void mapping(IO &io, CalleeInfoYaml &summary) {
+    io.mapOptional("GUID", summary.GUID);
+    io.addComment(Comment(summary.Name, false));
+    io.mapOptional("Hotness", summary.Hotness);
+  }
+};
+
+static void mapGlobalValueSummary(IO &io, GlobalValueSummaryYaml &summary) {
+  io.addComment(Comment(summary.Name));
+  io.mapOptional("Kind", summary.Kind);
+  io.mapOptional("Linkage", summary.Linkage);
+  io.mapOptional("NotEligibleToImport", summary.NotEligibleToImport);
+  io.mapOptional("Live", summary.Live);
+  io.mapOptional("Refs", summary.Refs);
+}
+
 template <> struct MappingTraits<FunctionSummaryYaml> {
   static void mapping(IO &io, FunctionSummaryYaml& summary) {
-    io.mapOptional("Linkage", summary.Linkage);
-    io.mapOptional("NotEligibleToImport", summary.NotEligibleToImport);
-    io.mapOptional("Live", summary.Live);
+    mapGlobalValueSummary(io, summary.GVSum);
+    io.mapOptional("InstCount", summary.InstCount);
+    io.mapOptional("Calls", summary.Calls);
     io.mapOptional("TypeTests", summary.TypeTests);
     io.mapOptional("TypeTestAssumeVCalls", summary.TypeTestAssumeVCalls);
     io.mapOptional("TypeCheckedLoadVCalls", summary.TypeCheckedLoadVCalls);
@@ -183,61 +270,174 @@ template <> struct MappingTraits<FunctionSummaryYaml> {
   }
 };
 
+template <> struct MappingTraits<GlobalVarSummaryYaml> {
+  static void mapping(IO &io, GlobalVarSummaryYaml &summary) {
+    mapGlobalValueSummary(io, summary.GVSum);
+  }
+};
+
+template <> struct MappingTraits<AliasSummaryYaml> {
+  static void mapping(IO &io, AliasSummaryYaml &summary) {
+    mapGlobalValueSummary(io, summary.GVSum);
+    io.mapOptional("Aliasee", summary.Aliasee);
+    io.addComment(Comment{summary.AliaseeName, false});
+  }
+};
+
 } // End yaml namespace
 } // End llvm namespace
 
 LLVM_YAML_IS_STRING_MAP(TypeIdSummary)
 LLVM_YAML_IS_SEQUENCE_VECTOR(FunctionSummaryYaml)
+LLVM_YAML_IS_SEQUENCE_VECTOR(CalleeInfoYaml)
+LLVM_YAML_IS_SEQUENCE_VECTOR(RefYaml)
+LLVM_YAML_IS_SEQUENCE_VECTOR(GlobalVarSummaryYaml)
+LLVM_YAML_IS_SEQUENCE_VECTOR(AliasSummaryYaml)
 LLVM_YAML_IS_FLOW_SEQUENCE_VECTOR(std::string)
 
 namespace llvm {
 namespace yaml {
 
+template <> struct ScalarEnumerationTraits<GlobalValue::LinkageTypes> {
+  static void enumeration(IO &io, GlobalValue::LinkageTypes &value) {
+    io.enumCase(value, "ExternalLinkage",
+                GlobalValue::LinkageTypes::ExternalLinkage);
+    io.enumCase(value, "AvailableExternallyLinkage",
+                GlobalValue::LinkageTypes::AvailableExternallyLinkage);
+    io.enumCase(value, "LinkOnceAnyLinkage",
+                GlobalValue::LinkageTypes::LinkOnceAnyLinkage);
+    io.enumCase(value, "LinkOnceODRLinkage",
+                GlobalValue::LinkageTypes::LinkOnceODRLinkage);
+    io.enumCase(value, "WeakAnyLinkage",
+                GlobalValue::LinkageTypes::WeakAnyLinkage);
+    io.enumCase(value, "WeakODRLinkage",
+                GlobalValue::LinkageTypes::WeakODRLinkage);
+    io.enumCase(value, "AppendingLinkage",
+                GlobalValue::LinkageTypes::AppendingLinkage);
+    io.enumCase(value, "InternalLinkage",
+                GlobalValue::LinkageTypes::InternalLinkage);
+    io.enumCase(value, "PrivateLinkage",
+                GlobalValue::LinkageTypes::PrivateLinkage);
+    io.enumCase(value, "ExternalWeakLinkage",
+                GlobalValue::LinkageTypes::ExternalWeakLinkage);
+    io.enumCase(value, "CommonLinkage",
+                GlobalValue::LinkageTypes::CommonLinkage);
+  }
+};
+
 // FIXME: Add YAML mappings for the rest of the module summary.
-template <> struct CustomMappingTraits<GlobalValueSummaryMapTy> {
-  static void inputOne(IO &io, StringRef Key, GlobalValueSummaryMapTy &V) {
+template <>
+struct CustomMappingTraits<NameMapWrapper<GlobalValueSummaryMapTy>> {
+  static void inputOne(IO &io, StringRef Key,
+                       NameMapWrapper<GlobalValueSummaryMapTy> &V) {
     std::vector<FunctionSummaryYaml> FSums;
+    std::vector<GlobalVarSummaryYaml> GVSums;
+    std::vector<AliasSummaryYaml> ASums;
     io.mapRequired(Key.str().c_str(), FSums);
-    uint64_t KeyInt;
-    if (Key.getAsInteger(0, KeyInt)) {
-      io.setError("key not an integer");
-      return;
-    }
-    auto &Elem = V[KeyInt];
+    io.mapRequired(Key.str().c_str(), GVSums);
+    io.mapRequired(Key.str().c_str(), ASums);
+    auto &Elem = (*V.Val)[std::stoi(Key)];
     for (auto &FSum : FSums) {
       Elem.SummaryList.push_back(llvm::make_unique<FunctionSummary>(
           GlobalValueSummary::GVFlags(
-              static_cast<GlobalValue::LinkageTypes>(FSum.Linkage),
-              FSum.NotEligibleToImport, FSum.Live),
+              static_cast<GlobalValue::LinkageTypes>(FSum.GVSum.Linkage),
+              FSum.GVSum.NotEligibleToImport, FSum.GVSum.Live),
           0, ArrayRef<ValueInfo>{}, ArrayRef<FunctionSummary::EdgeTy>{},
           std::move(FSum.TypeTests), std::move(FSum.TypeTestAssumeVCalls),
           std::move(FSum.TypeCheckedLoadVCalls),
           std::move(FSum.TypeTestAssumeConstVCalls),
           std::move(FSum.TypeCheckedLoadConstVCalls)));
     }
+
+    for (auto &GVSum : GVSums) {
+      Elem.SummaryList.push_back(llvm::make_unique<GlobalVarSummary>(
+          GlobalValueSummary::GVFlags(
+              static_cast<GlobalValue::LinkageTypes>(GVSum.GVSum.Linkage),
+              GVSum.GVSum.NotEligibleToImport, GVSum.GVSum.Live),
+          ArrayRef<ValueInfo>{}));
+    }
+
+    for (auto &ASum : ASums) {
+      Elem.SummaryList.push_back(llvm::make_unique<AliasSummary>(
+          GlobalValueSummary::GVFlags(
+              static_cast<GlobalValue::LinkageTypes>(ASum.GVSum.Linkage),
+              ASum.GVSum.NotEligibleToImport, ASum.GVSum.Live),
+          ArrayRef<ValueInfo>{}));
+    }
   }
-  static void output(IO &io, GlobalValueSummaryMapTy &V) {
-    for (auto &P : V) {
+
+  static void output(IO &io, NameMapWrapper<GlobalValueSummaryMapTy> &V) {
+    for (auto &P : *V.Val) {
       std::vector<FunctionSummaryYaml> FSums;
+      std::vector<GlobalVarSummaryYaml> GVSums;
+      std::vector<AliasSummaryYaml> ASums;
       for (auto &Sum : P.second.SummaryList) {
-        if (auto *FSum = dyn_cast<FunctionSummary>(Sum.get()))
+        std::vector<RefYaml> Refs;
+        for (auto i : Sum->refs()) {
+          Refs.push_back({V.getNameOrEmpty(i.getGUID()), i.getGUID()});
+        }
+        GlobalValueSummaryYaml GVSumY = {
+            V.getNameOrEmpty(P.first),
+            Sum->getSummaryKind(),
+            static_cast<GlobalValue::LinkageTypes>(Sum->flags().Linkage),
+            static_cast<bool>(Sum->flags().NotEligibleToImport),
+            static_cast<bool>(Sum->flags().Live),
+            Refs};
+
+        if (auto *FSum = dyn_cast<FunctionSummary>(Sum.get())) {
+          std::vector<CalleeInfoYaml> Calls;
+          for (auto edge : FSum->calls()) {
+            Calls.push_back(
+                CalleeInfoYaml{V.getNameOrEmpty(edge.first.getGUID()),
+                               edge.first.getGUID(), edge.second.Hotness});
+          }
           FSums.push_back(FunctionSummaryYaml{
-              FSum->flags().Linkage,
-              static_cast<bool>(FSum->flags().NotEligibleToImport),
-              static_cast<bool>(FSum->flags().Live), FSum->type_tests(),
+              GVSumY, FSum->instCount(), Calls, FSum->type_tests(),
               FSum->type_test_assume_vcalls(), FSum->type_checked_load_vcalls(),
               FSum->type_test_assume_const_vcalls(),
               FSum->type_checked_load_const_vcalls()});
+        }
+        if (isa<GlobalVarSummary>(Sum.get()))
+          GVSums.push_back(GlobalVarSummaryYaml{GVSumY});
+        if (auto *ASum = dyn_cast<AliasSummary>(Sum.get()))
+          ASums.push_back(AliasSummaryYaml{
+              GVSumY, ASum->getAliasee().getOriginalName(),
+              V.getNameOrEmpty(ASum->getAliasee().getOriginalName())});
       }
       if (!FSums.empty())
-        io.mapRequired(llvm::utostr(P.first).c_str(), FSums);
+        io.mapRequired(utostr(P.first).c_str(), FSums);
+      if (!GVSums.empty())
+        io.mapRequired(utostr(P.first).c_str(), GVSums);
+      if (!ASums.empty())
+        io.mapRequired(utostr(P.first).c_str(), ASums);
     }
+  }
+};
+
+struct ModuleSummaryIndexWithModule {
+  ModuleSummaryIndex *Index;
+  Module *Mod;
+};
+
+template <> struct MappingTraits<ModuleSummaryIndexWithModule> {
+  static void mapping(IO &io, ModuleSummaryIndexWithModule &M) {
+    NameMapTy NameMap;
+    if (M.Mod)
+      for (GlobalValue &V : M.Mod->global_values())
+        NameMap.insert(std::make_pair(V.getGUID(), V.getName()));
+
+    NameMapWrapper<GlobalValueSummaryMapTy> N = {&M.Index->GlobalValueMap,
+                                                 &NameMap};
+    io.mapRequired("ModuleSummaryIndex", N);
   }
 };
 
 template <> struct MappingTraits<ModuleSummaryIndex> {
   static void mapping(IO &io, ModuleSummaryIndex& index) {
-    io.mapOptional("GlobalValueMap", index.GlobalValueMap);
+    NameMapWrapper<GlobalValueSummaryMapTy> M = {&index.GlobalValueMap,
+                                                 nullptr};
+    io.addComment(Comment{"Use output for debugging/testing purposes only"});
+    io.mapOptional("GlobalValueMap", M);
     io.mapOptional("TypeIdMap", index.TypeIdMap);
     io.mapOptional("WithGlobalValueDeadStripping",
                    index.WithGlobalValueDeadStripping);
