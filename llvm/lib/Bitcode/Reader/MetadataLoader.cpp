@@ -21,7 +21,6 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Bitcode/BitcodeReader.h"
 #include "llvm/Bitcode/BitstreamReader.h"
@@ -418,6 +417,7 @@ class MetadataLoader::MetadataLoaderImpl {
   BitstreamCursor &Stream;
   LLVMContext &Context;
   Module &TheModule;
+  Triple &TargetTriple;
   std::function<Type *(unsigned)> getTypeByID;
 
   /// Cursor associated with the lazy-loading of Metadata. This is the easy way
@@ -626,13 +626,15 @@ class MetadataLoader::MetadataLoaderImpl {
   }
 
 public:
-  MetadataLoaderImpl(BitstreamCursor &Stream, Module &TheModule,
+  MetadataLoaderImpl(BitstreamCursor &Stream, Module &TheModule, Triple &TT,
                      BitcodeReaderValueList &ValueList,
                      std::function<Type *(unsigned)> getTypeByID,
                      bool IsImporting)
       : MetadataList(TheModule.getContext()), ValueList(ValueList),
         Stream(Stream), Context(TheModule.getContext()), TheModule(TheModule),
-        getTypeByID(std::move(getTypeByID)), IsImporting(IsImporting) {}
+        TargetTriple(TT), getTypeByID(std::move(getTypeByID)),
+        IsImporting(IsImporting) {}
+
 
   Error parseMetadata(bool ModuleLevel);
 
@@ -675,6 +677,32 @@ public:
   unsigned size() const { return MetadataList.size(); }
   void shrinkTo(unsigned N) { MetadataList.shrinkTo(N); }
   void upgradeDebugIntrinsics(Function &F) { upgradeDeclareExpressions(F); }
+
+  void upgradeThumbMode(Function &F) {
+    bool isArm = TargetTriple.getArch() == Triple::arm ||
+                 TargetTriple.getArch() == Triple::armeb;
+
+    if (TargetTriple.getArch() != Triple::thumb &&
+        TargetTriple.getArch() != Triple::thumbeb && !isArm)
+      return;
+
+    std::string TargetFeatures =
+      F.getFnAttribute("target-features").getValueAsString();
+
+    // Check that the target features do not already contain the thumb-mode
+    // feature.
+    auto Start = TargetFeatures.find("thumb-mode");
+    auto End = Start + std::string("thumb-mode").size();
+    if (Start != std::string::npos &&
+        (TargetFeatures[Start-1] == '-' || TargetFeatures[Start-1] == '+') &&
+        (End == TargetFeatures.size() || TargetFeatures[End] == ','))
+      return;
+
+    TargetFeatures += TargetFeatures.empty() ? "" : ",";
+    TargetFeatures += isArm ? "-" : "+";
+    TargetFeatures += "thumb-mode";
+    F.addFnAttr("target-features", TargetFeatures);
+  }
 };
 
 Expected<bool>
@@ -1925,11 +1953,12 @@ MetadataLoader::MetadataLoader(MetadataLoader &&RHS)
 
 MetadataLoader::~MetadataLoader() = default;
 MetadataLoader::MetadataLoader(BitstreamCursor &Stream, Module &TheModule,
-                               BitcodeReaderValueList &ValueList,
+                               Triple &TT, BitcodeReaderValueList &ValueList,
                                bool IsImporting,
                                std::function<Type *(unsigned)> getTypeByID)
     : Pimpl(llvm::make_unique<MetadataLoaderImpl>(
-          Stream, TheModule, ValueList, std::move(getTypeByID), IsImporting)) {}
+          Stream, TheModule, TT, ValueList, std::move(getTypeByID),
+          IsImporting)) {}
 
 Error MetadataLoader::parseMetadata(bool ModuleLevel) {
   return Pimpl->parseMetadata(ModuleLevel);
@@ -1971,4 +2000,8 @@ void MetadataLoader::shrinkTo(unsigned N) { return Pimpl->shrinkTo(N); }
 
 void MetadataLoader::upgradeDebugIntrinsics(Function &F) {
   return Pimpl->upgradeDebugIntrinsics(F);
+}
+
+void MetadataLoader::upgradeThumbMode(Function &F) {
+  return Pimpl->upgradeThumbMode(F);
 }

@@ -15,6 +15,7 @@
 #define LLVM_LIB_BITCODE_READER_METADATALOADER_H
 
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/Triple.h"
 #include "llvm/Support/Error.h"
 
 #include <functional>
@@ -40,7 +41,7 @@ class MetadataLoader {
 
 public:
   ~MetadataLoader();
-  MetadataLoader(BitstreamCursor &Stream, Module &TheModule,
+  MetadataLoader(BitstreamCursor &Stream, Module &TheModule, Triple &TT,
                  BitcodeReaderValueList &ValueList, bool IsImporting,
                  std::function<Type *(unsigned)> getTypeByID);
   MetadataLoader &operator=(MetadataLoader &&);
@@ -82,6 +83,9 @@ public:
 
   /// Perform bitcode upgrades on llvm.dbg.* calls.
   void upgradeDebugIntrinsics(Function &F);
+
+  /// Add thumb-mode target-feature for arm and thumb triples.
+  void upgradeThumbMode(Function &F);
 };
 }
 

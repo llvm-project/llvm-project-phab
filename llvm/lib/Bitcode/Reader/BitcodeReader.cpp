@@ -433,6 +433,7 @@ BitcodeReaderBase::readNameFromStrtab(ArrayRef<uint64_t> Record) {
 class BitcodeReader : public BitcodeReaderBase, public GVMaterializer {
   LLVMContext &Context;
   Module *TheModule = nullptr;
+  Triple TargetTriple;
   // Next offset to start scanning for lazy parsing of function bodies.
   uint64_t NextUnreadBit = 0;
   // Last function offset found in the VST.
@@ -650,7 +651,7 @@ private:
   Error parseOperandBundleTags();
 
   Expected<Value *> recordValue(SmallVectorImpl<uint64_t> &Record,
-                                unsigned NameIndex, Triple &TT);
+                                unsigned NameIndex);
   void setDeferredFunctionInfo(unsigned FuncBitcodeOffsetDelta, Function *F,
                                ArrayRef<uint64_t> Record);
   Error parseValueSymbolTable(uint64_t Offset = 0);
@@ -761,7 +762,7 @@ BitcodeReader::BitcodeReader(BitstreamCursor Stream, StringRef Strtab,
                              StringRef ProducerIdentification,
                              LLVMContext &Context)
     : BitcodeReaderBase(std::move(Stream), Strtab), Context(Context),
-      ValueList(Context) {
+      TargetTriple(), ValueList(Context) {
   this->ProducerIdentification = ProducerIdentification;
 }
 
@@ -1747,7 +1748,7 @@ Error BitcodeReader::parseOperandBundleTags() {
 
 /// Associate a value with its name from the given index in the provided record.
 Expected<Value *> BitcodeReader::recordValue(SmallVectorImpl<uint64_t> &Record,
-                                             unsigned NameIndex, Triple &TT) {
+                                             unsigned NameIndex) {
   SmallString<128> ValueName;
   if (convertToString(Record, NameIndex, ValueName))
     return error("Invalid record");
@@ -1763,7 +1764,7 @@ Expected<Value *> BitcodeReader::recordValue(SmallVectorImpl<uint64_t> &Record,
   auto *GO = dyn_cast<GlobalObject>(V);
   if (GO) {
     if (GO->getComdat() == reinterpret_cast<Comdat *>(1)) {
-      if (TT.isOSBinFormatMachO())
+      if (TargetTriple.isOSBinFormatMachO())
         GO->setComdat(nullptr);
       else
         GO->setComdat(TheModule->getOrInsertComdat(V->getName()));
@@ -1880,8 +1881,6 @@ Error BitcodeReader::parseValueSymbolTable(uint64_t Offset) {
 
   SmallVector<uint64_t, 64> Record;
 
-  Triple TT(TheModule->getTargetTriple());
-
   // Read all the records for this value table.
   SmallString<128> ValueName;
 
@@ -1907,7 +1906,7 @@ Error BitcodeReader::parseValueSymbolTable(uint64_t Offset) {
     default:  // Default behavior: unknown type.
       break;
     case bitc::VST_CODE_ENTRY: {  // VST_CODE_ENTRY: [valueid, namechar x N]
-      Expected<Value *> ValOrErr = recordValue(Record, 1, TT);
+      Expected<Value *> ValOrErr = recordValue(Record, 1);
       if (Error Err = ValOrErr.takeError())
         return Err;
       ValOrErr.get();
@@ -1915,7 +1914,7 @@ Error BitcodeReader::parseValueSymbolTable(uint64_t Offset) {
     }
     case bitc::VST_CODE_FNENTRY: {
       // VST_CODE_FNENTRY: [valueid, offset, namechar x N]
-      Expected<Value *> ValOrErr = recordValue(Record, 2, TT);
+      Expected<Value *> ValOrErr = recordValue(Record, 2);
       if (Error Err = ValOrErr.takeError())
         return Err;
       Value *V = ValOrErr.get();
@@ -2656,6 +2655,7 @@ Error BitcodeReader::globalCleanup() {
 
   // Look for intrinsic functions which need to be upgraded at some point
   for (Function &F : *TheModule) {
+    MDLoader->upgradeThumbMode(F);
     MDLoader->upgradeDebugIntrinsics(F);
     Function *NewFn;
     if (UpgradeIntrinsicFunction(&F, NewFn))
@@ -3156,6 +3156,7 @@ Error BitcodeReader::parseModule(uint64_t ResumeBit,
       if (convertToString(Record, 0, S))
         return error("Invalid record");
       TheModule->setTargetTriple(S);
+      TargetTriple = Triple(S);
       break;
     }
     case bitc::MODULE_CODE_DATALAYOUT: {  // DATALAYOUT: [strchr x N]
@@ -3240,7 +3241,7 @@ Error BitcodeReader::parseModule(uint64_t ResumeBit,
 Error BitcodeReader::parseBitcodeInto(Module *M, bool ShouldLazyLoadMetadata,
                                       bool IsImporting) {
   TheModule = M;
-  MDLoader = MetadataLoader(Stream, *M, ValueList, IsImporting,
+  MDLoader = MetadataLoader(Stream, *M, TargetTriple, ValueList, IsImporting,
                             [&](unsigned ID) { return getTypeByID(ID); });
   return parseModule(0, ShouldLazyLoadMetadata);
 }
