@@ -422,8 +422,8 @@ void writeThinLTOBitcode(raw_ostream &OS, raw_ostream *ThinLinkOS,
   if (ThinLinkOS) {
     StripDebugInfo(M);
     WriteBitcodeToFile(&M, *ThinLinkOS, /*ShouldPreserveUseListOrder=*/false,
-                       Index,
-                       /*GenerateHash=*/false, &ModHash);
+                       Index, /*GenerateHash=*/false, &ModHash,
+                       /*IsSummaryOnly=*/true);
   }
 }
 

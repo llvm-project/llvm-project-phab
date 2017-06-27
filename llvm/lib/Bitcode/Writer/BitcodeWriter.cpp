@@ -135,6 +135,10 @@ class ModuleBitcodeWriter : public BitcodeWriterBase {
   /// backpatched with the offset of the actual VST.
   uint64_t VSTOffsetPlaceholder = 0;
 
+  /// If IsSummaryOnly is true, we should only write the parts of the module
+  /// that needed by thinline instead of the whole module.
+  bool IsSummaryOnly = false;
+
 public:
   /// Constructs a ModuleBitcodeWriter object for the given Module,
   /// writing to the provided \p Buffer.
@@ -142,11 +146,12 @@ public:
                       StringTableBuilder &StrtabBuilder,
                       BitstreamWriter &Stream, bool ShouldPreserveUseListOrder,
                       const ModuleSummaryIndex *Index, bool GenerateHash,
-                      ModuleHash *ModHash = nullptr)
+                      ModuleHash *ModHash = nullptr, bool IsSummaryOnly = false)
       : BitcodeWriterBase(Stream, StrtabBuilder), Buffer(Buffer), M(*M),
         VE(*M, ShouldPreserveUseListOrder), Index(Index),
         GenerateHash(GenerateHash), ModHash(ModHash),
-        BitcodeStartBit(Stream.GetCurrentBitNo()) {
+        BitcodeStartBit(Stream.GetCurrentBitNo()),
+        IsSummaryOnly(IsSummaryOnly) {
     // Assign ValueIds to any callee values in the index that came from
     // indirect call profiles and were recorded as a GUID not a Value*
     // (which would have been assigned an ID by the ValueEnumerator).
@@ -3676,11 +3681,13 @@ void ModuleBitcodeWriter::write() {
   // Emit blockinfo, which defines the standard abbreviations etc.
   writeBlockInfo();
 
-  // Emit information about attribute groups.
-  writeAttributeGroupTable();
+  // Emit information about attribute groups. Isn't needed for summary file.
+  if (!IsSummaryOnly)
+    writeAttributeGroupTable();
 
-  // Emit information about parameter attributes.
-  writeAttributeTable();
+  // Emit information about parameter attributes. Isn't needed for summary file.
+  if (!IsSummaryOnly)
+    writeAttributeTable();
 
   // Emit information describing all of the types in the module.
   writeTypeTable();
@@ -3697,8 +3704,9 @@ void ModuleBitcodeWriter::write() {
   // Emit metadata kind names.
   writeModuleMetadataKinds();
 
-  // Emit metadata.
-  writeModuleMetadata();
+  // Emit metadata. Isn't needed for summary file.
+  if (!IsSummaryOnly)
+    writeModuleMetadata();
 
   // Emit module-level use-lists.
   if (VE.shouldPreserveUseListOrder())
@@ -3706,18 +3714,30 @@ void ModuleBitcodeWriter::write() {
 
   writeOperandBundleTags();
 
-  // Emit function bodies.
-  DenseMap<const Function *, uint64_t> FunctionToBitcodeIndex;
-  for (Module::const_iterator F = M.begin(), E = M.end(); F != E; ++F)
-    if (!F->isDeclaration())
-      writeFunction(*F, FunctionToBitcodeIndex);
+  // If we are writing a regular module file, the Functions and GV Symbol
+  // Table are needed. If we also got Index, we should write it, too.
+  if (!IsSummaryOnly) {
+    // Emit function bodies.
+    DenseMap<const Function *, uint64_t> FunctionToBitcodeIndex;
+    for (Module::const_iterator F = M.begin(), E = M.end(); F != E; ++F)
+      if (!F->isDeclaration())
+        writeFunction(*F, FunctionToBitcodeIndex);
 
-  // Need to write after the above call to WriteFunction which populates
-  // the summary information in the index.
-  if (Index)
-    writePerModuleGlobalValueSummary();
+    // Need to write after the above call to WriteFunction which populates
+    // the summary information in the index.
+    if (Index)
+      writePerModuleGlobalValueSummary();
 
-  writeGlobalValueSymbolTable(FunctionToBitcodeIndex);
+    writeGlobalValueSymbolTable(FunctionToBitcodeIndex);
+  }
+  // If we are writing a summary file, we don't need the Functions and
+  // the GV Symbol Table, but the Index must be required. 
+  else {
+    if (Index)
+      writePerModuleGlobalValueSummary();
+    else
+      report_fatal_error("Cannot find ModuleSummaryIndex when writing summary file.");
+  }
 
   writeModuleHash(BlockStartPos);
 
@@ -3842,10 +3862,11 @@ void BitcodeWriter::copyStrtab(StringRef Strtab) {
 void BitcodeWriter::writeModule(const Module *M,
                                 bool ShouldPreserveUseListOrder,
                                 const ModuleSummaryIndex *Index,
-                                bool GenerateHash, ModuleHash *ModHash) {
+                                bool GenerateHash, ModuleHash *ModHash,
+                                bool IsSummaryOnly) {
   ModuleBitcodeWriter ModuleWriter(M, Buffer, StrtabBuilder, *Stream,
                                    ShouldPreserveUseListOrder, Index,
-                                   GenerateHash, ModHash);
+                                   GenerateHash, ModHash, IsSummaryOnly);
   ModuleWriter.write();
 }
 
@@ -3862,7 +3883,8 @@ void BitcodeWriter::writeIndex(
 void llvm::WriteBitcodeToFile(const Module *M, raw_ostream &Out,
                               bool ShouldPreserveUseListOrder,
                               const ModuleSummaryIndex *Index,
-                              bool GenerateHash, ModuleHash *ModHash) {
+                              bool GenerateHash, ModuleHash *ModHash,
+                              bool IsSummaryOnly) {
   SmallVector<char, 0> Buffer;
   Buffer.reserve(256*1024);
 
@@ -3874,7 +3896,7 @@ void llvm::WriteBitcodeToFile(const Module *M, raw_ostream &Out,
 
   BitcodeWriter Writer(Buffer);
   Writer.writeModule(M, ShouldPreserveUseListOrder, Index, GenerateHash,
-                     ModHash);
+                     ModHash, IsSummaryOnly);
   Writer.writeStrtab();
 
   if (TT.isOSDarwin() || TT.isOSBinFormatMachO())
