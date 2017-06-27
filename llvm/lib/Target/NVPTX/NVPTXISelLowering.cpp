@@ -1305,10 +1305,16 @@ std::string NVPTXTargetLowering::getPrototype(
     if (!Outs[OIdx].Flags.isByVal()) {
       if (Ty->isAggregateType() || Ty->isVectorTy()) {
         unsigned align = 0;
-        const CallInst *CallI = cast<CallInst>(CS->getInstruction());
-        // +1 because index 0 is reserved for return type alignment
-        if (!getAlign(*CallI, i + 1, align))
-          align = DL.getABITypeAlignment(Ty);
+        // Call site is empty for libcall.
+        if (CS) {
+          const CallInst *CallI = cast<CallInst>(CS->getInstruction());
+          // +1 because index 0 is reserved for return type alignment
+          if (!getAlign(*CallI, i + 1, align))
+            align = DL.getABITypeAlignment(Ty);
+        }
+        else {
+           align = DL.getABITypeAlignment(Ty);
+        }
         unsigned sz = DL.getTypeAllocSize(Ty);
         O << ".param .align " << align << " .b8 ";
         O << "_";
@@ -1622,6 +1628,9 @@ SDValue NVPTXTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
   GlobalAddressSDNode *Func = dyn_cast<GlobalAddressSDNode>(Callee.getNode());
   unsigned retAlignment = 0;
 
+  // Libcalls doesn't have call site and but they still are NOT indirect calls.  
+  bool isIndirectCall = !Func && CS;
+
   // Handle Result
   if (Ins.size() > 0) {
     SmallVector<EVT, 16> resvtparts;
@@ -1660,7 +1669,12 @@ SDValue NVPTXTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
     }
   }
 
-  if (!Func) {
+  if (isa<ExternalSymbolSDNode>(Callee)) {
+    // Try to find the callee in the current module.
+    Callee = LowerLibcallFnNameSymbol(Callee, DAG);
+  }
+
+  if (isIndirectCall) {
     // This is indirect function call case : PTX requires a prototype of the
     // form
     // proto_0 : .callprototype(.param .b32 _) _ (.param .b32 _);
@@ -1684,7 +1698,7 @@ SDValue NVPTXTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
     Chain, DAG.getConstant((Ins.size() == 0) ? 0 : 1, dl, MVT::i32), InFlag
   };
   // We model convergent calls as separate opcodes.
-  unsigned Opcode = Func ? NVPTXISD::PrintCallUni : NVPTXISD::PrintCall;
+  unsigned Opcode = !isIndirectCall ? NVPTXISD::PrintCallUni : NVPTXISD::PrintCall;
   if (CLI.IsConvergent)
     Opcode = Opcode == NVPTXISD::PrintCallUni ? NVPTXISD::PrintConvergentCallUni
                                               : NVPTXISD::PrintConvergentCall;
@@ -1718,12 +1732,12 @@ SDValue NVPTXTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
   }
   SDVTList CallArgEndVTs = DAG.getVTList(MVT::Other, MVT::Glue);
   SDValue CallArgEndOps[] = { Chain,
-                              DAG.getConstant(Func ? 1 : 0, dl, MVT::i32),
+                              DAG.getConstant(!isIndirectCall, dl, MVT::i32),
                               InFlag };
   Chain = DAG.getNode(NVPTXISD::CallArgEnd, dl, CallArgEndVTs, CallArgEndOps);
   InFlag = Chain.getValue(1);
 
-  if (!Func) {
+  if (isIndirectCall) {
     SDVTList PrototypeVTs = DAG.getVTList(MVT::Other, MVT::Glue);
     SDValue PrototypeOps[] = { Chain,
                                DAG.getConstant(uniqueCallSite, dl, MVT::i32),
@@ -1823,6 +1837,15 @@ SDValue NVPTXTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
                                                    true),
                              InFlag, dl);
   uniqueCallSite++;
+
+  if (!CS) {
+    // Unfortunately, libcall expansion does not respect `Chain`...
+    // Our `CALLSEQ_END` becomes dead node (i.e. nobody references it) because
+    // only retval `LoadParam`s will be used after expansion. That means the
+    // node will be deleted at the next iteration of legalization and we have
+    // to make effors to keep it alive.
+    DAG.KeepNodeAlive(Chain.getNode(), true);
+  }
 
   // set isTailCall to false for now, until we figure out how to express
   // tail call optimization in PTX
@@ -2285,6 +2308,27 @@ NVPTXTargetLowering::getParamSymbol(SelectionDAG &DAG, int idx, EVT v) const {
   std::string *SavedStr =
     nvTM->getManagedStrPool()->getManagedString(ParamSym.c_str());
   return DAG.getTargetExternalSymbol(SavedStr->c_str(), v);
+}
+
+SDValue
+NVPTXTargetLowering::LowerLibcallFnNameSymbol(SDValue Op,
+                                              SelectionDAG &DAG) const {
+  auto *Symbol = cast<ExternalSymbolSDNode>(Op)->getSymbol();
+  auto *Module = DAG.getMachineFunction().getFunction()->getParent();
+  auto PtrVT = getPointerTy(DAG.getDataLayout());
+
+  if (Module->getFunction(Symbol) != nullptr) {
+    return DAG.getTargetExternalSymbol(Symbol, PtrVT);
+  }
+
+  std::string ErrorStr;
+  raw_string_ostream ErrorFormatter(ErrorStr);
+
+  ErrorFormatter << "Undefined external symbol ";
+  ErrorFormatter << '"' << Symbol << '"';
+  ErrorFormatter.flush();
+
+  report_fatal_error(ErrorStr);
 }
 
 // Check to see if the kernel argument is image*_t or sampler_t

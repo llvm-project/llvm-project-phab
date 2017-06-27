@@ -661,6 +661,9 @@ void SelectionDAG::DeallocateNode(SDNode *N) {
   // If we have operands, deallocate them.
   removeOperands(N);
 
+  // No need to keep it alive anymore.
+  PreservedNodes.erase(N);
+
   NodeAllocator.Deallocate(AllNodes.remove(N));
 
   // Set the opcode to DELETED_NODE to help catch bugs when node
@@ -966,6 +969,7 @@ void SelectionDAG::clear() {
   ExternalSymbols.clear();
   TargetExternalSymbols.clear();
   MCSymbols.clear();
+  PreservedNodes.clear();
   std::fill(CondCodeNodes.begin(), CondCodeNodes.end(),
             static_cast<CondCodeSDNode*>(nullptr));
   std::fill(ValueTypeNodes.begin(), ValueTypeNodes.end(),
@@ -7938,6 +7942,19 @@ SDNode *SelectionDAG::isConstantFPBuildVectorOrConstantFP(SDValue N) {
     return N.getNode();
 
   return nullptr;
+}
+
+/// KeepNodeAlive - Depends on \p ShouldKeep parameter starts or ends
+/// considering node \p N as alive (i.e. being referenced) even if the node
+/// is actually dead.
+void SelectionDAG::KeepNodeAlive(SDNode *N, bool ShouldKeep) {
+  if (ShouldKeep && PreservedNodes.count(N) == 0) {
+    auto user = std::unique_ptr<HandleSDNode>(new HandleSDNode(SDValue(N, 0)));
+    PreservedNodes.insert(std::make_pair(N, std::move(user)));
+  }
+
+  if (!ShouldKeep)
+    PreservedNodes.erase(N);
 }
 
 #ifndef NDEBUG

@@ -565,6 +565,7 @@ private:
   SDValue LowerShiftLeftParts(SDValue Op, SelectionDAG &DAG) const;
 
   SDValue LowerSelect(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerLibcallFnNameSymbol(SDValue Op, SelectionDAG &DAG) const;
 
   void ReplaceNodeResults(SDNode *N, SmallVectorImpl<SDValue> &Results,
                           SelectionDAG &DAG) const override;

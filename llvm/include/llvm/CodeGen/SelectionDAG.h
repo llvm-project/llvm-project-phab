@@ -1456,6 +1456,11 @@ public:
            isConstantFPBuildVectorOrConstantFP(N);
   }
 
+  /// KeepNodeAlive - Depends on \p ShouldKeep parameter starts or ends
+  /// considering node \p N as alive (i.e. being referenced) even if the node
+  /// is actually dead.
+  void KeepNodeAlive(SDNode *N, bool ShouldKeep);
+
 private:
   void InsertNode(SDNode *N);
   bool RemoveNodeFromCSEMaps(SDNode *N);
@@ -1496,6 +1501,7 @@ private:
 
   std::map<std::pair<std::string, unsigned char>,SDNode*> TargetExternalSymbols;
   DenseMap<MCSymbol *, SDNode *> MCSymbols;
+  SmallDenseMap<SDNode *, std::unique_ptr<HandleSDNode>, 16> PreservedNodes;
 };
 
 template <> struct GraphTraits<SelectionDAG*> : public GraphTraits<SDNode*> {
