@@ -89,11 +89,14 @@ bool lldb_private::InferiorCallMmap(Process *process, addr_t &allocated_addr,
             process->GetTarget().GetScratchClangASTContext();
         CompilerType clang_void_ptr_type =
             clang_ast_context->GetBasicType(eBasicTypeVoid).GetPointerType();
-        lldb::addr_t args[] = {addr, length, prot_arg, flags_arg, fd, offset};
+        llvm::SmallVector<lldb::addr_t, 6> args({ addr, length, prot_arg,
+            flags_arg, fd, offset });
+        if (arch.GetTriple().getOS() == llvm::Triple::FreeBSD
+            && arch.GetTriple().getArch() == llvm::Triple::x86)
+          args.push_back(0);
         lldb::ThreadPlanSP call_plan_sp(
             new ThreadPlanCallFunction(*thread, mmap_range.GetBaseAddress(),
-                                       clang_void_ptr_type, args, options));
-        if (call_plan_sp) {
+                                       clang_void_ptr_type, args, options));        if (call_plan_sp) {
           DiagnosticManager diagnostics;
 
           StackFrame *frame = thread->GetStackFrameAtIndex(0).get();

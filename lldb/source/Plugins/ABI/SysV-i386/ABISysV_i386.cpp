@@ -206,7 +206,7 @@ ABISP
 ABISysV_i386::CreateInstance(const ArchSpec &arch) {
   static ABISP g_abi_sp;
   if ((arch.GetTriple().getArch() == llvm::Triple::x86) &&
-      arch.GetTriple().isOSLinux()) {
+      (arch.GetTriple().isOSLinux() || arch.GetTriple().isOSFreeBSD())) {
     if (!g_abi_sp)
       g_abi_sp.reset(new ABISysV_i386);
     return g_abi_sp;
