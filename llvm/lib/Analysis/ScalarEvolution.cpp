@@ -2935,6 +2935,22 @@ const SCEV *ScalarEvolution::getMulExpr(SmallVectorImpl<const SCEV *> &Ops,
   return getOrCreateMulExpr(Ops, Flags);
 }
 
+/// Represents an unsigned remainder expression based on unsigned division.
+const SCEV *ScalarEvolution::getURemExpr(const SCEV *LHS,
+                                         const SCEV *RHS) {
+  assert(getEffectiveSCEVType(LHS->getType()) ==
+         getEffectiveSCEVType(RHS->getType()) &&
+         "SCEVURemExpr operand types don't match!");
+
+  if (const SCEVConstant *RHSC = dyn_cast<SCEVConstant>(RHS))
+    if (RHSC->getValue()->equalsInt(1))
+      return LHS;                               // X urem 1 --> X
+
+  const SCEV *UDiv = getUDivExpr(LHS, RHS);
+  const SCEV *Mult = getMulExpr(UDiv, RHS, SCEV::FlagNUW);
+  return getMinusSCEV(LHS, Mult, SCEV::FlagNUW);
+}
+
 /// Get a canonical unsigned division expression, or something simpler if
 /// possible.
 const SCEV *ScalarEvolution::getUDivExpr(const SCEV *LHS,
@@ -4095,6 +4111,7 @@ static Optional<BinaryOp> MatchBinaryOp(Value *V, DominatorTree &DT) {
   case Instruction::Sub:
   case Instruction::Mul:
   case Instruction::UDiv:
+  case Instruction::URem:
   case Instruction::And:
   case Instruction::Or:
   case Instruction::AShr:
@@ -5416,6 +5433,8 @@ const SCEV *ScalarEvolution::createSCEV(Value *V) {
     }
     case Instruction::UDiv:
       return getUDivExpr(getSCEV(BO->LHS), getSCEV(BO->RHS));
+    case Instruction::URem:
+      return getURemExpr(getSCEV(BO->LHS), getSCEV(BO->RHS));
     case Instruction::Sub: {
       SCEV::NoWrapFlags Flags = SCEV::FlagAnyWrap;
       if (BO->Op)
