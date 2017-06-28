@@ -10,9 +10,9 @@ define void @update(<3 x float>* %dst, <3 x float>* %src, i32 %n) nounwind {
 ; CHECK-NEXT:    movl %esp, %ebp
 ; CHECK-NEXT:    andl $-16, %esp
 ; CHECK-NEXT:    subl $48, %esp
+; CHECK-NEXT:    movl $1065353216, {{[0-9]+}}(%esp) # imm = 0x3F800000
 ; CHECK-NEXT:    movl $1077936128, {{[0-9]+}}(%esp) # imm = 0x40400000
 ; CHECK-NEXT:    movl $1073741824, {{[0-9]+}}(%esp) # imm = 0x40000000
-; CHECK-NEXT:    movl $1065353216, {{[0-9]+}}(%esp) # imm = 0x3F800000
 ; CHECK-NEXT:    movl $0, {{[0-9]+}}(%esp)
 ; CHECK-NEXT:    movaps {{.*#+}} xmm0 = <1976.04004,1976.04004,1976.04004,u>
 ; CHECK-NEXT:    jmp .LBB0_1
