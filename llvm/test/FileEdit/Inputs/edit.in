@@ -1,0 +1,3 @@
+CHECK: Test - foo - Test
+CHECK: Test - bar - Test
+CHECK: Test - baz - Test

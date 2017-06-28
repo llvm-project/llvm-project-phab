@@ -29,6 +29,7 @@ endif()
 set(LLVM_TEST_DEPENDS
           BugpointPasses
           FileCheck
+          FileEdit
           LLVMHello
           UnitTests
           bugpoint

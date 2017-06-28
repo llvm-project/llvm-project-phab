@@ -1,0 +1,15 @@
+; RUN: FileEdit %s | FileCheck --check-prefix=NONE %s
+; RUN: FileEdit -replace=s/foo/bar/ %s | FileCheck --check-prefix=ONE %s
+; RUN: FileEdit -replace=s/foo/bar/ -replace=s/bar/baz/ %s | FileCheck --check-prefix=TWO %s
+
+NONE:      CHECK: Test - foo - Test
+NONE-NEXT: CHECK: Test - bar - Test
+NONE-NEXT: CHECK: Test - baz - Test
+
+ONE:      CHECK: Test - bar - Test
+ONE-NEXT: CHECK: Test - bar - Test
+ONE-NEXT: CHECK: Test - baz - Test
+
+TWO:      CHECK: Test - bar - Test
+TWO-NEXT: CHECK: Test - baz - Test
+TWO-NEXT: CHECK: Test - baz - Test

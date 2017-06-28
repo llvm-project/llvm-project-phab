@@ -1,0 +1,16 @@
+; RUN: FileEdit -dest=%t_dir -replace=s/THETYPE/int/ -replace=s/THEFILE/%T/ %s | FileCheck %s
+
+
+{!-- TheFile.txt
+#include <iostream>
+THETYPE main(THETYPE argc, char **argv) {
+  std::cout << "THEFILE" << std::endl;
+  return 0;
+}
+
+{!--
+CHECK:      #include <iostream>
+CHECK-NEXT: int main(int argc, char **argv) {
+CHECK-NEXT:   std::cout << "{{.*multiple-edits-same-line.*}}" << std::endl;
+CHECK-NEXT:   return 0;
+CHECK-NEXT: }

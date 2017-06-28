@@ -1,0 +1,26 @@
+; RUN: FileEdit -dest=%t_dir %s
+; RUN: FileCheck -input-file=%t_dir/File1.cpp -check-prefix=FILE1 %s
+; RUN: FileCheck -input-file=%t_dir/File2.cpp -check-prefix=FILE2 %s
+
+{!-- File1.cpp
+// File1.cpp
+int main(int argc, char **argv) {
+  return 0;
+}
+
+{!-- File2.cpp
+// File2.cpp
+int main(int argc, char **argv) {
+  return 0;
+}
+
+{!--
+FILE1:      // File1.cpp
+FILE1-NEXT: int main(int argc, char **argv) {
+FILE1-NEXT:   return 0;
+FILE1-NEXT: }
+
+FILE2:      // File2.cpp
+FILE2-NEXT: int main(int argc, char **argv) {
+FILE2-NEXT:   return 0;
+FILE2-NEXT: }

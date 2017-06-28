@@ -1,0 +1,12 @@
+; RUN: FileEdit -dest=%t_dir %s
+; RUN: FileCheck -input-file=%t_dir/TheFile.txt %s
+
+{!-- TheFile.txt
+int main(int argc, char **argv) {
+  return 0;
+}
+
+{!--
+CHECK:      int main(int argc, char **argv) {
+CHECK-NEXT:   return 0;
+CHECK-NEXT: }
