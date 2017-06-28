@@ -1915,7 +1915,7 @@ IsTransparentUnionStandardConversion(Sema &S, Expr* From,
 /// IsIntegralPromotion - Determines whether the conversion from the
 /// expression From (whose potentially-adjusted type is FromType) to
 /// ToType is an integral promotion (C++ 4.5). If so, returns true and
-/// sets PromotedType to the promoted type.
+/// sets From to the promoted type.
 bool Sema::IsIntegralPromotion(Expr *From, QualType FromType, QualType ToType) {
   const BuiltinType *To = ToType->getAs<BuiltinType>();
   // All integers are built-in.
@@ -2063,7 +2063,7 @@ bool Sema::IsIntegralPromotion(Expr *From, QualType FromType, QualType ToType) {
 
 /// IsFloatingPointPromotion - Determines whether the conversion from
 /// FromType to ToType is a floating point promotion (C++ 4.6). If so,
-/// returns true and sets PromotedType to the promoted type.
+/// returns true.
 bool Sema::IsFloatingPointPromotion(QualType FromType, QualType ToType) {
   if (const BuiltinType *FromBuiltin = FromType->getAs<BuiltinType>())
     if (const BuiltinType *ToBuiltin = ToType->getAs<BuiltinType>()) {
@@ -2073,20 +2073,14 @@ bool Sema::IsFloatingPointPromotion(QualType FromType, QualType ToType) {
           ToBuiltin->getKind() == BuiltinType::Double)
         return true;
 
-      // C99 6.3.1.5p1:
-      //   When a float is promoted to double or long double, or a
-      //   double is promoted to long double [...].
-      if (!getLangOpts().CPlusPlus &&
-          (FromBuiltin->getKind() == BuiltinType::Float ||
-           FromBuiltin->getKind() == BuiltinType::Double) &&
-          (ToBuiltin->getKind() == BuiltinType::LongDouble ||
-           ToBuiltin->getKind() == BuiltinType::Float128))
-        return true;
-
-      // Half can be promoted to float.
-      if (!getLangOpts().NativeHalfType &&
-           FromBuiltin->getKind() == BuiltinType::Half &&
-          ToBuiltin->getKind() == BuiltinType::Float)
+      /// Behave as if C++ 4.6 was modified by:
+      /// - Inserting a paragraph:
+      ///     "A prvalue of type half can be converted to a prvalue of type
+      ///      double. The value is unchanged."
+      /// - Updating paragraph 2 to:
+      ///     "These conversions are called floating point promotions."
+      if (FromBuiltin->getKind() == BuiltinType::Half &&
+          ToBuiltin->getKind() == BuiltinType::Double)
         return true;
     }
 
