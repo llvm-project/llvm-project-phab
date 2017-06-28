@@ -26,8 +26,8 @@ public:
   X86WinCOFFObjectWriter(bool Is64Bit);
   ~X86WinCOFFObjectWriter() override = default;
 
-  unsigned getRelocType(MCContext &Ctx, const MCValue &Target,
-                        const MCFixup &Fixup, bool IsCrossSection,
+  unsigned getRelocType(MCContext &Ctx, const MCReloc &Reloc,
+                        bool IsCrossSection,
                         const MCAsmBackend &MAB) const override;
 };
 
@@ -38,10 +38,10 @@ X86WinCOFFObjectWriter::X86WinCOFFObjectWriter(bool Is64Bit)
                                           : COFF::IMAGE_FILE_MACHINE_I386) {}
 
 unsigned X86WinCOFFObjectWriter::getRelocType(MCContext &Ctx,
-                                              const MCValue &Target,
-                                              const MCFixup &Fixup,
+                                              const MCReloc &Fixup,
                                               bool IsCrossSection,
                                               const MCAsmBackend &MAB) const {
+  const MCReloc &Target = Fixup;
   unsigned FixupKind = Fixup.getKind();
   if (IsCrossSection) {
     if (FixupKind != FK_Data_4 && FixupKind != llvm::X86::reloc_signed_4byte) {

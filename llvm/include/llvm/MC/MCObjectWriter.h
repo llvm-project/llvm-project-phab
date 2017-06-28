@@ -27,6 +27,7 @@ class MCFragment;
 class MCSymbol;
 class MCSymbolRefExpr;
 class MCValue;
+class MCReloc;
 
 /// Defines the object file and target independent interfaces used by the
 /// assembler backend to write native file format object files.
@@ -84,9 +85,7 @@ public:
   /// information about the relocation so that it can be emitted during
   /// writeObject().
   virtual void recordRelocation(MCAssembler &Asm, const MCAsmLayout &Layout,
-                                const MCFragment *Fragment,
-                                const MCFixup &Fixup, MCValue Target,
-                                bool &IsPCRel, uint64_t &FixedValue) = 0;
+                                const MCFragment *Fragment, MCReloc &Reloc) = 0;
 
   /// Check whether the difference (A - B) between two symbol references is
   /// fully resolved.
