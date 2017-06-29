@@ -16,6 +16,7 @@
 
 #include "clang/AST/AttrIterator.h"
 #include "clang/AST/DeclarationName.h"
+#include "clang/AST/PrettyPrinter.h"
 #include "clang/Basic/Specifiers.h"
 #include "clang/Basic/VersionTuple.h"
 #include "llvm/ADT/PointerUnion.h"
@@ -1090,7 +1091,8 @@ public:
   void print(raw_ostream &Out, unsigned Indentation = 0,
              bool PrintInstantiation = false) const;
   void print(raw_ostream &Out, const PrintingPolicy &Policy,
-             unsigned Indentation = 0, bool PrintInstantiation = false) const;
+             unsigned Indentation = 0, bool PrintInstantiation = false,
+             PrintingContext Context = PrintingContext()) const;
   static void printGroup(Decl** Begin, unsigned NumDecls,
                          raw_ostream &Out, const PrintingPolicy &Policy,
                          unsigned Indentation = 0);

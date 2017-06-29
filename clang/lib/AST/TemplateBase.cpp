@@ -35,8 +35,9 @@ using namespace clang;
 /// \param Out the raw_ostream instance to use for printing.
 ///
 /// \param Policy the printing policy for EnumConstantDecl printing.
-static void printIntegral(const TemplateArgument &TemplArg,
-                          raw_ostream &Out, const PrintingPolicy& Policy) {
+static void printIntegral(const TemplateArgument &TemplArg, raw_ostream &Out,
+                          const PrintingPolicy &Policy,
+                          PrintingContext Context = PrintingContext()) {
   const ::clang::Type *T = TemplArg.getIntegralType().getTypePtr();
   const llvm::APSInt &Val = TemplArg.getAsIntegral();
 
@@ -47,7 +48,7 @@ static void printIntegral(const TemplateArgument &TemplArg,
       // may create a size difference between the enum value and template
       // argument value, requiring isSameValue here instead of operator==.
       if (llvm::APSInt::isSameValue(ECD->getInitVal(), Val)) {
-        ECD->printQualifiedName(Out, Policy);
+        ECD->printQualifiedName(Out, Policy, Context);
         return;
       }
     }
@@ -376,8 +377,8 @@ TemplateArgument TemplateArgument::getPackExpansionPattern() const {
   llvm_unreachable("Invalid TemplateArgument Kind!");
 }
 
-void TemplateArgument::print(const PrintingPolicy &Policy, 
-                             raw_ostream &Out) const {
+void TemplateArgument::print(const PrintingPolicy &Policy, raw_ostream &Out,
+                             PrintingContext Context) const {
   switch (getKind()) {
   case Null:
     Out << "(no value)";
@@ -386,7 +387,7 @@ void TemplateArgument::print(const PrintingPolicy &Policy,
   case Type: {
     PrintingPolicy SubPolicy(Policy);
     SubPolicy.SuppressStrongLifetime = true;
-    getAsType().print(Out, SubPolicy);
+    getAsType().print(Out, SubPolicy, Twine(), 0, Context);
     break;
   }
     
@@ -395,7 +396,7 @@ void TemplateArgument::print(const PrintingPolicy &Policy,
     Out << '&';
     if (ND->getDeclName()) {
       // FIXME: distinguish between pointer and reference args?
-      ND->printQualifiedName(Out);
+      ND->printQualifiedName(Out, Context);
     } else {
       Out << "(anonymous)";
     }
@@ -407,16 +408,16 @@ void TemplateArgument::print(const PrintingPolicy &Policy,
     break;
 
   case Template:
-    getAsTemplate().print(Out, Policy);
+    getAsTemplate().print(Out, Policy, Context);
     break;
 
   case TemplateExpansion:
-    getAsTemplateOrTemplatePattern().print(Out, Policy);
+    getAsTemplateOrTemplatePattern().print(Out, Policy, Context);
     Out << "...";
     break;
       
   case Integral: {
-    printIntegral(*this, Out, Policy);
+    printIntegral(*this, Out, Policy, Context);
     break;
   }
     
@@ -432,8 +433,8 @@ void TemplateArgument::print(const PrintingPolicy &Policy,
         First = false;
       else
         Out << ", ";
-      
-      P.print(Policy, Out);
+
+      P.print(Policy, Out, Context);
     }
     Out << ">";
     break;        

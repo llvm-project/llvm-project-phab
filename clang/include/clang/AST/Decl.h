@@ -18,6 +18,7 @@
 #include "clang/AST/DeclBase.h"
 #include "clang/AST/DeclarationName.h"
 #include "clang/AST/ExternalASTSource.h"
+#include "clang/AST/PrettyPrinter.h"
 #include "clang/AST/Redeclarable.h"
 #include "clang/AST/Type.h"
 #include "clang/Basic/Linkage.h"
@@ -27,8 +28,8 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/Support/Compiler.h"
-#include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/TrailingObjects.h"
+#include "llvm/Support/raw_ostream.h"
 
 namespace clang {
 struct ASTTemplateArgumentListInfo;
@@ -266,8 +267,10 @@ public:
   /// namespace), it will return same result as printName().
   /// Creating this name is expensive, so it should be called only when
   /// performance doesn't matter.
-  void printQualifiedName(raw_ostream &OS) const;
-  void printQualifiedName(raw_ostream &OS, const PrintingPolicy &Policy) const;
+  void printQualifiedName(raw_ostream &OS,
+                          PrintingContext Context = PrintingContext()) const;
+  void printQualifiedName(raw_ostream &OS, const PrintingPolicy &Policy,
+                          PrintingContext Context = PrintingContext()) const;
 
   // FIXME: Remove string version.
   std::string getQualifiedNameAsString() const;

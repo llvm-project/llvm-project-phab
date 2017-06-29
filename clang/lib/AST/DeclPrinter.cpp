@@ -28,6 +28,7 @@ namespace {
   class DeclPrinter : public DeclVisitor<DeclPrinter> {
     raw_ostream &Out;
     PrintingPolicy Policy;
+    PrintingContext Context;
     unsigned Indentation;
     bool PrintInstantiation;
 
@@ -48,9 +49,10 @@ namespace {
 
   public:
     DeclPrinter(raw_ostream &Out, const PrintingPolicy &Policy,
-                unsigned Indentation = 0, bool PrintInstantiation = false)
-      : Out(Out), Policy(Policy), Indentation(Indentation),
-        PrintInstantiation(PrintInstantiation) { }
+                unsigned Indentation = 0, bool PrintInstantiation = false,
+                PrintingContext Context = PrintingContext())
+        : Out(Out), Policy(Policy), Context(Context), Indentation(Indentation),
+          PrintInstantiation(PrintInstantiation) {}
 
     void VisitDeclContext(DeclContext *DC, bool Indent = true);
 
@@ -114,8 +116,9 @@ void Decl::print(raw_ostream &Out, unsigned Indentation,
 }
 
 void Decl::print(raw_ostream &Out, const PrintingPolicy &Policy,
-                 unsigned Indentation, bool PrintInstantiation) const {
-  DeclPrinter Printer(Out, Policy, Indentation, PrintInstantiation);
+                 unsigned Indentation, bool PrintInstantiation,
+                 PrintingContext Context) const {
+  DeclPrinter Printer(Out, Policy, Indentation, PrintInstantiation, Context);
   Printer.Visit(const_cast<Decl*>(this));
 }
 
@@ -510,7 +513,7 @@ void DeclPrinter::VisitFunctionDecl(FunctionDecl *D) {
   PrintingPolicy SubPolicy(Policy);
   SubPolicy.SuppressSpecifiers = false;
   std::string Proto;
-  if (!Policy.SuppressScope) {
+  if (Policy.Scope != ScopePrintingKind::SuppressScope) {
     if (const NestedNameSpecifier *NS = D->getQualifier()) {
       llvm::raw_string_ostream OS(Proto);
       NS->print(OS, Policy);

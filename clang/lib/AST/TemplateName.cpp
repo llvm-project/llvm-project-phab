@@ -174,20 +174,24 @@ bool TemplateName::containsUnexpandedParameterPack() const {
   return getAsSubstTemplateTemplateParmPack() != nullptr;
 }
 
-void
-TemplateName::print(raw_ostream &OS, const PrintingPolicy &Policy,
-                    bool SuppressNNS) const {
-  if (TemplateDecl *Template = Storage.dyn_cast<TemplateDecl *>())
-    OS << *Template;
-  else if (QualifiedTemplateName *QTN = getAsQualifiedTemplateName()) {
-    if (!SuppressNNS)
-      QTN->getQualifier()->print(OS, Policy);
+void TemplateName::print(raw_ostream &OS, const PrintingPolicy &Policy,
+                         PrintingContext Context) const {
+  if (TemplateDecl *Template = Storage.dyn_cast<TemplateDecl *>()) {
+    if (Policy.Scope == ScopePrintingKind::FullScope &&
+        !Context.TemporarySuppressScope) {
+      Template->printQualifiedName(OS, Policy, Context);
+    } else {
+      OS << *Template;
+    }
+  } else if (QualifiedTemplateName *QTN = getAsQualifiedTemplateName()) {
+    if (!Context.TemporarySuppressScope)
+      QTN->getQualifier()->print(OS, Policy, Context);
     if (QTN->hasTemplateKeyword())
       OS << "template ";
     OS << *QTN->getDecl();
   } else if (DependentTemplateName *DTN = getAsDependentTemplateName()) {
-    if (!SuppressNNS && DTN->getQualifier())
-      DTN->getQualifier()->print(OS, Policy);
+    if (!Context.TemporarySuppressScope && DTN->getQualifier())
+      DTN->getQualifier()->print(OS, Policy, Context);
     OS << "template ";
     
     if (DTN->isIdentifier())
@@ -196,7 +200,7 @@ TemplateName::print(raw_ostream &OS, const PrintingPolicy &Policy,
       OS << "operator " << getOperatorSpelling(DTN->getOperator());
   } else if (SubstTemplateTemplateParmStorage *subst
                = getAsSubstTemplateTemplateParm()) {
-    subst->getReplacement().print(OS, Policy, SuppressNNS);
+    subst->getReplacement().print(OS, Policy);
   } else if (SubstTemplateTemplateParmPackStorage *SubstPack
                                         = getAsSubstTemplateTemplateParmPack())
     OS << *SubstPack->getParameterPack();

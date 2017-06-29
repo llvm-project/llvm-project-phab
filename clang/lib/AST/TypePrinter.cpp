@@ -26,23 +26,21 @@
 #include "llvm/Support/raw_ostream.h"
 using namespace clang;
 
-namespace {
-  /// \brief RAII object that enables printing of the ARC __strong lifetime
-  /// qualifier.
-  class IncludeStrongLifetimeRAII {
-    PrintingPolicy &Policy;
-    bool Old;
-    
-  public:
-    explicit IncludeStrongLifetimeRAII(PrintingPolicy &Policy) 
+namespace clang {
+/// \brief RAII object that enables printing of the ARC __strong lifetime
+/// qualifier.
+class IncludeStrongLifetimeRAII {
+  PrintingPolicy &Policy;
+  bool Old;
+
+public:
+  explicit IncludeStrongLifetimeRAII(PrintingPolicy &Policy)
       : Policy(Policy), Old(Policy.SuppressStrongLifetime) {
-        if (!Policy.SuppressLifetimeQualifiers)
-          Policy.SuppressStrongLifetime = false;
-    }
-    
-    ~IncludeStrongLifetimeRAII() {
-      Policy.SuppressStrongLifetime = Old;
-    }
+    if (!Policy.SuppressLifetimeQualifiers)
+      Policy.SuppressStrongLifetime = false;
+  }
+
+  ~IncludeStrongLifetimeRAII() { Policy.SuppressStrongLifetime = Old; }
   };
 
   class ParamPolicyRAII {
@@ -63,32 +61,30 @@ namespace {
   class ElaboratedTypePolicyRAII {
     PrintingPolicy &Policy;
     bool SuppressTagKeyword;
-    bool SuppressScope;
     
   public:
     explicit ElaboratedTypePolicyRAII(PrintingPolicy &Policy) : Policy(Policy) {
       SuppressTagKeyword = Policy.SuppressTagKeyword;
-      SuppressScope = Policy.SuppressScope;
       Policy.SuppressTagKeyword = true;
-      Policy.SuppressScope = true;
     }
     
     ~ElaboratedTypePolicyRAII() {
       Policy.SuppressTagKeyword = SuppressTagKeyword;
-      Policy.SuppressScope = SuppressScope;
     }
   };
   
   class TypePrinter {
     PrintingPolicy Policy;
+    PrintingContext Context;
     unsigned Indentation;
     bool HasEmptyPlaceHolder;
     bool InsideCCAttribute;
 
   public:
-    explicit TypePrinter(const PrintingPolicy &Policy, unsigned Indentation = 0)
-      : Policy(Policy), Indentation(Indentation),
-        HasEmptyPlaceHolder(false), InsideCCAttribute(false) { }
+    explicit TypePrinter(const PrintingPolicy &Policy, unsigned Indentation = 0,
+                         PrintingContext Context = PrintingContext())
+        : Policy(Policy), Context(Context), Indentation(Indentation),
+          HasEmptyPlaceHolder(false), InsideCCAttribute(false) {}
 
     void print(const Type *ty, Qualifiers qs, raw_ostream &OS,
                StringRef PlaceHolder);
@@ -417,7 +413,8 @@ void TypePrinter::printMemberPointerBefore(const MemberPointerType *T,
 
   PrintingPolicy InnerPolicy(Policy);
   InnerPolicy.IncludeTagDefinition = false;
-  TypePrinter(InnerPolicy).print(QualType(T->getClass(), 0), OS, StringRef());
+  TypePrinter(InnerPolicy, 0, Context)
+      .print(QualType(T->getClass(), 0), OS, StringRef());
 
   OS << "::*";
 }
@@ -592,11 +589,10 @@ void TypePrinter::printExtVectorAfter(const ExtVectorType *T, raw_ostream &OS) {
   OS << ")))";
 }
 
-void 
-FunctionProtoType::printExceptionSpecification(raw_ostream &OS, 
-                                               const PrintingPolicy &Policy)
-                                                                         const {
-  
+void FunctionProtoType::printExceptionSpecification(
+    raw_ostream &OS, const PrintingPolicy &Policy,
+    PrintingContext Context) const {
+
   if (hasDynamicExceptionSpec()) {
     OS << " throw(";
     if (getExceptionSpecType() == EST_MSAny)
@@ -605,8 +601,8 @@ FunctionProtoType::printExceptionSpecification(raw_ostream &OS,
       for (unsigned I = 0, N = getNumExceptions(); I != N; ++I) {
         if (I)
           OS << ", ";
-        
-        OS << getExceptionType(I).stream(Policy);
+
+        OS << getExceptionType(I).stream(Policy, Twine(), 0, Context);
       }
     OS << ')';
   } else if (isNoexceptExceptionSpec(getExceptionSpecType())) {
@@ -770,7 +766,7 @@ void TypePrinter::printFunctionProtoAfter(const FunctionProtoType *T,
     OS << " &&";
     break;
   }
-  T->printExceptionSpecification(OS, Policy);
+  T->printExceptionSpecification(OS, Policy, Context);
 
   if (T->hasTrailingReturn()) {
     OS << " -> ";
@@ -801,13 +797,11 @@ void TypePrinter::printFunctionNoProtoAfter(const FunctionNoProtoType *T,
 }
 
 void TypePrinter::printTypeSpec(NamedDecl *D, raw_ostream &OS) {
-
-  // Compute the full nested-name-specifier for this type.
-  // In C, this will always be empty except when the type
-  // being printed is anonymous within other Record.
-  if (!Policy.SuppressScope)
+  if (Policy.Scope != ScopePrintingKind::SuppressScope &&
+      !Context.TemporarySuppressScope) {
+    // Print the scope:
     AppendScope(D->getDeclContext(), OS);
-
+  }
   IdentifierInfo *II = D->getIdentifier();
   OS << II->getName();
   spaceBeforePlaceHolder(OS);
@@ -820,10 +814,10 @@ void TypePrinter::printUnresolvedUsingBefore(const UnresolvedUsingType *T,
 void TypePrinter::printUnresolvedUsingAfter(const UnresolvedUsingType *T,
                                              raw_ostream &OS) { }
 
-void TypePrinter::printTypedefBefore(const TypedefType *T, raw_ostream &OS) { 
+void TypePrinter::printTypedefBefore(const TypedefType *T, raw_ostream &OS) {
   printTypeSpec(T->getDecl(), OS);
 }
-void TypePrinter::printTypedefAfter(const TypedefType *T, raw_ostream &OS) { } 
+void TypePrinter::printTypedefAfter(const TypedefType *T, raw_ostream &OS) {}
 
 void TypePrinter::printTypeOfExprBefore(const TypeOfExprType *T,
                                         raw_ostream &OS) {
@@ -905,7 +899,7 @@ void TypePrinter::printDeducedTemplateSpecializationBefore(
     printBefore(T->getDeducedType(), OS);
   } else {
     IncludeStrongLifetimeRAII Strong(Policy);
-    T->getTemplateName().print(OS, Policy);
+    T->getTemplateName().print(OS, Policy, Context);
     spaceBeforePlaceHolder(OS);
   }
 }
@@ -942,7 +936,12 @@ void TypePrinter::printPipeAfter(const PipeType *T, raw_ostream &OS) {
 }
 /// Appends the given scope to the end of a string.
 void TypePrinter::AppendScope(DeclContext *DC, raw_ostream &OS) {
-  if (DC->isTranslationUnit()) return;
+  if (DC->isTranslationUnit()) {
+    if (Policy.Scope == ScopePrintingKind::FullScope) {
+      OS << "::";
+    }
+    return;
+  }
   if (DC->isFunctionOrMethod()) return;
   AppendScope(DC->getParent(), OS);
 
@@ -960,7 +959,7 @@ void TypePrinter::AppendScope(DeclContext *DC, raw_ostream &OS) {
     OS << Spec->getIdentifier()->getName();
     const TemplateArgumentList &TemplateArgs = Spec->getTemplateArgs();
     TemplateSpecializationType::PrintTemplateArgumentList(
-        OS, TemplateArgs.asArray(), Policy);
+        OS, TemplateArgs.asArray(), Policy, false, Context);
     OS << "::";
   } else if (TagDecl *Tag = dyn_cast<TagDecl>(DC)) {
     if (TypedefNameDecl *Typedef = Tag->getTypedefNameForAnonDecl())
@@ -976,7 +975,7 @@ void TypePrinter::printTag(TagDecl *D, raw_ostream &OS) {
   if (Policy.IncludeTagDefinition) {
     PrintingPolicy SubPolicy = Policy;
     SubPolicy.IncludeTagDefinition = false;
-    D->print(OS, SubPolicy, Indentation);
+    D->print(OS, SubPolicy, Indentation, false, Context);
     spaceBeforePlaceHolder(OS);
     return;
   }
@@ -994,7 +993,8 @@ void TypePrinter::printTag(TagDecl *D, raw_ostream &OS) {
   // Compute the full nested-name-specifier for this type.
   // In C, this will always be empty except when the type
   // being printed is anonymous within other Record.
-  if (!Policy.SuppressScope)
+  if (Policy.Scope != ScopePrintingKind::SuppressScope &&
+      !Context.TemporarySuppressScope)
     AppendScope(D->getDeclContext(), OS);
 
   if (const IdentifierInfo *II = D->getIdentifier())
@@ -1033,6 +1033,8 @@ void TypePrinter::printTag(TagDecl *D, raw_ostream &OS) {
     OS << (Policy.MSVCFormatting ? '\'' : ')');
   }
 
+  Context.TemporarySuppressScope = false;
+
   // If this is a class template specialization, print the template
   // arguments.
   if (ClassTemplateSpecializationDecl *Spec
@@ -1047,7 +1049,8 @@ void TypePrinter::printTag(TagDecl *D, raw_ostream &OS) {
       Args = TemplateArgs.asArray();
     }
     IncludeStrongLifetimeRAII Strong(Policy);
-    TemplateSpecializationType::PrintTemplateArgumentList(OS, Args, Policy);
+    TemplateSpecializationType::PrintTemplateArgumentList(OS, Args, Policy,
+                                                          false, Context);
   }
 
   spaceBeforePlaceHolder(OS);
@@ -1101,13 +1104,14 @@ void TypePrinter::printSubstTemplateTypeParmPackAfter(
 }
 
 void TypePrinter::printTemplateSpecializationBefore(
-                                            const TemplateSpecializationType *T, 
-                                            raw_ostream &OS) { 
+    const TemplateSpecializationType *T, raw_ostream &OS) {
   IncludeStrongLifetimeRAII Strong(Policy);
-  T->getTemplateName().print(OS, Policy);
+  T->getTemplateName().print(OS, Policy, Context);
+
+  Context.TemporarySuppressScope = false;
 
   TemplateSpecializationType::PrintTemplateArgumentList(
-      OS, T->template_arguments(), Policy);
+      OS, T->template_arguments(), Policy, false, Context);
   spaceBeforePlaceHolder(OS);
 }
 void TypePrinter::printTemplateSpecializationAfter(
@@ -1123,17 +1127,35 @@ void TypePrinter::printInjectedClassNameAfter(const InjectedClassNameType *T,
 
 void TypePrinter::printElaboratedBefore(const ElaboratedType *T,
                                         raw_ostream &OS) {
+  bool ScopeHasBeenPrinted = false;
   // The tag definition will take care of these.
-  if (!Policy.IncludeTagDefinition)
-  {
+  if (!Policy.IncludeTagDefinition) {
     OS << TypeWithKeyword::getKeywordName(T->getKeyword());
     if (T->getKeyword() != ETK_None)
       OS << " ";
-    NestedNameSpecifier* Qualifier = T->getQualifier();
-    if (Qualifier)
-      Qualifier->print(OS, Policy);
+    NestedNameSpecifier *Qualifier = T->getQualifier();
+    if (Qualifier) {
+      Qualifier->print(OS, Policy, Context);
+      ScopeHasBeenPrinted = true;
+    }
+    // If there are no nested name specifiers, the complete scope will be
+    // printed later (location depends on the sub-type).
   }
-  
+
+  // Currently the following sub-types are known:
+  if (!isa<TagType>(T->getNamedType()) &&
+      !isa<TemplateSpecializationType>(T->getNamedType()) &&
+      !isa<TypedefType>(T->getNamedType()) &&
+      !isa<DeducedTemplateSpecializationType>(T->getNamedType())) {
+    llvm::errs() << "Unknown elaborated sub-type: "
+                 << T->getNamedType()->getTypeClassName() << "\n";
+    llvm_unreachable("Unknown elaborated sub-type (see error output)");
+  }
+
+  // Suppress the outer nested name specifier of the underlying type in case
+  // of DefaultScope and if a scope has already been printed.
+  Context.TemporarySuppressScope =
+      Policy.Scope == ScopePrintingKind::DefaultScope || ScopeHasBeenPrinted;
   ElaboratedTypePolicyRAII PolicyRAII(Policy);
   printBefore(T->getNamedType(), OS);
 }
@@ -1163,9 +1185,8 @@ void TypePrinter::printDependentNameBefore(const DependentNameType *T,
   OS << TypeWithKeyword::getKeywordName(T->getKeyword());
   if (T->getKeyword() != ETK_None)
     OS << " ";
-  
-  T->getQualifier()->print(OS, Policy);
-  
+  T->getQualifier()->print(OS, Policy, Context);
+
   OS << T->getIdentifier()->getName();
   spaceBeforePlaceHolder(OS);
 }
@@ -1179,13 +1200,15 @@ void TypePrinter::printDependentTemplateSpecializationBefore(
   OS << TypeWithKeyword::getKeywordName(T->getKeyword());
   if (T->getKeyword() != ETK_None)
     OS << " ";
-  
+
   if (T->getQualifier())
-    T->getQualifier()->print(OS, Policy);    
+    T->getQualifier()->print(OS, Policy, Context);
   OS << T->getIdentifier()->getName();
-  TemplateSpecializationType::PrintTemplateArgumentList(OS,
-                                                        T->template_arguments(),
-                                                        Policy);
+
+  Context.TemporarySuppressScope = false;
+
+  TemplateSpecializationType::PrintTemplateArgumentList(
+      OS, T->template_arguments(), Policy, false, Context);
   spaceBeforePlaceHolder(OS);
 }
 void TypePrinter::printDependentTemplateSpecializationAfter(
@@ -1489,18 +1512,17 @@ void TypePrinter::printObjCObjectPointerBefore(const ObjCObjectPointerType *T,
 void TypePrinter::printObjCObjectPointerAfter(const ObjCObjectPointerType *T, 
                                               raw_ostream &OS) { }
 
-void TemplateSpecializationType::
-  PrintTemplateArgumentList(raw_ostream &OS,
-                            const TemplateArgumentListInfo &Args,
-                            const PrintingPolicy &Policy) {
-  return PrintTemplateArgumentList(OS,
-                                   Args.arguments(),
-                                   Policy);
+void TemplateSpecializationType::PrintTemplateArgumentList(
+    raw_ostream &OS, const TemplateArgumentListInfo &Args,
+    const PrintingPolicy &Policy, PrintingContext Context) {
+  return PrintTemplateArgumentList(OS, Args.arguments(), Policy, Context);
 }
 
 void TemplateSpecializationType::PrintTemplateArgumentList(
     raw_ostream &OS, ArrayRef<TemplateArgument> Args,
-    const PrintingPolicy &Policy, bool SkipBrackets) {
+    const PrintingPolicy &Policy, bool SkipBrackets, PrintingContext Context) {
+  assert(!Context.TemporarySuppressScope &&
+         "Suppressing the scope of each argument is not supported.");
   const char *Comma = Policy.MSVCFormatting ? "," : ", ";
   if (!SkipBrackets)
     OS << '<';
@@ -1514,13 +1536,12 @@ void TemplateSpecializationType::PrintTemplateArgumentList(
     if (Arg.getKind() == TemplateArgument::Pack) {
       if (Arg.pack_size() && !FirstArg)
         OS << Comma;
-      PrintTemplateArgumentList(ArgOS,
-                                Arg.getPackAsArray(),
-                                Policy, true);
+      PrintTemplateArgumentList(ArgOS, Arg.getPackAsArray(), Policy, true,
+                                Context);
     } else {
       if (!FirstArg)
         OS << Comma;
-      Arg.print(Policy, ArgOS);
+      Arg.print(Policy, ArgOS, Context);
     }
     StringRef ArgString = ArgOS.str();
 
@@ -1547,10 +1568,9 @@ void TemplateSpecializationType::PrintTemplateArgumentList(
 }
 
 // Sadly, repeat all that with TemplateArgLoc.
-void TemplateSpecializationType::
-PrintTemplateArgumentList(raw_ostream &OS,
-                          ArrayRef<TemplateArgumentLoc> Args,
-                          const PrintingPolicy &Policy) {
+void TemplateSpecializationType::PrintTemplateArgumentList(
+    raw_ostream &OS, ArrayRef<TemplateArgumentLoc> Args,
+    const PrintingPolicy &Policy, PrintingContext Context) {
   OS << '<';
   const char *Comma = Policy.MSVCFormatting ? "," : ", ";
 
@@ -1564,11 +1584,10 @@ PrintTemplateArgumentList(raw_ostream &OS,
     SmallString<128> Buf;
     llvm::raw_svector_ostream ArgOS(Buf);
     if (Arg.getArgument().getKind() == TemplateArgument::Pack) {
-      PrintTemplateArgumentList(ArgOS,
-                                Arg.getArgument().getPackAsArray(),
-                                Policy, true);
+      PrintTemplateArgumentList(ArgOS, Arg.getArgument().getPackAsArray(),
+                                Policy, true, Context);
     } else {
-      Arg.getArgument().print(Policy, ArgOS);
+      Arg.getArgument().print(Policy, ArgOS, Context);
     }
     StringRef ArgString = ArgOS.str();
 
@@ -1720,13 +1739,13 @@ std::string QualType::getAsString(const Type *ty, Qualifiers qs) {
   return buffer;
 }
 
-void QualType::print(const Type *ty, Qualifiers qs,
-                     raw_ostream &OS, const PrintingPolicy &policy,
-                     const Twine &PlaceHolder, unsigned Indentation) {
+void QualType::print(const Type *ty, Qualifiers qs, raw_ostream &OS,
+                     const PrintingPolicy &policy, const Twine &PlaceHolder,
+                     unsigned Indentation, PrintingContext Context) {
   SmallString<128> PHBuf;
   StringRef PH = PlaceHolder.toStringRef(PHBuf);
 
-  TypePrinter(policy, Indentation).print(ty, qs, OS, PH);
+  TypePrinter(policy, Indentation, Context).print(ty, qs, OS, PH);
 }
 
 void QualType::getAsStringInternal(const Type *ty, Qualifiers qs,

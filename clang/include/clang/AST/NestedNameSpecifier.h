@@ -14,6 +14,7 @@
 #ifndef LLVM_CLANG_AST_NESTEDNAMESPECIFIER_H
 #define LLVM_CLANG_AST_NESTEDNAMESPECIFIER_H
 
+#include "clang/AST/PrettyPrinter.h"
 #include "clang/Basic/Diagnostic.h"
 #include "llvm/ADT/FoldingSet.h"
 #include "llvm/ADT/PointerIntPair.h"
@@ -208,7 +209,8 @@ public:
 
   /// \brief Print this nested name specifier to the given output
   /// stream.
-  void print(raw_ostream &OS, const PrintingPolicy &Policy) const;
+  void print(raw_ostream &OS, const PrintingPolicy &Policy,
+             PrintingContext Context = PrintingContext()) const;
 
   void Profile(llvm::FoldingSetNodeID &ID) const {
     ID.AddPointer(Prefix.getOpaqueValue());

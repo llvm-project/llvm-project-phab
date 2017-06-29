@@ -15,6 +15,7 @@
 #ifndef LLVM_CLANG_AST_TEMPLATEBASE_H
 #define LLVM_CLANG_AST_TEMPLATEBASE_H
 
+#include "clang/AST/PrettyPrinter.h"
 #include "clang/AST/TemplateName.h"
 #include "clang/AST/Type.h"
 #include "llvm/ADT/APSInt.h"
@@ -353,8 +354,9 @@ public:
   TemplateArgument getPackExpansionPattern() const;
 
   /// \brief Print this template argument to the given output stream.
-  void print(const PrintingPolicy &Policy, raw_ostream &Out) const;
-             
+  void print(const PrintingPolicy &Policy, raw_ostream &Out,
+             PrintingContext Context = PrintingContext()) const;
+
   /// \brief Debugging aid that dumps the template argument.
   void dump(raw_ostream &Out) const;
 

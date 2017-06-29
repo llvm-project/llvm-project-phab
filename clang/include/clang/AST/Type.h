@@ -18,6 +18,7 @@
 #define LLVM_CLANG_AST_TYPE_H
 
 #include "clang/AST/NestedNameSpecifier.h"
+#include "clang/AST/PrettyPrinter.h"
 #include "clang/AST/TemplateName.h"
 #include "clang/Basic/AddressSpaces.h"
 #include "clang/Basic/Diagnostic.h"
@@ -950,19 +951,21 @@ public:
   std::string getAsString(const PrintingPolicy &Policy) const;
 
   void print(raw_ostream &OS, const PrintingPolicy &Policy,
-             const Twine &PlaceHolder = Twine(),
-             unsigned Indentation = 0) const {
-    print(split(), OS, Policy, PlaceHolder, Indentation);
+             const Twine &PlaceHolder = Twine(), unsigned Indentation = 0,
+             PrintingContext Context = PrintingContext()) const {
+    print(split(), OS, Policy, PlaceHolder, Indentation, Context);
   }
   static void print(SplitQualType split, raw_ostream &OS,
                     const PrintingPolicy &policy, const Twine &PlaceHolder,
-                    unsigned Indentation = 0) {
-    return print(split.Ty, split.Quals, OS, policy, PlaceHolder, Indentation);
+                    unsigned Indentation = 0,
+                    PrintingContext Context = PrintingContext()) {
+    return print(split.Ty, split.Quals, OS, policy, PlaceHolder, Indentation,
+                 Context);
   }
-  static void print(const Type *ty, Qualifiers qs,
-                    raw_ostream &OS, const PrintingPolicy &policy,
-                    const Twine &PlaceHolder,
-                    unsigned Indentation = 0);
+  static void print(const Type *ty, Qualifiers qs, raw_ostream &OS,
+                    const PrintingPolicy &policy, const Twine &PlaceHolder,
+                    unsigned Indentation = 0,
+                    PrintingContext Context = PrintingContext());
 
   void getAsStringInternal(std::string &Str,
                            const PrintingPolicy &Policy) const {
@@ -979,25 +982,30 @@ public:
   class StreamedQualTypeHelper {
     const QualType &T;
     const PrintingPolicy &Policy;
+    PrintingContext Context;
     const Twine &PlaceHolder;
     unsigned Indentation;
   public:
     StreamedQualTypeHelper(const QualType &T, const PrintingPolicy &Policy,
-                           const Twine &PlaceHolder, unsigned Indentation)
-      : T(T), Policy(Policy), PlaceHolder(PlaceHolder),
-        Indentation(Indentation) { }
+                           const Twine &PlaceHolder, unsigned Indentation,
+                           PrintingContext Context = PrintingContext())
+        : T(T), Policy(Policy), Context(Context), PlaceHolder(PlaceHolder),
+          Indentation(Indentation) {}
 
     friend raw_ostream &operator<<(raw_ostream &OS,
                                    const StreamedQualTypeHelper &SQT) {
-      SQT.T.print(OS, SQT.Policy, SQT.PlaceHolder, SQT.Indentation);
+      SQT.T.print(OS, SQT.Policy, SQT.PlaceHolder, SQT.Indentation,
+                  SQT.Context);
       return OS;
     }
   };
 
-  StreamedQualTypeHelper stream(const PrintingPolicy &Policy,
-                                const Twine &PlaceHolder = Twine(),
-                                unsigned Indentation = 0) const {
-    return StreamedQualTypeHelper(*this, Policy, PlaceHolder, Indentation);
+  StreamedQualTypeHelper
+  stream(const PrintingPolicy &Policy, const Twine &PlaceHolder = Twine(),
+         unsigned Indentation = 0,
+         PrintingContext Context = PrintingContext()) const {
+    return StreamedQualTypeHelper(*this, Policy, PlaceHolder, Indentation,
+                                  Context);
   }
 
   void dump(const char *s) const;
@@ -3527,8 +3535,9 @@ public:
   bool isSugared() const { return false; }
   QualType desugar() const { return QualType(this, 0); }
 
-  void printExceptionSpecification(raw_ostream &OS,
-                                   const PrintingPolicy &Policy) const;
+  void printExceptionSpecification(
+      raw_ostream &OS, const PrintingPolicy &Policy,
+      PrintingContext Context = PrintingContext()) const;
 
   static bool classof(const Type *T) {
     return T->getTypeClass() == FunctionProto;
@@ -4328,18 +4337,21 @@ public:
 
   /// \brief Print a template argument list, including the '<' and '>'
   /// enclosing the template arguments.
-  static void PrintTemplateArgumentList(raw_ostream &OS,
-                                        ArrayRef<TemplateArgument> Args,
-                                        const PrintingPolicy &Policy,
-                                        bool SkipBrackets = false);
+  static void
+  PrintTemplateArgumentList(raw_ostream &OS, ArrayRef<TemplateArgument> Args,
+                            const PrintingPolicy &Policy,
+                            bool SkipBrackets = false,
+                            PrintingContext Context = PrintingContext());
 
-  static void PrintTemplateArgumentList(raw_ostream &OS,
-                                        ArrayRef<TemplateArgumentLoc> Args,
-                                        const PrintingPolicy &Policy);
+  static void
+  PrintTemplateArgumentList(raw_ostream &OS, ArrayRef<TemplateArgumentLoc> Args,
+                            const PrintingPolicy &Policy,
+                            PrintingContext Context = PrintingContext());
 
-  static void PrintTemplateArgumentList(raw_ostream &OS,
-                                        const TemplateArgumentListInfo &,
-                                        const PrintingPolicy &Policy);
+  static void
+  PrintTemplateArgumentList(raw_ostream &OS, const TemplateArgumentListInfo &,
+                            const PrintingPolicy &Policy,
+                            PrintingContext Context = PrintingContext());
 
   /// True if this template specialization type matches a current
   /// instantiation in the context in which it is found.

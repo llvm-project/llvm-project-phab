@@ -15,6 +15,7 @@
 #define LLVM_CLANG_AST_TEMPLATENAME_H
 
 #include "clang/AST/NestedNameSpecifier.h"
+#include "clang/AST/PrettyPrinter.h"
 #include "clang/Basic/LLVM.h"
 #include "llvm/ADT/FoldingSet.h"
 #include "llvm/ADT/PointerUnion.h"
@@ -277,12 +278,8 @@ public:
   ///
   /// \param OS the output stream to which the template name will be
   /// printed.
-  ///
-  /// \param SuppressNNS if true, don't print the
-  /// nested-name-specifier that precedes the template name (if it has
-  /// one).
   void print(raw_ostream &OS, const PrintingPolicy &Policy,
-             bool SuppressNNS = false) const;
+             PrintingContext Context = PrintingContext()) const;
 
   /// \brief Debugging aid that dumps the template name.
   void dump(raw_ostream &OS) const;

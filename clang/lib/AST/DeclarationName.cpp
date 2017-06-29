@@ -653,15 +653,18 @@ void DeclarationNameInfo::printName(raw_ostream &OS) const {
   case DeclarationName::CXXDestructorName:
   case DeclarationName::CXXConversionFunctionName:
     if (TypeSourceInfo *TInfo = LocInfo.NamedType.TInfo) {
-      if (Name.getNameKind() == DeclarationName::CXXDestructorName)
-        OS << '~';
-      else if (Name.getNameKind() == DeclarationName::CXXConversionFunctionName)
-        OS << "operator ";
       LangOptions LO;
       LO.CPlusPlus = true;
       LO.Bool = true;
       PrintingPolicy PP(LO);
-      PP.SuppressScope = true;
+      PP.Scope = ScopePrintingKind::SuppressScope;
+      if (Name.getNameKind() == DeclarationName::CXXDestructorName)
+        OS << '~';
+      else if (Name.getNameKind() ==
+               DeclarationName::CXXConversionFunctionName) {
+        OS << "operator ";
+        PP.Scope = ScopePrintingKind::DefaultScope;
+      }
       OS << TInfo->getType().getAsString(PP);
     } else
       OS << Name;

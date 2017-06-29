@@ -1404,12 +1404,13 @@ std::string NamedDecl::getQualifiedNameAsString() const {
   return OS.str();
 }
 
-void NamedDecl::printQualifiedName(raw_ostream &OS) const {
-  printQualifiedName(OS, getASTContext().getPrintingPolicy());
+void NamedDecl::printQualifiedName(raw_ostream &OS,
+                                   PrintingContext Context) const {
+  printQualifiedName(OS, getASTContext().getPrintingPolicy(), Context);
 }
 
-void NamedDecl::printQualifiedName(raw_ostream &OS,
-                                   const PrintingPolicy &P) const {
+void NamedDecl::printQualifiedName(raw_ostream &OS, const PrintingPolicy &P,
+                                   PrintingContext Context) const {
   const DeclContext *Ctx = getDeclContext();
 
   // For ObjC methods, look through categories and use the interface as context.
@@ -1425,10 +1426,18 @@ void NamedDecl::printQualifiedName(raw_ostream &OS,
   typedef SmallVector<const DeclContext *, 8> ContextsTy;
   ContextsTy Contexts;
 
-  // Collect contexts.
-  while (Ctx && isa<NamedDecl>(Ctx)) {
-    Contexts.push_back(Ctx);
-    Ctx = Ctx->getParent();
+  if (P.Scope != ScopePrintingKind::SuppressScope &&
+      !Context.TemporarySuppressScope) {
+    // Collect contexts.
+    while (Ctx && isa<NamedDecl>(Ctx)) {
+      Contexts.push_back(Ctx);
+      Ctx = Ctx->getParent();
+    }
+
+    if (P.Scope == ScopePrintingKind::FullScope) {
+      // Add global scope specifier up front
+      OS << "::";
+    }
   }
 
   for (const DeclContext *DC : reverse(Contexts)) {
