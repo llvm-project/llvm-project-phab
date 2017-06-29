@@ -431,6 +431,7 @@ static void initTargetOptions(llvm::TargetOptions &Options,
   Options.FunctionSections = CodeGenOpts.FunctionSections;
   Options.DataSections = CodeGenOpts.DataSections;
   Options.UniqueSectionNames = CodeGenOpts.UniqueSectionNames;
+  Options.ReorderFunctions = CodeGenOpts.ReorderFunctions;
   Options.EmulatedTLS = CodeGenOpts.EmulatedTLS;
   Options.DebuggerTuning = CodeGenOpts.getDebuggerTuning();
 

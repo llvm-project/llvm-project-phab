@@ -2861,6 +2861,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                     options::OPT_fno_unique_section_names, true))
     CmdArgs.push_back("-fno-unique-section-names");
 
+  if (!Args.hasFlag(options::OPT_freorder_functions,
+                    options::OPT_fno_reorder_functions, true))
+    CmdArgs.push_back("-fno-reorder-functions");
+
   Args.AddAllArgs(CmdArgs, options::OPT_finstrument_functions);
 
   addPGOAndCoverageFlags(C, D, Output, Args, CmdArgs);

@@ -1332,6 +1332,12 @@ def framework : Separate<["-"], "framework">, Flags<[LinkerInput]>;
 def frandom_seed_EQ : Joined<["-"], "frandom-seed=">, Group<clang_ignored_f_Group>;
 def freg_struct_return : Flag<["-"], "freg-struct-return">, Group<f_Group>, Flags<[CC1Option]>,
   HelpText<"Override the default ABI to return small structs in registers">;
+def freorder_functions : Flag <["-"], "freorder-functions">,
+  Group<f_Group>, Flags<[CC1Option]>,
+  HelpText<"Using special subsections for hot/cold functions to improve code "
+           "locality">;
+def fno_reorder_functions : Flag <["-"], "fno-reorder-functions">,
+  Group<f_Group>, Flags<[CC1Option]>;
 def frtti : Flag<["-"], "frtti">, Group<f_Group>;
 def : Flag<["-"], "fsched-interblock">, Group<clang_ignored_f_Group>;
 def fshort_enums : Flag<["-"], "fshort-enums">, Group<f_Group>, Flags<[CC1Option]>,

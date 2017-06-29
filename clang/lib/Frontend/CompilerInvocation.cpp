@@ -643,6 +643,8 @@ static bool ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args, InputKind IK,
                                    OPT_fno_data_sections, false);
   Opts.UniqueSectionNames = Args.hasFlag(OPT_funique_section_names,
                                          OPT_fno_unique_section_names, true);
+  Opts.ReorderFunctions =
+      Args.hasFlag(OPT_freorder_functions, OPT_fno_reorder_functions, true);
 
   Opts.MergeFunctions = Args.hasArg(OPT_fmerge_functions);
 
