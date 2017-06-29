@@ -1390,15 +1390,25 @@ static bool getEdgeValueLocal(Value *Val, BasicBlock *BBFrom,
   // If the edge was formed by a switch on the value, then we may know exactly
   // what it is.
   if (SwitchInst *SI = dyn_cast<SwitchInst>(BBFrom->getTerminator())) {
-    if (SI->getCondition() != Val)
+    Value* Condition = SI->getCondition();
+    bool ZeroExtendedCondition = false;
+    if (isa<ZExtInst>(Val) &&
+        cast<ZExtInst>(Val)->getOperand(0) == Condition) {
+      // Val is an zero extention of the switch condition value.
+      ZeroExtendedCondition = true;
+    } else if (Condition != Val) {
       return false;
-
+    }
     bool DefaultCase = SI->getDefaultDest() == BBTo;
     unsigned BitWidth = Val->getType()->getIntegerBitWidth();
     ConstantRange EdgesVals(BitWidth, DefaultCase/*isFullSet*/);
 
     for (auto Case : SI->cases()) {
-      ConstantRange EdgeVal(Case.getCaseValue()->getValue());
+      APInt CaseValue = Case.getCaseValue()->getValue();
+      if (ZeroExtendedCondition) {
+        CaseValue = CaseValue.zext(BitWidth);
+      }
+      ConstantRange EdgeVal(CaseValue);
       if (DefaultCase) {
         // It is possible that the default destination is the destination of
         // some cases. There is no need to perform difference for those cases.
