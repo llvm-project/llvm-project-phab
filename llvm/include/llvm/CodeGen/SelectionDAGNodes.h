@@ -562,7 +562,7 @@ private:
   SDUse *UseList = nullptr;
 
   /// The number of entries in the Operand/Value list.
-  unsigned short NumOperands = 0;
+  unsigned NumOperands = 0;
   unsigned short NumValues;
 
   // The ordering of the SDNodes. It roughly corresponds to the ordering of the
