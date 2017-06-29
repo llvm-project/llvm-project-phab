@@ -17,11 +17,14 @@
 #define LLVM_CODEGEN_GLOBALISEL_INSTRUCTIONSELECTOR_H
 
 #include "llvm/ADT/Optional.h"
+#include "llvm/ADT/SmallVector.h"
 #include <cstdint>
 #include <bitset>
 #include <functional>
+#include <vector>
 
 namespace llvm {
+class LLT;
 class MachineInstr;
 class MachineInstrBuilder;
 class MachineFunction;
@@ -29,6 +32,7 @@ class MachineOperand;
 class MachineRegisterInfo;
 class RegisterBankInfo;
 class TargetInstrInfo;
+class TargetRegisterClass;
 class TargetRegisterInfo;
 
 /// Container class for CodeGen predicate results.
@@ -56,6 +60,56 @@ public:
   }
 };
 
+enum {
+  /// Record the specified instruction
+  /// - NewInsnID - Instruction ID to define
+  /// - InsnID - Instruction ID
+  /// - OpIdx - Operand index
+  GIM_RecordInsn,
+
+  /// Check the feature bits
+  /// - Expected features
+  GIM_CheckFeatures,
+
+  /// Check the opcode on the specified instruction
+  /// - InsnID - Instruction ID
+  /// - Expected opcode
+  GIM_CheckOpcode,
+  /// Check the instruction has the right number of operands
+  /// - InsnID - Instruction ID
+  /// - Expected number of operands
+  GIM_CheckNumOperands,
+
+  /// Check the type for the specified operand
+  /// - InsnID - Instruction ID
+  /// - OpIdx - Operand index
+  /// - Expected type
+  GIM_CheckType,
+  /// Check the register bank for the specified operand
+  /// - InsnID - Instruction ID
+  /// - OpIdx - Operand index
+  /// - Expected register bank (specified as a register class)
+  GIM_CheckRegBankForClass,
+  /// Check the operand matches a complex predicate
+  /// - InsnID - Instruction ID
+  /// - OpIdx - Operand index
+  /// - RendererID - The renderer to hold the result
+  /// - Complex predicate ID
+  GIM_CheckComplexPattern,
+  /// Check the operand is a specific integer
+  /// - InsnID - Instruction ID
+  /// - OpIdx - Operand index
+  /// - Expected integer
+  GIM_CheckInt,
+  /// Check the specified operand is an MBB
+  /// - InsnID - Instruction ID
+  /// - OpIdx - Operand index
+  GIM_CheckIsMBB,
+
+  /// A successful match
+  GIM_Accept,
+};
+
 /// Provides the logic to select generic machine instructions.
 class InstructionSelector {
 public:
@@ -76,8 +130,42 @@ public:
 
 protected:
   typedef std::function<void(MachineInstrBuilder &)> ComplexRendererFn;
+  typedef SmallVector<MachineInstr *, 4> RecordedMIVector;
 
+  struct MatcherState {
+    std::vector<ComplexRendererFn> Renderers;
+    RecordedMIVector MIs;
+
+    MatcherState(unsigned MaxRenderers);
+  };
+
+public:
+  template <class PredicateBitset, class ComplexMatcherMemFn>
+  struct MatcherInfoTy {
+    const LLT *TypeObjects;
+    const PredicateBitset *FeatureBitsets;
+    const std::vector<ComplexMatcherMemFn> ComplexPredicates;
+  };
+
+protected:
   InstructionSelector();
+
+  // Execute a given matcher table and return true if the match was successful
+  // and false otherwise.
+  template <class TgtInstructionSelector, class PredicateBitset,
+            class ComplexMatcherMemFn>
+  bool executeMatchTable(
+      TgtInstructionSelector &ISel, MatcherState &State,
+      const MatcherInfoTy<PredicateBitset, ComplexMatcherMemFn> &MatcherInfo,
+      const int64_t *MatchTable, MachineRegisterInfo &MRI,
+      const TargetRegisterInfo &TRI, const RegisterBankInfo &RBI,
+      const PredicateBitset &AvailableFeatures) const;
+
+  bool constrainOperandRegToRegClass(MachineInstr &I, unsigned OpIdx,
+                                     const TargetRegisterClass &RC,
+                                     const TargetInstrInfo &TII,
+                                     const TargetRegisterInfo &TRI,
+                                     const RegisterBankInfo &RBI) const;
 
   /// Mutate the newly-selected instruction \p I to constrain its (possibly
   /// generic) virtual register operands to the instruction's register class.

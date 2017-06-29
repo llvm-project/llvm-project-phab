@@ -194,7 +194,7 @@ regBankSelected: true
 
 # CHECK:      registers:
 # CHECK-NEXT:  - { id: 0, class: fpr64 }
-# CHECK-NEXT:  - { id: 1, class: gpr64all }
+# CHECK-NEXT:  - { id: 1, class: gpr64 }
 registers:
   - { id: 0, class: fpr }
   - { id: 1, class: gpr }

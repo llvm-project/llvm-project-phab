@@ -5585,11 +5585,11 @@ def : Pat<(v1f64 (scalar_to_vector (f64 FPR64:$Xn))), (v1f64 FPR64:$Xn)>;
 def : Pat<(f32 (bitconvert (i32 GPR32:$Xn))),
           (COPY_TO_REGCLASS GPR32:$Xn, FPR32)>;
 def : Pat<(i32 (bitconvert (f32 FPR32:$Xn))),
-          (COPY_TO_REGCLASS FPR32:$Xn, GPR32)>;
+          (COPY_TO_REGCLASS FPR32:$Xn, GPR32all)>;
 def : Pat<(f64 (bitconvert (i64 GPR64:$Xn))),
           (COPY_TO_REGCLASS GPR64:$Xn, FPR64)>;
 def : Pat<(i64 (bitconvert (f64 FPR64:$Xn))),
-          (COPY_TO_REGCLASS FPR64:$Xn, GPR64)>;
+          (COPY_TO_REGCLASS FPR64:$Xn, GPR64all)>;
 def : Pat<(i64 (bitconvert (v1f64 V64:$Vn))),
           (COPY_TO_REGCLASS V64:$Vn, GPR64)>;
 

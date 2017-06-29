@@ -33,6 +33,8 @@
 
 #define DEBUG_TYPE "aarch64-isel"
 
+#include "llvm/CodeGen/GlobalISel/InstructionSelectorImpl.h"
+
 using namespace llvm;
 
 #ifndef LLVM_BUILD_GLOBAL_ISEL
@@ -939,6 +941,9 @@ bool AArch64InstructionSelector::select(MachineInstr &I) const {
   case TargetOpcode::G_TRUNC: {
     const LLT DstTy = MRI.getType(I.getOperand(0).getReg());
     const LLT SrcTy = MRI.getType(I.getOperand(1).getReg());
+
+    if (DstTy == LLT::scalar(32) && SrcTy == LLT::scalar(64))
+      llvm_unreachable("Tablegen code can import this");
 
     const unsigned DstReg = I.getOperand(0).getReg();
     const unsigned SrcReg = I.getOperand(1).getReg();
