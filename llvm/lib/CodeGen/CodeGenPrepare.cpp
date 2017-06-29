@@ -302,13 +302,17 @@ bool CodeGenPrepare::runOnFunction(Function &F) {
   LI = &getAnalysis<LoopInfoWrapperPass>().getLoopInfo();
   OptSize = F.optForSize();
 
-  if (ProfileGuidedSectionPrefix) {
-    ProfileSummaryInfo *PSI =
-        getAnalysis<ProfileSummaryInfoWrapperPass>().getPSI();
-    if (PSI->isFunctionHotInCallGraph(&F))
-      F.setSectionPrefix(".hot");
-    else if (PSI->isFunctionColdInCallGraph(&F))
-      F.setSectionPrefix(".unlikely");
+  bool AddProfileGuidedSectionPrefix =
+      (!TM || ProfileGuidedSectionPrefix.getNumOccurrences())
+          ? ProfileGuidedSectionPrefix
+          : TM->getReorderFunctions();
+  if (AddProfileGuidedSectionPrefix) {
+    if (auto *PSI = getAnalysis<ProfileSummaryInfoWrapperPass>().getPSI()) {
+      if (PSI->isFunctionHotInCallGraph(&F))
+        F.setSectionPrefix(".hot");
+      else if (PSI->isFunctionColdInCallGraph(&F))
+        F.setSectionPrefix(".unlikely");
+    }
   }
 
   /// This optimization identifies DIV instructions that can be

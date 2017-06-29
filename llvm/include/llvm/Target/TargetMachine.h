@@ -186,6 +186,10 @@ public:
 
   bool getUniqueSectionNames() const { return Options.UniqueSectionNames; }
 
+  /// Return true if profile-guided section prefix that indicates hotness of
+  /// the function should be added, corresponds to -freorder-functions.
+  bool getReorderFunctions() const { return Options.ReorderFunctions; }
+
   /// Return true if data objects should be emitted into their own section,
   /// corresponds to -fdata-sections.
   bool getDataSections() const {

@@ -107,8 +107,8 @@ namespace llvm {
           EnableFastISel(false), UseInitArray(false),
           DisableIntegratedAS(false), RelaxELFRelocations(false),
           FunctionSections(false), DataSections(false),
-          UniqueSectionNames(true), TrapUnreachable(false), EmulatedTLS(false),
-          EnableIPRA(false) {}
+          UniqueSectionNames(true), ReorderFunctions(true),
+          TrapUnreachable(false), EmulatedTLS(false), EnableIPRA(false) {}
 
     /// PrintMachineCode - This flag is enabled when the -print-machineinstrs
     /// option is specified on the command line, and should enable debugging
@@ -205,6 +205,9 @@ namespace llvm {
     unsigned DataSections : 1;
 
     unsigned UniqueSectionNames : 1;
+
+    /// Add section prefix for hot/cold functions.
+    unsigned ReorderFunctions : 1;
 
     /// Emit target-specific trap instruction for 'unreachable' IR instructions.
     unsigned TrapUnreachable : 1;
