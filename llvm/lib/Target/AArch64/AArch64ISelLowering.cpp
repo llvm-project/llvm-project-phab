@@ -10778,3 +10778,21 @@ AArch64TargetLowering::getVaListSizeInBits(const DataLayout &DL) const {
 
   return 3 * getPointerTy(DL).getSizeInBits() + 2 * 32;
 }
+
+// If the live interval can be spilled, we'd prefer to do so.
+bool AArch64TargetLowering::useCSRInsteadOfSplit(const LiveInterval &LI) const {
+  return !LI.isSpillable();
+}
+
+// The number of splits in user blocks which can be traded against the spill of
+// the CSR in the entry block when detering the first use of CSR is prefered.
+unsigned AArch64TargetLowering::getNumberOfTradableSplitsAgainstCSR() const {
+  return 32;
+}
+
+// The number of spills in user blocks which can be traded against the spill of
+// the CSR in the entry block when detering the first use of CSR is prefered.
+unsigned AArch64TargetLowering::getNumberOfTradableSpillsAgainstCSR() const {
+  return 0;
+}
+

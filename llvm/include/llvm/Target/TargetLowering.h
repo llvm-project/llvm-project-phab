@@ -53,6 +53,7 @@
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Target/TargetCallingConv.h"
 #include "llvm/Target/TargetMachine.h"
+#include "llvm/CodeGen/LiveInterval.h"
 #include <algorithm>
 #include <cassert>
 #include <climits>
@@ -3396,6 +3397,26 @@ public:
   /// LOAD_STACK_GUARD node when it is lowering Intrinsic::stackprotector.
   virtual bool useLoadStackGuardNode() const {
     return false;
+  }
+
+  /// The target can specify whether a callee-saved register should be used
+  /// rather than spliting the live range. Default behaviour is yes.
+  virtual bool useCSRInsteadOfSplit(const LiveInterval &LI) const {
+    return true;
+  }
+
+  /// The number of splits in user blocks which could be allowed to be traded
+  /// for the spill of the CSR in the entry block when detering the first use
+  /// of CSR is prefered.
+  virtual unsigned getNumberOfTradableSplitsAgainstCSR() const {
+    return 0;
+  }
+
+  /// The number of spills in user blocks which could be allowed to be traded
+  /// for the spill of the CSR in the entry block when detering the first use
+  /// of CSR is prefered.
+  virtual unsigned getNumberOfTradableSpillsAgainstCSR() const {
+    return 0;
   }
 
   /// Lower TLS global address SDNode for target independent emulated TLS model.

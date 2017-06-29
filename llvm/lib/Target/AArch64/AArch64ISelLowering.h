@@ -628,6 +628,13 @@ private:
                                                  bool isVarArg) const override;
 
   bool shouldNormalizeToSelectSequence(LLVMContext &, EVT) const override;
+
+
+  virtual bool useCSRInsteadOfSplit(const LiveInterval &LI) const override;
+
+  virtual unsigned getNumberOfTradableSplitsAgainstCSR() const override;
+
+  virtual unsigned getNumberOfTradableSpillsAgainstCSR() const override;
 };
 
 namespace AArch64 {
