@@ -667,7 +667,11 @@ locale::id::__get()
 void
 locale::id::__init()
 {
+#ifdef _LIBCPP_HAS_NO_THREADS
+    __id_ = ++__next_id;
+#else
     __id_ = __sync_add_and_fetch(&__next_id, 1);
+#endif
 }
 
 // template <> class collate_byname<char>

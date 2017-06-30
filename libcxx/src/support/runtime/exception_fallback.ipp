@@ -20,13 +20,23 @@ _LIBCPP_SAFE_STATIC static std::unexpected_handler __unexpected_handler;
 unexpected_handler
 set_unexpected(unexpected_handler func) _NOEXCEPT
 {
+#ifdef _LIBCPP_HAS_NO_THREADS
+  unexpected_handler old = __unexpected_handler;
+  __unexpected_handler = func;
+  return old;
+#else
   return __sync_lock_test_and_set(&__unexpected_handler, func);
+#endif
 }
 
 unexpected_handler
 get_unexpected() _NOEXCEPT
 {
+#ifdef _LIBCPP_HAS_NO_THREADS
+  return __unexpected_handler;
+#else
   return __sync_fetch_and_add(&__unexpected_handler, (unexpected_handler)0);
+#endif
 
 }
 
@@ -41,14 +51,23 @@ void unexpected()
 terminate_handler
 set_terminate(terminate_handler func) _NOEXCEPT
 {
+#ifdef _LIBCPP_HAS_NO_THREADS
+  terminate_handler old = __terminate_handler;
+  __terminate_handler = func;
+  return old;
+#else
   return __sync_lock_test_and_set(&__terminate_handler, func);
+#endif
 }
 
 terminate_handler
 get_terminate() _NOEXCEPT
 {
+#ifdef _LIBCPP_HAS_NO_THREADS
+  return __terminate_handler;
+#else
   return __sync_fetch_and_add(&__terminate_handler, (terminate_handler)0);
-
+#endif
 }
 
 #ifndef __EMSCRIPTEN__ // We provide this in JS

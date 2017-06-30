@@ -83,7 +83,11 @@ __libcpp_refstring::__libcpp_refstring(const __libcpp_refstring &s) _NOEXCEPT
     : __imp_(s.__imp_)
 {
     if (__uses_refcount())
+#ifdef _LIBCPP_HAS_NO_THREADS
+        ++rep_from_data(__imp_)->count;
+#else
         __sync_add_and_fetch(&rep_from_data(__imp_)->count, 1);
+#endif
 }
 
 inline
@@ -95,7 +99,11 @@ __libcpp_refstring& __libcpp_refstring::operator=(__libcpp_refstring const& s) _
         __sync_add_and_fetch(&rep_from_data(__imp_)->count, 1);
     if (adjust_old_count)
     {
+#ifdef _LIBCPP_HAS_NO_THREADS
+        if ((old_rep->count -=  count_t(-1)) < 0)
+#else
         if (__sync_add_and_fetch(&old_rep->count, count_t(-1)) < 0)
+#endif
         {
             ::operator delete(old_rep);
         }
@@ -107,7 +115,11 @@ inline
 __libcpp_refstring::~__libcpp_refstring() {
     if (__uses_refcount()) {
         _Rep_base* rep = rep_from_data(__imp_);
+#ifdef _LIBCPP_HAS_NO_THREADS
+        if ((rep->count -= count_t(-1)) < 0) {
+#else
         if (__sync_add_and_fetch(&rep->count, count_t(-1)) < 0) {
+#endif
             ::operator delete(rep);
         }
     }
