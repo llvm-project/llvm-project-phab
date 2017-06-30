@@ -4789,7 +4789,7 @@ static bool tryToVectorizeHorReductionOrInstOperands(
     if (!V)
       continue;
     auto *Inst = dyn_cast<Instruction>(V);
-    if (!Inst || isa<PHINode>(Inst))
+    if (!Inst || isa<PHINode>(Inst) || Inst->getParent() != BB)
       continue;
     if (auto *BI = dyn_cast<BinaryOperator>(Inst)) {
       HorizontalReduction HorRdx;
@@ -4825,7 +4825,8 @@ static bool tryToVectorizeHorReductionOrInstOperands(
     // Try to vectorize operands.
     if (++Level < RecursionMaxDepth)
       for (auto *Op : Inst->operand_values())
-        Stack.emplace_back(Op, Level);
+        if (VisitedInstrs.insert(Op).second)
+          Stack.emplace_back(Op, Level);
   }
   return Res;
 }
