@@ -2329,6 +2329,19 @@ bool Generic_GCC::IsIntegratedAssemblerDefault() const {
   }
 }
 
+void Generic_GCC::addGnuIncludeArgs(const ArgList &DriverArgs, 
+                                    ArgStringList &CC1Args) const {
+  const Generic_GCC::GCCVersion &Version = GCCInstallation.getVersion();
+  if (!DriverArgs.hasArg(options::OPT_ffreestanding) &&
+      !DriverArgs.hasArg(clang::driver::options::OPT_nostdinc) &&
+      !Version.isOlderThan(4, 8, 0)) {
+    // For gcc >= 4.8.x, gcc will preinclude <stdc-predef.h>
+    // -ffreestanding suppresses this behavior.
+    CC1Args.push_back("-include");
+    CC1Args.push_back("stdc-predef.h");
+  }
+}
+
 void Generic_GCC::AddClangCXXStdlibIncludeArgs(const ArgList &DriverArgs,
                                                ArgStringList &CC1Args) const {
   if (DriverArgs.hasArg(options::OPT_nostdlibinc) ||
