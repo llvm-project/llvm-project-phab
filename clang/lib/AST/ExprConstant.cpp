@@ -4574,7 +4574,7 @@ public:
     if (!Source)
       return Error(E);
     if (Source == E) { // sanity checking.
-      assert(0 && "OpaqueValueExpr recursively refers to itself");
+      llvm_unreachable("OpaqueValueExpr recursively refers to itself");
       return Error(E);
     }
     return StmtVisitorTy::Visit(Source);

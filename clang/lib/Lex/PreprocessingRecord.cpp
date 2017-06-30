@@ -86,7 +86,7 @@ bool PreprocessingRecord::isEntityInFileID(iterator PPEI, FileID FID) {
   int Pos = std::distance(iterator(this, 0), PPEI);
   if (Pos < 0) {
     if (unsigned(-Pos-1) >= LoadedPreprocessedEntities.size()) {
-      assert(0 && "Out-of bounds loaded preprocessed entity");
+      llvm_unreachable("Out-of bounds loaded preprocessed entity");
       return false;
     }
     assert(ExternalSource && "No external source to load from");
@@ -109,7 +109,7 @@ bool PreprocessingRecord::isEntityInFileID(iterator PPEI, FileID FID) {
   }
 
   if (unsigned(Pos) >= PreprocessedEntities.size()) {
-    assert(0 && "Out-of bounds local preprocessed entity");
+    llvm_unreachable("Out-of bounds local preprocessed entity");
     return false;
   }
   return isPreprocessedEntityIfInFileID(PreprocessedEntities[Pos],

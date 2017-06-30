@@ -1280,12 +1280,12 @@ long long clang_Cursor_getTemplateArgumentValue(CXCursor C, unsigned I) {
   TemplateArgument TA;
   if (clang_Cursor_getTemplateArgument(C, I, &TA) !=
       CXGetTemplateArgumentStatus_Success) {
-    assert(0 && "Unable to retrieve TemplateArgument");
+    llvm_unreachable("Unable to retrieve TemplateArgument");
     return 0;
   }
 
   if (TA.getKind() != TemplateArgument::Integral) {
-    assert(0 && "Passed template argument is not Integral");
+    llvm_unreachable("Passed template argument is not Integral");
     return 0;
   }
 
@@ -1297,12 +1297,12 @@ unsigned long long clang_Cursor_getTemplateArgumentUnsignedValue(CXCursor C,
   TemplateArgument TA;
   if (clang_Cursor_getTemplateArgument(C, I, &TA) !=
       CXGetTemplateArgumentStatus_Success) {
-    assert(0 && "Unable to retrieve TemplateArgument");
+    llvm_unreachable("Unable to retrieve TemplateArgument");
     return 0;
   }
 
   if (TA.getKind() != TemplateArgument::Integral) {
-    assert(0 && "Passed template argument is not Integral");
+    llvm_unreachable("Passed template argument is not Integral");
     return 0;
   }
 

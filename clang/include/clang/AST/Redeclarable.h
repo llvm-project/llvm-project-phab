@@ -255,7 +255,7 @@ public:
       // Sanity check to avoid infinite loop on invalid redecl chain.
       if (Current->isFirstDecl()) {
         if (PassedFirst) {
-          assert(0 && "Passed first decl twice, invalid redecl chain!");
+          llvm_unreachable("Passed first decl twice, invalid redecl chain!");
           Current = nullptr;
           return *this;
         }

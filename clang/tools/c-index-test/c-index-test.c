@@ -3114,7 +3114,7 @@ static const char *getEntityKindString(CXIdxEntityKind kind) {
   case CXIdxEntity_CXXTypeAlias: return "type-alias";
   case CXIdxEntity_CXXInterface: return "c++-__interface";
   }
-  assert(0 && "Garbage entity kind");
+  llvm_unreachable("Garbage entity kind");
   return 0;
 }
 
@@ -3126,7 +3126,7 @@ static const char *getEntityTemplateKindString(CXIdxEntityCXXTemplateKind kind) 
     return "-template-partial-spec";
   case CXIdxEntity_TemplateSpecialization: return "-template-spec";
   }
-  assert(0 && "Garbage entity kind");
+  llvm_unreachable("Garbage entity kind");
   return 0;
 }
 
@@ -3138,7 +3138,7 @@ static const char *getEntityLanguageString(CXIdxEntityLanguage kind) {
   case CXIdxEntityLang_CXX: return "C++";
   case CXIdxEntityLang_Swift: return "Swift";
   }
-  assert(0 && "Garbage language kind");
+  llvm_unreachable("Garbage language kind");
   return 0;
 }
 

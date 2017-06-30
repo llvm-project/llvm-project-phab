@@ -2492,7 +2492,7 @@ void ASTWriter::WritePreprocessor(const Preprocessor &PP, bool IsModule) {
     MacroID ID = MacroInfosToEmit[I].ID;
 
     if (ID < FirstMacroID) {
-      assert(0 && "Loaded MacroInfo entered MacroInfosToEmit ?");
+      llvm_unreachable("Loaded MacroInfo entered MacroInfosToEmit ?");
       continue;
     }
 
@@ -5328,7 +5328,7 @@ TypeID ASTWriter::GetOrCreateTypeID(QualType T) {
     TypeIdx &Idx = TypeIdxs[T];
     if (Idx.getIndex() == 0) {
       if (DoneWritingDeclsAndTypes) {
-        assert(0 && "New type seen after serializing all the types to emit!");
+        llvm_unreachable("New type seen after serializing all the types to emit!");
         return TypeIdx();
       }
 
@@ -5374,7 +5374,7 @@ DeclID ASTWriter::GetDeclRef(const Decl *D) {
   DeclID &ID = DeclIDs[D];
   if (ID == 0) {
     if (DoneWritingDeclsAndTypes) {
-      assert(0 && "New decl seen after serializing all the decls to emit!");
+      llvm_unreachable("New decl seen after serializing all the decls to emit!");
       return 0;
     }
 

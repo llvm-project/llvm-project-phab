@@ -6775,7 +6775,7 @@ static void HandleOpenCLAccessAttr(QualType &CurType, const AttributeList &Attr,
       break;
       #include "clang/Basic/OpenCLImageTypes.def"
     default:
-      assert(0 && "Unable to find corresponding image type.");
+      llvm_unreachable("Unable to find corresponding image type.");
     }
 
     S.Diag(TypedefTy->getDecl()->getLocStart(),

@@ -69,7 +69,7 @@ unsigned ContentCache::getSize() const {
 
 void ContentCache::replaceBuffer(llvm::MemoryBuffer *B, bool DoNotFree) {
   if (B && B == Buffer.getPointer()) {
-    assert(0 && "Replacing with the same buffer");
+    llvm_unreachable("Replacing with the same buffer");
     Buffer.setInt(DoNotFree? DoNotFreeFlag : 0);
     return;
   }
@@ -781,7 +781,7 @@ FileID SourceManager::getFileIDLocal(unsigned SLocOffset) const {
 FileID SourceManager::getFileIDLoaded(unsigned SLocOffset) const {
   // Sanity checking, otherwise a bug may lead to hanging in release build.
   if (SLocOffset < CurrentLoadedOffset) {
-    assert(0 && "Invalid SLocOffset or bad function choice");
+    llvm_unreachable("Invalid SLocOffset or bad function choice");
     return FileID();
   }
 
@@ -828,7 +828,7 @@ FileID SourceManager::getFileIDLoaded(unsigned SLocOffset) const {
     if (E.getOffset() > SLocOffset) {
       // Sanity checking, otherwise a bug may lead to hanging in release build.
       if (GreaterIndex == MiddleIndex) {
-        assert(0 && "binary search missed the entry");
+        llvm_unreachable("binary search missed the entry");
         return FileID();
       }
       GreaterIndex = MiddleIndex;
@@ -845,7 +845,7 @@ FileID SourceManager::getFileIDLoaded(unsigned SLocOffset) const {
 
     // Sanity checking, otherwise a bug may lead to hanging in release build.
     if (LessIndex == MiddleIndex) {
-      assert(0 && "binary search missed the entry");
+      llvm_unreachable("binary search missed the entry");
       return FileID();
     }
     LessIndex = MiddleIndex;
