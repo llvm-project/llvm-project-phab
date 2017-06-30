@@ -35,10 +35,24 @@ static uint64_t adjustFixupValue(unsigned Kind, uint64_t Value) {
   case PPC::fixup_ppc_nofixup:
     return Value;
   case PPC::fixup_ppc_brcond14:
+    if (static_cast<int64_t>(Value) >= 0 && Value > 0x7fff)
+      llvm_unreachable("Cond branch target overflow.");
+    else if (static_cast<int64_t>(Value) < 0 && -Value > 0x8000)
+      llvm_unreachable("Cond branch target underflow.");
+    return Value & 0xfffc;
   case PPC::fixup_ppc_brcond14abs:
+    if(Value > 0xffff)
+      llvm_unreachable("Cond branch absolute target overflow.");
     return Value & 0xfffc;
   case PPC::fixup_ppc_br24:
+    if (static_cast<int64_t>(Value) >= 0 && Value > 0x1ffffff)
+      llvm_unreachable("Branch target overflow.");
+    else if (static_cast<int64_t>(Value) < 0 && -Value > 0x2000000)
+      llvm_unreachable("Branch target underflow.");
+    return Value & 0x3fffffc;
   case PPC::fixup_ppc_br24abs:
+    if(Value > 0x3ffffff)
+      llvm_unreachable("Branch absolute target overflow.");
     return Value & 0x3fffffc;
   case PPC::fixup_ppc_half16:
     return Value & 0xffff;
