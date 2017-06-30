@@ -76,7 +76,7 @@ using namespace llvm;
 static cl::opt<bool> PrintWholeRegMask(
     "print-whole-regmask",
     cl::desc("Print the full contents of regmask operands in IR dumps"),
-    cl::init(true), cl::Hidden);
+    cl::init(false), cl::Hidden);
 
 //===----------------------------------------------------------------------===//
 // MachineOperand Implementation
