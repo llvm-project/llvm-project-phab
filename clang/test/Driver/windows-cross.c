@@ -85,3 +85,7 @@
 // CHECK-NOSTDINC-ISYSTEM-AFTER: "-resource-dir" "[[RESOURCE_DIR:[^"]+]]"
 // CHECK-NOSTDINC-ISYSTEM-AFTER-NOT: "-internal-isystem" "[[RESOURCE_DIR]]{{(/|\\\\)}}include"
 // CHECK-NOSTDINC-ISYSTEM-AFTER: "-internal-isystem" "Windows Kits{{[/\\]}}10{{[/\\]}}Include{{[/\\]}}10.0.10586.0{{[/\\]}}ucrt"
+
+// RUN: %clang -### -target armv7-windows-itanium -nostdinc -nostdinc++ -x c++ -c %s -o /dev/null 2>&1 \
+// RUN:     | FileCheck %s --check-prefix CHECK-NOSTDINC-NOSTDINCXX
+// CHECK-NOSTDINC-NOSTDINCXX-NOT: argument unused during compilation: '-nostdinc++'

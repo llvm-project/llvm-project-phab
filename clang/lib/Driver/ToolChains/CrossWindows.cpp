@@ -264,8 +264,7 @@ AddClangCXXStdlibIncludeArgs(const llvm::opt::ArgList &DriverArgs,
   const llvm::Triple &Triple = getTriple();
   const std::string &SysRoot = getDriver().SysRoot;
 
-  if (DriverArgs.hasArg(options::OPT_nostdinc) ||
-      DriverArgs.hasArg(options::OPT_nostdincxx))
+  if (DriverArgs.hasArg(options::OPT_nostdinc, options::OPT_nostdincxx))
     return;
 
   switch (GetCXXStdlibType(DriverArgs)) {
