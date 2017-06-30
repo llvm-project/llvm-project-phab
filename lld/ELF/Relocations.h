@@ -133,36 +133,46 @@ public:
 
 private:
   void mergeThunks();
-  ThunkSection *getOSThunkSec(OutputSection *OS,
-                              std::vector<InputSection *> *ISR);
+  ThunkSection *getISRThunkSec(OutputSection *OS, InputSection *IS,
+                               std::vector<InputSection *> *ISR, uint32_t Type,
+                               uint64_t Src);
   ThunkSection *getISThunkSec(InputSection *IS, OutputSection *OS);
+  void
+  createInitialThunkSections(ArrayRef<OutputSectionCommand *> OutputSections);
   void forEachExecInputSection(
       ArrayRef<OutputSectionCommand *> OutputSections,
       std::function<void(OutputSection *, std::vector<InputSection *> *,
                          InputSection *)>
           Fn);
-  std::pair<Thunk *, bool> getThunk(SymbolBody &Body, uint32_t Type);
+  std::pair<Thunk *, bool> getThunk(SymbolBody &Body, uint32_t Type,
+                                    uint64_t Src);
   ThunkSection *addThunkSection(OutputSection *OS,
                                 std::vector<InputSection *> *, uint64_t Off);
-  // Track Symbols that already have a Thunk
-  llvm::DenseMap<SymbolBody *, Thunk *> ThunkedSymbols;
+  bool normalizeExistingThunk(Relocation &Rel, uint64_t Src);
+
+  // Record all the available Thunks for a Symbol
+  llvm::DenseMap<SymbolBody *, std::vector<Thunk *>> ThunkedSymbols;
 
   // Find a Thunk from the Thunks symbol definition, we can use this to find
   // the Thunk from a relocation to the Thunks symbol definition.
   llvm::DenseMap<SymbolBody *, Thunk *> Thunks;
 
-  // Track InputSections that have a ThunkSection placed in front
+  // Track InputSections that have an inline ThunkSection placed in front
+  // an inline ThunkSection may have control fall through to the section below
+  // so we need to make sure that there is only one of them.
+  // The Mips LA25 Thunk is an example of an inline ThunkSection.
   llvm::DenseMap<InputSection *, ThunkSection *> ThunkedSections;
 
-  // All the ThunkSections that we have created, organised by OutputSection
+  // All the ThunkSections that we have created, organised by InputSectionRange
   // will contain a mix of ThunkSections that have been created this pass, and
-  // ThunkSections that have been merged into the OutputSection on previous
+  // ThunkSections that have been merged into InputSectionRanges on previous
   // passes
   std::map<std::vector<InputSection *> *, std::vector<ThunkSection *>>
       ThunkSections;
 
-  // The ThunkSection for this vector of InputSections
-  ThunkSection *CurTS;
+  // All the ThunkSections that we have created, organised by InputSectionRange
+  std::map<std::vector<InputSection *> *, std::vector<ThunkSection *>>
+      NewThunkSections;
 };
 
 // Return a int64_t to make sure we get the sign extension out of the way as

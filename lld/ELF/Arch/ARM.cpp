@@ -39,7 +39,9 @@ public:
   void addPltSymbols(InputSectionBase *IS, uint64_t Off) const override;
   void addPltHeaderSymbols(InputSectionBase *ISD) const override;
   bool needsThunk(RelExpr Expr, uint32_t RelocType, const InputFile *File,
-                  const SymbolBody &S) const override;
+                  uint64_t BranchAddr, const SymbolBody &S) const override;
+  bool inBranchRange(uint32_t RelocType, uint64_t Src,
+                     uint64_t Dst) const override;
   void relocateOne(uint8_t *Loc, uint32_t Type, uint64_t Val) const override;
 };
 } // namespace
@@ -60,6 +62,10 @@ ARM::ARM() {
   // ARM uses Variant 1 TLS
   TcbSize = 8;
   NeedsThunks = true;
+  // Thumb unconditional branch range on system with Thumb2 branch encoding
+  ThunkSectionSpacing = 0x1000000;
+  // Allow for 16384 12 byte Thunks per ThunkSectionSpacing
+  ThunkSectionSize = 0x30000;
 }
 
 RelExpr ARM::getRelExpr(uint32_t Type, const SymbolBody &S,
@@ -187,7 +193,7 @@ void ARM::addPltSymbols(InputSectionBase *ISD, uint64_t Off) const {
 }
 
 bool ARM::needsThunk(RelExpr Expr, uint32_t RelocType, const InputFile *File,
-                     const SymbolBody &S) const {
+                     uint64_t BranchAddr, const SymbolBody &S) const {
   // If S is an undefined weak symbol in an executable we don't need a Thunk.
   // In a DSO calls to undefined symbols, including weak ones get PLT entries
   // which may need a thunk.
@@ -205,16 +211,67 @@ bool ARM::needsThunk(RelExpr Expr, uint32_t RelocType, const InputFile *File,
     // Otherwise we need to interwork if Symbol has bit 0 set (Thumb).
     if (Expr == R_PC && ((S.getVA() & 1) == 1))
       return true;
-    break;
+    // Fall through
+  case R_ARM_CALL: {
+    uint64_t Dst = (Expr == R_PLT_PC) ? S.getPltVA() : S.getVA();
+    return !inBranchRange(RelocType, BranchAddr, Dst);
+  }
   case R_ARM_THM_JUMP19:
   case R_ARM_THM_JUMP24:
     // Source is Thumb, all PLT entries are ARM so interworking is required.
     // Otherwise we need to interwork if Symbol has bit 0 clear (ARM).
     if (Expr == R_PLT_PC || ((S.getVA() & 1) == 0))
       return true;
-    break;
+    // Fall through
+  case R_ARM_THM_CALL: {
+    uint64_t Dst = (Expr == R_PLT_PC) ? S.getPltVA() : S.getVA();
+    return !inBranchRange(RelocType, BranchAddr, Dst);
+  }
   }
   return false;
+}
+
+bool ARM::inBranchRange(uint32_t RelocType, uint64_t Src, uint64_t Dst) const {
+  uint64_t Range;
+  uint64_t InstrSize;
+  switch (RelocType) {
+  case R_ARM_PC24:
+  case R_ARM_PLT32:
+  case R_ARM_JUMP24:
+  case R_ARM_CALL:
+    Range = 0x2000000;
+    InstrSize = 4;
+    break;
+  case R_ARM_THM_JUMP19:
+    Range = 0x100000;
+    InstrSize = 2;
+    break;
+  case R_ARM_THM_JUMP24:
+  case R_ARM_THM_CALL:
+    Range = 0x1000000;
+    InstrSize = 2;
+    break;
+  default:
+    return true;
+  }
+  // PC at Src is 2 instructions ahead, immediate of branch is signed
+  if (Src > Dst)
+    Range -= 2 * InstrSize;
+  else
+    Range += InstrSize;
+
+  if ((Dst & 0x1) == 0)
+    // Destination is ARM, if ARM caller then Src is already 4-byte aligned.
+    // If Thumb Caller (BLX) the Src address has bottom 2 bits cleared to ensure
+    // destination will be 4 byte aligned.
+    Src &= ~0x3;
+  else
+    // Bit 0 == 1 denotes Thumb state, it is not part of the range
+    Dst &= ~0x1;
+
+  uint64_t Distance = (Src > Dst) ? Src - Dst : Dst - Src;
+
+  return Distance <= Range;
 }
 
 void ARM::relocateOne(uint8_t *Loc, uint32_t Type, uint64_t Val) const {

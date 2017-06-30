@@ -779,22 +779,26 @@ void LinkerScript::processNonSectionCommands() {
   }
 }
 
-static bool
-allocateHeaders(std::vector<PhdrEntry> &Phdrs,
-                ArrayRef<OutputSectionCommand *> OutputSectionCommands,
-                uint64_t Min) {
+void LinkerScript::allocateHeaders(std::vector<PhdrEntry> &Phdrs) {
+  uint64_t Min = std::numeric_limits<uint64_t>::max();
+  for (OutputSectionCommand *Cmd : OutputSectionCommands) {
+    OutputSection *Sec = Cmd->Sec;
+    if (Sec->Flags & SHF_ALLOC)
+      Min = std::min<uint64_t>(Min, Sec->Addr);
+  }
+
   auto FirstPTLoad =
       std::find_if(Phdrs.begin(), Phdrs.end(),
                    [](const PhdrEntry &E) { return E.p_type == PT_LOAD; });
   if (FirstPTLoad == Phdrs.end())
-    return false;
+    return;
 
   uint64_t HeaderSize = getHeaderSize();
   if (HeaderSize <= Min || Script->hasPhdrsCommands()) {
     Min = alignDown(Min - HeaderSize, Config->MaxPageSize);
     Out::ElfHeader->Addr = Min;
     Out::ProgramHeaders->Addr = Min + Out::ElfHeader->Size;
-    return true;
+    return;
   }
 
   assert(FirstPTLoad->First == Out::ElfHeader);
@@ -822,12 +826,25 @@ allocateHeaders(std::vector<PhdrEntry> &Phdrs,
   });
   if (PhdrI != Phdrs.end())
     Phdrs.erase(PhdrI);
-  return false;
 }
 
-void LinkerScript::assignAddresses(std::vector<PhdrEntry> &Phdrs) {
+// Reset the members associated with address assigment to their initial values
+// this permits addressAssignment to be run again.
+void LinkerScript::resetAddressState() {
+  LMAOffset = 0;
+  CurOutSec = nullptr;
+  CurMemRegion = nullptr;
+  ThreadBssOffset = 0;
+  for (auto &MRI : Opt.MemoryRegions) {
+    MemoryRegion &MR = MRI.second;
+    MR.Offset = MR.Origin;
+  }
+}
+
+void LinkerScript::assignAddresses() {
   // Assign addresses as instructed by linker script SECTIONS sub-commands.
   Dot = 0;
+  resetAddressState();
   ErrorOnMissingSection = true;
   switchTo(Aether);
 
@@ -845,15 +862,6 @@ void LinkerScript::assignAddresses(std::vector<PhdrEntry> &Phdrs) {
     auto *Cmd = cast<OutputSectionCommand>(Base);
     assignOffsets(Cmd);
   }
-
-  uint64_t MinVA = std::numeric_limits<uint64_t>::max();
-  for (OutputSectionCommand *Cmd : OutputSectionCommands) {
-    OutputSection *Sec = Cmd->Sec;
-    if (Sec->Flags & SHF_ALLOC)
-      MinVA = std::min<uint64_t>(MinVA, Sec->Addr);
-  }
-
-  allocateHeaders(Phdrs, OutputSectionCommands, MinVA);
 }
 
 // Creates program headers as instructed by PHDRS linker script command.

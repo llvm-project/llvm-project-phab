@@ -969,9 +969,18 @@ template <class ELFT> void elf::scanRelocations(InputSectionBase &S) {
 // offsets.
 // This may invalidate any output section offsets stored outside of InputSection
 void ThunkCreator::mergeThunks() {
-  for (auto &KV : ThunkSections) {
+  for (auto &KV : NewThunkSections) {
     std::vector<InputSection *> *ISR = KV.first;
     std::vector<ThunkSection *> &Thunks = KV.second;
+
+    // Remove ThunkSections that contain no Thunks
+    auto ThunkBegin = Thunks.begin();
+    auto ThunkEnd = Thunks.end();
+    ThunkEnd = std::remove_if(ThunkBegin, ThunkEnd, [](const ThunkSection *TS) {
+      return TS->getSize() == 0;
+    });
+    if (ThunkBegin == ThunkEnd)
+      continue;
 
     // Order Thunks in ascending OutSecOff
     auto ThunkCmp = [](const ThunkSection *A, const ThunkSection *B) {
@@ -986,12 +995,18 @@ void ThunkCreator::mergeThunks() {
       // std::merge requires a strict weak ordering.
       if (A->OutSecOff < B->OutSecOff)
         return true;
-      if (A->OutSecOff == B->OutSecOff)
+      if (A->OutSecOff == B->OutSecOff) {
+        auto *TA = dyn_cast<ThunkSection>(A);
+        auto *TB = dyn_cast<ThunkSection>(B);
         // Check if Thunk is immediately before any specific Target InputSection
         // for example Mips LA25 Thunks.
-        if (auto *TA = dyn_cast<ThunkSection>(A))
-          if (TA && TA->getTargetInputSection() == B)
-            return true;
+        if (TA && TA->getTargetInputSection() == B)
+          return true;
+        else if (TA && !TB && !TA->getTargetInputSection())
+          // In general place Thunk Sections without specific targets before
+          // non-Thunk Sections
+          return true;
+      }
       return false;
     };
     std::merge(ISR->begin(), ISR->end(), Thunks.begin(), Thunks.end(),
@@ -1000,18 +1015,22 @@ void ThunkCreator::mergeThunks() {
   }
 }
 
-ThunkSection *ThunkCreator::getOSThunkSec(OutputSection *OS,
-                                          std::vector<InputSection *> *ISR) {
-  if (CurTS == nullptr) {
-    uint32_t Off = 0;
-    for (auto *IS : OS->Sections) {
-      Off = IS->OutSecOff + IS->getSize();
-      if ((IS->Flags & SHF_EXECINSTR) == 0)
-        break;
-    }
-    CurTS = addThunkSection(OS, ISR, Off);
+ThunkSection *ThunkCreator::getISRThunkSec(OutputSection *OS, InputSection *IS,
+                                           std::vector<InputSection *> *ISR,
+                                           uint32_t Type, uint64_t Src) {
+  // Use the simple heuristic of inserting the Thunk in the first ThunkSection
+  // in range of the caller.
+  for (ThunkSection *TS : ThunkSections[ISR]) {
+    uint64_t TSBase = OS->Addr + TS->OutSecOff;
+    uint64_t TSLimit = TSBase + TS->getSize();
+    if (Target->inBranchRange(Type, Src, (Src > TSLimit) ? TSBase : TSLimit))
+      return TS;
   }
-  return CurTS;
+
+  // No suitable ThunkSection exists. This can happen when there is a branch
+  // with lower range than the ThunkSection spacing or when there are too
+  // many Thunks. Create a new ThunkSection.
+  return addThunkSection(OS, ISR, IS->OutSecOff);
 }
 
 ThunkSection *ThunkCreator::getISThunkSec(InputSection *IS, OutputSection *OS) {
@@ -1024,7 +1043,7 @@ ThunkSection *ThunkCreator::getISThunkSec(InputSection *IS, OutputSection *OS) {
   OutputSectionCommand *C = Script->getCmd(TOS);
   std::vector<InputSection *> *Range = nullptr;
   for (BaseCommand *BC : C->Commands)
-    if (auto *ISD = dyn_cast<InputSectionDescription> (BC)) {
+    if (auto *ISD = dyn_cast<InputSectionDescription>(BC)) {
       InputSection *first = ISD->Sections.front();
       InputSection *last = ISD->Sections.back();
       if (IS->OutSecOff >= first->OutSecOff &&
@@ -1038,21 +1057,74 @@ ThunkSection *ThunkCreator::getISThunkSec(InputSection *IS, OutputSection *OS) {
   return TS;
 }
 
+// Create one or more ThunkSections per OS that can be used to place Thunks.
+// We attempt to place the ThunkSections using the following desirable
+// properties:
+// - Within range of the maximum number of callers
+// - Minimise the number of ThunkSections
+//
+// We follow a simple but conservative heuristic to place ThunkSections at
+// offsets that are multiples of a Target specific branch range.
+// For an InputSectionRange that is smaller than the range then a single
+// ThunkSection at the end of the range will do.
+void ThunkCreator::createInitialThunkSections(
+    ArrayRef<OutputSectionCommand *> OutputSections) {
+  bool NeedTrailingTS;
+  uint32_t Off;
+  uint32_t Limit;
+  InputSection *PrevIS = nullptr;
+  std::vector<InputSection *> *PrevISR = nullptr;
+
+  forEachExecInputSection(OutputSections, [&](OutputSection *OS,
+                                              std::vector<InputSection *> *ISR,
+                                              InputSection *IS) {
+    if (ISR != PrevISR) {
+      NeedTrailingTS = true;
+      Off = 0;
+      Limit = IS->OutSecOff + (Target->ThunkSectionSpacing -
+                               Target->ThunkSectionSize);
+      PrevIS = nullptr;
+      PrevISR = ISR;
+    }
+    Off = IS->OutSecOff + IS->getSize();
+    if (Off >= Limit) {
+      uint32_t ThunkOff = (PrevIS == nullptr) ? IS->OutSecOff :
+        PrevIS->OutSecOff + PrevIS->getSize();
+      addThunkSection(OS, ISR, ThunkOff);
+      NeedTrailingTS = false;
+      Limit = ThunkOff + Target->ThunkSectionSpacing;
+    }
+    PrevIS = IS;
+
+    if (ISR->back() == IS && NeedTrailingTS)
+      addThunkSection(OS, ISR, Off);
+  });
+}
+
 ThunkSection *ThunkCreator::addThunkSection(OutputSection *OS,
                                             std::vector<InputSection *> *ISR,
                                             uint64_t Off) {
   auto *TS = make<ThunkSection>(OS, Off);
   ThunkSections[ISR].push_back(TS);
+  NewThunkSections[ISR].push_back(TS);
   return TS;
 }
 
-
 std::pair<Thunk *, bool> ThunkCreator::getThunk(SymbolBody &Body,
-                                                uint32_t Type) {
-  auto res = ThunkedSymbols.insert({&Body, nullptr});
-  if (res.second)
-    res.first->second = addThunk(Type, Body);
-  return std::make_pair(res.first->second, res.second);
+                                                uint32_t Type,
+                                                uint64_t Src) {
+  auto Res = ThunkedSymbols.insert({&Body, std::vector<Thunk *>()});
+  if (!Res.second) {
+    // Check existing Thunks for Body to see if they can be reused
+    for (Thunk *ET : Res.first->second)
+      if (ET->compatibleWith(Type) &&
+          Target->inBranchRange(Type, Src, ET->ThunkSym->getVA()))
+        return {ET, false};
+  }
+  // No existing compatible Thunk in range, create a new one
+  Thunk *T = addThunk(Type, Body);
+  Res.first->second.push_back(T);
+  return {T, true};
 }
 
 // Call Fn on every executable InputSection accessed via the linker script
@@ -1069,11 +1141,23 @@ void ThunkCreator::forEachExecInputSection(
     if (OutputSectionCommand *C = Script->getCmd(OS))
       for (BaseCommand *BC : C->Commands)
         if (auto *ISD = dyn_cast<InputSectionDescription>(BC)) {
-          CurTS = nullptr;
           for (InputSection* IS : ISD->Sections)
             Fn(OS, &ISD->Sections, IS);
         }
   }
+}
+
+// If this Relocation is using a Thunk, use it if it hasn't gone out
+// of range. If it has we revert back to the original Target.
+bool ThunkCreator::normalizeExistingThunk(Relocation &Rel, uint64_t Src) {
+  if (Thunk *ET = Thunks.lookup(Rel.Sym)) {
+    if (Target->inBranchRange(Rel.Type, Src, Rel.Sym->getVA()))
+      return true;
+    Rel.Sym = &ET->Destination;
+    if (Rel.Sym->isInPlt())
+      Rel.Expr = toPlt(Rel.Expr);
+  }
+  return false;
 }
 
 // Process all relocations from the InputSections that have been assigned
@@ -1083,13 +1167,17 @@ void ThunkCreator::forEachExecInputSection(
 // each InputSection. It must be called before the static symbol table is
 // finalized. If any Thunks are added to an OutputSection the output section
 // offsets of the InputSections will change.
-//
-// FIXME: All Thunks are assumed to be in range of the relocation. Range
-// extension Thunks are not yet supported.
 bool ThunkCreator::createThunks(
     ArrayRef<OutputSectionCommand *> OutputSections) {
-  if (Pass > 0)
-    ThunkSections.clear();
+  bool AddressesChanged = false;
+  if (Pass > 0) {
+    NewThunkSections.clear();
+    // With Thunk Size much smaller than branch range we expect to
+    // converge quickly, if we get to 10 something has gone wrong.
+    if (Pass == 10)
+      fatal("Thunk creation not converged");
+  } else if (Target->ThunkSectionSpacing)
+    createInitialThunkSections(OutputSections);
 
   // Create all the Thunks and insert them into synthetic ThunkSections. The
   // ThunkSections are later inserted back into the OutputSection.
@@ -1098,23 +1186,29 @@ bool ThunkCreator::createThunks(
   // ThunkSections back into the OutputSection as ThunkSections are not always
   // inserted into the same OutputSection as the caller.
   forEachExecInputSection(
-      OutputSections, [&](OutputSection *OS,  std::vector<InputSection*> *ISR,
+      OutputSections, [&](OutputSection *OS, std::vector<InputSection*> *ISR,
                           InputSection *IS) {
         for (Relocation &Rel : IS->Relocations) {
-          SymbolBody &Body = *Rel.Sym;
-          if (Thunks.find(&Body) != Thunks.end() ||
-              !Target->needsThunk(Rel.Expr, Rel.Type, IS->File, Body))
+          uint64_t Src = OS->Addr + IS->OutSecOff + Rel.Offset;
+
+          // If relocation to a valid existing Thunk, use it, if invalid Thunk
+          // redirect relocation to original target
+          if (Pass > 0 && normalizeExistingThunk(Rel, Src))
+            continue;
+
+          if (!Target->needsThunk(Rel.Expr, Rel.Type, IS->File, Src, *Rel.Sym))
             continue;
           Thunk *T;
           bool IsNew;
-          std::tie(T, IsNew) = getThunk(Body, Rel.Type);
+          std::tie(T, IsNew) = getThunk(*Rel.Sym, Rel.Type, Src);
           if (IsNew) {
+            AddressesChanged = true;
             // Find or create a ThunkSection for the new Thunk
             ThunkSection *TS;
             if (auto *TIS = T->getTargetInputSection())
               TS = getISThunkSec(TIS, OS);
             else
-              TS = getOSThunkSec(OS, ISR);
+              TS = getISRThunkSec(OS, IS, ISR, Rel.Type, Src);
             TS->addThunk(T);
             Thunks[T->ThunkSym] = T;
           }
@@ -1126,7 +1220,7 @@ bool ThunkCreator::createThunks(
   // Merge all created synthetic ThunkSections back into OutputSection
   mergeThunks();
   ++Pass;
-  return !ThunkSections.empty();
+  return AddressesChanged;
 }
 
 template void elf::scanRelocations<ELF32LE>(InputSectionBase &);

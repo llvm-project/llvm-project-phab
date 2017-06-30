@@ -122,8 +122,14 @@ int64_t TargetInfo::getImplicitAddend(const uint8_t *Buf, uint32_t Type) const {
 bool TargetInfo::usesOnlyLowPageBits(uint32_t Type) const { return false; }
 
 bool TargetInfo::needsThunk(RelExpr Expr, uint32_t RelocType,
-                            const InputFile *File, const SymbolBody &S) const {
+                            const InputFile *File, uint64_t BranchAddr,
+                            const SymbolBody &S) const {
   return false;
+}
+
+bool TargetInfo::inBranchRange(uint32_t RelocType, uint64_t Src,
+                               uint64_t Dst) const {
+  return true;
 }
 
 void TargetInfo::writeIgotPlt(uint8_t *Buf, const SymbolBody &S) const {
