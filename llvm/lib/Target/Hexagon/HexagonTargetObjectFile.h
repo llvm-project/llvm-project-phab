@@ -33,6 +33,8 @@ namespace llvm {
 
     unsigned getSmallDataSize() const;
 
+    const Function *getLutUsedFunction(const GlobalObject *GO) const;
+
   private:
     MCSectionELF *SmallDataSection;
     MCSectionELF *SmallBSSSection;
@@ -43,6 +45,10 @@ namespace llvm {
     MCSection *selectSmallSectionForGlobal(const GlobalObject *GO,
                                            SectionKind Kind,
                                            const TargetMachine &TM) const;
+
+    MCSection *selectSectionForLookupTable(const GlobalObject *GO,
+                                           const TargetMachine &TM,
+                                           const Function *Fn) const;
   };
 
 } // namespace llvm
