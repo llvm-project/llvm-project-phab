@@ -448,10 +448,8 @@ void MachObjectWriter::writeLinkerOptionsLoadCommand(
 void MachObjectWriter::recordRelocation(MCAssembler &Asm,
                                         const MCAsmLayout &Layout,
                                         const MCFragment *Fragment,
-                                        const MCFixup &Fixup, MCValue Target,
-                                        bool &IsPCRel, uint64_t &FixedValue) {
-  TargetObjectWriter->recordRelocation(this, Asm, Layout, Fragment, Fixup,
-                                       Target, FixedValue);
+                                        MCReloc &Reloc) {
+  TargetObjectWriter->recordRelocation(this, Asm, Layout, Fragment, Reloc);
 }
 
 void MachObjectWriter::bindIndirectSymbols(MCAssembler &Asm) {

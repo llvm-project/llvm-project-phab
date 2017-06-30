@@ -94,9 +94,13 @@ const MCFixupKindInfo &ARMAsmBackend::getFixupKindInfo(MCFixupKind Kind) const {
       // movw / movt: 16-bits immediate but scattered into two chunks 0 - 12, 16
       // - 19.
       {"fixup_arm_movt_hi16", 0, 20, 0},
+      {"fixup_arm_movt_hi16_pc", 0, 20, MCFixupKindInfo::FKF_IsPCRel},
       {"fixup_arm_movw_lo16", 0, 20, 0},
+      {"fixup_arm_movw_lo16_pc", 0, 20, MCFixupKindInfo::FKF_IsPCRel},
       {"fixup_t2_movt_hi16", 0, 20, 0},
+      {"fixup_t2_movt_hi16_pc", 0, 20, MCFixupKindInfo::FKF_IsPCRel},
       {"fixup_t2_movw_lo16", 0, 20, 0},
+      {"fixup_t2_movw_lo16_pc", 0, 20, MCFixupKindInfo::FKF_IsPCRel},
       {"fixup_arm_mod_imm", 0, 12, 0},
       {"fixup_t2_so_imm", 0, 26, 0},
   };
@@ -145,9 +149,13 @@ const MCFixupKindInfo &ARMAsmBackend::getFixupKindInfo(MCFixupKind Kind) const {
       // movw / movt: 16-bits immediate but scattered into two chunks 0 - 12, 16
       // - 19.
       {"fixup_arm_movt_hi16", 12, 20, 0},
+      {"fixup_arm_movt_hi16_pc", 12, 20, MCFixupKindInfo::FKF_IsPCRel},
       {"fixup_arm_movw_lo16", 12, 20, 0},
+      {"fixup_arm_movw_lo16_pc", 12, 20, MCFixupKindInfo::FKF_IsPCRel},
       {"fixup_t2_movt_hi16", 12, 20, 0},
+      {"fixup_t2_movt_hi16_pc", 12, 20, MCFixupKindInfo::FKF_IsPCRel},
       {"fixup_t2_movw_lo16", 12, 20, 0},
+      {"fixup_t2_movw_lo16_pc", 12, 20, MCFixupKindInfo::FKF_IsPCRel},
       {"fixup_arm_mod_imm", 20, 12, 0},
       {"fixup_t2_so_imm", 26, 6, 0},
   };
@@ -158,6 +166,21 @@ const MCFixupKindInfo &ARMAsmBackend::getFixupKindInfo(MCFixupKind Kind) const {
   assert(unsigned(Kind - FirstTargetFixupKind) < getNumFixupKinds() &&
          "Invalid kind!");
   return (IsLittleEndian ? InfosLE : InfosBE)[Kind - FirstTargetFixupKind];
+}
+
+MCFixupKind ARMAsmBackend::getPCRelKind(MCFixupKind Kind) const {
+  switch ((unsigned)Kind) {
+  case ARM::fixup_arm_movw_lo16:
+    return (MCFixupKind)ARM::fixup_arm_movw_lo16_pc;
+  case ARM::fixup_arm_movt_hi16:
+    return (MCFixupKind)ARM::fixup_arm_movt_hi16_pc;
+  case ARM::fixup_t2_movw_lo16:
+    return (MCFixupKind)ARM::fixup_t2_movw_lo16_pc;
+  case ARM::fixup_t2_movt_hi16:
+    return (MCFixupKind)ARM::fixup_t2_movt_hi16_pc;
+  default:
+    return MCAsmBackend::getPCRelKind(Kind);
+  }
 }
 
 void ARMAsmBackend::handleAssemblerFlag(MCAssemblerFlag Flag) {
@@ -201,7 +224,7 @@ bool ARMAsmBackend::mayNeedRelaxation(const MCInst &Inst) const {
   return false;
 }
 
-const char *ARMAsmBackend::reasonForFixupRelaxation(const MCFixup &Fixup,
+const char *ARMAsmBackend::reasonForFixupRelaxation(const MCReloc &Fixup,
                                                     uint64_t Value) const {
   switch ((unsigned)Fixup.getKind()) {
   case ARM::fixup_arm_thumb_br: {
@@ -254,10 +277,10 @@ const char *ARMAsmBackend::reasonForFixupRelaxation(const MCFixup &Fixup,
   return nullptr;
 }
 
-bool ARMAsmBackend::fixupNeedsRelaxation(const MCFixup &Fixup, uint64_t Value,
+bool ARMAsmBackend::fixupNeedsRelaxation(const MCReloc &Reloc,
                                          const MCRelaxableFragment *DF,
                                          const MCAsmLayout &Layout) const {
-  return reasonForFixupRelaxation(Fixup, Value);
+  return reasonForFixupRelaxation(Reloc, Reloc.getConstant());
 }
 
 void ARMAsmBackend::relaxInstruction(const MCInst &Inst,
@@ -359,11 +382,11 @@ static uint32_t joinHalfWords(uint32_t FirstHalf, uint32_t SecondHalf,
 }
 
 unsigned ARMAsmBackend::adjustFixupValue(const MCAssembler &Asm,
-                                         const MCFixup &Fixup,
-                                         const MCValue &Target, uint64_t Value,
-                                         bool IsPCRel, MCContext &Ctx,
+                                         const MCReloc &Fixup, MCContext &Ctx,
                                          bool IsLittleEndian,
                                          bool IsResolved) const {
+  const MCReloc &Target = Fixup;
+  uint64_t Value = Fixup.getConstant();
   unsigned Kind = Fixup.getKind();
 
   // MachO tries to make .o files that look vaguely pre-linked, so for MOVW/MOVT
@@ -386,16 +409,18 @@ unsigned ARMAsmBackend::adjustFixupValue(const MCAssembler &Asm,
   case FK_Data_1:
   case FK_Data_2:
   case FK_Data_4:
+  case FK_PCRel_4:
     return Value;
   case FK_SecRel_2:
     return Value;
   case FK_SecRel_4:
     return Value;
   case ARM::fixup_arm_movt_hi16:
-    if (!IsPCRel)
-      Value >>= 16;
+    Value >>= 16;
     LLVM_FALLTHROUGH;
-  case ARM::fixup_arm_movw_lo16: {
+  case ARM::fixup_arm_movt_hi16_pc:
+  case ARM::fixup_arm_movw_lo16:
+  case ARM::fixup_arm_movw_lo16_pc: {
     unsigned Hi4 = (Value & 0xF000) >> 12;
     unsigned Lo12 = Value & 0x0FFF;
     // inst{19-16} = Hi4;
@@ -404,10 +429,11 @@ unsigned ARMAsmBackend::adjustFixupValue(const MCAssembler &Asm,
     return Value;
   }
   case ARM::fixup_t2_movt_hi16:
-    if (!IsPCRel)
-      Value >>= 16;
+    Value >>= 16;
     LLVM_FALLTHROUGH;
-  case ARM::fixup_t2_movw_lo16: {
+  case ARM::fixup_t2_movt_hi16_pc:
+  case ARM::fixup_t2_movw_lo16:
+  case ARM::fixup_t2_movw_lo16_pc: {
     unsigned Hi4 = (Value & 0xF000) >> 12;
     unsigned i = (Value & 0x800) >> 11;
     unsigned Mid3 = (Value & 0x700) >> 8;
@@ -811,6 +837,7 @@ static unsigned getFixupKindNumBytes(unsigned Kind) {
     return 3;
 
   case FK_Data_4:
+  case FK_PCRel_4:
   case ARM::fixup_t2_ldst_pcrel_12:
   case ARM::fixup_t2_condbranch:
   case ARM::fixup_t2_uncondbranch:
@@ -820,9 +847,13 @@ static unsigned getFixupKindNumBytes(unsigned Kind) {
   case ARM::fixup_arm_thumb_bl:
   case ARM::fixup_arm_thumb_blx:
   case ARM::fixup_arm_movt_hi16:
+  case ARM::fixup_arm_movt_hi16_pc:
   case ARM::fixup_arm_movw_lo16:
+  case ARM::fixup_arm_movw_lo16_pc:
   case ARM::fixup_t2_movt_hi16:
+  case ARM::fixup_t2_movt_hi16_pc:
   case ARM::fixup_t2_movw_lo16:
+  case ARM::fixup_t2_movw_lo16_pc:
   case ARM::fixup_t2_so_imm:
     return 4;
 
@@ -872,9 +903,13 @@ static unsigned getFixupKindContainerSizeBytes(unsigned Kind) {
   case ARM::fixup_arm_thumb_bl:
   case ARM::fixup_arm_thumb_blx:
   case ARM::fixup_arm_movt_hi16:
+  case ARM::fixup_arm_movt_hi16_pc:
   case ARM::fixup_arm_movw_lo16:
+  case ARM::fixup_arm_movw_lo16_pc:
   case ARM::fixup_t2_movt_hi16:
+  case ARM::fixup_t2_movt_hi16_pc:
   case ARM::fixup_t2_movw_lo16:
+  case ARM::fixup_t2_movw_lo16_pc:
   case ARM::fixup_arm_mod_imm:
   case ARM::fixup_t2_so_imm:
     // Instruction size is 4 bytes.
@@ -882,14 +917,11 @@ static unsigned getFixupKindContainerSizeBytes(unsigned Kind) {
   }
 }
 
-void ARMAsmBackend::applyFixup(const MCAssembler &Asm, const MCFixup &Fixup,
-                               const MCValue &Target,
-                               MutableArrayRef<char> Data, uint64_t Value,
-                               bool IsPCRel) const {
+void ARMAsmBackend::applyFixup(const MCAssembler &Asm, const MCReloc &Fixup,
+                               MutableArrayRef<char> Data) const {
   unsigned NumBytes = getFixupKindNumBytes(Fixup.getKind());
   MCContext &Ctx = Asm.getContext();
-  Value = adjustFixupValue(Asm, Fixup, Target, Value, IsPCRel, Ctx,
-                           IsLittleEndian, true);
+  uint64_t Value = adjustFixupValue(Asm, Fixup, Ctx, IsLittleEndian, true);
   if (!Value)
     return; // Doesn't change encoding.
 

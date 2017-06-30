@@ -49,14 +49,13 @@ public:
   LanaiAsmBackend(const Target &T, Triple::OSType OST)
       : MCAsmBackend(), OSType(OST) {}
 
-  void applyFixup(const MCAssembler &Asm, const MCFixup &Fixup,
-                  const MCValue &Target, MutableArrayRef<char> Data,
-                  uint64_t Value, bool IsPCRel) const override;
+  void applyFixup(const MCAssembler &Asm, const MCReloc &Reloc,
+                  MutableArrayRef<char> Data) const override;
 
   MCObjectWriter *createObjectWriter(raw_pwrite_stream &OS) const override;
 
   // No instruction requires relaxation
-  bool fixupNeedsRelaxation(const MCFixup & /*Fixup*/, uint64_t /*Value*/,
+  bool fixupNeedsRelaxation(const MCReloc & /*Reloc*/,
                             const MCRelaxableFragment * /*DF*/,
                             const MCAsmLayout & /*Layout*/) const override {
     return false;
@@ -89,11 +88,10 @@ bool LanaiAsmBackend::writeNopData(uint64_t Count, MCObjectWriter *OW) const {
   return true;
 }
 
-void LanaiAsmBackend::applyFixup(const MCAssembler &Asm, const MCFixup &Fixup,
-                                 const MCValue &Target,
-                                 MutableArrayRef<char> Data, uint64_t Value,
-                                 bool /*IsPCRel*/) const {
+void LanaiAsmBackend::applyFixup(const MCAssembler &Asm, const MCReloc &Fixup,
+                                 MutableArrayRef<char> Data) const {
   MCFixupKind Kind = Fixup.getKind();
+  uint64_t Value = Fixup.getConstant();
   Value = adjustFixupValue(static_cast<unsigned>(Kind), Value);
 
   if (!Value)
