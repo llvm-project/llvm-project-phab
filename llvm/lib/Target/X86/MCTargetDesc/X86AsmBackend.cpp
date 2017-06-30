@@ -108,9 +108,26 @@ public:
     return Infos[Kind - FirstTargetFixupKind];
   }
 
-  void applyFixup(const MCAssembler &Asm, const MCFixup &Fixup,
-                  const MCValue &Target, MutableArrayRef<char> Data,
-                  uint64_t Value, bool IsPCRel) const override {
+  MCFixupKind getPCRelKind(MCFixupKind Kind) const override {
+    switch ((unsigned)Kind) {
+    case X86::reloc_signed_4byte:
+      return FK_PCRel_4;
+
+    // The handling of reloc_global_offset_table is a hack. We accept
+    // things like  "subl    _GLOBAL_OFFSET_TABLE_-bar2", so this
+    // makes the expression always pcrel.
+    case X86::reloc_global_offset_table:
+      return (MCFixupKind)X86::reloc_global_offset_table;
+    case X86::reloc_global_offset_table8:
+      return (MCFixupKind)X86::reloc_global_offset_table8;
+    default:
+      return MCAsmBackend::getPCRelKind(Kind);
+    }
+  }
+
+  void applyFixup(const MCAssembler &Asm, const MCReloc &Fixup,
+                  MutableArrayRef<char> Data) const override {
+    uint64_t Value = Fixup.getConstant();
     unsigned Size = 1 << getFixupKindLog2Size(Fixup.getKind());
 
     assert(Fixup.getOffset() + Size <= Data.size() && "Invalid fixup offset!");
@@ -128,8 +145,7 @@ public:
 
   bool mayNeedRelaxation(const MCInst &Inst) const override;
 
-  bool fixupNeedsRelaxation(const MCFixup &Fixup, uint64_t Value,
-                            const MCRelaxableFragment *DF,
+  bool fixupNeedsRelaxation(const MCReloc &Reloc, const MCRelaxableFragment *DF,
                             const MCAsmLayout &Layout) const override;
 
   void relaxInstruction(const MCInst &Inst, const MCSubtargetInfo &STI,
@@ -292,10 +308,10 @@ bool X86AsmBackend::mayNeedRelaxation(const MCInst &Inst) const {
   return false;
 }
 
-bool X86AsmBackend::fixupNeedsRelaxation(const MCFixup &Fixup,
-                                         uint64_t Value,
+bool X86AsmBackend::fixupNeedsRelaxation(const MCReloc &Reloc,
                                          const MCRelaxableFragment *DF,
                                          const MCAsmLayout &Layout) const {
+  uint64_t Value = Reloc.getConstant();
   // Relax if the value is too big for a (signed) i8.
   return int64_t(Value) != int64_t(int8_t(Value));
 }

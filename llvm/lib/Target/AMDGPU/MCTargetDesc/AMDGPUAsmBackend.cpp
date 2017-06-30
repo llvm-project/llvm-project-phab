@@ -30,11 +30,9 @@ public:
 
   unsigned getNumFixupKinds() const override { return AMDGPU::NumTargetFixupKinds; };
 
-  void applyFixup(const MCAssembler &Asm, const MCFixup &Fixup,
-                  const MCValue &Target, MutableArrayRef<char> Data,
-                  uint64_t Value, bool IsPCRel) const override;
-  bool fixupNeedsRelaxation(const MCFixup &Fixup, uint64_t Value,
-                            const MCRelaxableFragment *DF,
+  void applyFixup(const MCAssembler &Asm, const MCReloc &Reloc,
+                  MutableArrayRef<char> Data) const override;
+  bool fixupNeedsRelaxation(const MCReloc &Reloc, const MCRelaxableFragment *DF,
                             const MCAsmLayout &Layout) const override {
     return false;
   }
@@ -72,8 +70,8 @@ static unsigned getFixupKindNumBytes(unsigned Kind) {
   }
 }
 
-static uint64_t adjustFixupValue(const MCFixup &Fixup, uint64_t Value,
-                                 MCContext *Ctx) {
+static uint64_t adjustFixupValue(const MCReloc &Fixup, MCContext *Ctx) {
+  uint64_t Value = Fixup.getConstant();
   int64_t SignedValue = static_cast<int64_t>(Value);
 
   switch (Fixup.getKind()) {
@@ -97,11 +95,9 @@ static uint64_t adjustFixupValue(const MCFixup &Fixup, uint64_t Value,
   }
 }
 
-void AMDGPUAsmBackend::applyFixup(const MCAssembler &Asm, const MCFixup &Fixup,
-                                  const MCValue &Target,
-                                  MutableArrayRef<char> Data, uint64_t Value,
-                                  bool IsPCRel) const {
-  Value = adjustFixupValue(Fixup, Value, &Asm.getContext());
+void AMDGPUAsmBackend::applyFixup(const MCAssembler &Asm, const MCReloc &Fixup,
+                                  MutableArrayRef<char> Data) const {
+  uint64_t Value = adjustFixupValue(Fixup, &Asm.getContext());
   if (!Value)
     return; // Doesn't change encoding.
 

@@ -196,9 +196,7 @@ public:
                                               bool IsPCRel) const override;
 
   void recordRelocation(MCAssembler &Asm, const MCAsmLayout &Layout,
-                        const MCFragment *Fragment, const MCFixup &Fixup,
-                        MCValue Target, bool &IsPCRel,
-                        uint64_t &FixedValue) override;
+                        const MCFragment *Fragment, MCReloc &Reloc) override;
 
   void createFileSymbols(MCAssembler &Asm);
   void assignSectionNumbers();
@@ -708,9 +706,12 @@ bool WinCOFFObjectWriter::isSymbolRefDifferenceFullyResolvedImpl(
                                                                 InSet, IsPCRel);
 }
 
-void WinCOFFObjectWriter::recordRelocation(
-    MCAssembler &Asm, const MCAsmLayout &Layout, const MCFragment *Fragment,
-    const MCFixup &Fixup, MCValue Target, bool &IsPCRel, uint64_t &FixedValue) {
+void WinCOFFObjectWriter::recordRelocation(MCAssembler &Asm,
+                                           const MCAsmLayout &Layout,
+                                           const MCFragment *Fragment,
+                                           MCReloc &Fixup) {
+  MCReloc &Target = Fixup;
+  uint64_t &FixedValue = Fixup.getConstant();
   assert(Target.getSymA() && "Relocation must reference a symbol!");
 
   const MCSymbol &A = Target.getSymA()->getSymbol();
@@ -734,10 +735,9 @@ void WinCOFFObjectWriter::recordRelocation(
          "Section must already have been defined in executePostLayoutBinding!");
 
   COFFSection *Sec = SectionMap[MCSec];
-  const MCSymbolRefExpr *SymB = Target.getSymB();
+  const MCSymbol *B = Target.getSymB();
 
-  if (SymB) {
-    const MCSymbol *B = &SymB->getSymbol();
+  if (B) {
     if (!B->getFragment()) {
       Asm.getContext().reportError(
           Fixup.getLoc(),
@@ -782,7 +782,7 @@ void WinCOFFObjectWriter::recordRelocation(
 
   Reloc.Data.VirtualAddress += Fixup.getOffset();
   Reloc.Data.Type = TargetObjectWriter->getRelocType(
-      Asm.getContext(), Target, Fixup, SymB, Asm.getBackend());
+      Asm.getContext(), Fixup, B, Asm.getBackend());
 
   // FIXME: Can anyone explain what this does other than adjust for the size
   // of the offset?

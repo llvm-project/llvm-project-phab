@@ -37,30 +37,28 @@ public:
   bool hasNOP() const { return STI->getFeatureBits()[ARM::HasV6T2Ops]; }
 
   const MCFixupKindInfo &getFixupKindInfo(MCFixupKind Kind) const override;
+  MCFixupKind getPCRelKind(MCFixupKind Kind) const override;
 
   /// processFixupValue - Target hook to process the literal value of a fixup
   /// if necessary.
   void processFixupValue(const MCAssembler &Asm, const MCFixup &Fixup,
                          const MCValue &Target, bool &IsResolved) override;
 
-  unsigned adjustFixupValue(const MCAssembler &Asm, const MCFixup &Fixup,
-                            const MCValue &Target, uint64_t Value, bool IsPCRel,
+  unsigned adjustFixupValue(const MCAssembler &Asm, const MCReloc &Reloc,
                             MCContext &Ctx, bool IsLittleEndian,
                             bool IsResolved) const;
 
-  void applyFixup(const MCAssembler &Asm, const MCFixup &Fixup,
-                  const MCValue &Target, MutableArrayRef<char> Data,
-                  uint64_t Value, bool IsPCRel) const override;
+  void applyFixup(const MCAssembler &Asm, const MCReloc &Reloc,
+                  MutableArrayRef<char> Data) const override;
 
   unsigned getRelaxedOpcode(unsigned Op) const;
 
   bool mayNeedRelaxation(const MCInst &Inst) const override;
 
-  const char *reasonForFixupRelaxation(const MCFixup &Fixup,
+  const char *reasonForFixupRelaxation(const MCReloc &Reloc,
                                        uint64_t Value) const;
 
-  bool fixupNeedsRelaxation(const MCFixup &Fixup, uint64_t Value,
-                            const MCRelaxableFragment *DF,
+  bool fixupNeedsRelaxation(const MCReloc &Reloc, const MCRelaxableFragment *DF,
                             const MCAsmLayout &Layout) const override;
 
   void relaxInstruction(const MCInst &Inst, const MCSubtargetInfo &STI,

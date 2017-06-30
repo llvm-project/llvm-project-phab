@@ -33,9 +33,9 @@ using namespace llvm;
 namespace {
 
 class AArch64MachObjectWriter : public MCMachObjectTargetWriter {
-  bool getAArch64FixupKindMachOInfo(const MCFixup &Fixup, unsigned &RelocType,
-                                  const MCSymbolRefExpr *Sym,
-                                  unsigned &Log2Size, const MCAssembler &Asm);
+  bool getAArch64FixupKindMachOInfo(const MCReloc &Fixup, unsigned &RelocType,
+                                    const MCSymbolRefExpr *Sym,
+                                    unsigned &Log2Size, const MCAssembler &Asm);
 
 public:
   AArch64MachObjectWriter(uint32_t CPUType, uint32_t CPUSubtype)
@@ -43,14 +43,13 @@ public:
 
   void recordRelocation(MachObjectWriter *Writer, MCAssembler &Asm,
                         const MCAsmLayout &Layout, const MCFragment *Fragment,
-                        const MCFixup &Fixup, MCValue Target,
-                        uint64_t &FixedValue) override;
+                        MCReloc &Fixup) override;
 };
 
 } // end anonymous namespace
 
 bool AArch64MachObjectWriter::getAArch64FixupKindMachOInfo(
-    const MCFixup &Fixup, unsigned &RelocType, const MCSymbolRefExpr *Sym,
+    const MCReloc &Fixup, unsigned &RelocType, const MCSymbolRefExpr *Sym,
     unsigned &Log2Size, const MCAssembler &Asm) {
   RelocType = unsigned(MachO::ARM64_RELOC_UNSIGNED);
   Log2Size = ~0U;
@@ -149,16 +148,19 @@ static bool canUseLocalRelocation(const MCSectionMachO &Section,
   return false;
 }
 
-void AArch64MachObjectWriter::recordRelocation(
-    MachObjectWriter *Writer, MCAssembler &Asm, const MCAsmLayout &Layout,
-    const MCFragment *Fragment, const MCFixup &Fixup, MCValue Target,
-    uint64_t &FixedValue) {
+void AArch64MachObjectWriter::recordRelocation(MachObjectWriter *Writer,
+                                               MCAssembler &Asm,
+                                               const MCAsmLayout &Layout,
+                                               const MCFragment *Fragment,
+                                               MCReloc &Fixup) {
   unsigned IsPCRel = Writer->isFixupKindPCRel(Asm, Fixup.getKind());
+  uint64_t &FixedValue = Fixup.getConstant();
+  MCReloc &Target = Fixup;
 
   // See <reloc.h>.
   uint32_t FixupOffset = Layout.getFragmentOffset(Fragment);
   unsigned Log2Size = 0;
-  int64_t Value = 0;
+  int64_t Value = FixedValue;
   unsigned Index = 0;
   unsigned Type = 0;
   unsigned Kind = Fixup.getKind();
@@ -202,8 +204,6 @@ void AArch64MachObjectWriter::recordRelocation(
     return;
   }
 
-  Value = Target.getConstant();
-
   if (Target.isAbsolute()) { // constant
     // FIXME: Should this always be extern?
     // SymbolNum of 0 indicates the absolute section.
@@ -221,14 +221,13 @@ void AArch64MachObjectWriter::recordRelocation(
     const MCSymbol *A = &Target.getSymA()->getSymbol();
     const MCSymbol *A_Base = Asm.getAtom(*A);
 
-    const MCSymbol *B = &Target.getSymB()->getSymbol();
+    const MCSymbol *B = Target.getSymB();
     const MCSymbol *B_Base = Asm.getAtom(*B);
 
     // Check for "_foo@got - .", which comes through here as:
     // Ltmp0:
     //    ... _foo@got - Ltmp0
     if (Target.getSymA()->getKind() == MCSymbolRefExpr::VK_GOT &&
-        Target.getSymB()->getKind() == MCSymbolRefExpr::VK_None &&
         Layout.getSymbolOffset(*B) ==
             Layout.getFragmentOffset(Fragment) + Fixup.getOffset()) {
       // SymB is the PC, so use a PC-rel pointer-to-GOT relocation.
@@ -239,8 +238,7 @@ void AArch64MachObjectWriter::recordRelocation(
       MRE.r_word1 = (IsPCRel << 24) | (Log2Size << 25) | (Type << 28);
       Writer->addRelocation(A_Base, Fragment->getParent(), MRE);
       return;
-    } else if (Target.getSymA()->getKind() != MCSymbolRefExpr::VK_None ||
-               Target.getSymB()->getKind() != MCSymbolRefExpr::VK_None) {
+    } else if (Target.getSymA()->getKind() != MCSymbolRefExpr::VK_None) {
       // Otherwise, neither symbol can be modified.
       Asm.getContext().reportError(Fixup.getLoc(),
                                    "unsupported relocation of modified symbol");
@@ -329,15 +327,18 @@ void AArch64MachObjectWriter::recordRelocation(
       // FIXME: Will the Target we already have ever have any data in it
       // we need to preserve and merge with the new Target? How about
       // the FixedValue?
-      if (!Symbol->getVariableValue()->evaluateAsRelocatable(Target, &Layout,
-                                                             &Fixup)) {
+      MCValue NewTarget;
+      if (!Symbol->getVariableValue()->evaluateAsRelocatable(NewTarget, &Layout,
+                                                             nullptr)) {
         Asm.getContext().reportError(Fixup.getLoc(),
                                      "unable to resolve variable '" +
                                          Symbol->getName() + "'");
         return;
       }
-      return recordRelocation(Writer, Asm, Layout, Fragment, Fixup, Target,
-                              FixedValue);
+      Fixup.setSymA(NewTarget.getSymA());
+      Fixup.setSymB(&NewTarget.getSymB()->getSymbol());
+      Fixup.setConstant(NewTarget.getConstant());
+      return recordRelocation(Writer, Asm, Layout, Fragment, Fixup);
     }
 
     // Relocations inside debug sections always use local relocations when
