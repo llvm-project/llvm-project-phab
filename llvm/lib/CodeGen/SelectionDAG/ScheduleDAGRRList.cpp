@@ -53,6 +53,12 @@ static RegisterScheduler
                          createSourceListDAGScheduler);
 
 static RegisterScheduler
+  guidedSrcListDAGScheduler("guided-src",
+                         "Heuristic based on already scheduled nodes, fall backs"
+                         "on source order priority.",
+                         createGuidedSrcListDAGScheduler);
+
+static RegisterScheduler
   hybridListDAGScheduler("list-hybrid",
                          "Bottom-up register pressure aware list scheduling "
                          "which tries to balance latency and register pressure",
@@ -1595,6 +1601,22 @@ struct bu_ls_rr_sort : public queue_sort {
   bool operator()(SUnit* left, SUnit* right) const;
 };
 
+// gu_src_ls_rr_sort - Priority function for guided source order scheduler.
+struct gu_src_ls_rr_sort : public queue_sort {
+    enum {
+      IsBottomUp = true,
+      HasReadyFilter = false
+    };
+
+    RegReductionPQBase *SPQ;
+    gu_src_ls_rr_sort(RegReductionPQBase *spq)
+       : SPQ(spq) {}
+
+    bool operator()(SUnit* left, SUnit* right) const;
+  private:
+    unsigned getNodeWeight(SDNode *) const;
+};
+
 // src_ls_rr_sort - Priority function for source order scheduler.
 struct src_ls_rr_sort : public queue_sort {
   enum {
@@ -1693,6 +1715,10 @@ public:
 
   void setScheduleDAG(ScheduleDAGRRList *scheduleDag) {
     scheduleDAG = scheduleDag;
+  }
+
+  ScheduleDAGRRList * getScheduleDAG() {
+    return scheduleDAG;
   }
 
   ScheduleHazardRecognizer* getHazardRec() {
@@ -1831,6 +1857,9 @@ BURegReductionPriorityQueue;
 
 typedef RegReductionPriorityQueue<src_ls_rr_sort>
 SrcRegReductionPriorityQueue;
+
+typedef RegReductionPriorityQueue<gu_src_ls_rr_sort>
+GuidedSrcRegReductionPriorityQueue;
 
 typedef RegReductionPriorityQueue<hybrid_ls_rr_sort>
 HybridBURRPriorityQueue;
@@ -2550,6 +2579,60 @@ bool bu_ls_rr_sort::operator()(SUnit *left, SUnit *right) const {
   return BURRSort(left, right, SPQ);
 }
 
+unsigned gu_src_ls_rr_sort::getNodeWeight(SDNode * N) const {
+
+  using SUVecT = std::vector<SUnit*>;
+  using SUVecItr = std::vector<SUnit*>::iterator;
+
+  unsigned Weight = 0;
+  SUVecT & Sequence = SPQ->getScheduleDAG()->Sequence;
+
+  for(const SDValue &Op : N->op_values()) {
+    for(SDNode * User : Op.getNode()->uses()) {
+       if (User == N) continue;
+
+       SUVecItr SchedUnit = std::find_if(Sequence.begin(),Sequence.end(),
+         [&](const SUnit * SU) -> bool {
+           if (User->getNodeId() >= 0 && 
+             SU->NodeNum == static_cast<unsigned>(User->getNodeId()))
+               return true;
+             return false;
+           }
+       );
+       if (SchedUnit != Sequence.end())
+          Weight += 10;
+     }
+  }
+
+  return Weight;
+}
+
+// Guided scheduling with src order fall back, otherwise bottom up.
+bool gu_src_ls_rr_sort::operator() (SUnit *left, SUnit *right) const {
+  if (int res = checkSpecialNodes(left, right))
+    return res > 0;
+
+  SDNode * leftN   = left->getNode();
+  SDNode * rightN  = right->getNode();
+  unsigned leftNW  = getNodeWeight(leftN); 
+  unsigned rightNW = getNodeWeight(rightN); 
+
+  if (leftNW > rightNW ) 
+    return false;
+  else if (leftNW < rightNW ) 
+    return true;
+
+  unsigned LOrder = SPQ->getNodeOrdering(left);
+  unsigned ROrder = SPQ->getNodeOrdering(right);
+
+  // Prefer an ordering where the lower the non-zero order number, the higher
+  // the preference.
+  if ((LOrder || ROrder) && LOrder != ROrder)
+    return LOrder != 0 && (LOrder < ROrder || ROrder == 0);
+
+  return BURRSort(left, right, SPQ);
+}
+
 // Source order, otherwise bottom up.
 bool src_ls_rr_sort::operator()(SUnit *left, SUnit *right) const {
   if (int res = checkSpecialNodes(left, right))
@@ -3031,6 +3114,20 @@ llvm::createBURRListDAGScheduler(SelectionDAGISel *IS,
 
   BURegReductionPriorityQueue *PQ =
     new BURegReductionPriorityQueue(*IS->MF, false, false, TII, TRI, nullptr);
+  ScheduleDAGRRList *SD = new ScheduleDAGRRList(*IS->MF, false, PQ, OptLevel);
+  PQ->setScheduleDAG(SD);
+  return SD;
+}
+
+llvm::ScheduleDAGSDNodes *
+llvm::createGuidedSrcListDAGScheduler(SelectionDAGISel *IS,
+                                   CodeGenOpt::Level OptLevel) {
+  const TargetSubtargetInfo &STI = IS->MF->getSubtarget();
+  const TargetInstrInfo *TII = STI.getInstrInfo();
+  const TargetRegisterInfo *TRI = STI.getRegisterInfo();
+
+  GuidedSrcRegReductionPriorityQueue *PQ =
+    new GuidedSrcRegReductionPriorityQueue(*IS->MF, false, true, TII, TRI, nullptr);
   ScheduleDAGRRList *SD = new ScheduleDAGRRList(*IS->MF, false, PQ, OptLevel);
   PQ->setScheduleDAG(SD);
   return SD;
