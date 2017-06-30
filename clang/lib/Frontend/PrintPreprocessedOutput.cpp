@@ -96,6 +96,7 @@ private:
   bool DumpIncludeDirectives;
   bool UseLineDirectives;
   bool IsFirstFileEntered;
+  bool NewLinesInTokenHandled;
 public:
   PrintPPOutputPPCallbacks(Preprocessor &pp, raw_ostream &os, bool lineMarkers,
                            bool defines, bool DumpIncludeDirectives,
@@ -111,6 +112,7 @@ public:
     FileType = SrcMgr::C_User;
     Initialized = false;
     IsFirstFileEntered = false;
+    NewLinesInTokenHandled = false;
   }
 
   void setEmittedTokensOnThisLine() { EmittedTokensOnThisLine = true; }
@@ -164,7 +166,7 @@ public:
   void WriteLineInfo(unsigned LineNo, const char *Extra=nullptr,
                      unsigned ExtraLen=0);
   bool LineMarkersAreDisabled() const { return DisableLineMarkers; }
-  void HandleNewlinesInToken(const char *TokStr, unsigned Len);
+  void HandleNewlinesInToken(const char *TokStr, unsigned Len, bool IsSp);
 
   /// MacroDefined - This hook is called whenever a macro definition is seen.
   void MacroDefined(const Token &MacroNameTok,
@@ -213,11 +215,13 @@ void PrintPPOutputPPCallbacks::WriteLineInfo(unsigned LineNo,
 bool PrintPPOutputPPCallbacks::MoveToLine(unsigned LineNo) {
   // If this line is "close enough" to the original line, just print newlines,
   // otherwise print a #line directive.
+  bool WasNewLines = NewLinesInTokenHandled;
+  NewLinesInTokenHandled = false;
   if (LineNo-CurLine <= 8) {
     if (LineNo-CurLine == 1)
       OS << '\n';
     else if (LineNo == CurLine)
-      return false;    // Spelling line moved, but expansion line didn't.
+      return WasNewLines;    // Spelling line moved, but expansion line didn't.
     else {
       const char *NewLines = "\n\n\n\n\n\n\n\n";
       OS.write(NewLines, LineNo-CurLine);
@@ -588,7 +592,7 @@ bool PrintPPOutputPPCallbacks::HandleFirstTokOnLine(Token &Tok) {
 }
 
 void PrintPPOutputPPCallbacks::HandleNewlinesInToken(const char *TokStr,
-                                                     unsigned Len) {
+                                                     unsigned Len, bool IsSp) {
   unsigned NumNewlines = 0;
   for (; Len; --Len, ++TokStr) {
     if (*TokStr != '\n' &&
@@ -609,6 +613,7 @@ void PrintPPOutputPPCallbacks::HandleNewlinesInToken(const char *TokStr,
   if (NumNewlines == 0) return;
 
   CurLine += NumNewlines;
+  if (IsSp) NewLinesInTokenHandled = true;
 }
 
 
@@ -736,7 +741,9 @@ static void PrintPreprocessedTokens(Preprocessor &PP, Token &Tok,
       // Tokens that can contain embedded newlines need to adjust our current
       // line number.
       if (Tok.getKind() == tok::comment || Tok.getKind() == tok::unknown)
-        Callbacks->HandleNewlinesInToken(TokPtr, Len);
+        Callbacks->HandleNewlinesInToken(TokPtr, Len, false);
+      if (Tok.getKind() == tok::eod)
+        Callbacks->HandleNewlinesInToken(TokPtr, Len, true);
     } else {
       std::string S = PP.getSpelling(Tok);
       OS.write(&S[0], S.size());
@@ -744,7 +751,9 @@ static void PrintPreprocessedTokens(Preprocessor &PP, Token &Tok,
       // Tokens that can contain embedded newlines need to adjust our current
       // line number.
       if (Tok.getKind() == tok::comment || Tok.getKind() == tok::unknown)
-        Callbacks->HandleNewlinesInToken(&S[0], S.size());
+        Callbacks->HandleNewlinesInToken(&S[0], S.size(), false);
+      if (Tok.getKind() == tok::eod)
+        Callbacks->HandleNewlinesInToken(&S[0], S.size(), true);
     }
     Callbacks->setEmittedTokensOnThisLine();
 
