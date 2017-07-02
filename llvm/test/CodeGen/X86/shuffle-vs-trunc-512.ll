@@ -175,15 +175,45 @@ define void @trunc_v16i32_to_v16i16(<32 x i16>* %L, <16 x i16>* %S) nounwind {
 }
 
 define void @shuffle_v16i32_to_v8i32(<16 x i32>* %L, <8 x i32>* %S) nounwind {
-; AVX512-LABEL: shuffle_v16i32_to_v8i32:
-; AVX512:       # BB#0:
-; AVX512-NEXT:    vmovdqa32 (%rdi), %zmm0
-; AVX512-NEXT:    vextracti64x4 $1, %zmm0, %ymm1
-; AVX512-NEXT:    vshufps {{.*#+}} ymm0 = ymm0[0,2],ymm1[0,2],ymm0[4,6],ymm1[4,6]
-; AVX512-NEXT:    vpermq {{.*#+}} ymm0 = ymm0[0,2,1,3]
-; AVX512-NEXT:    vmovdqa %ymm0, (%rsi)
-; AVX512-NEXT:    vzeroupper
-; AVX512-NEXT:    retq
+; AVX512F-LABEL: shuffle_v16i32_to_v8i32:
+; AVX512F:       # BB#0:
+; AVX512F-NEXT:    vmovdqa32 (%rdi), %zmm0
+; AVX512F-NEXT:    movw $21845, %ax # imm = 0x5555
+; AVX512F-NEXT:    kmovw %eax, %k1
+; AVX512F-NEXT:    vpcompressd %zmm0, %zmm0 {%k1}
+; AVX512F-NEXT:    vextracti64x4 $0, %zmm0, (%rsi)
+; AVX512F-NEXT:    vzeroupper
+; AVX512F-NEXT:    retq
+;
+; AVX512VL-LABEL: shuffle_v16i32_to_v8i32:
+; AVX512VL:       # BB#0:
+; AVX512VL-NEXT:    vmovdqa32 (%rdi), %zmm0
+; AVX512VL-NEXT:    movw $21845, %ax # imm = 0x5555
+; AVX512VL-NEXT:    kmovw %eax, %k1
+; AVX512VL-NEXT:    vpcompressd %zmm0, %zmm0 {%k1}
+; AVX512VL-NEXT:    vmovdqa %ymm0, (%rsi)
+; AVX512VL-NEXT:    vzeroupper
+; AVX512VL-NEXT:    retq
+;
+; AVX512BW-LABEL: shuffle_v16i32_to_v8i32:
+; AVX512BW:       # BB#0:
+; AVX512BW-NEXT:    vmovdqa32 (%rdi), %zmm0
+; AVX512BW-NEXT:    movw $21845, %ax # imm = 0x5555
+; AVX512BW-NEXT:    kmovd %eax, %k1
+; AVX512BW-NEXT:    vpcompressd %zmm0, %zmm0 {%k1}
+; AVX512BW-NEXT:    vextracti64x4 $0, %zmm0, (%rsi)
+; AVX512BW-NEXT:    vzeroupper
+; AVX512BW-NEXT:    retq
+;
+; AVX512BWVL-LABEL: shuffle_v16i32_to_v8i32:
+; AVX512BWVL:       # BB#0:
+; AVX512BWVL-NEXT:    vmovdqa32 (%rdi), %zmm0
+; AVX512BWVL-NEXT:    movw $21845, %ax # imm = 0x5555
+; AVX512BWVL-NEXT:    kmovd %eax, %k1
+; AVX512BWVL-NEXT:    vpcompressd %zmm0, %zmm0 {%k1}
+; AVX512BWVL-NEXT:    vmovdqa %ymm0, (%rsi)
+; AVX512BWVL-NEXT:    vzeroupper
+; AVX512BWVL-NEXT:    retq
   %vec = load <16 x i32>, <16 x i32>* %L
   %strided.vec = shufflevector <16 x i32> %vec, <16 x i32> undef, <8 x i32> <i32 0, i32 2, i32 4, i32 6, i32 8, i32 10, i32 12, i32 14>
   store <8 x i32> %strided.vec, <8 x i32>* %S

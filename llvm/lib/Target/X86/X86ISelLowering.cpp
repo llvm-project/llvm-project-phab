@@ -7606,6 +7606,77 @@ static SDValue materializeVectorConstant(SDValue Op, SelectionDAG &DAG,
   return SDValue();
 }
 
+static SDValue getCompressWithConstantMask(SDLoc DL, MVT VT, SelectionDAG &DAG,
+                                           unsigned MaskVal, SDValue Vec,
+                                           SDValue BlendVec = SDValue()) {
+  if (!BlendVec)
+    BlendVec = DAG.getUNDEF(VT);
+  SDValue K = DAG.getConstant(MaskVal, DL,
+                              MVT::getIntegerVT(VT.getVectorNumElements()));
+  K = DAG.getBitcast(MVT::getVectorVT(MVT::i1, VT.getVectorNumElements()), K);
+
+  SDValue Compress =
+      DAG.getNode(X86ISD::COMPRESS, DL, VT, Vec);
+  Compress = DAG.getSelect(DL, VT, K, Compress, BlendVec);
+  return Compress;
+}
+
+/// Tries to match a COMPRESS node from a BUILD_VECTOR
+static SDValue lowerBuildVectorAsCompress(BuildVectorSDNode *BV,
+                                          SelectionDAG &DAG) {
+  SDLoc DL(BV);
+  MVT VT = BV->getSimpleValueType(0);
+
+  // If the input is something other than an EXTRACT_VECTOR_ELT with a constant
+  // index, bail out.
+  // TODO: Allow undef elements in some cases?
+  // TODO: Support zeros with zero-masking.
+  if (any_of(BV->ops(), [VT](SDValue Op) {
+        return Op.getOpcode() != ISD::EXTRACT_VECTOR_ELT ||
+               !isa<ConstantSDNode>(Op.getOperand(1)) ||
+               Op.getValueType() != VT.getVectorElementType();
+      }))
+    return SDValue();
+
+  // Helper for obtaining an EXTRACT_VECTOR_ELT's constant index
+  auto GetExtractIdx = [](SDValue Extract) {
+    return cast<ConstantSDNode>(Extract.getOperand(1))->getSExtValue();
+  };
+
+  SDValue ExtractedFromVec = BV->getOperand(0).getOperand(0);
+  MVT SrcVT = ExtractedFromVec.getSimpleValueType();
+  // COMPRESS supports 32-bit and 64-bit vector elements
+  if (SrcVT.getScalarSizeInBits() != 32 && SrcVT.getScalarSizeInBits() != 64)
+    return SDValue();
+
+  // All extractelt operands must be from the same vector source.
+  if (any_of(BV->ops(), [ExtractedFromVec](SDValue Op) {
+        return Op.getOperand(0) != ExtractedFromVec;
+      }))
+    return SDValue();
+
+  assert(SrcVT.getSizeInBits() > VT.getSizeInBits() &&
+         "Why wasn't this BUILD_VECTOR lowered as a shuffle?");
+
+  // The extractelt indices must be strictly increasing.
+  if (!std::is_sorted(BV->op_begin(), BV->op_end(),
+                      [GetExtractIdx](SDValue L, SDValue R) {
+                        return GetExtractIdx(L) <= GetExtractIdx(R);
+                      })) {
+    return SDValue();
+  }
+
+  // Construct the mask
+  unsigned Mask = 0;
+  for (SDValue Op : BV->ops())
+    Mask |= 1 << GetExtractIdx(Op);
+
+  SDValue Compress =
+      getCompressWithConstantMask(DL, SrcVT, DAG, Mask, ExtractedFromVec);
+  return DAG.getNode(ISD::EXTRACT_SUBVECTOR, DL, VT, Compress,
+                     DAG.getIntPtrConstant(0, DL));
+}
+
 SDValue
 X86TargetLowering::LowerBUILD_VECTOR(SDValue Op, SelectionDAG &DAG) const {
   SDLoc dl(Op);
@@ -7630,6 +7701,9 @@ X86TargetLowering::LowerBUILD_VECTOR(SDValue Op, SelectionDAG &DAG) const {
     return Broadcast;
   if (SDValue BitOp = lowerBuildVectorToBitOp(BV, DAG))
     return BitOp;
+  if (Subtarget.hasAVX512())
+    if (SDValue Compress = lowerBuildVectorAsCompress(BV, DAG))
+      return Compress;
 
   unsigned EVTBits = ExtVT.getSizeInBits();
 
@@ -11339,6 +11413,55 @@ static SDValue lowerVectorShuffleAsBlendOfPSHUFBs(
   return DAG.getBitcast(VT, V);
 }
 
+/// Tries to match a COMPRESS node from a vector shuffle.
+static SDValue lowerShuffleVectorAsCompress(SDLoc DL, MVT VT, SDValue V1,
+                                            SDValue V2, ArrayRef<int> Indices,
+                                            SelectionDAG &DAG) {
+
+  // Perform substitution of a shuffle of two vectors orginating from the same
+  // large vector source. Example:
+  // (shuffle (extract_subvector V, 0), (extract_subvector V, 4) <1, 3, 5, 7>)
+  // -->
+  // COMPRESS V, b01010101
+  unsigned NumElems = VT.getVectorNumElements();
+  assert((VT == MVT::v4i32 || VT == MVT::v8i32 || VT == MVT::v4f32 ||
+          VT == MVT::v8f32 || VT == MVT::v4i64 || VT == MVT::v4f64) &&
+         "Unsupported shuffle type");
+  assert(NumElems == Indices.size() &&
+         "Inconsistent shuffle type and mask indices");
+
+  if (V2.isUndef() || V1.getOpcode() != ISD::EXTRACT_SUBVECTOR ||
+      V2.getOpcode() != ISD::EXTRACT_SUBVECTOR ||
+      V1.getOperand(0) != V2.getOperand(0) ||
+      V1.getOperand(0).getValueType().getVectorNumElements() != NumElems * 2)
+    return SDValue();
+
+  // Conservatively bail-out if there are any undef mask elements.
+  // TODO: Handle cases where it is profitable to select COMPRESS in the
+  // presence of undef mask indices.
+  if (find(Indices, -1) != Indices.end())
+    return SDValue();
+
+  // The shuffle mask indices are strictly increasing.
+  if (!std::is_sorted(Indices.begin(), Indices.end(),
+                      [](int L, int R) { return L <= R; })) {
+    return SDValue();
+  }
+
+  SDValue ExtractedFromVec = V1.getOperand(0);
+  MVT SrcVT = ExtractedFromVec.getSimpleValueType();
+
+  // Construct the bitmask pattern from the shuffle indices.
+  unsigned Mask = 0;
+  for (int Idx : Indices)
+    Mask |= 1 << Idx;
+
+  SDValue Res =
+      getCompressWithConstantMask(DL, SrcVT, DAG, Mask, ExtractedFromVec);
+  return DAG.getNode(ISD::EXTRACT_SUBVECTOR, DL, VT, Res,
+                     DAG.getIntPtrConstant(0, DL));
+}
+
 /// \brief Generic lowering of 8-lane i16 shuffles.
 ///
 /// This handles both single-input shuffles and combined shuffle/blends with
@@ -12666,6 +12789,11 @@ static SDValue lowerV4F64VectorShuffle(const SDLoc &DL, ArrayRef<int> Mask,
     return lowerVectorShuffleAsLanePermuteAndBlend(DL, MVT::v4f64, V1, V2, Mask,
                                                    DAG);
   }
+  if (Subtarget.hasAVX512())
+    if (SDValue V =
+            lowerShuffleVectorAsCompress(DL, MVT::v4f64, V1, V2, Mask, DAG))
+      return V;
+
 
   // Use dedicated unpack instructions for masks that match their pattern.
   if (SDValue V =
@@ -12780,6 +12908,11 @@ static SDValue lowerV4I64VectorShuffle(const SDLoc &DL, ArrayRef<int> Mask,
                                                       Mask, Subtarget, DAG))
     return Rotate;
 
+  if (Subtarget.hasAVX512())
+    if (SDValue V =
+            lowerShuffleVectorAsCompress(DL, MVT::v4i64, V1, V2, Mask, DAG))
+      return V;
+
   // Use dedicated unpack instructions for masks that match their pattern.
   if (SDValue V =
           lowerVectorShuffleWithUNPCK(DL, MVT::v4i64, Mask, V1, V2, DAG))
@@ -12848,6 +12981,10 @@ static SDValue lowerV8F32VectorShuffle(const SDLoc &DL, ArrayRef<int> Mask,
     // have already handled any direct blends.
     return lowerVectorShuffleWithSHUFPS(DL, MVT::v8f32, RepeatedMask, V1, V2, DAG);
   }
+  if (Subtarget.hasAVX512())
+    if (SDValue V =
+            lowerShuffleVectorAsCompress(DL, MVT::v8f32, V1, V2, Mask, DAG))
+      return V;
 
   // Try to create an in-lane repeating shuffle mask and then shuffle the
   // the results into the target lanes.
@@ -12971,6 +13108,11 @@ static SDValue lowerV8I32VectorShuffle(const SDLoc &DL, ArrayRef<int> Mask,
                                                V1, V2, DAG, Subtarget))
       return V;
   }
+
+  if (Subtarget.hasAVX512())
+    if (SDValue V =
+            lowerShuffleVectorAsCompress(DL, MVT::v8i32, V1, V2, Mask, DAG))
+      return V;
 
   // Try to use byte rotation instructions.
   if (SDValue Rotate = lowerVectorShuffleAsByteRotate(

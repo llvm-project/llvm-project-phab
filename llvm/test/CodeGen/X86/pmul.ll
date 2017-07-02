@@ -1364,15 +1364,27 @@ define <8 x i32> @mul_v8i64_zero_upper(<8 x i32> %val1, <8 x i32> %val2) {
 ; AVX2-NEXT:    vpermq {{.*#+}} ymm0 = ymm0[0,2,1,3]
 ; AVX2-NEXT:    retq
 ;
-; AVX512-LABEL: mul_v8i64_zero_upper:
-; AVX512:       # BB#0: # %entry
-; AVX512-NEXT:    vpmovzxdq {{.*#+}} zmm0 = ymm0[0],zero,ymm0[1],zero,ymm0[2],zero,ymm0[3],zero,ymm0[4],zero,ymm0[5],zero,ymm0[6],zero,ymm0[7],zero
-; AVX512-NEXT:    vpmovzxdq {{.*#+}} zmm1 = ymm1[0],zero,ymm1[1],zero,ymm1[2],zero,ymm1[3],zero,ymm1[4],zero,ymm1[5],zero,ymm1[6],zero,ymm1[7],zero
-; AVX512-NEXT:    vpmuludq %zmm1, %zmm0, %zmm0
-; AVX512-NEXT:    vextracti64x4 $1, %zmm0, %ymm1
-; AVX512-NEXT:    vshufps {{.*#+}} ymm0 = ymm0[1,3],ymm1[1,3],ymm0[5,7],ymm1[5,7]
-; AVX512-NEXT:    vpermq {{.*#+}} ymm0 = ymm0[0,2,1,3]
-; AVX512-NEXT:    retq
+; AVX512F-LABEL: mul_v8i64_zero_upper:
+; AVX512F:       # BB#0: # %entry
+; AVX512F-NEXT:    vpmovzxdq {{.*#+}} zmm0 = ymm0[0],zero,ymm0[1],zero,ymm0[2],zero,ymm0[3],zero,ymm0[4],zero,ymm0[5],zero,ymm0[6],zero,ymm0[7],zero
+; AVX512F-NEXT:    vpmovzxdq {{.*#+}} zmm1 = ymm1[0],zero,ymm1[1],zero,ymm1[2],zero,ymm1[3],zero,ymm1[4],zero,ymm1[5],zero,ymm1[6],zero,ymm1[7],zero
+; AVX512F-NEXT:    vpmuludq %zmm1, %zmm0, %zmm0
+; AVX512F-NEXT:    movw $-21846, %ax # imm = 0xAAAA
+; AVX512F-NEXT:    kmovw %eax, %k1
+; AVX512F-NEXT:    vpcompressd %zmm0, %zmm0 {%k1}
+; AVX512F-NEXT:    # kill: %YMM0<def> %YMM0<kill> %ZMM0<kill>
+; AVX512F-NEXT:    retq
+;
+; AVX512BW-LABEL: mul_v8i64_zero_upper:
+; AVX512BW:       # BB#0: # %entry
+; AVX512BW-NEXT:    vpmovzxdq {{.*#+}} zmm0 = ymm0[0],zero,ymm0[1],zero,ymm0[2],zero,ymm0[3],zero,ymm0[4],zero,ymm0[5],zero,ymm0[6],zero,ymm0[7],zero
+; AVX512BW-NEXT:    vpmovzxdq {{.*#+}} zmm1 = ymm1[0],zero,ymm1[1],zero,ymm1[2],zero,ymm1[3],zero,ymm1[4],zero,ymm1[5],zero,ymm1[6],zero,ymm1[7],zero
+; AVX512BW-NEXT:    vpmuludq %zmm1, %zmm0, %zmm0
+; AVX512BW-NEXT:    movw $-21846, %ax # imm = 0xAAAA
+; AVX512BW-NEXT:    kmovd %eax, %k1
+; AVX512BW-NEXT:    vpcompressd %zmm0, %zmm0 {%k1}
+; AVX512BW-NEXT:    # kill: %YMM0<def> %YMM0<kill> %ZMM0<kill>
+; AVX512BW-NEXT:    retq
 entry:
   %val1a = zext <8 x i32> %val1 to <8 x i64>
   %val2a = zext <8 x i32> %val2 to <8 x i64>
