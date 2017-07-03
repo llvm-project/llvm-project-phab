@@ -1,0 +1,30 @@
+# RUN: llc -mtriple=aarch64-none-linux-gnu -run-pass none -o - %s | FileCheck %s
+
+--- |
+
+  define void @target_memoperands() {
+    ret void
+  }
+
+...
+---
+# CHECK-LABEL: name: target_memoperands
+# CHECK: %1(s64) = G_LOAD %0(p0) :: (flag1 load 8)
+# CHECK: %2(s32) = G_LOAD %0(p0) :: (flag2 load 4)
+# CHECK: %3(s16) = G_LOAD %0(p0) :: (flag3 load 2)
+# CHECK: G_STORE %3(s16), %0(p0) :: (flag1 store 2)
+# CHECK: G_STORE %2(s32), %0(p0) :: (flag2 store 4)
+# CHECK: G_STORE %1(s64), %0(p0) :: (flag3 store 8)
+name:            target_memoperands
+body: |
+  bb.0:
+
+    %0:_(p0) = COPY %x0
+    %1:_(s64) = G_LOAD %0(p0) :: (flag1 load 8)
+    %2:_(s32) = G_LOAD %0(p0) :: (flag2 load 4)
+    %3:_(s16) = G_LOAD %0(p0) :: (flag3 load 2)
+    G_STORE %3(s16), %0(p0) :: (flag1 store 2)
+    G_STORE %2(s32), %0(p0) :: (flag2 store 4)
+    G_STORE %1(s64), %0(p0) :: (flag3 store 8)
+    RET_ReallyLR
+...

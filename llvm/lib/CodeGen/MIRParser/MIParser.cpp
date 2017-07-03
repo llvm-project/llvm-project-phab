@@ -2034,7 +2034,15 @@ bool MIParser::parseMemoryOperandFlag(MachineMemOperand::Flags &Flags) {
   case MIToken::kw_invariant:
     Flags |= MachineMemOperand::MOInvariant;
     break;
-  // TODO: parse the target specific memory operand flags.
+  case MIToken::kw_flag1:
+    Flags |= MachineMemOperand::MOTargetFlag1;
+    break;
+  case MIToken::kw_flag2:
+    Flags |= MachineMemOperand::MOTargetFlag2;
+    break;
+  case MIToken::kw_flag3:
+    Flags |= MachineMemOperand::MOTargetFlag3;
+    break;
   default:
     llvm_unreachable("The current token should be a memory operand flag");
   }

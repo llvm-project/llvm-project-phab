@@ -81,6 +81,9 @@ struct MIToken {
     kw_volatile,
     kw_non_temporal,
     kw_invariant,
+    kw_flag1,
+    kw_flag2,
+    kw_flag3,
     kw_align,
     kw_stack,
     kw_got,
@@ -168,7 +171,8 @@ public:
 
   bool isMemoryOperandFlag() const {
     return Kind == kw_volatile || Kind == kw_non_temporal ||
-           Kind == kw_dereferenceable || Kind == kw_invariant;
+           Kind == kw_dereferenceable || Kind == kw_invariant ||
+           Kind == kw_flag1 || Kind == kw_flag2 || Kind == kw_flag3;
   }
 
   bool is(TokenKind K) const { return Kind == K; }

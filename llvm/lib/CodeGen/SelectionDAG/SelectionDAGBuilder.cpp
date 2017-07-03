@@ -3559,6 +3559,7 @@ void SelectionDAGBuilder::visitLoad(const LoadInst &I) {
       MMOFlags |= MachineMemOperand::MOInvariant;
     if (isDereferenceable)
       MMOFlags |= MachineMemOperand::MODereferenceable;
+    MMOFlags |= TLI.getMMOFlags(I);
 
     SDValue L = DAG.getLoad(ValueVTs[i], dl, Root, A,
                             MachinePointerInfo(SV, Offsets[i]), Alignment,
@@ -3688,6 +3689,7 @@ void SelectionDAGBuilder::visitStore(const StoreInst &I) {
     MMOFlags |= MachineMemOperand::MOVolatile;
   if (I.getMetadata(LLVMContext::MD_nontemporal) != nullptr)
     MMOFlags |= MachineMemOperand::MONonTemporal;
+  MMOFlags |= TLI.getMMOFlags(I);
 
   // An aggregate load cannot wrap around the address space, so offsets to its
   // parts don't wrap either.

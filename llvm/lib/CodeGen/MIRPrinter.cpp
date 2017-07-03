@@ -1033,7 +1033,6 @@ void MIPrinter::print(const MachineOperand &Op, const TargetRegisterInfo *TRI,
 
 void MIPrinter::print(const MachineMemOperand &Op) {
   OS << '(';
-  // TODO: Print operand's target specific flags.
   if (Op.isVolatile())
     OS << "volatile ";
   if (Op.isNonTemporal())
@@ -1042,6 +1041,13 @@ void MIPrinter::print(const MachineMemOperand &Op) {
     OS << "dereferenceable ";
   if (Op.isInvariant())
     OS << "invariant ";
+  if (Op.getFlags() & MachineMemOperand::MOTargetFlag1)
+    OS << "flag1 ";
+  if (Op.getFlags() & MachineMemOperand::MOTargetFlag2)
+    OS << "flag2 ";
+  if (Op.getFlags() & MachineMemOperand::MOTargetFlag3)
+    OS << "flag3 ";
+
   if (Op.isLoad())
     OS << "load ";
   else {
