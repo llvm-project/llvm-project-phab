@@ -273,7 +273,7 @@ public:
   void adjustSectionsBeforeSorting();
   void adjustSectionsAfterSorting();
 
-  std::vector<PhdrEntry> createPhdrs();
+  std::vector<PhdrEntry *> createPhdrs();
   bool ignoreInterpSection();
 
   bool hasLMA(OutputSection *Sec);
@@ -281,7 +281,7 @@ public:
   void assignOffsets(OutputSectionCommand *Cmd);
   void createOrphanCommands();
   void processNonSectionCommands();
-  void assignAddresses(std::vector<PhdrEntry> &Phdrs);
+  void assignAddresses(std::vector<PhdrEntry *> &Phdrs);
 
   void addSymbol(SymbolAssignment *Cmd);
   void processCommands(OutputSectionFactory &Factory);

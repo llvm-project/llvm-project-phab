@@ -784,13 +784,20 @@ void LinkerScript::processNonSectionCommands() {
   }
 }
 
+static OutputSection *getFirstSection(PhdrEntry *Load) {
+  for (OutputSectionCommand *Cmd : OutputSectionCommands)
+    if (Cmd->Sec->Load == Load)
+      return Cmd->Sec;
+  return nullptr;
+}
+
 static void
-allocateHeaders(std::vector<PhdrEntry> &Phdrs,
+allocateHeaders(std::vector<PhdrEntry *> &Phdrs,
                 ArrayRef<OutputSectionCommand *> OutputSectionCommands,
                 uint64_t Min) {
-  auto FirstPTLoad = llvm::find_if(
-      Phdrs, [](const PhdrEntry &E) { return E.p_type == PT_LOAD; });
-  if (FirstPTLoad == Phdrs.end())
+  auto LoadI = llvm::find_if(
+      Phdrs, [](const PhdrEntry *E) { return E->p_type == PT_LOAD; });
+  if (LoadI == Phdrs.end())
     return;
 
   uint64_t HeaderSize = getHeaderSize();
@@ -801,33 +808,18 @@ allocateHeaders(std::vector<PhdrEntry> &Phdrs,
     return;
   }
 
-  assert(FirstPTLoad->First == Out::ElfHeader);
-  OutputSection *ActualFirst = nullptr;
-  for (OutputSectionCommand *Cmd : OutputSectionCommands) {
-    OutputSection *Sec = Cmd->Sec;
-    if (Sec->FirstInPtLoad == Out::ElfHeader) {
-      ActualFirst = Sec;
-      break;
-    }
-  }
-  if (ActualFirst) {
-    for (OutputSectionCommand *Cmd : OutputSectionCommands) {
-      OutputSection *Sec = Cmd->Sec;
-      if (Sec->FirstInPtLoad == Out::ElfHeader)
-        Sec->FirstInPtLoad = ActualFirst;
-    }
-    FirstPTLoad->First = ActualFirst;
-  } else {
-    Phdrs.erase(FirstPTLoad);
-  }
+  assert((*LoadI)->First == Out::ElfHeader);
+  Out::ElfHeader->Load = nullptr;
+  Out::ProgramHeaders->Load = nullptr;
+  (*LoadI)->First = getFirstSection(*LoadI);
 
   auto PhdrI = llvm::find_if(
-      Phdrs, [](const PhdrEntry &E) { return E.p_type == PT_PHDR; });
+      Phdrs, [](const PhdrEntry *E) { return E->p_type == PT_PHDR; });
   if (PhdrI != Phdrs.end())
     Phdrs.erase(PhdrI);
 }
 
-void LinkerScript::assignAddresses(std::vector<PhdrEntry> &Phdrs) {
+void LinkerScript::assignAddresses(std::vector<PhdrEntry *> &Phdrs) {
   // Assign addresses as instructed by linker script SECTIONS sub-commands.
   Dot = 0;
   ErrorOnMissingSection = true;
@@ -859,24 +851,25 @@ void LinkerScript::assignAddresses(std::vector<PhdrEntry> &Phdrs) {
 }
 
 // Creates program headers as instructed by PHDRS linker script command.
-std::vector<PhdrEntry> LinkerScript::createPhdrs() {
-  std::vector<PhdrEntry> Ret;
+std::vector<PhdrEntry *> LinkerScript::createPhdrs() {
+  std::vector<PhdrEntry *> Ret;
 
   // Process PHDRS and FILEHDR keywords because they are not
   // real output sections and cannot be added in the following loop.
   for (const PhdrsCommand &Cmd : Opt.PhdrsCommands) {
-    Ret.emplace_back(Cmd.Type, Cmd.Flags == UINT_MAX ? PF_R : Cmd.Flags);
-    PhdrEntry &Phdr = Ret.back();
+    PhdrEntry *Phdr =
+        make<PhdrEntry>(Cmd.Type, Cmd.Flags == UINT_MAX ? PF_R : Cmd.Flags);
 
     if (Cmd.HasFilehdr)
-      Phdr.add(Out::ElfHeader);
+      Phdr->add(Out::ElfHeader);
     if (Cmd.HasPhdrs)
-      Phdr.add(Out::ProgramHeaders);
+      Phdr->add(Out::ProgramHeaders);
 
     if (Cmd.LMAExpr) {
-      Phdr.p_paddr = Cmd.LMAExpr().getValue();
-      Phdr.HasLMA = true;
+      Phdr->p_paddr = Cmd.LMAExpr().getValue();
+      Phdr->HasLMA = true;
     }
+    Ret.push_back(Phdr);
   }
 
   // Add output sections to program headers.
@@ -885,9 +878,9 @@ std::vector<PhdrEntry> LinkerScript::createPhdrs() {
 
     // Assign headers specified by linker script
     for (size_t Id : getPhdrIndices(Sec)) {
-      Ret[Id].add(Sec);
+      Ret[Id]->add(Sec);
       if (Opt.PhdrsCommands[Id].Flags == UINT_MAX)
-        Ret[Id].p_flags |= Sec->getPhdrFlags();
+        Ret[Id]->p_flags |= Sec->getPhdrFlags();
     }
   }
   return Ret;

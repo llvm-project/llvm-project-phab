@@ -57,9 +57,9 @@ private:
   void finalizeSections();
   void addPredefinedSections();
 
-  std::vector<PhdrEntry> createPhdrs();
+  std::vector<PhdrEntry *> createPhdrs();
   void removeEmptyPTLoad();
-  void addPtArmExid(std::vector<PhdrEntry> &Phdrs);
+  void addPtArmExid(std::vector<PhdrEntry *> &Phdrs);
   void assignFileOffsets();
   void assignFileOffsetsBinary();
   void setPhdrs();
@@ -83,7 +83,7 @@ private:
   OutputSection *findSectionInScript(StringRef Name);
   OutputSectionCommand *findSectionCommand(StringRef Name);
 
-  std::vector<PhdrEntry> Phdrs;
+  std::vector<PhdrEntry *> Phdrs;
 
   uint64_t FileSize;
   uint64_t SectionHeaderOff;
@@ -126,12 +126,12 @@ template <class ELFT> static bool needsInterpSection() {
 template <class ELFT> void elf::writeResult() { Writer<ELFT>().run(); }
 
 template <class ELFT> void Writer<ELFT>::removeEmptyPTLoad() {
-  auto I = std::remove_if(Phdrs.begin(), Phdrs.end(), [&](const PhdrEntry &P) {
-    if (P.p_type != PT_LOAD)
+  auto I = llvm::remove_if(Phdrs, [&](const PhdrEntry *P) {
+    if (P->p_type != PT_LOAD)
       return false;
-    if (!P.First)
+    if (!P->First)
       return true;
-    uint64_t Size = P.Last->Addr + P.Last->Size - P.First->Addr;
+    uint64_t Size = P->Last->Addr + P->Last->Size - P->First->Addr;
     return Size == 0;
   });
   Phdrs.erase(I, Phdrs.end());
@@ -748,7 +748,7 @@ void PhdrEntry::add(OutputSection *Sec) {
     First = Sec;
   p_align = std::max(p_align, Sec->Alignment);
   if (p_type == PT_LOAD)
-    Sec->FirstInPtLoad = First;
+    Sec->Load = this;
 }
 
 template <class ELFT>
@@ -1420,11 +1420,11 @@ static uint64_t computeFlags(uint64_t Flags) {
 
 // Decide which program headers to create and which sections to include in each
 // one.
-template <class ELFT> std::vector<PhdrEntry> Writer<ELFT>::createPhdrs() {
-  std::vector<PhdrEntry> Ret;
+template <class ELFT> std::vector<PhdrEntry *> Writer<ELFT>::createPhdrs() {
+  std::vector<PhdrEntry *> Ret;
   auto AddHdr = [&](unsigned Type, unsigned Flags) -> PhdrEntry * {
-    Ret.emplace_back(Type, Flags);
-    return &Ret.back();
+    Ret.push_back(make<PhdrEntry>(Type, Flags));
+    return Ret.back();
   };
 
   // The first phdr entry is PT_PHDR which describes the program header itself.
@@ -1464,14 +1464,14 @@ template <class ELFT> std::vector<PhdrEntry> Writer<ELFT>::createPhdrs() {
   }
 
   // Add a TLS segment if any.
-  PhdrEntry TlsHdr(PT_TLS, PF_R);
+  PhdrEntry *TlsHdr = make<PhdrEntry>(PT_TLS, PF_R);
   for (OutputSectionCommand *Cmd : OutputSectionCommands) {
     OutputSection *Sec = Cmd->Sec;
     if (Sec->Flags & SHF_TLS)
-      TlsHdr.add(Sec);
+      TlsHdr->add(Sec);
   }
-  if (TlsHdr.First)
-    Ret.push_back(std::move(TlsHdr));
+  if (TlsHdr->First)
+    Ret.push_back(TlsHdr);
 
   // Add an entry for .dynamic.
   if (InX::DynSymTab)
@@ -1480,14 +1480,14 @@ template <class ELFT> std::vector<PhdrEntry> Writer<ELFT>::createPhdrs() {
 
   // PT_GNU_RELRO includes all sections that should be marked as
   // read-only by dynamic linker after proccessing relocations.
-  PhdrEntry RelRo(PT_GNU_RELRO, PF_R);
+  PhdrEntry *RelRo = make<PhdrEntry>(PT_GNU_RELRO, PF_R);
   for (OutputSectionCommand *Cmd : OutputSectionCommands) {
     OutputSection *Sec = Cmd->Sec;
     if (needsPtLoad(Sec) && isRelroSection(Sec))
-      RelRo.add(Sec);
+      RelRo->add(Sec);
   }
-  if (RelRo.First)
-    Ret.push_back(std::move(RelRo));
+  if (RelRo->First)
+    Ret.push_back(RelRo);
 
   // PT_GNU_EH_FRAME is a special section pointing on .eh_frame_hdr.
   if (!In<ELFT>::EhFrame->empty() && In<ELFT>::EhFrameHdr &&
@@ -1534,7 +1534,7 @@ template <class ELFT> std::vector<PhdrEntry> Writer<ELFT>::createPhdrs() {
 }
 
 template <class ELFT>
-void Writer<ELFT>::addPtArmExid(std::vector<PhdrEntry> &Phdrs) {
+void Writer<ELFT>::addPtArmExid(std::vector<PhdrEntry *> &Phdrs) {
   if (Config->EMachine != EM_ARM)
     return;
   auto I =
@@ -1546,8 +1546,8 @@ void Writer<ELFT>::addPtArmExid(std::vector<PhdrEntry> &Phdrs) {
     return;
 
   // PT_ARM_EXIDX is the ARM EHABI equivalent of PT_GNU_EH_FRAME
-  PhdrEntry ARMExidx(PT_ARM_EXIDX, PF_R);
-  ARMExidx.add((*I)->Sec);
+  PhdrEntry *ARMExidx = make<PhdrEntry>(PT_ARM_EXIDX, PF_R);
+  ARMExidx->add((*I)->Sec);
   Phdrs.push_back(ARMExidx);
 }
 
@@ -1563,20 +1563,20 @@ template <class ELFT> void Writer<ELFT>::fixSectionAlignments() {
       };
   };
 
-  for (const PhdrEntry &P : Phdrs)
-    if (P.p_type == PT_LOAD && P.First)
-      PageAlign(P.First);
+  for (const PhdrEntry *P : Phdrs)
+    if (P->p_type == PT_LOAD && P->First)
+      PageAlign(P->First);
 
-  for (const PhdrEntry &P : Phdrs) {
-    if (P.p_type != PT_GNU_RELRO)
+  for (const PhdrEntry *P : Phdrs) {
+    if (P->p_type != PT_GNU_RELRO)
       continue;
-    if (P.First)
-      PageAlign(P.First);
+    if (P->First)
+      PageAlign(P->First);
     // Find the first section after PT_GNU_RELRO. If it is in a PT_LOAD we
     // have to align it to a page.
     auto End = OutputSectionCommands.end();
     auto I =
-        std::find(OutputSectionCommands.begin(), End, Script->getCmd(P.Last));
+        std::find(OutputSectionCommands.begin(), End, Script->getCmd(P->Last));
     if (I == End || (I + 1) == End)
       continue;
     OutputSection *Sec = (*(I + 1))->Sec;
@@ -1590,7 +1590,7 @@ template <class ELFT> void Writer<ELFT>::fixSectionAlignments() {
 // virtual address (modulo the page size) so that the loader can load
 // executables without any address adjustment.
 static uint64_t getFileAlignment(uint64_t Off, OutputSection *Sec) {
-  OutputSection *First = Sec->FirstInPtLoad;
+  OutputSection *First = Sec->Load ? Sec->Load->First : nullptr;
   // If the section is not in a PT_LOAD, we just have to align it.
   if (!First)
     return alignTo(Off, Sec->Alignment);
@@ -1643,35 +1643,35 @@ template <class ELFT> void Writer<ELFT>::assignFileOffsets() {
 // Finalize the program headers. We call this function after we assign
 // file offsets and VAs to all sections.
 template <class ELFT> void Writer<ELFT>::setPhdrs() {
-  for (PhdrEntry &P : Phdrs) {
-    OutputSection *First = P.First;
-    OutputSection *Last = P.Last;
+  for (PhdrEntry *P : Phdrs) {
+    OutputSection *First = P->First;
+    OutputSection *Last = P->Last;
     if (First) {
-      P.p_filesz = Last->Offset - First->Offset;
+      P->p_filesz = Last->Offset - First->Offset;
       if (Last->Type != SHT_NOBITS)
-        P.p_filesz += Last->Size;
-      P.p_memsz = Last->Addr + Last->Size - First->Addr;
-      P.p_offset = First->Offset;
-      P.p_vaddr = First->Addr;
-      if (!P.HasLMA)
-        P.p_paddr = First->getLMA();
+        P->p_filesz += Last->Size;
+      P->p_memsz = Last->Addr + Last->Size - First->Addr;
+      P->p_offset = First->Offset;
+      P->p_vaddr = First->Addr;
+      if (!P->HasLMA)
+        P->p_paddr = First->getLMA();
     }
-    if (P.p_type == PT_LOAD)
-      P.p_align = Config->MaxPageSize;
-    else if (P.p_type == PT_GNU_RELRO) {
-      P.p_align = 1;
+    if (P->p_type == PT_LOAD)
+      P->p_align = Config->MaxPageSize;
+    else if (P->p_type == PT_GNU_RELRO) {
+      P->p_align = 1;
       // The glibc dynamic loader rounds the size down, so we need to round up
       // to protect the last page. This is a no-op on FreeBSD which always
       // rounds up.
-      P.p_memsz = alignTo(P.p_memsz, Target->PageSize);
+      P->p_memsz = alignTo(P->p_memsz, Target->PageSize);
     }
 
     // The TLS pointer goes after PT_TLS. At least glibc will align it,
     // so round up the size to make sure the offsets are correct.
-    if (P.p_type == PT_TLS) {
-      Out::TlsPhdr = &P;
-      if (P.p_memsz)
-        P.p_memsz = alignTo(P.p_memsz, P.p_align);
+    if (P->p_type == PT_TLS) {
+      Out::TlsPhdr = P;
+      if (P->p_memsz)
+        P->p_memsz = alignTo(P->p_memsz, P->p_align);
     }
   }
 }
@@ -1725,14 +1725,14 @@ template <class ELFT> void Writer<ELFT>::fixPredefinedSymbols() {
   PhdrEntry *Last = nullptr;
   PhdrEntry *LastRO = nullptr;
   PhdrEntry *LastRW = nullptr;
-  for (PhdrEntry &P : Phdrs) {
-    if (P.p_type != PT_LOAD)
+  for (PhdrEntry *P : Phdrs) {
+    if (P->p_type != PT_LOAD)
       continue;
-    Last = &P;
-    if (P.p_flags & PF_W)
-      LastRW = &P;
+    Last = P;
+    if (P->p_flags & PF_W)
+      LastRW = P;
     else
-      LastRO = &P;
+      LastRO = P;
   }
 
   auto Set = [](DefinedRegular *S, OutputSection *Sec, uint64_t Value) {
@@ -1809,15 +1809,15 @@ template <class ELFT> void Writer<ELFT>::writeHeader() {
 
   // Write the program header table.
   auto *HBuf = reinterpret_cast<Elf_Phdr *>(Buf + EHdr->e_phoff);
-  for (PhdrEntry &P : Phdrs) {
-    HBuf->p_type = P.p_type;
-    HBuf->p_flags = P.p_flags;
-    HBuf->p_offset = P.p_offset;
-    HBuf->p_vaddr = P.p_vaddr;
-    HBuf->p_paddr = P.p_paddr;
-    HBuf->p_filesz = P.p_filesz;
-    HBuf->p_memsz = P.p_memsz;
-    HBuf->p_align = P.p_align;
+  for (PhdrEntry *P : Phdrs) {
+    HBuf->p_type = P->p_type;
+    HBuf->p_flags = P->p_flags;
+    HBuf->p_offset = P->p_offset;
+    HBuf->p_vaddr = P->p_vaddr;
+    HBuf->p_paddr = P->p_paddr;
+    HBuf->p_filesz = P->p_filesz;
+    HBuf->p_memsz = P->p_memsz;
+    HBuf->p_align = P->p_align;
     ++HBuf;
   }
 
