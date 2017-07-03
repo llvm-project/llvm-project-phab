@@ -673,6 +673,12 @@ public:
     return true;
   }
 
+  // The PostRA scheduler doesn't give better results with
+  // sisched.
+  bool enablePostRAScheduler() const override {
+    return !EnableSIScheduler;
+  }
+
   void overrideSchedPolicy(MachineSchedPolicy &Policy,
                            unsigned NumRegionInstrs) const override;
 
