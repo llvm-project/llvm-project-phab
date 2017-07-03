@@ -18,6 +18,7 @@
 #include "clang/Analysis/ProgramPoint.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/CheckerContext.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/DynamicTypeMap.h"
+#include "clang/Tooling/CrossTranslationUnit.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/raw_ostream.h"
@@ -353,6 +354,33 @@ void AnyFunctionCall::getInitialStackFrameContents(
   SValBuilder &SVB = getState()->getStateManager().getSValBuilder();
   addParameterValuesToBindings(CalleeCtx, Bindings, SVB, *this,
                                D->parameters());
+}
+
+RuntimeDefinition AnyFunctionCall::getRuntimeDefinition() const {
+  const FunctionDecl *FD = getDecl();
+  // Note that the AnalysisDeclContext will have the FunctionDecl with
+  // the definition (if one exists).
+  if (!FD)
+    return RuntimeDefinition();
+
+  AnalysisDeclContext *AD =
+    getLocationContext()->getAnalysisDeclContext()->
+    getManager()->getContext(FD);
+  if (AD->getBody())
+    return RuntimeDefinition(AD->getDecl());
+
+  auto Engine = static_cast<ExprEngine *>(
+      getState()->getStateManager().getOwningEngine());
+
+  //Try to get CTU definition only if CTUDir is provided.
+  if (Engine->getAnalysisManager().options.getCTUDir().empty())
+    return RuntimeDefinition();
+  const FunctionDecl *CTUDecl =
+      Engine->getCrossTranslationUnit().getCrossTUDefinition(
+          FD, Engine->getAnalysisManager().options.getCTUDir(),
+          "externalFnMap.txt");
+
+  return RuntimeDefinition(CTUDecl);
 }
 
 bool AnyFunctionCall::argumentsMayEscape() const {

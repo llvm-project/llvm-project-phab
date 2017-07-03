@@ -27,6 +27,7 @@
 #include "clang/StaticAnalyzer/Core/PathSensitive/AnalysisManager.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/CallEvent.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/LoopWidening.h"
+#include "clang/Tooling/CrossTranslationUnit.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Support/SaveAndRestore.h"
 #include "llvm/Support/raw_ostream.h"
@@ -67,25 +68,19 @@ REGISTER_TRAIT_WITH_PROGRAMSTATE(InitializedTemporariesSet,
 
 static const char* TagProviderName = "ExprEngine";
 
-ExprEngine::ExprEngine(AnalysisManager &mgr, bool gcEnabled,
-                       SetOfConstDecls *VisitedCalleesIn,
-                       FunctionSummariesTy *FS,
-                       InliningModes HowToInlineIn)
-  : AMgr(mgr),
-    AnalysisDeclContexts(mgr.getAnalysisDeclContextManager()),
-    Engine(*this, FS),
-    G(Engine.getGraph()),
-    StateMgr(getContext(), mgr.getStoreManagerCreator(),
-             mgr.getConstraintManagerCreator(), G.getAllocator(),
-             this),
-    SymMgr(StateMgr.getSymbolManager()),
-    svalBuilder(StateMgr.getSValBuilder()),
-    currStmtIdx(0), currBldrCtx(nullptr),
-    ObjCNoRet(mgr.getASTContext()),
-    ObjCGCEnabled(gcEnabled), BR(mgr, *this),
-    VisitedCallees(VisitedCalleesIn),
-    HowToInline(HowToInlineIn)
-{
+ExprEngine::ExprEngine(tooling::CrossTranslationUnit &CTU, AnalysisManager &mgr,
+                       bool gcEnabled, SetOfConstDecls *VisitedCalleesIn,
+                       FunctionSummariesTy *FS, InliningModes HowToInlineIn)
+    : CTU(CTU), AMgr(mgr),
+      AnalysisDeclContexts(mgr.getAnalysisDeclContextManager()),
+      Engine(*this, FS), G(Engine.getGraph()),
+      StateMgr(getContext(), mgr.getStoreManagerCreator(),
+               mgr.getConstraintManagerCreator(), G.getAllocator(), this),
+      SymMgr(StateMgr.getSymbolManager()),
+      svalBuilder(StateMgr.getSValBuilder()), currStmtIdx(0),
+      currBldrCtx(nullptr), ObjCNoRet(mgr.getASTContext()),
+      ObjCGCEnabled(gcEnabled), BR(mgr, *this),
+      VisitedCallees(VisitedCalleesIn), HowToInline(HowToInlineIn) {
   unsigned TrimInterval = mgr.options.getGraphTrimInterval();
   if (TrimInterval != 0) {
     // Enable eager node reclaimation when constructing the ExplodedGraph.
