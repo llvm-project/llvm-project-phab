@@ -4,7 +4,7 @@
 // source appears, this file is carefully ordered so that that is the case.
 
   .text
-// CHECK: :[[@LINE+1]]:{{[0-9]+}}: error: symbol 'undef' can not be undefined in a subtraction expression
+// CHECK: :[[@LINE+1]]:{{[0-9]+}}: error: No relocation available to represent this relative expression
   .word (0-undef)
 
 // CHECK: :[[@LINE+1]]:{{[0-9]+}}: error: expected relocatable expression
@@ -13,7 +13,7 @@
 // CHECK: :[[@LINE+1]]:{{[0-9]+}}: error: No relocation available to represent this relative expression
   adr x0, #a-undef
 
-// CHECK: :[[@LINE+1]]:{{[0-9]+}}: error: Cannot represent a difference across sections
+// CHECK: :[[@LINE+1]]:{{[0-9]+}}: error: No relocation available to represent this relative expression
   .word x_a - y_a
 
 // CHECK: :[[@LINE+1]]:{{[0-9]+}}: error: 1-byte data relocations not supported

@@ -34,10 +34,10 @@ negative:
 
   add w0, w1, #(end - external)
   cmp w0, #(end - external)
-  // CHECK: error: symbol 'external' can not be undefined in a subtraction expression
+  // CHECK: error: No relocation available to represent this relative expression
   // CHECK-NEXT: add w0, w1, #(end - external)
   // CHECK-NEXT: ^
-  // CHECK: error: symbol 'external' can not be undefined in a subtraction expression
+  // CHECK: error: No relocation available to represent this relative expression
   // CHECK-NEXT: cmp w0, #(end - external)
   // CHECK-NEXT: ^
 
@@ -63,18 +63,18 @@ negative:
 end_across_sec:
   add w0, w1, #(end_across_sec - start)
   cmp w0, #(end_across_sec - start)
-  // CHECK: error: Cannot represent a difference across sections
+  // CHECK: error: No relocation available to represent this relative expression
   // CHECK-NEXT: add w0, w1, #(end_across_sec - start)
   // CHECK-NEXT: ^
-  // CHECK: error: Cannot represent a difference across sections
+  // CHECK: error: No relocation available to represent this relative expression
   // CHECK-NEXT: cmp w0, #(end_across_sec - start)
   // CHECK-NEXT: ^
 
   add w0, w1, #(sec_y - sec_x)
   cmp w0, #(sec_y - sec_x)
-  // CHECK: error: Cannot represent a difference across sections
+  // CHECK: error: No relocation available to represent this relative expression
   // CHECK-NEXT: add w0, w1, #(sec_y - sec_x)
   // CHECK-NEXT: ^
-  // CHECK: error: Cannot represent a difference across sections
+  // CHECK: error: No relocation available to represent this relative expression
   // CHECK-NEXT: cmp w0, #(sec_y - sec_x)
   // CHECK-NEXT: ^

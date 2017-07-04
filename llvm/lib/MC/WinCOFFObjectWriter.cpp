@@ -738,25 +738,12 @@ void WinCOFFObjectWriter::recordRelocation(MCAssembler &Asm,
   const MCSymbol *B = Target.getSymB();
 
   if (B) {
-    if (!B->getFragment()) {
-      Asm.getContext().reportError(
-          Fixup.getLoc(),
-          Twine("symbol '") + B->getName() +
-              "' can not be undefined in a subtraction expression");
-      return;
-    }
-
-    // Offset of the symbol in the section
-    int64_t OffsetOfB = Layout.getSymbolOffset(*B);
-
-    // Offset of the relocation in the section
-    int64_t OffsetOfRelocation =
-        Layout.getFragmentOffset(Fragment) + Fixup.getOffset();
-
-    FixedValue = (OffsetOfRelocation - OffsetOfB) + Target.getConstant();
-  } else {
-    FixedValue = Target.getConstant();
+    Asm.getContext().reportError(
+        Fixup.getLoc(),
+        "No relocation available to represent this relative expression");
+    return;
   }
+  FixedValue = Target.getConstant();
 
   COFFRelocation Reloc;
 
@@ -782,7 +769,7 @@ void WinCOFFObjectWriter::recordRelocation(MCAssembler &Asm,
 
   Reloc.Data.VirtualAddress += Fixup.getOffset();
   Reloc.Data.Type = TargetObjectWriter->getRelocType(
-      Asm.getContext(), Fixup, B, Asm.getBackend());
+      Asm.getContext(), Fixup, Asm.getBackend());
 
   // FIXME: Can anyone explain what this does other than adjust for the size
   // of the offset?

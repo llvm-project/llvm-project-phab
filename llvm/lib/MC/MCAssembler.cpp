@@ -26,6 +26,7 @@
 #include "llvm/MC/MCFixupKindInfo.h"
 #include "llvm/MC/MCFragment.h"
 #include "llvm/MC/MCInst.h"
+#include "llvm/MC/MCObjectFileInfo.h"
 #include "llvm/MC/MCObjectWriter.h"
 #include "llvm/MC/MCSection.h"
 #include "llvm/MC/MCSectionELF.h"
@@ -185,6 +186,50 @@ const MCSymbol *MCAssembler::getAtom(const MCSymbol &S) const {
   return S.getFragment()->getAtom();
 }
 
+static void tryConvertingToPcRel(const MCAsmLayout &Layout,
+                                 const MCFragment &Fragment,
+                                 MCReloc &Reloc) {
+  MCAssembler &Asm = Layout.getAssembler();
+  // Let A, B and C being the components of Target and R be the location of
+  // the relocation. If the relocation is not pcrel, we want to compute (A - B +
+  // C). If it is pcrel, we want to compute (A - B + C - R).
+
+  // If B = R + K and the relocation is not pcrel, we can replace B to
+  // implement it: (A - R - K + C). This is particularly important for
+  // ELF and COFF which don't have relocations that subtract an
+  // arbitrary symbol.
+  if (!Reloc.getSymB())
+    return;
+
+  const MCSymbol &SymB = *Reloc.getSymB();
+  if (SymB.isUndefined())
+    return;
+  assert(!SymB.isAbsolute() && "Should have been folded");
+
+  const MCSection &SecB = SymB.getSection();
+  const MCSection &RelocSection = *Fragment.getParent();
+  if (&SecB != &RelocSection)
+    return;
+
+  // Don't do this for MachO. One would expect to only need to check
+  // the atom in here as we check the section above, but there are
+  // still too many odd broken tests with that.
+  if (Asm.getContext().getObjectFileInfo()->getObjectFileType() ==
+      MCObjectFileInfo::IsMachO)
+    return;
+
+  Optional<MCFixupKind> PCKind = Asm.getBackend().getPCRelKind(Reloc.getKind());
+  if (!PCKind)
+    return;
+
+  uint64_t SymBOffset = Layout.getSymbolOffset(SymB);
+  uint64_t FixupOffset = Layout.getFragmentOffset(&Fragment) + Reloc.getOffset();
+  uint64_t Delta = SymBOffset - FixupOffset;
+  Reloc.setConstant(Reloc.getConstant() - Delta);
+  Reloc.setKind(*PCKind);
+  Reloc.setSymB(nullptr);
+}
+
 bool MCAssembler::evaluateFixup(const MCAsmLayout &Layout, const MCFixup &Fixup,
                                 const MCFragment *DF, MCValue &Target,
                                 MCReloc &Reloc) const {
@@ -245,6 +290,8 @@ bool MCAssembler::evaluateFixup(const MCAsmLayout &Layout, const MCFixup &Fixup,
   }
 
   Value = Target.getConstant();
+
+  tryConvertingToPcRel(Layout, *DF, Reloc);
 
   // Let the backend force a relocation if needed.
   if (IsResolved && Backend.shouldForceRelocation(*this, Fixup, Target))

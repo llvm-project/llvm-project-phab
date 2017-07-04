@@ -33,7 +33,6 @@ public:
   ~AArch64WinCOFFObjectWriter() override = default;
 
   unsigned getRelocType(MCContext &Ctx, const MCReloc &Fixup,
-                        bool IsCrossSection,
                         const MCAsmBackend &MAB) const override;
 
   bool recordRelocation(const MCReloc &) const override;
@@ -44,7 +43,6 @@ public:
 unsigned
 AArch64WinCOFFObjectWriter::getRelocType(MCContext &Ctx,
                                          const MCReloc &Fixup,
-                                         bool IsCrossSection,
                                          const MCAsmBackend &MAB) const {
   const MCFixupKindInfo &Info = MAB.getFixupKindInfo(Fixup.getKind());
   report_fatal_error(Twine("unsupported relocation type: ") + Info.Name);
