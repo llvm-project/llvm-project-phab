@@ -463,3 +463,8 @@ namespace pointer_to_char_array {
   T foo = "foo";
   void g() { A<&foo>().f(); }
 }
+
+namespace template_ull {
+  template <unsigned long long> struct S{}; // expected-note-re {{conversion from 'int' to 'const template_ull::S<{{[0-9]+}}ull> &'}}
+  S<(unsigned long long)-1> s = 42; // expected-error {{no viable conversion from 'int' to 'S<(unsigned long long)-1>'}}
+}
