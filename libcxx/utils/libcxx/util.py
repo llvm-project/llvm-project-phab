@@ -16,7 +16,50 @@ import subprocess
 import sys
 import tempfile
 import threading
+import inspect
 
+class Logger:
+    def __init__(self):
+        self._notes = []
+        self._flushing = False
+
+    def _write_message(self, kind, message):
+        # Get the file/line where this message was generated.
+        f = inspect.currentframe()
+        # Step out of _write_message, and then out of wrapper.
+        f = f.f_back.f_back
+        file,line,_,_,_ = inspect.getframeinfo(f)
+        location = '%s:%d' % (file, line)
+
+        sys.stderr.write('%s: %s: %s\n' % (location, kind, message))
+
+    def note(self, message):
+        sys.stderr.write('%s\n' % (message))
+
+    def deferred_note(self, message):
+        if self._flushing:
+            self._write_message('note', message)
+        else:
+            self._notes.append(message)
+
+    def flush_notes(self):
+        for note in self._notes:
+            self._write_message('note', note)
+        _flushing = True
+
+    def warning(self, message):
+        self._write_message('warning', message)
+        self.numWarnings += 1
+
+    def error(self, message):
+        self._write_message('error', message)
+        self.numErrors += 1
+
+    def fatal(self, message):
+        self._write_message('fatal', message)
+        sys.exit(2)
+
+lit_logger = Logger()
 
 # FIXME: Most of these functions are cribbed from LIT
 def to_bytes(str):

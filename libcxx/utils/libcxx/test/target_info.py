@@ -14,6 +14,7 @@ import platform
 import re
 import subprocess
 import sys
+from libcxx.util import lit_logger
 
 class DefaultTargetInfo(object):
     def __init__(self, full_config):
@@ -23,7 +24,7 @@ class DefaultTargetInfo(object):
         return sys.platform.lower().strip()
 
     def add_locale_features(self, features):
-        self.full_config.lit_config.warning(
+        lit_logger.warning(
             "No locales entry for target_system: %s" % self.platform())
 
     def add_cxx_compile_flags(self, flags): pass
@@ -46,7 +47,7 @@ def test_locale(loc):
         locale.setlocale(locale.LC_ALL, default_locale)
 
 
-def add_common_locales(features, lit_config, is_windows=False):
+def add_common_locales(features, is_windows=False):
     # A list of locales needed by the test-suite.
     # The list uses the canonical name for the locale used in the test-suite
     # TODO: On Linux ISO8859 *may* needs to hyphenated.
@@ -63,7 +64,7 @@ def add_common_locales(features, lit_config, is_windows=False):
         if test_locale(loc_name):
             features.add('locale.{0}'.format(loc_id))
         else:
-            lit_config.warning('The locale {0} is not supported by '
+            lit_logger.warning('The locale {0} is not supported by '
                                'your platform. Some tests will be '
                                'unsupported.'.format(loc_name))
 
@@ -92,7 +93,7 @@ class DarwinLocalTI(DefaultTargetInfo):
             pass
 
         if not out:
-            self.full_config.lit_config.fatal(
+            lit_logger.fatal(
                     "cannot infer sdk version with: %r" % cmd)
 
         return re.sub(r'.*/[^0-9]+([0-9.]+)\.sdk', r'\1', out)
@@ -119,7 +120,7 @@ class DarwinLocalTI(DefaultTargetInfo):
         return (True, name, version)
 
     def add_locale_features(self, features):
-        add_common_locales(features, self.full_config.lit_config)
+        add_common_locales(features)
 
     def add_cxx_compile_flags(self, flags):
         if self.full_config.use_deployment:
@@ -134,7 +135,7 @@ class DarwinLocalTI(DefaultTargetInfo):
             res = -1
         if res == 0 and out:
             sdk_path = out
-            self.full_config.lit_config.note('using SDKROOT: %r' % sdk_path)
+            lit_logger.deferred_note('using SDKROOT: %r' % sdk_path)
             flags += ["-isysroot", sdk_path]
 
     def add_cxx_link_flags(self, flags):
@@ -179,7 +180,7 @@ class FreeBSDLocalTI(DefaultTargetInfo):
         super(FreeBSDLocalTI, self).__init__(full_config)
 
     def add_locale_features(self, features):
-        add_common_locales(features, self.full_config.lit_config)
+        add_common_locales(features)
 
     def add_cxx_link_flags(self, flags):
         flags += ['-lc', '-lm', '-lpthread', '-lgcc_s', '-lcxxrt']
@@ -203,7 +204,7 @@ class LinuxLocalTI(DefaultTargetInfo):
         return ver # Permitted to be None.
 
     def add_locale_features(self, features):
-        add_common_locales(features, self.full_config.lit_config)
+        add_common_locales(features)
         # Some linux distributions have different locale data than others.
         # Insert the distributions name and name-version into the available
         # features to allow tests to XFAIL on them.
@@ -253,8 +254,7 @@ class WindowsLocalTI(DefaultTargetInfo):
         super(WindowsLocalTI, self).__init__(full_config)
 
     def add_locale_features(self, features):
-        add_common_locales(features, self.full_config.lit_config,
-                           is_windows=True)
+        add_common_locales(features, is_windows=True)
 
     def use_lit_shell_default(self):
         # Default to the internal shell on Windows, as bash on Windows is
@@ -269,7 +269,7 @@ def make_target_info(full_config):
         mod_path, _, info = info_str.rpartition('.')
         mod = importlib.import_module(mod_path)
         target_info = getattr(mod, info)(full_config)
-        full_config.lit_config.note("inferred target_info as: %r" % info_str)
+        lit_logger.deferred_note("inferred target_info as: %r" % info_str)
         return target_info
     target_system = platform.system()
     if target_system == 'Darwin':  return DarwinLocalTI(full_config)
