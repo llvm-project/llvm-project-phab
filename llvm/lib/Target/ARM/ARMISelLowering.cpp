@@ -553,6 +553,11 @@ ARMTargetLowering::ARMTargetLowering(const TargetMachine &TM,
     addDRTypeForNEON(MVT::v2i32);
     addDRTypeForNEON(MVT::v1i64);
 
+    if (Subtarget->hasFullFP16()) {
+      addDRTypeForNEON(MVT::v4f16);
+      addQRTypeForNEON(MVT::v8f16);
+    }
+
     addQRTypeForNEON(MVT::v4f32);
     addQRTypeForNEON(MVT::v2f64);
     addQRTypeForNEON(MVT::v16i8);
@@ -1201,7 +1206,7 @@ ARMTargetLowering::findRepresentativeClass(const TargetRegisterInfo *TRI,
   // and vector types. Since there are 32 SPR registers and 32 DPR registers so
   // the cost is 1 for both f32 and f64.
   case MVT::f32: case MVT::f64: case MVT::v8i8: case MVT::v4i16:
-  case MVT::v2i32: case MVT::v1i64: case MVT::v2f32:
+  case MVT::v4f16: case MVT::v2i32: case MVT::v1i64: case MVT::v2f32:
     RRC = &ARM::DPRRegClass;
     // When NEON is used for SP, only half of the register file is available
     // because operations that define both SP and DP results will be constrained
@@ -1210,7 +1215,7 @@ ARMTargetLowering::findRepresentativeClass(const TargetRegisterInfo *TRI,
     if (Subtarget->useNEONForSinglePrecisionFP())
       Cost = 2;
     break;
-  case MVT::v16i8: case MVT::v8i16: case MVT::v4i32: case MVT::v2i64:
+  case MVT::v16i8: case MVT::v8i16: case MVT::v8f16: case MVT::v4i32: case MVT::v2i64:
   case MVT::v4f32: case MVT::v2f64:
     RRC = &ARM::DPRRegClass;
     Cost = 2;
