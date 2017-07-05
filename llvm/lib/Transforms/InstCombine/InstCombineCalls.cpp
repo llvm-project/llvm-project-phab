@@ -194,7 +194,15 @@ Instruction *InstCombiner::SimplifyMemTransfer(MemIntrinsic *MI) {
   uint64_t Size = MemOpLength->getLimitedValue();
   assert(Size && "0-sized memory transferring should be removed already.");
 
-  if (Size > 8 || (Size&(Size-1)))
+
+  // Since we don't have perfect knowledge here, make some assumptions: assume
+  // the maximum allowed stores for memcpy operation is the same size as the 
+  // largest legal integer size. 
+  unsigned LargestInt = DL.getLargestLegalIntTypeSizeInBits();
+  if (LargestInt == 0)
+    LargestInt = 32;
+
+  if (Size > 2*LargestInt/8 || (Size&(Size-1)))
     return nullptr;  // If not 1/2/4/8 bytes, exit.
 
   // Use an integer load+store unless we can find something better.
