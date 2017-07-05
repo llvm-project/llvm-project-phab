@@ -31,6 +31,7 @@ static uint64_t adjustFixupValue(unsigned Kind, uint64_t Value) {
   case FK_Data_1:
   case FK_Data_2:
   case FK_Data_4:
+  case FK_PCRel_4:
   case FK_Data_8:
   case PPC::fixup_ppc_nofixup:
     return Value;
@@ -41,6 +42,7 @@ static uint64_t adjustFixupValue(unsigned Kind, uint64_t Value) {
   case PPC::fixup_ppc_br24abs:
     return Value & 0x3fffffc;
   case PPC::fixup_ppc_half16:
+  case PPC::fixup_ppc_half16_pc:
     return Value & 0xffff;
   case PPC::fixup_ppc_half16ds:
     return Value & 0xfffc;
@@ -91,6 +93,7 @@ public:
       { "fixup_ppc_br24abs",     6,      24,   0 },
       { "fixup_ppc_brcond14abs", 16,     14,   0 },
       { "fixup_ppc_half16",       0,     16,   0 },
+      { "fixup_ppc_half16_pc",    0,     16,   MCFixupKindInfo::FKF_IsPCRel },
       { "fixup_ppc_half16ds",     0,     14,   0 },
       { "fixup_ppc_nofixup",      0,      0,   0 }
     };
@@ -101,6 +104,7 @@ public:
       { "fixup_ppc_br24abs",     2,      24,   0 },
       { "fixup_ppc_brcond14abs", 2,      14,   0 },
       { "fixup_ppc_half16",      0,      16,   0 },
+      { "fixup_ppc_half16_pc",   0,      16,   MCFixupKindInfo::FKF_IsPCRel },
       { "fixup_ppc_half16ds",    2,      14,   0 },
       { "fixup_ppc_nofixup",     0,       0,   0 }
     };
@@ -113,9 +117,20 @@ public:
     return (IsLittleEndian? InfosLE : InfosBE)[Kind - FirstTargetFixupKind];
   }
 
-  void applyFixup(const MCAssembler &Asm, const MCFixup &Fixup,
-                  const MCValue &Target, MutableArrayRef<char> Data,
-                  uint64_t Value, bool IsPCRel) const override {
+  MCFixupKind getPCRelKind(MCFixupKind Kind) const override {
+    switch ((unsigned)Kind) {
+    case PPC::fixup_ppc_half16ds:
+      report_fatal_error("Invalid PC-relative half16ds relocation");
+    case PPC::fixup_ppc_half16:
+      return (MCFixupKind)PPC::fixup_ppc_half16_pc;
+    default:
+      return MCAsmBackend::getPCRelKind(Kind);
+    }
+  }
+
+  void applyFixup(const MCAssembler &Asm, const MCReloc &Fixup,
+                  MutableArrayRef<char> Data) const override {
+    uint64_t Value = Fixup.getConstant();
     Value = adjustFixupValue(Fixup.getKind(), Value);
     if (!Value) return;           // Doesn't change encoding.
 
@@ -160,9 +175,7 @@ public:
     return false;
   }
 
-  bool fixupNeedsRelaxation(const MCFixup &Fixup,
-                            uint64_t Value,
-                            const MCRelaxableFragment *DF,
+  bool fixupNeedsRelaxation(const MCReloc &Reloc, const MCRelaxableFragment *DF,
                             const MCAsmLayout &Layout) const override {
     // FIXME.
     llvm_unreachable("relaxInstruction() unimplemented");

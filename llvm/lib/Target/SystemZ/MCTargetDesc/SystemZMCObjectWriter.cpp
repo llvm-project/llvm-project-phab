@@ -10,9 +10,12 @@
 #include "MCTargetDesc/SystemZMCFixups.h"
 #include "MCTargetDesc/SystemZMCTargetDesc.h"
 #include "llvm/BinaryFormat/ELF.h"
+#include "llvm/MC/MCAsmBackend.h"
+#include "llvm/MC/MCAssembler.h"
 #include "llvm/MC/MCELFObjectWriter.h"
 #include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCFixup.h"
+#include "llvm/MC/MCFixupKindInfo.h"
 #include "llvm/MC/MCValue.h"
 #include "llvm/Support/ErrorHandling.h"
 #include <cassert>
@@ -29,8 +32,7 @@ public:
 
 protected:
   // Override MCELFObjectTargetWriter.
-  unsigned getRelocType(MCContext &Ctx, const MCValue &Target,
-                        const MCFixup &Fixup, bool IsPCRel) const override;
+  unsigned getRelocType(MCAssembler &Asm, const MCReloc &Reloc) const override;
 };
 
 } // end anonymous namespace
@@ -54,8 +56,10 @@ static unsigned getAbsoluteReloc(unsigned Kind) {
 static unsigned getPCRelReloc(unsigned Kind) {
   switch (Kind) {
   case FK_Data_2:                return ELF::R_390_PC16;
+  case FK_PCRel_4:               return ELF::R_390_PC32;
   case FK_Data_4:                return ELF::R_390_PC32;
   case FK_Data_8:                return ELF::R_390_PC64;
+  case FK_PCRel_8:               return ELF::R_390_PC64;
   case SystemZ::FK_390_PC12DBL:  return ELF::R_390_PC12DBL;
   case SystemZ::FK_390_PC16DBL:  return ELF::R_390_PC16DBL;
   case SystemZ::FK_390_PC24DBL:  return ELF::R_390_PC24DBL;
@@ -113,10 +117,11 @@ static unsigned getPLTReloc(unsigned Kind) {
   llvm_unreachable("Unsupported absolute address");
 }
 
-unsigned SystemZObjectWriter::getRelocType(MCContext &Ctx,
-                                           const MCValue &Target,
-                                           const MCFixup &Fixup,
-                                           bool IsPCRel) const {
+unsigned SystemZObjectWriter::getRelocType(MCAssembler &Asm,
+                                           const MCReloc &Fixup) const {
+  const MCReloc &Target = Fixup;
+  bool IsPCRel = Asm.getBackend().getFixupKindInfo(Fixup.getKind()).Flags &
+                 MCFixupKindInfo::FKF_IsPCRel;
   MCSymbolRefExpr::VariantKind Modifier = Target.getAccessVariant();
   unsigned Kind = Fixup.getKind();
   switch (Modifier) {

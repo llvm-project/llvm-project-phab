@@ -94,9 +94,16 @@ enum Fixups {
   // The next two are for the movt/movw pair
   // the 16bit imm field are split into imm{15-12} and imm{11-0}
   fixup_arm_movt_hi16, // :upper16:
+  fixup_arm_movt_hi16_pc,
+
   fixup_arm_movw_lo16, // :lower16:
-  fixup_t2_movt_hi16,  // :upper16:
-  fixup_t2_movw_lo16,  // :lower16:
+  fixup_arm_movw_lo16_pc,
+
+  fixup_t2_movt_hi16, // :upper16:
+  fixup_t2_movt_hi16_pc,
+
+  fixup_t2_movw_lo16, // :lower16:
+  fixup_t2_movw_lo16_pc,
 
   // Fixup for mod_imm
   fixup_arm_mod_imm,

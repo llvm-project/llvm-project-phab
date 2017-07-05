@@ -32,26 +32,25 @@ public:
 
   ~AArch64WinCOFFObjectWriter() override = default;
 
-  unsigned getRelocType(MCContext &Ctx, const MCValue &Target,
-                        const MCFixup &Fixup, bool IsCrossSection,
+  unsigned getRelocType(MCContext &Ctx, const MCReloc &Fixup,
+                        bool IsCrossSection,
                         const MCAsmBackend &MAB) const override;
 
-   bool recordRelocation(const MCFixup &) const override;
+  bool recordRelocation(const MCReloc &) const override;
 };
 
 } // end anonymous namespace
 
 unsigned
 AArch64WinCOFFObjectWriter::getRelocType(MCContext &Ctx,
-                                         const MCValue &Target,
-                                         const MCFixup &Fixup,
+                                         const MCReloc &Fixup,
                                          bool IsCrossSection,
                                          const MCAsmBackend &MAB) const {
   const MCFixupKindInfo &Info = MAB.getFixupKindInfo(Fixup.getKind());
   report_fatal_error(Twine("unsupported relocation type: ") + Info.Name);
 }
 
-bool AArch64WinCOFFObjectWriter::recordRelocation(const MCFixup &Fixup) const {
+bool AArch64WinCOFFObjectWriter::recordRelocation(const MCReloc &Reloc) const {
   return true;
 }
 

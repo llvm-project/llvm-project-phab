@@ -50,13 +50,12 @@ public:
     return SystemZ::NumTargetFixupKinds;
   }
   const MCFixupKindInfo &getFixupKindInfo(MCFixupKind Kind) const override;
-  void applyFixup(const MCAssembler &Asm, const MCFixup &Fixup,
-                  const MCValue &Target, MutableArrayRef<char> Data,
-                  uint64_t Value, bool IsPCRel) const override;
+  void applyFixup(const MCAssembler &Asm, const MCReloc &Reloc,
+                  MutableArrayRef<char> Data) const override;
   bool mayNeedRelaxation(const MCInst &Inst) const override {
     return false;
   }
-  bool fixupNeedsRelaxation(const MCFixup &Fixup, uint64_t Value,
+  bool fixupNeedsRelaxation(const MCReloc &Reloc,
                             const MCRelaxableFragment *Fragment,
                             const MCAsmLayout &Layout) const override {
     return false;
@@ -91,10 +90,9 @@ SystemZMCAsmBackend::getFixupKindInfo(MCFixupKind Kind) const {
 }
 
 void SystemZMCAsmBackend::applyFixup(const MCAssembler &Asm,
-                                     const MCFixup &Fixup,
-                                     const MCValue &Target,
-                                     MutableArrayRef<char> Data, uint64_t Value,
-                                     bool IsPCRel) const {
+                                     const MCReloc &Fixup,
+                                     MutableArrayRef<char> Data) const {
+  uint64_t Value = Fixup.getConstant();
   MCFixupKind Kind = Fixup.getKind();
   unsigned Offset = Fixup.getOffset();
   unsigned BitSize = getFixupKindInfo(Kind).TargetSize;
