@@ -705,6 +705,8 @@ void Linux::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
   addExternCSystemInclude(DriverArgs, CC1Args, SysRoot + "/include");
 
   addExternCSystemInclude(DriverArgs, CC1Args, SysRoot + "/usr/include");
+
+  AddGnuIncludeArgs(DriverArgs, CC1Args);
 }
 
 static std::string DetectLibcxxIncludePath(StringRef base) {
@@ -742,6 +744,22 @@ std::string Linux::findLibCxxIncludePath() const {
   }
   return "";
 }
+
+void Linux::AddGnuIncludeArgs(const llvm::opt::ArgList &DriverArgs,
+                              llvm::opt::ArgStringList &CC1Args) const {
+  if (GCCInstallation.isValid()) {
+    const Generic_GCC::GCCVersion &Version = GCCInstallation.getVersion();
+    if (!DriverArgs.hasArg(options::OPT_ffreestanding) &&
+        !DriverArgs.hasArg(clang::driver::options::OPT_nostdinc) &&
+        !Version.isOlderThan(4, 8, 0)) {
+      // For gcc >= 4.8.x, clang will preinclude <stdc-predef.h>
+      // -ffreestanding suppresses this behavior.
+      CC1Args.push_back("-include");
+      CC1Args.push_back("stdc-predef.h");
+    }
+  }
+}
+
 
 void Linux::addLibStdCxxIncludePaths(const llvm::opt::ArgList &DriverArgs,
                                      llvm::opt::ArgStringList &CC1Args) const {
