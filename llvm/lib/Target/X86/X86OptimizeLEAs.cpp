@@ -26,6 +26,7 @@
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
+#include "llvm/CodeGen/MachineDominators.h"
 #include "llvm/CodeGen/Passes.h"
 #include "llvm/IR/DIBuilder.h"
 #include "llvm/IR/DebugInfoMetadata.h"
@@ -65,8 +66,8 @@ class MemOpKey {
 public:
   MemOpKey(const MachineOperand *Base, const MachineOperand *Scale,
            const MachineOperand *Index, const MachineOperand *Segment,
-           const MachineOperand *Disp)
-      : Disp(Disp) {
+           const MachineOperand *Disp, bool DispCheck = false)
+      : Disp(Disp),HardDispCheck(DispCheck) {
     Operands[0] = Base;
     Operands[1] = Scale;
     Operands[2] = Index;
@@ -83,7 +84,10 @@ public:
     // matters that they use the same symbol/index/address. Immediates' or
     // offsets' differences will be taken care of during instruction
     // substitution.
-    return isSimilarDispOp(*Disp, *Other.Disp);
+    if (HardDispCheck)
+      return isIdenticalOp(*Disp,*Other.Disp);
+    else
+      return isSimilarDispOp(*Disp, *Other.Disp);
   }
 
   // Address' base, scale, index and segment operands.
@@ -91,6 +95,9 @@ public:
 
   // Address' displacement operand.
   const MachineOperand *Disp;
+
+  // Forces absolute displacement check.
+  bool HardDispCheck;
 };
 } // end anonymous namespace
 
@@ -178,6 +185,17 @@ static inline MemOpKey getMemOpKey(const MachineInstr &MI, unsigned N) {
                   &MI.getOperand(N + X86::AddrDisp));
 }
 
+static inline MemOpKey getMemOpCSEKey(const MachineInstr &MI, unsigned N) {
+  static MachineOperand DummyScale = MachineOperand::CreateImm(1);
+  assert((isLEA(MI) || MI.mayLoadOrStore()) &&
+         "The instruction must be a LEA, a load or a store");
+  return MemOpKey(&MI.getOperand(N + X86::AddrBaseReg),
+                  &DummyScale,
+                  &MI.getOperand(N + X86::AddrIndexReg),
+                  &MI.getOperand(N + X86::AddrSegmentReg),
+                  &MI.getOperand(N + X86::AddrDisp),true);
+}
+
 static inline bool isIdenticalOp(const MachineOperand &MO1,
                                  const MachineOperand &MO2) {
   return MO1.isIdenticalTo(MO2) &&
@@ -228,6 +246,12 @@ public:
   /// been calculated by LEA. Also, remove redundant LEAs.
   bool runOnMachineFunction(MachineFunction &MF) override;
 
+  void getAnalysisUsage(AnalysisUsage &AU) const override {
+     AU.setPreservesCFG();
+     MachineFunctionPass::getAnalysisUsage(AU);
+     AU.addRequired<MachineDominatorTree>();
+  }
+
 private:
   typedef DenseMap<MemOpKey, SmallVector<MachineInstr *, 16>> MemOpMap;
 
@@ -261,6 +285,12 @@ private:
   /// distance between them.
   void findLEAs(const MachineBasicBlock &MBB, MemOpMap &LEAs);
 
+  /// \brief Find all LEA instructions in the basic block that have same
+  /// Base, Index, Disp and Segment.
+  void populateCSEMap(const MachineBasicBlock &MBB, MemOpMap &LEAs);
+
+  bool cseLEAs(const MachineBasicBlock &MBB);
+
   /// \brief Removes redundant address calculations.
   bool removeRedundantAddrCalc(MemOpMap &LEAs);
 
@@ -275,6 +305,7 @@ private:
 
   DenseMap<const MachineInstr *, unsigned> InstrPos;
 
+  MachineDominatorTree *DT;
   MachineRegisterInfo *MRI;
   const X86InstrInfo *TII;
   const X86RegisterInfo *TRI;
@@ -285,6 +316,13 @@ char OptimizeLEAPass::ID = 0;
 }
 
 FunctionPass *llvm::createX86OptimizeLEAs() { return new OptimizeLEAPass(); }
+
+void OptimizeLEAPass::populateCSEMap(const MachineBasicBlock &MBB, MemOpMap &LEAs) {
+  for (auto &MI : MBB) {
+    if (isLEA(MI))
+      LEAs[getMemOpCSEKey(MI, 1)].push_back(const_cast<MachineInstr *>(&MI));
+  }
+}
 
 int OptimizeLEAPass::calcInstrDist(const MachineInstr &First,
                                    const MachineInstr &Last) {
@@ -646,6 +684,60 @@ bool OptimizeLEAPass::removeRedundantLEAs(MemOpMap &LEAs) {
   return Changed;
 }
 
+bool OptimizeLEAPass::cseLEAs(const MachineBasicBlock &MBB) {
+   MemOpMap LEAs;
+   bool cseDone = false;
+
+   populateCSEMap(MBB,LEAs);
+
+   auto CompareFn = 
+     [] (const MachineInstr *Arg1,const MachineInstr *Arg2) -> bool {
+        if(Arg1->getOperand(2).getImm() < Arg2->getOperand(2).getImm())
+           return false;
+        return true;  
+     };
+
+   // Loop over all entries in the table.
+   for (auto &E : LEAs) {
+     auto &List = E.second;
+     if(List.size() > 1) {
+        std::sort(List.begin(),List.end(),CompareFn);
+     }
+     // Loop over all LEA pairs.
+     for(auto LII = List.begin(); LII != List.end(); LII++) {
+        MachineInstr &LI1 = **LII;
+        auto LINext = std::next(LII);
+        if(LINext == List.end()) 
+           break;
+        MachineInstr &LI2 = **LINext;
+        if (!DT->dominates(&LI2,&LI1))
+           continue;
+        
+        int Scale1 = LI1.getOperand(2).getImm(); 
+        int Scale2 = LI2.getOperand(2).getImm(); 
+        assert(LI2.getOperand(0).isReg() && "Result is a VirtualReg");
+        DebugLoc DL = LI1.getDebugLoc();
+
+        if ((Scale1 - Scale2) > 0) {
+            MachineInstr *NewMI = 
+            BuildMI(*(const_cast<MachineBasicBlock *>(&MBB)),
+                &LI1,DL,TII->get(LI1.getOpcode()))
+              .addDef(LI1.getOperand(0).getReg())  // Dst   = Dst of LI1. 
+              .addUse(LI2.getOperand(0).getReg())  // Base  = Dst of LI2.
+              .addImm(Scale1-Scale2)               // Scale = Diff b/w scales.
+              .addUse(LI1.getOperand(3).getReg())  // Index = Index of LI1.
+              .addImm(0)                           // Disp  = 0 
+              .addUse(LI1.getOperand(5).getReg()); // Segment = Segmant of LI1.  
+
+              LI1.eraseFromParent();
+              cseDone = NewMI != nullptr;
+        }
+     }
+   } 
+   return cseDone;
+}
+
+
 bool OptimizeLEAPass::runOnMachineFunction(MachineFunction &MF) {
   bool Changed = false;
 
@@ -655,11 +747,15 @@ bool OptimizeLEAPass::runOnMachineFunction(MachineFunction &MF) {
   MRI = &MF.getRegInfo();
   TII = MF.getSubtarget<X86Subtarget>().getInstrInfo();
   TRI = MF.getSubtarget<X86Subtarget>().getRegisterInfo();
+  DT  = &getAnalysis<MachineDominatorTree>();
 
   // Process all basic blocks.
   for (auto &MBB : MF) {
     MemOpMap LEAs;
     InstrPos.clear();
+
+    // Attempt CSE over LEAs.
+    Changed |= cseLEAs(MBB);
 
     // Find all LEA instructions in basic block.
     findLEAs(MBB, LEAs);

@@ -1410,6 +1410,19 @@ bool X86DAGToDAGISel::matchAddressBase(SDValue N, X86ISelAddressMode &AM) {
       return false;
     }
 
+    if (AM.Scale == 1) {
+       if (AM.Base_Reg == N) {
+          SDValue Base_Reg = AM.Base_Reg;  
+          AM.Base_Reg = AM.IndexReg;
+          AM.IndexReg = Base_Reg;
+          AM.Scale++;
+          return false;
+       } else if (AM.IndexReg == N) {
+          AM.Scale++;
+          return false;
+       }
+    }
+
     // Otherwise, we cannot select it.
     return true;
   }
