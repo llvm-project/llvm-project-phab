@@ -4,7 +4,7 @@
 
         .data
 x:
-// CHECK: [[@LINE+1]]:{{[0-9]+}}: error: symbol '__executable_start' can not be undefined in a subtraction expression
+// CHECK: [[@LINE+1]]:{{[0-9]+}}: error: No relocation available to represent this relative expression
         .quad   x-__executable_start
 
 // CHECK: [[@LINE+1]]:{{[0-9]+}}: error: unsupported subtraction of qualified symbol

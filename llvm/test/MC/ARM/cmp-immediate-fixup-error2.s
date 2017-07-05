@@ -2,6 +2,6 @@
 
 .text
     cmp r0, #(l1 - unknownLabel)
-@ CHECK: error: symbol 'unknownLabel' can not be undefined in a subtraction expression
+@ CHECK: error: No relocation available to represent this relative expression
 
 l1:
