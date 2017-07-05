@@ -105,6 +105,7 @@ struct Configuration {
   std::vector<SymbolVersion> VersionScriptLocals;
   std::vector<uint8_t> BuildIdVector;
   llvm::MapVector<Symbol *, RenamedSymbol> RenamedSymbols;
+  std::vector<std::pair<unsigned, Symbol *>> WrapSymbols;
   bool AllowMultipleDefinition;
   bool AsNeeded = false;
   bool Bsymbolic;

@@ -14,11 +14,11 @@
 ; CHECK-NEXT: callq{{.*}}<bar>
 
 ; Check that bar and __wrap_bar retain their original binding.
-; BIND:      Name: bar
+; BIND:      Name: __wrap_bar
 ; BIND-NEXT: Value:
 ; BIND-NEXT: Size:
 ; BIND-NEXT: Binding: Local
-; BIND:      Name: __wrap_bar
+; BIND:      Name: bar
 ; BIND-NEXT: Value:
 ; BIND-NEXT: Size:
 ; BIND-NEXT: Binding: Local
