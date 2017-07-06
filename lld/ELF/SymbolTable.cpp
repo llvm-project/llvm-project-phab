@@ -169,6 +169,11 @@ template <class ELFT> void SymbolTable<ELFT>::addSymbolWrap(StringRef Name) {
 
   Config->RenamedSymbols[Real] = {Sym, Real->Binding};
   Config->RenamedSymbols[Sym] = {Wrap, Sym->Binding};
+
+  auto It = Symtab.find(CachedHashStringRef(Wrap->body()->getName()));
+  std::pair<unsigned, Symbol *> Foo =
+      std::make_pair<unsigned, Symbol *>(It->second.Idx, (Symbol *)Real);
+  Config->WrapSymbols.push_back(Foo);
 }
 
 // Creates alias for symbol. Used to implement --defsym=ALIAS=SYM.
@@ -192,11 +197,22 @@ template <class ELFT> void SymbolTable<ELFT>::addSymbolAlias(StringRef Alias,
 // LTO (if LTO is running) not to include these symbols in IPO. Now that the
 // symbols are finalized, we can perform the replacement.
 template <class ELFT> void SymbolTable<ELFT>::applySymbolRenames() {
+  std::vector<Symbol> Origs;
+  Origs.resize(Config->WrapSymbols.size());
+  for (unsigned I = 0, N = Config->WrapSymbols.size(); I < N; ++I) {
+    Symbol *S = Config->WrapSymbols[I].second;
+    memcpy(&Origs[I], S, sizeof(Symbol));
+  }
   for (auto &KV : Config->RenamedSymbols) {
     Symbol *Dst = KV.first;
     Symbol *Src = KV.second.Target;
     Dst->body()->copy(Src->body());
     Dst->Binding = KV.second.OriginalBinding;
+  }
+  for (unsigned I = 0, N = Config->WrapSymbols.size(); I < N; ++I) {
+    unsigned Idx = Config->WrapSymbols[I].first;
+    SymVector[Idx] = make<Symbol>();
+    memcpy(SymVector[Idx], &Origs[I], sizeof(Symbol));
   }
 }
 
