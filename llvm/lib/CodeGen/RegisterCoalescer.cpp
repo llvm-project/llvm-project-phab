@@ -2153,8 +2153,9 @@ std::pair<const VNInfo*, unsigned> JoinVals::followCopyChain(
 
     const LiveInterval &LI = LIS->getInterval(SrcReg);
     const VNInfo *ValueIn;
-    // No subrange involved.
-    if (!SubRangeJoin || !LI.hasSubRanges()) {
+    // No subrange involved - or it is a FullCopy (in which case the subranges
+    // sometimes won't match)
+    if (!SubRangeJoin || !LI.hasSubRanges() || MI->isFullCopy()) {
       LiveQueryResult LRQ = LI.Query(Def);
       ValueIn = LRQ.valueIn();
     } else {
