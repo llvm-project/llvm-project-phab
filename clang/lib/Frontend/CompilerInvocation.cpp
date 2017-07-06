@@ -2425,6 +2425,10 @@ static void ParsePreprocessorArgs(PreprocessorOptions &Opts, ArgList &Args,
   for (const Arg *A : Args.filtered(OPT_chain_include))
     Opts.ChainedIncludes.emplace_back(A->getValue());
 
+  // Add the ordered list of -finclude-if-exists.
+  for (const Arg *A : Args.filtered(OPT_finclude_if_exists))
+    Opts.FIncludeIfExists.emplace_back(A->getValue());
+
   for (const Arg *A : Args.filtered(OPT_remap_file)) {
     std::pair<StringRef, StringRef> Split = StringRef(A->getValue()).split(';');
 
