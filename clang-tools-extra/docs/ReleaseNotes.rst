@@ -97,6 +97,12 @@ Improvements to clang-tidy
 
   Finds uses of ``__func__`` or ``__FUNCTION__`` inside lambdas.
 
+- New `misc-suspicious-memset-usage
+  <http://clang.llvm.org/extra/clang-tidy/checks/misc-suspicious-memset-usage.html>`_ check
+
+  Finds ``memset()`` calls with potential mistakes in their arguments.
+  Replaces and extends the ``google-runtime-memset`` check.
+
 - New `modernize-replace-random-shuffle
   <http://clang.llvm.org/extra/clang-tidy/checks/modernize-replace-random-shuffle.html>`_ check
 

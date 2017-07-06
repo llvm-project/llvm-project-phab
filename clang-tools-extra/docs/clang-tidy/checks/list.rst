@@ -54,7 +54,6 @@ Clang-Tidy Checks
    google-readability-todo
    google-runtime-int
    google-runtime-member-string-references
-   google-runtime-memset
    google-runtime-operator
    google-runtime-references
    hicpp-explicit-conversions
@@ -106,6 +105,7 @@ Clang-Tidy Checks
    misc-string-integer-assignment
    misc-string-literal-with-embedded-nul
    misc-suspicious-enum-usage
+   misc-suspicious-memset-usage
    misc-suspicious-missing-comma
    misc-suspicious-semicolon
    misc-suspicious-string-compare
