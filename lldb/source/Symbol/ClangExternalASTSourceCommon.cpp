@@ -10,6 +10,8 @@
 #include "lldb/Symbol/ClangExternalASTSourceCommon.h"
 #include "lldb/Utility/Stream.h"
 
+#include <mutex>
+
 using namespace lldb_private;
 
 uint64_t g_TotalSizeOfMetadata = 0;
@@ -18,33 +20,45 @@ typedef llvm::DenseMap<clang::ExternalASTSource *,
                        ClangExternalASTSourceCommon *>
     ASTSourceMap;
 
-static ASTSourceMap &GetSourceMap() {
+template <typename FnType>
+static decltype(std::declval<FnType>()(std::declval<ASTSourceMap&>()))
+WithExclusiveSourceMap(FnType fn) {
   // Intentionally leaked to avoid problems with global destructors.
   static ASTSourceMap *s_source_map = new ASTSourceMap;
-  return *s_source_map;
+  static std::mutex s_source_map_mutex;
+  
+  {
+    std::lock_guard<std::mutex> source_map_locker(s_source_map_mutex);
+    return fn(*s_source_map);
+  }
 }
 
 ClangExternalASTSourceCommon *
 ClangExternalASTSourceCommon::Lookup(clang::ExternalASTSource *source) {
-  ASTSourceMap &source_map = GetSourceMap();
-
-  ASTSourceMap::iterator iter = source_map.find(source);
-
-  if (iter != source_map.end()) {
-    return iter->second;
-  } else {
-    return nullptr;
-  }
+  return WithExclusiveSourceMap(
+      [source](ASTSourceMap &source_map) -> ClangExternalASTSourceCommon * {
+    ASTSourceMap::iterator iter = source_map.find(source);
+    
+    if (iter != source_map.end()) {
+      return iter->second;
+    } else {
+      return nullptr;
+    }
+  });
 }
 
 ClangExternalASTSourceCommon::ClangExternalASTSourceCommon()
     : clang::ExternalASTSource() {
+  WithExclusiveSourceMap([this](ASTSourceMap &source_map) {
+    source_map[this] = this;
+  });
   g_TotalSizeOfMetadata += m_metadata.size();
-  GetSourceMap()[this] = this;
 }
 
 ClangExternalASTSourceCommon::~ClangExternalASTSourceCommon() {
-  GetSourceMap().erase(this);
+  WithExclusiveSourceMap([this](ASTSourceMap &source_map) {
+    source_map.erase(this);
+  });
   g_TotalSizeOfMetadata -= m_metadata.size();
 }
 
