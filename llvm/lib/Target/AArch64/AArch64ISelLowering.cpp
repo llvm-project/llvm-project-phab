@@ -10788,3 +10788,11 @@ AArch64TargetLowering::getVaListSizeInBits(const DataLayout &DL) const {
 
   return 3 * getPointerTy(DL).getSizeInBits() + 2 * 32;
 }
+
+// Weight factor to the CSR cost applied when defering the first allocation of
+// CSR is prefered. This value approximate the number of copies which can be
+// traded against the first spill of CSR in the entry block when defering the
+// first allocation from CSRs is prefered.
+unsigned AArch64TargetLowering::getWeightFactorToTheFirstCSRAllocation() const {
+  return 30;
+}

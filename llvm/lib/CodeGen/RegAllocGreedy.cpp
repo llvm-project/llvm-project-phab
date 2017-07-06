@@ -66,6 +66,7 @@
 #include "llvm/Support/Timer.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetInstrInfo.h"
+#include "llvm/Target/TargetLowering.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetRegisterInfo.h"
 #include "llvm/Target/TargetSubtargetInfo.h"
@@ -148,6 +149,7 @@ class RAGreedy : public MachineFunctionPass,
   // Shortcuts to some useful interface.
   const TargetInstrInfo *TII;
   const TargetRegisterInfo *TRI;
+  const TargetLowering *TLI;
   RegisterClassInfo RCI;
 
   // analyses
@@ -369,6 +371,9 @@ public:
   static char ID;
 
 private:
+  /// Track if a CSR is allocated in the current function.
+  bool IsCSRAllocated;
+
   unsigned selectOrSplitImpl(LiveInterval &, SmallVectorImpl<unsigned> &,
                              SmallVirtRegSet &, unsigned = 0);
 
@@ -416,6 +421,7 @@ private:
                                  unsigned PhysReg, unsigned &CostPerUseLimit,
                                  SmallVectorImpl<unsigned> &NewVRegs);
   void initializeCSRCost();
+  BlockFrequency getFirstTimeCSRCost(LiveInterval &VirtReg);
   unsigned tryBlockSplit(LiveInterval&, AllocationOrder&,
                          SmallVectorImpl<unsigned>&);
   unsigned tryInstructionSplit(LiveInterval&, AllocationOrder&,
@@ -2334,10 +2340,11 @@ unsigned RAGreedy::tryAssignCSRFirstTime(LiveInterval &VirtReg,
                                          SmallVectorImpl<unsigned> &NewVRegs) {
   if (getStage(VirtReg) == RS_Spill && VirtReg.isSpillable()) {
     // We choose spill over using the CSR for the first time if the spill cost
-    // is lower than CSRCost.
+    // is lower than the CSR cost.
     SA->analyze(&VirtReg);
-    if (calcSpillCost() >= CSRCost)
+    if (calcSpillCost() >= getFirstTimeCSRCost(VirtReg)) {
       return PhysReg;
+    }
 
     // We are going to spill, set CostPerUseLimit to 1 to make sure that
     // we will not use a callee-saved register in tryEvict.
@@ -2346,10 +2353,10 @@ unsigned RAGreedy::tryAssignCSRFirstTime(LiveInterval &VirtReg,
   }
   if (getStage(VirtReg) < RS_Split) {
     // We choose pre-splitting over using the CSR for the first time if
-    // the cost of splitting is lower than CSRCost.
+    // the cost of splitting is lower than the CSR cost.
     SA->analyze(&VirtReg);
     unsigned NumCands = 0;
-    BlockFrequency BestCost = CSRCost; // Don't modify CSRCost.
+    BlockFrequency BestCost = getFirstTimeCSRCost(VirtReg);
     unsigned BestCand = calculateRegionSplitCost(VirtReg, Order, BestCost,
                                                  NumCands, true /*IgnoreCSR*/);
     if (BestCand == NoCand)
@@ -2366,6 +2373,45 @@ unsigned RAGreedy::tryAssignCSRFirstTime(LiveInterval &VirtReg,
 void RAGreedy::aboutToRemoveInterval(LiveInterval &LI) {
   // Do not keep invalid information around.
   SetOfBrokenHints.remove(&LI);
+}
+
+// Return the cost of the first use of a callee-saved register. For the first
+// allocation from CSRs in the current function, increase the cost if the live
+// range of the value spans basic blocks in which we'd prefer not to use one.
+// This will often defer the first allocation from CSRs and give shrink-wrapping
+// an opportunity to sink/hoist the save/restore from entry/exit blocks
+// respectively.
+BlockFrequency RAGreedy::getFirstTimeCSRCost(LiveInterval &VirtReg) {
+  if (getStage(VirtReg) == RS_Spill && VirtReg.isSpillable())
+    return CSRCost;
+
+  assert(getStage(VirtReg) < RS_Split &&
+         "Unexpected stage to find the first time CSR cost." );
+
+  // Increase the CSR cost only for the first allocation from CSRs in the
+  // current function.
+  if (IsCSRAllocated)
+     return CSRCost;
+
+  if (!VirtReg.isSpillable())
+    return CSRCost;
+
+  // Conservatively, we try to increase the CSR cost only when none of the
+  // blocks in the live range have call.
+  ArrayRef<SplitAnalysis::BlockInfo> UseBlocks = SA->getUseBlocks();
+  for (int i = 0, e = UseBlocks.size(); i < e; ++i)
+    for (auto &MI : *UseBlocks[i].MBB)
+      if (MI.isCall())
+        return CSRCost;
+
+  // Now, we prefer to defering the first allocation from CSRs. Try to increase
+  // the CSR cost by multipling the frequency of the entry block by the weight
+  // factor for the first allocation from CSRs. The weight factor approximates
+  // the number of copies which can be traded against the first spill of CSR in
+  // the entry block.
+  uint64_t EntryFreq = MBFI->getEntryFreq();
+  return std::max(CSRCost.getFrequency(),
+                  EntryFreq * TLI->getWeightFactorToTheFirstCSRAllocation());
 }
 
 void RAGreedy::initializeCSRCost() {
@@ -2391,6 +2437,8 @@ void RAGreedy::initializeCSRCost() {
   else
     // Can't use BranchProbability in general, since it takes 32-bit numbers.
     CSRCost = CSRCost.getFrequency() * (ActualEntry / FixedEntry);
+
+  IsCSRAllocated = false;
 }
 
 /// \brief Collect the hint info for \p Reg.
@@ -2568,14 +2616,19 @@ unsigned RAGreedy::selectOrSplitImpl(LiveInterval &VirtReg,
     // When NewVRegs is not empty, we may have made decisions such as evicting
     // a virtual register, go with the earlier decisions and use the physical
     // register.
-    if (CSRCost.getFrequency() && isUnusedCalleeSavedReg(PhysReg) &&
-        NewVRegs.empty()) {
+
+    if ((CSRCost.getFrequency() || (!IsCSRAllocated && VirtReg.isSpillable())) &&
+        isUnusedCalleeSavedReg(PhysReg) && NewVRegs.empty()) {
+
       unsigned CSRReg = tryAssignCSRFirstTime(VirtReg, Order, PhysReg,
                                               CostPerUseLimit, NewVRegs);
-      if (CSRReg || !NewVRegs.empty())
+      if (CSRReg || !NewVRegs.empty()) {
+        if (CSRReg)
+          IsCSRAllocated = true;
         // Return now if we decide to use a CSR or create new vregs due to
         // pre-splitting.
         return CSRReg;
+      }
     } else
       return PhysReg;
   }
@@ -2723,6 +2776,7 @@ bool RAGreedy::runOnMachineFunction(MachineFunction &mf) {
   MF = &mf;
   TRI = MF->getSubtarget().getRegisterInfo();
   TII = MF->getSubtarget().getInstrInfo();
+  TLI = MF->getSubtarget().getTargetLowering();
   RCI.runOnMachineFunction(mf);
 
   EnableLocalReassign = EnableLocalReassignment ||

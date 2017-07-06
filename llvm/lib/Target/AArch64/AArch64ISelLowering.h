@@ -628,6 +628,9 @@ private:
                                                  bool isVarArg) const override;
 
   bool shouldNormalizeToSelectSequence(LLVMContext &, EVT) const override;
+
+
+  virtual unsigned getWeightFactorToTheFirstCSRAllocation() const override;
 };
 
 namespace AArch64 {

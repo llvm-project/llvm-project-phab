@@ -53,6 +53,7 @@
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Target/TargetCallingConv.h"
 #include "llvm/Target/TargetMachine.h"
+#include "llvm/CodeGen/LiveInterval.h"
 #include <algorithm>
 #include <cassert>
 #include <climits>
@@ -3406,6 +3407,14 @@ public:
   /// LOAD_STACK_GUARD node when it is lowering Intrinsic::stackprotector.
   virtual bool useLoadStackGuardNode() const {
     return false;
+  }
+
+  /// Target specific weight factor to the cost of allocating callee-saved
+  /// register for the first time in a function when defering the first
+  /// allocation of CSRs is prefered. The default value 0 means no change in
+  /// current behavior.
+  virtual unsigned getWeightFactorToTheFirstCSRAllocation() const {
+    return 0;
   }
 
   /// Lower TLS global address SDNode for target independent emulated TLS model.
