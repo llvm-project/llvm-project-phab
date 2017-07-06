@@ -106,7 +106,7 @@ private:
   typedef MapVector<Value *, StoreList> StoreListMap;
   StoreListMap StoreRefsForMemset;
   StoreListMap StoreRefsForMemsetPattern;
-  StoreList StoreRefsForMemcpy;
+  StoreListMap StoreRefsForMemcpy;
   bool HasMemset;
   bool HasMemsetPattern;
   bool HasMemcpy;
@@ -123,7 +123,6 @@ private:
 
   /// \name Countable Loop Idiom Handling
   /// @{
-
   bool runOnCountableLoop();
   bool runOnLoopBlock(BasicBlock *BB, const SCEV *BECount,
                       SmallVectorImpl<BasicBlock *> &ExitBlocks);
@@ -140,7 +139,13 @@ private:
                                SmallPtrSetImpl<Instruction *> &Stores,
                                const SCEVAddRecExpr *Ev, const SCEV *BECount,
                                bool NegStride, bool IsLoopMemset = false);
-  bool processLoopStoreOfLoopLoad(StoreInst *SI, const SCEV *BECount);
+  bool processLoopStoreOfLoopLoad(SmallVectorImpl<StoreInst *> &SL,
+      const SCEV *BECount);
+  bool processLoopStoreOfLoopLoadMain(
+      Value *DestPtr, unsigned StoreSize, StoreInst *TheStore,LoadInst *TheLoad,
+      SmallPtrSetImpl<Instruction *> &Stores, const SCEVAddRecExpr *Ev,
+      Value *LoadPtr, const SCEVAddRecExpr *LoadEv,
+      const SCEV *BECount, bool NegStride);
   bool avoidLIRForMultiBlockLoop(bool IsMemset = false,
                                  bool IsLoopMemset = false);
 
@@ -157,7 +162,7 @@ private:
   void transformLoopToCountable(BasicBlock *PreCondBB, Instruction *CntInst,
                                 PHINode *CntPhi, Value *Var, const DebugLoc DL,
                                 bool ZeroCheck, bool IsCntPhiUsedOutsideLoop);
-
+ 
   /// @}
 };
 
@@ -399,7 +404,6 @@ LoopIdiomRecognize::isLegalStore(StoreInst *SI) {
   // but it can be turned into memset_pattern if the target supports it.
   Value *SplatValue = isBytewiseValue(StoredVal);
   Constant *PatternValue = nullptr;
-
   // Note: memset and memset_pattern on unordered-atomic is yet not supported
   bool UnorderedAtomic = SI->isUnordered() && !SI->isSimple();
 
@@ -423,14 +427,9 @@ LoopIdiomRecognize::isLegalStore(StoreInst *SI) {
   if (HasMemcpy) {
     // Check to see if the stride matches the size of the store.  If so, then we
     // know that every byte is touched in the loop.
-    APInt Stride = getStoreStride(StoreEv);
-    unsigned StoreSize = getStoreSizeInBytes(SI, DL);
-    if (StoreSize != Stride && StoreSize != -Stride)
-      return LegalStoreKind::None;
 
     // The store must be feeding a non-volatile load.
     LoadInst *LI = dyn_cast<LoadInst>(SI->getValueOperand());
-
     // Only allow non-volatile loads
     if (!LI || LI->isVolatile())
       return LegalStoreKind::None;
@@ -484,9 +483,11 @@ void LoopIdiomRecognize::collectStores(BasicBlock *BB) {
       StoreRefsForMemsetPattern[Ptr].push_back(SI);
     } break;
     case LegalStoreKind::Memcpy:
-    case LegalStoreKind::UnorderedAtomicMemcpy:
-      StoreRefsForMemcpy.push_back(SI);
-      break;
+    case LegalStoreKind::UnorderedAtomicMemcpy: {
+      //Find the base pointer.
+      Value *Ptr = GetUnderlyingObject(SI->getPointerOperand(), *DL);
+      StoreRefsForMemcpy[Ptr].push_back(SI);
+    } break;
     default:
       assert(false && "unhandled return value");
       break;
@@ -520,9 +521,11 @@ bool LoopIdiomRecognize::runOnLoopBlock(
   for (auto &SL : StoreRefsForMemsetPattern)
     MadeChange |= processLoopStores(SL.second, BECount, false);
 
-  // Optimize the store into a memcpy, if it feeds an similarly strided load.
+  // Look for a single store with a corresponding load or a set of stores with a 
+  // common base (the corresponding loads of those stores should also have a common
+  // base), which can be optimized into a memcpy.
   for (auto &SI : StoreRefsForMemcpy)
-    MadeChange |= processLoopStoreOfLoopLoad(SI, BECount);
+    MadeChange |= processLoopStoreOfLoopLoad(SI.second, BECount);
 
   for (BasicBlock::iterator I = BB->begin(), E = BB->end(); I != E;) {
     Instruction *Inst = &*I++;
@@ -879,7 +882,7 @@ bool LoopIdiomRecognize::processLoopStridedStore(
     GV->setAlignment(16);
     Value *PatternPtr = ConstantExpr::getBitCast(GV, Int8PtrTy);
     NewCall = Builder.CreateCall(MSP, {BasePtr, PatternPtr, NumBytes});
-  }
+}
 
   DEBUG(dbgs() << "  Formed memset: " << *NewCall << "\n"
                << "    from store to: " << *Ev << " at: " << *TheStore << "\n");
@@ -893,28 +896,167 @@ bool LoopIdiomRecognize::processLoopStridedStore(
   return true;
 }
 
-/// If the stored value is a strided load in the same loop with the same stride
-/// this may be transformable into a memcpy.  This kicks in for stuff like
+/// If there are one or multiple stored values , which are strided loads
+/// in the same loop with the same stride ,(with the stores being consecutive
+/// and having a common base, similarly the loads also being consecutive) then
+/// this may be transformed into a memcpy.This kicks in for stuff like
 /// for (i) A[i] = B[i];
-bool LoopIdiomRecognize::processLoopStoreOfLoopLoad(StoreInst *SI,
-                                                    const SCEV *BECount) {
-  assert(SI->isUnordered() && "Expected only non-volatile non-ordered stores.");
+/// for (i)
+/// {
+///   A[i].a = B[i].a
+///   A[i].b = B[i].b
+/// }
+bool LoopIdiomRecognize::processLoopStoreOfLoopLoad(
+    SmallVectorImpl<StoreInst *> &SL,const SCEV *BECount) {
+  // Try to find consecutive stores and loads that can be transformed
+  // into memcpy.
+  SetVector<StoreInst *> Heads, Tails;
+  SmallDenseMap<StoreInst *, StoreInst *> ConsecutiveChain;
 
-  Value *StorePtr = SI->getPointerOperand();
-  const SCEVAddRecExpr *StoreEv = cast<SCEVAddRecExpr>(SE->getSCEV(StorePtr));
-  APInt Stride = getStoreStride(StoreEv);
-  unsigned StoreSize = getStoreSizeInBytes(SI, DL);
-  bool NegStride = StoreSize == -Stride;
+  // Do a quadratic search on all of the given stores and find
+  // all of the pairs of stores that follow each other.
+  for (unsigned i = 0, e = SL.size(); i < e; ++i) {
+    assert(SL[i]->isUnordered() && "Expected only non-volatile non-ordered 
+	                            stores.");
 
-  // The store must be feeding a non-volatile load.
-  LoadInst *LI = cast<LoadInst>(SI->getValueOperand());
-  assert(LI->isUnordered() && "Expected only non-volatile non-ordered loads.");
+    Value *FirstStorePtr = SL[i]->getPointerOperand();
+    const SCEVAddRecExpr *FirstStoreEv =
+       cast<SCEVAddRecExpr>(SE->getSCEV(FirstStorePtr));
+    APInt FirstStride = getStoreStride(FirstStoreEv);
 
-  // See if the pointer expression is an AddRec like {base,+,1} on the current
-  // loop, which indicates a strided load.  If we have something else, it's a
-  // random load we can't handle.
-  const SCEVAddRecExpr *LoadEv =
-      cast<SCEVAddRecExpr>(SE->getSCEV(LI->getPointerOperand()));
+    unsigned FirstStoreSize = getStoreSizeInBytes(SL[i], DL);
+
+    LoadInst *FirstStoreLoad = dyn_cast<LoadInst>(SL[i]->getValueOperand());
+    assert(FirstStoreLoad->isUnordered() && "Expected only non-volatile 
+	                                     non-ordered loads.");
+    Value *FirstLoadPtr =
+        GetUnderlyingObject(FirstStoreLoad->getPointerOperand(), *DL);
+    
+    const SCEVAddRecExpr *FirstLoadEv =
+     dyn_cast<SCEVAddRecExpr>(SE->getSCEV(FirstStoreLoad->getPointerOperand()));
+
+    // See if we can optimize just this store in isolation.
+    if (FirstStride == FirstStoreSize || -FirstStride == FirstStoreSize) {
+      Heads.insert(SL[i]);
+      continue;
+    }
+
+    IndexQueue.clear();
+    // If a store has multiple consecutive store candidates, search Stores
+    // array according to the sequence: from i+1 to e, then from i-1 to 0.
+    // This is because usually pairing with immediate succeeding or preceding
+    // candidate create the best chance to find memcpy opportunity.
+
+    unsigned j = 0;
+    for (j = i + 1; j < e; ++j)
+      IndexQueue.push_back(j);
+    for (j = i; j > 0; --j)
+      IndexQueue.push_back(j - 1);
+
+    for (auto &k : IndexQueue) {
+      assert(SL[k]->isUnordered() && "Expected only non-volatile non-ordered 
+	                              stores.");
+      Value *SecondStorePtr = SL[k]->getPointerOperand();
+      const SCEVAddRecExpr *SecondStoreEv =
+                        cast<SCEVAddRecExpr>(SE->getSCEV(SecondStorePtr));
+
+      APInt SecondStride = getStoreStride(SecondStoreEv);
+      if (FirstStride != SecondStride)
+        continue;
+
+      LoadInst *SecondStoreLoad = dyn_cast<LoadInst>(SL[k]->getValueOperand());
+      assert(SecondStoreLoad->isUnordered() && "Expected only non-volatile 
+	                                        non-ordered loads.");
+      Value *SecondLoadPtr =
+          GetUnderlyingObject(SecondStoreLoad->getPointerOperand(), *DL);
+
+      if (FirstLoadPtr != SecondLoadPtr)
+        continue;
+
+      const SCEVAddRecExpr *SecondLoadEv =
+      dyn_cast<SCEVAddRecExpr>(
+          SE->getSCEV(SecondStoreLoad->getPointerOperand()));
+
+      // The stride of both loads should be equal
+      if (FirstLoadEv->getOperand(1) != SecondLoadEv->getOperand(1))
+        continue;
+
+      //Both stores and loads should be consecutive
+      if (isConsecutiveAccess(SL[i], SL[k], *DL, *SE, false)) {
+        if (isConsecutiveAccess(
+          FirstStoreLoad, SecondStoreLoad, *DL, *SE, false)) {
+          Tails.insert(SL[k]);
+          Heads.insert(SL[i]);
+          ConsecutiveChain[SL[i]] = SL[k];
+          break;
+        }
+      }
+   }
+  }
+
+  SmallPtrSet<Value *, 16> TransformedStores;
+  bool Changed = false;
+  // For stores that start but don't end a link in the chain:
+  for (SetVector<StoreInst *>::iterator it = Heads.begin(), e = Heads.end();
+        it != e; ++it) {
+  if (Tails.count(*it))
+      continue;
+
+    // We found a store instr that starts a chain. Now follow the chain and try
+    // to transform it.
+    SmallPtrSet<Instruction *, 8> AdjacentStores;
+    StoreInst *I = *it;
+
+    StoreInst *HeadStore = I;
+    unsigned StoreSize = 0;
+
+    // Collect the chain into a list.
+    while (Tails.count(I) || Heads.count(I)) {
+      if (TransformedStores.count(I))
+        break;
+      AdjacentStores.insert(I);
+
+      StoreSize += getStoreSizeInBytes(I, DL);
+      // Move to the next value in the chain.
+      I = ConsecutiveChain[I];
+    }
+
+    Value *StorePtr = HeadStore->getPointerOperand();
+    const SCEVAddRecExpr *StoreEv = cast<SCEVAddRecExpr>(SE->getSCEV(StorePtr));
+    APInt Stride = getStoreStride(StoreEv);
+
+    LoadInst *StoreLoadInst = dyn_cast<LoadInst>(HeadStore->getValueOperand());
+    Value *LoadPtr =
+        GetUnderlyingObject(StoreLoadInst->getPointerOperand(), *DL);
+    const SCEVAddRecExpr *LoadEv =
+      dyn_cast<SCEVAddRecExpr>(SE->getSCEV(StoreLoadInst->getPointerOperand()));
+
+
+    // Check to see if the stride matches the size of the stores.  If so, then
+    // we know that every byte is touched in the loop.
+    if (StoreSize != Stride && StoreSize != -Stride)
+      continue;
+
+    bool NegStride = StoreSize == -Stride;
+    if (processLoopStoreOfLoopLoadMain(StorePtr, StoreSize, HeadStore,
+                                       StoreLoadInst, AdjacentStores,
+                                       StoreEv,LoadPtr,LoadEv, BECount,
+                                       NegStride)) {
+      TransformedStores.insert(AdjacentStores.begin(), AdjacentStores.end());
+      Changed = true;
+     }
+   }
+
+   return Changed;
+}
+
+/// processLoopStoreOfLoopLoadMain - We see strided stores and loads , If we can
+/// transform this into a memcpy in the loop preheader , do so.
+bool LoopIdiomRecognize::processLoopStoreOfLoopLoadMain(
+    Value *DestPtr, unsigned StoreSize, StoreInst *TheStore,
+    LoadInst *TheLoad, SmallPtrSetImpl<Instruction *> &Stores,
+    const SCEVAddRecExpr *Ev, Value *LoadPtr,
+  const SCEVAddRecExpr *LoadEv, const SCEV *BECount, bool NegStride) {
 
   // The trip count of the loop and the base pointer of the addrec SCEV is
   // guaranteed to be loop invariant, which means that it should dominate the
@@ -923,14 +1065,18 @@ bool LoopIdiomRecognize::processLoopStoreOfLoopLoad(StoreInst *SI,
   IRBuilder<> Builder(Preheader->getTerminator());
   SCEVExpander Expander(*SE, *DL, "loop-idiom");
 
-  const SCEV *StrStart = StoreEv->getStart();
-  unsigned StrAS = SI->getPointerAddressSpace();
+  const SCEV *StrStart = Ev->getStart();
+  unsigned StrAS =  DestPtr->getType()->getPointerAddressSpace();
   Type *IntPtrTy = Builder.getIntPtrTy(*DL, StrAS);
 
   // Handle negative strided loops.
   if (NegStride)
     StrStart = getStartForNegStride(StrStart, BECount, IntPtrTy, StoreSize, SE);
 
+  // TODO: ideally we should still be able to generate memcpy if SCEV expander
+  // is taught to generate the dependencies at the latest point.
+  if (!isSafeToExpand(StrStart, *SE))
+    return false;
   // Okay, we have a strided store "p[i]" of a loaded value.  We can turn
   // this into a memcpy in the loop preheader now if we want.  However, this
   // would be unsafe to do if there is anything else in the loop that may read
@@ -940,8 +1086,6 @@ bool LoopIdiomRecognize::processLoopStoreOfLoopLoad(StoreInst *SI,
   Value *StoreBasePtr = Expander.expandCodeFor(
       StrStart, Builder.getInt8PtrTy(StrAS), Preheader->getTerminator());
 
-  SmallPtrSet<Instruction *, 1> Stores;
-  Stores.insert(SI);
   if (mayLoopAccessLocation(StoreBasePtr, MRI_ModRef, CurLoop, BECount,
                             StoreSize, *AA, Stores)) {
     Expander.clear();
@@ -951,11 +1095,16 @@ bool LoopIdiomRecognize::processLoopStoreOfLoopLoad(StoreInst *SI,
   }
 
   const SCEV *LdStart = LoadEv->getStart();
-  unsigned LdAS = LI->getPointerAddressSpace();
+  unsigned LdAS = LoadPtr->getType()->getPointerAddressSpace();
 
   // Handle negative strided loops.
   if (NegStride)
     LdStart = getStartForNegStride(LdStart, BECount, IntPtrTy, StoreSize, SE);
+
+  // TODO: ideally we should still be able to generate memcpy if SCEV expander
+  // is taught to generate the dependencies at the latest point.
+  if (!isSafeToExpand(LdStart, *SE))
+    return false;
 
   // For a memcpy, we have to make sure that the input array is not being
   // mutated by the loop.
@@ -982,7 +1131,6 @@ bool LoopIdiomRecognize::processLoopStoreOfLoopLoad(StoreInst *SI,
 
   const SCEV *NumBytesS =
       SE->getAddExpr(BECount, SE->getOne(IntPtrTy), SCEV::FlagNUW);
-
   if (StoreSize != 1)
     NumBytesS = SE->getMulExpr(NumBytesS, SE->getConstant(IntPtrTy, StoreSize),
                                SCEV::FlagNUW);
@@ -990,12 +1138,12 @@ bool LoopIdiomRecognize::processLoopStoreOfLoopLoad(StoreInst *SI,
   Value *NumBytes =
       Expander.expandCodeFor(NumBytesS, IntPtrTy, Preheader->getTerminator());
 
-  unsigned Align = std::min(SI->getAlignment(), LI->getAlignment());
+  unsigned Align = std::min(TheStore->getAlignment(), TheLoad->getAlignment());
   CallInst *NewCall = nullptr;
   // Check whether to generate an unordered atomic memcpy:
   //  If the load or store are atomic, then they must neccessarily be unordered
   //  by previous checks.
-  if (!SI->isAtomic() && !LI->isAtomic())
+  if (!TheStore->isAtomic() && !TheLoad->isAtomic())
     NewCall = Builder.CreateMemCpy(StoreBasePtr, LoadBasePtr, NumBytes, Align);
   else {
     // We cannot allow unaligned ops for unordered load/store, so reject
@@ -1017,19 +1165,20 @@ bool LoopIdiomRecognize::processLoopStoreOfLoopLoad(StoreInst *SI,
     // atomic loads/stores are *required* by the spec to have an alignment
     // but non-atomic loads/stores may not.
     NewCall->addParamAttr(0, Attribute::getWithAlignment(NewCall->getContext(),
-                                                         SI->getAlignment()));
+                                                     TheStore->getAlignment()));
     NewCall->addParamAttr(1, Attribute::getWithAlignment(NewCall->getContext(),
-                                                         LI->getAlignment()));
+                                                     TheLoad->getAlignment()));
   }
-  NewCall->setDebugLoc(SI->getDebugLoc());
+  NewCall->setDebugLoc(TheStore->getDebugLoc());
 
   DEBUG(dbgs() << "  Formed memcpy: " << *NewCall << "\n"
-               << "    from load ptr=" << *LoadEv << " at: " << *LI << "\n"
-               << "    from store ptr=" << *StoreEv << " at: " << *SI << "\n");
+               << "    from load ptr=" << *LoadEv << " at: " << *TheLoad << "\n"
+               << "    from store ptr=" << *Ev << " at: " << *TheStore << "\n");
 
   // Okay, the memcpy has been formed.  Zap the original store and anything that
   // feeds into it.
-  deleteDeadInstruction(SI);
+  for (auto *I : Stores)
+    deleteDeadInstruction(I);
   ++NumMemCpy;
   return true;
 }
@@ -1050,7 +1199,6 @@ bool LoopIdiomRecognize::avoidLIRForMultiBlockLoop(bool IsMemset,
 
   return false;
 }
-
 bool LoopIdiomRecognize::runOnNoncountableLoop() {
   return recognizePopcount() || recognizeAndInsertCTLZ();
 }
@@ -1454,7 +1602,6 @@ static CallInst *createCTLZIntrinsic(IRBuilder<> &IRBuilder, Value *Val,
                                      const DebugLoc &DL, bool ZeroCheck) {
   Value *Ops[] = {Val, ZeroCheck ? IRBuilder.getTrue() : IRBuilder.getFalse()};
   Type *Tys[] = {Val->getType()};
-
   Module *M = IRBuilder.GetInsertBlock()->getParent()->getParent();
   Value *Func = Intrinsic::getDeclaration(M, Intrinsic::ctlz, Tys);
   CallInst *CI = IRBuilder.CreateCall(Func, Ops);
