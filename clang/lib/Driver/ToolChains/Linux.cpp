@@ -54,7 +54,8 @@ static std::string getMultiarchTriple(const Driver &D,
   // regardless of what the actual target triple is.
   case llvm::Triple::arm:
   case llvm::Triple::thumb:
-    if (TargetEnvironment == llvm::Triple::GNUEABIHF) {
+    if (TargetEnvironment == llvm::Triple::GNUEABIHF ||
+        TargetEnvironment == llvm::Triple::MuslEABIHF) {
       if (D.getVFS().exists(SysRoot + "/lib/arm-linux-gnueabihf"))
         return "arm-linux-gnueabihf";
     } else {
@@ -64,7 +65,8 @@ static std::string getMultiarchTriple(const Driver &D,
     break;
   case llvm::Triple::armeb:
   case llvm::Triple::thumbeb:
-    if (TargetEnvironment == llvm::Triple::GNUEABIHF) {
+    if (TargetEnvironment == llvm::Triple::GNUEABIHF ||
+        TargetEnvironment == llvm::Triple::MuslEABIHF) {
       if (D.getVFS().exists(SysRoot + "/lib/armeb-linux-gnueabihf"))
         return "armeb-linux-gnueabihf";
     } else {
