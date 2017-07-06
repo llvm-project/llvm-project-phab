@@ -582,9 +582,8 @@ void Debugger::SettingsTerminate() { Target::SettingsTerminate(); }
 
 bool Debugger::LoadPlugin(const FileSpec &spec, Status &error) {
   if (g_load_plugin_callback) {
-    llvm::sys::DynamicLibrary dynlib =
-        g_load_plugin_callback(shared_from_this(), spec, error);
-    if (dynlib.isValid()) {
+    if (llvm::sys::DynamicLibrary *dynlib =
+        g_load_plugin_callback(shared_from_this(), spec, error)) {
       m_loaded_plugins.push_back(dynlib);
       return true;
     }

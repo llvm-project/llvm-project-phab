@@ -55,12 +55,11 @@
 using namespace lldb;
 using namespace lldb_private;
 
-static llvm::sys::DynamicLibrary LoadPlugin(const lldb::DebuggerSP &debugger_sp,
-                                            const FileSpec &spec,
-                                            Status &error) {
-  llvm::sys::DynamicLibrary dynlib =
-      llvm::sys::DynamicLibrary::getPermanentLibrary(spec.GetPath().c_str());
-  if (dynlib.isValid()) {
+static llvm::sys::DynamicLibrary *
+LoadPlugin(const lldb::DebuggerSP &debugger_sp, const FileSpec &spec,
+           Status &error) {
+  if (llvm::sys::DynamicLibrary *dynlib =
+      llvm::sys::DynamicLibrary::getPermanentLibrary(spec.GetPath().c_str())) {
     typedef bool (*LLDBCommandPluginInit)(lldb::SBDebugger & debugger);
 
     lldb::SBDebugger debugger_sb(debugger_sp);
@@ -69,7 +68,7 @@ static llvm::sys::DynamicLibrary LoadPlugin(const lldb::DebuggerSP &debugger_sp,
     // TODO: mangle this differently for your system - on OSX, the first
     // underscore needs to be removed and the second one stays
     LLDBCommandPluginInit init_func =
-        (LLDBCommandPluginInit)dynlib.getAddressOfSymbol(
+        (LLDBCommandPluginInit)dynlib->getAddressOfSymbol(
             "_ZN4lldb16PluginInitializeENS_10SBDebuggerE");
     if (init_func) {
       if (init_func(debugger_sb))
@@ -88,7 +87,7 @@ static llvm::sys::DynamicLibrary LoadPlugin(const lldb::DebuggerSP &debugger_sp,
     else
       error.SetErrorString("no such file");
   }
-  return llvm::sys::DynamicLibrary();
+  return nullptr;
 }
 
 static llvm::ManagedStatic<SystemLifetimeManager> g_debugger_lifetime;

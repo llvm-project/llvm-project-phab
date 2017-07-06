@@ -402,7 +402,7 @@ protected:
   std::shared_ptr<llvm::raw_ostream> m_log_callback_stream_sp;
   ConstString m_instance_name;
   static LoadPluginCallbackType g_load_plugin_callback;
-  typedef std::vector<llvm::sys::DynamicLibrary> LoadedPluginsList;
+  typedef std::vector<llvm::sys::DynamicLibrary*> LoadedPluginsList;
   LoadedPluginsList m_loaded_plugins;
   HostThread m_event_handler_thread;
   HostThread m_io_handler_thread;

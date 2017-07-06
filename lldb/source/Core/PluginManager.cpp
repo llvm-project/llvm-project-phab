@@ -52,11 +52,9 @@ typedef bool (*PluginInitCallback)();
 typedef void (*PluginTermCallback)();
 
 struct PluginInfo {
-  PluginInfo() : plugin_init_callback(nullptr), plugin_term_callback(nullptr) {}
-
-  llvm::sys::DynamicLibrary library;
-  PluginInitCallback plugin_init_callback;
-  PluginTermCallback plugin_term_callback;
+  llvm::sys::DynamicLibrary* library = nullptr;
+  PluginInitCallback plugin_init_callback = nullptr;
+  PluginTermCallback plugin_term_callback = nullptr;
 };
 
 typedef std::map<FileSpec, PluginInfo> PluginTerminateMap;
@@ -113,10 +111,10 @@ LoadPluginCallback(void *baton, llvm::sys::fs::file_type ft,
       std::string pluginLoadError;
       plugin_info.library = llvm::sys::DynamicLibrary::getPermanentLibrary(
           plugin_file_spec.GetPath().c_str(), &pluginLoadError);
-      if (plugin_info.library.isValid()) {
+      if (plugin_info.library) {
         bool success = false;
         plugin_info.plugin_init_callback = CastToFPtr<PluginInitCallback>(
-            plugin_info.library.getAddressOfSymbol("LLDBPluginInitialize"));
+            plugin_info.library->getAddressOfSymbol("LLDBPluginInitialize"));
         if (plugin_info.plugin_init_callback) {
           // Call the plug-in "bool LLDBPluginInitialize(void)" function
           success = plugin_info.plugin_init_callback();
@@ -125,7 +123,7 @@ LoadPluginCallback(void *baton, llvm::sys::fs::file_type ft,
         if (success) {
           // It is ok for the "LLDBPluginTerminate" symbol to be nullptr
           plugin_info.plugin_term_callback = CastToFPtr<PluginTermCallback>(
-              plugin_info.library.getAddressOfSymbol("LLDBPluginTerminate"));
+              plugin_info.library->getAddressOfSymbol("LLDBPluginTerminate"));
         } else {
           // The initialize function returned FALSE which means the plug-in
           // might not be
@@ -185,14 +183,12 @@ void PluginManager::Terminate() {
   std::lock_guard<std::recursive_mutex> guard(GetPluginMapMutex());
   PluginTerminateMap &plugin_map = GetPluginMap();
 
-  PluginTerminateMap::const_iterator pos, end = plugin_map.end();
-  for (pos = plugin_map.begin(); pos != end; ++pos) {
+  for (const auto &pos : plugin_map) {
+    const PluginInfo &plugin = pos.second;
     // Call the plug-in "void LLDBPluginTerminate (void)" function if there
     // is one (if the symbol was not nullptr).
-    if (pos->second.library.isValid()) {
-      if (pos->second.plugin_term_callback)
-        pos->second.plugin_term_callback();
-    }
+    if (plugin.library && plugin.plugin_term_callback)
+      plugin.plugin_term_callback();
   }
   plugin_map.clear();
 }

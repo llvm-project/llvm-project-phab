@@ -26,7 +26,7 @@ namespace lldb_private {
 class Platform;
 class ExecutionContext;
 
-typedef llvm::sys::DynamicLibrary (*LoadPluginCallbackType)(
+typedef llvm::sys::DynamicLibrary* (*LoadPluginCallbackType)(
     const lldb::DebuggerSP &debugger_sp, const FileSpec &spec, Status &error);
 
 //----------------------------------------------------------------------
