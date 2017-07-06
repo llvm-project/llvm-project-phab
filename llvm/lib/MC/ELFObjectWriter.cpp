@@ -625,53 +625,13 @@ void ELFObjectWriter::recordRelocation(MCAssembler &Asm,
                                        const MCAsmLayout &Layout,
                                        const MCFragment *Fragment,
                                        MCReloc &Fixup) {
-  bool IsPCRel = Asm.getBackend().getFixupKindInfo(Fixup.getKind()).Flags &
-                 MCFixupKindInfo::FKF_IsPCRel;
   MCReloc &Target = Fixup;
   uint64_t &FixedValue = Fixup.getConstant();
   const MCSectionELF &FixupSection = cast<MCSectionELF>(*Fragment->getParent());
   uint64_t C = Target.getConstant();
   uint64_t FixupOffset = Layout.getFragmentOffset(Fragment) + Fixup.getOffset();
   MCContext &Ctx = Asm.getContext();
-
-  if (const MCSymbol *SymBP = Target.getSymB()) {
-    // Let A, B and C being the components of Target and R be the location of
-    // the fixup. If the fixup is not pcrel, we want to compute (A - B + C).
-    // If it is pcrel, we want to compute (A - B + C - R).
-
-    // In general, ELF has no relocations for -B. It can only represent (A + C)
-    // or (A + C - R). If B = R + K and the relocation is not pcrel, we can
-    // replace B to implement it: (A - R - K + C)
-    if (IsPCRel) {
-      Ctx.reportError(
-          Fixup.getLoc(),
-          "No relocation available to represent this relative expression");
-      return;
-    }
-
-    const MCSymbol &SymB = *SymBP;
-
-    if (SymB.isUndefined()) {
-      Ctx.reportError(Fixup.getLoc(),
-                      Twine("symbol '") + SymB.getName() +
-                          "' can not be undefined in a subtraction expression");
-      return;
-    }
-
-    assert(!SymB.isAbsolute() && "Should have been folded");
-    const MCSection &SecB = SymB.getSection();
-    if (&SecB != &FixupSection) {
-      Ctx.reportError(Fixup.getLoc(),
-                      "Cannot represent a difference across sections");
-      return;
-    }
-
-    Fixup.setKind(Asm.getBackend().getPCRelKind(Fixup.getKind()));
-    uint64_t SymBOffset = Layout.getSymbolOffset(SymB);
-    uint64_t K = SymBOffset - FixupOffset;
-    IsPCRel = true;
-    C -= K;
-  }
+  assert(!Target.getSymB());
 
   // We either rejected the fixup or folded B into C at this point.
   const MCSymbolRefExpr *RefA = Target.getSymA();
