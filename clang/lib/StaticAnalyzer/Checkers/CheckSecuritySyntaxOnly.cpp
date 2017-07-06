@@ -43,6 +43,8 @@ struct ChecksFilter {
   DefaultBool check_mktemp;
   DefaultBool check_mkstemp;
   DefaultBool check_strcpy;
+  DefaultBool check_UnsafeBufferHandling;
+  DefaultBool check_DeprecatedBufferHandling;
   DefaultBool check_rand;
   DefaultBool check_vfork;
   DefaultBool check_FloatLoopCounter;
@@ -53,6 +55,8 @@ struct ChecksFilter {
   CheckName checkName_mktemp;
   CheckName checkName_mkstemp;
   CheckName checkName_strcpy;
+  CheckName checkName_UnsafeBufferHandling;
+  CheckName checkName_DeprecatedBufferHandling;
   CheckName checkName_rand;
   CheckName checkName_vfork;
   CheckName checkName_FloatLoopCounter;
@@ -96,6 +100,8 @@ public:
   void checkCall_mkstemp(const CallExpr *CE, const FunctionDecl *FD);
   void checkCall_strcpy(const CallExpr *CE, const FunctionDecl *FD);
   void checkCall_strcat(const CallExpr *CE, const FunctionDecl *FD);
+  void checkUnsafeBufferHandling(const CallExpr *CE, const FunctionDecl *FD);
+  void checkDeprecatedBufferHandling(const CallExpr *CE, const FunctionDecl *FD);
   void checkCall_rand(const CallExpr *CE, const FunctionDecl *FD);
   void checkCall_random(const CallExpr *CE, const FunctionDecl *FD);
   void checkCall_vfork(const CallExpr *CE, const FunctionDecl *FD);
@@ -138,6 +144,29 @@ void WalkAST::VisitCallExpr(CallExpr *CE) {
     .Case("mkstemps", &WalkAST::checkCall_mkstemp)
     .Cases("strcpy", "__strcpy_chk", &WalkAST::checkCall_strcpy)
     .Cases("strcat", "__strcat_chk", &WalkAST::checkCall_strcat)
+    .Case("sprintf", &WalkAST::checkUnsafeBufferHandling)
+    .Case("vsprintf", &WalkAST::checkUnsafeBufferHandling)
+    .Case("scanf", &WalkAST::checkUnsafeBufferHandling)
+    .Case("wscanf", &WalkAST::checkUnsafeBufferHandling)
+    .Case("fscanf", &WalkAST::checkUnsafeBufferHandling)
+    .Case("fwscanf", &WalkAST::checkUnsafeBufferHandling)
+    .Case("vscanf", &WalkAST::checkUnsafeBufferHandling)
+    .Case("vwscanf", &WalkAST::checkUnsafeBufferHandling)
+    .Case("vfscanf", &WalkAST::checkUnsafeBufferHandling)
+    .Case("vfwscanf", &WalkAST::checkUnsafeBufferHandling)
+    .Case("sscanf", &WalkAST::checkUnsafeBufferHandling)
+    .Case("swscanf", &WalkAST::checkUnsafeBufferHandling)
+    .Case("vsscanf", &WalkAST::checkUnsafeBufferHandling)
+    .Case("vswscanf", &WalkAST::checkUnsafeBufferHandling)
+    .Case("swprintf", &WalkAST::checkDeprecatedBufferHandling)
+    .Case("snprintf", &WalkAST::checkDeprecatedBufferHandling)
+    .Case("vswprintf", &WalkAST::checkDeprecatedBufferHandling)
+    .Case("vsnprintf", &WalkAST::checkDeprecatedBufferHandling)
+    .Case("memcpy", &WalkAST::checkDeprecatedBufferHandling)
+    .Case("memmove", &WalkAST::checkDeprecatedBufferHandling)
+    .Case("strncpy", &WalkAST::checkDeprecatedBufferHandling)
+    .Case("strncat", &WalkAST::checkDeprecatedBufferHandling)
+    .Case("memset", &WalkAST::checkDeprecatedBufferHandling)
     .Case("drand48", &WalkAST::checkCall_rand)
     .Case("erand48", &WalkAST::checkCall_rand)
     .Case("jrand48", &WalkAST::checkCall_rand)
@@ -553,6 +582,120 @@ void WalkAST::checkCall_strcat(const CallExpr *CE, const FunctionDecl *FD) {
 }
 
 //===----------------------------------------------------------------------===//
+// Check: Any use of 'sprintf', 'vsprintf', 'scanf', 'wscanf', 'fscanf',
+//        'fwscanf', 'vscanf', 'vwscanf', 'vfscanf', 'vfwscanf', 'sscanf',
+//        'swscanf', 'vsscanf', 'vswscanf', 'swprintf', 'snprintf', 'vswprintf',
+//        'vsnprintf', 'memcpy', 'memmove', 'strncpy', 'strncat', 'memset'
+//        is deprecated since C11.
+// CWE-119: Improper Restriction of Operations within
+// the Bounds of a Memory Buffer
+//===----------------------------------------------------------------------===//
+void WalkAST::checkDeprecatedBufferHandling(const CallExpr *CE, const FunctionDecl *FD) {
+  if (!filter.check_DeprecatedBufferHandling)
+    return;
+
+  if(!BR.getContext().getLangOpts().C11)
+    return;
+
+  StringRef Name = FD->getIdentifier()->getName();
+  SmallString<128> buf1;
+  SmallString<512> buf2;
+  llvm::raw_svector_ostream out1(buf1);
+  llvm::raw_svector_ostream out2(buf2);
+  out1 << "Potential insecure memory buffer bounds restriction in call '"
+       << Name << "'";
+  out2 << "Using '" << Name << "' is depracated as it does not "
+                     "provide bounding of the memory buffer or security "
+                     "checks introduced in the C11 standard. Replace "
+                     "with analogous functions introduced in C11 standard that "
+                     "supports length arguments or provides boundary checks such as '"
+                     << Name << "_s'.";
+  
+  PathDiagnosticLocation CELoc =
+    PathDiagnosticLocation::createBegin(CE, BR.getSourceManager(), AC);
+  BR.EmitBasicReport(AC->getDecl(), filter.checkName_DeprecatedBufferHandling,
+                     out1.str(),
+                     "Security",
+                     out2.str(),
+                     CELoc, CE->getCallee()->getSourceRange());
+}
+//===----------------------------------------------------------------------===//
+// Check: Use of 'sprintf', 'vsprintf', 'scanf', 'wscanf', 'fscanf',
+//        'fwscanf', 'vscanf', 'vwscanf', 'vfscanf', 'vfwscanf', 'sscanf',
+//        'swscanf', 'vsscanf', 'vswscanf' without buffer limitations
+//        is insecure.
+//
+// CWE-119: Improper Restriction of Operations within
+// the Bounds of a Memory Buffer
+//===----------------------------------------------------------------------===//
+
+void WalkAST::checkUnsafeBufferHandling(const CallExpr *CE, const FunctionDecl *FD) { //TODO:TESTS
+  if (!filter.check_UnsafeBufferHandling)
+    return;
+  checkDeprecatedBufferHandling(CE, FD);
+
+  // Issue a warning.
+  StringRef Name = FD->getIdentifier()->getName();
+  int ArgIndex =
+    llvm::StringSwitch<int>(Name)
+      .Case("sprintf", 1)
+      .Case("vsprintf", 1)
+      .Case("scanf", 0)
+      .Case("wscanf", 0)
+      .Case("fscanf", 1)
+      .Case("fwscanf", 1)
+      .Case("vscanf", 0)
+      .Case("vwscanf", 0)
+      .Case("vfscanf", 1)
+      .Case("vfwscanf", 1)
+      .Case("sscanf", 1)
+      .Case("swscanf", 1)
+      .Case("vsscanf", 1)
+      .Case("vswscanf", 1)
+      .Default(-1);
+      
+  assert(ArgIndex >= 0 && "Unsupported function");
+  
+  StringRef ReplaceName;
+  if(Name == "sprintf")
+    ReplaceName = "'snprintf' or 'sprintf";
+  else if(Name == "vsprintf")
+    ReplaceName = "'vsnprintf' or 'vsprintf";
+  else
+    ReplaceName = Name;
+  
+  // Currently we only handle (not wide) string literals. It is possible to do better,
+  // either by looking at references to const variables, or by doing real
+  // flow analysis. 
+  auto FormatString =
+    dyn_cast<StringLiteral>(CE->getArg(ArgIndex)->IgnoreParenImpCasts());
+  if(FormatString &&
+     FormatString->getString().find("%s") == StringRef::npos &&
+     FormatString->getString().find("%[") == StringRef::npos)
+    return;
+
+  SmallString<128> buf1;
+  SmallString<512> buf2;
+  llvm::raw_svector_ostream out1(buf1);
+  llvm::raw_svector_ostream out2(buf2);
+
+  out1 << "Potential insecure memory buffer bounds restriction in call '"
+       << Name << "'";
+  out2 << "Call to function '" << Name << "' is insecure as it does not "
+          "provide bounding of the memory buffer. Replace "
+          "with analogous functions that "
+          "support length arguments or provides boundary checks such as "
+       << "'" << Name << "_s' in case of C11.";
+  PathDiagnosticLocation CELoc =
+    PathDiagnosticLocation::createBegin(CE, BR.getSourceManager(), AC);
+  BR.EmitBasicReport(AC->getDecl(), filter.checkName_UnsafeBufferHandling,
+                     out1.str(),
+                     "Security",
+                     out2.str(),
+                     CELoc, CE->getCallee()->getSourceRange());
+}
+
+//===----------------------------------------------------------------------===//
 // Common check for str* functions with no bounds parameters.
 //===----------------------------------------------------------------------===//
 bool WalkAST::checkCall_strCommon(const CallExpr *CE, const FunctionDecl *FD) {
@@ -585,7 +728,6 @@ bool WalkAST::checkCall_strCommon(const CallExpr *CE, const FunctionDecl *FD) {
 // Originally: <rdar://problem/63371000>
 // CWE-338: Use of cryptographically weak prng
 //===----------------------------------------------------------------------===//
-
 void WalkAST::checkCall_rand(const CallExpr *CE, const FunctionDecl *FD) {
   if (!filter.check_rand || !CheckRand)
     return;
@@ -774,5 +916,5 @@ REGISTER_CHECKER(rand)
 REGISTER_CHECKER(vfork)
 REGISTER_CHECKER(FloatLoopCounter)
 REGISTER_CHECKER(UncheckedReturn)
-
-
+REGISTER_CHECKER(UnsafeBufferHandling)
+REGISTER_CHECKER(DeprecatedBufferHandling)

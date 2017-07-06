@@ -4393,6 +4393,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         CmdArgs.push_back("-analyzer-checker=security.insecureAPI.mktemp");
         CmdArgs.push_back("-analyzer-checker=security.insecureAPI.mkstemp");
         CmdArgs.push_back("-analyzer-checker=security.insecureAPI.vfork");
+        CmdArgs.push_back("-analyzer-checker=security.insecureAPI.UnsafeBufferHandling");
+        CmdArgs.push_back("-analyzer-checker=security.insecureAPI.DeprecatedBufferHandling");
       }
 
       // Default nullability checks.

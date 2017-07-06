@@ -367,6 +367,12 @@ let ParentPackage = InsecureAPI in {
   def UncheckedReturn : Checker<"UncheckedReturn">,
     HelpText<"Warn on uses of functions whose return values must be always checked">,
     DescFile<"CheckSecuritySyntaxOnly.cpp">;
+  def UnsafeBufferHandling : Checker<"UnsafeBufferHandling">,
+    HelpText<"Warn on uses of unsecure buffer manipulating functions">,
+    DescFile<"CheckSecuritySyntaxOnly.cpp">;
+  def DeprecatedBufferHandling : Checker<"DeprecatedBufferHandling">,
+    HelpText<"Warn on uses of deprecated buffer manipulating functions">,
+    DescFile<"CheckSecuritySyntaxOnly.cpp">;
 }
 let ParentPackage = Security in {
   def FloatLoopCounter : Checker<"FloatLoopCounter">,

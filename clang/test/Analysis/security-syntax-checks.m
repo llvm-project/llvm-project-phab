@@ -13,6 +13,9 @@
 # define BUILTIN(f) f
 #endif /* USE_BUILTINS */
 
+#include "Inputs/system-header-simulator-for-valist.h"
+#include "Inputs/system-header-simulator-for-simple-stream.h"
+
 typedef typeof(sizeof(int)) size_t;
 
 
@@ -202,3 +205,82 @@ void test_mkstemp() {
   mkdtemp("XXXXXX");
 }
 
+
+//===----------------------------------------------------------------------===
+// deprecated or unsafe buffer handling
+//===----------------------------------------------------------------------===
+typedef int wchar_t;
+
+int sprintf(char *str, const char *format, ...);
+//int vsprintf (char *s, const char *format, va_list arg);
+int scanf(const char *format, ...);
+int wscanf(const wchar_t *format, ...);
+int fscanf(FILE *stream, const char *format, ...);
+int fwscanf(FILE *stream, const wchar_t *format, ...);
+int vscanf(const char *format, va_list arg);
+int vwscanf(const wchar_t *format, va_list arg);
+int vfscanf(FILE *stream, const char *format, va_list arg);
+int vfwscanf(FILE *stream, const wchar_t *format, va_list arg);
+int sscanf(const char *s, const char *format, ...);
+int swscanf(const wchar_t *ws, const wchar_t *format, ...);
+int vsscanf(const char *s, const char *format, va_list arg);
+int vswscanf(const wchar_t *ws, const wchar_t *format, va_list arg);
+int swprintf(wchar_t *ws, size_t len, const wchar_t *format, ...);
+int snprintf(char *s, size_t n, const char *format, ...);
+int vswprintf(wchar_t *ws, size_t len, const wchar_t *format, va_list arg);
+int vsnprintf(char *s, size_t n, const char *format, va_list arg);
+void *memcpy(void *destination, const void *source, size_t num);
+void *memmove(void *destination, const void *source, size_t num);
+char *strncpy(char *destination, const char *source, size_t num);
+char *strncat(char *destination, const char *source, size_t num);
+void *memset(void *ptr, int value, size_t num);
+
+void test_deprecated_or_unsafe_buffer_handling_1() {
+  char buf [5];
+  wchar_t wbuf [5];
+  int a;
+  FILE *file;
+  sprintf(buf, "a"); // expected-warning{{Using 'sprintf' is depracated as it does not provide bounding of the memory buffer or security checks introduced in the C11 standard. Replace with analogous functions introduced in C11 standard that supports length arguments or provides boundary checks such as 'sprintf_s'}}
+  scanf("%d", &a); // expected-warning{{Using 'scanf' is depracated as it does not provide bounding of the memory buffer or security checks introduced in the C11 standard. Replace with analogous functions introduced in C11 standard that supports length arguments or provides boundary checks such as 'scanf_s'}}
+  scanf("%s", buf); // expected-warning{{Call to function 'scanf' is insecure as it does not provide bounding of the memory buffer. Replace with analogous functions that support length arguments or provides boundary checks such as 'scanf_s' in case of C11}} expected-warning{{Using 'scanf' is depracated as it does not provide bounding of the memory buffer or security checks introduced in the C11 standard. Replace with analogous functions introduced in C11 standard that supports length arguments or provides boundary checks such as 'scanf_s'}}
+  scanf("%4s", buf); // expected-warning{{Using 'scanf' is depracated as it does not provide bounding of the memory buffer or security checks introduced in the C11 standard. Replace with analogous functions introduced in C11 standard that supports length arguments or provides boundary checks such as 'scanf_s'}}
+  wscanf((const wchar_t*) L"%s", buf); // expected-warning{{Call to function 'wscanf' is insecure as it does not provide bounding of the memory buffer. Replace with analogous functions that support length arguments or provides boundary checks such as 'wscanf_s' in case of C11}} expected-warning{{Using 'wscanf' is depracated as it does not provide bounding of the memory buffer or security checks introduced in the C11 standard. Replace with analogous functions introduced in C11 standard that supports length arguments or provides boundary checks such as 'wscanf_s'}}
+  fscanf(file, "%d", &a); // expected-warning{{Using 'fscanf' is depracated as it does not provide bounding of the memory buffer or security checks introduced in the C11 standard. Replace with analogous functions introduced in C11 standard that supports length arguments or provides boundary checks such as 'fscanf_s'}}
+  fscanf(file, "%s", buf); // expected-warning{{Call to function 'fscanf' is insecure as it does not provide bounding of the memory buffer. Replace with analogous functions that support length arguments or provides boundary checks such as 'fscanf_s' in case of C11}} expected-warning{{Using 'fscanf' is depracated as it does not provide bounding of the memory buffer or security checks introduced in the C11 standard. Replace with analogous functions introduced in C11 standard that supports length arguments or provides boundary checks such as 'fscanf_s'}}
+  fscanf(file, "%4s", buf); // expected-warning{{Using 'fscanf' is depracated as it does not provide bounding of the memory buffer or security checks introduced in the C11 standard. Replace with analogous functions introduced in C11 standard that supports length arguments or provides boundary checks such as 'fscanf_s'}}
+  fwscanf(file, (const wchar_t*) L"%s", wbuf); // expected-warning{{Call to function 'fwscanf' is insecure as it does not provide bounding of the memory buffer. Replace with analogous functions that support length arguments or provides boundary checks such as 'fwscanf_s' in case of C11}} expected-warning{{Using 'fwscanf' is depracated as it does not provide bounding of the memory buffer or security checks introduced in the C11 standard. Replace with analogous functions introduced in C11 standard that supports length arguments or provides boundary checks such as 'fwscanf_s'}}
+  sscanf("5", "%d", &a); // expected-warning{{Using 'sscanf' is depracated as it does not provide bounding of the memory buffer or security checks introduced in the C11 standard. Replace with analogous functions introduced in C11 standard that supports length arguments or provides boundary checks such as 'sscanf_s'}}
+  sscanf("5", "%s", buf); // expected-warning{{Call to function 'sscanf' is insecure as it does not provide bounding of the memory buffer. Replace with analogous functions that support length arguments or provides boundary checks such as 'sscanf_s' in case of C11}} expected-warning{{Using 'sscanf' is depracated as it does not provide bounding of the memory buffer or security checks introduced in the C11 standard. Replace with analogous functions introduced in C11 standard that supports length arguments or provides boundary checks such as 'sscanf_s'}}
+  sscanf("5", "%4s", buf); // expected-warning{{Using 'sscanf' is depracated as it does not provide bounding of the memory buffer or security checks introduced in the C11 standard. Replace with analogous functions introduced in C11 standard that supports length arguments or provides boundary checks such as 'sscanf_s'}}
+  swscanf(L"5", (const wchar_t*) L"%s", wbuf); // expected-warning{{Call to function 'swscanf' is insecure as it does not provide bounding of the memory buffer. Replace with analogous functions that support length arguments or provides boundary checks such as 'swscanf_s' in case of C11}} expected-warning{{Using 'swscanf' is depracated as it does not provide bounding of the memory buffer or security checks introduced in the C11 standard. Replace with analogous functions introduced in C11 standard that supports length arguments or provides boundary checks such as 'swscanf_s'}}
+  swprintf(L"5", 1, (const wchar_t*) L"%s", wbuf); // expected-warning{{Using 'swprintf' is depracated as it does not provide bounding of the memory buffer or security checks introduced in the C11 standard. Replace with analogous functions introduced in C11 standard that supports length arguments or provides boundary checks such as 'swprintf_s'}}
+  snprintf("5", 1, "%s", buf); // expected-warning{{Using 'snprintf' is depracated as it does not provide bounding of the memory buffer or security checks introduced in the C11 standard. Replace with analogous functions introduced in C11 standard that supports length arguments or provides boundary checks such as 'snprintf_s'}}
+  memcpy(buf, wbuf, 1); // expected-warning{{Using 'memcpy' is depracated as it does not provide bounding of the memory buffer or security checks introduced in the C11 standard. Replace with analogous functions introduced in C11 standard that supports length arguments or provides boundary checks such as 'memcpy_s'}}
+  memmove(buf, wbuf, 1); // expected-warning{{Using 'memmove' is depracated as it does not provide bounding of the memory buffer or security checks introduced in the C11 standard. Replace with analogous functions introduced in C11 standard that supports length arguments or provides boundary checks such as 'memmove_s'}}
+  strncpy(buf, "a", 1); // expected-warning{{Using 'strncpy' is depracated as it does not provide bounding of the memory buffer or security checks introduced in the C11 standard. Replace with analogous functions introduced in C11 standard that supports length arguments or provides boundary checks such as 'strncpy_s'}}
+  strncat(buf, "a", 1); // expected-warning{{Using 'strncat' is depracated as it does not provide bounding of the memory buffer or security checks introduced in the C11 standard. Replace with analogous functions introduced in C11 standard that supports length arguments or provides boundary checks such as 'strncat_s'}}
+  memset(buf, 'a', 1); // expected-warning{{Using 'memset' is depracated as it does not provide bounding of the memory buffer or security checks introduced in the C11 standard. Replace with analogous functions introduced in C11 standard that supports length arguments or provides boundary checks such as 'memset_s'}}
+}
+
+void test_deprecated_or_unsafe_buffer_handling_2(const char *format, ...) {
+  char buf [5];
+  FILE *file;
+  va_list args;
+  va_start(args, format);
+  vsprintf(buf, format, args); // expected-warning{{Using 'vsprintf' is depracated as it does not provide bounding of the memory buffer or security checks introduced in the C11 standard. Replace with analogous functions introduced in C11 standard that supports length arguments or provides boundary checks such as 'vsprintf_s'}} expected-warning{{Call to function 'vsprintf' is insecure as it does not provide bounding of the memory buffer. Replace with analogous functions that support length arguments or provides boundary checks such as 'vsprintf_s' in case of C11}}
+  vscanf(format, args); // expected-warning{{Using 'vscanf' is depracated as it does not provide bounding of the memory buffer or security checks introduced in the C11 standard. Replace with analogous functions introduced in C11 standard that supports length arguments or provides boundary checks such as 'vscanf_s'}} expected-warning{{Call to function 'vscanf' is insecure as it does not provide bounding of the memory buffer. Replace with analogous functions that support length arguments or provides boundary checks such as 'vscanf_s' in case of C11}}
+  vfscanf(file, format, args); // expected-warning{{Using 'vfscanf' is depracated as it does not provide bounding of the memory buffer or security checks introduced in the C11 standard. Replace with analogous functions introduced in C11 standard that supports length arguments or provides boundary checks such as 'vfscanf_s'}} expected-warning{{Call to function 'vfscanf' is insecure as it does not provide bounding of the memory buffer. Replace with analogous functions that support length arguments or provides boundary checks such as 'vfscanf_s' in case of C11}}
+  vsscanf("a", format, args); // expected-warning{{Using 'vsscanf' is depracated as it does not provide bounding of the memory buffer or security checks introduced in the C11 standard. Replace with analogous functions introduced in C11 standard that supports length arguments or provides boundary checks such as 'vsscanf_s'}} expected-warning{{Call to function 'vsscanf' is insecure as it does not provide bounding of the memory buffer. Replace with analogous functions that support length arguments or provides boundary checks such as 'vsscanf_s' in case of C11}}
+  vsnprintf("a", 1, format, args); // expected-warning{{Using 'vsnprintf' is depracated as it does not provide bounding of the memory buffer or security checks introduced in the C11 standard. Replace with analogous functions introduced in C11 standard that supports length arguments or provides boundary checks such as 'vsnprintf_s'}}
+}
+
+void test_deprecated_or_unsafe_buffer_handling_3(const wchar_t *format, ...) {
+  wchar_t wbuf [5];
+  FILE *file;
+  va_list args;
+  va_start(args, format);
+  vwscanf(format, args); // expected-warning{{Using 'vwscanf' is depracated as it does not provide bounding of the memory buffer or security checks introduced in the C11 standard. Replace with analogous functions introduced in C11 standard that supports length arguments or provides boundary checks such as 'vwscanf_s'}} expected-warning{{Call to function 'vwscanf' is insecure as it does not provide bounding of the memory buffer. Replace with analogous functions that support length arguments or provides boundary checks such as 'vwscanf_s' in case of C11}}
+  vfwscanf(file, format, args); // expected-warning{{Using 'vfwscanf' is depracated as it does not provide bounding of the memory buffer or security checks introduced in the C11 standard. Replace with analogous functions introduced in C11 standard that supports length arguments or provides boundary checks such as 'vfwscanf_s'}} expected-warning{{Call to function 'vfwscanf' is insecure as it does not provide bounding of the memory buffer. Replace with analogous functions that support length arguments or provides boundary checks such as 'vfwscanf_s' in case of C11}}
+  vswscanf(L"a", format, args); // expected-warning{{Using 'vswscanf' is depracated as it does not provide bounding of the memory buffer or security checks introduced in the C11 standard. Replace with analogous functions introduced in C11 standard that supports length arguments or provides boundary checks such as 'vswscanf_s'}} expected-warning{{Call to function 'vswscanf' is insecure as it does not provide bounding of the memory buffer. Replace with analogous functions that support length arguments or provides boundary checks such as 'vswscanf_s' in case of C11}}
+  vswprintf(L"a", 1, format, args); // expected-warning{{Using 'vswprintf' is depracated as it does not provide bounding of the memory buffer or security checks introduced in the C11 standard. Replace with analogous functions introduced in C11 standard that supports length arguments or provides boundary checks such as 'vswprintf_s'}}
+}
