@@ -40,6 +40,7 @@ public:
   void addProfileRTLibs(const llvm::opt::ArgList &Args,
                         llvm::opt::ArgStringList &CmdArgs) const override;
   virtual std::string computeSysRoot() const;
+  virtual std::string computeIncludeSysRoot() const;
 
   virtual std::string getDynamicLinker(const llvm::opt::ArgList &Args) const;
 
@@ -48,6 +49,7 @@ public:
 protected:
   Tool *buildAssembler() const override;
   Tool *buildLinker() const override;
+  std::string defaultSysRoot() const;
 };
 
 } // end namespace toolchains

@@ -145,6 +145,9 @@ public:
   /// sysroot, if present
   std::string SysRoot;
 
+  /// Include sysroot, if present
+  std::string IncludeSysRoot;
+
   /// Dynamic loader prefix, if present
   std::string DyldPrefix;
 

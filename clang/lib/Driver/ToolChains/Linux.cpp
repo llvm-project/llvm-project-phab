@@ -380,10 +380,7 @@ Tool *Linux::buildAssembler() const {
   return new tools::gnutools::Assembler(*this);
 }
 
-std::string Linux::computeSysRoot() const {
-  if (!getDriver().SysRoot.empty())
-    return getDriver().SysRoot;
-
+std::string Linux::defaultSysRoot() const {
   if (!GCCInstallation.isValid() || !tools::isMipsArch(getTriple().getArch()))
     return std::string();
 
@@ -408,6 +405,20 @@ std::string Linux::computeSysRoot() const {
     return Path;
 
   return std::string();
+}
+
+std::string Linux::computeSysRoot() const {
+  if (!getDriver().SysRoot.empty())
+    return getDriver().SysRoot;
+
+  return defaultSysRoot();
+}
+
+std::string Linux::computeIncludeSysRoot() const {
+  if (!getDriver().IncludeSysRoot.empty())
+    return getDriver().IncludeSysRoot;
+
+  return defaultSysRoot();
 }
 
 std::string Linux::getDynamicLinker(const ArgList &Args) const {
@@ -541,7 +552,7 @@ std::string Linux::getDynamicLinker(const ArgList &Args) const {
 void Linux::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
                                       ArgStringList &CC1Args) const {
   const Driver &D = getDriver();
-  std::string SysRoot = computeSysRoot();
+  std::string SysRoot = computeIncludeSysRoot();
 
   if (DriverArgs.hasArg(clang::driver::options::OPT_nostdinc))
     return;
@@ -732,8 +743,8 @@ std::string Linux::findLibCxxIncludePath() const {
       // If this is a development, non-installed, clang, libcxx will
       // not be found at ../include/c++ but it likely to be found at
       // one of the following two locations:
-      DetectLibcxxIncludePath(getDriver().SysRoot + "/usr/local/include/c++"),
-      DetectLibcxxIncludePath(getDriver().SysRoot + "/usr/include/c++") };
+      DetectLibcxxIncludePath(getDriver().IncludeSysRoot + "/usr/local/include/c++"),
+      DetectLibcxxIncludePath(getDriver().IncludeSysRoot + "/usr/include/c++") };
   for (const auto &IncludePath : LibCXXIncludePathCandidates) {
     if (IncludePath.empty() || !getVFS().exists(IncludePath))
       continue;
