@@ -4803,7 +4803,7 @@ Error ModuleSummaryIndexBitcodeReader::parseValueSymbolTable(
       unsigned ValueID = Record[0];
       GlobalValue::GUID RefGUID = Record[1];
       // The "original name", which is the second value of the pair will be
-      // overriden later by a FS_COMBINED_ORIGINAL_NAME in the combined index.
+      // overriden later by a FS_ORIGINAL_NAME in the combined index.
       ValueIdToValueInfoMap[ValueID] =
           std::make_pair(TheIndex.getOrInsertValueInfo(RefGUID), RefGUID);
       break;
@@ -5083,6 +5083,8 @@ Error ModuleSummaryIndexBitcodeReader::parseEntireSummary(unsigned ID) {
       auto VIAndOriginalGUID = getValueInfoFromValueId(ValueID);
       FS->setModulePath(addThisModule()->first());
       FS->setOriginalName(VIAndOriginalGUID.second);
+      LastSeenSummary = FS.get();
+      LastSeenGUID = getValueInfoFromValueId(ValueID).first.getGUID();
       TheIndex.addGlobalValueSummary(VIAndOriginalGUID.first, std::move(FS));
       break;
     }
@@ -5113,6 +5115,8 @@ Error ModuleSummaryIndexBitcodeReader::parseEntireSummary(unsigned ID) {
 
       auto GUID = getValueInfoFromValueId(ValueID);
       AS->setOriginalName(GUID.second);
+      LastSeenSummary = AS.get();
+      LastSeenGUID = getValueInfoFromValueId(ValueID).first.getGUID();
       TheIndex.addGlobalValueSummary(GUID.first, std::move(AS));
       break;
     }
@@ -5127,6 +5131,8 @@ Error ModuleSummaryIndexBitcodeReader::parseEntireSummary(unsigned ID) {
       FS->setModulePath(addThisModule()->first());
       auto GUID = getValueInfoFromValueId(ValueID);
       FS->setOriginalName(GUID.second);
+      LastSeenSummary = FS.get();
+      LastSeenGUID = getValueInfoFromValueId(ValueID).first.getGUID();
       TheIndex.addGlobalValueSummary(GUID.first, std::move(FS));
       break;
     }
@@ -5212,8 +5218,8 @@ Error ModuleSummaryIndexBitcodeReader::parseEntireSummary(unsigned ID) {
       TheIndex.addGlobalValueSummary(VI, std::move(FS));
       break;
     }
-    // FS_COMBINED_ORIGINAL_NAME: [original_name]
-    case bitc::FS_COMBINED_ORIGINAL_NAME: {
+    // FS_ORIGINAL_NAME: [original_name]
+    case bitc::FS_ORIGINAL_NAME: {
       uint64_t OriginalName = Record[0];
       if (!LastSeenSummary)
         return error("Name attachment that does not follow a combined record");
