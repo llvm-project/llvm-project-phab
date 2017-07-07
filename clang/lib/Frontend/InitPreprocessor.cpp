@@ -69,6 +69,12 @@ static void AddImplicitInclude(MacroBuilder &Builder, StringRef File) {
   Builder.append(Twine("#include \"") + File + "\"");
 }
 
+static void AddImplicitIncludeIfExists(MacroBuilder &Builder, StringRef File) {
+  Builder.append(Twine("#if __has_include( \"") + File + "\")");
+  Builder.append(Twine("#include \"") + File + "\"");
+  Builder.append(Twine("#endif"));
+}
+
 static void AddImplicitIncludeMacros(MacroBuilder &Builder, StringRef File) {
   Builder.append(Twine("#__include_macros \"") + File + "\"");
   // Marker token to stop the __include_macros fetch loop.
@@ -1088,6 +1094,12 @@ void clang::InitializePreprocessor(
   // Exit the command line and go back to <built-in> (2 is LC_LEAVE).
   if (!PP.getLangOpts().AsmPreprocessor)
     Builder.append("# 1 \"<built-in>\" 2");
+  
+  // Process -finclude-if-exists directives.
+  for (unsigned i = 0, e = InitOpts.FIncludeIfExists.size(); i != e; ++i) {
+    const std::string &Path = InitOpts.FIncludeIfExists[i];
+    AddImplicitIncludeIfExists(Builder, Path);
+  }
 
   // If -imacros are specified, include them now.  These are processed before
   // any -include directives.
