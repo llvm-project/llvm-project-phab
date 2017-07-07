@@ -125,15 +125,6 @@ if (DEFINED SOURCE_DIRS AND DEFINED NAMES)
   endforeach()
 endif()
 
-# Allow -DFIRST_SOURCE_DIR arguments until Clang migrates to the new
-# -DSOURCE_DIRS argument.
-if(DEFINED FIRST_SOURCE_DIR)
-  append_info(${FIRST_NAME} "${FIRST_SOURCE_DIR}")
-  if(DEFINED SECOND_SOURCE_DIR)
-    append_info(${SECOND_NAME} "${SECOND_SOURCE_DIR}")
-  endif()
-endif()
-
 # Copy the file only if it has changed.
 execute_process(COMMAND ${CMAKE_COMMAND} -E copy_if_different
   "${HEADER_FILE}.txt" "${HEADER_FILE}")
