@@ -345,6 +345,9 @@ void removeUnwindEdge(BasicBlock *BB);
 /// Returns true if any basic block was removed.
 bool removeUnreachableBlocks(Function &F, LazyValueInfo *LVI = nullptr);
 
+bool removeUnreachable(Function &F, DominatorTree &DT,
+                       LazyValueInfo *LVI = nullptr);
+
 /// Combine the metadata of two instructions so that K can replace J
 ///
 /// Metadata not listed as known via KnownIDs is removed

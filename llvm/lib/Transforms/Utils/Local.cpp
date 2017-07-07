@@ -16,6 +16,7 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/Hashing.h"
+#include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
@@ -1697,6 +1698,51 @@ bool llvm::removeUnreachableBlocks(Function &F, LazyValueInfo *LVI) {
     else
       ++I;
 
+  return true;
+}
+
+bool llvm::removeUnreachable(Function &F, DominatorTree &DT,
+                             LazyValueInfo *LVI) {
+  ReversePostOrderTraversal<Function *> RPOT(&F);
+  SmallPtrSet<BasicBlock *, 8> Live;
+  SmallPtrSet<BasicBlock *, 8> Processed;
+
+  for (BasicBlock *BB : RPOT)
+    Live.insert(BB);
+
+  if (Live.size() == F.size())
+    return false;
+
+  SmallVector<BasicBlock *, 8> Worklist;
+  for (BasicBlock &BB : F) {
+    if (!Live.count(&BB))
+      Worklist.push_back(&BB);
+  }
+
+  while (!Worklist.empty()) {
+    BasicBlock *BB = Worklist.pop_back_val();
+    if (Processed.count(BB))
+      continue;
+    auto *N = DT.getNode(BB);
+    if (!N) {
+      if (LVI)
+        LVI->eraseBlock(BB);
+      BB->dropAllReferences();
+      BB->eraseFromParent();
+      continue;
+    }
+    for (auto *DTN : post_order(N)) {
+      BasicBlock *DTBlock = DTN->getBlock();
+      Processed.insert(DTBlock);
+      for (BasicBlock *Succ : successors(DTBlock))
+        Succ->removePredecessor(DTBlock);
+      if (LVI)
+        LVI->eraseBlock(DTBlock);
+      DT.eraseNode(DTBlock);
+      DTBlock->dropAllReferences();
+      DTBlock->eraseFromParent();
+    }
+  }
   return true;
 }
 
