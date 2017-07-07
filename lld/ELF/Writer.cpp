@@ -1245,6 +1245,9 @@ template <class ELFT> void Writer<ELFT>::finalizeSections() {
   if (ErrorCount)
     return;
 
+  if (In<ELFT>::MipsGot)
+    In<ELFT>::MipsGot->template build<ELFT>();
+
   addPredefinedSections();
   removeUnusedSyntheticSections();
 
@@ -1759,8 +1762,6 @@ template <class ELFT> void Writer<ELFT>::fixPredefinedSymbols() {
   if (ElfSym::Bss)
     ElfSym::Bss->Section = findSectionInScript(".bss");
 
-  // Setup MIPS _gp_disp/__gnu_local_gp symbols which should
-  // be equal to the _gp symbol's value.
   if (Config->EMachine == EM_MIPS && !ElfSym::MipsGp->Value) {
     // Find GP-relative section with the lowest address
     // and use this address to calculate default _gp value.
