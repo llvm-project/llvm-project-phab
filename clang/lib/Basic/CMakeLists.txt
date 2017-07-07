@@ -35,10 +35,8 @@ if(DEFINED llvm_vc AND DEFINED clang_vc)
   add_custom_command(OUTPUT "${version_inc}"
     DEPENDS "${llvm_vc}" "${clang_vc}" "${get_svn_script}"
     COMMAND
-    ${CMAKE_COMMAND} "-DFIRST_SOURCE_DIR=${LLVM_MAIN_SRC_DIR}"
-                     "-DFIRST_NAME=LLVM"
-                     "-DSECOND_SOURCE_DIR=${CLANG_SOURCE_DIR}"
-                     "-DSECOND_NAME=SVN"
+    ${CMAKE_COMMAND} "-DSOURCE_DIRS=${LLVM_MAIN_SRC_DIR}\;${CLANG_SOURCE_DIR}"
+                     "-DNAMES=LLVM\;SVN"
                      "-DHEADER_FILE=${version_inc}"
                      -P "${get_svn_script}")
 
