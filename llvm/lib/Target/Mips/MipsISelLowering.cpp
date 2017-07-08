@@ -3021,6 +3021,15 @@ MipsTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
   EVT Ty = Callee.getValueType();
   bool GlobalOrExternal = false, IsCallReloc = false;
 
+  if (Subtarget.useLongCalls() && Subtarget.hasSym32() && !IsPIC) {
+    // Get the address of the callee into a register to prevent
+    // using of the `jal` instruction for the direct call.
+    if (auto *N = dyn_cast<GlobalAddressSDNode>(Callee))
+      Callee = getAddrNonPIC(N, SDLoc(N), Ty, DAG);
+    else if (auto *N = dyn_cast<ExternalSymbolSDNode>(Callee))
+      Callee = getAddrNonPIC(N, SDLoc(N), Ty, DAG);
+  }
+
   if (GlobalAddressSDNode *G = dyn_cast<GlobalAddressSDNode>(Callee)) {
     if (IsPIC) {
       const GlobalValue *Val = G->getGlobal();
