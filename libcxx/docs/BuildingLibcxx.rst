@@ -78,9 +78,9 @@ build would look like this:
 
   $ cd where-you-want-libcxx-to-live
   $ # Check out llvm, libc++ and libc++abi.
-  $ ``svn co http://llvm.org/svn/llvm-project/llvm/trunk llvm``
-  $ ``svn co http://llvm.org/svn/llvm-project/libcxx/trunk libcxx``
-  $ ``svn co http://llvm.org/svn/llvm-project/libcxxabi/trunk libcxxabi``
+  $ svn co http://llvm.org/svn/llvm-project/llvm/trunk llvm
+  $ svn co http://llvm.org/svn/llvm-project/libcxx/trunk libcxx
+  $ svn co http://llvm.org/svn/llvm-project/libcxxabi/trunk libcxxabi
   $ cd where-you-want-to-build
   $ mkdir build && cd build
   $ export CC=clang CXX=clang++
