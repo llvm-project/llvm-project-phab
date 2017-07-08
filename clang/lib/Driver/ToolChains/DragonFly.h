@@ -11,12 +11,13 @@
 #define LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_DRAGONFLY_H
 
 #include "Gnu.h"
-#include "clang/Driver/Tool.h"
+#include "clang/Driver/Driver.h"
 #include "clang/Driver/ToolChain.h"
 
 namespace clang {
 namespace driver {
 namespace tools {
+
 /// dragonfly -- Directly call GNU Binutils assembler and linker
 namespace dragonfly {
 class LLVM_LIBRARY_VISIBILITY Assembler : public GnuTool {

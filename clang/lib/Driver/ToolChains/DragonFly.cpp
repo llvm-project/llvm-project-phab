@@ -10,7 +10,6 @@
 #include "DragonFly.h"
 #include "CommonArgs.h"
 #include "clang/Driver/Compilation.h"
-#include "clang/Driver/Driver.h"
 #include "clang/Driver/Options.h"
 #include "llvm/Option/ArgList.h"
 
@@ -54,11 +53,27 @@ void dragonfly::Linker::ConstructJob(Compilation &C, const JobAction &JA,
                                      const InputInfoList &Inputs,
                                      const ArgList &Args,
                                      const char *LinkingOutput) const {
-  const Driver &D = getToolChain().getDriver();
+  const toolchains::DragonFly &ToolChain =
+      static_cast<const toolchains::DragonFly &>(getToolChain());
+  const Driver &D = ToolChain.getDriver();
+  const llvm::Triple::ArchType Arch = ToolChain.getArch();
+  const bool IsPIE =
+      !Args.hasArg(options::OPT_shared) && Args.hasArg(options::OPT_pie);
   ArgStringList CmdArgs;
+
+  // Silence warning for "clang -g foo.o -o foo"
+  Args.ClaimAllArgs(options::OPT_g_Group);
+  // and "clang -emit-llvm foo.o -o foo"
+  Args.ClaimAllArgs(options::OPT_emit_llvm);
+  // and for "clang -w foo.o -o foo". Other warning options are already
+  // handled somewhere else.
+  Args.ClaimAllArgs(options::OPT_w);
 
   if (!D.SysRoot.empty())
     CmdArgs.push_back(Args.MakeArgString("--sysroot=" + D.SysRoot));
+
+  if (IsPIE)
+    CmdArgs.push_back("-pie");
 
   CmdArgs.push_back("--eh-frame-hdr");
   if (Args.hasArg(options::OPT_static)) {
@@ -66,9 +81,9 @@ void dragonfly::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   } else {
     if (Args.hasArg(options::OPT_rdynamic))
       CmdArgs.push_back("-export-dynamic");
-    if (Args.hasArg(options::OPT_shared))
+    if (Args.hasArg(options::OPT_shared)) {
       CmdArgs.push_back("-Bshareable");
-    else {
+    } else {
       CmdArgs.push_back("-dynamic-linker");
       CmdArgs.push_back("/usr/libexec/ld-elf.so.2");
     }
@@ -78,7 +93,7 @@ void dragonfly::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
   // When building 32-bit code on DragonFly/pc64, we have to explicitly
   // instruct ld in the base system to link 32-bit code.
-  if (getToolChain().getArch() == llvm::Triple::x86) {
+  if (Arch == llvm::Triple::x86) {
     CmdArgs.push_back("-m");
     CmdArgs.push_back("elf_i386");
   }
@@ -91,34 +106,43 @@ void dragonfly::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   }
 
   if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nostartfiles)) {
+    const char *crt1 = nullptr;
     if (!Args.hasArg(options::OPT_shared)) {
       if (Args.hasArg(options::OPT_pg))
-        CmdArgs.push_back(
-            Args.MakeArgString(getToolChain().GetFilePath("gcrt1.o")));
-      else {
-        if (Args.hasArg(options::OPT_pie))
-          CmdArgs.push_back(
-              Args.MakeArgString(getToolChain().GetFilePath("Scrt1.o")));
-        else
-          CmdArgs.push_back(
-              Args.MakeArgString(getToolChain().GetFilePath("crt1.o")));
-      }
+        crt1 = "gcrt1.o";
+      else if (IsPIE)
+        crt1 = "Scrt1.o";
+      else
+        crt1 = "crt1.o";
     }
-    CmdArgs.push_back(Args.MakeArgString(getToolChain().GetFilePath("crti.o")));
-    if (Args.hasArg(options::OPT_shared) || Args.hasArg(options::OPT_pie))
-      CmdArgs.push_back(
-          Args.MakeArgString(getToolChain().GetFilePath("crtbeginS.o")));
+    if (crt1)
+      CmdArgs.push_back(Args.MakeArgString(ToolChain.GetFilePath(crt1)));
+
+    CmdArgs.push_back(Args.MakeArgString(ToolChain.GetFilePath("crti.o")));
+
+    const char *crtbegin = nullptr;
+    if (Args.hasArg(options::OPT_shared) || IsPIE)
+      crtbegin = "crtbeginS.o";
     else
-      CmdArgs.push_back(
-          Args.MakeArgString(getToolChain().GetFilePath("crtbegin.o")));
+      crtbegin = "crtbegin.o";
+
+    CmdArgs.push_back(Args.MakeArgString(ToolChain.GetFilePath(crtbegin)));
   }
 
-  Args.AddAllArgs(CmdArgs,
-                  {options::OPT_L, options::OPT_T_Group, options::OPT_e});
+  Args.AddAllArgs(CmdArgs, options::OPT_L);
+  ToolChain.AddFilePathLibArgs(Args, CmdArgs);
+  Args.AddAllArgs(CmdArgs, options::OPT_T_Group);
+  Args.AddAllArgs(CmdArgs, options::OPT_e);
+  Args.AddAllArgs(CmdArgs, options::OPT_s);
+  Args.AddAllArgs(CmdArgs, options::OPT_t);
+  Args.AddAllArgs(CmdArgs, options::OPT_Z_Flag);
+  Args.AddAllArgs(CmdArgs, options::OPT_r);
 
-  AddLinkerInputs(getToolChain(), Inputs, Args, CmdArgs, JA);
+  AddLinkerInputs(ToolChain, Inputs, Args, CmdArgs, JA);
 
   if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nodefaultlibs)) {
+    addOpenMPRuntime(CmdArgs, ToolChain, Args);
+
     CmdArgs.push_back("-L/usr/lib/gcc50");
 
     if (!Args.hasArg(options::OPT_static)) {
@@ -127,7 +151,7 @@ void dragonfly::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     }
 
     if (D.CCCIsCXX()) {
-      getToolChain().AddCXXStdlibLibArgs(Args, CmdArgs);
+      ToolChain.AddCXXStdlibLibArgs(Args, CmdArgs);
       CmdArgs.push_back("-lm");
     }
 
@@ -157,16 +181,14 @@ void dragonfly::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   }
 
   if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nostartfiles)) {
-    if (Args.hasArg(options::OPT_shared) || Args.hasArg(options::OPT_pie))
-      CmdArgs.push_back(
-          Args.MakeArgString(getToolChain().GetFilePath("crtendS.o")));
+    if (Args.hasArg(options::OPT_shared) || IsPIE)
+      CmdArgs.push_back(Args.MakeArgString(ToolChain.GetFilePath("crtendS.o")));
     else
-      CmdArgs.push_back(
-          Args.MakeArgString(getToolChain().GetFilePath("crtend.o")));
-    CmdArgs.push_back(Args.MakeArgString(getToolChain().GetFilePath("crtn.o")));
+      CmdArgs.push_back(Args.MakeArgString(ToolChain.GetFilePath("crtend.o")));
+    CmdArgs.push_back(Args.MakeArgString(ToolChain.GetFilePath("crtn.o")));
   }
 
-  getToolChain().addProfileRTLibs(Args, CmdArgs);
+  ToolChain.addProfileRTLibs(Args, CmdArgs);
 
   const char *Exec = Args.MakeArgString(getToolChain().GetLinkerPath());
   C.addCommand(llvm::make_unique<Command>(JA, *this, Exec, CmdArgs, Inputs));
