@@ -5,15 +5,13 @@
 define void @test_simple(i32* %p, i32 %a, i32 %b) {
 ; CHECK-LABEL: @test_simple(
 ; CHECK-NEXT:  entry:
-; CHECK-NEXT:    [[TMP0:%.*]] = icmp ne i32 [[A:%.*]], 0
-; CHECK-NEXT:    [[X2:%.*]] = icmp eq i32 [[B:%.*]], 0
-; CHECK-NEXT:    [[TMP1:%.*]] = xor i1 [[X2]], true
-; CHECK-NEXT:    [[TMP2:%.*]] = or i1 [[TMP0]], [[TMP1]]
-; CHECK-NEXT:    br i1 [[TMP2]], label [[TMP3:%.*]], label [[TMP4:%.*]]
-; CHECK:         [[NOT_X2:%.*]] = xor i1 [[X2]], true
+; CHECK-NEXT:    [[TMP0:%.*]] = or i32 [[A:%.*]], [[B:%.*]]
+; CHECK-NEXT:    [[TMP1:%.*]] = icmp eq i32 [[TMP0]], 0
+; CHECK-NEXT:    br i1 [[TMP1]], label [[TMP3:%.*]], label [[TMP2:%.*]]
+; CHECK:         [[NOT_X2:%.*]] = icmp ne i32 [[B]], 0
 ; CHECK-NEXT:    [[DOT:%.*]] = zext i1 [[NOT_X2]] to i32
 ; CHECK-NEXT:    store i32 [[DOT]], i32* [[P:%.*]], align 4
-; CHECK-NEXT:    br label [[TMP4]]
+; CHECK-NEXT:    br label [[TMP3]]
 ; CHECK:         ret void
 ;
 entry:
@@ -44,7 +42,8 @@ define void @test_simple_commuted(i32* %p, i32 %a, i32 %b) {
 ; CHECK-NEXT:    [[X2:%.*]] = icmp eq i32 [[B:%.*]], 0
 ; CHECK-NEXT:    [[TMP0:%.*]] = or i1 [[X1]], [[X2]]
 ; CHECK-NEXT:    br i1 [[TMP0]], label [[TMP1:%.*]], label [[TMP2:%.*]]
-; CHECK:         [[DOT:%.*]] = zext i1 [[X2]] to i32
+; CHECK:         [[X3:%.*]] = icmp eq i32 [[B:%.*]], 0
+; CHECK-NEXT:    [[DOT:%.*]] = zext i1 [[X3]] to i32
 ; CHECK-NEXT:    store i32 [[DOT]], i32* [[P:%.*]], align 4
 ; CHECK-NEXT:    br label [[TMP2]]
 ; CHECK:         ret void
@@ -73,20 +72,19 @@ end:
 define void @test_recursive(i32* %p, i32 %a, i32 %b, i32 %c, i32 %d) {
 ; CHECK-LABEL: @test_recursive(
 ; CHECK-NEXT:  entry:
-; CHECK-NEXT:    [[TMP0:%.*]] = or i32 [[B:%.*]], [[A:%.*]]
-; CHECK-NEXT:    [[X4:%.*]] = icmp eq i32 [[D:%.*]], 0
+; CHECK-NEXT:    [[TMP0:%.*]] = or i32 [[A:%.*]], [[B:%.*]]
 ; CHECK-NEXT:    [[TMP1:%.*]] = or i32 [[TMP0]], [[C:%.*]]
-; CHECK-NEXT:    [[TMP3:%.*]] = icmp ne i32 [[TMP1]], 0
-; CHECK-NEXT:    [[TMP2:%.*]] = xor i1 [[X4]], true
-; CHECK-NEXT:    [[TMP4:%.*]] = or i1 [[TMP3]], [[TMP2]]
-; CHECK-NEXT:    br i1 [[TMP4]], label [[TMP5:%.*]], label [[TMP6:%.*]]
-; CHECK:         [[X3:%.*]] = icmp eq i32 [[C]], 0
+; CHECK-NEXT:    [[TMP2:%.*]] = or i32 [[TMP1]], [[D:%.*]]
+; CHECK-NEXT:    [[TMP3:%.*]] = icmp eq i32 [[TMP2]], 0
+; CHECK-NEXT:    br i1 [[TMP3]], label [[TMP5:%.*]], label [[TMP4:%.*]]
+; CHECK:         [[X4:%.*]] = icmp eq i32 [[D]], 0
+; CHECK-NEXT:    [[X3:%.*]] = icmp eq i32 [[C]], 0
 ; CHECK-NEXT:    [[NOT_X2:%.*]] = icmp ne i32 [[B]], 0
 ; CHECK-NEXT:    [[DOT:%.*]] = zext i1 [[NOT_X2]] to i32
 ; CHECK-NEXT:    [[DOT_:%.*]] = select i1 [[X3]], i32 [[DOT]], i32 2
 ; CHECK-NEXT:    [[DOT__:%.*]] = select i1 [[X4]], i32 [[DOT_]], i32 3
 ; CHECK-NEXT:    store i32 [[DOT__]], i32* [[P:%.*]], align 4
-; CHECK-NEXT:    br label [[TMP6]]
+; CHECK-NEXT:    br label [[TMP5]]
 ; CHECK:         ret void
 ;
 entry:

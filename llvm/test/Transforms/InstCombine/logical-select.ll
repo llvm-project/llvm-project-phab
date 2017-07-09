@@ -47,10 +47,15 @@ define i32 @goo(i32 %a, i32 %b, i32 %c, i32 %d) {
   ret i32 %t3
 }
 
+; This is a variation of the next test; see the bug report for more info.
+
 define i32 @poo(i32 %a, i32 %b, i32 %c, i32 %d) {
 ; CHECK-LABEL: @poo(
 ; CHECK-NEXT:    [[T0:%.*]] = icmp slt i32 %a, %b
-; CHECK-NEXT:    [[T3:%.*]] = select i1 [[T0]], i32 %c, i32 %d
+; CHECK-NEXT:    [[T1:%.*]] = select i1 [[T0]], i32 %c, i32 0
+; CHECK-NEXT:    [[NOT_T0:%.*]] = icmp slt i32 %a, %b
+; CHECK-NEXT:    [[T2:%.*]] = select i1 [[NOT_T0]], i32 0, i32 %d
+; CHECK-NEXT:    [[T3:%.*]] = or i32 [[T1]], [[T2]]
 ; CHECK-NEXT:    ret i32 [[T3]]
 ;
   %t0 = icmp slt i32 %a, %b

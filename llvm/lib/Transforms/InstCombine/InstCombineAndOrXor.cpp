@@ -2465,9 +2465,11 @@ Instruction *InstCombiner::visitXor(BinaryOperator &I) {
 
   // not (cmp A, B) = !cmp A, B
   CmpInst::Predicate Pred;
-  if (match(&I, m_Not(m_OneUse(m_Cmp(Pred, m_Value(), m_Value()))))) {
-    cast<CmpInst>(Op0)->setPredicate(CmpInst::getInversePredicate(Pred));
-    return replaceInstUsesWith(I, Op0);
+  Value *CmpL, *CmpR;
+  if (match(&I, m_Not(m_Cmp(Pred, m_Value(CmpL), m_Value(CmpR))))) {
+    CmpInst::Predicate InvPred = CmpInst::getInversePredicate(Pred);
+    return CmpInst::Create(cast<CmpInst>(I.getOperand(0))->getOpcode(), InvPred,
+                           CmpL, CmpR);
   }
 
   if (ConstantInt *RHSC = dyn_cast<ConstantInt>(Op1)) {
