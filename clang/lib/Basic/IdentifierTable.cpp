@@ -73,17 +73,15 @@ IdentifierIterator *IdentifierInfoLookup::getIdentifiers() {
 }
 
 IdentifierTable::IdentifierTable(const LangOptions &LangOpts,
-                                 IdentifierInfoLookup* externalLookup)
-  : HashTable(8192), // Start with space for 8K identifiers.
-    ExternalLookup(externalLookup) {
+                                 IdentifierInfoLookup *externalLookup,
+                                 bool DeferKeywordAddition)
+    : HashTable(8192), // Start with space for 8K identifiers.
+      ExternalLookup(externalLookup) {
 
   // Populate the identifier table with info about keywords for the current
   // language.
-  AddKeywords(LangOpts);
-      
-
-  // Add the '_experimental_modules_import' contextual keyword.
-  get("import").setModulesImport(true);
+  if (!DeferKeywordAddition)
+    AddKeywords(LangOpts);
 }
 
 //===----------------------------------------------------------------------===//
@@ -227,6 +225,9 @@ void IdentifierTable::AddKeywords(const LangOptions &LangOpts) {
 
   if (LangOpts.DeclSpecKeyword)
     AddKeyword("__declspec", tok::kw___declspec, KEYALL, LangOpts, *this);
+
+  // Add the '_experimental_modules_import' contextual keyword.
+  get("import").setModulesImport(true);
 }
 
 /// \brief Checks if the specified token kind represents a keyword in the

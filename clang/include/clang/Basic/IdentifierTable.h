@@ -477,9 +477,11 @@ class IdentifierTable {
 
 public:
   /// \brief Create the identifier table, populating it with info about the
-  /// language keywords for the language specified by \p LangOpts.
+  /// language keywords for the language specified by \p LangOpts if
+  /// \p DeferKeywordAddition is not set.
   IdentifierTable(const LangOptions &LangOpts,
-                  IdentifierInfoLookup* externalLookup = nullptr);
+                  IdentifierInfoLookup *externalLookup = nullptr,
+                  bool DeferKeywordAddition = false);
 
   /// \brief Set the external identifier lookup mechanism.
   void setExternalIdentifierLookup(IdentifierInfoLookup *IILookup) {

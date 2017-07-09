@@ -691,7 +691,8 @@ public:
                HeaderSearch &Headers, ModuleLoader &TheModuleLoader,
                IdentifierInfoLookup *IILookup = nullptr,
                bool OwnsHeaderSearch = false,
-               TranslationUnitKind TUKind = TU_Complete);
+               TranslationUnitKind TUKind = TU_Complete,
+               bool DeferKeywordAddition = false);
 
   ~Preprocessor();
 

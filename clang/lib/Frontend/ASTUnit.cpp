@@ -536,6 +536,10 @@ private:
     // Initialize the preprocessor.
     PP.Initialize(*Target);
 
+    // Populate the identifier table with info about keywords for the current
+    // language.
+    PP.getIdentifierTable().AddKeywords(LangOpt);
+
     if (!Context)
       return;
 
@@ -718,11 +722,13 @@ std::unique_ptr<ASTUnit> ASTUnit::LoadFromASTFile(
   HeaderSearch &HeaderInfo = *AST->HeaderInfo;
   unsigned Counter;
 
+  // As the language options have not been loaded yet, adding keywords to the
+  // identifier table is deferred and will be initiated by ASTInfoCollector.
   AST->PP = std::make_shared<Preprocessor>(
       AST->PPOpts, AST->getDiagnostics(), *AST->LangOpts,
       AST->getSourceManager(), *AST->PCMCache, HeaderInfo, AST->ModuleLoader,
-      /*IILookup=*/nullptr,
-      /*OwnsHeaderSearch=*/false);
+      /*IILookup=*/nullptr, /*OwnsHeaderSearch=*/false, TU_Complete,
+      /*DeferKeywordAddition=*/true);
   Preprocessor &PP = *AST->PP;
 
   if (ToLoad >= LoadASTOnly)
