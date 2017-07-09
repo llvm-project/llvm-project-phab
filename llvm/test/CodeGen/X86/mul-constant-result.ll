@@ -27,16 +27,16 @@ define i32 @mult(i32, i32) local_unnamed_addr #0 {
 ; X86-NEXT:  .LBB0_4:
 ; X86-NEXT:    decl %ecx
 ; X86-NEXT:    cmpl $31, %ecx
-; X86-NEXT:    ja .LBB0_39
+; X86-NEXT:    ja .LBB0_38
 ; X86-NEXT:  # BB#5:
 ; X86-NEXT:    jmpl *.LJTI0_0(,%ecx,4)
 ; X86-NEXT:  .LBB0_6:
 ; X86-NEXT:    addl %eax, %eax
 ; X86-NEXT:    popl %esi
 ; X86-NEXT:    retl
-; X86-NEXT:  .LBB0_39:
+; X86-NEXT:  .LBB0_38:
 ; X86-NEXT:    xorl %eax, %eax
-; X86-NEXT:  .LBB0_40:
+; X86-NEXT:  .LBB0_39:
 ; X86-NEXT:    popl %esi
 ; X86-NEXT:    retl
 ; X86-NEXT:  .LBB0_7:
@@ -89,90 +89,89 @@ define i32 @mult(i32, i32) local_unnamed_addr #0 {
 ; X86-NEXT:    retl
 ; X86-NEXT:  .LBB0_19:
 ; X86-NEXT:    leal (%eax,%eax,2), %ecx
-; X86-NEXT:    jmp .LBB0_20
-; X86-NEXT:  .LBB0_21:
+; X86-NEXT:    leal (%ecx,%eax,2), %eax
+; X86-NEXT:    popl %esi
+; X86-NEXT:    retl
+; X86-NEXT:  .LBB0_20:
 ; X86-NEXT:    leal (%eax,%eax,4), %eax
 ; X86-NEXT:    leal (%eax,%eax,2), %eax
 ; X86-NEXT:    popl %esi
 ; X86-NEXT:    retl
-; X86-NEXT:  .LBB0_22:
+; X86-NEXT:  .LBB0_21:
 ; X86-NEXT:    shll $4, %eax
 ; X86-NEXT:    popl %esi
 ; X86-NEXT:    retl
-; X86-NEXT:  .LBB0_23:
+; X86-NEXT:  .LBB0_22:
 ; X86-NEXT:    movl %eax, %ecx
 ; X86-NEXT:    shll $4, %ecx
 ; X86-NEXT:    addl %ecx, %eax
 ; X86-NEXT:    popl %esi
 ; X86-NEXT:    retl
-; X86-NEXT:  .LBB0_24:
+; X86-NEXT:  .LBB0_23:
 ; X86-NEXT:    addl %eax, %eax
 ; X86-NEXT:    leal (%eax,%eax,8), %eax
 ; X86-NEXT:    popl %esi
 ; X86-NEXT:    retl
-; X86-NEXT:  .LBB0_25:
+; X86-NEXT:  .LBB0_24:
 ; X86-NEXT:    leal (%eax,%eax,4), %ecx
 ; X86-NEXT:    shll $2, %ecx
 ; X86-NEXT:    jmp .LBB0_12
-; X86-NEXT:  .LBB0_26:
+; X86-NEXT:  .LBB0_25:
 ; X86-NEXT:    shll $2, %eax
 ; X86-NEXT:    leal (%eax,%eax,4), %eax
 ; X86-NEXT:    popl %esi
 ; X86-NEXT:    retl
-; X86-NEXT:  .LBB0_27:
+; X86-NEXT:  .LBB0_26:
 ; X86-NEXT:    leal (%eax,%eax,4), %ecx
 ; X86-NEXT:    leal (%eax,%ecx,4), %eax
 ; X86-NEXT:    popl %esi
 ; X86-NEXT:    retl
-; X86-NEXT:  .LBB0_28:
+; X86-NEXT:  .LBB0_27:
 ; X86-NEXT:    leal (%eax,%eax,4), %ecx
-; X86-NEXT:  .LBB0_20:
-; X86-NEXT:    leal (%eax,%ecx,4), %ecx
-; X86-NEXT:    addl %ecx, %eax
+; X86-NEXT:    leal (%ecx,%eax,2), %eax
 ; X86-NEXT:    popl %esi
 ; X86-NEXT:    retl
-; X86-NEXT:  .LBB0_29:
+; X86-NEXT:  .LBB0_28:
 ; X86-NEXT:    leal (%eax,%eax,2), %ecx
 ; X86-NEXT:    shll $3, %ecx
 ; X86-NEXT:    jmp .LBB0_12
-; X86-NEXT:  .LBB0_30:
+; X86-NEXT:  .LBB0_29:
 ; X86-NEXT:    shll $3, %eax
 ; X86-NEXT:    leal (%eax,%eax,2), %eax
 ; X86-NEXT:    popl %esi
 ; X86-NEXT:    retl
-; X86-NEXT:  .LBB0_31:
+; X86-NEXT:  .LBB0_30:
 ; X86-NEXT:    leal (%eax,%eax,4), %eax
 ; X86-NEXT:    leal (%eax,%eax,4), %eax
 ; X86-NEXT:    popl %esi
 ; X86-NEXT:    retl
-; X86-NEXT:  .LBB0_32:
+; X86-NEXT:  .LBB0_31:
 ; X86-NEXT:    leal (%eax,%eax,8), %ecx
 ; X86-NEXT:    leal (%ecx,%ecx,2), %ecx
 ; X86-NEXT:    jmp .LBB0_12
-; X86-NEXT:  .LBB0_33:
+; X86-NEXT:  .LBB0_32:
 ; X86-NEXT:    leal (%eax,%eax,8), %eax
 ; X86-NEXT:    leal (%eax,%eax,2), %eax
+; X86-NEXT:    popl %esi
+; X86-NEXT:    retl
+; X86-NEXT:  .LBB0_33:
+; X86-NEXT:    leal (%eax,%eax,8), %ecx
+; X86-NEXT:    leal (%ecx,%ecx,2), %ecx
+; X86-NEXT:    addl %ecx, %eax
 ; X86-NEXT:    popl %esi
 ; X86-NEXT:    retl
 ; X86-NEXT:  .LBB0_34:
 ; X86-NEXT:    leal (%eax,%eax,8), %ecx
 ; X86-NEXT:    leal (%ecx,%ecx,2), %ecx
-; X86-NEXT:    addl %ecx, %eax
+; X86-NEXT:    leal (%ecx,%eax,2), %eax
 ; X86-NEXT:    popl %esi
 ; X86-NEXT:    retl
 ; X86-NEXT:  .LBB0_35:
-; X86-NEXT:    leal (%eax,%eax,8), %ecx
-; X86-NEXT:    leal (%ecx,%ecx,2), %ecx
-; X86-NEXT:    addl %eax, %ecx
-; X86-NEXT:    addl %ecx, %eax
-; X86-NEXT:    popl %esi
-; X86-NEXT:    retl
-; X86-NEXT:  .LBB0_36:
 ; X86-NEXT:    movl %eax, %ecx
 ; X86-NEXT:    shll $5, %ecx
 ; X86-NEXT:    subl %eax, %ecx
 ; X86-NEXT:    jmp .LBB0_12
-; X86-NEXT:  .LBB0_37:
+; X86-NEXT:  .LBB0_36:
 ; X86-NEXT:    movl %eax, %ecx
 ; X86-NEXT:    shll $5, %ecx
 ; X86-NEXT:  .LBB0_12:
@@ -180,7 +179,7 @@ define i32 @mult(i32, i32) local_unnamed_addr #0 {
 ; X86-NEXT:    movl %ecx, %eax
 ; X86-NEXT:    popl %esi
 ; X86-NEXT:    retl
-; X86-NEXT:  .LBB0_38:
+; X86-NEXT:  .LBB0_37:
 ; X86-NEXT:    shll $5, %eax
 ; X86-NEXT:    popl %esi
 ; X86-NEXT:    retl
@@ -196,16 +195,16 @@ define i32 @mult(i32, i32) local_unnamed_addr #0 {
 ; X64-HSW-NEXT:    cmovel %ecx, %eax
 ; X64-HSW-NEXT:    addl $-1, %edi
 ; X64-HSW-NEXT:    cmpl $31, %edi
-; X64-HSW-NEXT:    ja .LBB0_36
+; X64-HSW-NEXT:    ja .LBB0_35
 ; X64-HSW-NEXT:  # BB#1:
 ; X64-HSW-NEXT:    jmpq *.LJTI0_0(,%rdi,8)
 ; X64-HSW-NEXT:  .LBB0_2:
 ; X64-HSW-NEXT:    addl %eax, %eax
 ; X64-HSW-NEXT:    # kill: %EAX<def> %EAX<kill> %RAX<kill>
 ; X64-HSW-NEXT:    retq
-; X64-HSW-NEXT:  .LBB0_36:
+; X64-HSW-NEXT:  .LBB0_35:
 ; X64-HSW-NEXT:    xorl %eax, %eax
-; X64-HSW-NEXT:  .LBB0_37:
+; X64-HSW-NEXT:  .LBB0_36:
 ; X64-HSW-NEXT:    # kill: %EAX<def> %EAX<kill> %RAX<kill>
 ; X64-HSW-NEXT:    retq
 ; X64-HSW-NEXT:  .LBB0_3:
@@ -258,86 +257,89 @@ define i32 @mult(i32, i32) local_unnamed_addr #0 {
 ; X64-HSW-NEXT:    retq
 ; X64-HSW-NEXT:  .LBB0_15:
 ; X64-HSW-NEXT:    leal (%rax,%rax,2), %ecx
-; X64-HSW-NEXT:    jmp .LBB0_16
-; X64-HSW-NEXT:  .LBB0_18:
+; X64-HSW-NEXT:    leal (%rcx,%rax,2), %eax
+; X64-HSW-NEXT:    # kill: %EAX<def> %EAX<kill> %RAX<kill>
+; X64-HSW-NEXT:    retq
+; X64-HSW-NEXT:  .LBB0_16:
 ; X64-HSW-NEXT:    leal (%rax,%rax,4), %eax
 ; X64-HSW-NEXT:    leal (%rax,%rax,2), %eax
 ; X64-HSW-NEXT:    # kill: %EAX<def> %EAX<kill> %RAX<kill>
 ; X64-HSW-NEXT:    retq
-; X64-HSW-NEXT:  .LBB0_19:
+; X64-HSW-NEXT:  .LBB0_17:
 ; X64-HSW-NEXT:    shll $4, %eax
 ; X64-HSW-NEXT:    # kill: %EAX<def> %EAX<kill> %RAX<kill>
 ; X64-HSW-NEXT:    retq
-; X64-HSW-NEXT:  .LBB0_20:
+; X64-HSW-NEXT:  .LBB0_18:
 ; X64-HSW-NEXT:    movl %eax, %ecx
 ; X64-HSW-NEXT:    shll $4, %ecx
-; X64-HSW-NEXT:    jmp .LBB0_17
-; X64-HSW-NEXT:  .LBB0_21:
+; X64-HSW-NEXT:    jmp .LBB0_19
+; X64-HSW-NEXT:  .LBB0_20:
 ; X64-HSW-NEXT:    addl %eax, %eax
 ; X64-HSW-NEXT:    leal (%rax,%rax,8), %eax
 ; X64-HSW-NEXT:    # kill: %EAX<def> %EAX<kill> %RAX<kill>
 ; X64-HSW-NEXT:    retq
-; X64-HSW-NEXT:  .LBB0_22:
+; X64-HSW-NEXT:  .LBB0_21:
 ; X64-HSW-NEXT:    leal (%rax,%rax,4), %ecx
 ; X64-HSW-NEXT:    shll $2, %ecx
 ; X64-HSW-NEXT:    jmp .LBB0_8
-; X64-HSW-NEXT:  .LBB0_23:
+; X64-HSW-NEXT:  .LBB0_22:
 ; X64-HSW-NEXT:    shll $2, %eax
 ; X64-HSW-NEXT:    leal (%rax,%rax,4), %eax
 ; X64-HSW-NEXT:    # kill: %EAX<def> %EAX<kill> %RAX<kill>
 ; X64-HSW-NEXT:    retq
-; X64-HSW-NEXT:  .LBB0_24:
+; X64-HSW-NEXT:  .LBB0_23:
 ; X64-HSW-NEXT:    leal (%rax,%rax,4), %ecx
 ; X64-HSW-NEXT:    leal (%rax,%rcx,4), %eax
 ; X64-HSW-NEXT:    # kill: %EAX<def> %EAX<kill> %RAX<kill>
 ; X64-HSW-NEXT:    retq
-; X64-HSW-NEXT:  .LBB0_25:
+; X64-HSW-NEXT:  .LBB0_24:
 ; X64-HSW-NEXT:    leal (%rax,%rax,4), %ecx
-; X64-HSW-NEXT:  .LBB0_16:
-; X64-HSW-NEXT:    leal (%rax,%rcx,4), %ecx
-; X64-HSW-NEXT:    jmp .LBB0_17
-; X64-HSW-NEXT:  .LBB0_26:
+; X64-HSW-NEXT:    leal (%rcx,%rax,2), %eax
+; X64-HSW-NEXT:    # kill: %EAX<def> %EAX<kill> %RAX<kill>
+; X64-HSW-NEXT:    retq
+; X64-HSW-NEXT:  .LBB0_25:
 ; X64-HSW-NEXT:    leal (%rax,%rax,2), %ecx
 ; X64-HSW-NEXT:    shll $3, %ecx
 ; X64-HSW-NEXT:    jmp .LBB0_8
-; X64-HSW-NEXT:  .LBB0_27:
+; X64-HSW-NEXT:  .LBB0_26:
 ; X64-HSW-NEXT:    shll $3, %eax
 ; X64-HSW-NEXT:    leal (%rax,%rax,2), %eax
 ; X64-HSW-NEXT:    # kill: %EAX<def> %EAX<kill> %RAX<kill>
 ; X64-HSW-NEXT:    retq
-; X64-HSW-NEXT:  .LBB0_28:
+; X64-HSW-NEXT:  .LBB0_27:
 ; X64-HSW-NEXT:    leal (%rax,%rax,4), %eax
 ; X64-HSW-NEXT:    leal (%rax,%rax,4), %eax
 ; X64-HSW-NEXT:    # kill: %EAX<def> %EAX<kill> %RAX<kill>
 ; X64-HSW-NEXT:    retq
-; X64-HSW-NEXT:  .LBB0_29:
+; X64-HSW-NEXT:  .LBB0_28:
 ; X64-HSW-NEXT:    leal (%rax,%rax,8), %ecx
 ; X64-HSW-NEXT:    leal (%rcx,%rcx,2), %ecx
 ; X64-HSW-NEXT:    jmp .LBB0_8
-; X64-HSW-NEXT:  .LBB0_30:
+; X64-HSW-NEXT:  .LBB0_29:
 ; X64-HSW-NEXT:    leal (%rax,%rax,8), %eax
 ; X64-HSW-NEXT:    leal (%rax,%rax,2), %eax
+; X64-HSW-NEXT:    # kill: %EAX<def> %EAX<kill> %RAX<kill>
+; X64-HSW-NEXT:    retq
+; X64-HSW-NEXT:  .LBB0_30:
+; X64-HSW-NEXT:    leal (%rax,%rax,8), %ecx
+; X64-HSW-NEXT:    leal (%rcx,%rcx,2), %ecx
+; X64-HSW-NEXT:  .LBB0_19:
+; X64-HSW-NEXT:    addl %eax, %ecx
+; X64-HSW-NEXT:    movl %ecx, %eax
 ; X64-HSW-NEXT:    # kill: %EAX<def> %EAX<kill> %RAX<kill>
 ; X64-HSW-NEXT:    retq
 ; X64-HSW-NEXT:  .LBB0_31:
 ; X64-HSW-NEXT:    leal (%rax,%rax,8), %ecx
 ; X64-HSW-NEXT:    leal (%rcx,%rcx,2), %ecx
-; X64-HSW-NEXT:    jmp .LBB0_17
-; X64-HSW-NEXT:  .LBB0_32:
-; X64-HSW-NEXT:    leal (%rax,%rax,8), %ecx
-; X64-HSW-NEXT:    leal (%rcx,%rcx,2), %ecx
-; X64-HSW-NEXT:    addl %eax, %ecx
-; X64-HSW-NEXT:  .LBB0_17:
-; X64-HSW-NEXT:    addl %eax, %ecx
-; X64-HSW-NEXT:    movl %ecx, %eax
+; X64-HSW-NEXT:    leal (%rcx,%rax,2), %eax
 ; X64-HSW-NEXT:    # kill: %EAX<def> %EAX<kill> %RAX<kill>
 ; X64-HSW-NEXT:    retq
-; X64-HSW-NEXT:  .LBB0_33:
+; X64-HSW-NEXT:  .LBB0_32:
 ; X64-HSW-NEXT:    movl %eax, %ecx
 ; X64-HSW-NEXT:    shll $5, %ecx
 ; X64-HSW-NEXT:    subl %eax, %ecx
 ; X64-HSW-NEXT:    jmp .LBB0_8
-; X64-HSW-NEXT:  .LBB0_34:
+; X64-HSW-NEXT:  .LBB0_33:
 ; X64-HSW-NEXT:    movl %eax, %ecx
 ; X64-HSW-NEXT:    shll $5, %ecx
 ; X64-HSW-NEXT:  .LBB0_8:
@@ -345,7 +347,7 @@ define i32 @mult(i32, i32) local_unnamed_addr #0 {
 ; X64-HSW-NEXT:    movl %ecx, %eax
 ; X64-HSW-NEXT:    # kill: %EAX<def> %EAX<kill> %RAX<kill>
 ; X64-HSW-NEXT:    retq
-; X64-HSW-NEXT:  .LBB0_35:
+; X64-HSW-NEXT:  .LBB0_34:
 ; X64-HSW-NEXT:    shll $5, %eax
 ; X64-HSW-NEXT:    # kill: %EAX<def> %EAX<kill> %RAX<kill>
 ; X64-HSW-NEXT:    retq
