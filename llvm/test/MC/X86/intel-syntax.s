@@ -6,7 +6,19 @@ _test:
 	xor	EAX, EAX
 	ret
 
+.set  number, 33
+
 _main:
+// CHECK: leaq -33(%rax), %rdx
+// CHECK: leaq -33(%rax), %rdx
+// CHECK: leaq 33(%rax), %rdx
+// CHECK: leaq 33(%rax), %rdx
+
+  lea rdx, [rax - 33]
+  lea rdx, [rax - number]
+  lea rdx, [rax + number]
+  lea rdx, [number + rax]
+
 // CHECK:	movl	$257, -4(%rsp)
 	mov	DWORD PTR [RSP - 4], 257
 // CHECK:	movl	$258, 4(%rsp)

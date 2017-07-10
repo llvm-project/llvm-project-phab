@@ -558,7 +558,11 @@ private:
         State = IES_INTEGER;
         Sym = SymRef;
         SymName = SymRefName;
-        IC.pushOperand(IC_IMM);
+        if (Sym->getKind() == llvm::MCExpr::Constant) {
+          auto *Constant = cast<MCConstantExpr>(SymRef);
+          IC.pushOperand(IC_IMM, Constant->getValue());
+        } else
+          IC.pushOperand(IC_IMM);
         break;
       }
     }
@@ -1504,9 +1508,10 @@ X86AsmParser::ParseIntelBracExpression(unsigned SegReg, SMLoc Start,
                                  End);
   }
 
-  if (SM.getImm() || !Disp) {
+  int64_t ImmVal = SM.getImm();
+  if (ImmVal || !Disp) {
     const MCExpr *Imm = MCConstantExpr::create(SM.getImm(), getContext());
-    if (Disp)
+    if (Disp && ImmVal && Disp->getKind() == llvm::MCExpr::SymbolRef)
       Disp = MCBinaryExpr::createAdd(Disp, Imm, getContext());
     else
       Disp = Imm;  // An immediate displacement only.
