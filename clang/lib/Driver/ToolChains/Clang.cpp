@@ -3175,6 +3175,11 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       KernelOrKext) {
     CmdArgs.push_back("-ffreestanding");
     IsHosted = false;
+  } else {
+    // For standards compliance, clang will preinclude <stdc-predef.h>
+    // -ffreestanding suppresses this behavior.
+    CmdArgs.push_back("-finclude-if-exists");
+    CmdArgs.push_back("stdc-predef.h");
   }
 
   // Forward -f (flag) options which we can pass directly.
