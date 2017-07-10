@@ -1,7 +1,7 @@
 // RUN: %check_clang_tidy %s misc-move-constructor-init,modernize-pass-by-value %t -- \
 // RUN: -config='{CheckOptions: \
 // RUN:  [{key: modernize-pass-by-value.ValuesOnly, value: 1}]}' \
-// RUN: -- -std=c++11 -isystem %S/Inputs/Headers
+// RUN: -- -std=c++11 -isystem %S/Inputs/Headers -nostdinc
 
 #include <s.h>
 

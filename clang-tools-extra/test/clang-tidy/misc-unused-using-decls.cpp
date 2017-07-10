@@ -1,4 +1,4 @@
-// RUN: %check_clang_tidy %s misc-unused-using-decls %t -- -- -fno-delayed-template-parsing -isystem %S/Inputs/
+// RUN: %check_clang_tidy %s misc-unused-using-decls %t -- -- -fno-delayed-template-parsing -isystem %S/Inputs/ -nostdinc
 
 
 // ----- Definitions -----

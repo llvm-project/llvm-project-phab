@@ -70,7 +70,7 @@
 // RUN:     {key: readability-identifier-naming.IgnoreFailedSplit, value: 0} \
 // RUN:   ]}' -- -std=c++11 -fno-delayed-template-parsing \
 // RUN:   -I%S/Inputs/readability-identifier-naming \
-// RUN:   -isystem %S/Inputs/readability-identifier-naming/system
+// RUN:   -isystem %S/Inputs/readability-identifier-naming/system -nostdinc
 
 // clang-format off
 
