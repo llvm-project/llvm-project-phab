@@ -361,21 +361,24 @@ private:
 /// loop.
 class LoopInterchangeProfitability {
 public:
-  LoopInterchangeProfitability(Loop *Outer, Loop *Inner, ScalarEvolution *SE)
-      : OuterLoop(Outer), InnerLoop(Inner), SE(SE) {}
+  LoopInterchangeProfitability(Loop *Outer, Loop *Inner, ScalarEvolution *SE,
+                               unsigned CacheLineSize)
+      : OuterLoop(Outer), InnerLoop(Inner), SE(SE),
+        CacheLineSize(CacheLineSize) {}
 
   /// Check if the loop interchange is profitable.
   bool isProfitable(unsigned InnerLoopId, unsigned OuterLoopId,
                     CharMatrix &DepMatrix);
 
 private:
-  int getInstrOrderCost();
+  unsigned getInstrOrderCost(Loop *Loop);
 
   Loop *OuterLoop;
   Loop *InnerLoop;
 
   /// Scev analysis.
   ScalarEvolution *SE;
+  const unsigned CacheLineSize;
 };
 
 /// LoopInterchangeTransform interchanges the loop.
@@ -422,6 +425,7 @@ struct LoopInterchange : public FunctionPass {
   DependenceInfo *DI;
   DominatorTree *DT;
   bool PreserveLCSSA;
+  unsigned CacheLineSize = 0;
   LoopInterchange()
       : FunctionPass(ID), SE(nullptr), LI(nullptr), DI(nullptr), DT(nullptr) {
     initializeLoopInterchangePass(*PassRegistry::getPassRegistry());
@@ -435,6 +439,7 @@ struct LoopInterchange : public FunctionPass {
     AU.addRequired<DependenceAnalysisWrapperPass>();
     AU.addRequiredID(LoopSimplifyID);
     AU.addRequiredID(LCSSAID);
+    AU.addRequired<TargetTransformInfoWrapperPass>();
   }
 
   bool runOnFunction(Function &F) override {
@@ -447,6 +452,9 @@ struct LoopInterchange : public FunctionPass {
     auto *DTWP = getAnalysisIfAvailable<DominatorTreeWrapperPass>();
     DT = DTWP ? &DTWP->getDomTree() : nullptr;
     PreserveLCSSA = mustPreserveAnalysisID(LCSSAID);
+    CacheLineSize = getAnalysis<TargetTransformInfoWrapperPass>().getTTI(F).getCacheLineSize();
+    if (CacheLineSize == 0)
+      CacheLineSize = 64; // Assume 64 byte cache lines as default.
 
     // Build up a worklist of loop pairs to analyze.
     SmallVector<LoopVector, 8> Worklist;
@@ -581,7 +589,7 @@ struct LoopInterchange : public FunctionPass {
       return false;
     }
     DEBUG(dbgs() << "Loops are legal to interchange\n");
-    LoopInterchangeProfitability LIP(OuterLoop, InnerLoop, SE);
+    LoopInterchangeProfitability LIP(OuterLoop, InnerLoop, SE, CacheLineSize);
     if (!LIP.isProfitable(InnerLoopId, OuterLoopId, DependencyMatrix)) {
       DEBUG(dbgs() << "Interchanging loops not profitable\n");
       return false;
@@ -844,7 +852,8 @@ bool LoopInterchangeLegality::currentLimitations() {
 
   bool FoundInduction = false;
   for (const Instruction &I : reverse(*InnerLoopLatch)) {
-    if (isa<BranchInst>(I) || isa<CmpInst>(I) || isa<TruncInst>(I))
+    if (isa<BranchInst>(I) || isa<CmpInst>(I) || isa<TruncInst>(I) ||
+        isa<ZExtInst>(I))
       continue;
 
     // We found an instruction. If this is not induction variable then it is not
@@ -916,55 +925,62 @@ bool LoopInterchangeLegality::canInterchangeLoops(unsigned InnerLoopId,
   return true;
 }
 
-int LoopInterchangeProfitability::getInstrOrderCost() {
-  unsigned GoodOrder, BadOrder;
-  BadOrder = GoodOrder = 0;
-  for (auto BI = InnerLoop->block_begin(), BE = InnerLoop->block_end();
-       BI != BE; ++BI) {
-    for (Instruction &Ins : **BI) {
-      if (const GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(&Ins)) {
-        unsigned NumOp = GEP->getNumOperands();
-        bool FoundInnerInduction = false;
-        bool FoundOuterInduction = false;
-        for (unsigned i = 0; i < NumOp; ++i) {
-          const SCEV *OperandVal = SE->getSCEV(GEP->getOperand(i));
-          const SCEVAddRecExpr *AR = dyn_cast<SCEVAddRecExpr>(OperandVal);
-          if (!AR)
-            continue;
+/// \brief Returns the number of bytes that fit in a cache line when using Addr
+/// to access memory in L.
+static unsigned getBytesInCache(Loop *L, ScalarEvolution *SE, Value *Addr, unsigned CacheLineSize) {
+  const Type *AddrTy = Addr->getType();
+  assert(AddrTy->isPointerTy() && "Addr must be a pointer type");
+  const SCEV *Expr = SE->getSCEVAtScope(Addr, L);
+  const SCEVAddRecExpr *AR = dyn_cast<SCEVAddRecExpr>(Expr);
 
-          // If we find the inner induction after an outer induction e.g.
-          // for(int i=0;i<N;i++)
-          //   for(int j=0;j<N;j++)
-          //     A[i][j] = A[i-1][j-1]+k;
-          // then it is a good order.
-          if (AR->getLoop() == InnerLoop) {
-            // We found an InnerLoop induction after OuterLoop induction. It is
-            // a good order.
-            FoundInnerInduction = true;
-            if (FoundOuterInduction) {
-              GoodOrder++;
-              break;
-            }
-          }
-          // If we find the outer induction after an inner induction e.g.
-          // for(int i=0;i<N;i++)
-          //   for(int j=0;j<N;j++)
-          //     A[j][i] = A[j-1][i-1]+k;
-          // then it is a bad order.
-          if (AR->getLoop() == OuterLoop) {
-            // We found an OuterLoop induction after InnerLoop induction. It is
-            // a bad order.
-            FoundOuterInduction = true;
-            if (FoundInnerInduction) {
-              BadOrder++;
-              break;
-            }
-          }
-        }
-      }
-    }
+  // Number of bytes used by accessing a single element.
+  const unsigned ValueSizeBytes =
+    std::max(CacheLineSize,
+             AddrTy->getPointerElementType()->getScalarSizeInBits() / 8);
+
+  if (SE->isLoopInvariant(Expr, L))
+    return CacheLineSize;
+
+  // For complex address calculations, assume only a single element fits in a
+  // cache line.
+  if (!AR) return ValueSizeBytes;
+  if (!AR->isAffine()) return ValueSizeBytes;
+  const SCEVConstant *C = dyn_cast<SCEVConstant>(AR->getStepRecurrence(*SE));
+  if (!C) return ValueSizeBytes;
+
+  // For constant steps, calculate the number of elements be in a cache line
+  // for that step size and use that to estimate the number of bytes in a cache
+  // line.
+  unsigned Step = C->getValue()->getValue().abs().getZExtValue();
+  assert(Step != 0 && "step is 0");
+  unsigned UsedBytes = std::max(CacheLineSize,
+                                CacheLineSize / Step * ValueSizeBytes);
+  if (UsedBytes == 0)
+    return ValueSizeBytes;
+
+  return UsedBytes;
+}
+
+/// \brief Returns the number of bytes that fit into cache lines if memory
+/// access happen in Loop.
+unsigned LoopInterchangeProfitability::getInstrOrderCost(Loop *Loop) {
+  unsigned BytesInCache = 0;
+  for (BasicBlock *BB : InnerLoop->blocks()) {
+    for (Instruction &Ins : *BB) {
+      // For each load or store instruction, calculate the number of bytes that
+      // fit into a cache line, if this address is used in the Loop.
+      Value *Addr = nullptr;
+      if (LoadInst *LI = dyn_cast<LoadInst>(&Ins))
+        Addr = LI->getPointerOperand();
+      if (StoreInst *SI = dyn_cast<StoreInst>(&Ins))
+        Addr = SI->getPointerOperand();
+
+      if (!Addr) continue;
+
+      BytesInCache += getBytesInCache(Loop, SE, Addr, CacheLineSize);
+     }
   }
-  return GoodOrder - BadOrder;
+  return BytesInCache;
 }
 
 static bool isProfitableForVectorization(unsigned InnerLoopId,
@@ -998,9 +1014,11 @@ bool LoopInterchangeProfitability::isProfitable(unsigned InnerLoopId,
   // This is rough cost estimation algorithm. It counts the good and bad order
   // of induction variables in the instruction and allows reordering if number
   // of bad orders is more than good.
-  int Cost = getInstrOrderCost();
-  DEBUG(dbgs() << "Cost = " << Cost << "\n");
-  if (Cost < -LoopInterchangeCostThreshold)
+  int OriginalCost = getInstrOrderCost(InnerLoop);
+  int InterchangedCost = getInstrOrderCost(OuterLoop);
+  DEBUG(dbgs() << "OriginalCost = " << OriginalCost << " InterchangedCost "
+               << InterchangedCost << "\n");
+  if ((InterchangedCost - OriginalCost) > LoopInterchangeCostThreshold)
     return true;
 
   // It is not profitable as per current cache profitability model. But check if
