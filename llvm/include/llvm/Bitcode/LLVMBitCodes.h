@@ -212,8 +212,8 @@ enum GlobalValueSummarySymtabCodes {
   FS_ALIAS = 7,
   // COMBINED_ALIAS: [valueid, modid, flags, valueid]
   FS_COMBINED_ALIAS = 8,
-  // COMBINED_ORIGINAL_NAME: [original_name_hash]
-  FS_COMBINED_ORIGINAL_NAME = 9,
+  // ORIGINAL_NAME: [original_name_hash]
+  FS_ORIGINAL_NAME = 9,
   // VERSION of the summary, bumped when adding flags for instance.
   FS_VERSION = 10,
   // The list of llvm.type.test type identifiers used by the following function
