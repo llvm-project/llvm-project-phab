@@ -7219,7 +7219,7 @@ static bool EvaluateBuiltinConstantPForLValue(const LValue &LV) {
 
 /// EvaluateBuiltinConstantP - Evaluate __builtin_constant_p as similarly to
 /// GCC as we can manage.
-static bool EvaluateBuiltinConstantP(ASTContext &Ctx, const Expr *Arg) {
+static bool EvaluateBuiltinConstantP(EvalInfo &Info, const Expr *Arg) {
   QualType ArgType = Arg->getType();
 
   // __builtin_constant_p always has one operand. The rules which gcc follows
@@ -7235,25 +7235,24 @@ static bool EvaluateBuiltinConstantP(ASTContext &Ctx, const Expr *Arg) {
   //
   // FIXME: GCC also intends to return 1 for literals of aggregate types, but
   // its support for this does not currently work.
-  if (ArgType->isIntegralOrEnumerationType()) {
-    Expr::EvalResult Result;
-    if (!Arg->EvaluateAsRValue(Result, Ctx) || Result.HasSideEffects)
+  SpeculativeEvaluationRAII SpeculativeEval(Info);
+  FoldConstant Fold(Info, true);
+  if (ArgType->isIntegralOrEnumerationType() || ArgType->isFloatingType() ||
+      ArgType->isAnyComplexType()) {
+    APValue V;
+    if (!EvaluateAsRValue(Info, Arg, V) || Info.EvalStatus.HasSideEffects)
       return false;
-
-    APValue &V = Result.Val;
-    if (V.getKind() == APValue::Int)
+    if (V.getKind() == APValue::Int || V.getKind() == APValue::Float ||
+        V.getKind() == APValue::ComplexInt ||
+        V.getKind() == APValue::ComplexFloat)
       return true;
     if (V.getKind() == APValue::LValue)
       return EvaluateBuiltinConstantPForLValue(V);
-  } else if (ArgType->isFloatingType() || ArgType->isAnyComplexType()) {
-    return Arg->isEvaluatable(Ctx);
   } else if (ArgType->isPointerType() || Arg->isGLValue()) {
     LValue LV;
-    Expr::EvalStatus Status;
-    EvalInfo Info(Ctx, Status, EvalInfo::EM_ConstantFold);
     if ((Arg->isGLValue() ? EvaluateLValue(Arg, LV, Info)
                           : EvaluatePointer(Arg, LV, Info)) &&
-        !Status.HasSideEffects)
+        !Info.EvalStatus.HasSideEffects)
       return EvaluateBuiltinConstantPForLValue(LV);
   }
 
@@ -7644,7 +7643,7 @@ bool IntExprEvaluator::VisitBuiltinCallExpr(const CallExpr *E,
   }
 
   case Builtin::BI__builtin_constant_p:
-    return Success(EvaluateBuiltinConstantP(Info.Ctx, E->getArg(0)), E);
+    return Success(EvaluateBuiltinConstantP(Info, E->getArg(0)), E);
 
   case Builtin::BI__builtin_ctz:
   case Builtin::BI__builtin_ctzl:

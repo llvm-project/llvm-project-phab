@@ -2169,3 +2169,13 @@ namespace PointerArithmeticOverflow {
   constexpr int *q = (&n + 1) - (unsigned __int128)-1; // expected-error {{constant expression}} expected-note {{cannot refer to element -3402}}
   constexpr int *r = &(&n + 1)[(unsigned __int128)-1]; // expected-error {{constant expression}} expected-note {{cannot refer to element 3402}}
 }
+
+namespace BuiltinConstantP {
+  int computeRuntime(int);
+  constexpr int compute(int x) {
+    return __builtin_constant_p(x) ? x + 2 : computeRuntime(x);
+  }
+  constexpr int x = compute(25);
+  int n; // expected-note{{declared here}}
+  constexpr int z = compute(n); // expected-error {{constant expression}} expected-note{{non-const variable}}
+}

@@ -982,3 +982,8 @@ constexpr void PR28739(int n) { // expected-error {{never produces a constant}}
   int *p = &n;
   p += (__int128)(unsigned long)-1; // expected-note {{cannot refer to element 18446744073709551615 of non-array object in a constant expression}}
 }
+
+namespace BuiltinConstantP {
+  constexpr int f1(int i) { return __builtin_constant_p(i += 4) ? 0 : i += 3; }
+  static_assert(f1(10) == 13, "");
+}
