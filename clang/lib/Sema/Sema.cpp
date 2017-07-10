@@ -764,6 +764,7 @@ void Sema::ActOnEndOfTranslationUnit() {
       LateTemplateParserCleanup(OpaqueParser);
 
     CheckDelayedMemberExceptionSpecs();
+    checkDependentFriends();
   }
 
   DiagnoseUnterminatedPragmaAttribute();

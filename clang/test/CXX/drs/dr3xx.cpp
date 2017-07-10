@@ -291,7 +291,9 @@ namespace dr321 { // dr321: dup 557
   template void g(N::A<0>::B<0>);
 
   namespace N {
-    template<typename> struct I { friend bool operator==(const I&, const I&); };
+    template<typename> struct I { friend bool operator==(const I&, const I&); };  // expected-warning{{friend declaration 'dr321::N::operator==' depends on template parameter but is not a function template}}
+                                      // expected-note@-1{{declare function outside class template to suppress this warning}}
+                                      // expected-note@-2{{to befriend a template specialization, make sure the function template has already been declared and use '<>'}}
   }
   N::I<int> i, j;
   bool x = i == j;

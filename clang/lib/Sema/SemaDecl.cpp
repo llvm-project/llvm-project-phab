@@ -9155,6 +9155,25 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
     AddToScope = false;
   }
 
+  // If this is a friend function declaration inside a template class and the
+  // function depends on the template parameter as in:
+  //
+  //     template<typename T> class C {
+  //         friend void func(T &x);
+  //     };
+  //
+  // store it in the Sema. Later on such declaration will be checked if it is
+  // a misprint of a function template.
+  if (isFriend && !NewFD->isInvalidDecl()) {
+    if (TemplateParamLists.empty() &&
+        !DC->isRecord() &&
+        !isFunctionTemplateSpecialization &&
+        NewFD->getType()->isDependentType() &&
+        !NewFD->isThisDeclarationADefinition()) {
+      FriendsOfTemplates.push_back(NewFD);
+    }
+  }
+
   return NewFD;
 }
 

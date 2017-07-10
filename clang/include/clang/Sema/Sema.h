@@ -10318,6 +10318,27 @@ private:
   /// attempts to add itself into the container
   void CheckObjCCircularContainer(ObjCMessageExpr *Message);
 
+  /// Set of file level friend function declared in template classes and
+  /// dependent on the template parameter.
+  ///
+  /// It is kept to check, if friend function declaration in the code like:
+  /// \code
+  ///     template<typename T> class C {
+  ///       friend void func(T &x);
+  ///     };
+  /// \endcode
+  ///
+  /// is actually intended to be:
+  ///
+  /// \code
+  ///       template<typename T2> friend void func(T2 &x);
+  /// \endcode
+  SmallVector<FunctionDecl *, 16> FriendsOfTemplates;
+
+  /// Check dependent friend functions for misinterpretation as function
+  /// templates.
+  void checkDependentFriends();
+
   void AnalyzeDeleteExprMismatch(const CXXDeleteExpr *DE);
   void AnalyzeDeleteExprMismatch(FieldDecl *Field, SourceLocation DeleteLoc,
                                  bool DeleteWasArrayForm);

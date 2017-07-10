@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -verify %s -std=c++11
+// RUN: %clang_cc1 -verify %s -std=c++11 -Wno-non-template-friend
 
 template<typename T> struct A {
   template<typename U> struct B;

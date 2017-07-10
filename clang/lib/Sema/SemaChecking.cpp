@@ -12191,3 +12191,203 @@ void Sema::CheckAddressOfPackedMember(Expr *rhs) {
                      _2, _3, _4));
 }
 
+
+namespace {
+/// Helper class used to check if a friend declaration may refer to another
+/// function declaration.
+///
+/// The class is used to compare two function declarations, one is a friend
+/// function declared in template class, the other is a function with the same
+/// name declared at file level.
+///
+/// The class is used to produce appropriate warning if friend function declared
+/// in a template class depends on that class template parameters.
+///
+class FunctionMatcher {
+  ASTContext &Ctx;
+  std::map<const TemplateTypeParmType *, QualType> TemplParamMapping;
+
+  bool match(QualType TFriend, QualType TFunc) {
+    if (TFriend == TFunc)
+      return true;
+    if (TFriend.getQualifiers() != TFunc.getQualifiers())
+      return false;
+    if (auto FrT = TFriend->getAs<TemplateTypeParmType>()) {
+      if (auto FT = TFunc->getAs<TemplateTypeParmType>())
+        return FrT->getDepth() == FT->getDepth() &&
+        FrT->getIndex() == FT->getIndex();
+
+      const TemplateTypeParmType *CanonFrTParm = cast<TemplateTypeParmType>(
+        FrT->getCanonicalTypeUnqualified().getTypePtr());
+      CanQualType CanonFT = TFunc->getCanonicalTypeUnqualified();
+      auto Ptr = TemplParamMapping.find(CanonFrTParm);
+      if (Ptr != TemplParamMapping.end())
+        return Ptr->second == CanonFT;
+      TemplParamMapping[CanonFrTParm] = CanonFT;
+      return true;
+    }
+    if (auto FrPT = TFriend->getAs<PointerType>()) {
+      if (auto PT = TFunc->getAs<PointerType>())
+        return match(FrPT->getPointeeType(), PT->getPointeeType());
+      return false;
+    }
+    if (auto FrLR = TFriend->getAs<LValueReferenceType>()) {
+      if (auto LR = TFunc->getAs<LValueReferenceType>())
+        return match(FrLR->getPointeeType(), LR->getPointeeType());
+      return false;
+    }
+    if (auto FrRR = TFriend->getAs<RValueReferenceType>()) {
+      if (auto RR = TFunc->getAs<RValueReferenceType>())
+        return match(FrRR->getPointeeType(), RR->getPointeeType());
+      return false;
+    }
+    if (auto FrT = TFriend->getAs<InjectedClassNameType>()) {
+      QualType FrT2 = Ctx.getQualifiedType(FrT->getInjectedSpecializationType(),
+                                           TFriend.getQualifiers());
+      return match(FrT2, TFunc);
+    }
+    if (auto FrT = TFriend->getAs<FunctionProtoType>()) {
+      if (auto FT = TFunc->getAs<FunctionProtoType>()) {
+        if (FrT->getNumParams() != FT->getNumParams())
+          return false;
+        for (unsigned I = 0, E = FT->getNumParams(); I < E; ++I) {
+          if (!match(FrT->getParamType(I), FT->getParamType(I)))
+            return false;
+        }
+        return match(FrT->getReturnType(), FT->getReturnType());
+      }
+      return false;
+    }
+    if (auto *FrT = TFriend->getAs<TemplateSpecializationType>()) {
+      if (auto FT = TFunc->getAs<TemplateSpecializationType>()) {
+        TemplateName FrTN = FrT->getTemplateName();
+        TemplateName FTN = FT->getTemplateName();
+        if (FrTN.getKind() != TemplateName::Template ||
+            FrTN.getKind() != FTN.getKind())
+          return false;
+        if (FrTN.isInstantiationDependent() || FTN.isInstantiationDependent())
+          return false;
+        const Decl *FrD = FrTN.getAsTemplateDecl()->getCanonicalDecl();
+        const Decl *FD = FTN.getAsTemplateDecl()->getCanonicalDecl();
+        if (FrD != FD)
+          return false;
+
+        auto IFrT = FrT->begin(), EFrT = FrT->end();
+        auto IFT = FT->begin();
+        for (; IFrT != EFrT; ++IFrT, ++IFT) {
+          assert(IFT != FT->end());
+          const TemplateArgument &FrTA = *IFrT;
+          const TemplateArgument &FTA = *IFT;
+          if (FrTA.getKind() != FTA.getKind())
+            return false;
+          if (FrTA.getKind() == TemplateArgument::Type) {
+            QualType FrTy = FrTA.getAsType();
+            QualType FTy = FTA.getAsType();
+            if (!match(FrTy, FTy))
+              return false;
+          } else if (FrTA.getKind() == TemplateArgument::Integral) {
+            if (FrTA.getIntegralType() != FTA.getIntegralType())
+              return false;
+            llvm::APSInt FrV = FrTA.getAsIntegral();
+            llvm::APSInt FV = FTA.getAsIntegral();
+            if (FrV != FV)
+              return false;
+          } else
+            return false;
+        }
+        return true;
+      }
+      return false;
+    }
+
+    return false;
+  }
+
+public:
+  FunctionMatcher (ASTContext &Ctx) : Ctx(Ctx) {}
+
+  bool isPossibleMatch(FunctionDecl *FrD, FunctionDecl *F) {
+    TemplParamMapping.clear();
+    return match(FrD->getType(), F->getType());
+  }
+
+  bool isPossibleMatch(FunctionDecl *FrD, FunctionTemplateDecl *F) {
+    TemplParamMapping.clear();
+    FunctionDecl *Pattern = F->getTemplatedDecl();
+    return match(FrD->getType(), Pattern->getType());
+  }
+};
+}
+
+/// Given a friend function declaration checks if it might be misused.
+static void checkDependentFriend(Sema &S, FunctionDecl *FriendD) {
+  if (FriendD->isInvalidDecl())
+    return;
+
+  // Scan all function and function template declarations with the same name as
+  // the specified friend function to see if some of them could be referenced in
+  // the friend declaration.
+  LookupResult FRes(S, FriendD->getNameInfo(), Sema::LookupOrdinaryName);
+  if (S.LookupQualifiedName(FRes, FriendD->getDeclContext())) {
+
+    // First check for suitable functions that uses particular specialization of
+    // parameter type, for example:
+    //
+    //     template<typename T> class C {
+    //         friend void func(T &x);
+    //     };
+    //     void func(int &x);
+    //
+    // Presence of such function can be considered as an evidence that the
+    // friend function is dependent intentionally. No warning in this case.
+    for (NamedDecl *D : FRes) {
+      if (D->isInvalidDecl())
+        continue;
+      if (auto *FD = dyn_cast<FunctionDecl>(D)) {
+        if (FunctionMatcher(S.getASTContext()).isPossibleMatch(FriendD, FD))
+          return;
+      }
+    }
+
+    // Next check if there is suitable function template, like:
+    //
+    //     template<typename T> class C {
+    //         friend void func(T &x);
+    //     };
+    //     template<typename T> void func(T &x);
+    //
+    // If such template exists, issue warning and propose the template as a
+    // friend.
+    for (NamedDecl *D : FRes) {
+      if (D->isInvalidDecl())
+        continue;
+      if (auto *FTD = dyn_cast<FunctionTemplateDecl>(D))
+        if (FunctionMatcher(S.getASTContext()).isPossibleMatch(FriendD, FTD)) {
+          // Appropriate function template is found.
+          S.Diag(FriendD->getLocation(), diag::warn_non_template_friend)
+              << FriendD;
+          SourceLocation NameLoc = FriendD->getNameInfo().getLocEnd();
+          SourceLocation PastName = S.getLocForEndOfToken(NameLoc);
+          S.Diag(PastName, diag::note_befriend_template)
+            << FixItHint::CreateInsertion(PastName, "<>");
+          return;
+        }
+    }
+  }
+
+  // No appropriate function or function template was found, so issue generic
+  // warning.
+  S.Diag(FriendD->getLocation(), diag::warn_non_template_friend) << FriendD;
+  S.Diag(FriendD->getLocation(), diag::note_add_template_friend_decl);
+  S.Diag(FriendD->getLocation(), diag::note_befriend_template);
+}
+
+
+void Sema::checkDependentFriends() {
+  for (FunctionDecl *FriendD : FriendsOfTemplates) {
+    if (FriendD->getType()->isDependentType() &&
+        !FriendD->isThisDeclarationADefinition())
+      checkDependentFriend(*this, FriendD);
+  }
+  FriendsOfTemplates.clear();
+}
