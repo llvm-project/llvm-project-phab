@@ -7,10 +7,9 @@ define i32 @uadd_overflow(i32 %a, i32 %b) #0 {
   ret i32 %2
 
   ; CHECK-LABEL: uadd_overflow:
-  ; CHECK: add r[[R2:[0-9]+]], r[[R0:[0-9]+]], r[[R1:[0-9]+]]
-  ; CHECK: mov r[[R1]], #1
-  ; CHECK: cmp r[[R2]], r[[R0]]
-  ; CHECK: movhs r[[R1]], #0
+  ; CHECK: adds r[[R0:[0-9]+]], r[[R0]], r[[R1:[0-9]+]]
+  ; CHECK: mov r[[R2:[0-9]+]], #0
+  ; CHECK: adc r[[R0]], r[[R2]], #0
 }
 
 
@@ -34,9 +33,9 @@ define i32 @usub_overflow(i32 %a, i32 %b) #0 {
   ret i32 %2
 
   ; CHECK-LABEL: usub_overflow:
-  ; CHECK: mov r[[R2]], #1
-  ; CHECK: cmp r[[R0]], r[[R1]]
-  ; CHECK: movhs r[[R2]], #0
+  ; CHECK: subs r[[R0:[0-9]+]], r[[R0]], r[[R1:[0-9]+]]
+  ; CHECK: mov  r[[R2:[0-9]+]], #1
+  ; CHECK: sbc  r[[R0]], r[[R2]], #0
 }
 
 define i32 @ssub_overflow(i32 %a, i32 %b) #0 {
