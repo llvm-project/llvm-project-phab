@@ -251,9 +251,16 @@ bool SanitizerCoverageModule::runOnModule(Module &M) {
       checkSanitizerInterfaceFunction(M.getOrInsertFunction(
           SanCovTraceCmp8, VoidTy, Int64Ty, Int64Ty));
 
+  for (int i = 0; i < 3; i++) {
+    SanCovTraceCmpFunction[i]->addParamAttr(0, Attribute::ZExt);
+    SanCovTraceCmpFunction[i]->addParamAttr(1, Attribute::ZExt);
+  }
+
   SanCovTraceDivFunction[0] =
       checkSanitizerInterfaceFunction(M.getOrInsertFunction(
           SanCovTraceDiv4, VoidTy, IRB.getInt32Ty()));
+  SanCovTraceDivFunction[0]->addParamAttr(0, Attribute::ZExt);
+
   SanCovTraceDivFunction[1] =
       checkSanitizerInterfaceFunction(M.getOrInsertFunction(
           SanCovTraceDiv8, VoidTy, Int64Ty));
