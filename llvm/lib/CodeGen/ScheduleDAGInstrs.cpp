@@ -226,6 +226,23 @@ static void getUnderlyingObjectsForInstr(const MachineInstr *MI,
     Objects.clear();
 }
 
+// Chain the dependents of the instruction defining a cluster to the instruction
+// clustered to it to prevent them from being scheduled between the clustered
+// instructions.
+static void addClusterChain(SUnit *SU) {
+  for (auto &Def : SU->Preds)
+    if (Def.isCluster())
+      for (auto &Use : Def.getSUnit()->Succs) {
+        SUnit *UseSU = Use.getSUnit();
+        if (UseSU == SU || UseSU->isPred(SU))
+          continue;
+        DEBUG(dbgs() << "  Bind ";
+              SU->print(dbgs()); dbgs() << " - ";
+              UseSU->print(dbgs()); dbgs() << '\n';);
+        UseSU->addPred(SDep(SU, SDep::Artificial));
+      }
+}
+
 void ScheduleDAGInstrs::startBlock(MachineBasicBlock *bb) {
   BB = bb;
 }
@@ -297,8 +314,9 @@ void ScheduleDAGInstrs::addPhysRegDataDeps(SUnit *SU, unsigned OperIdx) {
       // Adjust the dependence latency using operand def/use information,
       // then allow the target to perform its own adjustments.
       int UseOp = I->OpIdx;
-      MachineInstr *RegUse = nullptr;
+      MachineInstr *UseMI = nullptr;
       SDep Dep;
+      bool Cluster;
       if (UseOp < 0)
         Dep = SDep(SU, SDep::Artificial);
       else {
@@ -306,14 +324,18 @@ void ScheduleDAGInstrs::addPhysRegDataDeps(SUnit *SU, unsigned OperIdx) {
         // the scheduling region.
         SU->hasPhysRegDefs = true;
         Dep = SDep(SU, SDep::Data, *Alias);
-        RegUse = UseSU->getInstr();
+        UseMI = UseSU->getInstr();
       }
-      Dep.setLatency(
-        SchedModel.computeOperandLatency(SU->getInstr(), OperIdx, RegUse,
-                                         UseOp));
-
+      Dep.setLatency(SchedModel.computeOperandLatency(SU->getInstr(), OperIdx,
+                                                      UseMI, UseOp, &Cluster));
       ST.adjustSchedDependency(SU, UseSU, Dep);
       UseSU->addPred(Dep);
+      if (Cluster) {
+        DEBUG(dbgs() << "  Cluster ";
+              SU->print(dbgs(), this); dbgs() << " - ";
+              UseSU->print(dbgs(), this); dbgs() << '\n';);
+        UseSU->addPred(SDep(SU, SDep::Cluster));
+      }
     }
   }
 }
@@ -456,12 +478,20 @@ void ScheduleDAGInstrs::addVRegDefDeps(SUnit *SU, unsigned OperIdx) {
 
       if ((LaneMask & DefLaneMask).any()) {
         SUnit *UseSU = I->SU;
-        MachineInstr *Use = UseSU->getInstr();
+        MachineInstr *UseMI = UseSU->getInstr();
         SDep Dep(SU, SDep::Data, Reg);
-        Dep.setLatency(SchedModel.computeOperandLatency(MI, OperIdx, Use,
-                                                        I->OperandIndex));
+        bool Cluster;
+        Dep.setLatency(SchedModel.computeOperandLatency(MI, OperIdx,
+                                                        UseMI, I->OperandIndex,
+                                                        &Cluster));
         ST.adjustSchedDependency(SU, UseSU, Dep);
         UseSU->addPred(Dep);
+        if (Cluster) {
+          DEBUG(dbgs() << "  Cluster ";
+                SU->print(dbgs(), this); dbgs() << " - ";
+                UseSU->print(dbgs(), this); dbgs() << '\n';);
+          UseSU->addPred(SDep(SU, SDep::Cluster));
+        }
       }
 
       LaneMask &= ~KillLaneMask;
@@ -993,6 +1023,11 @@ void ScheduleDAGInstrs::buildSchedGraph(AliasAnalysis *AA,
       reduceHugeMemNodeMaps(NonAliasStores, NonAliasLoads, getReductionSize());
     }
   }
+
+  // Bind any clusters.
+  addClusterChain(&ExitSU);
+  for (auto &I : MISUnitMap)
+    addClusterChain(I.second);
 
   if (DbgMI)
     FirstDbgValue = DbgMI;

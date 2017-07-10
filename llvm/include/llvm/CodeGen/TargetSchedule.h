@@ -168,8 +168,8 @@ public:
   /// when the operand indices are already known. UseMI may be NULL for an
   /// unknown user.
   unsigned computeOperandLatency(const MachineInstr *DefMI, unsigned DefOperIdx,
-                                 const MachineInstr *UseMI, unsigned UseOperIdx)
-    const;
+                                 const MachineInstr *UseMI, unsigned UseOperIdx,
+                                 bool *Cluster = nullptr) const;
 
   /// \brief Compute the instruction latency based on the available machine
   /// model.
