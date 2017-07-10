@@ -284,6 +284,10 @@ static bool shouldUseMmap(int FD,
                           bool RequiresNullTerminator,
                           int PageSize,
                           bool IsVolatile) {
+#ifdef _WIN32
+  // Do not use mmap on Windows in order to avoid file locking
+  return false;
+#endif
   // mmap may leave the buffer without null terminator if the file size changed
   // by the time the last page is mapped in, so avoid it if the file size is
   // likely to change.
