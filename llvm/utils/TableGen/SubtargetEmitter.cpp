@@ -980,6 +980,7 @@ void SubtargetEmitter::GenSchedClassTables(const CodeGenProcModel &ProcModel,
         RAEntry.UseIdx = UseIdx;
         RAEntry.WriteResourceID = W;
         RAEntry.Cycles = ReadAdvance->getValueAsInt("Cycles");
+        RAEntry.Cluster = ReadAdvance->getValueAsBit("Cluster");
         ReadAdvanceEntries.push_back(RAEntry);
       }
     }
@@ -1082,19 +1083,20 @@ void SubtargetEmitter::EmitSchedClassTables(SchedClassTables &SchedTables,
   OS << "}; // " << Target << "WriteLatencyTable\n";
 
   // Emit global ReadAdvanceTable.
-  OS << "\n// {UseIdx, WriteResourceID, Cycles}\n"
+  OS << "\n// {UseIdx, WriteResourceID, Cycles, Cluster}\n"
      << "extern const llvm::MCReadAdvanceEntry "
      << Target << "ReadAdvanceTable[] = {\n"
-     << "  {0,  0,  0}, // Invalid\n";
+     << "  {0,   0,  0, 0}, // Invalid\n";
   for (unsigned RAIdx = 1, RAEnd = SchedTables.ReadAdvanceEntries.size();
        RAIdx != RAEnd; ++RAIdx) {
     MCReadAdvanceEntry &RAEntry = SchedTables.ReadAdvanceEntries[RAIdx];
-    OS << "  {" << RAEntry.UseIdx << ", "
-       << format("%2d", RAEntry.WriteResourceID) << ", "
-       << format("%2d", RAEntry.Cycles) << "}";
-    if (RAIdx + 1 < RAEnd)
-      OS << ',';
-    OS << " // #" << RAIdx << '\n';
+    OS << "  {"
+       << RAEntry.UseIdx << ", "
+       << format("%3d", RAEntry.WriteResourceID) << ", "
+       << format("%2d", RAEntry.Cycles) << ", "
+       << RAEntry.Cluster << "}"
+       << (RAIdx + 1 < RAEnd ? ',' : ' ')
+       << " // #" << RAIdx << '\n';
   }
   OS << "}; // " << Target << "ReadAdvanceTable\n";
 

@@ -78,8 +78,9 @@ struct MCWriteLatencyEntry {
 /// Specify the number of cycles allowed after instruction issue before a
 /// particular use operand reads its registers. This effectively reduces the
 /// write's latency. Here we allow negative cycles for corner cases where
-/// latency increases. This rule only applies when the entry's WriteResource
-/// matches the write's WriteResource.
+/// latency increases. Optionally, the read instruction may be clustered with
+/// the write instruction.  This rule only applies when the entry's
+/// WriteResource matches the write's WriteResource.
 ///
 /// MCReadAdvanceEntries are sorted first by operand index (UseIdx), then by
 /// WriteResourceIdx.
@@ -87,6 +88,7 @@ struct MCReadAdvanceEntry {
   unsigned UseIdx;
   unsigned WriteResourceID;
   int Cycles;
+  bool Cluster;
 
   bool operator==(const MCReadAdvanceEntry &Other) const {
     return UseIdx == Other.UseIdx && WriteResourceID == Other.WriteResourceID

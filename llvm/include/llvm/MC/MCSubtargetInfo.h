@@ -145,7 +145,7 @@ public:
   }
 
   int getReadAdvanceCycles(const MCSchedClassDesc *SC, unsigned UseIdx,
-                           unsigned WriteResID) const {
+                           unsigned WriteResID, bool *Cluster = nullptr) const {
     // TODO: The number of read advance entries in a class can be significant
     // (~50). Consider compressing the WriteID into a dense ID of those that are
     // used by ReadAdvance and representing them as a bitset.
@@ -157,6 +157,8 @@ public:
         break;
       // Find the first WriteResIdx match, which has the highest cycle count.
       if (!I->WriteResourceID || I->WriteResourceID == WriteResID) {
+        if (Cluster != nullptr)
+          *Cluster = I->Cluster;
         return I->Cycles;
       }
     }
