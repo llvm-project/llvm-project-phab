@@ -16,6 +16,7 @@
 #include <cstdarg>
 #include <cstdio>
 #include <dirent.h>
+#include <errno.h>
 #include <fstream>
 #include <iterator>
 #include <libgen.h>
@@ -113,9 +114,26 @@ bool IsInterestingCoverageFile(const std::string &FileName) {
   return true;
 }
 
-
 void RawPrint(const char *Str) {
-  write(2, Str, strlen(Str));
+  const size_t StrLength = strlen(Str);
+  size_t RemainingBytes = StrLength;
+  while (RemainingBytes > 0) {
+    ssize_t BytesWritten =
+        write(2, Str + (StrLength - RemainingBytes), RemainingBytes);
+    if (BytesWritten == -1) {
+      if (errno == EINTR) {
+        // Syscall was interrupted. Try again.
+        continue;
+      }
+      // Otherwise just give up.
+      break;
+    }
+    if (BytesWritten == 0) {
+      // Give up.
+      break;
+    }
+    RemainingBytes -= BytesWritten;
+  }
 }
 
 }  // namespace fuzzer
