@@ -20,15 +20,18 @@
 #include "llvm/Support/CommandLine.h"
 
 namespace llvm {
-  struct PluginLoader {
-    void operator=(const std::string &Filename);
-    static unsigned getNumPlugins();
-    static std::string& getPlugin(unsigned num);
-  };
+struct PluginInfo;
+
+struct PluginLoader {
+  void operator=(const std::string &Filename);
+  static unsigned getNumPlugins();
+  static std::string &getPlugin(unsigned num);
+  static const PluginInfo &getPluginInfo(unsigned num);
+};
 
 #ifndef DONT_GET_PLUGIN_LOADER_OPTION
-  // This causes operator= above to be invoked for every -load option.
-  static cl::opt<PluginLoader, false, cl::parser<std::string> >
+// This causes operator= above to be invoked for every -load option.
+static cl::opt<PluginLoader, false, cl::parser<std::string>>
     LoadOpt("load", cl::ZeroOrMore, cl::value_desc("pluginfilename"),
             cl::desc("Load the specified plugin"));
 #endif

@@ -32,6 +32,10 @@
 #include "llvm/Transforms/IPO/ThinLTOBitcodeWriter.h"
 #include "llvm/Transforms/Scalar/LoopPassManager.h"
 
+#define DONT_GET_PLUGIN_LOADER_OPTION
+#include "llvm/Support/Plugin.h"
+#include "llvm/Support/PluginLoader.h"
+
 using namespace llvm;
 using namespace opt_tool;
 
@@ -155,6 +159,10 @@ bool llvm::runPassPipeline(StringRef Arg0, Module &M, TargetMachine *TM,
   bool VerifyEachPass = VK == VK_VerifyEachPass;
   PassBuilder PB(TM);
   registerEPCallbacks(PB, VerifyEachPass, DebugPM);
+
+  for (unsigned p = 0; p < PluginLoader::getNumPlugins(); ++p)
+    if (PluginLoader::getPluginInfo(p).RegisterPassBuilderCallbacks)
+      PluginLoader::getPluginInfo(p).RegisterPassBuilderCallbacks(PB);
 
   // Specially handle the alias analysis manager so that we can register
   // a custom pipeline of AA passes with it.
