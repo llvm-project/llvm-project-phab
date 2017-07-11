@@ -76,3 +76,4 @@ set_source_files_properties(AlignOfTest.cpp PROPERTIES COMPILE_FLAGS -w)
 target_link_libraries(SupportTests LLVMTestingSupport ${LLVM_PTHREAD_LIB})
 
 add_subdirectory(DynamicLibrary)
+add_subdirectory(Plugins)
