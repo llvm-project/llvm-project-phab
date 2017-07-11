@@ -642,6 +642,7 @@ void SelectionDAGLegalize::LegalizeLoadOps(SDNode *Node) {
              "Can only promote loads to same size type");
 
       SDValue Res = DAG.getLoad(NVT, dl, Chain, Ptr, LD->getMemOperand());
+      Res.getNode()->setIsDivergent(LD->isDivergent());
       RVal = DAG.getNode(ISD::BITCAST, dl, VT, Res);
       RChain = Res.getValue(1);
       break;
@@ -692,7 +693,7 @@ void SelectionDAGLegalize::LegalizeLoadOps(SDNode *Node) {
     SDValue Result =
         DAG.getExtLoad(NewExtType, dl, Node->getValueType(0), Chain, Ptr,
                        LD->getPointerInfo(), NVT, Alignment, MMOFlags, AAInfo);
-
+    Result->setIsDivergent(LD->isDivergent());
     Ch = Result.getValue(1); // The chain.
 
     if (ExtType == ISD::SEXTLOAD)
@@ -729,7 +730,7 @@ void SelectionDAGLegalize::LegalizeLoadOps(SDNode *Node) {
       Lo = DAG.getExtLoad(ISD::ZEXTLOAD, dl, Node->getValueType(0), Chain, Ptr,
                           LD->getPointerInfo(), RoundVT, Alignment, MMOFlags,
                           AAInfo);
-
+      Lo->setIsDivergent(LD->isDivergent());
       // Load the remaining ExtraWidth bits.
       IncrementSize = RoundWidth / 8;
       Ptr = DAG.getNode(ISD::ADD, dl, Ptr.getValueType(), Ptr,
@@ -739,7 +740,7 @@ void SelectionDAGLegalize::LegalizeLoadOps(SDNode *Node) {
                           LD->getPointerInfo().getWithOffset(IncrementSize),
                           ExtraVT, MinAlign(Alignment, IncrementSize), MMOFlags,
                           AAInfo);
-
+      Hi->setIsDivergent(LD->isDivergent());
       // Build a factor node to remember that this load is independent of
       // the other one.
       Ch = DAG.getNode(ISD::TokenFactor, dl, MVT::Other, Lo.getValue(1),
@@ -760,7 +761,7 @@ void SelectionDAGLegalize::LegalizeLoadOps(SDNode *Node) {
       Hi = DAG.getExtLoad(ExtType, dl, Node->getValueType(0), Chain, Ptr,
                           LD->getPointerInfo(), RoundVT, Alignment, MMOFlags,
                           AAInfo);
-
+      Hi->setIsDivergent(LD->isDivergent());
       // Load the remaining ExtraWidth bits.
       IncrementSize = RoundWidth / 8;
       Ptr = DAG.getNode(ISD::ADD, dl, Ptr.getValueType(), Ptr,
@@ -770,7 +771,7 @@ void SelectionDAGLegalize::LegalizeLoadOps(SDNode *Node) {
                           LD->getPointerInfo().getWithOffset(IncrementSize),
                           ExtraVT, MinAlign(Alignment, IncrementSize), MMOFlags,
                           AAInfo);
-
+      Lo->setIsDivergent(LD->isDivergent());
       // Build a factor node to remember that this load is independent of
       // the other one.
       Ch = DAG.getNode(ISD::TokenFactor, dl, MVT::Other, Lo.getValue(1),
@@ -801,6 +802,7 @@ void SelectionDAGLegalize::LegalizeLoadOps(SDNode *Node) {
 
       if (isCustom) {
         if (SDValue Res = TLI.LowerOperation(SDValue(Node, 0), DAG)) {
+          Res->setIsDivergent(Node->isDivergent());
           Value = Res;
           Chain = Res.getValue(1);
         }

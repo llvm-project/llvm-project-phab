@@ -469,8 +469,9 @@ protected:
 
     uint16_t HasDebugValue : 1;
     uint16_t IsMemIntrinsic : 1;
+    uint16_t IsDivergent : 1;
   };
-  enum { NumSDNodeBits = 2 };
+  enum { NumSDNodeBits = 3 };
 
   class ConstantSDNodeBitfields {
     friend class ConstantSDNode;
@@ -660,6 +661,9 @@ public:
 
   bool getHasDebugValue() const { return SDNodeBits.HasDebugValue; }
   void setHasDebugValue(bool b) { SDNodeBits.HasDebugValue = b; }
+
+  bool isDivergent() const { return SDNodeBits.IsDivergent; }
+  void setIsDivergent(bool b) { SDNodeBits.IsDivergent = b; }
 
   /// Return true if there are no uses of this node.
   bool use_empty() const { return UseList == nullptr; }

@@ -18,6 +18,7 @@
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/Analysis/AliasAnalysis.h"
+#include "llvm/Analysis/DivergenceAnalysis.h"
 #include "llvm/CodeGen/SelectionDAG.h"
 #include "llvm/CodeGen/SelectionDAGNodes.h"
 #include "llvm/IR/CallSite.h"
@@ -89,6 +90,8 @@ class SelectionDAGBuilder {
   const Instruction *CurInst;
 
   DenseMap<const Value*, SDValue> NodeMap;
+
+  DivergenceAnalysis * DA;
 
   /// UnusedArgNodeMap - Maps argument value for unused arguments. This is used
   /// to preserve debug information for incoming arguments.
@@ -608,7 +611,7 @@ public:
       HasTailCall(false) {
   }
 
-  void init(GCFunctionInfo *gfi, AliasAnalysis *AA,
+  void init(GCFunctionInfo *gfi, AliasAnalysis *AA, DivergenceAnalysis *DA,
             const TargetLibraryInfo *li);
 
   /// Clear out the current SelectionDAG and the associated state and prepare

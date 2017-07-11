@@ -3487,6 +3487,7 @@ TargetLowering::expandUnalignedLoad(LoadSDNode *LD, SelectionDAG &DAG) const {
       // then bitconvert to floating point or vector.
       SDValue newLoad = DAG.getLoad(intVT, dl, Chain, Ptr,
                                     LD->getMemOperand());
+      newLoad->setIsDivergent(LD->isDivergent());
       SDValue Result = DAG.getNode(ISD::BITCAST, dl, LoadedVT, newLoad);
       if (LoadedVT != VT)
         Result = DAG.getNode(VT.isFloatingPoint() ? ISD::FP_EXTEND :
@@ -3522,6 +3523,8 @@ TargetLowering::expandUnalignedLoad(LoadSDNode *LD, SelectionDAG &DAG) const {
           RegVT, dl, Chain, Ptr, LD->getPointerInfo().getWithOffset(Offset),
           MinAlign(LD->getAlignment(), Offset), LD->getMemOperand()->getFlags(),
           LD->getAAInfo());
+      Load->setIsDivergent(LD->isDivergent());
+
       // Follow the load with a store to the stack slot.  Remember the store.
       Stores.push_back(DAG.getStore(Load.getValue(1), dl, Load, StackPtr,
                                     MachinePointerInfo()));
@@ -3540,6 +3543,8 @@ TargetLowering::expandUnalignedLoad(LoadSDNode *LD, SelectionDAG &DAG) const {
                        LD->getPointerInfo().getWithOffset(Offset), MemVT,
                        MinAlign(LD->getAlignment(), Offset),
                        LD->getMemOperand()->getFlags(), LD->getAAInfo());
+    Load->setIsDivergent(LD->isDivergent());
+
     // Follow the load with a store to the stack slot.  Remember the store.
     // On big-endian machines this requires a truncating store to ensure
     // that the bits end up in the right place.
@@ -3552,6 +3557,7 @@ TargetLowering::expandUnalignedLoad(LoadSDNode *LD, SelectionDAG &DAG) const {
     // Finally, perform the original load only redirected to the stack slot.
     Load = DAG.getExtLoad(LD->getExtensionType(), dl, VT, TF, StackBase,
                           MachinePointerInfo(), LoadedVT);
+    Load->setIsDivergent(LD->isDivergent());
 
     // Callers expect a MERGE_VALUES node.
     return std::make_pair(Load, TF);

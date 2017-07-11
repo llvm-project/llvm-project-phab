@@ -885,9 +885,11 @@ void RegsForValue::AddInlineAsmOperands(unsigned Code, bool HasMatching,
 }
 
 void SelectionDAGBuilder::init(GCFunctionInfo *gfi, AliasAnalysis *aa,
+                               DivergenceAnalysis *da,
                                const TargetLibraryInfo *li) {
   AA = aa;
   GFI = gfi;
+  DA = da;
   LibInfo = li;
   DL = &DAG.getDataLayout();
   Context = DAG.getContext();
@@ -3491,6 +3493,7 @@ void SelectionDAGBuilder::visitLoad(const LoadInst &I) {
   bool isInvariant = I.getMetadata(LLVMContext::MD_invariant_load) != nullptr;
   bool isDereferenceable = isDereferenceablePointer(SV, DAG.getDataLayout());
   unsigned Alignment = I.getAlignment();
+  bool isDivergent = DA->isDivergent(&I);
 
   AAMDNodes AAInfo;
   I.getAAMetadata(AAInfo);
@@ -3563,7 +3566,7 @@ void SelectionDAGBuilder::visitLoad(const LoadInst &I) {
     SDValue L = DAG.getLoad(ValueVTs[i], dl, Root, A,
                             MachinePointerInfo(SV, Offsets[i]), Alignment,
                             MMOFlags, AAInfo, Ranges);
-
+    L.getNode()->setIsDivergent(isDivergent);
     Values[i] = L;
     Chains[ChainI] = L.getValue(1);
   }
