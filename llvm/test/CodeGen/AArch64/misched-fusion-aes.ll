@@ -74,6 +74,7 @@ define void @aesea(<16 x i8>* %a0, <16 x i8>* %b0, <16 x i8>* %c0, <16 x i8> %d,
   ret void
 
 ; CHECK-LABEL: aesea:
+
 ; CHECKCORTEX: aese [[VA:v[0-7].16b]], {{v[0-7].16b}}
 ; CHECKCORTEX-NEXT: aesmc {{v[0-7].16b}}, [[VA]]
 ; CHECKCORTEX: aese [[VB:v[0-7].16b]], {{v[0-7].16b}}
@@ -93,21 +94,21 @@ define void @aesea(<16 x i8>* %a0, <16 x i8>* %b0, <16 x i8>* %c0, <16 x i8> %d,
 
 ; CHECKM1: aese [[VA:v[0-7].16b]], {{v[0-7].16b}}
 ; CHECKM1-NEXT: aesmc {{v[0-7].16b}}, [[VA]]
-; CHECKM1: aese [[VH:v[0-7].16b]], {{v[0-7].16b}}
 ; CHECKM1: aese [[VB:v[0-7].16b]], {{v[0-7].16b}}
-; CHECKM1-NEXT: aesmc {{v[0-7].16b}}, [[VB]]
-; CHECKM1: aese {{v[0-7].16b}}, {{v[0-7].16b}}
 ; CHECKM1: aese [[VC:v[0-7].16b]], {{v[0-7].16b}}
 ; CHECKM1-NEXT: aesmc {{v[0-7].16b}}, [[VC]]
+; CHECKM1: aese {{v[0-7].16b}}, {{v[0-7].16b}}
 ; CHECKM1: aese [[VD:v[0-7].16b]], {{v[0-7].16b}}
 ; CHECKM1-NEXT: aesmc {{v[0-7].16b}}, [[VD]]
-; CHECKM1: aesmc {{v[0-7].16b}}, [[VH]]
 ; CHECKM1: aese [[VE:v[0-7].16b]], {{v[0-7].16b}}
 ; CHECKM1-NEXT: aesmc {{v[0-7].16b}}, [[VE]]
+; CHECKM1: aesmc {{v[0-7].16b}}, [[VB]]
 ; CHECKM1: aese [[VF:v[0-7].16b]], {{v[0-7].16b}}
 ; CHECKM1-NEXT: aesmc {{v[0-7].16b}}, [[VF]]
 ; CHECKM1: aese [[VG:v[0-7].16b]], {{v[0-7].16b}}
 ; CHECKM1-NEXT: aesmc {{v[0-7].16b}}, [[VG]]
+; CHECKM1: aese [[VH:v[0-7].16b]], {{v[0-7].16b}}
+; CHECKM1-NEXT: aesmc {{v[0-7].16b}}, [[VH]]
 }
 
 define void @aesda(<16 x i8>* %a0, <16 x i8>* %b0, <16 x i8>* %c0, <16 x i8> %d, <16 x i8> %e) {
@@ -175,6 +176,7 @@ define void @aesda(<16 x i8>* %a0, <16 x i8>* %b0, <16 x i8>* %c0, <16 x i8> %d,
   ret void
 
 ; CHECK-LABEL: aesda:
+
 ; CHECKCORTEX: aesd [[VA:v[0-7].16b]], {{v[0-7].16b}}
 ; CHECKCORTEX-NEXT: aesimc {{v[0-7].16b}}, [[VA]]
 ; CHECKCORTEX: aesd [[VB:v[0-7].16b]], {{v[0-7].16b}}
@@ -194,21 +196,21 @@ define void @aesda(<16 x i8>* %a0, <16 x i8>* %b0, <16 x i8>* %c0, <16 x i8> %d,
 
 ; CHECKM1: aesd [[VA:v[0-7].16b]], {{v[0-7].16b}}
 ; CHECKM1-NEXT: aesimc {{v[0-7].16b}}, [[VA]]
-; CHECKM1: aesd [[VH:v[0-7].16b]], {{v[0-7].16b}}
 ; CHECKM1: aesd [[VB:v[0-7].16b]], {{v[0-7].16b}}
-; CHECKM1-NEXT: aesimc {{v[0-7].16b}}, [[VB]]
-; CHECKM1: aesd {{v[0-7].16b}}, {{v[0-7].16b}}
 ; CHECKM1: aesd [[VC:v[0-7].16b]], {{v[0-7].16b}}
 ; CHECKM1-NEXT: aesimc {{v[0-7].16b}}, [[VC]]
+; CHECKM1: aesd {{v[0-7].16b}}, {{v[0-7].16b}}
 ; CHECKM1: aesd [[VD:v[0-7].16b]], {{v[0-7].16b}}
 ; CHECKM1-NEXT: aesimc {{v[0-7].16b}}, [[VD]]
-; CHECKM1: aesimc {{v[0-7].16b}}, [[VH]]
 ; CHECKM1: aesd [[VE:v[0-7].16b]], {{v[0-7].16b}}
 ; CHECKM1-NEXT: aesimc {{v[0-7].16b}}, [[VE]]
+; CHECKM1: aesimc {{v[0-7].16b}}, [[VB]]
 ; CHECKM1: aesd [[VF:v[0-7].16b]], {{v[0-7].16b}}
 ; CHECKM1-NEXT: aesimc {{v[0-7].16b}}, [[VF]]
 ; CHECKM1: aesd [[VG:v[0-7].16b]], {{v[0-7].16b}}
 ; CHECKM1-NEXT: aesimc {{v[0-7].16b}}, [[VG]]
+; CHECKM1: aesd [[VH:v[0-7].16b]], {{v[0-7].16b}}
+; CHECKM1-NEXT: aesimc {{v[0-7].16b}}, [[VH]]
 }
 
 define void @aes_load_store(<16 x i8> *%p1, <16 x i8> *%p2 , <16 x i8> *%p3) {

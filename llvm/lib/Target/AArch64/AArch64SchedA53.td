@@ -290,4 +290,12 @@ def : InstRW<[A53WriteFDivDP], (instregex "^FDIVv.*64$")>;
 def : InstRW<[A53WriteFSqrtSP], (instregex "^.*SQRT.*32$")>;
 def : InstRW<[A53WriteFSqrtDP], (instregex "^.*SQRT.*64$")>;
 
+//---
+// Cryptography Extensions
+//---
+// FIXME: resources and costs wildly guessed.
+def A53ReadAES  : SchedReadAdvance<6, [WriteV], 1>;
+def : InstRW<[WriteV], (instregex "^AES[DE]")>;
+def : InstRW<[WriteV, A53ReadAES], (instregex "^AESI?MC")>;
+
 }
