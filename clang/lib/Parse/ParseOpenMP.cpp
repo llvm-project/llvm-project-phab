@@ -302,7 +302,8 @@ Parser::ParseOpenMPDeclareReductionDirective(AccessSpecifier AS) {
   for (auto *D : DRD.get()) {
     TentativeParsingAction TPA(*this);
     ParseScope OMPDRScope(this, Scope::FnScope | Scope::DeclScope |
-                                    Scope::OpenMPDirectiveScope);
+                                Scope::CompoundStmtScope |
+                                Scope::OpenMPDirectiveScope);
     // Parse <combiner> expression.
     Actions.ActOnOpenMPDeclareReductionCombinerStart(getCurScope(), D);
     ExprResult CombinerResult =
@@ -337,7 +338,8 @@ Parser::ParseOpenMPDeclareReductionDirective(AccessSpecifier AS) {
           IsCorrect;
       if (Tok.isNot(tok::annot_pragma_openmp_end)) {
         ParseScope OMPDRScope(this, Scope::FnScope | Scope::DeclScope |
-                                        Scope::OpenMPDirectiveScope);
+                                    Scope::CompoundStmtScope |
+                                    Scope::OpenMPDirectiveScope);
         // Parse expression.
         Actions.ActOnOpenMPDeclareReductionInitializerStart(getCurScope(), D);
         InitializerResult = Actions.ActOnFinishFullExpr(
@@ -405,7 +407,8 @@ public:
 
     // If the Decl is on a function, add function parameters to the scope.
     HasFunScope = D->isFunctionOrFunctionTemplate();
-    FnScope = new Parser::ParseScope(&P, Scope::FnScope | Scope::DeclScope,
+    FnScope = new Parser::ParseScope(&P, Scope::FnScope | Scope::DeclScope |
+                                         Scope::CompoundStmtScope,
                                      HasFunScope);
     if (HasFunScope)
       Actions.ActOnReenterFunctionContext(Actions.getCurScope(), D);
@@ -814,7 +817,8 @@ StmtResult Parser::ParseOpenMPDeclarativeOrExecutableDirective(
   SmallVector<llvm::PointerIntPair<OMPClause *, 1, bool>, OMPC_unknown + 1>
   FirstClauses(OMPC_unknown + 1);
   unsigned ScopeFlags =
-      Scope::FnScope | Scope::DeclScope | Scope::OpenMPDirectiveScope;
+    Scope::FnScope | Scope::DeclScope | Scope::CompoundStmtScope |
+    Scope::OpenMPDirectiveScope;
   SourceLocation Loc = ConsumeAnnotationToken(), EndLoc;
   auto DKind = ParseOpenMPDirectiveKind(*this);
   OpenMPDirectiveKind CancelRegion = OMPD_unknown;
