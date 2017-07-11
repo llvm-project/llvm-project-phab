@@ -29,7 +29,7 @@ class ProfileSummaryInfo;
 /// BlockFrequencyInfo for a given function, that can be provided via
 /// a std::function callback. Otherwise, this routine will manually construct
 /// that information.
-ModuleSummaryIndex buildModuleSummaryIndex(
+ModuleSummaryIndex *buildModuleSummaryIndex(
     const Module &M,
     std::function<BlockFrequencyInfo *(const Function &F)> GetBFICallback,
     ProfileSummaryInfo *PSI);
@@ -41,14 +41,14 @@ class ModuleSummaryIndexAnalysis
   static AnalysisKey Key;
 
 public:
-  typedef ModuleSummaryIndex Result;
+  typedef std::unique_ptr<ModuleSummaryIndex> Result;
 
   Result run(Module &M, ModuleAnalysisManager &AM);
 };
 
 /// Legacy wrapper pass to provide the ModuleSummaryIndex object.
 class ModuleSummaryIndexWrapperPass : public ModulePass {
-  Optional<ModuleSummaryIndex> Index;
+  std::unique_ptr<ModuleSummaryIndex> Index;
 
 public:
   static char ID;

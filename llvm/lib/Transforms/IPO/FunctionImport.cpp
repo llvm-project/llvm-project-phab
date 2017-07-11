@@ -445,7 +445,7 @@ void llvm::computeDeadSymbols(
     for (auto &S : Entry.second.SummaryList)
       if (S->isLive()) {
         DEBUG(dbgs() << "Live root: " << Entry.first << "\n");
-        Worklist.push_back(ValueInfo(&Entry));
+        Worklist.push_back(Index.getValueInfo(Entry.first));
         ++LiveSymbols;
         break;
       }

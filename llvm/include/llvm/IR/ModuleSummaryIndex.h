@@ -79,44 +79,53 @@ struct GlobalValueSummaryInfo {
   GlobalValueSummaryList SummaryList;
 };
 
-/// Map from global value GUID to corresponding summary structures. Use a
-/// std::map rather than a DenseMap so that pointers to the map's value_type
-/// (which are used by ValueInfo) are not invalidated by insertion. Also it will
-/// likely incur less overhead, as the value type is not very small and the size
-/// of the map is unknown, resulting in inefficiencies due to repeated
-/// insertions and resizing.
+/// Map from global value GUID to corresponding summary structures.
 using GlobalValueSummaryMapTy =
-    std::map<GlobalValue::GUID, GlobalValueSummaryInfo>;
+    DenseMap<GlobalValue::GUID, GlobalValueSummaryInfo>;
 
 /// Struct that holds a reference to a particular GUID in a global value
 /// summary.
 struct ValueInfo {
-  const GlobalValueSummaryMapTy::value_type *Ref = nullptr;
+  GlobalValue::GUID GUID = 0;
+  const GlobalValueSummaryMapTy *Map = nullptr;
 
   ValueInfo() = default;
-  ValueInfo(const GlobalValueSummaryMapTy::value_type *Ref) : Ref(Ref) {}
+  ValueInfo(GlobalValue::GUID GUID, const GlobalValueSummaryMapTy *Map)
+      : GUID(GUID), Map(Map) {}
 
-  operator bool() const { return Ref; }
+  operator bool() const { return Map; }
 
-  GlobalValue::GUID getGUID() const { return Ref->first; }
-  const GlobalValue *getValue() const { return Ref->second.GV; }
+  GlobalValue::GUID getGUID() const { return GUID; }
+  const GlobalValue *getValue() const {
+    if (Map == nullptr)
+      return nullptr;
+    auto I = Map->find(GUID);
+    return I == Map->end() ? nullptr : I->second.GV;
+  }
 
   ArrayRef<std::unique_ptr<GlobalValueSummary>> getSummaryList() const {
-    return Ref->second.SummaryList;
+    return Map->find(GUID)->second.SummaryList;
+  }
+
+  void addSummary(std::unique_ptr<GlobalValueSummary> Summary) {
+    const_cast<GlobalValueSummaryList &>(Map->find(GUID)->second.SummaryList)
+        .push_back(std::move(Summary));
   }
 };
 
 template <> struct DenseMapInfo<ValueInfo> {
   static inline ValueInfo getEmptyKey() {
-    return ValueInfo((GlobalValueSummaryMapTy::value_type *)-1);
+    return ValueInfo(-1, (const GlobalValueSummaryMapTy *)-1);
   }
 
   static inline ValueInfo getTombstoneKey() {
-    return ValueInfo((GlobalValueSummaryMapTy::value_type *)-2);
+    return ValueInfo(-2, (const GlobalValueSummaryMapTy *)-2);
   }
 
-  static bool isEqual(ValueInfo L, ValueInfo R) { return L.Ref == R.Ref; }
-  static unsigned getHashValue(ValueInfo I) { return (uintptr_t)I.Ref; }
+  static bool isEqual(ValueInfo L, ValueInfo R) {
+    return L.GUID == R.GUID && L.Map == R.Map;
+  }
+  static unsigned getHashValue(ValueInfo I) { return I.GUID; }
 };
 
 /// \brief Function and variable summary information to aid decisions and
@@ -542,7 +551,7 @@ private:
 
   /// Mapping from original ID to GUID. If original ID can map to multiple
   /// GUIDs, it will be mapped to 0.
-  std::map<GlobalValue::GUID, GlobalValue::GUID> OidGuidMap;
+  DenseMap<GlobalValue::GUID, GlobalValue::GUID> OidGuidMap;
 
   /// Indicates that summary-based GlobalValue GC has run, and values with
   /// GVFlags::Live==false are really dead. Otherwise, all values must be
@@ -557,7 +566,9 @@ private:
 
   GlobalValueSummaryMapTy::value_type *
   getOrInsertValuePtr(GlobalValue::GUID GUID) {
-    return &*GlobalValueMap.emplace(GUID, GlobalValueSummaryInfo{}).first;
+    return &*GlobalValueMap
+                 .insert(std::make_pair(GUID, GlobalValueSummaryInfo{}))
+                 .first;
   }
 
 public:
@@ -582,19 +593,21 @@ public:
   /// Return a ValueInfo for GUID if it exists, otherwise return ValueInfo().
   ValueInfo getValueInfo(GlobalValue::GUID GUID) const {
     auto I = GlobalValueMap.find(GUID);
-    return ValueInfo(I == GlobalValueMap.end() ? nullptr : &*I);
+    return ValueInfo(GUID,
+                     I == GlobalValueMap.end() ? nullptr : &GlobalValueMap);
   }
 
   /// Return a ValueInfo for \p GUID.
   ValueInfo getOrInsertValueInfo(GlobalValue::GUID GUID) {
-    return ValueInfo(getOrInsertValuePtr(GUID));
+    getOrInsertValuePtr(GUID);
+    return ValueInfo(GUID, &GlobalValueMap);
   }
 
   /// Return a ValueInfo for \p GV and mark it as belonging to GV.
   ValueInfo getOrInsertValueInfo(const GlobalValue *GV) {
     auto VP = getOrInsertValuePtr(GV->getGUID());
     VP->second.GV = GV;
-    return ValueInfo(VP);
+    return ValueInfo(GV->getGUID(), &GlobalValueMap);
   }
 
   /// Return the GUID for \p OriginalId in the OidGuidMap.
@@ -620,10 +633,7 @@ public:
   void addGlobalValueSummary(ValueInfo VI,
                              std::unique_ptr<GlobalValueSummary> Summary) {
     addOriginalName(VI.getGUID(), Summary->getOriginalName());
-    // Here we have a notionally const VI, but the value it points to is owned
-    // by the non-const *this.
-    const_cast<GlobalValueSummaryMapTy::value_type *>(VI.Ref)
-        ->second.SummaryList.push_back(std::move(Summary));
+    VI.addSummary(std::move(Summary));
   }
 
   /// Add an original name for the value of the given GUID.

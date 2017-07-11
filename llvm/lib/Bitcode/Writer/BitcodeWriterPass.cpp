@@ -21,7 +21,7 @@ using namespace llvm;
 
 PreservedAnalyses BitcodeWriterPass::run(Module &M, ModuleAnalysisManager &AM) {
   const ModuleSummaryIndex *Index =
-      EmitSummaryIndex ? &(AM.getResult<ModuleSummaryIndexAnalysis>(M))
+      EmitSummaryIndex ? AM.getResult<ModuleSummaryIndexAnalysis>(M).get()
                        : nullptr;
   WriteBitcodeToFile(&M, OS, ShouldPreserveUseListOrder, Index, EmitModuleHash);
   return PreservedAnalyses::all();

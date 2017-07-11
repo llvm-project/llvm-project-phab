@@ -1055,7 +1055,7 @@ Error LTO::runThinLTO(AddStreamFn AddStream, NativeObjectCache Cache,
     ComputeCrossModuleImport(ThinLTO.CombinedIndex, ModuleToDefinedGVSummaries,
                              ImportLists, ExportLists);
 
-    std::set<GlobalValue::GUID> ExportedGUIDs;
+    DenseSet<GlobalValue::GUID> ExportedGUIDs;
     for (auto &Res : GlobalResolutions) {
       // First check if the symbol was flagged as having external references.
       if (Res.second.Partition != GlobalResolution::External)

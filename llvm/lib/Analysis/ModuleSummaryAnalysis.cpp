@@ -326,12 +326,12 @@ static void setLiveRoot(ModuleSummaryIndex &Index, StringRef Name) {
       Summary->setLive(true);
 }
 
-ModuleSummaryIndex llvm::buildModuleSummaryIndex(
+ModuleSummaryIndex *llvm::buildModuleSummaryIndex(
     const Module &M,
     std::function<BlockFrequencyInfo *(const Function &F)> GetBFICallback,
     ProfileSummaryInfo *PSI) {
   assert(PSI);
-  ModuleSummaryIndex Index;
+  ModuleSummaryIndex *Index = new ModuleSummaryIndex();
 
   // Identify the local values in the llvm.used and llvm.compiler.used sets,
   // which should not be exported as they would then require renaming and
@@ -369,7 +369,7 @@ ModuleSummaryIndex llvm::buildModuleSummaryIndex(
       BFI = BFIPtr.get();
     }
 
-    computeFunctionSummary(Index, M, F, BFI, PSI, !LocalsUsed.empty(),
+    computeFunctionSummary(*Index, M, F, BFI, PSI, !LocalsUsed.empty(),
                            CantBePromoted);
   }
 
@@ -378,16 +378,16 @@ ModuleSummaryIndex llvm::buildModuleSummaryIndex(
   for (const GlobalVariable &G : M.globals()) {
     if (G.isDeclaration())
       continue;
-    computeVariableSummary(Index, G, CantBePromoted);
+    computeVariableSummary(*Index, G, CantBePromoted);
   }
 
   // Compute summaries for all aliases defined in module, and save in the
   // index.
   for (const GlobalAlias &A : M.aliases())
-    computeAliasSummary(Index, A, CantBePromoted);
+    computeAliasSummary(*Index, A, CantBePromoted);
 
   for (auto *V : LocalsUsed) {
-    auto *Summary = Index.getGlobalValueSummary(*V);
+    auto *Summary = Index->getGlobalValueSummary(*V);
     assert(Summary && "Missing summary for global value");
     Summary->setNotEligibleToImport();
   }
@@ -395,11 +395,11 @@ ModuleSummaryIndex llvm::buildModuleSummaryIndex(
   // The linker doesn't know about these LLVM produced values, so we need
   // to flag them as live in the index to ensure index-based dead value
   // analysis treats them as live roots of the analysis.
-  setLiveRoot(Index, "llvm.used");
-  setLiveRoot(Index, "llvm.compiler.used");
-  setLiveRoot(Index, "llvm.global_ctors");
-  setLiveRoot(Index, "llvm.global_dtors");
-  setLiveRoot(Index, "llvm.global.annotations");
+  setLiveRoot(*Index, "llvm.used");
+  setLiveRoot(*Index, "llvm.compiler.used");
+  setLiveRoot(*Index, "llvm.global_ctors");
+  setLiveRoot(*Index, "llvm.global_dtors");
+  setLiveRoot(*Index, "llvm.global.annotations");
 
   if (!M.getModuleInlineAsm().empty()) {
     // Collect the local values defined by module level asm, and set up
@@ -412,7 +412,7 @@ ModuleSummaryIndex llvm::buildModuleSummaryIndex(
     // be listed on the llvm.used or llvm.compiler.used global and marked as
     // referenced from there.
     ModuleSymbolTable::CollectAsmSymbols(
-        M, [&M, &Index, &CantBePromoted](StringRef Name,
+        M, [&M, Index, &CantBePromoted](StringRef Name,
                                          object::BasicSymbolRef::Flags Flags) {
           // Symbols not marked as Weak or Global are local definitions.
           if (Flags & (object::BasicSymbolRef::SF_Weak |
@@ -437,12 +437,12 @@ ModuleSummaryIndex llvm::buildModuleSummaryIndex(
                     ArrayRef<FunctionSummary::VFuncId>{},
                     ArrayRef<FunctionSummary::ConstVCall>{},
                     ArrayRef<FunctionSummary::ConstVCall>{});
-            Index.addGlobalValueSummary(Name, std::move(Summary));
+            Index->addGlobalValueSummary(Name, std::move(Summary));
           } else {
             std::unique_ptr<GlobalVarSummary> Summary =
                 llvm::make_unique<GlobalVarSummary>(GVFlags,
                                                     ArrayRef<ValueInfo>{});
-            Index.addGlobalValueSummary(Name, std::move(Summary));
+            Index->addGlobalValueSummary(Name, std::move(Summary));
           }
         });
   }
@@ -452,7 +452,7 @@ ModuleSummaryIndex llvm::buildModuleSummaryIndex(
           mdconst::extract_or_null<ConstantInt>(M.getModuleFlag("ThinLTO")))
     IsThinLTO = MD->getZExtValue();
 
-  for (auto &GlobalList : Index) {
+  for (auto &GlobalList : *Index) {
     // Ignore entries for references that are undefined in the current module.
     if (GlobalList.second.SummaryList.empty())
       continue;
@@ -489,17 +489,17 @@ ModuleSummaryIndex llvm::buildModuleSummaryIndex(
 
 AnalysisKey ModuleSummaryIndexAnalysis::Key;
 
-ModuleSummaryIndex
+std::unique_ptr<ModuleSummaryIndex>
 ModuleSummaryIndexAnalysis::run(Module &M, ModuleAnalysisManager &AM) {
   ProfileSummaryInfo &PSI = AM.getResult<ProfileSummaryAnalysis>(M);
   auto &FAM = AM.getResult<FunctionAnalysisManagerModuleProxy>(M).getManager();
-  return buildModuleSummaryIndex(
+  return std::unique_ptr<ModuleSummaryIndex>(buildModuleSummaryIndex(
       M,
       [&FAM](const Function &F) {
         return &FAM.getResult<BlockFrequencyAnalysis>(
             *const_cast<Function *>(&F));
       },
-      &PSI);
+      &PSI));
 }
 
 char ModuleSummaryIndexWrapperPass::ID = 0;
@@ -521,19 +521,18 @@ ModuleSummaryIndexWrapperPass::ModuleSummaryIndexWrapperPass()
 
 bool ModuleSummaryIndexWrapperPass::runOnModule(Module &M) {
   auto &PSI = *getAnalysis<ProfileSummaryInfoWrapperPass>().getPSI();
-  Index = buildModuleSummaryIndex(
+  Index.reset(buildModuleSummaryIndex(
       M,
       [this](const Function &F) {
         return &(this->getAnalysis<BlockFrequencyInfoWrapperPass>(
                          *const_cast<Function *>(&F))
                      .getBFI());
       },
-      &PSI);
+      &PSI));
   return false;
 }
 
 bool ModuleSummaryIndexWrapperPass::doFinalization(Module &M) {
-  Index.reset();
   return false;
 }
 

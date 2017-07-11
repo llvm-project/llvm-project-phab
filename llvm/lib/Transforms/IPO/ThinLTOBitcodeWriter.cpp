@@ -352,13 +352,14 @@ void splitAndWriteThinLTOBitcode(
 
   // FIXME: Try to re-use BSI and PFI from the original module here.
   ProfileSummaryInfo PSI(M);
-  ModuleSummaryIndex Index = buildModuleSummaryIndex(M, nullptr, &PSI);
+  std::unique_ptr<ModuleSummaryIndex> Index(
+      buildModuleSummaryIndex(M, nullptr, &PSI));
 
   // Mark the merged module as requiring full LTO. We still want an index for
   // it though, so that it can participate in summary-based dead stripping.
   MergedM->addModuleFlag(Module::Error, "ThinLTO", uint32_t(0));
-  ModuleSummaryIndex MergedMIndex =
-      buildModuleSummaryIndex(*MergedM, nullptr, &PSI);
+  std::unique_ptr<ModuleSummaryIndex> MergedMIndex(
+      buildModuleSummaryIndex(*MergedM, nullptr, &PSI));
 
   SmallVector<char, 0> Buffer;
 
@@ -367,10 +368,10 @@ void splitAndWriteThinLTOBitcode(
   // be used in the backends, and use that in the minimized bitcode
   // produced for the full link.
   ModuleHash ModHash = {{0}};
-  W.writeModule(&M, /*ShouldPreserveUseListOrder=*/false, &Index,
+  W.writeModule(&M, /*ShouldPreserveUseListOrder=*/false, Index.get(),
                 /*GenerateHash=*/true, &ModHash);
   W.writeModule(MergedM.get(), /*ShouldPreserveUseListOrder=*/false,
-                &MergedMIndex);
+                MergedMIndex.get());
   W.writeSymtab();
   W.writeStrtab();
   OS << Buffer;
@@ -382,10 +383,10 @@ void splitAndWriteThinLTOBitcode(
     Buffer.clear();
     BitcodeWriter W2(Buffer);
     StripDebugInfo(M);
-    W2.writeModule(&M, /*ShouldPreserveUseListOrder=*/false, &Index,
+    W2.writeModule(&M, /*ShouldPreserveUseListOrder=*/false, Index.get(),
                    /*GenerateHash=*/false, &ModHash);
     W2.writeModule(MergedM.get(), /*ShouldPreserveUseListOrder=*/false,
-                   &MergedMIndex);
+                   MergedMIndex.get());
     W2.writeSymtab();
     W2.writeStrtab();
     *ThinLinkOS << Buffer;
@@ -485,6 +486,6 @@ llvm::ThinLTOBitcodeWriterPass::run(Module &M, ModuleAnalysisManager &AM) {
                       [&FAM](Function &F) -> AAResults & {
                         return FAM.getResult<AAManager>(F);
                       },
-                      M, &AM.getResult<ModuleSummaryIndexAnalysis>(M));
+                      M, AM.getResult<ModuleSummaryIndexAnalysis>(M).get());
   return PreservedAnalyses::all();
 }
