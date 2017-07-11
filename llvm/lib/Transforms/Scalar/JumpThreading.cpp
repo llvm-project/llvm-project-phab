@@ -64,6 +64,13 @@ ImplicationSearchThreshold(
            "condition to use to thread over a weaker condition"),
   cl::init(3), cl::Hidden);
 
+// We follow the default branch weights that lower-expect-intrinsic pass sets
+// for _builtin_expect intrinsic (1:2000)
+static cl::opt<unsigned>
+BiasedBranchThreshold("jump-threading-biased-branch-threshold",
+          cl::desc("Threshold in branch weight metadata for a biased branch"),
+          cl::init(2000), cl::Hidden);
+
 namespace {
   /// This pass performs 'jump threading', which looks at blocks that have
   /// multiple predecessors and multiple successors.  If one or more of the
@@ -252,6 +259,139 @@ bool JumpThreadingPass::runImpl(Function &F, TargetLibraryInfo *TLI_,
 
   LoopHeaders.clear();
   return EverChanged;
+}
+
+/// Utility function that reads branch weight metadata for a conditional branch.
+/// WeightTrue and WeightFalse are valid only if the funtion returns true.
+static bool
+getCondBranchWeight(TerminatorInst *TI, uint64_t &WeightTrue,
+                    uint64_t &WeightFalse) {
+  BranchInst *BI = dyn_cast<BranchInst>(TI);
+  if (!(BI && BI->isConditional()))
+    return false;
+
+  MDNode *ProfMD = BI->getMetadata(LLVMContext::MD_prof);
+  if (!ProfMD)
+    return false;
+
+  MDString *MDS = dyn_cast<MDString>(ProfMD->getOperand(0));
+  // The branch weight metadata must have the name "branch_weights"
+  // and two branch weight values.
+  if (!MDS->getString().equals("branch_weights") ||
+      ProfMD->getNumOperands() != 3)
+    return false;
+
+  ConstantInt *CI1 = mdconst::extract<ConstantInt>(ProfMD->getOperand(1));
+  ConstantInt *CI2 = mdconst::extract<ConstantInt>(ProfMD->getOperand(2));
+  if (!CI1 || !CI2)
+    return false;
+
+  WeightTrue  = CI1->getValue().getZExtValue();
+  WeightFalse = CI2->getValue().getZExtValue();
+  return true;
+}
+
+/// If the specified conditional branch has branch hint (i.e. biased branch
+/// metadata), and the cold edge is the only incoming edge to the target BB, the
+/// target BB of the cold edge is a rarely-executed cold block. If a cold block
+/// is identified, this method returns the pointer to the cold block and sets
+/// WeightHot and WeightCold. The threshold for biased branch is controlled by
+/// BiasedBranchThreshold parameter.
+static BasicBlock*
+findColdBlockBasedOnMetaData(TerminatorInst *TI,
+                             uint64_t &WeightHot, uint64_t &WeightCold) {
+  BasicBlock* ColdBlock = nullptr;
+  uint64_t WeightTrue, WeightFalse;
+  if (!TI || !getCondBranchWeight(TI, WeightTrue, WeightFalse))
+    return nullptr;
+
+  if (WeightTrue >= WeightFalse * BiasedBranchThreshold)
+    ColdBlock = TI->getSuccessor(1);
+  else if (WeightFalse >= WeightTrue * BiasedBranchThreshold)
+    ColdBlock = TI->getSuccessor(0);
+
+  if (!ColdBlock || !ColdBlock->getSinglePredecessor())
+    return nullptr;
+
+  WeightHot  = std::max(WeightTrue, WeightFalse);
+  WeightCold = std::min(WeightTrue, WeightFalse);
+
+  DEBUG(dbgs() << "  JT: BB '" << ColdBlock->getName()
+         << "' is identified as a cold block based on metadata\n  ");
+  DEBUG(TI->getMetadata(LLVMContext::MD_prof)->dump());
+  return ColdBlock;
+}
+
+/// If a cold block is known based on a branch hint, we first identify
+/// the cold region, i.e. the region post-dominated by the cold block.
+/// Then we set the branch hint for the conditional branches 
+/// that jump into the cold region from non-cold region.
+static void
+setMetaDataBasedOnColdBlock(BasicBlock* InitialColdBlock, unsigned WeightHot,
+                            unsigned WeightCold) {
+  SmallVector<BasicBlock *, 16> ColdBlocks;
+  ColdBlocks.push_back(InitialColdBlock);
+
+  // We identify the BBs post-dominated by InisialColdBlock as the cold region.
+  // We do not use the existing DominatorTree analyses since the CFG may be
+  // already changed if we have multiple branches with branch hint.
+  unsigned Checked = 0;
+  while (Checked < ColdBlocks.size()) {
+    BasicBlock *CBB = ColdBlocks[Checked++];
+    for (BasicBlock *PrevBB : predecessors(CBB)) {
+      if (is_contained(ColdBlocks, PrevBB))
+        continue;
+
+      // If all the successors are knwon to be cold, this block is also cold.
+      bool NonColdSucc = false;
+      for (BasicBlock *SBB : successors(PrevBB))
+        if (!is_contained(ColdBlocks, SBB)) {
+          NonColdSucc = true;
+          break;
+        }
+
+      if (!NonColdSucc) {
+        ColdBlocks.push_back(PrevBB);
+        DEBUG(dbgs() << "  added BB '" << PrevBB->getName()
+                     << "' in the cold region\n");
+      }
+    }
+  }
+
+  for (BasicBlock *CBB : ColdBlocks)
+    for (BasicBlock *PrevBB : predecessors(CBB)) {
+      // If a previous block is not in the cold region,
+      // this block is at the dominance frontier.
+      // We set the branch hint to show that this CFG edge is cold.
+      if (is_contained(ColdBlocks, PrevBB))
+        continue;
+
+      BranchInst *BI = dyn_cast<BranchInst>(PrevBB->getTerminator());
+      if (!BI || !BI->isConditional())
+        continue;
+
+      // We do not set metadata for the branch already has one.
+      if (BI->getMetadata(LLVMContext::MD_prof))
+        continue;
+
+      MDNode *Metadata = nullptr;
+      MDBuilder MDB = MDBuilder(BI->getContext());
+      if (BI->getSuccessor(0) == CBB) {
+        assert(!is_contained(ColdBlocks, BI->getSuccessor(1)) &&
+               "At least one successor of a non-cold BB must be non-cold");
+        Metadata = MDB.createBranchWeights(WeightCold, WeightHot);
+      } else {
+        assert(!is_contained(ColdBlocks, BI->getSuccessor(0)) &&
+               "At least one successor of a non-cold BB must be non-cold");
+        Metadata = MDB.createBranchWeights(WeightHot, WeightCold);
+      }
+
+      BI->setMetadata(LLVMContext::MD_prof, Metadata);
+      DEBUG(dbgs() << "  JT: Set branch hint in BB '" << CBB->getName()
+            << "'\n  ");
+      DEBUG(Metadata->dump());
+      DEBUG(BI->dump());
+    }
 }
 
 // Replace uses of Cond with ToVal when safe to do so. If all uses are
@@ -1311,14 +1451,27 @@ FindMostPopularDest(BasicBlock *BB,
   if (!SamePopularity.empty()) {
     SamePopularity.push_back(MostPopularDest);
     TerminatorInst *TI = BB->getTerminator();
-    for (unsigned i = 0; ; ++i) {
-      assert(i != TI->getNumSuccessors() && "Didn't find any successor!");
 
-      if (!is_contained(SamePopularity, TI->getSuccessor(i)))
-        continue;
+    // If we have a branch hint on a biased conditional branch,
+    // we select the colder block as the destination to move the branch hint
+    // upward to the dominance frontier of this cold block.
+    uint64_t WeightTrue = 0, WeightFalse = 0;
+    if (getCondBranchWeight(TI, WeightTrue, WeightFalse)) {
+      if (WeightTrue < WeightFalse)
+        MostPopularDest = TI->getSuccessor(0);
+      else
+        MostPopularDest = TI->getSuccessor(1);
+    }
+    else {
+      for (unsigned i = 0; ; ++i) {
+        assert(i != TI->getNumSuccessors() && "Didn't find any successor!");
 
-      MostPopularDest = TI->getSuccessor(i);
-      break;
+        if (!is_contained(SamePopularity, TI->getSuccessor(i)))
+          continue;
+
+        MostPopularDest = TI->getSuccessor(i);
+        break;
+      }
     }
   }
 
@@ -1707,10 +1860,20 @@ bool JumpThreadingPass::ThreadEdge(BasicBlock *BB,
   NewBB->moveAfter(PredBB);
 
   // Set the block frequency of NewBB.
+  uint64_t WeightHot = 0, WeightCold = 0;
+  BasicBlock *ColdBlock = nullptr;
   if (HasProfileData) {
     auto NewBBFreq =
         BFI->getBlockFreq(PredBB) * BPI->getEdgeProbability(PredBB, BB);
     BFI->setBlockFreq(NewBB, NewBBFreq.getFrequency());
+  }
+  else {
+    // Even if the full profile information is not available,
+    // we may have branch hint (e.g. _builtin_expect) as metadata.
+    // If the branch weight is highly biased, we try to propagate
+    // the information to other conditional branches.
+    ColdBlock = findColdBlockBasedOnMetaData(BB->getTerminator(),
+                                             WeightHot, WeightCold);
   }
 
   BasicBlock::iterator BI = BB->begin();
@@ -1799,6 +1962,11 @@ bool JumpThreadingPass::ThreadEdge(BasicBlock *BB,
 
   // Update the edge weight from BB to SuccBB, which should be less than before.
   UpdateBlockFreqAndEdgeWeight(PredBB, BB, NewBB, SuccBB);
+
+  // If we know there is a cold block based on a branch hint associated with 
+  // the branch we are deleting, we try to move the branch hint upward.
+  if (ColdBlock != nullptr)
+    setMetaDataBasedOnColdBlock(ColdBlock, WeightHot, WeightCold);
 
   // Threaded an edge!
   ++NumThreads;
