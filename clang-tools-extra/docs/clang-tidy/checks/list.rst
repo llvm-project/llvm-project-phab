@@ -8,6 +8,7 @@ Clang-Tidy Checks
    android-cloexec-fopen
    android-cloexec-open
    boost-use-to-string
+   bugprone-suspicious-memset-usage
    cert-dcl03-c (redirects to misc-static-assert) <cert-dcl03-c>
    cert-dcl21-cpp
    cert-dcl50-cpp
@@ -54,7 +55,6 @@ Clang-Tidy Checks
    google-readability-todo
    google-runtime-int
    google-runtime-member-string-references
-   google-runtime-memset
    google-runtime-operator
    google-runtime-references
    hicpp-explicit-conversions

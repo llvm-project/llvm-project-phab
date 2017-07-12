@@ -73,6 +73,12 @@ Improvements to clang-tidy
 
   Checks if the required mode ``e`` exists in the mode argument of ``fopen()``.
 
+- New `bugprone-suspicious-memset-usage
+  <http://clang.llvm.org/extra/clang-tidy/checks/bugprone-suspicious-memset-usage.html>`_ check
+
+  Finds ``memset()`` calls with potential mistakes in their arguments.
+  Replaces and extends the ``google-runtime-memset`` check.
+
 - New `cert-dcl21-cpp
   <http://clang.llvm.org/extra/clang-tidy/checks/cert-dcl21-cpp.html>`_ check
 
@@ -144,6 +150,10 @@ Improvements to clang-tidy
 
 - Support clang-formatting of the code around applied fixes (``-format-style``
   command-line option).
+
+- New `bugprone` module
+
+  Adds checks that target bugprone code constructs.
 
 - New `hicpp` module
 
