@@ -191,6 +191,18 @@ template <> struct ScalarEnumerationTraits<FormatStyle::EscapedNewlineAlignmentS
   }
 };
 
+template <> struct ScalarEnumerationTraits<FormatStyle::OperandAlignmentStyle> {
+  static void enumeration(IO &IO, FormatStyle::OperandAlignmentStyle &Value) {
+    IO.enumCase(Value, "DontAlign", FormatStyle::OAS_DontAlign);
+    IO.enumCase(Value, "Align", FormatStyle::OAS_Align);
+    IO.enumCase(Value, "AlignAfterOperator", FormatStyle::OAS_AlignAfterOperator);
+
+    // For backward compatibility.
+    IO.enumCase(Value, "true", FormatStyle::OAS_Align);
+    IO.enumCase(Value, "false", FormatStyle::OAS_DontAlign);
+  }
+};
+
 template <> struct ScalarEnumerationTraits<FormatStyle::PointerAlignmentStyle> {
   static void enumeration(IO &IO, FormatStyle::PointerAlignmentStyle &Value) {
     IO.enumCase(Value, "Middle", FormatStyle::PAS_Middle);
@@ -537,7 +549,7 @@ FormatStyle getLLVMStyle() {
   LLVMStyle.AccessModifierOffset = -2;
   LLVMStyle.AlignEscapedNewlines = FormatStyle::ENAS_Right;
   LLVMStyle.AlignAfterOpenBracket = FormatStyle::BAS_Align;
-  LLVMStyle.AlignOperands = true;
+  LLVMStyle.AlignOperands = FormatStyle::OAS_Align;
   LLVMStyle.AlignTrailingComments = true;
   LLVMStyle.AlignConsecutiveAssignments = false;
   LLVMStyle.AlignConsecutiveDeclarations = false;
@@ -648,7 +660,7 @@ FormatStyle getGoogleStyle(FormatStyle::LanguageKind Language) {
 
   if (Language == FormatStyle::LK_Java) {
     GoogleStyle.AlignAfterOpenBracket = FormatStyle::BAS_DontAlign;
-    GoogleStyle.AlignOperands = false;
+    GoogleStyle.AlignOperands = FormatStyle::OAS_DontAlign;
     GoogleStyle.AlignTrailingComments = false;
     GoogleStyle.AllowShortFunctionsOnASingleLine = FormatStyle::SFS_Empty;
     GoogleStyle.AllowShortIfStatementsOnASingleLine = false;
@@ -659,7 +671,7 @@ FormatStyle getGoogleStyle(FormatStyle::LanguageKind Language) {
     GoogleStyle.SpacesBeforeTrailingComments = 1;
   } else if (Language == FormatStyle::LK_JavaScript) {
     GoogleStyle.AlignAfterOpenBracket = FormatStyle::BAS_AlwaysBreak;
-    GoogleStyle.AlignOperands = false;
+    GoogleStyle.AlignOperands = FormatStyle::OAS_DontAlign;
     GoogleStyle.AllowShortFunctionsOnASingleLine = FormatStyle::SFS_Empty;
     GoogleStyle.AlwaysBreakBeforeMultilineStrings = false;
     GoogleStyle.BreakBeforeTernaryOperators = false;
@@ -736,7 +748,7 @@ FormatStyle getWebKitStyle() {
   FormatStyle Style = getLLVMStyle();
   Style.AccessModifierOffset = -4;
   Style.AlignAfterOpenBracket = FormatStyle::BAS_DontAlign;
-  Style.AlignOperands = false;
+  Style.AlignOperands = FormatStyle::OAS_DontAlign;
   Style.AlignTrailingComments = false;
   Style.BreakBeforeBinaryOperators = FormatStyle::BOS_All;
   Style.BreakBeforeBraces = FormatStyle::BS_WebKit;
