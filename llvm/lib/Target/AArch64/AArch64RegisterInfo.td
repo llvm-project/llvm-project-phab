@@ -28,10 +28,13 @@ let Namespace = "AArch64" in {
   def dsub : SubRegIndex<32>;
   def sube32 : SubRegIndex<32>;
   def subo32 : SubRegIndex<32>;
-  def qhisub : SubRegIndex<64>;
-  def qsub : SubRegIndex<64>;
   def sube64 : SubRegIndex<64>;
   def subo64 : SubRegIndex<64>;
+  def qhisub : SubRegIndex<64>;
+  def qsub : SubRegIndex<64>;
+  // SVE
+  def zsub    : SubRegIndex<128>;
+  def zsub_hi : SubRegIndex<128>; // Note: Should never be used.
   // Note: Code depends on these having consecutive numbers
   def dsub0 : SubRegIndex<64>;
   def dsub1 : SubRegIndex<64>;
@@ -125,6 +128,12 @@ def XZR   : AArch64Reg<31, "xzr", [WZR]>, DwarfRegAlias<WSP>;
 // Condition code register.
 def NZCV  : AArch64Reg<0, "nzcv">;
 
+// First fault status register
+def FFR : AArch64Reg<0, "ffr">, DwarfRegNum<[47]>;
+
+// Purely virtual Vector Granule (VG) Dwarf register
+def VG : AArch64Reg<0, "vg">, DwarfRegNum<[46]>;
+
 // GPR register classes with the intersections of GPR32/GPR32sp and
 // GPR64/GPR64sp for use by the coalescer.
 def GPR32common : RegisterClass<"AArch64", [i32], 32, (sequence "W%u", 0, 30)> {
@@ -206,6 +215,14 @@ def CCR : RegisterClass<"AArch64", [i32], 32, (add NZCV)> {
   let CopyCost = -1;  // Don't allow copying of status registers.
 
   // CCR is not allocatable.
+  let isAllocatable = 0;
+}
+
+// First Fault regclass
+def FFRC : RegisterClass<"AArch64", [i32], 32, (add FFR)> {
+  let CopyCost = -1;  // Don't allow copying of status registers.
+
+  // FFR is not allocatable.
   let isAllocatable = 0;
 }
 
@@ -633,3 +650,167 @@ def XSeqPairClassOperand :
 
 
 //===----- END: v8.1a atomic CASP register operands -----------------------===//
+
+// SVE predicate registers
+def P0    : AArch64Reg<0,   "p0">, DwarfRegNum<[48]>;
+def P1    : AArch64Reg<1,   "p1">, DwarfRegNum<[49]>;
+def P2    : AArch64Reg<2,   "p2">, DwarfRegNum<[50]>;
+def P3    : AArch64Reg<3,   "p3">, DwarfRegNum<[51]>;
+def P4    : AArch64Reg<4,   "p4">, DwarfRegNum<[52]>;
+def P5    : AArch64Reg<5,   "p5">, DwarfRegNum<[53]>;
+def P6    : AArch64Reg<6,   "p6">, DwarfRegNum<[54]>;
+def P7    : AArch64Reg<7,   "p7">, DwarfRegNum<[55]>;
+def P8    : AArch64Reg<8,   "p8">, DwarfRegNum<[56]>;
+def P9    : AArch64Reg<9,   "p9">, DwarfRegNum<[57]>;
+def P10   : AArch64Reg<10, "p10">, DwarfRegNum<[58]>;
+def P11   : AArch64Reg<11, "p11">, DwarfRegNum<[59]>;
+def P12   : AArch64Reg<12, "p12">, DwarfRegNum<[60]>;
+def P13   : AArch64Reg<13, "p13">, DwarfRegNum<[61]>;
+def P14   : AArch64Reg<14, "p14">, DwarfRegNum<[62]>;
+def P15   : AArch64Reg<15, "p15">, DwarfRegNum<[63]>;
+
+// The part of SVE registers that don't overlap Neon registers.
+// These are only used as part of clobber lists.
+def Z0_HI    : AArch64Reg<0,   "z0_hi">;
+def Z1_HI    : AArch64Reg<1,   "z1_hi">;
+def Z2_HI    : AArch64Reg<2,   "z2_hi">;
+def Z3_HI    : AArch64Reg<3,   "z3_hi">;
+def Z4_HI    : AArch64Reg<4,   "z4_hi">;
+def Z5_HI    : AArch64Reg<5,   "z5_hi">;
+def Z6_HI    : AArch64Reg<6,   "z6_hi">;
+def Z7_HI    : AArch64Reg<7,   "z7_hi">;
+def Z8_HI    : AArch64Reg<8,   "z8_hi">;
+def Z9_HI    : AArch64Reg<9,   "z9_hi">;
+def Z10_HI   : AArch64Reg<10, "z10_hi">;
+def Z11_HI   : AArch64Reg<11, "z11_hi">;
+def Z12_HI   : AArch64Reg<12, "z12_hi">;
+def Z13_HI   : AArch64Reg<13, "z13_hi">;
+def Z14_HI   : AArch64Reg<14, "z14_hi">;
+def Z15_HI   : AArch64Reg<15, "z15_hi">;
+def Z16_HI   : AArch64Reg<16, "z16_hi">;
+def Z17_HI   : AArch64Reg<17, "z17_hi">;
+def Z18_HI   : AArch64Reg<18, "z18_hi">;
+def Z19_HI   : AArch64Reg<19, "z19_hi">;
+def Z20_HI   : AArch64Reg<20, "z20_hi">;
+def Z21_HI   : AArch64Reg<21, "z21_hi">;
+def Z22_HI   : AArch64Reg<22, "z22_hi">;
+def Z23_HI   : AArch64Reg<23, "z23_hi">;
+def Z24_HI   : AArch64Reg<24, "z24_hi">;
+def Z25_HI   : AArch64Reg<25, "z25_hi">;
+def Z26_HI   : AArch64Reg<26, "z26_hi">;
+def Z27_HI   : AArch64Reg<27, "z27_hi">;
+def Z28_HI   : AArch64Reg<28, "z28_hi">;
+def Z29_HI   : AArch64Reg<29, "z29_hi">;
+def Z30_HI   : AArch64Reg<30, "z30_hi">;
+def Z31_HI   : AArch64Reg<31, "z31_hi">;
+
+// SVE variable-size vector registers
+let SubRegIndices = [zsub,zsub_hi] in {
+def Z0    : AArch64Reg<0,   "z0",  [Q0,  Z0_HI]>, DwarfRegNum<[96]>;
+def Z1    : AArch64Reg<1,   "z1",  [Q1,  Z1_HI]>, DwarfRegNum<[97]>;
+def Z2    : AArch64Reg<2,   "z2",  [Q2,  Z2_HI]>, DwarfRegNum<[98]>;
+def Z3    : AArch64Reg<3,   "z3",  [Q3,  Z3_HI]>, DwarfRegNum<[99]>;
+def Z4    : AArch64Reg<4,   "z4",  [Q4,  Z4_HI]>, DwarfRegNum<[100]>;
+def Z5    : AArch64Reg<5,   "z5",  [Q5,  Z5_HI]>, DwarfRegNum<[101]>;
+def Z6    : AArch64Reg<6,   "z6",  [Q6,  Z6_HI]>, DwarfRegNum<[102]>;
+def Z7    : AArch64Reg<7,   "z7",  [Q7,  Z7_HI]>, DwarfRegNum<[103]>;
+def Z8    : AArch64Reg<8,   "z8",  [Q8,  Z8_HI]>, DwarfRegNum<[104]>;
+def Z9    : AArch64Reg<9,   "z9",  [Q9,  Z9_HI]>, DwarfRegNum<[105]>;
+def Z10   : AArch64Reg<10, "z10", [Q10, Z10_HI]>, DwarfRegNum<[106]>;
+def Z11   : AArch64Reg<11, "z11", [Q11, Z11_HI]>, DwarfRegNum<[107]>;
+def Z12   : AArch64Reg<12, "z12", [Q12, Z12_HI]>, DwarfRegNum<[108]>;
+def Z13   : AArch64Reg<13, "z13", [Q13, Z13_HI]>, DwarfRegNum<[109]>;
+def Z14   : AArch64Reg<14, "z14", [Q14, Z14_HI]>, DwarfRegNum<[110]>;
+def Z15   : AArch64Reg<15, "z15", [Q15, Z15_HI]>, DwarfRegNum<[111]>;
+def Z16   : AArch64Reg<16, "z16", [Q16, Z16_HI]>, DwarfRegNum<[112]>;
+def Z17   : AArch64Reg<17, "z17", [Q17, Z17_HI]>, DwarfRegNum<[113]>;
+def Z18   : AArch64Reg<18, "z18", [Q18, Z18_HI]>, DwarfRegNum<[114]>;
+def Z19   : AArch64Reg<19, "z19", [Q19, Z19_HI]>, DwarfRegNum<[115]>;
+def Z20   : AArch64Reg<20, "z20", [Q20, Z20_HI]>, DwarfRegNum<[116]>;
+def Z21   : AArch64Reg<21, "z21", [Q21, Z21_HI]>, DwarfRegNum<[117]>;
+def Z22   : AArch64Reg<22, "z22", [Q22, Z22_HI]>, DwarfRegNum<[118]>;
+def Z23   : AArch64Reg<23, "z23", [Q23, Z23_HI]>, DwarfRegNum<[119]>;
+def Z24   : AArch64Reg<24, "z24", [Q24, Z24_HI]>, DwarfRegNum<[120]>;
+def Z25   : AArch64Reg<25, "z25", [Q25, Z25_HI]>, DwarfRegNum<[121]>;
+def Z26   : AArch64Reg<26, "z26", [Q26, Z26_HI]>, DwarfRegNum<[122]>;
+def Z27   : AArch64Reg<27, "z27", [Q27, Z27_HI]>, DwarfRegNum<[123]>;
+def Z28   : AArch64Reg<28, "z28", [Q28, Z28_HI]>, DwarfRegNum<[124]>;
+def Z29   : AArch64Reg<29, "z29", [Q29, Z29_HI]>, DwarfRegNum<[125]>;
+def Z30   : AArch64Reg<30, "z30", [Q30, Z30_HI]>, DwarfRegNum<[126]>;
+def Z31   : AArch64Reg<31, "z31", [Q31, Z31_HI]>, DwarfRegNum<[127]>;
+}
+
+// SVE scalable predicate register class.
+def PPR : RegisterClass<"AArch64",
+                        [nxv16i1, nxv8i1, nxv4i1, nxv2i1],
+                        16, (sequence "P%u", 0, 15)> {
+  let Size = 16;
+}
+
+// Restricted subclass (3-bit encoding)
+def PPRR : RegisterClass<"AArch64",
+                         [nxv16i1, nxv8i1, nxv4i1, nxv2i1],
+                         16, (sequence "P%u", 0, 7)> {
+  let Size = 16;
+}
+
+// SVE scalable vector register class
+def ZPR : RegisterClass<"AArch64",
+                        [nxv16i8, nxv8i16, nxv4i32, nxv2i64,
+                         nxv2f16, nxv4f16, nxv8f16,
+                         nxv1f32, nxv2f32, nxv4f32,
+                         nxv1f64, nxv2f64],
+                        128, (sequence "Z%u", 0, 31)> {
+  let Size = 128;
+}
+/*
+// SVE restricted 4 bit scalable vector register class
+def ZPR_4b : RegisterClass<"AArch64",
+                         [nxv16i8, nxv8i16, nxv4i32, nxv2i64,
+                          nxv2f16, nxv4f16, nxv8f16,
+                          nxv1f32, nxv2f32, nxv4f32,
+                          nxv1f64, nxv2f64],
+                         128, (sequence "Z%u", 0, 15)> {
+  let Size = 128;
+}
+
+// SVE restricted 3 bit scalable vector register class
+def ZPR_3b : RegisterClass<"AArch64",
+                         [nxv16i8, nxv8i16, nxv4i32, nxv2i64,
+                          nxv2f16, nxv4f16, nxv8f16,
+                          nxv1f32, nxv2f32, nxv4f32,
+                          nxv1f64, nxv2f64],
+                         128, (sequence "Z%u", 0, 7)> {
+  let Size = 128;
+}
+
+// The part of SVE registers that don't overlap NEON registers.
+// NOTE: Type needed to build but should never be used directly.
+def ZPR_HI : RegisterClass<"AArch64",
+                           [untyped],
+                           128, (sequence "Z%u_HI", 0, 31)> {
+  let Size = 128;
+}
+
+let Namespace="AArch64" in {
+  def zsub0 : SubRegIndex<128, -1>;
+  def zsub1 : SubRegIndex<128, -1>;
+  def zsub2 : SubRegIndex<128, -1>;
+  def zsub3 : SubRegIndex<128, -1>;
+}
+
+// Pairs, triples, and quads of SVE vector registers.
+def ZSeqPairs   : RegisterTuples<[zsub0, zsub1], [(rotl ZPR, 0), (rotl ZPR, 1)]>;
+def ZSeqTriples : RegisterTuples<[zsub0, zsub1, zsub2], [(rotl ZPR, 0), (rotl ZPR, 1), (rotl ZPR, 2)]>;
+def ZSeqQuads   : RegisterTuples<[zsub0, zsub1, zsub2, zsub3], [(rotl ZPR, 0), (rotl ZPR, 1), (rotl ZPR, 2), (rotl ZPR, 3)]>;
+
+def ZPR2   : RegisterClass<"AArch64", [untyped], 128, (add ZSeqPairs)>  {
+  let Size = 256;
+}
+def ZPR3  : RegisterClass<"AArch64", [untyped], 128, (add ZSeqTriples)> {
+  let Size = 384;
+}
+def ZPR4 : RegisterClass<"AArch64", [untyped], 128, (add ZSeqQuads)> {
+  let Size = 512;
+}
+*/
