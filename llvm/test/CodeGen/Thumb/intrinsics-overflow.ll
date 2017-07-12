@@ -1,4 +1,4 @@
-; RUN: llc < %s -mtriple=arm-linux -mcpu=generic | FileCheck %s
+; RUN: llc < %s -mtriple=thumbv6m-eabi -verify-machineinstrs | FileCheck %s
 
 define i32 @uadd_overflow(i32 %a, i32 %b) #0 {
   %sadd = tail call { i32, i1 } @llvm.uadd.with.overflow.i32(i32 %a, i32 %b)
@@ -7,9 +7,10 @@ define i32 @uadd_overflow(i32 %a, i32 %b) #0 {
   ret i32 %2
 
   ; CHECK-LABEL: uadd_overflow:
-  ; CHECK: adds r[[R0:[0-9]+]], r[[R0]], r[[R1:[0-9]+]]
-  ; CHECK: mov r[[R2:[0-9]+]], #0
-  ; CHECK: adc r[[R0]], r[[R2]], #0
+  ; CHECK: movs    r[[R2:[0-9]+]], #0
+  ; CHECK: adds    r[[R0:[0-9]+]], r[[R0]], r[[R1:[0-9]+]]
+  ; CHECK: adcs    r[[R2]], r[[R2]]
+  ; CHECK: mov     r[[R0]], r[[R2]]
 }
 
 
@@ -20,10 +21,14 @@ define i32 @sadd_overflow(i32 %a, i32 %b) #0 {
   ret i32 %2
 
   ; CHECK-LABEL: sadd_overflow:
-  ; CHECK: add r[[R2:[0-9]+]], r[[R0:[0-9]+]], r[[R1:[0-9]+]]
-  ; CHECK: mov r[[R1]], #1
-  ; CHECK: cmp r[[R2]], r[[R0]]
-  ; CHECK: movvc r[[R1]], #0
+  ; CHECK: mov  r[[R2:[0-9]+]], r[[R0:[0-9]+]]
+  ; CHECK: adds r[[R3:[0-9]+]], r[[R2]], r[[R1:[0-9]+]]
+  ; CHECK: movs r[[R0]], #0
+  ; CHECK: movs r[[R1]], #1
+  ; CHECK: cmp  r[[R3]], r[[R2]]
+  ; CHECK: bvc  .L[[LABEL:.*]]
+  ; CHECK: mov  r[[R0]], r[[R1]]
+  ; CHECK: .L[[LABEL]]:
 }
 
 define i32 @usub_overflow(i32 %a, i32 %b) #0 {
@@ -33,9 +38,11 @@ define i32 @usub_overflow(i32 %a, i32 %b) #0 {
   ret i32 %2
 
   ; CHECK-LABEL: usub_overflow:
-  ; CHECK: subs r[[R0:[0-9]+]], r[[R0]], r[[R1:[0-9]+]]
-  ; CHECK: mov  r[[R2:[0-9]+]], #1
-  ; CHECK: sbc  r[[R0]], r[[R2]], #0
+  ; CHECK: movs    r[[R3:[0-9]+]], #0
+  ; CHECK: movs    r[[R2:[0-9]+]], #1
+  ; CHECK: subs    r[[R0:[0-9]+]], r[[R0]], r[[R1:[0-9]+]]
+  ; CHECK: sbcs    r[[R2]], r[[R3]]
+  ; CHECK: mov     r[[R0]], r[[R2]]
 }
 
 define i32 @ssub_overflow(i32 %a, i32 %b) #0 {
@@ -44,10 +51,13 @@ define i32 @ssub_overflow(i32 %a, i32 %b) #0 {
   %2 = zext i1 %1 to i32
   ret i32 %2
 
-  ; CHECK-LABEL: ssub_overflow:
-  ; CHECK: mov r[[R2]], #1
-  ; CHECK: cmp r[[R0]], r[[R1]]
-  ; CHECK: movvc r[[R2]], #0
+  ; CHECK: mov     r[[R2:[0-9]+]], r[[R0:[0-9]+]]
+  ; CHECK: movs    r[[R0]], #0
+  ; CHECK: movs    r[[R3:[0-9]+]], #1
+  ; CHECK: cmp     r[[R2]], r[[R1:[0-9]+]]
+  ; CHECK: bvc     .L[[LABEL:.*]]
+  ; CHECK: mov     r[[R0]], r[[R3]]
+  ; CHECK: .L[[LABEL]]:
 }
 
 declare { i32, i1 } @llvm.uadd.with.overflow.i32(i32, i32) #1
