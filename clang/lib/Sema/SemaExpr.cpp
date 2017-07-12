@@ -829,8 +829,10 @@ ExprResult Sema::DefaultArgumentPromotion(Expr *E) {
     return ExprError();
   E = Res.get();
 
-  // If this is a 'float' or '__fp16' (CVR qualified or typedef) promote to
-  // double.
+  // If this is a 'float'  or '__fp16' (CVR qualified or typedef)
+  // promote to double.
+  // Note that there is default argument promotion for '_Float16'; this
+  // applies to the standard floating types only.
   const BuiltinType *BTy = Ty->getAs<BuiltinType>();
   if (BTy && (BTy->getKind() == BuiltinType::Half ||
               BTy->getKind() == BuiltinType::Float)) {
@@ -3429,6 +3431,8 @@ ExprResult Sema::ActOnNumericConstant(const Token &Tok, Scope *UDLScope) {
       Ty = Context.FloatTy;
     else if (Literal.isLong)
       Ty = Context.LongDoubleTy;
+    else if (Literal.isFloat16)
+      Ty = Context.Float16Ty;
     else if (Literal.isFloat128)
       Ty = Context.Float128Ty;
     else
