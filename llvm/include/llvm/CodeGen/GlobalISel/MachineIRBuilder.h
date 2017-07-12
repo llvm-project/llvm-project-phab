@@ -620,6 +620,11 @@ public:
   /// \return a MachineInstrBuilder for the newly created instruction.
   MachineInstrBuilder buildICmp(CmpInst::Predicate Pred,
                                 unsigned Res, unsigned Op0, unsigned Op1);
+  template <typename DstTy, typename... UseArgsTy>
+  MachineInstrBuilder buildICmp(CmpInst::Predicate Pred, DstTy &&Ty,
+                                UseArgsTy &&... UseArgs) {
+    return buildICmp(Pred, getDestFromArg(Ty), (getRegFromArg(UseArgs))...);
+  }
 
   /// Build and insert a \p Res = G_FCMP \p Pred\p Op0, \p Op1
   ///
@@ -635,6 +640,11 @@ public:
   /// \return a MachineInstrBuilder for the newly created instruction.
   MachineInstrBuilder buildFCmp(CmpInst::Predicate Pred,
                                 unsigned Res, unsigned Op0, unsigned Op1);
+  template <typename DstTy, typename... UseArgsTy>
+  MachineInstrBuilder buildFCmp(CmpInst::Predicate Pred, DstTy &&Ty,
+                                UseArgsTy &&... UseArgs) {
+    return buildFCmp(Pred, getDestFromArg(Ty), (getRegFromArg(UseArgs))...);
+  }
 
   /// Build and insert a \p Res = G_SELECT \p Tst, \p Op0, \p Op1
   ///
