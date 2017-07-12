@@ -536,23 +536,28 @@ bool operator!=(const fpos<_StateT>& __x, const fpos<_StateT>& __y)
 // basic_string
 
 template<class _CharT, class _Traits, class _Allocator>
+_LIBCPP_TEMPLATE_VIS
 basic_string<_CharT, _Traits, _Allocator>
 operator+(const basic_string<_CharT, _Traits, _Allocator>& __x,
           const basic_string<_CharT, _Traits, _Allocator>& __y);
 
 template<class _CharT, class _Traits, class _Allocator>
+_LIBCPP_TEMPLATE_VIS
 basic_string<_CharT, _Traits, _Allocator>
 operator+(const _CharT* __x, const basic_string<_CharT,_Traits,_Allocator>& __y);
 
 template<class _CharT, class _Traits, class _Allocator>
+_LIBCPP_TEMPLATE_VIS
 basic_string<_CharT, _Traits, _Allocator>
 operator+(_CharT __x, const basic_string<_CharT,_Traits,_Allocator>& __y);
 
 template<class _CharT, class _Traits, class _Allocator>
+_LIBCPP_TEMPLATE_VIS
 basic_string<_CharT, _Traits, _Allocator>
 operator+(const basic_string<_CharT, _Traits, _Allocator>& __x, const _CharT* __y);
 
 template<class _CharT, class _Traits, class _Allocator>
+_LIBCPP_TEMPLATE_VIS
 basic_string<_CharT, _Traits, _Allocator>
 operator+(const basic_string<_CharT, _Traits, _Allocator>& __x, _CharT __y);
 
