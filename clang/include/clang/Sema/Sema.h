@@ -2293,7 +2293,7 @@ public:
                      ArrayRef<Decl *> Elements,
                      Scope *S, AttributeList *Attr);
 
-  DeclContext *getContainingDC(DeclContext *DC);
+  static DeclContext *getContainingDC(DeclContext *DC);
 
   /// Set the current declaration context until it gets popped.
   void PushDeclContext(Scope *S, DeclContext *DC);
