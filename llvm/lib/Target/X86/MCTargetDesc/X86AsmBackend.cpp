@@ -8,6 +8,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "MCTargetDesc/X86BaseInfo.h"
+#include "MCTargetDesc/X86MCCodePadder.h"
 #include "MCTargetDesc/X86FixupKinds.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/BinaryFormat/ELF.h"
@@ -75,7 +76,7 @@ class X86AsmBackend : public MCAsmBackend {
   const uint64_t MaxNopLength;
 public:
   X86AsmBackend(const Target &T, StringRef CPU)
-      : MCAsmBackend(), CPU(CPU),
+      : MCAsmBackend(new X86::X86MCCodePadder(CPU)), CPU(CPU),
         MaxNopLength((CPU == "slm") ? 7 : 15) {
     HasNopl = CPU != "generic" && CPU != "i386" && CPU != "i486" &&
               CPU != "i586" && CPU != "pentium" && CPU != "pentium-mmx" &&
