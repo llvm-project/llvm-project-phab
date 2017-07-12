@@ -13,6 +13,8 @@
 #include "llvm/Support/raw_ostream.h"
 #include "gtest/gtest.h"
 
+#include <cmath>
+
 using namespace llvm;
 
 namespace {
@@ -156,6 +158,28 @@ TEST(raw_ostreamTest, Justify) {
   EXPECT_EQ("single ",    printToString(center_justify("single", 7), 7));
   EXPECT_EQ("none",    printToString(center_justify("none", 1), 4));
   EXPECT_EQ("none",    printToString(center_justify("none", 1), 1));
+}
+
+TEST(raw_ostreamTest, FormatMemory) {
+  EXPECT_EQ("1.00 kB", printToString(llvm::format_memory(1024)));
+  EXPECT_EQ("1.00 MB", printToString(llvm::format_memory(std::pow(1024, 2))));
+  EXPECT_EQ("1.00 GB", printToString(llvm::format_memory(std::pow(1024, 3))));
+  EXPECT_EQ("1.00 TB", printToString(llvm::format_memory(std::pow(1024, 4))));
+  EXPECT_EQ("1.00 PB", printToString(llvm::format_memory(std::pow(1024, 5))));
+  EXPECT_EQ("1.00 EB", printToString(llvm::format_memory(std::pow(1024, 6))));
+  EXPECT_EQ("1.00 ZB", printToString(llvm::format_memory(std::pow(1024, 7))));
+  EXPECT_EQ("1.00 YB", printToString(llvm::format_memory(std::pow(1024, 8))));
+
+  EXPECT_EQ("256.00 kB", printToString(llvm::format_memory(262144)));
+  EXPECT_EQ("0.50 MB", printToString(llvm::format_memory(262144*2)));
+
+  EXPECT_EQ("0.50 PB",
+            printToString(llvm::format_memory(std::pow(1024, 5) * 0.5)));
+  EXPECT_EQ("409.60 TB",
+            printToString(llvm::format_memory(std::pow(1024, 5) * 0.4)));
+
+  EXPECT_EQ("0.5010 TB", printToString(llvm::format_memory(
+                             std::pow(1024, 3) + std::pow(1024, 4) * 0.5, 4)));
 }
 
 TEST(raw_ostreamTest, FormatHex) {  

@@ -448,6 +448,37 @@ raw_ostream &raw_ostream::operator<<(const FormattedBytes &FB) {
   return *this;
 }
 
+raw_ostream &raw_ostream::operator<<(const FormattedMemory &FM) {
+  constexpr size_t NumSuffixes = 8;
+  struct ByteTable {
+    ByteTable() {
+      for (size_t I = 0; I <= NumSuffixes; ++I)
+        Table[I] = std::pow(1024, I + 1);
+    }
+    double operator[](int I) const { return Table[I]; }
+    double Table[NumSuffixes + 1];
+  };
+
+  if (FM.NumBytes >= 1024) {
+    static const ByteTable BT;
+    static const char Suffix[NumSuffixes][3] = {"kB", "MB", "GB", "TB",
+                                                "PB", "EB", "ZB", "YB"};
+    for (size_t I = 1; I <= NumSuffixes; ++I) {
+      if (FM.NumBytes < BT[I] * 0.5) {
+        this->operator<<(
+            llvm::format("%.*f ", FM.Width, FM.NumBytes / BT[I - 1]));
+        this->operator<<(Suffix[I - 1]);
+        return *this;
+      }
+    }
+  this->operator<<("?? ");
+  this->operator<<(FM.NumBytes);
+  this->operator<<(" ??");
+  }
+  this->operator<<(llvm::format("%.0f B", FM.NumBytes));
+  return *this;
+}
+
 /// indent - Insert 'NumSpaces' spaces.
 raw_ostream &raw_ostream::indent(unsigned NumSpaces) {
   static const char Spaces[] = "                                "

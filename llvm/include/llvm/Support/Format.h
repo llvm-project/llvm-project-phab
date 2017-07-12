@@ -252,6 +252,27 @@ format_bytes_with_ascii(ArrayRef<uint8_t> Bytes,
                         ByteGroupSize, Upper, true);
 }
 
+/// This is a helper class used for format_memory.
+class FormattedMemory {
+  friend class raw_ostream;
+  const double NumBytes;
+  const unsigned Width;
+public:
+  FormattedMemory(double NB, unsigned W = 2) : NumBytes(NB), Width(W) {}
+};
+
+/// format_memory - Output \p NB as human readable amount of memory. When the
+/// amount is greater than half the amount for the next suffix the next suffix
+/// is used.  If no suffix exists for the amount of bytes, then the number is
+/// printed as is.
+///   OS << format_memory(1024, 2)          => "1.00 kB"
+///   OS << format_memory(524288, 2)        => "0.50 MB"
+///   OS << format_memory(1048576, 4)       => "1.0000 MB"
+///   OS << format_memory(pow(1024, 5), 3)  => "1.000 PB"
+inline FormattedMemory format_memory(double NB, unsigned W = 2) {
+  return FormattedMemory(NB, W);
+}
+
 } // end namespace llvm
 
 #endif
