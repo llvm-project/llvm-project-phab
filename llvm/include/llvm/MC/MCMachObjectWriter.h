@@ -67,9 +67,7 @@ public:
 
   virtual void recordRelocation(MachObjectWriter *Writer, MCAssembler &Asm,
                                 const MCAsmLayout &Layout,
-                                const MCFragment *Fragment,
-                                const MCFixup &Fixup, MCValue Target,
-                                uint64_t &FixedValue) = 0;
+                                const MCFragment *Fragment, MCReloc &Reloc) = 0;
 
   /// @}
 };
@@ -232,8 +230,7 @@ public:
                             MCValue Target, uint64_t &FixedValue);
 
   void recordRelocation(MCAssembler &Asm, const MCAsmLayout &Layout,
-                        const MCFragment *Fragment, const MCFixup &Fixup,
-                        MCValue Target, uint64_t &FixedValue) override;
+                        const MCFragment *Fragment, MCReloc &Reloc) override;
 
   void bindIndirectSymbols(MCAssembler &Asm);
 

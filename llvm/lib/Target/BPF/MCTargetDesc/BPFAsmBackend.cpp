@@ -27,15 +27,13 @@ public:
     : MCAsmBackend(), IsLittleEndian(IsLittleEndian) {}
   ~BPFAsmBackend() override = default;
 
-  void applyFixup(const MCAssembler &Asm, const MCFixup &Fixup,
-                  const MCValue &Target, MutableArrayRef<char> Data,
-                  uint64_t Value, bool IsResolved) const override;
+  void applyFixup(const MCAssembler &Asm, const MCReloc &Reloc,
+                  MutableArrayRef<char> Data, bool IsResolved) const override;
 
   MCObjectWriter *createObjectWriter(raw_pwrite_stream &OS) const override;
 
   // No instruction requires relaxation
-  bool fixupNeedsRelaxation(const MCFixup &Fixup, uint64_t Value,
-                            const MCRelaxableFragment *DF,
+  bool fixupNeedsRelaxation(const MCReloc &Reloc, const MCRelaxableFragment *DF,
                             const MCAsmLayout &Layout) const override {
     return false;
   }
@@ -62,10 +60,9 @@ bool BPFAsmBackend::writeNopData(uint64_t Count, MCObjectWriter *OW) const {
   return true;
 }
 
-void BPFAsmBackend::applyFixup(const MCAssembler &Asm, const MCFixup &Fixup,
-                               const MCValue &Target,
-                               MutableArrayRef<char> Data, uint64_t Value,
-                               bool IsResolved) const {
+void BPFAsmBackend::applyFixup(const MCAssembler &Asm, const MCReloc &Fixup,
+                               MutableArrayRef<char> Data, bool IsResolved) const {
+  uint64_t Value = Fixup.getConstant();
   if (Fixup.getKind() == FK_SecRel_4 || Fixup.getKind() == FK_SecRel_8) {
     assert(Value == 0);
   } else if (Fixup.getKind() == FK_Data_4 || Fixup.getKind() == FK_Data_8) {

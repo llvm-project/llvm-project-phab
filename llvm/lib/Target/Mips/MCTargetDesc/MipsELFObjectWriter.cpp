@@ -11,8 +11,11 @@
 #include "MCTargetDesc/MipsMCTargetDesc.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/BinaryFormat/ELF.h"
+#include "llvm/MC/MCAsmBackend.h"
+#include "llvm/MC/MCAssembler.h"
 #include "llvm/MC/MCELFObjectWriter.h"
 #include "llvm/MC/MCFixup.h"
+#include "llvm/MC/MCFixupKindInfo.h"
 #include "llvm/MC/MCSymbolELF.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Compiler.h"
@@ -60,8 +63,7 @@ public:
 
   ~MipsELFObjectWriter() override = default;
 
-  unsigned getRelocType(MCContext &Ctx, const MCValue &Target,
-                        const MCFixup &Fixup, bool IsPCRel) const override;
+  unsigned getRelocType(MCAssembler &Asm, const MCReloc &Reloc) const override;
   bool needsRelocateWithSymbol(const MCSymbol &Sym,
                                unsigned Type) const override;
   void sortRelocs(const MCAssembler &Asm,
@@ -215,10 +217,11 @@ MipsELFObjectWriter::MipsELFObjectWriter(bool _is64Bit, uint8_t OSABI,
                               /*HasRelocationAddend*/ _isN64,
                               /*IsN64*/ _isN64) {}
 
-unsigned MipsELFObjectWriter::getRelocType(MCContext &Ctx,
-                                           const MCValue &Target,
-                                           const MCFixup &Fixup,
-                                           bool IsPCRel) const {
+unsigned MipsELFObjectWriter::getRelocType(MCAssembler &Asm,
+                                           const MCReloc &Fixup) const {
+  bool IsPCRel = Asm.getBackend().getFixupKindInfo(Fixup.getKind()).Flags &
+                 MCFixupKindInfo::FKF_IsPCRel;
+
   // Determine the type of the relocation.
   unsigned Kind = (unsigned)Fixup.getKind();
 
@@ -226,9 +229,11 @@ unsigned MipsELFObjectWriter::getRelocType(MCContext &Ctx,
   case Mips::fixup_Mips_NONE:
     return ELF::R_MIPS_NONE;
   case Mips::fixup_Mips_16:
+  case FK_PCRel_2:
   case FK_Data_2:
     return IsPCRel ? ELF::R_MIPS_PC16 : ELF::R_MIPS_16;
   case Mips::fixup_Mips_32:
+  case FK_PCRel_4:
   case FK_Data_4:
     return IsPCRel ? ELF::R_MIPS_PC32 : ELF::R_MIPS_32;
   }
