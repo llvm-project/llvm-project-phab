@@ -162,7 +162,7 @@ def : InstRW<[A57Write_2cyc_1M],    (instregex "BFM")>;
 // Cryptography Extensions
 // -----------------------------------------------------------------------------
 
-def A57ReadAES  : SchedReadAdvance<3, [A57Write_3cyc_1W]>;
+def A57ReadAES : SchedReadCluster<3, [A57Write_3cyc_1W]>;
 def : InstRW<[A57Write_3cyc_1W], (instregex "^AES[DE]")>;
 def : InstRW<[A57Write_3cyc_1W, A57ReadAES], (instregex "^AESI?MC")>;
 def : InstRW<[A57Write_6cyc_2V], (instregex "^SHA1SU0")>;

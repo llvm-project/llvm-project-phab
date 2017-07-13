@@ -634,7 +634,7 @@ def : InstRW<[M1WriteVSTC,
               WriteAdr],      (instregex "ST1Fourv(8b|4h|2s|1d)_POST$")>;
 def : InstRW<[M1WriteVSTC],   (instregex "ST1Fourv(16b|8h|4s|2d)$")>;
 def : InstRW<[M1WriteVSTC,
-              WriteAdr], (instregex "ST1Fourv(16b|8h|4s|2d)_POST$")>;
+              WriteAdr],      (instregex "ST1Fourv(16b|8h|4s|2d)_POST$")>;
 
 def : InstRW<[M1WriteVSTD],   (instregex "ST2i(8|16|32)$")>;
 def : InstRW<[M1WriteVSTD,
@@ -695,7 +695,7 @@ def : InstRW<[M1WriteVSTI,
 
 // Cryptography instructions.
 def M1WriteAES : SchedWriteRes<[M1UnitNCRYPT]> { let Latency = 1; }
-def M1ReadAES  : SchedReadAdvance<1, [M1WriteAES]>;
+def M1ReadAES  : SchedReadCluster<1, [M1WriteAES]>;
 def : InstRW<[M1WriteAES], (instregex "^AES[DE]")>;
 def : InstRW<[M1WriteAES, M1ReadAES], (instregex "^AESI?MC")>;
 

@@ -103,10 +103,6 @@ def FeatureArithmeticCbzFusion : SubtargetFeature<
     "arith-cbz-fusion", "HasArithmeticCbzFusion", "true",
     "CPU fuses arithmetic + cbz/cbnz operations">;
 
-def FeatureFuseAES : SubtargetFeature<
-    "fuse-aes", "HasFuseAES", "true",
-    "CPU fuses AES crypto operations">;
-
 def FeatureFuseLiterals : SubtargetFeature<
     "fuse-literals", "HasFuseLiterals", "true",
     "CPU fuses literal generation operations">;
@@ -190,7 +186,6 @@ def ProcA53     : SubtargetFeature<"a53", "ARMProcFamily", "CortexA53",
                                    FeatureCrypto,
                                    FeatureCustomCheapAsMoveHandling,
                                    FeatureFPARMv8,
-                                   FeatureFuseAES,
                                    FeatureNEON,
                                    FeaturePerfMon,
                                    FeaturePostRAScheduler,
@@ -204,7 +199,6 @@ def ProcA57     : SubtargetFeature<"a57", "ARMProcFamily", "CortexA57",
                                    FeatureCrypto,
                                    FeatureCustomCheapAsMoveHandling,
                                    FeatureFPARMv8,
-                                   FeatureFuseAES,
                                    FeatureFuseLiterals,
                                    FeatureNEON,
                                    FeaturePerfMon,
@@ -217,9 +211,9 @@ def ProcA72     : SubtargetFeature<"a72", "ARMProcFamily", "CortexA72",
                                    FeatureCRC,
                                    FeatureCrypto,
                                    FeatureFPARMv8,
-                                   FeatureFuseAES,
                                    FeatureNEON,
-                                   FeaturePerfMon
+                                   FeaturePerfMon,
+                                   FeaturePostRAScheduler
                                    ]>;
 
 def ProcA73     : SubtargetFeature<"a73", "ARMProcFamily", "CortexA73",
@@ -227,9 +221,9 @@ def ProcA73     : SubtargetFeature<"a73", "ARMProcFamily", "CortexA73",
                                    FeatureCRC,
                                    FeatureCrypto,
                                    FeatureFPARMv8,
-                                   FeatureFuseAES,
                                    FeatureNEON,
-                                   FeaturePerfMon
+                                   FeaturePerfMon,
+                                   FeaturePostRAScheduler
                                    ]>;
 
 def ProcCyclone : SubtargetFeature<"cyclone", "ARMProcFamily", "Cyclone",
@@ -254,7 +248,6 @@ def ProcExynosM1 : SubtargetFeature<"exynosm1", "ARMProcFamily", "ExynosM1",
                                      FeatureCrypto,
                                      FeatureCustomCheapAsMoveHandling,
                                      FeatureFPARMv8,
-                                     FeatureFuseAES,
                                      FeatureNEON,
                                      FeaturePerfMon,
                                      FeaturePostRAScheduler,
