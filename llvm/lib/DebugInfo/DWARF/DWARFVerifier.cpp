@@ -280,7 +280,8 @@ bool DWARFVerifier::handleDebugLine() {
 bool DWARFVerifier::handleAppleNames() {
   NumAppleNamesErrors = 0;
 
-  DWARFDataExtractor AppleNamesSection(DCtx.getAppleNamesSection(),
+  DWARFDataExtractor AppleNamesSection(DCtx.getDWARFObj(),
+                                       DCtx.getAppleNamesSection(),
                                        DCtx.isLittleEndian(), 0);
   DataExtractor StrData(DCtx.getStringSection(), DCtx.isLittleEndian(), 0);
   DWARFAcceleratorTable AppleNames(AppleNamesSection, StrData);
