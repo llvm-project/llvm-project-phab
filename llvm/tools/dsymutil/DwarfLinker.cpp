@@ -845,7 +845,7 @@ void DwarfStreamer::emitLocationsForUnit(const CompileUnit &Unit,
   MS->SwitchSection(MC->getObjectFileInfo()->getDwarfLocSection());
 
   unsigned AddressSize = Unit.getOrigUnit().getAddressByteSize();
-  const DWARFSection &InputSec = Dwarf.getLocSection();
+  const DWARFSection &InputSec = Dwarf.getDWARFObj().getLocSection();
   DataExtractor Data(InputSec.Data, Dwarf.isLittleEndian(), AddressSize);
   DWARFUnit &OrigUnit = Unit.getOrigUnit();
   auto OrigUnitDie = OrigUnit.getUnitDIE(false);
@@ -2873,7 +2873,8 @@ void DwarfLinker::patchRangesForUnit(const CompileUnit &Unit,
   DWARFDebugRangeList RangeList;
   const auto &FunctionRanges = Unit.getFunctionRanges();
   unsigned AddressSize = Unit.getOrigUnit().getAddressByteSize();
-  DWARFDataExtractor RangeExtractor(OrigDwarf.getRangeSection(),
+  DWARFDataExtractor RangeExtractor(OrigDwarf.getDWARFObj(),
+                                    OrigDwarf.getDWARFObj().getRangeSection(),
                                     OrigDwarf.isLittleEndian(), AddressSize);
   auto InvalidRange = FunctionRanges.end(), CurrRange = InvalidRange;
   DWARFUnit &OrigUnit = Unit.getOrigUnit();
@@ -2984,9 +2985,9 @@ void DwarfLinker::patchLineTableForUnit(CompileUnit &Unit,
   // Parse the original line info for the unit.
   DWARFDebugLine::LineTable LineTable;
   uint32_t StmtOffset = *StmtList;
-  DWARFDataExtractor LineExtractor(OrigDwarf.getLineSection(),
-                                   OrigDwarf.isLittleEndian(),
-                                   Unit.getOrigUnit().getAddressByteSize());
+  DWARFDataExtractor LineExtractor(
+      OrigDwarf.getDWARFObj(), OrigDwarf.getDWARFObj().getLineSection(),
+      OrigDwarf.isLittleEndian(), Unit.getOrigUnit().getAddressByteSize());
   LineTable.parse(LineExtractor, &StmtOffset);
 
   // This vector is the output line table.
@@ -3086,7 +3087,7 @@ void DwarfLinker::patchLineTableForUnit(CompileUnit &Unit,
       LineTable.Prologue.OpcodeBase > 13)
     reportWarning("line table parameters mismatch. Cannot emit.");
   else {
-    StringRef LineData = OrigDwarf.getLineSection().Data;
+    StringRef LineData = OrigDwarf.getDWARFObj().getLineSection().Data;
     MCDwarfLineTableParams Params;
     Params.DWARF2LineOpcodeBase = LineTable.Prologue.OpcodeBase;
     Params.DWARF2LineBase = LineTable.Prologue.LineBase;
@@ -3112,7 +3113,7 @@ void DwarfLinker::emitAcceleratorEntriesForUnit(CompileUnit &Unit) {
 void DwarfLinker::patchFrameInfoForObject(const DebugMapObject &DMO,
                                           DWARFContext &OrigDwarf,
                                           unsigned AddrSize) {
-  StringRef FrameData = OrigDwarf.getDebugFrameSection();
+  StringRef FrameData = OrigDwarf.getDWARFObj().getDebugFrameSection();
   if (FrameData.empty())
     return;
 
