@@ -956,7 +956,7 @@ bool PGOUseFunc::readCounters(IndexedInstrProfReader *PGOReader) {
 
       std::string Msg = IPE.message() + std::string(" ") + F.getName().str();
       Ctx.diagnose(
-          DiagnosticInfoPGOProfile(M->getName().data(), Msg, DS_Warning));
+          DiagnosticInfoPGOProfile(M->getName().data(), Msg, DS_Remark));
     });
     return false;
   }
@@ -1346,11 +1346,7 @@ static bool annotateAllFunctions(
 
   std::unique_ptr<IndexedInstrProfReader> PGOReader =
       std::move(ReaderOrErr.get());
-  if (!PGOReader) {
-    Ctx.diagnose(DiagnosticInfoPGOProfile(ProfileFileName.data(),
-                                          StringRef("Cannot get PGOReader")));
-    return false;
-  }
+  assert(PGOReader);
   // TODO: might need to change the warning once the clang option is finalized.
   if (!PGOReader->isIRLevelProfile()) {
     Ctx.diagnose(DiagnosticInfoPGOProfile(
