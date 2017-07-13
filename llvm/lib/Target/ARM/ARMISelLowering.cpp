@@ -1617,6 +1617,8 @@ CCAssignFn *ARMTargetLowering::CCAssignFnForNode(CallingConv::ID CC,
   case CallingConv::ARM_AAPCS:
     return (Return ? RetCC_ARM_AAPCS : CC_ARM_AAPCS);
   case CallingConv::ARM_AAPCS_VFP:
+    if (getSubtarget()->isThumb1Only() || !getSubtarget()->hasVFP2())
+      report_fatal_error("The aapcs_vfp calling convention is not supported on this target.");
     return (Return ? RetCC_ARM_AAPCS_VFP : CC_ARM_AAPCS_VFP);
   case CallingConv::Fast:
     return (Return ? RetFastCC_ARM_APCS : FastCC_ARM_APCS);

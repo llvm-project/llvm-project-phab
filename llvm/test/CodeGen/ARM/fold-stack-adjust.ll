@@ -107,25 +107,6 @@ define i64 @check_no_return_clobber() minsize {
   ret i64 0
 }
 
-define arm_aapcs_vfpcc double @check_vfp_no_return_clobber() minsize {
-; CHECK-LABEL: check_vfp_no_return_clobber:
-; CHECK: push {r[[GLOBREG:[0-9]+]], lr}
-; CHECK: vpush {d0, d1, d2, d3, d4, d5, d6, d7, d8, d9}
-; CHECK-NOT: sub sp,
-; ...
-; CHECK: add sp, #64
-; CHECK: vpop {d8, d9}
-; CHECK: pop {r[[GLOBREG]], pc}
-
-  %var = alloca i8, i32 64
-
-  %tmp = load %bigVec, %bigVec* @var
-  call void @bar(i8* %var)
-  store %bigVec %tmp, %bigVec* @var
-
-  ret double 1.0
-}
-
 @dbl = global double 0.0
 
 ; PR18136: there was a bug determining where the first eligible pop in a
