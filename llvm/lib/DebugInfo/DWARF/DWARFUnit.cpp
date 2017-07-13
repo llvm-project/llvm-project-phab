@@ -59,13 +59,18 @@ DWARFUnit::DWARFUnit(DWARFContext &DC, const DWARFSection &Section,
 
 DWARFUnit::~DWARFUnit() = default;
 
+DWARFDataExtractor DWARFUnit::getDebugInfoExtractor() const {
+  return DWARFDataExtractor(Context.getDWARFObj(), InfoSection, isLittleEndian,
+                            getAddressByteSize());
+}
+
 bool DWARFUnit::getAddrOffsetSectionItem(uint32_t Index,
                                                 uint64_t &Result) const {
   uint32_t Offset = AddrOffsetSectionBase + Index * getAddressByteSize();
   if (AddrOffsetSection->Data.size() < Offset + getAddressByteSize())
     return false;
-  DWARFDataExtractor DA(*AddrOffsetSection, isLittleEndian,
-                        getAddressByteSize());
+  DWARFDataExtractor DA(Context.getDWARFObj(), *AddrOffsetSection,
+                        isLittleEndian, getAddressByteSize());
   Result = DA.getRelocatedAddress(&Offset);
   return true;
 }
@@ -76,7 +81,8 @@ bool DWARFUnit::getStringOffsetSectionItem(uint32_t Index,
   uint32_t Offset = StringOffsetSectionBase + Index * ItemSize;
   if (StringOffsetSection.Data.size() < Offset + ItemSize)
     return false;
-  DWARFDataExtractor DA(StringOffsetSection, isLittleEndian, 0);
+  DWARFDataExtractor DA(Context.getDWARFObj(), StringOffsetSection,
+                        isLittleEndian, 0);
   Result = DA.getRelocatedValue(ItemSize, &Offset);
   return true;
 }
@@ -141,8 +147,8 @@ bool DWARFUnit::extractRangeList(uint32_t RangeListOffset,
                                  DWARFDebugRangeList &RangeList) const {
   // Require that compile unit is extracted.
   assert(!DieArray.empty());
-  DWARFDataExtractor RangesData(*RangeSection, isLittleEndian,
-                                getAddressByteSize());
+  DWARFDataExtractor RangesData(Context.getDWARFObj(), *RangeSection,
+                                isLittleEndian, getAddressByteSize());
   uint32_t ActualRangeListOffset = RangeSectionBase + RangeListOffset;
   return RangeList.extract(RangesData, &ActualRangeListOffset);
 }

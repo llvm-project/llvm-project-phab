@@ -2873,7 +2873,8 @@ void DwarfLinker::patchRangesForUnit(const CompileUnit &Unit,
   DWARFDebugRangeList RangeList;
   const auto &FunctionRanges = Unit.getFunctionRanges();
   unsigned AddressSize = Unit.getOrigUnit().getAddressByteSize();
-  DWARFDataExtractor RangeExtractor(OrigDwarf.getRangeSection(),
+  DWARFDataExtractor RangeExtractor(OrigDwarf.getDWARFObj(),
+                                    OrigDwarf.getRangeSection(),
                                     OrigDwarf.isLittleEndian(), AddressSize);
   auto InvalidRange = FunctionRanges.end(), CurrRange = InvalidRange;
   DWARFUnit &OrigUnit = Unit.getOrigUnit();
@@ -2984,9 +2985,9 @@ void DwarfLinker::patchLineTableForUnit(CompileUnit &Unit,
   // Parse the original line info for the unit.
   DWARFDebugLine::LineTable LineTable;
   uint32_t StmtOffset = *StmtList;
-  DWARFDataExtractor LineExtractor(OrigDwarf.getLineSection(),
-                                   OrigDwarf.isLittleEndian(),
-                                   Unit.getOrigUnit().getAddressByteSize());
+  DWARFDataExtractor LineExtractor(
+      OrigDwarf.getDWARFObj(), OrigDwarf.getLineSection(),
+      OrigDwarf.isLittleEndian(), Unit.getOrigUnit().getAddressByteSize());
   LineTable.parse(LineExtractor, &StmtOffset);
 
   // This vector is the output line table.

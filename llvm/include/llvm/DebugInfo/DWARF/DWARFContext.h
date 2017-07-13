@@ -45,10 +45,124 @@ class DataExtractor;
 class MemoryBuffer;
 class raw_ostream;
 
+// This is responsible for low level access to the object file. It
+// knows how to find the required sections and compute relocated
+// values.
+// The default implementations are unreachable instead of pure virtual because
+// not all clients need all sections.
+class DWARFObj {
+public:
+  virtual ~DWARFObj() {}
+  virtual StringRef getFileName() const { llvm_unreachable("unimplemented"); }
+  virtual bool isLittleEndian() const { llvm_unreachable("unimplemented"); }
+  virtual uint8_t getAddressSize() const { llvm_unreachable("unimplemented"); }
+  virtual const DWARFSection &getInfoSection() const {
+    llvm_unreachable("unimplemented");
+  }
+  virtual void
+  forEachTypesSections(function_ref<void(const DWARFSection &)> F) const {
+    llvm_unreachable("unimplemented");
+  }
+  virtual StringRef getAbbrevSection() const {
+    llvm_unreachable("unimplemented");
+  }
+  virtual const DWARFSection &getLocSection() const {
+    llvm_unreachable("unimplemented");
+  }
+  virtual StringRef getARangeSection() const {
+    llvm_unreachable("unimplemented");
+  }
+  virtual StringRef getDebugFrameSection() const {
+    llvm_unreachable("unimplemented");
+  }
+  virtual StringRef getEHFrameSection() const {
+    llvm_unreachable("unimplemented");
+  }
+  virtual const DWARFSection &getLineSection() const {
+    llvm_unreachable("unimplemented");
+  }
+  virtual StringRef getStringSection() const {
+    llvm_unreachable("unimplemented");
+  }
+  virtual const DWARFSection &getRangeSection() const {
+    llvm_unreachable("unimplemented");
+  }
+  virtual StringRef getMacinfoSection() const {
+    llvm_unreachable("unimplemented");
+  }
+  virtual StringRef getPubNamesSection() const {
+    llvm_unreachable("unimplemented");
+  }
+  virtual StringRef getPubTypesSection() const {
+    llvm_unreachable("unimplemented");
+  }
+  virtual StringRef getGnuPubNamesSection() const {
+    llvm_unreachable("unimplemented");
+  }
+  virtual StringRef getGnuPubTypesSection() const {
+    llvm_unreachable("unimplemented");
+  }
+  virtual const DWARFSection &getStringOffsetSection() const {
+    llvm_unreachable("unimplemented");
+  }
+  virtual const DWARFSection &getInfoDWOSection() const {
+    llvm_unreachable("unimplemented");
+  }
+  virtual void
+  forEachTypesDWOSections(function_ref<void(const DWARFSection &)> F) const {
+    llvm_unreachable("unimplemented");
+  }
+  virtual StringRef getAbbrevDWOSection() const {
+    llvm_unreachable("unimplemented");
+  }
+  virtual const DWARFSection &getLineDWOSection() const {
+    llvm_unreachable("unimplemented");
+  }
+  virtual const DWARFSection &getLocDWOSection() const {
+    llvm_unreachable("unimplemented");
+  }
+  virtual StringRef getStringDWOSection() const {
+    llvm_unreachable("unimplemented");
+  }
+  virtual const DWARFSection &getStringOffsetDWOSection() const {
+    llvm_unreachable("unimplemented");
+  }
+  virtual const DWARFSection &getRangeDWOSection() const {
+    llvm_unreachable("unimplemented");
+  }
+  virtual const DWARFSection &getAddrSection() const {
+    llvm_unreachable("unimplemented");
+  }
+  virtual const DWARFSection &getAppleNamesSection() const {
+    llvm_unreachable("unimplemented");
+  }
+  virtual const DWARFSection &getAppleTypesSection() const {
+    llvm_unreachable("unimplemented");
+  }
+  virtual const DWARFSection &getAppleNamespacesSection() const {
+    llvm_unreachable("unimplemented");
+  }
+  virtual const DWARFSection &getAppleObjCSection() const {
+    llvm_unreachable("unimplemented");
+  }
+  virtual StringRef getCUIndexSection() const {
+    llvm_unreachable("unimplemented");
+  }
+  virtual StringRef getGdbIndexSection() const {
+    llvm_unreachable("unimplemented");
+  }
+  virtual StringRef getTUIndexSection() const {
+    llvm_unreachable("unimplemented");
+  }
+  virtual Optional<RelocAddrEntry> find(const DWARFSection &Sec,
+                                        uint64_t Pos) const {
+    llvm_unreachable("unimplemented");
+  }
+};
+
 /// DWARFContext
 /// This data structure is the top level entity that deals with dwarf debug
-/// information parsing. The actual data is supplied through pure virtual
-/// methods that a concrete implementation provides.
+/// information parsing. The actual data is supplied through DWARFObj.
 class DWARFContext : public DIContext {
   DWARFUnitSection<DWARFCompileUnit> CUs;
   std::deque<DWARFUnitSection<DWARFTypeUnit>> TUs;
@@ -95,10 +209,15 @@ class DWARFContext : public DIContext {
   /// and store them in DWOTUs.
   void parseDWOTypeUnits();
 
+protected:
+  const DWARFObj &Obj;
+
 public:
-  DWARFContext() : DIContext(CK_DWARF) {}
+  DWARFContext(const DWARFObj &Obj) : DIContext(CK_DWARF), Obj(Obj) {}
   DWARFContext(DWARFContext &) = delete;
   DWARFContext &operator=(DWARFContext &) = delete;
+
+  const DWARFObj &getDWARFObj() const { return Obj; }
 
   static bool classof(const DIContext *DICtx) {
     return DICtx->getKind() == CK_DWARF;
@@ -222,49 +341,63 @@ public:
   DIInliningInfo getInliningInfoForAddress(uint64_t Address,
       DILineInfoSpecifier Specifier = DILineInfoSpecifier()) override;
 
-  virtual StringRef getFileName() const = 0;
-  virtual bool isLittleEndian() const = 0;
-  virtual uint8_t getAddressSize() const = 0;
-  virtual const DWARFSection &getInfoSection() = 0;
-  virtual void forEachTypesSections(function_ref<void(DWARFSection &)> F) = 0;
-  virtual StringRef getAbbrevSection() = 0;
-  virtual const DWARFSection &getLocSection() = 0;
-  virtual StringRef getARangeSection() = 0;
-  virtual StringRef getDebugFrameSection() = 0;
-  virtual StringRef getEHFrameSection() = 0;
-  virtual const DWARFSection &getLineSection() = 0;
-  virtual StringRef getStringSection() = 0;
-  virtual const DWARFSection& getRangeSection() = 0;
-  virtual StringRef getMacinfoSection() = 0;
-  virtual StringRef getPubNamesSection() = 0;
-  virtual StringRef getPubTypesSection() = 0;
-  virtual StringRef getGnuPubNamesSection() = 0;
-  virtual StringRef getGnuPubTypesSection() = 0;
+  StringRef getFileName() const { return Obj.getFileName(); }
+  bool isLittleEndian() const { return Obj.isLittleEndian(); }
+  uint8_t getAddressSize() const { return Obj.getAddressSize(); }
+  const DWARFSection &getInfoSection() { return Obj.getInfoSection(); }
+  void forEachTypesSections(function_ref<void(const DWARFSection &)> F) {
+    Obj.forEachTypesSections(F);
+  }
+  StringRef getAbbrevSection() { return Obj.getAbbrevSection(); }
+  const DWARFSection &getLocSection() { return Obj.getLocSection(); }
+  StringRef getARangeSection() { return Obj.getARangeSection(); }
+  StringRef getDebugFrameSection() { return Obj.getDebugFrameSection(); }
+  StringRef getEHFrameSection() { return Obj.getEHFrameSection(); }
+  const DWARFSection &getLineSection() { return Obj.getLineSection(); }
+  StringRef getStringSection() { return Obj.getStringSection(); }
+  const DWARFSection &getRangeSection() { return Obj.getRangeSection(); }
+  StringRef getMacinfoSection() { return Obj.getMacinfoSection(); }
+  StringRef getPubNamesSection() { return Obj.getPubNamesSection(); }
+  StringRef getPubTypesSection() { return Obj.getPubTypesSection(); }
+  StringRef getGnuPubNamesSection() { return Obj.getGnuPubNamesSection(); }
+  StringRef getGnuPubTypesSection() { return Obj.getGnuPubTypesSection(); }
 
   /// DWARF v5
   /// @{
-  virtual const DWARFSection &getStringOffsetSection() = 0;
+  const DWARFSection &getStringOffsetSection() {
+    return Obj.getStringOffsetSection();
+  }
   /// @}
 
   // Sections for DWARF5 split dwarf proposal.
-  virtual const DWARFSection &getInfoDWOSection() = 0;
-  virtual void
-  forEachTypesDWOSections(function_ref<void(DWARFSection &)> F) = 0;
-  virtual StringRef getAbbrevDWOSection() = 0;
-  virtual const DWARFSection &getLineDWOSection() = 0;
-  virtual const DWARFSection &getLocDWOSection() = 0;
-  virtual StringRef getStringDWOSection() = 0;
-  virtual const DWARFSection &getStringOffsetDWOSection() = 0;
-  virtual const DWARFSection &getRangeDWOSection() = 0;
-  virtual const DWARFSection &getAddrSection() = 0;
-  virtual const DWARFSection& getAppleNamesSection() = 0;
-  virtual const DWARFSection& getAppleTypesSection() = 0;
-  virtual const DWARFSection& getAppleNamespacesSection() = 0;
-  virtual const DWARFSection& getAppleObjCSection() = 0;
-  virtual StringRef getCUIndexSection() = 0;
-  virtual StringRef getGdbIndexSection() = 0;
-  virtual StringRef getTUIndexSection() = 0;
-
+  const DWARFSection &getInfoDWOSection() { return Obj.getInfoDWOSection(); }
+  void forEachTypesDWOSections(function_ref<void(const DWARFSection &)> F) {
+    Obj.forEachTypesDWOSections(F);
+  }
+  StringRef getAbbrevDWOSection() { return Obj.getAbbrevDWOSection(); }
+  const DWARFSection &getLineDWOSection() { return Obj.getLineDWOSection(); }
+  const DWARFSection &getLocDWOSection() { return Obj.getLocDWOSection(); }
+  StringRef getStringDWOSection() { return Obj.getStringDWOSection(); }
+  const DWARFSection &getStringOffsetDWOSection() {
+    return Obj.getStringOffsetDWOSection();
+  }
+  const DWARFSection &getRangeDWOSection() { return Obj.getRangeDWOSection(); }
+  const DWARFSection &getAddrSection() { return Obj.getAddrSection(); }
+  const DWARFSection &getAppleNamesSection() {
+    return Obj.getAppleNamesSection();
+  }
+  const DWARFSection &getAppleTypesSection() {
+    return Obj.getAppleTypesSection();
+  }
+  const DWARFSection &getAppleNamespacesSection() {
+    return Obj.getAppleNamespacesSection();
+  }
+  const DWARFSection &getAppleObjCSection() {
+    return Obj.getAppleObjCSection();
+  }
+  StringRef getCUIndexSection() { return Obj.getCUIndexSection(); }
+  StringRef getGdbIndexSection() { return Obj.getGdbIndexSection(); }
+  StringRef getTUIndexSection() { return Obj.getTUIndexSection(); }
   static bool isSupportedVersion(unsigned version) {
     return version == 2 || version == 3 || version == 4 || version == 5;
   }
@@ -289,62 +422,7 @@ enum class ErrorPolicy { Halt, Continue };
 /// DWARFContext. It assumes all content is available in memory and stores
 /// pointers to it.
 class DWARFContextInMemory : public DWARFContext {
-  virtual void anchor();
-
-  using TypeSectionMap = MapVector<object::SectionRef, DWARFSection,
-                                   std::map<object::SectionRef, unsigned>>;
-
-  StringRef FileName;
-  bool IsLittleEndian;
-  uint8_t AddressSize;
-  DWARFSection InfoSection;
-  TypeSectionMap TypesSections;
-  StringRef AbbrevSection;
-  DWARFSection LocSection;
-  StringRef ARangeSection;
-  StringRef DebugFrameSection;
-  StringRef EHFrameSection;
-  DWARFSection LineSection;
-  StringRef StringSection;
-  DWARFSection RangeSection;
-  StringRef MacinfoSection;
-  StringRef PubNamesSection;
-  StringRef PubTypesSection;
-  StringRef GnuPubNamesSection;
-  StringRef GnuPubTypesSection;
-
-  /// DWARF v5
-  /// @{
-  DWARFSection StringOffsetSection;
-  /// @}
-
-  // Sections for DWARF5 split dwarf proposal.
-  DWARFSection InfoDWOSection;
-  TypeSectionMap TypesDWOSections;
-  StringRef AbbrevDWOSection;
-  DWARFSection LineDWOSection;
-  DWARFSection LocDWOSection;
-  StringRef StringDWOSection;
-  DWARFSection StringOffsetDWOSection;
-  DWARFSection RangeDWOSection;
-  DWARFSection AddrSection;
-  DWARFSection AppleNamesSection;
-  DWARFSection AppleTypesSection;
-  DWARFSection AppleNamespacesSection;
-  DWARFSection AppleObjCSection;
-  StringRef CUIndexSection;
-  StringRef GdbIndexSection;
-  StringRef TUIndexSection;
-
-  SmallVector<SmallString<32>, 4> UncompressedSections;
-
-  DWARFSection *mapNameToDWARFSection(StringRef Name);
-  StringRef *mapSectionToMember(StringRef Name);
-
-  /// If Sec is compressed section, decompresses and updates its contents
-  /// provided by Data. Otherwise leaves it unchanged.
-  Error maybeDecompress(const object::SectionRef &Sec, StringRef Name,
-                        StringRef &Data);
+  std::unique_ptr<const DWARFObj> DObj;
 
   /// Function used to handle default error reporting policy. Prints a error
   /// message and returns Continue, so DWARF context ignores the error.
@@ -359,61 +437,6 @@ public:
                        uint8_t AddrSize,
                        bool isLittleEndian = sys::IsLittleEndianHost);
 
-  StringRef getFileName() const override { return FileName; }
-  bool isLittleEndian() const override { return IsLittleEndian; }
-  uint8_t getAddressSize() const override { return AddressSize; }
-  const DWARFSection &getInfoSection() override { return InfoSection; }
-  void forEachTypesSections(function_ref<void(DWARFSection &)> F) override {
-    for (auto &P : TypesSections)
-      F(P.second);
-  }
-  StringRef getAbbrevSection() override { return AbbrevSection; }
-  const DWARFSection &getLocSection() override { return LocSection; }
-  StringRef getARangeSection() override { return ARangeSection; }
-  StringRef getDebugFrameSection() override { return DebugFrameSection; }
-  StringRef getEHFrameSection() override { return EHFrameSection; }
-  const DWARFSection &getLineSection() override { return LineSection; }
-  StringRef getStringSection() override { return StringSection; }
-  const DWARFSection &getRangeSection() override { return RangeSection; }
-  StringRef getMacinfoSection() override { return MacinfoSection; }
-  StringRef getPubNamesSection() override { return PubNamesSection; }
-  StringRef getPubTypesSection() override { return PubTypesSection; }
-  StringRef getGnuPubNamesSection() override { return GnuPubNamesSection; }
-  StringRef getGnuPubTypesSection() override { return GnuPubTypesSection; }
-  const DWARFSection& getAppleNamesSection() override { return AppleNamesSection; }
-  const DWARFSection& getAppleTypesSection() override { return AppleTypesSection; }
-  const DWARFSection& getAppleNamespacesSection() override { return AppleNamespacesSection; }
-  const DWARFSection& getAppleObjCSection() override { return AppleObjCSection; }
-
-  // DWARF v5
-  const DWARFSection &getStringOffsetSection() override {
-    return StringOffsetSection;
-  }
-
-  // Sections for DWARF5 split dwarf proposal.
-  const DWARFSection &getInfoDWOSection() override { return InfoDWOSection; }
-
-  void forEachTypesDWOSections(function_ref<void(DWARFSection &)> F) override {
-    for (auto &P : TypesDWOSections)
-      F(P.second);
-  }
-
-  StringRef getAbbrevDWOSection() override { return AbbrevDWOSection; }
-  const DWARFSection &getLineDWOSection() override { return LineDWOSection; }
-  const DWARFSection &getLocDWOSection() override { return LocDWOSection; }
-  StringRef getStringDWOSection() override { return StringDWOSection; }
-
-  const DWARFSection &getStringOffsetDWOSection() override {
-    return StringOffsetDWOSection;
-  }
-
-  const DWARFSection &getRangeDWOSection() override { return RangeDWOSection; }
-
-  const DWARFSection &getAddrSection() override { return AddrSection; }
-
-  StringRef getCUIndexSection() override { return CUIndexSection; }
-  StringRef getGdbIndexSection() override { return GdbIndexSection; }
-  StringRef getTUIndexSection() override { return TUIndexSection; }
 };
 
 } // end namespace llvm
