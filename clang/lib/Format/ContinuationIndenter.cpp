@@ -1219,6 +1219,112 @@ unsigned ContinuationIndenter::addMultilineToken(const FormatToken &Current,
   return 0;
 }
 
+unsigned ContinuationIndenter::reflowProtrudingToken(const FormatToken &Current, LineState &State,
+                                                     std::unique_ptr<BreakableToken> &Token,
+                                                     unsigned ColumnLimit, bool DryRun) {
+  unsigned StartColumn = State.Column - Current.ColumnWidth;
+
+  unsigned RemainingSpace = ColumnLimit - Current.UnbreakableTailLength;
+  bool BreakInserted = false;
+  // We use a conservative reflowing strategy. Reflow starts after a line is
+  // broken or the corresponding whitespace compressed. Reflow ends as soon as a
+  // line that doesn't get reflown with the previous line is reached.
+  bool ReflowInProgress = false;
+  unsigned Penalty = 0;
+  unsigned RemainingTokenColumns = 0;
+  for (unsigned LineIndex = 0, EndIndex = Token->getLineCount();
+       LineIndex != EndIndex; ++LineIndex) {
+    BreakableToken::Split SplitBefore(StringRef::npos, 0);
+    if (ReflowInProgress) {
+      SplitBefore = Token->getSplitBefore(LineIndex, RemainingTokenColumns,
+                                          RemainingSpace, CommentPragmasRegex);
+    }
+    ReflowInProgress = SplitBefore.first != StringRef::npos;
+    unsigned TailOffset =
+        ReflowInProgress ? (SplitBefore.first + SplitBefore.second) : 0;
+    if (!DryRun)
+      Token->replaceWhitespaceBefore(LineIndex, RemainingTokenColumns,
+                                     RemainingSpace, SplitBefore, Whitespaces);
+    RemainingTokenColumns = Token->getLineLengthAfterSplitBefore(
+        LineIndex, TailOffset, RemainingTokenColumns, ColumnLimit, SplitBefore);
+    if (!State.Reflow) {
+      if (RemainingTokenColumns > RemainingSpace)
+        Penalty += Style.PenaltyExcessCharacter *
+                   (RemainingTokenColumns - RemainingSpace);
+      continue;
+    }
+    while (RemainingTokenColumns > RemainingSpace) {
+      BreakableToken::Split Split = Token->getSplit(
+          LineIndex, TailOffset, ColumnLimit, CommentPragmasRegex);
+      if (Split.first == StringRef::npos) {
+        Penalty += Style.PenaltyExcessCharacter *
+                   (RemainingTokenColumns - RemainingSpace);
+        break;
+      }
+      assert(Split.first != 0);
+
+      // Check if compressing the whitespace range will bring the line length
+      // under the limit. If that is the case, we perform whitespace compression
+      // instead of inserting a line break.
+      unsigned RemainingTokenColumnsAfterCompression =
+          Token->getLineLengthAfterCompression(RemainingTokenColumns, Split);
+      if (RemainingTokenColumnsAfterCompression <= RemainingSpace) {
+        RemainingTokenColumns = RemainingTokenColumnsAfterCompression;
+        ReflowInProgress = true;
+        if (!DryRun)
+          Token->compressWhitespace(LineIndex, TailOffset, Split, Whitespaces);
+        break;
+      }
+
+      unsigned NewRemainingTokenColumns = Token->getLineLengthAfterSplit(
+          LineIndex, TailOffset + Split.first + Split.second, StringRef::npos);
+
+      // When breaking before a tab character, it may be moved by a few columns,
+      // but will still be expanded to the next tab stop, so we don't save any
+      // columns.
+      if (NewRemainingTokenColumns == RemainingTokenColumns)
+        break;
+
+      assert(NewRemainingTokenColumns < RemainingTokenColumns);
+      if (!DryRun)
+        Token->insertBreak(LineIndex, TailOffset, Split, Whitespaces);
+      Penalty += Current.SplitPenalty;
+      unsigned ColumnsUsed =
+          Token->getLineLengthAfterSplit(LineIndex, TailOffset, Split.first);
+      if (ColumnsUsed > ColumnLimit) {
+        Penalty += Style.PenaltyExcessCharacter * (ColumnsUsed - ColumnLimit);
+      }
+      TailOffset += Split.first + Split.second;
+      RemainingTokenColumns = NewRemainingTokenColumns;
+      ReflowInProgress = true;
+      BreakInserted = true;
+    }
+  }
+
+  State.Column = RemainingTokenColumns;
+
+  if (BreakInserted) {
+    assert(State.Reflow);
+
+    // If we break the token inside a parameter list, we need to break before
+    // the next parameter on all levels, so that the next parameter is clearly
+    // visible. Line comments already introduce a break.
+    if (Current.isNot(TT_LineComment)) {
+      for (unsigned i = 0, e = State.Stack.size(); i != e; ++i)
+        State.Stack[i].BreakBeforeParameter = true;
+    }
+
+    Penalty += Current.isStringLiteral() ? Style.PenaltyBreakString
+                                         : Style.PenaltyBreakComment;
+
+    State.Stack.back().LastSpace = StartColumn;
+  }
+
+  Token->updateNextToken(State);
+
+  return Penalty;
+}
+
 unsigned ContinuationIndenter::breakProtrudingToken(const FormatToken &Current,
                                                     LineState &State,
                                                     bool DryRun) {
@@ -1306,97 +1412,30 @@ unsigned ContinuationIndenter::breakProtrudingToken(const FormatToken &Current,
   if (Current.UnbreakableTailLength >= ColumnLimit)
     return 0;
 
-  unsigned RemainingSpace = ColumnLimit - Current.UnbreakableTailLength;
-  bool BreakInserted = false;
-  // We use a conservative reflowing strategy. Reflow starts after a line is
-  // broken or the corresponding whitespace compressed. Reflow ends as soon as a
-  // line that doesn't get reflown with the previous line is reached.
-  bool ReflowInProgress = false;
   unsigned Penalty = 0;
-  unsigned RemainingTokenColumns = 0;
-  for (unsigned LineIndex = 0, EndIndex = Token->getLineCount();
-       LineIndex != EndIndex; ++LineIndex) {
-    BreakableToken::Split SplitBefore(StringRef::npos, 0);
-    if (ReflowInProgress) {
-      SplitBefore = Token->getSplitBefore(LineIndex, RemainingTokenColumns,
-                                          RemainingSpace, CommentPragmasRegex);
+  if (!DryRun) {
+    Penalty = reflowProtrudingToken(Current, State, Token, ColumnLimit, DryRun);
+  } else {
+    LineState NoreflowState = State;
+    NoreflowState.Reflow = false;
+    unsigned NoreflowPenalty = reflowProtrudingToken(Current, NoreflowState, Token, ColumnLimit, DryRun);
+
+    if (NoreflowPenalty > 0) {
+      State.Reflow = true;
+      Penalty = reflowProtrudingToken(Current, State, Token, ColumnLimit, DryRun);
     }
-    ReflowInProgress = SplitBefore.first != StringRef::npos;
-    unsigned TailOffset =
-        ReflowInProgress ? (SplitBefore.first + SplitBefore.second) : 0;
-    if (!DryRun)
-      Token->replaceWhitespaceBefore(LineIndex, RemainingTokenColumns,
-                                     RemainingSpace, SplitBefore, Whitespaces);
-    RemainingTokenColumns = Token->getLineLengthAfterSplitBefore(
-        LineIndex, TailOffset, RemainingTokenColumns, ColumnLimit, SplitBefore);
-    while (RemainingTokenColumns > RemainingSpace) {
-      BreakableToken::Split Split = Token->getSplit(
-          LineIndex, TailOffset, ColumnLimit, CommentPragmasRegex);
-      if (Split.first == StringRef::npos) {
-        // The last line's penalty is handled in addNextStateToQueue().
-        if (LineIndex < EndIndex - 1)
-          Penalty += Style.PenaltyExcessCharacter *
-                     (RemainingTokenColumns - RemainingSpace);
-        break;
-      }
-      assert(Split.first != 0);
 
-      // Check if compressing the whitespace range will bring the line length
-      // under the limit. If that is the case, we perform whitespace compression
-      // instead of inserting a line break.
-      unsigned RemainingTokenColumnsAfterCompression =
-          Token->getLineLengthAfterCompression(RemainingTokenColumns, Split);
-      if (RemainingTokenColumnsAfterCompression <= RemainingSpace) {
-        RemainingTokenColumns = RemainingTokenColumnsAfterCompression;
-        ReflowInProgress = true;
-        if (!DryRun)
-          Token->compressWhitespace(LineIndex, TailOffset, Split, Whitespaces);
-        break;
-      }
-
-      unsigned NewRemainingTokenColumns = Token->getLineLengthAfterSplit(
-          LineIndex, TailOffset + Split.first + Split.second, StringRef::npos);
-
-      // When breaking before a tab character, it may be moved by a few columns,
-      // but will still be expanded to the next tab stop, so we don't save any
-      // columns.
-      if (NewRemainingTokenColumns == RemainingTokenColumns)
-        break;
-
-      assert(NewRemainingTokenColumns < RemainingTokenColumns);
-      if (!DryRun)
-        Token->insertBreak(LineIndex, TailOffset, Split, Whitespaces);
-      Penalty += Current.SplitPenalty;
-      unsigned ColumnsUsed =
-          Token->getLineLengthAfterSplit(LineIndex, TailOffset, Split.first);
-      if (ColumnsUsed > ColumnLimit) {
-        Penalty += Style.PenaltyExcessCharacter * (ColumnsUsed - ColumnLimit);
-      }
-      TailOffset += Split.first + Split.second;
-      RemainingTokenColumns = NewRemainingTokenColumns;
-      ReflowInProgress = true;
-      BreakInserted = true;
+    if (NoreflowPenalty <= Penalty) {
+      State = NoreflowState;
+      Penalty = NoreflowPenalty;
     }
   }
 
-  State.Column = RemainingTokenColumns;
-
-  if (BreakInserted) {
-    // If we break the token inside a parameter list, we need to break before
-    // the next parameter on all levels, so that the next parameter is clearly
-    // visible. Line comments already introduce a break.
-    if (Current.isNot(TT_LineComment)) {
-      for (unsigned i = 0, e = State.Stack.size(); i != e; ++i)
-        State.Stack[i].BreakBeforeParameter = true;
-    }
-
-    Penalty += Current.isStringLiteral() ? Style.PenaltyBreakString
-                                         : Style.PenaltyBreakComment;
-
-    State.Stack.back().LastSpace = StartColumn;
+  // Do not count the penalty twice, it will be added afterwards
+  if (State.Column > getColumnLimit(State)) {
+    unsigned ExcessCharacters = State.Column - getColumnLimit(State);
+    Penalty -= Style.PenaltyExcessCharacter * ExcessCharacters;
   }
-
-  Token->updateNextToken(State);
 
   return Penalty;
 }

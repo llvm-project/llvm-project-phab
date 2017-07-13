@@ -866,6 +866,7 @@ private:
     for (std::deque<StateNode *>::iterator I = Path.begin(), E = Path.end();
          I != E; ++I) {
       unsigned Penalty = 0;
+      State.Reflow = (*I)->State.Reflow;
       formatChildren(State, (*I)->NewLine, /*DryRun=*/false, Penalty);
       Penalty += Indenter->addTokenToState(State, (*I)->NewLine, false);
 
