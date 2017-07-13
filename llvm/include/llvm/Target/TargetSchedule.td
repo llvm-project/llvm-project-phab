@@ -312,6 +312,7 @@ class SchedWriteRes<list<ProcResourceKind> resources> : SchedWrite,
 class ProcReadAdvance<int cycles, list<SchedWrite> writes = []> {
   int Cycles = cycles;
   list<SchedWrite> ValidWrites = writes;
+  bit Cluster = 0;
   // Allow a processor to mark some scheduling classes as unsupported
   // for stronger verification.
   bit Unsupported = 0;
@@ -333,10 +334,24 @@ class ReadAdvance<SchedRead read, int cycles, list<SchedWrite> writes = []>
   SchedRead ReadType = read;
 }
 
+// A processor may define a similar pipeline bypass that also requires that the
+// reader and writer instructions be clustered together and scheduled back to
+// back.
+class ReadCluster<SchedRead read, int cycles, list<SchedWrite> writes = []>
+  : ReadAdvance<read, cycles, writes> {
+  let Cluster = 1;
+}
+
 // Directly associate a new SchedRead type with a delay and optional
 // pipeline bypass. For use with InstRW or ItinRW.
-class SchedReadAdvance<int cycles, list<SchedWrite> writes = []> : SchedRead,
-  ProcReadAdvance<cycles, writes>;
+class SchedReadAdvance<int cycles, list<SchedWrite> writes = []>
+  : SchedRead, ProcReadAdvance<cycles, writes>;
+
+// Likewise, with clustered instructions.
+class SchedReadCluster<int cycles, list<SchedWrite> writes = []>
+  : SchedReadAdvance<cycles, writes> {
+  let Cluster = 1;
+}
 
 // Define SchedRead defaults. Reads seldom need special treatment.
 def ReadDefault : SchedRead;
