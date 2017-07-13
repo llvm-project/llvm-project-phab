@@ -708,7 +708,7 @@ namespace std {
 #endif
 
 #ifndef _LIBCPP_EXTERN_TEMPLATE_TYPE_VIS
-#  if !defined(_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS) && __has_attribute(__type_visibility__)
+#  if !defined(_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS)
 #    define _LIBCPP_EXTERN_TEMPLATE_TYPE_VIS __attribute__ ((__visibility__("default")))
 #  else
 #    define _LIBCPP_EXTERN_TEMPLATE_TYPE_VIS
