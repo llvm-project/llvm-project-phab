@@ -13,6 +13,8 @@
 #include "llvm/Support/raw_ostream.h"
 #include "gtest/gtest.h"
 
+#include <cmath>
+
 using namespace llvm;
 
 namespace {
@@ -156,6 +158,53 @@ TEST(raw_ostreamTest, Justify) {
   EXPECT_EQ("single ",    printToString(center_justify("single", 7), 7));
   EXPECT_EQ("none",    printToString(center_justify("none", 1), 4));
   EXPECT_EQ("none",    printToString(center_justify("none", 1), 1));
+}
+
+static std::string format_memory_pow2(double Pow, double Mult = 1) {
+  const double Baseline = std::pow(1024, Pow);
+  return printToString(llvm::format_memory_size(Baseline * 0.4)) + " " +
+         printToString(llvm::format_memory_size(Baseline * 0.5)) + " " +
+         printToString(llvm::format_memory_size(Baseline));
+}
+
+static std::string format_memory_pow10(double Pow, double Mult = 1) {
+  const double Baseline = std::pow(1000, Pow);
+  return printToString(llvm::format_memory_size_si(Baseline * 0.4)) + " " +
+         printToString(llvm::format_memory_size_si(Baseline * 0.5)) + " " +
+         printToString(llvm::format_memory_size_si(Baseline));
+}
+
+TEST(raw_ostreamTest, FormatMemory) {
+  EXPECT_EQ("410 B 512 B 1.00 KiB", format_memory_pow2(1));
+  EXPECT_EQ("409.60 KiB 0.50 MiB 1.00 MiB", format_memory_pow2(2));
+  EXPECT_EQ("409.60 MiB 0.50 GiB 1.00 GiB", format_memory_pow2(3));
+  EXPECT_EQ("409.60 GiB 0.50 TiB 1.00 TiB", format_memory_pow2(4));
+  EXPECT_EQ("409.60 TiB 0.50 PiB 1.00 PiB", format_memory_pow2(5));
+  EXPECT_EQ("409.60 PiB 0.50 EiB 1.00 EiB", format_memory_pow2(6));
+  EXPECT_EQ("409.60 EiB 0.50 ZiB 1.00 ZiB", format_memory_pow2(7));
+  EXPECT_EQ("409.60 ZiB 0.50 YiB 1.00 YiB", format_memory_pow2(8));
+
+  EXPECT_EQ("400 B 500 B 1.00 kB", format_memory_pow10(1));
+  EXPECT_EQ("400.00 kB 0.50 MB 1.00 MB", format_memory_pow10(2));
+  EXPECT_EQ("400.00 MB 0.50 GB 1.00 GB", format_memory_pow10(3));
+  EXPECT_EQ("400.00 GB 0.50 TB 1.00 TB", format_memory_pow10(4));
+  EXPECT_EQ("400.00 TB 0.50 PB 1.00 PB", format_memory_pow10(5));
+  EXPECT_EQ("400.00 PB 0.50 EB 1.00 EB", format_memory_pow10(6));
+  EXPECT_EQ("400.00 EB 0.50 ZB 1.00 ZB", format_memory_pow10(7));
+  EXPECT_EQ("400.00 ZB 0.50 YB 1.00 YB", format_memory_pow10(8));
+
+  EXPECT_EQ("256.00 kB",
+            printToString(llvm::format_memory_size_customary(262144)));
+  EXPECT_EQ("0.50 MB",
+            printToString(llvm::format_memory_size_customary(262144 * 2)));
+
+  EXPECT_EQ("0.50 PB", printToString(llvm::format_memory_size_customary(
+                           std::pow(1024, 5) * 0.5)));
+  EXPECT_EQ("409.60 TB", printToString(llvm::format_memory_size_customary(
+                             std::pow(1024, 5) * 0.4)));
+
+  EXPECT_EQ("0.5010 TB", printToString(llvm::format_memory_size_customary(
+                             std::pow(1024, 3) + std::pow(1024, 4) * 0.5, 4)));
 }
 
 TEST(raw_ostreamTest, FormatHex) {  

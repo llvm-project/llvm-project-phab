@@ -252,6 +252,57 @@ format_bytes_with_ascii(ArrayRef<uint8_t> Bytes,
                         ByteGroupSize, Upper, true);
 }
 
+/// This is a helper class used for format_memory.
+class FormattedMemorySize {
+public:
+  enum Format { Binary, Decimal, Customary = -1 };
+  FormattedMemorySize(double NB, unsigned W = 2, Format S = Binary)
+      : NumBytes(NB), Width(W), Suffix(S) {}
+
+private:
+  friend class raw_ostream;
+  const double NumBytes;
+  const unsigned Width;
+  const Format Suffix;
+};
+
+/// format_memory_size - Output \p NB as human readable amount of bytes with
+/// IEC suffixes. When the amount is greater than half the amount for the next
+/// suffix that next suffix is used.  If no suffix exists for the amount of
+/// bytes: the number is printed as bytes.
+///
+///   OS << format_memory_size(1024, 2)         => "1.00 KiB"
+///   OS << format_memory_size(524288, 2)       => "0.50 MiB"
+///   OS << format_memory_size(1048576, 4)      => "1.0000 MiB"
+///   OS << format_memory_size(pow(1024, 5), 3) => "1.000 PiB"
+inline FormattedMemorySize format_memory_size(double NB, unsigned W = 2) {
+  return FormattedMemorySize(NB, W);
+}
+
+/// format_memory_size_si - Output \p NB as human readable amount of bytes with
+/// SI suffixes. When the amount is greater than half the amount for the next
+/// suffix that next suffix is used.  If no suffix exists for the amount of
+/// bytes: the number is printed as bytes.
+///
+///   OS << format_memory_size(1000, 2)         => "1.00 kB"
+///   OS << format_memory_size(500000, 2)       => "0.50 MB"
+///   OS << format_memory_size(1000000, 4)      => "1.0000 MB"
+///   OS << format_memory_size(pow(1000, 5), 3) => "1.000 PB"
+inline FormattedMemorySize format_memory_size_si(double NB, unsigned W = 2) {
+  return FormattedMemorySize(NB, W, FormattedMemorySize::Decimal);
+}
+
+/// format_memory_size_customary - Output \p NB as human readable amount of
+/// bytes with SI suffixes, but still as power of 2. Techincally incorrect but
+/// still often used for RAM, older unix tools, and operating systems.
+///
+///   OS << format_memory_size_customary(1024, 2)   => "1.00 kB"
+///   OS << format_memory_size_customary(524288, 2) => "0.50 MB"
+inline FormattedMemorySize format_memory_size_customary(double NB,
+                                                        unsigned W = 2) {
+  return FormattedMemorySize(NB, W, FormattedMemorySize::Customary);
+}
+
 } // end namespace llvm
 
 #endif

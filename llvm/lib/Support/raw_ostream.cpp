@@ -448,6 +448,37 @@ raw_ostream &raw_ostream::operator<<(const FormattedBytes &FB) {
   return *this;
 }
 
+raw_ostream &raw_ostream::operator<<(const FormattedMemorySize &FM) {
+  constexpr size_t NumSuffixes = 8;
+  struct ByteTable {
+    ByteTable(float Base) {
+      for (size_t I = 0; I <= NumSuffixes; ++I)
+        Table[I] = std::pow(Base, I + 1);
+    }
+    double operator[](int I) const { return Table[I]; }
+    double Table[NumSuffixes + 1];
+  };
+  static const ByteTable Base2(1024), Base10(1000);
+  const ByteTable &BT =
+      FM.Suffix != FormattedMemorySize::Decimal ? Base2 : Base10;
+
+  if (FM.NumBytes >= BT[0]) {
+    const bool Binary = FM.Suffix == FormattedMemorySize::Binary;
+    const char Suffix[NumSuffixes] = {
+        Binary ? 'K' : 'k', 'M', 'G', 'T', 'P', 'E', 'Z', 'Y'};
+    for (size_t I = 1; I <= NumSuffixes; ++I) {
+      if (FM.NumBytes >= BT[I] * 0.5)
+        continue;
+      this->operator<<(llvm::format("%.*f ", FM.Width, FM.NumBytes / BT[I-1]));
+      this->operator<<(Suffix[I-1]);
+      this->operator<<(Binary ? "iB" : "B");
+      return *this;
+    }
+  }
+  this->operator<<(llvm::format("%.0f B", FM.NumBytes));
+  return *this;
+}
+
 /// indent - Insert 'NumSpaces' spaces.
 raw_ostream &raw_ostream::indent(unsigned NumSpaces) {
   static const char Spaces[] = "                                "

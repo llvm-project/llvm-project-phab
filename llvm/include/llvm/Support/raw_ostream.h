@@ -30,6 +30,7 @@ class format_object_base;
 class FormattedString;
 class FormattedNumber;
 class FormattedBytes;
+class FormattedMemorySize;
 
 namespace sys {
 namespace fs {
@@ -234,6 +235,9 @@ public:
 
   // Formatted output, see the format_bytes() function in Support/Format.h.
   raw_ostream &operator<<(const FormattedBytes &);
+
+  // Formatted output, see the format_memory() function in Support/Format.h.
+  raw_ostream &operator<<(const FormattedMemorySize &);
 
   /// indent - Insert 'NumSpaces' spaces.
   raw_ostream &indent(unsigned NumSpaces);
