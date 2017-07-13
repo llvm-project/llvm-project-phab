@@ -180,7 +180,7 @@ void CodeGenFunction::EmitCXXGlobalVarDeclInit(const VarDecl &D,
       EmitDeclInit(*this, D, DeclAddr);
     if (CGM.isTypeConstant(D.getType(), true))
       EmitDeclInvariant(*this, D, DeclPtr);
-    else
+    else if (CGM.getCodeGenOpts().DestroyGlobals)
       EmitDeclDestroy(*this, D, DeclAddr);
     return;
   }

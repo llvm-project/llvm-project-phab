@@ -3697,6 +3697,11 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       KernelOrKext)
     CmdArgs.push_back("-fno-use-cxa-atexit");
 
+  // -fdestroy-globals=1 is default.
+  if (!Args.hasFlag(options::OPT_fdestroy_globals,
+                    options::OPT_fno_destroy_globals, true))
+      CmdArgs.push_back("-fno-destroy-globals");
+
   // -fms-extensions=0 is default.
   if (Args.hasFlag(options::OPT_fms_extensions, options::OPT_fno_ms_extensions,
                    IsWindowsMSVC))
