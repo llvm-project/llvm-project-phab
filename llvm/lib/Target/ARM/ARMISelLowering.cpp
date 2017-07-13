@@ -801,6 +801,9 @@ ARMTargetLowering::ARMTargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::SSUBO, MVT::i32, Custom);
   setOperationAction(ISD::USUBO, MVT::i32, Custom);
 
+  setOperationAction(ISD::ADDCARRY, MVT::i32, Custom);
+  setOperationAction(ISD::SUBCARRY, MVT::i32, Custom);
+
   // i64 operation support.
   setOperationAction(ISD::MUL,     MVT::i64, Expand);
   setOperationAction(ISD::MULHU,   MVT::i32, Expand);
@@ -3952,7 +3955,7 @@ ARMTargetLowering::getARMXALUOOp(SDValue Op, SelectionDAG &DAG,
 }
 
 SDValue
-ARMTargetLowering::LowerXALUO(SDValue Op, SelectionDAG &DAG) const {
+ARMTargetLowering::LowerSignedALUO(SDValue Op, SelectionDAG &DAG) const {
   // Let legalize expand this if it isn't a legal type yet.
   if (!DAG.getTargetLoweringInfo().isTypeLegal(Op.getValueType()))
     return SDValue();
@@ -3971,6 +3974,45 @@ ARMTargetLowering::LowerXALUO(SDValue Op, SelectionDAG &DAG) const {
                                  ARMcc, CCR, OverflowCmp);
 
   SDVTList VTs = DAG.getVTList(Op.getValueType(), MVT::i32);
+  return DAG.getNode(ISD::MERGE_VALUES, dl, VTs, Value, Overflow);
+}
+
+SDValue ARMTargetLowering::LowerUnsignedALUO(SDValue Op,
+                                             SelectionDAG &DAG) const {
+  // Let legalize expand this if it isn't a legal type yet.
+  if (!DAG.getTargetLoweringInfo().isTypeLegal(Op.getValueType()))
+    return SDValue();
+
+  SDValue LHS = Op.getOperand(0);
+  SDValue RHS = Op.getOperand(1);
+  SDLoc dl(Op);
+
+  SDVTList VTs = DAG.getVTList(Op.getValueType(), MVT::i32);
+  SDValue Value;
+  SDValue Overflow;
+  switch (Op.getOpcode()) {
+  default:
+    llvm_unreachable("Unknown overflow instruction!");
+  case ISD::UADDO:
+    Value = DAG.getNode(ARMISD::ADDC, dl, VTs, LHS, RHS);
+    // Convert the carry flag into a boolean value doing
+    // (ARMISD::ADDE 0, 0, Carry)
+    Overflow =
+        DAG.getNode(ARMISD::ADDE, dl, VTs, DAG.getConstant(0, dl, MVT::i32),
+                    DAG.getConstant(0, dl, MVT::i32), Value.getValue(1));
+    break;
+  case ISD::USUBO: {
+    Value = DAG.getNode(ARMISD::SUBC, dl, VTs, LHS, RHS);
+    SDValue Carry = Value.getValue(1);
+    // ARMISD::SUBC returns 0 when we have to borrow, so make it an overflow
+    // value. We do this doing (ARMISD::SUBE 1, 0, Carry)
+    Overflow =
+        DAG.getNode(ARMISD::SUBE, dl, VTs, DAG.getConstant(1, dl, MVT::i32),
+                    DAG.getConstant(0, dl, MVT::i32), Carry);
+    break;
+  }
+  }
+
   return DAG.getNode(ISD::MERGE_VALUES, dl, VTs, Value, Overflow);
 }
 
@@ -7380,6 +7422,49 @@ static SDValue LowerADDC_ADDE_SUBC_SUBE(SDValue Op, SelectionDAG &DAG) {
                      Op.getOperand(1), Op.getOperand(2));
 }
 
+static SDValue LowerADDSUBCARRY(SDValue Op, SelectionDAG &DAG) {
+  SDNode *N = Op.getNode();
+  EVT VT = N->getValueType(0);
+  SDVTList VTs = DAG.getVTList(VT, MVT::i32);
+
+  SDValue Carry = Op.getOperand(2);
+  EVT CarryVT = Carry.getValueType();
+
+  SDLoc DL(Op);
+
+  // This converts the boolean value carry into the carry flag by doing
+  // ARMISD::ADDC Carry, ~0
+  APInt NegOne = APInt::getAllOnesValue(CarryVT.getScalarSizeInBits());
+  Carry = DAG.getNode(ARMISD::ADDC, DL, DAG.getVTList(CarryVT, MVT::i32), Carry,
+                      DAG.getConstant(NegOne, DL, CarryVT));
+
+  SDValue Result;
+  if (Op.getOpcode() == ISD::ADDCARRY) {
+    // Do the addition proper using the carry flag we wanted.
+    Result = DAG.getNode(ARMISD::ADDE, DL, VTs, Op.getOperand(0),
+                              Op.getOperand(1), Carry.getValue(1));
+
+    // Now convert the carry flag into a boolean value. We do this
+    // using ARMISD:ADDE 0, 0, Carry
+    Carry = DAG.getNode(ARMISD::ADDE, DL, VTs, DAG.getConstant(0, DL, MVT::i32),
+                        DAG.getConstant(0, DL, MVT::i32), Result.getValue(1));
+
+  } else {
+    // Do the subtraction proper using the carry flag we wanted.
+    Result = DAG.getNode(ARMISD::SUBE, DL, VTs, Op.getOperand(0),
+                              Op.getOperand(1), Carry.getValue(1));
+
+    // Now convert the carry flag into a boolean value. We do this using
+    // ARMISD:SUBE 1, 0, Carry because SUBCARRY actually returns a borrow not a
+    // carry.
+    Carry = DAG.getNode(ARMISD::SUBE, DL, VTs, DAG.getConstant(1, DL, MVT::i32),
+                        DAG.getConstant(0, DL, MVT::i32), Result.getValue(1));
+  }
+
+  // Return both values.
+  return DAG.getNode(ISD::MERGE_VALUES, DL, N->getVTList(), Result, Carry);
+}
+
 SDValue ARMTargetLowering::LowerFSINCOS(SDValue Op, SelectionDAG &DAG) const {
   assert(Subtarget->isTargetDarwin());
 
@@ -7734,11 +7819,14 @@ SDValue ARMTargetLowering::LowerOperation(SDValue Op, SelectionDAG &DAG) const {
   case ISD::ADDE:
   case ISD::SUBC:
   case ISD::SUBE:          return LowerADDC_ADDE_SUBC_SUBE(Op, DAG);
+  case ISD::ADDCARRY:
+  case ISD::SUBCARRY:      return LowerADDSUBCARRY(Op, DAG);
   case ISD::SADDO:
-  case ISD::UADDO:
   case ISD::SSUBO:
+    return LowerSignedALUO(Op, DAG);
+  case ISD::UADDO:
   case ISD::USUBO:
-    return LowerXALUO(Op, DAG);
+    return LowerUnsignedALUO(Op, DAG);
   case ISD::ATOMIC_LOAD:
   case ISD::ATOMIC_STORE:  return LowerAtomicLoadStore(Op, DAG);
   case ISD::FSINCOS:       return LowerFSINCOS(Op, DAG);
@@ -9875,8 +9963,38 @@ static SDValue PerformUMLALCombine(SDNode *N, SelectionDAG &DAG,
     return SDValue();
 }
 
-static SDValue PerformAddcSubcCombine(SDNode *N, SelectionDAG &DAG,
+static SDValue PerformAddcSubcCombine(SDNode *N,
+                                      TargetLowering::DAGCombinerInfo &DCI,
                                       const ARMSubtarget *Subtarget) {
+  SelectionDAG &DAG(DCI.DAG);
+
+  if (N->getOpcode() == ARMISD::SUBC) {
+    // (SUBC (ADDE 0, 0, C), 1) -> C
+    SDValue LHS = N->getOperand(0);
+    SDValue RHS = N->getOperand(1);
+    if (LHS->getOpcode() == ARMISD::ADDE &&
+        isNullConstant(LHS->getOperand(0)) &&
+        isNullConstant(LHS->getOperand(1)) && isOneConstant(RHS)) {
+      return DCI.CombineTo(N, SDValue(N, 0), LHS->getOperand(2));
+    }
+  }
+
+  if (N->getOpcode() == ARMISD::ADDC) {
+    // (ADDC (ADDE 0, 0, C), -1) -> C
+    SDValue LHS = N->getOperand(0);
+    SDValue RHS = N->getOperand(1);
+    if (LHS->getOpcode() == ARMISD::ADDE &&
+        isNullConstant(LHS->getOperand(0)) &&
+        isNullConstant(LHS->getOperand(1)) && isAllOnesConstant(RHS)) {
+      return DCI.CombineTo(N, SDValue(N, 0), LHS->getOperand(2));
+    }
+    // (ADDC (SUBE 1, 0, C), -1) -> C
+    if (LHS->getOpcode() == ARMISD::SUBE && isOneConstant(LHS->getOperand(0)) &&
+        isNullConstant(LHS->getOperand(1)) && isAllOnesConstant(RHS)) {
+      return DCI.CombineTo(N, SDValue(N, 0), LHS->getOperand(2));
+    }
+  }
+
   if (Subtarget->isThumb1Only()) {
     SDValue RHS = N->getOperand(1);
     if (ConstantSDNode *C = dyn_cast<ConstantSDNode>(RHS)) {
@@ -11765,6 +11883,14 @@ static SDValue PerformExtendCombine(SDNode *N, SelectionDAG &DAG,
   return SDValue();
 }
 
+static const APInt *isPowerOf2Constant(SDValue V) {
+  ConstantSDNode *C = dyn_cast<ConstantSDNode>(V);
+  if (!C)
+    return nullptr;
+  const APInt *CV = &C->getAPIntValue();
+  return CV->isPowerOf2() ? CV : nullptr;
+}
+
 SDValue ARMTargetLowering::PerformCMOVToBFICombine(SDNode *CMOV, SelectionDAG &DAG) const {
   // If we have a CMOV, OR and AND combination such as:
   //   if (x & CN)
@@ -11793,8 +11919,8 @@ SDValue ARMTargetLowering::PerformCMOVToBFICombine(SDNode *CMOV, SelectionDAG &D
   SDValue And = CmpZ->getOperand(0);
   if (And->getOpcode() != ISD::AND)
     return SDValue();
-  ConstantSDNode *AndC = dyn_cast<ConstantSDNode>(And->getOperand(1));
-  if (!AndC || !AndC->getAPIntValue().isPowerOf2())
+  const APInt *AndC = isPowerOf2Constant(And->getOperand(1));
+  if (!AndC)
     return SDValue();
   SDValue X = And->getOperand(0);
 
@@ -11834,7 +11960,7 @@ SDValue ARMTargetLowering::PerformCMOVToBFICombine(SDNode *CMOV, SelectionDAG &D
   SDValue V = Y;
   SDLoc dl(X);
   EVT VT = X.getValueType();
-  unsigned BitInX = AndC->getAPIntValue().logBase2();
+  unsigned BitInX = AndC->logBase2();
 
   if (BitInX != 0) {
     // We must shift X first.
@@ -11995,7 +12121,7 @@ SDValue ARMTargetLowering::PerformDAGCombine(SDNode *N,
   case ISD::XOR:        return PerformXORCombine(N, DCI, Subtarget);
   case ISD::AND:        return PerformANDCombine(N, DCI, Subtarget);
   case ARMISD::ADDC:
-  case ARMISD::SUBC:    return PerformAddcSubcCombine(N, DCI.DAG, Subtarget);
+  case ARMISD::SUBC:    return PerformAddcSubcCombine(N, DCI, Subtarget);
   case ARMISD::SUBE:    return PerformAddeSubeCombine(N, DCI.DAG, Subtarget);
   case ARMISD::BFI:     return PerformBFICombine(N, DCI);
   case ARMISD::VMOVRRD: return PerformVMOVRRDCombine(N, DCI, Subtarget);
@@ -12669,10 +12795,25 @@ void ARMTargetLowering::computeKnownBitsForTargetNode(const SDValue Op,
   case ARMISD::ADDE:
   case ARMISD::SUBC:
   case ARMISD::SUBE:
-    // These nodes' second result is a boolean
-    if (Op.getResNo() == 0)
-      break;
-    Known.Zero |= APInt::getHighBitsSet(BitWidth, BitWidth - 1);
+    // Special cases when we convert a carry to a boolean.
+    if (Op.getResNo() == 0) {
+      // (ADDE 0, 0, C) will give us a single bit.
+      if (Op->getOpcode() == ARMISD::ADDE && isNullConstant(Op.getOperand(0)) &&
+          isNullConstant(Op.getOperand(1))) {
+        Known.Zero |= APInt::getHighBitsSet(BitWidth, BitWidth - 1);
+        break;
+      }
+      // (SUBE 1, 0, C) will give us a single bit.
+      if (Op->getOpcode() == ARMISD::SUBE && isOneConstant(Op.getOperand(0)) &&
+          isNullConstant(Op.getOperand(1))) {
+        Known.Zero |= APInt::getHighBitsSet(BitWidth, BitWidth - 1);
+        break;
+      }
+    } else if (Op.getResNo() == 1) {
+      // These nodes' second result is a boolean
+      Known.Zero |= APInt::getHighBitsSet(BitWidth, BitWidth - 1);
+    } else
+      llvm_unreachable("Unexpected result");
     break;
   case ARMISD::CMOV: {
     // Bits are known zero/one if known on the LHS and RHS.
