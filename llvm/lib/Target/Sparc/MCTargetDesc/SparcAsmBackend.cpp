@@ -241,8 +241,7 @@ namespace {
 
     /// fixupNeedsRelaxation - Target specific predicate for whether a given
     /// fixup requires the associated instruction to be relaxed.
-    bool fixupNeedsRelaxation(const MCFixup &Fixup,
-                              uint64_t Value,
+    bool fixupNeedsRelaxation(const MCReloc &Reloc,
                               const MCRelaxableFragment *DF,
                               const MCAsmLayout &Layout) const override {
       // FIXME.
@@ -274,10 +273,9 @@ namespace {
     ELFSparcAsmBackend(const Target &T, Triple::OSType OSType) :
       SparcAsmBackend(T), OSType(OSType) { }
 
-    void applyFixup(const MCAssembler &Asm, const MCFixup &Fixup,
-                    const MCValue &Target, MutableArrayRef<char> Data,
-                    uint64_t Value, bool IsResolved) const override {
-
+    void applyFixup(const MCAssembler &Asm, const MCReloc &Fixup,
+                    MutableArrayRef<char> Data, bool IsResolved) const override {
+      uint64_t Value = Fixup.getConstant();
       Value = adjustFixupValue(Fixup.getKind(), Value);
       if (!Value) return;           // Doesn't change encoding.
 

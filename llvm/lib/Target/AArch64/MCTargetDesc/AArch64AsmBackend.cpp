@@ -50,10 +50,12 @@ public:
         {"fixup_aarch64_pcrel_adr_imm21", 0, 32, PCRelFlagVal},
         {"fixup_aarch64_pcrel_adrp_imm21", 0, 32, PCRelFlagVal},
         {"fixup_aarch64_add_imm12", 10, 12, 0},
+        {"fixup_aarch64_add_imm12_pc", 10, 12, PCRelFlagVal},
         {"fixup_aarch64_ldst_imm12_scale1", 10, 12, 0},
         {"fixup_aarch64_ldst_imm12_scale2", 10, 12, 0},
         {"fixup_aarch64_ldst_imm12_scale4", 10, 12, 0},
         {"fixup_aarch64_ldst_imm12_scale8", 10, 12, 0},
+        {"fixup_aarch64_ldst_imm12_scale8_pc", 10, 12, PCRelFlagVal},
         {"fixup_aarch64_ldst_imm12_scale16", 10, 12, 0},
         {"fixup_aarch64_ldr_pcrel_imm19", 5, 19, PCRelFlagVal},
         {"fixup_aarch64_movw", 5, 16, 0},
@@ -71,13 +73,22 @@ public:
     return Infos[Kind - FirstTargetFixupKind];
   }
 
-  void applyFixup(const MCAssembler &Asm, const MCFixup &Fixup,
-                  const MCValue &Target, MutableArrayRef<char> Data,
-                  uint64_t Value, bool IsResolved) const override;
+  MCFixupKind getPCRelKind(MCFixupKind Kind) const override {
+    switch ((unsigned)Kind) {
+    case AArch64::fixup_aarch64_ldst_imm12_scale8:
+      return (MCFixupKind)AArch64::fixup_aarch64_ldst_imm12_scale8_pc;
+    case AArch64::fixup_aarch64_add_imm12:
+      return (MCFixupKind)AArch64::fixup_aarch64_add_imm12_pc;
+    default:
+      return MCAsmBackend::getPCRelKind(Kind);
+    }
+  }
+
+  void applyFixup(const MCAssembler &Asm, const MCReloc &Reloc,
+                  MutableArrayRef<char> Data, bool IsResolved) const override;
 
   bool mayNeedRelaxation(const MCInst &Inst) const override;
-  bool fixupNeedsRelaxation(const MCFixup &Fixup, uint64_t Value,
-                            const MCRelaxableFragment *DF,
+  bool fixupNeedsRelaxation(const MCReloc &Reloc, const MCRelaxableFragment *DF,
                             const MCAsmLayout &Layout) const override;
   void relaxInstruction(const MCInst &Inst, const MCSubtargetInfo &STI,
                         MCInst &Res) const override;
@@ -101,19 +112,23 @@ static unsigned getFixupKindNumBytes(unsigned Kind) {
   case AArch64::fixup_aarch64_tlsdesc_call:
     return 0;
 
+  case FK_PCRel_1:
   case FK_Data_1:
     return 1;
 
+  case FK_PCRel_2:
   case FK_Data_2:
   case AArch64::fixup_aarch64_movw:
     return 2;
 
   case AArch64::fixup_aarch64_pcrel_branch14:
   case AArch64::fixup_aarch64_add_imm12:
+  case AArch64::fixup_aarch64_add_imm12_pc:
   case AArch64::fixup_aarch64_ldst_imm12_scale1:
   case AArch64::fixup_aarch64_ldst_imm12_scale2:
   case AArch64::fixup_aarch64_ldst_imm12_scale4:
   case AArch64::fixup_aarch64_ldst_imm12_scale8:
+  case AArch64::fixup_aarch64_ldst_imm12_scale8_pc:
   case AArch64::fixup_aarch64_ldst_imm12_scale16:
   case AArch64::fixup_aarch64_ldr_pcrel_imm19:
   case AArch64::fixup_aarch64_pcrel_branch19:
@@ -123,9 +138,11 @@ static unsigned getFixupKindNumBytes(unsigned Kind) {
   case AArch64::fixup_aarch64_pcrel_adrp_imm21:
   case AArch64::fixup_aarch64_pcrel_branch26:
   case AArch64::fixup_aarch64_pcrel_call26:
+  case FK_PCRel_4:
   case FK_Data_4:
     return 4;
 
+  case FK_PCRel_8:
   case FK_Data_8:
     return 8;
   }
@@ -137,7 +154,7 @@ static unsigned AdrImmBits(unsigned Value) {
   return (hi19 << 5) | (lo2 << 29);
 }
 
-static uint64_t adjustFixupValue(const MCFixup &Fixup, uint64_t Value,
+static uint64_t adjustFixupValue(const MCReloc &Fixup, uint64_t Value,
                                  MCContext &Ctx) {
   unsigned Kind = Fixup.getKind();
   int64_t SignedValue = static_cast<int64_t>(Value);
@@ -160,6 +177,7 @@ static uint64_t adjustFixupValue(const MCFixup &Fixup, uint64_t Value,
     // Low two bits are not encoded.
     return (Value >> 2) & 0x7ffff;
   case AArch64::fixup_aarch64_add_imm12:
+  case AArch64::fixup_aarch64_add_imm12_pc:
   case AArch64::fixup_aarch64_ldst_imm12_scale1:
     // Unsigned 12-bit immediate
     if (Value >= 0x1000)
@@ -180,6 +198,7 @@ static uint64_t adjustFixupValue(const MCFixup &Fixup, uint64_t Value,
       Ctx.reportError(Fixup.getLoc(), "fixup must be 4-byte aligned");
     return Value >> 2;
   case AArch64::fixup_aarch64_ldst_imm12_scale8:
+  case AArch64::fixup_aarch64_ldst_imm12_scale8_pc:
     // Unsigned 12-bit immediate which gets multiplied by 8
     if (Value >= 0x8000)
       Ctx.reportError(Fixup.getLoc(), "fixup value out of range");
@@ -245,10 +264,12 @@ unsigned AArch64AsmBackend::getFixupKindContainereSizeInBytes(unsigned Kind) con
   case AArch64::fixup_aarch64_movw:
   case AArch64::fixup_aarch64_pcrel_branch14:
   case AArch64::fixup_aarch64_add_imm12:
+  case AArch64::fixup_aarch64_add_imm12_pc:
   case AArch64::fixup_aarch64_ldst_imm12_scale1:
   case AArch64::fixup_aarch64_ldst_imm12_scale2:
   case AArch64::fixup_aarch64_ldst_imm12_scale4:
   case AArch64::fixup_aarch64_ldst_imm12_scale8:
+  case AArch64::fixup_aarch64_ldst_imm12_scale8_pc:
   case AArch64::fixup_aarch64_ldst_imm12_scale16:
   case AArch64::fixup_aarch64_ldr_pcrel_imm19:
   case AArch64::fixup_aarch64_pcrel_branch19:
@@ -261,11 +282,10 @@ unsigned AArch64AsmBackend::getFixupKindContainereSizeInBytes(unsigned Kind) con
   }
 }
 
-void AArch64AsmBackend::applyFixup(const MCAssembler &Asm, const MCFixup &Fixup,
-                                   const MCValue &Target,
-                                   MutableArrayRef<char> Data, uint64_t Value,
-                                   bool IsResolved) const {
+void AArch64AsmBackend::applyFixup(const MCAssembler &Asm, const MCReloc &Fixup,
+                                   MutableArrayRef<char> Data, bool IsResolved) const {
   unsigned NumBytes = getFixupKindNumBytes(Fixup.getKind());
+  uint64_t Value = Fixup.getConstant();
   if (!Value)
     return; // Doesn't change encoding.
   MCFixupKindInfo Info = getFixupKindInfo(Fixup.getKind());
@@ -304,10 +324,10 @@ bool AArch64AsmBackend::mayNeedRelaxation(const MCInst &Inst) const {
   return false;
 }
 
-bool AArch64AsmBackend::fixupNeedsRelaxation(const MCFixup &Fixup,
-                                             uint64_t Value,
+bool AArch64AsmBackend::fixupNeedsRelaxation(const MCReloc &Reloc,
                                              const MCRelaxableFragment *DF,
                                              const MCAsmLayout &Layout) const {
+  uint64_t Value = Reloc.getConstant();
   // FIXME:  This isn't correct for AArch64. Just moving the "generic" logic
   // into the targets for now.
   //

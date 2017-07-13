@@ -33,9 +33,8 @@
 using namespace llvm;
 
 // Prepare value for the target space for it
-static unsigned adjustFixupValue(const MCFixup &Fixup, uint64_t Value,
+static unsigned adjustFixupValue(const MCReloc &Fixup, uint64_t Value,
                                  MCContext &Ctx) {
-
   unsigned Kind = Fixup.getKind();
 
   // Add/subtract and shift
@@ -64,6 +63,7 @@ static unsigned adjustFixupValue(const MCFixup &Fixup, uint64_t Value,
   case FK_TPRel_4:
   case FK_TPRel_8:
   case FK_GPRel_4:
+  case FK_PCRel_4:
   case FK_Data_4:
   case FK_Data_8:
   case Mips::fixup_Mips_SUB:
@@ -235,12 +235,11 @@ static unsigned calculateMMLEIndex(unsigned i) {
 /// ApplyFixup - Apply the \p Value for given \p Fixup into the provided
 /// data fragment, at the offset specified by the fixup and following the
 /// fixup kind as appropriate.
-void MipsAsmBackend::applyFixup(const MCAssembler &Asm, const MCFixup &Fixup,
-                                const MCValue &Target,
-                                MutableArrayRef<char> Data, uint64_t Value,
-                                bool IsResolved) const {
+void MipsAsmBackend::applyFixup(const MCAssembler &Asm, const MCReloc &Fixup,
+                                MutableArrayRef<char> Data, bool IsResolved) const {
   MCFixupKind Kind = Fixup.getKind();
   MCContext &Ctx = Asm.getContext();
+  uint64_t Value = Fixup.getConstant();
   Value = adjustFixupValue(Fixup, Value, Ctx);
 
   if (!Value)
