@@ -668,8 +668,9 @@ bool LiveDebugValues::ExtendRanges(MachineFunction &MF) {
 
         // Add any DBG_VALUE instructions necessitated by spills.
         for (auto &SP : Spills)
-          MBB->insertAfter(MachineBasicBlock::iterator(*SP.SpillInst),
-                           SP.DebugInst);
+          if( ! SP.SpillInst->isBundledWithSucc() ) // Don't break bundles.
+            MBB->insertAfter(MachineBasicBlock::iterator(*SP.SpillInst),
+                             SP.DebugInst);
         Spills.clear();
 
         DEBUG(printVarLocInMBB(MF, OutLocs, VarLocIDs,
