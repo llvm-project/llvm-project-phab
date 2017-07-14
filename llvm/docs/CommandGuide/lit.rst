@@ -389,7 +389,7 @@ These are defined in TestRunner.py. The base set of substitutions are:
  %p         same as %S
  %{pathsep} path separator
  %t         temporary file name unique to the test
- %T         temporary directory unique to the test
+ %T         temporary directory name unique to the test
  %%         %
  ========== ==============
 
