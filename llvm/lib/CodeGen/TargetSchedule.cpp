@@ -186,7 +186,10 @@ static unsigned findUseIdx(const MachineInstr *MI, unsigned UseOperIdx) {
 // Top-level API for clients that know the operand indices.
 unsigned TargetSchedModel::computeOperandLatency(
   const MachineInstr *DefMI, unsigned DefOperIdx,
-  const MachineInstr *UseMI, unsigned UseOperIdx) const {
+  const MachineInstr *UseMI, unsigned UseOperIdx, bool *Cluster) const {
+
+  if (Cluster != nullptr)
+    *Cluster = false;
 
   if (!hasInstrSchedModel() && !hasInstrItineraries())
     return TII->defaultDefLatency(SchedModel, *DefMI);
@@ -233,7 +236,7 @@ unsigned TargetSchedModel::computeOperandLatency(
     if (UseDesc->NumReadAdvanceEntries == 0)
       return Latency;
     unsigned UseIdx = findUseIdx(UseMI, UseOperIdx);
-    int Advance = STI->getReadAdvanceCycles(UseDesc, UseIdx, WriteID);
+    int Advance = STI->getReadAdvanceCycles(UseDesc, UseIdx, WriteID, Cluster);
     if (Advance > 0 && (unsigned)Advance > Latency) // unsigned wrap
       return 0;
     return Latency - Advance;
