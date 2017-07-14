@@ -143,6 +143,13 @@ class CallAnalyzer : public InstVisitor<CallAnalyzer, bool> {
   /// Keep track of values which map to a pointer base and constant offset.
   DenseMap<Value *, std::pair<Value *, APInt>> ConstantOffsetPtrs;
 
+  /// Model the elimination of repeated loads that is expected to happen
+  /// whenever we simplify away the stores that would otherwise cause them to be
+  /// loads.
+  bool EnableLoadElimination;
+  SmallPtrSet<Value *, 12> LoadAddrSet;
+  int LoadEliminationCost;
+
   // Custom simplification helper routines.
   bool isAllocaDerivedArg(Value *V);
   bool lookupSROAArgAndCost(Value *V, Value *&Arg,
@@ -151,6 +158,7 @@ class CallAnalyzer : public InstVisitor<CallAnalyzer, bool> {
   void disableSROA(Value *V);
   void accumulateSROACost(DenseMap<Value *, int>::iterator CostIt,
                           int InstructionCost);
+  void disableLoadElimination();
   bool isGEPFree(GetElementPtrInst &GEP);
   bool accumulateGEPOffset(GEPOperator &GEP, APInt &Offset);
   bool simplifyCallSite(Function *F, CallSite CS);
@@ -236,10 +244,11 @@ public:
         ContainsNoDuplicateCall(false), HasReturn(false), HasIndirectBr(false),
         HasFrameEscape(false), AllocatedSize(0), NumInstructions(0),
         NumVectorInstructions(0), FiftyPercentVectorBonus(0),
-        TenPercentVectorBonus(0), VectorBonus(0), NumConstantArgs(0),
-        NumConstantOffsetPtrArgs(0), NumAllocaArgs(0), NumConstantPtrCmps(0),
-        NumConstantPtrDiffs(0), NumInstructionsSimplified(0),
-        SROACostSavings(0), SROACostSavingsLost(0) {}
+        TenPercentVectorBonus(0), VectorBonus(0), EnableLoadElimination(true),
+        LoadEliminationCost(0), NumConstantArgs(0), NumConstantOffsetPtrArgs(0),
+        NumAllocaArgs(0), NumConstantPtrCmps(0), NumConstantPtrDiffs(0),
+        NumInstructionsSimplified(0), SROACostSavings(0),
+        SROACostSavingsLost(0), LoadEliminationCostSavings(0) {}
 
   bool analyzeCall(CallSite CS);
 
@@ -256,6 +265,7 @@ public:
   unsigned NumInstructionsSimplified;
   unsigned SROACostSavings;
   unsigned SROACostSavingsLost;
+  unsigned LoadEliminationCostSavings;
 
   void dump();
 };
@@ -294,6 +304,8 @@ void CallAnalyzer::disableSROA(DenseMap<Value *, int>::iterator CostIt) {
   SROACostSavings -= CostIt->second;
   SROACostSavingsLost += CostIt->second;
   SROAArgCosts.erase(CostIt);
+  if (EnableLoadElimination)
+    disableLoadElimination();
 }
 
 /// \brief If 'V' maps to a SROA candidate, disable SROA for it.
@@ -309,6 +321,12 @@ void CallAnalyzer::accumulateSROACost(DenseMap<Value *, int>::iterator CostIt,
                                       int InstructionCost) {
   CostIt->second += InstructionCost;
   SROACostSavings += InstructionCost;
+}
+
+void CallAnalyzer::disableLoadElimination() {
+  Cost += LoadEliminationCost;
+  LoadEliminationCostSavings = 0;
+  EnableLoadElimination = false;
 }
 
 /// \brief Accumulate a constant GEP offset into an APInt if possible.
@@ -845,6 +863,17 @@ bool CallAnalyzer::visitLoad(LoadInst &I) {
     disableSROA(CostIt);
   }
 
+  // If the data are already loaded from this address and there is there is no
+  // reachable stores/calls or all reachable stores can be SROA'd in the
+  // function, this load is likely to be redundant and can be eliminated.
+  if (EnableLoadElimination) {
+    if (!LoadAddrSet.insert(I.getPointerOperand()).second) {
+      LoadEliminationCost += InlineConstants::InstrCost;
+      LoadEliminationCostSavings += InlineConstants::InstrCost;
+      return true;
+    }
+  }
+
   return false;
 }
 
@@ -860,6 +889,16 @@ bool CallAnalyzer::visitStore(StoreInst &I) {
     disableSROA(CostIt);
   }
 
+  // The store can potentially clobber the repeated loads and prevent them from
+  // elimination.
+  // FIXME:
+  // 1. We can probably keep an initial set of eliminatable loads substracted
+  // from the cost even when we finally see a store. We just need to disable
+  // *further* accumulation of elimination savings.
+  // 2. We should probably at some point thread MemorySSA for the callee into
+  // this and then use that to actually compute *really* precise savings.
+  if (EnableLoadElimination)
+    disableLoadElimination();
   return false;
 }
 
@@ -923,6 +962,11 @@ bool CallAnalyzer::simplifyCallSite(Function *F, CallSite CS) {
 }
 
 bool CallAnalyzer::visitCallSite(CallSite CS) {
+  if (EnableLoadElimination) {
+    Function *F = CS.getCalledFunction();
+    if (!F || !canConstantFoldCallTo(CS, F))
+        disableLoadElimination();
+  }
   if (CS.hasFnAttr(Attribute::ReturnsTwice) &&
       !F.hasFnAttribute(Attribute::ReturnsTwice)) {
     // This aborts the entire analysis.
@@ -1482,6 +1526,7 @@ LLVM_DUMP_METHOD void CallAnalyzer::dump() {
   DEBUG_PRINT_STAT(NumInstructions);
   DEBUG_PRINT_STAT(SROACostSavings);
   DEBUG_PRINT_STAT(SROACostSavingsLost);
+  DEBUG_PRINT_STAT(LoadEliminationCostSavings);
   DEBUG_PRINT_STAT(ContainsNoDuplicateCall);
   DEBUG_PRINT_STAT(Cost);
   DEBUG_PRINT_STAT(Threshold);
