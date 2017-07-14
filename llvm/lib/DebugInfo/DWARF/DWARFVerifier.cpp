@@ -31,7 +31,7 @@ void DWARFVerifier::verifyDebugInfoAttribute(const DWARFDie &Die,
   case DW_AT_ranges:
     // Make sure the offset in the DW_AT_ranges attribute is valid.
     if (auto SectionOffset = AttrValue.Value.getAsSectionOffset()) {
-      if (*SectionOffset >= DCtx.getRangeSection().Data.size()) {
+      if (*SectionOffset >= DCtx.getDWARFObj().getRangeSection().Data.size()) {
         ++NumDebugInfoErrors;
         OS << "error: DW_AT_ranges offset is beyond .debug_ranges "
               "bounds:\n";
@@ -48,7 +48,7 @@ void DWARFVerifier::verifyDebugInfoAttribute(const DWARFDie &Die,
   case DW_AT_stmt_list:
     // Make sure the offset in the DW_AT_stmt_list attribute is valid.
     if (auto SectionOffset = AttrValue.Value.getAsSectionOffset()) {
-      if (*SectionOffset >= DCtx.getLineSection().Data.size()) {
+      if (*SectionOffset >= DCtx.getDWARFObj().getLineSection().Data.size()) {
         ++NumDebugInfoErrors;
         OS << "error: DW_AT_stmt_list offset is beyond .debug_line "
               "bounds: "
@@ -71,6 +71,7 @@ void DWARFVerifier::verifyDebugInfoAttribute(const DWARFDie &Die,
 
 void DWARFVerifier::verifyDebugInfoForm(const DWARFDie &Die,
                                         DWARFAttribute &AttrValue) {
+  const DWARFObj &D = DCtx.getDWARFObj();
   const auto Form = AttrValue.Value.getForm();
   switch (Form) {
   case DW_FORM_ref1:
@@ -107,7 +108,7 @@ void DWARFVerifier::verifyDebugInfoForm(const DWARFDie &Die,
     Optional<uint64_t> RefVal = AttrValue.Value.getAsReference();
     assert(RefVal);
     if (RefVal) {
-      if (*RefVal >= DCtx.getInfoSection().Data.size()) {
+      if (*RefVal >= D.getInfoSection().Data.size()) {
         ++NumDebugInfoErrors;
         OS << "error: DW_FORM_ref_addr offset beyond .debug_info "
               "bounds:\n";
@@ -124,7 +125,7 @@ void DWARFVerifier::verifyDebugInfoForm(const DWARFDie &Die,
   case DW_FORM_strp: {
     auto SecOffset = AttrValue.Value.getAsSectionOffset();
     assert(SecOffset); // DW_FORM_strp is a section offset.
-    if (SecOffset && *SecOffset >= DCtx.getStringSection().size()) {
+    if (SecOffset && *SecOffset >= D.getStringSection().size()) {
       ++NumDebugInfoErrors;
       OS << "error: DW_FORM_strp offset beyond .debug_str bounds:\n";
       Die.dump(OS, 0);
@@ -189,7 +190,7 @@ void DWARFVerifier::verifyDebugLineStmtOffsets() {
       continue;
     const uint32_t LineTableOffset = *StmtSectionOffset;
     auto LineTable = DCtx.getLineTableForUnit(CU.get());
-    if (LineTableOffset < DCtx.getLineSection().Data.size()) {
+    if (LineTableOffset < DCtx.getDWARFObj().getLineSection().Data.size()) {
       if (!LineTable) {
         ++NumDebugLineErrors;
         OS << "error: .debug_line[" << format("0x%08" PRIx32, LineTableOffset)
@@ -279,10 +280,10 @@ bool DWARFVerifier::handleDebugLine() {
 
 bool DWARFVerifier::handleAppleNames() {
   NumAppleNamesErrors = 0;
-
-  DWARFDataExtractor AppleNamesSection(DCtx.getAppleNamesSection(),
+  const DWARFObj &D = DCtx.getDWARFObj();
+  DWARFDataExtractor AppleNamesSection(D, D.getAppleNamesSection(),
                                        DCtx.isLittleEndian(), 0);
-  DataExtractor StrData(DCtx.getStringSection(), DCtx.isLittleEndian(), 0);
+  DataExtractor StrData(D.getStringSection(), DCtx.isLittleEndian(), 0);
   DWARFAcceleratorTable AppleNames(AppleNamesSection, StrData);
 
   if (!AppleNames.extract()) {
