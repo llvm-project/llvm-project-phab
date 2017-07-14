@@ -8496,6 +8496,39 @@ QualType ASTContext::getCorrespondingUnsignedType(QualType T) const {
   }
 }
 
+QualType ASTContext::getCorrespondingSignedType(QualType T) const {
+  assert(T->hasUnsignedIntegerRepresentation() && "Unexpected type");
+  
+  // Turn <4 x signed int> -> <4 x unsigned int>
+  if (const VectorType *VTy = T->getAs<VectorType>())
+    return getVectorType(getCorrespondingSignedType(VTy->getElementType()),
+                         VTy->getNumElements(), VTy->getVectorKind());
+
+  // For enums, we return the unsigned version of the base type.
+  if (const EnumType *ETy = T->getAs<EnumType>())
+    T = ETy->getDecl()->getIntegerType();
+  
+  const BuiltinType *BTy = T->getAs<BuiltinType>();
+  assert(BTy && "Unexpected unsigned integer type");
+  switch (BTy->getKind()) {
+  case BuiltinType::Char_U:
+  case BuiltinType::UChar:
+    return SignedCharTy;
+  case BuiltinType::UShort:
+    return ShortTy;
+  case BuiltinType::UInt:
+    return IntTy;
+  case BuiltinType::ULong:
+    return LongTy;
+  case BuiltinType::ULongLong:
+    return LongLongTy;
+  case BuiltinType::UInt128:
+    return Int128Ty;
+  default:
+    llvm_unreachable("Unexpected unsigned integer type");
+  }
+}
+
 ASTMutationListener::~ASTMutationListener() { }
 
 void ASTMutationListener::DeducedReturnType(const FunctionDecl *FD,

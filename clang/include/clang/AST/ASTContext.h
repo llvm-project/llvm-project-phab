@@ -2409,6 +2409,9 @@ public:
   // corresponding unsigned integer type.
   QualType getCorrespondingUnsignedType(QualType T) const;
 
+  // The reverse of the previous function.
+  QualType getCorrespondingSignedType(QualType T) const;
+
   //===--------------------------------------------------------------------===//
   //                    Integer Values
   //===--------------------------------------------------------------------===//
