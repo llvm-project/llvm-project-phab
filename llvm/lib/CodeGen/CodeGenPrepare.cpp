@@ -4073,13 +4073,25 @@ static bool FindAllMemoryUses(
       if (!OptSize && CI->hasFnAttr(Attribute::Cold))
         continue;
 
-      InlineAsm *IA = dyn_cast<InlineAsm>(CI->getCalledValue());
-      if (!IA) return true;
+      if (InlineAsm *IA = dyn_cast<InlineAsm>(CI->getCalledValue())) {
+        // If this is a memory operand, we're cool, otherwise bail out.
+        if (!IsOperandAMemoryOperand(CI, IA, I, TLI, TRI))
+          return true;
+        continue;
+      }
 
-      // If this is a memory operand, we're cool, otherwise bail out.
-      if (!IsOperandAMemoryOperand(CI, IA, I, TLI, TRI))
-        return true;
-      continue;
+      // Perhaps this is a target-specific memory intrinsic.
+      if (IntrinsicInst *II = dyn_cast<IntrinsicInst>(CI)) {
+        SmallVector<Value *, 1> PtrOps;
+        Type *AccessTy;
+        if (!TLI.getAddrModeArguments(II, PtrOps, AccessTy))
+          return true;
+        if (std::find(PtrOps.begin(), PtrOps.end(), I) == PtrOps.end())
+          return true;
+        continue;
+      }
+
+      return true;
     }
 
     if (FindAllMemoryUses(UserI, MemoryUses, ConsideredInsts, TLI, TRI))
