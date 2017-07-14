@@ -446,7 +446,8 @@ bool hoistRegion(DomTreeNode *, AliasAnalysis *, LoopInfo *, DominatorTree *,
 /// AliasSet information for all instructions of the loop and loop safety
 /// information as arguments. Diagnostics is emitted via \p ORE. It returns
 /// changed status.
-bool promoteLoopAccessesToScalars(AliasSet &, SmallVectorImpl<BasicBlock *> &,
+bool promoteLoopAccessesToScalars(SmallPtrSetImpl<Value *> &,
+                                  SmallVectorImpl<BasicBlock *> &,
                                   SmallVectorImpl<Instruction *> &,
                                   PredIteratorCache &, LoopInfo *,
                                   DominatorTree *, const TargetLibraryInfo *,
