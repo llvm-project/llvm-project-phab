@@ -8,7 +8,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "Error.h"
-#include "llvm/DebugInfo/DWARF/DWARFContext.h"
+#include "llvm/DebugInfo/DWARF/DWARFContextInMemory.h"
 #include "llvm/DebugInfo/DWARF/DWARFDebugArangeSet.h"
 #include "llvm/DebugInfo/DWARF/DWARFFormValue.h"
 #include "llvm/ObjectYAML/DWARFYAML.h"
@@ -49,7 +49,7 @@ void dumpDebugAbbrev(DWARFContextInMemory &DCtx, DWARFYAML::Data &Y) {
 }
 
 void dumpDebugStrings(DWARFContextInMemory &DCtx, DWARFYAML::Data &Y) {
-  StringRef RemainingTable = DCtx.getStringSection();
+  StringRef RemainingTable = DCtx.getDWARFObj().getStringSection();
   while (RemainingTable.size() > 0) {
     auto SymbolPair = RemainingTable.split('\0');
     RemainingTable = SymbolPair.second;
@@ -58,7 +58,8 @@ void dumpDebugStrings(DWARFContextInMemory &DCtx, DWARFYAML::Data &Y) {
 }
 
 void dumpDebugARanges(DWARFContextInMemory &DCtx, DWARFYAML::Data &Y) {
-  DataExtractor ArangesData(DCtx.getARangeSection(), DCtx.isLittleEndian(), 0);
+  DataExtractor ArangesData(DCtx.getDWARFObj().getARangeSection(),
+                            DCtx.isLittleEndian(), 0);
   uint32_t Offset = 0;
   DWARFDebugArangeSet Set;
 
@@ -98,17 +99,18 @@ void dumpPubSection(DWARFContextInMemory &DCtx, DWARFYAML::PubSection &Y,
 }
 
 void dumpDebugPubSections(DWARFContextInMemory &DCtx, DWARFYAML::Data &Y) {
+  const DWARFObj &D = DCtx.getDWARFObj();
   Y.PubNames.IsGNUStyle = false;
-  dumpPubSection(DCtx, Y.PubNames, DCtx.getPubNamesSection());
+  dumpPubSection(DCtx, Y.PubNames, D.getPubNamesSection());
 
   Y.PubTypes.IsGNUStyle = false;
-  dumpPubSection(DCtx, Y.PubTypes, DCtx.getPubTypesSection());
+  dumpPubSection(DCtx, Y.PubTypes, D.getPubTypesSection());
 
   Y.GNUPubNames.IsGNUStyle = true;
-  dumpPubSection(DCtx, Y.GNUPubNames, DCtx.getGnuPubNamesSection());
+  dumpPubSection(DCtx, Y.GNUPubNames, D.getGnuPubNamesSection());
 
   Y.GNUPubTypes.IsGNUStyle = true;
-  dumpPubSection(DCtx, Y.GNUPubTypes, DCtx.getGnuPubTypesSection());
+  dumpPubSection(DCtx, Y.GNUPubTypes, D.getGnuPubTypesSection());
 }
 
 void dumpDebugInfo(DWARFContextInMemory &DCtx, DWARFYAML::Data &Y) {
@@ -243,8 +245,8 @@ void dumpDebugLines(DWARFContextInMemory &DCtx, DWARFYAML::Data &Y) {
     if (auto StmtOffset =
             dwarf::toSectionOffset(CUDIE.find(dwarf::DW_AT_stmt_list))) {
       DWARFYAML::LineTable DebugLines;
-      DataExtractor LineData(DCtx.getLineSection().Data, DCtx.isLittleEndian(),
-                             CU->getAddressByteSize());
+      DataExtractor LineData(DCtx.getDWARFObj().getLineSection().Data,
+                             DCtx.isLittleEndian(), CU->getAddressByteSize());
       uint32_t Offset = *StmtOffset;
       dumpInitialLength(LineData, Offset, DebugLines.Length);
       uint64_t LineTableLength = DebugLines.Length.getLength();

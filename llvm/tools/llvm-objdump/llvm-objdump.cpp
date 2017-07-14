@@ -22,7 +22,7 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/CodeGen/FaultMaps.h"
-#include "llvm/DebugInfo/DWARF/DWARFContext.h"
+#include "llvm/DebugInfo/DWARF/DWARFContextInMemory.h"
 #include "llvm/DebugInfo/Symbolize/Symbolize.h"
 #include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCContext.h"
@@ -62,8 +62,8 @@
 #include <cctype>
 #include <cstring>
 #include <system_error>
-#include <utility>
 #include <unordered_map>
+#include <utility>
 
 using namespace llvm;
 using namespace object;

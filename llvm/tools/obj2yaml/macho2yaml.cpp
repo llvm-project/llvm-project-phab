@@ -9,7 +9,7 @@
 
 #include "Error.h"
 #include "obj2yaml.h"
-#include "llvm/DebugInfo/DWARF/DWARFContext.h"
+#include "llvm/DebugInfo/DWARF/DWARFContextInMemory.h"
 #include "llvm/Object/MachOUniversal.h"
 #include "llvm/ObjectYAML/ObjectYAML.h"
 #include "llvm/Support/ErrorHandling.h"
