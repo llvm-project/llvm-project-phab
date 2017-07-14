@@ -460,9 +460,10 @@ RUN lines:
    Example: ``/home/user/llvm.build/test/MC/ELF/Output/foo_test.s.tmp``
 
 ``%T``
-   Directory of ``%t``.
+   Path to a temporary directory name that could be used for this test case.
+   The name won't conflict with other test cases.
 
-   Example: ``/home/user/llvm.build/test/MC/ELF/Output``
+   Example: ``/home/user/llvm.build/test/MC/ELF/Output/foo_test.s.tmpdir``
 
 ``%{pathsep}``
 

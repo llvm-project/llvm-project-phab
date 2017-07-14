@@ -697,6 +697,7 @@ def getTempPaths(test):
     execdir,execbase = os.path.split(execpath)
     tmpDir = os.path.join(execdir, 'Output')
     tmpBase = os.path.join(tmpDir, execbase)
+    tmpDir = os.path.join(tmpDir, execbase + ".tmpdir")
     return tmpDir, tmpBase
 
 def getDefaultSubstitutions(test, tmpDir, tmpBase, normalize_slashes=False):
