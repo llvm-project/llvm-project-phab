@@ -432,6 +432,7 @@ llvm::Value *TargetCodeGenInfo::performAddrSpaceCast(
   // space, an address space conversion may end up as a bitcast.
   if (auto *C = dyn_cast<llvm::Constant>(Src))
     return performAddrSpaceCast(CGF.CGM, C, SrcAddr, DestAddr, DestTy);
+  CGF.EnsureInsertPoint();
   return CGF.Builder.CreatePointerBitCastOrAddrSpaceCast(Src, DestTy);
 }
 

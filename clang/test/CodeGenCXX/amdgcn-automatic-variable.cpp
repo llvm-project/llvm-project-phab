@@ -81,4 +81,10 @@ void func4(int x) {
   func1(&x);
 }
 
+// CHECK-LABEL: define void @_Z5func5v
+void func5() {
+  return;
+  int x = 0;
+}
+
 // CHECK-NOT: !opencl.ocl.version
