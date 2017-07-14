@@ -31,7 +31,7 @@ entry:
 
 ; FUNC-LABEL: {{^}}global_load_v3f32:
 ; GCN-NOHSA: buffer_load_dwordx4
-; GCN-HSA: flat_load_dwordx4
+; GCN-HSA: flat_load_dwordx3
 
 ; R600: VTX_READ_128
 define amdgpu_kernel void @global_load_v3f32(<3 x float> addrspace(1)* %out, <3 x float> addrspace(1)* %in) #0 {

@@ -2480,9 +2480,9 @@ SDValue AMDGPUTargetLowering::performLoadCombine(SDNode *N,
 
   unsigned Size = VT.getStoreSize();
   unsigned Align = LN->getAlignment();
+  unsigned AS = LN->getAddressSpace();
   if (Align < Size && isTypeLegal(VT)) {
     bool IsFast;
-    unsigned AS = LN->getAddressSpace();
 
     // Expand unaligned loads earlier than legalization. Due to visitation order
     // problems during legalization, the emitted instructions to pack and unpack
@@ -2498,6 +2498,77 @@ SDValue AMDGPUTargetLowering::performLoadCombine(SDNode *N,
 
     if (!IsFast)
       return SDValue();
+  }
+
+  // Create DWORDX3 loads. We cannot create it later because legalizer will
+  // split it and there is no way to specify custom lowering.
+  bool IsGlobal = (AS == AMDGPUASI.GLOBAL_ADDRESS);
+  bool IsConstant = (AS == AMDGPUASI.CONSTANT_ADDRESS);
+  bool IsGlobalOrConstant = IsGlobal || IsConstant;
+  // TODO: support vec3 stores and move the logig of this condition into
+  //       shouldCombineMemoryType().
+  if (Subtarget->getGeneration() >= AMDGPUSubtarget::SEA_ISLANDS &&
+      VT.isExtended() && VT.isVector() && VT.getVectorNumElements() == 3 &&
+      // There are no sub-dword vector loads.
+      VT.getVectorElementType().getStoreSize() == 4 &&
+      // There are no vector extloads.
+      LN->getExtensionType() == ISD::LoadExtType::NON_EXTLOAD &&
+      ((Subtarget->useFlatForGlobal() && IsGlobalOrConstant) ||
+       AS == AMDGPUASI.FLAT_ADDRESS) &&
+      // Uniform const loads will be selected to scalar loads, which do not have
+      // DWORDX3 form.
+      !((IsConstant || (IsGlobal && Subtarget->getScalarizeGlobalBehavior() &&
+                                    isMemOpHasNoClobberedMemOperand(LN))) &&
+        isMemOpUniform(LN))) {
+    SDValue ZeroFlag = DAG.getTargetConstant(0, SL, MVT::i1); // GLC/SLC
+    SDValue Ptr = LN->getBasePtr();
+    SDValue Offset = LN->getOffset();
+
+    int64_t OffVal = 0;
+    if (auto OffC = dyn_cast<ConstantSDNode>(Offset))
+      OffVal = OffC->getSExtValue();
+    // GFX9: Imm offset: Scratch, Global: 13-bit signed byte offset
+    //                   FLAT: 12-bit unsigned offset (MSB is ignored)
+    // TODO: It does not seem to be possible to get any offset after
+    //       SelectionDAGBuilder.
+    if ((OffVal && (!Subtarget->hasFlatInstOffsets() ||
+                    (IsGlobalOrConstant && !isInt<13>(OffVal)) ||
+                    !isUInt<12>(OffVal))) ||
+        // Is that possible to get non-constant offset recorded in LoadSDNode?
+        (!OffVal && !Offset.isUndef())) {
+      Ptr = DAG.getNode(ISD::ADD, SL, Ptr.getValueType(), Ptr, Offset);
+      OffVal = 0;
+    }
+    Offset = DAG.getTargetConstant(OffVal, SL, MVT::i16);
+
+    // TODO: introduce AMDGPUISD::LOAD3 returning v4i32 and select it later
+    //       to allow proper non-constant offset folding with GFX9 flat/global
+    //       instructions and with buffer_load_dwordx3.
+    //       That is in case if we are interested in supporting MUBUF or
+    //       VGPR offsets with SGPR base on GFX9. Both are unclear.
+    //       However, SelectionDAGBuilder does not really record an offset
+    //       even if constant, so we still want to get that constant offset
+    //       and we do not want to replicate SelectADDR/MUBUFOffset code here.
+    unsigned Opc = AMDGPU::FLAT_LOAD_DWORDX3;
+
+    if (Subtarget->getGeneration() >= AMDGPUSubtarget::GFX9 &&
+        IsGlobalOrConstant)
+      Opc = AMDGPU::GLOBAL_LOAD_DWORDX3;
+
+    // We must return a legal v4 type because DAG legalizer cannot widen machine
+    // nodes results, but knowns how to widen BUILD_VECTOR.
+    EVT V4VT = EVT::getVectorVT(*DAG.getContext(), VT.getVectorElementType(), 4);
+    auto NewLoad = DAG.getMachineNode(Opc, SL, V4VT, N->getValueType(1),
+                                      { Ptr, Offset, ZeroFlag, ZeroFlag });
+
+    auto MMOs = DAG.getMachineFunction().allocateMemRefsArray(1);
+    *MMOs = LN->getMemOperand();
+    NewLoad->setMemRefs(MMOs, MMOs + 1);
+
+    SmallVector<SDValue, 3> Elts;
+    DAG.ExtractVectorElements(SDValue(NewLoad, 0), Elts, 0, 3);
+    SDValue V3 = DAG.getBuildVector(VT, SL, { Elts[0], Elts[1], Elts[2] });
+    return DAG.getMergeValues({ V3, SDValue(NewLoad, 1) }, SL);
   }
 
   if (!shouldCombineMemoryType(VT))
@@ -3792,4 +3863,18 @@ unsigned AMDGPUTargetLowering::ComputeNumSignBitsForTargetNode(
   default:
     return 1;
   }
+}
+
+bool AMDGPUTargetLowering::isMemOpUniform(const SDNode *N) const {
+  const MemSDNode *MemNode = cast<MemSDNode>(N);
+
+  return AMDGPU::isUniformMMO(MemNode->getMemOperand());
+}
+
+bool AMDGPUTargetLowering::isMemOpHasNoClobberedMemOperand(const SDNode *N)
+  const {
+  const MemSDNode *MemNode = cast<MemSDNode>(N);
+  const Value *Ptr = MemNode->getMemOperand()->getValue();
+  const Instruction *I = dyn_cast<Instruction>(Ptr);
+  return I && I->getMetadata("amdgpu.noclobber");
 }

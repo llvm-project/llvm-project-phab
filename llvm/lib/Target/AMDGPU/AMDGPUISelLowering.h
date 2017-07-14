@@ -254,6 +254,9 @@ public:
   MVT getFenceOperandTy(const DataLayout &DL) const override {
     return MVT::i32;
   }
+
+  bool isMemOpUniform(const SDNode *N) const;
+  bool isMemOpHasNoClobberedMemOperand(const SDNode *N) const;
 };
 
 namespace AMDGPUISD {

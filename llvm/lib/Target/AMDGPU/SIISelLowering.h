@@ -166,8 +166,6 @@ public:
                           bool MemcpyStrSrc,
                           MachineFunction &MF) const override;
 
-  bool isMemOpUniform(const SDNode *N) const;
-  bool isMemOpHasNoClobberedMemOperand(const SDNode *N) const;
   bool isNoopAddrSpaceCast(unsigned SrcAS, unsigned DestAS) const override;
   bool isCheapAddrSpaceCast(unsigned SrcAS, unsigned DestAS) const override;
 

@@ -819,13 +819,6 @@ bool SITargetLowering::isNoopAddrSpaceCast(unsigned SrcAS,
          isFlatGlobalAddrSpace(DestAS, AMDGPUASI);
 }
 
-bool SITargetLowering::isMemOpHasNoClobberedMemOperand(const SDNode *N) const {
-  const MemSDNode *MemNode = cast<MemSDNode>(N);
-  const Value *Ptr = MemNode->getMemOperand()->getValue();
-  const Instruction *I = dyn_cast<Instruction>(Ptr);
-  return I && I->getMetadata("amdgpu.noclobber");
-}
-
 bool SITargetLowering::isCheapAddrSpaceCast(unsigned SrcAS,
                                             unsigned DestAS) const {
   // Flat -> private/local is a simple truncate.
@@ -834,12 +827,6 @@ bool SITargetLowering::isCheapAddrSpaceCast(unsigned SrcAS,
     return true;
 
   return isNoopAddrSpaceCast(SrcAS, DestAS);
-}
-
-bool SITargetLowering::isMemOpUniform(const SDNode *N) const {
-  const MemSDNode *MemNode = cast<MemSDNode>(N);
-
-  return AMDGPU::isUniformMMO(MemNode->getMemOperand());
 }
 
 TargetLoweringBase::LegalizeTypeAction
