@@ -292,10 +292,27 @@ bool LoopInvariantCodeMotion::runOnLoop(Loop *L, AliasAnalysis *AA,
       bool Promoted = false;
 
       // Loop over all of the alias sets in the tracker object.
-      for (AliasSet &AS : *CurAST)
+      for (AliasSet &AS : *CurAST) {
+        // We can promote this alias set if it has a store, if it is a "Must" alias
+        // set, if the pointer is loop invariant, and if we are not eliminating any
+        // volatile loads or stores.
+        if (AS.isForwardingAliasSet() || !AS.isMod() || !AS.isMustAlias() ||
+            AS.isVolatile() || !L->isLoopInvariant(AS.begin()->getValue()))
+          continue;
+
+        assert(!AS.empty() &&
+          "Must alias set should have at least one pointer element in it!");
+
+        SmallPtrSet<Value *, 4> PointerMustAliases;
+        for (const auto &ASI : AS) {
+          PointerMustAliases.insert(ASI.getValue());
+        }
+
         Promoted |=
-            promoteLoopAccessesToScalars(AS, ExitBlocks, InsertPts, PIC, LI, DT,
+            promoteLoopAccessesToScalars(PointerMustAliases,
+                                         ExitBlocks, InsertPts, PIC, LI, DT,
                                          TLI, L, CurAST, &SafetyInfo, ORE);
+      }
 
       // Once we have promoted values across the loop body we have to
       // recursively reform LCSSA as any nested loop may now have values defined
@@ -1016,7 +1033,8 @@ public:
 /// loop invariant.
 ///
 bool llvm::promoteLoopAccessesToScalars(
-    AliasSet &AS, SmallVectorImpl<BasicBlock *> &ExitBlocks,
+    SmallPtrSetImpl<Value *> &PointerMustAliases,
+    SmallVectorImpl<BasicBlock *> &ExitBlocks,
     SmallVectorImpl<Instruction *> &InsertPts, PredIteratorCache &PIC,
     LoopInfo *LI, DominatorTree *DT, const TargetLibraryInfo *TLI,
     Loop *CurLoop, AliasSetTracker *CurAST, LoopSafetyInfo *SafetyInfo,
@@ -1026,17 +1044,7 @@ bool llvm::promoteLoopAccessesToScalars(
          CurAST != nullptr && SafetyInfo != nullptr &&
          "Unexpected Input to promoteLoopAccessesToScalars");
 
-  // We can promote this alias set if it has a store, if it is a "Must" alias
-  // set, if the pointer is loop invariant, and if we are not eliminating any
-  // volatile loads or stores.
-  if (AS.isForwardingAliasSet() || !AS.isMod() || !AS.isMustAlias() ||
-      AS.isVolatile() || !CurLoop->isLoopInvariant(AS.begin()->getValue()))
-    return false;
-
-  assert(!AS.empty() &&
-         "Must alias set should have at least one pointer element in it!");
-
-  Value *SomePtr = AS.begin()->getValue();
+  Value *SomePtr = *PointerMustAliases.begin();
   BasicBlock *Preheader = CurLoop->getLoopPreheader();
 
   // It isn't safe to promote a load/store from the loop if the load/store is
@@ -1080,7 +1088,6 @@ bool llvm::promoteLoopAccessesToScalars(
   bool SafeToInsertStore = false;
 
   SmallVector<Instruction *, 64> LoopUses;
-  SmallPtrSet<Value *, 4> PointerMustAliases;
 
   // We start with an alignment of one and try to find instructions that allow
   // us to prove better alignment.
@@ -1125,10 +1132,7 @@ bool llvm::promoteLoopAccessesToScalars(
   // Check that all of the pointers in the alias set have the same type.  We
   // cannot (yet) promote a memory location that is loaded and stored in
   // different sizes.  While we are at it, collect alignment and AA info.
-  for (const auto &ASI : AS) {
-    Value *ASIV = ASI.getValue();
-    PointerMustAliases.insert(ASIV);
-
+  for (Value * ASIV : PointerMustAliases) {
     // Check that all of the pointers in the alias set have the same type.  We
     // cannot (yet) promote a memory location that is loaded and stored in
     // different sizes.
