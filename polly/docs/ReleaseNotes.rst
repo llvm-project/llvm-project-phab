@@ -35,47 +35,68 @@ developed for the isl math library. Thanks to the new isl C++ interface there
 is no need for manual memory management any more and programming with integer
 sets became easier in general.
 
-Today::
-
-    void isDiffEmptyOrUnionTheUniverse(isl::set S1, isl::set S2) {
-      isl::set Difference = S1.subtract(S2);
-      isl::set Union = S1.unite(S2);
-
-      if (Difference.is_empty())
-        return true;
-
-      if (Union.is_universe())
-        return true;
-
-      return false;
-    }
-
 Before::
 
-    void isDiffEmptyOrUnionTheUniverse(__isl_take isl_set S1,
-                                       __isl_take isl_set S2) {
-      isl_set *Difference = isl_set_subtract(isl_set_copy(S1),
-                                             isl_set_copy(S2));
+    __isl_give isl_set *do_some_operations(__isl_take isl_set *s1, 
+            __isl_take isl_set *s2, __isl_keep isl_set *s3, 
+                    __isl_take isl_set *s4) {
 
-      isl_set *Union = isl_set_union(S1, S2);
+      isl_set *s5 = isl_set_intersect(isl_set_copy(s1), s2);
+      s5 = isl_set_subtract(s5, isl_set_union(isl_set_copy(s3), s4);
 
-      isl_bool IsEmpty = isl_set_is_empty(Difference);
-      isl_set_free(Difference);
-
-      if (IsEmpty == isl_bool_error)
-        llvm_unreachable();
-
-      if (IsEmpty)
-        return true;
-
-      isl_bool IsUniverse = isl_set_is_Universe(Union);
-      isl_set_free(Union);
-
-      if (IsUniverse == isl_bool_error)
-        llvm_unreachable();
-
-      if (IsUniverse)
-        return true;
-
-      return false;
+      if (isl_set_is_empty(s5)) {
+        isl_set_free(s1);
+        isl_set_free(s5);
+        return isl_set_copy(s3);
+      } else {
+        isl_set_free(s5);
+        return s1;
+      }
     }
+
+Today::
+
+    isl::set do_some_operations(isl::set s1, isl::set s2, isl::set s3, 
+                                                         isl::set s4) {
+      isl::set s5 = s1.intersect(s2);
+      s5 -= s3 + s4;
+
+      if (s5.is_empty())
+        return s3;
+      else
+        return s1;
+    }
+
+Besides this goal of increased readability we also introduce these new isl
+bindings in a -- LLVM typical -- gradual way. Hence, we often will have 
+functionality in isl or in Polly that still uses the old C interface. To 
+interact with such functionality we need access to the raw pointers. Hence, 
+we get a mix of C and C++ code, that could look as follows:
+
+    isl::set do_some_operations(isl::set s1, isl::set s2, isl::set s3, 
+                                                          isl::set s4) {
+      isl::set s5 = s1.intersect(s2);
+
+      s5 -= isl::manage(isl_set_union(s3.copy(); s4.release()));
+
+      if (isl_set_is_empty(s5.get()))
+        return s3;
+      else
+        return s1;
+    }
+
+Here we use isl::manage to convert a raw isl C pointer back to the C++ object,
+and we use isl::set::copy() and isl::set::release() to obtain raw pointers from
+s3 and s4, that represent a set identical to s3 and s4, which can be passed and
+later be consumed by isl_set_union. For object s3 we need to use copy() to 
+obtain a reference-counted copy of the s3 pointer, as the s3 object may 
+possibly be used later. For s4 we can use release() which extracts the pointer
+that backs s4 and invalidates s4. This is possible as s4 is not used later on.
+Similarly, we use s5.get() to obtain a raw pointer that can be passed to 
+isl_set_is_empty but that will not be consumed by isl_set_is_empty.
+
+
+For reference:
+
+    __isl_give *isl_set_union(__isl_take isl_set *s1, __isl_take *s2);
+    int isl_set_is_empty(__isl_keep isl_set *s);
