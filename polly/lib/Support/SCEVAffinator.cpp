@@ -135,6 +135,7 @@ __isl_give PWACtx SCEVAffinator::getPwAff(const SCEV *Expr, BasicBlock *BB) {
 
   if (BB) {
     auto *DC = S->getDomainConditions(BB);
+
     NumIterators = isl_set_n_dim(DC);
     isl_set_free(DC);
   } else

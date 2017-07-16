@@ -1670,9 +1670,6 @@ private:
   /// A map from basic blocks to SCoP statements.
   DenseMap<BasicBlock *, ScopStmt *> StmtMap;
 
-  /// A map from basic blocks to their domains.
-  DenseMap<BasicBlock *, isl::set> DomainMap;
-
   /// Constraints on parameters.
   isl_set *Context;
 
@@ -1852,11 +1849,13 @@ private:
   /// @param BBLoop             The innermost affine loop surrounding @p BB.
   /// @param FinishedExitBlocks Set of region exits the domain was set for.
   /// @param LI                 The LoopInfo for the current function.
+  /// @param DomainMap        BB to Domain map for the BB of current region.
   /// @param InvalidDomainMap   BB to InvalidDomain map for the BB of current
   ///                           region.
   void propagateDomainConstraintsToRegionExit(
       BasicBlock *BB, Loop *BBLoop,
       SmallPtrSetImpl<BasicBlock *> &FinishedExitBlocks, LoopInfo &LI,
+      DenseMap<BasicBlock *, isl::set> &DomainMap,
       DenseMap<BasicBlock *, isl::set> &InvalidDomainMap);
 
   /// Compute the union of predecessor domains for @p BB.
@@ -1869,22 +1868,25 @@ private:
   /// @param Domain The domain under which BB is executed.
   /// @param DT     The DominatorTree for the current function.
   /// @param LI     The LoopInfo for the current function.
+  /// @param DomainMap        BB to Domain map for the BB of current region.
   ///
   /// @returns The domain under which @p BB is executed.
   __isl_give isl_set *
   getPredecessorDomainConstraints(BasicBlock *BB, __isl_keep isl_set *Domain,
-                                  DominatorTree &DT, LoopInfo &LI);
+                                  DominatorTree &DT, LoopInfo &LI,
+                                  DenseMap<BasicBlock *, isl::set> &DomainMap);
 
   /// Add loop carried constraints to the header block of the loop @p L.
   ///
   /// @param L                The loop to process.
   /// @param LI               The LoopInfo for the current function.
+  /// @param DomainMap        BB to Domain map for the BB of current region.
   /// @param InvalidDomainMap BB to InvalidDomain map for the BB of current
   ///                         region.
   ///
   /// @returns True if there was no problem and false otherwise.
   bool addLoopBoundsToHeaderDomain(
-      Loop *L, LoopInfo &LI,
+      Loop *L, LoopInfo &LI, DenseMap<BasicBlock *, isl::set> &DomainMap,
       DenseMap<BasicBlock *, isl::set> &InvalidDomainMap);
 
   /// Compute the branching constraints for each basic block in @p R.
@@ -1893,12 +1895,14 @@ private:
   ///                         for.
   /// @param DT               The DominatorTree for the current function.
   /// @param LI               The LoopInfo for the current function.
+  /// @param DomainMap        BB to Domain map for the BB of current region.
   /// @param InvalidDomainMap BB to InvalidDomain map for the BB of current
   ///                         region.
   ///
   /// @returns True if there was no problem and false otherwise.
   bool buildDomainsWithBranchConstraints(
       Region *R, DominatorTree &DT, LoopInfo &LI,
+      DenseMap<BasicBlock *, isl::set> &DomainMap,
       DenseMap<BasicBlock *, isl::set> &InvalidDomainMap);
 
   /// Propagate the domain constraints through the region @p R.
@@ -1907,12 +1911,14 @@ private:
   /// for.
   /// @param DT               The DominatorTree for the current function.
   /// @param LI               The LoopInfo for the current function.
+  /// @param DomainMap        BB to Domain map for the BB of current region.
   /// @param InvalidDomainMap BB to InvalidDomain map for the BB of current
   ///                         region.
   ///
   /// @returns True if there was no problem and false otherwise.
   bool propagateDomainConstraints(
       Region *R, DominatorTree &DT, LoopInfo &LI,
+      DenseMap<BasicBlock *, isl::set> &DomainMap,
       DenseMap<BasicBlock *, isl::set> &InvalidDomainMap);
 
   /// Propagate invalid domains of statements through @p R.
@@ -1925,12 +1931,14 @@ private:
   /// @param R                The currently traversed region.
   /// @param DT               The DominatorTree for the current function.
   /// @param LI               The LoopInfo for the current function.
+  /// @param DomainMap        BB to Domain map for the BB of current region.
   /// @param InvalidDomainMap BB to InvalidDomain map for the BB of current
   ///                         region.
   //
   /// @returns True if there was no problem and false otherwise.
   bool propagateInvalidStmtDomains(
       Region *R, DominatorTree &DT, LoopInfo &LI,
+      DenseMap<BasicBlock *, isl::set> &DomainMap,
       DenseMap<BasicBlock *, isl::set> &InvalidDomainMap);
 
   /// Compute the domain for each basic block in @p R.
@@ -1938,11 +1946,13 @@ private:
   /// @param R                The region we currently traverse.
   /// @param DT               The DominatorTree for the current function.
   /// @param LI               The LoopInfo for the current function.
+  /// @param DomainMap        BB to Domain map for the BB of current region.
   /// @param InvalidDomainMap BB to InvalidDomain map for the BB of current
   ///                         region.
   ///
   /// @returns True if there was no problem and false otherwise.
   bool buildDomains(Region *R, DominatorTree &DT, LoopInfo &LI,
+                    DenseMap<BasicBlock *, isl::set> &DomainMap,
                     DenseMap<BasicBlock *, isl::set> &InvalidDomainMap);
 
   /// Add parameter constraints to @p C that imply a non-empty domain.
@@ -2484,7 +2494,9 @@ public:
                         BasicBlock *BB = nullptr);
 
   /// Add all recorded assumptions to the assumed context.
-  void addRecordedAssumptions();
+  ///
+  /// @param DomainMap BB to Domain map for the BB of current region.
+  void addRecordedAssumptions(DenseMap<BasicBlock *, isl::set> &DomainMap);
 
   /// Mark the scop as invalid.
   ///
@@ -2755,8 +2767,11 @@ public:
 
   /// Return the domain of @p BB.
   ///
-  /// @param BB The block for which the conditions should be returned.
-  __isl_give isl_set *getDomainConditions(BasicBlock *BB) const;
+  /// @param DomainMap BB to Domain map for the BB of current region.
+  /// @param BB        The block for which the conditions should be returned.
+  __isl_give isl_set *
+  getDomainConditions(DenseMap<BasicBlock *, isl::set> &DomainMap,
+                      BasicBlock *BB) const;
 
   /// Get a union set containing the iteration domains of all statements.
   __isl_give isl_union_set *getDomains() const;
@@ -2819,10 +2834,12 @@ public:
 
   /// Simplify the SCoP representation.
   ///
+  /// @param DomainMap     BB to Domain map for the BB of current region.
   /// @param AfterHoisting Whether it is called after invariant load hoisting.
   ///                      When true, also removes statements without
   ///                      side-effects.
-  void simplifySCoP(bool AfterHoisting);
+  void simplifySCoP(DenseMap<BasicBlock *, isl::set> &DomainMap,
+                    bool AfterHoisting);
 
   /// Get the next free array index.
   ///

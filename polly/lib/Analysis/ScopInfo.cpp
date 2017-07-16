@@ -2646,7 +2646,10 @@ __isl_give isl_set *Scop::getDomainConditions(const ScopStmt *Stmt) const {
   return getDomainConditions(Stmt->getEntryBlock());
 }
 
-__isl_give isl_set *Scop::getDomainConditions(BasicBlock *BB) const {
+__isl_give isl_set *
+Scop::getDomainConditions(DenseMap<BasicBlock *, isl::set> &DomainMap,
+                          BasicBlock *BB) const {
+
   auto DIt = DomainMap.find(BB);
   if (DIt != DomainMap.end())
     return DIt->getSecond().copy();
@@ -2655,10 +2658,11 @@ __isl_give isl_set *Scop::getDomainConditions(BasicBlock *BB) const {
   auto *BBR = RI.getRegionFor(BB);
   while (BBR->getEntry() == BB)
     BBR = BBR->getParent();
-  return getDomainConditions(BBR->getEntry());
+  return getDomainConditions(DomainMap, BBR->getEntry());
 }
 
 bool Scop::buildDomains(Region *R, DominatorTree &DT, LoopInfo &LI,
+                        DenseMap<BasicBlock *, isl::set> &DomainMap,
                         DenseMap<BasicBlock *, isl::set> &InvalidDomainMap) {
 
   bool IsOnlyNonAffineRegion = isNonAffineSubRegion(R);
@@ -2678,10 +2682,11 @@ bool Scop::buildDomains(Region *R, DominatorTree &DT, LoopInfo &LI,
   if (IsOnlyNonAffineRegion)
     return !containsErrorBlock(R->getNode(), *R, LI, DT);
 
-  if (!buildDomainsWithBranchConstraints(R, DT, LI, InvalidDomainMap))
+  if (!buildDomainsWithBranchConstraints(R, DT, LI, DomainMap,
+                                         InvalidDomainMap))
     return false;
 
-  if (!propagateDomainConstraints(R, DT, LI, InvalidDomainMap))
+  if (!propagateDomainConstraints(R, DT, LI, DomainMap, InvalidDomainMap))
     return false;
 
   // Error blocks and blocks dominated by them have been assumed to never be
@@ -2696,7 +2701,7 @@ bool Scop::buildDomains(Region *R, DominatorTree &DT, LoopInfo &LI,
   // with an empty set. Additionally, we will record for each block under which
   // parameter combination it would be reached via an error block in its
   // InvalidDomain. This information is needed during load hoisting.
-  if (!propagateInvalidStmtDomains(R, DT, LI, InvalidDomainMap))
+  if (!propagateInvalidStmtDomains(R, DT, LI, DomainMap, InvalidDomainMap))
     return false;
 
   return true;
@@ -2754,6 +2759,7 @@ static __isl_give isl_set *adjustDomainDimensions(Scop &S,
 
 bool Scop::propagateInvalidStmtDomains(
     Region *R, DominatorTree &DT, LoopInfo &LI,
+    DenseMap<BasicBlock *, isl::set> &DomainMap,
     DenseMap<BasicBlock *, isl::set> &InvalidDomainMap) {
 
   ReversePostOrderTraversal<Region *> RTraversal(R);
@@ -2764,7 +2770,8 @@ bool Scop::propagateInvalidStmtDomains(
     if (RN->isSubRegion()) {
       Region *SubRegion = RN->getNodeAs<Region>();
       if (!isNonAffineSubRegion(SubRegion)) {
-        propagateInvalidStmtDomains(SubRegion, DT, LI, InvalidDomainMap);
+        propagateInvalidStmtDomains(SubRegion, DT, LI, DomainMap,
+                                    InvalidDomainMap);
         continue;
       }
     }
@@ -2839,6 +2846,7 @@ bool Scop::propagateInvalidStmtDomains(
 void Scop::propagateDomainConstraintsToRegionExit(
     BasicBlock *BB, Loop *BBLoop,
     SmallPtrSetImpl<BasicBlock *> &FinishedExitBlocks, LoopInfo &LI,
+    DenseMap<BasicBlock *, isl::set> &DomainMap,
     DenseMap<BasicBlock *, isl::set> &InvalidDomainMap) {
 
   // Check if the block @p BB is the entry of a region. If so we propagate it's
@@ -2884,6 +2892,7 @@ void Scop::propagateDomainConstraintsToRegionExit(
 
 bool Scop::buildDomainsWithBranchConstraints(
     Region *R, DominatorTree &DT, LoopInfo &LI,
+    DenseMap<BasicBlock *, isl::set> &DomainMap,
     DenseMap<BasicBlock *, isl::set> &InvalidDomainMap) {
 
   // To create the domain for each block in R we iterate over all blocks and
@@ -2906,7 +2915,7 @@ bool Scop::buildDomainsWithBranchConstraints(
     if (RN->isSubRegion()) {
       Region *SubRegion = RN->getNodeAs<Region>();
       if (!isNonAffineSubRegion(SubRegion)) {
-        if (!buildDomainsWithBranchConstraints(SubRegion, DT, LI,
+        if (!buildDomainsWithBranchConstraints(SubRegion, DT, LI, DomainMap,
                                                InvalidDomainMap))
           return false;
         continue;
@@ -2931,7 +2940,7 @@ bool Scop::buildDomainsWithBranchConstraints(
     // Propagate the domain from BB directly to blocks that have a superset
     // domain, at the moment only region exit nodes of regions that start in BB.
     propagateDomainConstraintsToRegionExit(BB, BBLoop, FinishedExitBlocks, LI,
-                                           InvalidDomainMap);
+                                           DomainMap, InvalidDomainMap);
 
     // If all successors of BB have been set a domain through the propagation
     // above we do not need to build condition sets but can just skip this
@@ -3012,10 +3021,10 @@ bool Scop::buildDomainsWithBranchConstraints(
   return true;
 }
 
-__isl_give isl_set *
-Scop::getPredecessorDomainConstraints(BasicBlock *BB,
-                                      __isl_keep isl_set *Domain,
-                                      DominatorTree &DT, LoopInfo &LI) {
+__isl_give isl_set *Scop::getPredecessorDomainConstraints(
+    BasicBlock *BB, __isl_keep isl_set *Domain, DominatorTree &DT, LoopInfo &LI,
+    DenseMap<BasicBlock *, isl::set> &DomainMap) {
+
   // If @p BB is the ScopEntry we are done
   if (R.getEntry() == BB)
     return isl_set_universe(isl_set_get_space(Domain));
@@ -3058,7 +3067,7 @@ Scop::getPredecessorDomainConstraints(BasicBlock *BB,
       PropagatedRegions.insert(PredR);
     }
 
-    auto *PredBBDom = getDomainConditions(PredBB);
+    auto *PredBBDom = getDomainConditions(DomainMap, PredBB);
     Loop *PredBBLoop = getFirstNonBoxedLoopFor(PredBB, LI, getBoxedLoops());
 
     PredBBDom = adjustDomainDimensions(*this, PredBBDom, PredBBLoop, BBLoop);
@@ -3071,7 +3080,9 @@ Scop::getPredecessorDomainConstraints(BasicBlock *BB,
 
 bool Scop::propagateDomainConstraints(
     Region *R, DominatorTree &DT, LoopInfo &LI,
+    DenseMap<BasicBlock *, isl::set> &DomainMap,
     DenseMap<BasicBlock *, isl::set> &InvalidDomainMap) {
+
   // Iterate over the region R and propagate the domain constrains from the
   // predecessors to the current node. In contrast to the
   // buildDomainsWithBranchConstraints function, this one will pull the domain
@@ -3089,7 +3100,8 @@ bool Scop::propagateDomainConstraints(
     if (RN->isSubRegion()) {
       Region *SubRegion = RN->getNodeAs<Region>();
       if (!isNonAffineSubRegion(SubRegion)) {
-        if (!propagateDomainConstraints(SubRegion, DT, LI, InvalidDomainMap))
+        if (!propagateDomainConstraints(SubRegion, DT, LI, DomainMap,
+                                        InvalidDomainMap))
           return false;
         continue;
       }
@@ -3100,14 +3112,14 @@ bool Scop::propagateDomainConstraints(
     assert(Domain);
 
     // Under the union of all predecessor conditions we can reach this block.
-    isl::set PredDom =
-        isl::manage(getPredecessorDomainConstraints(BB, Domain.get(), DT, LI));
+    isl::set PredDom = isl::manage(
+        getPredecessorDomainConstraints(BB, Domain.get(), DT, LI, DomainMap));
     Domain = Domain.intersect(PredDom).coalesce();
     Domain = Domain.align_params(isl::manage(getParamSpace()));
 
     Loop *BBLoop = getRegionNodeLoop(RN, LI);
     if (BBLoop && BBLoop->getHeader() == BB && contains(BBLoop))
-      if (!addLoopBoundsToHeaderDomain(BBLoop, LI, InvalidDomainMap))
+      if (!addLoopBoundsToHeaderDomain(BBLoop, LI, DomainMap, InvalidDomainMap))
         return false;
   }
 
@@ -3138,7 +3150,9 @@ createNextIterationMap(__isl_take isl_space *SetSpace, unsigned Dim) {
 }
 
 bool Scop::addLoopBoundsToHeaderDomain(
-    Loop *L, LoopInfo &LI, DenseMap<BasicBlock *, isl::set> &InvalidDomainMap) {
+    Loop *L, LoopInfo &LI, DenseMap<BasicBlock *, isl::set> &DomainMap,
+    DenseMap<BasicBlock *, isl::set> &InvalidDomainMap) {
+
   int LoopDepth = getRelativeLoopDepth(L);
   assert(LoopDepth >= 0 && "Loop in region should have at least depth one");
 
@@ -3728,7 +3742,9 @@ void Scop::assumeNoOutOfBounds() {
       Access->assumeNoOutOfBound();
 }
 
-void Scop::simplifySCoP(bool AfterHoisting) {
+void Scop::simplifySCoP(DenseMap<BasicBlock *, isl::set> &DomainMap,
+                        bool AfterHoisting) {
+
   for (auto StmtIt = Stmts.begin(), StmtEnd = Stmts.end(); StmtIt != StmtEnd;) {
     ScopStmt &Stmt = *StmtIt;
 
@@ -4389,7 +4405,8 @@ void Scop::recordAssumption(AssumptionKind Kind, __isl_take isl_set *Set,
   RecordedAssumptions.push_back({Kind, Sign, Set, Loc, BB});
 }
 
-void Scop::addRecordedAssumptions() {
+void Scop::addRecordedAssumptions(DenseMap<BasicBlock *, isl::set> &DomainMap) {
+
   while (!RecordedAssumptions.empty()) {
     const Assumption &AS = RecordedAssumptions.pop_back_val();
 
@@ -4399,7 +4416,7 @@ void Scop::addRecordedAssumptions() {
     }
 
     // If the domain was deleted the assumptions are void.
-    isl_set *Dom = getDomainConditions(AS.BB);
+    isl_set *Dom = getDomainConditions(DomainMap, AS.BB);
     if (!Dom) {
       isl_set_free(AS.Set);
       continue;

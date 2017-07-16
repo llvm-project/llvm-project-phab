@@ -307,6 +307,7 @@ private:
   void removeUnnecessaryStmts() {
     auto NumStmtsBefore = S->getSize();
     S->simplifySCoP(true);
+
     assert(NumStmtsBefore >= S->getSize());
     StmtsRemoved = NumStmtsBefore - S->getSize();
     DEBUG(dbgs() << "Removed " << StmtsRemoved << " (of " << NumStmtsBefore

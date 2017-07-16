@@ -963,10 +963,13 @@ void ScopBuilder::buildScop(Region &R, AssumptionCache &AC) {
 
   scop->buildInvariantEquivalenceClasses();
 
+  /// A map from basic blocks to their domains.
+  DenseMap<BasicBlock *, isl::set> DomainMap;
+
   /// A map from basic blocks to their invalid domains.
   DenseMap<BasicBlock *, isl::set> InvalidDomainMap;
 
-  if (!scop->buildDomains(&R, DT, LI, InvalidDomainMap))
+  if (!scop->buildDomains(&R, DT, LI, DomainMap, InvalidDomainMap))
     return;
 
   scop->addUserAssumptions(AC, DT, LI, InvalidDomainMap);
@@ -982,7 +985,7 @@ void ScopBuilder::buildScop(Region &R, AssumptionCache &AC) {
 
   // Remove empty statements.
   // Exit early in case there are no executable statements left in this scop.
-  scop->simplifySCoP(false);
+  scop->simplifySCoP(DomainMap, false);
   if (scop->isEmpty())
     return;
 
@@ -1011,7 +1014,7 @@ void ScopBuilder::buildScop(Region &R, AssumptionCache &AC) {
   // After the context was fully constructed, thus all our knowledge about
   // the parameters is in there, we add all recorded assumptions to the
   // assumed/invalid context.
-  scop->addRecordedAssumptions();
+  scop->addRecordedAssumptions(DomainMap);
 
   scop->simplifyContexts();
   if (!scop->buildAliasChecks(AA))
@@ -1020,7 +1023,7 @@ void ScopBuilder::buildScop(Region &R, AssumptionCache &AC) {
   scop->hoistInvariantLoads();
   scop->canonicalizeDynamicBasePtrs();
   scop->verifyInvariantLoads();
-  scop->simplifySCoP(true);
+  scop->simplifySCoP(DomainMap, true);
 
   // Check late for a feasible runtime context because profitability did not
   // change.
