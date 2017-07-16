@@ -26,6 +26,7 @@
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
+#include "llvm/CodeGen/MachineDominators.h"
 #include "llvm/CodeGen/Passes.h"
 #include "llvm/IR/DIBuilder.h"
 #include "llvm/IR/DebugInfoMetadata.h"
@@ -44,6 +45,7 @@ static cl::opt<bool>
                      cl::init(false));
 
 STATISTIC(NumSubstLEAs, "Number of LEA instruction substitutions");
+STATISTIC(NumFactoredLEAs, "Number of LEAs factorized");
 STATISTIC(NumRedundantLEAs, "Number of redundant LEA instructions removed");
 
 /// \brief Returns true if two machine operands are identical and they are not
@@ -65,8 +67,8 @@ class MemOpKey {
 public:
   MemOpKey(const MachineOperand *Base, const MachineOperand *Scale,
            const MachineOperand *Index, const MachineOperand *Segment,
-           const MachineOperand *Disp)
-      : Disp(Disp) {
+           const MachineOperand *Disp, bool DispCheck = false)
+      : Disp(Disp), HardDispCheck(DispCheck) {
     Operands[0] = Base;
     Operands[1] = Scale;
     Operands[2] = Index;
@@ -82,8 +84,10 @@ public:
     // Addresses' displacements don't have to be exactly the same. It only
     // matters that they use the same symbol/index/address. Immediates' or
     // offsets' differences will be taken care of during instruction
-    // substitution.
-    return isSimilarDispOp(*Disp, *Other.Disp);
+    // substitution. If HardDispCheck is true then Disp must be identical.
+    if (!HardDispCheck)
+       return isSimilarDispOp(*Disp, *Other.Disp);
+    return isIdenticalOp(*Disp,*Other.Disp);
   }
 
   // Address' base, scale, index and segment operands.
@@ -91,6 +95,9 @@ public:
 
   // Address' displacement operand.
   const MachineOperand *Disp;
+
+  // Forces absolute displacement check.
+  bool HardDispCheck;
 };
 } // end anonymous namespace
 
@@ -178,6 +185,17 @@ static inline MemOpKey getMemOpKey(const MachineInstr &MI, unsigned N) {
                   &MI.getOperand(N + X86::AddrDisp));
 }
 
+static inline MemOpKey getMemOpCSEKey(const MachineInstr &MI, unsigned N) {
+  static MachineOperand DummyScale = MachineOperand::CreateImm(1);
+  assert((isLEA(MI) || MI.mayLoadOrStore()) &&
+         "The instruction must be a LEA, a load or a store");
+  return MemOpKey(&MI.getOperand(N + X86::AddrBaseReg),
+                  &DummyScale,
+                  &MI.getOperand(N + X86::AddrIndexReg),
+                  &MI.getOperand(N + X86::AddrSegmentReg),
+                  &MI.getOperand(N + X86::AddrDisp), true);
+}
+
 static inline bool isIdenticalOp(const MachineOperand &MO1,
                                  const MachineOperand &MO2) {
   return MO1.isIdenticalTo(MO2) &&
@@ -217,8 +235,124 @@ static inline bool isLEA(const MachineInstr &MI) {
 }
 
 namespace {
+
+
+class FactorizeLEAOpt {
+public:
+   using LEAListT    = std::list<MachineInstr*>;
+   using LEAMapT     = DenseMap<MemOpKey, LEAListT>;
+   using ValueT      = DenseMap<MemOpKey, unsigned>;
+   using ScopeEntryT = std::pair<MachineBasicBlock*, ValueT>;
+   using ScopeStackT = std::vector<ScopeEntryT>;
+
+   FactorizeLEAOpt() = default;
+   FactorizeLEAOpt(const FactorizeLEAOpt&) = delete;
+   FactorizeLEAOpt & operator = (const FactorizeLEAOpt&) = delete;
+
+   void performCleanup() {
+      for(auto LEA : removedLEAs) {
+         LEA->eraseFromParent();
+      }
+      LEAs.clear();
+      Stack.clear();
+   }
+
+   LEAMapT&     getLEAMap()   { return LEAs;}
+   ScopeEntryT* getTopScope() { return &Stack.back();}
+
+   void addForLazyRemoval(MachineInstr * Instr) {
+      removedLEAs.push_back(Instr);
+   }
+
+   /// Push the ScopeEntry for the BasicBlock over Stack.
+   /// Also traverses over list of instruction and update
+   /// LEAs Map and ScopeEntry for each LEA instruction 
+   /// found using insertLEA().
+   void pushScope(MachineBasicBlock *MBB);
+
+   /// Pops out ScopeEntry of top most BasicBlock from the stack
+   /// and remove the LEA instructions contained in the scope
+   /// from the LEAs Map.
+   void popScope();
+
+   void insertLEA(MachineInstr * MI);
+
+   /// If LEA contains Physical Registers then its not a candidate
+   /// for factorizations since physical registers may violate SSA
+   /// semantics of MI.
+   bool constainsPhyReg(MachineInstr &MI);
+
+private:
+   ScopeStackT Stack; 
+   LEAMapT     LEAs;
+   std::vector<MachineInstr*> removedLEAs;
+};
+
+void FactorizeLEAOpt::pushScope(MachineBasicBlock * MBB) {
+   ValueT EmptyMap;
+   ScopeEntryT SE = std::make_pair(MBB,EmptyMap);
+   Stack.push_back(SE);
+   for (auto &MI : *MBB) {
+     if (isLEA(MI))
+       insertLEA(&MI);
+   }
+}
+
+void FactorizeLEAOpt::popScope() {
+   ScopeEntryT &SE = Stack.back();
+   for(auto MapEntry : SE.second) {
+      LEAMapT::iterator Itr = LEAs.find(MapEntry.first);
+      assert((Itr != LEAs.end()) && 
+        "LEAs map must have a node corresponding to ScopeEntry's Key.");
+
+      while(((*Itr).second.size() > MapEntry.second))
+         (*Itr).second.pop_front(); 
+      // If list goes empty remove entry from LEAs Map.
+      if((*Itr).second.empty()) 
+         LEAs.erase(Itr); 
+   }
+   Stack.pop_back();
+}
+
+bool FactorizeLEAOpt::constainsPhyReg(MachineInstr &MI) {
+   MachineOperand Res   = MI.getOperand(0);
+   MachineOperand Base  = MI.getOperand(1);
+   MachineOperand Index = MI.getOperand(3);
+
+   if (Res.isReg() && TargetRegisterInfo::isPhysicalRegister(Res.getReg()))
+       return true;
+   if (Base.isReg() && TargetRegisterInfo::isPhysicalRegister(Base.getReg()))
+       return true;
+   if (Index.isReg() && TargetRegisterInfo::isPhysicalRegister(Index.getReg()))
+       return true;
+
+   return false;
+}
+
+void FactorizeLEAOpt::insertLEA(MachineInstr * MI) {
+   unsigned lsize = 0;
+   if (constainsPhyReg(*MI))
+      return;
+
+   MemOpKey Key = getMemOpCSEKey(*MI, 1);
+   ScopeEntryT *TopScope = getTopScope();
+
+   LEAMapT::iterator Itr = LEAs.find(Key);
+   if (Itr == LEAs.end()) {
+       lsize = 0;
+       LEAs[Key].push_front(MI);
+   } else {
+       lsize = (*Itr).second.size();
+       (*Itr).second.push_front(MI);
+   }
+   if (TopScope->second.find(Key) == TopScope->second.end())
+       TopScope->second[Key] = lsize;
+}
+
+
 class OptimizeLEAPass : public MachineFunctionPass {
 public:
+
   OptimizeLEAPass() : MachineFunctionPass(ID) {}
 
   StringRef getPassName() const override { return "X86 LEA Optimize"; }
@@ -227,6 +361,13 @@ public:
   /// calculations in load and store instructions, if it's already
   /// been calculated by LEA. Also, remove redundant LEAs.
   bool runOnMachineFunction(MachineFunction &MF) override;
+
+  void getAnalysisUsage(AnalysisUsage &AU) const override {
+     AU.setPreservesCFG();
+     MachineFunctionPass::getAnalysisUsage(AU);
+     AU.addRequired<MachineDominatorTree>();
+  }
+
 
 private:
   typedef DenseMap<MemOpKey, SmallVector<MachineInstr *, 16>> MemOpMap;
@@ -273,8 +414,20 @@ private:
   /// \brief Removes LEAs which calculate similar addresses.
   bool removeRedundantLEAs(MemOpMap &LEAs);
 
+  /// \brief Visit over basic blocks, collect LEAs in a scoped
+  ///  hash map (FactorizeLEAOpt::LEAs) and try to factor them out.
+  bool FactorizeLEAsAllBasicBlocks(MachineFunction &MF);
+
+  bool FactorizeLEAsBasicBlock(MachineDomTreeNode *DN);
+
+  /// \brief Factor out LEAs which share Base,Index,Offset and Segment.
+  bool processBasicBlock(const MachineBasicBlock &MBB);
+
   DenseMap<const MachineInstr *, unsigned> InstrPos;
 
+  FactorizeLEAOpt FactorOpt;
+
+  MachineDominatorTree *DT;
   MachineRegisterInfo *MRI;
   const X86InstrInfo *TII;
   const X86RegisterInfo *TRI;
@@ -646,6 +799,89 @@ bool OptimizeLEAPass::removeRedundantLEAs(MemOpMap &LEAs) {
   return Changed;
 }
 
+bool OptimizeLEAPass::processBasicBlock(const MachineBasicBlock &MBB) {
+   bool cseDone = false;
+
+   // Legal scale value (1,2,4 & 8) vector.
+   int LegalScale[9] = {0,1,1,0,1,0,0,0,1};
+
+   auto CompareFn = 
+     [] (const MachineInstr *Arg1,const MachineInstr *Arg2) -> bool {
+        if(Arg1->getOperand(2).getImm() < Arg2->getOperand(2).getImm())
+           return false;
+        return true;  
+     };
+
+   // Loop over all entries in the table.
+   for (auto &E : FactorOpt.getLEAMap()) {
+     auto &List = E.second;
+     if(List.size() > 1) {
+        List.sort(CompareFn);
+     }
+     // Loop over all LEA pairs.
+     for(auto Iter1 = List.begin(); Iter1 != List.end(); Iter1++) {
+        for(auto Iter2 = std::next(Iter1); Iter2 != List.end(); Iter2++) {
+           MachineInstr &LI1 = **Iter1;
+           MachineInstr &LI2 = **Iter2;
+
+           if (!DT->dominates(&LI2,&LI1))
+              continue;
+        
+           int Scale1 = LI1.getOperand(2).getImm(); 
+           int Scale2 = LI2.getOperand(2).getImm(); 
+           assert(LI2.getOperand(0).isReg() && "Result is a VirtualReg");
+           DebugLoc DL = LI1.getDebugLoc();
+
+           int Factor = Scale1 - Scale2;
+           if (Factor > 0 && LegalScale[Factor]) {
+               DEBUG(dbgs() << "CSE LEAs: Candidate to replace: "; LI1.dump(););
+               MachineInstr *NewMI = 
+                  BuildMI(*(const_cast<MachineBasicBlock *>(&MBB)),
+                     &LI1,DL,TII->get(LI1.getOpcode()))
+                   .addDef(LI1.getOperand(0).getReg())  // Dst   = Dst of LI1.
+                   .addUse(LI2.getOperand(0).getReg())  // Base  = Dst of LI2.
+                   .addImm(Factor)                      // Scale = Diff b/w scales.
+                   .addUse(LI1.getOperand(3).getReg())  // Index = Index of LI1.
+                   .addImm(0)                           // Disp  = 0 
+                   .addUse(LI1.getOperand(5).getReg()); // Segment = Segmant of LI1.  
+
+               cseDone = NewMI != nullptr;
+
+               /// Lazy removal shall ensure that replaced LEA remains
+               /// till we finish processing all the basic block. This shall
+               /// provide opportunity for further factorization based on
+               /// the replaced LEA which will be legal since it has same
+               /// destination as newly formed LEA.
+               FactorOpt.addForLazyRemoval(&LI1);
+
+               NumFactoredLEAs++;
+               DEBUG(dbgs() << "CSE LEAs: Replaced by: "; NewMI->dump(););
+           }
+        }
+     }
+   }
+  return cseDone;
+}
+
+bool OptimizeLEAPass::FactorizeLEAsBasicBlock(MachineDomTreeNode * DN) {
+   bool Changed = false;
+   MachineBasicBlock * MBB = DN->getBlock();
+   FactorOpt.pushScope(MBB); 
+
+   Changed |= processBasicBlock(*MBB);
+   for(auto Child : DN->getChildren()) 
+      FactorizeLEAsBasicBlock(Child);
+
+   FactorOpt.popScope();  
+   return Changed;
+}
+
+bool OptimizeLEAPass::FactorizeLEAsAllBasicBlocks(MachineFunction &MF) {
+   bool Changed = FactorizeLEAsBasicBlock(DT->getRootNode());
+   FactorOpt.performCleanup();
+   return Changed; 
+}
+
 bool OptimizeLEAPass::runOnMachineFunction(MachineFunction &MF) {
   bool Changed = false;
 
@@ -655,6 +891,10 @@ bool OptimizeLEAPass::runOnMachineFunction(MachineFunction &MF) {
   MRI = &MF.getRegInfo();
   TII = MF.getSubtarget<X86Subtarget>().getInstrInfo();
   TRI = MF.getSubtarget<X86Subtarget>().getRegisterInfo();
+  DT  = &getAnalysis<MachineDominatorTree>();
+
+  // Attempt factorizing LEAs.
+  Changed |= FactorizeLEAsAllBasicBlocks(MF);
 
   // Process all basic blocks.
   for (auto &MBB : MF) {
