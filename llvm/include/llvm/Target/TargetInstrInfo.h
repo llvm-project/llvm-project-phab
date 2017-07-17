@@ -75,6 +75,16 @@ public:
                                          const TargetRegisterInfo *TRI,
                                          const MachineFunction &MF) const;
 
+  /// An instruction that pollutes additional registers might still be
+  /// rematerializable under the assumption that those registers aren't live.
+  /// This is the purpose of YES_BUT_EXTRA_PHYSREG_DEFS.
+  enum class Rematerializability
+  {
+      NO = 0,
+      YES_BUT_EXTRA_PHYSREG_DEFS = 1,
+      YES = 2
+  };
+
   /// Return true if the instruction is trivially rematerializable, meaning it
   /// has no side effects and requires no operands that aren't always available.
   /// This means the only allowed uses are constants and unallocatable physical
@@ -82,10 +92,23 @@ public:
   /// in the function.
   bool isTriviallyReMaterializable(const MachineInstr &MI,
                                    AliasAnalysis *AA = nullptr) const {
-    return MI.getOpcode() == TargetOpcode::IMPLICIT_DEF ||
-           (MI.getDesc().isRematerializable() &&
-            (isReallyTriviallyReMaterializable(MI, AA) ||
-             isReallyTriviallyReMaterializableGeneric(MI, AA)));
+    return (isPotentiallyTriviallyReMaterializable(MI, AA)
+            == Rematerializability::YES);
+  }
+
+  /// More generic version of isTriviallyReMaterializable, report instructions
+  /// with extra physreg defs that are rematerializable if the corresponding
+  /// registers are dead.
+  Rematerializability
+  isPotentiallyTriviallyReMaterializable(const MachineInstr &MI,
+                              AliasAnalysis *AA = nullptr) const {
+    if(MI.getOpcode() == TargetOpcode::IMPLICIT_DEF)
+        return Rematerializability::YES;
+    if(!MI.getDesc().isRematerializable())
+        return Rematerializability::NO;
+    if(isReallyTriviallyReMaterializable(MI, AA))
+        return Rematerializability::YES;
+    return isReallyPotentiallyTriviallyReMaterializableGeneric(MI, AA);
   }
 
 protected:
@@ -140,8 +163,9 @@ private:
   /// set and the target hook isReallyTriviallyReMaterializable returns false,
   /// this function does target-independent tests to determine if the
   /// instruction is really trivially rematerializable.
-  bool isReallyTriviallyReMaterializableGeneric(const MachineInstr &MI,
-                                                AliasAnalysis *AA) const;
+  Rematerializability
+  isReallyPotentiallyTriviallyReMaterializableGeneric(const MachineInstr &MI,
+                                                      AliasAnalysis *AA) const;
 
 public:
   /// These methods return the opcode of the frame setup/destroy instructions

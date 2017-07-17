@@ -853,14 +853,15 @@ MachineInstr *TargetInstrInfo::foldMemoryOperand(MachineInstr &MI,
   return NewMI;
 }
 
-bool TargetInstrInfo::isReallyTriviallyReMaterializableGeneric(
+TargetInstrInfo::Rematerializability
+TargetInstrInfo::isReallyPotentiallyTriviallyReMaterializableGeneric(
     const MachineInstr &MI, AliasAnalysis *AA) const {
   const MachineFunction &MF = *MI.getParent()->getParent();
   const MachineRegisterInfo &MRI = MF.getRegInfo();
 
   // Remat clients assume operand 0 is the defined register.
   if (!MI.getNumOperands() || !MI.getOperand(0).isReg())
-    return false;
+    return Rematerializability::NO;
   unsigned DefReg = MI.getOperand(0).getReg();
 
   // A sub-register definition can only be rematerialized if the instruction
@@ -869,7 +870,7 @@ bool TargetInstrInfo::isReallyTriviallyReMaterializableGeneric(
   // moved safely.
   if (TargetRegisterInfo::isVirtualRegister(DefReg) &&
       MI.getOperand(0).getSubReg() && MI.readsVirtualRegister(DefReg))
-    return false;
+    return Rematerializability::NO;
 
   // A load from a fixed stack slot can be rematerialized. This may be
   // redundant with subsequent checks, but it's target-independent,
@@ -877,20 +878,24 @@ bool TargetInstrInfo::isReallyTriviallyReMaterializableGeneric(
   int FrameIdx = 0;
   if (isLoadFromStackSlot(MI, FrameIdx) &&
       MF.getFrameInfo().isImmutableObjectIndex(FrameIdx))
-    return true;
+    return Rematerializability::YES;
 
   // Avoid instructions obviously unsafe for remat.
   if (MI.isNotDuplicable() || MI.mayStore() || MI.hasUnmodeledSideEffects())
-    return false;
+    return Rematerializability::NO;
 
   // Don't remat inline asm. We have no idea how expensive it is
   // even if it's side effect free.
   if (MI.isInlineAsm())
-    return false;
+    return Rematerializability::NO;
 
   // Avoid instructions which load from potentially varying memory.
   if (MI.mayLoad() && !MI.isDereferenceableInvariantLoad(AA))
-    return false;
+    return Rematerializability::NO;
+
+  // Track whether the instruction pollutes any additional registers.
+  // if they are dead at the rematerialization location, it's still ok.
+  bool AdditionalDefs = false;
 
   // If any of the registers accessed are non-constant, conservatively assume
   // the instruction is not rematerializable.
@@ -908,10 +913,11 @@ bool TargetInstrInfo::isReallyTriviallyReMaterializableGeneric(
         // and we can freely move its uses. Alternatively, if it's allocatable,
         // it could get allocated to something with a def during allocation.
         if (!MRI.isConstantPhysReg(Reg))
-          return false;
+          return Rematerializability::NO;
       } else {
-        // A physreg def. We can't remat it.
-        return false;
+        // A physreg def. If the register is dead, we can still rematerialize.
+        // This will be checked in LiveRangeEdit::canRematerializeAt.
+        AdditionalDefs = true;
       }
       continue;
     }
@@ -919,17 +925,18 @@ bool TargetInstrInfo::isReallyTriviallyReMaterializableGeneric(
     // Only allow one virtual-register def.  There may be multiple defs of the
     // same virtual register, though.
     if (MO.isDef() && Reg != DefReg)
-      return false;
+      return Rematerializability::NO;
 
     // Don't allow any virtual-register uses. Rematting an instruction with
     // virtual register uses would length the live ranges of the uses, which
     // is not necessarily a good idea, certainly not "trivial".
     if (MO.isUse())
-      return false;
+      return Rematerializability::NO;
   }
 
   // Everything checked out.
-  return true;
+  return AdditionalDefs ? Rematerializability::YES_BUT_EXTRA_PHYSREG_DEFS
+                        : Rematerializability::YES;
 }
 
 int TargetInstrInfo::getSPAdjust(const MachineInstr &MI) const {

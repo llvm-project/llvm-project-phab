@@ -1085,7 +1085,8 @@ bool MachineLICM::IsProfitableToHoist(MachineInstr &MI) {
 
   // Rematerializable instructions should always be hoisted since the register
   // allocator can just pull them down again when needed.
-  if (TII->isTriviallyReMaterializable(MI, AA))
+  if (TII->isPotentiallyTriviallyReMaterializable(MI, AA)
+      != TargetInstrInfo::Rematerializability::NO)
     return true;
 
   // FIXME: If there are long latency loop-invariant instructions inside the
@@ -1138,7 +1139,8 @@ bool MachineLICM::IsProfitableToHoist(MachineInstr &MI) {
 
   // High register pressure situation, only hoist if the instruction is going
   // to be remat'ed.
-  if (!TII->isTriviallyReMaterializable(MI, AA) &&
+  if (TII->isPotentiallyTriviallyReMaterializable(MI, AA)
+      == TargetInstrInfo::Rematerializability::NO &&
       !MI.isDereferenceableInvariantLoad(AA)) {
     DEBUG(dbgs() << "Can't remat / high reg-pressure: " << MI);
     return false;

@@ -121,7 +121,8 @@ static bool isRematerializable(const LiveInterval &LI,
       }
     }
 
-    if (!TII.isTriviallyReMaterializable(*MI, LIS.getAliasAnalysis()))
+    if (TII.isPotentiallyTriviallyReMaterializable(*MI, LIS.getAliasAnalysis())
+        == TargetInstrInfo::Rematerializability::NO)
       return false;
   }
   return true;
