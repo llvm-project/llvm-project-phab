@@ -161,7 +161,7 @@ Value *ParallelLoopGenerator::createParallelLoop(
 
   // Add one as the upper bound provided by OpenMP is a < comparison
   // whereas the codegenForSequential function creates a <= comparison.
-  UB = Builder.CreateAdd(UB, ConstantInt::get(LongType, 1));
+  UB = Builder.CreateAdd(UB, ConstantInt::get(UB->getType(), 1));
 
   // Tell the runtime we start a parallel loop
   createCallSpawnThreads(SubFn, SubFnParam, LB, UB, Stride);

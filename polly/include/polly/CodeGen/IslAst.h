@@ -78,6 +78,12 @@ private:
 
   IslAst(Scop &Scop);
   void init(const Dependences &D);
+  isl_ast_expr *extractPreconditionFromAST(isl_ast_node *Node,
+                                           isl_ast_expr *cond,
+                                           isl_ast_build *Build);
+  isl_ast_expr *extractPreconditionFromAST(isl_ast_expr *Expr,
+                                           isl_ast_expr *cond,
+                                           isl_ast_build *Build);
 };
 
 class IslAstInfo {

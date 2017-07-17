@@ -57,6 +57,8 @@ __isl_give isl_ast_expr *isl_ast_expr_access(__isl_take isl_ast_expr *array,
 __isl_give isl_ast_expr *isl_ast_expr_call(__isl_take isl_ast_expr *function,
 	__isl_take isl_ast_expr_list *arguments);
 __isl_give isl_ast_expr *isl_ast_expr_address_of(__isl_take isl_ast_expr *expr);
+__isl_give isl_ast_expr *isl_ast_expr_bound(__isl_take isl_ast_expr *expr,
+ 	isl_bool is_signed, unsigned int size, __isl_take isl_set *conditions);
 
 __isl_give isl_ast_expr *isl_ast_expr_copy(__isl_keep isl_ast_expr *expr);
 __isl_null isl_ast_expr *isl_ast_expr_free(__isl_take isl_ast_expr *expr);
@@ -65,6 +67,11 @@ isl_ctx *isl_ast_expr_get_ctx(__isl_keep isl_ast_expr *expr);
 enum isl_ast_expr_type isl_ast_expr_get_type(__isl_keep isl_ast_expr *expr);
 __isl_give isl_val *isl_ast_expr_get_val(__isl_keep isl_ast_expr *expr);
 __isl_give isl_id *isl_ast_expr_get_id(__isl_keep isl_ast_expr *expr);
+
+unsigned int isl_ast_expr_get_bound_bits(__isl_keep isl_ast_expr *expr);
+isl_bool isl_ast_expr_get_bound_signed(__isl_keep isl_ast_expr *expr);
+__isl_give isl_ast_expr* isl_ast_expr_get_bound_expr (__isl_keep isl_ast_expr *expr);
+__isl_give isl_set* isl_ast_expr_get_bound_condition (__isl_keep isl_ast_expr *expr);
 
 enum isl_ast_op_type isl_ast_expr_get_op_type(__isl_keep isl_ast_expr *expr);
 int isl_ast_expr_get_op_n_arg(__isl_keep isl_ast_expr *expr);

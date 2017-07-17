@@ -853,13 +853,13 @@ __isl_give isl_ast_graft *isl_ast_graft_alloc_from_children(
 						isl_set_copy(guard));
 	list = gist_guards(list, guard);
 	list = insert_pending_guard_nodes(list, guard_build);
-	isl_ast_build_free(guard_build);
 
 	node_list = extract_node_list(list);
 	node = isl_ast_node_from_ast_node_list(node_list);
+	graft = isl_ast_graft_alloc(node, build);
+	isl_ast_build_free(guard_build);
 	isl_ast_graft_list_free(list);
 
-	graft = isl_ast_graft_alloc(node, build);
 	graft = store_guard(graft, guard, build);
 	graft = isl_ast_graft_enforce(graft, enforced);
 
@@ -983,6 +983,7 @@ __isl_give isl_ast_node *isl_ast_node_from_graft_list(
 	__isl_keep isl_ast_build *build)
 {
 	isl_ast_node_list *node_list;
+	isl_ast_graft *tmp;
 
 	list = insert_pending_guard_nodes(list, build);
 	node_list = extract_node_list(list);

@@ -24,6 +24,7 @@
 #include <isl_ast_build_expr.h>
 #include <isl_ast_build_private.h>
 #include <isl_ast_graft_private.h>
+#include "isl_ast_private.h"
 
 /* Data used in generate_domain.
  *
@@ -658,6 +659,8 @@ static __isl_give isl_ast_expr *reduce_list(enum isl_ast_op_type type,
 	__isl_keep isl_pw_aff_list *list, __isl_keep isl_ast_build *build)
 {
 	int i, n;
+	isl_bool is_signed = isl_bool_false;
+	size_t bits = 0;
 	isl_ctx *ctx;
 	isl_ast_expr *expr;
 
@@ -688,9 +691,28 @@ static __isl_give isl_ast_expr *reduce_list(enum isl_ast_op_type type,
 		if (!expr_i)
 			goto error;
 		expr->u.op.args[i] = expr_i;
+		if (build->compute_bounds) {
+			if (expr->u.op.args[i]->type != isl_ast_expr_bound_t)
+				isl_die(isl_ast_build_get_ctx(build),
+					isl_error_internal,
+					"Unbound expression found", continue);
+			if (expr->u.op.args[i]->u.bound.is_signed && !is_signed) {
+				is_signed = 1;
+				bits++;
+			}
+			if (expr->u.op.args[i]->u.bound.size > bits)
+				bits = expr->u.op.args[i]->u.bound.size;
+		}
 	}
 
 	isl_pw_aff_list_free(list);
+	if (build->compute_bounds && bits > 0) {
+		if (n > 1) {
+			expr = isl_ast_expr_bound(expr, is_signed, bits, NULL);
+		} else {
+			isl_die(isl_ast_build_get_ctx(build), isl_error_internal, "Should not happen!", return NULL);
+		}
+	}
 	return expr;
 error:
 	isl_pw_aff_list_free(list);
@@ -971,6 +993,51 @@ static __isl_give isl_pw_aff_list *list_add_one(
 	return list;
 }
 
+/*
+ * Set the bounds of node->u.f.iterator by calculating max(size(bound),
+ * size(bound + add_offset)).
+ */
+static void isl_ast_node_for_set_iterator_type(
+	__isl_keep isl_ast_node *node, __isl_take isl_aff *bound,
+	__isl_take isl_local_space *ls,	__isl_take isl_val *add_offset,
+	__isl_take isl_ast_build *build)
+{
+	isl_aff *constant, *pos_bound;
+	size_t bits;
+	isl_bool is_signed;
+	isl_ast_expr *org_expr = node->u.f.iterator;
+
+	constant = isl_aff_val_on_domain(ls, add_offset);
+	pos_bound = isl_aff_add(isl_aff_copy(bound), constant);
+	node->u.f.iterator = isl_ast_build_set_size(build,
+												isl_ast_expr_copy(org_expr),
+												pos_bound);
+
+	if (node->u.f.iterator->type != isl_ast_expr_bound_t) {
+		isl_die(isl_ast_build_get_ctx(build), isl_error_internal,
+			"Unbound loop iterator found", goto out);
+	}
+	bits = node->u.f.iterator->u.bound.size;
+	is_signed = node->u.f.iterator->u.bound.is_signed;
+	isl_ast_expr_free(node->u.f.iterator);
+
+	node->u.f.iterator = isl_ast_build_set_size(build, org_expr, bound);
+	if (node->u.f.iterator->type != isl_ast_expr_bound_t) {
+		isl_die(isl_ast_build_get_ctx(build), isl_error_internal,
+				"Unbound loop iterator found", goto out);
+	}
+
+	if (node->u.f.iterator->u.bound.size < bits) {
+		node->u.f.iterator->u.bound.size = bits;
+		node->u.f.iterator->u.bound.is_signed = is_signed;
+	}
+
+out:
+	isl_aff_free(pos_bound);
+	isl_aff_free(bound);
+	isl_ast_build_free(build);
+}
+
 /* Set the condition part of the for node graft->node in case
  * the upper bound is represented as a list of piecewise affine expressions.
  *
@@ -1034,24 +1101,64 @@ static __isl_give isl_ast_graft *set_for_cond_from_set(
 	return graft;
 }
 
+__isl_give isl_ast_node_for_priv *isl_ast_node_alloc_for_priv(
+	__isl_keep isl_ctx *ctx)
+{
+	return isl_calloc_type(ctx, isl_ast_node_for_priv);
+}
+
+__isl_null isl_ast_node_for_priv *isl_ast_node_for_priv_free(
+	__isl_take isl_ast_node_for_priv *priv)
+{
+	isl_ast_build_free(priv->inner_build);
+	isl_aff_free(priv->iterator_expr);
+	free(priv);
+
+	return NULL;
+}
+
 /* Construct an isl_ast_expr for the increment (i.e., stride) of
  * the current dimension.
  */
-static __isl_give isl_ast_expr *for_inc(__isl_keep isl_ast_build *build)
+static __isl_give isl_ast_expr *for_inc(__isl_keep isl_ast_build *build,
+	__isl_keep isl_ast_node *node)
 {
 	int depth;
 	isl_val *v;
 	isl_ctx *ctx;
+	isl_local_space *ls;
+	isl_aff *iterator_expr;
+	isl_ast_build *inner_build;
 
 	if (!build)
 		return NULL;
 	ctx = isl_ast_build_get_ctx(build);
 	depth = isl_ast_build_get_depth(build);
 
-	if (!isl_ast_build_has_stride(build, depth))
+	if (build->compute_bounds) {
+		iterator_expr = isl_aff_copy(node->u.f.priv->iterator_expr);
+		ls = isl_aff_get_domain_local_space(iterator_expr);
+		inner_build = isl_ast_build_copy(node->u.f.priv->inner_build);
+		isl_ast_node_for_priv_free(node->u.f.priv);
+	}
+
+	if (!isl_ast_build_has_stride(build, depth)) {
+		if (build->compute_bounds) {
+			v = isl_val_int_from_ui(ctx, 1);
+			isl_ast_node_for_set_iterator_type(node, iterator_expr,
+							   ls, v, inner_build);
+		}
+
 		return isl_ast_expr_alloc_int_si(ctx, 1);
+	}
 
 	v = isl_ast_build_get_stride(build, depth);
+
+	if (build->compute_bounds) {
+		isl_ast_node_for_set_iterator_type(node, iterator_expr, ls,
+						   isl_val_copy(v), inner_build);
+	}
+
 	return isl_ast_expr_from_val(v);
 }
 
@@ -1097,6 +1204,7 @@ static __isl_give isl_ast_graft *set_for_node_expressions(
 	__isl_keep isl_set *upper_set, __isl_keep isl_ast_build *build)
 {
 	isl_ast_node *node;
+	isl_ast_expr *incr;
 
 	if (!graft)
 		return NULL;
@@ -1105,7 +1213,7 @@ static __isl_give isl_ast_graft *set_for_node_expressions(
 
 	node = graft->node;
 	node->u.f.init = reduce_list(isl_ast_op_max, lower, build);
-	node->u.f.inc = for_inc(build);
+	node->u.f.inc = for_inc(build, node);
 
 	if (!node->u.f.init || !node->u.f.inc)
 		graft = isl_ast_graft_free(graft);
@@ -1320,18 +1428,42 @@ static __isl_give isl_ast_graft *refine_generic(
  * Mark the for node degenerate if "degenerate" is set.
  */
 static __isl_give isl_ast_node *create_for(__isl_keep isl_ast_build *build,
+	__isl_keep isl_basic_set* bounds,
+	__isl_keep isl_ast_build *sub_build,
 	int degenerate)
 {
 	int depth;
 	isl_id *id;
 	isl_ast_node *node;
+	isl_local_space *ls;
+	isl_aff *iterator_expr;
+	isl_val *v;
 
 	if (!build)
 		return NULL;
 
 	depth = isl_ast_build_get_depth(build);
+
 	id = isl_ast_build_get_iterator_id(build, depth);
 	node = isl_ast_node_alloc_for(id);
+
+	if (build->compute_bounds) {
+		ls = isl_basic_set_get_local_space(bounds);
+		iterator_expr = isl_aff_var_on_domain(ls, isl_dim_out, depth);
+
+		node->u.f.priv = isl_ast_node_alloc_for_priv(
+						isl_aff_get_ctx(iterator_expr));
+		node->u.f.priv->inner_build = isl_ast_build_copy(sub_build);
+		node->u.f.priv->iterator_expr = iterator_expr;
+		if (degenerate) {
+			v = isl_val_int_from_ui(isl_aff_get_ctx(iterator_expr), 1);
+			ls = isl_basic_set_get_local_space(bounds);
+			isl_ast_node_for_set_iterator_type(node, isl_aff_copy(iterator_expr),
+							   ls, v, isl_ast_build_copy(node->u.f.priv->inner_build));
+			isl_ast_node_for_priv_free(node->u.f.priv);
+		}
+	}
+
 	if (degenerate)
 		node = isl_ast_node_for_mark_degenerate(node);
 
@@ -1486,7 +1618,7 @@ static __isl_give isl_ast_graft *create_node_scaled(
 	if (eliminated)
 		executed = plug_in_values(executed, sub_build);
 	else
-		node = create_for(build, degenerate);
+		node = create_for(build, bounds, sub_build, degenerate);
 
 	body_build = isl_ast_build_copy(sub_build);
 	body_build = isl_ast_build_increase_depth(body_build);
@@ -1520,6 +1652,7 @@ static __isl_give isl_ast_graft *create_node_scaled(
 		else
 			graft = refine_generic(graft, bounds,
 					domain, for_build);
+
 		isl_ast_build_free(for_build);
 	}
 	isl_set_free(guard);
@@ -5038,6 +5171,7 @@ __isl_give isl_ast_node *isl_ast_build_node_from_schedule_map(
 
 	build = isl_ast_build_copy(build);
 	build = isl_ast_build_set_single_valued(build, 0);
+	build = isl_ast_build_init_options(build);
 	schedule = isl_union_map_coalesce(schedule);
 	schedule = isl_union_map_remove_redundancies(schedule);
 	executed = isl_union_map_reverse(schedule);

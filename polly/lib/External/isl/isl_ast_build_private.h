@@ -12,6 +12,8 @@
  * generated.  That is, it (mostly) contains information about outer
  * loops that can be used to simplify inner loops.
  *
+ * "compute_bounds" is a local copy of the corresponding option.
+ *
  * "domain" represents constraints on the internal schedule domain,
  * corresponding to the context of the AST generation and the constraints
  * implied by the loops that have already been generated.
@@ -145,6 +147,10 @@
 struct isl_ast_build {
 	int ref;
 
+	int compute_bounds;
+	int approximate_bounds;
+	int maximum_size;
+
 	int outer_pos;
 	int depth;
 
@@ -197,8 +203,12 @@ struct isl_ast_build {
 	int n;
 	enum isl_ast_loop_type *loop_type;
 	isl_set *isolated;
+
+    	struct isl_hash_table *cache;
 };
 
+__isl_give isl_ast_build *isl_ast_build_init_options(
+	__isl_take isl_ast_build *context);
 __isl_give isl_ast_build *isl_ast_build_clear_local_info(
 	__isl_take isl_ast_build *build);
 __isl_give isl_ast_build *isl_ast_build_increase_depth(

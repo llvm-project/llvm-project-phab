@@ -37,11 +37,13 @@
 #include "llvm/Analysis/RegionInfo.h"
 #include "llvm/Support/Debug.h"
 #include "isl/aff.h"
+#include "isl/ast.h"
 #include "isl/ast_build.h"
 #include "isl/list.h"
 #include "isl/map.h"
 #include "isl/set.h"
 #include "isl/union_map.h"
+#include <iostream>
 
 #include <utility>
 
@@ -78,6 +80,10 @@ static cl::opt<bool> DetectParallel("polly-ast-detect-parallel",
                                     cl::init(false), cl::ZeroOrMore,
                                     cl::cat(PollyCategory));
 
+static cl::opt<bool> ComputeBounds(
+    "polly-ast-compute-bounds",
+    cl::desc("Compute bounds on isl_asl_exprs to determine their type"),
+    cl::init(true), cl::ZeroOrMore, cl::cat(PollyCategory));
 namespace polly {
 /// Temporary information used when building the ast.
 struct AstBuildUserInfo {
@@ -422,6 +428,9 @@ void IslAst::init(const Dependences &D) {
   isl_ctx *Ctx = S.getIslCtx();
   isl_options_set_ast_build_atomic_upper_bound(Ctx, true);
   isl_options_set_ast_build_detect_min_max(Ctx, true);
+  if (ComputeBounds) {
+    isl_options_set_ast_build_compute_bounds(Ctx, true);
+  }
   isl_ast_build *Build;
   AstBuildUserInfo BuildInfo;
 
@@ -451,8 +460,96 @@ void IslAst::init(const Dependences &D) {
   RunCondition = buildRunCondition(S, Build);
 
   Root = isl_ast_build_node_from_schedule(Build, S.getScheduleTree());
+  RunCondition =
+      extractPreconditionFromAST(isl_ast_node_copy(Root), RunCondition, Build);
 
   isl_ast_build_free(Build);
+}
+
+isl_ast_expr *IslAst::extractPreconditionFromAST(isl_ast_node *Node,
+                                                 isl_ast_expr *cond,
+                                                 isl_ast_build *Build) {
+  switch (isl_ast_node_get_type(Node)) {
+  case isl_ast_node_mark:
+    cond = extractPreconditionFromAST(isl_ast_node_mark_get_node(Node), cond,
+                                      Build);
+    isl_ast_node_free(Node);
+    break;
+  case isl_ast_node_for:
+    cond = extractPreconditionFromAST(isl_ast_node_for_get_init(Node), cond,
+                                      Build);
+    cond =
+        extractPreconditionFromAST(isl_ast_node_for_get_inc(Node), cond, Build);
+    cond = extractPreconditionFromAST(isl_ast_node_for_get_iterator(Node), cond,
+                                      Build);
+    cond = extractPreconditionFromAST(isl_ast_node_for_get_body(Node), cond,
+                                      Build);
+    isl_ast_node_free(Node);
+    break;
+  case isl_ast_node_if:
+    cond =
+        extractPreconditionFromAST(isl_ast_node_if_get_cond(Node), cond, Build);
+    cond =
+        extractPreconditionFromAST(isl_ast_node_if_get_then(Node), cond, Build);
+    cond =
+        extractPreconditionFromAST(isl_ast_node_if_get_else(Node), cond, Build);
+    isl_ast_node_free(Node);
+    break;
+  case isl_ast_node_user:
+    cond = extractPreconditionFromAST(isl_ast_node_user_get_expr(Node), cond,
+                                      Build);
+    isl_ast_node_free(Node);
+    break;
+  case isl_ast_node_block:
+    isl_ast_node_list *List = isl_ast_node_block_get_children(Node);
+
+    for (int i = 0; i < isl_ast_node_list_n_ast_node(List); ++i) {
+      cond = extractPreconditionFromAST(isl_ast_node_list_get_ast_node(List, i),
+                                        cond, Build);
+    }
+    isl_ast_node_list_free(List);
+    isl_ast_node_free(Node);
+    break;
+  }
+  return cond;
+}
+
+isl_ast_expr *IslAst::extractPreconditionFromAST(isl_ast_expr *Expr,
+                                                 isl_ast_expr *cond,
+                                                 isl_ast_build *Build) {
+  int NumArgs;
+  isl_set *OtherCondition;
+
+  switch (isl_ast_expr_get_type(Expr)) {
+  case isl_ast_expr_error:
+    llvm_unreachable("Code generation error");
+  case isl_ast_expr_op:
+    NumArgs = isl_ast_expr_get_op_n_arg(Expr);
+    for (int i = 0; i < NumArgs; i++) {
+      cond = extractPreconditionFromAST(isl_ast_expr_get_op_arg(Expr, i), cond,
+                                        Build);
+    }
+    isl_ast_expr_free(Expr);
+    return cond;
+  case isl_ast_expr_id:
+    isl_ast_expr_free(Expr);
+    return cond;
+  case isl_ast_expr_int:
+    isl_ast_expr_free(Expr);
+    return cond;
+  case isl_ast_expr_bound_t:
+    OtherCondition = isl_ast_expr_get_bound_condition(Expr);
+    if (OtherCondition) {
+      cond = isl_ast_expr_and(
+          cond, isl_ast_build_expr_from_set(Build, OtherCondition));
+    }
+
+    cond = extractPreconditionFromAST(isl_ast_expr_get_bound_expr(Expr), cond,
+                                      Build);
+
+    isl_ast_expr_free(Expr);
+    return cond;
+  }
 }
 
 IslAst IslAst::create(Scop &Scop, const Dependences &D) {

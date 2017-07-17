@@ -184,6 +184,8 @@ public:
   /// @return The llvm::Value* containing the result of the computation.
   llvm::Value *createAccessAddress(__isl_take isl_ast_expr *Expr);
 
+  void injectBound(isl_ast_expr *Bound);
+
 private:
   Scop &S;
 
@@ -221,6 +223,7 @@ private:
   llvm::Value *createOpBooleanConditional(__isl_take isl_ast_expr *Expr);
   llvm::Value *createId(__isl_take isl_ast_expr *Expr);
   llvm::Value *createInt(__isl_take isl_ast_expr *Expr);
+  llvm::Value *createBound(__isl_take isl_ast_expr *Expr);
   llvm::Value *createOpAddressOf(__isl_take isl_ast_expr *Expr);
 
   /// Create a binary operation @p Opc and track overflows if requested.
@@ -264,6 +267,9 @@ private:
   /// @return A value that represents the result of the multiplication.
   llvm::Value *createMul(llvm::Value *LHS, llvm::Value *RHS,
                          const llvm::Twine &Name = "");
+
+protected:
+  isl_ast_expr *CurrentBound = nullptr;
 };
 } // namespace polly
 
