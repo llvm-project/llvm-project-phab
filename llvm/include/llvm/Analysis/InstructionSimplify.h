@@ -202,6 +202,10 @@ Value *SimplifyCall(ImmutableCallSite CS, Value *V, User::op_iterator ArgBegin,
 Value *SimplifyCall(ImmutableCallSite CS, Value *V, ArrayRef<Value *> Args,
                     const SimplifyQuery &Q);
 
+/// SimplifyFreezeInst - Given an operand for a Freeze, see if we can
+/// fold the result.  If not, this returns null.
+Value *SimplifyFreezeInst(Value *Op, const SimplifyQuery &Q);
+
 /// See if we can compute a simplified version of this instruction. If not,
 /// return null.
 Value *SimplifyInstruction(Instruction *I, const SimplifyQuery &Q,
