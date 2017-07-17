@@ -860,14 +860,27 @@ public:
 
   // Except in the trivial case described above, we do not know how to divide
   // Expr by Denominator for the following functions with empty implementation.
-  void visitTruncateExpr(const SCEVTruncateExpr *Numerator) {}
   void visitZeroExtendExpr(const SCEVZeroExtendExpr *Numerator) {}
-  void visitSignExtendExpr(const SCEVSignExtendExpr *Numerator) {}
   void visitUDivExpr(const SCEVUDivExpr *Numerator) {}
   void visitSMaxExpr(const SCEVSMaxExpr *Numerator) {}
   void visitUMaxExpr(const SCEVUMaxExpr *Numerator) {}
   void visitUnknown(const SCEVUnknown *Numerator) {}
   void visitCouldNotCompute(const SCEVCouldNotCompute *Numerator) {}
+
+  void visitTruncateExpr(const SCEVTruncateExpr *Numerator) {
+	const SCEV *Q, *R;
+	divide(SE, Numerator->getOperand(), Denominator, &Q, &R);
+	Quotient = SE.getTruncateExpr(Q, Numerator->getType());
+	Remainder = SE.getTruncateExpr(R, Numerator->getType());
+  }
+
+  void visitSignExtendExpr(const SCEVSignExtendExpr *Numerator) {
+	const SCEV *Q, *R;
+    divide(SE, Numerator->getOperand(), Denominator, &Q, &R);
+    Quotient = SE.getSignExtendExpr(Q, Numerator->getType());
+    Remainder = SE.getSignExtendExpr(R, Numerator->getType());
+  }
+
 
   void visitConstant(const SCEVConstant *Numerator) {
     if (const SCEVConstant *D = dyn_cast<SCEVConstant>(Denominator)) {
@@ -886,6 +899,8 @@ public:
       APInt::sdivrem(NumeratorVal, DenominatorVal, QuotientVal, RemainderVal);
       Quotient = SE.getConstant(QuotientVal);
       Remainder = SE.getConstant(RemainderVal);
+      Quotient = SE.getTruncateOrNoop(Quotient, Numerator->getType());
+      Remainder = SE.getTruncateOrNoop(Remainder, Numerator->getType());
       return;
     }
   }
@@ -896,20 +911,23 @@ public:
       return cannotDivide(Numerator);
     divide(SE, Numerator->getStart(), Denominator, &StartQ, &StartR);
     divide(SE, Numerator->getStepRecurrence(SE), Denominator, &StepQ, &StepR);
-    // Bail out if the types do not match.
-    Type *Ty = Denominator->getType();
-    if (Ty != StartQ->getType() || Ty != StartR->getType() ||
-        Ty != StepQ->getType() || Ty != StepR->getType())
-      return cannotDivide(Numerator);
-    Quotient = SE.getAddRecExpr(StartQ, StepQ, Numerator->getLoop(),
-                                Numerator->getNoWrapFlags());
-    Remainder = SE.getAddRecExpr(StartR, StepR, Numerator->getLoop(),
-                                 Numerator->getNoWrapFlags());
+    assert(
+			Numerator->getStart()->getType() == StartQ->getType()
+					&& StartQ->getType() == StartR->getType()
+					&& "Expected matching types");
+	assert(
+			Numerator->getStepRecurrence(SE)->getType() == StepQ->getType()
+					&& StepQ->getType() == StepR->getType()
+					&& "Expected matching types");
+	Quotient = SE.getAddRecExpr(StartQ, StepQ, Numerator->getLoop(),
+	                                Numerator->getNoWrapFlags());
+	Remainder = SE.getAddRecExpr(StartR, StepR, Numerator->getLoop(),
+	                                 Numerator->getNoWrapFlags());
   }
 
   void visitAddExpr(const SCEVAddExpr *Numerator) {
     SmallVector<const SCEV *, 2> Qs, Rs;
-    Type *Ty = Denominator->getType();
+    Type *Ty = Numerator->getType();
 
     for (const SCEV *Op : Numerator->operands()) {
       const SCEV *Q, *R;
@@ -918,6 +936,8 @@ public:
       // Bail out if types do not match.
       if (Ty != Q->getType() || Ty != R->getType())
         return cannotDivide(Numerator);
+      assert(Ty == Q->getType() && Ty == R->getType() &&
+         "Expected matching types");
 
       Qs.push_back(Q);
       Rs.push_back(R);
@@ -979,13 +999,13 @@ public:
     // The Remainder is obtained by replacing Denominator by 0 in Numerator.
     ValueToValueMap RewriteMap;
     RewriteMap[cast<SCEVUnknown>(Denominator)->getValue()] =
-        cast<SCEVConstant>(Zero)->getValue();
+        cast<SCEVConstant>(SE.getZero(Denominator->getType()))->getValue();
     Remainder = SCEVParameterRewriter::rewrite(Numerator, SE, RewriteMap, true);
 
     if (Remainder->isZero()) {
       // The Quotient is obtained by replacing Denominator by 1 in Numerator.
       RewriteMap[cast<SCEVUnknown>(Denominator)->getValue()] =
-          cast<SCEVConstant>(One)->getValue();
+    	  cast<SCEVConstant>(SE.getOne(Denominator->getType()))->getValue();
       Quotient =
           SCEVParameterRewriter::rewrite(Numerator, SE, RewriteMap, true);
       return;
@@ -1007,8 +1027,8 @@ private:
   SCEVDivision(ScalarEvolution &S, const SCEV *Numerator,
                const SCEV *Denominator)
       : SE(S), Denominator(Denominator) {
-    Zero = SE.getZero(Denominator->getType());
-    One = SE.getOne(Denominator->getType());
+	Zero = SE.getZero(Numerator->getType());
+	One = SE.getOne(Numerator->getType());
 
     // We generally do not know how to divide Expr by Denominator. We
     // initialize the division to a "cannot divide" state to simplify the rest
