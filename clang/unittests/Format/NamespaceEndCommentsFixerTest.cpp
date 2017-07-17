@@ -509,6 +509,51 @@ TEST_F(NamespaceEndCommentsFixerTest,
                                     "}\n"));
 }
 
+TEST_F(NamespaceEndCommentsFixerTest, AddEndCommentForNamespacesAroundMacros) {
+  EXPECT_EQ("namespace A {\n"
+            "#if 0\n"
+            "int i;\n"
+            "#endif\n"
+            "}// namespace A",
+            fixNamespaceEndComments("namespace A {\n"
+                                    "#if 0\n"
+                                    "int i;\n"
+                                    "#endif\n"
+                                    "}"));
+  EXPECT_EQ("#if 0\n"
+            "#endif\n"
+            "namespace A {\n"
+            "int i;\n"
+            "int j;\n"
+            "}// namespace A",
+            fixNamespaceEndComments("#if 0\n"
+                                    "#endif\n"
+                                    "namespace A {\n"
+                                    "int i;\n"
+                                    "int j;\n"
+                                    "}"));
+  EXPECT_EQ("namespace A {\n"
+            "int i;\n"
+            "int j;\n"
+            "}// namespace A\n"
+            "#if 0\n"
+            "#endif",
+            fixNamespaceEndComments("namespace A {\n"
+                                    "int i;\n"
+                                    "int j;\n"
+                                    "}\n"
+                                    "#if 0\n"
+                                    "#endif"));
+  EXPECT_EQ("namespace A {\n"
+            "#define FOO\n"
+            "int i;\n"
+            "}// namespace A",
+            fixNamespaceEndComments("namespace A {\n"
+                                    "#define FOO\n"
+                                    "int i;\n"
+                                    "}"));
+}
+
 TEST_F(NamespaceEndCommentsFixerTest,
        DoesNotAddEndCommentForNamespacesInMacroDeclarations) {
   EXPECT_EQ("#ifdef 1\n"
