@@ -136,6 +136,14 @@ template <class ELFT> void Writer<ELFT>::removeEmptyPTLoad() {
   Phdrs.erase(I, Phdrs.end());
 }
 
+template <class ELFT> static void convertCtorsDtorsToInitFini() {
+  for (InputSectionBase *&S : InputSections)
+    if (InputSection *IS = dyn_cast<InputSection>(S))
+      if (IS->Live)
+        if (InitFiniSection *Sec = InitFiniSection::create(IS))
+          S = Sec;
+}
+
 template <class ELFT> static void combineEhFrameSections() {
   for (InputSectionBase *&S : InputSections) {
     EhInputSection *ES = dyn_cast<EhInputSection>(S);
@@ -164,6 +172,9 @@ template <class ELFT> void Writer<ELFT>::run() {
   // Create linker-synthesized sections such as .got or .plt.
   // Such sections are of type input section.
   createSyntheticSections();
+
+  // Convert .ctors/.dtors to .init_array/.fini_array.
+  convertCtorsDtorsToInitFini<ELFT>();
 
   if (!Config->Relocatable)
     combineEhFrameSections<ELFT>();
@@ -866,19 +877,6 @@ template <class ELFT> void Writer<ELFT>::addReservedSymbols() {
   ElfSym::Edata2 = Add("_edata");
 }
 
-// Sort input sections by section name suffixes for
-// __attribute__((init_priority(N))).
-static void sortInitFini(OutputSectionCommand *Cmd) {
-  if (Cmd)
-    Cmd->sortInitFini();
-}
-
-// Sort input sections by the special rule for .ctors and .dtors.
-static void sortCtorsDtors(OutputSectionCommand *Cmd) {
-  if (Cmd)
-    Cmd->sortCtorsDtors();
-}
-
 // Sort input sections using the list provided by --symbol-ordering-file.
 template <class ELFT> static void sortBySymbolsOrder() {
   if (Config->SymbolOrderingFile.empty())
@@ -939,10 +937,13 @@ template <class ELFT> void Writer<ELFT>::createSections() {
 
   Script->fabricateDefaultCommands();
   sortBySymbolsOrder<ELFT>();
-  sortInitFini(findSectionCommand(".init_array"));
-  sortInitFini(findSectionCommand(".fini_array"));
-  sortCtorsDtors(findSectionCommand(".ctors"));
-  sortCtorsDtors(findSectionCommand(".dtors"));
+
+  // Sort input sections by section name suffixes for
+  // __attribute__((init_priority(N))).
+  if (OutputSectionCommand *Cmd = findSectionCommand(".init_array"))
+    Cmd->sortInitFini();
+  if (OutputSectionCommand *Cmd = findSectionCommand(".fini_array"))
+    Cmd->sortInitFini();
 }
 
 // We want to find how similar two ranks are.

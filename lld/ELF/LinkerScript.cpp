@@ -949,66 +949,6 @@ void OutputSectionCommand::sort(std::function<int(InputSectionBase *S)> Order) {
     ISD->Sections.push_back(P.second);
 }
 
-// Returns true if S matches /Filename.?\.o$/.
-static bool isCrtBeginEnd(StringRef S, StringRef Filename) {
-  if (!S.endswith(".o"))
-    return false;
-  S = S.drop_back(2);
-  if (S.endswith(Filename))
-    return true;
-  return !S.empty() && S.drop_back().endswith(Filename);
-}
-
-static bool isCrtbegin(StringRef S) { return isCrtBeginEnd(S, "crtbegin"); }
-static bool isCrtend(StringRef S) { return isCrtBeginEnd(S, "crtend"); }
-
-// .ctors and .dtors are sorted by this priority from highest to lowest.
-//
-//  1. The section was contained in crtbegin (crtbegin contains
-//     some sentinel value in its .ctors and .dtors so that the runtime
-//     can find the beginning of the sections.)
-//
-//  2. The section has an optional priority value in the form of ".ctors.N"
-//     or ".dtors.N" where N is a number. Unlike .{init,fini}_array,
-//     they are compared as string rather than number.
-//
-//  3. The section is just ".ctors" or ".dtors".
-//
-//  4. The section was contained in crtend, which contains an end marker.
-//
-// In an ideal world, we don't need this function because .init_array and
-// .ctors are duplicate features (and .init_array is newer.) However, there
-// are too many real-world use cases of .ctors, so we had no choice to
-// support that with this rather ad-hoc semantics.
-static bool compCtors(const InputSection *A, const InputSection *B) {
-  bool BeginA = isCrtbegin(A->File->getName());
-  bool BeginB = isCrtbegin(B->File->getName());
-  if (BeginA != BeginB)
-    return BeginA;
-  bool EndA = isCrtend(A->File->getName());
-  bool EndB = isCrtend(B->File->getName());
-  if (EndA != EndB)
-    return EndB;
-  StringRef X = A->Name;
-  StringRef Y = B->Name;
-  assert(X.startswith(".ctors") || X.startswith(".dtors"));
-  assert(Y.startswith(".ctors") || Y.startswith(".dtors"));
-  X = X.substr(6);
-  Y = Y.substr(6);
-  if (X.empty() && Y.empty())
-    return false;
-  return X < Y;
-}
-
-// Sorts input sections by the special rules for .ctors and .dtors.
-// Unfortunately, the rules are different from the one for .{init,fini}_array.
-// Read the comment above.
-void OutputSectionCommand::sortCtorsDtors() {
-  assert(Commands.size() == 1);
-  auto *ISD = cast<InputSectionDescription>(Commands[0]);
-  std::stable_sort(ISD->Sections.begin(), ISD->Sections.end(), compCtors);
-}
-
 // Sorts input sections by section name suffixes, so that .foo.N comes
 // before .foo.M if N < M. Used to sort .{init,fini}_array.N sections.
 // We want to keep the original order if the priorities are the same

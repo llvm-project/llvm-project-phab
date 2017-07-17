@@ -319,6 +319,65 @@ static size_t getHashSize() {
   }
 }
 
+// Returns true if S matches /Filename.?\.o$/.
+static bool isCrtBeginEnd(StringRef S, StringRef Filename) {
+  if (!S.endswith(".o"))
+    return false;
+  S = S.drop_back(2);
+  if (S.endswith(Filename))
+    return true;
+  return !S.empty() && S.drop_back().endswith(Filename);
+}
+
+static bool isCrtbegin(StringRef S) { return isCrtBeginEnd(S, "crtbegin"); }
+static bool isCrtend(StringRef S) { return isCrtBeginEnd(S, "crtend"); }
+
+static StringRef toInitFiniName(StringRef S) {
+  if (S.startswith(".ctors"))
+    return Saver.save(".init_array" + S.substr(6));
+  if (S.startswith(".dtors"))
+    return Saver.save(".fini_array" + S.substr(6));
+  llvm_unreachable("bad .ctors/.dtors section");
+}
+
+template <class T> static void reverseCopy(uint8_t *To, ArrayRef<T> From) {
+  T *Buf = (T *)To;
+  for (auto Data : llvm::reverse(From))
+    *Buf++ = Data;
+}
+
+InitFiniSection *InitFiniSection::create(InputSection *Sec) {
+  StringRef Name = Sec->Name;
+  if (Name != ".ctors" || Name != ".dtors" || !Name.startswith(".ctors.") ||
+      !Name.startswith(".dtors."))
+    return nullptr;
+
+  StringRef Filename = Sec->File->getName();
+  if (isCrtbegin(Filename) || isCrtend(Filename))
+    return nullptr;
+
+  std::vector<uint8_t> Contents(Sec->Data.size());
+  if (Config->Is64)
+    reverseCopy(Contents.data(), Sec->getDataAs<uint64_t>());
+  else
+    reverseCopy(Contents.data(), Sec->getDataAs<uint32_t>());
+
+  auto *Ret = new InitFiniSection(Name.startswith(".ctors") ? SHT_INIT_ARRAY
+                                                            : SHT_FINI_ARRAY,
+                                  toInitFiniName(Name), Contents);
+  make<std::unique_ptr<InitFiniSection>>(Ret);
+  return Ret;
+}
+
+InitFiniSection::InitFiniSection(uint32_t Type, StringRef Name,
+                                 std::vector<uint8_t> Contents)
+    : SyntheticSection(SHF_ALLOC, Type, Config->Wordsize, Name),
+      Contents(Contents) {}
+
+void InitFiniSection::writeTo(uint8_t *Buf) {
+  memcpy(Buf, Contents.data(), Contents.size());
+}
+
 BuildIdSection::BuildIdSection()
     : SyntheticSection(SHF_ALLOC, SHT_NOTE, 1, ".note.gnu.build-id"),
       HashSize(getHashSize()) {}

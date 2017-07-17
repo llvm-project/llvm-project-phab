@@ -133,6 +133,18 @@ protected:
   uint64_t Size = 0;
 };
 
+class InitFiniSection : public SyntheticSection {
+public:
+  static InitFiniSection *create(InputSection *CtorsDtors);
+  void writeTo(uint8_t *) override;
+  bool empty() const override { return Contents.empty(); }
+  size_t getSize() const override { return Contents.size(); }
+
+private:
+  InitFiniSection(uint32_t Type, StringRef Name, std::vector<uint8_t> Contents);
+  std::vector<uint8_t> Contents;
+};
+
 // .note.gnu.build-id section.
 class BuildIdSection : public SyntheticSection {
   // First 16 bytes are a header.
