@@ -1807,6 +1807,13 @@ bool GVN::processInstruction(Instruction *I) {
     return false;
   }
 
+  // If this was a shortcut PRE, it will have been inserted at the end
+  // of the block; ensure that it dominates all uses of the original.
+  if (Instruction *R = dyn_cast<Instruction>(Repl)) {
+    if (DT->dominates(I, R)) {
+      R->moveBefore(I);
+    }
+  }
   // Remove it!
   patchAndReplaceAllUsesWith(I, Repl);
   if (MD && Repl->getType()->isPtrOrPtrVectorTy())
