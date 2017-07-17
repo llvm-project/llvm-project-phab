@@ -73,9 +73,14 @@ Address CodeGenFunction::CreateTempAlloca(llvm::Type *Ty, CharUnits Align,
   // cast alloca to the default address space when necessary.
   if (CastToDefaultAddrSpace && getASTAllocaAddressSpace() != LangAS::Default) {
     auto DestAddrSpace = getContext().getTargetAddressSpace(LangAS::Default);
+    EnsureInsertPoint();
+    auto *CurBB = Builder.GetInsertBlock();
+    auto CurPos = Builder.GetInsertPoint();
+    Builder.SetInsertPoint(AllocaInsertPt);
     V = getTargetHooks().performAddrSpaceCast(
         *this, V, getASTAllocaAddressSpace(), LangAS::Default,
         Ty->getPointerTo(DestAddrSpace), /*non-null*/ true);
+    Builder.SetInsertPoint(CurBB, CurPos);
   }
 
   return Address(V, Align);
