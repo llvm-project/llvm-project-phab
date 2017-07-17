@@ -350,6 +350,16 @@ static void computeKnownBitsMul(const Value *Op0, const Value *Op1, bool NSW,
     }
   }
 
+  // The result of the bottom bits of an integer multiply can
+  // be inferred by looking at the bottom bits of both operands
+  // and multiplying them together.
+  assert(!Known.hasConflict() && !Known2.hasConflict());
+  APInt Bottom0 = Known.One;
+  APInt Bottom1 = Known2.One;
+  // Find the last bit known on both operands.
+  unsigned TrailBitsKnown = (Known.Zero | Known.One).countTrailingOnes();
+  TrailBitsKnown = std::min(TrailBitsKnown, (Known2.Zero | Known2.One).countTrailingOnes());
+
   // If low bits are zero in either operand, output low known-0 bits.
   // Also compute a conservative estimate for high known-0 bits.
   // More trickiness is possible, but this is sufficient for the
@@ -365,6 +375,12 @@ static void computeKnownBitsMul(const Value *Op0, const Value *Op1, bool NSW,
   Known.resetAll();
   Known.Zero.setLowBits(TrailZ);
   Known.Zero.setHighBits(LeadZ);
+
+  // Finally, these are the known bottom bits of the result.
+  APInt BottomKnown = Bottom0.getLoBits(TrailBitsKnown) *
+                      Bottom1.getLoBits(TrailBitsKnown);
+  Known.Zero |= (~BottomKnown).getLoBits(TrailBitsKnown);
+  Known.One |= BottomKnown.getLoBits(TrailBitsKnown);
 
   // Only make use of no-wrap flags if we failed to compute the sign bit
   // directly.  This matters if the multiplication always overflows, in
