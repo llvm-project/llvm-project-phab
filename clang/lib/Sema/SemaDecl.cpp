@@ -11962,6 +11962,22 @@ static bool ShouldWarnAboutMissingPrototype(const FunctionDecl *FD,
   return MissingPrototype;
 }
 
+static FunctionTemplateDecl *findRedefinition(FunctionTemplateDecl *FTD) {
+  FunctionTemplateDecl *UninstantiatedDef = nullptr;
+  for (auto I : FTD->redecls()) {
+    auto D = cast<FunctionTemplateDecl>(I);
+    if (D != FTD) {
+      if (D->isThisDeclarationADefinition())
+        return D;
+      if (FunctionTemplateDecl *Orig = D->getInstantiatedFromMemberTemplate()) {
+        if (Orig->isThisDeclarationADefinition() || findRedefinition(Orig))
+          UninstantiatedDef = D;
+      }
+    }
+  }
+  return UninstantiatedDef;
+}
+
 void
 Sema::CheckForFunctionRedefinition(FunctionDecl *FD,
                                    const FunctionDecl *EffectiveDefinition,
@@ -11990,6 +12006,31 @@ Sema::CheckForFunctionRedefinition(FunctionDecl *FD,
       }
     }
   }
+
+  if (!Definition)
+    if (FunctionTemplateDecl *FTD = FD->getDescribedFunctionTemplate()) {
+      if (FunctionTemplateDecl *DefTD = findRedefinition(FTD)) {
+        const FunctionDecl *Def = DefTD->getTemplatedDecl();
+        // If the found definition is a template with uninstantiated body, it
+        // can be replaced in specialization:
+        //
+        //    template<typename T> struct X {
+        //      template<typename U> void f(T, U) { }
+        //    };
+        //    template<> template<typename U> void X<int>::f(int x, U y) { }
+        //
+        // In this example the specialization 'X<int>' contains declaration of
+        // 'f', which is considered a definition by 'isDefined' because it is
+        // obtained by instantiation of 'X<T>::f', which has a body.
+        //
+        if (isa<ClassTemplateSpecializationDecl>(FTD->getDeclContext()) &&
+            !Def->isThisDeclarationADefinition() &&
+            Def->getFriendObjectKind() == Decl::FOK_None)
+          return;
+        Definition = Def;
+      }
+    }
+
   if (!Definition)
     return;
 
