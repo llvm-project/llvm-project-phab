@@ -3249,7 +3249,23 @@ bool FunctionDecl::isTemplateInstantiation() const {
   }
   llvm_unreachable("All TSK values handled.");
 }
-   
+
+static FunctionTemplateDecl *getPatternFor(FunctionTemplateDecl *FTD) {
+  for (auto I : FTD->redecls()) {
+    auto D = cast<FunctionTemplateDecl>(I);
+    // If we have hit a point where the user provided a specialization of
+    // this template, we're done looking.
+    if (D->isMemberSpecialization())
+      return D;
+    if (D->isThisDeclarationADefinition())
+      return D;
+    if (FunctionTemplateDecl *Orig = D->getInstantiatedFromMemberTemplate())
+      if (FunctionTemplateDecl *Def = getPatternFor(Orig))
+        return Def;
+  }
+  return nullptr;
+}
+
 FunctionDecl *FunctionDecl::getTemplateInstantiationPattern() const {
   // Handle class scope explicit specialization special case.
   if (getTemplateSpecializationKind() == TSK_ExplicitSpecialization) {
@@ -3274,14 +3290,8 @@ FunctionDecl *FunctionDecl::getTemplateInstantiationPattern() const {
   }
 
   if (FunctionTemplateDecl *Primary = getPrimaryTemplate()) {
-    while (Primary->getInstantiatedFromMemberTemplate()) {
-      // If we have hit a point where the user provided a specialization of
-      // this template, we're done looking.
-      if (Primary->isMemberSpecialization())
-        break;
-      Primary = Primary->getInstantiatedFromMemberTemplate();
-    }
-
+    if (FunctionTemplateDecl *Def = getPatternFor(Primary))
+      Primary = Def;
     return getDefinitionOrSelf(Primary->getTemplatedDecl());
   } 
 

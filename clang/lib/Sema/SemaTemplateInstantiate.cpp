@@ -165,6 +165,13 @@ Sema::getTemplateInstantiationArgs(NamedDecl *D,
         RelativeToPrimary = false;
         continue;
       }
+
+      if (Pattern && Pattern->getFriendObjectKind() != Decl::FOK_None &&
+          Function->getDeclContext()->isFileContext()) {
+        Ctx = const_cast<DeclContext*>(Pattern->getLexicalDeclContext());
+        RelativeToPrimary = false;
+        continue;
+      }
     } else if (CXXRecordDecl *Rec = dyn_cast<CXXRecordDecl>(Ctx)) {
       if (ClassTemplateDecl *ClassTemplate = Rec->getDescribedClassTemplate()) {
         QualType T = ClassTemplate->getInjectedClassNameSpecialization();
