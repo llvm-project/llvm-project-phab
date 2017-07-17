@@ -278,7 +278,7 @@ public:
   /// Returns the opcode of this MachineInstr.
   unsigned getOpcode() const { return MCID->Opcode; }
 
-  /// Access to explicit operands of the instruction.
+  /// Access to explicit and implicit operands of the instruction.
   unsigned getNumOperands() const { return NumOperands; }
 
   const MachineOperand& getOperand(unsigned i) const {
