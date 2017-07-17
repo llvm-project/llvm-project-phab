@@ -874,7 +874,7 @@ public:
     : Expr(OpaqueValueExprClass, T, VK, OK,
            T->isDependentType() ||
            (SourceExpr && SourceExpr->isTypeDependent()),
-           T->isDependentType() || 
+           T->isDependentType() ||
            (SourceExpr && SourceExpr->isValueDependent()),
            T->isInstantiationDependentType() ||
            (SourceExpr && SourceExpr->isInstantiationDependent()),
@@ -3092,6 +3092,13 @@ public:
   }
   bool isAssignmentOp() const { return isAssignmentOp(getOpcode()); }
 
+  static bool isCommutativeOp(Opcode Opc) {
+    return Opc == BO_Mul || Opc == BO_Add || (Opc >= BO_EQ && Opc <= BO_Or);
+  }
+  bool isCommutativeOp() const {
+    return isCommutativeOp(getOpcode());
+  }
+
   static bool isCompoundAssignmentOp(Opcode Opc) {
     return Opc > BO_Assign && Opc <= BO_OrAssign;
   }
@@ -5184,7 +5191,7 @@ public:
 
   SourceLocation getLocStart() const LLVM_READONLY { return SourceLocation(); }
   SourceLocation getLocEnd() const LLVM_READONLY { return SourceLocation(); }
-  
+
   static bool classof(const Stmt *T) {
     return T->getStmtClass() == TypoExprClass;
   }
