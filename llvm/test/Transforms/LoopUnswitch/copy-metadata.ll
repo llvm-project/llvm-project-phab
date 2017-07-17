@@ -4,8 +4,7 @@
 
 define i32 @test(i1 %cond) {
 ; CHECK-LABEL: @test(
-; CHECK: %cond.fr = freeze i1 %cond
-; CHECK: br i1 %cond.fr, label %..split_crit_edge, label %.loop_exit.split_crit_edge, !make.implicit !0
+; CHECK: br i1 %cond, label %..split_crit_edge, label %.loop_exit.split_crit_edge, !make.implicit !0
   br label %loop_begin
 
 loop_begin:
