@@ -32,6 +32,7 @@ struct pointer_traits
     template <class U> using rebind = <details>;
 
     static pointer pointer_to(<details>);
+    static element_type* to_address(pointer p) noexcept;
 };
 
 template <class T>
@@ -44,6 +45,7 @@ struct pointer_traits<T*>
     template <class U> using rebind = U*;
 
     static pointer pointer_to(<details>) noexcept;
+    static element_type* to_address(pointer p) noexcept;
 };
 
 template <class Alloc>
@@ -950,11 +952,20 @@ struct _LIBCPP_TEMPLATE_VIS pointer_traits
 
 private:
     struct __nat {};
+
+    template <class _Tp>
+        _LIBCPP_INLINE_VISIBILITY
+        static element_type* __to_address(_Tp __p) _NOEXCEPT
+            {return pointer_traits<_Tp>::to_address(__p);}
 public:
     _LIBCPP_INLINE_VISIBILITY
     static pointer pointer_to(typename conditional<is_void<element_type>::value,
                                            __nat, element_type>::type& __r)
         {return pointer::pointer_to(__r);}
+
+    _LIBCPP_INLINE_VISIBILITY
+    static element_type* to_address(pointer __p) _NOEXCEPT
+        {return __to_address(__p.operator->());}
 };
 
 template <class _Tp>
@@ -977,6 +988,9 @@ public:
     static pointer pointer_to(typename conditional<is_void<element_type>::value,
                                       __nat, element_type>::type& __r) _NOEXCEPT
         {return _VSTD::addressof(__r);}
+
+    _LIBCPP_INLINE_VISIBILITY
+    static element_type* to_address(pointer __p) _NOEXCEPT {return __p;}
 };
 
 template <class _From, class _To>
@@ -1089,20 +1103,12 @@ struct __const_void_pointer<_Ptr, _Alloc, false>
 #endif
 };
 
-template <class _Tp>
-inline _LIBCPP_INLINE_VISIBILITY
-_Tp*
-__to_raw_pointer(_Tp* __p) _NOEXCEPT
-{
-    return __p;
-}
-
 template <class _Pointer>
 inline _LIBCPP_INLINE_VISIBILITY
 typename pointer_traits<_Pointer>::element_type*
 __to_raw_pointer(_Pointer __p) _NOEXCEPT
 {
-    return _VSTD::__to_raw_pointer(__p.operator->());
+    return pointer_traits<_Pointer>::to_address(__p);
 }
 
 template <class _Tp, class = void>
