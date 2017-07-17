@@ -54,6 +54,51 @@ entry:
 ; CHECK: ret void
 }
 
+; -----------
+; Canary tests for element atomic memory intrinsics. Make sure that tsan does not lower
+; the instrinsic to a function call.
+
+declare void @llvm.memcpy.element.unordered.atomic.p0i8.p0i8.i64(i8* nocapture writeonly, i8* nocapture readonly, i64, i32) nounwind
+declare void @llvm.memmove.element.unordered.atomic.p0i8.p0i8.i64(i8* nocapture writeonly, i8* nocapture readonly, i64, i32) nounwind
+declare void @llvm.memset.element.unordered.atomic.p0i8.i64(i8* nocapture writeonly, i8, i64, i32)
+
+define void @elementAtomic_memCpyTest(i8* nocapture %x, i8* nocapture %y) {
+  ; CHECK-LABEL: elementAtomic_memCpyTest
+  ; CHECK-NEXT: [[V:%[0-9]+]] = call i8* @llvm.returnaddress(i32 0)
+  ; CHECK-NEXT: call void @__tsan_func_entry(i8* [[V]])
+  ; CHECK-NEXT: tail call void @llvm.memcpy.element.unordered.atomic.p0i8.p0i8.i64(i8* align 1 %x, i8* align 1 %y, i64 16, i32 1)
+  ; CHECK-NEXT: call void @__tsan_func_exit()
+  ; CHECK-NEXT: ret void
+  tail call void @llvm.memcpy.element.unordered.atomic.p0i8.p0i8.i64(i8* align 1 %x, i8* align 1 %y, i64 16, i32 1)
+  ret void
+}
+
+define void @elementAtomic_memMoveTest(i8* nocapture %x, i8* nocapture %y) {
+  ; CHECK-LABEL: elementAtomic_memMoveTest
+  ; CHECK-NEXT: [[V:%[0-9]+]] = call i8* @llvm.returnaddress(i32 0)
+  ; CHECK-NEXT: call void @__tsan_func_entry(i8* [[V]])
+  ; CHECK-NEXT: tail call void @llvm.memmove.element.unordered.atomic.p0i8.p0i8.i64(i8* align 1 %x, i8* align 1 %y, i64 16, i32 1)
+  ; CHECK-NEXT: call void @__tsan_func_exit()
+  ; CHECK-NEXT: ret void
+  tail call void @llvm.memmove.element.unordered.atomic.p0i8.p0i8.i64(i8* align 1 %x, i8* align 1 %y, i64 16, i32 1)
+  ret void
+}
+
+define void @elementAtomic_memSetTest(i8* nocapture %x) {
+  ; CHECK-LABEL: elementAtomic_memSetTest
+  ; CHECK-NEXT: [[V:%[0-9]+]] = call i8* @llvm.returnaddress(i32 0)
+  ; CHECK-NEXT: call void @__tsan_func_entry(i8* [[V]])
+  ; CHECK-NEXT: tail call void @llvm.memset.element.unordered.atomic.p0i8.i64(i8* align 1 %x, i8 86, i64 16, i32 1)
+  ; CHECK-NEXT: call void @__tsan_func_exit()
+  ; CHECK-NEXT: ret void
+  tail call void @llvm.memset.element.unordered.atomic.p0i8.i64(i8* align 1 %x, i8 86, i64 16, i32 1)
+  ret void
+}
+
+
+; -----------
+
+
 ; CHECK-LABEL: @SwiftError
 ; CHECK-NOT: __tsan_read
 ; CHECK-NOT: __tsan_write
