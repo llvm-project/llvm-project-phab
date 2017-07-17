@@ -39,8 +39,9 @@ public:
   /// Constructor.
   OrderedInstructions(DominatorTree *DT) : DT(DT) {}
 
-  /// Return true if first instruction dominates the second.
+  /// Return true if first instruction dominates the second instruction/use.
   bool dominates(const Instruction *, const Instruction *) const;
+  bool dominates(const Instruction *, const Use &) const;
 
   /// Invalidate the OrderedBasicBlock cache when its basic block changes.
   /// i.e. If an instruction is deleted or added to the basic block, the user

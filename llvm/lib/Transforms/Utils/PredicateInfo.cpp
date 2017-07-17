@@ -504,11 +504,12 @@ Value *PredicateInfo::materializeStack(unsigned int &Counter,
     // to ensure we dominate all of our uses.  Always insert right before the
     // relevant instruction (terminator, assume), so that we insert in proper
     // order in the case of multiple predicateinfo in the same block.
+    CallInst *PIC = nullptr;
     if (isa<PredicateWithEdge>(ValInfo)) {
       IRBuilder<> B(getBranchTerminator(ValInfo));
       Function *IF = Intrinsic::getDeclaration(
           F.getParent(), Intrinsic::ssa_copy, Op->getType());
-      CallInst *PIC =
+      PIC =
           B.CreateCall(IF, Op, Op->getName() + "." + Twine(Counter++));
       PredicateMap.insert({PIC, ValInfo});
       Result.Def = PIC;
@@ -519,10 +520,11 @@ Value *PredicateInfo::materializeStack(unsigned int &Counter,
       IRBuilder<> B(PAssume->AssumeInst);
       Function *IF = Intrinsic::getDeclaration(
           F.getParent(), Intrinsic::ssa_copy, Op->getType());
-      CallInst *PIC = B.CreateCall(IF, Op);
+      PIC = B.CreateCall(IF, Op);
       PredicateMap.insert({PIC, ValInfo});
       Result.Def = PIC;
     }
+    OI.invalidateBlock(PIC->getParent());
   }
   return RenameStack.back().Def;
 }
@@ -659,7 +661,7 @@ void PredicateInfo::renameUses(SmallPtrSetImpl<Value *> &OpSet) {
 
       DEBUG(dbgs() << "Found replacement " << *Result.Def << " for "
                    << *VD.U->get() << " in " << *(VD.U->getUser()) << "\n");
-      assert(DT.dominates(cast<Instruction>(Result.Def), *VD.U) &&
+      assert(OI.dominates(cast<Instruction>(Result.Def), *VD.U) &&
              "Predicateinfo def should have dominated this use");
       VD.U->set(Result.Def);
     }

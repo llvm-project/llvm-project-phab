@@ -175,7 +175,7 @@ bool NaryReassociatePass::runImpl(Function &F, AssumptionCache *AC_,
   TLI = TLI_;
   TTI = TTI_;
   DL = &F.getParent()->getDataLayout();
-
+  OI.reset(new OrderedInstructions(DT));
   bool Changed = false, ChangedInThisIteration;
   do {
     ChangedInThisIteration = doOneIteration(F);
@@ -500,7 +500,7 @@ NaryReassociatePass::findClosestMatchingDominator(const SCEV *CandidateExpr,
     // during rewriting.
     if (Value *Candidate = Candidates.back()) {
       Instruction *CandidateInstruction = cast<Instruction>(Candidate);
-      if (DT->dominates(CandidateInstruction, Dominatee))
+      if (OI->dominates(CandidateInstruction, Dominatee))
         return CandidateInstruction;
     }
     Candidates.pop_back();

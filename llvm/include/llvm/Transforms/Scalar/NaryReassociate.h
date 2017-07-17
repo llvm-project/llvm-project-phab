@@ -88,6 +88,7 @@
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/PassManager.h"
+#include "llvm/Transforms/Utils/OrderedInstructions.h"
 
 namespace llvm {
 class NaryReassociatePass : public PassInfoMixin<NaryReassociatePass> {
@@ -155,6 +156,7 @@ private:
   AssumptionCache *AC;
   const DataLayout *DL;
   DominatorTree *DT;
+  std::unique_ptr<OrderedInstructions> OI;
   ScalarEvolution *SE;
   TargetLibraryInfo *TLI;
   TargetTransformInfo *TTI;
