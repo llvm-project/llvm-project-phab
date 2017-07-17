@@ -6,9 +6,11 @@
 ; CHECK-LABEL: {{^}}define amdgpu_kernel void @uniform_unswitch
 ; CHECK: entry:
 ; CHECK-NEXT: [[LOOP_COND:%[a-z0-9]+]] = icmp
+; CHECK-NEXT: br i1 [[LOOP_COND]]
+; CHECK: for.body.lr.ph:
 ; CHECK-NEXT: [[IF_COND:%[a-z0-9]+]] = icmp eq i32 %x, 123456
-; CHECK-NEXT: and i1 [[LOOP_COND]], [[IF_COND]]
-; CHECK-NEXT: br i1
+; CHECK-NEXT: [[IF_COND]].fr = freeze i1 [[IF_COND]]
+; CHECK-NEXT: br i1 [[IF_COND]]
 
 define amdgpu_kernel void @uniform_unswitch(i32 * nocapture %out, i32 %n, i32 %x) {
 entry:

@@ -106,7 +106,8 @@ loop_exit:
 ; CHECK: define void @and_i2_as_switch_input(i2
 ; CHECK: entry:
 ; This is an indication that the loop has been unswitched.
-; CHECK: icmp eq i2 %a, 0
+; CHECK: freeze i2 %a
+; CHECK: icmp eq i2 %a.fr, 0
 ; CHECK: br
 ; There should be no more unswitching after the 1st unswitch.
 ; CHECK-NOT: icmp eq
@@ -150,7 +151,8 @@ for.end:
 ; CHECK: define void @or_i2_as_switch_input(i2
 ; CHECK: entry:
 ; This is an indication that the loop has been unswitched.
-; CHECK: icmp eq i2 %a, -1
+; CHECK: freeze i2 %a
+; CHECK: icmp eq i2 %a.fr, -1
 ; CHECK: br
 ; There should be no more unswitching after the 1st unswitch.
 ; CHECK-NOT: icmp eq
@@ -196,7 +198,8 @@ for.end:
 ; CHECK: define void @or_i2_as_switch_input_unswitch_default(i2
 ; CHECK: entry:
 ; This is an indication that the loop has been unswitched.
-; CHECK: icmp eq i2 %a, -1
+; CHECK: freeze i2 %a
+; CHECK: icmp eq i2 %a.fr, -1
 ; CHECK: br
 ; There should be no more unswitching after the 1st unswitch.
 ; CHECK-NOT: icmp eq
