@@ -30,12 +30,13 @@ namespace {
 class AArch64AsmBackend : public MCAsmBackend {
   static const unsigned PCRelFlagVal =
       MCFixupKindInfo::FKF_IsAlignedDownTo32Bits | MCFixupKindInfo::FKF_IsPCRel;
+
 public:
   bool IsLittleEndian;
 
 public:
   AArch64AsmBackend(const Target &T, bool IsLittleEndian)
-     : MCAsmBackend(), IsLittleEndian(IsLittleEndian) {}
+      : MCAsmBackend(), IsLittleEndian(IsLittleEndian) {}
 
   unsigned getNumFixupKinds() const override {
     return AArch64::NumTargetFixupKinds;
@@ -87,16 +88,17 @@ public:
 
   unsigned getPointerSize() const { return 8; }
 
-  unsigned getFixupKindContainereSizeInBytes(unsigned Kind) const;
+  unsigned getFixupKindContainerSizeInBytes(unsigned Kind,
+                                            StringRef KindName) const;
 };
 
 } // end anonymous namespace
 
 /// \brief The number of bytes the fixup may change.
-static unsigned getFixupKindNumBytes(unsigned Kind) {
+static unsigned getFixupKindNumBytes(unsigned Kind, StringRef KindName) {
   switch (Kind) {
   default:
-    llvm_unreachable("Unknown fixup kind!");
+    report_fatal_error(Twine("Unknown fixup kind: ") + KindName);
 
   case AArch64::fixup_aarch64_tlsdesc_call:
     return 0;
@@ -140,12 +142,12 @@ static unsigned AdrImmBits(unsigned Value) {
 }
 
 static uint64_t adjustFixupValue(const MCFixup &Fixup, uint64_t Value,
-                                 MCContext &Ctx) {
+                                 MCContext &Ctx, StringRef KindName) {
   unsigned Kind = Fixup.getKind();
   int64_t SignedValue = static_cast<int64_t>(Value);
   switch (Kind) {
   default:
-    llvm_unreachable("Unknown fixup kind!");
+    report_fatal_error(Twine("Unknown fixup kind: ") + KindName);
   case AArch64::fixup_aarch64_pcrel_adr_imm21:
     if (SignedValue > 2097151 || SignedValue < -2097152)
       Ctx.reportError(Fixup.getLoc(), "fixup value out of range");
@@ -226,15 +228,17 @@ static uint64_t adjustFixupValue(const MCFixup &Fixup, uint64_t Value,
   }
 }
 
-/// getFixupKindContainereSizeInBytes - The number of bytes of the
+/// getFixupKindContainerSizeInBytes - The number of bytes of the
 /// container involved in big endian or 0 if the item is little endian
-unsigned AArch64AsmBackend::getFixupKindContainereSizeInBytes(unsigned Kind) const {
+unsigned
+AArch64AsmBackend::getFixupKindContainerSizeInBytes(unsigned Kind,
+                                                    StringRef KindName) const {
   if (IsLittleEndian)
     return 0;
 
   switch (Kind) {
   default:
-    llvm_unreachable("Unknown fixup kind!");
+    report_fatal_error(Twine("Unknown fixup kind: ") + KindName);
 
   case FK_Data_1:
     return 1;
@@ -269,13 +273,13 @@ void AArch64AsmBackend::applyFixup(const MCAssembler &Asm, const MCFixup &Fixup,
                                    const MCValue &Target,
                                    MutableArrayRef<char> Data, uint64_t Value,
                                    bool IsResolved) const {
-  unsigned NumBytes = getFixupKindNumBytes(Fixup.getKind());
+  MCFixupKindInfo Info = getFixupKindInfo(Fixup.getKind());
+  unsigned NumBytes = getFixupKindNumBytes(Fixup.getKind(), Info.Name);
   if (!Value)
     return; // Doesn't change encoding.
-  MCFixupKindInfo Info = getFixupKindInfo(Fixup.getKind());
   MCContext &Ctx = Asm.getContext();
   // Apply any target-specific value adjustments.
-  Value = adjustFixupValue(Fixup, Value, Ctx);
+  Value = adjustFixupValue(Fixup, Value, Ctx, Info.Name);
 
   // Shift the value into position.
   Value <<= Info.TargetOffset;
@@ -284,7 +288,8 @@ void AArch64AsmBackend::applyFixup(const MCAssembler &Asm, const MCFixup &Fixup,
   assert(Offset + NumBytes <= Data.size() && "Invalid fixup offset!");
 
   // Used to point to big endian bytes.
-  unsigned FulleSizeInBytes = getFixupKindContainereSizeInBytes(Fixup.getKind());
+  unsigned FulleSizeInBytes =
+      getFixupKindContainerSizeInBytes(Fixup.getKind(), Info.Name);
 
   // For each byte of the fragment that the fixup touches, mask in the
   // bits from the fixup value.
@@ -375,7 +380,7 @@ enum CompactUnwindEncodings {
   UNWIND_ARM64_FRAME_D14_D15_PAIR = 0x00000800
 };
 
-} // end CU namespace
+} // namespace CU
 
 // FIXME: This should be in a separate file.
 class DarwinAArch64AsmBackend : public AArch64AsmBackend {
@@ -390,7 +395,7 @@ class DarwinAArch64AsmBackend : public AArch64AsmBackend {
 
 public:
   DarwinAArch64AsmBackend(const Target &T, const MCRegisterInfo &MRI)
-      : AArch64AsmBackend(T, /*IsLittleEndian*/true), MRI(MRI) {}
+      : AArch64AsmBackend(T, /*IsLittleEndian*/ true), MRI(MRI) {}
 
   MCObjectWriter *createObjectWriter(raw_pwrite_stream &OS) const override {
     return createAArch64MachObjectWriter(OS, MachO::CPU_TYPE_ARM64,
@@ -399,7 +404,7 @@ public:
 
   /// \brief Generate the compact unwind encoding from the CFI directives.
   uint32_t generateCompactUnwindEncoding(
-                             ArrayRef<MCCFIInstruction> Instrs) const override {
+      ArrayRef<MCCFIInstruction> Instrs) const override {
     if (Instrs.empty())
       return CU::UNWIND_ARM64_MODE_FRAMELESS;
 
@@ -539,7 +544,7 @@ public:
 
   ELFAArch64AsmBackend(const Target &T, uint8_t OSABI, bool IsLittleEndian,
                        bool IsILP32)
-    : AArch64AsmBackend(T, IsLittleEndian), OSABI(OSABI), IsILP32(IsILP32) {}
+      : AArch64AsmBackend(T, IsLittleEndian), OSABI(OSABI), IsILP32(IsILP32) {}
 
   MCObjectWriter *createObjectWriter(raw_pwrite_stream &OS) const override {
     return createAArch64ELFObjectWriter(OS, OSABI, IsLittleEndian, IsILP32);
@@ -569,19 +574,19 @@ bool ELFAArch64AsmBackend::shouldForceRelocation(const MCAssembler &Asm,
   return false;
 }
 
-}
+} // namespace
 
 namespace {
 class COFFAArch64AsmBackend : public AArch64AsmBackend {
 public:
   COFFAArch64AsmBackend(const Target &T, const Triple &TheTriple)
-      : AArch64AsmBackend(T, /*IsLittleEndian*/true) {}
+      : AArch64AsmBackend(T, /*IsLittleEndian*/ true) {}
 
   MCObjectWriter *createObjectWriter(raw_pwrite_stream &OS) const override {
     return createAArch64WinCOFFObjectWriter(OS);
   }
 };
-}
+} // namespace
 
 MCAsmBackend *llvm::createAArch64leAsmBackend(const Target &T,
                                               const MCRegisterInfo &MRI,
