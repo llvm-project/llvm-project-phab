@@ -20,7 +20,7 @@ def Bstatic: F<"Bstatic">, HelpText<"Do not link against shared libraries">;
 
 def build_id: F<"build-id">, HelpText<"Generate build ID note">;
 
-def build_id_eq: J<"build-id=">, HelpText<"Generate build ID note">;
+def build_id_eq: J<"build-id=">, HelpText<"Generate build ID note">, Flags<[HelpHidden]>;
 
 def compress_debug_sections : J<"compress-debug-sections=">,
   HelpText<"Compress DWARF debug sections">;
@@ -47,7 +47,7 @@ def as_needed: F<"as-needed">,
 def color_diagnostics: F<"color-diagnostics">,
   HelpText<"Use colors in diagnostics">;
 
-def color_diagnostics_eq: J<"color-diagnostics=">,
+def color_diagnostics_eq: J<"color-diagnostics=">, Flags<[HelpHidden]>,
   HelpText<"Use colors in diagnostics">;
 
 def define_common: F<"define-common">,
@@ -295,56 +295,55 @@ def alias_L__library_path: J<"library-path=">, Alias<L>;
 def alias_define_common_d: Flag<["-"], "d">, Alias<define_common>;
 def alias_define_common_dc: F<"dc">, Alias<define_common>;
 def alias_define_common_dp: F<"dp">, Alias<define_common>;
-def alias_defsym: S<"defsym">, Alias<defsym>;
+def alias_defsym: S<"defsym">, Alias<defsym>, Flags<[HelpHidden]>;
 def alias_discard_all_x: Flag<["-"], "x">, Alias<discard_all>;
 def alias_discard_locals_X: Flag<["-"], "X">, Alias<discard_locals>;
 def alias_dynamic_list: J<"dynamic-list=">, Alias<dynamic_list>;
 def alias_emit_relocs: Flag<["-"], "q">, Alias<emit_relocs>;
 def alias_entry_e: JoinedOrSeparate<["-"], "e">, Alias<entry>;
-def alias_entry_entry: J<"entry=">, Alias<entry>;
-def alias_error_limit: J<"error-limit=">, Alias<error_limit>;
-def alias_exclude_libs: J<"exclude-libs=">, Alias<exclude_libs>;
+def alias_entry_entry: J<"entry=">, Alias<entry>, Flags<[HelpHidden]>;
+def alias_error_limit: J<"error-limit=">, Alias<error_limit>, Flags<[HelpHidden]>;
 def alias_export_dynamic_E: Flag<["-"], "E">, Alias<export_dynamic>;
 def alias_export_dynamic_symbol: J<"export-dynamic-symbol=">,
   Alias<export_dynamic_symbol>;
 def alias_filter: Separate<["-"], "F">, Alias<filter>;
-def alias_fini_fini: J<"fini=">, Alias<fini>;
+def alias_fini_fini: J<"fini=">, Alias<fini>, Flags<[HelpHidden]>;
 def alias_format_b: S<"b">, Alias<format>;
 def alias_hash_style_hash_style: J<"hash-style=">, Alias<hash_style>;
-def alias_init_init: J<"init=">, Alias<init>;
+def alias_init_init: J<"init=">, Alias<init>, Flags<[HelpHidden]>;
 def alias_l__library: J<"library=">, Alias<l>;
-def alias_Map_eq: J<"Map=">, Alias<Map>;
+def alias_Map_eq: J<"Map=">, Alias<Map>, Flags<[HelpHidden]>;
 def alias_omagic: Flag<["-"], "N">, Alias<omagic>;
-def alias_o_output: Joined<["--"], "output=">, Alias<o>;
+def alias_o_output: Joined<["--"], "output=">, Alias<o>, Flags<[HelpHidden]>;
 def alias_o_output2 : Separate<["--"], "output">, Alias<o>;
 def alias_pie_pic_executable: F<"pic-executable">, Alias<pie>;
 def alias_print_map_M: Flag<["-"], "M">, Alias<print_map>;
 def alias_relocatable_r: Flag<["-"], "r">, Alias<relocatable>;
-def alias_reproduce_eq: J<"reproduce=">, Alias<reproduce>;
-def alias_retain_symbols_file: S<"retain-symbols-file">, Alias<retain_symbols_file>;
+def alias_reproduce_eq: J<"reproduce=">, Alias<reproduce>, Flags<[HelpHidden]>;
+def alias_retain_symbols_file: S<"retain-symbols-file">, Alias<retain_symbols_file>, Flags<[HelpHidden]>;
 def alias_rpath_R: JoinedOrSeparate<["-"], "R">, Alias<rpath>;
-def alias_rpath_rpath: J<"rpath=">, Alias<rpath>;
+def alias_rpath_rpath: J<"rpath=">, Alias<rpath>, Flags<[HelpHidden]>;
 def alias_script_T: JoinedOrSeparate<["-"], "T">, Alias<script>;
 def alias_shared_Bshareable: F<"Bshareable">, Alias<shared>;
 def alias_soname_h: JoinedOrSeparate<["-"], "h">, Alias<soname>;
-def alias_soname_soname: S<"soname">, Alias<soname>;
-def alias_sort_section: J<"sort-section=">, Alias<sort_section>;
-def alias_script: J<"script=">, Alias<script>;
+def alias_soname_soname: S<"soname">, Alias<soname>, Flags<[HelpHidden]>;
+def alias_sort_section: J<"sort-section=">, Alias<sort_section>, Flags<[HelpHidden]>;
+def alias_script: J<"script=">, Alias<script>, Flags<[HelpHidden]>;
 def alias_strip_all: Flag<["-"], "s">, Alias<strip_all>;
 def alias_strip_debug_S: Flag<["-"], "S">, Alias<strip_debug>;
-def alias_Tbss: J<"Tbss=">, Alias<Tbss>;
-def alias_Tdata: J<"Tdata=">, Alias<Tdata>;
+def alias_Tbss: J<"Tbss=">, Alias<Tbss>, Flags<[HelpHidden]>;
+def alias_Tdata: J<"Tdata=">, Alias<Tdata>, Flags<[HelpHidden]>;
 def alias_trace: Flag<["-"], "t">, Alias<trace>;
-def trace_trace_symbol_eq : J<"trace-symbol=">, Alias<trace_symbol>;
+def trace_trace_symbol_eq : J<"trace-symbol=">, Alias<trace_symbol>, Flags<[HelpHidden]>;
 def alias_trace_symbol_y : JoinedOrSeparate<["-"], "y">, Alias<trace_symbol>;
-def alias_Ttext: J<"Ttext=">, Alias<Ttext>;
+def alias_Ttext: J<"Ttext=">, Alias<Ttext>, Flags<[HelpHidden]>;
 def alias_Ttext_segment: S<"Ttext-segment">, Alias<Ttext>;
-def alias_Ttext_segment_eq: J<"Ttext-segment=">, Alias<Ttext>;
-def alias_undefined_eq: J<"undefined=">, Alias<undefined>;
+def alias_Ttext_segment_eq: J<"Ttext-segment=">, Alias<Ttext>, Flags<[HelpHidden]>;
+def alias_undefined_eq: J<"undefined=">, Alias<undefined>, Flags<[HelpHidden]>;
 def alias_undefined_u: JoinedOrSeparate<["-"], "u">, Alias<undefined>;
-def alias_version_script_eq: J<"version-script=">, Alias<version_script>;
+def alias_version_script_eq: J<"version-script=">, Alias<version_script>, Flags<[HelpHidden]>;
 def alias_version_V: Flag<["-"], "V">, Alias<version>;
-def alias_wrap_wrap: J<"wrap=">, Alias<wrap>;
+def alias_wrap_wrap: J<"wrap=">, Alias<wrap>, Flags<[HelpHidden]>;
 
 // Our symbol resolution algorithm handles symbols in archive files differently
 // than traditional linkers, so we don't need --start-group and --end-group.
