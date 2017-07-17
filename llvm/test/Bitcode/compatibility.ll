@@ -1257,6 +1257,11 @@ exit:
   tail call ghccc nonnull i32* @f.nonnull() minsize
   ; CHECK: tail call ghccc nonnull i32* @f.nonnull() #7
 
+  freeze i32 %op1
+  ; CHECK: freeze i32 %op1
+  freeze i32 10
+  ; CHECK: freeze i32 10
+
   ret void
 }
 

@@ -485,6 +485,7 @@ private:
   void visitFuncletPadInst(FuncletPadInst &FPI);
   void visitCatchSwitchInst(CatchSwitchInst &CatchSwitch);
   void visitCleanupReturnInst(CleanupReturnInst &CRI);
+  void visitFreezeInst(FreezeInst &FI);
 
   void verifyCallSite(CallSite CS);
   void verifySwiftErrorCallSite(CallSite CS, const Value *SwiftErrorVal);
@@ -3683,6 +3684,13 @@ void Verifier::visitCleanupReturnInst(CleanupReturnInst &CRI) {
   }
 
   visitTerminatorInst(CRI);
+}
+
+void Verifier::visitFreezeInst(FreezeInst &FI) {
+  Assert(FI.getOperand(0)->getType()->isIntegerTy(),
+         "Cannot freeze non-integer type!", &FI);
+
+  visitInstruction(FI);
 }
 
 void Verifier::verifyDominatesUse(Instruction &I, unsigned i) {
