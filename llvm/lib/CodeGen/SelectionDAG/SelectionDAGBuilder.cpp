@@ -253,6 +253,19 @@ static void diagnosePossiblyInvalidConstraint(LLVMContext &Ctx, const Value *V,
   return Ctx.emitError(I, ErrMsg);
 }
 
+static void emitInvalidConstraintError(LLVMContext &Ctx, const Value *V,
+                                       const StringRef &ErrMsg) {
+  if (const Instruction *I = dyn_cast_or_null<Instruction>(V)) {
+    if (const CallInst *CI = dyn_cast<CallInst>(I)) {
+      if (isa<InlineAsm>(CI->getCalledValue())) {
+        return Ctx.emitError(CI, ErrMsg + ", in an __asm__");
+      }
+    }
+    return Ctx.emitError(I, ErrMsg);
+  }
+  return Ctx.emitError(ErrMsg);
+}
+
 /// getCopyFromPartsVector - Create a value that contains the specified legal
 /// parts combined into the value they represent.  If the parts combine to a
 /// type larger than ValueVT then AssertOp can be used to specify whether the
@@ -424,6 +437,15 @@ static void getCopyToParts(SelectionDAG &DAG, const SDLoc &DL, SDValue Val,
     return;
   }
 
+  if (NumParts == 1) {
+    if (PartVT.isFloatingPoint() && (!ValueVT.isFloatingPoint())) {
+      // Alternative is to use ISD::SINT_TO_FP instead of generating an error.
+      Val = DAG.getUNDEF(PartVT);
+      emitInvalidConstraintError(*DAG.getContext(), V,
+                                 "Inconsistent operand constraints");
+      ValueVT = Val.getValueType();
+    }
+  }
   if (NumParts * PartBits > ValueVT.getSizeInBits()) {
     // If the parts cover more bits than the value has, promote the value.
     if (PartVT.isFloatingPoint() && ValueVT.isFloatingPoint()) {
@@ -446,7 +468,7 @@ static void getCopyToParts(SelectionDAG &DAG, const SDLoc &DL, SDValue Val,
     }
   } else if (PartBits == ValueVT.getSizeInBits()) {
     // Different types of the same size.
-    assert(NumParts == 1 && PartEVT != ValueVT);
+    assert(NumParts == 1);
     Val = DAG.getNode(ISD::BITCAST, DL, PartVT, Val);
   } else if (NumParts * PartBits < ValueVT.getSizeInBits()) {
     // If the parts cover less bits than value has, truncate the value.
@@ -539,6 +561,12 @@ static void getCopyToPartsVector(SelectionDAG &DAG, const SDLoc &DL,
   const TargetLowering &TLI = DAG.getTargetLoweringInfo();
 
   if (NumParts == 1) {
+    if (PartVT.isFloatingPoint() && (!ValueVT.isFloatingPoint())) {
+      Val = DAG.getUNDEF(PartVT);
+      emitInvalidConstraintError(*DAG.getContext(), V,
+                                 "Inconsistent operand constraints");
+      ValueVT = Val.getValueType();
+    }
     EVT PartEVT = PartVT;
     if (PartEVT == ValueVT) {
       // Nothing to do.
