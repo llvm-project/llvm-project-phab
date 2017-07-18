@@ -191,12 +191,13 @@ public:
   /// \param FlagsToInclude - If non-zero, only include options with any
   ///                         of these flags set.
   /// \param FlagsToExclude - Exclude options with any of these flags set.
-  void PrintHelp(raw_ostream &OS, const char *Name,
-                 const char *Title, unsigned FlagsToInclude,
-                 unsigned FlagsToExclude) const;
+  /// \param ShowAliases    - If true, then options aliases are rendered.
+  void PrintHelp(raw_ostream &OS, const char *Name, const char *Title,
+                 unsigned FlagsToInclude, unsigned FlagsToExclude,
+                 bool ShowAliases) const;
 
-  void PrintHelp(raw_ostream &OS, const char *Name,
-                  const char *Title, bool ShowHidden = false) const;
+  void PrintHelp(raw_ostream &OS, const char *Name, const char *Title,
+                 bool ShowHidden = false, bool ShowAliases = false) const;
 };
 
 } // end namespace opt

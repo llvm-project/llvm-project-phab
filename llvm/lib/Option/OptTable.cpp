@@ -7,6 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSet.h"
@@ -398,31 +399,33 @@ struct OptionInfo {
 } // namespace
 
 static void PrintHelpOptionList(raw_ostream &OS, StringRef Title,
-                                std::vector<OptionInfo> &OptionHelp) {
+                                std::map<unsigned, OptionInfo> &Options) {
   OS << Title << ":\n";
 
   // Find the maximum option length.
   unsigned OptionFieldWidth = 0;
-  for (unsigned i = 0, e = OptionHelp.size(); i != e; ++i) {
+  for (auto &P : Options) {
     // Limit the amount of padding we are willing to give up for alignment.
-    unsigned Length = OptionHelp[i].Name.size();
+    unsigned Length = P.second.Name.size();
     if (Length <= 23)
       OptionFieldWidth = std::max(OptionFieldWidth, Length);
   }
 
   const unsigned InitialPad = 2;
-  for (unsigned i = 0, e = OptionHelp.size(); i != e; ++i) {
-    const std::string &Option = OptionHelp[i].Name;
-    int Pad = OptionFieldWidth - int(Option.size());
-    OS.indent(InitialPad) << Option;
+  for (auto &P : Options) {
+    OptionInfo &Opt = P.second;
+    OS.indent(InitialPad) << Opt.Name;
 
     // Break on long option names.
+    int Pad = OptionFieldWidth - int(Opt.Name.size());
     if (Pad < 0) {
       OS << "\n";
       Pad = OptionFieldWidth + InitialPad;
     }
-    OS.indent(Pad + 1) << OptionHelp[i].HelpText << '\n';
+    OS.indent(Pad + 1) << Opt.HelpText << '\n';
   }
+
+  OS << "\n";
 }
 
 static const char *getOptionHelpGroup(const OptTable &Opts, OptSpecifier Id) {
@@ -444,25 +447,20 @@ static const char *getOptionHelpGroup(const OptTable &Opts, OptSpecifier Id) {
 }
 
 void OptTable::PrintHelp(raw_ostream &OS, const char *Name, const char *Title,
-                         bool ShowHidden) const {
+                         bool ShowHidden, bool ShowAliases) const {
   PrintHelp(OS, Name, Title, /*Include*/ 0, /*Exclude*/
-            (ShowHidden ? 0 : HelpHidden));
+            (ShowHidden ? 0 : HelpHidden), ShowAliases);
 }
 
-
 void OptTable::PrintHelp(raw_ostream &OS, const char *Name, const char *Title,
-                         unsigned FlagsToInclude,
-                         unsigned FlagsToExclude) const {
+                         unsigned FlagsToInclude, unsigned FlagsToExclude,
+                         bool ShowAliases) const {
   OS << "OVERVIEW: " << Title << "\n";
   OS << '\n';
   OS << "USAGE: " << Name << " [options] <inputs>\n";
   OS << '\n';
 
-  // Render help text into a map of group-name to a list of (option, help)
-  // pairs.
-  using helpmap_ty = std::map<std::string, std::vector<OptionInfo>>;
-  helpmap_ty GroupedOptionHelp;
-
+  std::map<std::string, std::map<unsigned, OptionInfo>> Groups;
   for (unsigned i = 0, e = getNumOptions(); i != e; ++i) {
     unsigned Id = i + 1;
 
@@ -476,19 +474,24 @@ void OptTable::PrintHelp(raw_ostream &OS, const char *Name, const char *Title,
     if (Flags & FlagsToExclude)
       continue;
 
+    const char *HelpGroup = getOptionHelpGroup(*this, Id);
     if (const char *Text = getOptionHelpText(Id)) {
-      const char *HelpGroup = getOptionHelpGroup(*this, Id);
-      const std::string &OptName = getOptionHelpName(*this, Id);
-      GroupedOptionHelp[HelpGroup].push_back({OptName, Text});
+      OptionInfo &Opt = Groups[HelpGroup][Id];
+      Opt.HelpText = Text;
+      Opt.Name = getOptionHelpName(*this, Id) + Opt.Name;
+      continue;
     }
+
+    const Option Alias = getOption(Id).getAlias();
+    if (!ShowAliases || !Alias.isValid() || !getOptionHelpText(Alias.getID()))
+      continue;
+
+    OptionInfo &Opt = Groups[HelpGroup][Alias.getID()];
+    Opt.Name += ", " + getOptionHelpName(*this, Id);
   }
 
-  for (helpmap_ty::iterator it = GroupedOptionHelp .begin(),
-         ie = GroupedOptionHelp.end(); it != ie; ++it) {
-    if (it != GroupedOptionHelp .begin())
-      OS << "\n";
-    PrintHelpOptionList(OS, it->first, it->second);
-  }
+  for (auto &G : Groups)
+    PrintHelpOptionList(OS, G.first, G.second);
 
   OS.flush();
 }
