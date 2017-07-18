@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -verify -fsyntax-only -Wshadow -Wold-style-cast %s
+// RUN: %clang_cc1 -verify -fsyntax-only -Wshadow -Wold-style-cast -pedantic %s
 
 // Test that macro expansions from system headers don't trigger 'syntactic'
 // warnings that are not actionable.
@@ -11,6 +11,8 @@
 #define SHADOW(a) __extension__({ int v = a; v; })
 
 #define OLD_STYLE_CAST(a) ((int) (a))
+
+#define ASSERT(a) ({ if (a) {} else {} })
 
 #else
 
@@ -30,6 +32,11 @@ void PR16093() {
 void PR18147() {
   // no -Wold_style_cast in system macro expansion
   int i = OLD_STYLE_CAST(0);
+}
+
+void testExtension() {
+  ASSERT(true);
+  ASSERT(({ true; })); // expected-warning {{use of GNU statement expression extension}}
 }
 
 #endif

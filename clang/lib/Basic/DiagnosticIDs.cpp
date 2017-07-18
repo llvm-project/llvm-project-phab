@@ -396,6 +396,14 @@ DiagnosticIDs::getDiagnosticLevel(unsigned DiagID, SourceLocation Loc,
   return toLevel(getDiagnosticSeverity(DiagID, Loc, Diag));
 }
 
+static bool isSystemFunctionMacroBodyExpansion(SourceLocation Loc,
+                                               const SourceManager &SM) {
+  if (!(SM.isInSystemMacro(Loc) && SM.isMacroBodyExpansion(Loc)))
+    return false;
+  auto Range = SM.getImmediateExpansionRange(Loc);
+  return Range.first != Range.second;
+}
+
 /// \brief Based on the way the client configured the Diagnostic
 /// object, classify the specified diagnostic ID into a Level, consumable by
 /// the DiagnosticClient.
@@ -469,8 +477,10 @@ DiagnosticIDs::getDiagnosticSeverity(unsigned DiagID, SourceLocation Loc,
   // because we also want to ignore extensions and warnings in -Werror and
   // -pedantic-errors modes, which *map* warnings/extensions to errors.
   if (State->SuppressSystemWarnings && !ShowInSystemHeader && Loc.isValid() &&
-      Diag.getSourceManager().isInSystemHeader(
-          Diag.getSourceManager().getExpansionLoc(Loc)))
+      (Diag.getSourceManager().isInSystemHeader(
+          Diag.getSourceManager().getExpansionLoc(Loc)) ||
+       (IsExtensionDiag &&
+        isSystemFunctionMacroBodyExpansion(Loc, Diag.getSourceManager()))))
     return diag::Severity::Ignored;
 
   return Result;
