@@ -473,7 +473,8 @@ void ClangTidyDiagnosticConsumer::checkFilters(SourceLocation Location) {
   StringRef FileName(File->getName());
   LastErrorRelatesToUserCode = LastErrorRelatesToUserCode ||
                                Sources.isInMainFile(Location) ||
-                               getHeaderFilter()->match(FileName);
+                               (getHeaderFilter()->match(FileName) &&
+                                !getExcludeHeaderFilter()->match(FileName));
 
   unsigned LineNumber = Sources.getExpansionLineNumber(Location);
   LastErrorPassesLineFilter =
@@ -485,6 +486,13 @@ llvm::Regex *ClangTidyDiagnosticConsumer::getHeaderFilter() {
     HeaderFilter =
         llvm::make_unique<llvm::Regex>(*Context.getOptions().HeaderFilterRegex);
   return HeaderFilter.get();
+}
+
+llvm::Regex *ClangTidyDiagnosticConsumer::getExcludeHeaderFilter() {
+  if (!ExcludeHeaderFilter)
+    ExcludeHeaderFilter =
+        llvm::make_unique<llvm::Regex>(*Context.getOptions().ExcludeHeaderFilterRegex);
+  return ExcludeHeaderFilter.get();
 }
 
 void ClangTidyDiagnosticConsumer::removeIncompatibleErrors(

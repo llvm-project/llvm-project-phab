@@ -247,6 +247,10 @@ private:
   /// context.
   llvm::Regex *getHeaderFilter();
 
+  /// \brief Returns the \c ExcludeHeaderFilter constructed for the options set
+  /// in the context.
+  llvm::Regex *getExcludeHeaderFilter();
+
   /// \brief Updates \c LastErrorRelatesToUserCode and LastErrorPassesLineFilter
   /// according to the diagnostic \p Location.
   void checkFilters(SourceLocation Location);
@@ -257,6 +261,7 @@ private:
   std::unique_ptr<DiagnosticsEngine> Diags;
   SmallVector<ClangTidyError, 8> Errors;
   std::unique_ptr<llvm::Regex> HeaderFilter;
+  std::unique_ptr<llvm::Regex> ExcludeHeaderFilter;
   bool LastErrorRelatesToUserCode;
   bool LastErrorPassesLineFilter;
   bool LastErrorWasIgnored;
