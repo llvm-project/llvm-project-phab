@@ -16,6 +16,462 @@
 #include <isl_ast_private.h>
 #include <isl_ast_build_private.h>
 #include <isl_sort.h>
+#include <limits.h>
+#include <include/isl/hash.h>
+#include "isl_ast_private.h"
+#include "isl_id_private.h"
+
+static int ast_expr_is_zero(__isl_keep isl_ast_expr *expr);
+
+/* Compute the minimum of the integer affine expression "obj" over the points
+ * in build->domain and put the result in *opt.
+ */
+__isl_give isl_val *isl_ast_build_min(__isl_keep isl_ast_build *build,
+	__isl_keep isl_aff *obj)
+{
+	if (!build)
+		return NULL;
+
+	return isl_set_min_val(build->domain, obj);
+}
+
+/* Compute the maximum of the integer affine expression "obj" over the points
+ * in build->domain and put the result in *opt.
+ */
+__isl_give isl_val *isl_ast_build_max(__isl_keep isl_ast_build *build,
+	__isl_keep isl_aff *obj)
+{
+	if (!build)
+		return NULL;
+
+	return isl_set_max_val(build->domain, obj);
+}
+
+/* Approximate the size of the binary operation "expr" by looking at the type
+ * of it's arguments. This only works if the size of the arguments is already
+ * know.
+ */
+__isl_give isl_ast_expr *isl_ast_bin_op_set_size_max(
+		__isl_take isl_ast_expr *expr,
+		__isl_keep isl_ast_build *build) {
+	int flag, num_args;
+	int base_offset = 0;
+	int add = 0;
+	isl_bool is_signed;
+	size_t bits;
+
+	if (!build->compute_bounds)
+		return expr;
+
+	switch (expr->u.op.op) {
+		case isl_ast_op_min:
+			flag = 0;
+			break;
+		case isl_ast_op_sub:
+		case isl_ast_op_max:
+            flag = 1;
+            break;
+		case isl_ast_op_select:
+			flag = 1;
+            base_offset = 1;
+			break;
+		case isl_ast_op_add:
+			flag = 1;
+			add = 1;
+			break;
+		default:
+			isl_die(isl_ast_expr_get_ctx(expr), isl_error_internal,
+				"invalid expression type",  goto error);
+	}
+
+	num_args = expr->u.op.n_arg;
+	for (int i = base_offset; i < num_args; i++) {
+		if (expr->u.op.args[i]->type != isl_ast_expr_bound_t) {
+			return expr;
+		}
+	}
+
+	is_signed = expr->u.op.args[base_offset]->u.bound.is_signed;
+	bits = expr->u.op.args[base_offset]->u.bound.size;
+	if (flag == 1) {
+		// Result is maximum type
+		if (expr->u.op.args[base_offset + 1]->u.bound.size > bits) {
+			bits = expr->u.op.args[base_offset + 1]->u.bound.size;
+			if (is_signed && !expr->u.op.args[base_offset + 1]->
+					u.bound.is_signed)
+				bits++;
+			else
+				is_signed = expr->u.op.args[base_offset + 1]->
+					u.bound.is_signed;
+		} else if (!is_signed && expr->u.op.args[base_offset + 1]->
+				u.bound.is_signed) {
+			is_signed = expr->u.op.args[base_offset + 1]->
+				u.bound.is_signed;
+			if (bits == expr->u.op.args[base_offset + 1]->
+					u.bound.size)
+				bits++;
+		}
+	} else {
+		// Result is minimum type
+		if (expr->u.op.args[base_offset + 1]->u.bound.size < bits ||
+			(expr->u.op.args[base_offset + 1]->u.bound.size == bits &&
+				!expr->u.op.args[base_offset + 1]->
+					u.bound.is_signed)) {
+			bits = expr->u.op.args[base_offset + 1]->u.bound.size;
+			is_signed = expr->u.op.args[base_offset + 1]->
+				u.bound.is_signed;
+		}
+	}
+
+	if (add)
+		bits++;
+
+    return isl_ast_expr_bound(expr, is_signed, bits, NULL);
+
+error:
+	return isl_ast_expr_free(expr);
+}
+
+__isl_give isl_ast_expr *isl_ast_bin_op_set_size_mul(__isl_take isl_ast_expr *expr,
+						     __isl_keep isl_ast_build *build) {
+	int flag;
+	int add = 0;
+	isl_bool is_signed;
+	size_t bits;
+
+	if (expr->u.op.args[0]->type == isl_ast_expr_bound_t &&
+			expr->u.op.args[1]->type == isl_ast_expr_bound_t) {
+		is_signed = expr->u.op.args[0]->u.bound.is_signed;
+		bits = expr->u.op.args[0]->u.bound.size + expr->u.op.args[1]->u.bound.size;
+		if (is_signed != expr->u.op.args[1]->u.bound.is_signed) {
+			bits++;
+			is_signed = isl_bool_true;
+		}
+
+		expr = isl_ast_expr_bound(expr, is_signed, bits, NULL);
+	}
+	return expr;
+}
+
+__isl_give isl_ast_expr *isl_ast_bin_op_set_size_div(__isl_take isl_ast_expr *expr,
+						     __isl_keep isl_ast_build *build) {
+	int flag;
+	int add = 0;
+	isl_bool is_signed;
+	size_t bits;
+
+	if (expr->u.op.args[0]->type == isl_ast_expr_bound_t &&
+			expr->u.op.args[1]->type == isl_ast_expr_bound_t) {
+		is_signed = expr->u.op.args[1]->u.bound.is_signed;
+		bits = expr->u.op.args[1]->u.bound.size;
+		if (expr->u.op.args[0]->u.bound.is_signed || is_signed) {
+			// TODO: CHeck if this is correct
+			bits++;
+			is_signed = isl_bool_true;
+		}
+
+		expr = isl_ast_expr_bound(expr, is_signed, bits, NULL);
+	}
+	return expr;
+}
+
+__isl_give isl_ast_expr *isl_ast_bin_op_set_size_minus(__isl_take isl_ast_expr *expr,
+						     __isl_keep isl_ast_build *build) {
+	int flag;
+	int add = 0;
+	isl_bool is_signed;
+	size_t bits;
+
+	if (expr->u.op.args[0]->type == isl_ast_expr_bound_t) {
+		is_signed = expr->u.op.args[0]->u.bound.is_signed;
+		bits = expr->u.op.args[0]->u.bound.size;
+
+		if (!is_signed) {
+			is_signed = isl_bool_true;
+			bits++;
+		} else {
+			bits++;
+		}
+
+		expr = isl_ast_expr_bound(expr, is_signed, bits, NULL);
+	}
+	return expr;
+}
+
+/* Approximates the size of some binary operators by looking at the size
+ * of their arguments.
+ */
+__isl_give isl_ast_expr *isl_ast_bin_op_set_size(__isl_take isl_ast_expr *expr,
+	__isl_keep isl_ast_build *build)
+{
+	if (!build->compute_bounds)
+		return expr;
+	if (expr->type != isl_ast_expr_op)
+		isl_die(isl_ast_expr_get_ctx(expr), isl_error_internal,
+			"invalid expression type - not an isl_ast_expr_op",  goto error);
+	switch (expr->u.op.op) {
+		case isl_ast_op_min:
+		case isl_ast_op_max:
+		case isl_ast_op_select:
+		case isl_ast_op_add:
+		case isl_ast_op_sub:
+			return isl_ast_bin_op_set_size_max(expr, build);
+		case isl_ast_op_mul:
+			return isl_ast_bin_op_set_size_mul(expr, build);
+		case isl_ast_op_div:
+		case isl_ast_op_fdiv_q:
+		case isl_ast_op_pdiv_r:
+		case isl_ast_op_zdiv_r:
+		case isl_ast_op_pdiv_q:
+			return isl_ast_bin_op_set_size_div(expr, build);
+		case isl_ast_op_minus:
+			return isl_ast_bin_op_set_size_minus(expr, build);
+		default:
+			isl_die(isl_ast_expr_get_ctx(expr), isl_error_internal,
+				"invalid expression type",  goto error);
+	}
+
+error:
+	return isl_ast_expr_free(expr);
+}
+
+static int same_aff(const void *entry, const void *val) {
+	if (!entry || !val)
+		return 0;
+	return isl_aff_plain_is_equal((isl_aff*)entry, (isl_aff*)val);
+}
+
+__isl_give isl_ast_expr *isl_ast_build_set_size_with_solver(
+	__isl_keep isl_ast_build *build, __isl_take isl_ast_expr *expr,
+	__isl_keep isl_aff *aff) {
+	isl_val *res = NULL;
+	int upper_bits, lower_bits;
+	isl_bool is_lower_signed;
+    isl_local_space *ls;
+    isl_aff *upper_val, *lower_val;
+    isl_set *problems = NULL, *problems_parameters;
+    isl_basic_set *bigger;
+    isl_set *smaller;
+
+
+    if (!build || !expr)
+		return NULL;
+
+	if (!build->compute_bounds)
+		return expr;
+
+	res = isl_ast_build_min(build, aff);
+
+	if (!isl_val_is_int(res)) {
+		isl_val_free(res);
+		return expr;
+	}
+
+	is_lower_signed = isl_val_is_neg(res);
+	lower_bits = isl_val_size_in_bits(res, is_lower_signed);
+	isl_val_free(res);
+
+	res = isl_ast_build_max(build, aff);
+
+	if (!isl_val_is_int(res)) {
+		isl_val_free(res);
+		return expr;
+	}
+
+	upper_bits = isl_val_size_in_bits(res, is_lower_signed);
+	isl_val_free(res);
+
+	if (upper_bits > lower_bits)
+		lower_bits = upper_bits;
+
+	// XXX what if lower is not signed but upper is. Can this happen?
+
+	if (build->maximum_size && lower_bits > build->maximum_size) {
+		isl_val *upper, *lower;
+		if (is_lower_signed) {
+		       upper = isl_val_int_from_si(isl_ast_build_get_ctx(build), LONG_MAX);
+		       lower = isl_val_int_from_si(isl_ast_build_get_ctx(build), LONG_MIN);
+		} else {
+		       upper = isl_val_int_from_ui(isl_ast_build_get_ctx(build), ULONG_MAX);
+		       lower = isl_val_int_from_ui(isl_ast_build_get_ctx(build), 0);
+		}
+		ls = isl_aff_get_domain_local_space(aff);
+		upper_val = isl_aff_val_on_domain(isl_local_space_copy(ls), upper);
+		lower_val = isl_aff_val_on_domain(ls, lower);
+
+		bigger = isl_aff_ge_basic_set(isl_aff_copy(aff), upper_val);
+		smaller = isl_pw_aff_lt_set(isl_pw_aff_from_aff(isl_aff_copy(aff)), isl_pw_aff_from_aff(lower_val));
+		problems = isl_set_union(isl_set_from_basic_set(bigger), smaller);
+
+		problems_parameters = isl_set_params(isl_set_copy(problems));
+		if (isl_set_plain_is_universe(problems_parameters)) {
+			problems = isl_set_intersect(problems, isl_set_copy(build->generated));
+		}
+		isl_set_free(problems_parameters);
+
+		problems = isl_set_params(problems);
+		problems = isl_set_gist(problems, isl_set_params(isl_set_copy(build->domain)));
+		lower_bits = build->maximum_size;
+	}
+
+	expr = isl_ast_expr_bound(expr, is_lower_signed, lower_bits, problems);
+
+	return expr;
+}
+
+static int bare_var_cached = 0;
+static int expr_approximated_try = 0;
+static int expr_approximated_success = 0;
+static int expr_total = 0;
+
+/* If the ast_build_compute_bounds is set, then compute bounds on "expr"
+ * based on the possible value of "aff" over build->domain.
+ */
+__isl_give isl_ast_expr *isl_ast_build_set_size(
+	__isl_keep isl_ast_build *build, __isl_take isl_ast_expr *expr,
+	__isl_keep isl_aff *aff)
+{
+	expr_total++;
+
+	if (build->approximate_bounds) {
+		if (!build->cache) {
+			build->cache = isl_hash_table_alloc(isl_ast_build_get_ctx(build), 16);
+			isl_hash_table_init(isl_ast_build_get_ctx(build), build->cache, 16);
+		}
+
+		if (expr->type == isl_ast_expr_id) {
+			uint32_t hash = isl_id_get_hash(expr->u.id);
+			struct isl_hash_table_entry *entry = isl_hash_table_find(isl_ast_build_get_ctx(build),
+										 build->cache, hash, same_aff, aff, 1);
+			if (!entry->data) {
+				expr = isl_ast_build_set_size_with_solver(build, expr, aff);
+				entry->data = isl_aff_copy(aff);
+			} else {
+				bare_var_cached++;
+			}
+			return expr;
+
+		} else if (expr->type == isl_ast_expr_op) {
+			int all_bound = 1;
+			switch (expr->u.op.op) {
+				case isl_ast_op_min:
+				case isl_ast_op_max:
+				case isl_ast_op_select:
+				case isl_ast_op_add:
+				case isl_ast_op_sub:
+				case isl_ast_op_mul:
+				case isl_ast_op_div:
+				case isl_ast_op_fdiv_q:
+				case isl_ast_op_pdiv_r:
+				case isl_ast_op_zdiv_r:
+				case isl_ast_op_pdiv_q:
+				case isl_ast_op_minus:
+					for (int i = 0; i < expr->u.op.n_arg; i++)
+						if (!expr->u.op.args[i]->type == isl_ast_expr_bound_t)
+							all_bound = 0;
+					if (all_bound) {
+						expr = isl_ast_bin_op_set_size(expr, build);
+						expr_approximated_try++;
+						if (expr->type == isl_ast_expr_bound_t &&
+								expr->u.bound.size > build->maximum_size)
+							return isl_ast_build_set_size_with_solver(build, expr, aff);
+						expr_approximated_success++;
+						return expr;
+					}
+				// Default: Fall through to solver
+			}
+		}
+	}
+
+	return isl_ast_build_set_size_with_solver(build, expr, aff);
+}
+
+/* Data structure that holds an isl_ast_expr and its corresponding
+ * isl_aff.
+ */
+struct isl_ast_expr_constructor {
+	isl_ast_expr *expr;
+	isl_aff *aff;
+};
+typedef struct isl_ast_expr_constructor isl_ast_expr_constructor;
+
+__isl_give isl_ast_expr_constructor *ast_expr_constructor_from_aff(__isl_take isl_aff *aff,
+	__isl_keep isl_ast_build *build);
+
+static void *isl_ast_expr_constructor_free(
+	__isl_take isl_ast_expr_constructor *cons)
+{
+	if (!cons)
+		return NULL;
+
+	isl_ast_expr_free(cons->expr);
+	isl_aff_free(cons->aff);
+	free(cons);
+	return NULL;
+}
+
+static __isl_give isl_ast_expr *isl_ast_expr_constructor_get_ast_expr(
+	__isl_take isl_ast_expr_constructor *cons)
+{
+	if (!cons)
+		return NULL;
+
+	return isl_ast_expr_copy(cons->expr);
+}
+
+static __isl_give isl_ast_expr_constructor *isl_ast_expr_constructor_alloc(
+	__isl_take isl_local_space *ls)
+{
+	isl_ast_expr_constructor *cons;
+	isl_ctx *ctx;
+
+	if (!ls)
+		return NULL;
+
+	ctx = isl_local_space_get_ctx(ls);
+	cons = isl_alloc_type(ctx, isl_ast_expr_constructor);
+	if (!cons)
+		goto error;
+
+	cons->expr = isl_ast_expr_alloc_int_si(ctx, 0);
+	cons->aff = isl_aff_zero_on_domain(ls);
+
+	if (!cons->expr || !cons->aff)
+		return isl_ast_expr_constructor_free(cons);
+
+	return cons;
+error:
+	isl_local_space_free(ls);
+	return NULL;
+}
+
+static __isl_give isl_ast_expr_constructor *isl_ast_expr_constructor_val(
+	__isl_take isl_local_space *ls, __isl_take isl_val *v,
+	__isl_keep isl_ast_build *build)
+{
+	isl_ast_expr_constructor *cons;
+	isl_ctx *ctx;
+
+	if (!ls)
+		return NULL;
+
+	ctx = isl_local_space_get_ctx(ls);
+	cons = isl_alloc_type(ctx, isl_ast_expr_constructor);
+	if (!cons)
+		goto error;
+
+	cons->aff = isl_aff_zero_on_domain(ls);
+	cons->aff = isl_aff_add_constant_val(cons->aff, isl_val_copy(v));
+	cons->expr = isl_ast_expr_from_val(v);
+
+	if (!cons->expr || !cons->aff)
+		return isl_ast_expr_constructor_free(cons);
+
+	return cons;
+error:
+	isl_local_space_free(ls);
+	return NULL;
+}
 
 /* Compute the "opposite" of the (numerator of the) argument of a div
  * with denominator "d".
@@ -144,6 +600,189 @@ static __isl_give isl_aff *steal_from_cst(__isl_take isl_aff *aff,
 	return isl_aff_add_constant_val(aff, shift);
 }
 
+/* Set the size of cons->expr based on range of values attained
+ * by cons->aff over build->domain. This is used to handle edge-cases
+ * where the constructor does not actually contain a composite expression.
+ */
+static void isl_ast_expr_constructor_set_size(
+	__isl_keep isl_ast_expr_constructor *cons,
+	__isl_keep isl_ast_build *build)
+{
+	if (cons->expr->type != isl_ast_expr_bound_t) {
+		cons->expr = isl_ast_build_set_size(build, cons->expr, cons->aff);
+	}
+}
+
+/* Add cons2->expr to cons1->expr and compute the size of the result.
+ * The result is simplified in terms of build->domain.
+ */
+static __isl_give isl_ast_expr_constructor *isl_ast_expr_constructor_add(
+		__isl_take isl_ast_expr_constructor *cons1,
+	__isl_take isl_ast_expr_constructor *cons2,
+	__isl_keep isl_ast_build *build)
+{
+	if (!cons1 || !cons2)
+		goto error;
+
+	if (isl_aff_plain_is_zero(cons1->aff)) {
+		isl_ast_expr_constructor_free(cons1);
+		return cons2;
+	}
+
+	if (isl_aff_plain_is_zero(cons2->aff)) {
+		isl_ast_expr_constructor_free(cons2);
+		return cons1;
+	}
+
+	cons1->expr = isl_ast_expr_add(cons1->expr,
+					isl_ast_expr_copy(cons2->expr));
+	cons1->aff = isl_aff_add(cons1->aff, isl_aff_copy(cons2->aff));
+	isl_ast_expr_constructor_set_size(cons1, build);
+
+	isl_ast_expr_constructor_free(cons2);
+
+	if (!cons1->expr || !cons1->aff)
+		return isl_ast_expr_constructor_free(cons1);
+	return cons1;
+error:
+	isl_ast_expr_constructor_free(cons2);
+	return isl_ast_expr_constructor_free(cons1);
+}
+
+/* Subtract cons2->expr from cons1->expr and compute the size of the result.
+ * The result is simplified in terms of build->domain.
+ *
+ * If cons2->expr is zero, we simply return cons1->expr.
+ * If cons1->expr is zero, we return
+ *
+ *      (isl_ast_op_minus, cons2->expr)
+ *
+ * Otherwise, we return
+ *
+ *      (isl_ast_op_sub, cons1->expr, cons2->expr)
+ */
+static __isl_give isl_ast_expr_constructor *isl_ast_expr_constructor_sub(
+	__isl_take isl_ast_expr_constructor *cons1,
+	__isl_take isl_ast_expr_constructor *cons2,
+	__isl_keep isl_ast_build *build)
+{
+	if (!cons1 || !cons2)
+		goto error;
+
+	if (isl_aff_plain_is_zero(cons2->aff)) {
+		isl_ast_expr_constructor_free(cons2);
+		return cons1;
+	}
+
+	if (isl_aff_plain_is_zero(cons1->aff)) {
+		cons2->aff = isl_aff_neg(cons2->aff);
+		cons2->expr = isl_ast_expr_neg(cons2->expr);
+		isl_ast_expr_constructor_free(cons1);
+		isl_ast_expr_constructor_set_size(cons2, build);
+		if (!cons2->expr || !cons2->aff)
+			return isl_ast_expr_constructor_free(cons2);
+		return cons2;
+	}
+
+	cons1->expr = isl_ast_expr_sub(cons1->expr,
+					isl_ast_expr_copy(cons2->expr));
+	cons1->aff = isl_aff_sub(cons1->aff, isl_aff_copy(cons2->aff));
+	isl_ast_expr_constructor_set_size(cons1, build);
+
+	isl_ast_expr_constructor_free(cons2);
+
+	if (!cons1->expr || !cons1->aff)
+		return isl_ast_expr_constructor_free(cons1);
+	return cons1;
+error:
+	isl_ast_expr_constructor_free(cons2);
+	return isl_ast_expr_constructor_free(cons1);
+}
+
+/* Return an isl_ast_expr_constructor that represents
+ *
+ *      v * (aff mod d)
+ *
+ * v is assumed to be non-negative.
+ * The result is simplified in terms of build->domain.
+ */
+static __isl_give isl_ast_expr_constructor *isl_ast_expr_constructor_mod(
+	__isl_take isl_val *v, __isl_keep isl_aff *aff,
+	__isl_take isl_val *d,
+	__isl_keep isl_ast_build *build)
+{
+	isl_ctx *ctx;
+	isl_ast_expr_constructor *cons;
+	isl_ast_expr *c;
+
+	if (!aff) {
+		isl_val_free(v);
+		isl_val_free(d);
+		return NULL;
+	}
+
+	ctx = isl_aff_get_ctx(aff);
+	cons = isl_alloc_type(ctx, isl_ast_expr_constructor);
+	if (!cons) {
+		isl_val_free(v);
+		isl_val_free(d);
+		return NULL;
+	}
+
+	cons->aff = isl_aff_copy(aff);
+	cons->expr = isl_ast_expr_from_aff(isl_aff_copy(aff), build);
+
+	c = isl_ast_expr_from_val(isl_val_copy(d));
+	cons->expr = isl_ast_expr_alloc_binary(isl_ast_op_pdiv_r,
+						cons->expr, c);
+	cons->aff = isl_aff_mod_val(cons->aff, d);
+
+	isl_ast_expr_constructor_set_size(cons, build);
+
+	if (!isl_val_is_one(v)) {
+		c = isl_ast_expr_from_val(isl_val_copy(v));
+		cons->expr = isl_ast_expr_mul(c, cons->expr);
+		cons->aff = isl_aff_scale_val(cons->aff, isl_val_copy(v));
+		isl_ast_expr_constructor_set_size(cons, build);
+	}
+
+	if (!cons->expr || !cons->aff) {
+		isl_val_free(v);
+		return isl_ast_expr_constructor_free(cons);
+	}
+
+
+	isl_val_free(v);
+	return cons;
+}
+
+/* Devide cons2->expr by cons1->expr and compute the size of the result.
+ * The result is simplified in terms of build->domain.
+ */
+static __isl_give isl_ast_expr_constructor *isl_ast_expr_constructor_div(
+		__isl_take isl_ast_expr_constructor *cons1,
+	__isl_take isl_ast_expr_constructor *cons2,
+	__isl_keep isl_ast_build *build)
+{
+	if (!cons1 || !cons2)
+		goto error;
+
+	cons1->expr = isl_ast_expr_div(cons1->expr,
+					isl_ast_expr_copy(cons2->expr));
+	cons1->aff = isl_aff_div(cons1->aff, isl_aff_copy(cons2->aff));
+	cons1->aff = isl_aff_floor(cons1->aff);
+	isl_ast_expr_constructor_set_size(cons1, build);
+
+	isl_ast_expr_constructor_free(cons2);
+
+	if (!cons1->expr || !cons1->aff)
+		return isl_ast_expr_constructor_free(cons1);
+	return cons1;
+error:
+	isl_ast_expr_constructor_free(cons2);
+	return isl_ast_expr_constructor_free(cons1);
+}
+
 /* Create an isl_ast_expr evaluating the div at position "pos" in "ls".
  * The result is simplified in terms of data->build->domain.
  * This function may change (the sign of) data->v.
@@ -252,6 +891,12 @@ static __isl_give isl_ast_expr *var(struct isl_ast_add_term_data *data,
 	return isl_ast_expr_from_id(id);
 }
 
+/* Add an expression for "v" to cons->expr.
+ */
+static __isl_give isl_ast_expr_constructor *isl_ast_expr_constructor_add_int(
+	__isl_take isl_ast_expr_constructor *cons, __isl_take isl_val *v,
+	__isl_keep isl_ast_build *build);
+
 /* Does "expr" represent the zero integer?
  */
 static int ast_expr_is_zero(__isl_keep isl_ast_expr *expr)
@@ -323,36 +968,6 @@ error:
 	return NULL;
 }
 
-/* Return an isl_ast_expr that represents
- *
- *	v * (aff mod d)
- *
- * v is assumed to be non-negative.
- * The result is simplified in terms of build->domain.
- */
-static __isl_give isl_ast_expr *isl_ast_expr_mod(__isl_keep isl_val *v,
-	__isl_keep isl_aff *aff, __isl_keep isl_val *d,
-	__isl_keep isl_ast_build *build)
-{
-	isl_ast_expr *expr;
-	isl_ast_expr *c;
-
-	if (!aff)
-		return NULL;
-
-	expr = isl_ast_expr_from_aff(isl_aff_copy(aff), build);
-
-	c = isl_ast_expr_from_val(isl_val_copy(d));
-	expr = isl_ast_expr_alloc_binary(isl_ast_op_pdiv_r, expr, c);
-
-	if (!isl_val_is_one(v)) {
-		c = isl_ast_expr_from_val(isl_val_copy(v));
-		expr = isl_ast_expr_mul(c, expr);
-	}
-
-	return expr;
-}
-
 /* Create an isl_ast_expr that scales "expr" by "v".
  *
  * If v is 1, we simply return expr.
@@ -364,31 +979,72 @@ static __isl_give isl_ast_expr *isl_ast_expr_mod(__isl_keep isl_val *v,
  *
  *	(isl_ast_op_mul, expr(v), expr)
  */
-static __isl_give isl_ast_expr *scale(__isl_take isl_ast_expr *expr,
-	__isl_take isl_val *v)
+static __isl_give isl_ast_expr_constructor *scale(
+	__isl_take isl_ast_expr_constructor *cons,
+	__isl_take isl_val *v, __isl_keep isl_ast_build *build)
 {
 	isl_ast_expr *c;
 
-	if (!expr || !v)
+	if (!cons || !v)
 		goto error;
 	if (isl_val_is_one(v)) {
 		isl_val_free(v);
-		return expr;
+		return cons;
 	}
 
 	if (isl_val_is_negone(v)) {
 		isl_val_free(v);
-		expr = isl_ast_expr_neg(expr);
+		cons->expr = isl_ast_expr_neg(cons->expr);
+		cons->aff = isl_aff_neg(cons->aff);
 	} else {
-		c = isl_ast_expr_from_val(v);
-		expr = isl_ast_expr_mul(c, expr);
+		c = isl_ast_expr_from_val(isl_val_copy(v));
+		cons->expr = isl_ast_expr_mul(c, cons->expr);
+		cons->aff = isl_aff_scale_val(cons->aff, v);
 	}
 
-	return expr;
+	isl_ast_expr_constructor_set_size(cons, build);
+
+	return cons;
 error:
 	isl_val_free(v);
-	isl_ast_expr_free(expr);
+	isl_ast_expr_constructor_free(cons);
 	return NULL;
+}
+
+/* Create an isl_ast_expr evaluating "v" times the specified dimension of "ls".
+ * The result is simplified in terms of build->domain.
+ *
+ * Let e be the expression for the specified dimension.
+ * If v is 1, we simply return e.
+ * If v is -1, we return
+ *
+ *	(isl_ast_op_minus, e)
+ *
+ * Otherwise, we return
+ *
+ *	(isl_ast_op_mul, expr(v), e)
+ */
+static __isl_give isl_ast_expr_constructor *isl_ast_expr_constructor_term(
+	__isl_keep isl_local_space *ls, enum isl_dim_type type, int pos,
+	struct isl_ast_add_term_data *data)
+{
+	isl_ctx *ctx;
+	isl_ast_expr_constructor *cons;
+	if (!ls)
+		return NULL;
+
+	ctx = isl_local_space_get_ctx(ls);
+	cons = isl_alloc_type(ctx, isl_ast_expr_constructor);
+	if (!cons)
+		return NULL;
+
+	cons->expr = var(data, ls, type, pos);
+	cons->aff = isl_aff_var_on_domain(isl_local_space_copy(ls), type, pos);
+	isl_ast_expr_constructor_set_size(cons, data->build);
+
+	if (!cons->expr || !cons->aff)
+		return isl_ast_expr_constructor_free(cons);
+	return cons;
 }
 
 /* Add an expression for "*v" times the specified dimension of "ls"
@@ -414,27 +1070,29 @@ error:
  *	(isl_ast_op_add, expr, e)
  *
  */
-static __isl_give isl_ast_expr *isl_ast_expr_add_term(
-	__isl_take isl_ast_expr *expr,
+static __isl_give isl_ast_expr_constructor *isl_ast_expr_constructor_add_term(
+	__isl_take isl_ast_expr_constructor *cons,
 	__isl_keep isl_local_space *ls, enum isl_dim_type type, int pos,
 	__isl_take isl_val *v, struct isl_ast_add_term_data *data)
 {
-	isl_ast_expr *term;
+	isl_ast_expr_constructor *term;
 
-	if (!expr)
+	if (!cons)
 		return NULL;
 
 	data->v = v;
-	term = var(data, ls, type, pos);
+	term = isl_ast_expr_constructor_term(ls, type, pos, data);
 	v = data->v;
 
-	if (isl_val_is_neg(v) && !ast_expr_is_zero(expr)) {
+	if (isl_val_is_neg(v) && !ast_expr_is_zero(cons->expr)) {
 		v = isl_val_neg(v);
-		term = scale(term, v);
-		return ast_expr_sub(expr, term);
+		term = scale(term, v, data->build);
+		cons = isl_ast_expr_constructor_sub(cons, term, data->build);
+		return cons;
 	} else {
-		term = scale(term, v);
-		return ast_expr_add(expr, term);
+		term = scale(term, v, data->build);
+		cons = isl_ast_expr_constructor_add(cons, term, data->build);
+		return cons;
 	}
 }
 
@@ -467,6 +1125,45 @@ error:
 	return NULL;
 }
 
+/* Add an expression for "v" to expr.
+ */
+static __isl_give isl_ast_expr_constructor *isl_ast_expr_constructor_add_int(
+	__isl_take isl_ast_expr_constructor *cons, __isl_take isl_val *v,
+	__isl_keep isl_ast_build *build)
+{
+	isl_local_space *ls;
+	isl_ast_expr_constructor *cons_int;
+
+	if (!cons || !v)
+		goto error;
+
+	if (isl_val_is_zero(v)) {
+		isl_val_free(v);
+		return cons;
+	}
+
+	ls = isl_aff_get_domain_local_space(cons->aff);
+
+	if (isl_val_is_neg(v) && !ast_expr_is_zero(cons->expr)) {
+		v = isl_val_neg(v);
+		cons_int = isl_ast_expr_constructor_val(ls, v, build);
+		if (!cons_int)
+			goto error;
+		cons = isl_ast_expr_constructor_sub(cons, cons_int, build);
+	} else {
+		cons_int = isl_ast_expr_constructor_val(ls, v, build);
+		if (!cons_int)
+			goto error;
+		cons = isl_ast_expr_constructor_add(cons, cons_int, build);
+	}
+
+	return cons;
+error:
+	isl_ast_expr_constructor_free(cons);
+	isl_val_free(v);
+	return NULL;
+}
+
 /* Internal data structure used inside extract_modulos.
  *
  * If any modulo expressions are detected in "aff", then the
@@ -493,8 +1190,8 @@ struct isl_extract_mod_data {
 	isl_ast_build *build;
 	isl_aff *aff;
 
-	isl_ast_expr *pos;
-	isl_ast_expr *neg;
+	isl_ast_expr_constructor *pos;
+	isl_ast_expr_constructor *neg;
 
 	isl_aff *add;
 
@@ -522,20 +1219,22 @@ struct isl_extract_mod_data {
  * to data->neg or data->pos depending on the sign of -f.
  */
 static int extract_term_and_mod(struct isl_extract_mod_data *data,
-	__isl_take isl_aff *term, __isl_take isl_aff *arg)
+	__isl_take isl_aff *term, __isl_take isl_aff *arg,
+	__isl_keep isl_ast_build *build)
 {
-	isl_ast_expr *expr;
+	isl_ast_expr_constructor *cons;
 	int s;
 
 	data->v = isl_val_div(data->v, isl_val_copy(data->d));
 	s = isl_val_sgn(data->v);
 	data->v = isl_val_abs(data->v);
-	expr = isl_ast_expr_mod(data->v, arg, data->d, data->build);
+	cons = isl_ast_expr_constructor_mod(isl_val_copy(data->v), arg,
+					    isl_val_copy(data->d), data->build);
 	isl_aff_free(arg);
 	if (s > 0)
-		data->neg = ast_expr_add(data->neg, expr);
+		data->neg = isl_ast_expr_constructor_add(data->neg, cons, build);
 	else
-		data->pos = ast_expr_add(data->pos, expr);
+		data->pos = isl_ast_expr_constructor_add(data->pos, cons, build);
 	data->aff = isl_aff_set_coefficient_si(data->aff,
 						isl_dim_div, data->i, 0);
 	if (s < 0)
@@ -570,10 +1269,11 @@ static int extract_term_and_mod(struct isl_extract_mod_data *data,
  *
  * to data->neg or data->pos depending on the sign of -f.
  */
-static int extract_mod(struct isl_extract_mod_data *data)
+static int extract_mod(struct isl_extract_mod_data *data,
+	__isl_keep isl_ast_build *build)
 {
 	return extract_term_and_mod(data, isl_aff_copy(data->div),
-			isl_aff_copy(data->div));
+			isl_aff_copy(data->div), build);
 }
 
 /* Given that data->v * div_i in data->aff is of the form
@@ -594,7 +1294,8 @@ static int extract_mod(struct isl_extract_mod_data *data)
  *
  * This function may modify data->div.
  */
-static int extract_nonneg_mod(struct isl_extract_mod_data *data)
+static int extract_nonneg_mod(struct isl_extract_mod_data *data,
+	__isl_take isl_ast_build *build)
 {
 	int mod;
 
@@ -602,7 +1303,7 @@ static int extract_nonneg_mod(struct isl_extract_mod_data *data)
 	if (mod < 0)
 		goto error;
 	if (mod)
-		return extract_mod(data);
+		return extract_mod(data, build);
 
 	data->div = oppose_div_arg(data->div, isl_val_copy(data->d));
 	mod = isl_ast_build_aff_is_nonneg(data->build, data->div);
@@ -610,7 +1311,7 @@ static int extract_nonneg_mod(struct isl_extract_mod_data *data)
 		goto error;
 	if (mod) {
 		data->v = isl_val_neg(data->v);
-		return extract_mod(data);
+		return extract_mod(data, build);
 	}
 
 	return 0;
@@ -817,7 +1518,8 @@ static isl_stat check_parallel_or_opposite(__isl_take isl_constraint *c,
  * Alternatively, we could first compute the dual of the domain
  * and plug in the constraints on the coefficients.
  */
-static int try_extract_mod(struct isl_extract_mod_data *data)
+static int try_extract_mod(struct isl_extract_mod_data *data,
+	__isl_keep isl_ast_build *build)
 {
 	isl_basic_set *hull;
 	isl_val *v1, *v2;
@@ -829,7 +1531,7 @@ static int try_extract_mod(struct isl_extract_mod_data *data)
 	n = isl_aff_dim(data->div, isl_dim_div);
 
 	if (isl_aff_involves_dims(data->div, isl_dim_div, 0, n))
-		return extract_nonneg_mod(data);
+		return extract_nonneg_mod(data, build);
 
 	hull = isl_set_simple_hull(isl_set_copy(data->build->domain));
 	hull = isl_basic_set_remove_divs(hull);
@@ -843,7 +1545,7 @@ static int try_extract_mod(struct isl_extract_mod_data *data)
 		isl_aff_free(data->nonneg);
 		if (r < 0)
 			goto error;
-		return extract_nonneg_mod(data);
+		return extract_nonneg_mod(data, build);
 	}
 
 	v1 = isl_aff_get_constant_val(data->div);
@@ -871,7 +1573,7 @@ static int try_extract_mod(struct isl_extract_mod_data *data)
 	}
 
 	return extract_term_and_mod(data,
-				    isl_aff_copy(data->div), data->nonneg);
+				    isl_aff_copy(data->div), data->nonneg, build);
 error:
 	data->aff = isl_aff_free(data->aff);
 	return -1;
@@ -908,13 +1610,14 @@ error:
  *
  * and still extract a modulo.
  */
-static int extract_modulo(struct isl_extract_mod_data *data)
+static int extract_modulo(struct isl_extract_mod_data *data,
+	__isl_keep isl_ast_build *build)
 {
 	data->div = isl_aff_get_div(data->aff, data->i);
 	data->d = isl_aff_get_denominator_val(data->div);
 	if (isl_val_is_divisible_by(data->v, data->d)) {
 		data->div = isl_aff_scale_val(data->div, isl_val_copy(data->d));
-		if (try_extract_mod(data) < 0)
+		if (try_extract_mod(data, build) < 0)
 			data->aff = isl_aff_free(data->aff);
 	}
 	isl_aff_free(data->div);
@@ -946,10 +1649,11 @@ static int extract_modulo(struct isl_extract_mod_data *data)
  * If f < 0, we add ((-f) * (a mod m)) to *pos.
  */
 static __isl_give isl_aff *extract_modulos(__isl_take isl_aff *aff,
-	__isl_keep isl_ast_expr **pos, __isl_keep isl_ast_expr **neg,
+	__isl_keep isl_ast_expr_constructor **cons_pos,
+	__isl_keep isl_ast_expr_constructor **cons_neg,
 	__isl_keep isl_ast_build *build)
 {
-	struct isl_extract_mod_data data = { build, aff, *pos, *neg };
+	struct isl_extract_mod_data data = { build, aff, *cons_pos, *cons_neg };
 	isl_ctx *ctx;
 	int n;
 
@@ -971,7 +1675,7 @@ static __isl_give isl_aff *extract_modulos(__isl_take isl_aff *aff,
 			isl_val_free(data.v);
 			continue;
 		}
-		if (extract_modulo(&data) < 0)
+		if (extract_modulo(&data, build) < 0)
 			data.aff = isl_aff_free(data.aff);
 		isl_val_free(data.v);
 		if (!data.aff)
@@ -981,8 +1685,8 @@ static __isl_give isl_aff *extract_modulos(__isl_take isl_aff *aff,
 	if (data.add)
 		data.aff = isl_aff_add(data.aff, data.add);
 
-	*pos = data.pos;
-	*neg = data.neg;
+	*cons_pos = data.pos;
+	*cons_neg = data.neg;
 	return data.aff;
 }
 
@@ -995,12 +1699,12 @@ static __isl_give isl_aff *extract_modulos(__isl_take isl_aff *aff,
  * Return aff1 and add (aff2 / d) to *expr.
  */
 static __isl_give isl_aff *extract_rational(__isl_take isl_aff *aff,
-	__isl_keep isl_ast_expr **expr, __isl_keep isl_ast_build *build)
+	__isl_keep isl_ast_expr_constructor **cons, __isl_keep isl_ast_build *build)
 {
 	int i, j, n;
 	isl_aff *rat = NULL;
 	isl_local_space *ls = NULL;
-	isl_ast_expr *rat_expr;
+	isl_ast_expr_constructor *rat_cons;
 	isl_val *v, *d;
 	enum isl_dim_type t[] = { isl_dim_param, isl_dim_in, isl_dim_div };
 	enum isl_dim_type l[] = { isl_dim_param, isl_dim_set, isl_dim_div };
@@ -1049,14 +1753,13 @@ static __isl_give isl_aff *extract_rational(__isl_take isl_aff *aff,
 		rat = isl_aff_add(rat, rat_0);
 	}
 
-	isl_local_space_free(ls);
-
 	aff = isl_aff_sub(aff, isl_aff_copy(rat));
 	aff = isl_aff_scale_down_val(aff, isl_val_copy(d));
 
-	rat_expr = isl_ast_expr_from_aff(rat, build);
-	rat_expr = isl_ast_expr_div(rat_expr, isl_ast_expr_from_val(d));
-	*expr = ast_expr_add(*expr, rat_expr);
+	rat_cons = ast_expr_constructor_from_aff(rat, build);
+	rat_cons = isl_ast_expr_constructor_div(rat_cons,
+			isl_ast_expr_constructor_val(ls, d, build), build);
+	*cons = isl_ast_expr_constructor_add(*cons, rat_cons, build);
 
 	return aff;
 error:
@@ -1075,14 +1778,13 @@ error:
  * Finally, if the affine expression has a non-trivial denominator,
  * we divide the resulting isl_ast_expr by this denominator.
  */
-__isl_give isl_ast_expr *isl_ast_expr_from_aff(__isl_take isl_aff *aff,
-	__isl_keep isl_ast_build *build)
+__isl_give isl_ast_expr_constructor *ast_expr_constructor_from_aff(
+	__isl_take isl_aff *aff, __isl_keep isl_ast_build *build)
 {
 	int i, j;
 	int n;
 	isl_val *v;
-	isl_ctx *ctx = isl_aff_get_ctx(aff);
-	isl_ast_expr *expr, *expr_neg;
+	isl_ast_expr_constructor *cons, *cons_neg;
 	enum isl_dim_type t[] = { isl_dim_param, isl_dim_in, isl_dim_div };
 	enum isl_dim_type l[] = { isl_dim_param, isl_dim_set, isl_dim_div };
 	isl_local_space *ls;
@@ -1091,15 +1793,14 @@ __isl_give isl_ast_expr *isl_ast_expr_from_aff(__isl_take isl_aff *aff,
 	if (!aff)
 		return NULL;
 
-	expr = isl_ast_expr_alloc_int_si(ctx, 0);
-	expr_neg = isl_ast_expr_alloc_int_si(ctx, 0);
-
-	aff = extract_rational(aff, &expr, build);
-
-	aff = extract_modulos(aff, &expr, &expr_neg, build);
-	expr = ast_expr_sub(expr, expr_neg);
-
 	ls = isl_aff_get_domain_local_space(aff);
+
+	cons = isl_ast_expr_constructor_alloc(isl_local_space_copy(ls));
+	cons_neg = isl_ast_expr_constructor_alloc(isl_local_space_copy(ls));
+	aff = extract_rational(aff, &cons, build);
+	aff = extract_modulos(aff, &cons, &cons_neg, build);
+
+	cons = isl_ast_expr_constructor_sub(cons, cons_neg, build);
 
 	data.build = build;
 	data.cst = isl_aff_get_constant_val(aff);
@@ -1108,20 +1809,43 @@ __isl_give isl_ast_expr *isl_ast_expr_from_aff(__isl_take isl_aff *aff,
 		for (j = 0; j < n; ++j) {
 			v = isl_aff_get_coefficient_val(aff, t[i], j);
 			if (!v)
-				expr = isl_ast_expr_free(expr);
+				cons = isl_ast_expr_constructor_free(cons);
 			if (isl_val_is_zero(v)) {
 				isl_val_free(v);
 				continue;
 			}
-			expr = isl_ast_expr_add_term(expr,
+			cons = isl_ast_expr_constructor_add_term(cons,
 							ls, l[i], j, v, &data);
 		}
 	}
 
-	expr = isl_ast_expr_add_int(expr, data.cst);
+	v = data.cst;
+	cons = isl_ast_expr_constructor_add_int(cons, v, build);
+	if (!cons)
+		isl_die(isl_val_get_ctx(v), isl_error_internal,
+				"couldn't create constructor", goto out);
 
+out:
 	isl_local_space_free(ls);
 	isl_aff_free(aff);
+	return cons;
+}
+
+/* Construct an isl_ast_expr that evaluates the affine expression "aff",
+ * The result is simplified in terms of build->domain.
+ */
+__isl_give isl_ast_expr *isl_ast_expr_from_aff(__isl_take isl_aff *aff,
+	__isl_keep isl_ast_build *build)
+{
+	isl_ast_expr_constructor *cons;
+	isl_ast_expr *expr;
+
+	cons = ast_expr_constructor_from_aff(aff, build);
+	if (cons)
+		isl_ast_expr_constructor_set_size(cons, build);
+	expr = isl_ast_expr_constructor_get_ast_expr(cons);
+	isl_ast_expr_constructor_free(cons);
+
 	return expr;
 }
 
@@ -1129,7 +1853,8 @@ __isl_give isl_ast_expr *isl_ast_expr_from_aff(__isl_take isl_aff *aff,
  * with sign equal to "sign".
  * The result is simplified in terms of data->build->domain.
  */
-static __isl_give isl_ast_expr *add_signed_terms(__isl_take isl_ast_expr *expr,
+static __isl_give isl_ast_expr_constructor *add_signed_terms(
+	__isl_take isl_ast_expr_constructor *cons,
 	__isl_keep isl_aff *aff, int sign, struct isl_ast_add_term_data *data)
 {
 	int i, j;
@@ -1149,14 +1874,14 @@ static __isl_give isl_ast_expr *add_signed_terms(__isl_take isl_ast_expr *expr,
 				continue;
 			}
 			v = isl_val_abs(v);
-			expr = isl_ast_expr_add_term(expr,
+			cons = isl_ast_expr_constructor_add_term(cons,
 						ls, l[i], j, v, data);
 		}
 	}
 
 	isl_local_space_free(ls);
 
-	return expr;
+	return cons;
 }
 
 /* Should the constant term "v" be considered positive?
@@ -1277,6 +2002,7 @@ static __isl_give isl_ast_expr *extract_stride_constraint(
 	isl_ctx *ctx;
 	isl_val *c;
 	isl_ast_expr *expr, *cst;
+	isl_aff *aff_in;
 
 	if (!aff)
 		return NULL;
@@ -1290,11 +2016,15 @@ static __isl_give isl_ast_expr *extract_stride_constraint(
 		aff = isl_aff_neg(aff);
 
 	cst = isl_ast_expr_from_val(isl_val_abs(c));
+	aff_in = isl_aff_copy(aff);
 	expr = isl_ast_expr_from_aff(aff, build);
 
 	expr = isl_ast_expr_alloc_binary(isl_ast_op_zdiv_r, expr, cst);
 	cst = isl_ast_expr_alloc_int_si(ctx, 0);
 	expr = isl_ast_expr_alloc_binary(isl_ast_op_eq, expr, cst);
+
+	expr = isl_ast_build_set_size(build,expr,aff_in);
+	isl_aff_free(aff_in);
 
 	return expr;
 }
@@ -1343,7 +2073,9 @@ static __isl_give isl_ast_expr *isl_ast_expr_from_constraint(
 	isl_ast_expr *expr_pos;
 	isl_ast_expr *expr_neg;
 	isl_ast_expr *expr;
-	isl_aff *aff;
+	isl_ast_expr_constructor *cons_pos, *cons_neg;
+	isl_local_space *ls;
+	isl_aff *aff, *aff_val;
 	int eq;
 	enum isl_ast_op_type type;
 	struct isl_ast_add_term_data data;
@@ -1366,28 +2098,40 @@ static __isl_give isl_ast_expr *isl_ast_expr_from_constraint(
 				return extract_stride_constraint(aff, i, build);
 		}
 
-	ctx = isl_aff_get_ctx(aff);
-	expr_pos = isl_ast_expr_alloc_int_si(ctx, 0);
-	expr_neg = isl_ast_expr_alloc_int_si(ctx, 0);
-
-	aff = extract_modulos(aff, &expr_pos, &expr_neg, build);
+	ls = isl_aff_get_domain_local_space(aff);
+	cons_pos = isl_ast_expr_constructor_alloc(isl_local_space_copy(ls));
+	cons_neg = isl_ast_expr_constructor_alloc(ls);
+	aff = extract_modulos(aff, &cons_pos, &cons_neg, build);
 
 	data.build = build;
 	data.cst = isl_aff_get_constant_val(aff);
-	expr_pos = add_signed_terms(expr_pos, aff, 1, &data);
+
+	cons_pos = add_signed_terms(cons_pos, aff, 1, &data);
+	expr_pos = isl_ast_expr_constructor_get_ast_expr(cons_pos);
+
 	data.cst = isl_val_neg(data.cst);
-	expr_neg = add_signed_terms(expr_neg, aff, -1, &data);
+	cons_neg = add_signed_terms(cons_neg, aff, -1, &data);
+	expr_neg = isl_ast_expr_constructor_get_ast_expr(cons_neg);
 	data.cst = isl_val_neg(data.cst);
 
 	if (constant_is_considered_positive(data.cst, expr_pos, expr_neg)) {
-		expr_pos = isl_ast_expr_add_int(expr_pos, data.cst);
+		cons_pos = isl_ast_expr_constructor_add_int(cons_pos, data.cst,
+							    build);
+		isl_ast_expr_free(expr_pos);
+		expr_pos = isl_ast_expr_constructor_get_ast_expr(cons_pos);
 	} else {
 		data.cst = isl_val_neg(data.cst);
-		expr_neg = isl_ast_expr_add_int(expr_neg, data.cst);
+		cons_neg = isl_ast_expr_constructor_add_int(cons_neg, data.cst,
+							    build);
+		isl_ast_expr_free(expr_neg);
+		expr_neg = isl_ast_expr_constructor_get_ast_expr(cons_neg);
 	}
 
+	isl_ast_expr_constructor_free(cons_pos);
+	isl_ast_expr_constructor_free(cons_neg);
+
 	if (isl_ast_expr_get_type(expr_pos) == isl_ast_expr_int &&
-	    isl_ast_expr_get_type(expr_neg) != isl_ast_expr_int) {
+		isl_ast_expr_get_type(expr_neg) != isl_ast_expr_int) {
 		type = eq ? isl_ast_op_eq : isl_ast_op_le;
 		expr = isl_ast_expr_alloc_binary(type, expr_neg, expr_pos);
 	} else {
@@ -1446,6 +2190,7 @@ __isl_give isl_ast_expr *isl_ast_build_expr_from_basic_set(
 	isl_constraint_list *list;
 	isl_ast_expr *res;
 	isl_set *set;
+	isl_ast_build *outer_build = build;
 
 	list = isl_basic_set_get_constraint_list(bset);
 	isl_basic_set_free(bset);
@@ -1794,6 +2539,7 @@ static __isl_give isl_ast_expr *ast_expr_from_aff_list(
 		expr->u.op.args[i] = expr_i;
 	}
 
+	expr = isl_ast_bin_op_set_size(expr, build);
 	isl_aff_list_free(list);
 	return expr;
 error:
@@ -1942,6 +2688,8 @@ static isl_ast_expr *build_pieces(struct isl_from_pw_aff_data *data)
 	if (add_last_piece(data, data->n - 1, next) < 0)
 		return isl_ast_expr_free(res);
 
+    if (res->type == isl_ast_expr_op)
+        res = isl_ast_bin_op_set_size(res, data->build);
 	return res;
 }
 

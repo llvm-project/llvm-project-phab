@@ -10,6 +10,7 @@
 #include <string.h>
 
 #include <isl_ast_private.h>
+#include <include/isl/ast_build.h>
 
 #undef BASE
 #define BASE ast_expr
@@ -20,6 +21,7 @@
 #define BASE ast_node
 
 #include <isl_list_templ.c>
+#include "isl_ast_private.h"
 
 isl_ctx *isl_ast_print_options_get_ctx(
 	__isl_keep isl_ast_print_options *options)
@@ -179,6 +181,9 @@ __isl_give isl_ast_expr *isl_ast_expr_dup(__isl_keep isl_ast_expr *expr)
 			dup->u.op.args[i] =
 				isl_ast_expr_copy(expr->u.op.args[i]);
 		break;
+	case isl_ast_expr_bound_t:
+		dup = isl_ast_expr_bound(isl_ast_expr_copy(expr->u.bound.expr),
+			expr->u.bound.is_signed, expr->u.bound.size, expr->u.bound.condition);
 	case isl_ast_expr_error:
 		dup = NULL;
 	}
@@ -225,6 +230,10 @@ __isl_null isl_ast_expr *isl_ast_expr_free(__isl_take isl_ast_expr *expr)
 				isl_ast_expr_free(expr->u.op.args[i]);
 		free(expr->u.op.args);
 		break;
+	case isl_ast_expr_bound_t:
+		isl_ast_expr_free(expr->u.bound.expr);
+		isl_set_free(expr->u.bound.condition);
+		break;
 	case isl_ast_expr_error:
 		break;
 	}
@@ -241,6 +250,56 @@ isl_ctx *isl_ast_expr_get_ctx(__isl_keep isl_ast_expr *expr)
 enum isl_ast_expr_type isl_ast_expr_get_type(__isl_keep isl_ast_expr *expr)
 {
 	return expr ? expr->type : isl_ast_expr_error;
+}
+
+/* Return the number of bits required to represent 'expr' in two's complement
+ */
+unsigned int isl_ast_expr_get_bound_bits(__isl_keep isl_ast_expr *expr)
+{
+	if (!expr)
+		return isl_ast_op_error;
+	if (expr->type != isl_ast_expr_bound_t)
+		isl_die(isl_ast_expr_get_ctx(expr), isl_error_invalid,
+				"expression not a bound", return isl_ast_op_error);
+	return expr->u.bound.size;
+}
+
+/* Return whether the value of 'expr' at runtime can be signed.
+ */
+isl_bool isl_ast_expr_get_bound_signed(__isl_keep isl_ast_expr *expr)
+{
+	if (!expr)
+		return isl_bool_error;
+	if (expr->type != isl_ast_expr_bound_t)
+		isl_die(isl_ast_expr_get_ctx(expr), isl_error_invalid,
+				"expression not a bound", return isl_ast_op_error);
+	return expr->u.bound.is_signed;
+}
+
+/* Return the expression contained within the bounds of "expr".
+ */
+__isl_give isl_ast_expr* isl_ast_expr_get_bound_expr (__isl_keep isl_ast_expr *expr)
+{
+
+	if (!expr)
+		return NULL;
+	if (expr->type != isl_ast_expr_bound_t)
+		isl_die(isl_ast_expr_get_ctx(expr), isl_error_invalid,
+				"expression not an int", return NULL);
+	return isl_ast_expr_copy(expr->u.bound.expr);
+}
+
+/* Return the condition under which the bound "expr" is valid.
+ */
+__isl_give isl_set* isl_ast_expr_get_bound_condition (__isl_keep isl_ast_expr *expr)
+{
+
+	if (!expr)
+		return NULL;
+	if (expr->type != isl_ast_expr_bound_t)
+		isl_die(isl_ast_expr_get_ctx(expr), isl_error_invalid,
+				"expression not an int", return NULL);
+	return isl_set_copy(expr->u.bound.condition);
 }
 
 /* Return the integer value represented by "expr".
@@ -423,6 +482,8 @@ error:
 __isl_give isl_ast_expr *isl_ast_expr_alloc_int_si(isl_ctx *ctx, int i)
 {
 	isl_ast_expr *expr;
+	isl_bool is_neg;
+	int size;
 
 	expr = isl_calloc_type(ctx, isl_ast_expr);
 	if (!expr)
@@ -436,6 +497,12 @@ __isl_give isl_ast_expr *isl_ast_expr_alloc_int_si(isl_ctx *ctx, int i)
 	if (!expr->u.v)
 		return isl_ast_expr_free(expr);
 
+	if (isl_options_get_ast_build_compute_bounds(ctx)) {
+		is_neg = isl_val_is_neg(expr->u.v);
+		size = isl_val_size_in_bits(expr->u.v, is_neg);
+		expr = isl_ast_expr_bound(expr, is_neg, size, NULL);
+	}
+
 	return expr;
 }
 
@@ -445,6 +512,8 @@ __isl_give isl_ast_expr *isl_ast_expr_from_val(__isl_take isl_val *v)
 {
 	isl_ctx *ctx;
 	isl_ast_expr *expr;
+	isl_bool is_neg;
+	int size;
 
 	if (!v)
 		return NULL;
@@ -462,6 +531,12 @@ __isl_give isl_ast_expr *isl_ast_expr_from_val(__isl_take isl_val *v)
 	expr->ref = 1;
 	expr->type = isl_ast_expr_int;
 	expr->u.v = v;
+
+	if (isl_options_get_ast_build_compute_bounds(isl_val_get_ctx(v))) {
+		is_neg = isl_val_is_neg(expr->u.v);
+		size = isl_val_size_in_bits(expr->u.v, is_neg);
+		expr = isl_ast_expr_bound(expr, is_neg, size, NULL);
+	}
 
 	return expr;
 error:
@@ -515,6 +590,43 @@ __isl_give isl_ast_expr *isl_ast_expr_address_of(__isl_take isl_ast_expr *expr)
 			return isl_ast_expr_free(expr));
 
 	return isl_ast_expr_alloc_unary(isl_ast_op_address_of, expr);
+}
+
+/* Create an expression representing the bounds on "expr".
+ *
+ */
+__isl_give isl_ast_expr *isl_ast_expr_bound(__isl_take isl_ast_expr *expr,
+	isl_bool is_signed, unsigned int size, __isl_take isl_set *conditions)
+{
+	isl_ctx *ctx;
+	isl_ast_expr *result;
+
+	if (!expr)
+		return NULL;
+
+	if (expr->type == isl_ast_expr_bound_t) {
+		isl_die(isl_ast_expr_get_ctx(expr), isl_error_internal,
+			"Cannot take bound of bound",
+			return isl_ast_expr_free(expr));
+	}
+
+	ctx = isl_ast_expr_get_ctx(expr);
+	result = isl_calloc_type(ctx, isl_ast_expr);
+	if (!result) {
+		isl_ast_expr_free(result);
+		return NULL;
+	}
+	result->type = isl_ast_expr_bound_t;
+
+	result->ctx = ctx;
+	isl_ctx_ref(ctx);
+	result->ref = 1;
+	result->u.bound.expr = expr;
+	result->u.bound.is_signed = is_signed;
+	result->u.bound.size = size;
+	result->u.bound.condition = conditions;
+
+	return result;
 }
 
 /* Create an expression representing the binary operation "type"
@@ -1557,15 +1669,42 @@ static int sub_expr_need_parens(enum isl_ast_op_type op,
 	return 0;
 }
 
+__isl_give isl_printer *printer_print_cast(__isl_take isl_printer *p,
+	__isl_keep isl_ast_expr *expr)
+{
+	if (isl_ast_expr_get_type(expr) != isl_ast_expr_bound_t)
+		return p;
+
+	if (!isl_options_get_ast_build_print_computed_bounds(isl_printer_get_ctx(p)))
+		return p;
+
+	p = isl_printer_print_str(p, "(");
+	if (!isl_ast_expr_get_bound_signed(expr))
+		p = isl_printer_print_str(p, "u");
+
+	p = isl_printer_print_str(p, "int");
+	p = isl_printer_print_int(p, isl_ast_expr_get_bound_bits(expr));
+	p = isl_printer_print_str(p, ")");
+
+	return p;
+}
+
 /* Print "expr" as a subexpression of an "op" operation in C format.
  * If "left" is set, then "expr" is the left-most operand.
  */
 static __isl_give isl_printer *print_sub_expr_c(__isl_take isl_printer *p,
-	enum isl_ast_op_type op, __isl_keep isl_ast_expr *expr, int left)
+	enum isl_ast_op_type op, __isl_keep isl_ast_expr *expr, int left,
+	__isl_keep isl_ast_expr *parent)
 {
 	int need_parens;
 
 	need_parens = sub_expr_need_parens(op, expr, left);
+	if (isl_ast_expr_get_type(expr) == isl_ast_expr_bound_t) {
+		p = printer_print_cast(p, expr);
+        if (isl_options_get_ast_build_print_computed_bounds(isl_printer_get_ctx(p)))
+		    need_parens = 1;
+		expr = expr->u.bound.expr;
+	}
 
 	if (need_parens)
 		p = isl_printer_print_str(p, "(");
@@ -1810,8 +1949,9 @@ static __isl_give isl_printer *print_ast_expr_c(__isl_take isl_printer *p,
 		if (expr->u.op.n_arg == 1) {
 			p = isl_printer_print_str(p,
 						get_op_str_c(p, expr->u.op.op));
+			p = printer_print_cast(p, expr);
 			p = print_sub_expr_c(p, expr->u.op.op,
-						expr->u.op.args[0], 0);
+						expr->u.op.args[0], 0, expr);
 			break;
 		}
 		if (expr->u.op.op == isl_ast_op_fdiv_q) {
@@ -1842,19 +1982,31 @@ static __isl_give isl_printer *print_ast_expr_c(__isl_take isl_printer *p,
 			isl_die(isl_printer_get_ctx(p), isl_error_internal,
 				"operation should have two arguments",
 				return isl_printer_free(p));
-		p = print_sub_expr_c(p, expr->u.op.op, expr->u.op.args[0], 1);
+		p = print_sub_expr_c(p, expr->u.op.op, expr->u.op.args[0], 1,
+				     expr);
 		if (expr->u.op.op != isl_ast_op_member)
 			p = isl_printer_print_str(p, " ");
 		p = isl_printer_print_str(p, get_op_str_c(p, expr->u.op.op));
 		if (expr->u.op.op != isl_ast_op_member)
 			p = isl_printer_print_str(p, " ");
-		p = print_sub_expr_c(p, expr->u.op.op, expr->u.op.args[1], 0);
+		p = print_sub_expr_c(p, expr->u.op.op, expr->u.op.args[1], 0,
+				     expr);
 		break;
 	case isl_ast_expr_id:
 		p = isl_printer_print_str(p, isl_id_get_name(expr->u.id));
 		break;
 	case isl_ast_expr_int:
 		p = isl_printer_print_val(p, expr->u.v);
+		break;
+	case isl_ast_expr_bound_t:
+		if (!isl_options_get_ast_build_print_computed_bounds(isl_printer_get_ctx(p)))
+			p = print_ast_expr_c(p, expr->u.bound.expr);
+		else {
+			p = printer_print_cast(p, expr);
+			p = isl_printer_print_str(p, "(");
+			p = print_ast_expr_c(p, expr->u.bound.expr);
+			p = isl_printer_print_str(p, ")");
+		}
 		break;
 	case isl_ast_expr_error:
 		break;
@@ -1931,6 +2083,27 @@ static __isl_give isl_printer *print_arguments(__isl_take isl_printer *p,
 	return p;
 }
 
+isl_printer *print_ast_expr_size_isl(__isl_take isl_printer *p,
+	 __isl_keep isl_ast_expr *expr) {
+	if (isl_ast_expr_get_type(expr) == isl_ast_expr_bound_t) {
+		p = isl_printer_yaml_next(p);
+		p = isl_printer_print_str(p, "size");
+		p = isl_printer_yaml_next(p);
+		p = isl_printer_print_int(p, expr->u.bound.size);
+		p = isl_printer_yaml_next(p);
+		p = isl_printer_print_str(p, "is_signed");
+		p = isl_printer_yaml_next(p);
+		p = isl_printer_print_int(p, expr->u.bound.is_signed);
+		if (expr->u.bound.condition) {
+			p = isl_printer_yaml_next(p);
+			p = isl_printer_print_str(p, "condition");
+			p = isl_printer_yaml_next(p);
+			isl_printer_print_set(p, expr->u.bound.condition);
+		}
+	}
+	return p;
+}
+
 /* Print "expr" to "p" in isl format.
  *
  * In particular, print the isl_ast_expr as a YAML document.
@@ -1958,6 +2131,7 @@ static __isl_give isl_printer *print_ast_expr_isl(__isl_take isl_printer *p,
 		p = isl_printer_print_str(p, "op");
 		p = isl_printer_yaml_next(p);
 		p = isl_printer_print_str(p, op_str[op]);
+		p = print_ast_expr_size_isl(p, expr);
 		p = isl_printer_yaml_next(p);
 		p = print_arguments(p, expr);
 		break;
@@ -1967,14 +2141,20 @@ static __isl_give isl_printer *print_ast_expr_isl(__isl_take isl_printer *p,
 		id = isl_ast_expr_get_id(expr);
 		p = isl_printer_print_id(p, id);
 		isl_id_free(id);
+		p = print_ast_expr_size_isl(p, expr);
 		break;
 	case isl_ast_expr_int:
 		p = isl_printer_print_str(p, "val");
 		p = isl_printer_yaml_next(p);
 		v = isl_ast_expr_get_val(expr);
 		p = isl_printer_print_val(p, v);
+		p = print_ast_expr_size_isl(p, expr);
 		isl_val_free(v);
 		break;
+	case isl_ast_expr_bound_t:
+		if (!isl_options_get_ast_build_print_computed_bounds(isl_printer_get_ctx(p)))
+			p = print_ast_expr_size_isl(p, expr);
+		p = print_ast_expr_isl(p, expr->u.bound.expr);
 	}
 	p = isl_printer_yaml_end_mapping(p);
 
@@ -2273,8 +2453,13 @@ static __isl_give isl_printer *print_for_c(__isl_take isl_printer *p,
 	const char *type;
 
 	type = isl_options_get_ast_iterator_type(isl_printer_get_ctx(p));
+
 	if (!node->u.f.degenerate) {
-		id = isl_ast_expr_get_id(node->u.f.iterator);
+		if (node->u.f.iterator->type == isl_ast_expr_bound_t) {
+			id = isl_ast_expr_get_id(node->u.f.iterator->u.bound.expr);
+		} else {
+			id = isl_ast_expr_get_id(node->u.f.iterator);
+		}
 		name = isl_id_get_name(id);
 		isl_id_free(id);
 		p = isl_printer_start_line(p);

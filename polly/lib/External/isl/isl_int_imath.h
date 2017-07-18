@@ -74,4 +74,5 @@ uint32_t isl_imath_hash(mp_int v, uint32_t hash);
 typedef void (*isl_int_print_mp_free_t)(void *, size_t);
 #define isl_int_free_str(s)	free(s)
 
+#define isl_int_size_in_bits(v,s) isl_imath_size_in_bits(v,s)
 #endif /* ISL_INT_IMATH_H */

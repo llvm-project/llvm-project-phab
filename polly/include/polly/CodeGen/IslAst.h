@@ -78,6 +78,35 @@ private:
 
   IslAst(Scop &Scop);
   void init(const Dependences &D);
+
+  /// Extract precondition to include in RTC from an isl ast node
+  ///
+  /// @param Node  The node to extract the condition from
+  /// @param cond  The condition to add constraints to
+  /// @param Build The build in which to construct isl ast expressions
+  ///
+  /// @returns An ast expression that contains the constraints from \p Cond
+  ///
+  /// This method visits all nodes in the AST tree given by \p Node,
+  /// passing off all expression trees to
+  /// @link extractPreconditionFromAST(Expr, Cond, Build)
+  isl_ast_expr *extractPreconditionFromAST(isl_ast_node *Node,
+                                           isl_ast_expr *Cond,
+                                           isl_ast_build *Build);
+
+  /// Extract precondition to include in RTC from an isl ast expression
+  ///
+  /// @param Expr  The expression to extract the condition from
+  /// @param cond  The condition to add constraints to
+  /// @param Build The build in which to construct isl ast expressions
+  ///
+  /// @returns An ast expression that contains the constraints from \p Expr
+  ///
+  /// Note that all constraint sets from the expression tree in \p Expr will be
+  /// evaluated to ast expressions under the context of \p Build
+  isl_ast_expr *extractPreconditionFromAST(isl_ast_expr *Expr,
+                                           isl_ast_expr *Cond,
+                                           isl_ast_build *Build);
 };
 
 class IslAstInfo {
