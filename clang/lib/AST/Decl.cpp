@@ -3288,6 +3288,14 @@ FunctionDecl *FunctionDecl::getTemplateInstantiationPattern() const {
   if (auto *MFD = getInstantiatedFromMemberFunction())
     return getDefinitionOrSelf(MFD);
 
+  if (FunctionTemplateDecl *TD = getDescribedFunctionTemplate()) {
+    if (TD->getFriendObjectKind() != FOK_None) {
+      while (FunctionTemplateDecl *FT = TD->getInstantiatedFromMemberTemplate())
+        TD = FT;
+      return TD->getTemplatedDecl();
+    }
+  }
+
   return nullptr;
 }
 
