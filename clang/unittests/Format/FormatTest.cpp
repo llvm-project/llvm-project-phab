@@ -897,6 +897,38 @@ TEST_F(FormatTest, ShortCaseLabels) {
                "}",
                Style);
   verifyFormat("switch (a) {\n"
+               "case 0: return; // comment\n"
+               "case 1: break;  // comment\n"
+               "case 2: return;\n"
+               "// comment\n"
+               "case 3: return;\n"
+               "// comment 1\n"
+               "// comment 2\n"
+               "// comment 3\n"
+               "case 4: break; /* comment */\n"
+               "case 5:\n"
+               "  // comment\n"
+               "  break;\n"
+               "}",
+               Style);
+  EXPECT_EQ("switch (a) {\n"
+            "case 1:\n"
+            "  x = 8;\n"
+            "  // fall through\n"
+            "case 2: x = 8;\n"
+            "// comment\n"
+            "default:\n"
+            "}",
+            format("switch (a) {\n"
+                   "case 1: x = 8;\n"
+                   "  // fall through\n"
+                   "case 2:\n"
+                   "  x = 8;\n"
+                   "// comment\n"
+                   "default:\n"
+                   "}",
+                   Style));
+  verifyFormat("switch (a) {\n"
                "#if FOO\n"
                "case 0: return 0;\n"
                "#endif\n"
