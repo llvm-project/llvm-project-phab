@@ -48,6 +48,9 @@ void fuchsia::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("gnu");
   }
 
+  CmdArgs.push_back("-z");
+  CmdArgs.push_back("rodynamic");
+
   if (!D.SysRoot.empty())
     CmdArgs.push_back(Args.MakeArgString("--sysroot=" + D.SysRoot));
 
