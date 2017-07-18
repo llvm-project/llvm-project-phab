@@ -256,6 +256,29 @@ public:
     return newRanges;
   }
 
+  // Turn all [A, B] ranges to [-B, -A]. Turn minimal signed value to maximal
+  // signed value and vice versa.
+  RangeSet Negate(BasicValueFactory &BV, Factory &F) const {
+    PrimRangeSet newRanges = F.getEmptySet();
+
+    for (iterator i = begin(), e = end(); i != e; ++i) {
+      const llvm::APSInt &from = i->From(), &to = i->To();
+      const llvm::APSInt &newFrom = (to.isMinSignedValue() ?
+                                     BV.getMaxValue(to) :
+                                     (to.isMaxSignedValue() ?
+                                      BV.getMinValue(to) :
+                                      BV.getValue(- to)));
+      const llvm::APSInt &newTo = (from.isMinSignedValue() ?
+                                   BV.getMaxValue(from) :
+                                   (from.isMaxSignedValue() ?
+                                    BV.getMinValue(from) :
+                                    BV.getValue(- from)));
+      newRanges = F.add(newRanges, Range(newFrom, newTo));
+    }
+
+    return newRanges;
+  }
+
   void print(raw_ostream &os) const {
     bool isFirst = true;
     os << "{ ";
@@ -465,10 +488,36 @@ RangeSet RangeConstraintManager::getRange(ProgramStateRef State,
   if (ConstraintRangeTy::data_type *V = State->get<ConstraintRange>(Sym))
     return *V;
 
-  // Lazily generate a new RangeSet representing all possible values for the
-  // given symbol type.
+  // If Sym is a difference of symbols A - B, then maybe we have range set
+  // stored for B - A.
   BasicValueFactory &BV = getBasicVals();
   QualType T = Sym->getType();
+
+  if (const SymSymExpr *SSE = dyn_cast<SymSymExpr>(Sym)) {
+    // FIXME: Once SValBuilder supports unary minus, we should use SValBuilder
+    //        to obtain the negated symbolic expression instead of constructing
+    //        the symbol manually. This will allow us to support finding ranges
+    //        of not only negated SymSymExpr-type expressions, but also of
+    //        other, simpler expressions which we currently do not know how to
+    //        negate.
+    if (SSE->getOpcode() == BO_Sub) {
+      SymbolManager &SymMgr = State->getSymbolManager();
+      SymbolRef negSym = SymMgr.getSymSymExpr(SSE->getRHS(), BO_Sub,
+                                              SSE->getLHS(), T);
+      if (ConstraintRangeTy::data_type *negV =
+          State->get<ConstraintRange>(negSym)) {
+        // Unsigned range set cannot be negated, unless it is [0, 0].
+        if ((negV->getConcreteValue() &&
+             (*negV->getConcreteValue() == 0)) ||
+            T->isSignedIntegerOrEnumerationType()) {
+          return negV->Negate(BV, F);
+        }
+      }
+    }
+  }
+
+  // Lazily generate a new RangeSet representing all possible values for the
+  // given symbol type.
 
   RangeSet Result(F, BV.getMinValue(T), BV.getMaxValue(T));
 
