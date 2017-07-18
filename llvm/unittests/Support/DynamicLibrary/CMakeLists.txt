@@ -2,6 +2,10 @@ set(LLVM_LINK_COMPONENTS Support)
 
 add_library(DynamicLibraryLib STATIC ExportedFuncs.cxx)
 
+if(LLVM_ENABLE_MODULES)
+  target_compile_options(DynamicLibraryLib PRIVATE "-fno-modules")
+endif()
+
 add_llvm_unittest(DynamicLibraryTests DynamicLibraryTest.cpp)
 target_link_libraries(DynamicLibraryTests DynamicLibraryLib)
 export_executable_symbols(DynamicLibraryTests)
@@ -18,6 +22,10 @@ function(dynlib_add_module NAME)
     PROPERTIES PREFIX ""
     SUFFIX ".so"
     )
+
+  if(LLVM_ENABLE_MODULES)
+    target_compile_options(${NAME} PRIVATE "-fno-modules")
+  endif()
 
   add_dependencies(DynamicLibraryTests ${NAME})
 endfunction(dynlib_add_module)

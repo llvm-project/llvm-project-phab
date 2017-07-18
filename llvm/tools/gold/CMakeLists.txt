@@ -7,6 +7,10 @@ if( LLVM_ENABLE_PIC AND LLVM_BINUTILS_INCDIR )
   # ABI compatibility.
   add_definitions( -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64 )
 
+  if(LLVM_ENABLE_MODULES)
+    list(APPEND LLVM_COMPILE_FLAGS "-fno-modules")
+  endif()
+
   set(LLVM_LINK_COMPONENTS
      ${LLVM_TARGETS_TO_BUILD}
      Linker

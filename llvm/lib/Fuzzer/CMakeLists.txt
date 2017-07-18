@@ -26,6 +26,10 @@ if( LLVM_USE_SANITIZE_COVERAGE )
   set(CMAKE_CXX_FLAGS "${LIBFUZZER_FLAGS_BASE} -fno-sanitize-coverage=trace-pc-guard,edge,trace-cmp,indirect-calls,8bit-counters -Werror")
 endif()
 
+if(LLVM_ENABLE_MODULES)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-modules")
+endif()
+
 # Compile libFuzzer if the compilation is specifically requested, OR
 # if the platform is known to be working.
 if ( LLVM_USE_SANITIZE_COVERAGE OR CMAKE_SYSTEM_NAME MATCHES "Darwin|Linux" )

@@ -45,6 +45,11 @@ if (LLVM_PTHREAD_LIBRARY_PATH)
   list(APPEND LIBS pthread)
 endif()
 
+# -frtti
+if(LLVM_ENABLE_MODULES)
+  list(APPEND LLVM_COMPILE_FLAGS "-fno-modules")
+endif()
+
 add_llvm_library(gtest
   googletest/src/gtest-all.cc
   googlemock/src/gmock-all.cc
