@@ -554,6 +554,81 @@ SVal SimpleSValBuilder::evalBinOpNN(ProgramStateRef state,
       if (const llvm::APSInt *RHSValue = getKnownValue(state, rhs))
         return MakeSymIntVal(Sym, op, *RHSValue, resultTy);
 
+      // If comparing two symbolic expressions of the format S, S+n or S-n
+      // rearrange the comparison by moving symbols to the left side and the
+      // concrete integer to the right. This enables the range based constraint
+      // manager to handle these comparisons.
+      if (BinaryOperator::isComparisonOp(op) &&
+          rhs.getSubKind() == nonloc::SymbolValKind) {
+        SymbolRef rSym = rhs.castAs<nonloc::SymbolVal>().getSymbol();
+        if (Sym->getType() == rSym->getType() &&
+            Sym->getType()->isSignedIntegerOrEnumerationType()) {
+          // FIXME: Support unsigned types using signed differences
+          const llvm::APSInt *lInt = nullptr, *rInt = nullptr;
+          BinaryOperator::Opcode lop, rop;
+
+          // Type of n in S+n or S-n is the same as the type of S+n or S-n.
+          // Since they are equal on both sides, no need to convert them.
+          if (const SymIntExpr *lSymIntExpr = dyn_cast<SymIntExpr>(Sym)) {
+            lop = lSymIntExpr->getOpcode();
+            if (BinaryOperator::isAdditiveOp(lop)) {
+              lInt = &lSymIntExpr->getRHS();
+              Sym = lSymIntExpr->getLHS();
+            }
+          }
+          if (const SymIntExpr *rSymIntExpr = dyn_cast<SymIntExpr>(rSym)) {
+            rop = rSymIntExpr->getOpcode();
+            if (BinaryOperator::isAdditiveOp(rop)) {
+              rInt = &rSymIntExpr->getRHS();
+              rSym = rSymIntExpr->getLHS();
+            }
+          }
+
+          bool reverse; // Avoid negative numbers in case of unsigned types
+          const llvm::APSInt *newRhs;
+          if (lInt && rInt) {
+            if (lop != rop) {
+              newRhs = BasicVals.evalAPSInt(BO_Add, *lInt, *rInt);
+              reverse = (lop == BO_Add);
+            } else {
+              if (*lInt >= *rInt) {
+                newRhs = BasicVals.evalAPSInt(BO_Sub, *lInt, *rInt);
+                reverse = (lop == BO_Add);
+              } else {
+                newRhs = BasicVals.evalAPSInt(BO_Sub, *rInt, *lInt);
+                reverse = (lop == BO_Sub);
+              }
+            }
+          } else if (lInt) {
+            newRhs = lInt;
+            reverse = (lop == BO_Add);
+          } else if (rInt) {
+            newRhs = rInt;
+            reverse = (rop == BO_Sub);
+          } else {
+            newRhs = &BasicVals.getValue(0, Sym->getType());
+            reverse = false;
+          }
+
+          // If the two symbols are equal, compare only the integers and return
+          // the concrete result. If they are different, return the rearranged
+          // expression.
+          if (Sym == rSym) {
+            return nonloc::ConcreteInt(*BasicVals.evalAPSInt(
+                      op, BasicVals.getValue(0, Sym->getType()), *newRhs));
+          } else {
+            if (reverse) {
+              op = BinaryOperator::reverseComparisonOp(op);
+            }
+            const SymExpr *newLhs =
+              reverse
+              ? SymMgr.getSymSymExpr(rSym, BO_Sub, Sym, Sym->getType())
+              : SymMgr.getSymSymExpr(Sym, BO_Sub, rSym, Sym->getType());
+            return makeNonLoc(newLhs, op, *newRhs, resultTy);
+          }
+        }
+      }
+
       // Give up -- this is not a symbolic expression we can handle.
       return makeSymExprValNN(state, op, InputLHS, InputRHS, resultTy);
     }
