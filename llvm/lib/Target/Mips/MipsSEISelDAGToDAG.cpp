@@ -49,6 +49,25 @@ void MipsSEDAGToDAGISel::getAnalysisUsage(AnalysisUsage &AU) const {
   SelectionDAGISel::getAnalysisUsage(AU);
 }
 
+void
+MipsSEDAGToDAGISel::addCOPYNodeSW16_MM(MachineFunction &MF, MachineInstr &MI) {
+  MachineBasicBlock &MBB = *MI.getParent();
+  const TargetRegisterInfo *TRI = Subtarget->getRegisterInfo();
+  const TargetInstrInfo *TII = Subtarget->getInstrInfo();
+  MachineRegisterInfo &RegInfo = MF.getRegInfo();
+  DebugLoc DL = MI.getDebugLoc();
+  MachineBasicBlock::iterator II(MI);
+
+  unsigned Reg = MI.getOperand(0).getReg();
+  const auto &GPRMM16ZeroRegClass =
+      TRI->getRegClass(Mips::GPRMM16ZeroRegClassID);
+  unsigned NewReg = RegInfo.createVirtualRegister(GPRMM16ZeroRegClass);
+
+  BuildMI(MBB, II, DL, TII->get(Mips::COPY), NewReg).addReg(Reg);
+  
+  MI.getOperand(0).setReg(NewReg);
+}
+
 void MipsSEDAGToDAGISel::addDSPCtrlRegOperands(bool IsDef, MachineInstr &MI,
                                                MachineFunction &MF) {
   MachineInstrBuilder MIB(MF, &MI);
@@ -237,6 +256,9 @@ void MipsSEDAGToDAGISel::processFunctionAfterISel(MachineFunction &MF) {
         break;
       case Mips::WRDSP:
         addDSPCtrlRegOperands(true, MI, MF);
+        break;
+      case Mips::SW16_MM:
+        addCOPYNodeSW16_MM(MF, MI);
         break;
       default:
         replaceUsesWithZeroReg(MRI, MI);

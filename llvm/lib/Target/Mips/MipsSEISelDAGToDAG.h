@@ -32,6 +32,8 @@ private:
 
   void addDSPCtrlRegOperands(bool IsDef, MachineInstr &MI,
                              MachineFunction &MF);
+  
+  void addCOPYNodeSW16_MM(MachineFunction &MF, MachineInstr &MI);
 
   unsigned getMSACtrlReg(const SDValue RegIdx) const;
 
