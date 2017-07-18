@@ -352,7 +352,6 @@ void Initialize(ThreadState *thr) {
     ctx->dd = DDetector::Create(flags());
   Processor *proc = ProcCreate();
   ProcWire(proc, thr);
-  InitializeInterceptors();
   CheckShadowMapping();
   InitializePlatform();
   InitializeMutex();
@@ -361,6 +360,13 @@ void Initialize(ThreadState *thr) {
   InitializeShadowMemory();
   InitializeAllocatorLate();
 #endif
+
+  // Initialize thread 0.
+  int tid = ThreadCreate(thr, 0, 0, true);
+  CHECK_EQ(tid, 0);
+  ThreadStart(thr, tid, GetTid(), /*workerthread*/ false);
+
+  InitializeInterceptors();
   // Setup correct file descriptor for error reports.
   __sanitizer_set_report_path(common_flags()->log_path);
   InitializeSuppressions();
@@ -378,11 +384,6 @@ void Initialize(ThreadState *thr) {
 
   VPrintf(1, "***** Running under ThreadSanitizer v2 (pid %d) *****\n",
           (int)internal_getpid());
-
-  // Initialize thread 0.
-  int tid = ThreadCreate(thr, 0, 0, true);
-  CHECK_EQ(tid, 0);
-  ThreadStart(thr, tid, GetTid(), /*workerthread*/ false);
 #if TSAN_CONTAINS_UBSAN
   __ubsan::InitAsPlugin();
 #endif
