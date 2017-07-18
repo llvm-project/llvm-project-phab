@@ -669,14 +669,18 @@ SVal SimpleSValBuilder::evalBinOpLL(ProgramStateRef state,
     // If one of the operands is a symbol and the other is a constant,
     // build an expression for use by the constraint manager.
     if (SymbolRef rSym = rhs.getAsLocSymbol()) {
-      // We can only build expressions with symbols on the left,
-      // so we need a reversible operator.
-      if (!BinaryOperator::isComparisonOp(op))
-        return UnknownVal();
-
       const llvm::APSInt &lVal = lhs.castAs<loc::ConcreteInt>().getValue();
-      op = BinaryOperator::reverseComparisonOp(op);
-      return makeNonLoc(rSym, op, lVal, resultTy);
+
+      if (BinaryOperator::isCommutativeOp(op))
+        return makeNonLoc(rSym, op, lVal, resultTy);
+
+      if (BinaryOperator::isComparisonOp(op)) {
+        BinaryOperator::Opcode NewOp = BinaryOperator::reverseComparisonOp(op);
+        return makeNonLoc(rSym, NewOp, lVal, resultTy);
+      }
+
+      // Prefer expressions with symbols on the left
+      return makeNonLoc(lVal, op, rSym, resultTy);
     }
 
     // If both operands are constants, just perform the operation.
@@ -994,7 +998,8 @@ const llvm::APSInt *SimpleSValBuilder::getKnownValue(ProgramStateRef state,
   if (SymbolRef Sym = V.getAsSymbol())
     return state->getConstraintManager().getSymVal(state, Sym);
 
-  // FIXME: Add support for SymExprs.
+  // FIXME: Add support for SymExprs in RangeConstraintManager.
+
   return nullptr;
 }
 
@@ -1019,8 +1024,11 @@ SVal SimpleSValBuilder::simplifySVal(ProgramStateRef State, SVal V) {
       return nonloc::SymbolVal(S);
     }
 
-    // TODO: Support SymbolCast. Support IntSymExpr when/if we actually
-    // start producing them.
+    SVal VisitIntSymExpr(const IntSymExpr *S) {
+      SVal RHS = Visit(S->getRHS());
+      SVal LHS = SVB.makeIntVal(S->getLHS());
+      return SVB.evalBinOp(State, S->getOpcode(), LHS, RHS, S->getType());
+    }
 
     SVal VisitSymIntExpr(const SymIntExpr *S) {
       SVal LHS = Visit(S->getLHS());
@@ -1045,6 +1053,11 @@ SVal SimpleSValBuilder::simplifySVal(ProgramStateRef State, SVal V) {
       return SVB.evalBinOp(State, S->getOpcode(), LHS, RHS, S->getType());
     }
 
+    SVal VisitSymbolCast(const SymbolCast *S) {
+      SVal V = Visit(S->getOperand());
+      return SVB.evalCast(V, S->getType(), S->getOperand()->getType());
+    }
+
     SVal VisitSymSymExpr(const SymSymExpr *S) {
       SVal LHS = Visit(S->getLHS());
       SVal RHS = Visit(S->getRHS());
@@ -1058,7 +1071,8 @@ SVal SimpleSValBuilder::simplifySVal(ProgramStateRef State, SVal V) {
     SVal VisitNonLocSymbolVal(nonloc::SymbolVal V) {
       // Simplification is much more costly than computing complexity.
       // For high complexity, it may be not worth it.
-      if (V.getSymbol()->computeComplexity() > 100)
+      // Use a lower bound to avoid recursive blowup, e.g. on PR24184.cpp
+      if (V.getSymbol()->computeComplexity() > 10)
         return V;
       return Visit(V.getSymbol());
     }
