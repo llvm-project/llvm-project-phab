@@ -26,6 +26,7 @@ class MCObjectWriter;
 class MCSymbol;
 class MCSymbolELF;
 class MCValue;
+class MCReloc;
 
 struct ELFRelocationEntry {
   uint64_t Offset; // Where is the relocation.
@@ -75,9 +76,8 @@ public:
         return ELF::ELFOSABI_NONE;
     }
   }
-
-  virtual unsigned getRelocType(MCContext &Ctx, const MCValue &Target,
-                                const MCFixup &Fixup, bool IsPCRel) const = 0;
+  virtual unsigned getRelocType(MCAssembler &Asm,
+                                const MCReloc &Reloc) const = 0;
 
   virtual bool needsRelocateWithSymbol(const MCSymbol &Sym,
                                        unsigned Type) const;
