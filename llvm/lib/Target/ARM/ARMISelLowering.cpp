@@ -4472,6 +4472,47 @@ SDValue ARMTargetLowering::LowerBR_CC(SDValue Op, SelectionDAG &DAG) const {
     }
   }
 
+  // Optimize {s|u}{add|sub}.with.overflow feeding into an "and 1" and then
+  // a branch instruction.
+  auto IsAndOfOptimizableOverflow = [&](const SDValue &LHS,
+                                        const SDValue &RHS) {
+    unsigned Opc = LHS.getOpcode();
+    return LHS.getResNo() == 1 && isOneConstant(RHS) &&
+           (Opc == ISD::SADDO || Opc == ISD::UADDO || Opc == ISD::SSUBO ||
+            Opc == ISD::USUBO);
+  };
+  if (LHS.getOpcode() == ISD::AND &&
+      (isOneConstant(RHS) || isNullConstant(RHS)) &&
+      IsAndOfOptimizableOverflow(LHS.getOperand(0), LHS.getOperand(1))) {
+    SDValue OverflowOp = LHS.getOperand(0);
+    assert((CC == ISD::SETEQ || CC == ISD::SETNE) &&
+           "Unexpected condition code.");
+    // Only lower legal XALUO ops.
+    if (!DAG.getTargetLoweringInfo().isTypeLegal(OverflowOp->getValueType(0)))
+      return SDValue();
+
+    // The actual operation with overflow check.
+    SDValue Value, OverflowCmp;
+    SDValue ARMcc;
+    std::tie(Value, OverflowCmp) =
+        getARMXALUOOp(OverflowOp.getValue(0), DAG, ARMcc);
+
+    auto InvertCondCode = [&DAG](const SDValue &ARMcc) {
+      ARMCC::CondCodes CondCode =
+          (ARMCC::CondCodes)cast<const ConstantSDNode>(ARMcc)->getZExtValue();
+      CondCode = ARMCC::getOppositeCondition(CondCode);
+      return DAG.getConstant(CondCode, SDLoc(ARMcc), MVT::i32);
+    };
+    if (CC == ISD::SETNE)
+      ARMcc = InvertCondCode(ARMcc);
+    if (isOneConstant(RHS))
+      ARMcc = InvertCondCode(ARMcc);
+    SDValue CCR = DAG.getRegister(ARM::CPSR, MVT::i32);
+
+    return DAG.getNode(ARMISD::BRCOND, dl, MVT::Other, Chain, Dest, ARMcc, CCR,
+                       OverflowCmp);
+  }
+
   if (LHS.getValueType() == MVT::i32) {
     SDValue ARMcc;
     SDValue Cmp = getARMCmp(LHS, RHS, CC, ARMcc, DAG, dl);
