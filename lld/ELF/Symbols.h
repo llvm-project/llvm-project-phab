@@ -71,6 +71,7 @@ public:
   bool isLocal() const { return IsLocal; }
   bool isPreemptible() const;
   StringRef getName() const { return Name; }
+  void setName(StringRef Val) { Name = Val; }
   uint8_t getVisibility() const { return StOther & 0x3; }
   void parseSymbolVersion();
   void copy(SymbolBody *Other);
