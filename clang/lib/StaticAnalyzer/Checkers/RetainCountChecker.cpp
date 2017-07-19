@@ -1340,6 +1340,8 @@ RetainSummaryManager::getRetEffectFromAnnotations(QualType RetTy,
 
   if (D->hasAttr<CFReturnsRetainedAttr>())
     return RetEffect::MakeOwned(RetEffect::CF);
+  else if (hasRCAnnotation(D, "give"))
+    return RetEffect::MakeOwned(RetEffect::GenericC);
 
   if (D->hasAttr<CFReturnsNotRetainedAttr>())
     return RetEffect::MakeNotOwned(RetEffect::CF);
@@ -1363,9 +1365,10 @@ RetainSummaryManager::updateSummaryFromAnnotations(const RetainSummary *&Summ,
     const ParmVarDecl *pd = *pi;
     if (pd->hasAttr<NSConsumedAttr>())
       Template->addArg(AF, parm_idx, DecRefMsg);
-    else if (pd->hasAttr<CFConsumedAttr>())
+    else if (pd->hasAttr<CFConsumedAttr>() || hasRCAnnotation(pd, "take"))
       Template->addArg(AF, parm_idx, DecRef);
-    else if (pd->hasAttr<CFReturnsRetainedAttr>()) {
+    else if (pd->hasAttr<CFReturnsRetainedAttr>() ||
+             hasRCAnnotation(pd, "give")) {
       QualType PointeeTy = pd->getType()->getPointeeType();
       if (!PointeeTy.isNull())
         if (coreFoundation::isCFObjectRef(PointeeTy))
@@ -2005,8 +2008,14 @@ CFRefReportVisitor::VisitNode(const ExplodedNode *N, const ExplodedNode *PrevN,
           os << " returns a Core Foundation object of type "
              << Sym->getType().getAsString() << " with a ";
         }
-      }
-      else {
+      } else if (CurrV.getObjKind() == RetEffect::GenericC) {
+        if (Sym->getType().isNull()) {
+          os << " returns an object with a ";
+        } else {
+          os << " returns an object of type " << Sym->getType().getAsString()
+             << " with a ";
+        }
+      } else {
         assert (CurrV.getObjKind() == RetEffect::ObjC);
         QualType T = Sym->getType();
         if (T.isNull() || !isa<ObjCObjectPointerType>(T)) {
