@@ -137,7 +137,9 @@ public:
   bool empty() const { return SubLoops.empty(); }
 
   /// Get a list of the basic blocks which make up this loop.
-  const std::vector<BlockT*> &getBlocks() const { return Blocks; }
+  const std::vector<BlockT *> &getBlocks() const { return Blocks; }
+  std::vector<BlockT *> &getBlocksVector() { return Blocks; }
+  SmallPtrSetImpl<const BlockT *> &getBlocksSet() { return DenseBlockSet; }
   typedef typename std::vector<BlockT*>::const_iterator block_iterator;
   block_iterator block_begin() const { return Blocks.begin(); }
   block_iterator block_end() const { return Blocks.end(); }
@@ -283,6 +285,12 @@ public:
     SubLoops.erase(SubLoops.begin()+(I-begin()));
     Child->ParentLoop = nullptr;
     return Child;
+  }
+
+  /// This removes the specified child from being a subloop of this loop. The
+  /// loop is not deleted, as it will presumably be inserted into another loop.
+  LoopT *removeChildLoop(LoopT *Child) {
+    return removeChildLoop(llvm::find(*this, Child));
   }
 
   /// This adds a basic block directly to the basic block list.
