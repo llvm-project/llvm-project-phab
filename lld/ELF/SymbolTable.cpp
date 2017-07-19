@@ -210,7 +210,15 @@ static uint8_t getMinVisibility(uint8_t VA, uint8_t VB) {
 
 // Find an existing symbol or create and insert a new one.
 template <class ELFT>
-std::pair<Symbol *, bool> SymbolTable<ELFT>::insert(StringRef Name) {
+std::pair<Symbol *, bool> SymbolTable<ELFT>::insert(StringRef OrigName) {
+  // <name>@@<version> means the symbol is the default version. In that
+  // case symbol <name> must exist and <name>@@<version> will be used to
+  // resolve references to <name>.
+  StringRef Name = OrigName;
+  size_t Pos = Name.find("@@");
+  if (Pos != StringRef::npos)
+    Name = Name.take_front(Pos);
+
   auto P = Symtab.insert(
       {CachedHashStringRef(Name), SymIndex((int)SymVector.size(), false)});
   SymIndex &V = P.first->second;
@@ -234,6 +242,12 @@ std::pair<Symbol *, bool> SymbolTable<ELFT>::insert(StringRef Name) {
     SymVector.push_back(Sym);
   } else {
     Sym = SymVector[V.Idx];
+
+    // This is for the case where an input file has both foo and
+    // foo@ver. This is a really odd case, but has been observed in
+    // the wild and the expected behavior is to give precedence to
+    // keeping the version info.
+    Sym->body()->Name = OrigName;
   }
   return {Sym, IsNew};
 }
@@ -717,32 +731,9 @@ void SymbolTable<ELFT>::assignWildcardVersion(SymbolVersion Ver,
       B->symbol()->VersionId = VersionId;
 }
 
-static bool isDefaultVersion(SymbolBody *B) {
-  return B->isInCurrentDSO() && B->getName().find("@@") != StringRef::npos;
-}
-
 // This function processes version scripts by updating VersionId
 // member of symbols.
 template <class ELFT> void SymbolTable<ELFT>::scanVersionScript() {
-  // Symbol themselves might know their versions because symbols
-  // can contain versions in the form of <name>@<version>.
-  // Let them parse and update their names to exclude version suffix.
-  for (Symbol *Sym : SymVector) {
-    SymbolBody *Body = Sym->body();
-    bool IsDefault = isDefaultVersion(Body);
-    Body->parseSymbolVersion();
-
-    if (!IsDefault)
-      continue;
-
-    // <name>@@<version> means the symbol is the default version. If that's the
-    // case, the symbol is not used only to resolve <name> of version <version>
-    // but also undefined unversioned symbols with name <name>.
-    SymbolBody *S = find(Body->getName());
-    if (S && S->isUndefined())
-      S->copy(Body);
-  }
-
   // Handle edge cases first.
   handleAnonymousVersion();
 

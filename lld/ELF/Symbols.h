@@ -145,7 +145,6 @@ public:
   bool isObject() const { return Type == llvm::ELF::STT_OBJECT; }
   bool isFile() const { return Type == llvm::ELF::STT_FILE; }
 
-protected:
   StringRefZ Name;
 };
 
