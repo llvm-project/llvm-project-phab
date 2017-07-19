@@ -10,6 +10,8 @@
 /// This file implements the MachineIRBuidler class.
 //===----------------------------------------------------------------------===//
 #include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
+#include "llvm/CodeGen/GlobalISel/Utils.h"
+
 
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstr.h"
@@ -166,12 +168,54 @@ MachineInstrBuilder MachineIRBuilder::buildGlobalValue(unsigned Res,
       .addGlobalAddress(GV);
 }
 
+static Optional<APInt> ConstantFoldBinOp(unsigned Opcode, const unsigned Op1,
+                                            const unsigned Op2,
+                                            const MachineRegisterInfo *MRI) {
+  auto MaybeOp1Cst = getConstantVRegVal(Op1, *MRI);
+  auto MaybeOp2Cst = getConstantVRegVal(Op2, *MRI);
+  if (MaybeOp1Cst && MaybeOp2Cst) {
+    LLT Ty = MRI->getType(Op1);
+    APInt C1(*MaybeOp1Cst, Ty.getSizeInBits(), true);
+    APInt C2(*MaybeOp2Cst, Ty.getSizeInBits(), true);
+    switch(Opcode) {
+    default: break;
+    case TargetOpcode::G_ADD: return C1 + C2;
+    case TargetOpcode::G_SUB: return C1 - C2;
+    case TargetOpcode::G_MUL: return C1 * C2;
+    case TargetOpcode::G_AND: return C1 & C2;
+    case TargetOpcode::G_OR: return C1 | C2;
+    }
+  }
+  return None;
+}
+
+static Optional<APInt> ConstantFoldUnaryOp(unsigned Opcode, LLT DstTy, const unsigned Op,
+                                      const MachineRegisterInfo *MRI) {
+  auto MaybeOp1Cst = getConstantVRegVal(Op, *MRI);
+  if (MaybeOp1Cst) {
+    LLT SrcTy = MRI->getType(Op);
+    APInt Val(*MaybeOp1Cst, SrcTy.getSizeInBits(), true);
+    switch(Opcode) {
+    default: break;
+    case TargetOpcode::G_SEXT: return Val.sextOrTrunc(DstTy.getSizeInBits());
+    case TargetOpcode::G_ANYEXT:
+    case TargetOpcode::G_TRUNC:
+    case TargetOpcode::G_ZEXT: return Val.zextOrTrunc(DstTy.getSizeInBits());
+    // TODO: Handle various intrinsics here like abs...
+    }
+  }
+  return None;
+}
+
 MachineInstrBuilder MachineIRBuilder::buildBinaryOp(unsigned Opcode, unsigned Res, unsigned Op0,
                                                unsigned Op1) {
   assert((MRI->getType(Res).isScalar() || MRI->getType(Res).isVector()) &&
          "invalid operand type");
   assert(MRI->getType(Res) == MRI->getType(Op0) &&
          MRI->getType(Res) == MRI->getType(Op1) && "type mismatch");
+
+  if (auto NewVal = ConstantFoldBinOp(Opcode, Op0, Op1, MRI))
+    return buildConstant(Res, NewVal->getSExtValue());
 
   return buildInstr(Opcode)
       .addDef(Res)
@@ -338,16 +382,25 @@ MachineInstrBuilder MachineIRBuilder::buildUAdde(unsigned Res,
 
 MachineInstrBuilder MachineIRBuilder::buildAnyExt(unsigned Res, unsigned Op) {
   validateTruncExt(Res, Op, true);
+  if (auto Val = ConstantFoldUnaryOp(TargetOpcode::G_ANYEXT, MRI->getType(Res),
+                                     Op, MRI))
+    return buildConstant(Res, Val->getSExtValue());
   return buildInstr(TargetOpcode::G_ANYEXT).addDef(Res).addUse(Op);
 }
 
 MachineInstrBuilder MachineIRBuilder::buildSExt(unsigned Res, unsigned Op) {
   validateTruncExt(Res, Op, true);
+  if (auto Val = ConstantFoldUnaryOp(TargetOpcode::G_SEXT, MRI->getType(Res),
+                                     Op, MRI))
+    return buildConstant(Res, Val->getSExtValue());
   return buildInstr(TargetOpcode::G_SEXT).addDef(Res).addUse(Op);
 }
 
 MachineInstrBuilder MachineIRBuilder::buildZExt(unsigned Res, unsigned Op) {
   validateTruncExt(Res, Op, true);
+  if (auto Val = ConstantFoldUnaryOp(TargetOpcode::G_ZEXT, MRI->getType(Res),
+                                     Op, MRI))
+    return buildConstant(Res, Val->getZExtValue());
   return buildInstr(TargetOpcode::G_ZEXT).addDef(Res).addUse(Op);
 }
 

@@ -76,6 +76,13 @@ class MachineIRBuilder {
     return MIB->getOperand(0).getReg();
   }
 
+  void buildSources(MachineInstrBuilder &MIB) { }
+  template<typename ... UseArgsTy>
+  void buildSources(MachineInstrBuilder &MIB, UseArgsTy &&... Args) {
+    unsigned It[] = {(getRegFromArg(Args))...};
+    for (const auto &i : It)
+      MIB.addUse(i);
+  }
 public:
   /// Getter for the function we currently build.
   MachineFunction &getMF() {
@@ -145,10 +152,22 @@ public:
   template <typename DstTy, typename... UseArgsTy>
   MachineInstrBuilder buildInstr(unsigned Opc, DstTy &&Ty,
                                  UseArgsTy &&... Args) {
+    switch(Opc) {
+    case TargetOpcode::G_ADD:
+    case TargetOpcode::G_AND:
+    case TargetOpcode::G_SUB:
+    case TargetOpcode::G_OR:
+    case TargetOpcode::G_MUL:
+      return buildBinaryOp(Opc, getDestFromArg(Ty), getRegFromArg(Args)...);
+    case TargetOpcode::G_ZEXT:
+      return buildZExt(getDestFromArg(Ty), getRegFromArg(Args)...);
+    case TargetOpcode::G_ANYEXT:
+      return buildAnyExt(getDestFromArg(Ty), getRegFromArg(Args)...);
+    case TargetOpcode::G_SEXT:
+      return buildSExt(getDestFromArg(Ty), getRegFromArg(Args)...);
+    }
     auto MIB = buildInstr(Opc).addDef(getDestFromArg(Ty));
-    unsigned It[] = {(getRegFromArg(Args))...};
-    for (const auto &i : It)
-      MIB.addUse(i);
+    buildSources(MIB, std::forward<UseArgsTy>(Args)...);
     return MIB;
   }
 
