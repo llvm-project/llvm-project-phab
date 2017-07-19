@@ -4,10 +4,11 @@
 ; RUN: llvm-lto -thinlto -o %t2 %t.o
 ; RUN: llvm-bcanalyzer -dump %t2.thinlto.bc | FileCheck %s --check-prefix=COMBINED
 
-; Flags should be 0x17 (23) for local linkage (0x3) and not being importable
-; (0x10) due to local linkage plus having a section.
-; CHECK: <PERMODULE {{.*}} op1=23
-; COMBINED-DAG: <COMBINED {{.*}} op2=23
+; Flags should be 0x37 (55) for local linkage (0x7), not being importable
+; (0x10) due to local linkage plus having a section, and a live root (0x20)
+; due to having a section.
+; CHECK: <PERMODULE {{.*}} op1=55
+; COMBINED-DAG: <COMBINED {{.*}} op2=55
 define internal void @functionWithSection() section "some_section" {
     ret void
 }

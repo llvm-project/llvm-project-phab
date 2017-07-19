@@ -617,6 +617,15 @@ void llvm::thinLTOInternalizeModule(Module &TheModule,
     if (AsmUndefinedRefs.count(GV.getName()))
       return true;
 
+    // ELF linkers generate __start_<secname> and __stop_<secname> symbols
+    // when there is a value in a section <secname> where the name is a valid
+    // C identifier. If dead stripping determines that the values declared
+    // in section <secname> are dead, and we then internalize (and delete)
+    // such a symbol, programs that reference the corresponding start and end
+    // section symbols will get undefined reference linking errors.
+    if (GV.hasSection())
+      return true;
+
     // Lookup the linkage recorded in the summaries during global analysis.
     auto GS = DefinedGlobals.find(GV.getGUID());
     if (GS == DefinedGlobals.end()) {

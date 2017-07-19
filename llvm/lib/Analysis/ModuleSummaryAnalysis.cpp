@@ -85,6 +85,17 @@ static bool isNonRenamableLocal(const GlobalValue &GV) {
   return GV.hasSection() && GV.hasLocalLinkage();
 }
 
+/// ELF linkers generate __start_<secname> and __stop_<secname> symbols
+/// when there is a value in a section <secname> where the name is a valid
+/// C identifier. If dead stripping determines that the values declared
+/// in section <secname> are dead, and we then internalize (and delete)
+/// such a symbol, programs that reference the corresponding start and end
+/// section symbols will get undefined reference linking errors.
+/// We prevent internalization in the backends, but here we mark them as
+/// as live roots so that any values reached by these values are not
+/// detected as dead and internalized.
+static bool isLive(const GlobalValue &GV) { return GV.hasSection(); };
+
 /// Determine whether this call has all constant integer arguments (excluding
 /// "this") and summarize it to VCalls or ConstVCalls as appropriate.
 static void addVCallToSet(DevirtCallSite Call, GlobalValue::GUID Guid,
@@ -275,7 +286,7 @@ computeFunctionSummary(ModuleSummaryIndex &Index, const Module &M,
       // FIXME: refactor this to use the same code that inliner is using.
       F.isVarArg();
   GlobalValueSummary::GVFlags Flags(F.getLinkage(), NotEligibleForImport,
-                                    /* Live = */ false);
+                                    /* Live = */ isLive(F));
   auto FuncSummary = llvm::make_unique<FunctionSummary>(
       Flags, NumInsts, RefEdges.takeVector(), CallGraphEdges.takeVector(),
       TypeTests.takeVector(), TypeTestAssumeVCalls.takeVector(),
@@ -295,7 +306,7 @@ computeVariableSummary(ModuleSummaryIndex &Index, const GlobalVariable &V,
   findRefEdges(Index, &V, RefEdges, Visited);
   bool NonRenamableLocal = isNonRenamableLocal(V);
   GlobalValueSummary::GVFlags Flags(V.getLinkage(), NonRenamableLocal,
-                                    /* Live = */ false);
+                                    /* Live = */ isLive(V));
   auto GVarSummary =
       llvm::make_unique<GlobalVarSummary>(Flags, RefEdges.takeVector());
   if (NonRenamableLocal)
@@ -308,7 +319,7 @@ computeAliasSummary(ModuleSummaryIndex &Index, const GlobalAlias &A,
                     DenseSet<GlobalValue::GUID> &CantBePromoted) {
   bool NonRenamableLocal = isNonRenamableLocal(A);
   GlobalValueSummary::GVFlags Flags(A.getLinkage(), NonRenamableLocal,
-                                    /* Live = */ false);
+                                    /* Live = */ isLive(A));
   auto AS = llvm::make_unique<AliasSummary>(Flags, ArrayRef<ValueInfo>{});
   auto *Aliasee = A.getBaseObject();
   auto *AliaseeSummary = Index.getGlobalValueSummary(*Aliasee);
