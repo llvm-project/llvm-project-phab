@@ -26,7 +26,7 @@ endif()
 # Enable the AArch64 CRC32 feature for scudo_crc32.cpp, if available.
 # Note that it is enabled by default starting with armv8.1-a.
 if (COMPILER_RT_HAS_MCRC_FLAG)
-  set_source_files_properties(scudo_crc32.cpp PROPERTIES COMPILE_FLAGS -mcrc)
+  set_source_files_properties(scudo_crc32.cpp PROPERTIES COMPILE_FLAGS -march=armv8.1-a)
 endif()
 
 if(COMPILER_RT_HAS_SCUDO)
