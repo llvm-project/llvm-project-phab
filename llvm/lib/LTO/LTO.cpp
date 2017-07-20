@@ -384,8 +384,13 @@ void LTO::addModuleToGlobalRes(ArrayRef<InputFile::Symbol> Syms,
     // Set the partition to external if we know it is re-defined by the linker
     // with -defsym or -wrap options, used elsewhere, e.g. it is visible to a
     // regular object, is referenced from llvm.compiler_used, or was already
-    // recorded as being referenced from a different partition.
+    // recorded as being referenced from a different partition. Also,
+    // if this is ELF and the symbol has a C identifier section name, we
+    // need to keep it around to ensure the linker generates special
+    // __start_<secname> and __end_<secname> symbols which may be used
+    // elsewhere.
     if (Res.LinkerRedefined || Res.VisibleToRegularObj || Sym.isUsed() ||
+        Sym.hasELFCIdentifierSectionName() ||
         (GlobalRes.Partition != GlobalResolution::Unknown &&
          GlobalRes.Partition != Partition)) {
       GlobalRes.Partition = GlobalResolution::External;
@@ -396,7 +401,8 @@ void LTO::addModuleToGlobalRes(ArrayRef<InputFile::Symbol> Syms,
     // Flag as visible outside of summary if visible from a regular object or
     // from a module that does not have a summary.
     GlobalRes.VisibleOutsideSummary |=
-        (Res.VisibleToRegularObj || Sym.isUsed() || !InSummary);
+        (Res.VisibleToRegularObj || Sym.isUsed() || !InSummary ||
+         Sym.hasELFCIdentifierSectionName());
   }
 }
 

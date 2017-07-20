@@ -121,6 +121,13 @@ struct Uncommon {
   /// COFF-specific: the name of the symbol that a weak external resolves to
   /// if not defined.
   Str COFFWeakExternFallbackName;
+
+  /// ELF-specific: ELF linkers generate __start_<secname> and __stop_<secname>
+  /// symbols when there is a value in a section <secname> where the name is a
+  /// valid C identifier. Track symbols in such a section, so that we can
+  /// ensure that they aren't internalized and eliminated, which would
+  /// suppress the generation of the special __start_ and __end_ symbols.
+  bool HasELFCIdentifierSectionName;
 };
 
 struct Header {
@@ -128,7 +135,7 @@ struct Header {
   /// when the format changes, but it does not need to be incremented if a
   /// change to LLVM would cause it to create a different symbol table.
   Word Version;
-  enum { kCurrentVersion = 0 };
+  enum { kCurrentVersion = 1 };
 
   /// The producer's version string (LLVM_VERSION_STRING " " LLVM_REVISION).
   /// Consumers should rebuild the symbol table from IR if the producer's
@@ -165,6 +172,7 @@ struct Symbol {
   // Copied from storage::Uncommon.
   uint32_t CommonSize, CommonAlign;
   StringRef COFFWeakExternFallbackName;
+  bool HasELFCIdentifierSectionName;
 
   /// Returns the mangled symbol name.
   StringRef getName() const { return Name; }
@@ -214,6 +222,15 @@ struct Symbol {
   StringRef getCOFFWeakExternalFallback() const {
     assert(isWeak() && isIndirect());
     return COFFWeakExternFallbackName;
+  }
+
+  /// ELF-specific: ELF linkers generate __start_<secname> and __stop_<secname>
+  /// symbols when there is a value in a section <secname> where the name is a
+  /// valid C identifier. Track symbols in such a section, so that we can
+  /// ensure that they aren't internalized and eliminated, which would
+  /// suppress the generation of the special __start_ and __end_ symbols.
+  bool hasELFCIdentifierSectionName() const {
+    return HasELFCIdentifierSectionName;
   }
 };
 
@@ -300,6 +317,7 @@ class Reader::SymbolRef : public Symbol {
       CommonSize = UncI->CommonSize;
       CommonAlign = UncI->CommonAlign;
       COFFWeakExternFallbackName = R->str(UncI->COFFWeakExternFallbackName);
+      HasELFCIdentifierSectionName = UncI->HasELFCIdentifierSectionName;
     }
   }
 
