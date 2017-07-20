@@ -5178,9 +5178,11 @@ QualType Sema::CheckPointerToMemberOperands(ExprResult &LHS, ExprResult &RHS,
       break;
 
     case RQ_LValue:
-      if (!isIndirect && !LHS.get()->Classify(Context).isLValue())
-        Diag(Loc, diag::err_pointer_to_member_oper_value_classify)
-          << RHSType << 1 << LHS.get()->getSourceRange();
+      if (!isIndirect && !LHS.get()->Classify(Context).isLValue()) {
+        if (!getLangOpts().CPlusPlus1z || !Proto->isConst())
+          Diag(Loc, diag::err_pointer_to_member_oper_value_classify)
+            << RHSType << 1 << LHS.get()->getSourceRange();
+      }
       break;
 
     case RQ_RValue:
