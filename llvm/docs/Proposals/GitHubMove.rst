@@ -214,7 +214,7 @@ Multirepo Variant
 
 This variant recommends moving each LLVM sub-project to a separate Git
 repository. This mimics the existing official read-only Git repositories
-(e.g., http://llvm.org/git/compiler-rt.git), and creates new canonical
+(e.g., https://git.llvm.org/git/compiler-rt.git), and creates new canonical
 repositories for each sub-project.
 
 This will allow the individual sub-projects to remain distinct: a
@@ -374,7 +374,7 @@ Read/write sub-project mirrors
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 With the Monorepo, the existing single-subproject mirrors (e.g.
-http://llvm.org/git/compiler-rt.git) with git-svn read-write access would
+https://git.llvm.org/git/compiler-rt.git) with git-svn read-write access would
 continue to be maintained: developers would continue to be able to use the
 existing single-subproject git repositories as they do today, with *no changes
 to workflow*. Everything (git fetch, git svn dcommit, etc.) could continue to
@@ -487,7 +487,7 @@ Except the URL, nothing changes. The possibilities today are::
 
   svn co http://llvm.org/svn/llvm-project/llvm/trunk llvm
   # or with Git
-  git clone http://llvm.org/git/llvm.git
+  git clone https://git.llvm.org/git/llvm.git
 
 After the move to GitHub, you would do either::
 
@@ -509,7 +509,7 @@ Currently
   # direct SVN checkout
   svn co https://user@llvm.org/svn/llvm-project/llvm/trunk llvm
   # or using the read-only Git view, with git-svn
-  git clone http://llvm.org/git/llvm.git
+  git clone https://git.llvm.org/git/llvm.git
   cd llvm
   git svn init https://llvm.org/svn/llvm-project/llvm/trunk --username=<username>
   git config svn-remote.svn.fetch :refs/remotes/origin/master
@@ -566,7 +566,7 @@ in the same way as it would do today.
 You can use *git-svn* and one of the sub-project mirrors::
 
   # Clone from the single read-only Git repo
-  git clone http://llvm.org/git/llvm.git
+  git clone https://git.llvm.org/git/llvm.git
   cd llvm
   # Configure the SVN remote and initialize the svn metadata
   $ git svn init https://github.com/joker-eph/llvm-project/trunk/llvm —username=...
@@ -623,21 +623,21 @@ Currently
 
 Or using git-svn::
 
-  git clone http://llvm.org/git/llvm.git
+  git clone https://git.llvm.org/git/llvm.git
   cd llvm/
   git svn init https://llvm.org/svn/llvm-project/llvm/trunk --username=<username>
   git config svn-remote.svn.fetch :refs/remotes/origin/master
   git svn rebase -l
   git checkout `git svn find-rev -B r258109`
   cd tools
-  git clone http://llvm.org/git/clang.git
+  git clone https://git.llvm.org/git/clang.git
   cd clang/
   git svn init https://llvm.org/svn/llvm-project/clang/trunk --username=<username>
   git config svn-remote.svn.fetch :refs/remotes/origin/master
   git svn rebase -l
   git checkout `git svn find-rev -B r258109`
   cd ../../projects/
-  git clone http://llvm.org/git/libcxx.git
+  git clone https://git.llvm.org/git/libcxx.git
   cd libcxx
   git svn init https://llvm.org/svn/llvm-project/libcxx/trunk --username=<username>
   git config svn-remote.svn.fetch :refs/remotes/origin/master

@@ -512,43 +512,43 @@ clone of LLVM via:
 
 .. code-block:: console
 
-  % git clone http://llvm.org/git/llvm.git
+  % git clone https://git.llvm.org/git/llvm.git
 
 If you want to check out clang too, run:
 
 .. code-block:: console
 
   % cd llvm/tools
-  % git clone http://llvm.org/git/clang.git
+  % git clone https://git.llvm.org/git/clang.git
 
 If you want to check out compiler-rt (required to build the sanitizers), run:
 
 .. code-block:: console
 
   % cd llvm/projects
-  % git clone http://llvm.org/git/compiler-rt.git
+  % git clone https://git.llvm.org/git/compiler-rt.git
 
 If you want to check out libomp (required for OpenMP support), run:
 
 .. code-block:: console
 
   % cd llvm/projects
-  % git clone http://llvm.org/git/openmp.git
+  % git clone https://git.llvm.org/git/openmp.git
 
 If you want to check out libcxx and libcxxabi (optional), run:
 
 .. code-block:: console
 
   % cd llvm/projects
-  % git clone http://llvm.org/git/libcxx.git
-  % git clone http://llvm.org/git/libcxxabi.git
+  % git clone https://git.llvm.org/git/libcxx.git
+  % git clone https://git.llvm.org/git/libcxxabi.git
 
 If you want to check out the Test Suite Source Code (optional), run:
 
 .. code-block:: console
 
   % cd llvm/projects
-  % git clone http://llvm.org/git/test-suite.git
+  % git clone https://git.llvm.org/git/test-suite.git
 
 Since the upstream repository is in Subversion, you should use ``git
 pull --rebase`` instead of ``git pull`` to avoid generating a non-linear history
@@ -622,7 +622,7 @@ To set up clone from which you can submit code using ``git-svn``, run:
 
 .. code-block:: console
 
-  % git clone http://llvm.org/git/llvm.git
+  % git clone https://git.llvm.org/git/llvm.git
   % cd llvm
   % git svn init https://llvm.org/svn/llvm-project/llvm/trunk --username=<username>
   % git config svn-remote.svn.fetch :refs/remotes/origin/master
@@ -630,7 +630,7 @@ To set up clone from which you can submit code using ``git-svn``, run:
 
   # If you have clang too:
   % cd tools
-  % git clone http://llvm.org/git/clang.git
+  % git clone https://git.llvm.org/git/clang.git
   % cd clang
   % git svn init https://llvm.org/svn/llvm-project/cfe/trunk --username=<username>
   % git config svn-remote.svn.fetch :refs/remotes/origin/master
