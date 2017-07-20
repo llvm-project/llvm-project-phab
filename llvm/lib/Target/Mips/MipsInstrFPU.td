@@ -247,6 +247,17 @@ class C_COND_FT<string CondStr, string Typestr, RegisterOperand RC,
   let hasFCCRegOperand = 1;
 }
 
+class UIntToFp_FT<RegisterOperand OutRC, RegisterOperand InRC> :
+  PseudoSE<(outs OutRC:$dst), (ins InRC:$src),
+           [(set OutRC:$dst, (uint_to_fp InRC:$src))]> {
+  let usesCustomInserter = 1;
+}
+
+class FpToUInt_FT<RegisterOperand OutRC, RegisterOperand InRC> :
+  PseudoSE<(outs OutRC:$dst), (ins InRC:$src),
+           [(set OutRC:$dst, (fp_to_uint InRC:$src))]> {
+  let usesCustomInserter = 1;
+}
 
 multiclass C_COND_M<string TypeStr, RegisterOperand RC, bits<5> fmt,
                     InstrItinClass itin> {
@@ -419,6 +430,19 @@ let isPseudo = 1, isCodeGenOnly = 1 in {
   def PseudoCVT_D64_W : ABSS_FT<"", FGR64Opnd, GPR32Opnd, II_CVT>;
   def PseudoCVT_D64_L : ABSS_FT<"", FGR64Opnd, GPR64Opnd, II_CVT>;
 }
+
+def UInt32ToFp32Pseudo_32 : UIntToFp_FT<FGR32Opnd, GPR32Opnd>, FGR_32;
+def UInt32ToFp32Pseudo_64 : UIntToFp_FT<FGR32Opnd, GPR32Opnd>, FGR_64;
+def UInt32ToFp64Pseudo_32 : UIntToFp_FT<AFGR64Opnd, GPR32Opnd>, FGR_32;
+def UInt32ToFp64Pseudo_64 : UIntToFp_FT<FGR64Opnd, GPR32Opnd>, FGR_64;
+def UInt64ToFp64Pseudo_64 : UIntToFp_FT<FGR64Opnd, GPR64Opnd>, FGR_64;
+
+def Fp32ToUInt32Pseudo_32 : FpToUInt_FT<GPR32Opnd, FGR32Opnd>, FGR_32;
+def Fp32ToUInt32Pseudo_64 : FpToUInt_FT<GPR32Opnd, FGR32Opnd>, FGR_64;
+def Fp32ToUInt64Pseudo_64 : FpToUInt_FT<GPR64Opnd, FGR32Opnd>, FGR_64;
+def Fp64ToUInt32Pseudo_32 : FpToUInt_FT<GPR32Opnd, AFGR64Opnd>, FGR_32;
+def Fp64ToUInt32Pseudo_64 : FpToUInt_FT<GPR32Opnd, FGR64Opnd>, FGR_64;
+def Fp64ToUInt64Pseudo_64 : FpToUInt_FT<GPR64Opnd, FGR64Opnd>, FGR_64;
 
 def FABS_S : MMRel, ABSS_FT<"abs.s", FGR32Opnd, FGR32Opnd, II_ABS, fabs>,
              ABSS_FM<0x5, 16>;

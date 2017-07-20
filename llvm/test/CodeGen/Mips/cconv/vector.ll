@@ -1443,7 +1443,7 @@ entry:
 ; MIPS32-DAG: mtc1 $5, $f{{[0-9]+}}
 ; MIPS32: andi $[[R7:[0-9]+]], $6, 255
 ; MIPS32: mtc1 $[[R7]], $f[[F0:[0-9]+]]
-; MIPS32: cvt.s.w $f{{[0-9]+}}, $f[[F0]]
+; MIPS32: cvt.d.w $f{{[0-9]+}}, $f[[F0]]
 
 ; MIPS32-DAG: mtc1 $4, $f{{[0-9]+}}
 ; MIPS32-DAG: lwc1 $f{{[0-9]+}}, 16($sp)
@@ -1461,7 +1461,7 @@ entry:
 ; MIPS64EB: sll $[[R6:[0-9]+]], $5, 0
 ; MIPS64EB: andi $[[R7:[0-9]+]], $[[R6]], 255
 ; MIPS64EB: mtc1 $[[R7]], $f[[F0:[0-9]+]]
-; MIPS64EB: cvt.s.w $f{{[0-9]+}}, $f[[F0]]
+; MIPS64EB: cvt.s.l $f{{[0-9]+}}, $f[[F0]]
 
 ; MIPS64EB-DAG: dsrl $[[R1:[0-9]+]], $4, 32
 ; MIPS64EB-DAG: sll $[[R2:[0-9]+]], $[[R1]], 0
@@ -1480,7 +1480,7 @@ entry:
 ; MIPS64EL: sll $[[R6:[0-9]+]], $5, 0
 ; MIPS64EL: andi $[[R7:[0-9]+]], $[[R6]], 255
 ; MIPS64EL: mtc1 $[[R7]], $f[[F0:[0-9]+]]
-; MIPS64EL: cvt.s.w $f{{[0-9]+}}, $f[[F0]]
+; MIPS64EL: cvt.s.l $f{{[0-9]+}}, $f[[F0]]
 
 ; MIPS64EL-DAG: dsrl $[[R4:[0-9]+]], $6, 32
 ; MIPS64EL-DAG: sll $[[R5:[0-9]+]], $[[R4]], 0
@@ -1514,8 +1514,8 @@ entry:
 
 ; MIPS32-DAG: mtc1 $6, $f{{[0-9]+}}
 ; MIPS32-DAG: mtc1 $7, $f{{[0-9]+}}
-; MIPS32-DAG: lwc1 $f{{[0-9]+}}, 28($sp)
-; MIPS32-DAG: lwc1 $f{{[0-9]+}}, 24($sp)
+; MIPS32-DAG: lwc1 $f{{[0-9]+}}, 20($sp)
+; MIPS32-DAG: lwc1 $f{{[0-9]+}}, 16($sp)
 ; MIPS32-DAG: swc1 $f{{[0-9]+}}, 0($4)
 ; MIPS32-DAG: swc1 $f{{[0-9]+}}, 4($4)
 ; MIPS32-DAG: swc1 $f{{[0-9]+}}, 8($4)
@@ -1563,12 +1563,6 @@ entry:
 define <4 x float> @cast(<4 x i32> %a) {
 entry:
 ; ALL-LABEL: cast:
-
-; MIPS32: addiu $sp, $sp, -32
-; MIPS32-DAG: sw $6, {{[0-9]+}}($sp)
-; MIPS32-DAG: sw $7, {{[0-9]+}}($sp)
-; MIPS32-DAG: lw ${{[0-9]+}}, 48($sp)
-; MIPS32-DAG: lw ${{[0-9]+}}, 52($sp)
 
 ; MIPS32R5-DAG: insert.w  $w0[0], $6
 ; MIPS32R5-DAG: insert.w  $w0[1], $7

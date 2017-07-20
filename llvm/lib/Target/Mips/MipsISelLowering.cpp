@@ -343,6 +343,7 @@ MipsTargetLowering::MipsTargetLowering(const MipsTargetMachine &TM,
     setOperationAction(ISD::SHL_PARTS,          MVT::i64,   Custom);
     setOperationAction(ISD::SRA_PARTS,          MVT::i64,   Custom);
     setOperationAction(ISD::SRL_PARTS,          MVT::i64,   Custom);
+    setOperationAction(ISD::UINT_TO_FP,         MVT::i64,   Legal);
   }
 
   if (!Subtarget.isGP64bit()) {
@@ -385,10 +386,6 @@ MipsTargetLowering::MipsTargetLowering(const MipsTargetMachine &TM,
   setOperationAction(ISD::SELECT_CC,         MVT::i64,   Expand);
   setOperationAction(ISD::SELECT_CC,         MVT::f32,   Expand);
   setOperationAction(ISD::SELECT_CC,         MVT::f64,   Expand);
-  setOperationAction(ISD::UINT_TO_FP,        MVT::i32,   Expand);
-  setOperationAction(ISD::UINT_TO_FP,        MVT::i64,   Expand);
-  setOperationAction(ISD::FP_TO_UINT,        MVT::i32,   Expand);
-  setOperationAction(ISD::FP_TO_UINT,        MVT::i64,   Expand);
   setOperationAction(ISD::SIGN_EXTEND_INREG, MVT::i1,    Expand);
   if (Subtarget.hasCnMips()) {
     setOperationAction(ISD::CTPOP,           MVT::i32,   Legal);

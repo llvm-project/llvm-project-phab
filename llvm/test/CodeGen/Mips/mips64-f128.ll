@@ -170,7 +170,7 @@ entry:
 }
 
 ; ALL-LABEL: conv_UChar_LD:
-; ALL: ld $25, %call16(__fixtfsi)
+; ALL: ld $25, %call16(__fixunstfsi)
 
 define zeroext i8 @conv_UChar_LD(fp128 %a) {
 entry:
@@ -179,7 +179,7 @@ entry:
 }
 
 ; ALL-LABEL: conv_UShort_LD:
-; ALL: ld $25, %call16(__fixtfsi)
+; ALL: ld $25, %call16(__fixunstfsi)
 
 define zeroext i16 @conv_UShort_LD(fp128 %a) {
 entry:
