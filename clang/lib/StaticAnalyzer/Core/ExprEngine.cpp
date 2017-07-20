@@ -1722,7 +1722,8 @@ void ExprEngine::processBranch(const Stmt *Condition, const Stmt *Term,
     // If the condition is still unknown, give up.
     if (X.isUnknownOrUndef()) {
       builder.generateNode(PrevState, true, PredI);
-      builder.generateNode(PrevState, false, PredI);
+      if(!(isa<ForStmt>(Term) && BldCtx.blockCount() == 1))
+        builder.generateNode(PrevState, false, PredI);
       continue;
     }
 
@@ -1740,12 +1741,15 @@ void ExprEngine::processBranch(const Stmt *Condition, const Stmt *Term,
     }
 
     // Process the false branch.
-    if (builder.isFeasible(false)) {
+    if (builder.isFeasible(false) && !(isa<ForStmt>(Term) &&
+            BldCtx.blockCount() == 1 && builder.isFeasible(true))) {
       if (StFalse)
         builder.generateNode(StFalse, false, PredI);
       else
         builder.markInfeasible(false);
     }
+    if(StFalse && builder.isFeasible(false))
+      builder.markInfeasible(false);
   }
   currBldrCtx = nullptr;
 }
