@@ -158,6 +158,27 @@ static void dfsan_check_label(dfsan_label label) {
   }
 }
 
+// Reset labels and shadow memory for dfsan to restart from clean.
+extern "C" SANITIZER_INTERFACE_ATTRIBUTE
+void dfsan_reset(void) {
+  // reset shadow memory
+  MmapFixedNoReserve(ShadowAddr(), UnusedAddr() - ShadowAddr());
+
+  dfsan_label last_label =
+      atomic_load(&__dfsan_last_label, memory_order_relaxed);
+
+  // reset potentially polluted union table entries
+  for (uptr l = 0; l <= last_label; ++l) {
+    for (uptr m = 0; m <= last_label; ++m) {
+      atomic_dfsan_label *table_ent = union_table(l, m);
+      dfsan_label label = 0;
+      atomic_store(table_ent, label, memory_order_acquire);
+    }
+  }
+  // reset label count
+  atomic_store(&__dfsan_last_label, 0, memory_order_relaxed);
+}
+
 // Resolves the union of two unequal labels.  Nonequality is a precondition for
 // this function (the instrumentation pass inlines the equality test).
 extern "C" SANITIZER_INTERFACE_ATTRIBUTE
