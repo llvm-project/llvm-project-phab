@@ -529,12 +529,10 @@ bool MIParser::parseBasicBlockLiveins(MachineBasicBlock &MBB) {
       if (Token.isNot(MIToken::IntegerLiteral) &&
           Token.isNot(MIToken::HexLiteral))
         return error("expected a lane mask");
-      static_assert(sizeof(LaneBitmask::Type) == sizeof(unsigned),
-                    "Use correct get-function for lane mask");
-      LaneBitmask::Type V;
+      unsigned V;
       if (getUnsigned(V))
         return error("invalid lane mask value");
-      Mask = LaneBitmask(V);
+      Mask = LaneBitmask({{V}});
       lex();
     }
     MBB.addLiveIn(Reg, Mask);

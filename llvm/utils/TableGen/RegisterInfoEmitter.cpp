@@ -611,7 +611,7 @@ static void printDiff16(raw_ostream &OS, uint16_t Val) {
 }
 
 static void printMask(raw_ostream &OS, LaneBitmask Val) {
-  OS << "LaneBitmask(0x" << PrintLaneMask(Val) << ')';
+  OS << "LaneBitmask{" << PrintLaneMaskAsInitList(Val) << '}';
 }
 
 // Try to combine Idx's compose map into Vec if it is compatible.
@@ -775,13 +775,8 @@ RegisterInfoEmitter::emitComposeSubRegIndexLaneMask(raw_ostream &OS,
         "  --IdxA; assert(IdxA < " << SubRegIndices.size()
      << " && \"Subregister index out of bounds\");\n"
         "  LaneBitmask Result;\n"
-        "  for (const MaskRolOp *Ops = CompositeSequences[IdxA]; Ops->Mask.any(); ++Ops) {\n"
-        "    LaneBitmask::Type M = LaneMask.getAsInteger() & Ops->Mask.getAsInteger();\n"
-        "    if (unsigned S = Ops->RotateLeft)\n"
-        "      Result |= LaneBitmask((M << S) | (M >> (LaneBitmask::BitWidth - S)));\n"
-        "    else\n"
-        "      Result |= LaneBitmask(M);\n"
-        "  }\n"
+        "  for (const MaskRolOp *Ops = CompositeSequences[IdxA]; Ops->Mask.any(); ++Ops)\n"
+        "    Result |= (LaneMask & Ops->Mask).rol(Ops->RotateLeft);\n"
         "  return Result;\n"
         "}\n\n";
 
@@ -792,13 +787,8 @@ RegisterInfoEmitter::emitComposeSubRegIndexLaneMask(raw_ostream &OS,
         "  --IdxA; assert(IdxA < " << SubRegIndices.size()
      << " && \"Subregister index out of bounds\");\n"
         "  LaneBitmask Result;\n"
-        "  for (const MaskRolOp *Ops = CompositeSequences[IdxA]; Ops->Mask.any(); ++Ops) {\n"
-        "    LaneBitmask::Type M = LaneMask.getAsInteger();\n"
-        "    if (unsigned S = Ops->RotateLeft)\n"
-        "      Result |= LaneBitmask((M >> S) | (M << (LaneBitmask::BitWidth - S)));\n"
-        "    else\n"
-        "      Result |= LaneBitmask(M);\n"
-        "  }\n"
+        "  for (const MaskRolOp *Ops = CompositeSequences[IdxA]; Ops->Mask.any(); ++Ops)\n"
+        "    Result |= LaneMask.rol(LaneBitmask::BitWidth - Ops->RotateLeft);\n"
         "  return Result;\n"
         "}\n\n";
 }

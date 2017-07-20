@@ -32,61 +32,149 @@
 
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/Format.h"
+#include "llvm/Support/MathExtras.h"
 #include "llvm/Support/Printable.h"
 #include "llvm/Support/raw_ostream.h"
+#include <array>
 
 namespace llvm {
 
+  struct LaneBitmask;
+  static LLVM_ATTRIBUTE_UNUSED Printable PrintLaneMask(LaneBitmask);
+  static LLVM_ATTRIBUTE_UNUSED Printable PrintLaneMaskAsInitList(LaneBitmask);
+
   struct LaneBitmask {
     // When changing the underlying type, change the format string as well.
-    using Type = unsigned;
-    enum : unsigned { BitWidth = 8*sizeof(Type) };
+    static const unsigned N = 1;
+    using Type = std::array<unsigned, N>;
+    enum : unsigned { BitWidth = 8*N*sizeof(unsigned) };
     constexpr static const char *const FormatStr = "%08X";
 
     constexpr LaneBitmask() = default;
     explicit constexpr LaneBitmask(Type V) : Mask(V) {}
 
-    constexpr bool operator== (LaneBitmask M) const { return Mask == M.Mask; }
-    constexpr bool operator!= (LaneBitmask M) const { return Mask != M.Mask; }
-    constexpr bool operator< (LaneBitmask M)  const { return Mask < M.Mask; }
-    constexpr bool none() const { return Mask == 0; }
-    constexpr bool any()  const { return Mask != 0; }
-    constexpr bool all()  const { return ~Mask == 0; }
+    bool operator== (LaneBitmask M) const { return Mask == M.Mask; }
+    bool operator!= (LaneBitmask M) const { return Mask != M.Mask; }
+    bool operator< (LaneBitmask M)  const { return Mask < M.Mask; }
+    bool none() const {
+      for (unsigned I = 0; I != N; ++I)
+        if (Mask[I] != 0)
+          return false;
+      return true;
+    }
+    bool any() const {
+      for (unsigned I = 0; I != N; ++I)
+        if (Mask[I] != 0)
+          return true;
+      return false;
+    }
+    bool all() const {
+      for (unsigned I = 0; I != N; ++I)
+        if (Mask[I] != ~0u)
+          return false;
+      return true;
+    }
 
-    constexpr LaneBitmask operator~() const {
-      return LaneBitmask(~Mask);
+    LaneBitmask operator~() const {
+      Type T;
+      for (unsigned I = 0; I != N; ++I)
+        T[I] = ~Mask[I];
+      return LaneBitmask(T);
     }
-    constexpr LaneBitmask operator|(LaneBitmask M) const {
-      return LaneBitmask(Mask | M.Mask);
+    LaneBitmask operator|(LaneBitmask M) const {
+      Type T;
+      for (unsigned I = 0; I != N; ++I)
+        T[I] = Mask[I] | M.Mask[I];
+      return LaneBitmask(T);
     }
-    constexpr LaneBitmask operator&(LaneBitmask M) const {
-      return LaneBitmask(Mask & M.Mask);
+    LaneBitmask operator&(LaneBitmask M) const {
+      Type T;
+      for (unsigned I = 0; I != N; ++I)
+        T[I] = Mask[I] & M.Mask[I];
+      return LaneBitmask(T);
     }
     LaneBitmask &operator|=(LaneBitmask M) {
-      Mask |= M.Mask;
+      for (unsigned I = 0; I != N; ++I)
+        Mask[I] |= M.Mask[I];
       return *this;
     }
     LaneBitmask &operator&=(LaneBitmask M) {
-      Mask &= M.Mask;
+      for (unsigned I = 0; I != N; ++I)
+        Mask[I] &= M.Mask[I];
       return *this;
     }
 
-    constexpr Type getAsInteger() const { return Mask; }
+    LaneBitmask rol(unsigned S) const {
+      if (S == 0)
+        return *this;
+      Type T;
 
-    static LaneBitmask getNone() { return LaneBitmask(0); }
-    static LaneBitmask getAll()  { return ~LaneBitmask(0); }
+      // Rotate words first.
+      unsigned W = S/32;
+      for (unsigned I = W; I != N; ++I)
+        T[I-W] = Mask[I];
+      for (unsigned I = 0; I != W; ++I)
+        T[I+W] = Mask[I];
+
+      S = S % 32;
+      if (S != 0) {
+        // Rotate bits.
+        unsigned M0 = T[0];
+        for (unsigned I = 0; I != N-1; ++I)
+          T[I] = (T[I] << S) | (T[I+1] >> (32-S));
+        T[N-1] = (T[N-1] << S) | (M0 >> (32-S));
+      }
+
+      return LaneBitmask(T);
+    }
+
+    unsigned getNumLanes() const {
+      unsigned S = 0;
+      for (unsigned M : Mask)
+        S += countPopulation(M);
+      return S;
+    }
+    unsigned getHighestLane() const {
+      for (unsigned I = N; I != 0; --I) {
+        if (Mask[I-1] == 0)
+          continue;
+        return Log2_32(Mask[I-1]) + 8*sizeof(unsigned)*(I-1);
+      }
+      return -1u;
+    }
+
+    static LaneBitmask getNone() { return LaneBitmask(); }
+    static LaneBitmask getAll()  { return ~LaneBitmask(); }
     static LaneBitmask getLane(unsigned Lane) {
-      return LaneBitmask(Type(1) << Lane);
+      Type T;
+      T[Lane / 32] = 1u << (Lane % 32);
+      return LaneBitmask(T);
     }
 
   private:
-    Type Mask = 0;
+    friend Printable PrintLaneMask(LaneBitmask LaneMask);
+    friend Printable PrintLaneMaskAsInitList(LaneBitmask LaneMask);
+    Type Mask = {{0}};
   };
 
-  /// Create Printable object to print LaneBitmasks on a \ref raw_ostream.
+  /// Create Printable objects to print LaneBitmasks on a \ref raw_ostream.
   static LLVM_ATTRIBUTE_UNUSED Printable PrintLaneMask(LaneBitmask LaneMask) {
     return Printable([LaneMask](raw_ostream &OS) {
-      OS << format(LaneBitmask::FormatStr, LaneMask.getAsInteger());
+      for (unsigned I = LaneBitmask::N; I != 0; --I)
+        OS << format(LaneBitmask::FormatStr, LaneMask.Mask[I-1]);
+    });
+  }
+
+  static LLVM_ATTRIBUTE_UNUSED Printable
+  PrintLaneMaskAsInitList(LaneBitmask LaneMask) {
+    return Printable([LaneMask](raw_ostream &OS) {
+      OS << "{{";
+      for (unsigned I = 0; I != LaneBitmask::N; ++I) {
+        if (I != 0)
+          OS << ',';
+        OS << "0x" << format(LaneBitmask::FormatStr, LaneMask.Mask[I]);
+      }
+      OS << "}}";
     });
   }
 
