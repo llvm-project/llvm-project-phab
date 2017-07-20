@@ -56,8 +56,8 @@ define amdgpu_kernel void @v_ctpop_add_chain_i32(i32 addrspace(1)* noalias %out,
   %tid = call i32 @llvm.r600.read.tidig.x()
   %in0.gep = getelementptr i32, i32 addrspace(1)* %in0, i32 %tid
   %in1.gep = getelementptr i32, i32 addrspace(1)* %in1, i32 %tid
-  %val0 = load i32, i32 addrspace(1)* %in0.gep, align 4
-  %val1 = load i32, i32 addrspace(1)* %in1.gep, align 4
+  %val0 = load volatile i32, i32 addrspace(1)* %in0.gep, align 4
+  %val1 = load volatile i32, i32 addrspace(1)* %in1.gep, align 4
   %ctpop0 = call i32 @llvm.ctpop.i32(i32 %val0) nounwind readnone
   %ctpop1 = call i32 @llvm.ctpop.i32(i32 %val1) nounwind readnone
   %add = add i32 %ctpop0, %ctpop1

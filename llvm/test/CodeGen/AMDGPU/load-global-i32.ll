@@ -360,7 +360,6 @@ define amdgpu_kernel void @global_zextload_v16i32_to_v16i64(<16 x i64> addrspace
 ; GCN-NOHSA: buffer_load_dwordx4
 ; GCN-NOHSA: buffer_load_dwordx4
 ; GCN-NOHSA: buffer_load_dwordx4
-; GCN-NOHSA-DAG: buffer_load_dwordx4
 
 ; GCN-HSA: flat_load_dwordx4
 ; GCN-HSA: flat_load_dwordx4
@@ -371,38 +370,38 @@ define amdgpu_kernel void @global_zextload_v16i32_to_v16i64(<16 x i64> addrspace
 ; GCN-HSA: flat_load_dwordx4
 ; GCN-HSA: flat_load_dwordx4
 
-; GCN-DAG: v_ashrrev_i32
-; GCN-DAG: v_ashrrev_i32
-; GCN-DAG: v_ashrrev_i32
-; GCN-DAG: v_ashrrev_i32
-; GCN-DAG: v_ashrrev_i32
-; GCN-DAG: v_ashrrev_i32
-; GCN-DAG: v_ashrrev_i32
-; GCN-DAG: v_ashrrev_i32
-; GCN-DAG: v_ashrrev_i32
-; GCN-DAG: v_ashrrev_i32
-; GCN-DAG: v_ashrrev_i32
-; GCN-DAG: v_ashrrev_i32
-; GCN-DAG: v_ashrrev_i32
-; GCN-DAG: v_ashrrev_i32
-; GCN-DAG: v_ashrrev_i32
-; GCN-DAG: v_ashrrev_i32
-; GCN-DAG: v_ashrrev_i32
-; GCN-DAG: v_ashrrev_i32
-; GCN-DAG: v_ashrrev_i32
-; GCN-DAG: v_ashrrev_i32
-; GCN-DAG: v_ashrrev_i32
-; GCN-DAG: v_ashrrev_i32
-; GCN-DAG: v_ashrrev_i32
-; GCN-DAG: v_ashrrev_i32
-; GCN-DAG: v_ashrrev_i32
-; GCN-DAG: v_ashrrev_i32
-; GCN-DAG: v_ashrrev_i32
-; GCN-DAG: v_ashrrev_i32
-; GCN-DAG: v_ashrrev_i32
-; GCN-DAG: v_ashrrev_i32
-; GCN-DAG: v_ashrrev_i32
-; GCN-DAG: v_ashrrev_i32
+; GCN-NOHSA: v_ashrrev_i32
+; GCN-NOHSA: v_ashrrev_i32
+; GCN-NOHSA: v_ashrrev_i32
+; GCN-NOHSA: v_ashrrev_i32
+; GCN-NOHSA: v_ashrrev_i32
+; GCN-NOHSA: v_ashrrev_i32
+; GCN-NOHSA: v_ashrrev_i32
+; GCN-NOHSA: v_ashrrev_i32
+
+; GCN-NOHSA: v_ashrrev_i32
+; GCN-NOHSA: v_ashrrev_i32
+; GCN-NOHSA: v_ashrrev_i32
+; GCN-NOHSA: v_ashrrev_i32
+; GCN-NOHSA: v_ashrrev_i32
+; GCN-NOHSA: v_ashrrev_i32
+; GCN-NOHSA: v_ashrrev_i32
+; GCN-NOHSA: v_ashrrev_i32
+
+; GCN-NOHSA: v_ashrrev_i32
+; GCN-NOHSA: v_ashrrev_i32
+; GCN-NOHSA: v_ashrrev_i32
+; GCN-NOHSA: v_ashrrev_i32
+; GCN-NOHSA: v_ashrrev_i32
+; GCN-NOHSA: v_ashrrev_i32
+; GCN-NOHSA: v_ashrrev_i32
+; GCN-NOHSA: v_ashrrev_i32
+
+; GCN-NOHSA: v_ashrrev_i32
+; GCN-NOHSA: v_ashrrev_i32
+; GCN-NOHSA: v_ashrrev_i32
+; GCN-NOHSA: v_ashrrev_i32
+; GCN-NOHSA: buffer_load_dwordx4
 
 ; GCN-NOHSA: buffer_store_dwordx4
 ; GCN-NOHSA: buffer_store_dwordx4
@@ -421,29 +420,73 @@ define amdgpu_kernel void @global_zextload_v16i32_to_v16i64(<16 x i64> addrspace
 
 ; GCN-NOHSA: buffer_store_dwordx4
 ; GCN-NOHSA: buffer_store_dwordx4
+
+; GCN-NOHSA: v_ashrrev_i32
+; GCN-NOHSA: v_ashrrev_i32
+; GCN-NOHSA: v_ashrrev_i32
+; GCN-NOHSA: v_ashrrev_i32
 ; GCN-NOHSA: buffer_store_dwordx4
 ; GCN-NOHSA: buffer_store_dwordx4
 
-; GCN-HSA: flat_store_dwordx4
-; GCN-HSA: flat_store_dwordx4
-; GCN-HSA: flat_store_dwordx4
-; GCN-HSA: flat_store_dwordx4
 
 ; GCN-HSA: flat_store_dwordx4
 ; GCN-HSA: flat_store_dwordx4
-; GCN-HSA: flat_store_dwordx4
+
+; GCN-HSA: v_ashrrev_i32
+; GCN-HSA: v_ashrrev_i32
 ; GCN-HSA: flat_store_dwordx4
 
-; GCN-HSA: flat_store_dwordx4
-; GCN-HSA: flat_store_dwordx4
-; GCN-HSA: flat_store_dwordx4
-; GCN-HSA: flat_store_dwordx4
-
-; GCN-HSA: flat_store_dwordx4
-; GCN-HSA: flat_store_dwordx4
-; GCN-HSA: flat_store_dwordx4
+; GCN-HSA: v_ashrrev_i32
+; GCN-HSA: v_ashrrev_i32
 ; GCN-HSA: flat_store_dwordx4
 
+; GCN-HSA: v_ashrrev_i32
+; GCN-HSA: v_ashrrev_i32
+; GCN-HSA: flat_store_dwordx4
+
+; GCN-HSA: v_ashrrev_i32
+; GCN-HSA: v_ashrrev_i32
+; GCN-HSA: flat_store_dwordx4
+
+; GCN-HSA: v_ashrrev_i32
+; GCN-HSA: v_ashrrev_i32
+; GCN-HSA: flat_store_dwordx4
+
+; GCN-HSA: v_ashrrev_i32
+; GCN-HSA: v_ashrrev_i32
+; GCN-HSA: flat_store_dwordx4
+
+; GCN-HSA: v_ashrrev_i32
+; GCN-HSA: v_ashrrev_i32
+; GCN-HSA: flat_store_dwordx4
+
+; GCN-HSA: v_ashrrev_i32
+; GCN-HSA: v_ashrrev_i32
+; GCN-HSA: flat_store_dwordx4
+
+; GCN-HSA: v_ashrrev_i32
+; GCN-HSA: v_ashrrev_i32
+; GCN-HSA: flat_store_dwordx4
+
+; GCN-HSA: v_ashrrev_i32
+; GCN-HSA: v_ashrrev_i32
+; GCN-HSA: flat_store_dwordx4
+
+; GCN-HSA: v_ashrrev_i32
+; GCN-HSA: v_ashrrev_i32
+; GCN-HSA: flat_store_dwordx4
+
+; GCN-HSA: v_ashrrev_i32
+; GCN-HSA: v_ashrrev_i32
+; GCN-HSA: flat_store_dwordx4
+
+; GCN-HSA: v_ashrrev_i32
+; GCN-HSA: v_ashrrev_i32
+; GCN-HSA: flat_store_dwordx4
+
+; GCN-HSA: v_ashrrev_i32
+; GCN-HSA: v_ashrrev_i32
+; GCN-HSA: flat_store_dwordx4
 define amdgpu_kernel void @global_sextload_v32i32_to_v32i64(<32 x i64> addrspace(1)* %out, <32 x i32> addrspace(1)* %in) #0 {
   %ld = load <32 x i32>, <32 x i32> addrspace(1)* %in
   %ext = sext <32 x i32> %ld to <32 x i64>

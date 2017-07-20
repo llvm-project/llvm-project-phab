@@ -1,5 +1,5 @@
-; RUN: llc -march=amdgcn -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=SI %s
-; RUN: llc -march=amdgcn -mcpu=fiji -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=VI %s
+; RUN: llc -march=amdgcn -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,SI %s
+; RUN: llc -march=amdgcn -mcpu=fiji -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,VI %s
 
 ; GCN-LABEL: {{^}}v_clamp_f32:
 ; GCN: {{buffer|flat}}_load_dword [[A:v[0-9]+]]
@@ -397,7 +397,8 @@ define amdgpu_kernel void @v_clamp_f32_snan_no_dx10clamp(float addrspace(1)* %ou
 
 ; GCN-LABEL: {{^}}v_clamp_f32_snan_no_dx10clamp_nnan_src:
 ; GCN: {{buffer|flat}}_load_dword [[A:v[0-9]+]]
-; GCN: v_med3_f32 v{{[0-9]+}}, [[A]], 0, 1.0
+; GCN: v_add_f32_e32 [[ADD:v[0-9]+]], 1.0, [[A]]
+; GCN: v_med3_f32 v{{[0-9]+}}, [[ADD]], 0, 1.0
 define amdgpu_kernel void @v_clamp_f32_snan_no_dx10clamp_nnan_src(float addrspace(1)* %out, float addrspace(1)* %aptr) #4 {
   %tid = call i32 @llvm.amdgcn.workitem.id.x()
   %gep0 = getelementptr float, float addrspace(1)* %aptr, i32 %tid

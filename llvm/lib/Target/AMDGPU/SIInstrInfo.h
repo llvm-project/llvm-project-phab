@@ -44,6 +44,7 @@ private:
   static unsigned getBranchOpcode(BranchPredicate Cond);
   static BranchPredicate getBranchPredicate(unsigned Opcode);
 
+public:
   unsigned buildExtractSubReg(MachineBasicBlock::iterator MI,
                               MachineRegisterInfo &MRI,
                               MachineOperand &SuperReg,
@@ -56,7 +57,7 @@ private:
                                          const TargetRegisterClass *SuperRC,
                                          unsigned SubIdx,
                                          const TargetRegisterClass *SubRC) const;
-
+private:
   void swapOperands(MachineInstr &Inst) const;
 
   void lowerScalarAbs(SetVectorType &Worklist,
@@ -64,6 +65,9 @@ private:
 
   void splitScalar64BitUnaryOp(SetVectorType &Worklist,
                                MachineInstr &Inst, unsigned Opcode) const;
+
+  void splitScalar64BitAddSub(SetVectorType &Worklist,
+                              MachineInstr &Inst) const;
 
   void splitScalar64BitBinaryOp(SetVectorType &Worklist,
                                 MachineInstr &Inst, unsigned Opcode) const;

@@ -207,19 +207,20 @@ endif:
 ; SI: s_load_dwordx2
 
 ; SI: v_mul_hi_u32
-; SI: v_mul_hi_u32
 ; SI: s_mul_i32
 ; SI: v_mul_hi_u32
 ; SI: s_mul_i32
-; SI-DAG: s_mul_i32
-; SI-DAG: v_mul_hi_u32
-; SI-DAG: v_mul_hi_u32
-; SI-DAG: s_mul_i32
-; SI-DAG: s_mul_i32
-; SI-DAG: v_mul_hi_u32
 ; SI: s_mul_i32
 ; SI: s_mul_i32
 ; SI: s_mul_i32
+; SI: s_mul_i32
+
+; SI: v_mul_hi_u32
+; SI: v_mul_hi_u32
+; SI: v_mul_hi_u32
+; SI: s_mul_i32
+; SI: s_mul_i32
+; SI: v_mul_hi_u32
 ; SI: s_mul_i32
 ; SI: s_mul_i32
 
@@ -242,7 +243,7 @@ define amdgpu_kernel void @s_mul_i128(i128 addrspace(1)* %out, i128 %a, i128 %b)
 ; SI-DAG: v_mul_hi_u32
 ; SI-DAG: v_mul_lo_i32
 ; SI-DAG: v_mul_lo_i32
-; SI: v_add_i32_e32
+; SI-DAG: v_add_i32_e32
 ; SI-DAG: v_mul_hi_u32
 ; SI-DAG: v_mul_lo_i32
 ; SI-DAG: v_mul_hi_u32
