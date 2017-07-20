@@ -58,7 +58,10 @@ Improvements to clang-tidy
 --------------------------
 
 The improvements are...
+- New `cert-dcl51-cpp
+  <http://clang.llvm.org/extra/clang-tidy/checks/cert-dcl51-cpp.html>`_ check
 
+  Checks if a name is declared or defined with a reserved identifier.
 Improvements to include-fixer
 -----------------------------
 
