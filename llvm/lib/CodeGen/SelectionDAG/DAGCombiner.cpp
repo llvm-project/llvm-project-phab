@@ -5652,32 +5652,17 @@ SDValue DAGCombiner::visitSRA(SDNode *N) {
   }
 
   // fold (sra (sra x, c1), c2) -> (sra x, (add c1, c2))
-  if (N0.getOpcode() == ISD::SRA) {
+  // clamp (add c1, c2) to max shift.
+  if (N0.getOpcode() == ISD::SRA &&
+      isConstantOrConstantVector(N1, /* NoOpaques */ true) &&
+      isConstantOrConstantVector(N0.getOperand(1), /* NoOpaques */ true) &&
+      N1.getValueType() == N0.getOperand(1).getValueType()) {
     SDLoc DL(N);
     EVT ShiftVT = N1.getValueType();
-
-    auto MatchOutOfRange = [OpSizeInBits](ConstantSDNode *LHS,
-                                          ConstantSDNode *RHS) {
-      APInt c1 = LHS->getAPIntValue();
-      APInt c2 = RHS->getAPIntValue();
-      zeroExtendToMatch(c1, c2, 1 /* Overflow Bit */);
-      return (c1 + c2).uge(OpSizeInBits);
-    };
-    if (matchBinaryPredicate(N1, N0.getOperand(1), MatchOutOfRange))
-      return DAG.getNode(ISD::SRA, DL, VT, N0.getOperand(0),
-                         DAG.getConstant(OpSizeInBits - 1, DL, ShiftVT));
-
-    auto MatchInRange = [OpSizeInBits](ConstantSDNode *LHS,
-                                       ConstantSDNode *RHS) {
-      APInt c1 = LHS->getAPIntValue();
-      APInt c2 = RHS->getAPIntValue();
-      zeroExtendToMatch(c1, c2, 1 /* Overflow Bit */);
-      return (c1 + c2).ult(OpSizeInBits);
-    };
-    if (matchBinaryPredicate(N1, N0.getOperand(1), MatchInRange)) {
-      SDValue Sum = DAG.getNode(ISD::ADD, DL, ShiftVT, N1, N0.getOperand(1));
-      return DAG.getNode(ISD::SRA, DL, VT, N0.getOperand(0), Sum);
-    }
+    SDValue Sum = DAG.getNode(ISD::ADD, DL, ShiftVT, N1, N0.getOperand(1));
+    SDValue Limit = DAG.getConstant(OpSizeInBits - 1, DL, ShiftVT);
+    SDValue Clamp = DAG.getNode(ISD::UMIN, DL, ShiftVT, Sum, Limit);
+    return DAG.getNode(ISD::SRA, DL, VT, N0.getOperand(0), Clamp);
   }
 
   // fold (sra (shl X, m), (sub result_size, n))
