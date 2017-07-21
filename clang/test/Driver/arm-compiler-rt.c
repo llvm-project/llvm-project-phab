@@ -19,3 +19,9 @@
 // RUN: %clang -target arm-linux-androideabi -rtlib=compiler-rt -mfloat-abi=hard -### %s 2>&1 | FileCheck %s -check-prefix ARM-ANDROIDHF
 // ARM-ANDROIDHF: "{{.*[/\\]}}libclang_rt.builtins-armhf-android.a"
 
+// RUN: %clang -target arm-linux-androideabi -rtlib=compiler-rt --print-libgcc-file-name 2>&1 | FileCheck %s -check-prefix ARM-PRINT-LIBGCC-ANDROID
+// ARM-PRINT-LIBGCC-ANDROID: {{.*[/\\]}}libclang_rt.builtins-arm-android.a
+
+// RUN: %clang -target arm-linux-androideabi -rtlib=compiler-rt -mfloat-abi=hard --print-libgcc-file-name 2>&1 | FileCheck %s -check-prefix ARM-PRINT-LIBGCC-ANDROIDHF
+// ARM-PRINT-LIBGCC-ANDROIDHF: {{.*[/\\]}}libclang_rt.builtins-armhf-android.a
+
