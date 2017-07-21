@@ -1,6 +1,9 @@
+// REQUIRES: asserts
 // RUN: %clang_cc1 -std=c++11 -triple x86_64-apple-darwin10 -emit-llvm -o - %s -fsanitize=alignment | FileCheck %s -check-prefixes=ALIGN,COMMON
 // RUN: %clang_cc1 -std=c++11 -triple x86_64-apple-darwin10 -emit-llvm -o - %s -fsanitize=null | FileCheck %s -check-prefixes=NULL,COMMON
 // RUN: %clang_cc1 -std=c++11 -triple x86_64-apple-darwin10 -emit-llvm -o - %s -fsanitize=object-size | FileCheck %s -check-prefixes=OBJSIZE,COMMON
+// RUN: %clang_cc1 -std=c++11 -triple x86_64-apple-darwin10 -emit-llvm -o - %s -fsanitize=null,vptr | FileCheck %s -check-prefixes=VPTR
+// RUN: %clang_cc1 -std=c++11 -triple x86_64-apple-darwin10 -emit-llvm -o - %s -fsanitize=vptr | FileCheck %s -check-prefixes=NOVPTR
 
 struct A {
   // COMMON-LABEL: define linkonce_odr void @_ZN1A10do_nothingEv
@@ -27,10 +30,46 @@ struct B {
   }
 };
 
-void force_irgen() {
+struct Animal {
+  virtual const char *speak() = 0;
+};
+
+struct Cat : Animal {
+  const char *speak() override { return "meow"; }
+};
+
+struct Dog : Animal {
+  const char *speak() override { return "woof"; }
+};
+
+// VPTR-LABEL: define void @_Z12invalid_castP3Cat
+// NOVPTR-NOT: __ubsan_handle_dynamic_type_cache_miss
+void invalid_cast(Cat *cat = nullptr) {
+  // First, null check the pointer:
+  //
+  // VPTR: [[ICMP:%.*]] = icmp ne %struct.Dog* {{.*}}, null
+  // VPTR-NEXT: br i1 [[ICMP]], label %cont, label %handler.type_mismatch
+  // VPTR: handler.type_mismatch:
+  // VPTR: __ubsan_handle_type_mismatch
+  //
+  // Once we're done emitting type checks, we can continue to the vptr check
+  // if the pointer is non-null:
+  //
+  // VPTR: cont:
+  // VPTR-NEXT: br i1 [[ICMP]], label %vptr.not.null, label %vptr.null, !nosanitize
+  // VPTR: vptr.not.null:
+  // VPTR: __ubsan_handle_dynamic_type_cache_miss
+  auto *badDog = reinterpret_cast<Dog *>(cat);
+  badDog->speak();
+}
+
+int main() {
   A a;
   a.do_nothing();
 
   B b;
   b.do_nothing();
+
+  invalid_cast();
+  return 0;
 }
