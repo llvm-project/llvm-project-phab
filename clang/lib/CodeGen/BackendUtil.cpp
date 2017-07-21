@@ -861,7 +861,9 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
     (PGOOpt.RunProfileGen ||
       !PGOOpt.ProfileUseFile.empty() ||
       !PGOOpt.SampleProfileFile.empty()) ?
-        Optional<PGOOptions>(PGOOpt) : None);
+        Optional<PGOOptions>(PGOOpt) : None,
+    (CodeGenOpts.DebugInfoForProfiling ||
+     !CodeGenOpts.SampleProfileFile.empty()));
 
   LoopAnalysisManager LAM;
   FunctionAnalysisManager FAM;
