@@ -1434,6 +1434,10 @@ namespace llvm {
     }
   };
 
+  void createUnpackShuffleMask(MVT VT, SmallVectorImpl<int> &Mask, bool Lo,
+                               bool Unary);
+  void scaleShuffleMask(int Scale, ArrayRef<int> Mask,
+                        SmallVectorImpl<int> &ScaledMask);
 } // end namespace llvm
 
 #endif // LLVM_LIB_TARGET_X86_X86ISELLOWERING_H

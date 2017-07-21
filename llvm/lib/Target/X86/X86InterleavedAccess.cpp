@@ -14,7 +14,6 @@
 ///
 //===--------------------------------------------------------------------===//
 
-#include "X86ISelLowering.h"
 #include "X86TargetMachine.h"
 #include "llvm/Analysis/VectorUtils.h"
 
@@ -69,8 +68,9 @@ class X86InterleavedAccessGroup {
   ///   Out-V2 = p3, q3, r3, s3
   ///   Out-V3 = P4, q4, r4, s4
   void transpose_4x4(ArrayRef<Instruction *> InputVectors,
-                     SmallVectorImpl<Value *> &TrasposedVectors);
-
+                     SmallVectorImpl<Value *> &TransposedMatrix);
+  void interleave8bit_32x4(ArrayRef<Instruction *> InputVectors,
+                          SmallVectorImpl<Value *> &TransposedMatrix);
 public:
   /// In order to form an interleaved access group X86InterleavedAccessGroup
   /// requires a wide-load instruction \p 'I', a group of interleaved-vectors
@@ -101,15 +101,22 @@ bool X86InterleavedAccessGroup::isSupported() const {
   uint64_t ShuffleVecSize = DL.getTypeSizeInBits(ShuffleVecTy);
   Type *ShuffleEltTy = ShuffleVecTy->getVectorElementType();
 
-  // Currently, lowering is supported for 4-element vectors of 64 bits on AVX.
+  // Currently, lowering is supported for the following vectors:
+  // 1. 4-element vectors of 64 bits on AVX.
+  // 2. 32-element vectors of 8 bits on AVX.
   uint64_t ExpectedShuffleVecSize;
   if (isa<LoadInst>(Inst))
     ExpectedShuffleVecSize = 256;
   else
     ExpectedShuffleVecSize = 1024;
 
-  if (!Subtarget.hasAVX() || ShuffleVecSize != ExpectedShuffleVecSize ||
-      DL.getTypeSizeInBits(ShuffleEltTy) != 64 || Factor != 4)
+  if (DL.getTypeSizeInBits(ShuffleEltTy) == 8 && !isa<StoreInst>(Inst))
+    return false;
+
+  if (((DL.getTypeSizeInBits(ShuffleEltTy) != 64) &&
+       ((DL.getTypeSizeInBits(ShuffleEltTy) != 8))) ||
+      !Subtarget.hasAVX() || ShuffleVecSize != ExpectedShuffleVecSize ||
+      Factor != 4)
     return false;
 
   return true;
@@ -158,6 +165,119 @@ void X86InterleavedAccessGroup::decompose(
   }
 }
 
+//  Create shuffle mask for concatenation of two half vectors.
+//  Low = false:  mask generated for the shuffle
+//  shuffle(VEC1,VEC2,{NumElement/2, NumElement/2+1, NumElement/2+2...,
+//                    NumElement-1, NumElement+NumElement/2,
+//                    NumElement+NumElement/2+1..., 2*NumElement-1})
+//  = concat(high_half(VEC1),high_half(VEC2))
+//  Low = true:  mask generated for the shuffle
+//  shuffle(VEC1,VEC2,{0,1,2,...,NumElement/2-1,NumElement,
+//                    NumElement+1...,NumElement+NumElement/2-1})
+//  = concat(low_half(VEC1),low_half(VEC2))
+static void createConcatShuffleMask(int NumElement,
+                                    SmallVectorImpl<int> &Mask, bool Low) {
+  int NumHalfElements = NumElement / 2;
+  int Offset = Low ? 0 : NumHalfElements;
+  for (int i = 0; i < NumHalfElements; ++i)
+    Mask.push_back(i + Offset);
+  for (int i = 0; i < NumHalfElements; ++i)
+    Mask.push_back(i + Offset + NumElement);
+}
+
+static Value* CreateShuffleVector(IRBuilder<> &B, Value *V1, Value *V2,
+                                    ArrayRef<int32_t> IntMask,
+                                    const Twine &Name = "") {
+  Value *Mask = ConstantDataVector::get( V1->getContext(),
+     makeArrayRef(reinterpret_cast<const uint32_t *>(IntMask.data()),
+                  IntMask.size()));
+  return B.CreateShuffleVector(V1, V2, Mask, Name);
+}
+
+void X86InterleavedAccessGroup::interleave8bit_32x4(
+    ArrayRef<Instruction *> Matrix,
+    SmallVectorImpl<Value *> &TransposedMatrix) {
+
+  // Example: Assuming we start from the following vectors:
+  // Matrix[0]= c0 c1 c2 c3 c4 ... c31
+  // Matrix[1]= m0 m1 m2 m3 m4 ... m31
+  // Matrix[2]= y0 y1 y2 y3 y4 ... y31
+  // Matrix[3]= k0 k1 k2 k3 k4 ... k31
+
+  TransposedMatrix.resize(4);
+
+  SmallVector<int, 32> MaskHigh;
+  SmallVector<int, 32> MaskLow;
+  SmallVector<int, 32> MaskHighTemp1;
+  SmallVector<int, 32> MaskLowTemp1;
+  SmallVector<int, 32> MaskHighWord;
+  SmallVector<int, 32> MaskLowWord;
+  SmallVector<int, 32> MaskConcatHigh;
+  SmallVector<int, 32> MaskConcatLow;
+
+  // MaskHighTemp and MaskLowTemp built in the vpunpckhbw and vpunpcklbw X86
+  // shuffle pattern.
+
+  createUnpackShuffleMask(MVT::v32i8, MaskHigh, false, false);
+  createUnpackShuffleMask(MVT::v32i8, MaskLow, true, false);
+
+  // ConcatHigh and ConcatLow built in the vperm2i128 and vinserti128 X86
+  // shuffle pattern.
+
+  createConcatShuffleMask(32, MaskConcatLow, true);
+  createConcatShuffleMask(32, MaskConcatHigh, false);
+
+  // MaskHighTemp1 and MaskLowTemp1 built in the vpunpckhdw and vpunpckldw X86
+  // shuffle pattern.
+
+  createUnpackShuffleMask(MVT::v16i16, MaskLowTemp1, true, false);
+  createUnpackShuffleMask(MVT::v16i16, MaskHighTemp1, false, false);
+  scaleShuffleMask(2, MaskHighTemp1 , MaskHighWord);
+  scaleShuffleMask(2, MaskLowTemp1 , MaskLowWord);
+
+  // IntrVec1Low  = c0  m0  c1  m1 ... c7  m7  | c16 m16 c17 m17 ... c23 m23
+  // IntrVec1High = c8  m8  c9  m9 ... c15 m15 | c24 m24 c25 m25 ... c31 m31
+  // IntrVec2Low  = y0  k0  y1  k1 ... y7  k7  | y16 k16 y17 k17 ... y23 k23
+  // IntrVec2High = y8  k8  y9  k9 ... y15 k15 | y24 k24 y25 k25 ... y31 k31
+
+  Value *IntrVec1Low = CreateShuffleVector(Builder, Matrix[0],
+                                           Matrix[1], MaskLow);
+  Value *IntrVec1High = CreateShuffleVector(Builder, Matrix[0],
+                                            Matrix[1], MaskHigh);
+  Value *IntrVec2Low = CreateShuffleVector(Builder, Matrix[2],
+                                           Matrix[3], MaskLow);
+  Value *IntrVec2High = CreateShuffleVector(Builder, Matrix[2],
+                                            Matrix[3], MaskHigh);
+
+  // cmyk4  cmyk5  cmyk6   cmyk7  | cmyk20 cmyk21 cmyk22 cmyk23
+  // cmyk12 cmyk13 cmyk14  cmyk15 | cmyk28 cmyk29 cmyk30 cmyk31
+  // cmyk0  cmyk1  cmyk2   cmyk3  | cmyk16 cmyk17 cmyk18 cmyk19
+  // cmyk8  cmyk9  cmyk10  cmyk11 | cmyk24 cmyk25 cmyk26 cmyk27
+
+  Value *High = CreateShuffleVector(Builder, IntrVec1Low,
+                                    IntrVec2Low, MaskHighWord);
+  Value *High1 = CreateShuffleVector(Builder, IntrVec1High,
+                                     IntrVec2High, MaskHighWord);
+  Value *Low = CreateShuffleVector(Builder, IntrVec1Low,
+                                   IntrVec2Low, MaskLowWord);
+  Value *Low1 = CreateShuffleVector(Builder, IntrVec1High,
+                                    IntrVec2High, MaskLowWord);
+
+  // cmyk0  cmyk1  cmyk2   cmyk3  | cmyk4  cmyk5  cmyk6   cmyk7
+  // cmyk8  cmyk9  cmyk10  cmyk11 | cmyk12 cmyk13 cmyk14  cmyk15
+  // cmyk16 cmyk17 cmyk18 cmyk19  | cmyk20 cmyk21 cmyk22 cmyk23
+  // cmyk24 cmyk25 cmyk26 cmyk27  | cmyk28 cmyk29 cmyk30 cmyk31
+
+  TransposedMatrix[0] = CreateShuffleVector(Builder, Low, High,
+                                            MaskConcatLow);
+  TransposedMatrix[1] = CreateShuffleVector(Builder, Low1, High1,
+                                            MaskConcatLow);
+  TransposedMatrix[2] = CreateShuffleVector(Builder, Low, High,
+                                            MaskConcatHigh);
+  TransposedMatrix[3] = CreateShuffleVector(Builder, Low1, High1,
+                                            MaskConcatHigh);
+}
+
 void X86InterleavedAccessGroup::transpose_4x4(
     ArrayRef<Instruction *> Matrix,
     SmallVectorImpl<Value *> &TransposedMatrix) {
@@ -165,28 +285,28 @@ void X86InterleavedAccessGroup::transpose_4x4(
   TransposedMatrix.resize(4);
 
   // dst = src1[0,1],src2[0,1]
-  uint32_t IntMask1[] = {0, 1, 4, 5};
-  ArrayRef<uint32_t> Mask = makeArrayRef(IntMask1, 4);
-  Value *IntrVec1 = Builder.CreateShuffleVector(Matrix[0], Matrix[2], Mask);
-  Value *IntrVec2 = Builder.CreateShuffleVector(Matrix[1], Matrix[3], Mask);
+  int IntMask1[] = {0, 1, 4, 5};
+  ArrayRef<int> Mask = makeArrayRef(IntMask1, 4);
+  Value *IntrVec1 = CreateShuffleVector(Builder, Matrix[0], Matrix[2], Mask);
+  Value *IntrVec2 = CreateShuffleVector(Builder, Matrix[1], Matrix[3], Mask);
 
   // dst = src1[2,3],src2[2,3]
-  uint32_t IntMask2[] = {2, 3, 6, 7};
+  int IntMask2[] = {2, 3, 6, 7};
   Mask = makeArrayRef(IntMask2, 4);
-  Value *IntrVec3 = Builder.CreateShuffleVector(Matrix[0], Matrix[2], Mask);
-  Value *IntrVec4 = Builder.CreateShuffleVector(Matrix[1], Matrix[3], Mask);
+  Value *IntrVec3 = CreateShuffleVector(Builder,Matrix[0], Matrix[2], Mask);
+  Value *IntrVec4 = CreateShuffleVector(Builder,Matrix[1], Matrix[3], Mask);
 
   // dst = src1[0],src2[0],src1[2],src2[2]
-  uint32_t IntMask3[] = {0, 4, 2, 6};
+  int IntMask3[] = {0, 4, 2, 6};
   Mask = makeArrayRef(IntMask3, 4);
-  TransposedMatrix[0] = Builder.CreateShuffleVector(IntrVec1, IntrVec2, Mask);
-  TransposedMatrix[2] = Builder.CreateShuffleVector(IntrVec3, IntrVec4, Mask);
+  TransposedMatrix[0] = CreateShuffleVector(Builder, IntrVec1, IntrVec2, Mask);
+  TransposedMatrix[2] = CreateShuffleVector(Builder, IntrVec3, IntrVec4, Mask);
 
   // dst = src1[1],src2[1],src1[3],src2[3]
-  uint32_t IntMask4[] = {1, 5, 3, 7};
+  int IntMask4[] = {1, 5, 3, 7};
   Mask = makeArrayRef(IntMask4, 4);
-  TransposedMatrix[1] = Builder.CreateShuffleVector(IntrVec1, IntrVec2, Mask);
-  TransposedMatrix[3] = Builder.CreateShuffleVector(IntrVec3, IntrVec4, Mask);
+  TransposedMatrix[1] = CreateShuffleVector(Builder,IntrVec1, IntrVec2, Mask);
+  TransposedMatrix[3] = CreateShuffleVector(Builder,IntrVec3, IntrVec4, Mask);
 }
 
 // Lowers this interleaved access group into X86-specific
@@ -224,7 +344,16 @@ bool X86InterleavedAccessGroup::lowerIntoOptimizedSequence() {
 
   //   2. Transpose the interleaved-vectors into vectors of contiguous
   //      elements.
-  transpose_4x4(DecomposedVectors, TransposedVectors);
+  switch (NumSubVecElems) {
+  case 4:
+    transpose_4x4(DecomposedVectors, TransposedVectors);
+    break;
+  case 32:
+    interleave8bit_32x4(DecomposedVectors, TransposedVectors);
+    break;
+  default:
+    return false;
+  }
 
   //   3. Concatenate the contiguous-vectors back into a wide vector.
   Value *WideVec = concatenateVectors(Builder, TransposedVectors);

@@ -4758,29 +4758,31 @@ static bool canWidenShuffleElements(ArrayRef<int> Mask,
   return true;
 }
 
-/// Helper function to scale a shuffle or target shuffle mask, replacing each
-/// mask index with the scaled sequential indices for an equivalent narrowed
-/// mask. This is the reverse process to canWidenShuffleElements, but can always
-/// succeed.
-static void scaleShuffleMask(int Scale, ArrayRef<int> Mask,
-                             SmallVectorImpl<int> &ScaledMask) {
-  assert(0 < Scale && "Unexpected scaling factor");
-  int NumElts = Mask.size();
-  ScaledMask.assign(static_cast<size_t>(NumElts * Scale), -1);
+namespace llvm {
+  /// Helper function to scale a shuffle or target shuffle mask, replacing each
+  /// mask index with the scaled sequential indices for an equivalent narrowed
+  /// mask. This is the reverse process to canWidenShuffleElements, but can always
+  /// succeed.
+  void scaleShuffleMask(int Scale, ArrayRef<int> Mask,
+    SmallVectorImpl<int> &ScaledMask) {
+    assert(0 < Scale && "Unexpected scaling factor");
+    int NumElts = Mask.size();
+    ScaledMask.assign(static_cast<size_t>(NumElts * Scale), -1);
 
-  for (int i = 0; i != NumElts; ++i) {
-    int M = Mask[i];
+    for (int i = 0; i != NumElts; ++i) {
+      int M = Mask[i];
 
-    // Repeat sentinel values in every mask element.
-    if (M < 0) {
+      // Repeat sentinel values in every mask element.
+      if (M < 0) {
+        for (int s = 0; s != Scale; ++s)
+          ScaledMask[(Scale * i) + s] = M;
+        continue;
+      }
+
+      // Scale mask element and increment across each mask element.
       for (int s = 0; s != Scale; ++s)
-        ScaledMask[(Scale * i) + s] = M;
-      continue;
+        ScaledMask[(Scale * i) + s] = (Scale * M) + s;
     }
-
-    // Scale mask element and increment across each mask element.
-    for (int s = 0; s != Scale; ++s)
-      ScaledMask[(Scale * i) + s] = (Scale * M) + s;
   }
 }
 
@@ -5253,19 +5255,21 @@ static SDValue getExtendInVec(unsigned Opc, const SDLoc &DL, EVT VT, SDValue In,
   return DAG.getNode(Opc, DL, VT, In);
 }
 
-/// Generate unpacklo/unpackhi shuffle mask.
-static void createUnpackShuffleMask(MVT VT, SmallVectorImpl<int> &Mask, bool Lo,
-                                    bool Unary) {
-  assert(Mask.empty() && "Expected an empty shuffle mask vector");
-  int NumElts = VT.getVectorNumElements();
-  int NumEltsInLane = 128 / VT.getScalarSizeInBits();
+namespace llvm {
+  /// Generate unpacklo/unpackhi shuffle mask.
+  void createUnpackShuffleMask(MVT VT, SmallVectorImpl<int> &Mask, bool Lo,
+                               bool Unary) {
+    assert(Mask.empty() && "Expected an empty shuffle mask vector");
+    int NumElts = VT.getVectorNumElements();
+    int NumEltsInLane = 128 / VT.getScalarSizeInBits();
 
-  for (int i = 0; i < NumElts; ++i) {
-    unsigned LaneStart = (i / NumEltsInLane) * NumEltsInLane;
-    int Pos = (i % NumEltsInLane) / 2 + LaneStart;
-    Pos += (Unary ? 0 : NumElts * (i % 2));
-    Pos += (Lo ? 0 : NumEltsInLane / 2);
-    Mask.push_back(Pos);
+    for (int i = 0; i < NumElts; ++i) {
+      unsigned LaneStart = (i / NumEltsInLane) * NumEltsInLane;
+      int Pos = (i % NumEltsInLane) / 2 + LaneStart;
+      Pos += (Unary ? 0 : NumElts * (i % 2));
+      Pos += (Lo ? 0 : NumEltsInLane / 2);
+      Mask.push_back(Pos);
+    }
   }
 }
 
