@@ -62,10 +62,88 @@ struct RepMovsRepeats {
 
 }  // namespace
 
+static ConstantSDNode *getNonOpaqueConstantIntN(SDValue V, int Bits) {
+  auto *C = dyn_cast<ConstantSDNode>(V);
+  if (!C)
+    return nullptr;
+
+  return (C->isOpaque() || !C->getAPIntValue().isIntN(Bits)) ? nullptr : C;
+}
+
+static std::pair<SDValue, MVT> getUnscaledSizeAndVT(SelectionDAG &DAG,
+                                                    const SDLoc &DL,
+                                                    SDValue Size,
+                                                    unsigned Align) {
+  SDValue UnscaledSize = Size;
+
+  // Look through any zero extend.
+  while (UnscaledSize.getOpcode() == ISD::ZERO_EXTEND)
+    UnscaledSize = UnscaledSize.getOperand(0);
+
+  // Unless the size is a shift left, we can't remove any scaling applied to it.
+  if (UnscaledSize.getOpcode() != ISD::SHL)
+    return {Size, MVT::i8};
+
+  // We also need the shift to be of a constant.
+  auto ShiftC = getNonOpaqueConstantIntN(UnscaledSize.getOperand(1), 64);
+  if (!ShiftC)
+    return {Size, MVT::i8};
+
+  // We only want to strip off as much of the size scaling as is allowed
+  // given the alignment. If this ends up being zero, nothing to do.
+  uint64_t Shift = Log2_64(MinAlign(1 << ShiftC->getZExtValue(), Align));
+  if (Shift == 0)
+    return {Size, MVT::i8};
+
+  // We also can't meaningfully scale past a shift of three because
+  // that's 8-bytes, our largest repeating store size.
+  Shift = std::min<uint64_t>(Shift, 3);
+
+  // Table of value types based on shift amount.
+  MVT VTs[] = {MVT::i16, MVT::i32, MVT::i64};
+
+  // We just shift the size right and let the constant folder simplify
+  // the two shifts.
+  return {
+      DAG.getZExtOrTrunc(
+          DAG.getNode(ISD::SRL, DL, UnscaledSize.getValueType(), UnscaledSize,
+                      DAG.getConstant(Shift, DL, Size.getValueType())),
+          DL, DAG.getTargetLoweringInfo().getPointerTy(DAG.getDataLayout())),
+      VTs[Shift - 1]};
+}
+
+static std::pair<SDValue, unsigned> getWidenedValueAndReg(SelectionDAG &DAG,
+                                                          const SDLoc &DL,
+                                                          ConstantSDNode *ValC,
+                                                          MVT WideVT) {
+  uint64_t RawVal = ValC->getZExtValue() & 255;
+
+  switch (WideVT.SimpleTy) {
+  default:
+    llvm_unreachable("Only expect i16, i32, and i64 MVTs here!");
+
+  case MVT::i64:
+    RawVal |= (RawVal << 8) | (RawVal << 16) | (RawVal << 24);
+    RawVal |= (RawVal << 32);
+    return {DAG.getConstant(RawVal, DL, MVT::i64), X86::RAX};
+
+  case MVT::i32:
+    RawVal |= (RawVal << 8) | (RawVal << 16) | (RawVal << 24);
+    return {DAG.getConstant(RawVal, DL, MVT::i32), X86::EAX};
+
+  case MVT::i16:
+    RawVal |= (RawVal << 8);
+    return {DAG.getConstant(RawVal, DL, MVT::i16), X86::AX};
+  }
+}
+
 SDValue X86SelectionDAGInfo::EmitTargetCodeForMemset(
     SelectionDAG &DAG, const SDLoc &dl, SDValue Chain, SDValue Dst, SDValue Val,
     SDValue Size, unsigned Align, bool isVolatile,
     MachinePointerInfo DstPtrInfo) const {
+  if (isVolatile)
+    return SDValue();
+
   ConstantSDNode *ConstantSize = dyn_cast<ConstantSDNode>(Size);
   const X86Subtarget &Subtarget =
       DAG.getMachineFunction().getSubtarget<X86Subtarget>();
@@ -81,12 +159,42 @@ SDValue X86SelectionDAGInfo::EmitTargetCodeForMemset(
   if (DstPtrInfo.getAddrSpace() >= 256)
     return SDValue();
 
-  // If not DWORD aligned or size is more than the threshold, call the library.
-  // The libc version is likely to be faster for these cases. It can use the
-  // address value and run time information about the CPU.
+  // If we don't have a tuned inline expansion due to the size or alignment,
+  // fall back on a generic lowering.
   if ((Align & 3) != 0 || !ConstantSize ||
       ConstantSize->getZExtValue() > Subtarget.getMaxInlineSizeThreshold()) {
-    // Check to see if there is a specialized entry-point for memory zeroing.
+    // When we have a fast REP+STOS CPU and either have ERMSB + 16-byte
+    // alignment or PIC overhead for a library call, bypass the library call
+    // entirely.
+    if (Subtarget.hasFastRepStrOps() &&
+        (Subtarget.isPositionIndependent() ||
+         (Subtarget.hasERMSB() && (Align & 4) == 0))) {
+      MVT AVT = MVT::i8;
+      unsigned ValRegister = X86::AL;
+      if (ConstantSDNode *ValC = getNonOpaqueConstantIntN(Val, 64)) {
+        std::tie(Size, AVT) = getUnscaledSizeAndVT(DAG, dl, Size, Align);
+        if (AVT != MVT::i8)
+          std::tie(Val, ValRegister) = getWidenedValueAndReg(DAG, dl, ValC, AVT);
+      }
+
+      Chain = DAG.getCopyToReg(Chain, dl, ValRegister, Val, SDValue());
+      SDValue InFlag = Chain.getValue(1);
+
+      Chain = DAG.getCopyToReg(
+          Chain, dl, Subtarget.is64Bit() ? X86::RCX : X86::ECX, Size, InFlag);
+      InFlag = Chain.getValue(1);
+      Chain = DAG.getCopyToReg(
+          Chain, dl, Subtarget.is64Bit() ? X86::RDI : X86::EDI, Dst, InFlag);
+      InFlag = Chain.getValue(1);
+
+      SDVTList Tys = DAG.getVTList(MVT::Other, MVT::Glue);
+      SDValue Ops[] = {Chain, DAG.getValueType(AVT), InFlag};
+      return DAG.getNode(X86ISD::REP_STOS, dl, Tys, Ops);
+    }
+
+    // Otherwise use the libc version so it can use the address value and run
+    // time information about the CPU. Also check to see if there is
+    // a specialized entry-point for memory zeroing.
     ConstantSDNode *ValC = dyn_cast<ConstantSDNode>(Val);
 
     if (const char *bzeroEntry = ValC &&
@@ -203,16 +311,43 @@ SDValue X86SelectionDAGInfo::EmitTargetCodeForMemcpy(
     SelectionDAG &DAG, const SDLoc &dl, SDValue Chain, SDValue Dst, SDValue Src,
     SDValue Size, unsigned Align, bool isVolatile, bool AlwaysInline,
     MachinePointerInfo DstPtrInfo, MachinePointerInfo SrcPtrInfo) const {
-  // This requires the copy size to be a constant, preferably
-  // within a subtarget-specific limit.
   ConstantSDNode *ConstantSize = dyn_cast<ConstantSDNode>(Size);
   const X86Subtarget &Subtarget =
       DAG.getMachineFunction().getSubtarget<X86Subtarget>();
-  if (!ConstantSize)
+  // Most options require the copy size to be a constant, preferably
+  // within a subtarget-specific limit.
+  if (!ConstantSize ||
+      (!AlwaysInline &&
+       ConstantSize->getZExtValue() > Subtarget.getMaxInlineSizeThreshold())) {
+    // When we have a fast REP+STOS CPU and either have ERMSB + 16-byte
+    // alignment or PIC overhead for a library call, bypass the library call
+    // entirely.
+    if (Subtarget.hasFastRepStrOps() &&
+        (Subtarget.isPositionIndependent() ||
+         (Subtarget.hasERMSB() && (Align & 4) == 0))) {
+      EVT AVT;
+      std::tie(Size, AVT) = getUnscaledSizeAndVT(DAG, dl, Size, Align);
+
+      SDValue InFlag;
+      Chain = DAG.getCopyToReg(
+          Chain, dl, Subtarget.is64Bit() ? X86::RCX : X86::ECX, Size, InFlag);
+      InFlag = Chain.getValue(1);
+      Chain = DAG.getCopyToReg(Chain, dl, Subtarget.is64Bit() ? X86::RDI : X86::EDI,
+                               Dst, InFlag);
+      InFlag = Chain.getValue(1);
+      Chain = DAG.getCopyToReg(Chain, dl, Subtarget.is64Bit() ? X86::RSI : X86::ESI,
+                               Src, InFlag);
+      InFlag = Chain.getValue(1);
+
+      SDVTList Tys = DAG.getVTList(MVT::Other, MVT::Glue);
+      SDValue Ops[] = { Chain, DAG.getValueType(AVT), InFlag };
+      return DAG.getNode(X86ISD::REP_MOVS, dl, Tys, Ops);
+    }
+
+    // Otherwise give up and let the library call be emitted.
     return SDValue();
+  }
   RepMovsRepeats Repeats(ConstantSize->getZExtValue());
-  if (!AlwaysInline && Repeats.Size > Subtarget.getMaxInlineSizeThreshold())
-    return SDValue();
 
   /// If not DWORD aligned, it is more efficient to call the library.  However
   /// if calling the library is not allowed (AlwaysInline), then soldier on as

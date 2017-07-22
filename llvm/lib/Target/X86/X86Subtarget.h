@@ -235,6 +235,9 @@ protected:
   /// True if SHLD based rotate is fast.
   bool HasFastSHLDRotate;
 
+  /// True if the processor has fast REP MOVS/STOS.
+  bool HasFastRepStrOps;
+
   /// True if the processor has enhanced REP MOVSB/STOSB.
   bool HasERMSB;
 
@@ -487,6 +490,7 @@ public:
   bool hasFastVectorFSQRT() const { return HasFastVectorFSQRT; }
   bool hasFastLZCNT() const { return HasFastLZCNT; }
   bool hasFastSHLDRotate() const { return HasFastSHLDRotate; }
+  bool hasFastRepStrOps() const { return HasFastRepStrOps; }
   bool hasERMSB() const { return HasERMSB; }
   bool hasSlowDivide32() const { return HasSlowDivide32; }
   bool hasSlowDivide64() const { return HasSlowDivide64; }

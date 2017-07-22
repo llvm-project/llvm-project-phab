@@ -280,6 +280,16 @@ def FeatureFastSHLDRotate
           "fast-shld-rotate", "HasFastSHLDRotate", "true",
           "SHLD can be used as a faster rotate">;
 
+// Nehalem and newer processors have high quality REP MOVS and STOS (aka
+// "string operations"). See "REP String Enhancement" in the Intel Software
+// Development Manual. This feature indicates that these are reasonable
+// lowerings for string operations when calling the library function would have
+// too high of cost.
+def FeatureFastRepStrOps
+    : SubtargetFeature<
+          "fast-repstr", "HasFastRepStrOps", "true",
+          "REP MOVS/STOS are fast">;
+
 // Ivy Bridge and newer processors have enhanced REP MOVSB and STOSB (aka
 // "string operations"). See "REP String Enhancement" in the Intel Software
 // Development Manual. This feature essentially means that REP MOVSB will copy
@@ -288,7 +298,7 @@ def FeatureFastSHLDRotate
 def FeatureERMSB
     : SubtargetFeature<
           "ermsb", "HasERMSB", "true",
-          "REP MOVS/STOS are fast">;
+          "REP MOVSB/STOSB are as fast S/D/Q variants", [FeatureFastRepStrOps]>;
 
 //===----------------------------------------------------------------------===//
 // X86 processors supported.
@@ -470,7 +480,8 @@ class NehalemProc<string Name> : ProcessorModel<Name, SandyBridgeModel, [
   FeatureCMPXCHG16B,
   FeatureSlowBTMem,
   FeaturePOPCNT,
-  FeatureLAHFSAHF
+  FeatureLAHFSAHF,
+  FeatureFastRepStrOps
 ]>;
 def : NehalemProc<"nehalem">;
 def : NehalemProc<"corei7">;
@@ -487,7 +498,8 @@ class WestmereProc<string Name> : ProcessorModel<Name, SandyBridgeModel, [
   FeaturePOPCNT,
   FeatureAES,
   FeaturePCLMUL,
-  FeatureLAHFSAHF
+  FeatureLAHFSAHF,
+  FeatureFastRepStrOps
 ]>;
 def : WestmereProc<"westmere">;
 
@@ -518,7 +530,8 @@ def SNBFeatures : ProcessorFeatures<[], [
   FeatureLAHFSAHF,
   FeatureSlow3OpsLEA,
   FeatureFastScalarFSQRT,
-  FeatureFastSHLDRotate
+  FeatureFastSHLDRotate,
+  FeatureFastRepStrOps
 ]>;
 
 class SandyBridgeProc<string Name> : ProcModel<Name, SandyBridgeModel,
@@ -531,6 +544,7 @@ def : SandyBridgeProc<"corei7-avx">; // Legacy alias.
 
 def IVBFeatures : ProcessorFeatures<SNBFeatures.Value, [
   FeatureRDRAND,
+  FeatureERMSB,
   FeatureF16C,
   FeatureFSGSBase
 ]>;
