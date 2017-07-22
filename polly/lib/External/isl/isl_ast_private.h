@@ -7,6 +7,7 @@
 #include <isl/map.h>
 #include <isl/vec.h>
 #include <isl/list.h>
+#include <isl/ast_build.h>
 
 /* An expression is either an integer, an identifier or an operation
  * with zero or more arguments.
@@ -15,7 +16,6 @@ struct isl_ast_expr {
 	int ref;
 
 	isl_ctx *ctx;
-
 	enum isl_ast_expr_type type;
 
 	union {
@@ -26,6 +26,12 @@ struct isl_ast_expr {
 			unsigned n_arg;
 			isl_ast_expr **args;
 		} op;
+		struct {
+			unsigned int size;
+			isl_bool is_signed;
+			isl_ast_expr *expr;
+			isl_set *condition;
+		} bound;
 	} u;
 };
 
@@ -44,6 +50,12 @@ __isl_give isl_ast_expr *isl_ast_expr_alloc_binary(enum isl_ast_op_type type,
 #define EL isl_ast_node
 
 #include <isl_list_templ.h>
+
+struct isl_ast_node_for_priv {
+    isl_aff *iterator_expr;
+    isl_ast_build *inner_build;
+};
+typedef struct isl_ast_node_for_priv isl_ast_node_for_priv;
 
 /* A node is either a block, an if, a for, a user node or a mark node.
  * "else_node" is NULL if the if node does not have an else branch.
@@ -72,6 +84,7 @@ struct isl_ast_node {
 			isl_ast_expr *cond;
 			isl_ast_expr *inc;
 			isl_ast_node *body;
+			isl_ast_node_for_priv *priv;
 		} f;
 		struct {
 			isl_ast_expr *expr;

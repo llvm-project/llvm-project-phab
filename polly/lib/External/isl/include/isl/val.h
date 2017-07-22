@@ -160,6 +160,8 @@ __isl_give isl_printer *isl_printer_print_multi_val(__isl_take isl_printer *p,
 void isl_multi_val_dump(__isl_keep isl_multi_val *mv);
 __isl_give char *isl_multi_val_to_str(__isl_keep isl_multi_val *mv);
 
+int isl_val_size_in_bits(__isl_keep isl_val *v, int is_signed);
+
 #if defined(__cplusplus)
 }
 #endif

@@ -76,11 +76,23 @@ __isl_give isl_ast_expr *
 IslNodeBuilder::getUpperBound(__isl_keep isl_ast_node *For,
                               ICmpInst::Predicate &Predicate) {
   isl_id *UBID, *IteratorID;
-  isl_ast_expr *Cond, *Iterator, *UB, *Arg0;
+  isl_ast_expr *Cond, *Tmp, *Iterator, *UB, *Arg0;
   isl_ast_op_type Type;
 
   Cond = isl_ast_node_for_get_cond(For);
+  if (isl_ast_expr_get_type(Cond) == isl_ast_expr_bound_t) {
+    Tmp = Cond;
+    Cond = isl_ast_expr_get_bound_expr(Cond);
+    isl_ast_expr_free(Tmp);
+  }
   Iterator = isl_ast_node_for_get_iterator(For);
+  if (isl_ast_expr_get_type(Iterator) == isl_ast_expr_bound_t) {
+    Tmp = Iterator;
+    Iterator = isl_ast_expr_get_bound_expr(Iterator);
+    isl_ast_expr_free(Tmp);
+  }
+
+  // TODO: XXX: Why is this here? This shouldn't do anything, is this a bug?
   isl_ast_expr_get_type(Cond);
   assert(isl_ast_expr_get_type(Cond) == isl_ast_expr_op &&
          "conditional expression is not an atomic upper bound");
@@ -99,6 +111,11 @@ IslNodeBuilder::getUpperBound(__isl_keep isl_ast_node *For,
   }
 
   Arg0 = isl_ast_expr_get_op_arg(Cond, 0);
+  if (isl_ast_expr_get_type(Arg0) == isl_ast_expr_bound_t) {
+    Tmp = Arg0;
+    Arg0 = isl_ast_expr_get_bound_expr(Arg0);
+    isl_ast_expr_free(Tmp);
+  }
 
   assert(isl_ast_expr_get_type(Arg0) == isl_ast_expr_id &&
          "conditional expression is not an atomic upper bound");
@@ -121,6 +138,7 @@ IslNodeBuilder::getUpperBound(__isl_keep isl_ast_node *For,
   isl_id_free(IteratorID);
   isl_id_free(UBID);
 
+  
   return UB;
 }
 
@@ -128,6 +146,11 @@ IslNodeBuilder::getUpperBound(__isl_keep isl_ast_node *For,
 /// by passed isl_ast_expr_int.
 static bool checkIslAstExprInt(__isl_take isl_ast_expr *Expr,
                                isl_bool (*Predicate)(__isl_keep isl_val *)) {
+  if (isl_ast_expr_get_type(Expr) == isl_ast_expr_bound_t) {
+    auto Tmp0 = Expr;
+    Expr = isl_ast_expr_get_bound_expr(Expr);
+    isl_ast_expr_free(Tmp0);
+  }
   if (isl_ast_expr_get_type(Expr) != isl_ast_expr_int) {
     isl_ast_expr_free(Expr);
     return false;
@@ -179,6 +202,11 @@ int IslNodeBuilder::getNumberOfIterations(__isl_keep isl_ast_node *For) {
     return -1;
   CmpInst::Predicate Predicate;
   auto UB = getUpperBound(For, Predicate);
+  if (isl_ast_expr_get_type(UB) == isl_ast_expr_bound_t) {
+    auto Tmp0 = UB;
+    UB = isl_ast_expr_get_bound_expr(UB);
+    isl_ast_expr_free(Tmp0);
+  }
   if (isl_ast_expr_get_type(UB) != isl_ast_expr_int) {
     isl_ast_expr_free(UB);
     return -1;
@@ -405,12 +433,27 @@ void IslNodeBuilder::createForVector(__isl_take isl_ast_node *For,
   isl_ast_expr *Init = isl_ast_node_for_get_init(For);
   isl_ast_expr *Inc = isl_ast_node_for_get_inc(For);
   isl_ast_expr *Iterator = isl_ast_node_for_get_iterator(For);
-  isl_id *IteratorID = isl_ast_expr_get_id(Iterator);
+  isl_id *IteratorID;
+  if (isl_ast_expr_get_type(Iterator) == isl_ast_expr_bound_t) {
+    auto Content = isl_ast_expr_get_bound_expr(Iterator);
+    IteratorID = isl_ast_expr_get_id(Content);
+    isl_ast_expr_free(Content);
+  } else {
+    IteratorID = isl_ast_expr_get_id(Iterator);
+  }
 
   Value *ValueLB = ExprBuilder.create(Init);
   Value *ValueInc = ExprBuilder.create(Inc);
 
-  Type *MaxType = ExprBuilder.getType(Iterator);
+  Type *MaxType;
+  if (isl_ast_expr_get_type(Iterator) == isl_ast_expr_bound_t) {
+    ExprBuilder.injectBound(Iterator);
+    auto Content = isl_ast_expr_get_bound_expr(Iterator);
+    MaxType = ExprBuilder.getType(Content);
+    isl_ast_expr_free(Content);
+  } else {
+    MaxType = ExprBuilder.getType(Iterator);
+  }
   MaxType = ExprBuilder.getWidestType(MaxType, ValueLB->getType());
   MaxType = ExprBuilder.getWidestType(MaxType, ValueInc->getType());
 
@@ -462,7 +505,7 @@ void IslNodeBuilder::createForVector(__isl_take isl_ast_node *For,
 void IslNodeBuilder::createForSequential(__isl_take isl_ast_node *For,
                                          bool KnownParallel) {
   isl_ast_node *Body;
-  isl_ast_expr *Init, *Inc, *Iterator, *UB;
+  isl_ast_expr *Init, *Inc, *Iterator, *IteratorContent, *UB;
   isl_id *IteratorID;
   Value *ValueLB, *ValueUB, *ValueInc;
   Type *MaxType;
@@ -485,14 +528,38 @@ void IslNodeBuilder::createForSequential(__isl_take isl_ast_node *For,
   Init = isl_ast_node_for_get_init(For);
   Inc = isl_ast_node_for_get_inc(For);
   Iterator = isl_ast_node_for_get_iterator(For);
-  IteratorID = isl_ast_expr_get_id(Iterator);
+
+  if (isl_ast_expr_get_type(Iterator) == isl_ast_expr_bound_t) {
+    IteratorContent = isl_ast_expr_get_bound_expr(Iterator);
+    IteratorID = isl_ast_expr_get_id(IteratorContent);
+    isl_ast_expr_free(IteratorContent);
+  } else {
+    IteratorID = isl_ast_expr_get_id(Iterator);
+  }
   UB = getUpperBound(For, Predicate);
 
   ValueLB = ExprBuilder.create(Init);
   ValueUB = ExprBuilder.create(UB);
   ValueInc = ExprBuilder.create(Inc);
 
-  MaxType = ExprBuilder.getType(Iterator);
+  // When computing bounds, the iterator will be a subtree of the shape
+  //    ....
+  //     |
+  //  isl_ast_expr_bound_t
+  //     |
+  //  isl_ast_expr
+  // When codegenerating this tree, the visitor would store the bound before
+  // descending, but we're not using the visitor. In the non-compute case,
+  // we can simply use getType(Iterator), but in the compute case, we have to
+  // do this differently...
+  if (isl_ast_expr_get_type(Iterator) == isl_ast_expr_bound_t) {
+    ExprBuilder.injectBound(Iterator);
+    IteratorContent = isl_ast_expr_get_bound_expr(Iterator);
+    MaxType = ExprBuilder.getType(IteratorContent);
+    isl_ast_expr_free(IteratorContent);
+  } else {
+    MaxType = ExprBuilder.getType(Iterator);
+  }
   MaxType = ExprBuilder.getWidestType(MaxType, ValueLB->getType());
   MaxType = ExprBuilder.getWidestType(MaxType, ValueUB->getType());
   MaxType = ExprBuilder.getWidestType(MaxType, ValueInc->getType());
@@ -571,7 +638,7 @@ static void removeSubFuncFromDomTree(Function *F, DominatorTree &DT) {
 
 void IslNodeBuilder::createForParallel(__isl_take isl_ast_node *For) {
   isl_ast_node *Body;
-  isl_ast_expr *Init, *Inc, *Iterator, *UB;
+  isl_ast_expr *Init, *Inc, *Iterator, *UB, *IteratorContent;
   isl_id *IteratorID;
   Value *ValueLB, *ValueUB, *ValueInc;
   Type *MaxType;
@@ -590,7 +657,13 @@ void IslNodeBuilder::createForParallel(__isl_take isl_ast_node *For) {
   Init = isl_ast_node_for_get_init(For);
   Inc = isl_ast_node_for_get_inc(For);
   Iterator = isl_ast_node_for_get_iterator(For);
-  IteratorID = isl_ast_expr_get_id(Iterator);
+  if (isl_ast_expr_get_type(Iterator) == isl_ast_expr_bound_t) {
+    IteratorContent = isl_ast_expr_get_bound_expr(Iterator);
+    IteratorID = isl_ast_expr_get_id(IteratorContent);
+    isl_ast_expr_free(IteratorContent);
+  } else {
+    IteratorID = isl_ast_expr_get_id(Iterator);
+  }
   UB = getUpperBound(For, Predicate);
 
   ValueLB = ExprBuilder.create(Init);
@@ -603,7 +676,24 @@ void IslNodeBuilder::createForParallel(__isl_take isl_ast_node *For) {
     ValueUB = Builder.CreateAdd(
         ValueUB, Builder.CreateSExt(Builder.getTrue(), ValueUB->getType()));
 
-  MaxType = ExprBuilder.getType(Iterator);
+  // When computing bounds, the iterator will be a subtree of the shape
+  //    ....
+  //     |
+  //  isl_ast_expr_bound_t
+  //     |
+  //  isl_ast_expr
+  // When codegenerating this tree, the visitor would store the bound before
+  // descending, but we're not using the visitor. In the non-compute case,
+  // we can simply use getType(Iterator), but in the compute case, we have to
+  // do this differently...
+  if (isl_ast_expr_get_type(Iterator) == isl_ast_expr_bound_t) {
+    ExprBuilder.injectBound(Iterator);
+    IteratorContent = isl_ast_expr_get_bound_expr(Iterator);
+    MaxType = ExprBuilder.getType(IteratorContent);
+    isl_ast_expr_free(IteratorContent);
+  } else {
+    MaxType = ExprBuilder.getType(Iterator);
+  }
   MaxType = ExprBuilder.getWidestType(MaxType, ValueLB->getType());
   MaxType = ExprBuilder.getWidestType(MaxType, ValueUB->getType());
   MaxType = ExprBuilder.getWidestType(MaxType, ValueInc->getType());
@@ -1170,7 +1260,14 @@ Value *IslNodeBuilder::preloadInvariantLoad(const MemoryAccess &MA,
     return nullptr;
   }
 
-  auto *Build = isl_ast_build_from_context(isl_set_universe(S.getParamSpace()));
+  isl_ast_build *Build;
+  Build = isl_ast_build_from_context(S.getContext());
+  // TODO: We used to do
+  // Build = isl_ast_build_from_context(isl_set_universe(S.getParamSpace()));
+  // but that of course does not constrain the input variables, not even by
+  // their types. The question of which constraints can be assumed during the
+  // RTC remains open however.
+
   isl_set *Universe = isl_set_universe(isl_set_get_space(Domain));
   bool AlwaysExecuted = isl_set_is_equal(Domain, Universe);
   isl_set_free(Universe);

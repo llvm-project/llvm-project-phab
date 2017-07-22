@@ -193,6 +193,17 @@ ISL_ARG_BOOL(struct isl_options, ast_build_atomic_upper_bound, 0,
 	"ast-build-atomic-upper-bound", 1, "generate atomic upper bounds")
 ISL_ARG_BOOL(struct isl_options, ast_build_prefer_pdiv, 0,
 	"ast-build-prefer-pdiv", 1, "prefer pdiv operation over fdiv")
+ISL_ARG_BOOL(struct isl_options, ast_build_compute_bounds, 0,
+	     "ast-build-compute-bounds", 0, "compute bounds on isl_ast_expr objects")
+ISL_ARG_BOOL(struct isl_options, ast_build_print_computed_bounds, 0,
+	     "ast-build-print-computed-bounds", 1,
+	     "print computed bounds on isl_ast_expr objects")
+ISL_ARG_BOOL(struct isl_options, ast_build_approximate_computed_bounds, 0,
+	     "ast-build-approximate-computed-bounds",
+	     0, "approximate computed bounds on isl_ast_expr objects")
+ISL_ARG_INT(struct isl_options, ast_build_maximum_native_type, 0, 0,
+	    "ast-build-maximum-native-type", 0,
+	    "try to keep computed bounds within this type (in bits)")
 ISL_ARG_BOOL(struct isl_options, ast_build_detect_min_max, 0,
 	"ast-build-detect-min-max", 0, "detect min/max expressions")
 ISL_ARG_BOOL(struct isl_options, ast_build_exploit_nested_bounds, 0,
@@ -326,6 +337,22 @@ ISL_CTX_SET_BOOL_DEF(isl_options, struct isl_options, isl_options_args,
 ISL_CTX_GET_BOOL_DEF(isl_options, struct isl_options, isl_options_args,
 	ast_build_prefer_pdiv)
 
+ISL_CTX_SET_INT_DEF(isl_options, struct isl_options, isl_options_args,
+	ast_build_maximum_native_type)
+ISL_CTX_GET_INT_DEF(isl_options, struct isl_options, isl_options_args,
+	ast_build_maximum_native_type)
+ISL_CTX_SET_BOOL_DEF(isl_options, struct isl_options, isl_options_args,
+    ast_build_print_computed_bounds)
+ISL_CTX_GET_BOOL_DEF(isl_options, struct isl_options, isl_options_args,
+    ast_build_print_computed_bounds)
+ISL_CTX_SET_BOOL_DEF(isl_options, struct isl_options, isl_options_args,
+	ast_build_compute_bounds)
+ISL_CTX_GET_BOOL_DEF(isl_options, struct isl_options, isl_options_args,
+	ast_build_compute_bounds)
+ISL_CTX_SET_BOOL_DEF(isl_options, struct isl_options, isl_options_args,
+	ast_build_approximate_computed_bounds)
+ISL_CTX_GET_BOOL_DEF(isl_options, struct isl_options, isl_options_args,
+	ast_build_approximate_computed_bounds)
 ISL_CTX_SET_BOOL_DEF(isl_options, struct isl_options, isl_options_args,
 	ast_build_detect_min_max)
 ISL_CTX_GET_BOOL_DEF(isl_options, struct isl_options, isl_options_args,

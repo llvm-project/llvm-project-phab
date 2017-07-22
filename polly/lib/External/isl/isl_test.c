@@ -665,6 +665,47 @@ static int test_bin_val(isl_ctx *ctx)
 	return 0;
 }
 
+struct {
+	const char *val;
+	int sgn;
+	int size;
+} val_size_in_bits_tests[] = {
+	{ "0", 0, 1 },
+	{ "1", 0, 1 },
+	{ "2", 0, 2 },
+	{ "3", 0, 2 },
+	{ "15", 0, 4 },
+	{ "16", 0, 5 },
+	{ "340282366920938463463374607431768211455", 0, 128 },
+	{ "340282366920938463463374607431768211456", 0, 129 },
+	{ "0", 1, 2 },
+	{ "1", 1, 2 },
+	{ "2", 1, 3 },
+	{ "3", 1, 3 },
+	{ "340282366920938463463374607431768211455", 1, 129 },
+	{ "340282366920938463463374607431768211456", 1, 130 },
+};
+
+/* Perform some basic tests of the isl_val_size_in_bits function
+ */
+static int test_size_in_bits_val(isl_ctx *ctx)
+{
+	int i;
+	isl_val *v;
+	int size;
+
+	for (i = 0; i < ARRAY_SIZE(val_size_in_bits_tests); ++i) {
+		v = isl_val_read_from_str(ctx, val_size_in_bits_tests[i].val);
+		size = isl_val_size_in_bits(v, val_size_in_bits_tests[i].sgn);
+		isl_val_free(v);
+		if (size !=  val_size_in_bits_tests[i].size)
+			isl_die(ctx, isl_error_unknown,
+				"unexpected result", return -1);
+	}
+
+	return 0;
+}
+
 /* Perform some basic tests on isl_val objects.
  */
 static int test_val(isl_ctx *ctx)
@@ -672,6 +713,8 @@ static int test_val(isl_ctx *ctx)
 	if (test_un_val(ctx) < 0)
 		return -1;
 	if (test_bin_val(ctx) < 0)
+		return -1;
+	if (test_size_in_bits_val(ctx) < 0)
 		return -1;
 	return 0;
 }
