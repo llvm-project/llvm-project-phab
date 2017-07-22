@@ -88,7 +88,8 @@ Driver::Driver(StringRef ClangExecutable, StringRef DefaultTargetTriple,
     : Opts(createDriverOptTable()), Diags(Diags), VFS(std::move(VFS)),
       Mode(GCCMode), SaveTemps(SaveTempsNone), BitcodeEmbed(EmbedNone),
       LTOMode(LTOK_None), ClangExecutable(ClangExecutable),
-      SysRoot(DEFAULT_SYSROOT), UseStdLib(true),
+      SysRoot(DEFAULT_SYSROOT), IncludeSysRoot(DEFAULT_SYSROOT),
+      UseStdLib(true),
       DriverTitle("clang LLVM compiler"), CCPrintOptionsFilename(nullptr),
       CCPrintHeadersFilename(nullptr), CCLogDiagnosticsFilename(nullptr),
       CCCPrintBindings(false), CCPrintHeaders(false), CCLogDiagnostics(false),
@@ -677,6 +678,8 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
   }
   if (const Arg *A = Args.getLastArg(options::OPT__sysroot_EQ))
     SysRoot = A->getValue();
+  if (const Arg *A = Args.getLastArg(options::OPT_isysroot))
+    IncludeSysRoot = A->getValue();
   if (const Arg *A = Args.getLastArg(options::OPT__dyld_prefix_EQ))
     DyldPrefix = A->getValue();
   if (Args.hasArg(options::OPT_nostdlib))

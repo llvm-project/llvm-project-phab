@@ -29,6 +29,18 @@
 // RUN: %clang -no-canonical-prefixes %s -### -fsyntax-only 2>&1 \
 // RUN:     -target x86_64-unknown-linux-gnu \
 // RUN:     -stdlib=libc++ \
+// RUN:     -ccc-install-dir %S/Inputs/basic_linux_libcxx_tree/usr/bin \
+// RUN:     -isysroot %S/Inputs/basic_linux_libcxx_tree \
+// RUN:     --gcc-toolchain="" \
+// RUN:   | FileCheck --check-prefix=CHECK-ISYSROOT %s
+// CHECK-ISYSROOT: "{{[^"]*}}clang{{[^"]*}}" "-cc1"
+// CHECK-ISYSROOT: "-isysroot" "[[SYSROOT:[^"]+]]"
+// CHECK-ISYSROOT: "-internal-isystem" "[[SYSROOT]]/usr/bin/../include/c++/v1"
+// CHECK-ISYSROOT: "-internal-isystem" "[[SYSROOT]]/usr/local/include"
+//
+// RUN: %clang -no-canonical-prefixes %s -### -fsyntax-only 2>&1 \
+// RUN:     -target x86_64-unknown-linux-gnu \
+// RUN:     -stdlib=libc++ \
 // RUN:     -ccc-install-dir %S/Inputs/basic_linux_tree/usr/bin \
 // RUN:     --sysroot=%S/Inputs/basic_linux_libcxxv2_tree \
 // RUN:     --gcc-toolchain="" \
