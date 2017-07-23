@@ -203,3 +203,51 @@ for.end19:
 ; CHECK:    %3 = load i32, i32* %arrayidx6
 ; CHECK:    %arrayidx10 = getelementptr inbounds [100 x [100 x i32]], [100 x [100 x i32]]* @B, i64 0, i64 %indvars.iv34, i64 %indvars.iv
 ; CHECK:    %4 = load i32, i32* %arrayidx10
+
+;;---------------------------------------Test case 04---------------------------------
+;; Interchanging the loops is not profitable, because the outer loop increments
+;; the induction variable by 6, so only a single element will be in the cache.
+;;   for(int i=1;i<N;i+=6)
+;;     for(int j=1;j<N;j++)
+;;       A[j][i] = A[j - 1][i] + B[j][i];
+
+define void @interchange_04(i32 %N) {
+entry:
+  %cmp27 = icmp sgt i32 %N, 1
+  br i1 %cmp27, label %for.cond1.preheader.lr.ph, label %for.end16
+
+for.cond1.preheader.lr.ph:
+  %0 = add i32 %N, -1
+  br label %for.body3.preheader
+
+for.body3.preheader:
+  %indvars.iv30 = phi i64 [ 1, %for.cond1.preheader.lr.ph ], [ %indvars.iv.next31, %for.inc14 ]
+  br label %for.body3
+
+for.body3:
+  %indvars.iv = phi i64 [ %indvars.iv.next, %for.body3 ], [ 1, %for.body3.preheader ]
+  %1 = add nsw i64 %indvars.iv, -1
+  %arrayidx5 = getelementptr inbounds [100 x [100 x i32]], [100 x [100 x i32]]* @A, i64 0, i64 %1, i64 %indvars.iv30
+  %2 = load i32, i32* %arrayidx5
+  %arrayidx9 = getelementptr inbounds [100 x [100 x i32]], [100 x [100 x i32]]* @B, i64 0, i64 %indvars.iv, i64 %indvars.iv30
+  %3 = load i32, i32* %arrayidx9
+  %add = add nsw i32 %3, %2
+  %arrayidx13 = getelementptr inbounds [100 x [100 x i32]], [100 x [100 x i32]]* @A, i64 0, i64 %indvars.iv, i64 %indvars.iv30
+  store i32 %add, i32* %arrayidx13
+  %indvars.iv.next = add nuw nsw i64 %indvars.iv, 1
+  %lftr.wideiv = trunc i64 %indvars.iv to i32
+  %exitcond = icmp eq i32 %lftr.wideiv, %0
+  br i1 %exitcond, label %for.inc14, label %for.body3
+
+for.inc14:
+  %indvars.iv.next31 = add nuw nsw i64 %indvars.iv30, 6
+  %lftr.wideiv32 = trunc i64 %indvars.iv30 to i32
+  %exitcond33 = icmp eq i32 %lftr.wideiv32, %0
+  br i1 %exitcond33, label %for.end16, label %for.body3.preheader
+
+for.end16:
+  ret void
+}
+;; Here we are checking partial .ll to check if loop are interchanged.
+; CHECK-LABEL: @interchange_04
+; CHECK-NOT: split

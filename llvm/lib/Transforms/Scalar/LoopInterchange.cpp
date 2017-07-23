@@ -366,15 +366,17 @@ private:
 class LoopInterchangeProfitability {
 public:
   LoopInterchangeProfitability(Loop *Outer, Loop *Inner, ScalarEvolution *SE,
-                               OptimizationRemarkEmitter *ORE)
-      : OuterLoop(Outer), InnerLoop(Inner), SE(SE), ORE(ORE) {}
+                               OptimizationRemarkEmitter *ORE,
+                               unsigned CacheLineSize)
+      : OuterLoop(Outer), InnerLoop(Inner), SE(SE), ORE(ORE),
+        CacheLineSize(CacheLineSize) {}
 
   /// Check if the loop interchange is profitable.
   bool isProfitable(unsigned InnerLoopId, unsigned OuterLoopId,
                     CharMatrix &DepMatrix);
 
 private:
-  int getInstrOrderCost();
+  unsigned getLoopOrderCost(Loop *Loop);
 
   Loop *OuterLoop;
   Loop *InnerLoop;
@@ -383,6 +385,7 @@ private:
   ScalarEvolution *SE;
   /// Interface to emit optimization remarks.
   OptimizationRemarkEmitter *ORE;
+  const unsigned CacheLineSize;
 };
 
 /// LoopInterchangeTransform interchanges the loop.
@@ -432,6 +435,7 @@ struct LoopInterchange : public FunctionPass {
   /// Interface to emit optimization remarks.
   OptimizationRemarkEmitter *ORE;
 
+  unsigned CacheLineSize = 0;
   LoopInterchange()
       : FunctionPass(ID), SE(nullptr), LI(nullptr), DI(nullptr), DT(nullptr) {
     initializeLoopInterchangePass(*PassRegistry::getPassRegistry());
@@ -446,6 +450,7 @@ struct LoopInterchange : public FunctionPass {
     AU.addRequiredID(LoopSimplifyID);
     AU.addRequiredID(LCSSAID);
     AU.addRequired<OptimizationRemarkEmitterWrapperPass>();
+    AU.addRequired<TargetTransformInfoWrapperPass>();
   }
 
   bool runOnFunction(Function &F) override {
@@ -459,6 +464,11 @@ struct LoopInterchange : public FunctionPass {
     DT = DTWP ? &DTWP->getDomTree() : nullptr;
     ORE = &getAnalysis<OptimizationRemarkEmitterWrapperPass>().getORE();
     PreserveLCSSA = mustPreserveAnalysisID(LCSSAID);
+    CacheLineSize =
+      getAnalysis<TargetTransformInfoWrapperPass>().getTTI(F)
+                                                   .getCacheLineSize();
+    if (CacheLineSize == 0)
+      CacheLineSize = 64; // Assume 64 byte cache lines as default.
 
     // Build up a worklist of loop pairs to analyze.
     SmallVector<LoopVector, 8> Worklist;
@@ -593,7 +603,8 @@ struct LoopInterchange : public FunctionPass {
       return false;
     }
     DEBUG(dbgs() << "Loops are legal to interchange\n");
-    LoopInterchangeProfitability LIP(OuterLoop, InnerLoop, SE, ORE);
+    LoopInterchangeProfitability LIP(OuterLoop, InnerLoop, SE, ORE,
+                                     CacheLineSize);
     if (!LIP.isProfitable(InnerLoopId, OuterLoopId, DependencyMatrix)) {
       DEBUG(dbgs() << "Interchanging loops not profitable\n");
       return false;
@@ -1007,55 +1018,56 @@ bool LoopInterchangeLegality::canInterchangeLoops(unsigned InnerLoopId,
   return true;
 }
 
-int LoopInterchangeProfitability::getInstrOrderCost() {
-  unsigned GoodOrder, BadOrder;
-  BadOrder = GoodOrder = 0;
-  for (auto BI = InnerLoop->block_begin(), BE = InnerLoop->block_end();
-       BI != BE; ++BI) {
-    for (Instruction &Ins : **BI) {
-      if (const GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(&Ins)) {
-        unsigned NumOp = GEP->getNumOperands();
-        bool FoundInnerInduction = false;
-        bool FoundOuterInduction = false;
-        for (unsigned i = 0; i < NumOp; ++i) {
-          const SCEV *OperandVal = SE->getSCEV(GEP->getOperand(i));
-          const SCEVAddRecExpr *AR = dyn_cast<SCEVAddRecExpr>(OperandVal);
-          if (!AR)
-            continue;
+// Returns the number of bytes that fit in a cache line when using Addr to
+// access memory in L.
+static unsigned getBytesInCache(Loop *L, ScalarEvolution *SE, Value *Addr,
+                                unsigned CacheLineSize) {
+  const Type *AddrTy = Addr->getType();
+  assert(AddrTy->isPointerTy() && "Addr must be a pointer type");
+  const SCEV *Expr = SE->getSCEVAtScope(Addr, L);
+  const SCEVAddRecExpr *AR = dyn_cast<SCEVAddRecExpr>(Expr);
+  const unsigned ValueSizeBytes =
+    std::min(CacheLineSize,
+             AddrTy->getPointerElementType()->getScalarSizeInBits() / 8);
 
-          // If we find the inner induction after an outer induction e.g.
-          // for(int i=0;i<N;i++)
-          //   for(int j=0;j<N;j++)
-          //     A[i][j] = A[i-1][j-1]+k;
-          // then it is a good order.
-          if (AR->getLoop() == InnerLoop) {
-            // We found an InnerLoop induction after OuterLoop induction. It is
-            // a good order.
-            FoundInnerInduction = true;
-            if (FoundOuterInduction) {
-              GoodOrder++;
-              break;
-            }
-          }
-          // If we find the outer induction after an inner induction e.g.
-          // for(int i=0;i<N;i++)
-          //   for(int j=0;j<N;j++)
-          //     A[j][i] = A[j-1][i-1]+k;
-          // then it is a bad order.
-          if (AR->getLoop() == OuterLoop) {
-            // We found an OuterLoop induction after InnerLoop induction. It is
-            // a bad order.
-            FoundOuterInduction = true;
-            if (FoundInnerInduction) {
-              BadOrder++;
-              break;
-            }
-          }
-        }
-      }
+  if (SE->isLoopInvariant(Expr, L))
+    return CacheLineSize;
+  if (!AR) return ValueSizeBytes;
+  if (!AR->isAffine()) return ValueSizeBytes;
+
+  const SCEVConstant *C = dyn_cast<SCEVConstant>(AR->getStepRecurrence(*SE));
+  if (!C) return ValueSizeBytes;
+  // This roughly models the number of cache misses when the loop
+  // trip count is very large.
+  unsigned Stride = C->getValue()->getValue().abs().getZExtValue();
+  assert(Stride != 0 && "Stride is 0");
+  unsigned UsedBytes = std::min(CacheLineSize,
+                                (CacheLineSize / Stride) * ValueSizeBytes);
+  if (UsedBytes == 0)
+    return ValueSizeBytes;
+
+  return UsedBytes;
+}
+
+/// \brief Returns the number of bytes that fit into cache lines for memory
+/// accesses that happen in Loop.
+unsigned LoopInterchangeProfitability::getLoopOrderCost(Loop *Loop) {
+  unsigned BytesInCache = 0;
+  for (BasicBlock *BB : InnerLoop->blocks()) {
+    for (Instruction &Ins : *BB) {
+      // For each load or store instruction, calculate the number of bytes that
+      // fit into a cache line, if this address is used in the Loop.
+      Value *Addr = nullptr;
+      if (LoadInst *LI = dyn_cast<LoadInst>(&Ins))
+        Addr = LI->getPointerOperand();
+      if (StoreInst *SI = dyn_cast<StoreInst>(&Ins))
+        Addr = SI->getPointerOperand();
+      if (!Addr) continue;
+
+      BytesInCache += getBytesInCache(Loop, SE, Addr, CacheLineSize);
     }
   }
-  return GoodOrder - BadOrder;
+  return BytesInCache;
 }
 
 static bool isProfitableForVectorization(unsigned InnerLoopId,
@@ -1086,12 +1098,14 @@ bool LoopInterchangeProfitability::isProfitable(unsigned InnerLoopId,
   // 1) Construct dependency matrix and move the one with no loop carried dep
   //    inside to enable vectorization.
 
-  // This is rough cost estimation algorithm. It counts the good and bad order
-  // of induction variables in the instruction and allows reordering if number
-  // of bad orders is more than good.
-  int Cost = getInstrOrderCost();
-  DEBUG(dbgs() << "Cost = " << Cost << "\n");
-  if (Cost < -LoopInterchangeCostThreshold)
+  // To estimate the cost of a loop order, we calculate the number of bytes that
+  // fit into cache lines for memory access in the loop. The interchanged loops
+  // fit more bytes in cache lines, we interchange them.
+  int OriginalCost = getLoopOrderCost(InnerLoop);
+  int InterchangedCost = getLoopOrderCost(OuterLoop);
+  DEBUG(dbgs() << "OriginalCost = " << OriginalCost << " InterchangedCost "
+               << InterchangedCost << "\n");
+  if ((OriginalCost - InterchangedCost) < LoopInterchangeCostThreshold)
     return true;
 
   // It is not profitable as per current cache profitability model. But check if
@@ -1104,7 +1118,8 @@ bool LoopInterchangeProfitability::isProfitable(unsigned InnerLoopId,
                                      InnerLoop->getStartLoc(),
                                      InnerLoop->getHeader())
             << "Interchanging loops is too costly (cost="
-            << ore::NV("Cost", Cost) << ", threshold="
+            << ore::NV("Cost", (OriginalCost - InterchangedCost))
+            << ", threshold="
             << ore::NV("Threshold", LoopInterchangeCostThreshold) <<
             ") and it does not improve parallelism.");
   return false;
