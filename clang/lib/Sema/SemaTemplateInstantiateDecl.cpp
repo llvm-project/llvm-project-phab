@@ -3744,7 +3744,9 @@ void Sema::InstantiateFunctionDefinition(SourceLocation PointOfInstantiation,
     return;
 
   // Find the function body that we'll be substituting.
-  const FunctionDecl *PatternDecl = Function->getTemplateInstantiationPattern();
+  const CXXRecordDecl *HostOfFriend;
+  const FunctionDecl *PatternDecl =
+      Function->getTemplateInstantiationPattern(&HostOfFriend);
   assert(PatternDecl && "instantiating a non-template");
 
   const FunctionDecl *PatternDef = PatternDecl->getDefinition();
@@ -3871,7 +3873,8 @@ void Sema::InstantiateFunctionDefinition(SourceLocation PointOfInstantiation,
     SetDeclDefaulted(Function, PatternDecl->getLocation());
   else {
     MultiLevelTemplateArgumentList TemplateArgs =
-      getTemplateInstantiationArgs(Function, nullptr, false, PatternDecl);
+      getTemplateInstantiationArgs(Function, nullptr, false, PatternDecl,
+                                   HostOfFriend);
 
     // Substitute into the qualifier; we can get a substitution failure here
     // through evil use of alias templates.

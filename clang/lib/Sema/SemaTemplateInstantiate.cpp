@@ -51,17 +51,18 @@ using namespace sema;
 /// used to determine the proper set of template instantiation arguments for
 /// friend function template specializations.
 MultiLevelTemplateArgumentList
-Sema::getTemplateInstantiationArgs(NamedDecl *D, 
+Sema::getTemplateInstantiationArgs(NamedDecl *D,
                                    const TemplateArgumentList *Innermost,
                                    bool RelativeToPrimary,
-                                   const FunctionDecl *Pattern) {
+                                   const FunctionDecl *Pattern,
+                                   const CXXRecordDecl *HostForFriend) {
   // Accumulate the set of template argument lists in this structure.
   MultiLevelTemplateArgumentList Result;
 
   if (Innermost)
     Result.addOuterTemplateArguments(Innermost);
-  
-  DeclContext *Ctx = dyn_cast<DeclContext>(D);
+
+  auto Ctx = dyn_cast<DeclContext>(D);
   if (!Ctx) {
     Ctx = D->getDeclContext();
 
@@ -110,8 +111,7 @@ Sema::getTemplateInstantiationArgs(NamedDecl *D,
   
   while (!Ctx->isFileContext()) {
     // Add template arguments from a class template instantiation.
-    if (ClassTemplateSpecializationDecl *Spec
-          = dyn_cast<ClassTemplateSpecializationDecl>(Ctx)) {
+    if (auto Spec = dyn_cast<ClassTemplateSpecializationDecl>(Ctx)) {
       // We're done when we hit an explicit specialization.
       if (Spec->getSpecializationKind() == TSK_ExplicitSpecialization &&
           !isa<ClassTemplatePartialSpecializationDecl>(Spec))
@@ -126,7 +126,7 @@ Sema::getTemplateInstantiationArgs(NamedDecl *D,
         break;
     }
     // Add template arguments from a function template specialization.
-    else if (FunctionDecl *Function = dyn_cast<FunctionDecl>(Ctx)) {
+    else if (auto Function = dyn_cast<FunctionDecl>(Ctx)) {
       if (!RelativeToPrimary &&
           (Function->getTemplateSpecializationKind() == 
                                                   TSK_ExplicitSpecialization &&
@@ -153,19 +153,18 @@ Sema::getTemplateInstantiationArgs(NamedDecl *D,
         // Add the "injected" template arguments.
         Result.addOuterTemplateArguments(FunTmpl->getInjectedTemplateArgs());
       }
-      
-      // If this is a friend declaration and it declares an entity at
-      // namespace scope, take arguments from its lexical parent
-      // instead of its semantic parent, unless of course the pattern we're
-      // instantiating actually comes from the file's context!
-      if (Function->getFriendObjectKind() &&
-          Function->getDeclContext()->isFileContext() &&
-          (!Pattern || !Pattern->getLexicalDeclContext()->isFileContext())) {
-        Ctx = Function->getLexicalDeclContext();
-        RelativeToPrimary = false;
-        continue;
+
+      // If instantiated function is at namespace scope, its pattern may be
+      // defined in friend declaration. In this case arguments are taken from
+      // the class containing the friend declaration.
+      if (Function->getDeclContext()->isFileContext()) {
+        if (HostForFriend) {
+          Ctx = cast<DeclContext>(HostForFriend);
+          RelativeToPrimary = false;
+          continue;
+        }
       }
-    } else if (CXXRecordDecl *Rec = dyn_cast<CXXRecordDecl>(Ctx)) {
+    } else if (auto *Rec = dyn_cast<CXXRecordDecl>(Ctx)) {
       if (ClassTemplateDecl *ClassTemplate = Rec->getDescribedClassTemplate()) {
         QualType T = ClassTemplate->getInjectedClassNameSpecialization();
         const TemplateSpecializationType *TST =

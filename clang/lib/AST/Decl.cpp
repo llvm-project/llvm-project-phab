@@ -3249,8 +3249,41 @@ bool FunctionDecl::isTemplateInstantiation() const {
   }
   llvm_unreachable("All TSK values handled.");
 }
-   
-FunctionDecl *FunctionDecl::getTemplateInstantiationPattern() const {
+
+static FunctionTemplateDecl *getPatternFor(FunctionTemplateDecl *FTD,
+                                           const CXXRecordDecl *&Host) {
+  Host = nullptr;
+  for (auto I : FTD->redecls()) {
+    auto D = cast<FunctionTemplateDecl>(I);
+    // If we have hit a point where the user provided a specialization of
+    // this template, we're done looking.
+    if (D->isMemberSpecialization())
+      return D;
+    if (D->isThisDeclarationADefinition())
+      return D;
+    if (FunctionTemplateDecl *Orig = D->getInstantiatedFromMemberTemplate()) {
+      if (Orig->getFriendObjectKind() != Decl::FOK_None) {
+        if (auto *RDC = dyn_cast<CXXRecordDecl>(D->getLexicalDeclContext()))
+          Host = RDC;
+        else
+          continue;
+      }
+      const CXXRecordDecl *OrigHost;
+      if (FunctionTemplateDecl *Def = getPatternFor(Orig, OrigHost)) {
+        if (OrigHost)
+          Host = OrigHost;
+        return Def;
+      }
+    }
+  }
+  return nullptr;
+}
+
+FunctionDecl *FunctionDecl::getTemplateInstantiationPattern(
+                                    const CXXRecordDecl **HostForFriend) const {
+  if (HostForFriend)
+    *HostForFriend = nullptr;
+
   // Handle class scope explicit specialization special case.
   if (getTemplateSpecializationKind() == TSK_ExplicitSpecialization) {
     if (auto *Spec = getClassScopeSpecializationPattern())
@@ -3274,19 +3307,22 @@ FunctionDecl *FunctionDecl::getTemplateInstantiationPattern() const {
   }
 
   if (FunctionTemplateDecl *Primary = getPrimaryTemplate()) {
-    while (Primary->getInstantiatedFromMemberTemplate()) {
-      // If we have hit a point where the user provided a specialization of
-      // this template, we're done looking.
-      if (Primary->isMemberSpecialization())
-        break;
-      Primary = Primary->getInstantiatedFromMemberTemplate();
+    const CXXRecordDecl *Host;
+    if (FunctionTemplateDecl *Def = getPatternFor(Primary, Host)) {
+      if (HostForFriend)
+        *HostForFriend = Host;
+      Primary = Def;
     }
-
     return getDefinitionOrSelf(Primary->getTemplatedDecl());
-  } 
+  }
 
-  if (auto *MFD = getInstantiatedFromMemberFunction())
+  if (auto *MFD = getInstantiatedFromMemberFunction()) {
+    if (MFD->getFriendObjectKind() != Decl::FOK_None)
+      if (auto *DC = dyn_cast<CXXRecordDecl>(getLexicalDeclContext()))
+        if (HostForFriend)
+          *HostForFriend = DC;
     return getDefinitionOrSelf(MFD);
+  }
 
   if (FunctionTemplateDecl *TD = getDescribedFunctionTemplate()) {
     if (TD->getFriendObjectKind() != FOK_None) {

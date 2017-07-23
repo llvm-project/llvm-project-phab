@@ -2270,7 +2270,13 @@ public:
   /// \brief Retrieve the function declaration from which this function could
   /// be instantiated, if it is an instantiation (rather than a non-template
   /// or a specialization, for example).
-  FunctionDecl *getTemplateInstantiationPattern() const;
+  ///
+  /// \param[out] HostForFriend If it is not null, the pattern is found and is
+  /// defined in a friend declaration, this parameter is assigned pointer to the
+  /// class containing the friend declaration.
+  ///
+  FunctionDecl *getTemplateInstantiationPattern(
+                           const CXXRecordDecl **HostForFriend = nullptr) const;
 
   /// \brief Retrieve the primary template that this function template
   /// specialization either specializes or was instantiated from.
