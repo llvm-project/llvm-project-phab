@@ -18,6 +18,7 @@
 #include "clang/Basic/TargetBuiltins.h"
 #include "clang/Frontend/CodeGenOptions.h"
 #include "llvm/ADT/StringSwitch.h"
+#include "llvm/IR/DataLayout.h"
 
 using namespace clang;
 using namespace clang::targets;

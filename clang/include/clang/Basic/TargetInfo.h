@@ -21,21 +21,22 @@
 #include "clang/Basic/TargetCXXABI.h"
 #include "clang/Basic/TargetOptions.h"
 #include "clang/Basic/VersionTuple.h"
+#include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/APInt.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/IntrusiveRefCntPtr.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Triple.h"
-#include "llvm/IR/DataLayout.h"
 #include "llvm/Support/DataTypes.h"
 #include <cassert>
 #include <string>
 #include <vector>
 
 namespace llvm {
-struct fltSemantics;
+class DataLayout;
 }
 
 namespace clang {
@@ -101,9 +102,7 @@ protected:
   // TargetInfo Constructor.  Default initializes all fields.
   TargetInfo(const llvm::Triple &T);
 
-  void resetDataLayout(StringRef DL) {
-    DataLayout.reset(new llvm::DataLayout(DL));
-  }
+  void resetDataLayout(StringRef DL);
 
 public:
   /// \brief Construct a target for the given options.

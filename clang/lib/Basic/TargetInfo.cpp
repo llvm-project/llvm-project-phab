@@ -17,6 +17,7 @@
 #include "clang/Basic/LangOptions.h"
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/IR/DataLayout.h"
 #include "llvm/Support/ErrorHandling.h"
 #include <cstdlib>
 using namespace clang;
@@ -111,6 +112,10 @@ TargetInfo::TargetInfo(const llvm::Triple &T) : TargetOpts(), Triple(T) {
 
 // Out of line virtual dtor for TargetInfo.
 TargetInfo::~TargetInfo() {}
+
+void TargetInfo::resetDataLayout(StringRef DL) {
+  DataLayout.reset(new llvm::DataLayout(DL));
+}
 
 /// getTypeName - Return the user string for the specified integer type enum.
 /// For example, SignedShort -> "short".
