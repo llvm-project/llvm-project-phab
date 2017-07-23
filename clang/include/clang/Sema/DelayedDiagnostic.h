@@ -126,6 +126,7 @@ public:
                                             SourceLocation Loc,
                                             const NamedDecl *ReferringDecl,
                                             const NamedDecl *OffendingDecl,
+                                            const Attr *OffendingAttr,
                                             const ObjCInterfaceDecl *UnknownObjCClass,
                                             const ObjCPropertyDecl  *ObjCProperty,
                                             StringRef Msg,
@@ -215,11 +216,16 @@ public:
     return AvailabilityData.ObjCPropertyAccess;
   }
 
+  const Attr *getAvailabilityAttr() const {
+    return AvailabilityData.OffendingAttr;
+  }
+
 private:
 
   struct AD {
     const NamedDecl *ReferringDecl;
     const NamedDecl *OffendingDecl;
+    const Attr *OffendingAttr;
     const ObjCInterfaceDecl *UnknownObjCClass;
     const ObjCPropertyDecl  *ObjCProperty;
     const char *Message;

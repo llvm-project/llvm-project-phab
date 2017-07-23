@@ -474,11 +474,9 @@ static StringRef getRealizedPlatform(const AvailabilityAttr *A,
 /// diagnostics.
 static AvailabilityResult CheckAvailability(ASTContext &Context,
                                             const AvailabilityAttr *A,
-                                            std::string *Message,
-                                            VersionTuple EnclosingVersion) {
-  if (EnclosingVersion.empty())
-    EnclosingVersion = Context.getTargetInfo().getPlatformMinVersion();
-
+                                            std::string *Message) {
+  VersionTuple EnclosingVersion =
+    Context.getTargetInfo().getPlatformMinVersion();
   if (EnclosingVersion.empty())
     return AR_Available;
 
@@ -560,11 +558,12 @@ static AvailabilityResult CheckAvailability(ASTContext &Context,
 }
 
 AvailabilityResult Decl::getAvailability(std::string *Message,
-                                         VersionTuple EnclosingVersion) const {
+                                         const Attr **Attribute) const {
   if (auto *FTD = dyn_cast<FunctionTemplateDecl>(this))
-    return FTD->getTemplatedDecl()->getAvailability(Message, EnclosingVersion);
+    return FTD->getTemplatedDecl()->getAvailability(Message, Attribute);
 
   AvailabilityResult Result = AR_Available;
+  const Attr *CorrispondingAttr = nullptr;
   std::string ResultMessage;
 
   for (const auto *A : attrs()) {
@@ -574,7 +573,7 @@ AvailabilityResult Decl::getAvailability(std::string *Message,
 
       if (Message)
         ResultMessage = Deprecated->getMessage();
-
+      CorrispondingAttr = Deprecated;
       Result = AR_Deprecated;
       continue;
     }
@@ -582,18 +581,24 @@ AvailabilityResult Decl::getAvailability(std::string *Message,
     if (const auto *Unavailable = dyn_cast<UnavailableAttr>(A)) {
       if (Message)
         *Message = Unavailable->getMessage();
+      if (Attribute)
+        *Attribute = Unavailable;
       return AR_Unavailable;
     }
 
     if (const auto *Availability = dyn_cast<AvailabilityAttr>(A)) {
-      AvailabilityResult AR = CheckAvailability(getASTContext(), Availability,
-                                                Message, EnclosingVersion);
+      AvailabilityResult AR =
+          CheckAvailability(getASTContext(), Availability, Message);
 
-      if (AR == AR_Unavailable)
+      if (AR == AR_Unavailable) {
+        if (Attribute)
+          *Attribute = Availability;
         return AR_Unavailable;
+      }
 
       if (AR > Result) {
         Result = AR;
+        CorrispondingAttr = Availability;
         if (Message)
           ResultMessage.swap(*Message);
       }
@@ -603,6 +608,8 @@ AvailabilityResult Decl::getAvailability(std::string *Message,
 
   if (Message)
     Message->swap(ResultMessage);
+  if (Attribute)
+    *Attribute = CorrispondingAttr;
   return Result;
 }
 
@@ -660,8 +667,8 @@ bool Decl::isWeakImported() const {
       return true;
 
     if (const auto *Availability = dyn_cast<AvailabilityAttr>(A)) {
-      if (CheckAvailability(getASTContext(), Availability, nullptr,
-                            VersionTuple()) == AR_NotYetIntroduced)
+      if (CheckAvailability(getASTContext(), Availability, nullptr) ==
+          AR_NotYetIntroduced)
         return true;
     }
   }

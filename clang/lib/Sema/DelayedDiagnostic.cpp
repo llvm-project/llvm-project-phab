@@ -24,6 +24,7 @@ DelayedDiagnostic::makeAvailability(AvailabilityResult AR,
                                     SourceLocation Loc,
                                     const NamedDecl *ReferringDecl,
                                     const NamedDecl *OffendingDecl,
+                                    const Attr *OffendingAttr,
                                     const ObjCInterfaceDecl *UnknownObjCClass,
                                     const ObjCPropertyDecl  *ObjCProperty,
                                     StringRef Msg,
@@ -34,6 +35,7 @@ DelayedDiagnostic::makeAvailability(AvailabilityResult AR,
   DD.Loc = Loc;
   DD.AvailabilityData.ReferringDecl = ReferringDecl;
   DD.AvailabilityData.OffendingDecl = OffendingDecl;
+  DD.AvailabilityData.OffendingAttr = OffendingAttr;
   DD.AvailabilityData.UnknownObjCClass = UnknownObjCClass;
   DD.AvailabilityData.ObjCProperty = ObjCProperty;
   char *MessageData = nullptr;

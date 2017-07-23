@@ -628,11 +628,10 @@ public:
   /// describing why the declaration has not been introduced, is
   /// deprecated, or is unavailable.
   ///
-  /// \param EnclosingVersion The version to compare with. If empty, assume the
-  /// deployment target version.
-  AvailabilityResult
-  getAvailability(std::string *Message = nullptr,
-                  VersionTuple EnclosingVersion = VersionTuple()) const;
+  /// \param Attribute The attribute that lead to this result. One of
+  /// UnavailableAttr, DeprecatedAttr, AvailabilityAttr, or nullptr.
+  AvailabilityResult getAvailability(std::string *Message = nullptr,
+                                     const Attr **Attribute = nullptr) const;
 
   /// \brief Retrieve the version of the target platform in which this
   /// declaration was introduced.
