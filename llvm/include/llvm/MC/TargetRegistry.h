@@ -1,4 +1,4 @@
-//===- Support/TargetRegistry.h - Target Registration -----------*- C++ -*-===//
+//===- MC/TargetRegistry.h - Target Registration ----------------*- C++ -*-===//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -16,8 +16,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_SUPPORT_TARGETREGISTRY_H
-#define LLVM_SUPPORT_TARGETREGISTRY_H
+#ifndef LLVM_MC_TARGETREGISTRY_H
+#define LLVM_MC_TARGETREGISTRY_H
 
 #include "llvm-c/Disassembler.h"
 #include "llvm/ADT/Optional.h"
@@ -1173,4 +1173,4 @@ private:
 
 } // end namespace llvm
 
-#endif // LLVM_SUPPORT_TARGETREGISTRY_H
+#endif // LLVM_MC_TARGETREGISTRY_H

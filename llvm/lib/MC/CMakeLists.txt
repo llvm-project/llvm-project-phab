@@ -50,6 +50,7 @@ add_llvm_library(LLVMMC
   MachObjectWriter.cpp
   StringTableBuilder.cpp
   SubtargetFeature.cpp
+  TargetRegistry.cpp
   WasmObjectWriter.cpp
   WinCOFFObjectWriter.cpp
 
