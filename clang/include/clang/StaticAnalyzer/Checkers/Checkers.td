@@ -293,6 +293,10 @@ def MisusedMovedObjectChecker: Checker<"MisusedMovedObject">,
               "object will be reported">,
      DescFile<"MisusedMovedObjectChecker.cpp">;
 
+def OStreamFormatChecker : Checker<"OStreamFormat">,
+  HelpText<"Check ostream objects for forgotten format modification">,
+  DescFile<"OStreamFormatChecker.cpp">;
+
 } // end: "alpha.cplusplus"
 
 
