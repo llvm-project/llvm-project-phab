@@ -146,6 +146,7 @@ struct Configuration {
   bool Trace;
   bool Verbose;
   bool WarnCommon;
+  bool WarnOnce;
   bool WarnMissingEntry;
   bool ZCombreloc;
   bool ZExecstack;

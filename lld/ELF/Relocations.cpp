@@ -675,6 +675,7 @@ static int64_t computeMipsAddend(const RelTy &Rel, InputSectionBase &Sec,
 template <class ELFT>
 static void reportUndefined(SymbolBody &Sym, InputSectionBase &S,
                             uint64_t Offset) {
+  assert(Sym.isUndefined());
   if (Config->UnresolvedSymbols == UnresolvedPolicy::IgnoreAll)
     return;
 
@@ -682,6 +683,11 @@ static void reportUndefined(SymbolBody &Sym, InputSectionBase &S,
                        Sym.getVisibility() == STV_DEFAULT;
   if (Config->UnresolvedSymbols == UnresolvedPolicy::Ignore && CanBeExternal)
     return;
+
+  Undefined *U = cast<Undefined>(&Sym);
+  if (U->Reported && Config->WarnOnce)
+      return;
+  U->Reported = true;
 
   std::string Msg =
       "undefined symbol: " + toString(Sym) + "\n>>> referenced by ";

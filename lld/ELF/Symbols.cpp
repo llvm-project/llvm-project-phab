@@ -290,7 +290,8 @@ template <class ELFT> bool DefinedRegular::isMipsPIC() const {
 
 Undefined::Undefined(StringRefZ Name, bool IsLocal, uint8_t StOther,
                      uint8_t Type, InputFile *File)
-    : SymbolBody(SymbolBody::UndefinedKind, Name, IsLocal, StOther, Type) {
+    : SymbolBody(SymbolBody::UndefinedKind, Name, IsLocal, StOther, Type),
+      Reported(false) {
   this->File = File;
 }
 

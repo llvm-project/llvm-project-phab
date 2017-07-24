@@ -289,6 +289,9 @@ defm version_script: Eq<"version-script">, HelpText<"Read a version script">;
 def warn_common: F<"warn-common">,
   HelpText<"Warn about duplicate common symbols">;
 
+def warn_once: F<"warn-once">,
+  HelpText<"Show error or warning for each undefined symbol only once">;
+
 def warn_unresolved_symbols: F<"warn-unresolved-symbols">,
   HelpText<"Report unresolved symbols as warnings">;
 

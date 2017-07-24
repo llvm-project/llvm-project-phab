@@ -206,6 +206,9 @@ public:
   static bool classof(const SymbolBody *S) {
     return S->kind() == UndefinedKind;
   }
+
+  // Used for error reporting. True if symbol was reported.
+  unsigned Reported : 1;
 };
 
 class SharedSymbol : public Defined {
