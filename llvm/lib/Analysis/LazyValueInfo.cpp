@@ -17,6 +17,7 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Analysis/AssumptionCache.h"
 #include "llvm/Analysis/ConstantFolding.h"
+#include "llvm/Analysis/InstructionSimplify.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/AssemblyAnnotationWriter.h"
@@ -146,6 +147,17 @@ public:
     assert(isConstantRange() &&
            "Cannot get the constant-range of a non-constant-range!");
     return Range;
+  }
+
+  bool getConstantInteger(APInt& Result) const {
+    if (isConstant() && isa<ConstantInt>(Val)) {
+      Result = Val->getUniqueInteger();
+      return true;
+    } else if (isConstantRange() && Range.isSingleElement()) {
+      Result = *Range.getSingleElement();
+      return true;
+    }
+    return false;
   }
 
 private:
@@ -1355,6 +1367,42 @@ LVILatticeVal getValueFromCondition(Value *Val, Value *Cond, bool isTrueDest) {
   return getValueFromCondition(Val, Cond, isTrueDest, Visited);
 }
 
+// Return true if Usr has Op as an operand, otherwise false.
+static bool usesOperand(User* Usr, Value* Op) {
+  return std::find(Usr->op_begin(), Usr->op_end(), Op) != Usr->op_end();
+}
+
+// Check if Val can be simplified to an integer constant when the value of one
+// of its operands Op is an integer constant OpConstVal. If so, return true and
+// store the integer constant in Result. Otherwise, return false.
+static bool getConstantEdgeValue(Value* Val, Value* Op, const APInt& OpConstVal,
+                                 const DataLayout& DL, APInt& Result) {
+  Constant* OpConst = Constant::getIntegerValue(Op->getType(), OpConstVal);
+  // Check if Val can be simplified to a constant.
+  if (auto* CI = dyn_cast<CastInst>(Val)) {
+    assert(CI->getOperand(0) == Op && "Operand 0 isn't Condition");
+    if (ConstantInt* C = dyn_cast_or_null<ConstantInt>(
+            SimplifyCastInst(CI->getOpcode(), OpConst,
+                             CI->getDestTy(), DL))) {
+      Result = C->getUniqueInteger();
+      return true;
+    }
+  } else if (auto* BO = dyn_cast<BinaryOperator>(Val)) {
+    bool Op0Match = BO->getOperand(0) == Op;
+    bool Op1Match = BO->getOperand(1) == Op;
+    assert((Op0Match || Op1Match) &&
+           "Operand 0 nor Operand 1 isn't a match");
+    Value* LHS = Op0Match ? OpConst : BO->getOperand(0);
+    Value* RHS = Op1Match ? OpConst : BO->getOperand(1);
+    if (ConstantInt* C = dyn_cast_or_null<ConstantInt>(
+            SimplifyBinOp(BO->getOpcode(), LHS, RHS, DL))) {
+      Result = C->getUniqueInteger();
+      return true;
+    }
+  }
+  return false;
+}
+
 /// \brief Compute the value of Val on the edge BBFrom -> BBTo. Returns false if
 /// Val is not constrained on the edge.  Result is unspecified if return value
 /// is false.
@@ -1370,35 +1418,102 @@ static bool getEdgeValueLocal(Value *Val, BasicBlock *BBFrom,
       bool isTrueDest = BI->getSuccessor(0) == BBTo;
       assert(BI->getSuccessor(!isTrueDest) == BBTo &&
              "BBTo isn't a successor of BBFrom");
+      Value* Condition = BI->getCondition();
 
       // If V is the condition of the branch itself, then we know exactly what
       // it is.
-      if (BI->getCondition() == Val) {
+      if (Condition == Val) {
         Result = LVILatticeVal::get(ConstantInt::get(
                               Type::getInt1Ty(Val->getContext()), isTrueDest));
         return true;
       }
 
+      if (User* Usr = dyn_cast<User>(Val)) {
+        if (isa<IntegerType>(Val->getType()) && usesOperand(Usr, Condition)) {
+          // If Val has Condition as an operand and Val can be folded into a
+          // constant with either Condition == true or Condition == false,
+          // propagate the constant.
+          // eg.
+          //   ; %Val is true on the edge to %then.
+          //   %Val = and i1 %Condition, true.
+          //   br %Condition, label %then, label %else
+          const DataLayout &DL = BBTo->getModule()->getDataLayout();
+          APInt ConditionVal(1, isTrueDest? 1 : 0);
+          APInt EdgeVal;
+          if (getConstantEdgeValue(Val, Condition, ConditionVal, DL, EdgeVal)) {
+            Result = LVILatticeVal::get(
+                ConstantInt::get(Val->getType(), EdgeVal));
+            return true;
+          }
+        }
+      }
+
       // If the condition of the branch is an equality comparison, we may be
       // able to infer the value.
-      Result = getValueFromCondition(Val, BI->getCondition(), isTrueDest);
+      Result = getValueFromCondition(Val, Condition, isTrueDest);
       if (!Result.isOverdefined())
         return true;
+
+      // If one of Val's operand has an inferred value, we may be able to infer
+      // the value of Val.
+      // eg.
+      //    ; %Val is 94 on the edge to %then.
+      //    %Val = add i8 %Op, 1
+      //    %Condition = icmp eq i8 %Op, 93
+      //    br i1 %Condition, label %then, label %else
+      if (User* Usr = dyn_cast<User>(Val)) {
+        if (isa<IntegerType>(Val->getType())) {
+          for (unsigned i = 0; i < Usr->getNumOperands(); ++i) {
+            Value* Op = Usr->getOperand(i);
+            LVILatticeVal OpLatticeVal =
+                getValueFromCondition(Op, Condition, isTrueDest);
+            const DataLayout &DL = BBTo->getModule()->getDataLayout();
+            APInt OpConst, EdgeVal;
+            if (OpLatticeVal.getConstantInteger(OpConst) &&
+                getConstantEdgeValue(Val, Op, OpConst, DL, EdgeVal)) {
+              Result = LVILatticeVal::get(
+                  ConstantInt::get(Val->getType(), EdgeVal));
+              return true;
+            }
+          }
+        }
+      }
     }
   }
 
   // If the edge was formed by a switch on the value, then we may know exactly
   // what it is.
   if (SwitchInst *SI = dyn_cast<SwitchInst>(BBFrom->getTerminator())) {
-    if (SI->getCondition() != Val)
+    Value* Condition = SI->getCondition();
+    if (!isa<IntegerType>(Val->getType()))
       return false;
+    bool ValUsesCondition = false;
+    if (Condition != Val) {
+      // Check if Val has Condition as an operand.
+      if (User* Usr = dyn_cast<User>(Val)) {
+        ValUsesCondition = usesOperand(Usr, Condition);
+      }
+      if (!ValUsesCondition)
+        return false;
+    }
+    assert((Condition == Val || ValUsesCondition) &&
+           "Condition != Val nor Val doesn't use Condition");
 
     bool DefaultCase = SI->getDefaultDest() == BBTo;
     unsigned BitWidth = Val->getType()->getIntegerBitWidth();
     ConstantRange EdgesVals(BitWidth, DefaultCase/*isFullSet*/);
 
     for (auto Case : SI->cases()) {
-      ConstantRange EdgeVal(Case.getCaseValue()->getValue());
+      APInt CaseValue = Case.getCaseValue()->getValue();
+      ConstantRange EdgeVal(CaseValue);
+      if (ValUsesCondition) {
+        const DataLayout &DL = BBTo->getModule()->getDataLayout();
+        APInt EdgeIntVal;
+        if (getConstantEdgeValue(Val, Condition, CaseValue, DL, EdgeIntVal))
+          EdgeVal = ConstantRange(EdgeIntVal);
+        else
+          return false;
+      }
       if (DefaultCase) {
         // It is possible that the default destination is the destination of
         // some cases. There is no need to perform difference for those cases.
