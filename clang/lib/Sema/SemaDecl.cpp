@@ -6946,6 +6946,10 @@ NamedDecl *Sema::getShadowedDeclaration(const TypedefNameDecl *D,
 void Sema::CheckShadow(NamedDecl *D, NamedDecl *ShadowedDecl,
                        const LookupResult &R) {
   DeclContext *NewDC = D->getDeclContext();
+  DeclContext *OldDC = ShadowedDecl->getDeclContext()->getRedeclContext();
+
+  if (D->getLocation().isMacroID() && NewDC != OldDC)
+    return;
 
   if (FieldDecl *FD = dyn_cast<FieldDecl>(ShadowedDecl)) {
     // Fields are not shadowed by variables in C++ static methods.
@@ -6974,8 +6978,6 @@ void Sema::CheckShadow(NamedDecl *D, NamedDecl *ShadowedDecl,
           break;
         }
     }
-
-  DeclContext *OldDC = ShadowedDecl->getDeclContext()->getRedeclContext();
 
   unsigned WarningDiag = diag::warn_decl_shadow;
   SourceLocation CaptureLoc;

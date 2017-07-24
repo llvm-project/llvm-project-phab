@@ -168,6 +168,13 @@ void test10() {
   using bob2=int; // expected-warning {{declaration shadows a type alias in the global namespace}}
 }
 
+void macro() {
+  int x; // expected-note 1 {{previous declaration is here}}
+#define A(a) { int a = 0; }
+  A(x); // expected-warning {{declaration shadows a local variable}}
+  A(i);
+}
+
 namespace rdar29067894 {
 
 void avoidWarningWhenRedefining(int b) { // expected-note {{previous definition is here}}
@@ -199,13 +206,13 @@ void avoidWarningWhenRedefining(int b) { // expected-note {{previous definition 
   using l=char; // no warning or error.
   using l=char; // no warning or error.
   typedef char l; // no warning or error.
- 
-  typedef char n; // no warning or error. 
+
+  typedef char n; // no warning or error.
   typedef char n; // no warning or error.
   using n=char; // no warning or error.
 }
 
-}
+} // namespace rdar29067894
 
 extern "C" {
 typedef int externC; // expected-note {{previous declaration is here}}
