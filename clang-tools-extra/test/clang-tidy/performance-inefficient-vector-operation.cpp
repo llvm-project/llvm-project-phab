@@ -274,4 +274,12 @@ void f(std::vector<int>& t) {
       z12.push_back(e);
     }
   }
+  {
+    std::vector<bool> z14;
+    // std::vector<bool> will be ignored as STL provides a possibly
+    // space-efficient specilaization of std::vector for the type "bool".
+    for (int i = 0; i < 10; ++i) {
+      z14.push_back(true);
+    }
+  }
 }

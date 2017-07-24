@@ -73,8 +73,13 @@ void InefficientVectorOperationCheck::storeOptions(
 }
 
 void InefficientVectorOperationCheck::registerMatchers(MatchFinder *Finder) {
-  const auto VectorDecl = cxxRecordDecl(hasAnyName(SmallVector<StringRef, 5>(
-      VectorLikeClasses.begin(), VectorLikeClasses.end())));
+  const auto VectorDecl = classTemplateSpecializationDecl(
+      hasAnyName(SmallVector<StringRef, 5>(VectorLikeClasses.begin(),
+                                           VectorLikeClasses.end())),
+      // Exclude std::vector<bool>: STL provides a specilaization of std::vector
+      // for the type "bool", which may be optimized for space efficiency (e.g.
+      // each element occupies a single bit instead of sizeof(bool) bytes).
+      unless(hasTemplateArgument(0, refersToType(booleanType()))));
   const auto VectorDefaultConstructorCall = cxxConstructExpr(
       hasType(VectorDecl),
       hasDeclaration(cxxConstructorDecl(isDefaultConstructor())));
