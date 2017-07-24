@@ -238,7 +238,7 @@ public:
     // id objc_getProperty (id, SEL, ptrdiff_t, bool)
     CanQualType IdType = Ctx.getCanonicalParamType(Ctx.getObjCIdType());
     CanQualType SelType = Ctx.getCanonicalParamType(Ctx.getObjCSelType());
-    CanQualType Params[] = {
+    ArgTypeInfo Params[] = {
         IdType, SelType,
         Ctx.getPointerDiffType()->getCanonicalTypeUnqualified(), Ctx.BoolTy};
     llvm::FunctionType *FTy =
@@ -253,7 +253,7 @@ public:
     // void objc_setProperty (id, SEL, ptrdiff_t, id, bool, bool)
     CanQualType IdType = Ctx.getCanonicalParamType(Ctx.getObjCIdType());
     CanQualType SelType = Ctx.getCanonicalParamType(Ctx.getObjCSelType());
-    CanQualType Params[] = {
+    ArgTypeInfo Params[] = {
         IdType,
         SelType,
         Ctx.getPointerDiffType()->getCanonicalTypeUnqualified(),
@@ -278,7 +278,7 @@ public:
     // void objc_setProperty_nonatomic_copy(id self, SEL _cmd, 
     //                                      id newValue, ptrdiff_t offset);
     
-    SmallVector<CanQualType,4> Params;
+    SmallVector<ArgTypeInfo, 4> Params;
     CanQualType IdType = Ctx.getCanonicalParamType(Ctx.getObjCIdType());
     CanQualType SelType = Ctx.getCanonicalParamType(Ctx.getObjCSelType());
     Params.push_back(IdType);
@@ -305,7 +305,7 @@ public:
     CodeGen::CodeGenTypes &Types = CGM.getTypes();
     ASTContext &Ctx = CGM.getContext();
     // void objc_copyStruct (void *, const void *, size_t, bool, bool)
-    SmallVector<CanQualType,5> Params;
+    SmallVector<ArgTypeInfo, 5> Params;
     Params.push_back(Ctx.VoidPtrTy);
     Params.push_back(Ctx.VoidPtrTy);
     Params.push_back(Ctx.getSizeType());
@@ -325,7 +325,7 @@ public:
     CodeGen::CodeGenTypes &Types = CGM.getTypes();
     ASTContext &Ctx = CGM.getContext();
     /// void objc_copyCppObjectAtomic(void *dest, const void *src, void *helper);
-    SmallVector<CanQualType,3> Params;
+    SmallVector<ArgTypeInfo, 3> Params;
     Params.push_back(Ctx.VoidPtrTy);
     Params.push_back(Ctx.VoidPtrTy);
     Params.push_back(Ctx.VoidPtrTy);
@@ -339,7 +339,7 @@ public:
     CodeGen::CodeGenTypes &Types = CGM.getTypes();
     ASTContext &Ctx = CGM.getContext();
     // void objc_enumerationMutation (id)
-    SmallVector<CanQualType,1> Params;
+    SmallVector<ArgTypeInfo, 1> Params;
     Params.push_back(Ctx.getCanonicalParamType(Ctx.getObjCIdType()));
     llvm::FunctionType *FTy =
         Types.GetFunctionType(
@@ -351,7 +351,7 @@ public:
     CodeGen::CodeGenTypes &Types = CGM.getTypes();
     ASTContext &Ctx = CGM.getContext();
     // Class objc_lookUpClass (const char *)
-    SmallVector<CanQualType,1> Params;
+    SmallVector<ArgTypeInfo, 1> Params;
     Params.push_back(
       Ctx.getCanonicalType(Ctx.getPointerType(Ctx.CharTy.withConst())));
     llvm::FunctionType *FTy =

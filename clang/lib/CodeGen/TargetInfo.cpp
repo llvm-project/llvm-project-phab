@@ -640,7 +640,7 @@ public:
     if (!getCXXABI().classifyReturnType(FI))
       FI.getReturnInfo() = classifyReturnType(FI.getReturnType());
     for (auto &I : FI.arguments())
-      I.info = classifyArgumentType(I.type);
+      I.info = classifyArgumentType(I.typeInfo.type);
   }
 
   Address EmitVAArg(CodeGenFunction &CGF, Address VAListAddr,
@@ -712,7 +712,7 @@ private:
     if (!getCXXABI().classifyReturnType(FI))
       FI.getReturnInfo() = classifyReturnType(FI.getReturnType());
     for (auto &Arg : FI.arguments())
-      Arg.info = classifyArgumentType(Arg.type);
+      Arg.info = classifyArgumentType(Arg.typeInfo.type);
   }
 
   Address EmitVAArg(CodeGenFunction &CGF, Address VAListAddr,
@@ -806,7 +806,7 @@ void PNaClABIInfo::computeInfo(CGFunctionInfo &FI) const {
     FI.getReturnInfo() = classifyReturnType(FI.getReturnType());
 
   for (auto &I : FI.arguments())
-    I.info = classifyArgumentType(I.type);
+    I.info = classifyArgumentType(I.typeInfo.type);
 }
 
 Address PNaClABIInfo::EmitVAArg(CodeGenFunction &CGF, Address VAListAddr,
@@ -1681,7 +1681,7 @@ void X86_32ABIInfo::computeVectorCallArgs(CGFunctionInfo &FI, CCState &State,
     // First pass do all the vector types.
     const Type *Base = nullptr;
     uint64_t NumElts = 0;
-    const QualType& Ty = I.type;
+    const QualType& Ty = I.typeInfo.type;
     if ((Ty->isVectorType() || Ty->isBuiltinType()) &&
         isHomogeneousAggregate(Ty, Base, NumElts)) {
       if (State.FreeSSERegs >= NumElts) {
@@ -1698,7 +1698,7 @@ void X86_32ABIInfo::computeVectorCallArgs(CGFunctionInfo &FI, CCState &State,
     // Second pass, do the rest!
     const Type *Base = nullptr;
     uint64_t NumElts = 0;
-    const QualType& Ty = I.type;
+    const QualType& Ty = I.typeInfo.type;
     bool IsHva = isHomogeneousAggregate(Ty, Base, NumElts);
 
     if (IsHva && !Ty->isVectorType() && !Ty->isBuiltinType()) {
@@ -1756,7 +1756,7 @@ void X86_32ABIInfo::computeInfo(CGFunctionInfo &FI) const {
   } else {
     // If not vectorcall, revert to normal behavior.
     for (auto &I : FI.arguments()) {
-      I.info = classifyArgumentType(I.type, State);
+      I.info = classifyArgumentType(I.typeInfo.type, State);
       UsedInAlloca |= (I.info.getKind() == ABIArgInfo::InAlloca);
     }
   }
@@ -1832,7 +1832,7 @@ void X86_32ABIInfo::rewriteWithInAlloca(CGFunctionInfo &FI) const {
   ABIArgInfo &Ret = FI.getReturnInfo();
   if (Ret.isIndirect() && Ret.isSRetAfterThis() && !IsThisCall &&
       isArgInAlloca(I->info)) {
-    addFieldToArgStruct(FrameFields, StackOffset, I->info, I->type);
+    addFieldToArgStruct(FrameFields, StackOffset, I->info, I->typeInfo.type);
     ++I;
   }
 
@@ -1851,7 +1851,7 @@ void X86_32ABIInfo::rewriteWithInAlloca(CGFunctionInfo &FI) const {
   // Put arguments passed in memory into the struct.
   for (; I != E; ++I) {
     if (isArgInAlloca(I->info))
-      addFieldToArgStruct(FrameFields, StackOffset, I->info, I->type);
+      addFieldToArgStruct(FrameFields, StackOffset, I->info, I->typeInfo.type);
   }
 
   FI.setArgStruct(llvm::StructType::get(getVMContext(), FrameFields,
@@ -3535,10 +3535,10 @@ void X86_64ABIInfo::computeInfo(CGFunctionInfo &FI) const {
        it != ie; ++it, ++ArgNo) {
     bool IsNamedArg = ArgNo < NumRequiredArgs;
 
-    if (IsRegCall && it->type->isStructureOrClassType())
-      it->info = classifyRegCallStructType(it->type, NeededInt, NeededSSE);
+    if (IsRegCall && it->typeInfo.type->isStructureOrClassType())
+      it->info = classifyRegCallStructType(it->typeInfo.type, NeededInt, NeededSSE);
     else
-      it->info = classifyArgumentType(it->type, FreeIntRegs, NeededInt,
+      it->info = classifyArgumentType(it->typeInfo.type, FreeIntRegs, NeededInt,
                                       NeededSSE, IsNamedArg);
 
     // AMD64-ABI 3.2.3p3: If there are no registers available for any
@@ -3549,7 +3549,7 @@ void X86_64ABIInfo::computeInfo(CGFunctionInfo &FI) const {
       FreeIntRegs -= NeededInt;
       FreeSSERegs -= NeededSSE;
     } else {
-      it->info = getIndirectResult(it->type, FreeIntRegs);
+      it->info = getIndirectResult(it->typeInfo.type, FreeIntRegs);
     }
   }
 }
@@ -3909,19 +3909,19 @@ void WinX86_64ABIInfo::computeVectorCallArgs(CGFunctionInfo &FI,
     // Vectorcall in x64 only permits the first 6 arguments to be passed
     // as XMM/YMM registers.
     if (Count < VectorcallMaxParamNumAsReg)
-      I.info = classify(I.type, FreeSSERegs, false, IsVectorCall, IsRegCall);
+      I.info = classify(I.typeInfo.type, FreeSSERegs, false, IsVectorCall, IsRegCall);
     else {
       // Since these cannot be passed in registers, pretend no registers
       // are left.
       unsigned ZeroSSERegsAvail = 0;
-      I.info = classify(I.type, /*FreeSSERegs=*/ZeroSSERegsAvail, false,
+      I.info = classify(I.typeInfo.type, /*FreeSSERegs=*/ZeroSSERegsAvail, false,
                         IsVectorCall, IsRegCall);
     }
     ++Count;
   }
 
   for (auto &I : FI.arguments()) {
-    I.info = reclassifyHvaArgType(I.type, FreeSSERegs, I.info);
+    I.info = reclassifyHvaArgType(I.typeInfo.type, FreeSSERegs, I.info);
   }
 }
 
@@ -3955,7 +3955,7 @@ void WinX86_64ABIInfo::computeInfo(CGFunctionInfo &FI) const {
     computeVectorCallArgs(FI, FreeSSERegs, IsVectorCall, IsRegCall);
   } else {
     for (auto &I : FI.arguments())
-      I.info = classify(I.type, FreeSSERegs, false, IsVectorCall, IsRegCall);
+      I.info = classify(I.typeInfo.type, FreeSSERegs, false, IsVectorCall, IsRegCall);
   }
 
 }
@@ -4269,7 +4269,7 @@ public:
       // We rely on the default argument classification for the most part.
       // One exception:  An aggregate containing a single floating-point
       // or vector item must be passed in a register if one is available.
-      const Type *T = isSingleElementStruct(I.type, getContext());
+      const Type *T = isSingleElementStruct(I.typeInfo.type, getContext());
       if (T) {
         const BuiltinType *BT = T->getAs<BuiltinType>();
         if (IsQPXVectorTy(T) ||
@@ -4280,7 +4280,7 @@ public:
           continue;
         }
       }
-      I.info = classifyArgumentType(I.type);
+      I.info = classifyArgumentType(I.typeInfo.type);
     }
   }
 
@@ -4813,7 +4813,7 @@ private:
       FI.getReturnInfo() = classifyReturnType(FI.getReturnType());
 
     for (auto &it : FI.arguments())
-      it.info = classifyArgumentType(it.type);
+      it.info = classifyArgumentType(it.typeInfo.type);
   }
 
   Address EmitDarwinVAArg(Address VAListAddr, QualType Ty,
@@ -5527,7 +5527,7 @@ void ARMABIInfo::computeInfo(CGFunctionInfo &FI) const {
         classifyReturnType(FI.getReturnType(), FI.isVariadic());
 
   for (auto &I : FI.arguments())
-    I.info = classifyArgumentType(I.type, FI.isVariadic());
+    I.info = classifyArgumentType(I.typeInfo.type, FI.isVariadic());
 
   // Always honor user-specified calling convention.
   if (FI.getCallingConvention() != llvm::CallingConv::C)
@@ -6085,7 +6085,7 @@ void NVPTXABIInfo::computeInfo(CGFunctionInfo &FI) const {
   if (!getCXXABI().classifyReturnType(FI))
     FI.getReturnInfo() = classifyReturnType(FI.getReturnType());
   for (auto &I : FI.arguments())
-    I.info = classifyArgumentType(I.type);
+    I.info = classifyArgumentType(I.typeInfo.type);
 
   // Always honor user-specified calling convention.
   if (FI.getCallingConvention() != llvm::CallingConv::C)
@@ -6193,7 +6193,7 @@ public:
     if (!getCXXABI().classifyReturnType(FI))
       FI.getReturnInfo() = classifyReturnType(FI.getReturnType());
     for (auto &I : FI.arguments())
-      I.info = classifyArgumentType(I.type);
+      I.info = classifyArgumentType(I.typeInfo.type);
   }
 
   Address EmitVAArg(CodeGenFunction &CGF, Address VAListAddr,
@@ -6873,7 +6873,7 @@ void MipsABIInfo::computeInfo(CGFunctionInfo &FI) const {
   uint64_t Offset = RetInfo.isIndirect() ? MinABIStackAlignInBytes : 0;
 
   for (auto &I : FI.arguments())
-    I.info = classifyArgumentType(I.type, Offset);
+    I.info = classifyArgumentType(I.typeInfo.type, Offset);
 }
 
 Address MipsABIInfo::EmitVAArg(CodeGenFunction &CGF, Address VAListAddr,
@@ -7091,7 +7091,7 @@ void HexagonABIInfo::computeInfo(CGFunctionInfo &FI) const {
   if (!getCXXABI().classifyReturnType(FI))
     FI.getReturnInfo() = classifyReturnType(FI.getReturnType());
   for (auto &I : FI.arguments())
-    I.info = classifyArgumentType(I.type);
+    I.info = classifyArgumentType(I.typeInfo.type);
 }
 
 ABIArgInfo HexagonABIInfo::classifyArgumentType(QualType Ty) const {
@@ -7195,7 +7195,7 @@ public:
     if (!getCXXABI().classifyReturnType(FI))
       FI.getReturnInfo() = classifyReturnType(FI.getReturnType());
     for (auto &I : FI.arguments())
-      I.info = classifyArgumentType(I.type, State);
+      I.info = classifyArgumentType(I.typeInfo.type, State);
   }
 
   ABIArgInfo getIndirectResult(QualType Ty, bool ByVal, CCState &State) const;
@@ -7320,9 +7320,9 @@ void AMDGPUABIInfo::computeInfo(CGFunctionInfo &FI) const {
   unsigned CC = FI.getCallingConvention();
   for (auto &Arg : FI.arguments())
     if (CC == llvm::CallingConv::AMDGPU_KERNEL)
-      Arg.info = classifyArgumentType(Arg.type);
+      Arg.info = classifyArgumentType(Arg.typeInfo.type);
     else
-      Arg.info = DefaultABIInfo::classifyArgumentType(Arg.type);
+      Arg.info = DefaultABIInfo::classifyArgumentType(Arg.typeInfo.type);
 }
 
 /// \brief Classify argument of given type \p Ty.
@@ -7500,7 +7500,7 @@ void SparcV8ABIInfo::computeInfo(CGFunctionInfo &FI) const {
 
   FI.getReturnInfo() = classifyReturnType(FI.getReturnType());
   for (auto &Arg : FI.arguments())
-    Arg.info = classifyArgumentType(Arg.type);
+    Arg.info = classifyArgumentType(Arg.typeInfo.type);
 }
 
 namespace {
@@ -7763,7 +7763,7 @@ Address SparcV9ABIInfo::EmitVAArg(CodeGenFunction &CGF, Address VAListAddr,
 void SparcV9ABIInfo::computeInfo(CGFunctionInfo &FI) const {
   FI.getReturnInfo() = classifyType(FI.getReturnType(), 32 * 8);
   for (auto &I : FI.arguments())
-    I.info = classifyType(I.type, 16 * 8);
+    I.info = classifyType(I.typeInfo.type, 16 * 8);
 }
 
 namespace {

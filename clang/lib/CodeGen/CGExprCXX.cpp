@@ -1583,9 +1583,8 @@ llvm::Value *CodeGenFunction::EmitCXXNewExpr(const CXXNewExpr *E) {
           AlignValT);
     }
 
-    // FIXME: Why do we not pass a CalleeDecl here?
     EmitCallArgs(allocatorArgs, allocatorType, E->placement_arguments(),
-                 /*AC*/AbstractCallee(), /*ParamsToSkip*/ParamsToSkip);
+                 allocator, /*ParamsToSkip*/ParamsToSkip);
 
     RValue RV =
       EmitNewDeleteCall(*this, allocator, allocatorType, allocatorArgs);

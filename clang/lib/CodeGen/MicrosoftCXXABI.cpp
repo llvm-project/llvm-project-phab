@@ -208,7 +208,7 @@ public:
 
   AddedStructorArgs
   buildStructorSignature(const CXXMethodDecl *MD, StructorType T,
-                         SmallVectorImpl<CanQualType> &ArgTys) override;
+                         SmallVectorImpl<ArgTypeInfo> &ArgTys) override;
 
   /// Non-base dtors should be emitted as delegating thunks in this ABI.
   bool useThunkForDtorVariant(const CXXDestructorDecl *Dtor,
@@ -1263,7 +1263,7 @@ void MicrosoftCXXABI::EmitVBPtrStores(CodeGenFunction &CGF,
 
 CGCXXABI::AddedStructorArgs
 MicrosoftCXXABI::buildStructorSignature(const CXXMethodDecl *MD, StructorType T,
-                                        SmallVectorImpl<CanQualType> &ArgTys) {
+                                        SmallVectorImpl<ArgTypeInfo> &ArgTys) {
   AddedStructorArgs Added;
   // TODO: 'for base' flag
   if (T == StructorType::Deleting) {
@@ -1518,7 +1518,8 @@ CGCXXABI::AddedStructorArgs MicrosoftCXXABI::addImplicitConstructorArgs(
   RValue RV = RValue::get(MostDerivedArg);
   if (FPT->isVariadic()) {
     Args.insert(Args.begin() + 1,
-                CallArg(RV, getContext().IntTy, /*needscopy=*/false));
+                CallArg(RV, getContext().IntTy, /*needscopy=*/false,
+                /*isNoEscapse*/false));
     return AddedStructorArgs::prefix(1);
   }
   Args.add(RV, getContext().IntTy);

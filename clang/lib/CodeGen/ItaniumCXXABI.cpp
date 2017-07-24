@@ -209,7 +209,7 @@ public:
 
   AddedStructorArgs
   buildStructorSignature(const CXXMethodDecl *MD, StructorType T,
-                         SmallVectorImpl<CanQualType> &ArgTys) override;
+                         SmallVectorImpl<ArgTypeInfo> &ArgTys) override;
 
   bool useThunkForDtorVariant(const CXXDestructorDecl *Dtor,
                               CXXDtorType DT) const override {
@@ -1365,7 +1365,7 @@ void ItaniumCXXABI::EmitCXXConstructors(const CXXConstructorDecl *D) {
 
 CGCXXABI::AddedStructorArgs
 ItaniumCXXABI::buildStructorSignature(const CXXMethodDecl *MD, StructorType T,
-                                      SmallVectorImpl<CanQualType> &ArgTys) {
+                                      SmallVectorImpl<ArgTypeInfo> &ArgTys) {
   ASTContext &Context = getContext();
 
   // All parameters are already in place except VTT, which goes after 'this'.
@@ -1453,7 +1453,8 @@ CGCXXABI::AddedStructorArgs ItaniumCXXABI::addImplicitConstructorArgs(
       CGF.GetVTTParameter(GlobalDecl(D, Type), ForVirtualBase, Delegating);
   QualType VTTTy = getContext().getPointerType(getContext().VoidPtrTy);
   Args.insert(Args.begin() + 1,
-              CallArg(RValue::get(VTT), VTTTy, /*needscopy=*/false));
+              CallArg(RValue::get(VTT), VTTTy, /*needscopy=*/false,
+                      /*isNoEscape*/false));
   return AddedStructorArgs::prefix(1);  // Added one arg.
 }
 

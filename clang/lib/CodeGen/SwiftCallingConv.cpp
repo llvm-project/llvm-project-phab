@@ -831,7 +831,7 @@ void swiftcall::computeABIInfo(CodeGenModule &CGM, CGFunctionInfo &FI) {
 
   for (unsigned i = 0, e = FI.arg_size(); i != e; ++i) {
     auto &argInfo = FI.arg_begin()[i];
-    argInfo.info = classifyArgumentType(CGM, argInfo.type);
+    argInfo.info = classifyArgumentType(CGM, argInfo.typeInfo.type);
   }
 }
 

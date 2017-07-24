@@ -305,9 +305,9 @@ void CodeGenFunction::EmitCallAndReturnForThunk(llvm::Constant *CalleePtr,
   assert(CallFnInfo.arg_size() == CurFnInfo->arg_size());
   for (unsigned i = 0, e = CurFnInfo->arg_size(); i != e; ++i)
     assert(similar(CallFnInfo.arg_begin()[i].info,
-                   CallFnInfo.arg_begin()[i].type,
+                   CallFnInfo.arg_begin()[i].typeInfo.type,
                    CurFnInfo->arg_begin()[i].info,
-                   CurFnInfo->arg_begin()[i].type));
+                   CurFnInfo->arg_begin()[i].typeInfo.type));
 #endif
 
   // Determine whether we have a return value slot to use.

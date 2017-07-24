@@ -1039,7 +1039,9 @@ RValue CodeGenFunction::EmitBlockCallExpr(const CallExpr *E,
   QualType FnType = BPT->getPointeeType();
 
   // And the rest of the arguments.
-  EmitCallArgs(Args, FnType->getAs<FunctionProtoType>(), E->arguments());
+  const auto *BE = dyn_cast<BlockExpr>(E->getCallee());
+  EmitCallArgs(Args, FnType->getAs<FunctionProtoType>(), E->arguments(),
+               BE ? BE->getBlockDecl() : nullptr);
 
   // Load the function.
   llvm::Value *Func = Builder.CreateAlignedLoad(FuncPtr, getPointerAlign());

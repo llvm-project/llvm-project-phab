@@ -438,8 +438,14 @@ public:
 
 // Implementation detail of CGFunctionInfo, factored out so it can be named
 // in the TrailingObjects base class of CGFunctionInfo.
-struct CGFunctionInfoArgInfo {
+struct ArgTypeInfo {
   CanQualType type;
+  bool isNoEscape;
+  ArgTypeInfo(CanQualType t, bool ne = false) : type(t), isNoEscape(ne) {}
+};
+
+struct CGFunctionInfoArgInfo {
+  ArgTypeInfo typeInfo;
   ABIArgInfo info;
 };
 
@@ -515,7 +521,7 @@ public:
                                 const FunctionType::ExtInfo &extInfo,
                                 ArrayRef<ExtParameterInfo> paramInfos,
                                 CanQualType resultType,
-                                ArrayRef<CanQualType> argTypes,
+                                ArrayRef<ArgTypeInfo> argTypes,
                                 RequiredArgs required);
   void operator delete(void *p) { ::operator delete(p); }
 
@@ -594,7 +600,9 @@ public:
                                  isNoCallerSavedRegs());
   }
 
-  CanQualType getReturnType() const { return getArgsBuffer()[0].type; }
+  CanQualType getReturnType() const {
+    return getArgsBuffer()[0].typeInfo.type;
+  }
 
   ABIArgInfo &getReturnInfo() { return getArgsBuffer()[0].info; }
   const ABIArgInfo &getReturnInfo() const { return getArgsBuffer()[0].info; }
@@ -638,8 +646,10 @@ public:
         ID.AddInteger(paramInfo.getOpaqueValue());
     }
     getReturnType().Profile(ID);
-    for (const auto &I : arguments())
-      I.type.Profile(ID);
+    for (const auto &I : arguments()) {
+      I.typeInfo.type.Profile(ID);
+      ID.AddBoolean(I.typeInfo.isNoEscape);
+    }
   }
   static void Profile(llvm::FoldingSetNodeID &ID,
                       bool InstanceMethod,
@@ -648,7 +658,7 @@ public:
                       ArrayRef<ExtParameterInfo> paramInfos,
                       RequiredArgs required,
                       CanQualType resultType,
-                      ArrayRef<CanQualType> argTypes) {
+                      ArrayRef<ArgTypeInfo> argTypes) {
     ID.AddInteger(info.getCC());
     ID.AddBoolean(InstanceMethod);
     ID.AddBoolean(ChainCall);
@@ -664,9 +674,10 @@ public:
         ID.AddInteger(paramInfo.getOpaqueValue());
     }
     resultType.Profile(ID);
-    for (ArrayRef<CanQualType>::iterator
+    for (ArrayRef<ArgTypeInfo>::iterator
            i = argTypes.begin(), e = argTypes.end(); i != e; ++i) {
-      i->Profile(ID);
+      i->type.Profile(ID);
+      ID.AddBoolean(i->isNoEscape);
     }
   }
 };

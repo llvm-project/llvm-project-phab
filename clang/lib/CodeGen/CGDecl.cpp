@@ -542,7 +542,7 @@ namespace {
       // __attribute__((cleanup(f))) void *g;
       //
       // To fix this we insert a bitcast here.
-      QualType ArgTy = FnInfo.arg_begin()->type;
+      QualType ArgTy = FnInfo.arg_begin()->typeInfo.type;
       llvm::Value *Arg =
         CGF.Builder.CreateBitCast(Addr, CGF.ConvertType(ArgTy));
 

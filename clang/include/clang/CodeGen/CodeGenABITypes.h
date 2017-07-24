@@ -68,7 +68,7 @@ const CGFunctionInfo &arrangeCXXMethodType(CodeGenModule &CGM,
 
 const CGFunctionInfo &arrangeFreeFunctionCall(CodeGenModule &CGM,
                                               CanQualType returnType,
-                                              ArrayRef<CanQualType> argTypes,
+                                              ArrayRef<ArgTypeInfo> argTypes,
                                               FunctionType::ExtInfo info,
                                               RequiredArgs args);
 

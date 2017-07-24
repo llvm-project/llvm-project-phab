@@ -2083,7 +2083,7 @@ void CodeGenFunction::EmitInheritedCXXConstructorCall(
     bool InheritedFromVBase, const CXXInheritedCtorInitExpr *E) {
   CallArgList Args;
   CallArg ThisArg(RValue::get(This.getPointer()), D->getThisType(getContext()),
-                  /*NeedsCopy=*/false);
+                  /*NeedsCopy=*/false, /*IsNoEscapse*/false);
 
   // Forward the parameters.
   if (InheritedFromVBase &&

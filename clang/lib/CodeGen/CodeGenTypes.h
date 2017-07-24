@@ -277,7 +277,7 @@ public:
                                     const FunctionArgList &args);
   const CGFunctionInfo &
   arrangeBuiltinFunctionDeclaration(CanQualType resultType,
-                                    ArrayRef<CanQualType> argTypes);
+                                    ArrayRef<ArgTypeInfo> argTypes);
   const CGFunctionInfo &arrangeBuiltinFunctionCall(QualType resultType,
                                                    const CallArgList &args);
 
@@ -327,7 +327,7 @@ public:
   const CGFunctionInfo &arrangeLLVMFunctionInfo(CanQualType returnType,
                                                 bool instanceMethod,
                                                 bool chainCall,
-                                                ArrayRef<CanQualType> argTypes,
+                                                ArrayRef<ArgTypeInfo> argTypes,
                                                 FunctionType::ExtInfo info,
                     ArrayRef<FunctionProtoType::ExtParameterInfo> paramInfos,
                                                 RequiredArgs args);

@@ -1456,7 +1456,7 @@ CGObjCGNU::GenerateMessageSend(CodeGenFunction &CGF,
   }
 
   // Reset the receiver in case the lookup modified it
-  ActualArgs[0] = CallArg(RValue::get(Receiver), ASTIdTy, false);
+  ActualArgs[0] = CallArg(RValue::get(Receiver), ASTIdTy, false, false);
 
   imp = EnforceType(Builder, imp, MSI.MessengerType);
 

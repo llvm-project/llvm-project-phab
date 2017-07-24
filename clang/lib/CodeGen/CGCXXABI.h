@@ -310,7 +310,7 @@ public:
   /// initialized with the type of 'this'.
   virtual AddedStructorArgs
   buildStructorSignature(const CXXMethodDecl *MD, StructorType T,
-                         SmallVectorImpl<CanQualType> &ArgTys) = 0;
+                         SmallVectorImpl<ArgTypeInfo> &ArgTys) = 0;
 
   /// Returns true if the given destructor type should be emitted as a linkonce
   /// delegating thunk, regardless of whether the dtor is defined in this TU or

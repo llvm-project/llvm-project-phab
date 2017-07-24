@@ -335,6 +335,7 @@ public:
   public:
     AbstractCallee() : CalleeDecl(nullptr) {}
     AbstractCallee(const FunctionDecl *FD) : CalleeDecl(FD) {}
+    AbstractCallee(const BlockDecl *BD) : CalleeDecl(BD) {}
     AbstractCallee(const ObjCMethodDecl *OMD) : CalleeDecl(OMD) {}
     bool hasFunctionDecl() const {
       return dyn_cast_or_null<FunctionDecl>(CalleeDecl);
@@ -343,11 +344,15 @@ public:
     unsigned getNumParams() const {
       if (const auto *FD = dyn_cast<FunctionDecl>(CalleeDecl))
         return FD->getNumParams();
+      if (const auto *BD = dyn_cast<BlockDecl>(CalleeDecl))
+        return BD->getNumParams();
       return cast<ObjCMethodDecl>(CalleeDecl)->param_size();
     }
     const ParmVarDecl *getParamDecl(unsigned I) const {
       if (const auto *FD = dyn_cast<FunctionDecl>(CalleeDecl))
         return FD->getParamDecl(I);
+      if (const auto *BD = dyn_cast<BlockDecl>(CalleeDecl))
+        return BD->getParamDecl(I);
       return *(cast<ObjCMethodDecl>(CalleeDecl)->param_begin() + I);
     }
   };
