@@ -355,6 +355,9 @@ static int dumpSymtab(int argc, char **argv) {
 
       if (TT.isOSBinFormatCOFF() && Sym.isWeak() && Sym.isIndirect())
         outs() << "         fallback " << Sym.getCOFFWeakExternalFallback() << '\n';
+
+      if (TT.isOSBinFormatELF() && Sym.hasELFCIdentifierSectionName())
+        outs() << "         has C idenfier section name\n";
     }
 
     outs() << '\n';

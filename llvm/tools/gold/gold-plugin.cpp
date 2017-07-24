@@ -616,8 +616,13 @@ static void addModule(LTO &Lto, claimed_file &F, const void *View,
             toString(ObjOrErr.takeError()).c_str());
 
   unsigned SymNum = 0;
+  std::unique_ptr<InputFile> Input = std::move(ObjOrErr.get());
+  auto InputFileSyms = Input->symbols();
+  auto NumInputFileSyms = Input->symbols().size();
   std::vector<SymbolResolution> Resols(F.syms.size());
   for (ld_plugin_symbol &Sym : F.syms) {
+    assert(SymNum < NumInputFileSyms);
+    const InputFile::Symbol &InpSym = InputFileSyms[SymNum];
     SymbolResolution &R = Resols[SymNum++];
 
     ld_plugin_symbol_resolution Resolution =
@@ -639,6 +644,12 @@ static void addModule(LTO &Lto, claimed_file &F, const void *View,
 
     case LDPR_PREVAILING_DEF_IRONLY:
       R.Prevailing = true;
+      // If the symbol has a C identifier section name, we need to mark
+      // it as visible to a regular object so that LTO will keep it around
+      // to ensure the linker generates special __start_<secname> and
+      // __end_<secname> symbols which may be used elsewhere.
+      if (InpSym.hasELFCIdentifierSectionName())
+        R.VisibleToRegularObj = true;
       break;
 
     case LDPR_PREVAILING_DEF:
@@ -648,7 +659,12 @@ static void addModule(LTO &Lto, claimed_file &F, const void *View,
 
     case LDPR_PREVAILING_DEF_IRONLY_EXP:
       R.Prevailing = true;
-      if (!Res.CanOmitFromDynSym)
+      if (!Res.CanOmitFromDynSym ||
+          // If the symbol has a C identifier section name, we need to mark
+          // it as visible to a regular object so that LTO will keep it around
+          // to ensure the linker generates special __start_<secname> and
+          // __end_<secname> symbols which may be used elsewhere.
+          InpSym.hasELFCIdentifierSectionName())
         R.VisibleToRegularObj = true;
       break;
     }
@@ -660,7 +676,7 @@ static void addModule(LTO &Lto, claimed_file &F, const void *View,
     freeSymName(Sym);
   }
 
-  check(Lto.add(std::move(*ObjOrErr), Resols),
+  check(Lto.add(std::move(Input), Resols),
         std::string("Failed to link module ") + F.name);
 }
 

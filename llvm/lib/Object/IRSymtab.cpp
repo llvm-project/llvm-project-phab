@@ -140,6 +140,18 @@ Error Builder::addModule(Module *M) {
   return Error::success();
 }
 
+static bool isAlpha(char C) {
+  return ('a' <= C && C <= 'z') || ('A' <= C && C <= 'Z') || C == '_';
+}
+
+static bool isAlnum(char C) { return isAlpha(C) || ('0' <= C && C <= '9'); }
+
+// Returns true if S is valid as a C language identifier.
+static bool isValidCIdentifier(StringRef S) {
+  return !S.empty() && isAlpha(S[0]) &&
+         std::all_of(S.begin() + 1, S.end(), isAlnum);
+}
+
 Error Builder::addSymbol(const ModuleSymbolTable &Msymtab,
                          const SmallPtrSet<GlobalValue *, 8> &Used,
                          ModuleSymbolTable::Symbol Msym) {
@@ -239,6 +251,10 @@ Error Builder::addSymbol(const ModuleSymbolTable &Msymtab,
       setStr(Uncommon().COFFWeakExternFallbackName, Saver.save(FallbackName));
     }
   }
+
+  if (TT.isOSBinFormatELF())
+    Uncommon().HasELFCIdentifierSectionName =
+        isValidCIdentifier(Base->getSection());
 
   return Error::success();
 }
