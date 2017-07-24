@@ -191,12 +191,15 @@ public:
   /// \param FlagsToInclude - If non-zero, only include options with any
   ///                         of these flags set.
   /// \param FlagsToExclude - Exclude options with any of these flags set.
-  void PrintHelp(raw_ostream &OS, const char *Name,
-                 const char *Title, unsigned FlagsToInclude,
-                 unsigned FlagsToExclude) const;
+  /// \param InferHelpText  - If true, HelpText for aliases that was not set
+  ///                         explicitly will be infered from aliased option.
+  ///                         Used to render aliases.
+  void PrintHelp(raw_ostream &OS, const char *Name, const char *Title,
+                 unsigned FlagsToInclude, unsigned FlagsToExclude,
+                 bool InferHelpText) const;
 
-  void PrintHelp(raw_ostream &OS, const char *Name,
-                  const char *Title, bool ShowHidden = false) const;
+  void PrintHelp(raw_ostream &OS, const char *Name, const char *Title,
+                 bool ShowHidden = false, bool InferHelpText = false) const;
 };
 
 } // end namespace opt

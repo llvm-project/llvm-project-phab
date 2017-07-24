@@ -444,15 +444,14 @@ static const char *getOptionHelpGroup(const OptTable &Opts, OptSpecifier Id) {
 }
 
 void OptTable::PrintHelp(raw_ostream &OS, const char *Name, const char *Title,
-                         bool ShowHidden) const {
+                         bool ShowHidden, bool InferHelpText) const {
   PrintHelp(OS, Name, Title, /*Include*/ 0, /*Exclude*/
-            (ShowHidden ? 0 : HelpHidden));
+            (ShowHidden ? 0 : HelpHidden), InferHelpText);
 }
 
-
 void OptTable::PrintHelp(raw_ostream &OS, const char *Name, const char *Title,
-                         unsigned FlagsToInclude,
-                         unsigned FlagsToExclude) const {
+                         unsigned FlagsToInclude, unsigned FlagsToExclude,
+                         bool InferHelpText) const {
   OS << "OVERVIEW: " << Title << "\n";
   OS << '\n';
   OS << "USAGE: " << Name << " [options] <inputs>\n";
@@ -476,10 +475,21 @@ void OptTable::PrintHelp(raw_ostream &OS, const char *Name, const char *Title,
     if (Flags & FlagsToExclude)
       continue;
 
-    if (const char *Text = getOptionHelpText(Id)) {
+    // Aliases usually do not have help text set explicitly. If we want to show
+    // such aliases in help, we use associated aliased option help text value.
+    // If both alias and aliased option has no text, that proably means option
+    // is ignored.
+    const char *HelpText = getOptionHelpText(Id);
+    if (!HelpText && InferHelpText) {
+      const Option Alias = getOption(Id).getAlias();
+      if (Alias.isValid())
+        HelpText = getOptionHelpText(Alias.getID());
+    }
+
+    if (HelpText) {
       const char *HelpGroup = getOptionHelpGroup(*this, Id);
       const std::string &OptName = getOptionHelpName(*this, Id);
-      GroupedOptionHelp[HelpGroup].push_back({OptName, Text});
+      GroupedOptionHelp[HelpGroup].push_back({OptName, HelpText});
     }
   }
 
