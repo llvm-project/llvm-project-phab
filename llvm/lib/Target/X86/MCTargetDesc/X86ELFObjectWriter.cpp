@@ -10,11 +10,14 @@
 #include "MCTargetDesc/X86FixupKinds.h"
 #include "MCTargetDesc/X86MCTargetDesc.h"
 #include "llvm/BinaryFormat/ELF.h"
+#include "llvm/MC/MCAsmBackend.h"
 #include "llvm/MC/MCAsmInfo.h"
+#include "llvm/MC/MCAssembler.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCELFObjectWriter.h"
 #include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCFixup.h"
+#include "llvm/MC/MCFixupKindInfo.h"
 #include "llvm/MC/MCValue.h"
 #include "llvm/Support/ErrorHandling.h"
 #include <cassert>
@@ -30,8 +33,7 @@ public:
   ~X86ELFObjectWriter() override = default;
 
 protected:
-  unsigned getRelocType(MCContext &Ctx, const MCValue &Target,
-                        const MCFixup &Fixup, bool IsPCRel) const override;
+  unsigned getRelocType(MCAssembler &Asm, const MCReloc &Reloc) const override;
 };
 
 } // end anonymous namespace
@@ -56,6 +58,7 @@ static X86_64RelType getType64(unsigned Kind,
     Modifier = MCSymbolRefExpr::VK_GOT;
     IsPCRel = true;
     return RT64_64;
+  case FK_PCRel_8:
   case FK_Data_8:
     return RT64_64;
   case X86::reloc_signed_4byte:
@@ -283,12 +286,15 @@ static unsigned getRelocType32(MCContext &Ctx,
   }
 }
 
-unsigned X86ELFObjectWriter::getRelocType(MCContext &Ctx, const MCValue &Target,
-                                          const MCFixup &Fixup,
-                                          bool IsPCRel) const {
+unsigned X86ELFObjectWriter::getRelocType(MCAssembler &Asm,
+                                          const MCReloc &Fixup) const {
+  const MCReloc &Target = Fixup;
   MCSymbolRefExpr::VariantKind Modifier = Target.getAccessVariant();
   unsigned Kind = Fixup.getKind();
+  bool IsPCRel = Asm.getBackend().getFixupKindInfo((MCFixupKind)Kind).Flags &
+                 MCFixupKindInfo::FKF_IsPCRel;
   X86_64RelType Type = getType64(Kind, Modifier, IsPCRel);
+  MCContext &Ctx = Asm.getContext();
   if (getEMachine() == ELF::EM_X86_64)
     return getRelocType64(Ctx, Fixup.getLoc(), Modifier, Type, IsPCRel, Kind);
 

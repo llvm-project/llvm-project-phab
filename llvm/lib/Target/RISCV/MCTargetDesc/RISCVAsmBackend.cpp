@@ -32,14 +32,12 @@ public:
       : MCAsmBackend(), OSABI(OSABI), Is64Bit(Is64Bit) {}
   ~RISCVAsmBackend() override {}
 
-  void applyFixup(const MCAssembler &Asm, const MCFixup &Fixup,
-                  const MCValue &Target, MutableArrayRef<char> Data,
-                  uint64_t Value, bool IsResolved) const override;
+  void applyFixup(const MCAssembler &Asm, const MCReloc &Reloc,
+                  MutableArrayRef<char> Data, bool IsResolved) const override;
 
   MCObjectWriter *createObjectWriter(raw_pwrite_stream &OS) const override;
 
-  bool fixupNeedsRelaxation(const MCFixup &Fixup, uint64_t Value,
-                            const MCRelaxableFragment *DF,
+  bool fixupNeedsRelaxation(const MCReloc &Reloc, const MCRelaxableFragment *DF,
                             const MCAsmLayout &Layout) const override {
     return false;
   }
@@ -70,10 +68,8 @@ bool RISCVAsmBackend::writeNopData(uint64_t Count, MCObjectWriter *OW) const {
   return true;
 }
 
-void RISCVAsmBackend::applyFixup(const MCAssembler &Asm, const MCFixup &Fixup,
-                                 const MCValue &Target,
-                                 MutableArrayRef<char> Data, uint64_t Value,
-                                 bool IsResolved) const {
+void RISCVAsmBackend::applyFixup(const MCAssembler &Asm, const MCReloc &Reloc,
+                                 MutableArrayRef<char> Data, bool IsResolved) const {
   return;
 }
 

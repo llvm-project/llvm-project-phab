@@ -27,14 +27,12 @@ class PPCMachObjectWriter : public MCMachObjectTargetWriter {
   bool recordScatteredRelocation(MachObjectWriter *Writer,
                                  const MCAssembler &Asm,
                                  const MCAsmLayout &Layout,
-                                 const MCFragment *Fragment,
-                                 const MCFixup &Fixup, MCValue Target,
-                                 unsigned Log2Size, uint64_t &FixedValue);
+                                 const MCFragment *Fragment, MCReloc &Reloc,
+                                 unsigned Log2Size);
 
   void RecordPPCRelocation(MachObjectWriter *Writer, const MCAssembler &Asm,
                            const MCAsmLayout &Layout,
-                           const MCFragment *Fragment, const MCFixup &Fixup,
-                           MCValue Target, uint64_t &FixedValue);
+                           const MCFragment *Fragment, MCReloc &Reloc);
 
 public:
   PPCMachObjectWriter(bool Is64Bit, uint32_t CPUType, uint32_t CPUSubtype)
@@ -42,13 +40,11 @@ public:
 
   void recordRelocation(MachObjectWriter *Writer, MCAssembler &Asm,
                         const MCAsmLayout &Layout, const MCFragment *Fragment,
-                        const MCFixup &Fixup, MCValue Target,
-                        uint64_t &FixedValue) override {
+                        MCReloc &Reloc) override {
     if (Writer->is64Bit()) {
       report_fatal_error("Relocation emission for MachO/PPC64 unimplemented.");
     } else
-      RecordPPCRelocation(Writer, Asm, Layout, Fragment, Fixup, Target,
-                          FixedValue);
+      RecordPPCRelocation(Writer, Asm, Layout, Fragment, Reloc);
   }
 };
 }
@@ -80,10 +76,10 @@ static unsigned getFixupKindLog2Size(unsigned Kind) {
 
 /// Translates generic PPC fixup kind to Mach-O/PPC relocation type enum.
 /// Outline based on PPCELFObjectWriter::getRelocType().
-static unsigned getRelocType(const MCValue &Target,
-                             const MCFixupKind FixupKind, // from
-                                                          // Fixup.getKind()
+static unsigned getRelocType(const MCReloc &Reloc,
                              const bool IsPCRel) {
+  const MCFixupKind FixupKind = Reloc.getKind();
+  const MCReloc &Target = Reloc;
   const MCSymbolRefExpr::VariantKind Modifier =
       Target.isAbsolute() ? MCSymbolRefExpr::VK_None
                           : Target.getSymA()->getKind();
@@ -175,7 +171,7 @@ makeScatteredRelocationInfo(MachO::any_relocation_info &MRE,
 /// Compute fixup offset (address).
 static uint32_t getFixupOffset(const MCAsmLayout &Layout,
                                const MCFragment *Fragment,
-                               const MCFixup &Fixup) {
+                               const MCReloc &Fixup) {
   uint32_t FixupOffset = Layout.getFragmentOffset(Fragment) + Fixup.getOffset();
   // On Mach-O, ppc_fixup_half16 relocations must refer to the
   // start of the instruction, not the second halfword, as ELF does
@@ -190,13 +186,14 @@ static uint32_t getFixupOffset(const MCAsmLayout &Layout,
 /// and ARMMachObjectWriter::recordScatteredRelocation
 bool PPCMachObjectWriter::recordScatteredRelocation(
     MachObjectWriter *Writer, const MCAssembler &Asm, const MCAsmLayout &Layout,
-    const MCFragment *Fragment, const MCFixup &Fixup, MCValue Target,
-    unsigned Log2Size, uint64_t &FixedValue) {
+    const MCFragment *Fragment, MCReloc &Fixup, unsigned Log2Size) {
   // caller already computes these, can we just pass and reuse?
+  const MCReloc &Target = Fixup;
+  uint64_t &FixedValue = Fixup.getConstant();
   const uint32_t FixupOffset = getFixupOffset(Layout, Fragment, Fixup);
   const MCFixupKind FK = Fixup.getKind();
   const unsigned IsPCRel = Writer->isFixupKindPCRel(Asm, FK);
-  const unsigned Type = getRelocType(Target, FK, IsPCRel);
+  const unsigned Type = getRelocType(Fixup, IsPCRel);
 
   // Is this a local or SECTDIFF relocation entry?
   // SECTDIFF relocation entries have symbol subtractions,
@@ -213,11 +210,10 @@ bool PPCMachObjectWriter::recordScatteredRelocation(
   uint32_t Value = Writer->getSymbolAddress(*A, Layout);
   uint64_t SecAddr = Writer->getSectionAddress(A->getFragment()->getParent());
   FixedValue += SecAddr;
+  FixedValue += Layout.getSymbolOffset(*A);
   uint32_t Value2 = 0;
 
-  if (const MCSymbolRefExpr *B = Target.getSymB()) {
-    const MCSymbol *SB = &B->getSymbol();
-
+  if (const MCSymbol *SB = Target.getSymB()) {
     if (!SB->getFragment())
       report_fatal_error("symbol '" + SB->getName() +
                          "' can not be undefined in a subtraction expression");
@@ -225,6 +221,7 @@ bool PPCMachObjectWriter::recordScatteredRelocation(
     // FIXME: is Type correct? see include/llvm/BinaryFormat/MachO.h
     Value2 = Writer->getSymbolAddress(*SB, Layout);
     FixedValue -= Writer->getSectionAddress(SB->getFragment()->getParent());
+    FixedValue -= Layout.getSymbolOffset(*SB);
   }
   // FIXME: does FixedValue get used??
 
@@ -298,14 +295,17 @@ bool PPCMachObjectWriter::recordScatteredRelocation(
 }
 
 // see PPCELFObjectWriter for a general outline of cases
-void PPCMachObjectWriter::RecordPPCRelocation(
-    MachObjectWriter *Writer, const MCAssembler &Asm, const MCAsmLayout &Layout,
-    const MCFragment *Fragment, const MCFixup &Fixup, MCValue Target,
-    uint64_t &FixedValue) {
+void PPCMachObjectWriter::RecordPPCRelocation(MachObjectWriter *Writer,
+                                              const MCAssembler &Asm,
+                                              const MCAsmLayout &Layout,
+                                              const MCFragment *Fragment,
+                                              MCReloc &Fixup) {
+  const MCReloc &Target = Fixup;
+  uint64_t &FixedValue = Fixup.getConstant();
   const MCFixupKind FK = Fixup.getKind(); // unsigned
   const unsigned Log2Size = getFixupKindLog2Size(FK);
   const bool IsPCRel = Writer->isFixupKindPCRel(Asm, FK);
-  const unsigned RelocType = getRelocType(Target, FK, IsPCRel);
+  const unsigned RelocType = getRelocType(Fixup, IsPCRel);
 
   // If this is a difference or a defined symbol plus an offset, then we need a
   // scattered relocation entry. Differences always require scattered
@@ -314,8 +314,7 @@ void PPCMachObjectWriter::RecordPPCRelocation(
       // Q: are branch targets ever scattered?
       RelocType != MachO::PPC_RELOC_BR24 &&
       RelocType != MachO::PPC_RELOC_BR14) {
-    recordScatteredRelocation(Writer, Asm, Layout, Fragment, Fixup, Target,
-                              Log2Size, FixedValue);
+    recordScatteredRelocation(Writer, Asm, Layout, Fragment, Fixup, Log2Size);
     return;
   }
 

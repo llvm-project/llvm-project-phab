@@ -22,8 +22,7 @@ public:
   ~RISCVELFObjectWriter() override;
 
 protected:
-  unsigned getRelocType(MCContext &Ctx, const MCValue &Target,
-                        const MCFixup &Fixup, bool IsPCRel) const override;
+  unsigned getRelocType(MCAssembler &Asm, const MCReloc &Reloc) const override;
 };
 }
 
@@ -33,10 +32,8 @@ RISCVELFObjectWriter::RISCVELFObjectWriter(uint8_t OSABI, bool Is64Bit)
 
 RISCVELFObjectWriter::~RISCVELFObjectWriter() {}
 
-unsigned RISCVELFObjectWriter::getRelocType(MCContext &Ctx,
-                                            const MCValue &Target,
-                                            const MCFixup &Fixup,
-                                            bool IsPCRel) const {
+unsigned RISCVELFObjectWriter::getRelocType(MCAssembler &Asm,
+                                            const MCReloc &Reloc) const {
   llvm_unreachable("invalid fixup kind!");
 }
 

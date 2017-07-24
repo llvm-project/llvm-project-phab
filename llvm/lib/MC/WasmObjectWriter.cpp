@@ -202,8 +202,8 @@ class WasmObjectWriter : public MCObjectWriter {
 
   // TargetObjectWriter wrappers.
   bool is64Bit() const { return TargetObjectWriter->is64Bit(); }
-  unsigned getRelocType(const MCValue &Target, const MCFixup &Fixup) const {
-    return TargetObjectWriter->getRelocType(Target, Fixup);
+  unsigned getRelocType(const MCReloc &Reloc) const {
+    return TargetObjectWriter->getRelocType(Reloc);
   }
 
   void startSection(SectionBookkeeping &Section, unsigned SectionId,
@@ -231,8 +231,7 @@ private:
   void writeHeader(const MCAssembler &Asm);
 
   void recordRelocation(MCAssembler &Asm, const MCAsmLayout &Layout,
-                        const MCFragment *Fragment, const MCFixup &Fixup,
-                        MCValue Target, uint64_t &FixedValue) override;
+                        const MCFragment *Fragment, MCReloc &Reloc) override;
 
   void executePostLayoutBinding(MCAssembler &Asm,
                                 const MCAsmLayout &Layout) override;
@@ -351,20 +350,17 @@ void WasmObjectWriter::executePostLayoutBinding(MCAssembler &Asm,
 void WasmObjectWriter::recordRelocation(MCAssembler &Asm,
                                         const MCAsmLayout &Layout,
                                         const MCFragment *Fragment,
-                                        const MCFixup &Fixup, MCValue Target,
-                                        uint64_t &FixedValue) {
-  MCAsmBackend &Backend = Asm.getBackend();
-  bool IsPCRel = Backend.getFixupKindInfo(Fixup.getKind()).Flags &
-                 MCFixupKindInfo::FKF_IsPCRel;
+                                        MCReloc &Fixup) {
   const auto &FixupSection = cast<MCSectionWasm>(*Fragment->getParent());
+  MCReloc &Target = Fixup;
+  uint64_t &FixedValue = Fixup.getConstant();
   uint64_t C = Target.getConstant();
   uint64_t FixupOffset = Layout.getFragmentOffset(Fragment) + Fixup.getOffset();
   MCContext &Ctx = Asm.getContext();
+  bool IsPCRel = Asm.getBackend().getFixupKindInfo(Fixup.getKind()).Flags &
+                 MCFixupKindInfo::FKF_IsPCRel;
 
-  if (const MCSymbolRefExpr *RefB = Target.getSymB()) {
-    assert(RefB->getKind() == MCSymbolRefExpr::VK_None &&
-           "Should not have constructed this");
-
+  if (const MCSymbol *SymBP = Fixup.getSymB()) {
     // Let A, B and C being the components of Target and R be the location of
     // the fixup. If the fixup is not pcrel, we want to compute (A - B + C).
     // If it is pcrel, we want to compute (A - B + C - R).
@@ -379,7 +375,7 @@ void WasmObjectWriter::recordRelocation(MCAssembler &Asm,
       return;
     }
 
-    const auto &SymB = cast<MCSymbolWasm>(RefB->getSymbol());
+    const MCSymbol &SymB = *SymBP;
 
     if (SymB.isUndefined()) {
       Ctx.reportError(Fixup.getLoc(),
@@ -424,7 +420,7 @@ void WasmObjectWriter::recordRelocation(MCAssembler &Asm,
   assert(!IsPCRel);
   assert(SymA);
 
-  unsigned Type = getRelocType(Target, Fixup);
+  unsigned Type = getRelocType(Fixup);
 
   WasmRelocationEntry Rec(FixupOffset, SymA, C, Type, &FixupSection);
   DEBUG(dbgs() << "WasmReloc: " << Rec << "\n");
