@@ -121,6 +121,7 @@ class CallAnalyzer : public InstVisitor<CallAnalyzer, bool> {
   unsigned NumInstructions, NumVectorInstructions;
   int FiftyPercentVectorBonus, TenPercentVectorBonus;
   int VectorBonus;
+  bool DoNotApplyBonuses;
 
   /// While we walk the potentially-inlined instructions, we build up and
   /// maintain a mapping of simplified values specific to this callsite. The
@@ -236,10 +237,11 @@ public:
         ContainsNoDuplicateCall(false), HasReturn(false), HasIndirectBr(false),
         HasFrameEscape(false), AllocatedSize(0), NumInstructions(0),
         NumVectorInstructions(0), FiftyPercentVectorBonus(0),
-        TenPercentVectorBonus(0), VectorBonus(0), NumConstantArgs(0),
-        NumConstantOffsetPtrArgs(0), NumAllocaArgs(0), NumConstantPtrCmps(0),
-        NumConstantPtrDiffs(0), NumInstructionsSimplified(0),
-        SROACostSavings(0), SROACostSavingsLost(0) {}
+        TenPercentVectorBonus(0), VectorBonus(0), DoNotApplyBonuses(false),
+        NumConstantArgs(0), NumConstantOffsetPtrArgs(0), NumAllocaArgs(0),
+        NumConstantPtrCmps(0), NumConstantPtrDiffs(0),
+        NumInstructionsSimplified(0), SROACostSavings(0),
+        SROACostSavingsLost(0) {}
 
   bool analyzeCall(CallSite CS);
 
@@ -707,6 +709,7 @@ void CallAnalyzer::updateThreshold(CallSite CS, Function &Callee) {
           Threshold = Params.HotCallSiteThreshold.getValue();
         } else if (isColdCallSite(CS, CallerBFI)) {
           DEBUG(dbgs() << "Cold callsite.\n");
+          DoNotApplyBonuses = true;
           Threshold = MinIfValid(Threshold, Params.ColdCallSiteThreshold);
         }
       } else {
@@ -1296,14 +1299,18 @@ bool CallAnalyzer::analyzeCall(CallSite CS) {
   // Update the threshold based on callsite properties
   updateThreshold(CS, F);
 
-  FiftyPercentVectorBonus = 3 * Threshold / 2;
-  TenPercentVectorBonus = 3 * Threshold / 4;
+  if (!DoNotApplyBonuses) {
+    FiftyPercentVectorBonus = 3 * Threshold / 2;
+    TenPercentVectorBonus = 3 * Threshold / 4;
+  }
 
   // Track whether the post-inlining function would have more than one basic
   // block. A single basic block is often intended for inlining. Balloon the
   // threshold by 50% until we pass the single-BB phase.
   bool SingleBB = true;
-  int SingleBBBonus = Threshold / 2;
+  int SingleBBBonus = 0;
+  if (!DoNotApplyBonuses)
+    SingleBBBonus = Threshold / 2;
 
   // Speculatively apply all possible bonuses to Threshold. If cost exceeds
   // this Threshold any time, and cost cannot decrease, we can stop processing
@@ -1318,7 +1325,7 @@ bool CallAnalyzer::analyzeCall(CallSite CS) {
   // the cost of inlining it drops dramatically.
   bool OnlyOneCallAndLocalLinkage =
       F.hasLocalLinkage() && F.hasOneUse() && &F == CS.getCalledFunction();
-  if (OnlyOneCallAndLocalLinkage)
+  if (OnlyOneCallAndLocalLinkage && !DoNotApplyBonuses)
     Cost -= InlineConstants::LastCallToStaticBonus;
 
   // If this function uses the coldcc calling convention, prefer not to inline
