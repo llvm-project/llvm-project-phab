@@ -376,6 +376,7 @@ def : ProcessorModel<"core2", SandyBridgeModel, [
   FeatureSlowBTMem,
   FeatureLAHFSAHF
 ]>;
+
 def : ProcessorModel<"penryn", SandyBridgeModel, [
   FeatureX87,
   FeatureSlowUAMem16,
@@ -387,68 +388,66 @@ def : ProcessorModel<"penryn", SandyBridgeModel, [
   FeatureLAHFSAHF
 ]>;
 
-// Atom CPUs.
-class BonnellProc<string Name> : ProcessorModel<Name, AtomModel, [
-  ProcIntelAtom,
+class ProcessorFeatures<list<SubtargetFeature> Inherited,
+                        list<SubtargetFeature> NewFeatures> {
+  list<SubtargetFeature> Value = !listconcat(Inherited, NewFeatures);
+}
+
+class ProcModel<string Name, SchedMachineModel Model,
+                list<SubtargetFeature> ProcFeatures,
+                list<SubtargetFeature> OtherFeatures> :
+  ProcessorModel<Name, Model, !listconcat(ProcFeatures, OtherFeatures)>;
+
+def AtomFeatures : ProcessorFeatures<[], [
   FeatureX87,
-  FeatureSlowUAMem16,
   FeatureMMX,
-  FeatureSSSE3,
   FeatureFXSR,
   FeatureCMPXCHG16B,
   FeatureMOVBE,
+  FeatureLAHFSAHF
+]>;
+
+def AtomPlusFeatures : ProcessorFeatures<AtomFeatures.Value, [
+  FeatureSSE42,
+  FeaturePOPCNT,
+  FeaturePCLMUL,
+  FeatureAES,
+  FeatureCallRegIndirect,
+  FeaturePRFCHW,
+  FeatureSlowLEA,
+  FeatureSlowIncDec,
+  FeatureSlowBTMem
+]>;
+
+// Atom CPUs.
+class BonnellProc<string Name> : ProcModel<Name, AtomModel,
+					   AtomFeatures.Value, [
+  ProcIntelAtom,
+  FeatureSlowUAMem16,
+  FeatureSSSE3,
   FeatureSlowBTMem,
   FeatureLEAForSP,
   FeatureSlowDivide32,
   FeatureSlowDivide64,
   FeatureCallRegIndirect,
   FeatureLEAUsesAG,
-  FeaturePadShortFunctions,
-  FeatureLAHFSAHF
+  FeaturePadShortFunctions
 ]>;
 def : BonnellProc<"bonnell">;
 def : BonnellProc<"atom">; // Pin the generic name to the baseline.
 
-class SilvermontProc<string Name> : ProcessorModel<Name, SLMModel, [
+class SilvermontProc<string Name> : ProcModel<Name, SLMModel,
+                                              AtomPlusFeatures.Value,[
   ProcIntelSLM,
-  FeatureX87,
-  FeatureMMX,
-  FeatureSSE42,
-  FeatureFXSR,
-  FeatureCMPXCHG16B,
-  FeatureMOVBE,
-  FeaturePOPCNT,
-  FeaturePCLMUL,
-  FeatureAES,
   FeatureSlowDivide64,
-  FeatureCallRegIndirect,
-  FeaturePRFCHW,
-  FeatureSlowLEA,
-  FeatureSlowIncDec,
-  FeatureSlowBTMem,
-  FeatureSlowPMULLD,
-  FeatureLAHFSAHF
+  FeatureSlowPMULLD
 ]>;
 def : SilvermontProc<"silvermont">;
 def : SilvermontProc<"slm">; // Legacy alias.
 
-class GoldmontProc<string Name> : ProcessorModel<Name, SLMModel, [
+class GoldmontProc<string Name> : ProcModel<Name, SLMModel,
+                                            AtomPlusFeatures.Value,[
   ProcIntelGLM,
-  FeatureX87,
-  FeatureMMX,
-  FeatureSSE42,
-  FeatureFXSR,
-  FeatureCMPXCHG16B,
-  FeatureMOVBE,
-  FeaturePOPCNT,
-  FeaturePCLMUL,
-  FeatureAES,
-  FeaturePRFCHW,
-  FeatureCallRegIndirect,
-  FeatureSlowLEA,
-  FeatureSlowIncDec,
-  FeatureSlowBTMem,
-  FeatureLAHFSAHF,
   FeatureMPX,
   FeatureSHA,
   FeatureRDRAND,
@@ -491,15 +490,7 @@ class WestmereProc<string Name> : ProcessorModel<Name, SandyBridgeModel, [
 ]>;
 def : WestmereProc<"westmere">;
 
-class ProcessorFeatures<list<SubtargetFeature> Inherited,
-                        list<SubtargetFeature> NewFeatures> {
-  list<SubtargetFeature> Value = !listconcat(Inherited, NewFeatures);
-}
 
-class ProcModel<string Name, SchedMachineModel Model,
-                list<SubtargetFeature> ProcFeatures,
-                list<SubtargetFeature> OtherFeatures> :
-  ProcessorModel<Name, Model, !listconcat(ProcFeatures, OtherFeatures)>;
 
 // SSE is not listed here since llvm treats AVX as a reimplementation of SSE,
 // rather than a superset.
