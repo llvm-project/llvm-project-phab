@@ -67,11 +67,8 @@ if.else:
   ret i32 %sub
 }
 
-; If the sub/rsb instruction is predicated, we can't use the flags.
-; <rdar://problem/12263428>
 ; Test case from MultiSource/Benchmarks/Ptrdist/bc/number.s
 ; CHECK: bc_raise
-; CHECK: rsbeq
 ; CHECK: cmp
 define i32 @bc_raise() nounwind ssp {
 entry:
