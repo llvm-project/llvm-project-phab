@@ -726,7 +726,7 @@ void LinkerDriver::readConfigs(opt::InputArgList &Args) {
 
   if (auto *Arg = Args.getLastArg(OPT_symbol_ordering_file))
     if (Optional<MemoryBufferRef> Buffer = readFile(Arg->getValue()))
-      Config->SymbolOrderingFile = getLines(*Buffer);
+      Config->SymbolOrderingFile.Symbols = getLines(*Buffer);
 
   // If --retain-symbol-file is used, we'll keep only the symbols listed in
   // the file and discard all others.

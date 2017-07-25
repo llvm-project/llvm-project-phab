@@ -286,6 +286,29 @@ static void sortSections(InputSection **Begin, InputSection **End,
     std::stable_sort(Begin, End, getComparator(K));
 }
 
+static void sortByOrder(MutableArrayRef<InputSection *> In,
+                        std::function<int(InputSectionBase *S)> Order) {
+  typedef std::pair<unsigned, InputSection *> Pair;
+  auto Comp = [](const Pair &A, const Pair &B) { return A.first < B.first; };
+
+  std::vector<Pair> V;
+  for (InputSection *S : In)
+    V.push_back({Order(S), S});
+  std::stable_sort(V.begin(), V.end(), Comp);
+
+  for (size_t I = 0; I < V.size(); ++I)
+    In[I] = V[I].second;
+}
+
+static void sortBySymbolsOrder(InputSection **Begin, InputSection **End) {
+  if (Config->SymbolOrderingFile.SectionsOrder.empty())
+    return;
+  MutableArrayRef<InputSection *> In(Begin, End - Begin);
+  sortByOrder(In, [&](InputSectionBase *S) {
+    return Config->SymbolOrderingFile.SectionsOrder.lookup(S);
+  });
+}
+
 // Compute and remember which sections the InputSectionDescription matches.
 std::vector<InputSection *>
 LinkerScript::computeInputSections(const InputSectionDescription *Cmd) {
@@ -331,8 +354,15 @@ LinkerScript::computeInputSections(const InputSectionDescription *Cmd) {
     //    --sort-section is handled as an inner SORT command.
     // 3. If one SORT command is given, and if it is SORT_NONE, don't sort.
     // 4. If no SORT command is given, sort according to --sort-section.
+    // 5. If no SORT commands are given and --sort-section is not specified,
+    //    apply sorting provided by --symbol-ordering-file if any exist.
     InputSection **Begin = Ret.data() + SizeBefore;
     InputSection **End = Ret.data() + Ret.size();
+    if (Pat.SortOuter == SortSectionPolicy::Default &&
+        Config->SortSection == SortSectionPolicy::Default) {
+      sortBySymbolsOrder(Begin, End);
+      continue;
+    }
     if (Pat.SortOuter != SortSectionPolicy::None) {
       if (Pat.SortInner == SortSectionPolicy::Default)
         sortSections(Begin, End, Config->SortSection);
@@ -927,18 +957,8 @@ OutputSectionCommand *LinkerScript::getCmd(OutputSection *Sec) const {
 }
 
 void OutputSectionCommand::sort(std::function<int(InputSectionBase *S)> Order) {
-  typedef std::pair<unsigned, InputSection *> Pair;
-  auto Comp = [](const Pair &A, const Pair &B) { return A.first < B.first; };
-
-  std::vector<Pair> V;
   assert(Commands.size() == 1);
-  auto *ISD = cast<InputSectionDescription>(Commands[0]);
-  for (InputSection *S : ISD->Sections)
-    V.push_back({Order(S), S});
-  std::stable_sort(V.begin(), V.end(), Comp);
-  ISD->Sections.clear();
-  for (Pair &P : V)
-    ISD->Sections.push_back(P.second);
+  sortByOrder(cast<InputSectionDescription>(Commands[0])->Sections, Order);
 }
 
 // Returns true if S matches /Filename.?\.o$/.

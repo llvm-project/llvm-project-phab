@@ -172,6 +172,9 @@ template <class ELFT> void Writer<ELFT>::run() {
   if (!Config->Relocatable)
     addReservedSymbols();
 
+  if (!Config->SymbolOrderingFile.Symbols.empty())
+    scanSectionOrderFile<ELFT>();
+
   // Create output sections.
   if (Script->Opt.HasSections) {
     // If linker script contains SECTIONS commands, let it create sections.
@@ -794,6 +797,27 @@ template <class ELFT> void Writer<ELFT>::addRelIpltSymbols() {
   addOptionalRegular<ELFT>(S, In<ELFT>::RelaIplt, -1, STV_HIDDEN, STB_WEAK);
 }
 
+template <class ELFT> static void scanSectionOrderFile() {
+  // Build a map from symbols to their priorities. Symbols that didn't
+  // appear in the symbol ordering file have the lowest priority 0.
+  // All explicitly mentioned symbols have negative (higher) priorities.
+  DenseMap<StringRef, int> SymbolOrder;
+  int Priority = -Config->SymbolOrderingFile.Symbols.size();
+  for (StringRef S : Config->SymbolOrderingFile.Symbols)
+    SymbolOrder.insert({S, Priority++});
+
+  // Build a map from sections to their priorities.
+  for (elf::ObjectFile<ELFT> *File : Symtab<ELFT>::X->getObjectFiles()) {
+    for (SymbolBody *Body : File->getSymbols()) {
+      auto *D = dyn_cast<DefinedRegular>(Body);
+      if (!D || !D->Section)
+        continue;
+      int &Priority = Config->SymbolOrderingFile.SectionsOrder[D->Section];
+      Priority = std::min(Priority, SymbolOrder.lookup(D->getName()));
+    }
+  }
+}
+
 // The linker is expected to define some symbols depending on
 // the linking result. This function defines such symbols.
 template <class ELFT> void Writer<ELFT>::addReservedSymbols() {
@@ -880,33 +904,14 @@ static void sortCtorsDtors(OutputSectionCommand *Cmd) {
 
 // Sort input sections using the list provided by --symbol-ordering-file.
 template <class ELFT> static void sortBySymbolsOrder() {
-  if (Config->SymbolOrderingFile.empty())
+  if (Config->SymbolOrderingFile.SectionsOrder.empty())
     return;
-
-  // Build a map from symbols to their priorities. Symbols that didn't
-  // appear in the symbol ordering file have the lowest priority 0.
-  // All explicitly mentioned symbols have negative (higher) priorities.
-  DenseMap<StringRef, int> SymbolOrder;
-  int Priority = -Config->SymbolOrderingFile.size();
-  for (StringRef S : Config->SymbolOrderingFile)
-    SymbolOrder.insert({S, Priority++});
-
-  // Build a map from sections to their priorities.
-  DenseMap<SectionBase *, int> SectionOrder;
-  for (elf::ObjectFile<ELFT> *File : Symtab<ELFT>::X->getObjectFiles()) {
-    for (SymbolBody *Body : File->getSymbols()) {
-      auto *D = dyn_cast<DefinedRegular>(Body);
-      if (!D || !D->Section)
-        continue;
-      int &Priority = SectionOrder[D->Section];
-      Priority = std::min(Priority, SymbolOrder.lookup(D->getName()));
-    }
-  }
-
   // Sort sections by priority.
   for (BaseCommand *Base : Script->Opt.Commands)
     if (auto *Cmd = dyn_cast<OutputSectionCommand>(Base))
-      Cmd->sort([&](InputSectionBase *S) { return SectionOrder.lookup(S); });
+      Cmd->sort([&](InputSectionBase *S) {
+        return Config->SymbolOrderingFile.SectionsOrder.lookup(S);
+      });
 }
 
 template <class ELFT>
