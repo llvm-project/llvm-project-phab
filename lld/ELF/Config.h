@@ -24,6 +24,7 @@ namespace lld {
 namespace elf {
 
 class InputFile;
+class SectionBase;
 struct Symbol;
 
 enum ELFKind {
@@ -73,6 +74,13 @@ struct RenamedSymbol {
   uint8_t OriginalBinding;
 };
 
+// For handling --symbol-ordering-file.
+struct SymbolOrdering {
+  // A map from section to it's priority.
+  llvm::DenseMap<SectionBase *, int> SectionsOrder;
+  std::vector<llvm::StringRef> Symbols;
+};
+
 // This struct contains the global configuration for the linker.
 // Most fields are direct mapping from the command line options
 // and such fields have the same name as the corresponding options.
@@ -102,7 +110,6 @@ struct Configuration {
   std::vector<llvm::StringRef> AuxiliaryList;
   std::vector<llvm::StringRef> FilterList;
   std::vector<llvm::StringRef> SearchPaths;
-  std::vector<llvm::StringRef> SymbolOrderingFile;
   std::vector<llvm::StringRef> Undefined;
   std::vector<SymbolVersion> VersionScriptGlobals;
   std::vector<SymbolVersion> VersionScriptLocals;
@@ -162,6 +169,7 @@ struct Configuration {
   DiscardPolicy Discard;
   SortSectionPolicy SortSection;
   StripPolicy Strip;
+  SymbolOrdering SymbolOrderingFile;
   UnresolvedPolicy UnresolvedSymbols;
   Target2Policy Target2;
   BuildIdKind BuildId = BuildIdKind::None;
