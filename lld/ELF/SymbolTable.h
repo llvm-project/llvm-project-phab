@@ -33,41 +33,13 @@ struct Symbol;
 // to replace the lazy symbol. The logic is implemented in the
 // add*() functions, which are called by input files as they are parsed. There
 // is one add* function per symbol type.
-template <class ELFT> class SymbolTable {
-  typedef typename ELFT::Sym Elf_Sym;
-
+class SymbolTableBase {
 public:
-  void addFile(InputFile *File);
-  void addCombinedLTOObject();
-  void addSymbolAlias(StringRef Alias, StringRef Name);
-  void addSymbolWrap(StringRef Name);
   void applySymbolRenames();
 
   ArrayRef<Symbol *> getSymbols() const { return SymVector; }
-  ArrayRef<ObjectFile<ELFT> *> getObjectFiles() const { return ObjectFiles; }
   ArrayRef<BinaryFile *> getBinaryFiles() const { return BinaryFiles; }
-  ArrayRef<SharedFile<ELFT> *> getSharedFiles() const { return SharedFiles; }
 
-  DefinedRegular *addAbsolute(StringRef Name,
-                              uint8_t Visibility = llvm::ELF::STV_HIDDEN,
-                              uint8_t Binding = llvm::ELF::STB_GLOBAL);
-  DefinedRegular *addIgnored(StringRef Name,
-                             uint8_t Visibility = llvm::ELF::STV_HIDDEN);
-
-  Symbol *addUndefined(StringRef Name);
-  Symbol *addUndefined(StringRef Name, bool IsLocal, uint8_t Binding,
-                       uint8_t StOther, uint8_t Type, bool CanOmitFromDynSym,
-                       InputFile *File);
-
-  Symbol *addRegular(StringRef Name, uint8_t StOther, uint8_t Type,
-                     uint64_t Value, uint64_t Size, uint8_t Binding,
-                     SectionBase *Section, InputFile *File);
-
-  void addShared(SharedFile<ELFT> *F, StringRef Name, const Elf_Sym &Sym,
-                 const typename ELFT::Verdef *Verdef);
-
-  Symbol *addLazyArchive(ArchiveFile *F, const llvm::object::Archive::Symbol S);
-  void addLazyObject(StringRef Name, LazyObjectFile &Obj);
   Symbol *addBitcode(StringRef Name, uint8_t Binding, uint8_t StOther,
                      uint8_t Type, bool CanOmitFromDynSym, BitcodeFile *File);
 
@@ -80,8 +52,6 @@ public:
                                    uint8_t Visibility, bool CanOmitFromDynSym,
                                    InputFile *File);
 
-  void scanUndefinedFlags();
-  void scanShlibUndefined();
   void scanVersionScript();
 
   SymbolBody *find(StringRef Name);
@@ -89,7 +59,7 @@ public:
 
   void trace(StringRef Name);
 
-private:
+protected:
   std::vector<SymbolBody *> findByVersion(SymbolVersion Ver);
   std::vector<SymbolBody *> findAllByVersion(SymbolVersion Ver);
 
@@ -120,8 +90,6 @@ private:
   // is used to uniquify them.
   llvm::DenseSet<llvm::CachedHashStringRef> ComdatGroups;
 
-  std::vector<ObjectFile<ELFT> *> ObjectFiles;
-  std::vector<SharedFile<ELFT> *> SharedFiles;
   std::vector<BitcodeFile *> BitcodeFiles;
   std::vector<BinaryFile *> BinaryFiles;
 
@@ -136,6 +104,47 @@ private:
 
   // For LTO.
   std::unique_ptr<BitcodeCompiler> LTO;
+};
+
+template <class ELFT> class SymbolTable : public SymbolTableBase {
+  typedef typename ELFT::Sym Elf_Sym;
+
+public:
+  void addFile(InputFile *File);
+  void addCombinedLTOObject();
+  void addSymbolAlias(StringRef Alias, StringRef Name);
+  void addSymbolWrap(StringRef Name);
+
+  ArrayRef<ObjectFile<ELFT> *> getObjectFiles() const { return ObjectFiles; }
+  ArrayRef<SharedFile<ELFT> *> getSharedFiles() const { return SharedFiles; }
+
+  DefinedRegular *addAbsolute(StringRef Name,
+                              uint8_t Visibility = llvm::ELF::STV_HIDDEN,
+                              uint8_t Binding = llvm::ELF::STB_GLOBAL);
+  DefinedRegular *addIgnored(StringRef Name,
+                             uint8_t Visibility = llvm::ELF::STV_HIDDEN);
+
+  Symbol *addUndefined(StringRef Name);
+  Symbol *addUndefined(StringRef Name, bool IsLocal, uint8_t Binding,
+                       uint8_t StOther, uint8_t Type, bool CanOmitFromDynSym,
+                       InputFile *File);
+
+  Symbol *addRegular(StringRef Name, uint8_t StOther, uint8_t Type,
+                     uint64_t Value, uint64_t Size, uint8_t Binding,
+                     SectionBase *Section, InputFile *File);
+
+  void addShared(SharedFile<ELFT> *F, StringRef Name, const Elf_Sym &Sym,
+                 const typename ELFT::Verdef *Verdef);
+
+  Symbol *addLazyArchive(ArchiveFile *F, const llvm::object::Archive::Symbol S);
+  void addLazyObject(StringRef Name, LazyObjectFile &Obj);
+
+  void scanUndefinedFlags();
+  void scanShlibUndefined();
+
+private:
+  std::vector<ObjectFile<ELFT> *> ObjectFiles;
+  std::vector<SharedFile<ELFT> *> SharedFiles;
 };
 
 template <class ELFT> struct Symtab { static SymbolTable<ELFT> *X; };

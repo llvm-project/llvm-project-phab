@@ -150,7 +150,7 @@ DefinedRegular *SymbolTable<ELFT>::addIgnored(StringRef Name,
 
 // Set a flag for --trace-symbol so that we can print out a log message
 // if a new symbol with the same name is inserted into the symbol table.
-template <class ELFT> void SymbolTable<ELFT>::trace(StringRef Name) {
+void SymbolTableBase::trace(StringRef Name) {
   Symtab.insert({CachedHashStringRef(Name), {-1, true}});
 }
 
@@ -191,7 +191,7 @@ void SymbolTable<ELFT>::addSymbolAlias(StringRef Alias, StringRef Name) {
 // before LTO in addSymbolWrap() and addSymbolAlias() to have a chance to inform
 // LTO (if LTO is running) not to include these symbols in IPO. Now that the
 // symbols are finalized, we can perform the replacement.
-template <class ELFT> void SymbolTable<ELFT>::applySymbolRenames() {
+void SymbolTableBase::applySymbolRenames() {
   for (auto &KV : Config->RenamedSymbols) {
     Symbol *Dst = KV.first;
     Symbol *Src = KV.second.Target;
@@ -209,8 +209,7 @@ static uint8_t getMinVisibility(uint8_t VA, uint8_t VB) {
 }
 
 // Find an existing symbol or create and insert a new one.
-template <class ELFT>
-std::pair<Symbol *, bool> SymbolTable<ELFT>::insert(StringRef Name) {
+std::pair<Symbol *, bool> SymbolTableBase::insert(StringRef Name) {
   // <name>@@<version> means the symbol is the default version. In that
   // case <name>@@<version> will be used to resolve references to <name>.
   size_t Pos = Name.find("@@");
@@ -246,10 +245,10 @@ std::pair<Symbol *, bool> SymbolTable<ELFT>::insert(StringRef Name) {
 
 // Find an existing symbol or create and insert a new one, then apply the given
 // attributes.
-template <class ELFT>
-std::pair<Symbol *, bool>
-SymbolTable<ELFT>::insert(StringRef Name, uint8_t Type, uint8_t Visibility,
-                          bool CanOmitFromDynSym, InputFile *File) {
+std::pair<Symbol *, bool> SymbolTableBase::insert(StringRef Name, uint8_t Type,
+                                                  uint8_t Visibility,
+                                                  bool CanOmitFromDynSym,
+                                                  InputFile *File) {
   bool IsUsedInRegularObj = !File || File->kind() == InputFile::ObjectKind;
   Symbol *S;
   bool WasInserted;
@@ -380,11 +379,10 @@ static int compareDefinedNonCommon(Symbol *S, bool WasInserted, uint8_t Binding,
   return 0;
 }
 
-template <class ELFT>
-Symbol *SymbolTable<ELFT>::addCommon(StringRef N, uint64_t Size,
-                                     uint32_t Alignment, uint8_t Binding,
-                                     uint8_t StOther, uint8_t Type,
-                                     InputFile *File) {
+Symbol *SymbolTableBase::addCommon(StringRef N, uint64_t Size,
+                                   uint32_t Alignment, uint8_t Binding,
+                                   uint8_t StOther, uint8_t Type,
+                                   InputFile *File) {
   Symbol *S;
   bool WasInserted;
   std::tie(S, WasInserted) = insert(N, Type, getVisibility(StOther),
@@ -503,10 +501,9 @@ void SymbolTable<ELFT>::addShared(SharedFile<ELFT> *File, StringRef Name,
   }
 }
 
-template <class ELFT>
-Symbol *SymbolTable<ELFT>::addBitcode(StringRef Name, uint8_t Binding,
-                                      uint8_t StOther, uint8_t Type,
-                                      bool CanOmitFromDynSym, BitcodeFile *F) {
+Symbol *SymbolTableBase::addBitcode(StringRef Name, uint8_t Binding,
+                                    uint8_t StOther, uint8_t Type,
+                                    bool CanOmitFromDynSym, BitcodeFile *F) {
   Symbol *S;
   bool WasInserted;
   std::tie(S, WasInserted) =
@@ -521,7 +518,7 @@ Symbol *SymbolTable<ELFT>::addBitcode(StringRef Name, uint8_t Binding,
   return S;
 }
 
-template <class ELFT> SymbolBody *SymbolTable<ELFT>::find(StringRef Name) {
+SymbolBody *SymbolTableBase::find(StringRef Name) {
   auto It = Symtab.find(CachedHashStringRef(Name));
   if (It == Symtab.end())
     return nullptr;
@@ -531,8 +528,7 @@ template <class ELFT> SymbolBody *SymbolTable<ELFT>::find(StringRef Name) {
   return SymVector[V.Idx]->body();
 }
 
-template <class ELFT>
-SymbolBody *SymbolTable<ELFT>::findInCurrentDSO(StringRef Name) {
+SymbolBody *SymbolTableBase::findInCurrentDSO(StringRef Name) {
   if (SymbolBody *S = find(Name))
     if (S->isInCurrentDSO())
       return S;
@@ -634,8 +630,7 @@ template <class ELFT> void SymbolTable<ELFT>::scanShlibUndefined() {
 // other than trying to match a pattern against all demangled symbols.
 // So, if "extern C++" feature is used, we need to demangle all known
 // symbols.
-template <class ELFT>
-StringMap<std::vector<SymbolBody *>> &SymbolTable<ELFT>::getDemangledSyms() {
+StringMap<std::vector<SymbolBody *>> &SymbolTableBase::getDemangledSyms() {
   if (!DemangledSyms) {
     DemangledSyms.emplace();
     for (Symbol *Sym : SymVector) {
@@ -651,8 +646,7 @@ StringMap<std::vector<SymbolBody *>> &SymbolTable<ELFT>::getDemangledSyms() {
   return *DemangledSyms;
 }
 
-template <class ELFT>
-std::vector<SymbolBody *> SymbolTable<ELFT>::findByVersion(SymbolVersion Ver) {
+std::vector<SymbolBody *> SymbolTableBase::findByVersion(SymbolVersion Ver) {
   if (Ver.IsExternCpp)
     return getDemangledSyms().lookup(Ver.Name);
   if (SymbolBody *B = find(Ver.Name))
@@ -661,9 +655,7 @@ std::vector<SymbolBody *> SymbolTable<ELFT>::findByVersion(SymbolVersion Ver) {
   return {};
 }
 
-template <class ELFT>
-std::vector<SymbolBody *>
-SymbolTable<ELFT>::findAllByVersion(SymbolVersion Ver) {
+std::vector<SymbolBody *> SymbolTableBase::findAllByVersion(SymbolVersion Ver) {
   std::vector<SymbolBody *> Res;
   StringMatcher M(Ver.Name);
 
@@ -685,7 +677,7 @@ SymbolTable<ELFT>::findAllByVersion(SymbolVersion Ver) {
 // If there's only one anonymous version definition in a version
 // script file, the script does not actually define any symbol version,
 // but just specifies symbols visibilities.
-template <class ELFT> void SymbolTable<ELFT>::handleAnonymousVersion() {
+void SymbolTableBase::handleAnonymousVersion() {
   for (SymbolVersion &Ver : Config->VersionScriptGlobals)
     assignExactVersion(Ver, VER_NDX_GLOBAL, "global");
   for (SymbolVersion &Ver : Config->VersionScriptGlobals)
@@ -698,10 +690,8 @@ template <class ELFT> void SymbolTable<ELFT>::handleAnonymousVersion() {
 
 // Set symbol versions to symbols. This function handles patterns
 // containing no wildcard characters.
-template <class ELFT>
-void SymbolTable<ELFT>::assignExactVersion(SymbolVersion Ver,
-                                           uint16_t VersionId,
-                                           StringRef VersionName) {
+void SymbolTableBase::assignExactVersion(SymbolVersion Ver, uint16_t VersionId,
+                                         StringRef VersionName) {
   if (Ver.HasWildcard)
     return;
 
@@ -730,9 +720,8 @@ void SymbolTable<ELFT>::assignExactVersion(SymbolVersion Ver,
   }
 }
 
-template <class ELFT>
-void SymbolTable<ELFT>::assignWildcardVersion(SymbolVersion Ver,
-                                              uint16_t VersionId) {
+void SymbolTableBase::assignWildcardVersion(SymbolVersion Ver,
+                                            uint16_t VersionId) {
   if (!Ver.HasWildcard)
     return;
 
@@ -746,7 +735,7 @@ void SymbolTable<ELFT>::assignWildcardVersion(SymbolVersion Ver,
 
 // This function processes version scripts by updating VersionId
 // member of symbols.
-template <class ELFT> void SymbolTable<ELFT>::scanVersionScript() {
+void SymbolTableBase::scanVersionScript() {
   // Handle edge cases first.
   handleAnonymousVersion();
 
