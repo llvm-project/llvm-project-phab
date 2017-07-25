@@ -185,6 +185,22 @@ static cl::opt<bool> PollyPrintInstructions(
     "polly-print-instructions", cl::desc("Output instructions per ScopStmt"),
     cl::Hidden, cl::Optional, cl::init(false), cl::cat(PollyCategory));
 
+static cl::opt<bool> ComputeBounds(
+    "polly-ast-compute-bounds",
+    cl::desc("Compute bounds on isl_asl_exprs to determine their type"),
+    cl::init(true), cl::Hidden, cl::Optional, cl::cat(PollyCategory));
+
+static cl::opt<bool> ApproximateBounds(
+    "polly-ast-approximate-bounds",
+    cl::desc("Approximate compute bounds to speed up computation"),
+    cl::init(false), cl::Hidden, cl::Optional, cl::cat(PollyCategory));
+
+static cl::opt<int> MaximumNativeType(
+    "polly-ast-maximum-native-type",
+    cl::desc("Maximum native type, try to keep types smaller than this"),
+    cl::init(64), cl::Hidden, cl::Optional, cl::cat(PollyCategory));
+
+
 //===----------------------------------------------------------------------===//
 
 // Create a sequence of two schedules. Either argument may be null and is
@@ -3572,6 +3588,11 @@ Scop::Scop(Region &R, ScalarEvolution &ScalarEvolution, LoopInfo &LI,
       ID(getNextID((*R.getEntry()->getParent()).getName().str())) {
   if (IslOnErrorAbort)
     isl_options_set_on_error(getIslCtx(), ISL_ON_ERROR_ABORT);
+  isl_options_set_ast_build_compute_bounds(getIslCtx(), ComputeBounds);
+  isl_options_set_ast_build_maximum_native_type(getIslCtx(), MaximumNativeType);
+  isl_options_set_ast_build_approximate_computed_bounds(getIslCtx(), ApproximateBounds);
+  isl_options_set_ast_build_print_computed_bounds(getIslCtx(), false);
+
   buildContext();
 }
 

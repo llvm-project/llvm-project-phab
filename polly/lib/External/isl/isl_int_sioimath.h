@@ -1251,4 +1251,6 @@ typedef isl_sioimath isl_int[1];
 #define isl_int_free_str(s)		free(s)
 #define isl_int_print(out, i, width)	isl_sioimath_print(out, *(i), width)
 
+#define isl_int_size_in_bits(v,s) isl_sioimath_size_in_bits(v,s)
+
 #endif /* ISL_INT_SIOIMATH_H */

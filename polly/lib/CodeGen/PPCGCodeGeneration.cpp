@@ -3014,6 +3014,7 @@ public:
       DimSize = isl_pw_aff_add(DimSize, isl_pw_aff_copy(OneAff));
       auto DimSizeExpr = isl_ast_build_expr_from_pw_aff(Build, DimSize);
       Expr = isl_ast_expr_mul(Expr, DimSizeExpr);
+      Expr = isl_ast_bin_op_set_size(Expr, Build);
     }
 
     isl_set_free(Set);
@@ -3050,7 +3051,9 @@ public:
 
     isl_val *InstVal = isl_val_int_from_si(S->getIslCtx(), InstCount);
     auto *InstExpr = isl_ast_expr_from_val(InstVal);
-    return isl_ast_expr_mul(InstExpr, Iterations);
+    InstExpr = isl_ast_expr_mul(InstExpr, Iterations);
+    InstExpr = isl_ast_bin_op_set_size(InstExpr, Build);
+    return InstExpr;
   }
 
   /// Approximate dynamic instructions executed in scop.
@@ -3070,6 +3073,7 @@ public:
     for (ScopStmt &Stmt : S) {
       isl_ast_expr *StmtInstructions = approxDynamicInst(Stmt, Build);
       Instructions = isl_ast_expr_add(Instructions, StmtInstructions);
+      Instructions = isl_ast_bin_op_set_size(Instructions, Build);
     }
     return Instructions;
   }
@@ -3167,7 +3171,7 @@ public:
     Builder.SetInsertPoint(SplitBlock->getTerminator());
     NodeBuilder.addParameters(S->getContext());
 
-    isl_ast_build *Build = isl_ast_build_alloc(S->getIslCtx());
+    isl_ast_build *Build = isl_ast_build_from_context(S->getContext());
     isl_ast_expr *Condition = IslAst::buildRunCondition(*S, Build);
     isl_ast_expr *SufficientCompute = createSufficientComputeCheck(*S, Build);
     Condition = isl_ast_expr_and(Condition, SufficientCompute);
