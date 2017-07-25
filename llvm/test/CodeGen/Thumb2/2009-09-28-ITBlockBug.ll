@@ -6,8 +6,8 @@
 
 define void @t() nounwind {
 ; CHECK-LABEL: t:
-; CHECK:      it eq
-; CHECK-NEXT: cmpeq
+; CHECK:      it ne
+; CHECK-NEXT: bxne
 entry:
   %pix_a.i294 = alloca [4 x %struct.pix_pos], align 4 ; <[4 x %struct.pix_pos]*> [#uses=2]
   br i1 undef, label %land.rhs, label %lor.end
