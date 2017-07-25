@@ -417,7 +417,8 @@ void Dependences::calculateDependences(Scop &S) {
         dbgs() << "MustWrite: " << MustWrite << '\n';
         dbgs() << "MayWrite: " << MayWrite << '\n';
         dbgs() << "ReductionTagMap: " << ReductionTagMap << '\n';
-        dbgs() << "TaggedStmtDomain: " << TaggedStmtDomain << '\n';);
+        dbgs() << "TaggedStmtDomain: " << isl_union_set_to_str(TaggedStmtDomain)
+               << '\n';);
 
   Schedule = S.getScheduleTree();
 
