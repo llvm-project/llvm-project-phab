@@ -855,10 +855,13 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
   if (!CodeGenOpts.SampleProfileFile.empty())
     PGOOpt.SampleProfileFile = CodeGenOpts.SampleProfileFile;
 
+  if (CodeGenOpts.DebugInfoForProfiling)
+    PGOOpt.SampleProfileGen = true;
+
   // Only pass a PGO options struct if -fprofile-generate or
   // -fprofile-use were passed on the cmdline.
   PassBuilder PB(TM.get(),
-    (PGOOpt.RunProfileGen ||
+    (PGOOpt.RunProfileGen || PGOOpt.SampleProfileGen ||
       !PGOOpt.ProfileUseFile.empty() ||
       !PGOOpt.SampleProfileFile.empty()) ?
         Optional<PGOOptions>(PGOOpt) : None);
