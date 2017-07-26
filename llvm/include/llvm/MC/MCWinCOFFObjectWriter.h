@@ -32,7 +32,6 @@ class raw_pwrite_stream;
 
     unsigned getMachine() const { return Machine; }
     virtual unsigned getRelocType(MCContext &Ctx, const MCReloc &Reloc,
-                                  bool IsCrossSection,
                                   const MCAsmBackend &MAB) const = 0;
     virtual bool recordRelocation(const MCReloc &) const { return true; }
   };

@@ -27,7 +27,6 @@ public:
   ~X86WinCOFFObjectWriter() override = default;
 
   unsigned getRelocType(MCContext &Ctx, const MCReloc &Reloc,
-                        bool IsCrossSection,
                         const MCAsmBackend &MAB) const override;
 };
 
@@ -39,23 +38,19 @@ X86WinCOFFObjectWriter::X86WinCOFFObjectWriter(bool Is64Bit)
 
 unsigned X86WinCOFFObjectWriter::getRelocType(MCContext &Ctx,
                                               const MCReloc &Fixup,
-                                              bool IsCrossSection,
                                               const MCAsmBackend &MAB) const {
   const MCReloc &Target = Fixup;
   unsigned FixupKind = Fixup.getKind();
-  if (IsCrossSection) {
-    if (FixupKind != FK_Data_4 && FixupKind != llvm::X86::reloc_signed_4byte) {
-      Ctx.reportError(Fixup.getLoc(), "Cannot represent this expression");
-      return COFF::IMAGE_REL_AMD64_ADDR32;
-    }
-    FixupKind = FK_PCRel_4;
-  }
-
   MCSymbolRefExpr::VariantKind Modifier = Target.isAbsolute() ?
     MCSymbolRefExpr::VK_None : Target.getSymA()->getKind();
 
   if (getMachine() == COFF::IMAGE_FILE_MACHINE_AMD64) {
     switch (FixupKind) {
+    case FK_PCRel_1:
+    case FK_PCRel_2:
+    case FK_PCRel_8:
+      Ctx.reportError(Fixup.getLoc(), "Cannot represent this expression");
+      return COFF::IMAGE_REL_AMD64_ADDR32;
     case FK_PCRel_4:
     case X86::reloc_riprel_4byte:
     case X86::reloc_riprel_4byte_movq_load:

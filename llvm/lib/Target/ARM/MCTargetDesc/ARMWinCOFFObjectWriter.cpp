@@ -34,7 +34,6 @@ public:
   ~ARMWinCOFFObjectWriter() override = default;
 
   unsigned getRelocType(MCContext &Ctx, const MCReloc &Reloc,
-                        bool IsCrossSection,
                         const MCAsmBackend &MAB) const override;
 
   bool recordRelocation(const MCReloc &) const override;
@@ -44,7 +43,6 @@ public:
 
 unsigned ARMWinCOFFObjectWriter::getRelocType(MCContext &Context,
                                               const MCReloc &Fixup,
-                                              bool IsCrossSection,
                                               const MCAsmBackend &MAB) const {
   const MCReloc &Target = Fixup;
   assert(getMachine() == COFF::IMAGE_FILE_MACHINE_ARMNT &&

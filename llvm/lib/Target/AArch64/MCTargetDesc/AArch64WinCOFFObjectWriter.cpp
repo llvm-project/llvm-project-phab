@@ -32,7 +32,6 @@ public:
   ~AArch64WinCOFFObjectWriter() override = default;
 
   unsigned getRelocType(MCContext &Ctx, const MCReloc &Fixup,
-                        bool IsCrossSection,
                         const MCAsmBackend &MAB) const override;
 
   bool recordRelocation(const MCReloc &) const override;
@@ -41,8 +40,8 @@ public:
 } // end anonymous namespace
 
 unsigned
-AArch64WinCOFFObjectWriter::getRelocType(MCContext &Ctx, const MCReloc &Fixup,
-                                         bool IsCrossSection,
+AArch64WinCOFFObjectWriter::getRelocType(MCContext &Ctx,
+                                         const MCReloc &Fixup,
                                          const MCAsmBackend &MAB) const {
   const MCReloc &Target = Fixup;
   auto Modifier = Target.isAbsolute() ? MCSymbolRefExpr::VK_None
