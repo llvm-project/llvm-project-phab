@@ -69,10 +69,29 @@ public:
   /// unserialized Decls, so use with care.
   void dumpAST(llvm::raw_ostream &OS) const;
 
+  Hover getHover(Location L){
+
+    MarkedString MS = MarkedString("", "");
+    Range R;
+    const FileEntry *FE = Unit->getSourceManager().getFileEntryForID(L.unitFileID);
+    StringRef ref = Unit->getSourceManager().getBufferData(L.unitFileID);
+    start = Unit->getSourceManager().getFileOffset(Unit->getSourceManager().translateFileLineCol(FE, L.range.start.line + 1, L.range.start.character + 1));
+    end = Unit->getSourceManager().getFileOffset(Unit->getSourceManager().translateFileLineCol(FE, L.range.end.line + 1, L.range.end.character + 1));
+    //return ref;  
+    ref = ref.slice(start, end);
+    MS = MarkedString("C++", ref);
+    R = L.range;
+    Hover H(MS, R);
+    return H;
+  }
+  unsigned start;
+  unsigned end;
+
 private:
   Path FileName;
   std::unique_ptr<ASTUnit> Unit;
   std::shared_ptr<PCHContainerOperations> PCHs;
+  
 
   SourceLocation getBeginningOfIdentifier(const Position& Pos, const FileEntry* FE) const;
 };

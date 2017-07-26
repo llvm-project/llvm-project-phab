@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as vscodelc from 'vscode-languageclient';
+import * as vscodejsonrpc from 'vscode-jsonrpc';
 
 /**
  * Method to get workspace configuration option
@@ -54,6 +55,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     console.log('Clang Language Server is now active!');
 
+    clangdClient.trace = vscodejsonrpc.Trace.Verbose;
     const disposable = clangdClient.start();
 
     context.subscriptions.push(disposable, vscode.commands.registerCommand('clangd.applyFix', applyTextEdits));

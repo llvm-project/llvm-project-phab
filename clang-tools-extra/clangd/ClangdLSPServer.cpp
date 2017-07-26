@@ -8,6 +8,7 @@
 //===---------------------------------------------------------------------===//
 
 #include "ClangdLSPServer.h"
+#include "clang/Basic/SourceManager.h"
 #include "JSONRPCDispatcher.h"
 #include "ProtocolHandlers.h"
 
@@ -70,7 +71,10 @@ public:
   void onCompletion(TextDocumentPositionParams Params, StringRef ID,
                     JSONOutput &Out) override;
   void onGoToDefinition(TextDocumentPositionParams Params, StringRef ID,
-                            JSONOutput &Out) override;
+                        JSONOutput &Out) override;
+  void onCodeHover(TextDocumentPositionParams Params, StringRef ID,
+                   JSONOutput &Out) override;
+
 
 private:
   ClangdLSPServer &LangServer;
@@ -87,7 +91,8 @@ void ClangdLSPServer::LSPProtocolCallbacks::onInitialize(StringRef ID,
           "documentOnTypeFormattingProvider": {"firstTriggerCharacter":"}","moreTriggerCharacter":[]},
           "codeActionProvider": true,
           "completionProvider": {"resolveProvider": false, "triggerCharacters": [".",">"]},
-          "definitionProvider": true
+          "definitionProvider": true,
+          "hoverProvider": true
         }}})");
 }
 
@@ -185,6 +190,7 @@ void ClangdLSPServer::LSPProtocolCallbacks::onCompletion(
       Params.textDocument.uri.file,
       Position{Params.position.line, Params.position.character}).Value;
 
+
   std::string Completions;
   for (const auto &Item : Items) {
     Completions += CompletionItem::unparse(Item);
@@ -200,8 +206,7 @@ void ClangdLSPServer::LSPProtocolCallbacks::onCompletion(
 void ClangdLSPServer::LSPProtocolCallbacks::onGoToDefinition(
     TextDocumentPositionParams Params, StringRef ID, JSONOutput &Out) {
 
-  auto Items = LangServer.Server.findDefinitions(
-      Params.textDocument.uri.file,
+  auto Items = LangServer.Server.findDefinitions(Params.textDocument.uri.file,
       Position{Params.position.line, Params.position.character}).Value;
 
   std::string Locations;
@@ -214,6 +219,17 @@ void ClangdLSPServer::LSPProtocolCallbacks::onGoToDefinition(
   Out.writeMessage(
       R"({"jsonrpc":"2.0","id":)" + ID.str() +
       R"(,"result":[)" + Locations + R"(]})");
+}
+
+void ClangdLSPServer::LSPProtocolCallbacks::onCodeHover(
+    TextDocumentPositionParams Params, StringRef ID, JSONOutput &Out) {
+
+  Hover H = LangServer.Server.findHover(Params.textDocument.uri.file, 
+      Position{Params.position.line, Params.position.character}).Value;
+
+  Out.writeMessage(
+      R"({"jsonrpc":"2.0","id":)" + ID.str() +
+      R"(,"result":)" + Hover::unparse(H) + R"(})");
 }
 
 ClangdLSPServer::ClangdLSPServer(JSONOutput &Out, bool RunSynchronously)

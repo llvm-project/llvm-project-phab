@@ -13,8 +13,8 @@
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/CompilerInvocation.h"
 #include "clang/Frontend/Utils.h"
-#include "clang/Index/IndexingAction.h"
 #include "clang/Index/IndexDataConsumer.h"
+#include "clang/Index/IndexingAction.h"
 #include "clang/Lex/Lexer.h"
 #include "clang/Lex/MacroInfo.h"
 #include "clang/Lex/Preprocessor.h"
@@ -275,10 +275,12 @@ class DeclarationLocationsFinder : public index::IndexDataConsumer {
   std::vector<Location> DeclarationLocations;
   const SourceLocation &SearchedLocation;
   ASTUnit &Unit;
+
 public:
   DeclarationLocationsFinder(raw_ostream &OS,
-      const SourceLocation &SearchedLocation, ASTUnit &Unit) :
-      SearchedLocation(SearchedLocation), Unit(Unit) {}
+                             const SourceLocation &SearchedLocation,
+                             ASTUnit &Unit)
+      : SearchedLocation(SearchedLocation), Unit(Unit) {}
 
   std::vector<Location> takeLocations() {
     // Don't keep the same location multiple times.
@@ -290,10 +292,11 @@ public:
     return std::move(DeclarationLocations);
   }
 
-  bool handleDeclOccurence(const Decl* D, index::SymbolRoleSet Roles,
-      ArrayRef<index::SymbolRelation> Relations, FileID FID, unsigned Offset,
-      index::IndexDataConsumer::ASTNodeInfo ASTNode) override
-      {
+  bool
+  handleDeclOccurence(const Decl *D, index::SymbolRoleSet Roles,
+                      ArrayRef<index::SymbolRelation> Relations, FileID FID,
+                      unsigned Offset,
+                      index::IndexDataConsumer::ASTNodeInfo ASTNode) override {
     if (isSearchedLocation(FID, Offset)) {
       addDeclarationLocation(D->getSourceRange());
     }
@@ -303,16 +306,19 @@ public:
 private:
   bool isSearchedLocation(FileID FID, unsigned Offset) const {
     const SourceManager &SourceMgr = Unit.getSourceManager();
-    return SourceMgr.getFileOffset(SearchedLocation) == Offset
-        && SourceMgr.getFileID(SearchedLocation) == FID;
+
+    return SourceMgr.getFileOffset(SearchedLocation) == Offset &&
+           SourceMgr.getFileID(SearchedLocation) == FID;
   }
 
-  void addDeclarationLocation(const SourceRange& ValSourceRange) {
-    const SourceManager& SourceMgr = Unit.getSourceManager();
-    const LangOptions& LangOpts = Unit.getLangOpts();
+  void addDeclarationLocation(const SourceRange &ValSourceRange) {
+    const SourceManager &SourceMgr = Unit.getSourceManager();
+    const LangOptions &LangOpts = Unit.getLangOpts();
     SourceLocation LocStart = ValSourceRange.getBegin();
     SourceLocation LocEnd = Lexer::getLocForEndOfToken(ValSourceRange.getEnd(),
-        0, SourceMgr, LangOpts);
+                                                       0, SourceMgr, LangOpts);
+
+
     Position Begin;
     Begin.line = SourceMgr.getSpellingLineNumber(LocStart) - 1;
     Begin.character = SourceMgr.getSpellingColumnNumber(LocStart) - 1;
@@ -321,6 +327,7 @@ private:
     End.character = SourceMgr.getSpellingColumnNumber(LocEnd) - 1;
     Range R = {Begin, End};
     Location L;
+    L.unitFileID = SourceMgr.getFileID(LocStart);
     L.uri = URI::fromFile(
         SourceMgr.getFilename(SourceMgr.getSpellingLoc(LocStart)));
     L.range = R;
@@ -331,11 +338,11 @@ private:
     // Also handle possible macro at the searched location.
     Token Result;
     if (!Lexer::getRawToken(SearchedLocation, Result, Unit.getSourceManager(),
-        Unit.getASTContext().getLangOpts(), false)) {
+                            Unit.getASTContext().getLangOpts(), false)) {
       if (Result.is(tok::raw_identifier)) {
         Unit.getPreprocessor().LookUpIdentifierInfo(Result);
       }
-      IdentifierInfo* IdentifierInfo = Result.getIdentifierInfo();
+      IdentifierInfo *IdentifierInfo = Result.getIdentifierInfo();
       if (IdentifierInfo && IdentifierInfo->hadMacroDefinition()) {
         std::pair<FileID, unsigned int> DecLoc =
             Unit.getSourceManager().getDecomposedExpansionLoc(SearchedLocation);
@@ -345,13 +352,12 @@ private:
             Unit.getSourceManager().getFileEntryForID(DecLoc.first),
             DecLoc.second - 1);
         MacroDefinition MacroDef =
-            Unit.getPreprocessor().getMacroDefinitionAtLoc(IdentifierInfo,
-                BeforeSearchedLocation);
-        MacroInfo* MacroInf = MacroDef.getMacroInfo();
+            Unit.getPreprocessor().getMacroDefinitionAtLoc(
+                IdentifierInfo, BeforeSearchedLocation);
+        MacroInfo *MacroInf = MacroDef.getMacroInfo();
         if (MacroInf) {
-          addDeclarationLocation(
-              SourceRange(MacroInf->getDefinitionLoc(),
-                  MacroInf->getDefinitionEndLoc()));
+          addDeclarationLocation(SourceRange(MacroInf->getDefinitionLoc(),
+                                             MacroInf->getDefinitionEndLoc()));
         }
       }
     }
@@ -378,11 +384,11 @@ std::vector<Location> ClangdUnit::findDefinitions(Position Pos) {
 }
 
 SourceLocation ClangdUnit::getBeginningOfIdentifier(const Position &Pos,
-    const FileEntry *FE) const {
+                                                    const FileEntry *FE) const {
   // The language server protocol uses zero-based line and column numbers.
   // Clang uses one-based numbers.
-  SourceLocation InputLocation = Unit->getLocation(FE, Pos.line + 1,
-      Pos.character + 1);
+  SourceLocation InputLocation =
+      Unit->getLocation(FE, Pos.line + 1, Pos.character + 1);
 
   if (Pos.character == 0) {
     return InputLocation;
@@ -396,8 +402,8 @@ SourceLocation ClangdUnit::getBeginningOfIdentifier(const Position &Pos,
   // token. If so, Take the beginning of this token.
   // (It should be the same identifier because you can't have two adjacent
   // identifiers without another token in between.)
-  SourceLocation PeekBeforeLocation = Unit->getLocation(FE, Pos.line + 1,
-      Pos.character);
+  SourceLocation PeekBeforeLocation =
+      Unit->getLocation(FE, Pos.line + 1, Pos.character);
   const SourceManager &SourceMgr = Unit->getSourceManager();
   Token Result;
   if (Lexer::getRawToken(PeekBeforeLocation, Result, SourceMgr,
@@ -408,7 +414,7 @@ SourceLocation ClangdUnit::getBeginningOfIdentifier(const Position &Pos,
 
   if (Result.is(tok::raw_identifier)) {
     return Lexer::GetBeginningOfToken(PeekBeforeLocation, SourceMgr,
-        Unit->getASTContext().getLangOpts());
+                                      Unit->getASTContext().getLangOpts());
   }
 
   return InputLocation;

@@ -746,3 +746,26 @@ std::string CompletionItem::unparse(const CompletionItem &CI) {
   Result.back() = '}';
   return Result;
 }
+
+std::string Hover::unparse(const Hover &H) {
+  std::string Result;
+  llvm::raw_string_ostream(Result) << llvm::format(
+      R"({"contents": %s, "range": %s})", MarkedString::unparse(H.contents).c_str(),
+      Range::unparse(H.range).c_str());
+  return Result;
+}
+
+std::string MarkedString::unparse(const MarkedString &MS) {
+  std::string Result;
+  if (MS.markdownString != "")
+  {
+    llvm::raw_string_ostream(Result) << llvm::format(R"({"markdown": "%s"})", MS.markdownString.c_str());
+  }
+  else
+  {
+    
+    llvm::raw_string_ostream(Result) << llvm::format(R"({"language": "%s", "value": "%s"})", (llvm::yaml::escape(MS.codeBlockLanguage)).c_str(), (llvm::yaml::escape(MS.codeBlockValue)).c_str());
+  }
+  
+  return Result;
+}

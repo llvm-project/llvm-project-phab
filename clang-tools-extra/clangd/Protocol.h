@@ -23,6 +23,7 @@
 
 #include "llvm/ADT/Optional.h"
 #include "llvm/Support/YAMLParser.h"
+#include "clang/Basic/SourceLocation.h"
 #include <string>
 #include <vector>
 
@@ -102,6 +103,7 @@ struct Location {
   /// The text document's URI.
   URI uri;
   Range range;
+  FileID unitFileID;
 
   friend bool operator==(const Location &LHS, const Location &RHS) {
     return LHS.uri == RHS.uri && LHS.range == RHS.range;
@@ -304,7 +306,59 @@ struct TextDocumentPositionParams {
   parse(llvm::yaml::MappingNode *Params);
 };
 
-/// The kind of a completion entry.
+struct MarkedString {
+  /**
+ * MarkedString can be used to render human readable text. It is either a
+ * markdown string
+ * or a code-block that provides a language and a code snippet. The language
+ * identifier
+ * is sematically equal to the optional language identifier in fenced code
+ * blocks in GitHub
+ * issues. See
+ * https://help.github.com/articles/creating-and-highlighting-code-blocks/#syntax-highlighting
+ *
+ * The pair of a language and a value is an equivalent to markdown:
+ * ```${language}
+ * ${value}
+ * ```
+ *
+ * Note that markdown strings will be sanitized - that means html will be
+ * escaped.
+ */
+
+  MarkedString(std::string markdown)
+      : markdownString(markdown), codeBlockLanguage(""), codeBlockValue("") {}
+
+  MarkedString(std::string blockLanguage, std::string blockValue)
+      : markdownString(""), codeBlockLanguage(blockLanguage),
+        codeBlockValue(blockValue) {}
+
+  std::string markdownString;
+  std::string codeBlockLanguage;
+  std::string codeBlockValue;
+
+  static std::string unparse(const MarkedString &MS);
+};
+
+struct Hover {
+
+  Hover(MarkedString ms, Range r) : contents(ms), range(r) {}
+
+  /**
+   * The hover's content
+   */
+  MarkedString contents;
+
+  /**
+   * An optional range is a range inside a text document
+   * that is used to visualize a hover, e.g. by changing the background color.
+   */
+  Range range;
+
+  static std::string unparse(const Hover &H);
+};
+
+/// The kind of a completion entry.std::string*
 enum class CompletionItemKind {
   Missing = 0,
   Text = 1,

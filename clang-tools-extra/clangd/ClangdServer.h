@@ -182,6 +182,8 @@ public:
   /// Get definition of symbol at a specified \p Line and \p Column in \p File.
   Tagged<std::vector<Location>> findDefinitions(PathRef File, Position Pos);
 
+  Tagged<Hover> findHover(PathRef File, Position Pos);
+
   /// Run formatting for \p Rng inside \p File.
   std::vector<tooling::Replacement> formatRange(PathRef File, Range Rng);
   /// Run formatting for the whole \p File.
@@ -190,7 +192,7 @@ public:
   std::vector<tooling::Replacement> formatOnType(PathRef File, Position Pos);
 
   /// Gets current document contents for \p File. \p File must point to a
-  /// currently tracked file.
+  /// currently tracked file
   /// FIXME(ibiryukov): This function is here to allow offset-to-Position
   /// conversions in outside code, maybe there's a way to get rid of it.
   std::string getDocument(PathRef File);
@@ -200,7 +202,7 @@ public:
   /// \p File. \p File must be in the list of added documents.
   std::string dumpAST(PathRef File);
 
-private:
+  private:
   GlobalCompilationDatabase &CDB;
   DiagnosticsConsumer &DiagConsumer;
   FileSystemProvider &FSProvider;

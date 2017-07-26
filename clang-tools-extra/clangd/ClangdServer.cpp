@@ -8,6 +8,7 @@
 //===-------------------------------------------------------------------===//
 
 #include "ClangdServer.h"
+#include "Protocol.h"
 #include "clang/Format/Format.h"
 #include "clang/Frontend/ASTUnit.h"
 #include "clang/Frontend/CompilerInstance.h"
@@ -16,10 +17,16 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/raw_ostream.h"
+#include <algorithm>
 #include <future>
 
 using namespace clang;
 using namespace clang::clangd;
+
+const char* const DEFAULT_SOURCE_EXTENSIONS [] = { ".cpp", ".c", ".cc", ".cxx",
+    ".c++", ".C", ".m", ".mm" };
+const char* const DEFAULT_HEADER_EXTENSIONS [] = { ".h", ".hh", ".hpp", ".hxx",
+    ".inc" };
 
 namespace {
 
@@ -273,16 +280,41 @@ std::string ClangdServer::dumpAST(PathRef File) {
   return DumpFuture.get();
 }
 
-Tagged<std::vector<Location>>
-ClangdServer::findDefinitions(PathRef File, Position Pos) {
+Tagged<std::vector<Location>> ClangdServer::findDefinitions(PathRef File,
+                                                            Position Pos) {
   auto FileContents = DraftMgr.getDraft(File);
-  assert(FileContents.Draft && "findDefinitions is called for non-added document");
+  assert(FileContents.Draft &&
+         "findDefinitions is called for non-added document");
 
   std::vector<Location> Result;
   auto TaggedFS = FSProvider.getTaggedFileSystem(File);
-  Units.runOnUnit(File, *FileContents.Draft, ResourceDir, CDB, PCHs,
-      TaggedFS.Value, [&](ClangdUnit &Unit) {
-        Result = Unit.findDefinitions(Pos);
-      });
+  Units.runOnUnit(
+      File, *FileContents.Draft, ResourceDir, CDB, PCHs, TaggedFS.Value,
+      [&](ClangdUnit &Unit) { Result = Unit.findDefinitions(Pos); });
   return make_tagged(std::move(Result), TaggedFS.Tag);
 }
+
+Tagged<Hover> ClangdServer::findHover(PathRef File, Position Pos) {
+  auto FileContents = DraftMgr.getDraft(File);
+  assert(FileContents.Draft &&
+         "findHover is called for non-added document");
+
+  
+  MarkedString MS = MarkedString("", "");
+  Range R;
+  Hover FinalHover(MS, R);
+  auto TaggedFS = FSProvider.getTaggedFileSystem(File);
+  Units.runOnUnit(File, *FileContents.Draft, ResourceDir, CDB, PCHs,
+                  TaggedFS.Value, [&](ClangdUnit &Unit) {
+                    std::vector<Location> Result = Unit.findDefinitions(Pos);
+                    if (!Result.empty()) {
+                      Location FoundLocation = Result[0];
+                      FinalHover = Unit.getHover(FoundLocation);
+                    }
+                  });
+
+
+  return make_tagged(std::move(FinalHover), TaggedFS.Tag);
+}
+
+
