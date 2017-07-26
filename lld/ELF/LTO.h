@@ -22,6 +22,7 @@
 #define LLD_ELF_LTO_H
 
 #include "lld/Core/LLVM.h"
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/SmallString.h"
 #include <memory>
 #include <vector>
@@ -39,6 +40,8 @@ class BitcodeFile;
 class InputFile;
 
 class BitcodeCompiler {
+  llvm::DenseSet<StringRef> UsedStartStop;
+
 public:
   BitcodeCompiler();
   ~BitcodeCompiler();
