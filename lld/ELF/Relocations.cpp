@@ -1000,7 +1000,7 @@ void ThunkCreator::mergeThunks() {
   }
 }
 
-static uint32_t findEndOfFirstNonExec(OutputSectionCommand &Cmd) {
+static uint32_t findEndOfFirstNonExec(OutputSection &Cmd) {
   for (BaseCommand *Base : Cmd.Commands)
     if (auto *ISD = dyn_cast<InputSectionDescription>(Base))
       for (auto *IS : ISD->Sections)
@@ -1009,11 +1009,11 @@ static uint32_t findEndOfFirstNonExec(OutputSectionCommand &Cmd) {
   return 0;
 }
 
-ThunkSection *ThunkCreator::getOSThunkSec(OutputSectionCommand *Cmd,
+ThunkSection *ThunkCreator::getOSThunkSec(OutputSection *Cmd,
                                           std::vector<InputSection *> *ISR) {
   if (CurTS == nullptr) {
     uint32_t Off = findEndOfFirstNonExec(*Cmd);
-    CurTS = addThunkSection(Cmd->Sec, ISR, Off);
+    CurTS = addThunkSection(Cmd, ISR, Off);
   }
   return CurTS;
 }
@@ -1022,10 +1022,9 @@ ThunkSection *ThunkCreator::getISThunkSec(InputSection *IS, OutputSection *OS) {
   ThunkSection *TS = ThunkedSections.lookup(IS);
   if (TS)
     return TS;
-  auto *TOS = IS->getParent();
 
   // Find InputSectionRange within TOS that IS is in
-  OutputSectionCommand *C = Script->getCmd(TOS);
+  OutputSection *C = IS->getParent();
   std::vector<InputSection *> *Range = nullptr;
   for (BaseCommand *BC : C->Commands)
     if (auto *ISD = dyn_cast<InputSectionDescription>(BC)) {
@@ -1037,15 +1036,15 @@ ThunkSection *ThunkCreator::getISThunkSec(InputSection *IS, OutputSection *OS) {
         break;
       }
     }
-  TS = addThunkSection(TOS, Range, IS->OutSecOff);
+  TS = addThunkSection(C, Range, IS->OutSecOff);
   ThunkedSections[IS] = TS;
   return TS;
 }
 
-ThunkSection *ThunkCreator::addThunkSection(OutputSection *OS,
+ThunkSection *ThunkCreator::addThunkSection(OutputSection *Cmd,
                                             std::vector<InputSection *> *ISR,
                                             uint64_t Off) {
-  auto *TS = make<ThunkSection>(OS, Off);
+  auto *TS = make<ThunkSection>(Cmd, Off);
   ThunkSections[ISR].push_back(TS);
   return TS;
 }
@@ -1068,19 +1067,18 @@ std::pair<Thunk *, bool> ThunkCreator::getThunk(SymbolBody &Body,
 // Call Fn on every executable InputSection accessed via the linker script
 // InputSectionDescription::Sections.
 void ThunkCreator::forEachExecInputSection(
-    ArrayRef<OutputSectionCommand *> OutputSections,
-    std::function<void(OutputSectionCommand *, std::vector<InputSection *> *,
+    ArrayRef<OutputSection *> OutputSections,
+    std::function<void(OutputSection *, std::vector<InputSection *> *,
                        InputSection *)>
         Fn) {
-  for (OutputSectionCommand *Cmd : OutputSections) {
-    OutputSection *OS = Cmd->Sec;
+  for (OutputSection *OS : OutputSections) {
     if (!(OS->Flags & SHF_ALLOC) || !(OS->Flags & SHF_EXECINSTR))
       continue;
-    for (BaseCommand *BC : Cmd->Commands)
+    for (BaseCommand *BC : OS->Commands)
       if (auto *ISD = dyn_cast<InputSectionDescription>(BC)) {
         CurTS = nullptr;
         for (InputSection *IS : ISD->Sections)
-          Fn(Cmd, &ISD->Sections, IS);
+          Fn(OS, &ISD->Sections, IS);
       }
   }
 }
@@ -1095,8 +1093,7 @@ void ThunkCreator::forEachExecInputSection(
 //
 // FIXME: All Thunks are assumed to be in range of the relocation. Range
 // extension Thunks are not yet supported.
-bool ThunkCreator::createThunks(
-    ArrayRef<OutputSectionCommand *> OutputSections) {
+bool ThunkCreator::createThunks(ArrayRef<OutputSection *> OutputSections) {
   if (Pass > 0)
     ThunkSections.clear();
 
@@ -1106,7 +1103,7 @@ bool ThunkCreator::createThunks(
   // We separate the creation of ThunkSections from the insertion of the
   // ThunkSections back into the OutputSection as ThunkSections are not always
   // inserted into the same OutputSection as the caller.
-  forEachExecInputSection(OutputSections, [&](OutputSectionCommand *Cmd,
+  forEachExecInputSection(OutputSections, [&](OutputSection *Cmd,
                                               std::vector<InputSection *> *ISR,
                                               InputSection *IS) {
     for (Relocation &Rel : IS->Relocations) {
@@ -1121,7 +1118,7 @@ bool ThunkCreator::createThunks(
         // Find or create a ThunkSection for the new Thunk
         ThunkSection *TS;
         if (auto *TIS = T->getTargetInputSection())
-          TS = getISThunkSec(TIS, Cmd->Sec);
+          TS = getISThunkSec(TIS, Cmd);
         else
           TS = getOSThunkSec(Cmd, ISR);
         TS->addThunk(T);
