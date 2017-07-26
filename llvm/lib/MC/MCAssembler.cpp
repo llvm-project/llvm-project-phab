@@ -185,9 +185,9 @@ const MCSymbol *MCAssembler::getAtom(const MCSymbol &S) const {
   return S.getFragment()->getAtom();
 }
 
-bool MCAssembler::evaluateFixup(const MCAsmLayout &Layout,
-                                const MCFixup &Fixup, const MCFragment *DF,
-                                MCValue &Target, uint64_t &Value) const {
+bool MCAssembler::evaluateFixup(const MCAsmLayout &Layout, const MCFixup &Fixup,
+                                const MCFragment *DF, MCValue &Target,
+                                MCReloc &Reloc) const {
   ++stats::evaluateFixup;
 
   // FIXME: This code has some duplication with recordRelocation. We should
@@ -198,17 +198,27 @@ bool MCAssembler::evaluateFixup(const MCAsmLayout &Layout,
   // further processing from being done.
   const MCExpr *Expr = Fixup.getValue();
   MCContext &Ctx = getContext();
+  uint64_t &Value = Reloc.getConstant();
   Value = 0;
   if (!Expr->evaluateAsRelocatable(Target, &Layout, &Fixup)) {
     Ctx.reportError(Fixup.getLoc(), "expected relocatable expression");
     return true;
   }
+
+  Reloc.setKind(Fixup.getKind());
+  Reloc.setLoc(Fixup.getLoc());
+  Reloc.setOffset(Fixup.getOffset());
+  Reloc.setValue(Fixup.getValue());
+  Reloc.setSymA(Target.getSymA());
+  Reloc.setRefKind(Target.getRefKind());
+
   if (const MCSymbolRefExpr *RefB = Target.getSymB()) {
     if (RefB->getKind() != MCSymbolRefExpr::VK_None) {
       Ctx.reportError(Fixup.getLoc(),
                       "unsupported subtraction of qualified symbol");
       return true;
     }
+    Reloc.setSymB(&RefB->getSymbol());
   }
 
   bool IsPCRel = Backend.getFixupKindInfo(
@@ -236,6 +246,16 @@ bool MCAssembler::evaluateFixup(const MCAsmLayout &Layout,
 
   Value = Target.getConstant();
 
+  // Let the backend force a relocation if needed.
+  if (IsResolved && Backend.shouldForceRelocation(*this, Fixup, Target))
+    IsResolved = false;
+
+  // If we need a relocation, return now. recordRelocation will take
+  // care of the rest.
+  if (!IsResolved)
+    return false;
+
+  // Since we don't need a relocation we can compute the final value.
   if (const MCSymbolRefExpr *A = Target.getSymA()) {
     const MCSymbol &Sym = A->getSymbol();
     if (Sym.isDefined())
@@ -260,10 +280,6 @@ bool MCAssembler::evaluateFixup(const MCAsmLayout &Layout,
     if (ShouldAlignPC) Offset &= ~0x3;
     Value -= Offset;
   }
-
-  // Let the backend force a relocation if needed.
-  if (IsResolved && Backend.shouldForceRelocation(*this, Fixup, Target))
-    IsResolved = false;
 
   return IsResolved;
 }
@@ -647,20 +663,19 @@ void MCAssembler::writeSectionData(const MCSection *Sec,
          Layout.getSectionAddressSize(Sec));
 }
 
-std::tuple<MCValue, uint64_t, bool>
-MCAssembler::handleFixup(const MCAsmLayout &Layout, MCFragment &F,
-                         const MCFixup &Fixup) {
+std::pair<MCReloc,bool> MCAssembler::handleFixup(const MCAsmLayout &Layout, MCFragment &F,
+                                 const MCFixup &Fixup) {
   // Evaluate the fixup.
   MCValue Target;
-  uint64_t FixedValue;
-  bool IsResolved = evaluateFixup(Layout, Fixup, &F, Target, FixedValue);
+  MCReloc Reloc;
+  bool IsResolved = evaluateFixup(Layout, Fixup, &F, Target, Reloc);
   if (!IsResolved) {
     // The fixup was unresolved, we need a relocation. Inform the object
     // writer of the relocation, and give it an opportunity to adjust the
     // fixup value if need be.
-    getWriter().recordRelocation(*this, Layout, &F, Fixup, Target, FixedValue);
+    getWriter().recordRelocation(*this, Layout, &F, Reloc);
   }
-  return std::make_tuple(Target, FixedValue, IsResolved);
+  return {Reloc, IsResolved};
 }
 
 void MCAssembler::layout(MCAsmLayout &Layout) {
@@ -735,13 +750,10 @@ void MCAssembler::layout(MCAsmLayout &Layout) {
       } else
         llvm_unreachable("Unknown fragment with fixups!");
       for (const MCFixup &Fixup : Fixups) {
-        uint64_t FixedValue;
+        MCReloc Reloc;
         bool IsResolved;
-        MCValue Target;
-        std::tie(Target, FixedValue, IsResolved) =
-            handleFixup(Layout, Frag, Fixup);
-        getBackend().applyFixup(*this, Fixup, Target, Contents, FixedValue,
-                                IsResolved);
+        std::tie(Reloc, IsResolved) = handleFixup(Layout, Frag, Fixup);
+        Backend.applyFixup(*this, Reloc, Contents, IsResolved);
       }
     }
   }
@@ -765,14 +777,13 @@ bool MCAssembler::fixupNeedsRelaxation(const MCFixup &Fixup,
                                        const MCRelaxableFragment *DF,
                                        const MCAsmLayout &Layout) const {
   MCValue Target;
-  uint64_t Value;
-  bool Resolved = evaluateFixup(Layout, Fixup, DF, Target, Value);
+  MCReloc Reloc;
+  bool Resolved = evaluateFixup(Layout, Fixup, DF, Target, Reloc);
   if (Target.getSymA() &&
       Target.getSymA()->getKind() == MCSymbolRefExpr::VK_X86_ABS8 &&
       Fixup.getKind() == FK_Data_1)
     return false;
-  return getBackend().fixupNeedsRelaxationAdvanced(Fixup, Resolved, Value, DF,
-                                                   Layout);
+  return getBackend().fixupNeedsRelaxationAdvanced(Reloc, Resolved, DF, Layout);
 }
 
 bool MCAssembler::fragmentNeedsRelaxation(const MCRelaxableFragment *F,

@@ -11,8 +11,11 @@
 #include "MCTargetDesc/PPCMCExpr.h"
 #include "MCTargetDesc/PPCMCTargetDesc.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/MC/MCAsmBackend.h"
+#include "llvm/MC/MCAssembler.h"
 #include "llvm/MC/MCELFObjectWriter.h"
 #include "llvm/MC/MCExpr.h"
+#include "llvm/MC/MCFixupKindInfo.h"
 #include "llvm/MC/MCSymbolELF.h"
 #include "llvm/MC/MCValue.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -25,8 +28,8 @@ namespace {
     PPCELFObjectWriter(bool Is64Bit, uint8_t OSABI);
 
   protected:
-    unsigned getRelocType(MCContext &Ctx, const MCValue &Target,
-                          const MCFixup &Fixup, bool IsPCRel) const override;
+    unsigned getRelocType(MCAssembler &Asm,
+                          const MCReloc &Reloc) const override;
 
     bool needsRelocateWithSymbol(const MCSymbol &Sym,
                                  unsigned Type) const override;
@@ -38,8 +41,8 @@ PPCELFObjectWriter::PPCELFObjectWriter(bool Is64Bit, uint8_t OSABI)
                             Is64Bit ?  ELF::EM_PPC64 : ELF::EM_PPC,
                             /*HasRelocationAddend*/ true) {}
 
-static MCSymbolRefExpr::VariantKind getAccessVariant(const MCValue &Target,
-                                                     const MCFixup &Fixup) {
+static MCSymbolRefExpr::VariantKind getAccessVariant(const MCReloc &Fixup) {
+  const MCReloc &Target = Fixup;
   const MCExpr *Expr = Fixup.getValue();
 
   if (Expr->getKind() != MCExpr::Target)
@@ -66,10 +69,11 @@ static MCSymbolRefExpr::VariantKind getAccessVariant(const MCValue &Target,
   llvm_unreachable("unknown PPCMCExpr kind");
 }
 
-unsigned PPCELFObjectWriter::getRelocType(MCContext &Ctx, const MCValue &Target,
-                                          const MCFixup &Fixup,
-                                          bool IsPCRel) const {
-  MCSymbolRefExpr::VariantKind Modifier = getAccessVariant(Target, Fixup);
+unsigned PPCELFObjectWriter::getRelocType(MCAssembler &Asm,
+                                          const MCReloc &Fixup) const {
+  MCSymbolRefExpr::VariantKind Modifier = getAccessVariant(Fixup);
+  bool IsPCRel = Asm.getBackend().getFixupKindInfo(Fixup.getKind()).Flags &
+                 MCFixupKindInfo::FKF_IsPCRel;
 
   // determine the type of the relocation
   unsigned Type;
@@ -97,6 +101,7 @@ unsigned PPCELFObjectWriter::getRelocType(MCContext &Ctx, const MCValue &Target,
       Type = ELF::R_PPC_REL14;
       break;
     case PPC::fixup_ppc_half16:
+    case PPC::fixup_ppc_half16_pc:
       switch (Modifier) {
       default: llvm_unreachable("Unsupported Modifier");
       case MCSymbolRefExpr::VK_None:
@@ -113,10 +118,6 @@ unsigned PPCELFObjectWriter::getRelocType(MCContext &Ctx, const MCValue &Target,
         break;
       }
       break;
-    case PPC::fixup_ppc_half16ds:
-      Target.print(errs());
-      errs() << '\n';
-      report_fatal_error("Invalid PC-relative half16ds relocation");
     case FK_Data_4:
     case FK_PCRel_4:
       Type = ELF::R_PPC_REL32;

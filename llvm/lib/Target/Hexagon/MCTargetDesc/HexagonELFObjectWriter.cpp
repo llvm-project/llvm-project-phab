@@ -9,8 +9,10 @@
 
 #include "Hexagon.h"
 #include "MCTargetDesc/HexagonFixupKinds.h"
+#include "llvm/MC/MCAsmBackend.h"
 #include "llvm/MC/MCAssembler.h"
 #include "llvm/MC/MCELFObjectWriter.h"
+#include "llvm/MC/MCFixupKindInfo.h"
 #include "llvm/MC/MCValue.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
@@ -29,8 +31,7 @@ private:
 public:
   HexagonELFObjectWriter(uint8_t OSABI, StringRef C);
 
-  unsigned getRelocType(MCContext &Ctx, MCValue const &Target,
-                        MCFixup const &Fixup, bool IsPCRel) const override;
+  unsigned getRelocType(MCAssembler &Asm, const MCReloc &Reloc) const override;
 };
 }
 
@@ -39,10 +40,11 @@ HexagonELFObjectWriter::HexagonELFObjectWriter(uint8_t OSABI, StringRef C)
                               /*HasRelocationAddend*/ true),
       CPU(C) {}
 
-unsigned HexagonELFObjectWriter::getRelocType(MCContext &Ctx,
-                                              MCValue const &Target,
-                                              MCFixup const &Fixup,
-                                              bool IsPCRel) const {
+unsigned HexagonELFObjectWriter::getRelocType(MCAssembler &Asm,
+                                              const MCReloc &Fixup) const {
+  const MCReloc &Target = Fixup;
+  bool IsPCRel = Asm.getBackend().getFixupKindInfo(Fixup.getKind()).Flags &
+                 MCFixupKindInfo::FKF_IsPCRel;
   MCSymbolRefExpr::VariantKind Variant = Target.getAccessVariant();
   switch ((unsigned)Fixup.getKind()) {
   default:

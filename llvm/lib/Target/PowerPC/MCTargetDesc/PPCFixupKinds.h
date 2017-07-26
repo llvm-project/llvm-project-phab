@@ -33,6 +33,8 @@ enum Fixups {
   /// 'li' or 'addis'.
   fixup_ppc_half16,
 
+  fixup_ppc_half16_pc,
+
   /// A 14-bit fixup corresponding to lo16(_foo) with implied 2 zero bits for
   /// instrs like 'std'.
   fixup_ppc_half16ds,

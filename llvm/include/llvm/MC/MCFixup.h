@@ -112,6 +112,67 @@ public:
   SMLoc getLoc() const { return Loc; }
 };
 
+// This is what a MCFixup evaluates to. MCRelocs are short lived. They
+// are only created to communicate with the targets.
+class MCReloc {
+  /// The target dependent kind of fixup item this is.
+  MCFixupKind Kind;
+
+  /// The source location which gave rise to the fixup, if any.
+  SMLoc Loc;
+
+  /// The byte index of start of the relocation inside the MCFragment.
+  uint32_t Offset;
+
+  /// The computed value: A - B + C, modified by RefKind.  Since no
+  /// object format supports something like 'foo - bar@got', we store
+  /// just a MCSymbol for B.
+  const MCSymbolRefExpr *RefA;
+  const MCSymbol *SymB;
+  uint64_t Constant;
+  uint32_t RefKind;
+
+  // FIXME: We shouldn't need the expression at this late stage.
+  const MCExpr *Value;
+
+public:
+  MCReloc()
+      : Kind(FK_Data_1), Offset(0), RefA(nullptr), SymB(nullptr), Constant(0),
+        RefKind(0), Value(nullptr) {}
+
+  MCFixupKind getKind() const { return Kind; }
+  void setKind(MCFixupKind Val) { Kind = Val; }
+
+  SMLoc getLoc() const { return Loc; }
+  void setLoc(SMLoc Val) { Loc = Val; }
+
+  uint32_t getOffset() const { return Offset; }
+  void setOffset(uint32_t Val) { Offset = Val; }
+
+  const MCSymbolRefExpr *getSymA() const { return RefA; }
+  void setSymA(const MCSymbolRefExpr *Val) { RefA = Val; }
+
+  const MCSymbol *getSymB() const { return SymB; }
+  void setSymB(const MCSymbol *Val) { SymB = Val; }
+
+  uint64_t getConstant() const { return Constant; }
+  uint64_t &getConstant() { return Constant; }
+  void setConstant(uint64_t Val) { Constant = Val; }
+
+  uint32_t getRefKind() const { return RefKind; }
+  void setRefKind(uint32_t Val) { RefKind = Val; }
+
+  const MCExpr *getValue() const { return Value; }
+  void setValue(const MCExpr *Val) { Value = Val; }
+
+  bool isAbsolute() const { return !RefA && !SymB; }
+  MCSymbolRefExpr::VariantKind getAccessVariant() const {
+    if (RefA && RefA->getKind() != MCSymbolRefExpr::VK_WEAKREF)
+      return RefA->getKind();
+    return MCSymbolRefExpr::VK_None;
+  }
+};
+
 } // End llvm namespace
 
 #endif

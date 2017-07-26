@@ -33,20 +33,20 @@ public:
 
   ~ARMWinCOFFObjectWriter() override = default;
 
-  unsigned getRelocType(MCContext &Ctx, const MCValue &Target,
-                        const MCFixup &Fixup, bool IsCrossSection,
+  unsigned getRelocType(MCContext &Ctx, const MCReloc &Reloc,
+                        bool IsCrossSection,
                         const MCAsmBackend &MAB) const override;
 
-  bool recordRelocation(const MCFixup &) const override;
+  bool recordRelocation(const MCReloc &) const override;
 };
 
 } // end anonymous namespace
 
-unsigned ARMWinCOFFObjectWriter::getRelocType(MCContext &Ctx,
-                                              const MCValue &Target,
-                                              const MCFixup &Fixup,
+unsigned ARMWinCOFFObjectWriter::getRelocType(MCContext &Context,
+                                              const MCReloc &Fixup,
                                               bool IsCrossSection,
                                               const MCAsmBackend &MAB) const {
+  const MCReloc &Target = Fixup;
   assert(getMachine() == COFF::IMAGE_FILE_MACHINE_ARMNT &&
          "AArch64 support not yet implemented");
 
@@ -84,7 +84,7 @@ unsigned ARMWinCOFFObjectWriter::getRelocType(MCContext &Ctx,
   }
 }
 
-bool ARMWinCOFFObjectWriter::recordRelocation(const MCFixup &Fixup) const {
+bool ARMWinCOFFObjectWriter::recordRelocation(const MCReloc &Fixup) const {
   return static_cast<unsigned>(Fixup.getKind()) != ARM::fixup_t2_movt_hi16;
 }
 

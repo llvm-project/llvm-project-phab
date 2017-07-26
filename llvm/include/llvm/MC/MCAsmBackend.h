@@ -60,6 +60,8 @@ public:
   /// Get information on a fixup kind.
   virtual const MCFixupKindInfo &getFixupKindInfo(MCFixupKind Kind) const;
 
+  virtual MCFixupKind getPCRelKind(MCFixupKind Kind) const;
+
   /// Hook to check if a relocation is needed for some target specific reason.
   virtual bool shouldForceRelocation(const MCAssembler &Asm,
                                      const MCFixup &Fixup,
@@ -71,9 +73,8 @@ public:
   /// the offset specified by the fixup and following the fixup kind as
   /// appropriate. Errors (such as an out of range fixup value) should be
   /// reported via \p Ctx.
-  virtual void applyFixup(const MCAssembler &Asm, const MCFixup &Fixup,
-                          const MCValue &Target, MutableArrayRef<char> Data,
-                          uint64_t Value, bool IsResolved) const = 0;
+  virtual void applyFixup(const MCAssembler &Asm, const MCReloc &Reloc,
+                          MutableArrayRef<char> Data, bool IsResolved) const = 0;
 
   /// @}
 
@@ -87,13 +88,12 @@ public:
 
   /// Target specific predicate for whether a given fixup requires the
   /// associated instruction to be relaxed.
-  virtual bool fixupNeedsRelaxationAdvanced(const MCFixup &Fixup, bool Resolved,
-                                            uint64_t Value,
+  virtual bool fixupNeedsRelaxationAdvanced(const MCReloc &Reloc, bool Resolved,
                                             const MCRelaxableFragment *DF,
                                             const MCAsmLayout &Layout) const;
 
   /// Simple predicate for targets where !Resolved implies requiring relaxation
-  virtual bool fixupNeedsRelaxation(const MCFixup &Fixup, uint64_t Value,
+  virtual bool fixupNeedsRelaxation(const MCReloc &Reloc,
                                     const MCRelaxableFragment *DF,
                                     const MCAsmLayout &Layout) const = 0;
 

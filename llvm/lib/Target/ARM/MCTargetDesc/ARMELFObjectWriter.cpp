@@ -10,10 +10,13 @@
 #include "MCTargetDesc/ARMFixupKinds.h"
 #include "MCTargetDesc/ARMMCTargetDesc.h"
 #include "llvm/BinaryFormat/ELF.h"
+#include "llvm/MC/MCAsmBackend.h"
+#include "llvm/MC/MCAssembler.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCELFObjectWriter.h"
 #include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCFixup.h"
+#include "llvm/MC/MCFixupKindInfo.h"
 #include "llvm/MC/MCValue.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
@@ -26,16 +29,16 @@ namespace {
   class ARMELFObjectWriter : public MCELFObjectTargetWriter {
     enum { DefaultEABIVersion = 0x05000000U };
 
-    unsigned GetRelocTypeInner(const MCValue &Target, const MCFixup &Fixup,
-                               bool IsPCRel, MCContext &Ctx) const;
+    unsigned GetRelocTypeInner(const MCReloc &Reloc, bool IsPCRel,
+                               MCContext &Ctx) const;
 
   public:
     ARMELFObjectWriter(uint8_t OSABI);
 
     ~ARMELFObjectWriter() override = default;
 
-    unsigned getRelocType(MCContext &Ctx, const MCValue &Target,
-                          const MCFixup &Fixup, bool IsPCRel) const override;
+    unsigned getRelocType(MCAssembler &Asm,
+                          const MCReloc &Reloc) const override;
 
     bool needsRelocateWithSymbol(const MCSymbol &Sym,
                                  unsigned Type) const override;
@@ -66,16 +69,18 @@ bool ARMELFObjectWriter::needsRelocateWithSymbol(const MCSymbol &Sym,
 // Need to examine the Fixup when determining whether to 
 // emit the relocation as an explicit symbol or as a section relative
 // offset
-unsigned ARMELFObjectWriter::getRelocType(MCContext &Ctx, const MCValue &Target,
-                                          const MCFixup &Fixup,
-                                          bool IsPCRel) const {
-  return GetRelocTypeInner(Target, Fixup, IsPCRel, Ctx);
+unsigned ARMELFObjectWriter::getRelocType(MCAssembler &Asm,
+                                          const MCReloc &Reloc) const {
+  MCContext &Ctx = Asm.getContext();
+  bool IsPCRel = Asm.getBackend().getFixupKindInfo(Reloc.getKind()).Flags &
+                 MCFixupKindInfo::FKF_IsPCRel;
+  return GetRelocTypeInner(Reloc, IsPCRel, Ctx);
 }
 
-unsigned ARMELFObjectWriter::GetRelocTypeInner(const MCValue &Target,
-                                               const MCFixup &Fixup,
+unsigned ARMELFObjectWriter::GetRelocTypeInner(const MCReloc &Fixup,
                                                bool IsPCRel,
                                                MCContext &Ctx) const {
+  const MCReloc &Target = Fixup;
   MCSymbolRefExpr::VariantKind Modifier = Target.getAccessVariant();
 
   unsigned Type = 0;
@@ -84,6 +89,7 @@ unsigned ARMELFObjectWriter::GetRelocTypeInner(const MCValue &Target,
     default:
       Ctx.reportFatalError(Fixup.getLoc(), "unsupported relocation on symbol");
       return ELF::R_ARM_NONE;
+    case FK_PCRel_4:
     case FK_Data_4:
       switch (Modifier) {
       default: llvm_unreachable("Unsupported Modifier");
@@ -129,15 +135,19 @@ unsigned ARMELFObjectWriter::GetRelocTypeInner(const MCValue &Target,
       Type = ELF::R_ARM_THM_JUMP24;
       break;
     case ARM::fixup_arm_movt_hi16:
+    case ARM::fixup_arm_movt_hi16_pc:
       Type = ELF::R_ARM_MOVT_PREL;
       break;
     case ARM::fixup_arm_movw_lo16:
+    case ARM::fixup_arm_movw_lo16_pc:
       Type = ELF::R_ARM_MOVW_PREL_NC;
       break;
     case ARM::fixup_t2_movt_hi16:
+    case ARM::fixup_t2_movt_hi16_pc:
       Type = ELF::R_ARM_THM_MOVT_PREL;
       break;
     case ARM::fixup_t2_movw_lo16:
+    case ARM::fixup_t2_movw_lo16_pc:
       Type = ELF::R_ARM_THM_MOVW_PREL_NC;
       break;
     case ARM::fixup_arm_thumb_br:

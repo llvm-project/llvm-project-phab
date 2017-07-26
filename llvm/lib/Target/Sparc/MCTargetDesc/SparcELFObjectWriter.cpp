@@ -11,8 +11,11 @@
 #include "MCTargetDesc/SparcMCExpr.h"
 #include "MCTargetDesc/SparcMCTargetDesc.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/MC/MCAsmBackend.h"
+#include "llvm/MC/MCAssembler.h"
 #include "llvm/MC/MCELFObjectWriter.h"
 #include "llvm/MC/MCExpr.h"
+#include "llvm/MC/MCFixupKindInfo.h"
 #include "llvm/MC/MCValue.h"
 #include "llvm/Support/ErrorHandling.h"
 
@@ -29,8 +32,8 @@ namespace {
     ~SparcELFObjectWriter() override {}
 
   protected:
-    unsigned getRelocType(MCContext &Ctx, const MCValue &Target,
-                          const MCFixup &Fixup, bool IsPCRel) const override;
+    unsigned getRelocType(MCAssembler &Asm,
+                          const MCReloc &Reloc) const override;
 
     bool needsRelocateWithSymbol(const MCSymbol &Sym,
                                  unsigned Type) const override;
@@ -38,10 +41,10 @@ namespace {
   };
 }
 
-unsigned SparcELFObjectWriter::getRelocType(MCContext &Ctx,
-                                            const MCValue &Target,
-                                            const MCFixup &Fixup,
-                                            bool IsPCRel) const {
+unsigned SparcELFObjectWriter::getRelocType(MCAssembler &Asm,
+                                            const MCReloc &Fixup) const {
+  bool IsPCRel = Asm.getBackend().getFixupKindInfo(Fixup.getKind()).Flags &
+                 MCFixupKindInfo::FKF_IsPCRel;
 
   if (const SparcMCExpr *SExpr = dyn_cast<SparcMCExpr>(Fixup.getValue())) {
     if (SExpr->getKind() == SparcMCExpr::VK_Sparc_R_DISP32)

@@ -31,18 +31,20 @@ public:
 
   ~AArch64WinCOFFObjectWriter() override = default;
 
-  unsigned getRelocType(MCContext &Ctx, const MCValue &Target,
-                        const MCFixup &Fixup, bool IsCrossSection,
+  unsigned getRelocType(MCContext &Ctx, const MCReloc &Fixup,
+                        bool IsCrossSection,
                         const MCAsmBackend &MAB) const override;
 
-  bool recordRelocation(const MCFixup &) const override;
+  bool recordRelocation(const MCReloc &) const override;
 };
 
 } // end anonymous namespace
 
-unsigned AArch64WinCOFFObjectWriter::getRelocType(
-    MCContext &Ctx, const MCValue &Target, const MCFixup &Fixup,
-    bool IsCrossSection, const MCAsmBackend &MAB) const {
+unsigned
+AArch64WinCOFFObjectWriter::getRelocType(MCContext &Ctx, const MCReloc &Fixup,
+                                         bool IsCrossSection,
+                                         const MCAsmBackend &MAB) const {
+  const MCReloc &Target = Fixup;
   auto Modifier = Target.isAbsolute() ? MCSymbolRefExpr::VK_None
                                       : Target.getSymA()->getKind();
 
@@ -90,7 +92,7 @@ unsigned AArch64WinCOFFObjectWriter::getRelocType(
   }
 }
 
-bool AArch64WinCOFFObjectWriter::recordRelocation(const MCFixup &Fixup) const {
+bool AArch64WinCOFFObjectWriter::recordRelocation(const MCReloc &Reloc) const {
   return true;
 }
 

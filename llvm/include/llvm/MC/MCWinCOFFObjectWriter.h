@@ -31,10 +31,10 @@ class raw_pwrite_stream;
     virtual ~MCWinCOFFObjectTargetWriter() = default;
 
     unsigned getMachine() const { return Machine; }
-    virtual unsigned getRelocType(MCContext &Ctx, const MCValue &Target,
-                                  const MCFixup &Fixup, bool IsCrossSection,
+    virtual unsigned getRelocType(MCContext &Ctx, const MCReloc &Reloc,
+                                  bool IsCrossSection,
                                   const MCAsmBackend &MAB) const = 0;
-    virtual bool recordRelocation(const MCFixup &) const { return true; }
+    virtual bool recordRelocation(const MCReloc &) const { return true; }
   };
 
   /// \brief Construct a new Win COFF writer instance.

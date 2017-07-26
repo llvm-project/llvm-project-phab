@@ -150,9 +150,8 @@ class ELFObjectWriter : public MCObjectWriter {
   bool hasRelocationAddend() const {
     return TargetObjectWriter->hasRelocationAddend();
   }
-  unsigned getRelocType(MCContext &Ctx, const MCValue &Target,
-                        const MCFixup &Fixup, bool IsPCRel) const {
-    return TargetObjectWriter->getRelocType(Ctx, Target, Fixup, IsPCRel);
+  unsigned getRelocType(MCAssembler &Asm, const MCReloc &Reloc) const {
+    return TargetObjectWriter->getRelocType(Asm, Reloc);
   }
 
   void align(unsigned Alignment);
@@ -205,8 +204,7 @@ public:
                                 unsigned Type) const;
 
   void recordRelocation(MCAssembler &Asm, const MCAsmLayout &Layout,
-                        const MCFragment *Fragment, const MCFixup &Fixup,
-                        MCValue Target, uint64_t &FixedValue) override;
+                        const MCFragment *Fragment, MCReloc &Reloc) override;
 
   // Map from a signature symbol to the group section index
   using RevGroupMapTy = DenseMap<const MCSymbol *, unsigned>;
@@ -626,17 +624,17 @@ static bool isWeak(const MCSymbolELF &Sym) {
 void ELFObjectWriter::recordRelocation(MCAssembler &Asm,
                                        const MCAsmLayout &Layout,
                                        const MCFragment *Fragment,
-                                       const MCFixup &Fixup, MCValue Target,
-                                       uint64_t &FixedValue) {
-  MCAsmBackend &Backend = Asm.getBackend();
-  bool IsPCRel = Backend.getFixupKindInfo(Fixup.getKind()).Flags &
+                                       MCReloc &Fixup) {
+  bool IsPCRel = Asm.getBackend().getFixupKindInfo(Fixup.getKind()).Flags &
                  MCFixupKindInfo::FKF_IsPCRel;
+  MCReloc &Target = Fixup;
+  uint64_t &FixedValue = Fixup.getConstant();
   const MCSectionELF &FixupSection = cast<MCSectionELF>(*Fragment->getParent());
   uint64_t C = Target.getConstant();
   uint64_t FixupOffset = Layout.getFragmentOffset(Fragment) + Fixup.getOffset();
   MCContext &Ctx = Asm.getContext();
 
-  if (const MCSymbolRefExpr *RefB = Target.getSymB()) {
+  if (const MCSymbol *SymBP = Target.getSymB()) {
     // Let A, B and C being the components of Target and R be the location of
     // the fixup. If the fixup is not pcrel, we want to compute (A - B + C).
     // If it is pcrel, we want to compute (A - B + C - R).
@@ -651,7 +649,7 @@ void ELFObjectWriter::recordRelocation(MCAssembler &Asm,
       return;
     }
 
-    const auto &SymB = cast<MCSymbolELF>(RefB->getSymbol());
+    const MCSymbol &SymB = *SymBP;
 
     if (SymB.isUndefined()) {
       Ctx.reportError(Fixup.getLoc(),
@@ -668,6 +666,7 @@ void ELFObjectWriter::recordRelocation(MCAssembler &Asm,
       return;
     }
 
+    Fixup.setKind(Asm.getBackend().getPCRelKind(Fixup.getKind()));
     uint64_t SymBOffset = Layout.getSymbolOffset(SymB);
     uint64_t K = SymBOffset - FixupOffset;
     IsPCRel = true;
@@ -689,7 +688,7 @@ void ELFObjectWriter::recordRelocation(MCAssembler &Asm,
     }
   }
 
-  unsigned Type = getRelocType(Ctx, Target, Fixup, IsPCRel);
+  unsigned Type = getRelocType(Asm, Fixup);
   uint64_t OriginalC = C;
   bool RelocateWithSymbol = shouldRelocateWithSymbol(Asm, RefA, SymA, C, Type);
   if (!RelocateWithSymbol && SymA && !SymA->isUndefined())

@@ -25,12 +25,14 @@ enum Fixups {
   // 12-bit fixup for add/sub instructions. No alignment adjustment. All value
   // bits are encoded.
   fixup_aarch64_add_imm12,
+  fixup_aarch64_add_imm12_pc,
 
   // unsigned 12-bit fixups for load and store instructions.
   fixup_aarch64_ldst_imm12_scale1,
   fixup_aarch64_ldst_imm12_scale2,
   fixup_aarch64_ldst_imm12_scale4,
   fixup_aarch64_ldst_imm12_scale8,
+  fixup_aarch64_ldst_imm12_scale8_pc,
   fixup_aarch64_ldst_imm12_scale16,
 
   // The high 19 bits of a 21-bit pc-relative immediate. Same encoding as

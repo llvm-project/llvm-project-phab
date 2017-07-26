@@ -25,8 +25,7 @@ public:
   AMDGPUELFObjectWriter(bool Is64Bit, bool HasRelocationAddend);
 
 protected:
-  unsigned getRelocType(MCContext &Ctx, const MCValue &Target,
-                        const MCFixup &Fixup, bool IsPCRel) const override;
+  unsigned getRelocType(MCAssembler &Asm, const MCReloc &Reloc) const override;
 };
 
 
@@ -39,10 +38,9 @@ AMDGPUELFObjectWriter::AMDGPUELFObjectWriter(bool Is64Bit,
                             ELF::EM_AMDGPU,
                             HasRelocationAddend) {}
 
-unsigned AMDGPUELFObjectWriter::getRelocType(MCContext &Ctx,
-                                             const MCValue &Target,
-                                             const MCFixup &Fixup,
-                                             bool IsPCRel) const {
+unsigned AMDGPUELFObjectWriter::getRelocType(MCAssembler &Asm,
+                                             const MCReloc &Fixup) const {
+  const MCReloc &Target = Fixup;
   if (const auto *SymA = Target.getSymA()) {
     // SCRATCH_RSRC_DWORD[01] is a special global variable that represents
     // the scratch buffer.

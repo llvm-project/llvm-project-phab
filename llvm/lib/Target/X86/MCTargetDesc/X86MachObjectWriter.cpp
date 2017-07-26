@@ -28,30 +28,18 @@ class X86MachObjectWriter : public MCMachObjectTargetWriter {
   bool recordScatteredRelocation(MachObjectWriter *Writer,
                                  const MCAssembler &Asm,
                                  const MCAsmLayout &Layout,
-                                 const MCFragment *Fragment,
-                                 const MCFixup &Fixup,
-                                 MCValue Target,
-                                 unsigned Log2Size,
-                                 uint64_t &FixedValue);
-  void recordTLVPRelocation(MachObjectWriter *Writer,
-                            const MCAssembler &Asm,
+                                 const MCFragment *Fragment, MCReloc &Reloc,
+                                 unsigned Log2Size);
+  void recordTLVPRelocation(MachObjectWriter *Writer, const MCAssembler &Asm,
                             const MCAsmLayout &Layout,
-                            const MCFragment *Fragment,
-                            const MCFixup &Fixup,
-                            MCValue Target,
-                            uint64_t &FixedValue);
+                            const MCFragment *Fragment, MCReloc &Reloc);
 
-  void RecordX86Relocation(MachObjectWriter *Writer,
-                              const MCAssembler &Asm,
-                              const MCAsmLayout &Layout,
-                              const MCFragment *Fragment,
-                              const MCFixup &Fixup,
-                              MCValue Target,
-                              uint64_t &FixedValue);
+  void RecordX86Relocation(MachObjectWriter *Writer, const MCAssembler &Asm,
+                           const MCAsmLayout &Layout,
+                           const MCFragment *Fragment, MCReloc &Reloc);
   void RecordX86_64Relocation(MachObjectWriter *Writer, MCAssembler &Asm,
                               const MCAsmLayout &Layout,
-                              const MCFragment *Fragment, const MCFixup &Fixup,
-                              MCValue Target, uint64_t &FixedValue);
+                              const MCFragment *Fragment, MCReloc &Reloc);
 
 public:
   X86MachObjectWriter(bool Is64Bit, uint32_t CPUType, uint32_t CPUSubtype)
@@ -59,14 +47,11 @@ public:
 
   void recordRelocation(MachObjectWriter *Writer, MCAssembler &Asm,
                         const MCAsmLayout &Layout, const MCFragment *Fragment,
-                        const MCFixup &Fixup, MCValue Target,
-                        uint64_t &FixedValue) override {
+                        MCReloc &Reloc) override {
     if (Writer->is64Bit())
-      RecordX86_64Relocation(Writer, Asm, Layout, Fragment, Fixup, Target,
-                             FixedValue);
+      RecordX86_64Relocation(Writer, Asm, Layout, Fragment, Reloc);
     else
-      RecordX86Relocation(Writer, Asm, Layout, Fragment, Fixup, Target,
-                          FixedValue);
+      RecordX86Relocation(Writer, Asm, Layout, Fragment, Reloc);
   }
 };
 }
@@ -99,10 +84,13 @@ static unsigned getFixupKindLog2Size(unsigned Kind) {
   }
 }
 
-void X86MachObjectWriter::RecordX86_64Relocation(
-    MachObjectWriter *Writer, MCAssembler &Asm, const MCAsmLayout &Layout,
-    const MCFragment *Fragment, const MCFixup &Fixup, MCValue Target,
-    uint64_t &FixedValue) {
+void X86MachObjectWriter::RecordX86_64Relocation(MachObjectWriter *Writer,
+                                                 MCAssembler &Asm,
+                                                 const MCAsmLayout &Layout,
+                                                 const MCFragment *Fragment,
+                                                 MCReloc &Fixup) {
+  const MCReloc &Target = Fixup;
+  uint64_t &FixedValue = Fixup.getConstant();
   unsigned IsPCRel = Writer->isFixupKindPCRel(Asm, Fixup.getKind());
   unsigned IsRIPRel = isFixupKindRIPRel(Fixup.getKind());
   unsigned Log2Size = getFixupKindLog2Size(Fixup.getKind());
@@ -147,7 +135,7 @@ void X86MachObjectWriter::RecordX86_64Relocation(
       A = &Writer->findAliasedSymbol(*A);
     const MCSymbol *A_Base = Asm.getAtom(*A);
 
-    const MCSymbol *B = &Target.getSymB()->getSymbol();
+    const MCSymbol *B = Target.getSymB();
     if (B->isTemporary())
       B = &Writer->findAliasedSymbol(*B);
     const MCSymbol *B_Base = Asm.getAtom(*B);
@@ -361,14 +349,11 @@ void X86MachObjectWriter::RecordX86_64Relocation(
   Writer->addRelocation(RelSymbol, Fragment->getParent(), MRE);
 }
 
-bool X86MachObjectWriter::recordScatteredRelocation(MachObjectWriter *Writer,
-                                                    const MCAssembler &Asm,
-                                                    const MCAsmLayout &Layout,
-                                                    const MCFragment *Fragment,
-                                                    const MCFixup &Fixup,
-                                                    MCValue Target,
-                                                    unsigned Log2Size,
-                                                    uint64_t &FixedValue) {
+bool X86MachObjectWriter::recordScatteredRelocation(
+    MachObjectWriter *Writer, const MCAssembler &Asm, const MCAsmLayout &Layout,
+    const MCFragment *Fragment, MCReloc &Fixup, unsigned Log2Size) {
+  MCReloc &Target = Fixup;
+  uint64_t &FixedValue = Fixup.getConstant();
   uint64_t OriginalFixedValue = FixedValue;
   uint32_t FixupOffset = Layout.getFragmentOffset(Fragment)+Fixup.getOffset();
   unsigned IsPCRel = Writer->isFixupKindPCRel(Asm, Fixup.getKind());
@@ -388,11 +373,10 @@ bool X86MachObjectWriter::recordScatteredRelocation(MachObjectWriter *Writer,
   uint32_t Value = Writer->getSymbolAddress(*A, Layout);
   uint64_t SecAddr = Writer->getSectionAddress(A->getFragment()->getParent());
   FixedValue += SecAddr;
+  FixedValue += Layout.getSymbolOffset(*A);
   uint32_t Value2 = 0;
 
-  if (const MCSymbolRefExpr *B = Target.getSymB()) {
-    const MCSymbol *SB = &B->getSymbol();
-
+  if (const MCSymbol *SB = Target.getSymB()) {
     if (!SB->getFragment()) {
       Asm.getContext().reportError(
           Fixup.getLoc(),
@@ -410,6 +394,7 @@ bool X86MachObjectWriter::recordScatteredRelocation(MachObjectWriter *Writer,
                            : (unsigned)MachO::GENERIC_RELOC_LOCAL_SECTDIFF;
     Value2 = Writer->getSymbolAddress(*SB, Layout);
     FixedValue -= Writer->getSectionAddress(SB->getFragment()->getParent());
+    FixedValue -= Layout.getSymbolOffset(*SB);
   }
 
   // Relocations are written out in reverse order, so the PAIR comes first.
@@ -465,9 +450,9 @@ void X86MachObjectWriter::recordTLVPRelocation(MachObjectWriter *Writer,
                                                const MCAssembler &Asm,
                                                const MCAsmLayout &Layout,
                                                const MCFragment *Fragment,
-                                               const MCFixup &Fixup,
-                                               MCValue Target,
-                                               uint64_t &FixedValue) {
+                                               MCReloc &Fixup) {
+  MCReloc &Target = Fixup;
+  uint64_t &FixedValue = Fixup.getConstant();
   const MCSymbolRefExpr *SymA = Target.getSymA();
   assert(SymA->getKind() == MCSymbolRefExpr::VK_TLVP && !is64Bit() &&
          "Should only be called with a 32-bit TLVP relocation!");
@@ -485,8 +470,7 @@ void X86MachObjectWriter::recordTLVPRelocation(MachObjectWriter *Writer,
     uint32_t FixupAddress =
       Writer->getFragmentAddress(Fragment, Layout) + Fixup.getOffset();
     IsPCRel = 1;
-    FixedValue = FixupAddress -
-                 Writer->getSymbolAddress(SymB->getSymbol(), Layout) +
+    FixedValue = FixupAddress - Writer->getSymbolAddress(*SymB, Layout) +
                  Target.getConstant();
     FixedValue += 1ULL << Log2Size;
   } else {
@@ -505,17 +489,16 @@ void X86MachObjectWriter::RecordX86Relocation(MachObjectWriter *Writer,
                                               const MCAssembler &Asm,
                                               const MCAsmLayout &Layout,
                                               const MCFragment *Fragment,
-                                              const MCFixup &Fixup,
-                                              MCValue Target,
-                                              uint64_t &FixedValue) {
+                                              MCReloc &Fixup) {
+  const MCReloc &Target = Fixup;
+  uint64_t &FixedValue = Fixup.getConstant();
   unsigned IsPCRel = Writer->isFixupKindPCRel(Asm, Fixup.getKind());
   unsigned Log2Size = getFixupKindLog2Size(Fixup.getKind());
 
   // If this is a 32-bit TLVP reloc it's handled a bit differently.
   if (Target.getSymA() &&
       Target.getSymA()->getKind() == MCSymbolRefExpr::VK_TLVP) {
-    recordTLVPRelocation(Writer, Asm, Layout, Fragment, Fixup, Target,
-                         FixedValue);
+    recordTLVPRelocation(Writer, Asm, Layout, Fragment, Fixup);
     return;
   }
 
@@ -523,8 +506,7 @@ void X86MachObjectWriter::RecordX86Relocation(MachObjectWriter *Writer,
   // scattered relocation entry. Differences always require scattered
   // relocations.
   if (Target.getSymB()) {
-    recordScatteredRelocation(Writer, Asm, Layout, Fragment, Fixup,
-                              Target, Log2Size, FixedValue);
+    recordScatteredRelocation(Writer, Asm, Layout, Fragment, Fixup, Log2Size);
     return;
   }
 
@@ -542,8 +524,7 @@ void X86MachObjectWriter::RecordX86Relocation(MachObjectWriter *Writer,
   // scattered if necessary (see comments in recordScatteredRelocation()
   // for details).
   if (Offset && A && !Writer->doesSymbolRequireExternRelocation(*A) &&
-      recordScatteredRelocation(Writer, Asm, Layout, Fragment, Fixup, Target,
-                                Log2Size, FixedValue))
+      recordScatteredRelocation(Writer, Asm, Layout, Fragment, Fixup, Log2Size))
     return;
 
   // See <reloc.h>.
@@ -582,9 +563,11 @@ void X86MachObjectWriter::RecordX86Relocation(MachObjectWriter *Writer,
       const MCSection &Sec = A->getSection();
       Index = Sec.getOrdinal() + 1;
       FixedValue += Writer->getSectionAddress(&Sec);
+      FixedValue += Layout.getSymbolOffset(*A);
     }
     if (IsPCRel)
-      FixedValue -= Writer->getSectionAddress(Fragment->getParent());
+      FixedValue -= Writer->getSectionAddress(Fragment->getParent()) +
+                     Layout.getFragmentOffset(Fragment) + Fixup.getOffset();
 
     Type = MachO::GENERIC_RELOC_VANILLA;
   }
