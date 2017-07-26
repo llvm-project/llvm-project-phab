@@ -11,6 +11,7 @@
 #include "Config.h"
 #include "Error.h"
 #include "InputFiles.h"
+#include "SymbolTable.h"
 #include "Symbols.h"
 #include "lld/Core/TargetOptionsCommandFlags.h"
 #include "llvm/ADT/STLExtras.h"
@@ -122,6 +123,14 @@ void BitcodeCompiler::add(BitcodeFile &F) {
   std::vector<Symbol *> Syms = F.getSymbols();
   std::vector<lto::SymbolResolution> Resols(Syms.size());
 
+  DenseSet<StringRef> UsedStartStop;
+  for (Symbol *Sym : Symtab->getSymbols()) {
+    StringRef Name = Sym->body()->getName();
+    for (StringRef Prefix : {"__start_", "__end_"})
+      if (Name.startswith(Prefix))
+        UsedStartStop.insert(Name.substr(Prefix.size()));
+  }
+
   // Provide a resolution to the LTO API for each symbol.
   for (const lto::InputFile::Symbol &ObjSym : Obj.symbols()) {
     Symbol *Sym = Syms[SymNum];
@@ -138,7 +147,7 @@ void BitcodeCompiler::add(BitcodeFile &F) {
 
     R.VisibleToRegularObj = Sym->IsUsedInRegularObj ||
                             (R.Prevailing && Sym->includeInDynsym()) ||
-                            isValidCIdentifier(ObjSym.getSectionName());
+                            UsedStartStop.count(ObjSym.getSectionName());
     if (R.Prevailing)
       undefine(Sym);
     R.LinkerRedefined = Config->RenamedSymbols.count(Sym);
