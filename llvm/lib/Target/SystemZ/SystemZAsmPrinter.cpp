@@ -497,7 +497,8 @@ bool SystemZAsmPrinter::PrintAsmOperand(const MachineInstr *MI,
                                         unsigned OpNo,
                                         unsigned AsmVariant,
                                         const char *ExtraCode,
-                                        raw_ostream &OS) {
+                                        raw_ostream &OS,
+                                        StringRef &ErrorMsg) {
   if (ExtraCode && *ExtraCode == 'n') {
     if (!MI->getOperand(OpNo).isImm())
       return true;

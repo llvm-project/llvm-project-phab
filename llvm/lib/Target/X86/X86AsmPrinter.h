@@ -122,7 +122,7 @@ public:
 
   bool PrintAsmOperand(const MachineInstr *MI, unsigned OpNo,
                        unsigned AsmVariant, const char *ExtraCode,
-                       raw_ostream &OS) override;
+                       raw_ostream &OS, StringRef &ErrorMsg) override;
   bool PrintAsmMemoryOperand(const MachineInstr *MI, unsigned OpNo,
                              unsigned AsmVariant, const char *ExtraCode,
                              raw_ostream &OS) override;

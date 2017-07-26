@@ -557,10 +557,11 @@ public:
 
   /// Print the specified operand of MI, an INLINEASM instruction, using the
   /// specified assembler variant.  Targets should override this to format as
-  /// appropriate.  This method can return true if the operand is erroneous.
+  /// appropriate.  This method can return true if the operand is erroneous,
+  /// and may supply some diagnostics via ErrorMsg
   virtual bool PrintAsmOperand(const MachineInstr *MI, unsigned OpNo,
                                unsigned AsmVariant, const char *ExtraCode,
-                               raw_ostream &OS);
+                               raw_ostream &OS, StringRef &ErrorMsg);
 
   /// Print the specified operand of MI, an INLINEASM instruction, using the
   /// specified assembler variant as an address. Targets should override this to

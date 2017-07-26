@@ -100,7 +100,7 @@ public:
 
     bool PrintAsmOperand(const MachineInstr *MI, unsigned OpNo,
                          unsigned AsmVariant, const char *ExtraCode,
-                         raw_ostream &O) override;
+                         raw_ostream &O, StringRef &ErrorMsg) override;
     bool PrintAsmMemoryOperand(const MachineInstr *MI, unsigned OpNo,
                                unsigned AsmVariant, const char *ExtraCode,
                                raw_ostream &O) override;
@@ -253,7 +253,8 @@ void PPCAsmPrinter::printOperand(const MachineInstr *MI, unsigned OpNo,
 ///
 bool PPCAsmPrinter::PrintAsmOperand(const MachineInstr *MI, unsigned OpNo,
                                     unsigned AsmVariant,
-                                    const char *ExtraCode, raw_ostream &O) {
+                                    const char *ExtraCode, raw_ostream &O,
+                                    StringRef &ErrorMsg) {
   // Does this asm operand have a single letter operand modifier?
   if (ExtraCode && ExtraCode[0]) {
     if (ExtraCode[1] != 0) return true; // Unknown modifier.
@@ -261,7 +262,8 @@ bool PPCAsmPrinter::PrintAsmOperand(const MachineInstr *MI, unsigned OpNo,
     switch (ExtraCode[0]) {
     default:
       // See if this is a generic print operand
-      return AsmPrinter::PrintAsmOperand(MI, OpNo, AsmVariant, ExtraCode, O);
+      return AsmPrinter::PrintAsmOperand(MI, OpNo, AsmVariant, ExtraCode, O,
+                                         ErrorMsg);
     case 'c': // Don't print "$" before a global var name or constant.
       break; // PPC never has a prefix.
     case 'L': // Write second word of DImode reference.

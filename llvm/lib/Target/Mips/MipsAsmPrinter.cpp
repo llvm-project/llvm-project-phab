@@ -453,7 +453,7 @@ bool MipsAsmPrinter::isBlockOnlyReachableByFallthrough(const MachineBasicBlock*
 // Print out an operand for an inline asm expression.
 bool MipsAsmPrinter::PrintAsmOperand(const MachineInstr *MI, unsigned OpNum,
                                      unsigned AsmVariant, const char *ExtraCode,
-                                     raw_ostream &O) {
+                                     raw_ostream &O, StringRef &ErrorMsg) {
   // Does this asm operand have a single letter operand modifier?
   if (ExtraCode && ExtraCode[0]) {
     if (ExtraCode[1] != 0) return true; // Unknown modifier.
@@ -462,7 +462,8 @@ bool MipsAsmPrinter::PrintAsmOperand(const MachineInstr *MI, unsigned OpNum,
     switch (ExtraCode[0]) {
     default:
       // See if this is a generic print operand
-      return AsmPrinter::PrintAsmOperand(MI,OpNum,AsmVariant,ExtraCode,O);
+      return AsmPrinter::PrintAsmOperand(MI,OpNum,AsmVariant,ExtraCode,O,
+                                         ErrorMsg);
     case 'X': // hex const int
       if ((MO.getType()) != MachineOperand::MO_Immediate)
         return true;

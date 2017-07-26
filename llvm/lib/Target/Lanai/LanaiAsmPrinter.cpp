@@ -50,7 +50,7 @@ public:
   void printOperand(const MachineInstr *MI, int OpNum, raw_ostream &O);
   bool PrintAsmOperand(const MachineInstr *MI, unsigned OpNo,
                        unsigned AsmVariant, const char *ExtraCode,
-                       raw_ostream &O) override;
+                       raw_ostream &O, StringRef &ErrorMsg) override;
   void EmitInstruction(const MachineInstr *MI) override;
   bool isBlockOnlyReachableByFallthrough(
       const MachineBasicBlock *MBB) const override;
@@ -110,7 +110,8 @@ void LanaiAsmPrinter::printOperand(const MachineInstr *MI, int OpNum,
 // PrintAsmOperand - Print out an operand for an inline asm expression.
 bool LanaiAsmPrinter::PrintAsmOperand(const MachineInstr *MI, unsigned OpNo,
                                       unsigned /*AsmVariant*/,
-                                      const char *ExtraCode, raw_ostream &O) {
+                                      const char *ExtraCode, raw_ostream &O,
+                                      StringRef &ErrorMsg) {
   // Does this asm operand have a single letter operand modifier?
   if (ExtraCode && ExtraCode[0]) {
     if (ExtraCode[1])

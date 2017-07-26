@@ -61,7 +61,7 @@ namespace {
 
     bool PrintAsmOperand(const MachineInstr *MI, unsigned OpNo,
                          unsigned AsmVariant, const char *ExtraCode,
-                         raw_ostream &O) override;
+                         raw_ostream &O, StringRef &ErrorMsg) override;
     bool PrintAsmMemoryOperand(const MachineInstr *MI, unsigned OpNo,
                                unsigned AsmVariant, const char *ExtraCode,
                                raw_ostream &O) override;
@@ -408,14 +408,16 @@ void SparcAsmPrinter::printMemOperand(const MachineInstr *MI, int opNum,
 bool SparcAsmPrinter::PrintAsmOperand(const MachineInstr *MI, unsigned OpNo,
                                       unsigned AsmVariant,
                                       const char *ExtraCode,
-                                      raw_ostream &O) {
+                                      raw_ostream &O,
+                                      StringRef &ErrorMsg) {
   if (ExtraCode && ExtraCode[0]) {
     if (ExtraCode[1] != 0) return true; // Unknown modifier.
 
     switch (ExtraCode[0]) {
     default:
       // See if this is a generic print operand
-      return AsmPrinter::PrintAsmOperand(MI, OpNo, AsmVariant, ExtraCode, O);
+      return AsmPrinter::PrintAsmOperand(MI, OpNo, AsmVariant, ExtraCode, O,
+                                         ErrorMsg);
     case 'f':
     case 'r':
      break;

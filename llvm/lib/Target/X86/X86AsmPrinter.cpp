@@ -373,7 +373,8 @@ static bool printAsmMRegister(X86AsmPrinter &P, const MachineOperand &MO,
 ///
 bool X86AsmPrinter::PrintAsmOperand(const MachineInstr *MI, unsigned OpNo,
                                     unsigned AsmVariant,
-                                    const char *ExtraCode, raw_ostream &O) {
+                                    const char *ExtraCode, raw_ostream &O,
+                                    StringRef &ErrorMsg) {
   // Does this asm operand have a single letter operand modifier?
   if (ExtraCode && ExtraCode[0]) {
     if (ExtraCode[1] != 0) return true; // Unknown modifier.
@@ -383,7 +384,8 @@ bool X86AsmPrinter::PrintAsmOperand(const MachineInstr *MI, unsigned OpNo,
     switch (ExtraCode[0]) {
     default:
       // See if this is a generic print operand
-      return AsmPrinter::PrintAsmOperand(MI, OpNo, AsmVariant, ExtraCode, O);
+      return AsmPrinter::PrintAsmOperand(MI, OpNo, AsmVariant, ExtraCode, O,
+                                         ErrorMsg);
     case 'a': // This is an address.  Currently only 'i' and 'r' are expected.
       switch (MO.getType()) {
       default:
@@ -455,6 +457,14 @@ bool X86AsmPrinter::PrintAsmOperand(const MachineInstr *MI, unsigned OpNo,
         return false;
       }
       O << '-';
+      break;
+    case 'H':
+      // Diagnostics.
+      // Reaching here means the user asked for the 'H' modifier, on a non
+      // (offsettable) memory operand. Properly report this false behavior.
+      ErrorMsg  = "Cannot use 'H' modifier on a non-offsettable memory "
+                  "reference: ";
+      return true;
     }
   }
 
