@@ -1154,11 +1154,8 @@ private:
   bool canElideEmptySequence() override;
 
   class HNode {
-    virtual void anchor();
-
   public:
     HNode(Node *n) : _node(n) { }
-    virtual ~HNode() = default;
 
     static bool classof(const HNode *) { return true; }
 
@@ -1166,8 +1163,6 @@ private:
   };
 
   class EmptyHNode : public HNode {
-    void anchor() override;
-
   public:
     EmptyHNode(Node *n) : HNode(n) { }
 
@@ -1177,8 +1172,6 @@ private:
   };
 
   class ScalarHNode : public HNode {
-    void anchor() override;
-
   public:
     ScalarHNode(Node *n, StringRef s) : HNode(n), _value(s) { }
 
@@ -1196,8 +1189,6 @@ private:
   };
 
   class MapHNode : public HNode {
-    void anchor() override;
-
   public:
     MapHNode(Node *n) : HNode(n) { }
 
@@ -1207,15 +1198,13 @@ private:
 
     static bool classof(const MapHNode *) { return true; }
 
-    using NameToNode = StringMap<std::unique_ptr<HNode>>;
+    using NameToNode = StringMap<HNode *>;
 
     NameToNode Mapping;
     SmallVector<std::string, 6> ValidKeys;
   };
 
   class SequenceHNode : public HNode {
-    void anchor() override;
-
   public:
     SequenceHNode(Node *n) : HNode(n) { }
 
@@ -1225,10 +1214,10 @@ private:
 
     static bool classof(const SequenceHNode *) { return true; }
 
-    std::vector<std::unique_ptr<HNode>> Entries;
+    std::vector<HNode *> Entries;
   };
 
-  std::unique_ptr<Input::HNode> createHNodes(Node *node);
+  Input::HNode *createHNodes(Node *node);
   void setError(HNode *hnode, const Twine &message);
   void setError(Node *node, const Twine &message);
 
@@ -1244,9 +1233,12 @@ public:
 private:
   SourceMgr                           SrcMgr; // must be before Strm
   std::unique_ptr<llvm::yaml::Stream> Strm;
-  std::unique_ptr<HNode>              TopNode;
+  HNode *TopNode;
   std::error_code                     EC;
   BumpPtrAllocator                    StringAllocator;
+  BumpPtrAllocator                    HNodeAllocator;
+  SpecificBumpPtrAllocator<SequenceHNode> SequenceHNodeAllocator;
+  SpecificBumpPtrAllocator<MapHNode> MapHNodeAllocator;
   document_iterator                   DocIterator;
   std::vector<bool>                   BitValuesUsed;
   HNode *CurrentNode = nullptr;
