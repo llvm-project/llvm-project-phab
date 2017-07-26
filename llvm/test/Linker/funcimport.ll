@@ -62,8 +62,8 @@
 ; An alias to an imported function is imported as alias if the function is not
 ; available_externally.
 ; RUN: llvm-link %t2.bc -summary-index=%t3.thinlto.bc -import=linkoncefunc:%t.bc -S | FileCheck %s --check-prefix=IMPORTGLOB5
-; IMPORTGLOB5-DAG: linkoncealias = alias void (...), bitcast (void ()* @linkoncefunc to void (...)*)
-; IMPORTGLOB5-DAG: define linkonce_odr void @linkoncefunc()
+; IMPORTGLOB5-NOT: @linkoncealias
+; IMPORTGLOB5-DAG: define available_externally void @linkoncefunc()
 
 ; Ensure that imported static variable and function references are correctly
 ; promoted and renamed (including static constant variable).
