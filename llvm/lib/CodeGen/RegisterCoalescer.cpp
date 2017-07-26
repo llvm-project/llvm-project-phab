@@ -2198,6 +2198,11 @@ std::pair<const VNInfo*, unsigned> JoinVals::followCopyChain(
         break;
       }
     }
+    if (ValueIn == nullptr && SubIdx == 0) {
+      // Didn't match a subrange but Def has no subranges so in reality we can choose an arbitrary subrange
+      LiveQueryResult LRQ = LI.Query(Def);
+      ValueIn = LRQ.valueIn();
+    }
     if (ValueIn == nullptr)
       break;
     VNI = ValueIn;
