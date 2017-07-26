@@ -133,14 +133,10 @@ selectCallee(const ModuleSummaryIndex &Index,
           // There is no point in importing these, we can't inline them
           return false;
         if (auto *AS = dyn_cast<AliasSummary>(GVSummary)) {
-          GVSummary = &AS->getAliasee();
-          // Alias can't point to "available_externally". However when we import
-          // linkOnceODR the linkage does not change. So we import the alias
-          // and aliasee only in this case.
+          // Aliases can't point to "available_externally".
           // FIXME: we should import alias as available_externally *function*,
           // the destination module does need to know it is an alias.
-          if (!GlobalValue::isLinkOnceODRLinkage(GVSummary->linkage()))
-            return false;
+          return false;
         }
 
         auto *Summary = cast<FunctionSummary>(GVSummary);
