@@ -36,7 +36,39 @@
 #include <list>
 
 using namespace llvm;
+static std::string CurrentActivity;
+namespace {
+  class LLVMLTODiagnosticHandler : public DiagnosticHandler {
+  void HandleDiagnostics(const DiagnosticInfo &DI, void *Context) {
+    raw_ostream &OS = errs();
+    OS << "llvm-lto: ";
+    switch (DI.getSeverity()) {
+      case DS_Error:
+        OS << "error";
+        break;
+      case DS_Warning:
+      OS << "warning";
+    break;
+  case DS_Remark:
+    OS << "remark";
+    break;
+  case DS_Note:
+    OS << "note";
+    break;
+  }
+  if (!CurrentActivity.empty())
+    OS << ' ' << CurrentActivity;
+  OS << ": ";
 
+  DiagnosticPrinterRawOStream DP(OS);
+  DI.print(DP);
+  OS << '\n';
+
+  if (DI.getSeverity() == DS_Error)
+    exit(1);
+  }
+};
+}
 static cl::opt<char>
     OptLevel("O", cl::desc("Optimization level. [-O0, -O1, -O2, or -O3] "
                            "(default = '-O2')"),
@@ -204,7 +236,6 @@ static void handleDiagnostics(lto_codegen_diagnostic_severity_t Severity,
   errs() << Msg << "\n";
 }
 
-static std::string CurrentActivity;
 static void diagnosticHandler(const DiagnosticInfo &DI, void *Context) {
   raw_ostream &OS = errs();
   OS << "llvm-lto: ";
@@ -263,7 +294,7 @@ getLocalLTOModule(StringRef Path, std::unique_ptr<MemoryBuffer> &Buffer,
   Buffer = std::move(BufferOrErr.get());
   CurrentActivity = ("loading file '" + Path + "'").str();
   std::unique_ptr<LLVMContext> Context = llvm::make_unique<LLVMContext>();
-  Context->setDiagnosticHandler(diagnosticHandler, nullptr, true);
+  Context->setDiagnosticHandler(std::unique_ptr<LLVMLTODiagnosticHandler>(new LLVMLTODiagnosticHandler()), nullptr, true);
   ErrorOr<std::unique_ptr<LTOModule>> Ret = LTOModule::createInLocalContext(
       std::move(Context), Buffer->getBufferStart(), Buffer->getBufferSize(),
       Options, Path);
@@ -808,7 +839,7 @@ int main(int argc, char **argv) {
   unsigned BaseArg = 0;
 
   LLVMContext Context;
-  Context.setDiagnosticHandler(diagnosticHandler, nullptr, true);
+  Context.setDiagnosticHandler(std::unique_ptr<LLVMLTODiagnosticHandler>(new LLVMLTODiagnosticHandler()), nullptr, true);
 
   LTOCodeGenerator CodeGen(Context);
 
@@ -834,7 +865,6 @@ int main(int argc, char **argv) {
         LTOModule::createFromFile(Context, InputFilenames[i], Options);
     std::unique_ptr<LTOModule> &Module = *ModuleOrErr;
     CurrentActivity = "";
-
     unsigned NumSyms = Module->getSymbolCount();
     for (unsigned I = 0; I < NumSyms; ++I) {
       StringRef Name = Module->getSymbolName(I);

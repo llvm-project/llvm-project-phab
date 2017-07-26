@@ -168,20 +168,23 @@ struct Config {
                      bool UseInputModulePath = false);
 };
 
+class LTOLLVMDiagnosticHandler : public DiagnosticHandler {
+  void HandleDiagnostics(const DiagnosticInfo &DI, void *Context) {
+    auto *Fn = static_cast<DiagnosticHandlerFunction *>(Context);
+     (*Fn)(DI);
+  }
+};
 /// A derived class of LLVMContext that initializes itself according to a given
 /// Config object. The purpose of this class is to tie ownership of the
 /// diagnostic handler to the context, as opposed to the Config object (which
 /// may be ephemeral).
 struct LTOLLVMContext : LLVMContext {
-  static void funcDiagHandler(const DiagnosticInfo &DI, void *Context) {
-    auto *Fn = static_cast<DiagnosticHandlerFunction *>(Context);
-    (*Fn)(DI);
-  }
 
   LTOLLVMContext(const Config &C) : DiagHandler(C.DiagHandler) {
     setDiscardValueNames(C.ShouldDiscardValueNames);
     enableDebugTypeODRUniquing();
-    setDiagnosticHandler(funcDiagHandler, &DiagHandler, true);
+    setDiagnosticHandler(std::unique_ptr<LTOLLVMDiagnosticHandler>(new LTOLLVMDiagnosticHandler()),
+                          &DiagHandler, true);
   }
   DiagnosticHandlerFunction DiagHandler;
 };

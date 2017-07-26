@@ -1168,7 +1168,7 @@ public:
   LLVMContext::InlineAsmDiagHandlerTy InlineAsmDiagHandler = nullptr;
   void *InlineAsmDiagContext = nullptr;
 
-  LLVMContext::DiagnosticHandlerTy DiagnosticHandler = nullptr;
+  std::unique_ptr<DiagnosticHandler> DiagHandler = nullptr;
   void *DiagnosticContext = nullptr;
   bool RespectDiagnosticFilters = false;
   bool DiagnosticsHotnessRequested = false;

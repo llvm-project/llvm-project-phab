@@ -13,7 +13,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
@@ -59,22 +58,22 @@ using namespace llvm;
 // and back-end code generation options are specified with the target machine.
 //
 static cl::opt<std::string>
-InputFilename(cl::Positional, cl::desc("<input bitcode>"), cl::init("-"));
+    InputFilename(cl::Positional, cl::desc("<input bitcode>"), cl::init("-"));
 
 static cl::opt<std::string>
-InputLanguage("x", cl::desc("Input language ('ir' or 'mir')"));
+    InputLanguage("x", cl::desc("Input language ('ir' or 'mir')"));
 
-static cl::opt<std::string>
-OutputFilename("o", cl::desc("Output filename"), cl::value_desc("filename"));
+static cl::opt<std::string> OutputFilename("o", cl::desc("Output filename"),
+                                           cl::value_desc("filename"));
 
 static cl::opt<unsigned>
-TimeCompilations("time-compilations", cl::Hidden, cl::init(1u),
-                 cl::value_desc("N"),
-                 cl::desc("Repeat compilation N times for timing"));
+    TimeCompilations("time-compilations", cl::Hidden, cl::init(1u),
+                     cl::value_desc("N"),
+                     cl::desc("Repeat compilation N times for timing"));
 
 static cl::opt<bool>
-NoIntegratedAssembler("no-integrated-as", cl::Hidden,
-                      cl::desc("Disable integrated assembler"));
+    NoIntegratedAssembler("no-integrated-as", cl::Hidden,
+                          cl::desc("Disable integrated assembler"));
 
 static cl::opt<bool>
     PreserveComments("preserve-as-comments", cl::Hidden,
@@ -83,15 +82,12 @@ static cl::opt<bool>
 
 // Determine optimization level.
 static cl::opt<char>
-OptLevel("O",
-         cl::desc("Optimization level. [-O0, -O1, -O2, or -O3] "
-                  "(default = '-O2')"),
-         cl::Prefix,
-         cl::ZeroOrMore,
-         cl::init(' '));
+    OptLevel("O", cl::desc("Optimization level. [-O0, -O1, -O2, or -O3] "
+                           "(default = '-O2')"),
+             cl::Prefix, cl::ZeroOrMore, cl::init(' '));
 
 static cl::opt<std::string>
-TargetTriple("mtriple", cl::desc("Override target triple for module"));
+    TargetTriple("mtriple", cl::desc("Override target triple for module"));
 
 static cl::opt<std::string> SplitDwarfFile(
     "split-dwarf-file",
@@ -101,8 +97,9 @@ static cl::opt<std::string> SplitDwarfFile(
 static cl::opt<bool> NoVerify("disable-verify", cl::Hidden,
                               cl::desc("Do not verify input module"));
 
-static cl::opt<bool> DisableSimplifyLibCalls("disable-simplify-libcalls",
-                                             cl::desc("Disable simplify-libcalls"));
+static cl::opt<bool>
+    DisableSimplifyLibCalls("disable-simplify-libcalls",
+                            cl::desc("Disable simplify-libcalls"));
 
 static cl::opt<bool> ShowMCEncoding("show-mc-encoding", cl::Hidden,
                                     cl::desc("Show encoding in .s output"));
@@ -126,21 +123,24 @@ static cl::opt<bool> DiscardValueNames(
     cl::desc("Discard names from Value (other than GlobalValue)."),
     cl::init(false), cl::Hidden);
 
-static cl::opt<std::string> StopBefore("stop-before",
-    cl::desc("Stop compilation before a specific pass"),
-    cl::value_desc("pass-name"), cl::init(""));
+static cl::opt<std::string>
+    StopBefore("stop-before",
+               cl::desc("Stop compilation before a specific pass"),
+               cl::value_desc("pass-name"), cl::init(""));
 
-static cl::opt<std::string> StopAfter("stop-after",
-    cl::desc("Stop compilation after a specific pass"),
-    cl::value_desc("pass-name"), cl::init(""));
+static cl::opt<std::string>
+    StopAfter("stop-after", cl::desc("Stop compilation after a specific pass"),
+              cl::value_desc("pass-name"), cl::init(""));
 
-static cl::opt<std::string> StartBefore("start-before",
-    cl::desc("Resume compilation before a specific pass"),
-    cl::value_desc("pass-name"), cl::init(""));
+static cl::opt<std::string>
+    StartBefore("start-before",
+                cl::desc("Resume compilation before a specific pass"),
+                cl::value_desc("pass-name"), cl::init(""));
 
-static cl::opt<std::string> StartAfter("start-after",
-    cl::desc("Resume compilation after a specific pass"),
-    cl::value_desc("pass-name"), cl::init(""));
+static cl::opt<std::string>
+    StartAfter("start-after",
+               cl::desc("Resume compilation after a specific pass"),
+               cl::value_desc("pass-name"), cl::init(""));
 
 static cl::list<std::string> IncludeDirs("I", cl::desc("include search path"));
 
@@ -172,6 +172,23 @@ struct RunPassOption {
       RunPassNames->push_back(PassName);
   }
 };
+
+class LLCDiagnosticHandler : public DiagnosticHandler {
+  void HandleDiagnostics(const DiagnosticInfo &DI, void *Context) {
+    bool *HasError = static_cast<bool *>(Context);
+    if (DI.getSeverity() == DS_Error)
+      *HasError = true;
+
+    if (auto *Remark = dyn_cast<DiagnosticInfoOptimizationBase>(&DI))
+      if (!Remark->isEnabled())
+        return;
+
+    DiagnosticPrinterRawOStream DP(errs());
+    errs() << LLVMContext::getDiagnosticMessagePrefix(DI.getSeverity()) << ": ";
+    DI.print(DP);
+    errs() << "\n";
+  }
+};
 }
 
 static RunPassOption RunPassOpt;
@@ -183,9 +200,9 @@ static cl::opt<RunPassOption, true, cl::parser<std::string>> RunPass(
 
 static int compileModule(char **, LLVMContext &);
 
-static std::unique_ptr<tool_output_file>
-GetOutputStream(const char *TargetName, Triple::OSType OS,
-                const char *ProgName) {
+static std::unique_ptr<tool_output_file> GetOutputStream(const char *TargetName,
+                                                         Triple::OSType OS,
+                                                         const char *ProgName) {
   // If we don't yet have an output filename, make one.
   if (OutputFilename.empty()) {
     if (InputFilename == "-")
@@ -241,8 +258,8 @@ GetOutputStream(const char *TargetName, Triple::OSType OS,
   sys::fs::OpenFlags OpenFlags = sys::fs::F_None;
   if (!Binary)
     OpenFlags |= sys::fs::F_Text;
-  auto FDOut = llvm::make_unique<tool_output_file>(OutputFilename, EC,
-                                                   OpenFlags);
+  auto FDOut =
+      llvm::make_unique<tool_output_file>(OutputFilename, EC, OpenFlags);
   if (EC) {
     errs() << EC.message() << '\n';
     return nullptr;
@@ -251,7 +268,7 @@ GetOutputStream(const char *TargetName, Triple::OSType OS,
   return FDOut;
 }
 
-static void DiagnosticHandler(const DiagnosticInfo &DI, void *Context) {
+static void DiagnosticHandlerImpl(const DiagnosticInfo &DI, void *Context) {
   bool *HasError = static_cast<bool *>(Context);
   if (DI.getSeverity() == DS_Error)
     *HasError = true;
@@ -289,7 +306,7 @@ int main(int argc, char **argv) {
   EnableDebugBuffering = true;
 
   LLVMContext Context;
-  llvm_shutdown_obj Y;  // Call llvm_shutdown() on exit.
+  llvm_shutdown_obj Y; // Call llvm_shutdown() on exit.
 
   // Initialize targets first, so that --version shows registered targets.
   InitializeAllTargets();
@@ -324,7 +341,9 @@ int main(int argc, char **argv) {
 
   // Set a diagnostic handler that doesn't exit on the first error
   bool HasError = false;
-  Context.setDiagnosticHandler(DiagnosticHandler, &HasError);
+  Context.setDiagnosticHandler(
+      std::unique_ptr<LLCDiagnosticHandler>(new LLCDiagnosticHandler()),
+      &HasError);
   Context.setInlineAsmDiagnosticHandler(InlineAsmDiagHandler, &HasError);
 
   if (PassRemarksWithHotness)
@@ -346,8 +365,7 @@ int main(int argc, char **argv) {
         llvm::make_unique<yaml::Output>(YamlFile->os()));
   }
 
-  if (InputLanguage != "" && InputLanguage != "ir" &&
-      InputLanguage != "mir") {
+  if (InputLanguage != "" && InputLanguage != "ir" && InputLanguage != "mir") {
     errs() << argv[0] << "Input language must be '', 'IR' or 'MIR'\n";
     return 1;
   }
@@ -363,8 +381,8 @@ int main(int argc, char **argv) {
   return 0;
 }
 
-static bool addPass(PassManagerBase &PM, const char *argv0,
-                    StringRef PassName, TargetPassConfig &TPC) {
+static bool addPass(PassManagerBase &PM, const char *argv0, StringRef PassName,
+                    TargetPassConfig &TPC) {
   if (PassName == "none")
     return false;
 
@@ -410,8 +428,8 @@ static int compileModule(char **argv, LLVMContext &Context) {
   std::unique_ptr<MIRParser> MIR;
   Triple TheTriple;
 
-  bool SkipModule = MCPU == "help" ||
-                    (!MAttrs.empty() && MAttrs.front() == "help");
+  bool SkipModule =
+      MCPU == "help" || (!MAttrs.empty() && MAttrs.front() == "help");
 
   // If user just wants to list available options, skip module loading
   if (!SkipModule) {
@@ -448,8 +466,8 @@ static int compileModule(char **argv, LLVMContext &Context) {
 
   // Get the target specific parser.
   std::string Error;
-  const Target *TheTarget = TargetRegistry::lookupTarget(MArch, TheTriple,
-                                                         Error);
+  const Target *TheTarget =
+      TargetRegistry::lookupTarget(MArch, TheTriple, Error);
   if (!TheTarget) {
     errs() << argv[0] << ": " << Error;
     return 1;
@@ -462,11 +480,20 @@ static int compileModule(char **argv, LLVMContext &Context) {
   default:
     errs() << argv[0] << ": invalid optimization level.\n";
     return 1;
-  case ' ': break;
-  case '0': OLvl = CodeGenOpt::None; break;
-  case '1': OLvl = CodeGenOpt::Less; break;
-  case '2': OLvl = CodeGenOpt::Default; break;
-  case '3': OLvl = CodeGenOpt::Aggressive; break;
+  case ' ':
+    break;
+  case '0':
+    OLvl = CodeGenOpt::None;
+    break;
+  case '1':
+    OLvl = CodeGenOpt::Less;
+    break;
+  case '2':
+    OLvl = CodeGenOpt::Default;
+    break;
+  case '3':
+    OLvl = CodeGenOpt::Aggressive;
+    break;
   }
 
   TargetOptions Options = InitTargetOptionsFromCodeGenFlags();
@@ -497,7 +524,8 @@ static int compileModule(char **argv, LLVMContext &Context) {
   // Figure out where we are going to send the output.
   std::unique_ptr<tool_output_file> Out =
       GetOutputStream(TheTarget->getName(), TheTriple.getOS(), argv[0]);
-  if (!Out) return 1;
+  if (!Out)
+    return 1;
 
   // Build up all of the passes that we want to do to the module.
   legacy::PassManager PM;
@@ -520,7 +548,7 @@ static int compileModule(char **argv, LLVMContext &Context) {
   if (RelaxAll.getNumOccurrences() > 0 &&
       FileType != TargetMachine::CGFT_ObjectFile)
     errs() << argv[0]
-             << ": warning: ignoring -mc-relax-all because filetype != obj";
+           << ": warning: ignoring -mc-relax-all because filetype != obj";
 
   {
     raw_pwrite_stream *OS = &Out->os();
@@ -553,7 +581,7 @@ static int compileModule(char **argv, LLVMContext &Context) {
     if (MIR) {
       // Construct a custom pass pipeline that starts after instruction
       // selection.
-      LLVMTargetMachine &LLVMTM = static_cast<LLVMTargetMachine&>(*Target);
+      LLVMTargetMachine &LLVMTM = static_cast<LLVMTargetMachine &>(*Target);
       TargetPassConfig &TPC = *LLVMTM.createPassConfig(PM);
       TPC.setDisableVerify(NoVerify);
       PM.add(&TPC);
@@ -567,7 +595,7 @@ static int compileModule(char **argv, LLVMContext &Context) {
         if (!StartAfter.empty() || !StopAfter.empty() || !StartBefore.empty() ||
             !StopBefore.empty()) {
           errs() << argv0 << ": start-after and/or stop-after passes are "
-                               "redundant when run-pass is specified.\n";
+                             "redundant when run-pass is specified.\n";
           return 1;
         }
 
@@ -595,7 +623,7 @@ static int compileModule(char **argv, LLVMContext &Context) {
                                            StartBeforeID, StartAfterID,
                                            StopBeforeID, StopAfterID)) {
       errs() << argv0 << ": target does not support generation of this"
-        << " file type!\n";
+             << " file type!\n";
       return 1;
     }
 

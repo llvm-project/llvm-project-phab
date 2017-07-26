@@ -184,6 +184,7 @@ struct LTOCodeGenerator {
   LLVMContext &getContext() { return Context; }
 
   void resetMergedModule() { MergedModule.reset(); }
+  void DiagnosticHandler(const DiagnosticInfo &DI);
 
 private:
   void initializeLTOPasses();
@@ -204,9 +205,8 @@ private:
   bool determineTarget();
   std::unique_ptr<TargetMachine> createTargetMachine();
 
-  static void DiagnosticHandler(const DiagnosticInfo &DI, void *Context);
 
-  void DiagnosticHandler2(const DiagnosticInfo &DI);
+  
 
   void emitError(const std::string &ErrMsg);
   void emitWarning(const std::string &ErrMsg);

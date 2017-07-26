@@ -15,17 +15,20 @@
 #ifndef LLVM_IR_DIAGNOSTICINFO_H
 #define LLVM_IR_DIAGNOSTICINFO_H
 
-#include "llvm-c/Types.h"
+#include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/IR/DebugLoc.h"
+#include "llvm/IR/Function.h"
 #include "llvm/Support/CBindingWrapping.h"
+#include "llvm/Support/Debug.h"
 #include "llvm/Support/YAMLTraits.h"
+#include "llvm-c/Types.h"
+#include <functional>
 #include <algorithm>
 #include <cstdint>
-#include <functional>
 #include <iterator>
 #include <string>
 
@@ -33,7 +36,6 @@ namespace llvm {
 
 // Forward declarations.
 class DiagnosticPrinter;
-class Function;
 class Instruction;
 class LLVMContext;
 class Module;
@@ -119,7 +121,7 @@ public:
   virtual void print(DiagnosticPrinter &DP) const = 0;
 };
 
-using DiagnosticHandlerFunction = std::function<void(const DiagnosticInfo &)>;
+typedef std::function<void(const DiagnosticInfo &)> DiagnosticHandlerFunction;
 
 /// Diagnostic information for inline asm reporting.
 /// This is basically a message and an optional location.
@@ -604,10 +606,10 @@ public:
     return DI->getKind() == DK_OptimizationRemark;
   }
 
-  static bool isEnabled(StringRef PassName);
-
   /// \see DiagnosticInfoOptimizationBase::isEnabled.
-  bool isEnabled() const override { return isEnabled(getPassName()); }
+  bool isEnabled() const override {
+    return DiagnosticHandler::isPassedOptRemarkEnable(getPassName().str());
+}
 
 private:
   /// This is deprecated now and only used by the function API below.
@@ -652,10 +654,10 @@ public:
     return DI->getKind() == DK_OptimizationRemarkMissed;
   }
 
-  static bool isEnabled(StringRef PassName);
-
   /// \see DiagnosticInfoOptimizationBase::isEnabled.
-  bool isEnabled() const override { return isEnabled(getPassName()); }
+  bool isEnabled() const override {
+    return DiagnosticHandler::isMissedOptRemarkEnable(getPassName().str());
+  }
 
 private:
   /// This is deprecated now and only used by the function API below.
@@ -712,11 +714,10 @@ public:
     return DI->getKind() == DK_OptimizationRemarkAnalysis;
   }
 
-  static bool isEnabled(StringRef PassName);
-
   /// \see DiagnosticInfoOptimizationBase::isEnabled.
   bool isEnabled() const override {
-    return shouldAlwaysPrint() || isEnabled(getPassName());
+    return DiagnosticHandler::isAnalysisRemarkEnable(getPassName().str()) ||
+          shouldAlwaysPrint();
   }
 
   static const char *AlwaysPrint;

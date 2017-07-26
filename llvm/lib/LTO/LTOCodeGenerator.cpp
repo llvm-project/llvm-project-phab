@@ -62,6 +62,7 @@
 #include "llvm/Transforms/ObjCARC.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"
 #include <system_error>
+#include <iostream>
 using namespace llvm;
 
 const char* LTOCodeGenerator::getVersionString() {
@@ -623,12 +624,8 @@ void LTOCodeGenerator::parseCodeGenDebugOptions() {
   }
 }
 
-void LTOCodeGenerator::DiagnosticHandler(const DiagnosticInfo &DI,
-                                         void *Context) {
-  ((LTOCodeGenerator *)Context)->DiagnosticHandler2(DI);
-}
 
-void LTOCodeGenerator::DiagnosticHandler2(const DiagnosticInfo &DI) {
+void LTOCodeGenerator::DiagnosticHandler(const DiagnosticInfo &DI) {
   // Map the LLVM internal diagnostic severity to the LTO diagnostic severity.
   lto_codegen_diagnostic_severity_t Severity;
   switch (DI.getSeverity()) {
@@ -658,17 +655,22 @@ void LTOCodeGenerator::DiagnosticHandler2(const DiagnosticInfo &DI) {
   (*DiagHandler)(Severity, MsgStorage.c_str(), DiagContext);
 }
 
+namespace {
+class LTODiagnosticHandler : public DiagnosticHandler {
+  void HandleDiagnostics(const DiagnosticInfo &DI, void *Context) {
+    ((LTOCodeGenerator *)Context)->DiagnosticHandler(DI);
+  }
+};
+}
+
 void
 LTOCodeGenerator::setDiagnosticHandler(lto_diagnostic_handler_t DiagHandler,
                                        void *Ctxt) {
   this->DiagHandler = DiagHandler;
   this->DiagContext = Ctxt;
   if (!DiagHandler)
-    return Context.setDiagnosticHandler(nullptr, nullptr);
-  // Register the LTOCodeGenerator stub in the LLVMContext to forward the
-  // diagnostic to the external DiagHandler.
-  Context.setDiagnosticHandler(LTOCodeGenerator::DiagnosticHandler, this,
-                               /* RespectFilters */ true);
+    return Context.setDiagnosticHandler(nullptr);
+    Context.setDiagnosticHandler(std::unique_ptr<LTODiagnosticHandler>(new LTODiagnosticHandler()), this, true);
 }
 
 namespace {
