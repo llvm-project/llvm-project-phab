@@ -116,7 +116,7 @@ private:
 
   bool PrintAsmOperand(const MachineInstr *MI, unsigned OpNum,
                        unsigned AsmVariant, const char *ExtraCode,
-                       raw_ostream &O) override;
+                       raw_ostream &O, StringRef &ErrorMsg) override;
   bool PrintAsmMemoryOperand(const MachineInstr *MI, unsigned OpNum,
                              unsigned AsmVariant, const char *ExtraCode,
                              raw_ostream &O) override;
@@ -314,11 +314,12 @@ bool AArch64AsmPrinter::printAsmRegInClass(const MachineOperand &MO,
 
 bool AArch64AsmPrinter::PrintAsmOperand(const MachineInstr *MI, unsigned OpNum,
                                         unsigned AsmVariant,
-                                        const char *ExtraCode, raw_ostream &O) {
+                                        const char *ExtraCode, raw_ostream &O,
+                                        StringRef &ErrorMsg) {
   const MachineOperand &MO = MI->getOperand(OpNum);
 
   // First try the generic code, which knows about modifiers like 'c' and 'n'.
-  if (!AsmPrinter::PrintAsmOperand(MI, OpNum, AsmVariant, ExtraCode, O))
+  if (!AsmPrinter::PrintAsmOperand(MI, OpNum, AsmVariant, ExtraCode, O, ErrorMsg))
     return false;
 
   // Does this asm operand have a single letter operand modifier?

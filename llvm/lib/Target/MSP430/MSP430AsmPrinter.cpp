@@ -50,7 +50,8 @@ namespace {
                             raw_ostream &O);
     bool PrintAsmOperand(const MachineInstr *MI, unsigned OpNo,
                          unsigned AsmVariant, const char *ExtraCode,
-                         raw_ostream &O) override;
+                         raw_ostream &O,
+                         StringRef &ErrorMsg) override;
     bool PrintAsmMemoryOperand(const MachineInstr *MI,
                                unsigned OpNo, unsigned AsmVariant,
                                const char *ExtraCode, raw_ostream &O) override;
@@ -124,7 +125,8 @@ void MSP430AsmPrinter::printSrcMemOperand(const MachineInstr *MI, int OpNum,
 ///
 bool MSP430AsmPrinter::PrintAsmOperand(const MachineInstr *MI, unsigned OpNo,
                                        unsigned AsmVariant,
-                                       const char *ExtraCode, raw_ostream &O) {
+                                       const char *ExtraCode, raw_ostream &O,
+                                       StringRef &ErrorMsg) {
   // Does this asm operand have a single letter operand modifier?
   if (ExtraCode && ExtraCode[0])
     return true; // Unknown modifier.

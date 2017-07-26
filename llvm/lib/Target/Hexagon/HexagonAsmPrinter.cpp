@@ -127,7 +127,8 @@ isBlockOnlyReachableByFallthrough(const MachineBasicBlock *MBB) const {
 bool HexagonAsmPrinter::PrintAsmOperand(const MachineInstr *MI, unsigned OpNo,
                                         unsigned AsmVariant,
                                         const char *ExtraCode,
-                                        raw_ostream &OS) {
+                                        raw_ostream &OS,
+                                        StringRef &ErrorMsg) {
   // Does this asm operand have a single letter operand modifier?
   if (ExtraCode && ExtraCode[0]) {
     if (ExtraCode[1] != 0)
@@ -136,7 +137,8 @@ bool HexagonAsmPrinter::PrintAsmOperand(const MachineInstr *MI, unsigned OpNo,
     switch (ExtraCode[0]) {
     default:
       // See if this is a generic print operand
-      return AsmPrinter::PrintAsmOperand(MI, OpNo, AsmVariant, ExtraCode, OS);
+      return AsmPrinter::PrintAsmOperand(MI, OpNo, AsmVariant, ExtraCode, OS,
+                                         ErrorMsg);
     case 'c': // Don't print "$" before a global var name or constant.
       // Hexagon never has a prefix.
       printOperand(MI, OpNo, OS);

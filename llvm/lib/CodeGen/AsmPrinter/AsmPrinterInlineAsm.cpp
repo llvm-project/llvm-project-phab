@@ -246,6 +246,9 @@ static void EmitMSInlineAsmStr(const char *AsmStr, const MachineInstr *MI,
         OpNo += InlineAsm::getNumOperandRegisters(OpFlags) + 1;
       }
 
+      // Dedicate an Error Message container for target provided diagnostics
+      StringRef ErrorMsg;
+
       // We may have a location metadata attached to the end of the
       // instruction, and at no point should see metadata at any
       // other point while processing. It's an error if so.
@@ -261,13 +264,16 @@ static void EmitMSInlineAsmStr(const char *AsmStr, const MachineInstr *MI,
                                             /*Modifier*/ nullptr, OS);
         } else {
           Error = AP->PrintAsmOperand(MI, OpNo, InlineAsmVariant,
-                                      /*Modifier*/ nullptr, OS);
+                                      /*Modifier*/ nullptr, OS,
+                                      ErrorMsg);
         }
       }
       if (Error) {
         std::string msg;
         raw_string_ostream Msg(msg);
         Msg << "invalid operand in inline asm: '" << AsmStr << "'";
+        if (!ErrorMsg.empty())
+          Msg << ErrorMsg;
         MMI->getModule()->getContext().emitError(LocCookie, Msg.str());
       }
       break;
@@ -412,6 +418,9 @@ static void EmitGCCInlineAsmStr(const char *AsmStr, const MachineInstr *MI,
           OpNo += InlineAsm::getNumOperandRegisters(OpFlags) + 1;
         }
 
+        // Dedicate an Error Message container for target provided diagnostics
+        StringRef ErrorMsg;
+
         // We may have a location metadata attached to the end of the
         // instruction, and at no point should see metadata at any
         // other point while processing. It's an error if so.
@@ -433,14 +442,17 @@ static void EmitGCCInlineAsmStr(const char *AsmStr, const MachineInstr *MI,
                                                 OS);
             } else {
               Error = AP->PrintAsmOperand(MI, OpNo, InlineAsmVariant,
-                                          Modifier[0] ? Modifier : nullptr, OS);
+                                          Modifier[0] ? Modifier : nullptr, OS,
+                                          ErrorMsg);
             }
           }
         }
         if (Error) {
           std::string msg;
           raw_string_ostream Msg(msg);
-          Msg << "invalid operand in inline asm: '" << AsmStr << "'";
+          Msg << (!ErrorMsg.empty() ? ErrorMsg :
+                  "invalid operand in inline asm: ");
+          Msg << "'" << AsmStr << "'";
           MMI->getModule()->getContext().emitError(LocCookie, Msg.str());
         }
       }
@@ -562,7 +574,7 @@ void AsmPrinter::PrintSpecial(const MachineInstr *MI, raw_ostream &OS,
 /// override this to format as appropriate.
 bool AsmPrinter::PrintAsmOperand(const MachineInstr *MI, unsigned OpNo,
                                  unsigned AsmVariant, const char *ExtraCode,
-                                 raw_ostream &O) {
+                                 raw_ostream &O, StringRef &ErrMsg) {
   // Does this asm operand have a single letter operand modifier?
   if (ExtraCode && ExtraCode[0]) {
     if (ExtraCode[1] != 0) return true; // Unknown modifier.
