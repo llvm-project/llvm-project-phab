@@ -27,8 +27,8 @@ extern class LinkerDriver *Driver;
 class LinkerDriver {
 public:
   void main(ArrayRef<const char *> Args, bool CanExitEarly);
-  void addFile(StringRef Path, bool WithLOption);
-  void addLibrary(StringRef Name);
+  bool addFile(StringRef Path, bool WithLOption);
+  bool addLibrary(StringRef Name);
 
 private:
   void readConfigs(llvm::opt::InputArgList &Args);

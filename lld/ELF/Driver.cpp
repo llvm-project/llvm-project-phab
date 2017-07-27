@@ -154,29 +154,29 @@ std::vector<std::pair<MemoryBufferRef, uint64_t>> static getArchiveMembers(
 }
 
 // Opens a file and create a file object. Path has to be resolved already.
-void LinkerDriver::addFile(StringRef Path, bool WithLOption) {
+bool LinkerDriver::addFile(StringRef Path, bool WithLOption) {
   using namespace sys::fs;
 
   Optional<MemoryBufferRef> Buffer = readFile(Path);
   if (!Buffer.hasValue())
-    return;
+    return false;
   MemoryBufferRef MBRef = *Buffer;
 
   if (InBinary) {
     Files.push_back(make<BinaryFile>(MBRef));
-    return;
+    return true;
   }
 
   switch (identify_magic(MBRef.getBuffer())) {
   case file_magic::unknown:
     readLinkerScript(MBRef);
-    return;
+    return true;
   case file_magic::archive: {
     // Handle -whole-archive.
     if (InWholeArchive) {
       for (const auto &P : getArchiveMembers(MBRef))
         Files.push_back(createObjectFile(P.first, Path, P.second));
-      return;
+      return true;
     }
 
     std::unique_ptr<Archive> File =
@@ -189,17 +189,17 @@ void LinkerDriver::addFile(StringRef Path, bool WithLOption) {
     if (!File->isEmpty() && !File->hasSymbolTable()) {
       for (const auto &P : getArchiveMembers(MBRef))
         Files.push_back(make<LazyObjFile>(P.first, Path, P.second));
-      return;
+      return true;
     }
 
     // Handle the regular case.
     Files.push_back(make<ArchiveFile>(std::move(File)));
-    return;
+    return true;
   }
   case file_magic::elf_shared_object:
     if (Config->Relocatable) {
       error("attempted static link of dynamic object " + Path);
-      return;
+      return true;
     }
 
     // DSOs usually have DT_SONAME tags in their ELF headers, and the
@@ -214,21 +214,23 @@ void LinkerDriver::addFile(StringRef Path, bool WithLOption) {
     // compatible with GNU.
     Files.push_back(
         createSharedFile(MBRef, WithLOption ? path::filename(Path) : Path));
-    return;
+    return true;
   default:
     if (InLib)
       Files.push_back(make<LazyObjFile>(MBRef, "", 0));
     else
       Files.push_back(createObjectFile(MBRef));
   }
+
+  return true;
 }
 
 // Add a given library by searching it from input search paths.
-void LinkerDriver::addLibrary(StringRef Name) {
+bool LinkerDriver::addLibrary(StringRef Name) {
   if (Optional<std::string> Path = searchLibrary(Name))
-    addFile(*Path, /*WithLOption=*/true);
-  else
-    error("unable to find library -l" + Name);
+    return addFile(*Path, /*WithLOption=*/true);
+  error("unable to find library -l" + Name);
+  return false;
 }
 
 // This function is called on startup. We need this for LTO since

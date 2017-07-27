@@ -54,7 +54,7 @@ public:
   void readDynamicList();
 
 private:
-  void addFile(StringRef Path);
+  bool addFile(StringRef Path);
   OutputSection *checkSection(OutputSectionCommand *Cmd, StringRef Loccation);
 
   void readAsNeeded();
@@ -248,42 +248,45 @@ void ScriptParser::readLinkerScript() {
   }
 }
 
-void ScriptParser::addFile(StringRef S) {
+bool ScriptParser::addFile(StringRef S) {
   if (IsUnderSysroot && S.startswith("/")) {
     SmallString<128> PathData;
     StringRef Path = (Config->Sysroot + S).toStringRef(PathData);
-    if (sys::fs::exists(Path)) {
-      Driver->addFile(Saver.save(Path), /*WithLOption=*/false);
-      return;
-    }
+    if (sys::fs::exists(Path))
+      return Driver->addFile(Saver.save(Path), /*WithLOption=*/false);
   }
 
-  if (S.startswith("/")) {
-    Driver->addFile(S, /*WithLOption=*/false);
-  } else if (S.startswith("=")) {
+  if (S.startswith("/"))
+    return Driver->addFile(S, /*WithLOption=*/false);
+
+  if (S.startswith("=")) {
     if (Config->Sysroot.empty())
-      Driver->addFile(S.substr(1), /*WithLOption=*/false);
-    else
-      Driver->addFile(Saver.save(Config->Sysroot + "/" + S.substr(1)),
-                      /*WithLOption=*/false);
-  } else if (S.startswith("-l")) {
-    Driver->addLibrary(S.substr(2));
-  } else if (sys::fs::exists(S)) {
-    Driver->addFile(S, /*WithLOption=*/false);
-  } else {
-    if (Optional<std::string> Path = findFromSearchPaths(S))
-      Driver->addFile(Saver.save(*Path), /*WithLOption=*/true);
-    else
-      setError("unable to find " + S);
+      return Driver->addFile(S.substr(1), /*WithLOption=*/false);
+    return Driver->addFile(Saver.save(Config->Sysroot + "/" + S.substr(1)),
+                           /*WithLOption=*/false);
   }
+
+  if (S.startswith("-l"))
+    return Driver->addLibrary(S.substr(2));
+
+  if (sys::fs::exists(S))
+    return Driver->addFile(S, /*WithLOption=*/false);
+
+  if (Optional<std::string> Path = findFromSearchPaths(S))
+    return Driver->addFile(Saver.save(*Path), /*WithLOption=*/true);
+
+  return false;
 }
 
 void ScriptParser::readAsNeeded() {
   expect("(");
   bool Orig = Config->AsNeeded;
   Config->AsNeeded = true;
-  while (!Error && !consume(")"))
-    addFile(unquote(next()));
+  while (!Error && !consume(")")) {
+    StringRef File = unquote(next());
+    if (!addFile(File))
+      setError("unable to find " + File);
+  }
   Config->AsNeeded = Orig;
 }
 
@@ -305,10 +308,14 @@ void ScriptParser::readExtern() {
 void ScriptParser::readGroup() {
   expect("(");
   while (!Error && !consume(")")) {
-    if (consume("AS_NEEDED"))
+    if (consume("AS_NEEDED")) {
       readAsNeeded();
-    else
-      addFile(unquote(next()));
+      continue;
+    }
+
+    StringRef File = unquote(next());
+    if (!addFile(File))
+      setError("unable to find " + File);
   }
 }
 
