@@ -2678,7 +2678,9 @@ static uint64_t Choose(uint64_t n, uint64_t k, bool &Overflow) {
 /// any of the add or multiply expressions in this SCEV contain a constant.
 static bool containsConstantSomewhere(const SCEV *StartExpr) {
   SmallVector<const SCEV *, 4> Ops;
+  SmallSet<const SCEV *, 4> Visited;
   Ops.push_back(StartExpr);
+  Visited.insert(StartExpr);
   while (!Ops.empty()) {
     const SCEV *CurrentExpr = Ops.pop_back_val();
     if (isa<SCEVConstant>(*CurrentExpr))
@@ -2686,7 +2688,10 @@ static bool containsConstantSomewhere(const SCEV *StartExpr) {
 
     if (isa<SCEVAddExpr>(*CurrentExpr) || isa<SCEVMulExpr>(*CurrentExpr)) {
       const auto *CurrentNAry = cast<SCEVNAryExpr>(CurrentExpr);
-      Ops.append(CurrentNAry->op_begin(), CurrentNAry->op_end());
+      for (const auto *Op : CurrentNAry->operands())
+        if (Visited.insert(Op).second)
+          // Only push it to stack if the element wasn't pushed there before.
+          Ops.push_back(Op);
     }
   }
   return false;
