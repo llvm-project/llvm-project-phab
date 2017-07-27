@@ -761,6 +761,13 @@ void LinkerScript::adjustSectionsAfterSorting() {
   removeEmptyCommands();
 }
 
+static OutputSection *getFirstSection(PhdrEntry *Load) {
+  for (OutputSectionCommand *Cmd : OutputSectionCommands)
+    if (Cmd->Sec->Load == Load)
+      return Cmd->Sec;
+  return nullptr;
+}
+
 void LinkerScript::allocateHeaders(std::vector<PhdrEntry *> &Phdrs) {
   uint64_t Min = std::numeric_limits<uint64_t>::max();
   for (OutputSectionCommand *Cmd : OutputSectionCommands) {
@@ -784,24 +791,9 @@ void LinkerScript::allocateHeaders(std::vector<PhdrEntry *> &Phdrs) {
   }
 
   assert(FirstPTLoad->First == Out::ElfHeader);
-  OutputSection *ActualFirst = nullptr;
-  for (OutputSectionCommand *Cmd : OutputSectionCommands) {
-    OutputSection *Sec = Cmd->Sec;
-    if (Sec->FirstInPtLoad == Out::ElfHeader) {
-      ActualFirst = Sec;
-      break;
-    }
-  }
-  if (ActualFirst) {
-    for (OutputSectionCommand *Cmd : OutputSectionCommands) {
-      OutputSection *Sec = Cmd->Sec;
-      if (Sec->FirstInPtLoad == Out::ElfHeader)
-        Sec->FirstInPtLoad = ActualFirst;
-    }
-    FirstPTLoad->First = ActualFirst;
-  } else {
-    Phdrs.erase(It);
-  }
+  Out::ElfHeader->Load = nullptr;
+  Out::ProgramHeaders->Load = nullptr;
+  FirstPTLoad->First = getFirstSection(FirstPTLoad);
 
   auto PhdrI = llvm::find_if(
       Phdrs, [](const PhdrEntry *E) { return E->p_type == PT_PHDR; });
