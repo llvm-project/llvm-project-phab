@@ -570,12 +570,87 @@ next:
   ret i32 %res
 }
 
-; CHECK-LABEL: name: constant_int_start
-; CHECK: [[TWO:%[0-9]+]](s32) = G_CONSTANT i32 2
-; CHECK: [[ANSWER:%[0-9]+]](s32) = G_CONSTANT i32 42
-; CHECK: [[RES:%[0-9]+]](s32) = G_ADD [[TWO]], [[ANSWER]]
-define i32 @constant_int_start() {
+; CHECK-LABEL: name: constant_fold_add
+; CHECK: [[RES:%[0-9]+]](s32) = G_CONSTANT i32 44
+define i32 @constant_fold_add() {
   %res = add i32 2, 42
+  ret i32 %res
+}
+
+; CHECK-LABEL: name: constant_fold_sub
+; CHECK: [[RES:%[0-9]+]](s32) = G_CONSTANT i32 40
+define i32 @constant_fold_sub() {
+  %res = sub i32 42, 2
+  ret i32 %res
+}
+
+; CHECK-LABEL: name: constant_fold_mul
+; CHECK: [[RES:%[0-9]+]](s32) = G_CONSTANT i32 84
+define i32 @constant_fold_mul() {
+  %res = mul i32 42, 2
+  ret i32 %res
+}
+
+; CHECK-LABEL: name: constant_fold_and
+; CHECK: [[RES:%[0-9]+]](s32) = G_CONSTANT i32 0
+define i32 @constant_fold_and() {
+  %res = and i32 2, 4
+  ret i32 %res
+}
+
+; CHECK-LABEL: name: constant_fold_or
+; CHECK: [[RES:%[0-9]+]](s32) = G_CONSTANT i32 3
+define i32 @constant_fold_or() {
+  %res = or i32 1, 2
+  ret i32 %res
+}
+
+; CHECK-LABEL: name: constant_fold_xor
+; CHECK: [[RES:%[0-9]+]](s32) = G_CONSTANT i32 2
+define i32 @constant_fold_xor() {
+  %res = xor i32 2, 3
+  ret i32 %res
+}
+
+; CHECK-LABEL: name: constant_fold_shl
+; CHECK: [[RES:%[0-9]+]](s32) = G_CONSTANT i32 4
+define i32 @constant_fold_shl() {
+  %res = shl i32 1, 2
+  ret i32 %res
+}
+
+; CHECK-LABEL: name: constant_fold_lshr
+; CHECK: [[RES:%[0-9]+]](s32) = G_CONSTANT i32 2
+define i32 @constant_fold_lshr() {
+  %res = lshr i32 4, 1
+  ret i32 %res
+}
+
+; CHECK-LABEL: name: constant_fold_udiv
+; CHECK: [[RES:%[0-9]+]](s32) = G_CONSTANT i32 2
+define i32 @constant_fold_udiv() {
+  %res = udiv i32 4, 2
+  ret i32 %res
+}
+
+; CHECK-LABEL: name: constant_fold_sdiv
+; CHECK: [[RES:%[0-9]+]](s32) = G_CONSTANT i32 -2
+define i32 @constant_fold_sdiv() {
+  %res = sdiv i32 -4, 2
+  ret i32 %res
+}
+
+; CHECK-LABEL: name: constant_fold_urem
+; CHECK: [[RES:%[0-9]+]](s32) = G_CONSTANT i32 1
+define i32 @constant_fold_urem() {
+  %res = urem i32 4, 3
+  ret i32 %res
+}
+
+; CHECK-LABEL: name: constant_fold_srem
+; CHECK: [[RES:%[0-9]+]](s32) = G_CONSTANT i32 1
+define i32 @constant_fold_srem() {
+  %res = srem i32 4, 3
   ret i32 %res
 }
 
