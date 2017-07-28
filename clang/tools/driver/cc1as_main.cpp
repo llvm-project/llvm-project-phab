@@ -344,12 +344,19 @@ static bool ExecuteAssembler(AssemblerInvocation &Opts,
   std::unique_ptr<MCObjectFileInfo> MOFI(new MCObjectFileInfo());
 
   MCContext Ctx(MAI.get(), MRI.get(), MOFI.get(), &SrcMgr);
+  Triple T(Opts.Triple);
 
   bool PIC = false;
   if (Opts.RelocationModel == "static") {
     PIC = false;
   } else if (Opts.RelocationModel == "pic") {
     PIC = true;
+  } else if ((T.getArch() == llvm::Triple::arm ||
+              T.getArch() == llvm::Triple::armeb) &&
+             (Opts.RelocationModel == "ropi" ||
+              Opts.RelocationModel == "rwpi" ||
+              Opts.RelocationModel == "ropi-rwpi")) {
+    PIC = false;
   } else {
     assert(Opts.RelocationModel == "dynamic-no-pic" &&
            "Invalid PIC model!");
