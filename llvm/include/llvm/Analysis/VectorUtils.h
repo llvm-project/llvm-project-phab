@@ -150,8 +150,12 @@ Constant *createInterleaveMask(IRBuilder<> &Builder, unsigned VF,
 /// For example, the mask for Start = 0, Stride = 2, and VF = 4 is:
 ///
 ///   <0, 2, 4, 6>
+/// Having NumVecs non-zero allows to concatenate contiguous stride mask.
+/// For example, NumVecs = 2 with the above specification will generate:
+///   <0, 2, 4, 6, 1, 3, 5, 7>
 Constant *createStrideMask(IRBuilder<> &Builder, unsigned Start,
-                           unsigned Stride, unsigned VF);
+                           unsigned Stride, unsigned VF,
+                           unsigned NumVecs = 1);
 
 /// \brief Create a sequential shuffle mask.
 ///
@@ -175,6 +179,18 @@ Constant *createSequentialMask(IRBuilder<> &Builder, unsigned Start,
 /// vectors should also be the same; however, if the last vector has fewer
 /// elements, it will be padded with undefs.
 Value *concatenateVectors(IRBuilder<> &Builder, ArrayRef<Value *> Vecs);
+
+/// \brief Concatenate two vectors; keeps the shuffle mask as it is.
+///
+/// This function concatenates two vectors having the same element type.
+/// If the second vector has fewer elements than the first, it is padded with
+/// undefs.
+Value *concatenateTwoVectors(IRBuilder<> &Builder, Value *V1, Value *V2);
+
+/// \brief Extracts a vector of \p NumElements (with the same element type of
+/// V) from the \p BeginIndex of \p V.
+Value *extractVector(IRBuilder<> &Builder, Value *V, unsigned BeginIndex,
+                     unsigned NumElements);
 
 } // llvm namespace
 

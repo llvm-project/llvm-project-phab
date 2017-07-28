@@ -501,12 +501,15 @@ Constant *llvm::createInterleaveMask(IRBuilder<> &Builder, unsigned VF,
 }
 
 Constant *llvm::createStrideMask(IRBuilder<> &Builder, unsigned Start,
-                                 unsigned Stride, unsigned VF) {
+                                 unsigned Stride, unsigned VF,
+                                 unsigned NumVecs) {
   SmallVector<Constant *, 16> Mask;
-  for (unsigned i = 0; i < VF; i++)
-    Mask.push_back(Builder.getInt32(Start + i * Stride));
+  for (unsigned j = 0; j < NumVecs; ++Start,++j)
+    for (unsigned i = 0; i < VF; i++)
+      Mask.push_back(Builder.getInt32(Start + i * Stride));
 
   return ConstantVector::get(Mask);
+
 }
 
 Constant *llvm::createSequentialMask(IRBuilder<> &Builder, unsigned Start,
@@ -522,10 +525,7 @@ Constant *llvm::createSequentialMask(IRBuilder<> &Builder, unsigned Start,
   return ConstantVector::get(Mask);
 }
 
-/// A helper function for concatenating vectors. This function concatenates two
-/// vectors having the same element type. If the second vector has fewer
-/// elements than the first, it is padded with undefs.
-static Value *concatenateTwoVectors(IRBuilder<> &Builder, Value *V1,
+Value *llvm::concatenateTwoVectors(IRBuilder<> &Builder, Value *V1,
                                     Value *V2) {
   VectorType *VecTy1 = dyn_cast<VectorType>(V1->getType());
   VectorType *VecTy2 = dyn_cast<VectorType>(V2->getType());
@@ -573,4 +573,23 @@ Value *llvm::concatenateVectors(IRBuilder<> &Builder, ArrayRef<Value *> Vecs) {
   } while (NumVecs > 1);
 
   return ResList[0];
+}
+
+Value *llvm::extractVector(IRBuilder<> &Builder, Value *V,
+                           unsigned BeginIndex, unsigned NumElements) {
+  VectorType *VecTy = cast<VectorType>(V->getType());
+  assert(NumElements <= VecTy->getNumElements() && "Too many elements!");
+
+  if (NumElements == VecTy->getNumElements())
+    return V;
+
+  if (NumElements == 1) {
+    V = Builder.CreateExtractElement(V, Builder.getInt32(BeginIndex));
+    return V;
+  }
+
+  V = Builder.CreateShuffleVector(
+      V, UndefValue::get(V->getType()),
+      createSequentialMask(Builder, BeginIndex, NumElements, 0));
+  return V;
 }

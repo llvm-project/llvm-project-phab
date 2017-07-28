@@ -20,6 +20,117 @@
 using namespace llvm;
 
 namespace {
+class X86InterleavedUtils {
+public:
+  /// \brief composes vectors by splitting the group of InputVectors into two
+  /// groups and then merging corresponding vectors. Return the merged
+  /// vectors in \p MergedVectors. The Number of merged vectors are going to be
+  /// half the number of InputVectors.
+  /// E.g. For InputVectors with size 4,
+  ///   Group1: InputVectors[0], InputVectors[1]
+  ///   Group2: InputVectors[2], InputVectors[3]
+  ///
+  ///   MergedVectors[0] = InputVectors[0], InputVectors[2]
+  ///   MergedVectors[1] = InputVectors[1], InputVectors[3]
+  /// TODO: Support splitting into quarters, double quarters, etc.
+  static void compose(IRBuilder<> &Builder, ArrayRef<Value *> InputVectors,
+                      SmallVectorImpl<Value *> &MergedVectors) {
+    unsigned TotalVectors = InputVectors.size();
+
+    assert(TotalVectors % 2 == 0 && "Unexpected number of input vectors!!!");
+
+    for (unsigned i = 0, e = TotalVectors / 2; i < e; ++i)
+      MergedVectors.push_back(concatenateTwoVectors(
+          Builder, InputVectors[i], InputVectors[TotalVectors / 2 + i]));
+  }
+
+  /// \brief Recursively packs \p NumElemToUnpack elements from (low and high)
+  /// order each two vectors of \p InputVectors untill the number of packed
+  /// elements matches the \p TotalNumElem. Returns packed vectors
+  /// that are generated in the last instance of the pack() in \p OutputVectors.
+  /// During recursive calls it packs the elements from two low-orderd or two
+  /// high orderd vectors.
+  /// E.g.
+  ///   NumElemToUnpack = 4
+  ///   TotalNumElem = 16
+  ///   InputVectors: {<v16i8> v1, <v16i8> v2, <v16i8> v3, <v16i8> v4}
+  ///
+  ///   Ist Round:
+  ///      PV[0] (L): v1[0-3]  v2[0-3]  v1[4-7]   v2[4-7]
+  ///      PV[1] (H): v1[8-11] v2[8-11] v1[12-15] v2[12-15]
+  ///
+  ///      PV[2] (L): v3[0-3]  v4[0-3]  v3[4-7]   v4[4-7]
+  ///      PV[3] (H): v3[8-11] v4[8-11] v3[12-15] v4[12-15]
+  ///    2nd Round:
+  ///      PV[0] = OutVectors[0] = (L): pv[0][0-7]  pv[2][0-7]
+  ///      PV[1] = OutVectors[1] = (H): pv[0][8-15] pv[2][8-15]
+  ///
+  ///      PV[2] = OutVectors[1] = (L): pv[1][0-7]  pv[3][0-7]
+  ///      PV[3] = OutVectors[1] = (H): pv[1][0-7]  pv[3][0-7]
+  static void pack(IRBuilder<> &Builder, SmallVectorImpl<Value *> &InputVectors,
+                   Type *Ty, unsigned NumElemToUnpack, unsigned TotalNumElem,
+                   SmallVectorImpl<Value *> &OutVectors, const DataLayout &DL) {
+    assert(InputVectors.size() % 2 == 0 &&
+           "Unexpected number of InputVectors!!!");
+    SmallVector<Value *, 4> LowVecs, HighVecs;
+    unsigned VecLen = DL.getTypeSizeInBits(Ty);
+    MVT VT = MVT::getVT(Ty);
+    for (unsigned i = 0, e = InputVectors.size(); i < e; i += 2) {
+      SmallVector<uint32_t, 32> LowMask, HighMask;
+
+      createUnpackShuffleMask<uint32_t>(VT, LowMask, true, false, VecLen,
+                                        NumElemToUnpack);
+      Value *Low = Builder.CreateShuffleVector(
+          InputVectors[i], InputVectors[i + 1], makeArrayRef(LowMask));
+      LowVecs.push_back(Low);
+
+      createUnpackShuffleMask<uint32_t>(VT, HighMask, false, false, VecLen,
+                                        NumElemToUnpack);
+      Value *High = Builder.CreateShuffleVector(
+          InputVectors[i], InputVectors[i + 1], makeArrayRef(HighMask));
+      HighVecs.push_back(High);
+    }
+
+    OutVectors.clear();
+    if ((NumElemToUnpack * 2) == TotalNumElem) {
+      for (unsigned i = 0, e = LowVecs.size(); i < e; ++i) {
+        OutVectors.push_back(LowVecs[i]);
+        OutVectors.push_back(HighVecs[i]);
+      }
+    } else {
+      // Keep all the lows and highs together
+      for (auto Low : LowVecs)
+        OutVectors.push_back(Low);
+      for (auto High : HighVecs)
+        OutVectors.push_back(High);
+
+      pack(Builder, InputVectors = OutVectors, Ty, 2 * NumElemToUnpack,
+           TotalNumElem, OutVectors, DL);
+    }
+  }
+
+  // Concatenate two ConstantDataSequentials.
+  static Constant *concatenate(IRBuilder<> &Builder, Constant *Mask1,
+                               Constant *Mask2) {
+    const ConstantDataSequential *CDS1 =
+        dyn_cast<ConstantDataSequential>(Mask1);
+
+    const ConstantDataSequential *CDS2 =
+        dyn_cast<ConstantDataSequential>(Mask2);
+
+    assert(CDS1 && CDS2 && "Expected ConstantDataSequential!!!");
+
+    SmallVector<Constant *, 16> Mask;
+    for (unsigned i = 0, e = CDS1->getNumElements(); i < e; ++i)
+      Mask.push_back(Builder.getInt32(CDS1->getElementAsInteger(i)));
+
+    for (unsigned i = 0, e = CDS2->getNumElements(); i < e; ++i)
+      Mask.push_back(Builder.getInt32(CDS2->getElementAsInteger(i)));
+
+    return ConstantVector::get(Mask);
+  }
+};
+
 /// \brief This class holds necessary information to represent an interleaved
 /// access group and supports utilities to lower the group into
 /// X86-specific instructions/intrinsics.
@@ -51,8 +162,8 @@ class X86InterleavedAccessGroup {
 
   /// \brief Breaks down a vector \p 'Inst' of N elements into \p NumSubVectors
   /// sub vectors of type \p T. Returns the sub-vectors in \p DecomposedVectors.
-  void decompose(Instruction *Inst, unsigned NumSubVectors, VectorType *T,
-                 SmallVectorImpl<Instruction *> &DecomposedVectors);
+  void decompose(Value *Inst, unsigned NumSubVectors, VectorType *T,
+                 SmallVectorImpl<Value *> &DecomposedVectors);
 
   /// \brief Performs matrix transposition on a 4x4 matrix \p InputVectors and
   /// returns the transposed-vectors in \p TransposedVectors.
@@ -67,10 +178,11 @@ class X86InterleavedAccessGroup {
   ///   Out-V1 = p2, q2, r2, s2
   ///   Out-V2 = p3, q3, r3, s3
   ///   Out-V3 = P4, q4, r4, s4
-  void transpose_4x4(ArrayRef<Instruction *> InputVectors,
+  void transpose_4x4(ArrayRef<Value *> InputVectors,
                      SmallVectorImpl<Value *> &TransposedMatrix);
-  void interleave8bit_32x4(ArrayRef<Instruction *> InputVectors,
-                          SmallVectorImpl<Value *> &TransposedMatrix);
+  void interleave8bit_32x4(ArrayRef<Value *> InputVectors,
+                           SmallVectorImpl<Value *> &TransposedMatrix);
+
 public:
   /// In order to form an interleaved access group X86InterleavedAccessGroup
   /// requires a wide-load instruction \p 'I', a group of interleaved-vectors
@@ -93,44 +205,73 @@ public:
   /// \brief Lowers this interleaved access group into X86-specific
   /// instructions/intrinsics.
   bool lowerIntoOptimizedSequence();
+
+  /// \brief Lowers "load" interleaved access group into X86-specific
+  /// instructions/intrinsics.
+  void lowerLoadIntoOptimizedSequence();
+
+  /// \brief Lowers interleaved access group as 128bit vector.
+  void lower_as128(SmallVectorImpl<Value *> &InterleavedVectors);
 };
 } // end anonymous namespace
 
 bool X86InterleavedAccessGroup::isSupported() const {
+  if (!Subtarget.hasAVX() || Factor != 4)
+    return false;
+
   VectorType *ShuffleVecTy = Shuffles[0]->getType();
   Type *ShuffleEltTy = ShuffleVecTy->getVectorElementType();
+  unsigned ShuffleVecSize = DL.getTypeSizeInBits(ShuffleVecTy);
   unsigned ShuffleElemSize = DL.getTypeSizeInBits(ShuffleEltTy);
-  unsigned SupportedNumElem = 4;
-  if (ShuffleElemSize == 8)
-    SupportedNumElem = 32;
+  unsigned SupportedNumElem;
   unsigned WideInstSize;
 
   // Currently, lowering is supported for the following vectors:
-  // 1. 4-element vectors of 64 bits on AVX.
-  // 2. 32-element vectors of 8 bits on AVX.
+  // 1. 64 bits: VF = 4.
+  // 2. 8bits: Store: VF = 32
+  //           Load: VF = 8, 16, 32
+
+  switch (ShuffleElemSize) {
+  default:
+    return false;
+
+  case 8:
+    if (isa<LoadInst>(Inst)) {
+      if (Indices.size() < 2)
+        return false;
+      WideInstSize = DL.getTypeSizeInBits(Inst->getType());
+
+      for (unsigned i = 3; i < 6; i++)
+        if (ShuffleVecSize == (pow(2, i) * ShuffleElemSize) &&
+            WideInstSize >= (Factor * ShuffleVecSize))
+          return true;
+      return false;
+    } else
+      SupportedNumElem = 32;
+    break;
+
+  case 64:
+    SupportedNumElem = 4;
+    break;
+  }
+
   if (isa<LoadInst>(Inst)) {
-    if (DL.getTypeSizeInBits(ShuffleVecTy) !=
-        SupportedNumElem * ShuffleElemSize)
+    if (ShuffleVecSize != SupportedNumElem * ShuffleElemSize)
       return false;
 
     WideInstSize = DL.getTypeSizeInBits(Inst->getType());
   } else
     WideInstSize = DL.getTypeSizeInBits(Shuffles[0]->getType());
 
-  if (DL.getTypeSizeInBits(ShuffleEltTy) == 8 && !isa<StoreInst>(Inst))
-    return false;
-
-  if (!Subtarget.hasAVX() || Factor != 4 ||
-      (ShuffleElemSize != 64 && ShuffleElemSize != 8) ||
-      WideInstSize != (Factor * ShuffleElemSize * SupportedNumElem))
+  if (WideInstSize != (Factor * ShuffleElemSize * SupportedNumElem))
     return false;
 
   return true;
 }
 
 void X86InterleavedAccessGroup::decompose(
-    Instruction *VecInst, unsigned NumSubVectors, VectorType *SubVecTy,
-    SmallVectorImpl<Instruction *> &DecomposedVectors) {
+    Value *VecInst, unsigned NumSubVectors, VectorType *SubVecTy,
+    SmallVectorImpl<Value *> &DecomposedVectors) {
 
   assert((isa<LoadInst>(VecInst) || isa<ShuffleVectorInst>(VecInst)) &&
          "Expected Load or Shuffle");
@@ -148,11 +289,10 @@ void X86InterleavedAccessGroup::decompose(
 
     // Generate N(= NumSubVectors) shuffles of T(= SubVecTy) type.
     for (unsigned i = 0; i < NumSubVectors; ++i)
-      DecomposedVectors.push_back(
-          cast<ShuffleVectorInst>(Builder.CreateShuffleVector(
-              Op0, Op1,
-              createSequentialMask(Builder, Indices[i],
-                                   SubVecTy->getVectorNumElements(), 0))));
+      DecomposedVectors.push_back(Builder.CreateShuffleVector(
+          Op0, Op1,
+          createSequentialMask(Builder, Indices[i],
+                               SubVecTy->getVectorNumElements(), 0)));
     return;
   }
 
@@ -193,8 +333,7 @@ static void createConcatShuffleMask(int NumElements,
 }
 
 void X86InterleavedAccessGroup::interleave8bit_32x4(
-    ArrayRef<Instruction *> Matrix,
-    SmallVectorImpl<Value *> &TransposedMatrix) {
+    ArrayRef<Value *> Matrix, SmallVectorImpl<Value *> &TransposedMatrix) {
 
   // Example: Assuming we start from the following vectors:
   // Matrix[0]= c0 c1 c2 c3 c4 ... c31
@@ -280,8 +419,7 @@ void X86InterleavedAccessGroup::interleave8bit_32x4(
 }
 
 void X86InterleavedAccessGroup::transpose_4x4(
-    ArrayRef<Instruction *> Matrix,
-    SmallVectorImpl<Value *> &TransposedMatrix) {
+    ArrayRef<Value *> Matrix, SmallVectorImpl<Value *> &TransposedMatrix) {
   assert(Matrix.size() == 4 && "Invalid matrix size");
   TransposedMatrix.resize(4);
 
@@ -310,27 +448,110 @@ void X86InterleavedAccessGroup::transpose_4x4(
   TransposedMatrix[3] = Builder.CreateShuffleVector(IntrVec3, IntrVec4, Mask);
 }
 
-// Lowers this interleaved access group into X86-specific
-// instructions/intrinsics.
-bool X86InterleavedAccessGroup::lowerIntoOptimizedSequence() {
-  SmallVector<Instruction *, 4> DecomposedVectors;
-  SmallVector<Value *, 4> TransposedVectors;
-  VectorType *ShuffleTy = Shuffles[0]->getType();
+void X86InterleavedAccessGroup::lower_as128(
+    SmallVectorImpl<Value *> &InterleavedVectors) {
+  SmallVector<Value *, 4> DecomposedVectors;
 
-  if (isa<LoadInst>(Inst)) {
+  VectorType *ShuffleTy = Shuffles[0]->getType();
+  Type *ShuffleEltTy = ShuffleTy->getVectorElementType();
+  Type *WideInstTy = Inst->getType();
+
+  // The general idea is to optimize as a 128bit vector.
+  VectorType *V128Ty = VectorType::get(ShuffleEltTy, 16);
+  unsigned PreferredNumElems = 16;
+
+  unsigned NumElems = ShuffleTy->getVectorNumElements();
+  unsigned NumSubVecs = WideInstTy->getVectorNumElements() / PreferredNumElems;
+
+  // Step-1: Generate 128bit loads.
+  decompose(Inst, NumSubVecs, V128Ty, DecomposedVectors);
+
+  // Step-2: Shuffle in the interleaved elements of a vector.
+  Constant *StrideMask = createStrideMask(Builder, 0, Factor, Factor, Factor);
+  if (NumSubVecs > Factor) {
+    // If the number of sub-vectors is greater than the Factor, sub-vectors
+    // need to be composed first before performing any other operations.
+    // This will reduce the number of total instructions by working on more
+    // elements at a time.
+    SmallVector<Value *, 4> InputVectors = DecomposedVectors;
+    DecomposedVectors.clear();
+    X86InterleavedUtils::compose(Builder, InputVectors, DecomposedVectors);
+    StrideMask = X86InterleavedUtils::concatenate(
+        Builder, StrideMask,
+        createStrideMask(Builder, PreferredNumElems, Factor, Factor, Factor));
+  }
+
+  SmallVector<Value *, 4> ShuffledVectors;
+  unsigned NumVecsToShuffle = DecomposedVectors.size();
+  Type *Ty = DecomposedVectors[0]->getType();
+  for (unsigned i = 0; i < NumVecsToShuffle; ++i)
+    ShuffledVectors.push_back(Builder.CreateShuffleVector(
+        DecomposedVectors[i], UndefValue::get(Ty), StrideMask));
+
+  // Step-3: Shuffle in the interleaved elements accross vectors.
+  SmallVector<Value *, 4> PackedVectors;
+  X86InterleavedUtils::pack(Builder, ShuffledVectors,
+                            ShuffledVectors[0]->getType(), Factor, NumElems,
+                            PackedVectors, DL);
+
+  // Step-4: Collect the interleaved vectors in the destination vectors.
+  unsigned NumPackedVecs = PackedVectors.size();
+  for (unsigned i = 0; i < Factor;) {
+    if (NumPackedVecs < Factor) {
+      // We need to extract
+      for (unsigned j = 0; j < NumPackedVecs; ++j)
+        InterleavedVectors.push_back(extractVector(
+            Builder, PackedVectors[i / NumPackedVecs], j * NumElems, NumElems));
+      i += 2;
+      continue;
+    }
+
+    InterleavedVectors.push_back(PackedVectors[i]);
+    ++i;
+  }
+}
+
+void X86InterleavedAccessGroup::lowerLoadIntoOptimizedSequence() {
+  assert(Factor == 4 && "Unexpected Factor!!!");
+
+  SmallVector<Value *, 4> DecomposedVectors;
+  SmallVector<Value *, 4> InterleavedVectors;
+
+  VectorType *ShuffleTy = Shuffles[0]->getType();
+  Type *ShuffleEltTy = ShuffleTy->getVectorElementType();
+  unsigned ElemSize = DL.getTypeSizeInBits(ShuffleEltTy);
+
+  switch (ElemSize) {
+  default:
+    assert("Unexpected element size!!!\n");
+  case 8:
+    lower_as128(InterleavedVectors);
+    break;
+
+  case 64:
     // Try to generate target-sized register(/instruction).
     decompose(Inst, Factor, ShuffleTy, DecomposedVectors);
 
     // Perform matrix-transposition in order to compute interleaved
     // results by generating some sort of (optimized) target-specific
     // instructions.
-    transpose_4x4(DecomposedVectors, TransposedVectors);
+    transpose_4x4(DecomposedVectors, InterleavedVectors);
+    break;
+  }
 
-    // Now replace the unoptimized-interleaved-vectors with the
-    // transposed-interleaved vectors.
-    for (unsigned i = 0, e = Shuffles.size(); i < e; ++i)
-      Shuffles[i]->replaceAllUsesWith(TransposedVectors[Indices[i]]);
+  // Now replace the unoptimized-interleaved-vectors with the
+  // transposed-interleaved vectors.
+  for (unsigned i = 0, e = Shuffles.size(); i < e; ++i)
+    Shuffles[i]->replaceAllUsesWith(InterleavedVectors[Indices[i]]);
+}
 
+bool X86InterleavedAccessGroup::lowerIntoOptimizedSequence() {
+  SmallVector<Value *, 4> DecomposedVectors;
+  SmallVector<Value *, 4> TransposedVectors;
+  VectorType *ShuffleTy = Shuffles[0]->getType();
+
+  if (isa<LoadInst>(Inst)) {
+    lowerLoadIntoOptimizedSequence();
     return true;
   }
 

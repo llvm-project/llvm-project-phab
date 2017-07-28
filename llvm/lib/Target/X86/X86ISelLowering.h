@@ -1450,16 +1450,20 @@ namespace llvm {
   /// Generate unpacklo/unpackhi shuffle mask.
   template <typename T = int>
   void createUnpackShuffleMask(MVT VT, SmallVectorImpl<T> &Mask, bool Lo,
-                               bool Unary) {
-    assert(Mask.empty() && "Expected an empty shuffle mask vector");
+                               bool Unary, unsigned VecLen = 128,
+                               unsigned NumEltsToUnpack = 1) {
     int NumElts = VT.getVectorNumElements();
-    int NumEltsInLane = 128 / VT.getScalarSizeInBits();
-    for (int i = 0; i < NumElts; ++i) {
+    int NumEltsInLane = VecLen / VT.getScalarSizeInBits();
+
+    for (int i = 0; i < NumElts / NumEltsToUnpack; ++i) {
       unsigned LaneStart = (i / NumEltsInLane) * NumEltsInLane;
-      int Pos = (i % NumEltsInLane) / 2 + LaneStart;
+      int Pos = ((i % NumEltsInLane) / 2 + LaneStart) *  NumEltsToUnpack;
+
       Pos += (Unary ? 0 : NumElts * (i % 2));
       Pos += (Lo ? 0 : NumEltsInLane / 2);
       Mask.push_back(Pos);
+      for (int j = 1; j < NumEltsToUnpack; j++)
+        Mask.push_back(++Pos);
     }
   }
 
