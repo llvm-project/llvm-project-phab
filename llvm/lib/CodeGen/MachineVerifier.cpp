@@ -1784,6 +1784,12 @@ void MachineVerifier::verifyLiveRangeSegment(const LiveRange &LR,
   const LiveRange::Segment &S = *I;
   const VNInfo *VNI = S.valno;
   assert(VNI && "Live segment has no valno");
+  
+  if(TargetRegisterInfo::isPhysicalRegister(Reg)) {
+    MCRegUnitRootIterator Roots(Reg, TRI);
+    if(isReserved(*Roots))
+      return;
+  }
 
   if (VNI->id >= LR.getNumValNums() || VNI != LR.getValNumInfo(VNI->id)) {
     report("Foreign valno in live segment", MF);
