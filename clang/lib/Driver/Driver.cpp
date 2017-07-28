@@ -1306,9 +1306,12 @@ bool Driver::HandleImmediateArgs(const Compilation &C) {
   if (C.getArgs().hasArg(options::OPT_print_libgcc_file_name)) {
     ToolChain::RuntimeLibType RLT = TC.GetRuntimeLibType(C.getArgs());
     switch (RLT) {
-    case ToolChain::RLT_CompilerRT:
+    case ToolChain::RLT_CompilerRT: {
+      const llvm::Triple Triple(TC.ComputeEffectiveClangTriple(C.getArgs()));
+      RegisterEffectiveTriple TripleRAII(TC, Triple);
       llvm::outs() << TC.getCompilerRT(C.getArgs(), "builtins") << "\n";
       break;
+    }
     case ToolChain::RLT_Libgcc:
       llvm::outs() << GetFilePath("libgcc.a", TC) << "\n";
       break;
