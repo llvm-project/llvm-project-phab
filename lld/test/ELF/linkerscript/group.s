@@ -51,6 +51,20 @@
 # RUN: ld.lld -o %t2 %t.script
 # RUN: llvm-readobj %t2 > /dev/null
 
+# RUN: echo "INPUT(/no_such_file)" > %t.script
+# RUN: not ld.lld -o %t2 %t.script 2>&1 | FileCheck -check-prefix=ERR %s
+# ERR: cannot open {{.*}}no_such_file: {{[Nn]}}o such file or directory
+# ERR: {{.*}}.script:1: unable to find /no_such_file
+
+# RUN: echo "INPUT(AS_NEEDED(/no_such_file))" > %t.script
+# RUN: not ld.lld -o %t2 %t.script 2>&1 | FileCheck -check-prefix=ERR %s
+
+# RUN: echo "GROUP(/no_such_file)" > %t.script
+# RUN: not ld.lld -o %t2 %t.script 2>&1 | FileCheck -check-prefix=ERR %s
+
+# RUN: echo "GROUP(AS_NEEDED(/no_such_file))" > %t.script
+# RUN: not ld.lld -o %t2 %t.script 2>&1 | FileCheck -check-prefix=ERR %s
+
 .globl _start
 _start:
   ret
