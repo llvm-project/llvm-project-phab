@@ -155,8 +155,6 @@ public:
     return F->kind() == Base::ObjectKind;
   }
 
-  static std::vector<ObjFile<ELFT> *> Instances;
-
   ArrayRef<SymbolBody *> getSymbols();
   ArrayRef<SymbolBody *> getLocalSymbols();
 
@@ -217,8 +215,6 @@ private:
   std::unique_ptr<llvm::DWARFDebugLine> DwarfLine;
   llvm::once_flag InitDwarfLine;
 };
-
-template <class ELFT> std::vector<ObjFile<ELFT> *> ObjFile<ELFT>::Instances;
 
 // LazyObjFile is analogous to ArchiveFile in the sense that
 // the file contains lazy symbols. The difference is that
@@ -281,7 +277,6 @@ public:
   void parse(llvm::DenseSet<llvm::CachedHashStringRef> &ComdatGroups);
   ArrayRef<Symbol *> getSymbols() { return Symbols; }
   std::unique_ptr<llvm::lto::InputFile> Obj;
-  static std::vector<BitcodeFile *> Instances;
 
 private:
   std::vector<Symbol *> Symbols;
@@ -303,8 +298,6 @@ template <class ELFT> class SharedFile : public ELFFileBase<ELFT> {
 
 public:
   std::string SoName;
-
-  static std::vector<SharedFile<ELFT> *> Instances;
 
   const Elf_Shdr *getSection(const Elf_Sym &Sym) const;
   llvm::ArrayRef<StringRef> getUndefinedSymbols() { return Undefs; }
@@ -337,20 +330,26 @@ public:
   bool isNeeded() const { return !AsNeeded || IsUsed; }
 };
 
-template <class ELFT>
-std::vector<SharedFile<ELFT> *> SharedFile<ELFT>::Instances;
-
 class BinaryFile : public InputFile {
 public:
   explicit BinaryFile(MemoryBufferRef M) : InputFile(BinaryKind, M) {}
   static bool classof(const InputFile *F) { return F->kind() == BinaryKind; }
   template <class ELFT> void parse();
-  static std::vector<BinaryFile *> Instances;
 };
 
 InputFile *createObjectFile(MemoryBufferRef MB, StringRef ArchiveName = "",
                             uint64_t OffsetInArchive = 0);
 InputFile *createSharedFile(MemoryBufferRef MB, StringRef DefaultSoName);
+
+extern std::vector<InputFile *> InputFiles;
+
+template <class T> std::vector<T *> getInputFiles() {
+  std::vector<T *> Ret;
+  for (InputFile *F : InputFiles)
+    if (T *File = dyn_cast<T>(F))
+      Ret.push_back(File);
+  return Ret;
+}
 
 } // namespace elf
 } // namespace lld

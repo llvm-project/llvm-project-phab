@@ -35,6 +35,8 @@ using namespace llvm::sys::fs;
 using namespace lld;
 using namespace lld::elf;
 
+std::vector<InputFile *> elf::InputFiles;
+
 TarWriter *elf::Tar;
 
 InputFile::InputFile(Kind K, MemoryBufferRef M) : MB(M), FileKind(K) {}
@@ -826,8 +828,6 @@ static uint8_t getBitcodeMachineKind(StringRef Path, const Triple &T) {
   }
 }
 
-std::vector<BitcodeFile *> BitcodeFile::Instances;
-
 BitcodeFile::BitcodeFile(MemoryBufferRef MB, StringRef ArchiveName,
                          uint64_t OffsetInArchive)
     : InputFile(BitcodeKind, MB) {
@@ -921,8 +921,6 @@ static ELFKind getELFKind(MemoryBufferRef MB) {
     return (Endian == ELFDATA2LSB) ? ELF32LEKind : ELF32BEKind;
   return (Endian == ELFDATA2LSB) ? ELF64LEKind : ELF64BEKind;
 }
-
-std::vector<BinaryFile *> BinaryFile::Instances;
 
 template <class ELFT> void BinaryFile::parse() {
   ArrayRef<uint8_t> Data = toArrayRef(MB.getBuffer());

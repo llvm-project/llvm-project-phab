@@ -1031,11 +1031,11 @@ template <class ELFT> void LinkerDriver::link(opt::InputArgList &Args) {
   // Now that we have a complete list of input files.
   // Beyond this point, no new files are added.
   // Aggregate all input sections into one place.
-  for (ObjFile<ELFT> *F : ObjFile<ELFT>::Instances)
+  for (ObjFile<ELFT> *F : getInputFiles<ObjFile<ELFT>>())
     for (InputSectionBase *S : F->getSections())
       if (S && S != &InputSection::Discarded)
         InputSections.push_back(S);
-  for (BinaryFile *F : BinaryFile::Instances)
+  for (BinaryFile *F : getInputFiles<BinaryFile>())
     for (InputSectionBase *S : F->getSections())
       InputSections.push_back(cast<InputSection>(S));
 

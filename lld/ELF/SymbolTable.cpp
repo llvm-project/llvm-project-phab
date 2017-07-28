@@ -60,14 +60,7 @@ template <class ELFT> void SymbolTable::addFile(InputFile *File) {
   if (!isCompatible<ELFT>(File))
     return;
 
-  // Binary file
-  if (auto *F = dyn_cast<BinaryFile>(File)) {
-    BinaryFile::Instances.push_back(F);
-    F->parse<ELFT>();
-    return;
-  }
-
-  // .a file
+  // .a file.
   if (auto *F = dyn_cast<ArchiveFile>(File)) {
     F->parse<ELFT>();
     return;
@@ -88,22 +81,27 @@ template <class ELFT> void SymbolTable::addFile(InputFile *File) {
     F->parseSoName();
     if (ErrorCount || !SoNames.insert(F->SoName).second)
       return;
-    SharedFile<ELFT>::Instances.push_back(F);
+    InputFiles.push_back(File);
     F->parseRest();
     return;
   }
 
-  // LLVM bitcode file
+  InputFiles.push_back(File);
+
+  // Binary file.
+  if (auto *F = dyn_cast<BinaryFile>(File)) {
+    F->parse<ELFT>();
+    return;
+  }
+
+  // LLVM bitcode file.
   if (auto *F = dyn_cast<BitcodeFile>(File)) {
-    BitcodeFile::Instances.push_back(F);
     F->parse<ELFT>(ComdatGroups);
     return;
   }
 
-  // Regular object file
-  auto *F = cast<ObjFile<ELFT>>(File);
-  ObjFile<ELFT>::Instances.push_back(F);
-  F->parse(ComdatGroups);
+  // Regular object file.
+  cast<ObjFile<ELFT>>(File)->parse(ComdatGroups);
 }
 
 // This function is where all the optimizations of link-time
@@ -114,19 +112,20 @@ template <class ELFT> void SymbolTable::addFile(InputFile *File) {
 // Because all bitcode files that consist of a program are passed
 // to the compiler at once, it can do whole-program optimization.
 template <class ELFT> void SymbolTable::addCombinedLTOObject() {
-  if (BitcodeFile::Instances.empty())
+  std::vector<BitcodeFile *> Files = getInputFiles<BitcodeFile>();
+  if (Files.empty())
     return;
 
   // Compile bitcode files and replace bitcode symbols.
   LTO.reset(new BitcodeCompiler);
-  for (BitcodeFile *F : BitcodeFile::Instances)
+  for (BitcodeFile *F : Files)
     LTO->add(*F);
 
   for (InputFile *File : LTO->compile()) {
     ObjFile<ELFT> *Obj = cast<ObjFile<ELFT>>(File);
     DenseSet<CachedHashStringRef> DummyGroups;
     Obj->parse(DummyGroups);
-    ObjFile<ELFT>::Instances.push_back(Obj);
+    InputFiles.push_back(Obj);
   }
 }
 
@@ -598,7 +597,7 @@ template <class ELFT> void SymbolTable::scanUndefinedFlags() {
 // shared libraries can find them.
 // Except this, we ignore undefined symbols in DSOs.
 template <class ELFT> void SymbolTable::scanShlibUndefined() {
-  for (SharedFile<ELFT> *File : SharedFile<ELFT>::Instances) {
+  for (SharedFile<ELFT> *File : getInputFiles<SharedFile<ELFT>>()) {
     for (StringRef U : File->getUndefinedSymbols()) {
       SymbolBody *Sym = find(U);
       if (!Sym || !Sym->isDefined())
