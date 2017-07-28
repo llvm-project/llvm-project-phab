@@ -1802,11 +1802,10 @@ DEF_TRAVERSE_DECL(CXXRecordDecl, { TRY_TO(TraverseCXXRecordHelper(D)); })
     TRY_TO(TraverseNestedNameSpecifierLoc(D->getQualifierLoc()));              \
     if (!getDerived().shouldVisitTemplateInstantiations() &&                   \
         D->getTemplateSpecializationKind() != TSK_ExplicitSpecialization)      \
-      /* Returning from here skips traversing the                              \
-         declaration context of the *TemplateSpecializationDecl                \
-         (embedded in the DEF_TRAVERSE_DECL() macro)                           \
-         which contains the instantiated members of the template. */           \
-      return true;                                                             \
+      /* Skip traversing the declaration context of the                        \
+         *TemplateSpecializationDecl (embedded in the DEF_TRAVERSE_DECL()      \
+         macro) which contains the instantiated members of the template. */    \
+      ShouldVisitChildren = false;                                             \
   })
 
 DEF_TRAVERSE_TMPL_SPEC_DECL(Class)
