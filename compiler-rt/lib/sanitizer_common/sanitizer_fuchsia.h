@@ -22,6 +22,12 @@
 
 namespace __sanitizer {
 
+struct DataInfo;
+
+void RenderStackFrame(InternalScopedString *buffer,
+                      unsigned int frame_no, uptr pc);
+void RenderDataInfo(InternalScopedString *buffer, const DataInfo *DI);
+
 extern uptr MainThreadStackBase, MainThreadStackSize;
 extern sanitizer_shadow_bounds_t ShadowBounds;
 

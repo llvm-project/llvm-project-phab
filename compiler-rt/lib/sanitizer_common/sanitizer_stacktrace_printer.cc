@@ -13,6 +13,7 @@
 
 #include "sanitizer_stacktrace_printer.h"
 #include "sanitizer_file.h"
+#include "sanitizer_fuchsia.h"
 
 namespace __sanitizer {
 
@@ -30,6 +31,11 @@ static const char kDefaultFormat[] = "    #%n %p %F %L";
 void RenderFrame(InternalScopedString *buffer, const char *format, int frame_no,
                  const AddressInfo &info, bool vs_style,
                  const char *strip_path_prefix, const char *strip_func_prefix) {
+#if SANITIZER_FUCHSIA
+  // Fuchsia uses its own bespoke format to enable offline symbolization.
+  // It doesn't support the stack_trace_format flag at all.
+  RenderStackFrame(buffer, frame_no, info.address);
+#else
   if (0 == internal_strcmp(format, "DEFAULT"))
     format = kDefaultFormat;
   for (const char *p = format; *p != '\0'; p++) {
@@ -116,10 +122,16 @@ void RenderFrame(InternalScopedString *buffer, const char *format, int frame_no,
       Die();
     }
   }
+#endif
 }
 
 void RenderData(InternalScopedString *buffer, const char *format,
                 const DataInfo *DI, const char *strip_path_prefix) {
+#if SANITIZER_FUCHSIA
+  // Fuchsia uses its own bespoke format to enable offline symbolization.
+  // It ignores the format argument to __sanitizer_symbolize_global.
+  RenderDataInfo(buffer, DI);
+#else
   for (const char *p = format; *p != '\0'; p++) {
     if (*p != '%') {
       buffer->append("%c", *p);
@@ -145,6 +157,7 @@ void RenderData(InternalScopedString *buffer, const char *format,
         Die();
     }
   }
+#endif
 }
 
 void RenderSourceLocation(InternalScopedString *buffer, const char *file,
