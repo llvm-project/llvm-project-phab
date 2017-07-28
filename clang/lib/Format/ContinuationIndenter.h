@@ -27,6 +27,7 @@ class SourceManager;
 namespace format {
 
 class AnnotatedLine;
+class BreakableToken;
 struct FormatToken;
 struct LineState;
 struct ParenState;
@@ -99,6 +100,11 @@ private:
   /// tokens) is handled in \c addNextStateToQueue.
   unsigned breakProtrudingToken(const FormatToken &Current, LineState &State,
                                 bool DryRun);
+
+  unsigned reflowProtrudingToken(const FormatToken & Current, LineState & State,
+                                 std::unique_ptr<clang::format::BreakableToken> & Token,
+                                 unsigned ColumnLimit, bool DryRun);
+
 
   /// \brief Appends the next token to \p State and updates information
   /// necessary for indentation.
@@ -349,6 +355,8 @@ struct LineState {
 
   /// \brief The indent of the first token.
   unsigned FirstIndent;
+
+  bool Reflow = true;
 
   /// \brief The line that is being formatted.
   ///
