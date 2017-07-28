@@ -15,6 +15,7 @@
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Tooling/Tooling.h"
 #include "gtest/gtest.h"
+#include <algorithm>
 
 using namespace clang;
 
@@ -75,7 +76,32 @@ namespace {
     }
   };
 
-}
+
+// Serializes the AST. It is not complete! It only serializes the Statement
+// and the Declaration nodes.
+class ASTSerializerVisitor : public RecursiveASTVisitor<ASTSerializerVisitor> {
+private:
+  std::vector<void *> &visitedNodes;
+  const bool visitPostOrder;
+
+public:
+  ASTSerializerVisitor(bool visitPostOrder, std::vector<void *> &visitedNodes)
+      : visitedNodes(visitedNodes), visitPostOrder(visitPostOrder) {}
+
+  bool shouldTraversePostOrder() const { return visitPostOrder; }
+
+  bool VisitStmt(Stmt *s) {
+    visitedNodes.push_back(s);
+    return true;
+  }
+
+  bool VisitDecl(Decl *d) {
+    visitedNodes.push_back(d);
+    return true;
+  }
+};
+
+} // anonymous namespace
 
 TEST(RecursiveASTVisitor, PostOrderTraversal) {
   auto ASTUnit = tooling::buildASTFromCode(
@@ -125,4 +151,31 @@ TEST(RecursiveASTVisitor, NoPostOrderTraversal) {
   for (std::size_t I = 0; I < expected.size(); I++) {
     ASSERT_EQ(expected[I], Visitor.VisitedNodes[I]);
   }
+}
+
+TEST(RecursiveASTVisitor, PrePostComparisonTest) {
+  auto ASTUnit = tooling::buildASTFromCode("template <typename> class X {};"
+                                           "template class X<int>;");
+
+  auto TU = ASTUnit->getASTContext().getTranslationUnitDecl();
+
+  std::vector<void *> preorderNodeList, postorderNodeList;
+
+  ASTSerializerVisitor PreVisitor(false, preorderNodeList);
+  PreVisitor.TraverseTranslationUnitDecl(TU);
+
+  ASTSerializerVisitor PostVisitor(true, postorderNodeList);
+  PostVisitor.TraverseTranslationUnitDecl(TU);
+
+  // The number of visited nodes must be independent of the ordering mode.
+  ASSERT_EQ(preorderNodeList.size(), postorderNodeList.size());
+
+  std::sort(preorderNodeList.begin(), preorderNodeList.end());
+  std::sort(postorderNodeList.begin(), postorderNodeList.end());
+
+  // Both traversal must visit the same nodes.
+  ASSERT_EQ(std::mismatch(preorderNodeList.begin(), preorderNodeList.end(),
+                          postorderNodeList.begin())
+                .first,
+            preorderNodeList.end());
 }
