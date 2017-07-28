@@ -38,7 +38,7 @@ namespace llvm {
 
     ConstantInt *V;
     SCEVConstant(const FoldingSetNodeIDRef ID, ConstantInt *v) :
-      SCEV(ID, scConstant), V(v) {}
+      SCEV(ID, scConstant, 1), V(v) {}
   public:
     ConstantInt *getValue() const { return V; }
     const APInt &getAPInt() const { return getValue()->getValue(); }
@@ -131,7 +131,10 @@ namespace llvm {
 
     SCEVNAryExpr(const FoldingSetNodeIDRef ID,
                  enum SCEVTypes T, const SCEV *const *O, size_t N)
-      : SCEV(ID, T), Operands(O), NumOperands(N) {}
+      : SCEV(ID, T, 1), Operands(O), NumOperands(N) {
+      for (unsigned I = 0; I < N; ++I)
+        ExpressionSize += O[I]->getExpressionSize();
+    }
 
   public:
     size_t getNumOperands() const { return NumOperands; }
@@ -247,7 +250,9 @@ namespace llvm {
     const SCEV *LHS;
     const SCEV *RHS;
     SCEVUDivExpr(const FoldingSetNodeIDRef ID, const SCEV *lhs, const SCEV *rhs)
-      : SCEV(ID, scUDivExpr), LHS(lhs), RHS(rhs) {}
+        : SCEV(ID, scUDivExpr,
+               1 + lhs->getExpressionSize() + rhs->getExpressionSize()),
+          LHS(lhs), RHS(rhs) {}
 
   public:
     const SCEV *getLHS() const { return LHS; }
@@ -408,7 +413,7 @@ namespace llvm {
 
     SCEVUnknown(const FoldingSetNodeIDRef ID, Value *V,
                 ScalarEvolution *se, SCEVUnknown *next) :
-      SCEV(ID, scUnknown), CallbackVH(V), SE(se), Next(next) {}
+      SCEV(ID, scUnknown, 0), CallbackVH(V), SE(se), Next(next) {}
 
   public:
     Value *getValue() const { return getValPtr(); }
