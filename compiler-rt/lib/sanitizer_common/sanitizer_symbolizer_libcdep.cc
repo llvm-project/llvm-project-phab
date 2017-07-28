@@ -11,6 +11,9 @@
 // run-time libraries.
 //===----------------------------------------------------------------------===//
 
+#include "sanitizer_platform.h"
+#if !SANITIZER_FUCHSIA
+
 #include "sanitizer_allocator_internal.h"
 #include "sanitizer_internal_defs.h"
 #include "sanitizer_symbolizer_internal.h"
@@ -473,3 +476,5 @@ bool SymbolizerProcess::WriteToSymbolizer(const char *buffer, uptr length) {
 }
 
 }  // namespace __sanitizer
+
+#endif // !SANITIZER_FUCHSIA
