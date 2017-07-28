@@ -1,11 +1,11 @@
 ; RUN: llc -relocation-model=pic -march=mipsel -mcpu=mips32r5 \
-; RUN:     -mattr=+fp64,+msa -verify-machineinstrs < %s | FileCheck %s \
+; RUN:     -mattr=+fp64,+msa,+abs2008 -verify-machineinstrs < %s | FileCheck %s \
 ; RUN:     --check-prefixes=ALL,MIPS32,MIPSR5,MIPS32-O32,MIPS32R5-O32
 ; RUN: llc -relocation-model=pic -march=mips64el -mcpu=mips64r5 \
-; RUN:     -mattr=+fp64,+msa -verify-machineinstrs -target-abi n32 < %s | FileCheck %s \
+; RUN:     -mattr=+fp64,+msa,+abs2008 -verify-machineinstrs -target-abi n32 < %s | FileCheck %s \
 ; RUN:     --check-prefixes=ALL,MIPS64,MIPSR5,MIPS64-N32,MIPS64R5-N32
 ; RUN: llc -relocation-model=pic -march=mips64el -mcpu=mips64r5 \
-; RUN:     -mattr=+fp64,+msa -verify-machineinstrs -target-abi n64 < %s | FileCheck %s \
+; RUN:     -mattr=+fp64,+msa,+abs2008 -verify-machineinstrs -target-abi n64 < %s | FileCheck %s \
 ; RUN:     --check-prefixes=ALL,MIPS64,MIPSR5,MIPS64-N64,MIPS64R5-N64
 
 ; RUN: llc -relocation-model=pic -march=mipsel -mcpu=mips32r6 \

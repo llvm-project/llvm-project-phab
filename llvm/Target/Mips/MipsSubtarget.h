@@ -78,6 +78,9 @@ class MipsSubtarget : public MipsGenSubtargetInfo {
   // IsNan2008 - IEEE 754-2008 NaN encoding.
   bool IsNaN2008bit;
 
+  // Abs2008 - Use IEEE 754-2008 Abs instruction.
+  bool Abs2008;
+
   // IsGP64bit - General-purpose registers are 64 bits wide
   bool IsGP64bit;
 
@@ -234,6 +237,7 @@ public:
   bool useOddSPReg() const { return UseOddSPReg; }
   bool noOddSPReg() const { return !UseOddSPReg; }
   bool isNaN2008() const { return IsNaN2008bit; }
+  bool inAbs2008Mode() const { return Abs2008; }
   bool isGP64bit() const { return IsGP64bit; }
   bool isGP32bit() const { return !IsGP64bit; }
   unsigned getGPRSizeInBytes() const { return isGP64bit() ? 8 : 4; }
