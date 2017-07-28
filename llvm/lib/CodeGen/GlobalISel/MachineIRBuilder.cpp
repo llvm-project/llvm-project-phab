@@ -10,6 +10,7 @@
 /// This file implements the MachineIRBuidler class.
 //===----------------------------------------------------------------------===//
 #include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
+#include "llvm/CodeGen/GlobalISel/Utils.h"
 
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstr.h"
@@ -166,12 +167,66 @@ MachineInstrBuilder MachineIRBuilder::buildGlobalValue(unsigned Res,
       .addGlobalAddress(GV);
 }
 
+static Optional<APInt> ConstantFoldBinOp(unsigned Opcode, const unsigned Op1,
+                                         const unsigned Op2,
+                                         const MachineRegisterInfo *MRI) {
+  auto MaybeOp1Cst = getConstantVRegVal(Op1, *MRI);
+  auto MaybeOp2Cst = getConstantVRegVal(Op2, *MRI);
+  if (MaybeOp1Cst && MaybeOp2Cst) {
+    LLT Ty = MRI->getType(Op1);
+    APInt C1(Ty.getSizeInBits(), *MaybeOp1Cst, true);
+    APInt C2(Ty.getSizeInBits(), *MaybeOp2Cst, true);
+    switch (Opcode) {
+    default:
+      break;
+    case TargetOpcode::G_ADD:
+      return C1 + C2;
+    case TargetOpcode::G_AND:
+      return C1 & C2;
+    case TargetOpcode::G_ASHR:
+      return C1.ashr(C2);
+    case TargetOpcode::G_LSHR:
+      return C1.lshr(C2);
+    case TargetOpcode::G_MUL:
+      return C1 * C2;
+    case TargetOpcode::G_OR:
+      return C1 | C2;
+    case TargetOpcode::G_SHL:
+      return C1 << C2;
+    case TargetOpcode::G_SUB:
+      return C1 - C2;
+    case TargetOpcode::G_XOR:
+      return C1 ^ C2;
+    case TargetOpcode::G_UDIV:
+      if (!C2.getBoolValue())
+        break;
+      return C1.udiv(C2);
+    case TargetOpcode::G_SDIV:
+      if (!C2.getBoolValue())
+        break;
+      return C1.sdiv(C2);
+    case TargetOpcode::G_UREM:
+      if (!C2.getBoolValue())
+        break;
+      return C1.urem(C2);
+    case TargetOpcode::G_SREM:
+      if (!C2.getBoolValue())
+        break;
+      return C1.srem(C2);
+    }
+  }
+  return None;
+}
+
 MachineInstrBuilder MachineIRBuilder::buildBinaryOp(unsigned Opcode, unsigned Res, unsigned Op0,
                                                unsigned Op1) {
   assert((MRI->getType(Res).isScalar() || MRI->getType(Res).isVector()) &&
          "invalid operand type");
   assert(MRI->getType(Res) == MRI->getType(Op0) &&
          MRI->getType(Res) == MRI->getType(Op1) && "type mismatch");
+
+  if (auto NewVal = ConstantFoldBinOp(Opcode, Op0, Op1, MRI))
+    return buildConstant(Res, NewVal->getSExtValue());
 
   return buildInstr(Opcode)
       .addDef(Res)

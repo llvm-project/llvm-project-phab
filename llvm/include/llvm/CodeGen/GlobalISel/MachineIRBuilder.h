@@ -84,6 +84,43 @@ class MachineIRBuilder {
     addUseFromArg(MIB, Arg1);
     addUsesFromArgs(MIB, std::forward<UseArgsTy>(Args)...);
   }
+  unsigned getRegFromArg(unsigned Reg) { return Reg; }
+  unsigned getRegFromArg(MachineInstrBuilder &MIB) {
+    return MIB->getOperand(0).getReg();
+  }
+  template <typename DstTy, typename UseArg1, typename UseArg2>
+  MachineInstrBuilder buildInstrImpl(unsigned Opc, DstTy &&DstArg,
+                                     UseArg1 &&Arg1, UseArg2 &&Arg2) {
+    switch (Opc) {
+    case TargetOpcode::G_ADD:
+    case TargetOpcode::G_AND:
+    case TargetOpcode::G_ASHR:
+    case TargetOpcode::G_LSHR:
+    case TargetOpcode::G_MUL:
+    case TargetOpcode::G_OR:
+    case TargetOpcode::G_SDIV:
+    case TargetOpcode::G_SHL:
+    case TargetOpcode::G_SREM:
+    case TargetOpcode::G_SUB:
+    case TargetOpcode::G_UDIV:
+    case TargetOpcode::G_UREM:
+    case TargetOpcode::G_XOR:
+      return buildBinaryOp(Opc, getDestFromArg(DstArg), getRegFromArg(Arg1),
+                           getRegFromArg(Arg2));
+    }
+    auto MIB = buildInstr(Opc).addDef(getDestFromArg(DstArg));
+    addUsesFromArgs(MIB, std::forward<UseArg1>(Arg1),
+                    std::forward<UseArg2>(Arg2));
+    return MIB;
+  }
+  template <typename DstTy, typename... UseArgsTy>
+  MachineInstrBuilder buildInstrImpl(unsigned Opc, DstTy &&DstArg,
+                                     UseArgsTy &&... Args) {
+    auto MIB = buildInstr(Opc).addDef(getDestFromArg(DstArg));
+    addUsesFromArgs(MIB, std::forward<UseArgsTy>(Args)...);
+    return MIB;
+  }
+
 public:
   /// Getter for the function we currently build.
   MachineFunction &getMF() {
@@ -150,12 +187,12 @@ public:
   /// \Args Variadic list of uses of types(unsigned/MachineInstrBuilder)
   /// Uses of type MachineInstrBuilder will perform
   /// getOperand(0).getReg() to convert to register.
+
   template <typename DstTy, typename... UseArgsTy>
-  MachineInstrBuilder buildInstr(unsigned Opc, DstTy &&Ty,
+  MachineInstrBuilder buildInstr(unsigned Opc, DstTy &&DstArg,
                                  UseArgsTy &&... Args) {
-    auto MIB = buildInstr(Opc).addDef(getDestFromArg(Ty));
-    addUsesFromArgs(MIB, std::forward<UseArgsTy>(Args)...);
-    return MIB;
+    return buildInstrImpl(Opc, std::forward<DstTy>(DstArg),
+                          std::forward<UseArgsTy>(Args)...);
   }
 
   /// Build but don't insert <empty> = \p Opcode <empty>.
