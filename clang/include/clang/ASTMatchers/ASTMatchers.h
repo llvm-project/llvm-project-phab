@@ -582,6 +582,23 @@ AST_MATCHER_P(FieldDecl, hasInClassInitializer, internal::Matcher<Expr>,
           InnerMatcher.matches(*Initializer, Finder, Builder));
 }
 
+/// \brief Matches the specialized template of a specialization declaration.
+///
+/// Given
+/// \code
+///   tempalate<typename T> class A {};
+///   typedef A<int> B;
+/// \endcode
+/// classTemplateSpecializationDecl(hasSpecializedTemplate(classTemplateDecl()))
+///   matches 'B' with classTemplateDecl() matching the class template
+///   declaration of 'A'.
+AST_MATCHER_P(ClassTemplateSpecializationDecl, hasSpecializedTemplate,
+              internal::Matcher<ClassTemplateDecl>, InnerMatcher) {
+  const ClassTemplateDecl* Decl = Node.getSpecializedTemplate();
+  return (Decl != nullptr &&
+          InnerMatcher.matches(*Decl, Finder, Builder));
+}
+
 /// \brief Matches a declaration that has been implicitly added
 /// by the compiler (eg. implicit default/copy constructors).
 AST_MATCHER(Decl, isImplicit) {
