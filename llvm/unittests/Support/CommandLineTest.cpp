@@ -198,6 +198,56 @@ TEST(CommandLineTest, TokenizeGNUCommandLine) {
                            array_lengthof(Output));
 }
 
+TEST(CommandLineTest, TokenizeGNUCommandLineBS) {
+  const char *Input = "\\";
+  const char *Output[1] = { "\\" };
+  testCommandLineTokenizer(cl::TokenizeGNUCommandLine, Input, Output, 1);
+
+  Input = "abc\\";
+  Output[0] = "abc\\";
+  testCommandLineTokenizer(cl::TokenizeGNUCommandLine, Input, Output, 1);
+
+  Input = "\\abc";
+  Output[0] = "abc";
+  testCommandLineTokenizer(cl::TokenizeGNUCommandLine, Input, Output, 1);
+
+  Input = "abc\\123";
+  Output[0] = "abc123";
+  testCommandLineTokenizer(cl::TokenizeGNUCommandLine, Input, Output, 1);
+
+  Input = "abc\\1";
+  Output[0] = "abc1";
+  testCommandLineTokenizer(cl::TokenizeGNUCommandLine, Input, Output, 1);
+
+  Input = "abc\\\\123";
+  Output[0] = "abc\\123";
+  testCommandLineTokenizer(cl::TokenizeGNUCommandLine, Input, Output, 1);
+
+  Input = "\\\nabc";
+  Output[0] = "abc";
+  testCommandLineTokenizer(cl::TokenizeGNUCommandLine, Input, Output, 1);
+
+  Input = "\\\r\nabc";
+  Output[0] = "abc";
+  testCommandLineTokenizer(cl::TokenizeGNUCommandLine, Input, Output, 1);
+
+  Input = "abc\\\n123";
+  Output[0] = "abc123";
+  testCommandLineTokenizer(cl::TokenizeGNUCommandLine, Input, Output, 1);
+
+  Input = "abc\\\r\n123";
+  Output[0] = "abc123";
+  testCommandLineTokenizer(cl::TokenizeGNUCommandLine, Input, Output, 1);
+
+  Input = "abc\\\n";
+  Output[0] = "abc";
+  testCommandLineTokenizer(cl::TokenizeGNUCommandLine, Input, Output, 1);
+
+  Input = "abc\\\r\n";
+  Output[0] = "abc";
+  testCommandLineTokenizer(cl::TokenizeGNUCommandLine, Input, Output, 1);
+}
+
 TEST(CommandLineTest, TokenizeWindowsCommandLine) {
   const char Input[] = "a\\b c\\\\d e\\\\\"f g\" h\\\"i j\\\\\\\"k \"lmn\" o pqr "
                       "\"st \\\"u\" \\v";
@@ -205,6 +255,38 @@ TEST(CommandLineTest, TokenizeWindowsCommandLine) {
                                  "lmn", "o", "pqr", "st \"u", "\\v" };
   testCommandLineTokenizer(cl::TokenizeWindowsCommandLine, Input, Output,
                            array_lengthof(Output));
+}
+
+TEST(CommandLineTest, TokenizeCommandLineComment) {
+  for (auto Tokenizer : { cl::TokenizeGNUCommandLine ,
+                          cl::TokenizeWindowsCommandLine }) {
+    const char *Input = "# abc\n"
+                        "123";
+    const char *Output[3] = { "123" };
+    testCommandLineTokenizer(Tokenizer, Input, Output, 1);
+
+    Input = "  # abc\n"
+            "123";
+    Output[0] = "123";
+    testCommandLineTokenizer(Tokenizer, Input, Output, 1);
+
+    Input = "123 # abc";
+    Output[0] = "123";
+    Output[1] = "#";
+    Output[2] = "abc";
+    testCommandLineTokenizer(Tokenizer, Input, Output, 3);
+
+    Input = "abc\n"
+            "#123";
+    Output[0] = "abc";
+    testCommandLineTokenizer(Tokenizer, Input, Output, 1);
+
+    Input = "abc def\n"
+            "#123";
+    Output[0] = "abc";
+    Output[1] = "def";
+    testCommandLineTokenizer(Tokenizer, Input, Output, 2);
+  }
 }
 
 TEST(CommandLineTest, AliasesWithArguments) {
