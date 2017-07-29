@@ -10,6 +10,7 @@ See also:
    :maxdepth: 1
 
    The list of clang-tidy checks <checks/list>
+   The list of clang-tidy checks including auto fixes <checks/list-fix>
 
 :program:`clang-tidy` is a clang-based C++ "linter" tool. Its purpose is to
 provide an extensible framework for diagnosing and fixing typical programming
