@@ -570,25 +570,6 @@ PassBuilder::buildModuleSimplificationPipeline(OptimizationLevel Level,
   GlobalCleanupPM.addPass(SimplifyCFGPass());
   MPM.addPass(createModuleToFunctionPassAdaptor(std::move(GlobalCleanupPM)));
 
-  // Add all the requested passes for PGO, if requested.
-  if (PGOOpt) {
-    if (!PGOOpt->ProfileGenFile.empty() || !PGOOpt->ProfileUseFile.empty())
-      // Instrumentation based PGO (gen and use)
-      addPGOInstrPasses(MPM, DebugLogging, Level, PGOOpt->RunProfileGen,
-                        PGOOpt->ProfileGenFile, PGOOpt->ProfileUseFile);
-    else if (!PGOOpt->SampleProfileFile.empty())
-      // SamplePGO use
-      MPM.addPass(SampleProfileLoaderPass(PGOOpt->SampleProfileFile));
-
-    // Indirect call promotion that promotes intra-module targes only.
-    // Do not enable it in PrepareForThinLTO phase during sample PGO because
-    // it changes IR to makes profile annotation in back compile inaccurate.
-    if ((!PrepareForThinLTO && !PGOOpt->SampleProfileFile.empty())
-        || !PGOOpt->ProfileUseFile.empty())
-      MPM.addPass(PGOIndirectCallPromotion(
-          false, PGOOpt && !PGOOpt->SampleProfileFile.empty()));
-  }
-
   // Require the GlobalsAA analysis for the module so we can query it within
   // the CGSCC pipeline.
   MPM.addPass(RequireAnalysisPass<GlobalsAA, Module>());
@@ -778,8 +759,18 @@ PassBuilder::buildPerModuleDefaultPipeline(OptimizationLevel Level,
   // Force any function attributes we want the rest of the pipeline to observe.
   MPM.addPass(ForceFunctionAttrsPass());
 
-  if (PGOOpt && PGOOpt->SamplePGOSupport)
-    MPM.addPass(createModuleToFunctionPassAdaptor(AddDiscriminatorsPass()));
+  if (PGOOpt) {
+    if (PGOOpt->SamplePGOSupport)
+      MPM.addPass(createModuleToFunctionPassAdaptor(AddDiscriminatorsPass()));
+    if (!PGOOpt->ProfileGenFile.empty() || !PGOOpt->ProfileUseFile.empty())
+      addPGOInstrPasses(MPM, DebugLogging, Level, PGOOpt->RunProfileGen,
+                        PGOOpt->ProfileGenFile, PGOOpt->ProfileUseFile);
+    else if (!PGOOpt->SampleProfileFile.empty())
+      MPM.addPass(SampleProfileLoaderPass(PGOOpt->SampleProfileFile));
+    if (!PGOOpt->ProfileUseFile.empty() || !PGOOpt->SampleProfileFile.empty())
+      MPM.addPass(PGOIndirectCallPromotion(
+          false, !PGOOpt->SampleProfileFile.empty()));
+  }
 
   // Add the core simplification pipeline.
   MPM.addPass(buildModuleSimplificationPipeline(Level, DebugLogging,
@@ -801,9 +792,18 @@ PassBuilder::buildThinLTOPreLinkDefaultPipeline(OptimizationLevel Level,
   // Force any function attributes we want the rest of the pipeline to observe.
   MPM.addPass(ForceFunctionAttrsPass());
 
-  if (PGOOpt && PGOOpt->SamplePGOSupport)
-    MPM.addPass(createModuleToFunctionPassAdaptor(AddDiscriminatorsPass()));
+  if (PGOOpt) {
+    if (PGOOpt->SamplePGOSupport)
+      MPM.addPass(createModuleToFunctionPassAdaptor(AddDiscriminatorsPass()));
 
+    if (!PGOOpt->ProfileGenFile.empty() || !PGOOpt->ProfileUseFile.empty()) {
+      addPGOInstrPasses(MPM, DebugLogging, Level, PGOOpt->RunProfileGen,
+                        PGOOpt->ProfileGenFile, PGOOpt->ProfileUseFile);
+      if (!PGOOpt->ProfileUseFile.empty())
+        MPM.addPass(PGOIndirectCallPromotion(false, false));
+    } else if (!PGOOpt->SampleProfileFile.empty())
+        MPM.addPass(SampleProfileLoaderPass(PGOOpt->SampleProfileFile));
+  }
   // If we are planning to perform ThinLTO later, we don't bloat the code with
   // unrolling/vectorization/... now. Just simplify the module as much as we
   // can.
@@ -838,12 +838,15 @@ PassBuilder::buildThinLTODefaultPipeline(OptimizationLevel Level,
   // Force any function attributes we want the rest of the pipeline to observe.
   MPM.addPass(ForceFunctionAttrsPass());
 
+  // Invoke the SampleProfileLoader the 2nd time to annotate profile.
+  if (PGOOpt && !PGOOpt->SampleProfileFile.empty())
+    MPM.addPass(SampleProfileLoaderPass(PGOOpt->SampleProfileFile));
+
   // During the ThinLTO backend phase we perform early indirect call promotion
   // here, before globalopt. Otherwise imported available_externally functions
   // look unreferenced and are removed.
   MPM.addPass(PGOIndirectCallPromotion(
-      true /* InLTO */, PGOOpt && !PGOOpt->SampleProfileFile.empty() &&
-                            !PGOOpt->ProfileUseFile.empty()));
+      true /* InLTO */, PGOOpt && !PGOOpt->SampleProfileFile.empty()));
 
   // Add the core simplification pipeline.
   MPM.addPass(buildModuleSimplificationPipeline(Level, DebugLogging,
