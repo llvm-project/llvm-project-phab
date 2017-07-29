@@ -7525,6 +7525,13 @@ void ASTReader::InitializeSema(Sema &S) {
   SemaObj->OpenCLTypeExtMap = OpenCLTypeExtMap;
   SemaObj->OpenCLDeclExtMap = OpenCLDeclExtMap;
 
+  // OpenCL features imported from a module can be overwritten by -cl-ext option
+  for (const auto &Ext :
+       getContext().getTargetInfo().getTargetOpts().OpenCLExtensionsAsWritten) {
+    SemaObj->OpenCLFeatures.support(Ext);
+    SemaObj->OpenCLFeatures.enable(Ext);
+  }
+
   UpdateSema();
 }
 
