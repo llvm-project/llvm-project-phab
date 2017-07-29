@@ -22,7 +22,11 @@ namespace llvm {
   class LatencyPriorityQueue;
 
   /// Sorting functions for the Available queue.
-  struct latency_sort : public std::binary_function<SUnit*, SUnit*, bool> {
+  struct latency_sort {
+    using first_argument_type = SUnit*;
+    using second_argument_type = SUnit*;
+    using result_Type = bool;
+
     LatencyPriorityQueue *PQ;
     explicit latency_sort(LatencyPriorityQueue *pq) : PQ(pq) {}
 
