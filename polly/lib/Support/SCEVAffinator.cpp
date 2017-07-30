@@ -130,11 +130,12 @@ __isl_give PWACtx SCEVAffinator::getPWACtxFromPWA(__isl_take isl_pw_aff *PWA) {
       PWA, isl_set_empty(isl_space_set_alloc(Ctx, 0, NumIterators)));
 }
 
-__isl_give PWACtx SCEVAffinator::getPwAff(const SCEV *Expr, BasicBlock *BB) {
+__isl_give PWACtx SCEVAffinator::getPwAff(const SCEV *Expr, BasicBlock *BB,
+                                          isl::set Domain) {
   this->BB = BB;
 
-  if (BB) {
-    auto *DC = S->getDomainConditions(BB);
+  if (Domain) {
+    auto *DC = Domain.release();
     NumIterators = isl_set_n_dim(DC);
     isl_set_free(DC);
   } else
