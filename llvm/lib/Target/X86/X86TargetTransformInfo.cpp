@@ -2221,6 +2221,31 @@ bool X86TTIImpl::isLegalMaskedScatter(Type *DataType) {
   return isLegalMaskedGather(DataType);
 }
 
+TargetTransformInfo::MemOpFastPathSizeInfo
+X86TTIImpl::getMemsetInlineFastPathSizeInfo(int MaxOpByteSize) const {
+  TTI::MemOpFastPathSizeInfo Result;
+
+  // Cap the size at the word size.
+  // FIXME: If we teach the x86 backend to lower 128-bit (and wider) integer
+  // loads and stores using vectors, we may be able to grow this to encompass
+  // vector sizes and we'll need to adjust the iteration count below as well.
+  Result.OpByteSize = std::min(MaxOpByteSize, ST->is64Bit() ? 8 : 4);
+
+  // On x86, a loop of up to six iterations remains profitable compared to the
+  // overhead of a library call unless more than 16 bytes are being touched at
+  // which point the vector based code in the library call is advantageous even
+  // after the overhead of the call itself.
+  Result.MaxIterations = std::min(6, 16 / Result.OpByteSize);
+
+  return Result;
+}
+
+TargetTransformInfo::MemOpFastPathSizeInfo
+X86TTIImpl::getMemcpyInlineFastPathSizeInfo(int MaxOpByteSize) const {
+  // The heuristics for memset and memcpy are the same for x86.
+  return getMemsetInlineFastPathSizeInfo(MaxOpByteSize);
+}
+
 bool X86TTIImpl::areInlineCompatible(const Function *Caller,
                                      const Function *Callee) const {
   const TargetMachine &TM = getTLI()->getTargetMachine();

@@ -45,6 +45,7 @@
 #include "llvm/Transforms/Instrumentation.h"
 #include "llvm/Transforms/ObjCARC.h"
 #include "llvm/Transforms/Scalar.h"
+#include "llvm/Transforms/Scalar/FastPathLibCalls.h"
 #include "llvm/Transforms/Scalar/GVN.h"
 #include "llvm/Transforms/Utils/SymbolRewriter.h"
 #include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"
@@ -99,6 +100,7 @@ namespace {
       (void) llvm::createPGOIndirectCallPromotionLegacyPass();
       (void) llvm::createPGOMemOPSizeOptLegacyPass();
       (void) llvm::createInstrProfilingLegacyPass();
+      (void) llvm::createFastPathLibCallsLegacyPass();
       (void) llvm::createFunctionImportPass();
       (void) llvm::createFunctionInliningPass();
       (void) llvm::createAlwaysInlinerLegacyPass();

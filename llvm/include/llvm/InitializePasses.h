@@ -131,6 +131,7 @@ void initializeExpandPostRAPass(PassRegistry&);
 void initializeExpandReductionsPass(PassRegistry&);
 void initializeExternalAAWrapperPassPass(PassRegistry&);
 void initializeFEntryInserterPass(PassRegistry&);
+void initializeFastPathLibCallsLegacyPassPass(PassRegistry&);
 void initializeFinalizeMachineBundlesPass(PassRegistry&);
 void initializeFlattenCFGPassPass(PassRegistry&);
 void initializeFloat2IntLegacyPassPass(PassRegistry&);

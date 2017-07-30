@@ -517,6 +517,16 @@ bool TargetTransformInfo::useWideIRMemcpyLoopLowering() const {
   return UseWideMemcpyLoopLowering;
 }
 
+TargetTransformInfo::MemOpFastPathSizeInfo
+TargetTransformInfo::getMemsetInlineFastPathSizeInfo(int MaxOpByteSize) const {
+  return TTIImpl->getMemsetInlineFastPathSizeInfo(MaxOpByteSize);
+}
+
+TargetTransformInfo::MemOpFastPathSizeInfo
+TargetTransformInfo::getMemcpyInlineFastPathSizeInfo(int MaxOpByteSize) const {
+  return TTIImpl->getMemcpyInlineFastPathSizeInfo(MaxOpByteSize);
+}
+
 bool TargetTransformInfo::areInlineCompatible(const Function *Caller,
                                               const Function *Callee) const {
   return TTIImpl->areInlineCompatible(Caller, Callee);

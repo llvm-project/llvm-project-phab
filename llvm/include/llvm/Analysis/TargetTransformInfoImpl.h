@@ -464,6 +464,14 @@ public:
       OpsOut.push_back(Type::getInt8Ty(Context));
   }
 
+  TTI::MemOpFastPathSizeInfo getMemsetInlineFastPathSizeInfo(int) const {
+    return {0, 0};
+  }
+
+  TTI::MemOpFastPathSizeInfo getMemcpyInlineFastPathSizeInfo(int) const {
+    return {0, 0};
+  }
+
   bool areInlineCompatible(const Function *Caller,
                            const Function *Callee) const {
     return (Caller->getFnAttribute("target-cpu") ==

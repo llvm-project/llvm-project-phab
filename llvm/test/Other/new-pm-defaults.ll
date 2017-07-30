@@ -202,6 +202,7 @@
 ; CHECK-O-NEXT: Running pass: RequireAnalysisPass<{{.*}}OptimizationRemarkEmitterAnalysis
 ; CHECK-O-NEXT: Running pass: FunctionToLoopPassAdaptor<{{.*}}LICMPass
 ; CHECK-O-NEXT: Running pass: AlignmentFromAssumptionsPass
+; CHECK-O-NEXT: Running pass: FastPathLibCallsPass
 ; CHECK-O-NEXT: Running pass: LoopSinkPass
 ; CHECK-O-NEXT: Running pass: InstSimplifierPass
 ; CHECK-O-NEXT: Running pass: SimplifyCFGPass

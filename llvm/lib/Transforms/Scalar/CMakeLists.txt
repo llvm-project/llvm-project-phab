@@ -8,6 +8,7 @@ add_llvm_library(LLVMScalarOpts
   DCE.cpp
   DeadStoreElimination.cpp
   EarlyCSE.cpp
+  FastPathLibCalls.cpp
   FlattenCFGPass.cpp
   Float2Int.cpp
   GuardWidening.cpp

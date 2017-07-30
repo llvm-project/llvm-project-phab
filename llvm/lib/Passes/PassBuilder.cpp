@@ -93,6 +93,7 @@
 #include "llvm/Transforms/Scalar/DCE.h"
 #include "llvm/Transforms/Scalar/DeadStoreElimination.h"
 #include "llvm/Transforms/Scalar/EarlyCSE.h"
+#include "llvm/Transforms/Scalar/FastPathLibCalls.h"
 #include "llvm/Transforms/Scalar/Float2Int.h"
 #include "llvm/Transforms/Scalar/GVN.h"
 #include "llvm/Transforms/Scalar/GuardWidening.h"
@@ -742,6 +743,9 @@ PassBuilder::buildModuleOptimizationPipeline(OptimizationLevel Level,
   // Now that we've vectorized and unrolled loops, we may have more refined
   // alignment information, try to re-derive it here.
   OptimizePM.addPass(AlignmentFromAssumptionsPass());
+
+  // Insert fast-path bypasses for library functions.
+  OptimizePM.addPass(FastPathLibCallsPass());
 
   // LoopSink pass sinks instructions hoisted by LICM, which serves as a
   // canonicalization pass that enables other optimizations. As a result,

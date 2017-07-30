@@ -189,6 +189,7 @@
 ; CHECK-POSTLINK-O-NEXT: Running pass: RequireAnalysisPass<{{.*}}OptimizationRemarkEmitterAnalysis
 ; CHECK-POSTLINK-O-NEXT: Running pass: FunctionToLoopPassAdaptor<{{.*}}LICMPass
 ; CHECK-POSTLINK-O-NEXT: Running pass: AlignmentFromAssumptionsPass
+; CHECK-POSTLINK-O-NEXT: Running pass: FastPathLibCallsPass
 ; CHECK-POSTLINK-O-NEXT: Running pass: LoopSinkPass
 ; CHECK-POSTLINK-O-NEXT: Running pass: InstSimplifierPass
 ; CHECK-POSTLINK-O-NEXT: Running pass: SimplifyCFGPass

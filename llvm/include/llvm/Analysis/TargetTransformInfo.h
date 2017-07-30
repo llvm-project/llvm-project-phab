@@ -790,6 +790,44 @@ public:
   /// remove the old.
   bool useWideIRMemcpyLoopLowering() const;
 
+  /// Information about the desired sizes for an inlined fast-path mem library
+  /// function.
+  struct MemOpFastPathSizeInfo {
+    /// The size of operation within the loop in number of bytes.
+    ///
+    /// This must always be a power of two.
+    int OpByteSize;
+
+    /// The maximum number of iterations where a loop is profitable.
+    int MaxIterations;
+  };
+
+  /// Computes the minimum size and best granularity for emitting a fast-path
+  /// loop to bypass a memset library call.
+  ///
+  /// For small sizes, a raw loop may be substantially faster than calling
+  /// memset. This routine tells LLVM up to what size this is profitable and
+  /// what the step size of the loop should be. The \p MaxOpByteSize is
+  /// provided by analyzing the alignment and size passed to the memset.
+  ///
+  /// A zero for `MaxIterations` in the returned struct effectively disables
+  /// inline fast-paths for the target.
+  MemOpFastPathSizeInfo
+  getMemsetInlineFastPathSizeInfo(int MaxOpByteSize) const;
+
+  /// Computes the minimum size and best granularity for emitting a fast-path
+  /// loop to bypass a memcpy library call.
+  ///
+  /// For small sizes, a raw loop may be substantially faster than calling
+  /// memset. This routine tells LLVM up to what size this is profitable and
+  /// what the step size of the loop should be. The \p MaxOpByteSize is
+  /// provided by analyzing the alignment and size passed to the memset.
+  ///
+  /// A zero for `MaxIterations` in the returned struct effectively disables
+  /// inline fast-paths for the target.
+  MemOpFastPathSizeInfo
+  getMemcpyInlineFastPathSizeInfo(int MaxOpByteSize) const;
+
   /// \returns True if the two functions have compatible attributes for inlining
   /// purposes.
   bool areInlineCompatible(const Function *Caller,
@@ -999,6 +1037,10 @@ public:
   virtual void getMemcpyLoopResidualLoweringType(
       SmallVectorImpl<Type *> &OpsOut, LLVMContext &Context,
       unsigned RemainingBytes, unsigned SrcAlign, unsigned DestAlign) const = 0;
+  virtual MemOpFastPathSizeInfo
+  getMemsetInlineFastPathSizeInfo(int MaxOpByteSize) const = 0;
+  virtual MemOpFastPathSizeInfo
+  getMemcpyInlineFastPathSizeInfo(int MaxOpByteSize) const = 0;
   virtual bool areInlineCompatible(const Function *Caller,
                                    const Function *Callee) const = 0;
   virtual unsigned getLoadStoreVecRegBitWidth(unsigned AddrSpace) const = 0;
@@ -1331,6 +1373,14 @@ public:
                                          unsigned DestAlign) const override {
     Impl.getMemcpyLoopResidualLoweringType(OpsOut, Context, RemainingBytes,
                                            SrcAlign, DestAlign);
+  }
+  MemOpFastPathSizeInfo
+  getMemsetInlineFastPathSizeInfo(int MaxOpByteSize) const override {
+    return Impl.getMemsetInlineFastPathSizeInfo(MaxOpByteSize);
+  }
+  MemOpFastPathSizeInfo
+  getMemcpyInlineFastPathSizeInfo(int MaxOpByteSize) const override {
+    return Impl.getMemcpyInlineFastPathSizeInfo(MaxOpByteSize);
   }
   bool areInlineCompatible(const Function *Caller,
                            const Function *Callee) const override {
