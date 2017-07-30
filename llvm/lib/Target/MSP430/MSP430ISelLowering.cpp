@@ -112,13 +112,12 @@ MSP430TargetLowering::MSP430TargetLowering(const TargetMachine &TM,
 
   setOperationAction(ISD::SIGN_EXTEND_INREG, MVT::i1,   Expand);
 
-  // FIXME: Implement efficiently multiplication by a constant
-  setOperationAction(ISD::MUL,              MVT::i8,    Promote);
+  setOperationAction(ISD::MUL,              MVT::i8,    Custom);
   setOperationAction(ISD::MULHS,            MVT::i8,    Promote);
   setOperationAction(ISD::MULHU,            MVT::i8,    Promote);
   setOperationAction(ISD::SMUL_LOHI,        MVT::i8,    Promote);
   setOperationAction(ISD::UMUL_LOHI,        MVT::i8,    Promote);
-  setOperationAction(ISD::MUL,              MVT::i16,   LibCall);
+  setOperationAction(ISD::MUL,              MVT::i16,   Custom);
   setOperationAction(ISD::MULHS,            MVT::i16,   Expand);
   setOperationAction(ISD::MULHU,            MVT::i16,   Expand);
   setOperationAction(ISD::SMUL_LOHI,        MVT::i16,   Expand);
@@ -342,6 +341,7 @@ SDValue MSP430TargetLowering::LowerOperation(SDValue Op,
   case ISD::FRAMEADDR:        return LowerFRAMEADDR(Op, DAG);
   case ISD::VASTART:          return LowerVASTART(Op, DAG);
   case ISD::JumpTable:        return LowerJumpTable(Op, DAG);
+  case ISD::MUL:              return LowerMUL(Op, DAG);
   default:
     llvm_unreachable("unimplemented operand");
   }
@@ -1296,6 +1296,69 @@ SDValue MSP430TargetLowering::LowerJumpTable(SDValue Op,
     auto PtrVT = getPointerTy(DAG.getDataLayout());
     SDValue Result = DAG.getTargetJumpTable(JT->getIndex(), PtrVT);
     return DAG.getNode(MSP430ISD::Wrapper, SDLoc(JT), PtrVT, Result);
+}
+
+static SDValue genConstMult(SDValue X, uint64_t C, const SDLoc &DL, EVT VT,
+                            EVT ShiftTy, SelectionDAG &DAG) {
+  // Clear the upper (64 - VT.sizeInBits) bits.
+  C &= ((uint64_t)-1) >> (64 - VT.getSizeInBits());
+
+  // Return 0.
+  if (C == 0)
+    return DAG.getConstant(0, DL, VT);
+
+  // Return x.
+  if (C == 1)
+    return X;
+
+  // If c is power of 2, return (shl x, log2(c)).
+  if (isPowerOf2_64(C))
+    return DAG.getNode(ISD::SHL, DL, VT, X,
+                       DAG.getConstant(Log2_64(C), DL, ShiftTy));
+
+  unsigned Log2Ceil = Log2_64_Ceil(C);
+  uint64_t Floor = 1LL << Log2_64(C);
+  uint64_t Ceil = Log2Ceil == 64 ? 0LL : 1LL << Log2Ceil;
+
+  // If |c - floor_c| <= |c - ceil_c|,
+  // where floor_c = pow(2, floor(log2(c))) and ceil_c = pow(2, ceil(log2(c))),
+  // return (add constMult(x, floor_c), constMult(x, c - floor_c)).
+  if (C - Floor <= Ceil - C) {
+    SDValue Op0 = genConstMult(X, Floor, DL, VT, ShiftTy, DAG);
+    SDValue Op1 = genConstMult(X, C - Floor, DL, VT, ShiftTy, DAG);
+    return DAG.getNode(ISD::ADD, DL, VT, Op0, Op1);
+  }
+
+  // If |c - floor_c| > |c - ceil_c|,
+  // return (sub constMult(x, ceil_c), constMult(x, ceil_c - c)).
+  SDValue Op0 = genConstMult(X, Ceil, DL, VT, ShiftTy, DAG);
+  SDValue Op1 = genConstMult(X, Ceil - C, DL, VT, ShiftTy, DAG);
+  return DAG.getNode(ISD::SUB, DL, VT, Op0, Op1);
+}
+
+SDValue MSP430TargetLowering::LowerMUL(SDValue Op, SelectionDAG &DAG) const {
+  EVT VT = Op->getValueType(0);
+  if (VT != MVT::i8 && VT != MVT::i16)
+      return SDValue();
+
+  SDLoc DL(Op);
+
+  ConstantSDNode *C = dyn_cast<ConstantSDNode>(Op->getOperand(1));
+  if (!C) {
+    if (VT != MVT::i8)
+      return SDValue();
+
+    // If the argument is i8 and is not a constant, we need to promote the mul
+    // to i16, because we don't have a libcall for i8
+    SDValue Tmp1, Tmp2;
+    Tmp1 = DAG.getNode(ISD::ANY_EXTEND, DL, MVT::i16, Op->getOperand(0));
+    Tmp2 = DAG.getNode(ISD::ANY_EXTEND, DL, MVT::i16, Op->getOperand(1));
+    Tmp1 = DAG.getNode(ISD::MUL, DL, MVT::i16, Tmp1, Tmp2);
+    return DAG.getNode(ISD::TRUNCATE, DL, MVT::i8, Tmp1);
+  }
+
+  return genConstMult(Op->getOperand(0), C->getZExtValue(), DL, VT,
+                      getScalarShiftAmountTy(DAG.getDataLayout(), VT), DAG);
 }
 
 /// getPostIndexedAddressParts - returns true by value, base pointer and
