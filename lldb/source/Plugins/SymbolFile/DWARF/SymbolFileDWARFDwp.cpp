@@ -1,0 +1,116 @@
+#include "SymbolFileDWARFDwp.h"
+
+#include "lldb/Core/Section.h"
+#include "lldb/Symbol/ObjectFile.h"
+
+#include "SymbolFileDWARFDwoDwp.h"
+
+static llvm::DWARFSectionKind
+lldbSectTypeToLlvmSectionKind(lldb::SectionType type) {
+  switch (type) {
+  case lldb::eSectionTypeDWARFDebugInfo:
+    return llvm::DW_SECT_INFO;
+  // case lldb::eSectionTypeDWARFDebugTypes:
+  //   return llvm::DW_SECT_TYPES;
+  case lldb::eSectionTypeDWARFDebugAbbrev:
+    return llvm::DW_SECT_ABBREV;
+  case lldb::eSectionTypeDWARFDebugLine:
+    return llvm::DW_SECT_LINE;
+  case lldb::eSectionTypeDWARFDebugLoc:
+    return llvm::DW_SECT_LOC;
+  case lldb::eSectionTypeDWARFDebugStrOffsets:
+    return llvm::DW_SECT_STR_OFFSETS;
+  // case lldb::eSectionTypeDWARFDebugMacinfo:
+  //   return llvm::DW_SECT_MACINFO;
+  case lldb::eSectionTypeDWARFDebugMacro:
+    return llvm::DW_SECT_MACRO;
+  default:
+    // Note: 0 is an invalid dwarf section kind.
+    return llvm::DWARFSectionKind(0);
+  }
+}
+
+SymbolFileDWARFDwp::SymbolFileDWARFDwp(lldb::ModuleSP module_sp,
+                                       const lldb_private::FileSpec &file_spec)
+    : m_debug_cu_index(llvm::DW_SECT_INFO) {
+  const lldb::offset_t file_offset = 0;
+  lldb::DataBufferSP file_data_sp;
+  lldb::offset_t file_data_offset = 0;
+  m_obj_file = lldb_private::ObjectFile::FindPlugin(
+      module_sp, &file_spec, file_offset, file_spec.GetByteSize(), file_data_sp,
+      file_data_offset);
+  if (m_obj_file == nullptr)
+    return; // TODO: Error handling
+
+  lldb_private::DWARFDataExtractor debug_cu_index;
+  if (!LoadRawSectionData(lldb::eSectionTypeDWARFDebugCuIndex, debug_cu_index))
+    return; // TODO: Error handling
+
+  llvm::DataExtractor llvm_debug_cu_index(
+      llvm::StringRef(debug_cu_index.PeekCStr(0), debug_cu_index.GetByteSize()),
+      debug_cu_index.GetByteOrder() == lldb::eByteOrderLittle,
+      debug_cu_index.GetAddressByteSize());
+  if (!m_debug_cu_index.parse(llvm_debug_cu_index))
+    return; // TODO: Error handling;
+
+  for (const auto &entry : m_debug_cu_index.getRows()) {
+    m_debug_cu_index_map.emplace(entry.getSignature(), &entry);
+  }
+}
+
+std::unique_ptr<SymbolFileDWARFDwo>
+SymbolFileDWARFDwp::GetSymbolFileForDwoId(DWARFCompileUnit *dwarf_cu,
+                                          uint64_t dwo_id) {
+  return std::unique_ptr<SymbolFileDWARFDwo>(
+      new SymbolFileDWARFDwoDwp(this, m_obj_file, dwarf_cu, dwo_id));
+}
+
+bool SymbolFileDWARFDwp::LoadSectionData(
+    uint64_t dwo_id, lldb::SectionType sect_type,
+    lldb_private::DWARFDataExtractor &data) {
+  lldb_private::DWARFDataExtractor section_data;
+  if (!LoadRawSectionData(sect_type, section_data))
+    return false;
+
+  auto it = m_debug_cu_index_map.find(dwo_id);
+  if (it == m_debug_cu_index_map.end())
+    return false;
+
+  auto *offsets =
+      it->second->getOffset(lldbSectTypeToLlvmSectionKind(sect_type));
+  if (offsets) {
+    data.SetData(section_data, offsets->Offset, offsets->Length);
+  } else {
+    data.SetData(section_data, 0, section_data.GetByteSize());
+  }
+  return true;
+}
+
+bool SymbolFileDWARFDwp::LoadRawSectionData(
+    lldb::SectionType sect_type, lldb_private::DWARFDataExtractor &data) {
+  std::lock_guard<std::mutex> lock(m_sections_mutex);
+
+  auto it = m_sections.find(sect_type);
+  if (it != m_sections.end()) {
+    if (it->second.GetByteSize() == 0)
+      return false;
+
+    data = it->second;
+    return true;
+  }
+
+  const lldb_private::SectionList *section_list =
+      m_obj_file->GetSectionList(false /* update_module_section_list */);
+  if (section_list) {
+    lldb::SectionSP section_sp(
+        section_list->FindSectionByType(sect_type, true));
+    if (section_sp) {
+      if (m_obj_file->ReadSectionData(section_sp.get(), data) != 0) {
+        m_sections[sect_type] = data;
+        return true;
+      }
+    }
+  }
+  m_sections[sect_type].Clear();
+  return false;
+}
