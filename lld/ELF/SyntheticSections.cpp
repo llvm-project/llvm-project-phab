@@ -1027,9 +1027,10 @@ template <class ELFT> void DynamicSection<ELFT>::addEntries() {
   if (!Config->Rpath.empty())
     add({Config->EnableNewDtags ? DT_RUNPATH : DT_RPATH,
          InX::DynStrTab->addString(Config->Rpath)});
-  for (SharedFile<ELFT> *F : SharedFile<ELFT>::Instances)
-    if (F->isNeeded())
-      add({DT_NEEDED, InX::DynStrTab->addString(F->SoName)});
+  for (InputFile *File : SharedFiles)
+    if (SharedFile<ELFT> *F = cast<SharedFile<ELFT>>(File))
+      if (F->isNeeded())
+        add({DT_NEEDED, InX::DynStrTab->addString(F->SoName)});
   if (!Config->SoName.empty())
     add({DT_SONAME, InX::DynStrTab->addString(Config->SoName)});
 

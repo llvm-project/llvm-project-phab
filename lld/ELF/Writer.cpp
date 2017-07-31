@@ -116,8 +116,8 @@ StringRef elf::getOutputSectionName(StringRef Name) {
 }
 
 template <class ELFT> static bool needsInterpSection() {
-  return !SharedFile<ELFT>::Instances.empty() &&
-         !Config->DynamicLinker.empty() && !Script->ignoreInterpSection();
+  return !SharedFiles.empty() && !Config->DynamicLinker.empty() &&
+         !Script->ignoreInterpSection();
 }
 
 template <class ELFT> void elf::writeResult() { Writer<ELFT>().run(); }
@@ -305,8 +305,8 @@ template <class ELFT> void Writer<ELFT>::createSyntheticSections() {
   Add(InX::BssRelRo);
 
   // Add MIPS-specific sections.
-  bool HasDynSymTab = !SharedFile<ELFT>::Instances.empty() || Config->Pic ||
-                      Config->ExportDynamic;
+  bool HasDynSymTab =
+      !SharedFiles.empty() || Config->Pic || Config->ExportDynamic;
   if (Config->EMachine == EM_MIPS) {
     if (!Config->Shared && HasDynSymTab) {
       InX::MipsRldMap = make<MipsRldMapSection>();
@@ -458,7 +458,8 @@ static bool includeInSymtab(const SymbolBody &B) {
 template <class ELFT> void Writer<ELFT>::copyLocalSymbols() {
   if (!InX::SymTab)
     return;
-  for (ObjFile<ELFT> *F : ObjFile<ELFT>::Instances) {
+  for (InputFile *File : ObjectFiles) {
+    ObjFile<ELFT> *F = cast<ObjFile<ELFT>>(File);
     for (SymbolBody *B : F->getLocalSymbols()) {
       if (!B->IsLocal)
         fatal(toString(F) +
@@ -880,7 +881,8 @@ template <class ELFT> static void sortBySymbolsOrder() {
 
   // Build a map from sections to their priorities.
   DenseMap<SectionBase *, int> SectionOrder;
-  for (ObjFile<ELFT> *File : ObjFile<ELFT>::Instances) {
+  for (InputFile *F : ObjectFiles) {
+    ObjFile<ELFT> *File = cast<ObjFile<ELFT>>(F);
     for (SymbolBody *Body : File->getSymbols()) {
       auto *D = dyn_cast<DefinedRegular>(Body);
       if (!D || !D->Section)
