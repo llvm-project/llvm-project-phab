@@ -8,6 +8,7 @@
 //===-------------------------------------------------------------------===//
 
 #include "ClangdServer.h"
+#include "Protocol.h"
 #include "clang/Format/Format.h"
 #include "clang/Frontend/ASTUnit.h"
 #include "clang/Frontend/CompilerInstance.h"
@@ -286,3 +287,28 @@ ClangdServer::findDefinitions(PathRef File, Position Pos) {
       });
   return make_tagged(std::move(Result), TaggedFS.Tag);
 }
+
+Tagged<Hover> ClangdServer::findHover(PathRef File, Position Pos) {
+  auto FileContents = DraftMgr.getDraft(File);
+  assert(FileContents.Draft &&
+         "findHover is called for non-added document");
+
+  
+  MarkedString MS = MarkedString("", "");
+  Range R;
+  Hover FinalHover(MS, R);
+  auto TaggedFS = FSProvider.getTaggedFileSystem(File);
+  Units.runOnUnit(File, *FileContents.Draft, ResourceDir, CDB, PCHs,
+                  TaggedFS.Value, [&](ClangdUnit &Unit) {
+                    std::vector<Location> Result = Unit.findDefinitions(Pos);
+                    if (!Result.empty()) {
+                      Location FoundLocation = Result[0];
+                      FinalHover = Unit.getHover(FoundLocation);
+                    }
+                  });
+
+
+  return make_tagged(std::move(FinalHover), TaggedFS.Tag);
+}
+
+

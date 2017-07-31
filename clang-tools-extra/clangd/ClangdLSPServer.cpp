@@ -71,6 +71,8 @@ public:
                     JSONOutput &Out) override;
   void onGoToDefinition(TextDocumentPositionParams Params, StringRef ID,
                             JSONOutput &Out) override;
+  void onCodeHover(TextDocumentPositionParams Params, StringRef ID,
+                   JSONOutput &Out) override;
 
 private:
   ClangdLSPServer &LangServer;
@@ -87,7 +89,8 @@ void ClangdLSPServer::LSPProtocolCallbacks::onInitialize(StringRef ID,
           "documentOnTypeFormattingProvider": {"firstTriggerCharacter":"}","moreTriggerCharacter":[]},
           "codeActionProvider": true,
           "completionProvider": {"resolveProvider": false, "triggerCharacters": [".",">"]},
-          "definitionProvider": true
+          "definitionProvider": true,
+          "hoverProvider": true
         }}})");
 }
 
@@ -214,6 +217,18 @@ void ClangdLSPServer::LSPProtocolCallbacks::onGoToDefinition(
   Out.writeMessage(
       R"({"jsonrpc":"2.0","id":)" + ID.str() +
       R"(,"result":[)" + Locations + R"(]})");
+}
+
+void ClangdLSPServer::LSPProtocolCallbacks::onCodeHover(
+    TextDocumentPositionParams Params, StringRef ID, JSONOutput &Out) {
+
+  Hover H = LangServer.Server.findHover(
+      Params.textDocument.uri.file,
+      Position{Params.position.line, Params.position.character}) .Value;
+
+  Out.writeMessage(
+      R"({"jsonrpc":"2.0","id":)" + ID.str() +
+      R"(,"result":)" + Hover::unparse(H) + R"(})");
 }
 
 ClangdLSPServer::ClangdLSPServer(JSONOutput &Out, bool RunSynchronously)
