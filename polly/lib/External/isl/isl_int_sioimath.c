@@ -78,6 +78,8 @@ extern void isl_sioimath_submul(isl_sioimath_ptr dst, isl_sioimath_src lhs,
 extern void isl_sioimath_submul_ui(isl_sioimath_ptr dst, isl_sioimath_src lhs,
 	unsigned long rhs);
 
+extern size_t isl_imath_size_in_bits(mp_int val, int sign);
+
 /* Implements the Euclidean algorithm to compute the greatest common divisor of
  * two values in small representation.
  */
@@ -220,4 +222,25 @@ void isl_sioimath_print(FILE *out, isl_sioimath_src i, int width)
 void isl_sioimath_dump(isl_sioimath_src arg)
 {
 	isl_sioimath_print(stdout, arg, 0);
+}
+
+size_t isl_sioimath_size_in_bits(isl_sioimath_ptr val, int sign) {
+	int32_t small;
+	size_t size = 1;
+
+	if (isl_sioimath_decode_small(*val, &small)) {
+		if (small >= 0) {
+			while ((small=(small>>1))!=0)
+				size++;
+			if (sign)
+				size++;
+		} else {
+			while ((small=(small>>1))!=-1)
+				size++;
+			size++;
+		}
+		return size;
+	} else {
+		return isl_imath_size_in_bits(*val, sign);
+	}
 }

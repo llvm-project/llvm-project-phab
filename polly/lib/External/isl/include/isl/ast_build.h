@@ -20,6 +20,12 @@ int isl_options_get_ast_build_atomic_upper_bound(isl_ctx *ctx);
 isl_stat isl_options_set_ast_build_prefer_pdiv(isl_ctx *ctx, int val);
 int isl_options_get_ast_build_prefer_pdiv(isl_ctx *ctx);
 
+isl_stat isl_options_set_ast_build_compute_bounds(isl_ctx *ctx, int val);
+int isl_options_get_ast_build_compute_bounds(isl_ctx *ctx);
+isl_stat isl_options_set_ast_build_approximate_computed_bounds(isl_ctx *ctx, int val);
+int isl_options_get_ast_build_approximate_computed_bounds(isl_ctx *ctx);
+isl_stat isl_options_set_ast_build_maximum_native_type(isl_ctx *ctx, int val);
+int isl_options_get_ast_build_maximum_native_type(isl_ctx *ctx);
 isl_stat isl_options_set_ast_build_detect_min_max(isl_ctx *ctx, int val);
 int isl_options_get_ast_build_detect_min_max(isl_ctx *ctx);
 
@@ -120,6 +126,9 @@ __isl_give isl_ast_node *isl_ast_build_node_from_schedule_map(
 	__isl_keep isl_ast_build *build, __isl_take isl_union_map *schedule);
 __isl_give isl_ast_node *isl_ast_build_ast_from_schedule(
 	__isl_keep isl_ast_build *build, __isl_take isl_union_map *schedule);
+
+__isl_give isl_ast_expr *isl_ast_bin_op_set_size(__isl_take isl_ast_expr *expr,
+	__isl_keep isl_ast_build *build);
 
 #if defined(__cplusplus)
 }

@@ -1691,3 +1691,15 @@ __isl_give isl_multi_val *isl_multi_val_mod_val(__isl_take isl_multi_val *mv,
 {
 	return isl_multi_val_fn_val(mv, &isl_val_mod, v);
 }
+
+int isl_val_size_in_bits(__isl_keep isl_val *v, int is_signed)
+{
+	if (!v)
+		return 0;
+
+	if (!isl_val_is_int(v))
+		isl_die(isl_val_get_ctx(v), isl_error_invalid,
+			"expecting integral value", return 0);
+
+	return isl_int_size_in_bits(v->n, is_signed);
+}

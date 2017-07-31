@@ -21,18 +21,25 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <isl/ast.h>
+#include <isl/aff.h>
 #include <isl/ast_build.h>
 #include <isl/options.h>
-#include <isl/set.h>
 #include <isl/union_set.h>
-#include <isl/union_map.h>
 #include <isl/stream.h>
 #include <isl/schedule_node.h>
+#include <string.h>
+#include "isl_ast_private.h"
+#include "isl_ast_build_private.h"
+#include "isl_union_map_private.h"
+#include "isl_aff_private.h"
+#include "isl_space_private.h"
+#include "isl_options_private.h"
 
 struct options {
 	struct isl_options	*isl;
 	unsigned		 atomic;
 	unsigned		 separate;
+	char*			 infile;
 };
 
 ISL_ARGS_START(struct options, options_args)
@@ -41,6 +48,7 @@ ISL_ARG_BOOL(struct options, atomic, 0, "atomic", 0,
 	"globally set the atomic option")
 ISL_ARG_BOOL(struct options, separate, 0, "separate", 0,
 	"globally set the separate option")
+ISL_ARG_STR(struct options, infile, 0, "infile", "file", "-", "File to read instead of stdin or - for stdin")
 ISL_ARGS_END
 
 ISL_ARG_DEF(cg_options, struct options, options_args)
@@ -108,19 +116,25 @@ static __isl_give isl_ast_build *set_options(__isl_take isl_ast_build *build,
 	return build;
 }
 
+struct ast_from_union_ret {
+	isl_ast_node* tree;
+	isl_ast_expr* expr;
+};
 /* Construct an AST in case the schedule is specified by a union map.
  *
  * We read the context and the options from "s" and construct the AST.
  */
-static __isl_give isl_ast_node *construct_ast_from_union_map(
+static __isl_give struct ast_from_union_ret *construct_ast_from_union_map(
 	__isl_take isl_union_map *schedule, __isl_keep isl_stream *s)
 {
 	isl_set *context;
 	isl_union_map *options_map;
-	isl_ast_build *build;
+	isl_ast_build *build, *aff_build;
 	isl_ast_node *tree;
 	struct options *options;
-
+	struct isl_obj obj;
+	isl_ast_expr *expr = NULL;
+	struct ast_from_union_ret *retval;
 	options = isl_ctx_peek_cg_options(isl_stream_get_ctx(s));
 
 	context = isl_stream_read_set(s);
@@ -129,9 +143,24 @@ static __isl_give isl_ast_node *construct_ast_from_union_map(
 	build = isl_ast_build_from_context(context);
 	build = set_options(build, options_map, options, schedule);
 	tree = isl_ast_build_node_from_schedule_map(build, schedule);
+ 	isl_pw_aff *aff = isl_stream_read_pw_aff(s);
+	if (aff) {
+		aff_build = isl_ast_build_copy(build);
+		aff_build = isl_ast_build_set_single_valued(aff_build, 0);
+		aff_build = isl_ast_build_init_options(aff_build);
+		expr = isl_ast_build_expr_from_pw_aff(aff_build, aff);
+		isl_ast_build_free(aff_build);
+	}
+
 	isl_ast_build_free(build);
 
-	return tree;
+	retval = malloc(sizeof(struct ast_from_union_ret));
+	if (expr)
+		retval->expr = expr;
+	else
+		retval->expr = NULL;
+	retval->tree = tree;
+	return retval;
 }
 
 /* If "node" is a band node, then replace the AST build options
@@ -200,11 +229,14 @@ int main(int argc, char **argv)
 {
 	isl_ctx *ctx;
 	isl_stream *s;
+	struct ast_from_union_ret *retval = NULL;
 	isl_ast_node *tree = NULL;
 	struct options *options;
 	isl_printer *p;
 	struct isl_obj obj;
 	int r = EXIT_SUCCESS;
+	FILE *fd;
+	isl_ast_expr *expr = NULL;
 
 	options = cg_options_new_with_defaults();
 	assert(options);
@@ -212,17 +244,35 @@ int main(int argc, char **argv)
 	isl_options_set_ast_build_detect_min_max(ctx, 1);
 	argc = cg_options_parse(options, argc, argv, ISL_ARG_ALL);
 
-	s = isl_stream_new_file(ctx, stdin);
+	if (strcmp(options->infile, "-") != 0) {
+		fd = fopen(options->infile, "r");
+		if (!fd) {
+			isl_die(ctx, isl_error_invalid, "Couldn't open file",
+					r = EXIT_FAILURE);
+			return r;
+		}
+	} else {
+		fd = stdin;
+	}
+
+	s = isl_stream_new_file(ctx, fd);
 	obj = isl_stream_read_obj(s);
+
 	if (obj.v == NULL) {
 		r = EXIT_FAILURE;
 	} else if (obj.type == isl_obj_map) {
 		isl_union_map *umap;
 
 		umap = isl_union_map_from_map(obj.v);
-		tree = construct_ast_from_union_map(umap, s);
+		retval = construct_ast_from_union_map(umap, s);
+		tree = retval->tree;
+		expr = retval->expr;
+		free(retval);
 	} else if (obj.type == isl_obj_union_map) {
-		tree = construct_ast_from_union_map(obj.v, s);
+		retval = construct_ast_from_union_map(obj.v, s);
+		tree = retval->tree;
+		expr = retval->expr;
+		free(retval);
 	} else if (obj.type == isl_obj_schedule) {
 		tree = construct_ast_from_schedule(obj.v);
 	} else {
@@ -230,15 +280,27 @@ int main(int argc, char **argv)
 		isl_die(ctx, isl_error_invalid, "unknown input",
 			r = EXIT_FAILURE);
 	}
+	p = isl_printer_to_file(ctx, stdout);
 	isl_stream_free(s);
 
-	p = isl_printer_to_file(ctx, stdout);
-	p = isl_printer_set_output_format(p, ISL_FORMAT_C);
+//if (isl_options_get_ast_build_print_computed_bounds(ctx)) {
+		p = isl_printer_set_output_format(p, ISL_FORMAT_C);
+/*		p = isl_printer_set_yaml_style(p, ISL_YAML_STYLE_BLOCK);*/
+/*	} else {
+		p = isl_printer_set_output_format(p, ISL_FORMAT_C);
+	}*/
 	p = isl_printer_print_ast_node(p, tree);
+	if (expr) {
+		p = isl_printer_print_ast_expr(p, expr);
+		isl_ast_expr_free(expr);
+	}
+
 	isl_printer_free(p);
 
 	isl_ast_node_free(tree);
 
 	isl_ctx_free(ctx);
+	if (fd != stdin)
+		fclose(fd);
 	return r;
 }

@@ -1026,7 +1026,9 @@ Value *GPUNodeBuilder::getArraySize(gpu_array_info *Array) {
       Res = isl_ast_expr_mul(Res, Expr);
     }
 
+    ExprBuilder.setFixedSizeMode(true);
     Value *NumElements = ExprBuilder.create(Res);
+    ExprBuilder.setFixedSizeMode(false);
     if (NumElements->getType() != ArraySize->getType())
       NumElements = Builder.CreateSExt(NumElements, ArraySize->getType());
     ArraySize = Builder.CreateMul(ArraySize, NumElements);
@@ -1070,7 +1072,9 @@ Value *GPUNodeBuilder::getArrayOffset(gpu_array_info *Array) {
     Result = isl_ast_expr_add(Result, MExpr);
   }
 
+  ExprBuilder.setFixedSizeMode(true);
   Value *ResultValue = ExprBuilder.create(Result);
+  ExprBuilder.setFixedSizeMode(false);
   isl_set_free(Min);
   isl_ast_build_free(Build);
 
@@ -1227,10 +1231,12 @@ void GPUNodeBuilder::createUser(__isl_take isl_ast_node *UserStmt) {
 void GPUNodeBuilder::createKernelCopy(ppcg_kernel_stmt *KernelStmt) {
   isl_ast_expr *LocalIndex = isl_ast_expr_copy(KernelStmt->u.c.local_index);
   LocalIndex = isl_ast_expr_address_of(LocalIndex);
+  ExprBuilder.setFixedSizeMode(true);
   Value *LocalAddr = ExprBuilder.create(LocalIndex);
   isl_ast_expr *Index = isl_ast_expr_copy(KernelStmt->u.c.index);
   Index = isl_ast_expr_address_of(Index);
   Value *GlobalAddr = ExprBuilder.create(Index);
+  ExprBuilder.setFixedSizeMode(false);
 
   if (KernelStmt->u.c.read) {
     LoadInst *Load = Builder.CreateLoad(GlobalAddr, "shared.read");
@@ -3167,7 +3173,7 @@ public:
     Builder.SetInsertPoint(SplitBlock->getTerminator());
     NodeBuilder.addParameters(S->getContext());
 
-    isl_ast_build *Build = isl_ast_build_alloc(S->getIslCtx());
+    isl_ast_build *Build = isl_ast_build_from_context(S->getContext());
     isl_ast_expr *Condition = IslAst::buildRunCondition(*S, Build);
     isl_ast_expr *SufficientCompute = createSufficientComputeCheck(*S, Build);
     Condition = isl_ast_expr_and(Condition, SufficientCompute);

@@ -22,3 +22,20 @@ uint32_t isl_gmp_hash(mpz_t v, uint32_t hash)
 		isl_hash_byte(hash, *data);
 	return hash;
 }
+
+size_t isl_gmp_size_in_bits(mpz_t v, int is_signed)
+{
+	size_t bits;
+
+	if (!is_signed)
+		return mpz_sizeinbase(v, 2);
+
+	if (mpz_sgn(v) >= 0)
+		return 1 + mpz_sizeinbase(v, 2);
+
+	mpz_add_ui(v, v, 1);
+	bits = 1 + mpz_sizeinbase(v, 2);
+	mpz_sub_ui(v, v, 1);
+
+	return bits;
+}

@@ -68,6 +68,10 @@ typedef mpz_t	isl_int;
 #define isl_int_abs_ge(i,j)	(mpz_cmpabs(i,j) >= 0)
 #define isl_int_is_divisible_by(i,j)	mpz_divisible_p(i,j)
 
+
+size_t isl_gmp_size_in_bits(mpz_t v, int is_signed);
+#define isl_int_size_in_bits(v,s) isl_gmp_size_in_bits(v,s)
+
 uint32_t isl_gmp_hash(mpz_t v, uint32_t hash);
 #define isl_int_hash(v,h)	isl_gmp_hash(v,h)
 
