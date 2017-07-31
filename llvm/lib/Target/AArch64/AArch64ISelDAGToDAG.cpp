@@ -2764,18 +2764,24 @@ void AArch64DAGToDAGISel::Select(SDNode *Node) {
     return;
   }
   case ISD::Constant: {
-    // Materialize zero constants as copies from WZR/XZR.  This allows
-    // the coalescer to propagate these into other instructions.
+    // If all uses of zero constants are copies to virutal regs, replace the
+    // conatants with WZR/XZR.  Otherwise, materialize zero constants as copies
+    // from WZR/XZR and allow the coalescer to propagate these into other
+    // instructions.
     ConstantSDNode *ConstNode = cast<ConstantSDNode>(Node);
     if (ConstNode->isNullValue()) {
-      if (VT == MVT::i32) {
-        SDValue New = CurDAG->getCopyFromReg(
-            CurDAG->getEntryNode(), SDLoc(Node), AArch64::WZR, MVT::i32);
-        ReplaceNode(Node, New.getNode());
-        return;
-      } else if (VT == MVT::i64) {
-        SDValue New = CurDAG->getCopyFromReg(
-            CurDAG->getEntryNode(), SDLoc(Node), AArch64::XZR, MVT::i64);
+      if (VT == MVT::i32 || VT == MVT::i64) {
+        unsigned ZReg = (VT == MVT::i32) ? AArch64::WZR : AArch64::XZR;
+        SDValue New;
+        if (llvm::all_of(Node->uses(), [](SDNode *User) {
+              return (User->getOpcode() == ISD::CopyToReg &&
+                      TargetRegisterInfo::isVirtualRegister(
+                          cast<RegisterSDNode>(User->getOperand(1))->getReg()));
+            }))
+          New = CurDAG->getRegister(ZReg, VT);
+        else
+          New = CurDAG->getCopyFromReg(CurDAG->getEntryNode(), SDLoc(Node),
+                                       ZReg, VT);
         ReplaceNode(Node, New.getNode());
         return;
       }
