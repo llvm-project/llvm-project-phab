@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as vscodelc from 'vscode-languageclient';
+import * as vscodejsonrpc from 'vscode-jsonrpc';
 
 /**
  * Method to get workspace configuration option

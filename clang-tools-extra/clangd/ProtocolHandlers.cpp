@@ -204,6 +204,24 @@ private:
   ProtocolCallbacks &Callbacks;
 };
 
+struct CodeHoverHandler : Handler {
+  CodeHoverHandler(JSONOutput &Output, ProtocolCallbacks &Callbacks)
+      : Handler(Output), Callbacks(Callbacks) {}
+
+  void handleMethod(llvm::yaml::MappingNode *Params, StringRef ID) override {
+    auto TDPP = TextDocumentPositionParams::parse(Params);
+    if (!TDPP) {
+      Output.log("Failed to decode TextDocumentPositionParams!\n");
+      return;
+    }
+
+    Callbacks.onCodeHover(*TDPP, ID, Output);
+  }
+
+private:
+  ProtocolCallbacks &Callbacks;
+};
+
 } // namespace
 
 void clangd::regiterCallbackHandlers(JSONRPCDispatcher &Dispatcher,
@@ -239,4 +257,7 @@ void clangd::regiterCallbackHandlers(JSONRPCDispatcher &Dispatcher,
       llvm::make_unique<CompletionHandler>(Out, Callbacks));
   Dispatcher.registerHandler("textDocument/definition",
       llvm::make_unique<GotoDefinitionHandler>(Out, Callbacks));
+  Dispatcher.registerHandler(
+      "textDocument/hover",
+      llvm::make_unique<CodeHoverHandler>(Out, Callbacks));
 }
