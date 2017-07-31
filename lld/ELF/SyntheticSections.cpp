@@ -1813,12 +1813,13 @@ static GdbIndexChunk readDwarf(DWARFContext &Dwarf, InputSection *Sec) {
 }
 
 template <class ELFT> GdbIndexSection *elf::createGdbIndex() {
-  std::vector<GdbIndexChunk> Chunks;
-  for (InputSection *Sec : getDebugInfoSections()) {
-    ObjFile<ELFT> *F = Sec->getFile<ELFT>();
-    DWARFContext Dwarf(make_unique<LLDDwarfObj<ELFT>>(F));
-    Chunks.push_back(readDwarf(Dwarf, Sec));
-  }
+  std::vector<InputSection *> InfoSections = getDebugInfoSections();
+  std::vector<GdbIndexChunk> Chunks(InfoSections.size());
+  parallelForEachN(0, Chunks.size(), [&](size_t I) {
+    InputSection *Sec = InfoSections[I];
+    DWARFContext Dwarf(make_unique<LLDDwarfObj<ELFT>>(Sec->getFile<ELFT>()));
+    Chunks[I] = readDwarf(Dwarf, Sec);
+  });
   return make<GdbIndexSection>(std::move(Chunks));
 }
 
