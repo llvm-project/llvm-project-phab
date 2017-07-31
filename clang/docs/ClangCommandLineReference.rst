@@ -1745,6 +1745,10 @@ Process trigraph sequences
 
 Use unique names for text and data sections (ELF Only)
 
+.. option:: -freorder-functions, -fno-reorder-functions
+
+Add section prefixes for hot/cold functions
+
 .. option:: -funit-at-a-time, -fno-unit-at-a-time
 
 .. option:: -funroll-loops, -fno-unroll-loops
