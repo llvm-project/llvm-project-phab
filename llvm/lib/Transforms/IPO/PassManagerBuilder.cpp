@@ -52,6 +52,10 @@ static cl::opt<bool>
                          cl::desc("Run the Loop vectorization passes"));
 
 static cl::opt<bool>
+    RunLoopVectorizationPred("vectorize-loops-pred", cl::Hidden,
+                         cl::desc("Run the Loop vectorization passes"));
+
+static cl::opt<bool>
 RunSLPVectorization("vectorize-slp", cl::Hidden,
                     cl::desc("Run the SLP vectorization passes"));
 
@@ -159,6 +163,10 @@ static cl::opt<bool> EnableGVNSink(
     "enable-gvn-sink", cl::init(false), cl::Hidden,
     cl::desc("Enable the GVN sinking pass (default = off)"));
 
+static cl::opt<bool> EnableLoopVectorizePred(
+    "enable-loopvectorizepred", cl::init(false), cl::Hidden,
+    cl::desc("Enable the new, experimental LoopVectorizePred Pass"));
+
 PassManagerBuilder::PassManagerBuilder() {
     OptLevel = 2;
     SizeLevel = 0;
@@ -169,6 +177,7 @@ PassManagerBuilder::PassManagerBuilder() {
     BBVectorize = RunBBVectorization;
     SLPVectorize = RunSLPVectorization;
     LoopVectorize = RunLoopVectorization;
+    LoopVectorizePred = RunLoopVectorizationPred;
     RerollLoops = RunLoopRerolling;
     NewGVN = RunNewGVN;
     DisableGVNLoadPRE = false;
@@ -605,6 +614,9 @@ void PassManagerBuilder::populateModulePassManager(
   // llvm.loop.distribute=true or when -enable-loop-distribute is specified.
   MPM.add(createLoopDistributePass());
 
+  if (EnableLoopVectorizePred)
+    MPM.add(createLoopVectorizePredPass(DisableUnrollLoops, LoopVectorizePred));
+  
   MPM.add(createLoopVectorizePass(DisableUnrollLoops, LoopVectorize));
 
   // Eliminate loads by forwarding stores from the previous iteration to loads
@@ -821,6 +833,10 @@ void PassManagerBuilder::addLTOOptimizationPasses(legacy::PassManagerBase &PM) {
 
   if (!DisableUnrollLoops)
     PM.add(createSimpleLoopUnrollPass(OptLevel));   // Unroll small loops
+
+  if (EnableLoopVectorizePred)
+    PM.add(createLoopVectorizePredPass(true, LoopVectorizePred));
+
   PM.add(createLoopVectorizePass(true, LoopVectorize));
   // The vectorizer may have significantly shortened a loop body; unroll again.
   if (!DisableUnrollLoops)
