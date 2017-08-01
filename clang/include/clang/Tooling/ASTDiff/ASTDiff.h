@@ -93,6 +93,7 @@ public:
   template <class T>
   SyntaxTree(T *Node, const ASTContext &AST)
       : TreeImpl(llvm::make_unique<Impl>(this, Node, AST)) {}
+  SyntaxTree(const SyntaxTree &Tree) = delete;
   ~SyntaxTree();
 
   const Node &getNode(NodeId Id) const;
@@ -114,7 +115,7 @@ struct ComparisonOptions {
 
   /// During bottom-up matching, match only nodes with at least this value as
   /// the ratio of their common descendants.
-  double MinSimilarity = 0.2;
+  double MinSimilarity = 0.5;
 
   /// Whenever two subtrees are matched in the bottom-up phase, the optimal
   /// mapping is computed, unless the size of either subtrees exceeds this.
