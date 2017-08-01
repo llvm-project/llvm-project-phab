@@ -20,6 +20,15 @@
 
 namespace __sanitizer {
 
+Symbolizer *Symbolizer::GetOrInit() {
+  SpinMutexLock l(&init_mu_);
+  if (symbolizer_)
+    return symbolizer_;
+  symbolizer_ = PlatformInit();
+  CHECK(symbolizer_);
+  return symbolizer_;
+}
+
 AddressInfo::AddressInfo() {
   internal_memset(this, 0, sizeof(AddressInfo));
   function_offset = kUnknown;

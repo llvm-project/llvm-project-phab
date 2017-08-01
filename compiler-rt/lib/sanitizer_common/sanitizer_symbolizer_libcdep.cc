@@ -11,6 +11,9 @@
 // run-time libraries.
 //===----------------------------------------------------------------------===//
 
+#include "sanitizer_platform.h"
+#if !SANITIZER_FUCHSIA
+
 #include "sanitizer_allocator_internal.h"
 #include "sanitizer_internal_defs.h"
 #include "sanitizer_symbolizer_internal.h"
@@ -173,15 +176,6 @@ const LoadedModule *Symbolizer::FindModuleForAddress(uptr address) {
     return FindModuleForAddress(address);
   }
   return 0;
-}
-
-Symbolizer *Symbolizer::GetOrInit() {
-  SpinMutexLock l(&init_mu_);
-  if (symbolizer_)
-    return symbolizer_;
-  symbolizer_ = PlatformInit();
-  CHECK(symbolizer_);
-  return symbolizer_;
 }
 
 // For now we assume the following protocol:
@@ -473,3 +467,5 @@ bool SymbolizerProcess::WriteToSymbolizer(const char *buffer, uptr length) {
 }
 
 }  // namespace __sanitizer
+
+#endif // !SANITIZER_FUCHSIA
