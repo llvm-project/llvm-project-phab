@@ -31,6 +31,7 @@
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/MachineInstr.h"
+#include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineJumpTableInfo.h"
 #include "llvm/CodeGen/MachineLoopInfo.h"
 #include "llvm/CodeGen/MachineModuleInfo.h"
@@ -237,6 +238,20 @@ bool BranchFolder::OptimizeFunction(MachineFunction &MF,
   return MadeChange;
 }
 
+void BranchFolder::computeLiveOuts(LivePhysRegs &LiveOut,
+                                   const MachineBasicBlock &MBB) {
+  LiveOut.init(*TRI);
+  LiveOut.addLiveIns(MBB);
+
+  SmallVector<std::pair<unsigned, const MachineOperand*>,8> Clobbers;
+  for (const MachineInstr &MI : MBB) {
+    LiveOut.stepForward(MI, Clobbers);
+    for (auto C : Clobbers)
+      if (C.second->isReg() && C.second->isDead())
+        LiveOut.removeReg(C.first);
+  }
+}
+
 //===----------------------------------------------------------------------===//
 //  Tail Merging of Blocks
 //===----------------------------------------------------------------------===//
@@ -372,6 +387,20 @@ void BranchFolder::ReplaceTailWithBranchTo(MachineBasicBlock::iterator OldInst,
   if (UpdateLiveIns) {
     NewDest->clearLiveIns();
     computeLiveIns(LiveRegs, *MRI, *NewDest);
+
+    LivePhysRegs LiveOut;
+    for (MachineBasicBlock *Pred : NewDest->predecessors()) {
+      computeLiveOuts(LiveOut, *Pred);
+      for (MachineBasicBlock::RegisterMaskPair P : NewDest->liveins()) {
+        // "Available" means "unused".
+        if (!LiveOut.available(*MRI, P.PhysReg))
+          continue;
+        MachineBasicBlock::iterator At = Pred->getFirstTerminator();
+        const DebugLoc &dl = Pred->findDebugLoc(At);
+        BuildMI(*Pred, At, dl, TII->get(TargetOpcode::IMPLICIT_DEF),
+                P.PhysReg);
+      }
+    }
   }
 
   ++NumTailMerge;

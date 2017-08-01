@@ -138,6 +138,10 @@ namespace llvm {
     MBFIWrapper &MBBFreqInfo;
     const MachineBranchProbabilityInfo &MBPI;
 
+    /// Calculate the set of physical registers available at the exit
+    /// from MBB.
+    void computeLiveOuts(LivePhysRegs &LiveOut, const MachineBasicBlock &MBB);
+
     bool TailMergeBlocks(MachineFunction &MF);
     bool TryTailMergeBlocks(MachineBasicBlock* SuccBB,
                        MachineBasicBlock* PredBB,

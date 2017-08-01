@@ -31,15 +31,18 @@ class AllocaInst;
 class CalleeSavedInfo {
   unsigned Reg;
   int FrameIdx;
+  bool Restored;
 
 public:
   explicit CalleeSavedInfo(unsigned R, int FI = 0)
-  : Reg(R), FrameIdx(FI) {}
+  : Reg(R), FrameIdx(FI), Restored(true) {}
 
   // Accessors.
   unsigned getReg()                        const { return Reg; }
   int getFrameIdx()                        const { return FrameIdx; }
   void setFrameIdx(int FI)                       { FrameIdx = FI; }
+  bool isRestored()                        const { return Restored; }
+  void setRestored(bool R)                       { Restored = R; }
 };
 
 /// The MachineFrameInfo class represents an abstract stack frame until
@@ -664,6 +667,7 @@ public:
   int CreateVariableSizedObject(unsigned Alignment, const AllocaInst *Alloca);
 
   /// Returns a reference to call saved info vector for the current function.
+  std::vector<CalleeSavedInfo> &getCalleeSavedInfo() { return CSInfo; }
   const std::vector<CalleeSavedInfo> &getCalleeSavedInfo() const {
     return CSInfo;
   }
