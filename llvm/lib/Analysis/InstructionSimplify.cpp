@@ -461,6 +461,12 @@ static Value *ThreadBinOpOverPHI(Instruction::BinaryOps Opcode, Value *LHS,
     Value *V = PI == LHS ?
       SimplifyBinOp(Opcode, Incoming, RHS, Q, MaxRecurse) :
       SimplifyBinOp(Opcode, LHS, Incoming, Q, MaxRecurse);
+    // If the simplified operation is equal to the original operation on the
+    // PHI node, it can likewise be safely skipped.
+    if (BinaryOperator *Op = dyn_cast_or_null<BinaryOperator>(V))
+      if (Op->getOpcode() == Opcode &&
+          Op->getOperand(0) == LHS && Op->getOperand(1) == RHS)
+      continue;
     // If the operation failed to simplify, or simplified to a different value
     // to previously, then give up.
     if (!V || (CommonValue && V != CommonValue))

@@ -22,3 +22,25 @@ c:
   %e = icmp eq i32 %d, 0
   ret i1 %e
 }
+
+define i32 @test2(i1 %c1, i1 %c2, i32 %x) {
+; CHECK-LABEL: @test2
+; CHECK-NEXT:    [[Y:%.*]] = and i32 %x, -256
+; CHECK:    ret i32 [[Y]]
+;
+  %y = and i32 %x, -256
+  br i1 %c1, label %true, label %false
+true:
+  %a = or i32 %y, 1
+  br label %loop
+false:
+  %b = or i32 %y, 2
+  br label %loop
+loop:
+  %p = phi i32 [ %a, %true ], [ %b, %false ], [ %r, %loop ]
+  %r = and i32 %p, -256
+  br i1 %c2, label %ret, label %loop
+ret:
+  ret i32 %r
+}
+
