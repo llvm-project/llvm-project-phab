@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 -E %s > %T/src.cpp
-// RUN: %clang_cc1 -E %s > %T/dst.cpp -DDEST
-// RUN: clang-diff -no-compilation-database %T/src.cpp %T/dst.cpp | FileCheck %s
+// RUN: %clang_cc1 -E %s > %t.src.cpp
+// RUN: %clang_cc1 -E %s > %t.dst.cpp -DDEST
+// RUN: clang-diff -m -no-compilation-database %t.src.cpp %t.dst.cpp | FileCheck %s
 
 #ifndef DEST
 namespace src {
@@ -31,6 +31,8 @@ public:
   int id(int i) { return i; }
 };
 }
+
+void f1() {{ (void) __func__;;; }}
 #else
 // CHECK: Match TranslationUnitDecl{{.*}} to TranslationUnitDecl
 // CHECK: Match NamespaceDecl: src{{.*}} to NamespaceDecl: dst
@@ -43,19 +45,19 @@ void foo() {
 }
 }
 
-// CHECK: Match DeclRefExpr: foo{{.*}} to DeclRefExpr: inner::foo
+// CHECK: Match DeclRefExpr: :foo{{.*}} to DeclRefExpr: :inner::foo
 void main() { inner::foo(); }
 
 // CHECK: Match StringLiteral: foo{{.*}} to StringLiteral: foo
 const char *b = "f" "o" "o";
 
 // unsigned is canonicalized to unsigned int
-// CHECK: Match TypedefDecl: nat;unsigned int;{{.*}} to TypedefDecl: nat;unsigned int;
+// CHECK: Match TypedefDecl: :nat;unsigned int;{{.*}} to TypedefDecl: :nat;unsigned int;
 typedef unsigned nat;
 
-// CHECK: Match VarDecl: p(int){{.*}} to VarDecl: prod(double)
+// CHECK: Match VarDecl: :p(int){{.*}} to VarDecl: :prod(double)
+// CHECK: Update VarDecl: :p(int){{.*}} to :prod(double)
 // CHECK: Match BinaryOperator: *{{.*}} to BinaryOperator: *
-// CHECK: Update VarDecl: p(int){{.*}} to prod(double)
 double prod = 1 * 2 * 10;
 // CHECK: Update DeclRefExpr
 int squared = prod * prod;
@@ -70,9 +72,15 @@ class X {
       return "foo";
     return 0;
   }
-  // CHECK: Delete AccessSpecDecl: public
   X(){};
-  // CHECK: Delete CXXMethodDecl
 };
 }
+
+namespace {
+// match with parents of different type
+// CHECK: Match FunctionDecl: f1{{.*}} to FunctionDecl: (anonymous namespace)::f1
+void f1() {{ (void) __func__;;; }}
+}
 #endif
+// CHECK: Delete AccessSpecDecl: public
+// CHECK: Delete CXXMethodDecl
