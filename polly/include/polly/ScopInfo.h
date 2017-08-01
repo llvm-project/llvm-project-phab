@@ -2847,10 +2847,11 @@ public:
 
   /// Compute the isl representation for the SCEV @p E
   ///
-  /// @param E  The SCEV that should be translated.
-  /// @param BB An (optional) basic block in which the isl_pw_aff is computed.
-  ///           SCEVs known to not reference any loops in the SCoP can be
-  ///           passed without a @p BB.
+  /// @param E           The SCEV that should be translated.
+  /// @param BB          An (optional) basic block in which the isl_pw_aff is
+  ///                    computed. SCEVs known to not reference any loops in the
+  ///                    SCoP can be passed without a @p BB.
+  /// @param Domain      The domain of the @p BB.
   /// @param NonNegative Flag to indicate the @p E has to be non-negative.
   ///
   /// Note that this function will always return a valid isl_pw_aff. However, if
@@ -2858,6 +2859,7 @@ public:
   /// a dummy value of appropriate dimension is returned. This allows to bail
   /// for complex cases without "error handling code" needed on the users side.
   __isl_give PWACtx getPwAff(const SCEV *E, BasicBlock *BB = nullptr,
+                             isl::set Domain = nullptr,
                              bool NonNegative = false);
 
   /// Compute the isl representation for the SCEV @p E

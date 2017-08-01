@@ -14,6 +14,7 @@
 #ifndef POLLY_SCEV_AFFINATOR_H
 #define POLLY_SCEV_AFFINATOR_H
 
+#include "isl-noexceptions.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/Analysis/ScalarEvolutionExpressions.h"
 
@@ -57,12 +58,14 @@ public:
 
   /// Translate a SCEV to an isl_pw_aff.
   ///
-  /// @param E  he expression that is translated.
-  /// @param BB The block in which @p E is executed.
+  /// @param E      The expression that is translated.
+  /// @param BB     The block in which @p E is executed.
+  /// @param Domain The domain of the @p BB.
   ///
   /// @returns The isl representation of the SCEV @p E in @p Domain.
   __isl_give PWACtx getPwAff(const llvm::SCEV *E,
-                             llvm::BasicBlock *BB = nullptr);
+                             llvm::BasicBlock *BB = nullptr,
+                             isl::set Domain = nullptr);
 
   /// Take the assumption that @p PWAC is non-negative.
   void takeNonNegativeAssumption(PWACtx &PWAC);

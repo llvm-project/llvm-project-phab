@@ -1082,8 +1082,8 @@ LLVM_DUMP_METHOD void MemoryAccess::dump() const { print(errs()); }
 
 isl::pw_aff MemoryAccess::getPwAff(const SCEV *E) {
   auto *Stmt = getStatement();
-  PWACtx PWAC = Stmt->getParent()->getPwAff(E, Stmt->getEntryBlock());
   isl::set StmtDom = isl::manage(getStatement()->getDomain());
+  PWACtx PWAC = Stmt->getParent()->getPwAff(E, Stmt->getEntryBlock(), StmtDom);
   StmtDom = StmtDom.reset_tuple_id();
   isl::set NewInvalidDom = StmtDom.intersect(isl::manage(PWAC.second));
   InvalidDomain = InvalidDomain.unite(NewInvalidDom);
@@ -1436,9 +1436,9 @@ static __isl_give isl_set *buildConditionSet(ICmpInst::Predicate Pred,
 static __isl_give isl_set *buildConditionSet(ICmpInst::Predicate Pred,
                                              __isl_take isl_pw_aff *L,
                                              __isl_take isl_pw_aff *R,
-                                             __isl_keep isl_set *Domain) {
+                                             isl::set Domain) {
   isl_set *ConsequenceCondSet = buildConditionSet(Pred, L, R);
-  return setDimensionIds(Domain, ConsequenceCondSet);
+  return setDimensionIds(Domain.get(), ConsequenceCondSet);
 }
 
 /// Compute the isl representation for the SCEV @p E in this BB.
@@ -1452,12 +1452,11 @@ static __isl_give isl_set *buildConditionSet(ICmpInst::Predicate Pred,
 ///
 /// Note that this function will also adjust the invalid context accordingly.
 
-__isl_give isl_pw_aff *
-getPwAff(Scop &S, BasicBlock *BB,
-         DenseMap<BasicBlock *, isl::set> &InvalidDomainMap, const SCEV *E,
-         bool NonNegative = false) {
-  PWACtx PWAC = S.getPwAff(E, BB, NonNegative);
-  InvalidDomainMap[BB] = InvalidDomainMap[BB].unite(isl::manage(PWAC.second));
+__isl_give isl_pw_aff *getPwAff(Scop &S, BasicBlock *BB, isl::set Domain,
+                                isl::set &InvalidDomain, const SCEV *E,
+                                bool NonNegative = false) {
+  PWACtx PWAC = S.getPwAff(E, BB, Domain, NonNegative);
+  InvalidDomain = InvalidDomain.unite(isl::manage(PWAC.second));
   return PWAC.first;
 }
 
@@ -1468,8 +1467,7 @@ getPwAff(Scop &S, BasicBlock *BB,
 /// have as many elements as @p SI has successors.
 static bool
 buildConditionSets(Scop &S, BasicBlock *BB, SwitchInst *SI, Loop *L,
-                   __isl_keep isl_set *Domain,
-                   DenseMap<BasicBlock *, isl::set> &InvalidDomainMap,
+                   isl::set Domain, isl::set &InvalidDomain,
                    SmallVectorImpl<__isl_give isl_set *> &ConditionSets) {
 
   Value *Condition = getConditionFromTerminator(SI);
@@ -1477,7 +1475,7 @@ buildConditionSets(Scop &S, BasicBlock *BB, SwitchInst *SI, Loop *L,
 
   ScalarEvolution &SE = *S.getSE();
   isl_pw_aff *LHS, *RHS;
-  LHS = getPwAff(S, BB, InvalidDomainMap, SE.getSCEVAtScope(Condition, L));
+  LHS = getPwAff(S, BB, Domain, InvalidDomain, SE.getSCEVAtScope(Condition, L));
 
   unsigned NumSuccessors = SI->getNumSuccessors();
   ConditionSets.resize(NumSuccessors);
@@ -1485,11 +1483,11 @@ buildConditionSets(Scop &S, BasicBlock *BB, SwitchInst *SI, Loop *L,
     unsigned Idx = Case.getSuccessorIndex();
     ConstantInt *CaseValue = Case.getCaseValue();
 
-    RHS = getPwAff(S, BB, InvalidDomainMap, SE.getSCEV(CaseValue));
+    RHS = getPwAff(S, BB, Domain, InvalidDomain, SE.getSCEV(CaseValue));
     isl_set *CaseConditionSet =
         buildConditionSet(ICmpInst::ICMP_EQ, isl_pw_aff_copy(LHS), RHS, Domain);
-    ConditionSets[Idx] = isl_set_coalesce(
-        isl_set_intersect(CaseConditionSet, isl_set_copy(Domain)));
+    ConditionSets[Idx] =
+        isl_set_coalesce(isl_set_intersect(CaseConditionSet, Domain.copy()));
   }
 
   assert(ConditionSets[0] == nullptr && "Default condition set was set");
@@ -1498,7 +1496,7 @@ buildConditionSets(Scop &S, BasicBlock *BB, SwitchInst *SI, Loop *L,
     ConditionSetUnion =
         isl_set_union(ConditionSetUnion, isl_set_copy(ConditionSets[u]));
   ConditionSets[0] = setDimensionIds(
-      Domain, isl_set_subtract(isl_set_copy(Domain), ConditionSetUnion));
+      Domain.get(), isl_set_subtract(Domain.copy(), ConditionSetUnion));
 
   isl_pw_aff_free(LHS);
 
@@ -1515,17 +1513,17 @@ buildConditionSets(Scop &S, BasicBlock *BB, SwitchInst *SI, Loop *L,
 /// TestVal < UpperBound  OR  TestVal <= UpperBound
 static __isl_give isl_set *
 buildUnsignedConditionSets(Scop &S, BasicBlock *BB, Value *Condition,
-                           __isl_keep isl_set *Domain, const SCEV *SCEV_TestVal,
-                           const SCEV *SCEV_UpperBound,
-                           DenseMap<BasicBlock *, isl::set> &InvalidDomainMap,
+                           isl::set Domain, const SCEV *SCEV_TestVal,
+                           const SCEV *SCEV_UpperBound, isl::set &InvalidDomain,
                            bool IsStrictUpperBound) {
 
   // Do not take NonNeg assumption on TestVal
   // as it might have MSB (Sign bit) set.
-  isl_pw_aff *TestVal = getPwAff(S, BB, InvalidDomainMap, SCEV_TestVal, false);
+  isl_pw_aff *TestVal =
+      getPwAff(S, BB, Domain, InvalidDomain, SCEV_TestVal, false);
   // Take NonNeg assumption on UpperBound.
   isl_pw_aff *UpperBound =
-      getPwAff(S, BB, InvalidDomainMap, SCEV_UpperBound, true);
+      getPwAff(S, BB, Domain, InvalidDomain, SCEV_UpperBound, true);
 
   // 0 <= TestVal
   isl_set *First =
@@ -1542,7 +1540,7 @@ buildUnsignedConditionSets(Scop &S, BasicBlock *BB, Value *Condition,
     Second = isl_pw_aff_le_set(TestVal, UpperBound);
 
   isl_set *ConsequenceCondSet = isl_set_intersect(First, Second);
-  ConsequenceCondSet = setDimensionIds(Domain, ConsequenceCondSet);
+  ConsequenceCondSet = setDimensionIds(Domain.get(), ConsequenceCondSet);
   return ConsequenceCondSet;
 }
 
@@ -1556,24 +1554,24 @@ buildUnsignedConditionSets(Scop &S, BasicBlock *BB, Value *Condition,
 /// new elements of @p ConditionSets.
 static bool
 buildConditionSets(Scop &S, BasicBlock *BB, Value *Condition,
-                   TerminatorInst *TI, Loop *L, __isl_keep isl_set *Domain,
-                   DenseMap<BasicBlock *, isl::set> &InvalidDomainMap,
+                   TerminatorInst *TI, Loop *L, isl::set Domain,
+                   isl::set &InvalidDomain,
                    SmallVectorImpl<__isl_give isl_set *> &ConditionSets) {
 
   isl_set *ConsequenceCondSet = nullptr;
   if (auto *CCond = dyn_cast<ConstantInt>(Condition)) {
     if (CCond->isZero())
-      ConsequenceCondSet = isl_set_empty(isl_set_get_space(Domain));
+      ConsequenceCondSet = isl_set_empty(isl_set_get_space(Domain.get()));
     else
-      ConsequenceCondSet = isl_set_universe(isl_set_get_space(Domain));
+      ConsequenceCondSet = isl_set_universe(isl_set_get_space(Domain.get()));
   } else if (BinaryOperator *BinOp = dyn_cast<BinaryOperator>(Condition)) {
     auto Opcode = BinOp->getOpcode();
     assert(Opcode == Instruction::And || Opcode == Instruction::Or);
 
     bool Valid = buildConditionSets(S, BB, BinOp->getOperand(0), TI, L, Domain,
-                                    InvalidDomainMap, ConditionSets) &&
+                                    InvalidDomain, ConditionSets) &&
                  buildConditionSets(S, BB, BinOp->getOperand(1), TI, L, Domain,
-                                    InvalidDomainMap, ConditionSets);
+                                    InvalidDomain, ConditionSets);
     if (!Valid) {
       while (!ConditionSets.empty())
         isl_set_free(ConditionSets.pop_back_val());
@@ -1607,26 +1605,26 @@ buildConditionSets(Scop &S, BasicBlock *BB, Value *Condition,
     case ICmpInst::ICMP_ULT:
       ConsequenceCondSet =
           buildUnsignedConditionSets(S, BB, Condition, Domain, LeftOperand,
-                                     RightOperand, InvalidDomainMap, true);
+                                     RightOperand, InvalidDomain, true);
       break;
     case ICmpInst::ICMP_ULE:
       ConsequenceCondSet =
           buildUnsignedConditionSets(S, BB, Condition, Domain, LeftOperand,
-                                     RightOperand, InvalidDomainMap, false);
+                                     RightOperand, InvalidDomain, false);
       break;
     case ICmpInst::ICMP_UGT:
       ConsequenceCondSet =
           buildUnsignedConditionSets(S, BB, Condition, Domain, RightOperand,
-                                     LeftOperand, InvalidDomainMap, true);
+                                     LeftOperand, InvalidDomain, true);
       break;
     case ICmpInst::ICMP_UGE:
       ConsequenceCondSet =
           buildUnsignedConditionSets(S, BB, Condition, Domain, RightOperand,
-                                     LeftOperand, InvalidDomainMap, false);
+                                     LeftOperand, InvalidDomain, false);
       break;
     default:
-      LHS = getPwAff(S, BB, InvalidDomainMap, LeftOperand, NonNeg);
-      RHS = getPwAff(S, BB, InvalidDomainMap, RightOperand, NonNeg);
+      LHS = getPwAff(S, BB, Domain, InvalidDomain, LeftOperand, NonNeg);
+      RHS = getPwAff(S, BB, Domain, InvalidDomain, RightOperand, NonNeg);
       ConsequenceCondSet =
           buildConditionSet(ICond->getPredicate(), LHS, RHS, Domain);
       break;
@@ -1638,16 +1636,16 @@ buildConditionSets(Scop &S, BasicBlock *BB, Value *Condition,
   if (!TI)
     ConsequenceCondSet = isl_set_params(ConsequenceCondSet);
   assert(ConsequenceCondSet);
-  ConsequenceCondSet = isl_set_coalesce(
-      isl_set_intersect(ConsequenceCondSet, isl_set_copy(Domain)));
+  ConsequenceCondSet =
+      isl_set_coalesce(isl_set_intersect(ConsequenceCondSet, Domain.copy()));
 
   isl_set *AlternativeCondSet = nullptr;
   bool TooComplex =
       isl_set_n_basic_set(ConsequenceCondSet) >= MaxDisjunctsInDomain;
 
   if (!TooComplex) {
-    AlternativeCondSet = isl_set_subtract(isl_set_copy(Domain),
-                                          isl_set_copy(ConsequenceCondSet));
+    AlternativeCondSet =
+        isl_set_subtract(Domain.copy(), isl_set_copy(ConsequenceCondSet));
     TooComplex =
         isl_set_n_basic_set(AlternativeCondSet) >= MaxDisjunctsInDomain;
   }
@@ -1673,25 +1671,24 @@ buildConditionSets(Scop &S, BasicBlock *BB, Value *Condition,
 /// have as many elements as @p TI has successors.
 static bool
 buildConditionSets(Scop &S, BasicBlock *BB, TerminatorInst *TI, Loop *L,
-                   __isl_keep isl_set *Domain,
-                   DenseMap<BasicBlock *, isl::set> &InvalidDomainMap,
+                   isl::set Domain, isl::set &InvalidDomain,
                    SmallVectorImpl<__isl_give isl_set *> &ConditionSets) {
 
   if (SwitchInst *SI = dyn_cast<SwitchInst>(TI))
-    return buildConditionSets(S, BB, SI, L, Domain, InvalidDomainMap,
+    return buildConditionSets(S, BB, SI, L, Domain, InvalidDomain,
                               ConditionSets);
 
   assert(isa<BranchInst>(TI) && "Terminator was neither branch nor switch.");
 
   if (TI->getNumSuccessors() == 1) {
-    ConditionSets.push_back(isl_set_copy(Domain));
+    ConditionSets.push_back(Domain.copy());
     return true;
   }
 
   Value *Condition = getConditionFromTerminator(TI);
   assert(Condition && "No condition for Terminator");
 
-  return buildConditionSets(S, BB, Condition, TI, L, Domain, InvalidDomainMap,
+  return buildConditionSets(S, BB, Condition, TI, L, Domain, InvalidDomain,
                             ConditionSets);
 }
 
@@ -2264,11 +2261,10 @@ void Scop::addUserAssumptions(
     SmallVector<isl_set *, 2> ConditionSets;
     auto *TI = InScop ? CI->getParent()->getTerminator() : nullptr;
     BasicBlock *BB = InScop ? CI->getParent() : getRegion().getEntry();
-    auto *Dom = InScop ? DomainMap[BB].copy() : isl_set_copy(Context);
+    isl::set Dom = DomainMap[BB];
     assert(Dom && "Cannot propagate a nullptr.");
     bool Valid = buildConditionSets(*this, BB, Val, TI, L, Dom,
-                                    InvalidDomainMap, ConditionSets);
-    isl_set_free(Dom);
+                                    InvalidDomainMap[BB], ConditionSets);
 
     if (!Valid)
       continue;
@@ -3019,8 +3015,8 @@ bool Scop::buildDomainsWithBranchConstraints(
     SmallVector<isl_set *, 8> ConditionSets;
     if (RN->isSubRegion())
       ConditionSets.push_back(Domain.copy());
-    else if (!buildConditionSets(*this, BB, TI, BBLoop, Domain.get(),
-                                 InvalidDomainMap, ConditionSets))
+    else if (!buildConditionSets(*this, BB, TI, BBLoop, Domain,
+                                 InvalidDomainMap[BB], ConditionSets))
       return false;
 
     // Now iterate over the successors and set their initial domain based on
@@ -3240,8 +3236,8 @@ bool Scop::addLoopBoundsToHeaderDomain(
     else {
       SmallVector<isl_set *, 8> ConditionSets;
       int idx = BI->getSuccessor(0) != HeaderBB;
-      if (!buildConditionSets(*this, LatchBB, TI, L, LatchBBDom.get(),
-                              InvalidDomainMap, ConditionSets))
+      if (!buildConditionSets(*this, LatchBB, TI, L, LatchBBDom,
+                              InvalidDomainMap[LatchBB], ConditionSets))
         return false;
 
       // Free the non back edge condition set as we do not need it.
@@ -4656,14 +4652,14 @@ LLVM_DUMP_METHOD void Scop::dump() const { print(dbgs(), true); }
 
 isl_ctx *Scop::getIslCtx() const { return IslCtx.get(); }
 
-__isl_give PWACtx Scop::getPwAff(const SCEV *E, BasicBlock *BB,
+__isl_give PWACtx Scop::getPwAff(const SCEV *E, BasicBlock *BB, isl::set Domain,
                                  bool NonNegative) {
   // First try to use the SCEVAffinator to generate a piecewise defined
   // affine function from @p E in the context of @p BB. If that tasks becomes to
   // complex the affinator might return a nullptr. In such a case we invalidate
   // the SCoP and return a dummy value. This way we do not need to add error
   // handling code to all users of this function.
-  auto PWAC = Affinator.getPwAff(E, BB);
+  auto PWAC = Affinator.getPwAff(E, BB, Domain);
   if (PWAC.first) {
     // TODO: We could use a heuristic and either use:
     //         SCEVAffinator::takeNonNegativeAssumption
@@ -4677,7 +4673,7 @@ __isl_give PWACtx Scop::getPwAff(const SCEV *E, BasicBlock *BB,
 
   auto DL = BB ? BB->getTerminator()->getDebugLoc() : DebugLoc();
   invalidate(COMPLEXITY, DL, BB);
-  return Affinator.getPwAff(SE->getZero(E->getType()), BB);
+  return Affinator.getPwAff(SE->getZero(E->getType()), BB, Domain);
 }
 
 __isl_give isl_union_set *Scop::getDomains() const {
