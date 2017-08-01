@@ -172,8 +172,19 @@ static bool isNodeExcluded(const SourceManager &SrcMgr, T *N) {
   if (!N)
     return true;
   SourceLocation SLoc = N->getLocStart();
-  return SLoc.isValid() && SrcMgr.isInSystemHeader(SLoc);
+  if (!SLoc.isValid())
+    return false;
+  // Ignore everything from other files.
+  if (!SrcMgr.isInMainFile(SLoc))
+    return true;
+  // Ignore macros.
+  if (N->getLocStart() != SrcMgr.getSpellingLoc(N->getLocStart()))
+    return true;
+  return false;
 }
+
+static bool isDeclExcluded(const Decl *D) { return D->isImplicit(); }
+static bool isStmtExcluded(const Stmt *S) { return false; }
 
 namespace {
 /// Counts the number of nodes that will be compared.
@@ -182,14 +193,16 @@ struct NodeCountVisitor : public RecursiveASTVisitor<NodeCountVisitor> {
   const SyntaxTree::Impl &Tree;
   NodeCountVisitor(const SyntaxTree::Impl &Tree) : Tree(Tree) {}
   bool TraverseDecl(Decl *D) {
-    if (isNodeExcluded(Tree.AST.getSourceManager(), D))
+    if (isNodeExcluded(Tree.AST.getSourceManager(), D) || isDeclExcluded(D))
       return true;
     ++Count;
     RecursiveASTVisitor<NodeCountVisitor>::TraverseDecl(D);
     return true;
   }
   bool TraverseStmt(Stmt *S) {
-    if (isNodeExcluded(Tree.AST.getSourceManager(), S))
+    if (S)
+      S = S->IgnoreImplicit();
+    if (isNodeExcluded(Tree.AST.getSourceManager(), S) || isStmtExcluded(S))
       return true;
     ++Count;
     RecursiveASTVisitor<NodeCountVisitor>::TraverseStmt(S);
@@ -240,7 +253,7 @@ struct PreorderVisitor : public RecursiveASTVisitor<PreorderVisitor> {
       N.Height = std::max(N.Height, 1 + Tree.getNode(Child).Height);
   }
   bool TraverseDecl(Decl *D) {
-    if (isNodeExcluded(Tree.AST.getSourceManager(), D))
+    if (isNodeExcluded(Tree.AST.getSourceManager(), D) || isDeclExcluded(D))
       return true;
     auto SavedState = PreTraverse(D);
     RecursiveASTVisitor<PreorderVisitor>::TraverseDecl(D);
@@ -248,7 +261,9 @@ struct PreorderVisitor : public RecursiveASTVisitor<PreorderVisitor> {
     return true;
   }
   bool TraverseStmt(Stmt *S) {
-    if (isNodeExcluded(Tree.AST.getSourceManager(), S))
+    if (S)
+      S = S->IgnoreImplicit();
+    if (isNodeExcluded(Tree.AST.getSourceManager(), S) || isStmtExcluded(S))
       return true;
     auto SavedState = PreTraverse(S);
     RecursiveASTVisitor<PreorderVisitor>::TraverseStmt(S);
