@@ -125,6 +125,8 @@ struct ComparisonOptions {
   /// (see NodeComparison) will be allowed to be matched.
   bool EnableMatchingWithUnmatchableParents = false;
 
+  bool StopAfterTopDown = false;
+
   /// Returns false if the nodes should never be matched.
   bool isMatchingAllowed(const DynTypedNode &N1, const DynTypedNode &N2) const {
     return N1.getNodeKind().isSame(N2.getNodeKind());

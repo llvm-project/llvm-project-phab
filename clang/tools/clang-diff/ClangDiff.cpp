@@ -43,12 +43,33 @@ static cl::opt<std::string> DestinationPath(cl::Positional,
                                             cl::Optional,
                                             cl::cat(ClangDiffCategory));
 
+static cl::opt<std::string> StopAfter("stop-after",
+                                      cl::desc("<topdown|bottomup>"),
+                                      cl::Optional, cl::init(""),
+                                      cl::cat(ClangDiffCategory));
+
+static cl::opt<int> MaxSize("s", cl::desc("<maxsize>"), cl::Optional,
+                            cl::init(-1), cl::cat(ClangDiffCategory));
+
+static cl::opt<std::string> BuildPath("p", cl::desc("Build path"), cl::init(""),
+                                      cl::Optional, cl::cat(ClangDiffCategory));
+
+static cl::list<std::string> ArgsAfter(
+    "extra-arg",
+    cl::desc("Additional argument to append to the compiler command line"),
+    cl::cat(ClangDiffCategory));
+
+static cl::list<std::string> ArgsBefore(
+    "extra-arg-before",
+    cl::desc("Additional argument to prepend to the compiler command line"),
+    cl::cat(ClangDiffCategory));
+
 static std::unique_ptr<ASTUnit> getAST(const StringRef Filename) {
   std::string ErrorMessage;
   std::unique_ptr<CompilationDatabase> Compilations;
   if (!NoCompilationDatabase)
-    Compilations =
-        CompilationDatabase::autoDetectFromSource(Filename, ErrorMessage);
+    Compilations = CompilationDatabase::autoDetectFromSource(
+        BuildPath.empty() ? Filename : BuildPath, ErrorMessage);
   if (!Compilations) {
     if (!NoCompilationDatabase)
       llvm::errs()
@@ -58,6 +79,14 @@ static std::unique_ptr<ASTUnit> getAST(const StringRef Filename) {
     Compilations = llvm::make_unique<clang::tooling::FixedCompilationDatabase>(
         ".", std::vector<std::string>());
   }
+  auto AdjustingCompilations =
+      llvm::make_unique<ArgumentsAdjustingCompilations>(
+          std::move(Compilations));
+  AdjustingCompilations->appendArgumentsAdjuster(
+      getInsertArgumentAdjuster(ArgsBefore, ArgumentInsertPosition::BEGIN));
+  AdjustingCompilations->appendArgumentsAdjuster(
+      getInsertArgumentAdjuster(ArgsAfter, ArgumentInsertPosition::END));
+  Compilations = std::move(AdjustingCompilations);
   std::array<std::string, 1> Files = {{Filename}};
   ClangTool Tool(*Compilations, Files);
   std::vector<std::unique_ptr<ASTUnit>> ASTs;
@@ -98,6 +127,16 @@ int main(int argc, const char **argv) {
     return 1;
 
   diff::ComparisonOptions Options;
+  if (MaxSize != -1)
+    Options.MaxSize = MaxSize;
+  if (!StopAfter.empty()) {
+    if (StopAfter == "topdown")
+      Options.StopAfterTopDown = true;
+    else if (StopAfter != "bottomup") {
+      llvm::errs() << "Error: Invalid argument for -stop-after";
+      return 1;
+    }
+  }
   diff::SyntaxTree SrcTree(Src->getASTContext());
   diff::SyntaxTree DstTree(Dst->getASTContext());
   diff::ASTDiff DiffTool(SrcTree, DstTree, Options);

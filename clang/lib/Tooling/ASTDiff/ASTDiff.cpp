@@ -875,6 +875,8 @@ void ASTDiff::Impl::computeMapping() {
   if (IsMappingDone)
     return;
   TheMapping = matchTopDown();
+  if (Options.StopAfterTopDown)
+    return;
   matchBottomUp(TheMapping);
   IsMappingDone = true;
 }
