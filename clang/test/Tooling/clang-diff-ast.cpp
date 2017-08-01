@@ -1,46 +1,59 @@
-// RUN: clang-diff -no-compilation-database -ast-dump %s | FileCheck %s
+// RUN: clang-diff -no-compilation-database -ast-dump %s -extra-arg='-std=c++11' | FileCheck %s
 //
 // This tests the getNodeValue function from Tooling/ASTDiff/ASTDiff.h
 
 // CHECK: NamespaceDecl: test;(
 namespace test {
 
-// CHECK: FunctionDecl: f(
+// CHECK: FunctionDecl: test::f(
+// CHECK: CompoundStmt(
 void f() {
-  // CHECK: VarDecl: x(int)(
+  // CHECK: VarDecl: i(int)(
   // CHECK: IntegerLiteral: 1
-  int x = 1;
-  // CHECK: FloatingLiteral: 1.0(
-  x = 1;
-  // CHECK: CXXBoolLiteral: true(
-  x = true;
+  auto i = 1;
+  // CHECK: FloatingLiteral: 1.5(
+  auto r = 1.5;
+  // CHECK: CXXBoolLiteralExpr: true(
+  auto b = true;
   // CHECK: CallExpr(
-  // CHECK: DeclRefExpr: f(
+  // CHECK: DeclRefExpr: test::f(
   f();
+  // CHECK: UnaryOperator: ++(
+  ++i;
+  // CHECK: BinaryOperator: =(
+  i = i;
 }
 
-#if 0
-void main() { foo(); };
+} // end namespace test
 
-const char *a = "foo";
+// CHECK: UsingDirectiveDecl: test(
+using namespace test;
 
-typedef unsigned int nat;
+// CHECK: TypedefDecl: nat;unsigned int;(
+typedef unsigned nat;
+// CHECK: TypeAliasDecl: real;double;(
+using real = double;
 
-int p = 1 * 2 * 3 * 4;
-int squared = p * p;
+class Base {
+};
 
-class X {
+// CHECK: CXXRecordDecl: X;X;(
+class X : Base {
+  int m;
+  // CHECK: CXXMethodDecl: X::foo(const char *(int))(
+  // CHECK: ParmVarDecl: i(int)(
   const char *foo(int i) {
     if (i == 0)
+      // CHECK: StringLiteral: foo(
       return "foo";
     return 0;
   }
 
+  // CHECK: AccessSpecDecl: public(
 public:
-  X(){};
-
-  int id(int i) { return i; }
+  // CHECK: CXXConstructorDecl: X::X(void (char, int))Base,X::m,(
+  X(char, int) : Base(), m(0) {
+    // CHECK: MemberExpr: X::m(
+    int x = m;
+  }
 };
-#endif
-
-}
