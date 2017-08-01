@@ -12,7 +12,7 @@ target triple = "aarch64--linux-gnu"
 ; %tmp4 a lower scalarization overhead.
 ;
 ; COST-LABEL:  predicated_udiv_scalarized_operand
-; COST:        LV: Found an estimated cost of 4 for VF 2 For instruction: %tmp4 = udiv i64 %tmp2, %tmp3
+; COST:        LV: Found an estimated cost of 11 for VF 2 For instruction: %tmp4 = udiv i64 %tmp2, %tmp3
 ;
 ; CHECK-LABEL: @predicated_udiv_scalarized_operand(
 ; CHECK:       vector.body:
@@ -22,13 +22,13 @@ target triple = "aarch64--linux-gnu"
 ; CHECK-NEXT:    [[TMP1:%.*]] = bitcast i64* [[TMP0]] to <2 x i64>*
 ; CHECK-NEXT:    [[WIDE_LOAD:%.*]] = load <2 x i64>, <2 x i64>* [[TMP1]], align 4
 ; CHECK-NEXT:    [[TMP2:%.*]] = icmp sgt <2 x i64> [[WIDE_LOAD]], zeroinitializer
+; CHECK-NEXT:    [[TMP6:%.*]] = add nsw <2 x i64> [[WIDE_LOAD]], %broadcast.splat2
 ; CHECK-NEXT:    [[TMP3:%.*]] = extractelement <2 x i1> [[TMP2]], i32 0
 ; CHECK-NEXT:    br i1 [[TMP3]], label %[[PRED_UDIV_IF:.*]], label %[[PRED_UDIV_CONTINUE:.*]]
 ; CHECK:       [[PRED_UDIV_IF]]:
 ; CHECK-NEXT:    [[TMP4:%.*]] = extractelement <2 x i64> [[WIDE_LOAD]], i32 0
-; CHECK-NEXT:    [[TMP5:%.*]] = extractelement <2 x i64> [[WIDE_LOAD]], i32 0
-; CHECK-NEXT:    [[TMP6:%.*]] = add nsw i64 [[TMP5]], %x
-; CHECK-NEXT:    [[TMP7:%.*]] = udiv i64 [[TMP4]], [[TMP6]]
+; CHECK-NEXT:    [[TMP5:%.*]] = extractelement <2 x i64> [[TMP6]], i32 0
+; CHECK-NEXT:    [[TMP7:%.*]] = udiv i64 [[TMP4]], [[TMP5]]
 ; CHECK-NEXT:    [[TMP8:%.*]] = insertelement <2 x i64> undef, i64 [[TMP7]], i32 0
 ; CHECK-NEXT:    br label %[[PRED_UDIV_CONTINUE]]
 ; CHECK:       [[PRED_UDIV_CONTINUE]]:
@@ -37,9 +37,8 @@ target triple = "aarch64--linux-gnu"
 ; CHECK-NEXT:    br i1 [[TMP10]], label %[[PRED_UDIV_IF1:.*]], label %[[PRED_UDIV_CONTINUE2]]
 ; CHECK:       [[PRED_UDIV_IF1]]:
 ; CHECK-NEXT:    [[TMP11:%.*]] = extractelement <2 x i64> [[WIDE_LOAD]], i32 1
-; CHECK-NEXT:    [[TMP12:%.*]] = extractelement <2 x i64> [[WIDE_LOAD]], i32 1
-; CHECK-NEXT:    [[TMP13:%.*]] = add nsw i64 [[TMP12]], %x
-; CHECK-NEXT:    [[TMP14:%.*]] = udiv i64 [[TMP11]], [[TMP13]]
+; CHECK-NEXT:    [[TMP12:%.*]] = extractelement <2 x i64> [[TMP6]], i32 1
+; CHECK-NEXT:    [[TMP14:%.*]] = udiv i64 [[TMP11]], [[TMP12]]
 ; CHECK-NEXT:    [[TMP15:%.*]] = insertelement <2 x i64> [[TMP9]], i64 [[TMP14]], i32 1
 ; CHECK-NEXT:    br label %[[PRED_UDIV_CONTINUE2]]
 ; CHECK:       [[PRED_UDIV_CONTINUE2]]:
