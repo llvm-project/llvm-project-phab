@@ -879,3 +879,56 @@ if.end:                                           ; preds = %entry, %if.then
   %cmp1 = icmp ne i32 %a.0, 0
   ret i1  %cmp1
 }
+
+
+; Verify that we fold arguments through multiple identical PHI nodes
+
+; CHECK-LABEL: @phi_multi
+; CHECK: loop_start:
+; CHECK:   %[[RES2:.*]] = phi i8 [ %valB, %entry ], [ %valB.next, %loop_next ]
+; CHECK: exit1:
+; CHECK-NEXT:  %[[RES1:.*]] = phi i8 [ %valB, %entry ], [ %valB.next, %loop_next ]
+; CHECK-NEXT:  %[[RES1A:.*]] = zext i8 %[[RES1]] to i64
+; CHECK-NEXT:  %[[RES1B:.*]] = or i64 %[[RES1A]], %c
+; CHECK-NEXT:  ret i64 %[[RES1B]]
+; CHECK: exit2:
+; CHECK-NEXT:  %[[RES2A:.*]] = zext i8 %[[RES2]] to i64
+; CHECK-NEXT:  %[[RES2B:.*]] = or i64 %[[RES2A]], %c
+; CHECK-NEXT:  ret i64 %[[RES2B]]
+
+define i64 @phi_multi(i8* %ptrA, i8* %ptrB, i64 %c) {
+entry:
+  %valA = load i8, i8* %ptrA
+  %valB = load i8, i8* %ptrB
+  %valB.ext = zext i8 %valB to i64
+  %valB.res = or i64 %c, %valB.ext
+  %cmp1 = icmp eq i8 %valA, %valB
+  br i1 %cmp1, label %exit1, label %loop_start
+
+loop_start:
+  %ptrA.0 = phi i8* [ %ptrA, %entry ], [ %ptrA.next, %loop_next ]
+  %ptrB.0 = phi i8* [ %ptrB, %entry ], [ %ptrB.next, %loop_next ]
+  %valA.0 = phi i8 [ %valA, %entry ], [ %valA.next, %loop_next ]
+  %valB.res.0 = phi i64 [ %valB.res, %entry ], [ %valB.next.res, %loop_next ]
+  %cmp2 = icmp eq i8 %valA.0, 0
+  br i1 %cmp2, label %exit2, label %loop_next
+
+loop_next:
+  %ptrA.next = getelementptr inbounds i8, i8* %ptrA.0, i64 1
+  %ptrB.next = getelementptr inbounds i8, i8* %ptrB.0, i64 1
+  %valA.next = load i8, i8* %ptrA.next
+  %valB.next = load i8, i8* %ptrB.next
+  %valB.next.ext = zext i8 %valB.next to i64
+  %valB.next.res = or i64 %c, %valB.next.ext
+  %cmp3 = icmp eq i8 %valA.next, %valB.next
+  br i1 %cmp3, label %loop_start, label %exit1
+
+exit1:
+  %valB.res.1 = phi i64 [ %valB.res, %entry ], [ %valB.next.res, %loop_next ]
+  ret i64 %valB.res.1
+
+exit2:
+  ret i64 %valB.res.0
+}
+
+

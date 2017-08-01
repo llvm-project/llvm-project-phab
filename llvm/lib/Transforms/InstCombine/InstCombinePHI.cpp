@@ -24,6 +24,52 @@ using namespace llvm::PatternMatch;
 
 #define DEBUG_TYPE "instcombine"
 
+/// Verify that if we fold the PHI arguments into a single operation with
+/// the PHI node as input, the original operations become unused.  This
+/// is the case if the only user(s) of the original operations are either
+/// this PHI node, or another PHI node with the same set of arguments
+/// (because the operation will be performed on all such nodes if it is
+/// performed on any such node).  In the case of multiple PHI nodes, we
+/// only want to perform the transformation if the number of PHI nodes
+/// (i.e. the number of new operations that will be introduced) is not
+/// larger than the number of original operations.
+static bool IsFoldPHIArgProfitable(PHINode &PN) {
+  SmallPtrSet<PHINode*, 8> PHIs;
+  SmallPtrSet<Value*, 8> Values;
+
+  PHIs.insert(&PN);
+  for (Value *IncValue : PN.incoming_values())
+    Values.insert(IncValue);
+
+  for (Value *IncValue : Values)
+    if (!isa<Constant>(IncValue))
+      for (auto &U : IncValue->uses()) {
+        // All uses must be PHI nodes.
+        auto *P = dyn_cast<PHINode>(U.getUser());
+        if (!P)
+          return false;
+        // If we already know this PHI node, we're good.  Otherwise,
+        // add it to our set.  If the set is now so large that the
+        // operation would become unprofitable, bail.
+        if (!PHIs.insert(P).second)
+          continue;
+        if (PHIs.size() > Values.size())
+          return false;
+        // Verify that the new PHI node has exactly the same set of
+        // argument values as the original one.
+        SmallPtrSet<Value*, 8> OtherValues;
+        for (Value *OtherValue : P->incoming_values()) {
+          OtherValues.insert(OtherValue);
+          if (!Values.count(OtherValue))
+            return false;
+        }
+        if (OtherValues.size() != Values.size())
+          return false;
+      }
+
+  return true;
+}
+
 /// The PHI arguments will be folded into a single operation with a PHI node
 /// as input. The debug location of the single operation will be the merged
 /// locations of the original PHI node arguments.
@@ -51,10 +97,10 @@ Instruction *InstCombiner::FoldPHIArgBinOpIntoPHI(PHINode &PN) {
   Type *LHSType = LHSVal->getType();
   Type *RHSType = RHSVal->getType();
 
-  // Scan to see if all operands are the same opcode, and all have one use.
+  // Scan to see if all operands are the same opcode.
   for (unsigned i = 1; i != PN.getNumIncomingValues(); ++i) {
     Instruction *I = dyn_cast<Instruction>(PN.getIncomingValue(i));
-    if (!I || I->getOpcode() != Opc || !I->hasOneUse() ||
+    if (!I || I->getOpcode() != Opc ||
         // Verify type of the LHS matches so we don't fold cmp's of different
         // types.
         I->getOperand(0)->getType() != LHSType ||
@@ -76,6 +122,10 @@ Instruction *InstCombiner::FoldPHIArgBinOpIntoPHI(PHINode &PN) {
   // which leads to higher register pressure. This is especially
   // bad when the PHIs are in the header of a loop.
   if (!LHSVal && !RHSVal)
+    return nullptr;
+
+  // Verify that folding is profitable (the original operands are dead).
+  if (!IsFoldPHIArgProfitable(PN))
     return nullptr;
 
   // Otherwise, this is safe to transform!
@@ -150,10 +200,10 @@ Instruction *InstCombiner::FoldPHIArgGEPIntoPHI(PHINode &PN) {
 
   bool AllInBounds = true;
 
-  // Scan to see if all operands are the same opcode, and all have one use.
+  // Scan to see if all operands are the same opcode.
   for (unsigned i = 1; i != PN.getNumIncomingValues(); ++i) {
     GetElementPtrInst *GEP= dyn_cast<GetElementPtrInst>(PN.getIncomingValue(i));
-    if (!GEP || !GEP->hasOneUse() || GEP->getType() != FirstInst->getType() ||
+    if (!GEP || GEP->getType() != FirstInst->getType() ||
       GEP->getNumOperands() != FirstInst->getNumOperands())
       return nullptr;
 
@@ -201,6 +251,10 @@ Instruction *InstCombiner::FoldPHIArgGEPIntoPHI(PHINode &PN) {
   // load up into the predecessors so that we have a load of a gep of an alloca,
   // which can usually all be folded into the load.
   if (AllBasePointersAreAllocas)
+    return nullptr;
+
+  // Verify that folding is profitable (the original operands are dead).
+  if (!IsFoldPHIArgProfitable(PN))
     return nullptr;
 
   // Otherwise, this is safe to transform.  Insert PHI nodes for each operand
@@ -322,7 +376,7 @@ Instruction *InstCombiner::FoldPHIArgLoadIntoPHI(PHINode &PN) {
   // Check to see if all arguments are the same operation.
   for (unsigned i = 1, e = PN.getNumIncomingValues(); i != e; ++i) {
     LoadInst *LI = dyn_cast<LoadInst>(PN.getIncomingValue(i));
-    if (!LI || !LI->hasOneUse())
+    if (!LI)
       return nullptr;
 
     // We can't sink the load if the loaded value could be modified between
@@ -347,6 +401,10 @@ Instruction *InstCombiner::FoldPHIArgLoadIntoPHI(PHINode &PN) {
         LI->getParent()->getTerminator()->getNumSuccessors() != 1)
       return nullptr;
   }
+
+  // Verify that folding is profitable (the original operands are dead).
+  if (!IsFoldPHIArgProfitable(PN))
+    return nullptr;
 
   // Okay, they are all the same operation.  Create a new PHI node of the
   // correct type, and PHI together all of the LHS's of the instructions.
@@ -438,8 +496,8 @@ Instruction *InstCombiner::FoldPHIArgZextsIntoPHI(PHINode &Phi) {
   unsigned NumConsts = 0;
   for (Value *V : Phi.incoming_values()) {
     if (auto *Zext = dyn_cast<ZExtInst>(V)) {
-      // All zexts must be identical and have one use.
-      if (Zext->getSrcTy() != NarrowType || !Zext->hasOneUse())
+      // All zexts must be identical.
+      if (Zext->getSrcTy() != NarrowType)
         return nullptr;
       NewIncoming.push_back(Zext->getOperand(0));
       NumZexts++;
@@ -463,6 +521,10 @@ Instruction *InstCombiner::FoldPHIArgZextsIntoPHI(PHINode &Phi) {
   // block to expose other folding opportunities. Thus, InstCombine will
   // infinite loop without this check.
   if (NumConsts == 0 || NumZexts < 2)
+    return nullptr;
+
+  // Verify that folding is profitable (the original operands are dead).
+  if (!IsFoldPHIArgProfitable(Phi))
     return nullptr;
 
   // All incoming values are zexts or constants that are safe to truncate.
@@ -523,7 +585,7 @@ Instruction *InstCombiner::FoldPHIArgOpIntoPHI(PHINode &PN) {
   // Check to see if all arguments are the same operation.
   for (unsigned i = 1, e = PN.getNumIncomingValues(); i != e; ++i) {
     Instruction *I = dyn_cast<Instruction>(PN.getIncomingValue(i));
-    if (!I || !I->hasOneUse() || !I->isSameOperationAs(FirstInst))
+    if (!I || !I->isSameOperationAs(FirstInst))
       return nullptr;
     if (CastSrcTy) {
       if (I->getOperand(0)->getType() != CastSrcTy)
@@ -532,6 +594,10 @@ Instruction *InstCombiner::FoldPHIArgOpIntoPHI(PHINode &PN) {
       return nullptr;
     }
   }
+
+  // Verify that folding is profitable (the original operands are dead).
+  if (!IsFoldPHIArgProfitable(PN))
+    return nullptr;
 
   // Okay, they are all the same operation.  Create a new PHI node of the
   // correct type, and PHI together all of the LHS's of the instructions.
@@ -891,10 +957,7 @@ Instruction *InstCombiner::visitPHINode(PHINode &PN) {
   if (isa<Instruction>(PN.getIncomingValue(0)) &&
       isa<Instruction>(PN.getIncomingValue(1)) &&
       cast<Instruction>(PN.getIncomingValue(0))->getOpcode() ==
-      cast<Instruction>(PN.getIncomingValue(1))->getOpcode() &&
-      // FIXME: The hasOneUse check will fail for PHIs that use the value more
-      // than themselves more than once.
-      PN.getIncomingValue(0)->hasOneUse())
+      cast<Instruction>(PN.getIncomingValue(1))->getOpcode())
     if (Instruction *Result = FoldPHIArgOpIntoPHI(PN))
       return Result;
 
