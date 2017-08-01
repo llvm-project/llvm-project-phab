@@ -22,6 +22,7 @@
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/PassManager.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/GenericDomTree.h"
 #include <utility>
@@ -38,6 +39,21 @@ extern template class DominatorTreeBase<BasicBlock, false>; // DomTree
 extern template class DominatorTreeBase<BasicBlock, true>; // PostDomTree
 
 namespace DomTreeBuilder {
+template <typename T>
+struct ExitChecker;
+/// Basic blocks that end with a return statement are exit basic blocks. Basic
+/// blocks that end with an unreachable instructions or basic blocks that belong
+/// to an infinite loop may be backward unreachable and may consequently become
+/// virtual exit nodes. Virtual exit nodes are not identified as graph exits
+/// to allow the easy differentiation between virtual exit nodes and graph
+/// exit nodes.
+template <>
+struct ExitChecker<BasicBlock*> {
+  static bool IsGraphExit(const BasicBlock *N) {
+  assert(N && "N must be a valid node");
+  return isa<ReturnInst>(N->getTerminator());
+}
+};
 using BBDomTree = DomTreeBase<BasicBlock>;
 using BBPostDomTree = PostDomTreeBase<BasicBlock>;
 

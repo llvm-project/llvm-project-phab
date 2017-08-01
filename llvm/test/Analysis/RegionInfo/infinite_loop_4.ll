@@ -36,14 +36,51 @@ define void @normal_condition() nounwind {
 4:
 	ret void
 }
-; CHECK-NOT: =>
+
 ; CHECK: [0] 0 => <Function Return>
-; CHECK-NEXT: [1] 7 => 3
-; STAT: 2 region - The # of regions
-; STAT: 1 region - The # of simple regions
+; CHECK-NEXT:   [1] 7 => 3
+; CHECK-NEXT:     [2] 2 => 10
+; CHECK-NEXT:       [3] 5 => 6
 
-; BBIT: 0, 7, 1, 2, 5, 11, 6, 10, 8, 9, 13, 14, 12, 3, 4,
-; BBIT: 7, 1, 2, 5, 11, 6, 10, 8, 9, 13, 14, 12,
+; STAT: 4 region - The # of regions
+; STAT: 2 region - The # of simple regions
 
-; RNIT: 0, 7 => 3, 3, 4,
-; RNIT: 7, 1, 2, 5, 11, 6, 10, 8, 9, 13, 14, 12,
+; BBIT:      Region tree:
+; BBIT-NEXT: [0] 0 => <Function Return>
+; BBIT-NEXT: {
+; BBIT-NEXT:   0, 7, 1, 2, 5, 11, 6, 10, 8, 9, 13, 14, 12, 3, 4,
+; BBIT-NEXT:   [1] 7 => 3
+; BBIT-NEXT:   {
+; BBIT-NEXT:     7, 1, 2, 5, 11, 6, 10, 8, 9, 13, 14, 12,
+; BBIT-NEXT:     [2] 2 => 10
+; BBIT-NEXT:     {
+; BBIT-NEXT:       2, 5, 11, 6, 12,
+; BBIT-NEXT:       [3] 5 => 6
+; BBIT-NEXT:       {
+; BBIT-NEXT:         5, 11, 12,
+; BBIT-NEXT:       }
+; BBIT-NEXT:     }
+; BBIT-NEXT:   }
+; BBIT-NEXT: }
+; BBIT-NEXT: End region tree
+
+
+; RNIT:      Region tree:
+; RNIT-NEXT: [0] 0 => <Function Return>
+; RNIT-NEXT: {
+; RNIT-NEXT:   0, 7 => 3, 3, 4,
+; RNIT-NEXT:   [1] 7 => 3
+; RNIT-NEXT:   {
+; RNIT-NEXT:     7, 1, 2 => 10, 10, 8, 9, 13, 14,
+; RNIT-NEXT:     [2] 2 => 10
+; RNIT-NEXT:     {
+; RNIT-NEXT:       2, 5 => 6, 6,
+; RNIT-NEXT:       [3] 5 => 6
+; RNIT-NEXT:       {
+; RNIT-NEXT:         5, 11, 12,
+; RNIT-NEXT:       }
+; RNIT-NEXT:     }
+; RNIT-NEXT:   }
+; RNIT-NEXT: }
+; RNIT-NEXT: End region tree
+
