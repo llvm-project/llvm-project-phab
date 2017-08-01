@@ -5,7 +5,7 @@
 // CHECK: NamespaceDecl: test;(
 namespace test {
 
-// CHECK: FunctionDecl: test::f(
+// CHECK: FunctionDecl: :f(
 // CHECK: CompoundStmt(
 void f() {
   // CHECK: VarDecl: i(int)(
@@ -16,7 +16,7 @@ void f() {
   // CHECK: CXXBoolLiteralExpr: true(
   auto b = true;
   // CHECK: CallExpr(
-  // CHECK: DeclRefExpr: test::f(
+  // CHECK: DeclRefExpr: :f(
   f();
   // CHECK: UnaryOperator: ++(
   ++i;
@@ -40,7 +40,7 @@ class Base {
 // CHECK: CXXRecordDecl: X;X;(
 class X : Base {
   int m;
-  // CHECK: CXXMethodDecl: X::foo(const char *(int))(
+  // CHECK: CXXMethodDecl: :foo(const char *(int))(
   // CHECK: ParmVarDecl: i(int)(
   const char *foo(int i) {
     if (i == 0)
@@ -51,9 +51,9 @@ class X : Base {
 
   // CHECK: AccessSpecDecl: public(
 public:
-  // CHECK: CXXConstructorDecl: X::X(void (char, int))Base,X::m,(
+  // CHECK: CXXConstructorDecl: :X(void (char, int))Base,:m,(
   X(char, int) : Base(), m(0) {
-    // CHECK: MemberExpr: X::m(
+    // CHECK: MemberExpr: :m(
     int x = m;
   }
 };

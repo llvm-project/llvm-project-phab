@@ -27,6 +27,14 @@ void f1()
   {{;;}}
 }
 
+int x;
+
+namespace src {
+  int x;
+  int x1 = x + 1;
+  int x2 = ::x + 1;
+}
+
 #else
 
 void f1() {
@@ -43,6 +51,16 @@ void f1() {
 
   // CHECK-NOT: Match {{.*}} to NullStmt(14)
   ;
+}
+
+int x;
+
+namespace dst {
+  int x;
+  // CHECK: Match DeclRefExpr: :x(17) to DeclRefExpr: :x(22)
+  int x1 = x + 1;
+  // CHECK: Match DeclRefExpr: x(21) to DeclRefExpr: x(26)
+  int x2 = ::x + 1;
 }
 
 #endif
