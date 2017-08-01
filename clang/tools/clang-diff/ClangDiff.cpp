@@ -33,6 +33,10 @@ static cl::opt<bool> ASTDumpJson(
     cl::desc("Print the internal representation of the AST as JSON."),
     cl::init(false), cl::cat(ClangDiffCategory));
 
+static cl::opt<bool>
+    PrintMatches("m", cl::desc("Print the matched nodes (verbose)."),
+                 cl::init(false), cl::cat(ClangDiffCategory));
+
 static cl::opt<bool> NoCompilationDatabase(
     "no-compilation-database",
     cl::desc(
@@ -270,7 +274,7 @@ int main(int argc, const char **argv) {
 
   for (diff::NodeId Dst : DstTree) {
     diff::NodeId Src = Diff.getMapped(DstTree, Dst);
-    if (Src.isValid()) {
+    if (PrintMatches && Src.isValid()) {
       llvm::outs() << "Match ";
       printNode(llvm::outs(), SrcTree, Src);
       llvm::outs() << " to ";
