@@ -52,6 +52,10 @@ static cl::opt<bool>
                          cl::desc("Run the Loop vectorization passes"));
 
 static cl::opt<bool>
+    RunLoopVectorizationPred("vectorize-loops-pred", cl::Hidden,
+                         cl::desc("Run the Loop vectorization passes"));
+
+static cl::opt<bool>
 RunSLPVectorization("vectorize-slp", cl::Hidden,
                     cl::desc("Run the SLP vectorization passes"));
 
@@ -169,6 +173,7 @@ PassManagerBuilder::PassManagerBuilder() {
     BBVectorize = RunBBVectorization;
     SLPVectorize = RunSLPVectorization;
     LoopVectorize = RunLoopVectorization;
+    LoopVectorizePred = RunLoopVectorizationPred;
     RerollLoops = RunLoopRerolling;
     NewGVN = RunNewGVN;
     DisableGVNLoadPRE = false;
@@ -605,6 +610,8 @@ void PassManagerBuilder::populateModulePassManager(
   // llvm.loop.distribute=true or when -enable-loop-distribute is specified.
   MPM.add(createLoopDistributePass());
 
+  MPM.add(createLoopVectorizePredPass(DisableUnrollLoops, LoopVectorizePred));
+
   MPM.add(createLoopVectorizePass(DisableUnrollLoops, LoopVectorize));
 
   // Eliminate loads by forwarding stores from the previous iteration to loads
@@ -821,6 +828,7 @@ void PassManagerBuilder::addLTOOptimizationPasses(legacy::PassManagerBase &PM) {
 
   if (!DisableUnrollLoops)
     PM.add(createSimpleLoopUnrollPass(OptLevel));   // Unroll small loops
+  PM.add(createLoopVectorizePredPass(true, LoopVectorize));
   PM.add(createLoopVectorizePass(true, LoopVectorize));
   // The vectorizer may have significantly shortened a loop body; unroll again.
   if (!DisableUnrollLoops)

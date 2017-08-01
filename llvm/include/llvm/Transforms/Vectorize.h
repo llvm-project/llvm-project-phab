@@ -122,6 +122,13 @@ Pass *createLoopVectorizePass(bool NoUnrolling = false,
 
 //===----------------------------------------------------------------------===//
 //
+// LoopVectorizePred - Create a Pass to be run before loop vectorization pass.
+//
+Pass *createLoopVectorizePredPass(bool NoUnrolling = false,
+                              bool AlwaysVectorize = true);
+
+//===----------------------------------------------------------------------===//
+//
 // SLPVectorizer - Create a bottom-up SLP vectorizer pass.
 //
 Pass *createSLPVectorizerPass();
