@@ -54,8 +54,8 @@ const char *b = "f" "o" "o";
 typedef unsigned nat;
 
 // CHECK: Match VarDecl: p(int){{.*}} to VarDecl: prod(double)
-// CHECK: Match BinaryOperator: *{{.*}} to BinaryOperator: *
 // CHECK: Update VarDecl: p(int){{.*}} to prod(double)
+// CHECK: Match BinaryOperator: *{{.*}} to BinaryOperator: *
 double prod = 1 * 2 * 10;
 // CHECK: Update DeclRefExpr
 int squared = prod * prod;
