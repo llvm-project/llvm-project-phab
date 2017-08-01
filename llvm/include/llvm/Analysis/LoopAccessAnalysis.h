@@ -657,6 +657,12 @@ int64_t getPtrStride(PredicatedScalarEvolution &PSE, Value *Ptr, const Loop *Lp,
                      const ValueToValueMap &StridesMap = ValueToValueMap(),
                      bool Assume = false, bool ShouldCheckWrap = true);
 
+//  If \p Mask is not null, it also returns the \p Mask which is the shuffle
+//  mask for actual memory access order.
+bool sortMemAccesses(ArrayRef<Value *> VL, const DataLayout &DL,
+    ScalarEvolution &SE, SmallVectorImpl<Value *> &Sorted,
+    SmallVectorImpl<unsigned> *Mask = nullptr);
+
 /// \brief Returns true if the memory operations \p A and \p B are consecutive.
 /// This is a simple API that does not depend on the analysis pass. 
 bool isConsecutiveAccess(Value *A, Value *B, const DataLayout &DL,
