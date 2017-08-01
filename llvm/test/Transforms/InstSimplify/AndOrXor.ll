@@ -873,3 +873,28 @@ define i32 @reversed_not(i32 %a) {
   %or = or i32 %a, %nega
   ret i32 %or
 }
+
+define i32 @zext_masked_hi(i8 %x, i32 %y) {
+; CHECK-LABEL: @zext_masked_hi(
+; CHECK-NEXT:    [[HI:%.*]] = and i32 %y, -256
+; CHECK-NEXT:    ret i32 [[HI]]
+;
+  %lo = zext i8 %x to i32
+  %hi = and i32 %y, -256
+  %or = or i32 %lo, %hi
+  %mask = and i32 %or, -256
+  ret i32 %mask
+}
+
+define i32 @zext_masked_lo(i8 %x, i32 %y) {
+; CHECK-LABEL: @zext_masked_lo(
+; CHECK-NEXT:    [[LO:%.*]] = zext i8 %x to i32
+; CHECK-NEXT:    ret i32 [[LO]]
+;
+  %lo = zext i8 %x to i32
+  %hi = and i32 %y, -256
+  %or = or i32 %lo, %hi
+  %mask = and i32 %or, 255
+  ret i32 %mask
+}
+

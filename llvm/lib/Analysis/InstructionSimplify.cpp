@@ -1752,24 +1752,6 @@ static Value *SimplifyAndInst(Value *Op0, Value *Op1, const SimplifyQuery &Q,
   if (match(Op1, m_c_Or(m_Specific(Op0), m_Value())))
     return Op0;
 
-  // A mask that only clears known zeros of a shifted value is a no-op.
-  Value *X;
-  const APInt *Mask;
-  const APInt *ShAmt;
-  if (match(Op1, m_APInt(Mask))) {
-    // If all bits in the inverted and shifted mask are clear:
-    // and (shl X, ShAmt), Mask --> shl X, ShAmt
-    if (match(Op0, m_Shl(m_Value(X), m_APInt(ShAmt))) &&
-        (~(*Mask)).lshr(*ShAmt).isNullValue())
-      return Op0;
-
-    // If all bits in the inverted and shifted mask are clear:
-    // and (lshr X, ShAmt), Mask --> lshr X, ShAmt
-    if (match(Op0, m_LShr(m_Value(X), m_APInt(ShAmt))) &&
-        (~(*Mask)).shl(*ShAmt).isNullValue())
-      return Op0;
-  }
-
   // A & (-A) = A if A is a power of two or zero.
   if (match(Op0, m_Neg(m_Specific(Op1))) ||
       match(Op1, m_Neg(m_Specific(Op0)))) {
@@ -1780,6 +1762,19 @@ static Value *SimplifyAndInst(Value *Op0, Value *Op1, const SimplifyQuery &Q,
                                Q.DT))
       return Op1;
   }
+
+  // Perform simplification based on known bits:
+  // If for each bit position, either LHS or RHS is known zero -> 0
+  // If for each bit position, LHS is known zero or RHS is known one -> LHS
+  // If for each bit position, LHS is known one or RHS is known zero -> RHS
+  KnownBits LHSKnown = computeKnownBits(Op0, Q.DL, 0, Q.AC, Q.CxtI, Q.DT);
+  KnownBits RHSKnown = computeKnownBits(Op1, Q.DL, 0, Q.AC, Q.CxtI, Q.DT);
+  if ((LHSKnown.Zero | RHSKnown.Zero).isAllOnesValue())
+    return Constant::getNullValue(Op0->getType());
+  if ((LHSKnown.Zero | RHSKnown.One).isAllOnesValue())
+    return Op0;
+  if ((LHSKnown.One | RHSKnown.Zero).isAllOnesValue())
+    return Op1;
 
   if (Value *V = simplifyAndOrOfICmps(Op0, Op1, true))
     return V;
