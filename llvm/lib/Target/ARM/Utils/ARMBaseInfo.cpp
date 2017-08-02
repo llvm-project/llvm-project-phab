@@ -40,5 +40,10 @@ const MClassSysReg *lookupMClassSysRegBy8bitSYSmValue(unsigned SYSm) {
 #define GET_MCLASSSYSREG_IMPL
 #include "ARMGenSystemRegister.inc"
 
-  }
+  } // end namespace ARMSysReg
+
+  namespace ARMBankedReg {
+#define GET_BANKEDREG_IMPL
+#include "ARMGenSystemRegister.inc"
+  } // end namespce ARMSysReg
 }
