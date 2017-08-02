@@ -37,12 +37,18 @@ namespace llvm {
 
 class MemoryBuffer;
 
+namespace windows_manifest {
+
 #if LLVM_LIBXML2_ENABLED
 typedef xmlDocPtr XMLDocumentImpl;
 typedef xmlNodePtr XMLNodeImpl;
+typedef xmlNsPtr XMLNsImpl;
+typedef xmlAttrPtr XMLAttrImpl;
 #else
 typedef void *XMLDocumentImpl;
 typedef void *XMLNodeImpl;
+typedef void *XMLNsImpl;
+typedef void *XMLAttrImpl;
 #endif
 
 class WindowsManifestError : public ErrorInfo<WindowsManifestError, ECError> {
@@ -76,5 +82,6 @@ private:
   bool ParseErrorOccurred = false;
 };
 
+} // namespace windows_manifest
 } // namespace llvm
 #endif
