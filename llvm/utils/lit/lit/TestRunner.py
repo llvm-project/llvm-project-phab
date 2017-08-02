@@ -800,9 +800,9 @@ def getTempPaths(test):
     execdir,execbase = os.path.split(execpath)
     tmpDir = os.path.join(execdir, 'Output')
     tmpBase = os.path.join(tmpDir, execbase)
-    return tmpDir, tmpBase
+    return tmpBase
 
-def getDefaultSubstitutions(test, tmpDir, tmpBase, normalize_slashes=False):
+def getDefaultSubstitutions(test, tmpBase, normalize_slashes=False):
     sourcepath = test.getSourcePath()
     sourcedir = os.path.dirname(sourcepath)
 
@@ -810,7 +810,6 @@ def getDefaultSubstitutions(test, tmpDir, tmpBase, normalize_slashes=False):
     if normalize_slashes:
         sourcepath = sourcepath.replace('\\', '/')
         sourcedir = sourcedir.replace('\\', '/')
-        tmpDir = tmpDir.replace('\\', '/')
         tmpBase = tmpBase.replace('\\', '/')
 
     # We use #_MARKER_# to hide %% while we do the other substitutions.
@@ -825,7 +824,6 @@ def getDefaultSubstitutions(test, tmpDir, tmpBase, normalize_slashes=False):
                           ('%{pathsep}', os.pathsep),
                           ('%t', tmpName),
                           ('%basename_t', baseName),
-                          ('%T', tmpDir),
                           ('#_MARKER_#', '%')])
 
     # "%/[STpst]" should be normalized.
@@ -834,7 +832,6 @@ def getDefaultSubstitutions(test, tmpDir, tmpBase, normalize_slashes=False):
             ('%/S', sourcedir.replace('\\', '/')),
             ('%/p', sourcedir.replace('\\', '/')),
             ('%/t', tmpBase.replace('\\', '/') + '.tmp'),
-            ('%/T', tmpDir.replace('\\', '/')),
             ])
 
     # "%:[STpst]" are paths without colons.
@@ -844,7 +841,6 @@ def getDefaultSubstitutions(test, tmpDir, tmpBase, normalize_slashes=False):
                 ('%:S', re.sub(r'^(.):', r'\1', sourcedir)),
                 ('%:p', re.sub(r'^(.):', r'\1', sourcedir)),
                 ('%:t', re.sub(r'^(.):', r'\1', tmpBase) + '.tmp'),
-                ('%:T', re.sub(r'^(.):', r'\1', tmpDir)),
                 ])
     else:
         substitutions.extend([
@@ -852,7 +848,6 @@ def getDefaultSubstitutions(test, tmpDir, tmpBase, normalize_slashes=False):
                 ('%:S', sourcedir),
                 ('%:p', sourcedir),
                 ('%:t', tmpBase + '.tmp'),
-                ('%:T', tmpDir),
                 ])
     return substitutions
 
@@ -1167,9 +1162,9 @@ def executeShTest(test, litConfig, useExternalSh,
     if litConfig.noExecute:
         return lit.Test.Result(Test.PASS)
 
-    tmpDir, tmpBase = getTempPaths(test)
+    tmpBase = getTempPaths(test)
     substitutions = list(extra_substitutions)
-    substitutions += getDefaultSubstitutions(test, tmpDir, tmpBase,
+    substitutions += getDefaultSubstitutions(test, tmpBase,
                                              normalize_slashes=useExternalSh)
     script = applySubstitutions(script, substitutions)
 

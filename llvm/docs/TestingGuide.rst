@@ -455,14 +455,10 @@ RUN lines:
    File path to a temporary file name that could be used for this test case.
    The file name won't conflict with other test cases. You can append to it
    if you need multiple temporaries. This is useful as the destination of
-   some redirected output.
+   some redirected output. If your test needs a temporary directory, you can
+   use ``mkdir -p %t``.
 
    Example: ``/home/user/llvm.build/test/MC/ELF/Output/foo_test.s.tmp``
-
-``%T``
-   Directory of ``%t``.
-
-   Example: ``/home/user/llvm.build/test/MC/ELF/Output``
 
 ``%{pathsep}``
 

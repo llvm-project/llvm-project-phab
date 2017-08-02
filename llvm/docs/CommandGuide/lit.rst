@@ -402,8 +402,8 @@ These are defined in TestRunner.py. The base set of substitutions are:
  %S         source dir (directory of the file currently being run)
  %p         same as %S
  %{pathsep} path separator
- %t         temporary file name unique to the test
- %T         temporary directory unique to the test
+ %t         temporary file name unique to the test, if you need a directory
+            use `mkdir -p %t`
  %%         %
  ========== ==============
 
