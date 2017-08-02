@@ -410,10 +410,9 @@ public:
   /// ApplyFixup - Apply the \arg Value for given \arg Fixup into the provided
   /// data fragment, at the offset specified by the fixup and following the
   /// fixup kind as appropriate.
-  void applyFixup(const MCAssembler &Asm, const MCFixup &Fixup,
-                  const MCValue &Target, MutableArrayRef<char> Data,
-                  uint64_t FixupValue, bool IsResolved) const override {
-
+  void applyFixup(const MCAssembler &Asm, const MCReloc &Fixup,
+                  MutableArrayRef<char> Data, bool IsResolved) const override {
+    uint64_t FixupValue = Fixup.getConstant();
     // When FixupValue is 0 the relocation is external and there
     // is nothing for us to do.
     if (!FixupValue) return;
@@ -567,10 +566,10 @@ public:
 
   /// fixupNeedsRelaxation - Target specific predicate for whether a given
   /// fixup requires the associated instruction to be relaxed.
-  bool fixupNeedsRelaxationAdvanced(const MCFixup &Fixup, bool Resolved,
-                                    uint64_t Value,
+  bool fixupNeedsRelaxationAdvanced(const MCReloc &Fixup, bool Resolved,
                                     const MCRelaxableFragment *DF,
                                     const MCAsmLayout &Layout) const override {
+    uint64_t Value = Fixup.getConstant();
     MCInst const &MCB = DF->getInst();
     assert(HexagonMCInstrInfo::isBundle(MCB));
 
@@ -643,8 +642,7 @@ public:
   }
 
   /// Simple predicate for targets where !Resolved implies requiring relaxation
-  bool fixupNeedsRelaxation(const MCFixup &Fixup, uint64_t Value,
-                            const MCRelaxableFragment *DF,
+  bool fixupNeedsRelaxation(const MCReloc &Reloc, const MCRelaxableFragment *DF,
                             const MCAsmLayout &Layout) const override {
     llvm_unreachable("Handled by fixupNeedsRelaxationAdvanced");
   }

@@ -52,10 +52,25 @@ const MCFixupKindInfo &MCAsmBackend::getFixupKindInfo(MCFixupKind Kind) const {
   return Builtins[Kind];
 }
 
+MCFixupKind MCAsmBackend::getPCRelKind(MCFixupKind Kind) const {
+  switch (Kind) {
+  case FK_Data_1:
+    return FK_PCRel_1;
+  case FK_Data_2:
+    return FK_PCRel_2;
+  case FK_Data_4:
+    return FK_PCRel_4;
+  case FK_Data_8:
+    return FK_PCRel_8;
+  default:
+    llvm_unreachable("cannot convert to pcrel");
+  }
+}
+
 bool MCAsmBackend::fixupNeedsRelaxationAdvanced(
-    const MCFixup &Fixup, bool Resolved, uint64_t Value,
-    const MCRelaxableFragment *DF, const MCAsmLayout &Layout) const {
+    const MCReloc &Reloc, bool Resolved, const MCRelaxableFragment *DF,
+    const MCAsmLayout &Layout) const {
   if (!Resolved)
     return true;
-  return fixupNeedsRelaxation(Fixup, Value, DF, Layout);
+  return fixupNeedsRelaxation(Reloc, DF, Layout);
 }

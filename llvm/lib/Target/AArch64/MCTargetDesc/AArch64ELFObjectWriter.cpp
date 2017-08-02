@@ -16,9 +16,12 @@
 #include "MCTargetDesc/AArch64MCExpr.h"
 #include "MCTargetDesc/AArch64MCTargetDesc.h"
 #include "llvm/BinaryFormat/ELF.h"
+#include "llvm/MC/MCAsmBackend.h"
+#include "llvm/MC/MCAssembler.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCELFObjectWriter.h"
 #include "llvm/MC/MCFixup.h"
+#include "llvm/MC/MCFixupKindInfo.h"
 #include "llvm/MC/MCValue.h"
 #include "llvm/Support/ErrorHandling.h"
 #include <cassert>
@@ -35,8 +38,7 @@ public:
   ~AArch64ELFObjectWriter() override = default;
 
 protected:
-  unsigned getRelocType(MCContext &Ctx, const MCValue &Target,
-                        const MCFixup &Fixup, bool IsPCRel) const override;
+  unsigned getRelocType(MCAssembler &Asm, const MCReloc &Reloc) const override;
   bool IsILP32;
 };
 
@@ -56,9 +58,8 @@ AArch64ELFObjectWriter::AArch64ELFObjectWriter(uint8_t OSABI,
   "supported (LP64 eqv: " #lp64rtype ")"
 
 // assumes IsILP32 is true
-static bool isNonILP32reloc(const MCFixup &Fixup,
-                            AArch64MCExpr::VariantKind RefKind,
-                            MCContext &Ctx) {
+static bool isNonILP32reloc(const MCReloc &Fixup, MCContext &Ctx) {
+  auto RefKind = (AArch64MCExpr::VariantKind)Fixup.getRefKind();
   if ((unsigned)Fixup.getKind() != AArch64::fixup_aarch64_movw)
     return false;
   switch (RefKind) {
@@ -104,32 +105,34 @@ static bool isNonILP32reloc(const MCFixup &Fixup,
   return false;
 }
 
-unsigned AArch64ELFObjectWriter::getRelocType(MCContext &Ctx,
-                                              const MCValue &Target,
-                                              const MCFixup &Fixup,
-                                              bool IsPCRel) const {
+unsigned AArch64ELFObjectWriter::getRelocType(MCAssembler &Asm,
+                                              const MCReloc &Fixup) const {
+  MCContext &Ctx = Asm.getContext();
+  const MCReloc &Target = Fixup;
   AArch64MCExpr::VariantKind RefKind =
       static_cast<AArch64MCExpr::VariantKind>(Target.getRefKind());
   AArch64MCExpr::VariantKind SymLoc = AArch64MCExpr::getSymbolLoc(RefKind);
   bool IsNC = AArch64MCExpr::isNotChecked(RefKind);
+  bool IsPCRel = Asm.getBackend().getFixupKindInfo(Fixup.getKind()).Flags &
+                 MCFixupKindInfo::FKF_IsPCRel;
 
   assert((!Target.getSymA() ||
           Target.getSymA()->getKind() == MCSymbolRefExpr::VK_None) &&
          "Should only be expression-level modifiers here");
 
-  assert((!Target.getSymB() ||
-          Target.getSymB()->getKind() == MCSymbolRefExpr::VK_None) &&
-         "Should only be expression-level modifiers here");
-
   if (IsPCRel) {
     switch ((unsigned)Fixup.getKind()) {
+    case FK_PCRel_1:
     case FK_Data_1:
       Ctx.reportError(Fixup.getLoc(), "1-byte data relocations not supported");
       return ELF::R_AARCH64_NONE;
+    case FK_PCRel_2:
     case FK_Data_2:
       return R_CLS(PREL16);
+    case FK_PCRel_4:
     case FK_Data_4:
       return R_CLS(PREL32);
+    case FK_PCRel_8:
     case FK_Data_8:
       if (IsILP32) {
         Ctx.reportError(Fixup.getLoc(),
@@ -180,7 +183,7 @@ unsigned AArch64ELFObjectWriter::getRelocType(MCContext &Ctx,
       return ELF::R_AARCH64_NONE;
     }
   } else {
-    if (IsILP32 && isNonILP32reloc(Fixup, RefKind, Ctx))
+    if (IsILP32 && isNonILP32reloc(Fixup, Ctx))
       return ELF::R_AARCH64_NONE;
     switch ((unsigned)Fixup.getKind()) {
     case FK_Data_1:

@@ -30,8 +30,7 @@ protected:
 public:
   virtual ~MCWasmObjectTargetWriter();
 
-  virtual unsigned getRelocType(const MCValue &Target,
-                                const MCFixup &Fixup) const = 0;
+  virtual unsigned getRelocType(const MCReloc &Reloc) const = 0;
 
   /// \name Accessors
   /// @{
