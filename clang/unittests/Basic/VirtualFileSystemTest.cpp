@@ -12,6 +12,7 @@
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/Host.h"
 #include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/Path.h"
 #include "llvm/Support/SourceMgr.h"
 #include "gtest/gtest.h"
 #include <map>
@@ -476,6 +477,75 @@ TEST(VirtualFileSystemTest, BrokenSymlinkRealFSRecursiveIteration) {
   EXPECT_TRUE(std::equal(Contents.begin(), Contents.end(), Expected.begin()));
 }
 #endif
+
+TEST(VirtualFileSystemTest, ThreadFriendlyRealFSWorkingDirTest) {
+  ScopedDir TestDirectory("thread-friendly-vfs-test", /*Unique*/ true);
+
+  SmallString<128> PathA = TestDirectory.Path;
+  llvm::sys::path::append(PathA, "a");
+  SmallString<128> PathAC = PathA;
+  llvm::sys::path::append(PathAC, "c");
+  SmallString<128> PathB = TestDirectory.Path;
+  llvm::sys::path::append(PathB, "b");
+  SmallString<128> PathBD = PathB;
+  llvm::sys::path::append(PathBD, "d");
+
+  ScopedDir A(PathA);
+  ScopedDir AC(PathAC);
+  ScopedDir B(PathB);
+  ScopedDir BD(PathBD);
+
+  IntrusiveRefCntPtr<vfs::FileSystem> FSA = vfs::createThreadFriendlyRealFS();
+  // setCurrentWorkingDirectory should fininsh without error
+  ASSERT_TRUE(!FSA->setCurrentWorkingDirectory(Twine(A)));
+
+  IntrusiveRefCntPtr<vfs::FileSystem> FSB = vfs::createThreadFriendlyRealFS();
+  // setCurrentWorkingDirectory should fininsh without error
+  ASSERT_TRUE(!FSB->setCurrentWorkingDirectory(Twine(B)));
+
+  ASSERT_TRUE(FSA->getCurrentWorkingDirectory());
+  EXPECT_EQ(*FSA->getCurrentWorkingDirectory(), StringRef(A));
+
+  ASSERT_TRUE(FSB->getCurrentWorkingDirectory());
+  EXPECT_EQ(*FSB->getCurrentWorkingDirectory(), StringRef(B));
+
+  auto C = FSA->status("c");
+  // a/c should be found in FSA
+  ASSERT_TRUE(!!C);
+  // name of 'c' must be relative
+  EXPECT_EQ(C->getName(), "c");
+  EXPECT_TRUE(C->isDirectory());
+
+  // "a", "b" and "d" should not be found in FSA.
+  EXPECT_FALSE(!!FSA->status("a"));
+  EXPECT_FALSE(!!FSA->status("b"));
+  EXPECT_FALSE(!!FSA->status("d"));
+
+  auto D = FSB->status("d");
+  // b/d should be found in FSB
+  ASSERT_TRUE(!!D);
+  // name of 'd' must be relative
+  EXPECT_EQ(D->getName(), "d");
+  EXPECT_TRUE(D->isDirectory());
+
+  // "a", "b" and "c" should not be found in FSB.
+  EXPECT_FALSE(!!FSB->status("a"));
+  EXPECT_FALSE(!!FSB->status("b"));
+  EXPECT_FALSE(!!FSB->status("c"));
+
+  SmallString<128> RelPathC = StringRef("..");
+  llvm::sys::path::append(RelPathC, "a", "c");
+  auto RelCFromFSA = FSA->status(RelPathC);
+  ASSERT_TRUE(!!RelCFromFSA);
+  EXPECT_EQ(RelCFromFSA->getName(), StringRef(RelPathC));
+
+  auto RelCFromFSB = FSB->status(RelPathC);
+  ASSERT_TRUE(!!RelCFromFSB);
+  EXPECT_EQ(RelCFromFSB->getName(), StringRef(RelPathC));
+
+  EXPECT_TRUE(C->equivalent(*RelCFromFSA));
+  EXPECT_TRUE(C->equivalent(*RelCFromFSB));
+}
 
 template <typename DirIter>
 static void checkContents(DirIter I, ArrayRef<StringRef> ExpectedOut) {

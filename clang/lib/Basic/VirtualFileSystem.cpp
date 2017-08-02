@@ -136,6 +136,7 @@ class RealFile : public File {
   Status S;
   std::string RealName;
   friend class RealFileSystem;
+  friend class ThreadFriendlyRealFileSystem;
   RealFile(int FD, StringRef NewName, StringRef NewRealPathName)
       : FD(FD), S(NewName, {}, {}, {}, {}, {},
                   llvm::sys::fs::file_type::status_error, {}),
@@ -239,7 +240,9 @@ IntrusiveRefCntPtr<FileSystem> vfs::getRealFileSystem() {
 
 namespace {
 class RealFSDirIter : public clang::vfs::detail::DirIterImpl {
+protected:
   llvm::sys::fs::directory_iterator Iter;
+
 public:
   RealFSDirIter(const Twine &Path, std::error_code &EC) : Iter(Path, EC) {
     if (!EC && Iter != llvm::sys::fs::directory_iterator()) {
@@ -269,6 +272,131 @@ public:
 directory_iterator RealFileSystem::dir_begin(const Twine &Dir,
                                              std::error_code &EC) {
   return directory_iterator(std::make_shared<RealFSDirIter>(Dir, EC));
+}
+
+//===-----------------------------------------------------------------------===/
+// ThreadFriendlyRealFileSystem implementation
+//===-----------------------------------------------------------------------===/
+
+namespace {
+/// \brief A thread-friendly version of RealFileSystem. Does not call
+/// llvm::sys::fs::set_current_path, stores CurrentWorkingDirectory as a field
+/// instead. This class is not thread-safe, though, it merely gets rid of
+/// manipulating global state.
+class ThreadFriendlyRealFileSystem : public RealFileSystem {
+public:
+  ThreadFriendlyRealFileSystem()
+      : CurrentWorkingDir(RealFileSystem::getCurrentWorkingDirectory()) {}
+
+  ErrorOr<Status> status(const Twine &Path) override;
+  ErrorOr<std::unique_ptr<File>> openFileForRead(const Twine &Path) override;
+  directory_iterator dir_begin(const Twine &Dir, std::error_code &EC) override;
+
+  llvm::ErrorOr<std::string> getCurrentWorkingDirectory() const override;
+  std::error_code setCurrentWorkingDirectory(const Twine &Path) override;
+
+private:
+  llvm::ErrorOr<std::string> CurrentWorkingDir;
+};
+} // end anonymous namespace
+
+ErrorOr<Status> ThreadFriendlyRealFileSystem::status(const Twine &Path) {
+  SmallString<256> AbsPath;
+  Path.toVector(AbsPath);
+  if (std::error_code Err = makeAbsolute(AbsPath))
+    return Err;
+
+  auto Stat = RealFileSystem::status(AbsPath);
+  if (!Stat)
+    return Stat;
+  return Status::copyWithNewName(Stat.get(), Path.str());
+}
+
+ErrorOr<std::unique_ptr<File>>
+ThreadFriendlyRealFileSystem::openFileForRead(const Twine &Name) {
+  SmallString<256> AbsPath;
+  Name.toVector(AbsPath);
+  if (std::error_code Err = makeAbsolute(AbsPath))
+    return Err;
+
+  // Slightly modified copy of RealFileSystem::openFileForRead.
+  // We use AbsPath here instead of name as an argument to
+  // sys::fs::openFileForRead().
+  // If you change  this function, please update RealFileSystem::openFileForRead
+  // accordingly .
+  int FD;
+  SmallString<256> RealName;
+  if (std::error_code EC = sys::fs::openFileForRead(AbsPath, FD, &RealName))
+    return EC;
+  return std::unique_ptr<File>(new RealFile(FD, Name.str(), RealName.str()));
+}
+
+llvm::ErrorOr<std::string>
+ThreadFriendlyRealFileSystem::getCurrentWorkingDirectory() const {
+  return CurrentWorkingDir;
+}
+
+std::error_code
+ThreadFriendlyRealFileSystem::setCurrentWorkingDirectory(const Twine &Path) {
+  SmallString<256> AbsPath;
+  Path.toVector(AbsPath);
+  if (std::error_code EC = makeAbsolute(AbsPath))
+    return EC;
+
+  CurrentWorkingDir = AbsPath.str().str();
+  return std::error_code();
+}
+
+IntrusiveRefCntPtr<FileSystem> vfs::createThreadFriendlyRealFS() {
+  return new ThreadFriendlyRealFileSystem();
+}
+
+namespace {
+class ThreadFriendlyRealFSDirIter : public RealFSDirIter {
+  std::string OriginalPath;
+
+public:
+  ThreadFriendlyRealFSDirIter(const Twine &OriginalPath, const Twine &AbsPath,
+                              std::error_code &EC)
+      : RealFSDirIter(AbsPath, EC), OriginalPath(OriginalPath.str()) {
+    if (!EC) {
+      fixupCurrentEntryName();
+    }
+  }
+
+  std::error_code increment() override {
+    std::error_code EC = RealFSDirIter::increment();
+    if (EC)
+      return EC;
+
+    fixupCurrentEntryName();
+    return EC;
+  }
+
+private:
+  void fixupCurrentEntryName() {
+    if (Iter == llvm::sys::fs::directory_iterator())
+      return;
+
+    llvm::SmallString<256> ModifiedPath = StringRef(OriginalPath);
+
+    assert(llvm::sys::path::has_filename(Iter->path()));
+    auto FileName = llvm::sys::path::filename(Iter->path());
+    llvm::sys::path::append(ModifiedPath, FileName);
+
+    CurrentEntry = Status::copyWithNewName(CurrentEntry, ModifiedPath);
+  }
+};
+} // namespace
+
+directory_iterator
+ThreadFriendlyRealFileSystem::dir_begin(const Twine &Dir, std::error_code &EC) {
+  llvm::SmallString<256> AbsPath;
+  Dir.toVector(AbsPath);
+  EC = makeAbsolute(AbsPath);
+
+  return directory_iterator(
+      std::make_shared<ThreadFriendlyRealFSDirIter>(Dir, AbsPath, EC));
 }
 
 //===-----------------------------------------------------------------------===/
