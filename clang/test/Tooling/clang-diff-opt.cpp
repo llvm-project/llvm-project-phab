@@ -9,6 +9,8 @@
 
 void f1() { {;} {{;}} }
 
+class A { int x; void f() { int a1 = x; } };
+
 #else
 
 void f1() {
@@ -19,5 +21,18 @@ void f1() {
 // CHECK: Match NullStmt(4) to NullStmt(3)
   ; {{;}}
 }
+
+class B {
+  // Only the class name changed; it is not included in the field value,
+  // therefore there is no update.
+  // CHECK: Match FieldDecl: :x(int)(9) to FieldDecl: :x(int)(8)
+  // CHECK-NOT: Update FieldDecl: :x(int)(9)
+  int x;
+  void f() {
+    // CHECK: Match MemberExpr: :x(14) to MemberExpr: :x(13)
+    // CHECK-NOT: Update MemberExpr: :x(14)
+    int b2 = B::x;
+  }
+};
  
 #endif
