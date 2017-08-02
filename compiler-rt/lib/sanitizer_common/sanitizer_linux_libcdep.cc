@@ -558,6 +558,66 @@ void SetAbortMessage(const char *str) {}
 
 #endif // SANITIZER_LINUX
 
+#if SANITIZER_ANDROID || SANITIZER_GO
+int GetNamedMappingFd(const char *name, uptr size) {
+  return -1;
+}
+#else
+int GetNamedMappingFd(const char *name, uptr size) {
+  if (!common_flags()->decorate_proc_maps)
+    return -1;
+  char shmname[200];
+  CHECK(internal_strlen(name) < sizeof(shmname) - 10);
+  internal_snprintf(shmname, sizeof(shmname), "%zu [%s]", internal_getpid(),
+                    name);
+  int fd = shm_open(shmname, O_RDWR | O_CREAT | O_TRUNC, S_IRWXU);
+  CHECK_GE(fd, 0);
+  int res = internal_ftruncate(fd, size);
+  CHECK_EQ(0, res);
+  res = shm_unlink(shmname);
+  CHECK_EQ(0, res);
+  return fd;
+}
+#endif
+
+void *MmapFixedNoReserve(uptr fixed_addr, uptr size, const char *name) {
+  // FIXME: This should disallow overwriting already existing mappings.
+  return MmapFixedNoReserveAllowOverwrite(fixed_addr, size, name);
+}
+
+void *MmapFixedNoReserveAllowOverwrite(uptr fixed_addr, uptr size,
+                         const char *name = nullptr) {
+  int fd = name ? GetNamedMappingFd(name, size) : -1;
+  unsigned flags = MAP_PRIVATE | MAP_FIXED | MAP_NORESERVE;
+  if (fd == -1) flags |= MAP_ANON;
+
+  uptr PageSize = GetPageSizeCached();
+  uptr p = internal_mmap((void *)(fixed_addr & ~(PageSize - 1)),
+                         RoundUpTo(size, PageSize), PROT_READ | PROT_WRITE,
+                         flags, fd, 0);
+  int reserrno;
+  if (internal_iserror(p, &reserrno))
+    Report("ERROR: %s failed to "
+           "allocate 0x%zx (%zd) bytes at address %zx (errno: %d)\n",
+           SanitizerToolName, size, size, fixed_addr, reserrno);
+  return (void *)p;
+}
+
+void *MmapFixedNoAccess(uptr fixed_addr, uptr size, const char *name) {
+  // FIXME: This should disallow overwriting already existing mappings.
+  return MmapFixedNoAccessAllowOverwrite(fixed_addr, size, name);
+}
+
+void *MmapFixedNoAccessAllowOverwrite(uptr fixed_addr, uptr size,
+                                      const char *name = nullptr) {
+  int fd = name ? GetNamedMappingFd(name, size) : -1;
+  unsigned flags = MAP_PRIVATE | MAP_FIXED | MAP_NORESERVE;
+  if (fd == -1) flags |= MAP_ANON;
+
+  return (void *)internal_mmap((void *)fixed_addr, size, PROT_NONE, flags, fd,
+                               0);
+}
+
 } // namespace __sanitizer
 
 #endif // SANITIZER_FREEBSD || SANITIZER_LINUX

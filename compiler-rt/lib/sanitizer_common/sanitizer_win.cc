@@ -222,6 +222,12 @@ void *MmapFixedNoReserve(uptr fixed_addr, uptr size, const char *name) {
   return p;
 }
 
+void *MmapFixedNoReserveAllowOverwrite(uptr fixed_addr, uptr size,
+                                       const char *name) {
+  // FIXME: This should actually allow overwriting existing memory.
+  return MmapFixedNoReserve(fixed_addr, size, name);
+}
+
 // Memory space mapped by 'MmapFixedOrDie' must have been reserved by
 // 'MmapFixedNoAccess'.
 void *MmapFixedOrDie(uptr fixed_addr, uptr size) {
@@ -262,6 +268,12 @@ void *MmapFixedNoAccess(uptr fixed_addr, uptr size, const char *name) {
            "mprotect %p (%zd) bytes at %p (error code: %d)\n",
            SanitizerToolName, size, size, fixed_addr, GetLastError());
   return res;
+}
+
+void *MmapFixedNoAccessAllowOverwrite(uptr fixed_addr, uptr size,
+                                      const char *name) {
+  // FIXME: This should actually allow overwriting existing memory.
+  return MmapFixedNoAccess(fixed_addr, size, name);
 }
 
 void *MmapNoAccess(uptr size) {

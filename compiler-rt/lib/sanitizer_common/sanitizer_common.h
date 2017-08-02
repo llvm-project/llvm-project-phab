@@ -88,14 +88,26 @@ void UnmapOrDie(void *addr, uptr size);
 // Behaves just like MmapOrDie, but tolerates out of memory condition, in that
 // case returns nullptr.
 void *MmapOrDieOnFatalError(uptr size, const char *mem_type);
+// Maps the specified memory region with "NORESERVE". Fails if any part of the
+// memory region is already used. On success returns 'fixed_addr'.
 void *MmapFixedNoReserve(uptr fixed_addr, uptr size,
+                         const char *name = nullptr);
+// Same as MmapFixedNoReserve, but doesn't fail when the memory region or a part
+// of it is already used, instead overwrites any existing mapping.
+void *MmapFixedNoReserveAllowOverwrite(uptr fixed_addr, uptr size,
                          const char *name = nullptr);
 void *MmapNoReserveOrDie(uptr size, const char *mem_type);
 void *MmapFixedOrDie(uptr fixed_addr, uptr size);
 // Behaves just like MmapFixedOrDie, but tolerates out of memory condition, in
 // that case returns nullptr.
 void *MmapFixedOrDieOnFatalError(uptr fixed_addr, uptr size);
+// Maps the specified memory region and disallows any access to it. Fails if any
+// part of the memory region is already used. On success returns 'fixed_addr'.
 void *MmapFixedNoAccess(uptr fixed_addr, uptr size, const char *name = nullptr);
+// Same as MmapFixedNoAccess, but doesn't fail when the memory region or a part
+// of it is already used, instead overwrites any existing mapping.
+void *MmapFixedNoAccessAllowOverwrite(uptr fixed_addr, uptr size,
+                                      const char *name = nullptr);
 void *MmapNoAccess(uptr size);
 // Map aligned chunk of address space; size and alignment are powers of two.
 // Dies on all but out of memory errors, in the latter case returns nullptr.

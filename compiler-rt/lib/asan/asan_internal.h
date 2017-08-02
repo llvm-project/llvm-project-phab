@@ -106,8 +106,6 @@ void AppendToErrorMessageBuffer(const char *buffer);
 
 void *AsanDlSymNext(const char *sym);
 
-void ReserveShadowMemoryRange(uptr beg, uptr end, const char *name);
-
 // Add convenient macro for interface functions that may be represented as
 // weak hooks.
 #define ASAN_MALLOC_HOOK(ptr, size)                                   \
