@@ -38,8 +38,15 @@ class X {
       return "foo";
     return 0;
   }
-  // CHECK: Delete AccessSpecDecl: public
   X(){};
-  // CHECK: Delete CXXMethodDecl
 };
 }
+
+namespace {
+// match with parents of different type
+// CHECK: Match FunctionDecl: f1{{.*}} to FunctionDecl: f1
+void f1() {{ (void) __func__;;; }}
+}
+
+// CHECK: Delete AccessSpecDecl: public
+// CHECK: Delete CXXMethodDecl

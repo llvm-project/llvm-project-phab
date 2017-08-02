@@ -26,3 +26,5 @@ public:
   int id(int i) { return i; }
 };
 }
+
+void f1() {{ (void) __func__;;; }}
