@@ -37,13 +37,28 @@ namespace llvm {
 
 class MemoryBuffer;
 
+namespace windows_manifest {
+
 #if LLVM_LIBXML2_ENABLED
 typedef xmlDocPtr XMLDocumentImpl;
 typedef xmlNodePtr XMLNodeImpl;
+typedef xmlNsPtr XMLNsImpl;
+typedef xmlAttrPtr XMLAttrImpl;
 #else
 typedef void *XMLDocumentImpl;
 typedef void *XMLNodeImpl;
+typedef void *XMLNsImpl;
+typedef void *XMLAttrImpl;
 #endif
+
+static const std::vector<std::pair<std::string, std::string>>
+    MtNsHrefsPrefixes = {
+        {"urn:schemas-microsoft-com:asm.v1", "ms_asmv1"},
+        {"urn:schemas-microsoft-com:asm.v2", "ms_asmv2"},
+        {"urn:schemas-microsoft-com:asm.v3", "ms_asmv3"},
+        {"http://schemas.microsoft.com/SMI/2005/WindowsSettings",
+         "ms_windowsSettings"},
+        {"urn:schemas-microsoft-com:compatibility.v1", "ms_compatibilityv1"}};
 
 class WindowsManifestError : public ErrorInfo<WindowsManifestError, ECError> {
 public:
@@ -76,5 +91,6 @@ private:
   bool ParseErrorOccurred = false;
 };
 
+} // namespace windows_manifest
 } // namespace llvm
 #endif
