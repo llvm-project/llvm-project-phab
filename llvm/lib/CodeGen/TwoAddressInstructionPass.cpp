@@ -1586,7 +1586,8 @@ TwoAddressInstructionPass::processTiedPairs(MachineInstr *MI,
             RemovedKillFlag = true;
           }
           MO.setReg(LastCopiedReg);
-          MO.setSubReg(MO.getSubReg());
+          if (SubRegB)
+            MO.setSubReg(0);
         }
       }
     }
