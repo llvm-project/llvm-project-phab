@@ -102,6 +102,25 @@ int main(int argc, const char **argv) {
   ArrayRef<const char *> ArgsArr = makeArrayRef(argv + 1, argc);
   opt::InputArgList InputArgs = T.ParseArgs(ArgsArr, MAI, MAC);
 
+  if (MAC) {
+    outs() << "invalid\n";
+  }
+
+  // for (auto &Arg : InputArgs) {
+  //   outs() << "checking valid\n";
+  //   outs() << Arg->getOption().getID() << "\n";
+  //   if (!Arg->getOption().isValid()) {
+  //     reportError(Twine("invalid option ") + Arg->getOption().getName());
+  //   }
+  // }
+
+  for (auto &Arg : InputArgs) {
+    if (!(Arg->getOption().matches(OPT_unsupported) ||
+          Arg->getOption().matches(OPT_supported))) {
+      reportError(Twine("invalid option ") + Arg->getSpelling());
+    }
+  }
+
   for (auto &Arg : InputArgs) {
     if (Arg->getOption().matches(OPT_unsupported)) {
       outs() << "llvm-mt: ignoring unsupported '" << Arg->getOption().getName()
@@ -116,6 +135,95 @@ int main(int argc, const char **argv) {
 
   std::vector<std::string> InputFiles = InputArgs.getAllArgValues(OPT_manifest);
 
+  // for (int i = 0; i < 2; i++) {
+  //   switch (i) {
+  //   case 0:
+  //     outs() << "If additional dominant\n";
+  //     break;
+  //   case 1:
+  //     outs() << "Else\n";
+  //     break;
+  //   }
+  //   for (int j = 0; j < 2; j++) {
+  //     outs() << "\t";
+  //     switch (j) {
+  //     case 0:
+  //       outs() << "If dominant defines default\n";
+  //       break;
+  //     case 1:
+  //       outs() << "Else\n";
+  //       break;
+  //     }
+  //     for (int k = 0; k < 2; k++) {
+  //       outs() << "\t\t";
+  //       switch (k) {
+  //       case 0:
+  //         outs() << "If dominant defines prefix\n";
+  //         break;
+  //       case 1:
+  //         outs() << "Else\n";
+  //         break;
+  //       }
+  //       for (int l = 0; l < 4; l++) {
+  //         outs() << "\t\t\t";
+  //         switch (l) {
+  //         case 0:
+  //           outs() << "If dominant namespace is inherited default\n";
+  //           break;
+  //         case 1:
+  //           outs() << "If dominant namespace is inherited prefix\n";
+  //           break;
+  //         case 2:
+  //           outs() << "If dominant namespace is defined default\n";
+  //           break;
+  //         case 3:
+  //           outs() << "If dominant namespace is defined prefix\n";
+  //           break;
+  //         }
+  //         for (int m = 0; m < 2; m++) {
+  //           outs() << "\t\t\t\t";
+  //           switch (m) {
+  //           case 0:
+  //             outs() << "If nondominant defines default\n";
+  //             break;
+  //           case 1:
+  //             outs() << "Else\n";
+  //             break;
+  //           }
+  //           for (int n = 0; n < 2; n++) {
+  //             outs() << "\t\t\t\t\t";
+  //             switch (n) {
+  //             case 0:
+  //               outs() << "If nondominant defines prefix\n";
+  //               break;
+  //             case 1:
+  //               outs() << "Else\n";
+  //               break;
+  //             }
+  //             for (int o = 0; o < 4; o++) {
+  //               outs() << "\t\t\t\t\t\t";
+  //               switch (o) {
+  //               case 0:
+  //                 outs() << "If nondominant namespace is inherited
+  //                 default\n"; break;
+  //               case 1:
+  //                 outs() << "If nondominant namespace is inherited prefix\n";
+  //                 break;
+  //               case 2:
+  //                 outs() << "If nondominant namespace is defined default\n";
+  //                 break;
+  //               case 3:
+  //                 outs() << "If nondominant namespace is defined prefix\n";
+  //                 break;
+  //               }
+  //             }
+  //           }
+  //         }
+  //       }
+  //     }
+  //   }
+  // }
+
   if (InputFiles.size() == 0) {
     reportError("no input file specified");
   }
@@ -129,7 +237,7 @@ int main(int argc, const char **argv) {
     reportError("no output file specified");
   }
 
-  WindowsManifestMerger Merger;
+  windows_manifest::WindowsManifestMerger Merger;
 
   for (const auto &File : InputFiles) {
     ErrorOr<std::unique_ptr<MemoryBuffer>> ManifestOrErr =
