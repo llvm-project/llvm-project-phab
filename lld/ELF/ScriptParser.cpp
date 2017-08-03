@@ -282,8 +282,13 @@ void ScriptParser::readAsNeeded() {
   expect("(");
   bool Orig = Config->AsNeeded;
   Config->AsNeeded = true;
-  while (!Error && !consume(")"))
-    addFile(unquote(next()));
+  while (!ErrorCount && !consume(")")) {
+    StringRef File = unquote(next());
+    addFile(File);
+    if (ErrorCount)
+      setError("unable to find " + File);
+  }
+
   Config->AsNeeded = Orig;
 }
 
@@ -304,11 +309,16 @@ void ScriptParser::readExtern() {
 
 void ScriptParser::readGroup() {
   expect("(");
-  while (!Error && !consume(")")) {
-    if (consume("AS_NEEDED"))
+  while (!Error && !consume(")") && !ErrorCount) {
+    if (consume("AS_NEEDED")) {
       readAsNeeded();
-    else
-      addFile(unquote(next()));
+      continue;
+    }
+
+    StringRef File = unquote(next());
+    addFile(File);
+    if (ErrorCount)
+      setError("unable to find " + File);
   }
 }
 
