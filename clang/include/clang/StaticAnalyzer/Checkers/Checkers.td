@@ -293,6 +293,10 @@ def MisusedMovedObjectChecker: Checker<"MisusedMovedObject">,
               "object will be reported">,
      DescFile<"MisusedMovedObjectChecker.cpp">;
 
+def EnumCastOutOfRangeChecker : Checker<"EnumCastOutOfRange">,
+  HelpText<"Check integer to enumeration casts for out of range values">,
+  DescFile<"EnumCastOutOfRange.cpp">;
+
 } // end: "alpha.cplusplus"
 
 
