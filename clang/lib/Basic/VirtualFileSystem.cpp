@@ -189,18 +189,40 @@ namespace {
 /// \brief The file system according to your operating system.
 class RealFileSystem : public FileSystem {
 public:
+  RealFileSystem();
+  ~RealFileSystem();
+
   ErrorOr<Status> status(const Twine &Path) override;
   ErrorOr<std::unique_ptr<File>> openFileForRead(const Twine &Path) override;
   directory_iterator dir_begin(const Twine &Dir, std::error_code &EC) override;
 
   llvm::ErrorOr<std::string> getCurrentWorkingDirectory() const override;
   std::error_code setCurrentWorkingDirectory(const Twine &Path) override;
+
+private:
+  std::string WorkingDir;
+  int WorkingDirFD;
 };
 } // end anonymous namespace
 
+RealFileSystem::RealFileSystem() {
+  SmallString<128> CWD;
+
+  auto Err = llvm::sys::fs::openDirectoryForAt(".", /*ref*/WorkingDirFD, &CWD);
+  // TODO: handle errors gracefully.
+  assert(!Err && "couldn't open CWD'");
+
+  WorkingDir = CWD.str();
+}
+
+RealFileSystem::~RealFileSystem() {
+  sys::Process::SafelyCloseFileDescriptor(WorkingDirFD);
+}
+
 ErrorOr<Status> RealFileSystem::status(const Twine &Path) {
   sys::fs::file_status RealStatus;
-  if (std::error_code EC = sys::fs::status(Path, RealStatus))
+  // TODO: handle errors gracefully.
+  if (std::error_code EC = sys::fs::status_at(WorkingDirFD, Path, RealStatus))
     return EC;
   return Status::copyWithNewName(RealStatus, Path.str());
 }
@@ -209,27 +231,30 @@ ErrorOr<std::unique_ptr<File>>
 RealFileSystem::openFileForRead(const Twine &Name) {
   int FD;
   SmallString<256> RealName;
-  if (std::error_code EC = sys::fs::openFileForRead(Name, FD, &RealName))
+  // TODO: handle errors gracefully.
+  if (std::error_code EC = sys::fs::openFileForRead(WorkingDirFD, Name, FD, &RealName))
     return EC;
   return std::unique_ptr<File>(new RealFile(FD, Name.str(), RealName.str()));
 }
 
 llvm::ErrorOr<std::string> RealFileSystem::getCurrentWorkingDirectory() const {
-  SmallString<256> Dir;
-  if (std::error_code EC = llvm::sys::fs::current_path(Dir))
-    return EC;
-  return Dir.str().str();
+  // TODO: Handle errors.
+  return WorkingDir;
+  // SmallString<256> Dir;
+  // if (std::error_code EC = llvm::sys::fs::current_path(Dir))
+  //   return EC;
+  // return Dir.str().str();
 }
 
 std::error_code RealFileSystem::setCurrentWorkingDirectory(const Twine &Path) {
-  // FIXME: chdir is thread hostile; on the other hand, creating the same
-  // behavior as chdir is complex: chdir resolves the path once, thus
-  // guaranteeing that all subsequent relative path operations work
-  // on the same path the original chdir resulted in. This makes a
-  // difference for example on network filesystems, where symlinks might be
-  // switched during runtime of the tool. Fixing this depends on having a
-  // file system abstraction that allows openat() style interactions.
-  return llvm::sys::fs::set_current_path(Path);
+  SmallString<128> CWD;
+  auto Err = llvm::sys::fs::openFileForRead(Path, /*ref*/WorkingDirFD, &CWD);
+  if (Err)
+    return Err;
+
+  // TODO: handle errors
+  WorkingDir = CWD.str();
+  return std::error_code();
 }
 
 IntrusiveRefCntPtr<FileSystem> vfs::getRealFileSystem() {
@@ -237,11 +262,15 @@ IntrusiveRefCntPtr<FileSystem> vfs::getRealFileSystem() {
   return FS;
 }
 
+IntrusiveRefCntPtr<FileSystem> vfs::createThreadFriendlyRealFS() {
+  return new RealFileSystem();
+}
+
 namespace {
 class RealFSDirIter : public clang::vfs::detail::DirIterImpl {
   llvm::sys::fs::directory_iterator Iter;
 public:
-  RealFSDirIter(const Twine &Path, std::error_code &EC) : Iter(Path, EC) {
+  RealFSDirIter(int WorkingDirFD, const Twine &Path, std::error_code &EC) : Iter(WorkingDirFD, Path, EC) {
     if (!EC && Iter != llvm::sys::fs::directory_iterator()) {
       llvm::sys::fs::file_status S;
       EC = Iter->status(S);
@@ -268,7 +297,7 @@ public:
 
 directory_iterator RealFileSystem::dir_begin(const Twine &Dir,
                                              std::error_code &EC) {
-  return directory_iterator(std::make_shared<RealFSDirIter>(Dir, EC));
+  return directory_iterator(std::make_shared<RealFSDirIter>(WorkingDirFD, Dir, EC));
 }
 
 //===-----------------------------------------------------------------------===/

@@ -265,6 +265,15 @@ public:
 /// the operating system.
 IntrusiveRefCntPtr<FileSystem> getRealFileSystem();
 
+/// \brief Creates a \p vfs::FileSystem for the 'real' file system that does not
+/// change to global state of the program on calls to
+/// setCurrentWorkingDirectory(). Internally it has to do more paths
+/// manipulations than the vfs::FileSystem returned by getRealFileSystem(). Note
+/// that returned instance of vfs::FileSystem is not thread-safe.
+/// Thread-friendly refers to the fact that it does not use global
+/// WorkingDirectory.
+IntrusiveRefCntPtr<FileSystem> createThreadFriendlyRealFS();
+
 /// \brief A file system that allows overlaying one \p AbstractFileSystem on top
 /// of another.
 ///
