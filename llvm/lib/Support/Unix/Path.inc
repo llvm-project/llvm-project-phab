@@ -574,6 +574,16 @@ std::error_code status(const Twine &Path, file_status &Result, bool Follow) {
   return fillStatus(StatRet, Status, Result);
 }
 
+std::error_code status_at(int DirFD, const Twine &Path, file_status &Result, bool Follow) {
+  SmallString<128> PathStorage;
+  StringRef P = Path.toNullTerminatedStringRef(PathStorage);
+
+  struct stat Status;
+  int StatRet = ::fstatat(DirFD, P.begin(), &Status, Follow ? 0 : AT_SYMLINK_NOFOLLOW);
+  return fillStatus(StatRet, Status, Result);
+}
+
+
 std::error_code status(int FD, file_status &Result) {
   struct stat Status;
   int StatRet = ::fstat(FD, &Status);
@@ -679,11 +689,26 @@ int mapped_file_region::alignment() {
   return Process::getPageSize();
 }
 
+std::error_code detail::open_path_fd(llvm::Optional<int> cwd_fd, const Twine& Name, int& result_fd) {
+}
+
 std::error_code detail::directory_iterator_construct(detail::DirIterState &it,
+                                                     llvm::Optional<int> cwd_fd,
                                                      StringRef path,
                                                      bool follow_symlinks) {
   SmallString<128> path_null(path);
-  DIR *directory = ::opendir(path_null.c_str());
+  int directory_fd;
+  if (cwd_fd) {
+    // TODO: O_CLOEXEC?
+    directory_fd = ::openat(*cwd_fd, path_null.c_str(), O_RDONLY);
+  } else {
+    // TODO: O_CLOEXEC?
+    directory_fd = ::open(path_null.c_str(), O_RDONLY);
+  }
+  if (directory_fd == -1)
+    return std::error_code(errno, std::generic_category());
+
+  DIR *directory = ::fdopendir(directory_fd);
   if (!directory)
     return std::error_code(errno, std::generic_category());
 
@@ -728,7 +753,7 @@ static bool hasProcSelfFD() {
 }
 #endif
 
-std::error_code openFileForRead(const Twine &Name, int &ResultFD,
+static std::error_code openFileForReadImpl(llvm::Optional<int> DirFD, const Twine &Name, int &ResultFD,
                                 SmallVectorImpl<char> *RealPath) {
   SmallString<128> Storage;
   StringRef P = Name.toNullTerminatedStringRef(Storage);
@@ -736,8 +761,15 @@ std::error_code openFileForRead(const Twine &Name, int &ResultFD,
 #ifdef O_CLOEXEC
   OpenFlags |= O_CLOEXEC;
 #endif
-  if ((ResultFD = sys::RetryAfterSignal(-1, open, P.begin(), OpenFlags)) < 0)
+  if (!DirFD) {
+    // Use 'open'.
+    if ((ResultFD = sys::RetryAfterSignal(-1, open, P.begin(), OpenFlags)) < 0)
+      return std::error_code(errno, std::generic_category());
+  } else {
+    // Use 'openat'.
+     if ((ResultFD = sys::RetryAfterSignal(-1, openat, *DirFD, P.begin(), OpenFlags)) < 0)
     return std::error_code(errno, std::generic_category());
+  }
 #ifndef O_CLOEXEC
   int r = fcntl(ResultFD, F_SETFD, FD_CLOEXEC);
   (void)r;
@@ -762,12 +794,29 @@ std::error_code openFileForRead(const Twine &Name, int &ResultFD,
     if (CharCount > 0)
       RealPath->append(Buffer, Buffer + CharCount);
   } else {
+    if (DirFD)
+      return std::error_code(); // there's no equivalent of ::realpath that has a file descriptor.
     // Use ::realpath to get the real path name
     if (::realpath(P.begin(), Buffer) != nullptr)
       RealPath->append(Buffer, Buffer + strlen(Buffer));
   }
 #endif
   return std::error_code();
+}
+
+std::error_code openDirectoryForAt(const Twine &Name, int &ResultFD, SmallVectorImpl<char> *RealPath) {
+  // TODO: might use O_PATH flag here
+  return openFileForRead(Name, ResultFD, RealPath);
+}
+
+std::error_code openFileForRead(const Twine &Name, int &ResultFD,
+                                SmallVectorImpl<char> *RealPath) {
+  return openFileForReadImpl(llvm::None, Name, ResultFD, RealPath);
+}
+
+std::error_code openFileForRead(int DirFD, const Twine &Name, int &ResultFD,
+                                SmallVectorImpl<char> *RealPath) {
+  return openFileForReadImpl(DirFD, Name, ResultFD, RealPath);
 }
 
 std::error_code openFileForWrite(const Twine &Name, int &ResultFD,

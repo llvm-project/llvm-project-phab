@@ -577,6 +577,19 @@ std::error_code is_other(const Twine &path, bool &result);
 std::error_code status(const Twine &path, file_status &result,
                        bool follow = true);
 
+/// @brief Get file status as if by POSIX fstatat().
+///
+/// @param DirFD File descriptor of the working directory.
+/// @param path Input path.
+/// @param result Set to the file status.
+/// @param follow When true, follows symlinks.  Otherwise, the symlink itself is
+///               statted.
+/// @returns errc::success if result has been successfully set, otherwise a
+///          platform-specific error_code.
+std::error_code status_at(int DirFD, const Twine &path, file_status &result,
+                       bool follow = true);
+
+
 /// @brief A version for when a file descriptor is already available.
 std::error_code status(int FD, file_status &Result);
 
@@ -726,6 +739,9 @@ std::error_code openFileForWrite(const Twine &Name, int &ResultFD,
 std::error_code openFileForRead(const Twine &Name, int &ResultFD,
                                 SmallVectorImpl<char> *RealPath = nullptr);
 
+std::error_code openFileForRead(int DirFD, const Twine &Name, int &ResultFD,
+                                SmallVectorImpl<char> *RealPath = nullptr);
+
 std::error_code getUniqueID(const Twine Path, UniqueID &Result);
 
 /// @brief Get disk space usage information.
@@ -793,6 +809,7 @@ std::string getMainExecutable(const char *argv0, void *MainExecAddr);
 /// from the result of the iteration syscall, or the first time status is
 /// called.
 class directory_entry {
+  llvm::Optional<int> CWDFD;
   std::string Path;
   bool FollowSymlinks;
   mutable file_status Status;
@@ -800,7 +817,11 @@ class directory_entry {
 public:
   explicit directory_entry(const Twine &path, bool follow_symlinks = true,
                            file_status st = file_status())
-      : Path(path.str()), FollowSymlinks(follow_symlinks), Status(st) {}
+                           : directory_entry(llvm::None, path, follow_symlinks, st) {}
+
+  explicit directory_entry(llvm::Optional<int> CWDFD, const Twine &path, bool follow_symlinks = true,
+                           file_status st = file_status())
+      : CWDFD(CWDFD), Path(path.str()), FollowSymlinks(follow_symlinks), Status(st) {}
 
   directory_entry() = default;
 
@@ -810,6 +831,8 @@ public:
   }
 
   void replace_filename(const Twine &filename, file_status st = file_status());
+
+  llvm::Optional<int> cwd_fd() const { return CWDFD; }
 
   const std::string &path() const { return Path; }
   std::error_code status(file_status &result) const;
@@ -823,10 +846,11 @@ public:
 };
 
 namespace detail {
+  std::error_code open_path_fd(llvm::Optional<int> cwd_fd, const Twine& Name, int& result_fd)
 
   struct DirIterState;
 
-  std::error_code directory_iterator_construct(DirIterState &, StringRef, bool);
+  std::error_code directory_iterator_construct(DirIterState &, llvm::Optional<int>, StringRef, bool);
   std::error_code directory_iterator_increment(DirIterState &);
   std::error_code directory_iterator_destruct(DirIterState &);
 
@@ -850,13 +874,22 @@ class directory_iterator {
   bool FollowSymlinks = true;
 
 public:
+  explicit directory_iterator(int CWDFD, const Twine &path, std::error_code &ec,
+                              bool follow_symlinks = true)
+      : FollowSymlinks(follow_symlinks) {
+    State = std::make_shared<detail::DirIterState>();
+    SmallString<128> path_storage;
+    ec = detail::directory_iterator_construct(
+        *State, CWDFD, path.toStringRef(path_storage), FollowSymlinks);
+  }
+
   explicit directory_iterator(const Twine &path, std::error_code &ec,
                               bool follow_symlinks = true)
       : FollowSymlinks(follow_symlinks) {
     State = std::make_shared<detail::DirIterState>();
     SmallString<128> path_storage;
     ec = detail::directory_iterator_construct(
-        *State, path.toStringRef(path_storage), FollowSymlinks);
+        *State, llvm::None, path.toStringRef(path_storage), FollowSymlinks);
   }
 
   explicit directory_iterator(const directory_entry &de, std::error_code &ec,
@@ -864,7 +897,7 @@ public:
       : FollowSymlinks(follow_symlinks) {
     State = std::make_shared<detail::DirIterState>();
     ec =
-        detail::directory_iterator_construct(*State, de.path(), FollowSymlinks);
+        detail::directory_iterator_construct(*State, de.cwd_fd(), de.path(), FollowSymlinks);
   }
 
   /// Construct end iterator.
