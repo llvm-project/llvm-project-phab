@@ -7,6 +7,7 @@ add_clang_library(clangTidyMiscModule
   MisplacedConstCheck.cpp
   UnconventionalAssignOperatorCheck.cpp
   BoolPointerImplicitConversionCheck.cpp
+  CopyConstructorInitCheck.cpp
   DanglingHandleCheck.cpp
   DefinitionsInHeadersCheck.cpp
   FoldInitTypeCheck.cpp

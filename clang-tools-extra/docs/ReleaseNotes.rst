@@ -71,7 +71,12 @@ Improvements to clang-tidy
   <http://clang.llvm.org/extra/clang-tidy/checks/cppcoreguidelines-no-malloc.html>`_ check
 
   Allow custom memory management functions to be considered as well.
-  
+
+- New `misc-copy-constructor-init
+  <http://clang.llvm.org/extra/clang-tidy/checks/misc-copy-constructor-init.html>`_ check
+
+  Finds copy constructors which don't call the constructor of the base class.
+
 - New `misc-forwarding-reference-overload
   <http://clang.llvm.org/extra/clang-tidy/checks/misc-forwarding-reference-overload.html>`_ check
 
