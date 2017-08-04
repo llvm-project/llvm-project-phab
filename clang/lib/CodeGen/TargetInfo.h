@@ -260,6 +260,10 @@ public:
   virtual llvm::Constant *
   performAddrSpaceCast(CodeGenModule &CGM, llvm::Constant *V, unsigned SrcAddr,
                        unsigned DestAddr, llvm::Type *DestTy) const;
+
+  /// Whether the target support optimized read_pipe and write_pipe builtin
+  /// functions when type size and alignment is power of 2.
+  virtual bool hasOptimizedOpenCLPipeBuiltin() const { return false; }
 };
 
 } // namespace CodeGen

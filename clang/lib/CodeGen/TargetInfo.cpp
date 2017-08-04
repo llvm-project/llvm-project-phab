@@ -7430,6 +7430,7 @@ public:
   }
   unsigned getGlobalVarAddressSpace(CodeGenModule &CGM,
                                     const VarDecl *D) const override;
+  bool hasOptimizedOpenCLPipeBuiltin() const override { return true; }
 };
 }
 

@@ -2392,46 +2392,95 @@ RValue CodeGenFunction::EmitBuiltinExpr(const FunctionDecl *FD,
     CGOpenCLRuntime OpenCLRT(CGM);
     Value *PacketSize = OpenCLRT.getPipeElemSize(E->getArg(0));
     Value *PacketAlign = OpenCLRT.getPipeElemAlign(E->getArg(0));
+    unsigned Size = cast<llvm::ConstantInt>(PacketSize)->getZExtValue();
+    unsigned Align = cast<llvm::ConstantInt>(PacketAlign)->getZExtValue();
+    bool Opt = Size == Align && isPowerOf2_32(Size) &&
+               getTargetHooks().hasOptimizedOpenCLPipeBuiltin();
 
     // Type of the generic packet parameter.
     unsigned GenericAS =
         getContext().getTargetAddressSpace(LangAS::opencl_generic);
-    llvm::Type *I8PTy = llvm::PointerType::get(
-        llvm::Type::getInt8Ty(getLLVMContext()), GenericAS);
+    llvm::Type *PtrElemTy;
+    if (!Opt)
+      PtrElemTy = llvm::Type::getInt8Ty(getLLVMContext());
+    else if (Size <= 8)
+      PtrElemTy = llvm::Type::getIntNTy(getLLVMContext(), Size * 8);
+    else
+      PtrElemTy = llvm::VectorType::get(
+          llvm::Type::getInt64Ty(getLLVMContext()), Size / 8);
+    llvm::Type *PtrTy = llvm::PointerType::get(PtrElemTy, GenericAS);
 
     // Testing which overloaded version we should generate the call for.
     if (2U == E->getNumArgs()) {
-      const char *Name = (BuiltinID == Builtin::BIread_pipe) ? "__read_pipe_2"
+      std::string Name = (BuiltinID == Builtin::BIread_pipe) ? "__read_pipe_2"
                                                              : "__write_pipe_2";
+      llvm::SmallVector<llvm::Type *, 4> ArgTys;
+      ArgTys.push_back(Arg0->getType());
+      ArgTys.push_back(PtrTy);
+
+      if (Opt) {
+        Name = Name + "_" + std::to_string(Size);
+      } else {
+        ArgTys.push_back(Int32Ty);
+        ArgTys.push_back(Int32Ty);
+      }
+
       // Creating a generic function type to be able to call with any builtin or
       // user defined type.
-      llvm::Type *ArgTys[] = {Arg0->getType(), I8PTy, Int32Ty, Int32Ty};
       llvm::FunctionType *FTy = llvm::FunctionType::get(
           Int32Ty, llvm::ArrayRef<llvm::Type *>(ArgTys), false);
-      Value *BCast = Builder.CreatePointerCast(Arg1, I8PTy);
+      Value *BCast = Builder.CreatePointerCast(Arg1, PtrTy);
+
+      llvm::SmallVector<llvm::Value *, 4> Args;
+      Args.push_back(Arg0);
+      Args.push_back(BCast);
+      if (!Opt) {
+        Args.push_back(PacketSize);
+        Args.push_back(PacketAlign);
+      }
+
       return RValue::get(
-          Builder.CreateCall(CGM.CreateRuntimeFunction(FTy, Name),
-                             {Arg0, BCast, PacketSize, PacketAlign}));
+          Builder.CreateCall(CGM.CreateRuntimeFunction(FTy, Name), Args));
     } else {
       assert(4 == E->getNumArgs() &&
              "Illegal number of parameters to pipe function");
-      const char *Name = (BuiltinID == Builtin::BIread_pipe) ? "__read_pipe_4"
+      std::string Name = (BuiltinID == Builtin::BIread_pipe) ? "__read_pipe_4"
                                                              : "__write_pipe_4";
+      llvm::SmallVector<llvm::Type *, 6> ArgTys;
+      ArgTys.push_back(Arg0->getType());
+      ArgTys.push_back(Arg1->getType());
+      ArgTys.push_back(Int32Ty);
+      ArgTys.push_back(PtrTy);
 
-      llvm::Type *ArgTys[] = {Arg0->getType(), Arg1->getType(), Int32Ty, I8PTy,
-                              Int32Ty, Int32Ty};
+      if (Opt) {
+        Name = Name + "_" + std::to_string(Size);
+      } else {
+        ArgTys.push_back(Int32Ty);
+        ArgTys.push_back(Int32Ty);
+      }
+
       Value *Arg2 = EmitScalarExpr(E->getArg(2)),
             *Arg3 = EmitScalarExpr(E->getArg(3));
       llvm::FunctionType *FTy = llvm::FunctionType::get(
           Int32Ty, llvm::ArrayRef<llvm::Type *>(ArgTys), false);
-      Value *BCast = Builder.CreatePointerCast(Arg3, I8PTy);
+      Value *BCast = Builder.CreatePointerCast(Arg3, PtrTy);
       // We know the third argument is an integer type, but we may need to cast
       // it to i32.
       if (Arg2->getType() != Int32Ty)
         Arg2 = Builder.CreateZExtOrTrunc(Arg2, Int32Ty);
-      return RValue::get(Builder.CreateCall(
-          CGM.CreateRuntimeFunction(FTy, Name),
-          {Arg0, Arg1, Arg2, BCast, PacketSize, PacketAlign}));
+
+      llvm::SmallVector<llvm::Value *, 6> Args;
+      Args.push_back(Arg0);
+      Args.push_back(Arg1);
+      Args.push_back(Arg2);
+      Args.push_back(BCast);
+      if (!Opt) {
+        Args.push_back(PacketSize);
+        Args.push_back(PacketAlign);
+      }
+
+      return RValue::get(
+          Builder.CreateCall(CGM.CreateRuntimeFunction(FTy, Name), Args));
     }
   }
   // OpenCL v2.0 s6.13.16 ,s9.17.3.5 - Built-in pipe reserve read and write
