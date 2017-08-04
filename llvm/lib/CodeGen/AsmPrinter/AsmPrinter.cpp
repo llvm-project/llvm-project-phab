@@ -1837,6 +1837,11 @@ void AsmPrinter::EmitLabelDifference(const MCSymbol *Hi, const MCSymbol *Lo,
   OutStreamer->emitAbsoluteSymbolDiff(Hi, Lo, Size);
 }
 
+void AsmPrinter::EmitULEB128LabelDifference(const MCSymbol *Hi,
+                                            const MCSymbol *Lo) const {
+  OutStreamer->emitULEB128AbsoluteSymbolDiff(Hi, Lo);
+}
+
 /// EmitLabelPlusOffset - Emit something like ".long Label+Offset"
 /// where the size in bytes of the directive is specified by Size and Label
 /// specifies the label.  This implicitly uses .set if it is available.

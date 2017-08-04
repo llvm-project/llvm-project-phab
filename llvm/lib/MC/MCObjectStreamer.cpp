@@ -56,6 +56,18 @@ void MCObjectStreamer::flushPendingLabels(MCFragment *F, uint64_t FOffset) {
   PendingLabels.clear();
 }
 
+void MCObjectStreamer::emitULEB128AbsoluteSymbolDiff(const MCSymbol *Hi,
+                                                     const MCSymbol *Lo) {
+  // If not assigned to the same (valid) fragment, fallback.
+  if (!Hi->getFragment() || Hi->getFragment() != Lo->getFragment() ||
+      Hi->isVariable() || Lo->isVariable()) {
+    MCStreamer::emitULEB128AbsoluteSymbolDiff(Hi, Lo);
+    return;
+  }
+
+  EmitULEB128IntValue(Hi->getOffset() - Lo->getOffset());
+}
+
 void MCObjectStreamer::emitAbsoluteSymbolDiff(const MCSymbol *Hi,
                                               const MCSymbol *Lo,
                                               unsigned Size) {

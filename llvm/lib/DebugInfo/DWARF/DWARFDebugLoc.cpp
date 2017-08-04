@@ -82,16 +82,23 @@ void DWARFDebugLocDWO::parse(DataExtractor data) {
     while ((Kind = static_cast<dwarf::LocationListEntry>(
                 data.getU8(&Offset))) != dwarf::DW_LLE_end_of_list) {
 
-      if (Kind != dwarf::DW_LLE_startx_length) {
+      if (Kind != dwarf::DW_LLE_startx_length &&
+          Kind != dwarf::DW_LLE_offset_pair &&
+          Kind != dwarf::DW_LLE_base_addressx) {
         errs() << "error: dumping support for LLE of kind " << (int)Kind
                << " not implemented\n";
         return;
       }
 
-      Entry E;
+      Loc.Entries.emplace_back();
+      Entry &E = Loc.Entries.back();
 
-      E.Start = data.getULEB128(&Offset);
-      E.Length = data.getU32(&Offset);
+      E.Kind = Kind;
+      E.First = data.getULEB128(&Offset);
+      if (Kind == dwarf::DW_LLE_base_addressx)
+        continue;
+      E.Second = Kind == dwarf::DW_LLE_offset_pair ? data.getULEB128(&Offset)
+                                                   : data.getU32(&Offset);
 
       unsigned Bytes = data.getU16(&Offset);
       // A single location description describing the location of the object...
@@ -99,8 +106,6 @@ void DWARFDebugLocDWO::parse(DataExtractor data) {
       Offset += Bytes;
       E.Loc.resize(str.size());
       std::copy(str.begin(), str.end(), E.Loc.begin());
-
-      Loc.Entries.push_back(std::move(E));
     }
   }
 }
@@ -112,9 +117,18 @@ void DWARFDebugLocDWO::dump(raw_ostream &OS) const {
     for (const Entry &E : L.Entries) {
       if (&E != L.Entries.begin())
         OS.indent(Indent);
-      OS << "Beginning address index: " << E.Start << '\n';
-      OS.indent(Indent) << "                 Length: " << E.Length << '\n';
-      OS.indent(Indent) << "   Location description: ";
+      if (E.Kind == dwarf::DW_LLE_base_addressx) {
+        OS << "     Base address index: " << E.First << "\n\n";
+        continue;
+      }
+      OS << (E.Kind == dwarf::DW_LLE_offset_pair ? "       Starting offset: "
+                                                 : "Starting address index: ")
+         << E.First << '\n';
+      OS.indent(Indent) << (E.Kind == dwarf::DW_LLE_offset_pair
+                                ? "         Ending offset: "
+                                : "                Length: ")
+                        << E.Second << '\n';
+      OS.indent(Indent) << "  Location description: ";
       for (unsigned char Loc : E.Loc)
         OS << format("%2.2x ", Loc);
       OS << "\n\n";

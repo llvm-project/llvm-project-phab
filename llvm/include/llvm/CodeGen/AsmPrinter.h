@@ -460,6 +460,8 @@ public:
   void EmitLabelDifference(const MCSymbol *Hi, const MCSymbol *Lo,
                            unsigned Size) const;
 
+  void EmitULEB128LabelDifference(const MCSymbol *Hi, const MCSymbol *Lo) const;
+
   /// Emit something like ".long Label+Offset" where the size in bytes of the
   /// directive is specified by Size and Label specifies the label.  This
   /// implicitly uses .set if it is available.

@@ -167,6 +167,8 @@ public:
   /// \pre Offset of \c Hi is greater than the offset \c Lo.
   void emitAbsoluteSymbolDiff(const MCSymbol *Hi, const MCSymbol *Lo,
                               unsigned Size) override;
+  void emitULEB128AbsoluteSymbolDiff(const MCSymbol *Hi,
+                                     const MCSymbol *Lo) override;
 
   bool mayHaveInstructions(MCSection &Sec) const override;
 };

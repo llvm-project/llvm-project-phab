@@ -11,6 +11,7 @@
 #define LLVM_DEBUGINFO_DWARF_DWARFDEBUGLOC_H
 
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/DebugInfo/DWARF/DWARFDataExtractor.h"
 #include "llvm/DebugInfo/DWARF/DWARFRelocMap.h"
 #include <cstdint>
@@ -56,8 +57,9 @@ public:
 
 class DWARFDebugLocDWO {
   struct Entry {
-    uint64_t Start;
-    uint32_t Length;
+    dwarf::LocationListEntry Kind;
+    uint64_t First;
+    uint32_t Second;
     SmallVector<unsigned char, 4> Loc;
   };
 

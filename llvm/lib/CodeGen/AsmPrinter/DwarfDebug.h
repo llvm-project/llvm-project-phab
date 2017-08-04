@@ -297,6 +297,8 @@ class DwarfDebug : public DebugHandlerBase {
   // Identify a debugger for "tuning" the debug info.
   DebuggerKind DebuggerTuning;
 
+  DenseMap<const MCSection *, const MCSymbol *> FirstAddresses;
+
   /// \defgroup DebuggerTuning Predicates to tune DWARF for a given debugger.
   ///
   /// Returns whether we are "tuning" for a given debugger.

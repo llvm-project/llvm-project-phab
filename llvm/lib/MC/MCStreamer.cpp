@@ -791,6 +791,24 @@ void MCStreamer::EmitInstruction(const MCInst &Inst, const MCSubtargetInfo &STI,
       visitUsedExpr(*Inst.getOperand(i).getExpr());
 }
 
+void MCStreamer::emitULEB128AbsoluteSymbolDiff(const MCSymbol *Hi,
+                                               const MCSymbol *Lo) {
+  const MCExpr *Diff =
+      MCBinaryExpr::createSub(MCSymbolRefExpr::create(Hi, Context),
+                              MCSymbolRefExpr::create(Lo, Context), Context);
+
+  const MCAsmInfo *MAI = Context.getAsmInfo();
+  if (!MAI->doesSetDirectiveSuppressReloc()) {
+    EmitULEB128Value(Diff);
+    return;
+  }
+
+  // Otherwise, emit with .set (aka assignment).
+  MCSymbol *SetLabel = Context.createTempSymbol("set", true);
+  EmitAssignment(SetLabel, Diff);
+  EmitULEB128Value(MCSymbolRefExpr::create(SetLabel, getContext()));
+}
+
 void MCStreamer::emitAbsoluteSymbolDiff(const MCSymbol *Hi, const MCSymbol *Lo,
                                         unsigned Size) {
   // Get the Hi-Lo expression.
