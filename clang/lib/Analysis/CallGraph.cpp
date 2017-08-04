@@ -126,7 +126,7 @@ bool CallGraph::includeInGraph(const Decl *D) {
   return true;
 }
 
-void CallGraph::addNodeForDecl(Decl* D, bool IsGlobal) {
+void CallGraph::addNodeForDecl(Decl* D) {
   assert(D);
 
   // Allocate a new node, mark it as root, and process it's calls.
