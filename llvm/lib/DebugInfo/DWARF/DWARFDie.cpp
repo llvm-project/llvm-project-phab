@@ -51,17 +51,23 @@ static void dumpApplePropertyAttribute(raw_ostream &OS, uint64_t Val) {
   OS << ")";
 }
 
-static void dumpRanges(raw_ostream &OS, const DWARFAddressRangesVector& Ranges,
+static void dumpRanges(const DWARFObject &Obj, raw_ostream &OS,
+                       const DWARFAddressRangesVector &Ranges,
                        unsigned AddressSize, unsigned Indent) {
   if (Ranges.empty())
     return;
   
-  for (const auto &Range: Ranges) {
+  for (const auto &Range : Ranges) {
     OS << '\n';
     OS.indent(Indent);
-    OS << format("[0x%0*" PRIx64 " - 0x%0*" PRIx64 ")",
-                 AddressSize*2, Range.LowPC,
-                 AddressSize*2, Range.HighPC);
+
+    std::string NameIndex = "N/A";
+    if (Range.SectionIndex != -1ULL)
+      NameIndex = Obj.getSectionName(Range.SectionIndex).str() + "(" +
+                  std::to_string(Range.SectionIndex) + ")";
+
+    OS << format("[0x%0*" PRIx64 " - 0x%0*" PRIx64 ") %s", AddressSize * 2,
+                 Range.LowPC, AddressSize * 2, Range.HighPC, NameIndex.c_str());
   }
 }
 
@@ -126,10 +132,11 @@ static void dumpAttribute(raw_ostream &OS, const DWARFDie &Die,
     if (Optional<uint64_t> OptVal = formValue.getAsUnsignedConstant())
       dumpApplePropertyAttribute(OS, *OptVal);
   } else if (Attr == DW_AT_ranges) {
-    dumpRanges(OS, Die.getAddressRanges(), U->getAddressByteSize(),
-               sizeof(BaseIndent)+Indent+4);
+    const DWARFObject &Obj = Die.getDwarfUnit()->getContext().getDWARFObj();
+    dumpRanges(Obj, OS, Die.getAddressRanges(), U->getAddressByteSize(),
+               sizeof(BaseIndent) + Indent + 4);
   }
-  
+
   OS << ")\n";
 }
 
