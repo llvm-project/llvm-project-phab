@@ -89,7 +89,7 @@ static cl::opt<unsigned> LoopToColdBlockRatio(
     "loop-to-cold-block-ratio",
     cl::desc("Outline loop blocks from loop chain if (frequency of loop) / "
              "(frequency of block) is greater than this ratio"),
-    cl::init(5), cl::Hidden);
+    cl::init(160), cl::Hidden);
 
 static cl::opt<bool>
     PreciseRotationCost("precise-rotation-cost",
@@ -2138,25 +2138,24 @@ MachineBlockPlacement::collectLoopBlockSet(const MachineLoop &L) {
   BlockFilterSet LoopBlockSet;
 
   // Filter cold blocks off from LoopBlockSet when profile data is available.
-  // Collect the sum of frequencies of incoming edges to the loop header from
-  // outside. If we treat the loop as a super block, this is the frequency of
-  // the loop. Then for each block in the loop, we calculate the ratio between
-  // its frequency and the frequency of the loop block. When it is too small,
+  // For each block in the loop, we calculate the estimated number of times
+  // it will execute for each iteration of the loop. When it is too small,
   // don't add it to the loop chain. If there are outer loops, then this block
   // will be merged into the first outer loop chain for which this block is not
-  // cold anymore. This needs precise profile data and we only do this when
-  // profile data is available.
+  // cold anymore. By default, we only do this when profile data is available.
   if (F->getFunction()->getEntryCount()) {
-    BlockFrequency LoopFreq(0);
-    for (auto LoopPred : L.getHeader()->predecessors())
-      if (!L.contains(LoopPred))
-        LoopFreq += MBFI->getBlockFreq(LoopPred) *
-                    MBPI->getEdgeProbability(LoopPred, L.getHeader());
-
+    BlockFrequency LoopFreq = MBFI->getBlockFreq(L.getHeader());
+    DEBUG(dbgs() << "Finding loop blocks for loop with frequency "
+                 << LoopFreq.getFrequency() << "\n");
     for (MachineBasicBlock *LoopBB : L.getBlocks()) {
       auto Freq = MBFI->getBlockFreq(LoopBB).getFrequency();
-      if (Freq == 0 || LoopFreq.getFrequency() / Freq > LoopToColdBlockRatio)
+      if (Freq == 0 || LoopFreq.getFrequency() / Freq > LoopToColdBlockRatio) {
+        DEBUG(dbgs() << "Excluding " << getBlockName(LoopBB)
+                     << " with frequency " << Freq
+                     << " from loop with frequency " << LoopFreq.getFrequency()
+                     << "\n");
         continue;
+      }
       LoopBlockSet.insert(LoopBB);
     }
   } else
