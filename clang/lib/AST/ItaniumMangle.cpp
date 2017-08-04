@@ -2696,6 +2696,8 @@ void CXXNameMangler::mangleBareFunctionType(const FunctionProtoType *Proto,
         assert(Attr->getType() <= 9 && Attr->getType() >= 0);
         Out << "U17pass_object_size" << Attr->getType();
       }
+      if (FD->getParamDecl(I)->hasAttr<NoEscapeAttr>())
+        Out << "U8noescape";
     }
   }
 

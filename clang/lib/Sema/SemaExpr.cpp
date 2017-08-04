@@ -7168,6 +7168,52 @@ ExprResult Sema::ActOnConditionalOp(SourceLocation QuestionLoc,
       ColonLoc, result, VK, OK);
 }
 
+const FunctionProtoType *
+Sema::removeNoEscapeFromFunctionProto(const FunctionProtoType *ToType,
+                                      const FunctionProtoType *FromType) {
+  if (ToType->getNumParams() != FromType->getNumParams())
+    return FromType;
+
+  // FromType doesn't have noescape parameters if it doesn't
+  // have ExtParameterInfo.
+  if (!FromType->hasExtParameterInfos())
+    return FromType;
+
+  SmallVector<FunctionProtoType::ExtParameterInfo, 4> NewParamInfos;
+  bool NeedNewProtoType = false, NeedExtInfo = false;
+
+  // Create a new ExtParameterInfo list for FromType.
+  for (unsigned I = 0, E = FromType->getNumParams(); I != E; ++I) {
+    const FunctionProtoType::ExtParameterInfo ToInfo =
+        ToType->getExtParameterInfo(I);
+    const FunctionProtoType::ExtParameterInfo FromInfo =
+        FromType->getExtParameterInfo(I);
+    bool ToNoEscape = ToInfo.isNoEscape(), FromNoEscape = FromInfo.isNoEscape();
+
+    // We don't want to allow converting a function that doesn't take a noescape
+    // parameter to a function that takes one.
+    if (ToNoEscape && !FromNoEscape)
+      return FromType;
+
+    // The IsNoEscape flag is set only when both sides are noescape.
+    NewParamInfos.push_back(FromInfo.withIsNoEscape(ToNoEscape && FromNoEscape));
+    if (NewParamInfos.back().getOpaqueValue())
+      NeedExtInfo = true;
+
+    if (!ToNoEscape && FromNoEscape)
+      NeedNewProtoType = true;
+  }
+
+  if (!NeedNewProtoType)
+    return FromType;
+
+  FunctionProtoType::ExtProtoInfo ExtInfo = FromType->getExtProtoInfo();
+  ExtInfo.ExtParameterInfos = NeedExtInfo ? NewParamInfos.data() : nullptr;
+  QualType FnTy = Context.getFunctionType(FromType->getReturnType(),
+                                          FromType->getParamTypes(), ExtInfo);
+  return cast<FunctionProtoType>(FnTy.getTypePtr());
+}
+
 // checkPointerTypesForAssignment - This is a very tricky routine (despite
 // being closely modeled after the C99 spec:-). The odd characteristic of this
 // routine is it effectively iqnores the qualifiers on the top level pointee.
@@ -7199,6 +7245,10 @@ checkPointerTypesForAssignment(Sema &S, QualType LHSType, QualType RHSType) {
     lhq.removeObjCLifetime();
     rhq.removeObjCLifetime();
   }
+
+  if (const auto *lhproto = dyn_cast<FunctionProtoType>(lhptee))
+    if (const auto *rhproto = dyn_cast<FunctionProtoType>(rhptee))
+      rhptee = S.removeNoEscapeFromFunctionProto(lhproto, rhproto);
 
   if (!lhq.compatiblyIncludes(rhq)) {
     // Treat address-space mismatches as fatal.  TODO: address subspaces

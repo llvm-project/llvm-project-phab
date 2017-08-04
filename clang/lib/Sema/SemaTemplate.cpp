@@ -5451,6 +5451,31 @@ static bool CheckTemplateArgumentIsCompatibleWithParameter(
     // At this point, the template argument refers to an object or
     // function with external linkage. We now need to check whether the
     // argument and parameter types are compatible.
+
+    // If ParamType and ArgType are pointers to function prototypes, remove
+    // noescape from ArgType's parameters if doing so enables implicitly
+    // converting ArgType to ParamType. This enables using a function taking
+    // noescape parameters as a template argument to instantiate a template that
+    // expects a function that doesn't take noescape parameters. For example:
+    //
+    // void noescapefunc(__attribute__((noescape)) int *);
+    // template<void (*fn)(int*)> struct S {};
+    // S<&noescapefunc> s;
+    //
+    if (ParamType->isPointerType() && ArgType->isPointerType()) {
+      QualType ParamPointeeType =
+          ParamType->getAs<PointerType>()->getPointeeType().IgnoreParens();
+      QualType ArgPointeeType =
+          ArgType->getAs<PointerType>()->getPointeeType();
+      const auto *ParamProto = dyn_cast<FunctionProtoType>(ParamPointeeType);
+      const auto *ArgProto = dyn_cast<FunctionProtoType>(ArgPointeeType);
+      if (ParamProto && ArgProto) {
+        ArgProto = S.removeNoEscapeFromFunctionProto(ParamProto, ArgProto);
+        ArgType = S.Context.getPointerType(
+            S.Context.getQualifiedType(ArgProto, ArgType.getQualifiers()));
+      }
+    }
+
     if (!S.Context.hasSameUnqualifiedType(ArgType,
                                           ParamType.getNonReferenceType())) {
       // We can't perform this conversion or binding.

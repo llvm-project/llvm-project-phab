@@ -1461,6 +1461,27 @@ public:
   /// in an Objective-C message declaration. Return the appropriate type.
   ParsedType ActOnObjCInstanceType(SourceLocation Loc);
 
+  /// This function removes the noescape attribute from FromType and returns a
+  /// new function prototype that can be converted to ToType.
+  ///
+  /// A function that takes a noescape parameter can be implicitly converted to
+  /// a function that doesn't take one. For example, the following assignment is
+  /// legal:
+  ///
+  /// void from1(__attribute__((noescape)) int *);
+  /// void (*to1)(int *) = &from1;
+  ///
+  /// If the implicit conversion described above is invalid or not needed, this
+  /// function returns FromType. The following code is an example of an
+  /// assignment that is invalid:
+  ///
+  /// void from2(int *);
+  /// void (*to2)(__attribute__((noescape)) int *) = &from2;
+  ///
+  const FunctionProtoType *
+  removeNoEscapeFromFunctionProto(const FunctionProtoType *ToType,
+                                  const FunctionProtoType *FromType);
+
   /// \brief Abstract class used to diagnose incomplete types.
   struct TypeDiagnoser {
     TypeDiagnoser() {}

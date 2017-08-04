@@ -1481,6 +1481,11 @@ bool Sema::IsFunctionConversion(QualType FromType, QualType ToType,
                  .getTypePtr());
       Changed = true;
     }
+
+    FromFPT = cast<FunctionProtoType>(FromFn);
+    FromFn = removeNoEscapeFromFunctionProto(ToFPT, FromFPT);
+    if (FromFn != FromFPT)
+      Changed = true;
   }
 
   if (!Changed)
