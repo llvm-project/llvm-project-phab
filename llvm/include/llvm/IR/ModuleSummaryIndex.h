@@ -25,6 +25,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/Module.h"
+#include "llvm/Transforms/IPO/FunctionAttrs.h"
 #include <algorithm>
 #include <array>
 #include <cassert>
@@ -287,10 +288,23 @@ public:
     std::vector<uint64_t> Args;
   };
 
+  /// Function attribute flags. Used to track if a function accesses memory,
+  /// recurses or aliases.
+  struct FFlags {
+    unsigned ReadNone : 1;
+    unsigned ReadOnly : 1;
+    unsigned NoRecurse : 1;
+    unsigned ReturnDoesNotAlias : 1;
+  };
+
 private:
   /// Number of instructions (ignoring debug instructions, e.g.) computed
   /// during the initial compile step when the summary index is first built.
   unsigned InstCount;
+
+  /// Function attribute flags. Used to track if a function accesses memory,
+  /// recurses or aliases.
+  FFlags FunFlags;
 
   /// List of <CalleeValueInfo, CalleeInfo> call edge pairs from this function.
   std::vector<EdgeTy> CallGraphEdgeList;
@@ -317,15 +331,16 @@ private:
   std::unique_ptr<TypeIdInfo> TIdInfo;
 
 public:
-  FunctionSummary(GVFlags Flags, unsigned NumInsts, std::vector<ValueInfo> Refs,
-                  std::vector<EdgeTy> CGEdges,
+  FunctionSummary(GVFlags Flags, unsigned NumInsts, FFlags FunFlags,
+                  std::vector<ValueInfo> Refs, std::vector<EdgeTy> CGEdges,
                   std::vector<GlobalValue::GUID> TypeTests,
                   std::vector<VFuncId> TypeTestAssumeVCalls,
                   std::vector<VFuncId> TypeCheckedLoadVCalls,
                   std::vector<ConstVCall> TypeTestAssumeConstVCalls,
                   std::vector<ConstVCall> TypeCheckedLoadConstVCalls)
       : GlobalValueSummary(FunctionKind, Flags, std::move(Refs)),
-        InstCount(NumInsts), CallGraphEdgeList(std::move(CGEdges)) {
+        InstCount(NumInsts), FunFlags(FunFlags),
+        CallGraphEdgeList(std::move(CGEdges)) {
     if (!TypeTests.empty() || !TypeTestAssumeVCalls.empty() ||
         !TypeCheckedLoadVCalls.empty() || !TypeTestAssumeConstVCalls.empty() ||
         !TypeCheckedLoadConstVCalls.empty())
@@ -339,6 +354,48 @@ public:
   /// Check if this is a function summary.
   static bool classof(const GlobalValueSummary *GVS) {
     return GVS->getSummaryKind() == FunctionKind;
+  }
+
+  /// Get function attribute flags.
+  FFlags &fflags() { return FunFlags; }
+
+  /// Iterator for a callees in a function summary.
+  class const_iterator
+      : public std::iterator<std::input_iterator_tag, FunctionSummary *> {
+    std::vector<EdgeTy>::const_iterator I;
+    const FunctionSummary *fsumFromEdge(const EdgeTy &P) {
+      if (P.first.Ref && P.first.getSummaryList().size())
+        return cast<FunctionSummary>(P.first.getSummaryList().front().get());
+
+      // Create an empty functionsummary in the case of an external function
+      // (since scc_iterator doesn't accept nullptrs)
+      auto F = llvm::make_unique<FunctionSummary>(
+          GVFlags(GlobalValue::LinkageTypes::AvailableExternallyLinkage, true,
+                  false),
+          0, FFlags{}, std::vector<ValueInfo>(), std::vector<EdgeTy>(),
+          std::vector<GlobalValue::GUID>(), std::vector<VFuncId>(),
+          std::vector<VFuncId>(), std::vector<ConstVCall>(),
+          std::vector<ConstVCall>());
+      F->setOriginalName(P.first.Ref ? P.first.getGUID() : 0);
+      return F.get();
+    }
+
+  public:
+    const_iterator(std::vector<EdgeTy>::const_iterator I) : I(I){};
+    const_iterator operator++(int) {
+      I++;
+      return *this;
+    }
+    bool operator==(const const_iterator &rhs) const { return I == rhs.I; }
+    bool operator!=(const const_iterator &rhs) const { return I != rhs.I; }
+    const FunctionSummary *operator*() { return fsumFromEdge(*I); }
+  };
+
+  const_iterator call_summaries_begin() const {
+    return const_iterator(CallGraphEdgeList.begin());
+  }
+  const_iterator call_summaries_end() const {
+    return const_iterator(CallGraphEdgeList.end());
   }
 
   /// Get the instruction count recorded for this function.
@@ -752,6 +809,39 @@ public:
   /// Summary).
   void collectDefinedGVSummariesPerModule(
       StringMap<GVSummaryMapTy> &ModuleToDefinedGVSummaries) const;
+};
+
+/// GraphTraits definition to build SCC for the index
+template <> struct GraphTraits<const FunctionSummary *> {
+  typedef const FunctionSummary *NodeRef;
+  typedef FunctionSummary::const_iterator ChildIteratorType;
+
+  // Use the first callee as the entry node
+  static NodeRef getEntryNode(const FunctionSummary *F) {
+    if (F->call_summaries_begin() != F->call_summaries_end())
+      return *(F->call_summaries_begin());
+
+    // use a dummy functionsummary when there is no entry node
+    auto S = llvm::make_unique<FunctionSummary>(
+        FunctionSummary::GVFlags(
+            GlobalValue::LinkageTypes::AvailableExternallyLinkage, true, false),
+        0, FunctionSummary::FFlags{}, std::vector<ValueInfo>(),
+        std::vector<FunctionSummary::EdgeTy>(),
+        std::vector<GlobalValue::GUID>(),
+        std::vector<FunctionSummary::VFuncId>(),
+        std::vector<FunctionSummary::VFuncId>(),
+        std::vector<FunctionSummary::ConstVCall>(),
+        std::vector<FunctionSummary::ConstVCall>());
+    return S.get();
+  }
+
+  static ChildIteratorType child_begin(NodeRef N) {
+    return N->call_summaries_begin();
+  }
+
+  static ChildIteratorType child_end(NodeRef N) {
+    return N->call_summaries_end();
+  }
 };
 
 } // end namespace llvm
