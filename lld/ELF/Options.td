@@ -52,6 +52,9 @@ def allow_multiple_definition: F<"allow-multiple-definition">,
 def as_needed: F<"as-needed">,
   HelpText<"Only set DT_NEEDED for shared libraries if used">;
 
+def callgraph_ordering_file: S<"callgraph-ordering-file">,
+  HelpText<"Layout sections to optimize the given callgraph">;
+
 // -chroot doesn't have a help text because it is an internal option.
 def chroot: S<"chroot">;
 

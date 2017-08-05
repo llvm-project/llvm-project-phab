@@ -600,6 +600,23 @@ static std::vector<StringRef> getLines(MemoryBufferRef MB) {
   return Ret;
 }
 
+static void readCallGraph(MemoryBufferRef MB) {
+  DenseMap<std::pair<StringRef, StringRef>, uint64_t> Ret;
+  std::vector<StringRef> Lines = getLines(MB);
+  for (StringRef L : Lines) {
+    SmallVector<StringRef, 3> Fields;
+    L.split(Fields, ' ');
+    if (Fields.size() != 3)
+      fatal("parse error");
+    uint64_t Count;
+    if (!to_integer(Fields[0], Count))
+      fatal("parse error");
+    StringRef From = Fields[1];
+    StringRef To = Fields[2];
+    Config->CGProfile[std::make_pair(From, To)] = Count;
+  }
+}
+
 static bool getCompressDebugSections(opt::InputArgList &Args) {
   StringRef S = Args.getLastArgValue(OPT_compress_debug_sections, "none");
   if (S == "none")
@@ -726,6 +743,10 @@ void LinkerDriver::readConfigs(opt::InputArgList &Args) {
   if (auto *Arg = Args.getLastArg(OPT_symbol_ordering_file))
     if (Optional<MemoryBufferRef> Buffer = readFile(Arg->getValue()))
       Config->SymbolOrderingFile = getLines(*Buffer);
+
+  if (auto *Arg = Args.getLastArg(OPT_callgraph_ordering_file))
+    if (Optional<MemoryBufferRef> Buffer = readFile(Arg->getValue()))
+      readCallGraph(*Buffer);
 
   // If --retain-symbol-file is used, we'll keep only the symbols listed in
   // the file and discard all others.
