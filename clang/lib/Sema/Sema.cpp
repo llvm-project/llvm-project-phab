@@ -113,6 +113,20 @@ public:
 } // end namespace sema
 } // end namespace clang
 
+namespace {
+class SemaTemplateInstantiator : public ASTContext::InstantiationHelper {
+  Sema &S;
+public:
+  ~SemaTemplateInstantiator() {}
+  SemaTemplateInstantiator(Sema &S) : S(S) {}
+  bool instantiateFunctionDefinition(SourceLocation PointOfInstantiation,
+                                     FunctionDecl *Function) override {
+    S.InstantiateFunctionDefinition(PointOfInstantiation, Function);
+    return Function->hasBody();
+  }
+};
+}
+
 Sema::Sema(Preprocessor &pp, ASTContext &ctxt, ASTConsumer &consumer,
            TranslationUnitKind TUKind, CodeCompleteConsumer *CodeCompleter)
     : ExternalSource(nullptr), isMultiplexExternalSource(false),
@@ -171,6 +185,8 @@ Sema::Sema(Preprocessor &pp, ASTContext &ctxt, ASTConsumer &consumer,
   SemaPPCallbackHandler = Callbacks.get();
   PP.addPPCallbacks(std::move(Callbacks));
   SemaPPCallbackHandler->set(*this);
+
+  Context.setInstantiator(new SemaTemplateInstantiator(*this));
 }
 
 void Sema::addImplicitTypedef(StringRef Name, QualType T) {
@@ -358,6 +374,9 @@ Sema::~Sema() {
   // Detach from the PP callback handler which outlives Sema since it's owned
   // by the preprocessor.
   SemaPPCallbackHandler->reset();
+
+  ASTContext::InstantiationHelper *Inst = Context.removeInstantiator();
+  delete Inst;
 
   assert(DelayedTypos.empty() && "Uncorrected typos!");
 }
