@@ -2884,15 +2884,39 @@ Parser::ParseCXXDeleteExpression(bool UseGlobal, SourceLocation Start) {
     //   [Footnote: A lambda expression with a lambda-introducer that consists
     //              of empty square brackets can follow the delete keyword if
     //              the lambda expression is enclosed in parentheses.]
-    // FIXME: Produce a better diagnostic if the '[]' is unambiguously a
-    //        lambda-introducer.
-    ArrayDelete = true;
-    BalancedDelimiterTracker T(*this, tok::l_square);
+    TentativeParsingAction TPA(*this);
 
-    T.consumeOpen();
-    T.consumeClose();
-    if (T.getCloseLocation().isInvalid())
-      return ExprError();
+    // Basic lookahead to check if we have a lambda expression. If we
+    // encounter two braces with a semicolon, we can be pretty sure
+    // that this is a lambda, not say a compound literal. 
+    if (!SkipUntil(tok::l_brace, SkipUntilFlags::StopAtSemi) ||
+        (NextToken().isNot(tok::r_brace) && !SkipUntil(tok::semi)) ||
+        !SkipUntil(tok::r_brace, SkipUntilFlags::StopAtSemi)) {
+      TPA.Revert();
+      ArrayDelete = true;
+      BalancedDelimiterTracker T(*this, tok::l_square);
+
+      T.consumeOpen();
+      T.consumeClose();
+      if (T.getCloseLocation().isInvalid())
+        return ExprError();
+    } else {
+      TPA.Revert();
+
+      // Warn if the non-capturing lambda isn't surrounded by parenthesis
+      // to disambiguate it from 'delete[]'. 
+      ExprResult Lambda = TryParseLambdaExpression();
+      if (!Lambda.isInvalid()) {
+        SourceLocation StartLoc = Lambda.get()->getLocStart();
+        Diag(StartLoc, diag::err_lambda_after_array_delete)
+          << SourceRange(StartLoc, Lambda.get()->getLocEnd());
+
+        // Evaluate any postfix expressions used on the lambda.
+        Lambda = ParsePostfixExpressionSuffix(Lambda);
+        return Actions.ActOnCXXDelete(Start, UseGlobal, /*ArrayForm=*/false,
+                                      Lambda.get());
+      }
+    }
   }
 
   ExprResult Operand(ParseCastExpression(false));
