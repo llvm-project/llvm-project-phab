@@ -392,7 +392,11 @@ void TemplateArgument::print(const PrintingPolicy &Policy,
     
   case Declaration: {
     NamedDecl *ND = cast<NamedDecl>(getAsDecl());
-    Out << '&';
+    bool isArray = false;
+    if (auto VD = dyn_cast<ValueDecl>(ND))
+      isArray = VD->getType()->isArrayType();
+    if (!isArray)
+      Out << '&';
     if (ND->getDeclName()) {
       // FIXME: distinguish between pointer and reference args?
       ND->printQualifiedName(Out);
