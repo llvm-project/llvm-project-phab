@@ -92,10 +92,10 @@ LazyCallGraph::EdgeSequence &LazyCallGraph::Node::populateSlow() {
                       LazyCallGraph::Edge::Call);
             }
 
+
       for (Value *Op : I.operand_values())
         if (Constant *C = dyn_cast<Constant>(Op))
-          if (Visited.insert(C).second)
-            Worklist.push_back(C);
+          if (Visited.insert(C).second)            Worklist.push_back(C);
     }
 
   // We've collected all the constant (and thus potentially function or
