@@ -234,7 +234,7 @@ void MCWinCOFFStreamer::EmitCommonSymbol(MCSymbol *S, uint64_t Size,
   Symbol->setExternal(true);
   Symbol->setCommon(Size, ByteAlignment);
 
-  if (!T.isKnownWindowsMSVCEnvironment() && ByteAlignment > 1) {
+  if (!T.isKnownWindowsMSVCEnvironment() && ByteAlignment > 32) {
     SmallString<128> Directive;
     raw_svector_ostream OS(Directive);
     const MCObjectFileInfo *MFI = getContext().getObjectFileInfo();
