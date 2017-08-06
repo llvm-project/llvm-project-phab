@@ -2564,6 +2564,30 @@ static bool diagnoseUnreadableFields(EvalInfo &Info, const Expr *E,
   return false;
 }
 
+/// Returns body of the function described by the specified declaration,
+/// instantiating its definition if necessary.
+///
+/// \param[in]  FD The function which body is retrieved.
+/// \param[in]  Loc Location that becomes a point of instantiation.
+/// \param[out] Definition The redeclaration that provides the body.
+///
+/// Behaves like FinctionDecl::getBody, but also can implicitly instantiate
+/// function body.
+///
+static Stmt *getFunctionBody(const FunctionDecl *FD, SourceLocation Loc,
+                             const FunctionDecl *&Definition) {
+  Definition = nullptr;
+  Stmt *Body = FD->getBody(Definition);
+  // Try instantiation function body is possible. Do it only for constexpr
+  // declarations, others are not allowed in constant expressions.
+  if (!Body && FD->isImplicitlyInstantiable() && FD->isConstexpr()) {
+    FD->getASTContext().instantiateFunctionDefinition(Loc,
+        const_cast<FunctionDecl *>(FD));
+    Body = FD->getBody(Definition);
+  }
+  return Body;
+}
+
 /// Kinds of access we can perform on an object, for diagnostics.
 enum AccessKinds {
   AK_Read,
@@ -4715,7 +4739,7 @@ public:
       return Error(E, diag::note_constexpr_virtual_call);
 
     const FunctionDecl *Definition = nullptr;
-    Stmt *Body = FD->getBody(Definition);
+    Stmt *Body = getFunctionBody(FD, Callee->getLocStart(), Definition);
 
     if (!CheckConstexprFunction(Info, E->getExprLoc(), FD, Definition, Body) ||
         !HandleFunctionCall(E->getExprLoc(), Definition, This, Args, Body, Info,
@@ -6285,7 +6309,7 @@ bool RecordExprEvaluator::VisitCXXConstructExpr(const CXXConstructExpr *E,
   }
 
   const FunctionDecl *Definition = nullptr;
-  auto Body = FD->getBody(Definition);
+  Stmt *Body = getFunctionBody(FD, E->getLocStart(), Definition);
 
   if (!CheckConstexprFunction(Info, E->getExprLoc(), FD, Definition, Body))
     return false;
@@ -6317,7 +6341,7 @@ bool RecordExprEvaluator::VisitCXXInheritedCtorInitExpr(
     return false;
 
   const FunctionDecl *Definition = nullptr;
-  auto Body = FD->getBody(Definition);
+  Stmt *Body = getFunctionBody(FD, E->getExprLoc(), Definition);
 
   if (!CheckConstexprFunction(Info, E->getExprLoc(), FD, Definition, Body))
     return false;
@@ -10714,8 +10738,10 @@ bool Expr::isPotentialConstantExpr(const FunctionDecl *FD,
     HandleConstructorCall(&VIE, This, Args, CD, Info, Scratch);
   } else {
     SourceLocation Loc = FD->getLocation();
+    const FunctionDecl *Definition;
+    Stmt *Body = getFunctionBody(FD, Loc, Definition);
     HandleFunctionCall(Loc, FD, (MD && MD->isInstance()) ? &This : nullptr,
-                       Args, FD->getBody(), Info, Scratch, nullptr);
+                       Args, Body, Info, Scratch, nullptr);
   }
 
   return Diags.empty();

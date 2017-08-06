@@ -1883,6 +1883,29 @@ private:
   CanQualType getFromTargetType(unsigned Type) const;
   TypeInfo getTypeInfoImpl(const Type *T) const;
 
+
+  //===--------------------------------------------------------------------===//
+  //                         Template instantiation.
+  //===--------------------------------------------------------------------===//
+public:
+
+  /// Helper class that provides interface to template instantiation facility.
+  class InstantiationHelper {
+  public:
+    virtual ~InstantiationHelper();
+    virtual bool instantiateFunctionDefinition(
+        SourceLocation PointOfInstantiation,
+        FunctionDecl *Function) = 0;
+  };
+
+  void setInstantiator(InstantiationHelper *Helper);
+  InstantiationHelper *removeInstantiator();
+  bool instantiateFunctionDefinition(SourceLocation PointOfInstantiation,
+                                     FunctionDecl *Function);
+private:
+  InstantiationHelper *Instantiator = nullptr;
+
+
   //===--------------------------------------------------------------------===//
   //                         Type Predicates.
   //===--------------------------------------------------------------------===//

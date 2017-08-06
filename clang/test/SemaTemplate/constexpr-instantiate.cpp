@@ -259,3 +259,9 @@ namespace PR20090 {
   }
   static_assert(fact(0) == 1, "");
 }
+
+namespace CWG_1581 {
+  template<int N> struct U {};
+  template<typename T> constexpr int h(T) { return T::error; } // expected-error{{type 'int' cannot be used prior to '::' because it has no members}}
+  int k2 = sizeof(U<0 && h(0)>); // expected-note{{in instantiation of function template specialization 'CWG_1581::h<int>' requested here}}
+}

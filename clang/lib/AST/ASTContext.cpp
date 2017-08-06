@@ -9596,6 +9596,28 @@ unsigned ASTContext::getTargetAddressSpace(unsigned AS) const {
     return (*AddrSpaceMap)[AS];
 }
 
+ASTContext::InstantiationHelper::~InstantiationHelper() {
+}
+
+void ASTContext::setInstantiator(ASTContext::InstantiationHelper *Inst) {
+  Instantiator = Inst;
+}
+
+ASTContext::InstantiationHelper *ASTContext::removeInstantiator() {
+  InstantiationHelper *Res = Instantiator;
+  Instantiator = nullptr;
+  return Res;
+}
+
+bool ASTContext::instantiateFunctionDefinition(
+    SourceLocation PointOfInstantiation,
+    FunctionDecl *Function) {
+  if (!Instantiator)
+    return false;
+  return Instantiator->instantiateFunctionDefinition(PointOfInstantiation,
+                                                     Function);
+}
+
 // Explicitly instantiate this in case a Redeclarable<T> is used from a TU that
 // doesn't include ASTContext.h
 template
