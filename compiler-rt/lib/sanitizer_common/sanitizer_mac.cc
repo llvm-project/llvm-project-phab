@@ -506,6 +506,30 @@ uptr GetRSS() {
   return info.resident_size;
 }
 
+void RegionMemUsage(uptr start, uptr end, uptr *res, uptr *dirty) {
+  vm_address_t address = start;
+  vm_address_t end_address = end;
+  uptr resident_pages = 0;
+  uptr dirty_pages = 0;
+  while (address < end_address) {
+    vm_size_t vm_region_size;
+    mach_msg_type_number_t count = VM_REGION_EXTENDED_INFO_COUNT;
+    vm_region_extended_info_data_t vm_region_info;
+    mach_port_t object_name;
+    kern_return_t ret = vm_region_64(
+        mach_task_self(), &address, &vm_region_size, VM_REGION_EXTENDED_INFO,
+        (vm_region_info_t)&vm_region_info, &count, &object_name);
+    if (ret != KERN_SUCCESS) break;
+
+    resident_pages += vm_region_info.pages_resident;
+    dirty_pages += vm_region_info.pages_dirtied;
+
+    address += vm_region_size;
+  }
+  *res = resident_pages * GetPageSizeCached();
+  *dirty = dirty_pages * GetPageSizeCached();
+}
+
 void *internal_start_thread(void(*func)(void *arg), void *arg) {
   // Start the thread with signals blocked, otherwise it can steal user signals.
   __sanitizer_sigset_t set, old;

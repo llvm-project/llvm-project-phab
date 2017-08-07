@@ -36,6 +36,7 @@ MacosVersion GetMacosVersion();
 
 char **GetEnviron();
 
+void RegionMemUsage(uptr start, uptr end, uptr *res, uptr *dirty);
 void RestrictMemoryToMaxAddress(uptr max_address);
 
 }  // namespace __sanitizer

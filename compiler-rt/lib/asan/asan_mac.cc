@@ -21,6 +21,7 @@
 #include "asan_stack.h"
 #include "asan_thread.h"
 #include "sanitizer_common/sanitizer_atomic.h"
+#include "sanitizer_common/sanitizer_file.h"
 #include "sanitizer_common/sanitizer_libc.h"
 #include "sanitizer_common/sanitizer_mac.h"
 
@@ -76,6 +77,45 @@ uptr FindDynamicShadowStart() {
   CHECK_NE((uptr)0, shadow_start);
   CHECK(IsAligned(shadow_start, alignment));
   return shadow_start;
+}
+
+void WriteMemoryProfile(char *buf, uptr buf_size) {
+  uptr pos = 0;
+#define SNPRINTF_CONCAT(...)                                          \
+  if (pos < buf_size) {                                               \
+    pos += internal_snprintf(buf + pos, buf_size - pos, __VA_ARGS__); \
+  }
+#define PRINT_STAT_FOR_REGION(name, beg, end)                                  \
+  {                                                                            \
+    uptr res, dirty;                                                           \
+    RegionMemUsage(beg, end, &res, &dirty);                                    \
+    SNPRINTF_CONCAT("%s (0x%016zx-0x%016zx): resident %zd kB, dirty %zd kB\n", \
+                    name, (uptr)beg, (uptr)end, res / 1024, dirty / 1024);     \
+  }
+
+  PRINT_STAT_FOR_REGION("HighMem   ", kHighMemBeg, kHighMemEnd);
+  PRINT_STAT_FOR_REGION("HighShadow", kHighShadowBeg, kHighShadowEnd);
+  if (kMidMemBeg) {
+    PRINT_STAT_FOR_REGION("ShadowGap3", kShadowGap3Beg, kShadowGap3End);
+    PRINT_STAT_FOR_REGION("MidMem    ", kMidMemBeg, kMidMemEnd);
+    PRINT_STAT_FOR_REGION("ShadowGap2", kShadowGap2Beg, kShadowGap2End);
+    PRINT_STAT_FOR_REGION("MidShadow ", kMidShadowBeg, kMidShadowEnd);
+  }
+  PRINT_STAT_FOR_REGION("ShadowGap ", kShadowGapBeg, kShadowGapEnd);
+  if (kLowShadowBeg) {
+    PRINT_STAT_FOR_REGION("LowShadow ", kLowShadowBeg, kLowShadowEnd);
+    PRINT_STAT_FOR_REGION("LowMem    ", kLowMemBeg, kLowMemEnd);
+  }
+  SNPRINTF_CONCAT("------------------------------\n");
+
+#undef SNPRINTF_CONCAT
+#undef PRINT_STAT_FOR_REGION
+}
+
+void MemoryProfiler() {
+  InternalScopedBuffer<char> buf(4096);
+  WriteMemoryProfile(buf.data(), buf.size());
+  WriteToFile(STDERR_FILENO, buf.data(), internal_strlen(buf.data()));
 }
 
 // No-op. Mac does not support static linkage anyway.
