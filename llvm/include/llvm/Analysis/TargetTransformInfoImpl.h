@@ -466,6 +466,7 @@ public:
 
   bool areInlineCompatible(const Function *Caller,
                            const Function *Callee) const {
+    // If there is no target machine, be very conservative.
     return (Caller->getFnAttribute("target-cpu") ==
             Callee->getFnAttribute("target-cpu")) &&
            (Caller->getFnAttribute("target-features") ==

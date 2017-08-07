@@ -2221,22 +2221,6 @@ bool X86TTIImpl::isLegalMaskedScatter(Type *DataType) {
   return isLegalMaskedGather(DataType);
 }
 
-bool X86TTIImpl::areInlineCompatible(const Function *Caller,
-                                     const Function *Callee) const {
-  const TargetMachine &TM = getTLI()->getTargetMachine();
-
-  // Work this as a subsetting of subtarget features.
-  const FeatureBitset &CallerBits =
-      TM.getSubtargetImpl(*Caller)->getFeatureBits();
-  const FeatureBitset &CalleeBits =
-      TM.getSubtargetImpl(*Callee)->getFeatureBits();
-
-  // FIXME: This is likely too limiting as it will include subtarget features
-  // that we might not care about for inlining, but it is conservatively
-  // correct.
-  return (CallerBits & CalleeBits) == CalleeBits;
-}
-
 bool X86TTIImpl::expandMemCmp(Instruction *I, unsigned &MaxLoadSize) {
   // TODO: We can increase these based on available vector ops.
   MaxLoadSize = ST->is64Bit() ? 8 : 4;

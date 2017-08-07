@@ -109,8 +109,6 @@ public:
   bool isLegalMaskedStore(Type *DataType);
   bool isLegalMaskedGather(Type *DataType);
   bool isLegalMaskedScatter(Type *DataType);
-  bool areInlineCompatible(const Function *Caller,
-                           const Function *Callee) const;
   bool expandMemCmp(Instruction *I, unsigned &MaxLoadSize);
   bool enableInterleavedAccessVectorization();
 private:

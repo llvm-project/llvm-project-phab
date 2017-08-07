@@ -1089,6 +1089,24 @@ public:
     return 10;
   }
 
+  bool areInlineCompatible(const Function *Caller,
+                           const Function *Callee) const {
+    const TargetMachine &TM = getTLI()->getTargetMachine();
+
+    const FeatureBitset &CallerBits =
+      TM.getSubtargetImpl(*Caller)->getFeatureBits();
+    const FeatureBitset &CalleeBits =
+      TM.getSubtargetImpl(*Callee)->getFeatureBits();
+
+    // Inline a callee if its target-features are a subset of the callers
+    // target-features.
+    //
+    // Targets can override if this is too limiting by including subtarget
+    // features that we might not care about for inlining, but it is
+    // conservatively correct.
+    return (CallerBits & CalleeBits) == CalleeBits;
+  }
+
   unsigned getNumberOfParts(Type *Tp) {
     std::pair<unsigned, MVT> LT = getTLI()->getTypeLegalizationCost(DL, Tp);
     return LT.first;
