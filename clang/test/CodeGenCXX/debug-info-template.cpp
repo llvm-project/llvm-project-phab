@@ -1,6 +1,6 @@
 // RUN: %clang -S -emit-llvm -target x86_64-unknown_unknown -g %s -o - -std=c++11 | FileCheck %s
 
-// CHECK: @tci = global %"struct.TC<unsigned int, 2, &glb, &foo::e, &foo::f, &foo::g, 1, 2, 3>::nested" zeroinitializer, align 1, !dbg [[TCI:![0-9]+]]
+// CHECK: @tci = global %"struct.TC<unsigned int, 2, &glb, &foo::e, &foo::f, foo::g, 1, 2, 3>::nested" zeroinitializer, align 1, !dbg [[TCI:![0-9]+]]
 // CHECK: @tcn = global %struct.TC zeroinitializer, align 1, !dbg [[TCN:![0-9]+]]
 // CHECK: @nn = global %struct.NN zeroinitializer, align 1, !dbg [[NN:![0-9]+]]
 
@@ -31,7 +31,7 @@ void func();
 // CHECK: ![[TCNESTED]] ={{.*}}!DICompositeType(tag: DW_TAG_structure_type, name: "nested",
 // CHECK-SAME:             scope: ![[TC:[0-9]+]],
 
-// CHECK: ![[TC]] = distinct !DICompositeType(tag: DW_TAG_structure_type, name: "TC<unsigned int, 2, &glb, &foo::e, &foo::f, &foo::g, 1, 2, 3>"
+// CHECK: ![[TC]] = distinct !DICompositeType(tag: DW_TAG_structure_type, name: "TC<unsigned int, 2, &glb, &foo::e, &foo::f, foo::g, 1, 2, 3>"
 // CHECK-SAME:                              templateParams: [[TCARGS:![0-9]*]]
 TC
 // CHECK: [[TCARGS]] = !{[[TCARG1:![0-9]*]], [[TCARG2:![0-9]*]], [[TCARG3:![0-9]*]], [[TCARG4:![0-9]*]], [[TCARG5:![0-9]*]], [[TCARG6:![0-9]*]], [[TCARG7:![0-9]*]]}

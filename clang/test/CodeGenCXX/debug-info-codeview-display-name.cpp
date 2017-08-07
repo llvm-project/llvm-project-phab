@@ -90,4 +90,4 @@ template <typename T, void (*)(void)>
 void fn_tmpl() {}
 
 template void fn_tmpl<int, freefunc>();
-// CHECK-DAG: "fn_tmpl<int,&freefunc>"
+// CHECK-DAG: "fn_tmpl<int,freefunc>"
