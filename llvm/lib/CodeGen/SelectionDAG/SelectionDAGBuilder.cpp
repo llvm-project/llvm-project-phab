@@ -274,6 +274,17 @@ static void diagnosePossiblyInvalidConstraint(LLVMContext &Ctx, const Value *V,
   return Ctx.emitError(I, ErrMsg);
 }
 
+static void emitInvalidConstraintError(LLVMContext &Ctx, const Value *V,
+                                       const StringRef &ErrMsg) {
+  if (auto *I = dyn_cast_or_null<Instruction>(V)) {
+    if (auto *CI = dyn_cast<CallInst>(I))
+      if (isa<InlineAsm>(CI->getCalledValue()))
+        return Ctx.emitError(CI, ErrMsg + ", in an __asm__");
+    return Ctx.emitError(I, ErrMsg);
+  }
+  return Ctx.emitError(ErrMsg);
+}
+
 /// getCopyFromPartsVector - Create a value that contains the specified legal
 /// parts combined into the value they represent.  If the parts combine to a
 /// type larger than ValueVT then AssertOp can be used to specify whether the
@@ -445,6 +456,16 @@ static void getCopyToParts(SelectionDAG &DAG, const SDLoc &DL, SDValue Val,
     return;
   }
 
+  if (NumParts == 1) {
+    if ((PartVT == MVT::f80) && (!ValueVT.isFloatingPoint())) {
+      // Alternative is to use ISD::SINT_TO_FP instead of generating an error.
+      Val = DAG.getUNDEF(PartVT);
+      emitInvalidConstraintError(*DAG.getContext(), V,
+                                 "Inconsistent operand constraints");
+      Parts[0] = Val;
+      return;
+    }
+  }
   if (NumParts * PartBits > ValueVT.getSizeInBits()) {
     // If the parts cover more bits than the value has, promote the value.
     if (PartVT.isFloatingPoint() && ValueVT.isFloatingPoint()) {
@@ -466,18 +487,28 @@ static void getCopyToParts(SelectionDAG &DAG, const SDLoc &DL, SDValue Val,
         Val = DAG.getNode(ISD::BITCAST, DL, PartVT, Val);
     }
   } else if (PartBits == ValueVT.getSizeInBits()) {
-    // Different types of the same size.
-    assert(NumParts == 1 && PartEVT != ValueVT);
+    // Same type or different types of the same size.
+    assert(NumParts == 1);
     Val = DAG.getNode(ISD::BITCAST, DL, PartVT, Val);
   } else if (NumParts * PartBits < ValueVT.getSizeInBits()) {
-    // If the parts cover less bits than value has, truncate the value.
-    assert((PartVT.isInteger() || PartVT == MVT::x86mmx) &&
-           ValueVT.isInteger() &&
-           "Unknown mismatch!");
-    ValueVT = EVT::getIntegerVT(*DAG.getContext(), NumParts * PartBits);
-    Val = DAG.getNode(ISD::TRUNCATE, DL, ValueVT, Val);
-    if (PartVT == MVT::x86mmx)
-      Val = DAG.getNode(ISD::BITCAST, DL, PartVT, Val);
+    if (PartVT.isFloatingPoint() && ValueVT.isFloatingPoint()) {
+      assert(NumParts == 1 && "Do not know what to truncate to!");
+      Val = DAG.getFPExtendOrRound(Val, DL, PartVT);
+    } else {
+      if (ValueVT.isFloatingPoint()) {
+        // FP values need to be bitcast, then truncated if they are being put
+        // into a smaller container.
+        ValueVT = EVT::getIntegerVT(*DAG.getContext(), ValueVT.getSizeInBits());
+        Val = DAG.getNode(ISD::BITCAST, DL, ValueVT, Val);
+      }
+      // If the parts cover less bits than value has, truncate the value.
+      assert((PartVT.isInteger() || PartVT == MVT::x86mmx) &&
+             ValueVT.isInteger() && "Unknown mismatch!");
+      ValueVT = EVT::getIntegerVT(*DAG.getContext(), NumParts * PartBits);
+      Val = DAG.getNode(ISD::TRUNCATE, DL, ValueVT, Val);
+      if (PartVT == MVT::x86mmx)
+        Val = DAG.getNode(ISD::BITCAST, DL, PartVT, Val);
+    }
   }
 
   // The value may have changed - recompute ValueVT.
@@ -560,6 +591,16 @@ static void getCopyToPartsVector(SelectionDAG &DAG, const SDLoc &DL,
   const TargetLowering &TLI = DAG.getTargetLoweringInfo();
 
   if (NumParts == 1) {
+    if (PartVT == MVT::f80) {
+      if (!ValueVT.isFloatingPoint() ||
+          (PartVT.getSizeInBits() != ValueVT.getSizeInBits())) {
+        Val = DAG.getUNDEF(PartVT);
+        emitInvalidConstraintError(*DAG.getContext(), V,
+                                   "Inconsistent operand constraints");
+        Parts[0] = Val;
+        return;
+      }
+    }
     EVT PartEVT = PartVT;
     if (PartEVT == ValueVT) {
       // Nothing to do.
