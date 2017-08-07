@@ -11,6 +11,7 @@
 #include "new"
 #include "string"
 #include "system_error"
+#include "include/atomic_support.h"
 #include "include/refstring.h"
 
 /* For _LIBCPPABI_VERSION */
