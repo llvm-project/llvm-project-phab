@@ -31,6 +31,7 @@
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/MachineInstr.h"
+#include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineJumpTableInfo.h"
 #include "llvm/CodeGen/MachineLoopInfo.h"
 #include "llvm/CodeGen/MachineModuleInfo.h"
@@ -372,6 +373,30 @@ void BranchFolder::ReplaceTailWithBranchTo(MachineBasicBlock::iterator OldInst,
   if (UpdateLiveIns) {
     NewDest->clearLiveIns();
     computeLiveIns(LiveRegs, *MRI, *NewDest);
+
+    LivePhysRegs CalcLiveIns;
+    for (MachineBasicBlock *Pred : NewDest->predecessors()) {
+      // Check if all live-ins of NewDest are live-on-exit from Pred.
+      // If not, add an IMPLICIT_DEF.
+      // Normally, this should check if for each live-in to NewDest there
+      // exists a downward-exposed def in Pred. To avoid using stepForward
+      // in LivePhysRegs, scan the block backward instead, and then check
+      // if we would need to add a new live-in to Pred.
+      CalcLiveIns.init(*TRI);
+      CalcLiveIns.addLiveOutsNoPristines(*Pred);
+      for (const MachineInstr &MI : llvm::reverse(*Pred))
+        CalcLiveIns.stepBackward(MI);
+
+      LivePhysRegs LiveIns(*TRI);
+      LiveIns.addLiveIns(*Pred);
+      for (MCPhysReg R : CalcLiveIns) {
+        if (!LiveIns.available(*MRI, R))
+          continue;
+        MachineBasicBlock::iterator At = Pred->getFirstTerminator();
+        const DebugLoc &dl = Pred->findDebugLoc(At);
+        BuildMI(*Pred, At, dl, TII->get(TargetOpcode::IMPLICIT_DEF), R);
+      }
+    }
   }
 
   ++NumTailMerge;
