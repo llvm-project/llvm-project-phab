@@ -1,6 +1,14 @@
 # RUN: llvm-mc -triple x86_64-pc-linux -filetype=obj %s -o %t
 # RUN: llvm-dwarfdump %t | FileCheck %s
 
+# CHECK: .debug_info contents:
+# CHECK: DW_TAG_compile_unit
+# CHECK: DW_AT_ranges [DW_FORM_sec_offset] (0x00000000
+# CHECK-NEXT:  Section: ".text.foo1" [3]
+# CHECK-NEXT:  [0x0000000000000000 - 0x0000000000000001)
+# CHECK-NEXT:  Section: ".text.foo2" [4]
+# CHECK-NEXT:  [0x0000000000000000 - 0x0000000000000002))
+
 # CHECK: .debug_ranges contents:
 # CHECK:   00000000 0000000000000000 0000000000000001
 # CHECK:   00000000 0000000000000000 0000000000000002
