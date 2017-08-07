@@ -31,6 +31,7 @@
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/MachineInstr.h"
+#include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineJumpTableInfo.h"
 #include "llvm/CodeGen/MachineLoopInfo.h"
 #include "llvm/CodeGen/MachineModuleInfo.h"
@@ -372,6 +373,36 @@ void BranchFolder::ReplaceTailWithBranchTo(MachineBasicBlock::iterator OldInst,
   if (UpdateLiveIns) {
     NewDest->clearLiveIns();
     computeLiveIns(LiveRegs, *MRI, *NewDest);
+
+    // Need to traverse all predecessors, because some of them may not be
+    // among the blocks in SameTails. This could happen, for example, if one
+    // of the blocks in SameTails is used as the common tail.
+    for (MachineBasicBlock *Pred : NewDest->predecessors()) {
+      LivePhysRegs LiveOuts(*TRI);
+      LiveOuts.addLiveIns(*Pred);
+
+      // Actually recalculate the live-outs in Pred. This is necessary because
+      // removing an <undef> flag in mergeOperations can make the liveness info
+      // incorrect. The purpose of this code is to identify such cases and
+      // patch it with IMPLICIT_DEFs.
+      SmallVector<std::pair<unsigned, const MachineOperand*>, 2> Clobbers;
+      for (const MachineInstr &MI : *Pred) {
+        LiveOuts.stepForward(MI, Clobbers);
+        for (auto C : Clobbers)
+          if (C.second->isReg() && C.second->isDef() && C.second->isDead())
+            LiveOuts.removeReg(C.first);
+        Clobbers.clear();
+      }
+
+      for (const MachineBasicBlock::RegisterMaskPair &LI : NewDest->liveins()) {
+        if (!LiveOuts.available(*MRI, LI.PhysReg))
+          continue;
+        MachineBasicBlock::iterator At = Pred->getFirstTerminator();
+        const DebugLoc &dl = Pred->findDebugLoc(At);
+        BuildMI(*Pred, At, dl, TII->get(TargetOpcode::IMPLICIT_DEF),
+                LI.PhysReg);
+      }
+    }
   }
 
   ++NumTailMerge;

@@ -144,7 +144,7 @@ namespace llvm {
                        unsigned MinCommonTailLength);
     void setCommonTailEdgeWeights(MachineBasicBlock &TailMBB);
 
-    /// Delete the instruction OldInst and everything after it, replacing it
+    /// Delete the instruction OldInst and everything after it replacing it
     /// with an unconditional branch to NewDest.
     void ReplaceTailWithBranchTo(MachineBasicBlock::iterator OldInst,
                                  MachineBasicBlock *NewDest);
