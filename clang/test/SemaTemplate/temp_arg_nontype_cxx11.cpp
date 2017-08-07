@@ -36,3 +36,22 @@ namespace check_conversion_early {
   struct Y { constexpr operator int() const { return 0; } };
   template<Y &y> struct A<y> {}; // expected-error {{cannot be deduced}} expected-note {{'y'}}
 }
+
+using FourChars = const char[4];
+constexpr FourChars kEta = "Eta";
+constexpr const char* kNull = "Phi";
+
+template <const char*, typename T> class Column {};
+template <const char[], typename T> class Dolumn {};
+template <const char(*)[4], typename T> class Folumn {};
+template <FourChars*, typename T> class Golumn {};
+template <const char* const *, typename T> class Holumn {};
+
+void lookup() {
+  Column<kEta,double>().ls(); // expected-error {{<kEta,}}
+  Column<nullptr, double>().ls(); // expected-error {{<nullptr,}}
+  Dolumn<kEta, double>().ls(); // expected-error {{<kEta,}}
+  Folumn<&kEta, double>().ls(); // expected-error {{<&kEta,}}
+  Golumn<&kEta, double>().ls(); // expected-error {{<&kEta,}}
+  Holumn<&kNull, double>().ls(); // expected-error {{<&kNull,}}
+}
