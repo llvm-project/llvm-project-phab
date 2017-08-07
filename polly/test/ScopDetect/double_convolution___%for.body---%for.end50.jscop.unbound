@@ -1,0 +1,101 @@
+{
+   "arrays" : [
+      {
+         "name" : "MemRef0",
+         "sizes" : [ "*" ],
+         "type" : "i32"
+      },
+      {
+         "name" : "MemRef1",
+         "sizes" : [ "*" ],
+         "type" : "i32"
+      },
+      {
+         "name" : "MemRef2",
+         "sizes" : [ "*" ],
+         "type" : "i32"
+      },
+      {
+         "name" : "MemRef3",
+         "sizes" : [ "*" ],
+         "type" : "i32"
+      },
+      {
+         "name" : "MemRef4",
+         "sizes" : [ "*" ],
+         "type" : "i32"
+      }
+   ],
+   "context" : "{  :  }",
+   "name" : "%for.body---%for.end50",
+   "statements" : [
+      {
+         "accesses" : [
+            {
+               "kind" : "write",
+               "relation" : "{ Stmt0[i0] -> MemRef0[i0] }"
+            }
+         ],
+         "domain" : "{ Stmt0[i0] : 0 <= i0 <= 49 }",
+         "name" : "Stmt0",
+         "schedule" : "{ Stmt0[i0] -> [0, i0, 0, 0, 0] }"
+      },
+      {
+         "accesses" : [
+            {
+               "kind" : "write",
+               "relation" : "{ Stmt2[i0] -> MemRef1[i0] }"
+            }
+         ],
+         "domain" : "{ Stmt2[i0] : 0 <= i0 <= 47 }",
+         "name" : "Stmt2",
+         "schedule" : "{ Stmt2[i0] -> [1, t, 0, i0, 0]: 0 <= t }"
+      },
+      {
+         "accesses" : [
+            {
+               "kind" : "read",
+               "relation" : "{ Stmt5[i0, i1] -> MemRef2[i0 + i1] }"
+            },
+            {
+               "kind" : "read",
+               "relation" : "{ Stmt5[i0, i1] -> MemRef3[i1] }"
+            },
+            {
+               "kind" : "read",
+               "relation" : "{ Stmt5[i0, i1] -> MemRef0[i0] }"
+            },
+            {
+               "kind" : "write",
+               "relation" : "{ Stmt5[i0, i1] -> MemRef0[i0] }"
+            }
+         ],
+         "domain" : "{ Stmt5[i0, i1] : 0 <= i0 <= 49 and 0 <= i1 <= 2 }",
+         "name" : "Stmt5",
+         "schedule" : "{ Stmt5[i0, i1] -> [2, t0, 0, t1, i1]: 0 <= t0 < 6 and 0 <= t1 < 10 and i0 = t0 * 8 + t1  }"
+      },
+      {
+         "accesses" : [
+            {
+               "kind" : "read",
+               "relation" : "{ Stmt9[i0, i1] -> MemRef0[i0 + i1] }"
+            },
+            {
+               "kind" : "read",
+               "relation" : "{ Stmt9[i0, i1] -> MemRef4[i1] }"
+            },
+            {
+               "kind" : "read",
+               "relation" : "{ Stmt9[i0, i1] -> MemRef1[i0] }"
+            },
+            {
+               "kind" : "write",
+               "relation" : "{ Stmt9[i0, i1] -> MemRef1[i0] }"
+            }
+         ],
+         "domain" : "{ Stmt9[i0, i1] : 0 <= i0 <= 47 and 0 <= i1 <= 2 }",
+         "name" : "Stmt9",
+         "schedule" : "{ Stmt9[i0, i1] -> [2, t0, 1, t1, i1]: 0 <= t0 < 6 and 0 <= t1 < 8 and i0 = t0 * 8 + t1 }"
+      }
+   ]
+}
