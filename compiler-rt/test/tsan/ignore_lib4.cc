@@ -1,4 +1,7 @@
-// RUN: %clangxx_tsan -O1 %s -DLIB -fPIC -shared -o %T/libignore_lib4.so
+// RUN: rm -rf %t-dir
+// RUN: mkdir %t-dir
+
+// RUN: %clangxx_tsan -O1 %s -DLIB -fPIC -shared -o %t-dir/libignore_lib4.so
 // RUN: %clangxx_tsan -O1 %s -o %t
 // RUN: echo "called_from_lib:libignore_lib4.so" > %t.supp
 // RUN: %env_tsan_opts=suppressions='%t.supp' %run %t 2>&1 | FileCheck %s

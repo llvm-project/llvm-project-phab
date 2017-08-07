@@ -1,4 +1,7 @@
-// RUN: %clangxx_tsan -O1 %s -o %T/simple_stack2.cc.exe && %deflake %run %T/simple_stack2.cc.exe | FileCheck %s
+// RUN: rm -rf %t-dir
+// RUN: mkdir %t-dir
+
+// RUN: %clangxx_tsan -O1 %s -o %t-dir/simple_stack2.cc.exe && %deflake %run %t-dir/simple_stack2.cc.exe | FileCheck %s
 #include "test.h"
 
 int Global;
