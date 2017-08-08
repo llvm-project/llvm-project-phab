@@ -98,6 +98,14 @@ void ExprEngine::VisitBinaryOperator(const BinaryOperator* B,
       }
 
       state = state->BindExpr(B, LCtx, Result);
+
+      {
+        ProgramStateRef St2 = getConstraintManager().evalRangeOp(state, Result);
+        if (St2) {
+          Bldr.generateNode(B, *it, St2);
+          continue;
+        }
+      }
       Bldr.generateNode(B, *it, state);
       continue;
     }
