@@ -25,6 +25,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/Module.h"
+#include "llvm/Transforms/IPO/FunctionAttrs.h"
 #include <algorithm>
 #include <array>
 #include <cassert>
@@ -193,6 +194,7 @@ public:
   /// Returns the hash of the original name, it is identical to the GUID for
   /// externally visible symbols, but not for local ones.
   GlobalValue::GUID getOriginalName() { return OriginalName; }
+  GlobalValue::GUID getOriginalName() const { return OriginalName; }
 
   /// Initialize the original name hash in this summary.
   void setOriginalName(GlobalValue::GUID Name) { OriginalName = Name; }
@@ -415,6 +417,8 @@ public:
       TIdInfo = llvm::make_unique<TypeIdInfo>();
     TIdInfo->TypeTests.push_back(Guid);
   }
+
+  friend struct GraphTraits<FunctionSummary *>;
 };
 
 template <> struct DenseMapInfo<FunctionSummary::VFuncId> {
@@ -578,6 +582,57 @@ private:
   }
 
 public:
+  class fsummary_iterator
+      : public std::iterator<std::input_iterator_tag, FunctionSummary> {
+    gvsummary_iterator I;
+
+    FunctionSummary *fsumFromGVPair(GlobalValueSummaryMapTy::value_type &P) {
+      FunctionSummary *F;
+      if (P.second.SummaryList.size() &&
+          (F = dyn_cast<FunctionSummary>(P.second.SummaryList.front().get())))
+        return F;
+      return nullptr;
+    }
+
+  public:
+    fsummary_iterator(ModuleSummaryIndex *Index, bool EndIter = false) {
+      auto End = Index->end();
+      while (End != Index->begin()) {
+        End--;
+        if (fsumFromGVPair(*End)) {
+          End++; // step past fsum
+          break; // since we found the end
+        }
+      }
+
+      if (EndIter) {
+        I = End;
+        return;
+      }
+
+      I = Index->begin();
+
+      while (I != End && !fsumFromGVPair(*I))
+        I++;
+    }
+    fsummary_iterator operator++(int) {
+      I++;
+      return *this;
+    }
+    bool operator==(fsummary_iterator &rhs) { return I == rhs.I; }
+    bool operator!=(fsummary_iterator &rhs) { return I != rhs.I; }
+    FunctionSummary *operator*() {
+      FunctionSummary *F = fsumFromGVPair(*I);
+      if (F)
+        return F;
+      operator++(0);
+      return operator*();
+    }
+  };
+
+  fsummary_iterator functions_begin() { return fsummary_iterator(this); }
+  fsummary_iterator functions_end() { return fsummary_iterator(this, true); }
+
   gvsummary_iterator begin() { return GlobalValueMap.begin(); }
   const_gvsummary_iterator begin() const { return GlobalValueMap.begin(); }
   gvsummary_iterator end() { return GlobalValueMap.end(); }
@@ -769,6 +824,61 @@ public:
   /// Summary).
   void collectDefinedGVSummariesPerModule(
       StringMap<GVSummaryMapTy> &ModuleToDefinedGVSummaries) const;
+};
+
+/// GraphTraits definition to build SCC for the index
+template <> struct GraphTraits<FunctionSummary *> {
+  typedef FunctionSummary *NodeRef;
+  static NodeRef fsumFromEdge(FunctionSummary::EdgeTy &P) {
+    if (P.first.Ref && P.first.getSummaryList().size())
+      return cast<FunctionSummary>(P.first.getSummaryList().front().get());
+
+    // Create an empty functionsummary in the case of an external function
+    // (since scc_iterator doesn't accept nullptrs)
+    auto F = llvm::make_unique<FunctionSummary>(
+        FunctionSummary::GVFlags(
+            GlobalValue::LinkageTypes::AvailableExternallyLinkage, true, false),
+        0, FunctionSummary::FFlags{}, std::vector<ValueInfo>(),
+        std::vector<FunctionSummary::EdgeTy>(),
+        std::vector<GlobalValue::GUID>(),
+        std::vector<FunctionSummary::VFuncId>(),
+        std::vector<FunctionSummary::VFuncId>(),
+        std::vector<FunctionSummary::ConstVCall>(),
+        std::vector<FunctionSummary::ConstVCall>());
+    F->setOriginalName(P.first.Ref ? P.first.getGUID() : 0);
+    return F.get();
+  }
+  using ChildIteratorType =
+      mapped_iterator<std::vector<FunctionSummary::EdgeTy>::iterator,
+                      decltype(&fsumFromEdge)>;
+
+  // Use the first callee as the entry node
+  static NodeRef getEntryNode(FunctionSummary *F) { return F; }
+
+  static ChildIteratorType child_begin(NodeRef N) {
+    return ChildIteratorType(N->CallGraphEdgeList.begin(), &fsumFromEdge);
+  }
+
+  static ChildIteratorType child_end(NodeRef N) {
+    return ChildIteratorType(N->CallGraphEdgeList.end(), &fsumFromEdge);
+  }
+};
+
+template <>
+struct GraphTraits<ModuleSummaryIndex *>
+    : public GraphTraits<FunctionSummary *> {
+  static NodeRef getEntryNode(ModuleSummaryIndex *I) {
+    return *I->functions_begin();
+  }
+  using nodes_iterator = ModuleSummaryIndex::fsummary_iterator;
+
+  static nodes_iterator nodes_begin(ModuleSummaryIndex *I) {
+    return I->functions_begin();
+  }
+
+  static nodes_iterator nodes_end(ModuleSummaryIndex *I) {
+    return I->functions_end();
+  }
 };
 
 } // end namespace llvm
