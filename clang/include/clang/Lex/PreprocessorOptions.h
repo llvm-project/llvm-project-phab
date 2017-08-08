@@ -127,7 +127,11 @@ public:
   /// manipulation of the compiler invocation object, in cases where the 
   /// compiler invocation and its buffers will be reused.
   bool RetainRemappedFileBuffers;
-  
+
+  /// \brief Whether to measure the amount of time spent in code related to
+  /// preprocessing. This flag defaults to false.
+  bool ShowTimers;
+
   /// \brief The Objective-C++ ARC standard library that we should support,
   /// by providing appropriate definitions to retrofit the standard library
   /// with support for lifetime-qualified pointers.
@@ -164,6 +168,7 @@ public:
                           GeneratePreamble(false),
                           RemappedFilesKeepOriginalName(true),
                           RetainRemappedFileBuffers(false),
+                          ShowTimers(false),
                           ObjCXXARCStandardLibrary(ARCXX_nolib) { }
 
   void addMacroDef(StringRef Name) { Macros.emplace_back(Name, false); }

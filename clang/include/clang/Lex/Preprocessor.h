@@ -33,6 +33,7 @@
 #include "llvm/ADT/TinyPtrVector.h"
 #include "llvm/Support/Allocator.h"
 #include "llvm/Support/Registry.h"
+#include "llvm/Support/Timer.h"
 #include <memory>
 #include <vector>
 
@@ -623,6 +624,9 @@ class Preprocessor {
   unsigned NumMacroExpanded, NumFnMacroExpanded, NumBuiltinMacroExpanded;
   unsigned NumFastMacroExpanded, NumTokenPaste, NumFastTokenPaste;
   unsigned NumSkipped;
+
+  // A timer to keep track of how much time was spent on preprocessing.
+  llvm::Timer PreprocessingTimer;
 
   /// \brief The predefined macros that preprocessor should use from the
   /// command line etc.

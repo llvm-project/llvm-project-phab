@@ -367,7 +367,9 @@ static void InitializeFileRemapping(DiagnosticsEngine &Diags,
 // Preprocessor
 
 void CompilerInstance::createPreprocessor(TranslationUnitKind TUKind) {
-  const PreprocessorOptions &PPOpts = getPreprocessorOpts();
+  PreprocessorOptions &PPOpts = getPreprocessorOpts();
+  if (getFrontendOpts().ShowTimers)
+    PPOpts.ShowTimers = true;
 
   // Create a PTH manager if we are using some form of a token cache.
   PTHManager *PTHMgr = nullptr;

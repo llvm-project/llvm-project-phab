@@ -88,6 +88,7 @@ Preprocessor::Preprocessor(std::shared_ptr<PreprocessorOptions> PPOpts,
       CurDirLookup(nullptr), CurLexerKind(CLK_Lexer),
       CurLexerSubmodule(nullptr), Callbacks(nullptr),
       CurSubmoduleState(&NullSubmoduleState), MacroArgCache(nullptr),
+      PreprocessingTimer("preprocessor", "Preprocessing"),
       Record(nullptr), MIChainHead(nullptr) {
   OwnsHeaderSearch = OwnsHeaders;
   
@@ -655,6 +656,8 @@ bool Preprocessor::HandleIdentifier(Token &Identifier) {
          "Can't handle identifiers without identifier info!");
 
   IdentifierInfo &II = *Identifier.getIdentifierInfo();
+
+  llvm::TimeRegion(PPOpts->ShowTimers ? &PreprocessingTimer : nullptr);
 
   // If the information about this identifier is out of date, update it from
   // the external source.
