@@ -87,10 +87,12 @@ public:
   void AddWordToAutoDictionary(DictionaryEntry DE);
   void ClearAutoDictionary();
   void PrintRecommendedDictionary();
+  void AddInputLocation(size_t loc);
 
   void SetCorpus(const InputCorpus *Corpus) { this->Corpus = Corpus; }
 
   Random &GetRand() { return Rand; }
+
 
 private:
 
@@ -149,6 +151,7 @@ private:
 
   std::vector<Mutator> Mutators;
   std::vector<Mutator> DefaultMutators;
+  std::vector<size_t> InterestingInputLocs;
 };
 
 }  // namespace fuzzer

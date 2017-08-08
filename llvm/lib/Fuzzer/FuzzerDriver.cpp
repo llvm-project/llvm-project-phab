@@ -556,6 +556,10 @@ int FuzzerDriver(int *argc, char ***argv, UserCallback Callback) {
   const size_t kMinDefaultLen = 4096;
   FuzzingOptions Options;
   Options.Verbosity = Flags.verbosity;
+  if (Flags.sa_locs_file)
+    Options.InterestingLocsFile = Flags.sa_locs_file;
+  else
+    Options.InterestingLocsFile = "";
   Options.MaxLen = Flags.max_len;
   Options.ExperimentalLenControl = Flags.experimental_len_control;
   if (Flags.experimental_len_control && Flags.max_len == kMinDefaultLen)

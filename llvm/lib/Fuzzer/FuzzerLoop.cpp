@@ -452,6 +452,7 @@ void Fuzzer::ExecuteCallback(const uint8_t *Data, size_t Size) {
   memcpy(DataCopy, Data, Size);
   if (CurrentUnitData && CurrentUnitData != Data)
     memcpy(CurrentUnitData, Data, Size);
+  AssignTaintLabels(DataCopy, Size);
   CurrentUnitSize = Size;
   AllocTracer.Start(Options.TraceMalloc);
   UnitStartTime = system_clock::now();
@@ -589,6 +590,8 @@ void Fuzzer::MutateAndTestOne() {
       break;
     size_t NewSize = 0;
     NewSize = MD.Mutate(CurrentUnitData, Size, CurrentMaxMutationLen);
+    if (NewSize ==1)
+      break;
     assert(NewSize > 0 && "Mutator returned empty unit");
     assert(NewSize <= CurrentMaxMutationLen && "Mutator return overisized unit");
     Size = NewSize;
