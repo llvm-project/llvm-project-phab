@@ -100,9 +100,32 @@ void dfsan_dump_labels(int fd);
 void dfsan_weak_hook_memcmp(void *caller_pc, const void *s1, const void *s2,
                             size_t n, dfsan_label s1_label,
                             dfsan_label s2_label, dfsan_label n_label);
+void dfsan_weak_hook_strcmp(void *caller_pc, const char *s1, const char *s2,
+                            dfsan_label s1_label, dfsan_label s2_label);
 void dfsan_weak_hook_strncmp(void *caller_pc, const char *s1, const char *s2,
                              size_t n, dfsan_label s1_label,
                              dfsan_label s2_label, dfsan_label n_label);
+void dfsan_weak_hook_strchr( void *caller_pc, const char *s,
+                             int c, dfsan_label s_label,
+                             dfsan_label c_label);
+void dfsan_weak_hook_strncasecmp(void *caller_pc, const char *s1,
+                                 const char *s2, size_t n, dfsan_label s1_label,
+                                 dfsan_label s2_label, dfsan_label n_label);
+void dfsan_weak_hook_strcasecmp(void *caller_pc, const char *s1, const char *s2,
+                                dfsan_label s1_label, dfsan_label s2_label);
+void dfsan_weak_hook_strlen(void *caller_pc, const char *s, dfsan_label s_label);
+void dfsan_weak_hook_memcpy(void *caller_pc, void *dest, const void *src, size_t n,
+                            dfsan_label dest_label, dfsan_label src_label,
+                            dfsan_label n_label);
+void dfsan_weak_hook_memset(void *caller_pc, void *s, int c, size_t n,
+                            dfsan_label s_label, dfsan_label c_label,
+                            dfsan_label n_label);
+void dfsan_weak_hook_strncpy(void *caller_pc, char *s1, const char *s2, size_t n,
+                             dfsan_label s1_label, dfsan_label s2_label,
+                             dfsan_label n_label);
+void dfsan_weak_hook_strcpy(void *caller_pc, char *dest, const char *src,
+                            dfsan_label dst_label, dfsan_label src_label);
+
 #ifdef __cplusplus
 }  // extern "C"
 
