@@ -1,4 +1,7 @@
-// RUN: %clangxx_tsan -O1 %s -DLIB -fPIC -fno-sanitize=thread -shared -o %T/libignore_lib1.so
+// RUN: rm -rf %t-dir
+// RUN: mkdir %t-dir
+
+// RUN: %clangxx_tsan -O1 %s -DLIB -fPIC -fno-sanitize=thread -shared -o %t-dir/libignore_lib1.so
 // RUN: %clangxx_tsan -O1 %s -o %t
 // RUN: echo running w/o suppressions:
 // RUN: %deflake %run %t | FileCheck %s --check-prefix=CHECK-NOSUPP
