@@ -25,6 +25,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/Module.h"
+#include "llvm/Transforms/IPO/FunctionAttrs.h"
 #include <algorithm>
 #include <array>
 #include <cassert>
@@ -193,6 +194,7 @@ public:
   /// Returns the hash of the original name, it is identical to the GUID for
   /// externally visible symbols, but not for local ones.
   GlobalValue::GUID getOriginalName() { return OriginalName; }
+  GlobalValue::GUID getOriginalName() const { return OriginalName; }
 
   /// Initialize the original name hash in this summary.
   void setOriginalName(GlobalValue::GUID Name) { OriginalName = Name; }
@@ -769,6 +771,44 @@ public:
   /// Summary).
   void collectDefinedGVSummariesPerModule(
       StringMap<GVSummaryMapTy> &ModuleToDefinedGVSummaries) const;
+};
+
+/// GraphTraits definition to build SCC for the index
+template <> struct GraphTraits<const FunctionSummary *> {
+  typedef const FunctionSummary *NodeRef;
+  static NodeRef fsumFromEdge(const FunctionSummary::EdgeTy &P) {
+    if (P.first.Ref && P.first.getSummaryList().size())
+      return cast<FunctionSummary>(P.first.getSummaryList().front().get());
+
+    // Create an empty functionsummary in the case of an external function
+    // (since scc_iterator doesn't accept nullptrs)
+    auto F = llvm::make_unique<FunctionSummary>(
+        FunctionSummary::GVFlags(
+            GlobalValue::LinkageTypes::AvailableExternallyLinkage, true, false),
+        0, FunctionSummary::FFlags{}, std::vector<ValueInfo>(),
+        std::vector<FunctionSummary::EdgeTy>(),
+        std::vector<GlobalValue::GUID>(),
+        std::vector<FunctionSummary::VFuncId>(),
+        std::vector<FunctionSummary::VFuncId>(),
+        std::vector<FunctionSummary::ConstVCall>(),
+        std::vector<FunctionSummary::ConstVCall>());
+    F->setOriginalName(P.first.Ref ? P.first.getGUID() : 0);
+    return F.get();
+  }
+  using ChildIteratorType =
+      mapped_iterator<ArrayRef<FunctionSummary::EdgeTy>::iterator,
+                      decltype(&fsumFromEdge)>;
+
+  // Use the first callee as the entry node
+  static NodeRef getEntryNode(const FunctionSummary *F) { return F; }
+
+  static ChildIteratorType child_begin(NodeRef N) {
+    return ChildIteratorType(N->calls().begin(), &fsumFromEdge);
+  }
+
+  static ChildIteratorType child_end(NodeRef N) {
+    return ChildIteratorType(N->calls().end(), &fsumFromEdge);
+  }
 };
 
 } // end namespace llvm
