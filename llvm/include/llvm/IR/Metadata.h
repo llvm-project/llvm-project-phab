@@ -1303,7 +1303,12 @@ public:
     if (!Use)
       return;
     *Use = MD;
-    Use = nullptr;
+
+    if (*Use)
+      MetadataTracking::track(*Use);
+
+    MetadataTracking::untrack(this);
+    assert(!Use && "Use is still being tracked despite being untracked!");
   }
 };
 
