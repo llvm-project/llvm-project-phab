@@ -1189,6 +1189,8 @@ public:
   /// Initialize members after all MemoryAccesses have been added.
   void init(LoopInfo &LI);
 
+  void updateAccesDomain();
+
 private:
   /// Polyhedral description
   //@{
@@ -1350,6 +1352,8 @@ public:
 
   /// Set the invalid context for this statement to @p ID.
   void setInvalidDomain(isl::set ID);
+
+  void setDomain(isl::set ID);
 
   /// Get the BasicBlock represented by this ScopStmt (if any).
   ///

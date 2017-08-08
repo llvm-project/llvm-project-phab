@@ -16,6 +16,7 @@
 #include "polly/Options.h"
 #include "polly/ScopInfo.h"
 #include "polly/ScopPass.h"
+#include "polly/Support/GICHelper.h"
 #include "polly/Support/ScopLocation.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/RegionInfo.h"
@@ -29,6 +30,7 @@
 #include "isl/printer.h"
 #include "isl/set.h"
 #include "isl/union_map.h"
+#include "isl/union_set.h"
 #include "json/reader.h"
 #include "json/writer.h"
 #include <memory>
@@ -324,6 +326,135 @@ bool JSONImporter::importContext(Scop &S, Json::Value &JScop) {
   return true;
 }
 
+// finds the ScopStmt corresponding to Map.
+ScopStmt *findStmtFromMap(Scop &S, isl::map Map) {
+  isl::map Universe;
+  isl::set StmtDomain, MapDomain;
+  ScopStmt *CurrentStmt;
+
+  Universe = isl::map::universe(Map.get_space());
+  MapDomain = Universe.domain();
+
+  for (ScopStmt &Stmt : S) {
+    StmtDomain = Stmt.getSchedule().domain();
+    if (StmtDomain.is_equal(MapDomain)) {
+      CurrentStmt = &Stmt;
+      break;
+    }
+  }
+
+  return CurrentStmt;
+}
+
+isl::stat makeStmtSingleValued(Scop &S, isl::union_map *NewSchedule,
+                               isl::map MapToAdd) {
+  isl::map LexMin;
+
+  assert((LexMin = MapToAdd.lexmin()) && "Map is not lower-bounded!");
+  if (!MapToAdd.is_equal(LexMin)) {
+    // non-singular valued map
+    int i = 0;
+    ScopStmt *CurrentStmt;
+    int dim = MapToAdd.dim(isl::dim::in);
+
+    // schedule for dim = 0
+    isl::map CurMap = LexMin.add_dims(isl::dim::in, 1);
+    isl::id Id = LexMin.get_tuple_id(isl::dim::in);
+    isl::set Domain;
+    isl::local_space LS = isl::local_space(CurMap.get_space());
+    isl::constraint C = isl::constraint::alloc_equality(LS);
+    C = C.set_constant_val(isl::val(MapToAdd.get_ctx(), -i));
+    C = C.set_coefficient_si(isl::dim::in, dim, 1);
+    i++;
+
+    CurMap = CurMap.add_constraint(C);
+    CurMap = CurMap.set_tuple_id(isl::dim::in, Id);
+    Domain = CurMap.domain();
+    *NewSchedule = NewSchedule->add_map(CurMap);
+
+    MapToAdd = MapToAdd.subtract(LexMin);
+    // schedule for dim > 0
+    while (!MapToAdd.is_empty()) {
+      assert((LexMin = MapToAdd.lexmin()) && "Map is not lower-bounded!");
+      MapToAdd = MapToAdd.subtract(LexMin);
+
+      CurMap = LexMin.add_dims(isl::dim::in, 1);
+      C = C.set_constant_val(isl::val(MapToAdd.get_ctx(), -i));
+      CurMap = CurMap.add_constraint(C);
+      CurMap = CurMap.set_tuple_id(isl::dim::in, Id);
+
+      *NewSchedule = NewSchedule->add_map(CurMap);
+      i++;
+
+      Domain = Domain.unite(CurMap.domain());
+    }
+
+    // Find the new domain
+    CurrentStmt = findStmtFromMap(S, MapToAdd);
+    isl::set OrigDomain = CurrentStmt->getDomain();
+    OrigDomain = OrigDomain.add_dims(isl::dim::set, 1);
+    OrigDomain = OrigDomain.set_tuple_id(Id);
+    Domain = Domain.intersect(OrigDomain);
+
+    // Adjust the Scop
+    CurrentStmt->setDomain(Domain);
+    CurrentStmt->updateAccesDomain();
+
+  } else {
+    // singular valued map
+    *NewSchedule = NewSchedule->add_map(MapToAdd);
+  }
+
+  return isl::stat::ok;
+}
+
+///	Makes a single-valued schedule and adds the required ScopStmts to the
+/// Scop.
+///
+/// @param OldSchedule The non-single-valued schedule to be made single-valued.
+///
+/// @param S The Scop where the new ScopStmts need to be added.
+///
+/// @returns isl_union_map the new single valued schedule.
+isl::union_map makeScheduleSingleValued(isl::union_map OldSchedule, Scop &S) {
+  isl::union_map NewSchedule;
+  NewSchedule = NewSchedule.empty(OldSchedule.get_space());
+
+  assert(OldSchedule.foreach_map([&S, &NewSchedule](isl::map Map) -> isl::stat {
+    return makeStmtSingleValued(S, &NewSchedule, Map);
+  }) == isl::stat::ok &&
+         "error during fixing schedule!");
+
+  DEBUG(dbgs() << "\nNew Map:\n"; NewSchedule.dump(); dbgs() << "\n\n");
+
+  return NewSchedule;
+}
+
+static isl_stat basicMapIsBounded(__isl_take isl_basic_map *Map, void *User) {
+  if (isl_basic_map_image_is_bounded(Map)) {
+    isl_basic_map_free(Map);
+    return isl_stat_ok;
+  }
+  isl_basic_map_free(Map);
+  return isl_stat_error;
+}
+
+static isl_stat mapIsBounded(__isl_take isl_map *Map, void *User) {
+  if (isl_map_foreach_basic_map(Map, basicMapIsBounded, NULL) == isl_stat_ok) {
+    isl_map_free(Map);
+    return isl_stat_ok;
+  }
+  isl_map_free(Map);
+  return isl_stat_error;
+}
+
+static bool unionMapIsBounded(isl_union_map *Map) {
+  if (isl_union_map_foreach_map(Map, &mapIsBounded, NULL) == isl_stat_ok) {
+    return true;
+  }
+  return false;
+}
+
 bool JSONImporter::importSchedule(Scop &S, Json::Value &JScop,
                                   const Dependences &D) {
   StatementToIslMapTy NewSchedule;
@@ -400,7 +531,31 @@ bool JSONImporter::importSchedule(Scop &S, Json::Value &JScop,
           isl_union_map_add_map(ScheduleMap, Stmt.getSchedule().release());
   }
 
-  S.setSchedule(ScheduleMap);
+  // Check if the map is single valued.
+  if (!isl_union_map_is_single_valued(ScheduleMap)) {
+    DEBUG(
+        dbgs() << "JScop file contains a schedule that is not single valued\n");
+
+    // Not Yet Finished, when ScheduleMap can be fixed by
+    // makeScheduleSingleValued, the new ScheduleMap will be passed.
+    if (!unionMapIsBounded(ScheduleMap)) {
+      DEBUG(dbgs() << "JScop file contains a schedule that is not bounded\n");
+      isl_union_map_free(ScheduleMap);
+      return false;
+    }
+
+    ScheduleMap =
+        makeScheduleSingleValued(isl::manage(ScheduleMap), S).release();
+
+    S.setSchedule(ScheduleMap);
+
+    const Dependences &NewD =
+        getAnalysis<DependenceInfo>().recomputeDependences(
+            Dependences::AL_Statement);
+    DEBUG(dbgs() << "\nNew dependences:\n"; NewD.dump(););
+  } else {
+    S.setSchedule(ScheduleMap);
+  }
 
   return true;
 }
@@ -760,17 +915,17 @@ bool JSONImporter::runOnScop(Scop &S) {
   if (!Success)
     return false;
 
-  Success = importSchedule(S, jscop, D);
-
-  if (!Success)
-    return false;
-
   Success = importArrays(S, jscop);
 
   if (!Success)
     return false;
 
   Success = importAccesses(S, jscop, DL);
+
+  if (!Success)
+    return false;
+
+  Success = importSchedule(S, jscop, D);
 
   if (!Success)
     return false;

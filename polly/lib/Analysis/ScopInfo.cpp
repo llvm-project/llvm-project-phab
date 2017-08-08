@@ -1747,6 +1747,16 @@ void ScopStmt::init(LoopInfo &LI) {
     checkForReductions();
 }
 
+void ScopStmt::updateAccesDomain() {
+  for (MemoryAccess *MA : MemAccs) {
+    isl::map AccessRel = MA->getAccessRelation();
+    isl::id Id = AccessRel.get_tuple_id(isl::dim::in);
+    AccessRel = AccessRel.add_dims(isl::dim::in, 1);
+    AccessRel = AccessRel.set_tuple_id(isl::dim::in, Id);
+    MA->setAccessRelation(AccessRel);
+  }
+}
+
 /// Collect loads which might form a reduction chain with @p StoreMA.
 ///
 /// Check if the stored value for @p StoreMA is a binary operator with one or
@@ -1890,6 +1900,11 @@ std::string ScopStmt::getScheduleStr() const {
 }
 
 void ScopStmt::setInvalidDomain(isl::set ID) { InvalidDomain = ID; }
+
+void ScopStmt::setDomain(isl::set ID) {
+  collectSurroundingLoops();
+  Domain = ID;
+}
 
 BasicBlock *ScopStmt::getEntryBlock() const {
   if (isBlockStmt())
