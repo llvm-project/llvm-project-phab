@@ -1680,7 +1680,7 @@ define i32 @wobble(i32 %arg, i32 %bar) {
 ; CHECK-NEXT:    [[BIN_RDX2:%.*]] = add <4 x i32> [[BIN_RDX]], [[RDX_SHUF1]]
 ; CHECK-NEXT:    [[TMP12:%.*]] = extractelement <4 x i32> [[BIN_RDX2]], i32 0
 ; CHECK-NEXT:    [[BIN_EXTRA:%.*]] = add nuw i32 [[TMP12]], [[ARG]]
-; CHECK-NEXT:    [[BIN_EXTRA3:%.*]] = add nsw i32 [[BIN_EXTRA]], [[TMP9]]
+; CHECK-NEXT:    [[BIN_EXTRA3:%.*]] = add i32 [[BIN_EXTRA]], [[TMP9]]
 ; CHECK-NEXT:    [[R5:%.*]] = add nsw i32 [[R4]], undef
 ; CHECK-NEXT:    ret i32 [[BIN_EXTRA3]]
 ;
@@ -1708,7 +1708,7 @@ define i32 @wobble(i32 %arg, i32 %bar) {
 ; THRESHOLD-NEXT:    [[BIN_RDX2:%.*]] = add <4 x i32> [[BIN_RDX]], [[RDX_SHUF1]]
 ; THRESHOLD-NEXT:    [[TMP12:%.*]] = extractelement <4 x i32> [[BIN_RDX2]], i32 0
 ; THRESHOLD-NEXT:    [[BIN_EXTRA:%.*]] = add nuw i32 [[TMP12]], [[ARG]]
-; THRESHOLD-NEXT:    [[BIN_EXTRA3:%.*]] = add nsw i32 [[BIN_EXTRA]], [[TMP9]]
+; THRESHOLD-NEXT:    [[BIN_EXTRA3:%.*]] = add i32 [[BIN_EXTRA]], [[TMP9]]
 ; THRESHOLD-NEXT:    [[R5:%.*]] = add nsw i32 [[R4]], undef
 ; THRESHOLD-NEXT:    ret i32 [[BIN_EXTRA3]]
 ;
