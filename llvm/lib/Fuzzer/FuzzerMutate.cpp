@@ -118,7 +118,25 @@ size_t MutationDispatcher::Mutate_EraseBytes(uint8_t *Data, size_t Size,
 size_t MutationDispatcher::Mutate_InsertByte(uint8_t *Data, size_t Size,
                                              size_t MaxSize) {
   if (Size >= MaxSize) return 0;
-  size_t Idx = Rand(Size + 1);
+  size_t Idx;
+  size_t InterestingLocsNum = InterestingInputLocs.size();
+  if( InterestingLocsNum > 0) {
+    bool found = false;
+    size_t index;
+    for(int i = 0; i < 100; i++) {
+      index = Rand(InterestingLocsNum);
+      Idx = InterestingInputLocs[index];
+      if (Idx < Size) {
+        found = true;
+        break;
+      }
+    }
+    // if we don't find a good index after 100 trials, give up and default to random
+    if (!found)
+      Idx = Rand(Size + 1);
+  } else {
+    Idx = Rand(Size + 1);
+  }
   // Insert new value at Data[Idx].
   memmove(Data + Idx + 1, Data + Idx, Size - Idx);
   Data[Idx] = RandCh(Rand);
@@ -133,7 +151,25 @@ size_t MutationDispatcher::Mutate_InsertRepeatedBytes(uint8_t *Data,
   size_t MaxBytesToInsert = std::min(MaxSize - Size, (size_t)128);
   size_t N = Rand(MaxBytesToInsert - kMinBytesToInsert + 1) + kMinBytesToInsert;
   assert(Size + N <= MaxSize && N);
-  size_t Idx = Rand(Size + 1);
+  size_t Idx;
+  size_t InterestingLocsNum = InterestingInputLocs.size();
+  if(InterestingLocsNum > 0) {
+    bool found = false;
+    size_t index;
+    for(int i = 0; i < 100; i++) {
+      index = Rand(InterestingLocsNum);
+      Idx = InterestingInputLocs[index];
+      if (Idx < Size) {
+        found = true;
+        break;
+      }
+    }
+    // if we don't find a good index after 100 trials, give up and default to random
+    if (!found)
+      Idx = Rand(Size + 1);
+  } else {
+    Idx = Rand(Size + 1);
+  }
   // Insert new values at Data[Idx].
   memmove(Data + Idx + N, Data + Idx, Size - Idx);
   // Give preference to 0x00 and 0xff.
@@ -146,7 +182,25 @@ size_t MutationDispatcher::Mutate_InsertRepeatedBytes(uint8_t *Data,
 size_t MutationDispatcher::Mutate_ChangeByte(uint8_t *Data, size_t Size,
                                              size_t MaxSize) {
   if (Size > MaxSize) return 0;
-  size_t Idx = Rand(Size);
+  size_t Idx;
+  size_t InterestingLocsNum = InterestingInputLocs.size();
+  if( InterestingLocsNum > 0) {
+    bool found = false;
+    size_t index;
+    for(int i = 0; i < 100; i++) {
+      index = Rand(InterestingLocsNum);
+      Idx = InterestingInputLocs[index];
+      if (Idx < Size) {
+        found = true;
+        break;
+      }
+    }
+    // if we don't find a good index after 100 trials, give up and default to random
+    if (!found)
+      Idx = Rand(Size);
+  } else {
+    Idx = Rand(Size);
+  }
   Data[Idx] = RandCh(Rand);
   return Size;
 }
@@ -154,7 +208,25 @@ size_t MutationDispatcher::Mutate_ChangeByte(uint8_t *Data, size_t Size,
 size_t MutationDispatcher::Mutate_ChangeBit(uint8_t *Data, size_t Size,
                                             size_t MaxSize) {
   if (Size > MaxSize) return 0;
-  size_t Idx = Rand(Size);
+  size_t Idx;
+  size_t InterestingLocsNum = InterestingInputLocs.size();
+  if( InterestingLocsNum > 0) {
+    bool found = false;
+    size_t index;
+    for(int i = 0; i < 100; i++) {
+      index = Rand(InterestingLocsNum);
+      Idx = InterestingInputLocs[index];
+      if (Idx < Size) {
+        found = true;
+        break;
+      }
+    }
+    // if we don't find a good index after 100 trials, give up and default to random
+    if (!found)
+      Idx = Rand(Size);
+  } else {
+    Idx = Rand(Size);
+  }
   Data[Idx] ^= 1 << Rand(8);
   return Size;
 }
@@ -174,12 +246,30 @@ size_t MutationDispatcher::ApplyDictionaryEntry(uint8_t *Data, size_t Size,
                                                 size_t MaxSize,
                                                 DictionaryEntry &DE) {
   const Word &W = DE.GetW();
+  bool CachedPosition = false;
+  size_t CachedIdx;
+  size_t InterestingLocsNum = InterestingInputLocs.size();
+  if( InterestingLocsNum > 0) {
+    size_t index = Rand(InterestingLocsNum);
+    CachedIdx = InterestingInputLocs[index];
+    if (CachedIdx + W.size() < Size)
+      CachedPosition = true;
+  }
   bool UsePositionHint = DE.HasPositionHint() &&
                          DE.GetPositionHint() + W.size() < Size &&
                          Rand.RandBool();
+  if(UsePositionHint) {
+    uint8_t size = W.size();
+    const uint8_t* data = W.data();
+  }
+
   if (Rand.RandBool()) {  // Insert W.
     if (Size + W.size() > MaxSize) return 0;
-    size_t Idx = UsePositionHint ? DE.GetPositionHint() : Rand(Size + 1);
+    size_t Idx;
+    if (CachedPosition)
+      Idx = CachedIdx;
+    else
+      Idx = UsePositionHint ? DE.GetPositionHint() : Rand(Size + 1);
     memmove(Data + Idx + W.size(), Data + Idx, Size - Idx);
     memcpy(Data + Idx, W.data(), W.size());
     Size += W.size();
@@ -537,6 +627,10 @@ void MutationDispatcher::AddWordToAutoDictionary(DictionaryEntry DE) {
   static const size_t kMaxAutoDictSize = 1 << 14;
   if (TempAutoDictionary.size() >= kMaxAutoDictSize) return;
   TempAutoDictionary.push_back(DE);
+}
+
+void MutationDispatcher::AddInputLocation(size_t loc) {
+  InterestingInputLocs.push_back(loc);
 }
 
 void MutationDispatcher::ClearAutoDictionary() {

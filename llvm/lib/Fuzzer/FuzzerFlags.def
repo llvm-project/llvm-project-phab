@@ -39,6 +39,7 @@ FUZZER_FLAG_INT(merge, 0, "If 1, the 2-nd, 3-rd, etc corpora will be "
   "merged into the 1-st corpus. Only interesting units will be taken. "
   "This flag can be used to minimize a corpus.")
 FUZZER_FLAG_STRING(merge_control_file, "internal flag")
+FUZZER_FLAG_STRING(sa_locs_file, "file containing interesting locations found by static analyzer for guided fuzzing.")
 FUZZER_FLAG_STRING(save_coverage_summary, "Experimental:"
                    " save coverage summary to a given file."
                    " Used with -merge=1")

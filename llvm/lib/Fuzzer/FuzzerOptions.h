@@ -39,6 +39,7 @@ struct FuzzingOptions {
   int ReportSlowUnits = 10;
   bool OnlyASCII = false;
   std::string OutputCorpus;
+  std::string InterestingLocsFile;
   std::string ArtifactPrefix = "./";
   std::string ExactArtifactPath;
   std::string ExitOnSrcPos;
