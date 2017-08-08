@@ -6,6 +6,8 @@ fun:main=discard
 ###############################################################################
 fun:dfsan_union=uninstrumented
 fun:dfsan_union=discard
+fun:dfsan_reset=uninstrumented
+fun:dfsan_reset=discard
 fun:dfsan_create_label=uninstrumented
 fun:dfsan_create_label=discard
 fun:dfsan_set_label=uninstrumented

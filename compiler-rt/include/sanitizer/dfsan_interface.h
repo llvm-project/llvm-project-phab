@@ -52,6 +52,13 @@ dfsan_label dfsan_create_label(const char *desc, void *userdata);
 /// Sets the label for each address in [addr,addr+size) to \c label.
 void dfsan_set_label(dfsan_label label, void *addr, size_t size);
 
+// Reset labels and shadow memory for dfsan to restart from clean.
+// This is intended to work in a single threaded setting (main use
+// case is to avoid running out of labels in fuzzing).
+// This function is not safe to use in multithreaded code or when
+// there are active stack frames processing non-zero labels.
+void dfsan_reset(void);
+
 /// Sets the label for each address in [addr,addr+size) to the union of the
 /// current label for that address and \c label.
 void dfsan_add_label(dfsan_label label, void *addr, size_t size);
