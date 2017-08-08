@@ -1,5 +1,7 @@
-// RUN: %clangxx -g -DSHARED_LIB %s -fPIC -shared -o %T/target_uninstrumented-so.so
-// RUN: %clangxx_cfi_diag -g %s -o %t %T/target_uninstrumented-so.so
+// RUN: rm -rf %t-dir
+// RUN: mkdir %t-dir
+// RUN: %clangxx -g -DSHARED_LIB %s -fPIC -shared -o %t-dir/target_uninstrumented-so.so
+// RUN: %clangxx_cfi_diag -g %s -o %t %t-dir/target_uninstrumented-so.so
 // RUN: %t 2>&1 | FileCheck %s
 
 // REQUIRES: cxxabi
