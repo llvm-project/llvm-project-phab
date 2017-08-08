@@ -25,6 +25,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/Module.h"
+#include "llvm/Transforms/IPO/FunctionAttrs.h"
 #include <algorithm>
 #include <array>
 #include <cassert>
@@ -357,6 +358,51 @@ public:
 
   /// Get function attribute flags.
   FFlags &fflags() { return FunFlags; }
+
+  /// Iterator for a callees in a function summary.
+  class const_iterator
+      : public std::iterator<std::input_iterator_tag, FunctionSummary *> {
+    std::vector<EdgeTy>::const_iterator I;
+    const FunctionSummary *fsumFromEdge(const EdgeTy &P) {
+      if (P.first.Ref && P.first.getSummaryList().size())
+        return cast<FunctionSummary>(P.first.getSummaryList().front().get());
+
+      // Create an empty functionsummary in the case of an external function
+      // (since scc_iterator doesn't accept nullptrs)
+      auto F = llvm::make_unique<FunctionSummary>(
+          GVFlags(GlobalValue::LinkageTypes::AvailableExternallyLinkage, true,
+                  false),
+          0, FFlags{}, std::vector<ValueInfo>(), std::vector<EdgeTy>(),
+          std::vector<GlobalValue::GUID>(), std::vector<VFuncId>(),
+          std::vector<VFuncId>(), std::vector<ConstVCall>(),
+          std::vector<ConstVCall>());
+      F->setOriginalName(P.first.Ref ? P.first.getGUID() : 0);
+      return F.get();
+    }
+
+  public:
+    const_iterator(std::vector<EdgeTy>::const_iterator I) : I(I){};
+    const_iterator operator++(int) {
+      I++;
+      return *this;
+    }
+    bool operator==(const const_iterator &rhs) const { return I == rhs.I; }
+    bool operator!=(const const_iterator &rhs) const { return I != rhs.I; }
+    const FunctionSummary *operator*() { return fsumFromEdge(*I); }
+  };
+
+  const_iterator call_summaries_begin() const {
+    return const_iterator(CallGraphEdgeList.begin());
+  }
+  const_iterator call_summaries_end() const {
+    auto R = CallGraphEdgeList.end();
+
+    // decrement iterator once (if we can) since scc_iterator expects
+    // a pointer to the last *valid* object in the list
+    if (R != CallGraphEdgeList.begin())
+      R--;
+    return const_iterator(R);
+  }
 
   /// Get the instruction count recorded for this function.
   unsigned instCount() const { return InstCount; }
@@ -769,6 +815,23 @@ public:
   /// Summary).
   void collectDefinedGVSummariesPerModule(
       StringMap<GVSummaryMapTy> &ModuleToDefinedGVSummaries) const;
+};
+
+/// GraphTraits definition to build SCC for the index
+template <> struct GraphTraits<const FunctionSummary *> {
+  typedef const FunctionSummary *NodeRef;
+  typedef FunctionSummary::const_iterator ChildIteratorType;
+
+  // Use the first callee as the entry node
+  static NodeRef getEntryNode(const FunctionSummary *F) { return F; }
+
+  static ChildIteratorType child_begin(NodeRef N) {
+    return N->call_summaries_begin();
+  }
+
+  static ChildIteratorType child_end(NodeRef N) {
+    return N->call_summaries_end();
+  }
 };
 
 } // end namespace llvm
