@@ -708,6 +708,7 @@ void cl::TokenizeGNUCommandLine(StringRef Src, StringSaver &Saver,
                                 SmallVectorImpl<const char *> &NewArgv,
                                 bool MarkEOLs) {
   SmallString<128> Token;
+  bool NonWhitespaceSeenInLine = false;
   for (size_t I = 0, E = Src.size(); I != E; ++I) {
     // Consume runs of whitespace.
     if (Token.empty()) {
@@ -719,11 +720,27 @@ void cl::TokenizeGNUCommandLine(StringRef Src, StringSaver &Saver,
       }
       if (I == E)
         break;
+      // Skip comment line.
+      if (!NonWhitespaceSeenInLine && Src[I] == '#') {
+        ++I;
+        while (I != E && Src[I] != '\n')
+          ++I;
+        if (I == E)
+          break;
+        continue;
+      }
+      NonWhitespaceSeenInLine = true;
     }
 
     // Backslash escapes the next character.
     if (I + 1 < E && Src[I] == '\\') {
       ++I; // Skip the escape.
+      if (Src[I] == '\n')
+        continue; // Ignore backlash followed by '\n'.
+      if (Src[I] == '\r' && I + 1 < E && Src[I + 1] == '\n') {
+        ++I;
+        continue; // Ignore backlash followed by \r\n.
+      }
       Token.push_back(Src[I]);
       continue;
     }
@@ -748,6 +765,8 @@ void cl::TokenizeGNUCommandLine(StringRef Src, StringSaver &Saver,
       if (!Token.empty())
         NewArgv.push_back(Saver.save(StringRef(Token)).data());
       Token.clear();
+      if (Src[I] == '\n')
+        NonWhitespaceSeenInLine = false;
       continue;
     }
 
@@ -809,6 +828,7 @@ void cl::TokenizeWindowsCommandLine(StringRef Src, StringSaver &Saver,
   // This is a small state machine to consume characters until it reaches the
   // end of the source string.
   enum { INIT, UNQUOTED, QUOTED } State = INIT;
+  bool NonWhitespaceSeenInLine = false;
   for (size_t I = 0, E = Src.size(); I != E; ++I) {
     // INIT state indicates that the current input index is at the start of
     // the string or between tokens.
@@ -819,6 +839,18 @@ void cl::TokenizeWindowsCommandLine(StringRef Src, StringSaver &Saver,
           NewArgv.push_back(nullptr);
         continue;
       }
+
+      // Skip comment line.
+      if (!NonWhitespaceSeenInLine && Src[I] == '#') {
+        ++I;
+        while (I != E && Src[I] != '\n')
+          ++I;
+        if (I == E)
+          break;
+        continue;
+      }
+      NonWhitespaceSeenInLine = true;
+
       if (Src[I] == '"') {
         State = QUOTED;
         continue;
@@ -841,9 +873,12 @@ void cl::TokenizeWindowsCommandLine(StringRef Src, StringSaver &Saver,
         NewArgv.push_back(Saver.save(StringRef(Token)).data());
         Token.clear();
         State = INIT;
-        // Mark the end of lines in response files
-        if (MarkEOLs && Src[I] == '\n')
-          NewArgv.push_back(nullptr);
+        if (Src[I] == '\n') {
+          NonWhitespaceSeenInLine = false;
+          // Mark the end of lines in response files
+          if (MarkEOLs)
+            NewArgv.push_back(nullptr);
+        }
         continue;
       }
       if (Src[I] == '"') {
@@ -981,6 +1016,15 @@ bool cl::ExpandResponseFiles(StringSaver &Saver, TokenizerCallback Tokenizer,
     Argv.insert(Argv.begin() + I, ExpandedArgv.begin(), ExpandedArgv.end());
   }
   return AllExpanded;
+}
+
+bool cl::readConfigFile(StringRef CfgFile, StringSaver &Saver,
+                        SmallVectorImpl<const char *> &Argv) {
+  if (!ExpandResponseFile(CfgFile, Saver, cl::TokenizeGNUCommandLine, Argv,
+                          /*MarkEOLs*/ false, /*RelativeNames*/ true))
+    return false;
+  return ExpandResponseFiles(Saver, cl::TokenizeGNUCommandLine, Argv,
+                             /*MarkEOLs*/ false, /*RelativeNames*/ true);
 }
 
 /// ParseEnvironmentOptions - An alternative entry point to the

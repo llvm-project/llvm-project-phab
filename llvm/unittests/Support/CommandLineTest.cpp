@@ -198,6 +198,56 @@ TEST(CommandLineTest, TokenizeGNUCommandLine) {
                            array_lengthof(Output));
 }
 
+TEST(CommandLineTest, TokenizeGNUCommandLineBS) {
+  const char *Input = "\\";
+  const char *Output[1] = { "\\" };
+  testCommandLineTokenizer(cl::TokenizeGNUCommandLine, Input, Output, 1);
+
+  Input = "abc\\";
+  Output[0] = "abc\\";
+  testCommandLineTokenizer(cl::TokenizeGNUCommandLine, Input, Output, 1);
+
+  Input = "\\abc";
+  Output[0] = "abc";
+  testCommandLineTokenizer(cl::TokenizeGNUCommandLine, Input, Output, 1);
+
+  Input = "abc\\123";
+  Output[0] = "abc123";
+  testCommandLineTokenizer(cl::TokenizeGNUCommandLine, Input, Output, 1);
+
+  Input = "abc\\1";
+  Output[0] = "abc1";
+  testCommandLineTokenizer(cl::TokenizeGNUCommandLine, Input, Output, 1);
+
+  Input = "abc\\\\123";
+  Output[0] = "abc\\123";
+  testCommandLineTokenizer(cl::TokenizeGNUCommandLine, Input, Output, 1);
+
+  Input = "\\\nabc";
+  Output[0] = "abc";
+  testCommandLineTokenizer(cl::TokenizeGNUCommandLine, Input, Output, 1);
+
+  Input = "\\\r\nabc";
+  Output[0] = "abc";
+  testCommandLineTokenizer(cl::TokenizeGNUCommandLine, Input, Output, 1);
+
+  Input = "abc\\\n123";
+  Output[0] = "abc123";
+  testCommandLineTokenizer(cl::TokenizeGNUCommandLine, Input, Output, 1);
+
+  Input = "abc\\\r\n123";
+  Output[0] = "abc123";
+  testCommandLineTokenizer(cl::TokenizeGNUCommandLine, Input, Output, 1);
+
+  Input = "abc\\\n";
+  Output[0] = "abc";
+  testCommandLineTokenizer(cl::TokenizeGNUCommandLine, Input, Output, 1);
+
+  Input = "abc\\\r\n";
+  Output[0] = "abc";
+  testCommandLineTokenizer(cl::TokenizeGNUCommandLine, Input, Output, 1);
+}
+
 TEST(CommandLineTest, TokenizeWindowsCommandLine) {
   const char Input[] = "a\\b c\\\\d e\\\\\"f g\" h\\\"i j\\\\\\\"k \"lmn\" o pqr "
                       "\"st \\\"u\" \\v";
@@ -205,6 +255,38 @@ TEST(CommandLineTest, TokenizeWindowsCommandLine) {
                                  "lmn", "o", "pqr", "st \"u", "\\v" };
   testCommandLineTokenizer(cl::TokenizeWindowsCommandLine, Input, Output,
                            array_lengthof(Output));
+}
+
+TEST(CommandLineTest, TokenizeCommandLineComment) {
+  for (auto Tokenizer : { cl::TokenizeGNUCommandLine ,
+                          cl::TokenizeWindowsCommandLine }) {
+    const char *Input = "# abc\n"
+                        "123";
+    const char *Output[3] = { "123" };
+    testCommandLineTokenizer(Tokenizer, Input, Output, 1);
+
+    Input = "  # abc\n"
+            "123";
+    Output[0] = "123";
+    testCommandLineTokenizer(Tokenizer, Input, Output, 1);
+
+    Input = "123 # abc";
+    Output[0] = "123";
+    Output[1] = "#";
+    Output[2] = "abc";
+    testCommandLineTokenizer(Tokenizer, Input, Output, 3);
+
+    Input = "abc\n"
+            "#123";
+    Output[0] = "abc";
+    testCommandLineTokenizer(Tokenizer, Input, Output, 1);
+
+    Input = "abc def\n"
+            "#123";
+    Output[0] = "abc";
+    Output[1] = "def";
+    testCommandLineTokenizer(Tokenizer, Input, Output, 2);
+  }
 }
 
 TEST(CommandLineTest, AliasesWithArguments) {
@@ -610,6 +692,54 @@ TEST(CommandLineTest, ResponseFiles) {
   llvm::sys::fs::remove(IncludedFileName2);
   llvm::sys::fs::remove(IncDir);
   llvm::sys::fs::remove(IncludedFileName);
+  llvm::sys::fs::remove(TestDir);
+}
+
+TEST(CommandLineTest, ReadConfigFile) {
+  llvm::SmallVector<const char *, 1> Argv;
+
+  llvm::SmallString<128> TestDir;
+  std::error_code EC =
+      llvm::sys::fs::createUniqueDirectory("unittest", TestDir);
+  EXPECT_TRUE(!EC);
+
+  llvm::SmallString<128> TestCfg;
+  llvm::sys::path::append(TestCfg, TestDir, "foo");
+  std::ofstream ConfigFile(TestCfg.c_str());
+  EXPECT_TRUE(ConfigFile.is_open());
+  ConfigFile << "-option_1\n"
+                "@subconfig\n"
+                "-option_3=abcd\n";
+  ConfigFile.close();
+
+  llvm::SmallString<128> TestCfg2;
+  llvm::sys::path::append(TestCfg2, TestDir, "subconfig");
+  std::ofstream ConfigFile2(TestCfg2.c_str());
+  EXPECT_TRUE(ConfigFile2.is_open());
+  ConfigFile2 << "-option_2\n";
+  ConfigFile2.close();
+
+  // Make sure the current directory is not the directory where config files
+  // resides. In this case the code that expands response files will not find
+  // 'subconfig' unless it resolves nested inclusions relative to the including
+  // file.
+  llvm::SmallString<128> CurrDir;
+  EC = llvm::sys::fs::current_path(CurrDir);
+  EXPECT_TRUE(!EC);
+  EXPECT_TRUE(StringRef(CurrDir) != StringRef(TestDir));
+
+  llvm::BumpPtrAllocator A;
+  llvm::StringSaver Saver(A);
+  bool Result = llvm::cl::readConfigFile(TestCfg, Saver, Argv);
+
+  EXPECT_TRUE(Result);
+  EXPECT_EQ(Argv.size(), 3U);
+  EXPECT_STREQ(Argv[0], "-option_1");
+  EXPECT_STREQ(Argv[1], "-option_2");
+  EXPECT_STREQ(Argv[2], "-option_3=abcd");
+
+  llvm::sys::fs::remove(TestCfg2);
+  llvm::sys::fs::remove(TestCfg);
   llvm::sys::fs::remove(TestDir);
 }
 

@@ -1842,6 +1842,20 @@ using TokenizerCallback = void (*)(StringRef Source, StringSaver &Saver,
                                    SmallVectorImpl<const char *> &NewArgv,
                                    bool MarkEOLs);
 
+/// Reads command line options from the given configuration file.
+///
+/// \param [in] CfgFileName Path to configuration file.
+/// \param [in] Saver  Objects that saves allocated strings.
+/// \param [out] Argv Array to which the read options are added.
+/// \return true if the file was successfully read.
+///
+/// It reads content of the specified file, tokenizes it and expands "@file"
+/// commands resolving file names in them relative to the directory where
+/// CfgFilename resides.
+///
+bool readConfigFile(StringRef CfgFileName, StringSaver &Saver,
+                    SmallVectorImpl<const char *> &Argv);
+
 /// \brief Expand response files on a command line recursively using the given
 /// StringSaver and tokenization strategy.  Argv should contain the command line
 /// before expansion and will be modified in place. If requested, Argv will
