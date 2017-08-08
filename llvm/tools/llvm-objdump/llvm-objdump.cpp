@@ -690,8 +690,7 @@ static std::error_code getRelocationValueString(const ELFObjectFile<ELFT> *Obj,
     return errorToErrorCode(StrTabOrErr.takeError());
   StringRef StrTab = *StrTabOrErr;
   uint8_t type = RelRef.getType();
-  StringRef res;
-  int64_t addend = 0;
+  Optional<int64_t> addend = 0;
   switch (Sec->sh_type) {
   default:
     return object_error::parse_failed;
@@ -723,45 +722,26 @@ static std::error_code getRelocationValueString(const ELFObjectFile<ELFT> *Obj,
       return errorToErrorCode(SymName.takeError());
     Target = *SymName;
   }
+
+  StringRef suffix;
   switch (EF.getHeader()->e_machine) {
+  default:
+    // Default scheme is to print Target, as well as "+ <addend>" for nonzero
+    // addend. Should be acceptable for all normal purposes.
+    if (addend.hasValue() && addend.getValue() == 0)
+      addend = None;
+    break;
   case ELF::EM_X86_64:
     switch (type) {
     case ELF::R_X86_64_PC8:
     case ELF::R_X86_64_PC16:
     case ELF::R_X86_64_PC32: {
-      std::string fmtbuf;
-      raw_string_ostream fmt(fmtbuf);
-      fmt << Target << (addend < 0 ? "" : "+") << addend << "-P";
-      fmt.flush();
-      Result.append(fmtbuf.begin(), fmtbuf.end());
-    } break;
-    case ELF::R_X86_64_8:
-    case ELF::R_X86_64_16:
-    case ELF::R_X86_64_32:
-    case ELF::R_X86_64_32S:
-    case ELF::R_X86_64_64: {
-      std::string fmtbuf;
-      raw_string_ostream fmt(fmtbuf);
-      fmt << Target << (addend < 0 ? "" : "+") << addend;
-      fmt.flush();
-      Result.append(fmtbuf.begin(), fmtbuf.end());
+      suffix = "-P";
     } break;
     default:
-      res = "Unknown";
+      break;
     }
     break;
-  case ELF::EM_LANAI:
-  case ELF::EM_AVR:
-  case ELF::EM_AARCH64: {
-    std::string fmtbuf;
-    raw_string_ostream fmt(fmtbuf);
-    fmt << Target;
-    if (addend != 0)
-      fmt << (addend < 0 ? "" : "+") << addend;
-    fmt.flush();
-    Result.append(fmtbuf.begin(), fmtbuf.end());
-    break;
-  }
   case ELF::EM_386:
   case ELF::EM_IAMCU:
   case ELF::EM_ARM:
@@ -769,30 +749,27 @@ static std::error_code getRelocationValueString(const ELFObjectFile<ELFT> *Obj,
   case ELF::EM_MIPS:
   case ELF::EM_BPF:
   case ELF::EM_RISCV:
-    res = Target;
+    addend = None;
     break;
   case ELF::EM_WEBASSEMBLY:
     switch (type) {
-    case ELF::R_WEBASSEMBLY_DATA: {
-      std::string fmtbuf;
-      raw_string_ostream fmt(fmtbuf);
-      fmt << Target << (addend < 0 ? "" : "+") << addend;
-      fmt.flush();
-      Result.append(fmtbuf.begin(), fmtbuf.end());
-      break;
-    }
     case ELF::R_WEBASSEMBLY_FUNCTION:
-      res = Target;
+      addend = None;
       break;
     default:
-      res = "Unknown";
+      break;
     }
     break;
-  default:
-    res = "Unknown";
   }
-  if (Result.empty())
-    Result.append(res.begin(), res.end());
+
+  std::string fmtbuf;
+  raw_string_ostream fmt(fmtbuf);
+  fmt << Target;
+  if (addend.hasValue())
+    fmt << (addend.getValue() < 0 ? "" : "+") << addend.getValue();
+  fmt << suffix;
+  fmt.flush();
+  Result.append(fmtbuf.begin(), fmtbuf.end());
   return std::error_code();
 }
 
