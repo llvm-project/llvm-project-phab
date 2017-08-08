@@ -2430,6 +2430,12 @@ CodeGenModule::GetOrCreateLLVMGlobal(StringRef MangledName,
       EmitGlobalVarDefinition(D);
     }
 
+    // Emit section information for extern variables.
+    if (D->hasExternalStorage() && !D->isThisDeclarationADefinition()) {
+      if (const SectionAttr *SA = D->getAttr<SectionAttr>())
+        GV->setSection(SA->getName());
+    }
+
     // Handle XCore specific ABI requirements.
     if (getTriple().getArch() == llvm::Triple::xcore &&
         D->getLanguageLinkage() == CLanguageLinkage &&
