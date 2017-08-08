@@ -944,6 +944,8 @@ void LinkerDriver::link(ArrayRef<const char *> ArgsArr) {
     Config->WriteSymtab = false;
 
   Config->MapFile = getMapFile(Args);
+  if (auto *Arg = Args.getLastArg(OPT_redundancyReport))
+    Config->RedudancyReportFile = Arg->getValue();
 
   if (ErrorCount)
     return;

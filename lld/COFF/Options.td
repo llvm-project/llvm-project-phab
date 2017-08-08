@@ -104,6 +104,7 @@ def msvclto : F<"msvclto">;
 // Flags for debugging
 def lldmap : F<"lldmap">;
 def lldmap_file : Joined<["/", "-"], "lldmap:">;
+def redundancyReport: Joined<["/", "-"], "redundancyReport:">;
 
 //==============================================================================
 // The flags below do nothing. They are defined only for link.exe compatibility.

@@ -346,6 +346,7 @@ bool SectionChunk::isCOMDAT() const {
 void SectionChunk::printDiscardedMessage() const {
   // Removed by dead-stripping. If it's removed by ICF, ICF already
   // printed out the name, so don't repeat that here.
+// XXX
   if (Sym && this == Repl) {
     if (Discarded)
       message("Discarded comdat symbol " + Sym->getName());

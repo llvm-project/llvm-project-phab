@@ -148,6 +148,9 @@ struct Configuration {
   // Used for /lldmap.
   std::string MapFile;
 
+  // Used for /redundancyReport.
+  std::string RedudancyReportFile;
+
   uint64_t ImageBase = -1;
   uint64_t StackReserve = 1024 * 1024;
   uint64_t StackCommit = 4096;

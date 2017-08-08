@@ -128,6 +128,7 @@ private:
   void writeSections();
   void sortExceptionTable();
   void writeBuildId();
+  void writeRedundancyReport();
 
   llvm::Optional<coff_symbol16> createSymbol(Defined *D);
   size_t addEntryToStringTable(StringRef Str);
@@ -251,6 +252,7 @@ void Writer::run() {
   }
 
   writeMapFile(OutputSections);
+  writeRedundancyReport();
 
   if (auto EC = Buffer->commit())
     fatal(EC, "failed to write the output file");
@@ -823,6 +825,41 @@ void Writer::writeBuildId() {
 
   // TODO(compnerd) track the Age
   BuildId->DI->PDB70.Age = 1;
+}
+
+void Writer::writeRedundancyReport() {
+  if (Config->RedudancyReportFile.empty())
+    return;
+
+  // First, bin chunks by name.
+  // XXX i think this misses stuff from .obj files never added to the link.
+  // probably fine.
+  struct Entry {
+    int total_size = 0;
+    int count = 0;
+  };
+  std::map<StringRef, Entry> Map;
+  for (Chunk *C : Symtab->getChunks()) {
+    auto *SC = dyn_cast<SectionChunk>(C);
+    if (!SC || SC->isLive())
+      continue;
+
+    Entry& e = Map[C->getDebugName()];
+    e.count++;
+    e.total_size += SC->getSize();
+  }
+
+  std::vector<std::pair<StringRef, Entry>> Entries(Map.begin(), Map.end());
+  std::sort(Entries.begin(), Entries.end(),
+            [](const std::pair<StringRef, Entry> &a,
+               const std::pair<StringRef, Entry> &b) {
+              return a.second.total_size > b.second.total_size;
+            });
+
+  for (const std::pair<StringRef, Entry>& E : Entries) {
+    printf("%d\t%d\t%.*s\n", E.second.total_size, E.second.count,
+           (int)E.first.size(), E.first.data());
+  }
 }
 
 OutputSection *Writer::findSection(StringRef Name) {
