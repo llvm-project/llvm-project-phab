@@ -1,0 +1,13 @@
+; RUN: llvm-dlltool -m i386 --input-def %s --output-lib %t.a
+; RUN: llvm-readobj %t.a | FileCheck %s
+
+LIBRARY test.dll
+EXPORTS
+TestFunction@4
+
+; CHECK: File: test.dll
+; CHECK: Format: COFF-import-file
+; CHECK: Type: code
+; CHECK: Name type: undecorate
+; CHECK: Symbol: __imp__TestFunction@4
+; CHECK: Symbol: _TestFunction@4

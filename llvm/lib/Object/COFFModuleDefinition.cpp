@@ -227,6 +227,10 @@ private:
         E.Name = (std::string("_").append(E.Name));
       if (!E.ExtName.empty() && !isDecorated(E.ExtName, MingwDef))
         E.ExtName = (std::string("_").append(E.ExtName));
+      if (MingwDef) {
+        E.SymbolName = E.Name;
+        E.Name = E.Name.substr(0, E.Name.find('@'));
+      }
     }
 
     for (;;) {
