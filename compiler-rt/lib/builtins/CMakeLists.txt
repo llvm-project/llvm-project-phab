@@ -51,7 +51,6 @@ set(GENERIC_SOURCES
   cmpti2.c
   comparedf2.c
   comparesf2.c
-  cpu_model.c
   ctzdi2.c
   ctzsi2.c
   ctzti2.c
@@ -66,7 +65,6 @@ set(GENERIC_SOURCES
   divtc3.c
   divti3.c
   divtf3.c
-  divxc3.c
   extendsfdf2.c
   extendhfsf2.c
   ffsdi2.c
@@ -84,14 +82,10 @@ set(GENERIC_SOURCES
   fixunssfdi.c
   fixunssfsi.c
   fixunssfti.c
-  fixunsxfdi.c
-  fixunsxfsi.c
   fixunsxfti.c
-  fixxfdi.c
   fixxfti.c
   floatdidf.c
   floatdisf.c
-  floatdixf.c
   floatsidf.c
   floatsisf.c
   floattidf.c
@@ -99,7 +93,6 @@ set(GENERIC_SOURCES
   floattixf.c
   floatundidf.c
   floatundisf.c
-  floatundixf.c
   floatunsidf.c
   floatunsisf.c
   floatuntidf.c
@@ -124,7 +117,6 @@ set(GENERIC_SOURCES
   mulvdi3.c
   mulvsi3.c
   mulvti3.c
-  mulxc3.c
   negdf2.c
   negdi2.c
   negsf2.c
@@ -142,7 +134,6 @@ set(GENERIC_SOURCES
   powidf2.c
   powisf2.c
   powitf2.c
-  powixf2.c
   subdf3.c
   subsf3.c
   subvdi3.c
@@ -226,6 +217,18 @@ if (NOT FUCHSIA)
     clear_cache.c)
 endif()
 
+# These sources work on all x86 variants, but only x86 variants.
+set(x86_ARCH_SOURCES
+  cpu_model.c
+  divxc3.c
+  fixxfdi.c
+  fixunsxfdi.c
+  fixunsxfsi.c
+  floatdixf.c
+  floatundixf.c
+  mulxc3.c
+  powixf2.c)
+
 if (NOT MSVC)
   set(x86_64_SOURCES
       x86_64/chkstk.S
@@ -287,6 +290,11 @@ else () # MSVC
   set(i386_SOURCES ${GENERIC_SOURCES})
   set(i686_SOURCES ${i386_SOURCES})
 endif () # if (NOT MSVC)
+
+set(x86_64h_SOURCES ${x86_64h_SOURCES} ${x86_ARCH_SOURCES})
+set(x86_64_SOURCES ${x86_64_SOURCES} ${x86_ARCH_SOURCES})
+set(i386_SOURCES ${i386_SOURCES} ${x86_ARCH_SOURCES})
+set(i686_SOURCES ${i686_SOURCES} ${x86_ARCH_SOURCES})
 
 set(arm_SOURCES
   arm/bswapdi2.S
