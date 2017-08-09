@@ -8,6 +8,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "Writer.h"
+#include "CallGraphSort.h"
 #include "Config.h"
 #include "Filesystem.h"
 #include "LinkerScript.h"
@@ -911,6 +912,18 @@ template <class ELFT> void Writer<ELFT>::createSections() {
                               Old.end());
 
   Script->fabricateDefaultCommands();
+
+  llvm::DenseMap<const InputSectionBase *, int> OrderMap =
+      computeCallGraphProfileOrder();
+
+  for (BaseCommand *Base : Script->Opt.Commands) {
+    auto *OS = dyn_cast<OutputSection>(Base);
+    if (!OS || OS->Name != ".text")
+      continue;
+    OS->sort([&](InputSectionBase *IS) { return OrderMap.lookup(IS); });
+    break;
+  }
+
   sortBySymbolsOrder<ELFT>();
   sortInitFini(findSection(".init_array"));
   sortInitFini(findSection(".fini_array"));
