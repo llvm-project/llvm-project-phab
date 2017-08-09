@@ -182,8 +182,6 @@ Instruction *InstCombiner::SimplifyMemTransfer(MemIntrinsic *MI) {
     return MI;
   }
 
-  // If MemCpyInst length is 1/2/4/8 bytes then replace memcpy with
-  // load/store.
   ConstantInt *MemOpLength = dyn_cast<ConstantInt>(MI->getArgOperand(2));
   if (!MemOpLength) return nullptr;
 
@@ -194,8 +192,16 @@ Instruction *InstCombiner::SimplifyMemTransfer(MemIntrinsic *MI) {
   uint64_t Size = MemOpLength->getLimitedValue();
   assert(Size && "0-sized memory transferring should be removed already.");
 
-  if (Size > 8 || (Size&(Size-1)))
-    return nullptr;  // If not 1/2/4/8 bytes, exit.
+
+  // Since we don't have perfect knowledge here, make some assumptions: assume
+  // the maximum allowed stores for memcpy operation is the same size as the 
+  // largest legal integer size. 
+  unsigned LargestInt = DL.getLargestLegalIntTypeSizeInBits();
+  if (LargestInt == 0)
+    LargestInt = 32;
+
+  if (Size > 2*LargestInt/8 || (Size&(Size-1)))
+    return nullptr;  
 
   // Use an integer load+store unless we can find something better.
   unsigned SrcAddrSp =
