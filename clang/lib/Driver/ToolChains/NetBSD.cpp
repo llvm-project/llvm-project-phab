@@ -422,6 +422,14 @@ SanitizerMask NetBSD::getSupportedSanitizers() const {
   SanitizerMask Res = ToolChain::getSupportedSanitizers();
   if (IsX86 || IsX86_64) {
     Res |= SanitizerKind::Address;
+    Res |= SanitizerKind::Vptr;
+    Res |= SanitizerKind::Leak;
+    Res |= SanitizerKind::SafeStack;
+    Res |= SanitizerKind::Function;
+  }
+  if (IsX86_64) {
+    Res |= SanitizerKind::Leak;
+    Res |= SanitizerKind::Thread;
   }
   return Res;
 }
