@@ -229,15 +229,17 @@ getGenericLambdaTemplateParameterList(LambdaScopeInfo *LSI, Sema &SemaRef) {
   if (LSI->GLTemplateParameterList)
     return LSI->GLTemplateParameterList;
 
-  if (!LSI->AutoTemplateParams.empty()) {
-    SourceRange IntroRange = LSI->IntroducerRange;
-    SourceLocation LAngleLoc = IntroRange.getBegin();
-    SourceLocation RAngleLoc = IntroRange.getEnd();
+  if (!LSI->TemplateParams.empty()) {
+    SourceRange ListRange = LSI->ExplicitTemplateParamsRange.isValid()
+                              ? LSI->ExplicitTemplateParamsRange
+                              : LSI->IntroducerRange;
+    SourceLocation LAngleLoc = ListRange.getBegin();
+    SourceLocation RAngleLoc = ListRange.getEnd();
     LSI->GLTemplateParameterList = TemplateParameterList::Create(
         SemaRef.Context,
         /*Template kw loc*/ SourceLocation(), LAngleLoc,
-        llvm::makeArrayRef((NamedDecl *const *)LSI->AutoTemplateParams.data(),
-                           LSI->AutoTemplateParams.size()),
+        llvm::makeArrayRef((NamedDecl *const *)LSI->TemplateParams.data(),
+                           LSI->TemplateParams.size()),
         RAngleLoc, nullptr);
   }
   return LSI->GLTemplateParameterList;
@@ -477,6 +479,44 @@ void Sema::buildLambdaScope(LambdaScopeInfo *LSI,
 
 void Sema::finishLambdaExplicitCaptures(LambdaScopeInfo *LSI) {
   LSI->finishedExplicitCaptures();
+}
+
+TemplateParameterList *
+Sema::ActOnLambdaTemplateParameterList(unsigned Depth,
+                                       SourceLocation LAngleLoc,
+                                       ArrayRef<Decl *> TParams,
+                                       SourceLocation RAngleLoc) {
+  LambdaScopeInfo *LSI = getCurLambda();
+  assert(LSI && "Expected a lambda scope");
+
+  assert(LSI->NumExplicitTemplateParams == 0
+         && "Already acted on explicit template parameters");
+  assert(LSI->TemplateParams.size() == 0
+         && "Explicit template parameters should come before invented ones");
+
+  TemplateParameterList *ret = ActOnTemplateParameterList(
+      Depth,
+      /*ExportLoc=*/SourceLocation(), /*TemplateLoc=*/SourceLocation(),
+      LAngleLoc, TParams, RAngleLoc,
+      /*RequiresClause=*/nullptr);
+
+  LSI->TemplateParams.append(TParams.begin(), TParams.end());
+  LSI->NumExplicitTemplateParams = TParams.size();
+  LSI->ExplicitTemplateParamsRange = {LAngleLoc, RAngleLoc};
+
+  return ret;
+}
+
+void Sema::addLambdaExplicitTemplateParameters(ArrayRef<Decl*> TParams,
+                                               Scope *CurScope) {
+  for (Decl *T : TParams) {
+    NamedDecl *NT = dyn_cast<NamedDecl>(T);
+    assert(NT && "Template parameter should be convertable to NamedDecl");
+
+    // If this has an identifier, add it to the scope stack.
+    if (CurScope && NT->getIdentifier())
+      PushOnScopeChains(NT, CurScope);
+  }
 }
 
 void Sema::addLambdaParameters(CXXMethodDecl *CallOperator, Scope *CurScope) {  
@@ -1122,6 +1162,10 @@ void Sema::ActOnStartOfLambdaDefinition(LambdaIntroducer &Intro,
   finishLambdaExplicitCaptures(LSI);
 
   LSI->ContainsUnexpandedParameterPack = ContainsUnexpandedParameterPack;
+
+  // Add explicit template parameters into scope.
+  addLambdaExplicitTemplateParameters(LSI->getExplicitTemplateParams(),
+                                      CurScope);
 
   // Add lambda parameters into scope.
   addLambdaParameters(Method, CurScope);

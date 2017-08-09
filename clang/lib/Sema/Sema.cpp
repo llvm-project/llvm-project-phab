@@ -1292,7 +1292,7 @@ LambdaScopeInfo *Sema::PushLambdaScope() {
 
 void Sema::RecordParsingTemplateParameterDepth(unsigned Depth) {
   if (LambdaScopeInfo *const LSI = getCurLambda()) {
-    LSI->AutoTemplateParameterDepth = Depth;
+    LSI->TemplateParameterDepth = Depth;
     return;
   } 
   llvm_unreachable( 
@@ -1376,7 +1376,7 @@ LambdaScopeInfo *Sema::getCurLambda(bool IgnoreNonLambdaCapturingScope) {
 // an associated template parameter list.
 LambdaScopeInfo *Sema::getCurGenericLambda() {
   if (LambdaScopeInfo *LSI =  getCurLambda()) {
-    return (LSI->AutoTemplateParams.size() ||
+    return (LSI->TemplateParams.size() ||
                     LSI->GLTemplateParameterList) ? LSI : nullptr;
   }
   return nullptr;

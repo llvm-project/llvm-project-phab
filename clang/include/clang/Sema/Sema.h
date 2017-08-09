@@ -5463,6 +5463,18 @@ public:
   /// given lambda.
   void finishLambdaExplicitCaptures(sema::LambdaScopeInfo *LSI);
 
+  /// ActOnLambdaTemplateParameterList - This is called after parsing
+  /// the explicit template parameter list (if it exists) in C++2a.
+  TemplateParameterList *
+  ActOnLambdaTemplateParameterList(unsigned Depth,
+                                   SourceLocation LAngleLoc,
+                                   ArrayRef<Decl *> TParams,
+                                   SourceLocation RAngleLoc);
+
+  /// \brief Introduce the explicit lambda template parameters into scope.
+  void addLambdaExplicitTemplateParameters(ArrayRef<Decl*> TParams,
+                                           Scope *CurScope);
+
   /// \brief Introduce the lambda parameters into scope.
   void addLambdaParameters(CXXMethodDecl *CallOperator, Scope *CurScope);
 
