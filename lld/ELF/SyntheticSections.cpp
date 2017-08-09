@@ -77,9 +77,11 @@ template <class ELFT> InputSection *elf::createCommonSection() {
                      return A->Alignment > B->Alignment;
                    });
 
+  // Allocate space for used common symbols.
   BssSection *Sec = make<BssSection>("COMMON");
   for (DefinedCommon *Sym : Syms)
-    Sym->Offset = Sec->reserveSpace(Sym->Size, Sym->Alignment);
+    if (Sym->Offset != -1ULL)
+      Sym->Offset = Sec->reserveSpace(Sym->Size, Sym->Alignment);
   return Sec;
 }
 

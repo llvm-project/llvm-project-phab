@@ -48,6 +48,7 @@ namespace {
 struct ResolvedReloc {
   InputSectionBase *Sec;
   uint64_t Offset;
+  SymbolBody *Symbol;
 };
 } // end anonymous namespace
 
@@ -78,10 +79,14 @@ static void resolveReloc(InputSectionBase &Sec, RelT &Rel,
     typename ELFT::uint Offset = D->Value;
     if (D->isSection())
       Offset += getAddend<ELFT>(Sec, Rel);
-    Fn({cast<InputSectionBase>(D->Section), Offset});
+    Fn({cast<InputSectionBase>(D->Section), Offset, nullptr});
   } else if (auto *U = dyn_cast<Undefined>(&B)) {
     for (InputSectionBase *Sec : CNamedSections.lookup(U->getName()))
-      Fn({Sec, 0});
+      Fn({Sec, 0, nullptr});
+  } else if (auto *C = dyn_cast<DefinedCommon>(&B)) {
+    // We create synthetic sections later, so InX::Common is null here,
+    // fortunately we do not need it.
+    Fn({nullptr, 0, &B});
   }
 }
 
@@ -142,7 +147,7 @@ static void scanEhFrameSection(EhInputSection &EH, ArrayRef<RelTy> Rels,
           return;
         if (R.Sec->Flags & SHF_EXECINSTR)
           return;
-        Enqueue({R.Sec, 0});
+        Enqueue({R.Sec, 0, nullptr});
       });
     }
   }
@@ -200,6 +205,14 @@ template <class ELFT> void elf::markLive() {
     if (R.Sec == &InputSection::Discarded)
       return;
 
+    // Handle common symbols. We put zero as offset to
+    // drop 'symbol unused' flag mark set earlier. We will
+    // check it in createCommonSection() later.
+    if (!R.Sec) {
+      cast<DefinedCommon>(R.Symbol)->Offset = 0;
+      return;
+    }
+
     // We don't gc non alloc sections.
     if (!(R.Sec->Flags & SHF_ALLOC))
       return;
@@ -218,10 +231,13 @@ template <class ELFT> void elf::markLive() {
       Q.push_back(S);
   };
 
-  auto MarkSymbol = [&](const SymbolBody *Sym) {
-    if (auto *D = dyn_cast_or_null<DefinedRegular>(Sym))
+  auto MarkSymbol = [&](SymbolBody *Sym) {
+    if (auto *D = dyn_cast_or_null<DefinedRegular>(Sym)) {
       if (auto *IS = cast_or_null<InputSectionBase>(D->Section))
-        Enqueue({IS, D->Value});
+        Enqueue({IS, D->Value, nullptr});
+    } else if (auto *C = dyn_cast_or_null<DefinedCommon>(Sym)) {
+      Enqueue({nullptr, 0, Sym});
+    }
   };
 
   // Add GC root symbols.
@@ -235,7 +251,7 @@ template <class ELFT> void elf::markLive() {
 
   // Preserve externally-visible symbols if the symbols defined by this
   // file can interrupt other ELF file's symbols at runtime.
-  for (const Symbol *S : Symtab->getSymbols())
+  for (Symbol *S : Symtab->getSymbols())
     if (S->includeInDynsym())
       MarkSymbol(S->body());
 
@@ -250,7 +266,7 @@ template <class ELFT> void elf::markLive() {
     if (Sec->Flags & SHF_LINK_ORDER)
       continue;
     if (isReserved<ELFT>(Sec) || Script->shouldKeep(Sec))
-      Enqueue({Sec, 0});
+      Enqueue({Sec, 0, nullptr});
     else if (isValidCIdentifier(Sec->Name)) {
       CNamedSections[Saver.save("__start_" + Sec->Name)].push_back(Sec);
       CNamedSections[Saver.save("__stop_" + Sec->Name)].push_back(Sec);

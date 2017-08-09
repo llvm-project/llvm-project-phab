@@ -307,7 +307,8 @@ DefinedCommon::DefinedCommon(StringRef Name, uint64_t Size, uint32_t Alignment,
                              uint8_t StOther, uint8_t Type)
     : Defined(SymbolBody::DefinedCommonKind, Name, /*IsLocal=*/false, StOther,
               Type),
-      Alignment(Alignment), Size(Size) {}
+      Alignment(Alignment), Size(Size), Offset(Config->GcSections ? -1ULL : 0) {
+}
 
 // If a shared symbol is referred via a copy relocation, its alignment
 // becomes part of the ABI. This function returns a symbol alignment.
