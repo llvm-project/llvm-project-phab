@@ -35,5 +35,20 @@
 # RUN: FileCheck %s -check-prefix=CHECK-SEMI < %t.log
 # CHECK-SEMI: error: {{.*}}.script:1: ; expected, but got }
 
+## Test assert with ! operator
+# RUN: echo "SECTIONS { ASSERT(!(0), fail) }" > %t8.script
+# RUN: ld.lld -shared -o %t8 --script %t8.script %t1.o
+# RUN: llvm-readobj %t8 > /dev/null
+
+# RUN: echo "SECTIONS { ASSERT(!(1), fail) }" > %t9.script
+# RUN: not ld.lld -shared -o %t9 --script %t9.script %t1.o > %t.log 2>&1
+# RUN: FileCheck %s -check-prefix=FAIL1 < %t.log
+# FAIL1: fail
+
+# RUN: echo "SECTIONS { .foo : { *(.foo) } }" > %t10.script
+# RUN: echo "ASSERT(!(SIZEOF(.foo) == 0), fail);" >> %t10.script
+# RUN: ld.lld -shared -o %t10 --script %t10.script %t1.o
+# RUN: llvm-readobj %t10 > /dev/null
+
 .section .foo, "a"
  .quad 0
