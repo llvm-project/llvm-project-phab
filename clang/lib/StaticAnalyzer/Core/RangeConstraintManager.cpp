@@ -304,6 +304,8 @@ public:
   void print(ProgramStateRef State, raw_ostream &Out, const char *nl,
              const char *sep) override;
 
+  ProgramStateRef evalRangeOp(ProgramStateRef state, SVal V) override;
+
   //===------------------------------------------------------------------===//
   // Implementation for interface from RangedConstraintManager.
   //===------------------------------------------------------------------===//
@@ -740,4 +742,57 @@ void RangeConstraintManager::print(ProgramStateRef St, raw_ostream &Out,
     I.getData().print(Out);
   }
   Out << nl;
+}
+
+ProgramStateRef RangeConstraintManager::evalRangeOp(ProgramStateRef St,
+                                                    SVal V) {
+  const SymExpr *SE = V.getAsSymExpr();
+  if (!SE)
+    return nullptr;
+
+  const SymIntExpr *SIE = dyn_cast<SymIntExpr>(SE);
+  if (!SIE)
+    return nullptr;
+
+  const clang::BinaryOperatorKind Opc = SIE->getOpcode();
+
+  if (Opc != BO_Add && Opc != BO_Sub && Opc != BO_Div)
+    return nullptr;
+
+  const SymExpr *LHS = SIE->getLHS();
+  const llvm::APSInt &RHS = SIE->getRHS();
+
+  ConstraintRangeTy Ranges = St->get<ConstraintRange>();
+  for (ConstraintRangeTy::iterator I = Ranges.begin(), E = Ranges.end(); I != E;
+       ++I) {
+    if (LHS == I.getKey()) {
+      const auto D = I.getData();
+      for (auto I = D.begin(); I != D.end(); ++I) {
+        if (I->From().isUnsigned() != RHS.isUnsigned())
+          // TODO: Handle sign conversions.
+          return nullptr;
+        if (I->From().getBitWidth() != RHS.getBitWidth())
+          // TODO: Promote values.
+          return nullptr;
+        if (I->From().isNegative())
+          // TODO: Handle negative range values
+          return nullptr;
+
+        BasicValueFactory &BVF = getBasicVals();
+        const llvm::APSInt *Lower = BVF.evalAPSInt(Opc, I->From(), RHS);
+        if (!Lower)
+          return nullptr;
+        const llvm::APSInt *Upper = BVF.evalAPSInt(Opc, I->To(), RHS);
+        if (!Upper)
+          return nullptr;
+
+        SymbolRef Sym = V.getAsSymbol();
+        RangeSet RS =
+            getRange(St, Sym).Intersect(getBasicVals(), F, *Lower, *Upper);
+        // TODO: This only evaluates the first range. Evaluate all ranges.
+        return RS.isEmpty() ? nullptr : St->set<ConstraintRange>(Sym, RS);
+      }
+    }
+  }
+  return nullptr;
 }
