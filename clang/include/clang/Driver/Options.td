@@ -630,6 +630,11 @@ def fno_gnu_inline_asm : Flag<["-"], "fno-gnu-inline-asm">, Group<f_Group>,
   Flags<[DriverOption, CC1Option]>,
   HelpText<"Disable GNU style inline asm">;
 
+def fpass_indirect_ignore_move : Flag<["-"], "fpass-indirect-ignore-move">,
+    Group<f_Group>, Flags<[CC1Option]>;
+def fno_pass_indirect_ignore_move : Flag<["-"], "fno-pass-indirect-ignore-move">,
+    Group<f_Group>;
+
 def fprofile_sample_use : Flag<["-"], "fprofile-sample-use">, Group<f_Group>,
     Flags<[CoreOption]>;
 def fno_profile_sample_use : Flag<["-"], "fno-profile-sample-use">, Group<f_Group>,

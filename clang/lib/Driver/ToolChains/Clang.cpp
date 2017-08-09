@@ -2916,6 +2916,11 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   addPGOAndCoverageFlags(C, D, Output, Args, CmdArgs);
 
+  if (Args.hasFlag(options::OPT_fpass_indirect_ignore_move,
+                   options::OPT_fno_pass_indirect_ignore_move,
+                   getToolChain().getTriple().isPS4()))
+    CmdArgs.push_back("-fpass-indirect-ignore-move");
+
   // Add runtime flag for PS4 when PGO or Coverage are enabled.
   if (getToolChain().getTriple().isPS4CPU())
     PS4cpu::addProfileRTArgs(getToolChain(), Args, CmdArgs);

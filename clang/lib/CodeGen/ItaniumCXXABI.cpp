@@ -56,15 +56,23 @@ public:
   ItaniumCXXABI(CodeGen::CodeGenModule &CGM,
                 bool UseARMMethodPtrABI = false,
                 bool UseARMGuardVarABI = false) :
-    CGCXXABI(CGM), UseARMMethodPtrABI(UseARMMethodPtrABI),
+    CGCXXABI(CGM),
+    UseARMMethodPtrABI(UseARMMethodPtrABI),
     UseARMGuardVarABI(UseARMGuardVarABI),
     Use32BitVTableOffsetABI(false) { }
 
   bool classifyReturnType(CGFunctionInfo &FI) const override;
 
+  bool passClassIndirect(const CXXRecordDecl *RD) const {
+    if (CGM.getCodeGenOpts().PassIndirectIgnoreMove)
+      return RD->hasNonTrivialDestructor() ||
+             RD->hasNonTrivialCopyConstructor();
+    return !canCopyArgument(RD);
+  }
+
   RecordArgABI getRecordArgABI(const CXXRecordDecl *RD) const override {
     // If C++ prohibits us from making a copy, pass by address.
-    if (!canCopyArgument(RD))
+    if (passClassIndirect(RD))
       return RAA_Indirect;
     return RAA_Default;
   }
@@ -1012,7 +1020,7 @@ bool ItaniumCXXABI::classifyReturnType(CGFunctionInfo &FI) const {
     return false;
 
   // If C++ prohibits us from making a copy, return by address.
-  if (!canCopyArgument(RD)) {
+  if (passClassIndirect(RD)) {
     auto Align = CGM.getContext().getTypeAlignInChars(FI.getReturnType());
     FI.getReturnInfo() = ABIArgInfo::getIndirect(Align, /*ByVal=*/false);
     return true;

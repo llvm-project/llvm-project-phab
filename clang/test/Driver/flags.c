@@ -24,3 +24,12 @@
 
 // RUN: %clang -target armv7-apple-darwin10 -### -S -mno-implicit-float -mimplicit-float %s 2>&1 | FileCheck -check-prefix=TEST8 %s
 // TEST8-NOT: "-no-implicit-float"
+
+// RUN: %clang -target x86_64-linux-gnu -### -c -fpass-indirect-ignore-move %s 2>&1 | FileCheck -check-prefix=TEST9 %s
+// RUN: %clang -target x86_64-scei-ps4 -### -c %s 2>&1 | FileCheck -check-prefix=TEST9 %s
+// TEST9: "-fpass-indirect-ignore-move"
+
+// RUN: %clang -target x86_64-linux-gnu -### -c -fno-pass-indirect-ignore-move %s 2>&1 | FileCheck -check-prefix=TEST10 %s
+// RUN: %clang -target x86_64-scei-ps4 -### -c -fno-pass-indirect-ignore-move %s 2>&1 | FileCheck -check-prefix=TEST10 %s
+// RUN: %clang -target x86_64-linux-gnu -### -c %s 2>&1 | FileCheck -check-prefix=TEST10 %s
+// TEST10-NOT: "-fpass-indirect-ignore-move"
