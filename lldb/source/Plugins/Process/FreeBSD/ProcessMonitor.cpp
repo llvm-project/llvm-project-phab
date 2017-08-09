@@ -1192,11 +1192,12 @@ ProcessMessage ProcessMonitor::MonitorSignal(ProcessMonitor *monitor,
   case SIGBUS:
     lldb::addr_t fault_addr = reinterpret_cast<lldb::addr_t>(info->si_addr);
     const auto reason = GetCrashReason(*info);
-    return ProcessMessage::Crash(tid, reason, signo, fault_addr);
+    if (reason != CrashReason::eInvalidCrashReason) {
+      return ProcessMessage::Crash(tid, reason, signo, fault_addr);
+    } // else; Use atleast si_signo info for other si_code
   }
 
-  // Everything else is "normal" and does not require any special action on
-  // our part.
+  // Everything else is "normal" and does not require any special action on  // our part.
   return ProcessMessage::Signal(tid, signo);
 }
 
