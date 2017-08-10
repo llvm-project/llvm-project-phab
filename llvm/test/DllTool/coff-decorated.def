@@ -1,0 +1,18 @@
+; RUN: llvm-dlltool -k -m i386 --input-def %s --output-lib %t.a
+; RUN: llvm-readobj %t.a | FileCheck %s
+
+LIBRARY test.dll
+EXPORTS
+CdeclFunction
+StdcallFunction@4
+@FastcallFunction@4
+
+; CHECK: Name type: noprefix
+; CHECK: Symbol: __imp__CdeclFunction
+; CHECK: Symbol: _CdeclFunction
+; CHECK: Name type: undecorate
+; CHECK: Symbol: __imp__StdcallFunction@4
+; CHECK: Symbol: _StdcallFunction@4
+; CHECK: Name type: undecorate
+; CHECK: Symbol: __imp_@FastcallFunction@4
+; CHECK: Symbol: @FastcallFunction@4
