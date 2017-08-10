@@ -168,7 +168,7 @@ bool ScriptLexer::atEOF() { return ErrorCount || Tokens.size() == Pos; }
 // Split a given string as an expression.
 // This function returns "3", "*" and "5" for "3*5" for example.
 static std::vector<StringRef> tokenizeExpr(StringRef S) {
-  StringRef Ops = "+-*/:"; // List of operators
+  StringRef Ops = "+-*/:!"; // List of operators
 
   // Quoted strings are literal strings, so we don't want to split it.
   if (S.startswith("\""))
@@ -189,9 +189,12 @@ static std::vector<StringRef> tokenizeExpr(StringRef S) {
     if (E != 0)
       Ret.push_back(S.substr(0, E));
 
-    // Get the operator as a token.
-    Ret.push_back(S.substr(E, 1));
-    S = S.substr(E + 1);
+    // Get the operator as a token. Keep != as one token.
+    size_t OpSize = 1;
+    if (S.size() > (E + 1) && S[E] == '!' && S[E+1] == '=')
+      OpSize = 2;
+    Ret.push_back(S.substr(E, OpSize));
+    S = S.substr(E + OpSize);
   }
   return Ret;
 }
