@@ -134,6 +134,16 @@ bool TargetMachine::shouldAssumeDSOLocal(const Module &M,
   if (TT.isOSBinFormatCOFF() || (TT.isOSWindows() && TT.isOSBinFormatMachO()))
     return true;
 
+  // A weak undef symbol might resolve to 0. We have to assume it is
+  // not local, as we have no control of where in memory we will end
+  // up.
+  // FIXME: is this true for all architectures?
+  // FIXME2: this is false for some relocations. For example, it should be valid
+  // to produce "call foo" instead of "call foo@plt". It is not clear if that is
+  // a problem.
+  if (GV && GV->hasExternalWeakLinkage() && isPositionIndependent())
+    return false;
+
   if (GV && (GV->hasLocalLinkage() || !GV->hasDefaultVisibility()))
     return true;
 
