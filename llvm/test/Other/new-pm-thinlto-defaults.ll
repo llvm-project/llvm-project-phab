@@ -168,8 +168,10 @@
 ; CHECK-POSTLINK-O-NEXT: Running pass: LoopVectorizePass
 ; CHECK-POSTLINK-O-NEXT: Running analysis: BlockFrequencyAnalysis
 ; CHECK-POSTLINK-O-NEXT: Running analysis: BranchProbabilityAnalysis
-; CHECK-POSTLINK-O-NEXT: Running pass: LoopLoadEliminationPass
+; CHECK-POSTLINK-O-NEXT: Running pass: LoopVectorizePredPass
+; CHECK-POSTLINK-O-NEXT: Running analysis: MemorySSAAnalysis
 ; CHECK-POSTLINK-O-NEXT: Running analysis: LoopAccessAnalysis
+; CHECK-POSTLINK-O-NEXT: Running pass: LoopLoadEliminationPass
 ; CHECK-POSTLINK-O-NEXT: Running pass: InstCombinePass
 ; CHECK-POSTLINK-O-NEXT: Running pass: SLPVectorizerPass
 ; CHECK-POSTLINK-O-NEXT: Running pass: SimplifyCFGPass
