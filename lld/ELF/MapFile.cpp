@@ -53,7 +53,7 @@ template <class ELFT> static std::vector<Defined *> getSymbols() {
   for (ObjFile<ELFT> *File : ObjFile<ELFT>::Instances) {
     for (SymbolBody *B : File->getSymbols()) {
       if (auto *DR = dyn_cast<DefinedRegular>(B)) {
-        if (DR->getFile() == File && !DR->isSection() && DR->Section &&
+        if (DR->File == File && !DR->isSection() && DR->Section &&
             DR->Section->Live)
           V.push_back(DR);
       } else if (auto *DC = dyn_cast<DefinedCommon>(B)) {

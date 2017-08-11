@@ -196,7 +196,6 @@ void SymbolTable::applySymbolRenames() {
     Symbol *Dst = KV.first;
     Symbol *Src = KV.second.Target;
     Dst->body()->copy(Src->body());
-    Dst->File = Src->File;
     Dst->Binding = KV.second.OriginalBinding;
   }
 }
@@ -267,8 +266,8 @@ std::pair<Symbol *, bool> SymbolTable::insert(StringRef Name, uint8_t Type,
   if (!WasInserted && S->body()->Type != SymbolBody::UnknownType &&
       ((Type == STT_TLS) != S->body()->isTls())) {
     error("TLS attribute mismatch: " + toString(*S->body()) +
-          "\n>>> defined in " + toString(S->File) + "\n>>> defined in " +
-          toString(File));
+          "\n>>> defined in " + toString(S->body()->File) +
+          "\n>>> defined in " + toString(File));
   }
 
   return {S, WasInserted};
@@ -418,8 +417,7 @@ static void warnOrError(const Twine &Msg) {
 
 static void reportDuplicate(SymbolBody *Sym, InputFile *NewFile) {
   warnOrError("duplicate symbol: " + toString(*Sym) + "\n>>> defined in " +
-              toString(Sym->getFile()) + "\n>>> defined in " +
-              toString(NewFile));
+              toString(Sym->File) + "\n>>> defined in " + toString(NewFile));
 }
 
 template <class ELFT>

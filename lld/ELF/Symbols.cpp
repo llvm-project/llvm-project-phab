@@ -93,7 +93,7 @@ static uint64_t getSymVA(const SymbolBody &Body, int64_t &Addend) {
 
     if (D.isTls() && !Config->Relocatable) {
       if (!Out::TlsPhdr)
-        fatal(toString(D.getFile()) +
+        fatal(toString(D.File) +
               " has an STT_TLS symbol but doesn't have an SHF_TLS section");
       return VA - Out::TlsPhdr->p_vaddr;
     }
@@ -123,23 +123,12 @@ static uint64_t getSymVA(const SymbolBody &Body, int64_t &Addend) {
   llvm_unreachable("invalid symbol kind");
 }
 
-SymbolBody::SymbolBody(Kind K, StringRefZ Name, bool IsLocal, uint8_t StOther,
-                       uint8_t Type)
-    : SymbolKind(K), NeedsPltAddr(false), IsLocal(IsLocal),
+SymbolBody::SymbolBody(Kind K, InputFile *File, StringRefZ Name, bool IsLocal,
+                       uint8_t StOther, uint8_t Type)
+    : File(File), SymbolKind(K), NeedsPltAddr(false), IsLocal(IsLocal),
       IsInGlobalMipsGot(false), Is32BitMipsGot(false), IsInIplt(false),
       IsInIgot(false), IsPreemptible(false), Type(Type), StOther(StOther),
       Name(Name) {}
-
-InputFile *SymbolBody::getFile() const {
-  if (isLocal()) {
-    const SectionBase *Sec = cast<DefinedRegular>(this)->Section;
-    // Local absolute symbols actually have a file, but that is not currently
-    // used. We could support that by having a mostly redundant InputFile in
-    // SymbolBody, or having a special absolute section if needed.
-    return Sec ? cast<InputSectionBase>(Sec)->File : nullptr;
-  }
-  return symbol()->File;
-}
 
 // Overwrites all attributes with Other's so that this symbol becomes
 // an alias to Other. This is useful for handling some options such as
@@ -251,13 +240,13 @@ void SymbolBody::parseSymbolVersion() {
   // but we may still want to override a versioned symbol from DSO,
   // so we do not report error in this case.
   if (Config->Shared)
-    error(toString(getFile()) + ": symbol " + S + " has undefined version " +
+    error(toString(File) + ": symbol " + S + " has undefined version " +
           Verstr);
 }
 
-Defined::Defined(Kind K, StringRefZ Name, bool IsLocal, uint8_t StOther,
-                 uint8_t Type)
-    : SymbolBody(K, Name, IsLocal, StOther, Type) {}
+Defined::Defined(Kind K, InputFile *File, StringRefZ Name, bool IsLocal,
+                 uint8_t StOther, uint8_t Type)
+    : SymbolBody(K, File, Name, IsLocal, StOther, Type) {}
 
 template <class ELFT> bool DefinedRegular::isMipsPIC() const {
   typedef typename ELFT::Ehdr Elf_Ehdr;
@@ -270,14 +259,15 @@ template <class ELFT> bool DefinedRegular::isMipsPIC() const {
          (Hdr->e_flags & EF_MIPS_PIC);
 }
 
-Undefined::Undefined(StringRefZ Name, bool IsLocal, uint8_t StOther,
-                     uint8_t Type)
-    : SymbolBody(SymbolBody::UndefinedKind, Name, IsLocal, StOther, Type) {}
+Undefined::Undefined(InputFile *File, StringRefZ Name, bool IsLocal,
+                     uint8_t StOther, uint8_t Type)
+    : SymbolBody(SymbolBody::UndefinedKind, File, Name, IsLocal, StOther,
+                 Type) {}
 
-DefinedCommon::DefinedCommon(StringRef Name, uint64_t Size, uint32_t Alignment,
-                             uint8_t StOther, uint8_t Type)
-    : Defined(SymbolBody::DefinedCommonKind, Name, /*IsLocal=*/false, StOther,
-              Type),
+DefinedCommon::DefinedCommon(InputFile *File, StringRef Name, uint64_t Size,
+                             uint32_t Alignment, uint8_t StOther, uint8_t Type)
+    : Defined(SymbolBody::DefinedCommonKind, File, Name, /*IsLocal=*/false,
+              StOther, Type),
       Live(!Config->GcSections), Alignment(Alignment), Size(Size) {}
 
 // If a shared symbol is referred via a copy relocation, its alignment
@@ -297,15 +287,14 @@ InputFile *Lazy::fetch() {
   return cast<LazyObject>(this)->fetch();
 }
 
-LazyArchive::LazyArchive(const llvm::object::Archive::Symbol S, uint8_t Type)
-    : Lazy(LazyArchiveKind, S.getName(), Type), Sym(S) {}
+LazyArchive::LazyArchive(InputFile *File, const llvm::object::Archive::Symbol S,
+                         uint8_t Type)
+    : Lazy(LazyArchiveKind, File, S.getName(), Type), Sym(S) {}
 
-LazyObject::LazyObject(StringRef Name, uint8_t Type)
-    : Lazy(LazyObjectKind, Name, Type) {}
+LazyObject::LazyObject(InputFile *File, StringRef Name, uint8_t Type)
+    : Lazy(LazyObjectKind, File, Name, Type) {}
 
-ArchiveFile *LazyArchive::getFile() {
-  return cast<ArchiveFile>(SymbolBody::getFile());
-}
+ArchiveFile *LazyArchive::getFile() { return cast<ArchiveFile>(File); }
 
 InputFile *LazyArchive::fetch() {
   std::pair<MemoryBufferRef, uint64_t> MBInfo = getFile()->getMember(&Sym);
@@ -317,9 +306,7 @@ InputFile *LazyArchive::fetch() {
   return createObjectFile(MBInfo.first, getFile()->getName(), MBInfo.second);
 }
 
-LazyObjFile *LazyObject::getFile() {
-  return cast<LazyObjFile>(SymbolBody::getFile());
-}
+LazyObjFile *LazyObject::getFile() { return cast<LazyObjFile>(File); }
 
 InputFile *LazyObject::fetch() { return getFile()->fetch(); }
 
@@ -354,7 +341,7 @@ void elf::printTraceSymbol(Symbol *Sym) {
   else
     S = ": definition of ";
 
-  message(toString(Sym->File) + S + B->getName());
+  message(toString(B->File) + S + B->getName());
 }
 
 // Returns a symbol for an error message.

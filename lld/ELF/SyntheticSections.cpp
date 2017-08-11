@@ -298,8 +298,8 @@ InputSection *elf::createInterpSection() {
 
 SymbolBody *elf::addSyntheticLocal(StringRef Name, uint8_t Type, uint64_t Value,
                                    uint64_t Size, InputSectionBase *Section) {
-  auto *S = make<DefinedRegular>(Name, /*IsLocal*/ true, STV_DEFAULT, Type,
-                                 Value, Size, Section);
+  auto *S = make<DefinedRegular>(Section->File, Name, /*IsLocal*/ true,
+                                 STV_DEFAULT, Type, Value, Size, Section);
   if (InX::SymTab)
     InX::SymTab->addSymbol(S);
   return S;
