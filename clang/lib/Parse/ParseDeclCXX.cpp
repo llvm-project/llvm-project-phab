@@ -2403,6 +2403,7 @@ void Parser::MaybeParseAndDiagnoseDeclSpecAfterCXX11VirtSpecifierSeq(
 ///         declarator constant-initializer[opt]
 /// [C++11] declarator brace-or-equal-initializer[opt]
 ///         identifier[opt] ':' constant-expression
+///             brace-or-equal-initializer[opt][C++2a]
 ///
 ///       virt-specifier-seq:
 ///         virt-specifier
@@ -2720,10 +2721,12 @@ Parser::ParseCXXClassMemberDeclaration(AccessSpecifier AS,
     InClassInitStyle HasInClassInit = ICIS_NoInit;
     bool HasStaticInitializer = false;
     if (Tok.isOneOf(tok::equal, tok::l_brace) && PureSpecLoc.isInvalid()) {
-      if (BitfieldSize.get()) {
-        Diag(Tok, diag::err_bitfield_member_init);
-        SkipUntil(tok::comma, StopAtSemi | StopBeforeMatch);
-      } else if (DeclaratorInfo.isDeclarationOfFunction()) {
+      if (BitfieldSize.get())
+        Diag(Tok, !getLangOpts().CPlusPlus2a
+                      ? diag::ext_bitfield_member_init_cxx2a
+                      : diag::warn_cxx1z_compat_bitfield_member_init);
+
+      if (DeclaratorInfo.isDeclarationOfFunction()) {
         // It's a pure-specifier.
         if (!TryConsumePureSpecifier(/*AllowFunctionDefinition*/ false))
           // Parse it as an expression so that Sema can diagnose it.

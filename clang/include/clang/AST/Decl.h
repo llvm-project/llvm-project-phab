@@ -2369,15 +2369,17 @@ class FieldDecl : public DeclaratorDecl, public Mergeable<FieldDecl> {
   unsigned Mutable : 1;
   mutable unsigned CachedFieldIndex : 31;
 
-  /// The kinds of value we can store in InitializerOrBitWidth.
+  /// \brief Expression representing the bit-width,
+  /// or nullptr if this field isn't a bitfield.
+  Expr *BitWidth;
+
+  /// The kinds of value we can store in InitStorage.
   ///
   /// Note that this is compatible with InClassInitStyle except for
   /// ISK_CapturedVLAType.
   enum InitStorageKind {
-    /// If the pointer is null, there's nothing special.  Otherwise,
-    /// this is a bitfield and the pointer is the Expr* storing the
-    /// bit-width.
-    ISK_BitWidthOrNothing = (unsigned) ICIS_NoInit,
+    /// Nothing special, the pointer should be null.
+    ISK_Nothing = (unsigned) ICIS_NoInit,
 
     /// The pointer is an (optional due to delayed parsing) Expr*
     /// holding the copy-initializer.
@@ -2392,12 +2394,11 @@ class FieldDecl : public DeclaratorDecl, public Mergeable<FieldDecl> {
     ISK_CapturedVLAType,
   };
 
-  /// \brief Storage for either the bit-width, the in-class
-  /// initializer, or the captured variable length array bound.
+  /// \brief Storage for either the in-class initializer
+  /// or the captured variable length array bound.
   ///
   /// We can safely combine these because in-class initializers are
-  /// not permitted for bit-fields, and both are exclusive with VLA
-  /// captures.
+  /// exclusive with VLA captures.
   ///
   /// If the storage kind is ISK_InClassCopyInit or
   /// ISK_InClassListInit, but the initializer is null, then this
@@ -2410,10 +2411,8 @@ protected:
             QualType T, TypeSourceInfo *TInfo, Expr *BW, bool Mutable,
             InClassInitStyle InitStyle)
     : DeclaratorDecl(DK, DC, IdLoc, Id, T, TInfo, StartLoc),
-      Mutable(Mutable), CachedFieldIndex(0),
-      InitStorage(BW, (InitStorageKind) InitStyle) {
-    assert((!BW || InitStyle == ICIS_NoInit) && "got initializer for bitfield");
-  }
+      Mutable(Mutable), CachedFieldIndex(0), BitWidth(BW),
+      InitStorage(nullptr, (InitStorageKind) InitStyle) { }
 
 public:
   static FieldDecl *Create(const ASTContext &C, DeclContext *DC,
@@ -2433,8 +2432,7 @@ public:
 
   /// \brief Determines whether this field is a bitfield.
   bool isBitField() const {
-    return InitStorage.getInt() == ISK_BitWidthOrNothing &&
-           InitStorage.getPointer() != nullptr;
+    return BitWidth != nullptr;
   }
 
   /// @brief Determines whether this is an unnamed bitfield.
@@ -2447,26 +2445,24 @@ public:
   bool isAnonymousStructOrUnion() const;
 
   Expr *getBitWidth() const {
-    return isBitField()
-               ? static_cast<Expr *>(InitStorage.getPointer())
-               : nullptr;
+    return BitWidth;
   }
   unsigned getBitWidthValue(const ASTContext &Ctx) const;
 
   /// setBitWidth - Set the bit-field width for this member.
   // Note: used by some clients (i.e., do not remove it).
   void setBitWidth(Expr *Width) {
-    assert(InitStorage.getInt() == ISK_BitWidthOrNothing &&
-           InitStorage.getPointer() == nullptr &&
-           "bit width, initializer or captured type already set");
-    InitStorage.setPointerAndInt(Width, ISK_BitWidthOrNothing);
+    assert(InitStorage.getInt() != ISK_CapturedVLAType &&
+           BitWidth == nullptr &&
+           "bit width or captured type already set");
+    BitWidth = Width;
   }
 
   /// removeBitWidth - Remove the bit-field width from this member.
   // Note: used by some clients (i.e., do not remove it).
   void removeBitWidth() {
     assert(isBitField() && "no bitfield width to remove");
-    InitStorage.setPointerAndInt(nullptr, ISK_BitWidthOrNothing);
+    BitWidth = nullptr;
   }
 
   /// getInClassInitStyle - Get the kind of (C++11) in-class initializer which
@@ -2498,7 +2494,7 @@ public:
   void setInClassInitializer(Expr *Init) {
     assert(hasInClassInitializer() &&
            InitStorage.getPointer() == nullptr &&
-           "bit width, initializer or captured type already set");
+           "initializer or captured type already set");
     InitStorage.setPointer(Init);
   }
 
@@ -2506,7 +2502,7 @@ public:
   /// member.
   void removeInClassInitializer() {
     assert(hasInClassInitializer() && "no initializer to remove");
-    InitStorage.setPointerAndInt(nullptr, ISK_BitWidthOrNothing);
+    InitStorage.setPointerAndInt(nullptr, ISK_Nothing);
   }
 
   /// \brief Determine whether this member captures the variable length array

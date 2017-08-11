@@ -1219,9 +1219,10 @@ void ASTDeclReader::VisitObjCPropertyImplDecl(ObjCPropertyImplDecl *D) {
 void ASTDeclReader::VisitFieldDecl(FieldDecl *FD) {
   VisitDeclaratorDecl(FD);
   FD->Mutable = Record.readInt();
-  if (int BitWidthOrInitializer = Record.readInt()) {
+  FD->BitWidth = Record.readExpr();
+  if (int Initializer = Record.readInt()) {
     FD->InitStorage.setInt(
-          static_cast<FieldDecl::InitStorageKind>(BitWidthOrInitializer - 1));
+          static_cast<FieldDecl::InitStorageKind>(Initializer - 1));
     if (FD->InitStorage.getInt() == FieldDecl::ISK_CapturedVLAType) {
       // Read captured variable length array.
       FD->InitStorage.setPointer(Record.readType().getAsOpaquePtr());

@@ -730,10 +730,16 @@ def ext_nonstatic_member_init : ExtWarn<
 def warn_cxx98_compat_nonstatic_member_init : Warning<
   "in-class initialization of non-static data members is incompatible with C++98">,
   InGroup<CXX98Compat>, DefaultIgnore;
-def err_bitfield_member_init: Error<
-  "bit-field member cannot have an in-class initializer">;
 def err_incomplete_array_member_init: Error<
   "array bound cannot be deduced from an in-class initializer">;
+
+// C++2a in-class bitfield member initialization
+def warn_cxx1z_compat_bitfield_member_init : Warning<
+  "in-class initialization of bit-field members is incompatible with "
+  "C++ standards before C++2a">, InGroup<CXXPre2aCompat>, DefaultIgnore;
+def ext_bitfield_member_init_cxx2a : ExtWarn<
+  "in-class initialization of bit-field members is a C++2a extension">,
+  InGroup<CXX2a>;
 
 // C++11 alias-declaration
 def ext_alias_declaration : ExtWarn<

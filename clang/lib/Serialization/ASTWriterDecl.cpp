@@ -849,8 +849,8 @@ void ASTDeclWriter::VisitObjCPropertyImplDecl(ObjCPropertyImplDecl *D) {
 void ASTDeclWriter::VisitFieldDecl(FieldDecl *D) {
   VisitDeclaratorDecl(D);
   Record.push_back(D->isMutable());
-  if (D->InitStorage.getInt() == FieldDecl::ISK_BitWidthOrNothing &&
-      D->InitStorage.getPointer() == nullptr) {
+  Record.AddStmt(D->getBitWidth());
+  if (D->InitStorage.getInt() == FieldDecl::ISK_Nothing) {
     Record.push_back(0);
   } else if (D->InitStorage.getInt() == FieldDecl::ISK_CapturedVLAType) {
     Record.push_back(D->InitStorage.getInt() + 1);
