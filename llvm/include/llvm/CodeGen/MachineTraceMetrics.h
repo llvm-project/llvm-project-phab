@@ -47,6 +47,7 @@
 #ifndef LLVM_CODEGEN_MACHINETRACEMETRICS_H
 #define LLVM_CODEGEN_MACHINETRACEMETRICS_H
 
+#include "llvm/ADT/SparseSet.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/None.h"
@@ -67,6 +68,22 @@ struct MCSchedClassDesc;
 class raw_ostream;
 class TargetInstrInfo;
 class TargetRegisterInfo;
+
+// Keep track of physreg data dependencies by recording each live register unit.
+// Associate each regunit with an instruction operand. Depending on the
+// direction instructions are scanned, it could be the operand that defined the
+// regunit, or the highest operand to read the regunit.
+struct LiveRegUnit {
+  unsigned RegUnit;
+  unsigned Cycle = 0;
+  const MachineInstr *MI = nullptr;
+  unsigned Op = 0;
+
+  unsigned getSparseSetIndex() const { return RegUnit; }
+
+  LiveRegUnit(unsigned RU) : RegUnit(RU) {}
+};
+
 
 class MachineTraceMetrics : public MachineFunctionPass {
   const MachineFunction *MF = nullptr;
@@ -243,7 +260,7 @@ public:
     unsigned getBlockNum() const { return &TBI - &TE.BlockInfo[0]; }
 
   public:
-    explicit Trace(Ensemble &te, TraceBlockInfo &tbi) : TE(te), TBI(tbi) {}
+   explicit Trace(Ensemble &te, TraceBlockInfo &tbi) : TE(te), TBI(tbi) {}
 
     void print(raw_ostream&) const;
 
@@ -343,6 +360,7 @@ public:
     /// Get the trace that passes through MBB.
     /// The trace is computed on demand.
     Trace getTrace(const MachineBasicBlock *MBB);
+    void updateDepth(const MachineBasicBlock *, const MachineInstr&, SparseSet<LiveRegUnit> *RegUnits);
   };
 
   /// Strategies for selecting traces.
@@ -367,7 +385,6 @@ public:
   ///
   /// Call Ensemble::getTrace() again to update any trace handles.
   void invalidate(const MachineBasicBlock *MBB);
-
 private:
   // One entry per basic block, indexed by block number.
   SmallVector<FixedBlockInfo, 4> BlockInfo;

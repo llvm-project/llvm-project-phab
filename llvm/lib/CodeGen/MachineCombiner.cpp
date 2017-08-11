@@ -35,6 +35,7 @@ using namespace llvm;
 STATISTIC(NumInstCombined, "Number of machineinst combined");
 
 namespace {
+
 class MachineCombiner : public MachineFunctionPass {
   const TargetInstrInfo *TII;
   const TargetRegisterInfo *TRI;
@@ -258,7 +259,7 @@ bool MachineCombiner::improvesCriticalPathLen(
   unsigned NewRootDepth = getDepth(InsInstrs, InstrIdxForVirtReg, BlockTrace);
   unsigned RootDepth = BlockTrace.getInstrCycles(*Root).Depth;
 
-  DEBUG(dbgs() << "DEPENDENCE DATA FOR " << Root << "\n";
+  DEBUG(dbgs() << "DEPENDENCE DATA FOR " << *Root << "\n";
         dbgs() << " NewRootDepth: " << NewRootDepth << "\n";
         dbgs() << " RootDepth: " << RootDepth << "\n");
 
@@ -270,29 +271,22 @@ bool MachineCombiner::improvesCriticalPathLen(
   if (getCombinerObjective(Pattern) == CombinerObjective::MustReduceDepth)
     return NewRootDepth < RootDepth;
 
-  // A more flexible cost calculation for the critical path includes the slack
-  // of the original code sequence. This may allow the transform to proceed
-  // even if the instruction depths (data dependency cycles) become worse.
-
   unsigned NewRootLatency = getLatency(Root, NewRoot, BlockTrace);
   unsigned RootLatency = 0;
 
   for (auto I : DelInstrs)
     RootLatency += TSchedModel.computeInstrLatency(I);
 
-  unsigned RootSlack = BlockTrace.getInstrSlack(*Root);
-
   DEBUG(dbgs() << " NewRootLatency: " << NewRootLatency << "\n";
         dbgs() << " RootLatency: " << RootLatency << "\n";
         dbgs() << " RootSlack: " << RootSlack << "\n";
         dbgs() << " NewRootDepth + NewRootLatency = "
                << NewRootDepth + NewRootLatency << "\n";
-        dbgs() << " RootDepth + RootLatency + RootSlack = "
-               << RootDepth + RootLatency + RootSlack << "\n";);
+        dbgs() << " RootDepth + RootLatency = "
+               << RootDepth + RootLatency << "\n";);
 
   unsigned NewCycleCount = NewRootDepth + NewRootLatency;
-  unsigned OldCycleCount = RootDepth + RootLatency + RootSlack;
-
+  unsigned OldCycleCount = RootDepth + RootLatency;
   return NewCycleCount <= OldCycleCount;
 }
 
@@ -357,14 +351,21 @@ bool MachineCombiner::doSubstitute(unsigned NewSize, unsigned OldSize) {
 static void insertDeleteInstructions(MachineBasicBlock *MBB, MachineInstr &MI,
                                      SmallVector<MachineInstr *, 16> InsInstrs,
                                      SmallVector<MachineInstr *, 16> DelInstrs,
-                                     MachineTraceMetrics *Traces) {
+                                     MachineTraceMetrics::Ensemble *MinInstr,
+                                     MachineBasicBlock::iterator &LastUpdate) {
   for (auto *InstrPtr : InsInstrs)
-    MBB->insert((MachineBasicBlock::iterator)&MI, InstrPtr);
-  for (auto *InstrPtr : DelInstrs)
+    MBB->insert((MachineBasicBlock::iterator) &MI, InstrPtr);
+
+  for (auto *InstrPtr : DelInstrs) {
+    if (InstrPtr->getIterator() == LastUpdate)
+      LastUpdate++;
     InstrPtr->eraseFromParentAndMarkDBGValuesForRemoval();
-  ++NumInstCombined;
-  Traces->invalidate(MBB);
-  Traces->verifyAnalysis();
+  }
+
+  for (auto *InstrPtr : InsInstrs)
+    MinInstr->updateDepth(MBB, *InstrPtr, nullptr);
+
+  NumInstCombined++;
 }
 
 /// Substitute a slow code sequence with a faster one by
@@ -379,8 +380,11 @@ bool MachineCombiner::combineInstructions(MachineBasicBlock *MBB) {
   DEBUG(dbgs() << "Combining MBB " << MBB->getName() << "\n");
 
   auto BlockIter = MBB->begin();
+  auto LastUpdate = MBB->begin();
   // Check if the block is in a loop.
   const MachineLoop *ML = MLI->getLoopFor(MBB);
+  if (!MinInstr)
+    MinInstr = Traces->getEnsemble(MachineTraceMetrics::TS_MinInstrCount);
 
   while (BlockIter != MBB->end()) {
     auto &MI = *BlockIter++;
@@ -415,13 +419,11 @@ bool MachineCombiner::combineInstructions(MachineBasicBlock *MBB) {
     if (!TII->getMachineCombinerPatterns(MI, Patterns))
       continue;
 
+    MinInstr->updateDepth(MBB, MI, nullptr);
     for (auto P : Patterns) {
       SmallVector<MachineInstr *, 16> InsInstrs;
       SmallVector<MachineInstr *, 16> DelInstrs;
       DenseMap<unsigned, unsigned> InstrIdxForVirtReg;
-      if (!MinInstr)
-        MinInstr = Traces->getEnsemble(MachineTraceMetrics::TS_MinInstrCount);
-      Traces->verifyAnalysis();
       TII->genAlternativeCodeSequence(MI, P, InsInstrs, DelInstrs,
                                       InstrIdxForVirtReg);
       unsigned NewInstCount = InsInstrs.size();
@@ -436,23 +438,31 @@ bool MachineCombiner::combineInstructions(MachineBasicBlock *MBB) {
       if (ML && TII->isThroughputPattern(P))
         SubstituteAlways = true;
 
+      for (; LastUpdate != (MachineBasicBlock::iterator) &MI; LastUpdate++)
+        MinInstr->updateDepth(MBB, *LastUpdate, nullptr);
+
       // Substitute when we optimize for codesize and the new sequence has
       // fewer instructions OR
       // the new sequence neither lengthens the critical path nor increases
       // resource pressure.
       if (SubstituteAlways || doSubstitute(NewInstCount, OldInstCount)) {
-        insertDeleteInstructions(MBB, MI, InsInstrs, DelInstrs, Traces);
+        insertDeleteInstructions(MBB, MI, InsInstrs, DelInstrs, MinInstr, LastUpdate);
         // Eagerly stop after the first pattern fires.
         Changed = true;
         break;
       } else {
-        // Calculating the trace metrics may be expensive,
-        // so only do this when necessary.
+        // We only compute the full trace the first time we hit this the first
+        // time. We do not invalidate the trace, but instead update the
+        // instruction depths incrementally.
+        // NOTE: Only the instruction depths up to MI are accurate. All other
+        // trace information is not updated.
         MachineTraceMetrics::Trace BlockTrace = MinInstr->getTrace(MBB);
+        Traces->verifyAnalysis();
         if (improvesCriticalPathLen(MBB, &MI, BlockTrace, InsInstrs, DelInstrs,
                                     InstrIdxForVirtReg, P) &&
             preservesResourceLen(MBB, BlockTrace, InsInstrs, DelInstrs)) {
-          insertDeleteInstructions(MBB, MI, InsInstrs, DelInstrs, Traces);
+          insertDeleteInstructions(MBB, MI, InsInstrs, DelInstrs, MinInstr, LastUpdate);
+
           // Eagerly stop after the first pattern fires.
           Changed = true;
           break;
@@ -467,6 +477,8 @@ bool MachineCombiner::combineInstructions(MachineBasicBlock *MBB) {
     }
   }
 
+  if (Changed)
+    Traces->invalidate(MBB);
   return Changed;
 }
 
