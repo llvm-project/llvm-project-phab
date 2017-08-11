@@ -3281,6 +3281,9 @@ static unsigned ComputeVMIClassTypeInfoFlags(const CXXBaseSpecifier *Base,
       // If this virtual base has been seen before, then the class is diamond
       // shaped.
       Flags |= ItaniumRTTIBuilder::VMI_DiamondShaped;
+      // We want to visit each non-virtual base subobject exactly once, and
+      // we've already visited this virtual base subobject, so bail out early.
+      return Flags;
     } else {
       if (Bases.NonVirtualBases.count(BaseDecl))
         Flags |= ItaniumRTTIBuilder::VMI_NonDiamondRepeat;
@@ -3297,7 +3300,7 @@ static unsigned ComputeVMIClassTypeInfoFlags(const CXXBaseSpecifier *Base,
     }
   }
 
-  // Walk all bases.
+  // Walk all bases (unless the function exited early above).
   for (const auto &I : BaseDecl->bases())
     Flags |= ComputeVMIClassTypeInfoFlags(&I, Bases);
 

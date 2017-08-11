@@ -88,6 +88,10 @@ struct VMI6 : virtual VMIBase1, VMIBase3 { int a; };
 
 struct VMI7 : VMIBase1, VMI5, private VMI6 { };
 
+struct VMI8a : A { };
+struct VMI8b : virtual VMI8a { };
+struct VMI8 : virtual VMI8a, VMI8b { };
+
 #define CHECK(x) if (!(x)) return __LINE__
 #define CHECK_VTABLE(type, vtable) CHECK(&vtable##_type_info_vtable + 2 == (((void **)&(typeid(type)))[0]))
 #define CHECK_BASE_INFO_TYPE(type, index, base) CHECK(to<__vmi_class_type_info>(typeid(type)).__base_info[(index)].__base_type == &typeid(base))
@@ -164,6 +168,11 @@ int f() {
   CHECK_BASE_INFO_TYPE(VMI7, 2, VMI6);
   CHECK_BASE_INFO_OFFSET_FLAGS(VMI7, 2, 0, 0);
   
+  // VMI8 has multiple paths to a non-virtual subobject but still has no repeated subobject types.
+  CHECK_VTABLE(VMI8, vmi_class);
+  CHECK(to<__vmi_class_type_info>(typeid(VMI8)).__flags == __vmi_class_type_info::__diamond_shaped_mask);
+  CHECK(to<__vmi_class_type_info>(typeid(VMI8)).__base_count == 2);
+
   // Pointers to incomplete classes.
   CHECK_VTABLE(Incomplete *, pointer);
   CHECK(to<__pbase_type_info>(typeid(Incomplete *)).__flags == __pbase_type_info::__incomplete_mask);
