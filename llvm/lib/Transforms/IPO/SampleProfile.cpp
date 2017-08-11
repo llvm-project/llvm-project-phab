@@ -731,9 +731,10 @@ bool SampleProfileLoader::inlineHotFunctions(
           }
         }
       if (!CalledFunction || !CalledFunction->getSubprogram()) {
-        findCalleeFunctionSamples(*I)->findImportedFunctions(
-            ImportGUIDs, F.getParent(),
-            Samples->getTotalSamples() * SampleProfileHotThreshold / 100);
+        for (const FunctionSamples *FS : findIndirectCallFunctionSamples(*I))
+          FS->findImportedFunctions(
+              ImportGUIDs, F.getParent(),
+              Samples->getTotalSamples() * SampleProfileHotThreshold / 100);
         continue;
       }
       DebugLoc DLoc = I->getDebugLoc();
