@@ -3609,6 +3609,10 @@ void IndexBitcodeWriter::writeCombinedGlobalValueSummary() {
         CallValueId = getValueId(GUID);
         if (!CallValueId)
           continue;
+        auto *GVSum = Index.getGlobalValueSummary(GUID, false);
+        if (GVSum &&
+            GVSum->getSummaryKind() == GlobalValueSummary::GlobalVarKind)
+          continue;
       }
       NameVals.push_back(*CallValueId);
       if (HasProfileData)
