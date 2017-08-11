@@ -15,6 +15,7 @@ namespace {
 struct TypeNameVisitor : TestVisitor<TypeNameVisitor> {
   llvm::StringMap<std::string> ExpectedQualTypeNames;
   bool WithGlobalNsPrefix = false;
+  bool CustomPrintingPolicy = false;
 
   // ValueDecls are the least-derived decl with both a qualtype and a
   // name.
@@ -26,9 +27,22 @@ struct TypeNameVisitor : TestVisitor<TypeNameVisitor> {
     std::string ExpectedName =
         ExpectedQualTypeNames.lookup(VD->getNameAsString());
     if (ExpectedName != "") {
-      std::string ActualName =
-          TypeName::getFullyQualifiedName(VD->getType(), *Context,
-                                          WithGlobalNsPrefix);
+      std::string ActualName;
+      if (!CustomPrintingPolicy)
+        ActualName =
+            TypeName::getFullyQualifiedName(VD->getType(), *Context,
+                                            WithGlobalNsPrefix);
+      else {
+        PrintingPolicy Policy(Context->getPrintingPolicy());
+        Policy.SuppressScope = false;
+        Policy.AnonymousTagLocations = true;
+        Policy.PolishForDeclaration = true;
+        Policy.SuppressUnwrittenScope = true;
+        ActualName =
+            TypeName::getFullyQualifiedName(VD->getType(), *Context,
+                                            Policy, WithGlobalNsPrefix);
+      }
+
       if (ExpectedName != ActualName) {
         // A custom message makes it much easier to see what declaration
         // failed compared to EXPECT_EQ.
@@ -216,6 +230,32 @@ TEST(QualTypeNameTest, getFullyQualifiedName) {
       "    }\n"
       "  }\n"
       "}\n"
+  );
+
+  TypeNameVisitor PrintingPolicy;
+  PrintingPolicy.CustomPrintingPolicy = true;
+  PrintingPolicy.ExpectedQualTypeNames["a"] = "short";
+  PrintingPolicy.ExpectedQualTypeNames["un_in_st_1"] =
+      "union (anonymous struct at input.cc:1:1)::(anonymous union at "
+      "input.cc:3:3)";
+  PrintingPolicy.ExpectedQualTypeNames["b"] = "short";
+  PrintingPolicy.ExpectedQualTypeNames["un_in_st_2"] =
+      "union (anonymous struct at input.cc:1:1)::(anonymous union at "
+      "input.cc:7:3)";
+  PrintingPolicy.ExpectedQualTypeNames["anon_st"] =
+      "struct (anonymous struct at input.cc:1:1)";
+  PrintingPolicy.runOver(
+      "struct\n"
+      "{\n"
+      "  union\n"
+      "  {\n"
+      "    short a;\n"
+      "  } un_in_st_1;\n"
+      "  union\n"
+      "  {\n"
+      "    short b;\n"
+      "  } un_in_st_2;\n"
+      "} anon_st;\n"
   );
 }
 
