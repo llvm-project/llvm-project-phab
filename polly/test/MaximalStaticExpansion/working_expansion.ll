@@ -1,6 +1,6 @@
 ; RUN: opt %loadPolly -polly-canonicalize -polly-mse -analyze < %s | FileCheck %s
 ;
-; Verify that the accesses are correctly expanded
+; Verify that the accesses are correctly expanded for MemoryKind::Array
 ;
 ; Original source code :
 ;

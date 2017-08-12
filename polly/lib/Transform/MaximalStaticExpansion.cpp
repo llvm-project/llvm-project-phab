@@ -68,20 +68,32 @@ private:
                     SmallPtrSetImpl<MemoryAccess *> &Reads, Scop &S,
                     isl::union_map &Dependences);
 
-  /// Expand a write memory access.
+  /// Expand the MemoryAccess according to its domain.
   ///
   /// @param S The SCop in which the memory access appears in.
   /// @param MA The memory access that need to be expanded.
-  ScopArrayInfo *expandWrite(Scop &S, MemoryAccess *MA);
+  ScopArrayInfo *expandAccordingToDomain(Scop &S, MemoryAccess *MA);
 
-  /// Expand the read memory access.
+  /// Expand the MemoryAccess according to Dependences and already expanded
+  /// MemoryAccesses.
   ///
   /// @param The SCop in which the memory access appears in.
   /// @param The memory access that need to be expanded.
   /// @param Dependences The RAW dependences of the SCop.
   /// @param ExpandedSAI The expanded SAI created during write expansion.
-  void expandRead(Scop &S, MemoryAccess *MA, isl::union_map &Dependences,
-                  ScopArrayInfo *ExpandedSAI);
+  /// @param If Reverse is true, the Dependences union_map is reversed before
+  /// intersection.
+  void expandAccordingToDependences(Scop &S, MemoryAccess *MA,
+                                    isl::union_map &Dependences,
+                                    ScopArrayInfo *ExpandedSAI, bool Reverse);
+
+  /// Expand PHI memory accesses.
+  ///
+  /// @param The SCop in which the memory access appears in.
+  /// @param The ScopArrayInfo representing the PHI accesses to expand.
+  /// @param Dependences The RAW dependences of the SCop.
+  void expandPhi(Scop &S, const ScopArrayInfo *SAI,
+                 isl::union_map &Dependences);
 };
 } // namespace
 
@@ -151,6 +163,20 @@ bool MaximalStaticExpander::isExpandable(
     SmallPtrSetImpl<MemoryAccess *> &Reads, Scop &S,
     isl::union_map &Dependences) {
 
+  if (SAI->isValueKind()) {
+    Writes.insert(S.getValueDef(SAI));
+    for (auto MA : S.getValueUses(SAI))
+      Reads.insert(MA);
+    return true;
+  } else if (SAI->isPHIKind()) {
+    return true;
+  } else if (SAI->isExitPHIKind()) {
+    // For now, we are not able to expand ExitPhi.
+    emitRemark(SAI->getName() + " is a ExitPhi node.",
+               S.getEnteringBlock()->getFirstNonPHI());
+    return false;
+  }
+
   int NumberWrites = 0;
   for (ScopStmt &Stmt : S) {
     for (MemoryAccess *MA : Stmt) {
@@ -158,13 +184,6 @@ bool MaximalStaticExpander::isExpandable(
       // Check if the current MemoryAccess involved the current SAI.
       if (SAI != MA->getLatestScopArrayInfo())
         continue;
-
-      // For now, we are not able to expand Scalar.
-      if (MA->isLatestScalarKind()) {
-        emitRemark(SAI->getName() + " is a Scalar access.",
-                   MA->getAccessInstruction());
-        return false;
-      }
 
       // For now, we are not able to expand MayWrite.
       if (MA->isMayWrite()) {
@@ -235,19 +254,23 @@ bool MaximalStaticExpander::isExpandable(
   return true;
 }
 
-void MaximalStaticExpander::expandRead(Scop &S, MemoryAccess *MA,
-                                       isl::union_map &Dependences,
-                                       ScopArrayInfo *ExpandedSAI) {
+void MaximalStaticExpander::expandAccordingToDependences(
+    Scop &S, MemoryAccess *MA, isl::union_map &Dependences,
+    ScopArrayInfo *ExpandedSAI, bool Reverse) {
 
   // Get the current AM.
   auto CurrentAccessMap = MA->getAccessRelation();
 
   // Get RAW dependences for the current WA.
-  auto WriteDomainSet = MA->getAccessRelation().domain();
-  auto WriteDomain = isl::union_set(WriteDomainSet);
+  auto DomainSet = MA->getAccessRelation().domain();
+  auto Domain = isl::union_set(DomainSet);
 
-  auto CurrentReadWriteDependences =
-      Dependences.reverse().intersect_domain(WriteDomain);
+  isl::union_map CurrentReadWriteDependences;
+  if (Reverse)
+    CurrentReadWriteDependences =
+        Dependences.reverse().intersect_domain(Domain);
+  else
+    CurrentReadWriteDependences = Dependences.intersect_domain(Domain);
 
   // If no dependences, no need to modify anything.
   if (CurrentReadWriteDependences.is_empty()) {
@@ -267,7 +290,8 @@ void MaximalStaticExpander::expandRead(Scop &S, MemoryAccess *MA,
   MA->setNewAccessRelation(NewAccessMap);
 }
 
-ScopArrayInfo *MaximalStaticExpander::expandWrite(Scop &S, MemoryAccess *MA) {
+ScopArrayInfo *
+MaximalStaticExpander::expandAccordingToDomain(Scop &S, MemoryAccess *MA) {
 
   // Get the current AM.
   auto CurrentAccessMap = MA->getAccessRelation();
@@ -336,6 +360,17 @@ ScopArrayInfo *MaximalStaticExpander::expandWrite(Scop &S, MemoryAccess *MA) {
   return ExpandedSAI;
 }
 
+void MaximalStaticExpander::expandPhi(Scop &S, const ScopArrayInfo *SAI,
+                                      isl::union_map &Dependences) {
+  auto Writes = S.getPHIIncomings(SAI);
+  auto Read = S.getPHIRead(SAI);
+  auto ExpandedSAI = expandAccordingToDomain(S, Read);
+
+  for (auto MA : Writes) {
+    expandAccordingToDependences(S, MA, Dependences, ExpandedSAI, false);
+  }
+}
+
 void MaximalStaticExpander::emitRemark(StringRef Msg, Instruction *Inst) {
   ORE->emit(OptimizationRemarkAnalysis(DEBUG_TYPE, "ExpansionRejection", Inst)
             << Msg);
@@ -360,13 +395,20 @@ bool MaximalStaticExpander::runOnScop(Scop &S) {
     if (!isExpandable(SAI, AllWrites, AllReads, S, Dependences))
       continue;
 
-    assert(AllWrites.size() == 1);
+    // If MemoryKind::Value of MemoryKind::Array
+    if (SAI->isValueKind() || SAI->isArrayKind()) {
+      assert(AllWrites.size() == 1 || SAI->isValueKind());
 
-    auto TheWrite = *(AllWrites.begin());
-    ScopArrayInfo *ExpandedArray = expandWrite(S, TheWrite);
+      auto TheWrite = *(AllWrites.begin());
+      ScopArrayInfo *ExpandedArray = expandAccordingToDomain(S, TheWrite);
 
-    for (MemoryAccess *MA : AllReads)
-      expandRead(S, MA, Dependences, ExpandedArray);
+      for (MemoryAccess *MA : AllReads)
+        expandAccordingToDependences(S, MA, Dependences, ExpandedArray, true);
+    }
+    // Else If MemoryKind::Phi
+    else if (SAI->isPHIKind()) {
+      expandPhi(S, SAI, Dependences);
+    }
   }
 
   return false;
