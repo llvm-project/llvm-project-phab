@@ -521,15 +521,28 @@ void __llvm_profile_initialize_file(void) {
   if (EnvFilenamePat) {
     SelectedPat = EnvFilenamePat;
     PNS = PNS_environment;
+    parseAndSetFilename(SelectedPat, PNS, 0);
   } else if (hasCommandLineOverrider) {
     SelectedPat = INSTR_PROF_PROFILE_NAME_VAR;
     PNS = PNS_command_line;
+
+    size_t PrefixLen;
+    int StripLen;
+    const char *Prefix = lprofGetPathPrefix(&StripLen, &PrefixLen);
+    if (Prefix != NULL) {
+      char *StripPat =
+          COMPILER_RT_ALLOCA(PrefixLen + 1 + strlen(SelectedPat) + 1);
+      lprofApplyPathPrefix(StripPat, SelectedPat, Prefix, PrefixLen, StripLen);
+      SelectedPat = StripPat;
+    }
+
+    parseAndSetFilename(SelectedPat, PNS, Prefix ? 1 : 0);
   } else {
     SelectedPat = NULL;
     PNS = PNS_default;
+    parseAndSetFilename(SelectedPat, PNS, 0);
   }
 
-  parseAndSetFilename(SelectedPat, PNS, 0);
 }
 
 /* This API is directly called by the user application code. It has the
