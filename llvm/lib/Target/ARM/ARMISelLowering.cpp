@@ -11132,12 +11132,13 @@ static bool CombineVLDDUP(SDNode *N, TargetLowering::DAGCombinerInfo &DCI) {
 
   // Now the vldN-lane intrinsic is dead except for its chain result.
   // Update uses of the chain.
-  std::vector<SDValue> VLDDupResults;
-  for (unsigned n = 0; n < NumVecs; ++n)
-    VLDDupResults.push_back(SDValue(VLDDup.getNode(), n));
-  VLDDupResults.push_back(SDValue(VLDDup.getNode(), NumVecs));
-  DCI.CombineTo(VLD, VLDDupResults);
-
+  if (!VLD->use_empty()) {
+    std::vector<SDValue> VLDDupResults;
+    for (unsigned n = 0; n < NumVecs; ++n)
+      VLDDupResults.push_back(SDValue(VLDDup.getNode(), n));
+    VLDDupResults.push_back(SDValue(VLDDup.getNode(), NumVecs));
+    DCI.CombineTo(VLD, VLDDupResults);
+  }
   return true;
 }
 

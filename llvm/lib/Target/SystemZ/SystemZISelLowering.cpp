@@ -5352,13 +5352,16 @@ SDValue SystemZTargetLowering::combineBSWAP(
       if (N->getValueType(0) == MVT::i16)
         ResVal = DAG.getNode(ISD::TRUNCATE, SDLoc(N), MVT::i16, BSLoad);
 
+      bool LoadPersists = !Load.getNode()->hasOneUse();
+
       // First, combine the bswap away.  This makes the value produced by the
       // load dead.
       DCI.CombineTo(N, ResVal);
 
       // Next, combine the load away, we give it a bogus result value but a real
       // chain result.  The result value is dead because the bswap is dead.
-      DCI.CombineTo(Load.getNode(), ResVal, BSLoad.getValue(1));
+      if (LoadPersists)
+        DCI.CombineTo(Load.getNode(), ResVal, BSLoad.getValue(1));
 
       // Return N so it doesn't get rechecked!
       return SDValue(N, 0);

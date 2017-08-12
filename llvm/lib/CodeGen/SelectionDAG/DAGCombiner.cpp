@@ -999,7 +999,7 @@ SDValue DAGCombiner::CombineTo(SDNode *N, const SDValue *To, unsigned NumTo,
   // may not be dead if the replacement process recursively simplified to
   // something else needing this node.
   if (N->use_empty())
-    deleteAndRecombine(N);
+    recursivelyDeleteUnusedNodes(N);
   return SDValue(N, 0);
 }
 
@@ -3757,14 +3757,15 @@ SDValue DAGCombiner::visitAND(SDNode *N) {
     if (DAG.MaskedValueIsZero(N0Op0, Mask)) {
       SDValue Zext = DAG.getNode(ISD::ZERO_EXTEND, SDLoc(N),
                                  N0.getValueType(), N0Op0);
-
+      bool N0Persists = !N0.getNode()->hasOneUse();
       // Replace uses of the AND with uses of the Zero extend node.
       CombineTo(N, Zext);
 
       // We actually want to replace all uses of the any_extend with the
       // zero_extend, to avoid duplicating things.  This will later cause this
       // AND to be folded.
-      CombineTo(N0.getNode(), Zext);
+      if (N0Persists)
+        CombineTo(N0.getNode(), Zext);
       return SDValue(N, 0);   // Return N so it doesn't get rechecked!
     }
   }
@@ -7119,15 +7120,18 @@ SDValue DAGCombiner::CombineExtLoad(SDNode *N) {
   // Simplify TF.
   AddToWorklist(NewChain.getNode());
 
+  bool N0Persists = !N0.getNode()->hasOneUse();
   CombineTo(N, NewValue);
 
   // Replace uses of the original load (before extension)
   // with a truncate of the concatenated sextloaded vectors.
-  SDValue Trunc =
-      DAG.getNode(ISD::TRUNCATE, SDLoc(N0), N0.getValueType(), NewValue);
-  CombineTo(N0.getNode(), Trunc, NewChain);
-  ExtendSetCCUses(SetCCs, Trunc, NewValue, DL,
-                  (ISD::NodeType)N->getOpcode());
+  if (N0Persists) {
+    SDValue Trunc =
+        DAG.getNode(ISD::TRUNCATE, SDLoc(N0), N0.getValueType(), NewValue);
+    CombineTo(N0.getNode(), Trunc, NewChain);
+    ExtendSetCCUses(SetCCs, Trunc, NewValue, DL, (ISD::NodeType)N->getOpcode());
+  }
+
   return SDValue(N, 0); // Return N so it doesn't get rechecked!
 }
 
@@ -7194,11 +7198,8 @@ SDValue DAGCombiner::visitSIGN_EXTEND(SDNode *N) {
     // fold (sext (truncate (load x))) -> (sext (smaller load x))
     // fold (sext (truncate (srl (load x), c))) -> (sext (smaller load (x+c/n)))
     if (SDValue NarrowLoad = ReduceLoadWidth(N0.getNode())) {
-      SDNode *oye = N0.getOperand(0).getNode();
       if (NarrowLoad.getNode() != N0.getNode()) {
         CombineTo(N0.getNode(), NarrowLoad);
-        // CombineTo deleted the truncate, if needed, but not what's under it.
-        AddToWorklist(oye);
       }
       return SDValue(N, 0);   // Return N so it doesn't get rechecked!
     }
@@ -7288,11 +7289,13 @@ SDValue DAGCombiner::visitSIGN_EXTEND(SDNode *N) {
       SDValue ExtLoad = DAG.getExtLoad(ISD::SEXTLOAD, DL, VT, LN0->getChain(),
                                        LN0->getBasePtr(), MemVT,
                                        LN0->getMemOperand());
+      bool N0Persists = !N0.getNode()->hasOneUse();
       CombineTo(N, ExtLoad);
-      CombineTo(N0.getNode(),
-                DAG.getNode(ISD::TRUNCATE, SDLoc(N0),
-                            N0.getValueType(), ExtLoad),
-                ExtLoad.getValue(1));
+      if (N0Persists)
+        CombineTo(
+            N0.getNode(),
+            DAG.getNode(ISD::TRUNCATE, SDLoc(N0), N0.getValueType(), ExtLoad),
+            ExtLoad.getValue(1));
       return SDValue(N, 0);   // Return N so it doesn't get rechecked!
     }
   }
@@ -7492,11 +7495,8 @@ SDValue DAGCombiner::visitZERO_EXTEND(SDNode *N) {
   // fold (zext (truncate (srl (load x), c))) -> (zext (small load (x+c/n)))
   if (N0.getOpcode() == ISD::TRUNCATE) {
     if (SDValue NarrowLoad = ReduceLoadWidth(N0.getNode())) {
-      SDNode *oye = N0.getOperand(0).getNode();
       if (NarrowLoad.getNode() != N0.getNode()) {
         CombineTo(N0.getNode(), NarrowLoad);
-        // CombineTo deleted the truncate, if needed, but not what's under it.
-        AddToWorklist(oye);
       }
       return SDValue(N, 0);   // Return N so it doesn't get rechecked!
     }
@@ -7507,11 +7507,8 @@ SDValue DAGCombiner::visitZERO_EXTEND(SDNode *N) {
     // fold (zext (truncate (load x))) -> (zext (smaller load x))
     // fold (zext (truncate (srl (load x), c))) -> (zext (smaller load (x+c/n)))
     if (SDValue NarrowLoad = ReduceLoadWidth(N0.getNode())) {
-      SDNode *oye = N0.getOperand(0).getNode();
       if (NarrowLoad.getNode() != N0.getNode()) {
         CombineTo(N0.getNode(), NarrowLoad);
-        // CombineTo deleted the truncate, if needed, but not what's under it.
-        AddToWorklist(oye);
       }
       return SDValue(N, 0); // Return N so it doesn't get rechecked!
     }
@@ -7666,11 +7663,13 @@ SDValue DAGCombiner::visitZERO_EXTEND(SDNode *N) {
                                        LN0->getChain(),
                                        LN0->getBasePtr(), MemVT,
                                        LN0->getMemOperand());
+      bool N0Persists = !N0.getNode()->hasOneUse();
       CombineTo(N, ExtLoad);
-      CombineTo(N0.getNode(),
-                DAG.getNode(ISD::TRUNCATE, SDLoc(N0), N0.getValueType(),
-                            ExtLoad),
-                ExtLoad.getValue(1));
+      if (N0Persists)
+        CombineTo(
+            N0.getNode(),
+            DAG.getNode(ISD::TRUNCATE, SDLoc(N0), N0.getValueType(), ExtLoad),
+            ExtLoad.getValue(1));
       return SDValue(N, 0);   // Return N so it doesn't get rechecked!
     }
   }
@@ -7774,11 +7773,8 @@ SDValue DAGCombiner::visitANY_EXTEND(SDNode *N) {
   // fold (aext (truncate (srl (load x), c))) -> (aext (small load (x+c/n)))
   if (N0.getOpcode() == ISD::TRUNCATE) {
     if (SDValue NarrowLoad = ReduceLoadWidth(N0.getNode())) {
-      SDNode *oye = N0.getOperand(0).getNode();
       if (NarrowLoad.getNode() != N0.getNode()) {
         CombineTo(N0.getNode(), NarrowLoad);
-        // CombineTo deleted the truncate, if needed, but not what's under it.
-        AddToWorklist(oye);
       }
       return SDValue(N, 0);   // Return N so it doesn't get rechecked!
     }
@@ -7849,11 +7845,13 @@ SDValue DAGCombiner::visitANY_EXTEND(SDNode *N) {
       SDValue ExtLoad = DAG.getExtLoad(ExtType, SDLoc(N),
                                        VT, LN0->getChain(), LN0->getBasePtr(),
                                        MemVT, LN0->getMemOperand());
+      bool N0Persists = !N0.getNode()->hasOneUse();
       CombineTo(N, ExtLoad);
-      CombineTo(N0.getNode(),
-                DAG.getNode(ISD::TRUNCATE, SDLoc(N0),
-                            N0.getValueType(), ExtLoad),
-                ExtLoad.getValue(1));
+      if (N0Persists)
+        CombineTo(
+            N0.getNode(),
+            DAG.getNode(ISD::TRUNCATE, SDLoc(N0), N0.getValueType(), ExtLoad),
+            ExtLoad.getValue(1));
       return SDValue(N, 0);   // Return N so it doesn't get rechecked!
     }
   }
@@ -8183,8 +8181,10 @@ SDValue DAGCombiner::visitSIGN_EXTEND_INREG(SDNode *N) {
                                      LN0->getChain(),
                                      LN0->getBasePtr(), EVT,
                                      LN0->getMemOperand());
+    bool N0Persists = !N0.getNode()->hasOneUse();
     CombineTo(N, ExtLoad);
-    CombineTo(N0.getNode(), ExtLoad, ExtLoad.getValue(1));
+    if (N0Persists)
+      CombineTo(N0.getNode(), ExtLoad, ExtLoad.getValue(1));
     AddToWorklist(ExtLoad.getNode());
     return SDValue(N, 0);   // Return N so it doesn't get rechecked!
   }
@@ -8199,8 +8199,10 @@ SDValue DAGCombiner::visitSIGN_EXTEND_INREG(SDNode *N) {
                                      LN0->getChain(),
                                      LN0->getBasePtr(), EVT,
                                      LN0->getMemOperand());
+    bool N0Persists = !N0.getNode()->hasOneUse();
     CombineTo(N, ExtLoad);
-    CombineTo(N0.getNode(), ExtLoad, ExtLoad.getValue(1));
+    if (N0Persists)
+      CombineTo(N0.getNode(), ExtLoad, ExtLoad.getValue(1));
     return SDValue(N, 0);   // Return N so it doesn't get rechecked!
   }
 
@@ -10567,12 +10569,13 @@ SDValue DAGCombiner::visitFP_EXTEND(SDNode *N) {
                                      LN0->getChain(),
                                      LN0->getBasePtr(), N0.getValueType(),
                                      LN0->getMemOperand());
+    bool N0Persists = !N0.getNode()->hasOneUse();
     CombineTo(N, ExtLoad);
-    CombineTo(N0.getNode(),
-              DAG.getNode(ISD::FP_ROUND, SDLoc(N0),
-                          N0.getValueType(), ExtLoad,
-                          DAG.getIntPtrConstant(1, SDLoc(N0))),
-              ExtLoad.getValue(1));
+    if (N0Persists)
+      CombineTo(N0.getNode(),
+                DAG.getNode(ISD::FP_ROUND, SDLoc(N0), N0.getValueType(),
+                            ExtLoad, DAG.getIntPtrConstant(1, SDLoc(N0))),
+                ExtLoad.getValue(1));
     return SDValue(N, 0);   // Return N so it doesn't get rechecked!
   }
 
@@ -10832,16 +10835,16 @@ SDValue DAGCombiner::visitBRCOND(SDNode *N) {
 
           SDValue NewBRCond = DAG.getNode(ISD::BRCOND, DL,
                                           MVT::Other, Chain, SetCC, N2);
+
+          bool N1Persists = !N1.hasOneUse();
           // Don't add the new BRCond into the worklist or else SimplifySelectCC
           // will convert it back to (X & C1) >> C2.
           CombineTo(N, NewBRCond, false);
-          // Truncate is dead.
-          if (Trunc)
-            deleteAndRecombine(Trunc);
           // Replace the uses of SRL with SETCC
-          WorklistRemover DeadNodes(*this);
-          DAG.ReplaceAllUsesOfValueWith(N1, SetCC);
-          deleteAndRecombine(N1.getNode());
+          if (N1Persists) {
+            DAG.ReplaceAllUsesOfValueWith(N1, SetCC);
+            deleteAndRecombine(N1.getNode());
+          }
           return SDValue(N, 0);   // Return N so it doesn't get rechecked!
         }
       }
@@ -12008,6 +12011,8 @@ bool DAGCombiner::SliceUpLoad(SDNode *N) {
   // Rewrite each chain to use an independent load.
   // By construction, each chain can be represented by a unique load.
 
+  bool HasChainUses = !SDValue(N, 1).use_empty();
+
   // Prepare the argument for the new token factor for all the slices.
   SmallVector<SDValue, 8> ArgChains;
   for (SmallVectorImpl<LoadedSlice>::const_iterator
@@ -12023,10 +12028,12 @@ bool DAGCombiner::SliceUpLoad(SDNode *N) {
     ArgChains.push_back(SliceInst.getValue(1));
   }
 
-  SDValue Chain = DAG.getNode(ISD::TokenFactor, SDLoc(LD), MVT::Other,
-                              ArgChains);
-  DAG.ReplaceAllUsesOfValueWith(SDValue(N, 1), Chain);
-  AddToWorklist(Chain.getNode());
+  if (HasChainUses) {
+    SDValue Chain =
+        DAG.getNode(ISD::TokenFactor, SDLoc(LD), MVT::Other, ArgChains);
+    DAG.ReplaceAllUsesOfValueWith(SDValue(N, 1), Chain);
+    AddToWorklist(Chain.getNode());
+  }
   return true;
 }
 
@@ -13224,12 +13231,8 @@ bool DAGCombiner::MergeConsecutiveStores(StoreSDNode *St) {
 
     // Replace the all stores with the new store. Recursively remove
     // corresponding value if its no longer used.
-    for (unsigned i = 0; i < NumElem; ++i) {
-      SDValue Val = StoreNodes[i].MemNode->getOperand(1);
+    for (unsigned i = 0; i < NumElem; ++i)
       CombineTo(StoreNodes[i].MemNode, NewStore);
-      if (Val.getNode()->use_empty())
-        recursivelyDeleteUnusedNodes(Val.getNode());
-    }
 
     RV = true;
     StoreNodes.erase(StoreNodes.begin(), StoreNodes.begin() + NumElem);
@@ -16274,13 +16277,17 @@ bool DAGCombiner::SimplifySelectOps(SDNode *TheSelect, SDValue LHS,
           MachinePointerInfo(), LLD->getMemoryVT(), Alignment, MMOFlags);
     }
 
+    bool LHSPersists = !LHS.getNode()->hasOneUse();
+    bool RHSPersists = !RHS.getNode()->hasOneUse();
     // Users of the select now use the result of the load.
     CombineTo(TheSelect, Load);
 
     // Users of the old loads now use the new load's chain.  We know the
     // old-load value is dead now.
-    CombineTo(LHS.getNode(), Load.getValue(0), Load.getValue(1));
-    CombineTo(RHS.getNode(), Load.getValue(0), Load.getValue(1));
+    if (LHSPersists)
+      CombineTo(LHS.getNode(), Load.getValue(0), Load.getValue(1));
+    if (RHSPersists)
+      CombineTo(RHS.getNode(), Load.getValue(0), Load.getValue(1));
     return true;
   }
 
