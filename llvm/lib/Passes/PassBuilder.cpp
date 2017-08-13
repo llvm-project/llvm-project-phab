@@ -533,26 +533,8 @@ PassBuilder::buildModuleSimplificationPipeline(OptimizationLevel Level,
   // libraries and other oracles.
   MPM.addPass(InferFunctionAttrsPass());
 
-  // Create an early function pass manager to cleanup the output of the
-  // frontend.
-  FunctionPassManager EarlyFPM(DebugLogging);
-  EarlyFPM.addPass(SimplifyCFGPass());
-  EarlyFPM.addPass(SROA());
-  EarlyFPM.addPass(EarlyCSEPass());
-  EarlyFPM.addPass(LowerExpectIntrinsicPass());
-  // In SamplePGO ThinLTO backend, we need instcombine before profile annotation
-  // to convert bitcast to direct calls so that they can be inlined during the
-  // profile annotation prepration step.
-  // More details about SamplePGO design can be found in:
-  // https://research.google.com/pubs/pub45290.html
-  // FIXME: revisit how SampleProfileLoad/Inliner/ICP is structured.
-  if (PGOOpt && !PGOOpt->SampleProfileFile.empty() &&
-      Phase == ThinLTOPhase::PostLink)
-    EarlyFPM.addPass(InstCombinePass());
-  MPM.addPass(createModuleToFunctionPassAdaptor(std::move(EarlyFPM)));
-
   if (PGOOpt && !PGOOpt->SampleProfileFile.empty()) {
-    // Annotate sample profile right after early FPM to ensure freshness of
+    // Annotate sample profile before early FPM to ensure freshness of
     // the debug info.
     MPM.addPass(SampleProfileLoaderPass(PGOOpt->SampleProfileFile));
     // Do not invoke ICP in the ThinLTOPrelink phase as it makes it hard
@@ -565,6 +547,15 @@ PassBuilder::buildModuleSimplificationPipeline(OptimizationLevel Level,
       MPM.addPass(PGOIndirectCallPromotion(Phase == ThinLTOPhase::PostLink,
                                            true));
   }
+
+  // Create an early function pass manager to cleanup the output of the
+  // frontend.
+  FunctionPassManager EarlyFPM(DebugLogging);
+  EarlyFPM.addPass(SimplifyCFGPass());
+  EarlyFPM.addPass(SROA());
+  EarlyFPM.addPass(EarlyCSEPass());
+  EarlyFPM.addPass(LowerExpectIntrinsicPass());
+  MPM.addPass(createModuleToFunctionPassAdaptor(std::move(EarlyFPM)));
 
   // Interprocedural constant propagation now that basic cleanup has occured
   // and prior to optimizing globals.
@@ -860,6 +851,15 @@ PassBuilder::buildThinLTODefaultPipeline(OptimizationLevel Level,
   if (!PGOOpt || PGOOpt->SampleProfileFile.empty())
     MPM.addPass(PGOIndirectCallPromotion(true /* InLTO */,
                                          false /* SamplePGO */));
+
+  // In SamplePGO ThinLTO backend, we need instcombine before profile
+  // annotation to convert bitcast to direct calls so that they can be
+  // inlined during the profile annotation prepration step.
+  // More details about SamplePGO design can be found in:
+  // https://research.google.com/pubs/pub45290.html
+  // FIXME: revisit how SampleProfileLoad/Inliner/ICP is structured.
+  if (PGOOpt && !PGOOpt->SampleProfileFile.empty())
+    MPM.addPass(createModuleToFunctionPassAdaptor(InstCombinePass()));
 
   // Add the core simplification pipeline.
   MPM.addPass(buildModuleSimplificationPipeline(Level, ThinLTOPhase::PostLink,
