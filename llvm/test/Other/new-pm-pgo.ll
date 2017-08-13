@@ -13,11 +13,11 @@
 ; USE: Running pass: PGOInstrumentationUse
 ; SAMPLE_USE_O: Running pass: ModuleToFunctionPassAdaptor<{{.*}}AddDiscriminatorsPass{{.*}}>
 ; SAMPLE_USE_PRE_LINK: Running pass: ModuleToFunctionPassAdaptor<{{.*}}AddDiscriminatorsPass{{.*}}>
-; SAMPLE_USE: Running pass: SimplifyCFGPass
-; SAMPLE_USE: Running pass: SROA
-; SAMPLE_USE: Running pass: EarlyCSEPass
-; SAMPLE_USE: Running pass: LowerExpectIntrinsicPass
-; SAMPLE_USE_POST_LINK: Running pass: InstCombinePass
+; SAMPLE_USE-NOT: Running pass: SimplifyCFGPass
+; SAMPLE_USE-NOT: Running pass: SROA
+; SAMPLE_USE-NOT: Running pass: EarlyCSEPass
+; SAMPLE_USE-NOT: Running pass: LowerExpectIntrinsicPass
+; SAMPLE_USE_POST_LINK: Running pass: ModuleToFunctionPassAdaptor<{{.*}}InstCombinePass{{.*}}>
 ; SAMPLE_USE: Running pass: SampleProfileLoaderPass
 ; SAMPLE_USE_O: Running pass: PGOIndirectCallPromotion
 ; SAMPLE_USE_POST_LINK-NOT: Running pass: GlobalOptPass
