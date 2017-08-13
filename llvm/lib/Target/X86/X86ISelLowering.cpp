@@ -1628,6 +1628,7 @@ X86TargetLowering::X86TargetLowering(const X86TargetMachine &TM,
   setTargetDAGCombine(ISD::VECTOR_SHUFFLE);
   setTargetDAGCombine(ISD::EXTRACT_VECTOR_ELT);
   setTargetDAGCombine(ISD::INSERT_SUBVECTOR);
+  setTargetDAGCombine(ISD::EXTRACT_SUBVECTOR);
   setTargetDAGCombine(ISD::BITCAST);
   setTargetDAGCombine(ISD::VSELECT);
   setTargetDAGCombine(ISD::SELECT);
@@ -35498,6 +35499,49 @@ static SDValue combineVectorCompare(SDNode *N, SelectionDAG &DAG,
   return SDValue();
 }
 
+static SDValue combineExtractSubvector(SDNode *N, SelectionDAG &DAG,
+                                       TargetLowering::DAGCombinerInfo &DCI) {
+  if (DCI.isBeforeLegalizeOps())
+    return SDValue();
+
+  MVT OpVT = N->getSimpleValueType(0);
+
+  if (OpVT.getVectorElementType() == MVT::i1)
+    return SDValue();
+
+  SDLoc dl(N);
+  SDValue Vec = N->getOperand(0);
+  SDValue Idx = N->getOperand(1);
+
+  unsigned IdxVal = cast<ConstantSDNode>(Idx)->getZExtValue();
+
+  // Combine an extract_subvector of an extract into a single extract_subvector.
+  if (Vec.getOpcode() == ISD::EXTRACT_SUBVECTOR) {
+    unsigned OtherIdxVal =
+      cast<ConstantSDNode>(Vec.getOperand(1))->getZExtValue();
+
+    // Only do this combine if both indices are non-zero or both zero. If one is
+    // zero we should favor the subreg operation first.
+    // TODO are there other cases that would be good to handle?
+    if (IdxVal == 0 && OtherIdxVal == 0) {
+      return DAG.getNode(ISD::EXTRACT_SUBVECTOR, dl, OpVT,
+                         Vec.getOperand(0), N->getOperand(1));
+    }
+  }
+
+  // If we're only using the lower part of an operation. Try to narrow the Op.
+  if ((Vec.getOpcode() == ISD::ADD || Vec.getOpcode() == ISD::SUB) &&
+      Vec.hasOneUse() && IdxVal == 0) {
+    SDValue LHS = DAG.getNode(ISD::EXTRACT_SUBVECTOR, dl, OpVT,
+                              Vec.getOperand(0), Idx);
+    SDValue RHS = DAG.getNode(ISD::EXTRACT_SUBVECTOR, dl, OpVT,
+                              Vec.getOperand(1), Idx);
+    return DAG.getNode(ISD::ADD, dl, OpVT, LHS, RHS);
+  }
+
+  return SDValue();
+}
+
 static SDValue combineInsertSubvector(SDNode *N, SelectionDAG &DAG,
                                       TargetLowering::DAGCombinerInfo &DCI,
                                       const X86Subtarget &Subtarget) {
@@ -35517,6 +35561,18 @@ static SDValue combineInsertSubvector(SDNode *N, SelectionDAG &DAG,
 
   unsigned IdxVal = cast<ConstantSDNode>(Idx)->getZExtValue();
   MVT SubVecVT = SubVec.getSimpleValueType();
+
+  // Look for two subregister inserts in a row and combine them into a single
+  // operation.
+  if (IdxVal == 0 && Vec.isUndef() &&
+      SubVec.getOpcode() == ISD::INSERT_SUBVECTOR &&
+      SubVec.getOperand(0).isUndef()) {
+    auto *Idx2 = dyn_cast<ConstantSDNode>(SubVec.getOperand(2));
+    if (Idx2 && Idx2->getZExtValue() == 0) {
+      return DAG.getNode(ISD::INSERT_SUBVECTOR, dl, OpVT, Vec,
+                         SubVec.getOperand(1), Idx);
+    }
+  }
 
   // If this is an insert of an extract, combine to a shuffle. Don't do this
   // if the insert or extract can be represented with a subregister operation.
@@ -35609,6 +35665,8 @@ SDValue X86TargetLowering::PerformDAGCombine(SDNode *N,
     return combineExtractVectorElt_SSE(N, DAG, DCI, Subtarget);
   case ISD::INSERT_SUBVECTOR:
     return combineInsertSubvector(N, DAG, DCI, Subtarget);
+  case ISD::EXTRACT_SUBVECTOR:
+    return combineExtractSubvector(N, DAG, DCI);
   case ISD::VSELECT:
   case ISD::SELECT:
   case X86ISD::SHRUNKBLEND: return combineSelect(N, DAG, DCI, Subtarget);
