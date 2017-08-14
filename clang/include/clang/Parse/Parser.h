@@ -348,11 +348,6 @@ public:
     return Actions.getNullabilityKeyword(nullability);
   }
 
-private:
-  //===--------------------------------------------------------------------===//
-  // Low-Level token peeking and consumption methods.
-  //
-
   /// isTokenParen - Return true if the cur token is '(' or ')'.
   bool isTokenParen() const {
     return Tok.isOneOf(tok::l_paren, tok::r_paren);
@@ -373,19 +368,6 @@ private:
   bool isTokenSpecial() const {
     return isTokenStringLiteral() || isTokenParen() || isTokenBracket() ||
            isTokenBrace() || Tok.is(tok::code_completion) || Tok.isAnnotation();
-  }
-
-  /// \brief Returns true if the current token is '=' or is a type of '='.
-  /// For typos, give a fixit to '='
-  bool isTokenEqualOrEqualTypo();
-
-  /// \brief Return the current token to the token stream and make the given
-  /// token the current token.
-  void UnconsumeToken(Token &Consumed) {
-      Token Next = Tok;
-      PP.EnterToken(Consumed);
-      PP.Lex(Tok);
-      PP.EnterToken(Next);
   }
 
   /// ConsumeAnyToken - Dispatch to the right Consume* method based on the
@@ -479,6 +461,24 @@ private:
     PrevTokLocation = Tok.getLocation();
     PP.Lex(Tok);
     return PrevTokLocation;
+  }
+
+private:
+  //===--------------------------------------------------------------------===//
+  // Low-Level token peeking and consumption methods.
+  //
+
+  /// \brief Returns true if the current token is '=' or is a type of '='.
+  /// For typos, give a fixit to '='
+  bool isTokenEqualOrEqualTypo();
+
+  /// \brief Return the current token to the token stream and make the given
+  /// token the current token.
+  void UnconsumeToken(Token &Consumed) {
+      Token Next = Tok;
+      PP.EnterToken(Consumed);
+      PP.Lex(Tok);
+      PP.EnterToken(Next);
   }
 
   ///\ brief When we are consuming a code-completion token without having
