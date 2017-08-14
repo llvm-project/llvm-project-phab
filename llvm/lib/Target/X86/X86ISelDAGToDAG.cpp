@@ -97,6 +97,10 @@ namespace {
       return false;
     }
 
+    bool isLegalScale() {
+      return (Scale == 1 || Scale == 2 || Scale == 4 || Scale == 8);
+    }
+
     void setBaseReg(SDValue Reg) {
       BaseType = RegBase;
       Base_Reg = Reg;
@@ -197,6 +201,7 @@ namespace {
     bool matchAdd(SDValue N, X86ISelAddressMode &AM, unsigned Depth);
     bool matchAddressRecursively(SDValue N, X86ISelAddressMode &AM,
                                  unsigned Depth);
+    bool matchAddressLEA(SDValue N, X86ISelAddressMode &AM);
     bool matchAddressBase(SDValue N, X86ISelAddressMode &AM);
     bool selectAddr(SDNode *Parent, SDValue N, SDValue &Base,
                     SDValue &Scale, SDValue &Index, SDValue &Disp,
@@ -1114,7 +1119,8 @@ static bool foldMaskAndShiftToScale(SelectionDAG &DAG, SDValue N,
   return false;
 }
 
-bool X86DAGToDAGISel::matchAddressRecursively(SDValue N, X86ISelAddressMode &AM,
+bool X86DAGToDAGISel::matchAddressRecursively(SDValue N,
+                                              X86ISelAddressMode &AM,
                                               unsigned Depth) {
   SDLoc dl(N);
   DEBUG({
@@ -1413,6 +1419,20 @@ bool X86DAGToDAGISel::matchAddressBase(SDValue N, X86ISelAddressMode &AM) {
       return false;
     }
 
+    if (OptLevel != CodeGenOpt::None &&
+        AM.BaseType == X86ISelAddressMode::RegBase) {
+      if (AM.Base_Reg == N) {
+        SDValue Base_Reg = AM.Base_Reg;
+        AM.Base_Reg = AM.IndexReg;
+        AM.IndexReg = Base_Reg;
+        AM.Scale++;
+        return false;
+      } else if (AM.IndexReg == N) {
+        AM.Scale++;
+        return false;
+      }
+    }
+
     // Otherwise, we cannot select it.
     return true;
   }
@@ -1625,7 +1645,7 @@ bool X86DAGToDAGISel::selectLEA64_32Addr(SDValue N, SDValue &Base,
                                          SDValue &Disp, SDValue &Segment) {
   // Save the debug loc before calling selectLEAAddr, in case it invalidates N.
   SDLoc DL(N);
-
+   
   if (!selectLEAAddr(N, Base, Scale, Index, Disp, Segment))
     return false;
 
@@ -1660,6 +1680,25 @@ bool X86DAGToDAGISel::selectLEA64_32Addr(SDValue N, SDValue &Base,
   return true;
 }
 
+bool X86DAGToDAGISel::matchAddressLEA(SDValue N, X86ISelAddressMode &AM) {
+  bool matchRes = matchAddress(N, AM);
+  // Check for legality of scale when recursion unwinds back to the top.
+  if (OptLevel != CodeGenOpt::None && !matchRes) {
+    if (!AM.isLegalScale())
+      return true;
+    // AM Scale is incremented every time we fold a DAG node.
+    // Within a loop having a complex LEA with scale less than 4
+    // will be costly. With scale 2 latency of complex LEA should
+    // be similar to decomposed instructions but throughput will be
+    // less.
+    if (CurDAG->IsDAGPartOfLoop && AM.Scale <= 2 &&
+          !AM.hasSymbolicDisplacement() && AM.Disp)
+      return true;
+  }
+  return matchRes;
+}
+
+
 /// Calls SelectAddr and determines if the maximal addressing
 /// mode it matches can be cost effectively emitted as an LEA instruction.
 bool X86DAGToDAGISel::selectLEAAddr(SDValue N,
@@ -1677,7 +1716,7 @@ bool X86DAGToDAGISel::selectLEAAddr(SDValue N,
   SDValue Copy = AM.Segment;
   SDValue T = CurDAG->getRegister(0, MVT::i32);
   AM.Segment = T;
-  if (matchAddress(N, AM))
+  if (matchAddressLEA(N, AM))
     return false;
   assert (T == AM.Segment);
   AM.Segment = Copy;
