@@ -58,10 +58,10 @@ static void fuseInstructionPair(ScheduleDAGMI &DAG, SUnit &FirstSU,
                   DAG.TII->getName(SecondSU.getInstr()->getOpcode()) << '\n'; );
 
   if (&SecondSU != &DAG.ExitSU)
-    // Make instructions dependent on FirstSU also dependent on SecondSU to
+    // Make data dependencies from FirstSU also dependent on SecondSU to
     // prevent them from being scheduled between FirstSU and and SecondSU.
     for (const SDep &SI : FirstSU.Succs) {
-      if (SI.getSUnit() == &SecondSU)
+      if (SI.isCtrl() || SI.getSUnit() == &SecondSU)
         continue;
       DEBUG(dbgs() << "  Copy Succ ";
             SI.getSUnit()->print(dbgs(), &DAG); dbgs() << '\n';);
