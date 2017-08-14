@@ -19,6 +19,8 @@
 #include "clang/Driver/Util.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Option/ArgList.h"
+#include "llvm/Support/StringSaver.h"
 
 #include <list>
 #include <map>
@@ -26,14 +28,6 @@
 
 namespace llvm {
 class Triple;
-
-namespace opt {
-  class Arg;
-  class ArgList;
-  class DerivedArgList;
-  class InputArgList;
-  class OptTable;
-}
 }
 
 namespace clang {
@@ -129,6 +123,9 @@ public:
   /// The original path to the clang executable.
   std::string ClangExecutable;
 
+  /// Target and driver mode components extracted from clang executable name.
+  ParsedClangName ClangNameParts;
+
   /// The path to the installed clang directory, if any.
   std::string InstalledDir;
 
@@ -205,6 +202,21 @@ private:
   /// Name to use when invoking gcc/g++.
   std::string CCCGenericGCCName;
 
+  /// Name of configuration file if used.
+  std::string ConfigFile;
+
+  /// Allocator for string saver.
+  llvm::BumpPtrAllocator Alloc;
+
+  /// Object that stores strings read from configuration file.
+  llvm::StringSaver Saver;
+
+  /// Arguments originated from configuration file.
+  std::unique_ptr<llvm::opt::InputArgList> CfgOptions;
+
+  /// Arguments originated from command line.
+  std::unique_ptr<llvm::opt::InputArgList> CLOptions;
+
   /// Whether to check that input files exist when constructing compilation
   /// jobs.
   unsigned CheckInputsExist : 1;
@@ -274,6 +286,8 @@ public:
   /// Name to use when invoking gcc/g++.
   const std::string &getCCCGenericGCCName() const { return CCCGenericGCCName; }
 
+  const std::string &getConfigFile() const { return ConfigFile; }
+
   const llvm::opt::OptTable &getOpts() const { return *Opts; }
 
   const DiagnosticsEngine &getDiags() const { return Diags; }
@@ -283,6 +297,8 @@ public:
   bool getCheckInputsExist() const { return CheckInputsExist; }
 
   void setCheckInputsExist(bool Value) { CheckInputsExist = Value; }
+
+  void setTargetAndMode(const ParsedClangName &TM) { ClangNameParts = TM; }
 
   const std::string &getTitle() { return DriverTitle; }
   void setTitle(std::string Value) { DriverTitle = std::move(Value); }
@@ -484,6 +500,18 @@ public:
   LTOKind getLTOMode() const { return LTOMode; }
 
 private:
+
+  /// Tries to load options from configuration file.
+  ///
+  /// \returns true if error occurred.
+  bool loadConfigFile();
+
+  /// Read options from the specified file.
+  ///
+  /// \param [in] FileName File to read.
+  /// \returns true, if error occurred while reading.
+  bool readConfigFile(StringRef FileName);
+
   /// Set the driver mode (cl, gcc, etc) from an option string of the form
   /// --driver-mode=<mode>.
   void setDriverModeFromOption(StringRef Opt);
