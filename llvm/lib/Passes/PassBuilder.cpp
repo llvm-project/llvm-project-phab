@@ -142,6 +142,7 @@
 #include "llvm/Transforms/Utils/SimplifyInstructions.h"
 #include "llvm/Transforms/Utils/SymbolRewriter.h"
 #include "llvm/Transforms/Vectorize/LoopVectorize.h"
+#include "llvm/Transforms/Vectorize/LoopVectorizePred.h"
 #include "llvm/Transforms/Vectorize/SLPVectorizer.h"
 
 #include <type_traits>
@@ -643,6 +644,9 @@ PassBuilder::buildModuleOptimizationPipeline(OptimizationLevel Level,
 
   // Now run the core loop vectorizer.
   OptimizePM.addPass(LoopVectorizePass());
+
+  // Now run the pass to be run before loop vectorizer.
+  OptimizePM.addPass(LoopVectorizePredPass());
 
   // Eliminate loads by forwarding stores from the previous iteration to loads
   // of the current iteration.

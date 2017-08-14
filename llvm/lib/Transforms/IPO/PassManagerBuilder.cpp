@@ -159,6 +159,10 @@ static cl::opt<bool> EnableGVNSink(
     "enable-gvn-sink", cl::init(false), cl::Hidden,
     cl::desc("Enable the GVN sinking pass (default = off)"));
 
+static cl::opt<bool> EnableLoopVectorizePred(
+    "enable-loopvectorizepred", cl::init(false), cl::Hidden,
+    cl::desc("Enable the new, experimental LoopVectorizePred Pass"));
+
 PassManagerBuilder::PassManagerBuilder() {
     OptLevel = 2;
     SizeLevel = 0;
@@ -605,6 +609,9 @@ void PassManagerBuilder::populateModulePassManager(
   // llvm.loop.distribute=true or when -enable-loop-distribute is specified.
   MPM.add(createLoopDistributePass());
 
+  if (EnableLoopVectorizePred)
+    MPM.add(createLoopVectorizePredPass(DisableUnrollLoops));
+  
   MPM.add(createLoopVectorizePass(DisableUnrollLoops, LoopVectorize));
 
   // Eliminate loads by forwarding stores from the previous iteration to loads
@@ -821,7 +828,11 @@ void PassManagerBuilder::addLTOOptimizationPasses(legacy::PassManagerBase &PM) {
 
   if (!DisableUnrollLoops)
     PM.add(createSimpleLoopUnrollPass(OptLevel));   // Unroll small loops
-  PM.add(createLoopVectorizePass(true, LoopVectorize));
+
+  if (EnableLoopVectorizePred)
+    PM.add(createLoopVectorizePredPass(true));
+
+  PM.add(createLoopVectorizePass(true));
   // The vectorizer may have significantly shortened a loop body; unroll again.
   if (!DisableUnrollLoops)
     PM.add(createLoopUnrollPass(OptLevel));
