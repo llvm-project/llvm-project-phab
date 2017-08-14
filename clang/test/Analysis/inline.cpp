@@ -1,4 +1,5 @@
 // RUN: %clang_analyze_cc1 -analyzer-checker=core,unix.Malloc,debug.ExprInspection -analyzer-config ipa=inlining -analyzer-config c++-allocator-inlining=true -verify %s
+// RUN: %clang_analyze_cc1 -std=c++11 -analyzer-checker=core,unix.Malloc,debug.ExprInspection -analyzer-config ipa=inlining -analyzer-config c++-allocator-inlining=true -verify %s
 
 void clang_analyzer_eval(bool);
 void clang_analyzer_checkInlined(bool);
@@ -442,5 +443,25 @@ namespace bug16307 {
   void one_argument(int a) { }
   void call_with_less() {
     reinterpret_cast<void (*)()>(one_argument)(); // expected-warning{{Function taking 1 argument is called with fewer (0)}}
+  }
+}
+
+namespace std {
+  struct nothrow_t {};
+  extern const nothrow_t nothrow;
+}
+
+// Operator new, the nothrow version.
+void* operator new(size_t size, const std::nothrow_t&) noexcept {
+  void *p = nullptr;
+  return p;
+}
+
+namespace bug34144 {
+  // Don't crash when the 'c++-allocator-inlining' config option sets true and
+  // the c++ allocator return a Null pointer.
+  void call_new() {
+    int *i = new(std::nothrow) int(1);
+    delete i;
   }
 }
