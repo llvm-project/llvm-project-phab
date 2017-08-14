@@ -138,9 +138,20 @@ void NonConstParameterCheck::diagnoseNonConstParameters() {
     if (!ParamInfo.CanBeConst)
       continue;
 
-    diag(Par->getLocation(), "pointer parameter '%0' can be pointer to const")
-        << Par->getName()
-        << FixItHint::CreateInsertion(Par->getLocStart(), "const ");
+    auto D = diag(Par->getLocation(),
+                  "pointer parameter '%0' can be pointer to const")
+             << Par->getName()
+             << FixItHint::CreateInsertion(Par->getLocStart(), "const ");
+
+    if (const auto *Parent = Par->getParentFunctionOrMethod()) {
+      if (const auto *F = dyn_cast<FunctionDecl>(Parent)) {
+        const auto ParDecl =
+            F->getFirstDecl()->getParamDecl(Par->getFunctionScopeIndex());
+        if (Par != ParDecl)
+          D << ParDecl->getName()
+            << FixItHint::CreateInsertion(ParDecl->getLocStart(), "const ");
+      }
+    }
   }
 }
 

@@ -277,3 +277,11 @@ public:
     int x = *p;
   }
 };
+
+int declarationFixit(int *i);
+// CHECK-FIXES: {{^}}int declarationFixit(const int *i);{{$}}
+// CHECK-MESSAGES: :[[@LINE+1]]:27: warning: pointer parameter 'i' can be
+int declarationFixit(int *i) {
+  // CHECK-FIXES: {{^}}int declarationFixit(const int *i) {{{$}}
+  return *i;
+}
