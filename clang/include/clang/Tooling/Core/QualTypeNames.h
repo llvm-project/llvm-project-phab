@@ -74,6 +74,11 @@ namespace TypeName {
 std::string getFullyQualifiedName(QualType QT,
                                   const ASTContext &Ctx,
                                   bool WithGlobalNsPrefix = false);
+
+std::string getFullyQualifiedName(QualType QT,
+                                  const ASTContext &Ctx,
+                                  const PrintingPolicy &Policy,
+                                  bool WithGlobalNsPrefix = false);
 }  // end namespace TypeName
 }  // end namespace clang
 #endif  // LLVM_CLANG_TOOLING_CORE_QUALTYPENAMES_H

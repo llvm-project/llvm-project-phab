@@ -7,28 +7,40 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "clang/Tooling/Core/QualTypeNames.h"
 #include "TestVisitor.h"
+#include "clang/Tooling/Core/QualTypeNames.h"
 using namespace clang;
 
 namespace {
 struct TypeNameVisitor : TestVisitor<TypeNameVisitor> {
   llvm::StringMap<std::string> ExpectedQualTypeNames;
   bool WithGlobalNsPrefix = false;
+  bool CustomPrintingPolicy = false;
 
   // ValueDecls are the least-derived decl with both a qualtype and a
   // name.
   bool traverseDecl(Decl *D) {
-    return true;  // Always continue
+    return true; // Always continue
   }
 
   bool VisitValueDecl(const ValueDecl *VD) {
     std::string ExpectedName =
         ExpectedQualTypeNames.lookup(VD->getNameAsString());
     if (ExpectedName != "") {
-      std::string ActualName =
-          TypeName::getFullyQualifiedName(VD->getType(), *Context,
-                                          WithGlobalNsPrefix);
+      std::string ActualName;
+      if (!CustomPrintingPolicy)
+        ActualName = TypeName::getFullyQualifiedName(VD->getType(), *Context,
+                                                     WithGlobalNsPrefix);
+      else {
+        PrintingPolicy Policy(Context->getPrintingPolicy());
+        Policy.SuppressScope = false;
+        Policy.AnonymousTagLocations = true;
+        Policy.PolishForDeclaration = true;
+        Policy.SuppressUnwrittenScope = true;
+        ActualName = TypeName::getFullyQualifiedName(
+            VD->getType(), *Context, Policy, WithGlobalNsPrefix);
+      }
+
       if (ExpectedName != ActualName) {
         // A custom message makes it much easier to see what declaration
         // failed compared to EXPECT_EQ.
@@ -93,94 +105,92 @@ TEST(QualTypeNameTest, getFullyQualifiedName) {
   Visitor.ExpectedQualTypeNames["CheckM"] = "const A::B::Class0 *";
   Visitor.ExpectedQualTypeNames["CheckN"] = "const X *";
   Visitor.runOver(
-      "int CheckInt;\n"
-      "template <typename T>\n"
-      "class OuterTemplateClass { };\n"
-      "namespace A {\n"
-      " namespace B {\n"
-      "   class Class0 { };\n"
-      "   namespace C {\n"
-      "     typedef int MyInt;"
-      "     template <typename T>\n"
-      "     using InnerAlias = OuterTemplateClass<T>;\n"
-      "     InnerAlias<int> AliasTypeVal;\n"
-      "   }\n"
-      "   template<class X, class Y> class Template0;"
-      "   template<class X, class Y> class Template1;"
-      "   typedef B::Class0 AnotherClass;\n"
-      "   void Function1(Template0<C::MyInt,\n"
-      "                  AnotherClass> CheckC);\n"
-      "   void Function2(Template0<Template1<C::MyInt, AnotherClass>,\n"
-      "                            Template0<int, long> > CheckD);\n"
-      "   void Function3(const B::Class0* CheckM);\n"
-      "  }\n"
-      "template<typename... Values> class Variadic {};\n"
-      "Variadic<int, B::Template0<int, char>, "
-      "         B::Template1<int, long>, "
-      "         B::C::MyInt > CheckE;\n"
-      " namespace BC = B::C;\n"
-      " BC::MyInt CheckL;\n"
-      "}\n"
-      "using A::B::Class0;\n"
-      "void Function(Class0 CheckF);\n"
-      "using namespace A::B::C;\n"
-      "void Function(MyInt CheckG);\n"
-      "void f() {\n"
-      "  struct X {} CheckH;\n"
-      "}\n"
-      "struct X;\n"
-      "void f(const ::X* CheckN) {}\n"
-      "namespace {\n"
-      "  class aClass {};\n"
-      "   aClass CheckI;\n"
-      "}\n"
-      "namespace A {\n"
-      "  struct aStruct {} CheckJ;\n"
-      "}\n"
-      "namespace {\n"
-      "  namespace D {\n"
-      "    namespace {\n"
-      "      class aStruct {};\n"
-      "      aStruct CheckK;\n"
-      "    }\n"
-      "  }\n"
-      "}\n"
-      "template<class T> struct Foo {\n"
-      "  typedef typename T::A dependent_type;\n"
-      "  typedef int non_dependent_type;\n"
-      "  dependent_type dependent_type_var;\n"
-      "  non_dependent_type non_dependent_type_var;\n"
-      "};\n"
-      "struct X { typedef int A; };"
-      "Foo<X> var;"
-      "void F() {\n"
-      "  var.dependent_type_var = 0;\n"
-      "var.non_dependent_type_var = 0;\n"
-      "}\n"
-      "class EnumScopeClass {\n"
-      "public:\n"
-      "  enum AnEnum { ZERO, ONE };\n"
-      "};\n"
-      "EnumScopeClass::AnEnum AnEnumVar;\n",
-      TypeNameVisitor::Lang_CXX11
-);
+      R"(int CheckInt;
+         template <typename>
+         class OuterTemplateClass { };
+         namespace A {
+          namespace B {
+            class Class0 { };
+            namespace C {
+              typedef int MyInt;
+              template <typename T>
+              using InnerAlias = OuterTemplateClass<T>;
+              InnerAlias<int> AliasTypeVal;
+            }
+            template<class X, class Y> class Template0;
+            template<class X, class Y> class Template1;
+            typedef B::Class0 AnotherClass;
+            void Function1(Template0<C::MyInt,
+                           AnotherClass> CheckC);
+            void Function2(Template0<Template1<C::MyInt, AnotherClass>,
+                                     Template0<int, long> > CheckD);
+            void Function3(const B::Class0* CheckM);
+           }
+         template<typename... Values> class Variadic {};
+         Variadic<int, B::Template0<int, char>, 
+                  B::Template1<int, long>, 
+                  B::C::MyInt > CheckE;
+          namespace BC = B::C;
+          BC::MyInt CheckL;
+         }
+         using A::B::Class0;
+         void Function(Class0 CheckF);
+         using namespace A::B::C;
+         void Function(MyInt CheckG);
+         void f() {
+           struct X {} CheckH;
+         }
+         struct X;
+         void f(const ::X* CheckN) {}
+         namespace {
+           class aClass {};
+            aClass CheckI;
+         }
+         namespace A {
+           struct aStruct {} CheckJ;
+         }
+         namespace {
+           namespace D {
+             namespace {
+               class aStruct {};
+               aStruct CheckK;
+             }
+           }
+         }
+         template<class T> struct Foo {
+           typedef typename T::A dependent_type;
+           typedef int non_dependent_type;
+           dependent_type dependent_type_var;
+           non_dependent_type non_dependent_type_var;
+         };
+         struct X { typedef int A; };
+         Foo<X> var;
+         void F() {
+           var.dependent_type_var = 0;
+         var.non_dependent_type_var = 0;
+         }
+         class EnumScopeClass {
+         public:
+           enum AnEnum { ZERO, ONE };
+         };
+         EnumScopeClass::AnEnum AnEnumVar;)",
+      TypeNameVisitor::Lang_CXX11);
 
   TypeNameVisitor Complex;
   Complex.ExpectedQualTypeNames["CheckTX"] = "B::TX";
-  Complex.runOver(
-      "namespace A {"
-      "  struct X {};"
-      "}"
-      "using A::X;"
-      "namespace fake_std {"
-      "  template<class... Types > class tuple {};"
-      "}"
-      "namespace B {"
-      "  using fake_std::tuple;"
-      "  typedef tuple<X> TX;"
-      "  TX CheckTX;"
-      "  struct A { typedef int X; };"
-      "}");
+  Complex.runOver(R"(namespace A {
+                       struct X {};
+                     }
+                     using A::X;
+                     namespace fake_std {
+                       template<class... Types > class tuple {};
+                     }
+                     namespace B {
+                       using fake_std::tuple;
+                       typedef tuple<X> TX;
+                       TX CheckTX;
+                       struct A { typedef int X; };
+                     })");
 
   TypeNameVisitor GlobalNsPrefix;
   GlobalNsPrefix.WithGlobalNsPrefix = true;
@@ -191,32 +201,51 @@ TEST(QualTypeNameTest, getFullyQualifiedName) {
   GlobalNsPrefix.ExpectedQualTypeNames["ZVal"] = "::A::B::Y::Z";
   GlobalNsPrefix.ExpectedQualTypeNames["GlobalZVal"] = "::Z";
   GlobalNsPrefix.ExpectedQualTypeNames["CheckK"] = "D::aStruct";
-  GlobalNsPrefix.runOver(
-      "namespace A {\n"
-      "  namespace B {\n"
-      "    int IntVal;\n"
-      "    bool BoolVal;\n"
-      "    struct X {};\n"
-      "    X XVal;\n"
-      "    template <typename T> class CCC { };\n"
-      "    template <typename T>\n"
-      "    using Alias = CCC<T>;\n"
-      "    Alias<int> IntAliasVal;\n"
-      "    struct Y { struct Z {}; };\n"
-      "    Y::Z ZVal;\n"
-      "  }\n"
-      "}\n"
-      "struct Z {};\n"
-      "Z GlobalZVal;\n"
-      "namespace {\n"
-      "  namespace D {\n"
-      "    namespace {\n"
-      "      class aStruct {};\n"
-      "      aStruct CheckK;\n"
-      "    }\n"
-      "  }\n"
-      "}\n"
-  );
+  GlobalNsPrefix.runOver(R"(namespace A {
+                              namespace B {
+                                int IntVal;
+                                bool BoolVal;
+                                struct X {};
+                                X XVal;
+                                template <typename T> class CCC { };
+                                template <typename T>
+                                using Alias = CCC<T>;
+                                Alias<int> IntAliasVal;
+                                struct Y { struct Z {}; };
+                                Y::Z ZVal;
+                              }
+                             }
+                            struct Z {};
+                            Z GlobalZVal;
+                            namespace {
+                              namespace D {
+                                namespace {
+                                  class aStruct {};
+                                  aStruct CheckK;
+                                }
+                              }
+                            })");
+
+  TypeNameVisitor PrintingPolicy;
+  PrintingPolicy.CustomPrintingPolicy = true;
+  PrintingPolicy.ExpectedQualTypeNames["a"] = "short";
+  PrintingPolicy.ExpectedQualTypeNames["un_in_st_1"] =
+      "union (anonymous struct at input.cc:1:1)::(anonymous union at "
+      "input.cc:2:31)";
+  PrintingPolicy.ExpectedQualTypeNames["b"] = "short";
+  PrintingPolicy.ExpectedQualTypeNames["un_in_st_2"] =
+      "union (anonymous struct at input.cc:1:1)::(anonymous union at "
+      "input.cc:5:31)";
+  PrintingPolicy.ExpectedQualTypeNames["anon_st"] =
+      "struct (anonymous struct at input.cc:1:1)";
+  PrintingPolicy.runOver(R"(struct {
+                              union {
+                                short a;
+                              } un_in_st_1;
+                              union {
+                                short b;
+                              } un_in_st_2;
+                            } anon_st;)");
 }
 
-}  // end anonymous namespace
+} // end anonymous namespace
