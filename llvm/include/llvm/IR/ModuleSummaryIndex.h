@@ -25,6 +25,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/Module.h"
+#include "llvm/Transforms/IPO/FunctionAttrs.h"
 #include <algorithm>
 #include <array>
 #include <cassert>
@@ -415,6 +416,8 @@ public:
       TIdInfo = llvm::make_unique<TypeIdInfo>();
     TIdInfo->TypeTests.push_back(Guid);
   }
+
+  friend struct GraphTraits<FunctionSummary *>;
 };
 
 template <> struct DenseMapInfo<FunctionSummary::VFuncId> {
@@ -769,6 +772,56 @@ public:
   /// Summary).
   void collectDefinedGVSummariesPerModule(
       StringMap<GVSummaryMapTy> &ModuleToDefinedGVSummaries) const;
+};
+
+/// GraphTraits definition to build SCC for the index
+template <> struct GraphTraits<FunctionSummary *> {
+  typedef FunctionSummary *NodeRef;
+  static NodeRef fsumFromEdge(FunctionSummary::EdgeTy &P) {
+    if (P.first.Ref && P.first.getSummaryList().size())
+      return cast<FunctionSummary>(P.first.getSummaryList().front().get());
+
+    // it's not in the index, so it's an external function
+    static auto ExternalFunction = llvm::make_unique<FunctionSummary>(
+        FunctionSummary::GVFlags(
+            GlobalValue::LinkageTypes::AvailableExternallyLinkage, true, false),
+        0, FunctionSummary::FFlags{}, std::vector<ValueInfo>(),
+        std::vector<FunctionSummary::EdgeTy>(),
+        std::vector<GlobalValue::GUID>(),
+        std::vector<FunctionSummary::VFuncId>(),
+        std::vector<FunctionSummary::VFuncId>(),
+        std::vector<FunctionSummary::ConstVCall>(),
+        std::vector<FunctionSummary::ConstVCall>());
+    return ExternalFunction.get();
+  }
+  using ChildIteratorType =
+      mapped_iterator<std::vector<FunctionSummary::EdgeTy>::iterator,
+                      decltype(&fsumFromEdge)>;
+
+  // Use the first callee as the entry node
+  static NodeRef getEntryNode(FunctionSummary *F) { return F; }
+
+  static ChildIteratorType child_begin(NodeRef N) {
+    return ChildIteratorType(N->CallGraphEdgeList.begin(), &fsumFromEdge);
+  }
+
+  static ChildIteratorType child_end(NodeRef N) {
+    return ChildIteratorType(N->CallGraphEdgeList.end(), &fsumFromEdge);
+  }
+};
+
+template <>
+struct GraphTraits<ModuleSummaryIndex *>
+    : public GraphTraits<FunctionSummary *> {
+  static NodeRef getEntryNode(ModuleSummaryIndex *I) {
+    for (auto &P : *I) {
+      if (P.second.SummaryList.size())
+        if (FunctionSummary *FS =
+                dyn_cast<FunctionSummary>(P.second.SummaryList.front().get()))
+          return FS;
+    }
+    assert(false && "ModuleSummary doesn't have any functions!");
+  }
 };
 
 } // end namespace llvm
