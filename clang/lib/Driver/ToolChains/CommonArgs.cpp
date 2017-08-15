@@ -595,6 +595,8 @@ collectSanitizerRuntimes(const ToolChain &TC, const ArgList &Args,
   }
   if (SanArgs.needsEsanRt())
     StaticRuntimes.push_back("esan");
+  if (SanArgs.needsTysanRt())
+    StaticRuntimes.push_back("tysan");
 }
 
 static void addLibFuzzerRuntime(const ToolChain &TC,

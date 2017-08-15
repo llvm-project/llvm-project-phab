@@ -90,8 +90,10 @@ static bool TypeHasMayAlias(QualType QTy) {
 
 llvm::MDNode *
 CodeGenTBAA::getTBAAInfo(QualType QTy) {
-  // At -O0 or relaxed aliasing, TBAA is not emitted for regular types.
-  if (CodeGenOpts.OptimizationLevel == 0 || CodeGenOpts.RelaxedAliasing)
+  // At -O0 or relaxed aliasing, TBAA is not emitted for regular types (unless
+  // we're running TypeSanitizer).
+  if (!Features.Sanitize.has(SanitizerKind::Type) &&
+      (CodeGenOpts.OptimizationLevel == 0 || CodeGenOpts.RelaxedAliasing))
     return nullptr;
 
   // If the type has the may_alias attribute (even on a typedef), it is
