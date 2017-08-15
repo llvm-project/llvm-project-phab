@@ -842,6 +842,71 @@ if.end:
 ; CHECK: insertvalue
 ; CHECK-NOT: insertvalue
 
+; Tail sinking should not happen due to extra moves for the PHI.
+define zeroext i1 @test19(i64 %s, i32* nocapture %idx) {
+entry:
+  %cmp = icmp ult i64 %s, 1025
+  br i1 %cmp, label %if.then, label %if.else
+
+if.then:
+  %conv1 = trunc i64 %s to i32
+  %add = add i32 %conv1, 7
+  %shr = lshr i32 %add, 3
+  store i32 %shr, i32* %idx, align 4
+  br label %return
+
+if.else:
+  %cmp2 = icmp ult i64 %s, 4097
+  br i1 %cmp2, label %if.then2, label %return
+
+if.then2:
+  %conv4 = trunc i64 %s to i32
+  %add6 = add i32 %conv4, 15487
+  %shr7 = lshr i32 %add6, 7
+  store i32 %shr7, i32* %idx, align 4
+  br label %return
+
+return:
+  %retval.0 = phi i1 [ true, %if.then ], [ true, %if.then2 ], [ false, %if.else ]
+  ret i1 %retval.0
+}
+; CHECK-LABEL: @test19
+; CHECK-NOT: return.sink.split
+
+; Tail sinking should happen.
+define zeroext i1 @test20(i64 %s, i32* nocapture %idx, i32 %c1) {
+entry:
+  %cmp = icmp ult i64 %s, 1025
+  br i1 %cmp, label %if.then, label %if.else
+
+if.then:
+  %c2 = add i32 %c1, 100 
+  %conv1 = trunc i64 %s to i32 
+  %add = add i32 %conv1, %c2 
+  %shr = lshr i32 %add, 3
+  store i32 %shr, i32* %idx, align 4
+  br label %return
+
+if.else:
+  %cmp2 = icmp ult i64 %s, 4097
+  br i1 %cmp2, label %if.then2, label %return
+
+if.then2:
+  %c3 = mul i32 %c1, 3
+  %conv4 = trunc i64 %s to i32 
+  %add6 = add i32 %conv4, %c3 
+  %shr7 = lshr i32 %add6, 7
+  store i32 %shr7, i32* %idx, align 4
+  br label %return
+
+return:
+  %retval.0 = phi i1 [ true, %if.then ], [ true, %if.then2 ], [ false, %if.else ]
+  ret i1 %retval.0
+}
+; CHECK-LABEL: @test20
+; CHECK: return.sink.split
+
+
 ; CHECK: ![[TBAA]] = !{![[TYPE:[0-9]]], ![[TYPE]], i64 0}
 ; CHECK: ![[TYPE]] = !{!"float", ![[TEXT:[0-9]]]}
 ; CHECK: ![[TEXT]] = !{!"an example type tree"}

@@ -1680,8 +1680,10 @@ static bool SinkThenElseCodeToEnd(BranchInst *BI1) {
   //
   SmallVector<BasicBlock*,4> UnconditionalPreds;
   Instruction *Cond = nullptr;
+  unsigned num_of_preds = 0;
   for (auto *B : predecessors(BBEnd)) {
     auto *T = B->getTerminator();
+    ++num_of_preds;
     if (isa<BranchInst>(T) && cast<BranchInst>(T)->isUnconditional())
       UnconditionalPreds.push_back(B);
     else if ((isa<BranchInst>(T) || isa<SwitchInst>(T)) && !Cond)
@@ -1689,9 +1691,11 @@ static bool SinkThenElseCodeToEnd(BranchInst *BI1) {
     else
       return false;
   }
+
   if (UnconditionalPreds.size() < 2)
     return false;
 
+  unsigned NumOfConditionsPreds = num_of_preds - UnconditionalPreds.size();
   bool Changed = false;
   // We take a two-step approach to tail sinking. First we scan from the end of
   // each block upwards in lockstep. If the n'th instruction from the end of each
@@ -1711,6 +1715,36 @@ static bool SinkThenElseCodeToEnd(BranchInst *BI1) {
     --LRI;
   }
 
+  auto CountNumberOfMovesForPHIOperands = [&](LockstepReverseIterator &LRI) {
+    unsigned NumOfMovesForPHIdOperands = 0;
+    while (LRI.isValid()) {
+      for (auto *I : *LRI) {
+        for (auto *V : PHIOperands[I]) {
+          // If the phi operand is a constant, we are likely to have a move
+          // instruction.
+          if (InstructionsToSink.count(V) == 0 && isa<Constant>(V))
+            ++NumOfMovesForPHIdOperands;
+        }
+      }
+      --LRI;
+    }
+    return NumOfMovesForPHIdOperands;
+  };
+
+  // If the number of moves is greater than the number of reuced instructions
+  // (which is InstructionsToSink.size() / 2), we bail out.
+  // Do this only for BBend that has two unconditional predecessors and one
+  // conditional predecessors. If there is only unconditional predecessors,
+  // there is chance to use select and generate code with using moves.
+  LRI.reset();
+  unsigned NumOfMoves = CountNumberOfMovesForPHIOperands(LRI);
+  if (InstructionsToSink.size() > 0 && NumOfConditionsPreds == 1 &&
+      NumOfMoves >= InstructionsToSink.size() / 2) {
+    DEBUG(dbgs() << "SINK: stopping, too many move instructions (" << NumOfMoves
+                 << ") need to be inserted.\n");
+    return false;
+  }
+
   auto ProfitableToSinkInstruction = [&](LockstepReverseIterator &LRI) {
     unsigned NumPHIdValues = 0;
     for (auto *I : *LRI)
@@ -1720,7 +1754,7 @@ static bool SinkThenElseCodeToEnd(BranchInst *BI1) {
     DEBUG(dbgs() << "SINK: #phid values: " << NumPHIdValues << "\n");
     unsigned NumPHIInsts = NumPHIdValues / UnconditionalPreds.size();
     if ((NumPHIdValues % UnconditionalPreds.size()) != 0)
-        NumPHIInsts++;
+      NumPHIInsts++;
 
     return NumPHIInsts <= 1;
   };
