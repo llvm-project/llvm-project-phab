@@ -643,6 +643,7 @@ void LinkerDriver::readConfigs(opt::InputArgList &Args) {
       getArg(Args, OPT_fatal_warnings, OPT_no_fatal_warnings, false);
   Config->FilterList = getArgs(Args, OPT_filter);
   Config->Fini = Args.getLastArgValue(OPT_fini, "_fini");
+  Config->FixCortexA53Errata843419 = Args.hasArg(OPT_fix_cortex_a53_843419);
   Config->GcSections = getArg(Args, OPT_gc_sections, OPT_no_gc_sections, false);
   Config->GdbIndex = Args.hasArg(OPT_gdb_index);
   Config->ICF = getArg(Args, OPT_icf_all, OPT_icf_none, false);
@@ -663,6 +664,7 @@ void LinkerDriver::readConfigs(opt::InputArgList &Args) {
   Config->Optimize = getInteger(Args, OPT_O, 1);
   Config->OutputFile = Args.getLastArgValue(OPT_o);
   Config->Pie = getArg(Args, OPT_pie, OPT_nopie, false);
+  Config->PrintFixes = Args.hasArg(OPT_print_fixes);
   Config->PrintGcSections = Args.hasArg(OPT_print_gc_sections);
   Config->Rpath = getRpath(Args);
   Config->Relocatable = Args.hasArg(OPT_relocatable);

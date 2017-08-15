@@ -122,6 +122,7 @@ struct Configuration {
   bool EnableNewDtags;
   bool ExportDynamic;
   bool FatalWarnings;
+  bool FixCortexA53Errata843419;
   bool GcSections;
   bool GdbIndex;
   bool GnuHash;
@@ -136,6 +137,7 @@ struct Configuration {
   bool OptRemarksWithHotness;
   bool Pie;
   bool PrintGcSections;
+  bool PrintFixes;
   bool Relocatable;
   bool SaveTemps;
   bool SingleRoRx;
