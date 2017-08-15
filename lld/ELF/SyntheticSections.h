@@ -745,6 +745,26 @@ private:
   size_t Size = 0;
 };
 
+// A container for one or more linker generated patches that prevent CPU
+// errata. An example of a patch is the -fix-cortex-a53-843419.
+// FIXME: There is some scope to merge PatchSection with ThunkSection which
+// may be profitable if a patch is needed for a Target that needs Thunks.
+struct Patch843419;
+class PatchSection : public SyntheticSection {
+public:
+  PatchSection(OutputSection *OS, uint64_t Off, size_t SizeAlign);
+
+  void addPatch(Patch843419 *P);
+  void writeTo(uint8_t *Buf) override;
+
+  size_t getSize() const override;
+
+private:
+  std::vector<Patch843419 *> Patches;
+  size_t Size = 0;
+  size_t AlignToSize;
+};
+
 template <class ELFT> InputSection *createCommonSection();
 InputSection *createInterpSection();
 template <class ELFT> MergeInputSection *createCommentSection();

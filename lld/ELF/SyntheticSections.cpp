@@ -21,6 +21,7 @@
 #include "LinkerScript.h"
 #include "Memory.h"
 #include "OutputSections.h"
+#include "SectionPatcher.h"
 #include "Strings.h"
 #include "SymbolTable.h"
 #include "Target.h"
@@ -2322,6 +2323,37 @@ void ThunkSection::writeTo(uint8_t *Buf) {
 InputSection *ThunkSection::getTargetInputSection() const {
   const Thunk *T = Thunks.front();
   return T->getTargetInputSection();
+}
+
+PatchSection::PatchSection(OutputSection *OS, uint64_t Off, size_t SizeAlign)
+    : SyntheticSection(SHF_ALLOC | SHF_EXECINSTR, SHT_PROGBITS, 4,
+                       ".text.patch"), AlignToSize(SizeAlign) {
+  this->Parent = OS;
+  this->OutSecOff = Off;
+}
+
+void PatchSection::addPatch(Patch843419 *P) {
+  uint64_t Off = alignTo(Size, P->Alignment);
+  P->Offset = Off;
+  Patches.push_back(P);
+  P->addSymbols(*this);
+  Size = Off + P->size();
+}
+
+size_t PatchSection::getSize() const {
+  // For some errata, such as Cortex-A53-843419, that have conditions that are
+  // dependent on the offset of instructions within a page. By making the size
+  // of the patch size a multiple of the page size, it will not affect the
+  // instruction address modulo the page size of subsequent sections.
+  return alignTo(Size, AlignToSize);
+}
+
+void PatchSection::writeTo(uint8_t *Buf) {
+  for (const Patch843419 *P : Patches)
+    P->writeTo(Buf + P->Offset, *this);
+  // For a SyntheticSection Buf already has OutSecOff added, but relocateAlloc
+  // also adds OutSecOff so we need to account for it here.
+  this->relocateAlloc(Buf - OutSecOff, Buf - OutSecOff + Size);
 }
 
 InputSection *InX::ARMAttributes;

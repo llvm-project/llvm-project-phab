@@ -50,13 +50,54 @@ using namespace lld::elf;
 // errata 843419 that affects r0p0, r0p1, r0p2 and r0p4 versions of the core.
 // To keep the initial version simple there is no generic support for multiple
 // architectures or multiple patches.
-//
-// - At this stage the implementation only supports detection and not fixing,
-// this is sufficient to test the decode and recognition of the erratum sequence
 
 // Helper functions that decode AArch64 A64 instructions needed for the
 // detection of the erratum sequence. The functions stand alone and can be
 // reused outside the context of detecting the erratum sequence.
+
+namespace lld {
+namespace elf {
+
+Patch843419::Patch843419(InputSection *P, uint64_t Off)
+    : Patchee(P), PatcheeOffset(Off) {}
+
+// Patch consists of:
+// Instruction 4.) load/store register (unsigned immediate)
+// Branch to next instruction after instruction 4.
+void Patch843419::writeTo(uint8_t *Buf, PatchSection &PS) const {
+  // Copy  Instruction 4. from Target Section
+  // Any relocation in the TargetSection at TargetOffset will have been
+  // transferred to PatchSection
+  write32le(Buf, read32le(Patchee->Data.begin() + PatcheeOffset));
+  // Return Address is next instruction after the load/store register
+  // above.
+  uint64_t S = getLDSTAddr() + 4;
+  uint64_t P = PatchSym->getVA() + 4;
+  write32le(Buf + 4, 0x14000000);
+  Target->relocateOne(Buf + 4, R_AARCH64_JUMP26, S - P);
+}
+
+void Patch843419::addSymbols(PatchSection &PS) {
+  PatchSym = addSyntheticLocal(
+      Saver.save("__CortexA53843419_" + utohexstr(getLDSTAddr())), STT_FUNC,
+      Offset, size(), &PS);
+}
+
+uint64_t Patch843419::getLDSTAddr() const {
+  return Patchee->getParent()->Addr + Patchee->OutSecOff + PatcheeOffset;
+}
+
+// If there is a Relocation that is applied LDST, we must add an equivalent
+// Relocation to the PatchSection at the same offset as the LDST instruction.
+Relocation Patch843419::transformRelocation(const Relocation &R) const {
+  return {R.Expr, R.Type, Offset, R.Addend, R.Sym};
+}
+
+size_t Patch843419::size() const { return 8; }
+
+} // end namespace elf
+} // end namespace lld
+
 struct A64 {
 
   // ADRP 1 | immlo (2) | 1 | 0 0 0 0 | immhi (19) | Rd (5)
@@ -280,7 +321,7 @@ struct A64 {
 // The instruction sequence is common in compiled AArch64 code, however it is
 // sensitive to address, which limits the number of times it has to be applied
 // and limits the amount of disassembly that we have to do.
-// 
+//
 // The erratum conditions are in summary:
 // 1.) An ADRP instruction that writes to register Rn with low 12 bits of
 //     address of instruction either 0xff8 or 0xffc
@@ -340,12 +381,34 @@ static bool is843419ErratumSequence(uint32_t Adrp, uint32_t Instr2,
 static void report843419Fix(uint64_t AdrpAddr) {
   if (!Config->PrintFixes)
     return;
+  // In most cases (a single .text section) the AdrpAddr will be the same in
+  // the patched and unpatched output, however as the addition of a PatchSection
+  // might alter the address of subsequent sections this may be some multiple
+  // of 4k different in the patched version.
   message("detected cortex-a53-843419 erratum sequence starting at " +
           utohexstr(AdrpAddr) + " in unpatched output.");
 }
 
-static void scanCortexA53Errata843419(InputSection *IS, uint64_t &Off,
-                                      uint64_t Size) {
+static Patch843419 *makePatch843419(InputSection *Patchee, uint64_t ADRPOff,
+                                    uint64_t LDSTOff) {
+  uint64_t ISAddr = Patchee->getParent()->Addr + Patchee->OutSecOff;
+  report843419Fix(ISAddr + ADRPOff);
+  return make<Patch843419>(Patchee, LDSTOff);
+}
+
+// The erratum conditions are in summary:
+// 1.) An ADRP instruction that writes to register Rn with low 12 bits of
+//     address of instruction either 0xff8 or 0xffc
+// 2.) A load or store instruction that can be:
+// - A single register load or store, of either integer or vector registers
+// - An STP or STNP, of either integer or vector registers
+// - An Advanced SIMD ST1 store instruction
+// - Must not write to Rn, but may optionally read from it.
+// 3.) An optional instruction that is not a branch and does not write to Rn
+// 4.) A load or store from the  Load/store register (unsigned immediate) class
+//     that uses Rn as the base address register
+static Patch843419 *scanCortexA53Errata843419(InputSection *IS, uint64_t &Off,
+                                              uint64_t Size) {
   uint64_t ISAddr = IS->getParent()->Addr + IS->OutSecOff;
   const uint8_t *Buf = IS->Data.begin();
 
@@ -358,19 +421,20 @@ static void scanCortexA53Errata843419(InputSection *IS, uint64_t &Off,
   if (Off >= Size || Size - Off < 12) {
     // Need at least 3 instructions to detect sequence
     Off = Size;
-    return;
+    return nullptr;
   }
 
+  Patch843419 *Patch = nullptr;
   uint32_t Instr1 = *reinterpret_cast<const uint32_t *>(Buf + Off);
   if (A64::isADRP(Instr1)) {
     uint32_t Instr2 = *reinterpret_cast<const uint32_t *>(Buf + Off + 4);
     uint32_t Instr3 = *reinterpret_cast<const uint32_t *>(Buf + Off + 8);
     if (is843419ErratumSequence(Instr1, Instr2, Instr3))
-      report843419Fix(ISAddr + Off);
+      Patch = makePatch843419(IS, Off, Off + 8);
     else if (OptionalAllowed && !A64::isBranch(Instr3)) {
       uint32_t Instr4 = *reinterpret_cast<const uint32_t *>(Buf + Off + 12);
       if (is843419ErratumSequence(Instr1, Instr2, Instr4))
-        report843419Fix(ISAddr + Off);
+        Patch = makePatch843419(IS, Off, Off + 12);
     }
   }
   if (((ISAddr + Off) & 0xfff) == 0xff8)
@@ -378,6 +442,7 @@ static void scanCortexA53Errata843419(InputSection *IS, uint64_t &Off,
   else
     // Skip to next 0xff8
     Off += 0xffc;
+  return Patch;
 }
 
 // The AArch64 ABI permits data in executable sections. We must avoid scanning
@@ -435,10 +500,48 @@ std::map<InputSection *,
   return SectionMap;
 }
 
+static PatchSection *getPatchSec(OutputSection *OS,
+                                 ArrayRef<InputSection *> ISR,
+                                 PatchSection *CurPS) {
+  if (CurPS == nullptr) {
+    uint64_t Off = 0;
+    for (const InputSection *IS : ISR) {
+      if ((IS->Flags & SHF_EXECINSTR) == 0)
+        break;
+      Off = IS->OutSecOff + IS->getSize();
+    }
+    CurPS = make<PatchSection>(OS, Off, 0x1000);
+  }
+  return CurPS;
+}
+
 // Scan all the executable code in an AArch64 link to detect the Cortex-A53
 // erratum 843419.
-// FIXME: The current implementation only scans for the erratum sequence, it
-// does not attempt to fix it.
+//
+// The procedure for fixing erratum is:
+// 1.) Disassemble code to find the erratum sequence.
+// 2.) Create an instance of Patch843419 to store the location we need to patch,
+//     this also allows us to determine the return address.
+// 3.) Find any relocation at the location we need to insert the branch
+//     as we may need to apply it to the PatchSection to get the correct result.
+//     we also need to check to see if we haven't already patched the
+//     instruction.
+// 4.) Add patch to patch section to get a location for the patch that we can
+//     branch to.
+// 5.) Replace or create a new relocation at the location we want a branch
+//     for aarch64 the relocation will overwrite the existing instruction with
+//     a branch.
+// 6.) Insert a PatchSection if contains any patches.
+//
+// FIXME: The implementation is specific to AArch64 as we only have one
+// supported fix. The Target specific parts will need extracting if we need
+// to support other Targets.
+//
+// FIXME: The implementation runs in a single pass as by sizing the patch
+// section to be a multiple of a page in size, adding a patch section doesn't
+// invalidate any address calculations modulo patch size in subsequent sections.
+// If AArch64 needs to support range thunks or other patches then this may need
+// to be made multi-pass or merging with the Thunk implementation.
 void lld::elf::createA53Errata843419Fixes(
     ArrayRef<OutputSection *> OutputSections) {
   std::map<InputSection *, std::vector<const DefinedRegular *>> SectionMap =
@@ -449,6 +552,7 @@ void lld::elf::createA53Errata843419Fixes(
       continue;
     for (BaseCommand *BC : OS->Commands)
       if (auto *ISD = dyn_cast<InputSectionDescription>(BC)) {
+        PatchSection *CurPS = nullptr;
         for (InputSection *IS : ISD->Sections) {
           //  LLD doesn't use the erratum sequence in SyntheticSections
           if (isa<SyntheticSection>(IS))
@@ -466,13 +570,49 @@ void lld::elf::createA53Errata843419Fixes(
             uint64_t Limit =
                 (Data == MapSyms.end()) ? IS->Data.size() : (*Data)->Value;
 
-            while (Off < Limit)
-              scanCortexA53Errata843419(IS, Off, Limit);
+            while (Off < Limit) {
+              Patch843419 *P = scanCortexA53Errata843419(IS, Off, Limit);
+              if (P) {
+                // Find any existing relocations at the location we are patching
+                auto RelIt =
+                    std::find_if(IS->Relocations.begin(), IS->Relocations.end(),
+                                 [&](const Relocation &R) {
+                                   return R.Offset == P->PatcheeOffset;
+                                 });
+                if (RelIt != IS->Relocations.end() &&
+                    RelIt->Type == R_AARCH64_JUMP26)
+                  // We have already patched this instance
+                  continue;
+                CurPS = getPatchSec(OS, ISD->Sections, CurPS);
+                CurPS->addPatch(P);
+
+                if (RelIt != IS->Relocations.end()) {
+                  // We have an existing relocation at the same offset as
+                  // the instruction we want to patch
+                  CurPS->Relocations.push_back(P->transformRelocation(*RelIt));
+                  *RelIt = {R_PC, R_AARCH64_JUMP26, P->PatcheeOffset, 0,
+                            P->PatchSym};
+                } else
+                  // Create a new relocation on the relocation that we want
+                  // to patch.
+                  IS->Relocations.push_back({R_PC, R_AARCH64_JUMP26,
+                                             P->PatcheeOffset, 0, P->PatchSym});
+              }
+            }
             if (Data == MapSyms.end())
               break;
             Code = std::next(Data);
           }
         }
+        // We have at least one patch, insert the patch section
+        if (CurPS)
+          ISD->Sections.insert(
+              std::upper_bound(ISD->Sections.begin(), ISD->Sections.end(),
+                               CurPS,
+                               [&](InputSection *A, InputSection *B) {
+                                 return A->OutSecOff < B->OutSecOff;
+                               }),
+              CurPS);
       }
   }
 }
