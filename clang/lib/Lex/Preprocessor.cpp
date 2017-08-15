@@ -743,6 +743,8 @@ bool Preprocessor::HandleIdentifier(Token &Identifier) {
 }
 
 void Preprocessor::Lex(Token &Result) {
+  llvm::TimeRegion(PPOpts->getTimer());
+
   // We loop here until a lex function returns a token; this avoids recursion.
   bool ReturnedToken;
   do {

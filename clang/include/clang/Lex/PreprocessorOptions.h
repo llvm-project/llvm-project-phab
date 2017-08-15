@@ -14,6 +14,7 @@
 #include "llvm/ADT/IntrusiveRefCntPtr.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSet.h"
+#include "llvm/Support/Timer.h"
 #include <cassert>
 #include <set>
 #include <string>
@@ -37,10 +38,11 @@ enum ObjCXXARCStandardLibraryKind {
   /// \brief libstdc++
   ARCXX_libstdcxx
 };
-  
+
 /// PreprocessorOptions - This class is used for passing the various options
 /// used in preprocessor initialization to InitializePreprocessor().
 class PreprocessorOptions {
+  llvm::Timer PPTimer;
 public:
   std::vector<std::pair<std::string, bool/*isUndef*/> > Macros;
   std::vector<std::string> Includes;
@@ -127,7 +129,11 @@ public:
   /// manipulation of the compiler invocation object, in cases where the 
   /// compiler invocation and its buffers will be reused.
   bool RetainRemappedFileBuffers;
-  
+
+  /// \brief Whether to measure the amount of time spent in code related to
+  /// preprocessing. This flag defaults to false.
+  bool ShowTimers;
+
   /// \brief The Objective-C++ ARC standard library that we should support,
   /// by providing appropriate definitions to retrofit the standard library
   /// with support for lifetime-qualified pointers.
@@ -156,7 +162,9 @@ public:
   std::shared_ptr<FailedModulesSet> FailedModules;
 
 public:
-  PreprocessorOptions() : UsePredefines(true), DetailedRecord(false),
+  PreprocessorOptions() : PPTimer("preprocessor", "Preprocessing"),
+                          UsePredefines(true),
+                          DetailedRecord(false),
                           DisablePCHValidation(false),
                           AllowPCHWithCompilerErrors(false),
                           DumpDeserializedPCHDecls(false),
@@ -164,6 +172,7 @@ public:
                           GeneratePreamble(false),
                           RemappedFilesKeepOriginalName(true),
                           RetainRemappedFileBuffers(false),
+                          ShowTimers(false),
                           ObjCXXARCStandardLibrary(ARCXX_nolib) { }
 
   void addMacroDef(StringRef Name) { Macros.emplace_back(Name, false); }
@@ -196,6 +205,10 @@ public:
     RetainRemappedFileBuffers = true;
     PrecompiledPreambleBytes.first = 0;
     PrecompiledPreambleBytes.second = 0;
+  }
+
+  llvm::Timer *getTimer() {
+    return ShowTimers ? &PPTimer : nullptr;
   }
 };
 
