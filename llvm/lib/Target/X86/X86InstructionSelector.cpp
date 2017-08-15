@@ -83,6 +83,7 @@ private:
                     MachineFunction &MF) const;
   bool selectExtract(MachineInstr &I, MachineRegisterInfo &MRI,
                      MachineFunction &MF) const;
+  bool selectImplicitDef(MachineInstr &I, MachineRegisterInfo &MRI) const;
 
   // emit insert subreg instruction and insert it before MachineInstr &I
   bool emitInsertSubreg(unsigned DstReg, unsigned SrcReg, MachineInstr &I,
@@ -283,6 +284,8 @@ bool X86InstructionSelector::select(MachineInstr &I) const {
   if (selectExtract(I, MRI, MF))
     return true;
   if (selectInsert(I, MRI, MF))
+    return true;
+  if (selectImplicitDef(I, MRI))
     return true;
 
   return false;
@@ -1054,6 +1057,30 @@ bool X86InstructionSelector::selectMergeValues(MachineInstr &I,
   I.eraseFromParent();
   return true;
 }
+
+bool X86InstructionSelector::selectImplicitDef(MachineInstr &I,
+                                               MachineRegisterInfo &MRI) const {
+
+  if (I.getOpcode() != TargetOpcode::G_IMPLICIT_DEF)
+    return false;
+
+  unsigned DstReg = I.getOperand(0).getReg();
+
+  if (!MRI.getRegClassOrNull(DstReg)) {
+    const LLT DstTy = MRI.getType(DstReg);
+    const TargetRegisterClass *RC = getRegClass(DstTy, DstReg, MRI);
+
+    if (!RBI.constrainGenericRegister(DstReg, *RC, MRI)) {
+      DEBUG(dbgs() << "Failed to constrain " << TII.getName(I.getOpcode())
+                   << " operand\n");
+      return false;
+    }
+  }
+
+  I.setDesc(TII.get(X86::IMPLICIT_DEF));
+  return true;
+}
+
 InstructionSelector *
 llvm::createX86InstructionSelector(const X86TargetMachine &TM,
                                    X86Subtarget &Subtarget,
