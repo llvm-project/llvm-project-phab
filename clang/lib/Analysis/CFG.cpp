@@ -402,6 +402,9 @@ class CFGBuilder {
   CFGBlock *SwitchTerminatedBlock;
   CFGBlock *DefaultCaseBlock;
   CFGBlock *TryTerminatedBlock;
+  Stmt *TerminatedLoop;
+  bool InSwitchNest;
+  bool InForIncExpr;
 
   // Current position in local scope.
   LocalScope::const_iterator ScopePos;
@@ -440,9 +443,10 @@ public:
     : Context(astContext), cfg(new CFG()), // crew a new CFG
       Block(nullptr), Succ(nullptr),
       SwitchTerminatedBlock(nullptr), DefaultCaseBlock(nullptr),
-      TryTerminatedBlock(nullptr), badCFG(false), BuildOpts(buildOpts),
-      switchExclusivelyCovered(false), switchCond(nullptr),
-      cachedEntry(nullptr), lastLookup(nullptr) {}
+      TryTerminatedBlock(nullptr), TerminatedLoop(nullptr), InSwitchNest(false),
+      InForIncExpr(false), badCFG(false), BuildOpts(buildOpts),
+      switchExclusivelyCovered(false),
+      switchCond(0), cachedEntry(nullptr), lastLookup(nullptr) {}
 
   // buildCFG - Used by external clients to construct the CFG.
   std::unique_ptr<CFG> buildCFG(const Decl *D, Stmt *Statement);
@@ -512,6 +516,8 @@ private:
   CFGBlock *VisitStmt(Stmt *S, AddStmtChoice asc);
   CFGBlock *VisitChildren(Stmt *S);
   CFGBlock *VisitNoRecurse(Expr *E, AddStmtChoice asc);
+
+  void CreateScopeEndBlockForIfStmt(IfStmt *I);
 
   /// When creating the CFG for temporary destructors, we want to mirror the
   /// branch structure of the corresponding constructor calls.
@@ -634,6 +640,26 @@ private:
   }
   void appendNewAllocator(CFGBlock *B, CXXNewExpr *NE) {
     B->appendNewAllocator(NE, cfg->getBumpVectorContext());
+  }
+  bool needAddScopes() {
+    // FIXME: Support SwitchStmt
+    return !InSwitchNest && !InForIncExpr && BuildOpts.AddScopes;
+  }
+  void appendScopeBegin(CFGBlock *B, const Stmt *S) {
+    if (B && needAddScopes())
+      B->appendScopeBegin(S, cfg->getBumpVectorContext());
+  }
+  void appendScopeEnd(CFGBlock *B, const Stmt *TriggerStmt,
+                      const Stmt *TerminatedStmt) {
+    if (B && needAddScopes())
+      B->appendScopeEnd(TriggerStmt, TerminatedStmt,
+                        cfg->getBumpVectorContext());
+  }
+  void prependScopeEnd(CFGBlock *B, const Stmt *TriggerStmt,
+                       const Stmt *TerminatedStmt) {
+    if (B && needAddScopes())
+      B->prependScopeEnd(TriggerStmt, TerminatedStmt,
+                         cfg->getBumpVectorContext());
   }
   void appendBaseDtor(CFGBlock *B, const CXXBaseSpecifier *BS) {
     B->appendBaseDtor(BS, cfg->getBumpVectorContext());
@@ -1404,7 +1430,7 @@ LocalScope* CFGBuilder::createOrReuseLocalScope(LocalScope* Scope) {
 }
 
 /// addLocalScopeForStmt - Add LocalScope to local scopes tree for statement
-/// that should create implicit scope (e.g. if/else substatements). 
+/// that should create implicit scope (e.g. if/else substatements).
 void CFGBuilder::addLocalScopeForStmt(Stmt *S) {
   if (!BuildOpts.AddImplicitDtors && !BuildOpts.AddLifetime)
     return;
@@ -1944,6 +1970,7 @@ CFGBlock *CFGBuilder::VisitBreakStmt(BreakStmt *B) {
   // AST.  This means that the CFG cannot be constructed.
   if (BreakJumpTarget.block) {
     addAutomaticObjHandling(ScopePos, BreakJumpTarget.scopePosition, B);
+    prependScopeEnd(Block, B, TerminatedLoop);
     addSuccessor(Block, BreakJumpTarget.block);
   } else
     badCFG = true;
@@ -2072,16 +2099,27 @@ CFGBlock *CFGBuilder::VisitChooseExpr(ChooseExpr *C,
   return addStmt(C->getCond());
 }
 
+// If some block is terminated by break, continue or return don't need to emit
+// ScopeEnd right away and we leave this to corresponding visitor.
+static bool shouldDeferScopeEnd(Stmt *S) {
+  return isa<BreakStmt>(S) || isa<ContinueStmt>(S) || isa<ReturnStmt>(S);
+}
 
 CFGBlock *CFGBuilder::VisitCompoundStmt(CompoundStmt *C) {
+  SaveAndRestore<JumpTarget> save_break(BreakJumpTarget);
   LocalScope::const_iterator scopeBeginPos = ScopePos;
   addLocalScopeForStmt(C);
 
-  if (!C->body_empty() && !isa<ReturnStmt>(*C->body_rbegin())) {
-    // If the body ends with a ReturnStmt, the dtors will be added in
-    // VisitReturnStmt.
-    addAutomaticObjHandling(ScopePos, scopeBeginPos, C);
+  if (!C->body_empty() && needAddScopes() &&
+      !shouldDeferScopeEnd(*C->body_rbegin())) {
+    autoCreateBlock();
+    appendScopeEnd(Block, C, C);
   }
+
+  if (!C->body_empty() && !isa<ReturnStmt>(*C->body_rbegin()))
+      // If the body ends with a ReturnStmt, the dtors will be added in
+      // VisitReturnStmt.
+      addAutomaticObjHandling(ScopePos, scopeBeginPos, C);
 
   CFGBlock *LastBlock = Block;
 
@@ -2094,6 +2132,12 @@ CFGBlock *CFGBuilder::VisitCompoundStmt(CompoundStmt *C) {
 
     if (badCFG)
       return nullptr;
+  }
+
+  if (needAddScopes() && !C->body_empty()) {
+    if (!LastBlock)
+      LastBlock = createBlock();
+    appendScopeBegin(LastBlock, C);
   }
 
   return LastBlock;
@@ -2289,6 +2333,12 @@ CFGBlock *CFGBuilder::VisitDeclSubExpr(DeclStmt *DS) {
   return B;
 }
 
+void CFGBuilder::CreateScopeEndBlockForIfStmt(IfStmt *I) {
+  autoCreateBlock();
+  prependScopeEnd(Block, I, I);
+  Succ = Block;
+}
+
 CFGBlock *CFGBuilder::VisitIfStmt(IfStmt *I) {
   // We may see an if statement in the middle of a basic block, or it may be the
   // first statement we are processing.  In either case, we create a new basic
@@ -2320,6 +2370,10 @@ CFGBlock *CFGBuilder::VisitIfStmt(IfStmt *I) {
       return nullptr;
   }
 
+  // If the IfStmt contains a condition variable, its scope to the CFG.
+  if (const DeclStmt *DS = I->getConditionVariableDeclStmt())
+    appendScopeEnd(Succ, DS, DS);
+
   // Process the false branch.
   CFGBlock *ElseBlock = Succ;
 
@@ -2332,9 +2386,11 @@ CFGBlock *CFGBuilder::VisitIfStmt(IfStmt *I) {
 
     // If branch is not a compound statement create implicit scope
     // and add destructors.
-    if (!isa<CompoundStmt>(Else))
+    if (!isa<CompoundStmt>(Else)) {
       addLocalScopeAndDtors(Else);
-
+      if (needAddScopes() && !shouldDeferScopeEnd(Else))
+        CreateScopeEndBlockForIfStmt(I);
+    }
     ElseBlock = addStmt(Else);
 
     if (!ElseBlock) // Can occur when the Else body has all NullStmts.
@@ -2343,6 +2399,9 @@ CFGBlock *CFGBuilder::VisitIfStmt(IfStmt *I) {
       if (badCFG)
         return nullptr;
     }
+
+    if (!isa<CompoundStmt>(Else))
+      appendScopeBegin(ElseBlock, I);
   }
 
   // Process the true branch.
@@ -2355,8 +2414,11 @@ CFGBlock *CFGBuilder::VisitIfStmt(IfStmt *I) {
 
     // If branch is not a compound statement create implicit scope
     // and add destructors.
-    if (!isa<CompoundStmt>(Then))
+    if (!isa<CompoundStmt>(Then)) {
       addLocalScopeAndDtors(Then);
+      if (needAddScopes() && !shouldDeferScopeEnd(Then))
+        CreateScopeEndBlockForIfStmt(I);
+    }
 
     ThenBlock = addStmt(Then);
 
@@ -2370,6 +2432,9 @@ CFGBlock *CFGBuilder::VisitIfStmt(IfStmt *I) {
       if (badCFG)
         return nullptr;
     }
+
+    if (!isa<CompoundStmt>(Then))
+      appendScopeBegin(ThenBlock, I);
   }
 
   // Specially handle "if (expr1 || ...)" and "if (expr1 && ...)" by
@@ -2411,6 +2476,7 @@ CFGBlock *CFGBuilder::VisitIfStmt(IfStmt *I) {
     if (const DeclStmt* DS = I->getConditionVariableDeclStmt()) {
       autoCreateBlock();
       LastBlock = addStmt(const_cast<DeclStmt *>(DS));
+      appendScopeBegin(LastBlock, DS);
     }
   }
 
@@ -2439,8 +2505,10 @@ CFGBlock *CFGBuilder::VisitReturnStmt(ReturnStmt *R) {
 
   // If the one of the destructors does not return, we already have the Exit
   // block as a successor.
-  if (!Block->hasNoReturnElement())
+  if (!Block->hasNoReturnElement()) {
+    prependScopeEnd(Block, R, R);
     addSuccessor(Block, &cfg->getExit());
+  }
 
   // Add the return statement to the block.  This may create new blocks if R
   // contains control-flow (short-circuit operations).
@@ -2502,6 +2570,11 @@ CFGBlock *CFGBuilder::VisitLambdaExpr(LambdaExpr *E, AddStmtChoice asc) {
 }
   
 CFGBlock *CFGBuilder::VisitGotoStmt(GotoStmt *G) {
+  // FIXME: support scopes for GotoStmt
+  if (needAddScopes()) {
+    badCFG = true;
+    return Block;
+  }
   // Goto is a control-flow statement.  Thus we stop processing the current
   // block and create a new one.
 
@@ -2574,6 +2647,8 @@ CFGBlock *CFGBuilder::VisitForStmt(ForStmt *F) {
     TransitionBlock->setLoopTarget(F);
 
     if (Stmt *I = F->getInc()) {
+      SaveAndRestore<bool> save_InForIncExpr(InForIncExpr);
+      InForIncExpr = true;
       // Generate increment code in its own basic block.  This is the target of
       // continue statements.
       Succ = addStmt(I);
@@ -2600,9 +2675,14 @@ CFGBlock *CFGBuilder::VisitForStmt(ForStmt *F) {
     if (!isa<CompoundStmt>(F->getBody()))
       addLocalScopeAndDtors(F->getBody());
 
-    // Now populate the body block, and in the process create new blocks as we
-    // walk the body of the loop.
-    BodyBlock = addStmt(F->getBody());
+    {
+      SaveAndRestore<Stmt *> save_TerminatedLoop(TerminatedLoop);
+      TerminatedLoop = isa<CompoundStmt>(F->getBody()) ? F->getBody() : F;
+
+      // Now populate the body block, and in the process create new blocks as we
+      // walk the body of the loop.
+      BodyBlock = addStmt(F->getBody());
+    }
 
     if (!BodyBlock) {
       // In the case of "for (...;...;...);" we can have a null BodyBlock.
@@ -2612,7 +2692,10 @@ CFGBlock *CFGBuilder::VisitForStmt(ForStmt *F) {
     else if (badCFG)
       return nullptr;
   }
-  
+
+  if (!isa<CompoundStmt>(F->getBody()))
+    appendScopeBegin(BodyBlock, F);
+
   // Because of short-circuit evaluation, the condition of the loop can span
   // multiple basic blocks.  Thus we need the "Entry" and "Exit" blocks that
   // evaluate the condition.
@@ -2673,6 +2756,9 @@ CFGBlock *CFGBuilder::VisitForStmt(ForStmt *F) {
 
   // Link up the loop-back block to the entry condition block.
   addSuccessor(TransitionBlock, EntryConditionBlock);
+
+  if (!isa<CompoundStmt>(F->getBody()))
+    prependScopeEnd(TransitionBlock, F, F);
   
   // The condition block is the implicit successor for any code above the loop.
   Succ = EntryConditionBlock;
@@ -2681,7 +2767,10 @@ CFGBlock *CFGBuilder::VisitForStmt(ForStmt *F) {
   // statements.  This block can also contain statements that precede the loop.
   if (Stmt *I = F->getInit()) {
     Block = createBlock();
-    return addStmt(I);
+    CFGBlock *InitBlock = addStmt(I);
+    appendScopeBegin(EntryConditionBlock, I);
+    appendScopeEnd(LoopSuccessor, I, I);
+    return InitBlock;
   }
 
   // There is no loop initialization.  We are thus basically a while loop.
@@ -2786,7 +2875,12 @@ CFGBlock *CFGBuilder::VisitObjCForCollectionStmt(ObjCForCollectionStmt *S) {
     BreakJumpTarget = JumpTarget(LoopSuccessor, ScopePos);
     ContinueJumpTarget = JumpTarget(Succ, ScopePos);
 
-    CFGBlock *BodyBlock = addStmt(S->getBody());
+    CFGBlock *BodyBlock = NULL;
+    {
+      SaveAndRestore<Stmt *> save_TerminatedLoop(TerminatedLoop);
+      TerminatedLoop = isa<CompoundStmt>(S->getBody()) ? S->getBody() : S;
+      BodyBlock = addStmt(S->getBody());
+    }
 
     if (!BodyBlock)
       BodyBlock = ContinueJumpTarget.block; // can happen for "for (X in Y) ;"
@@ -2896,6 +2990,11 @@ CFGBlock *CFGBuilder::VisitWhileStmt(WhileStmt *W) {
 
   CFGBlock *BodyBlock = nullptr, *TransitionBlock = nullptr;
 
+  // If this block contains a condition variable, add scope end to it now.
+  if (VarDecl *VD = W->getConditionVariable())
+    if (Expr *Init = VD->getInit())
+      appendScopeEnd(LoopSuccessor, Init, Init);
+
   // Process the loop body.
   {
     assert(W->getBody());
@@ -2922,13 +3021,21 @@ CFGBlock *CFGBuilder::VisitWhileStmt(WhileStmt *W) {
     if (!isa<CompoundStmt>(W->getBody()))
       addLocalScopeAndDtors(W->getBody());
 
-    // Create the body.  The returned block is the entry to the loop body.
-    BodyBlock = addStmt(W->getBody());
+    {
+      SaveAndRestore<Stmt *> save_TerminatedLoop(TerminatedLoop);
+      TerminatedLoop = isa<CompoundStmt>(W->getBody()) ? W->getBody() : W;
+
+      // Create the body.  The returned block is the entry to the loop body.
+      BodyBlock = addStmt(W->getBody());
+    }
 
     if (!BodyBlock)
       BodyBlock = ContinueJumpTarget.block; // can happen for "while(...) ;"
     else if (Block && badCFG)
       return nullptr;
+
+    if (!isa<CompoundStmt>(W->getBody()))
+      appendScopeBegin(BodyBlock, W);
   }
 
   // Because of short-circuit evaluation, the condition of the loop can span
@@ -2965,6 +3072,7 @@ CFGBlock *CFGBuilder::VisitWhileStmt(WhileStmt *W) {
         autoCreateBlock();
         appendStmt(Block, W->getConditionVariableDeclStmt());
         EntryConditionBlock = addStmt(Init);
+        appendScopeBegin(EntryConditionBlock, Init);
         assert(Block == EntryConditionBlock);
       }
     }
@@ -2986,6 +3094,9 @@ CFGBlock *CFGBuilder::VisitWhileStmt(WhileStmt *W) {
 
   // Link up the loop-back block to the entry condition block.
   addSuccessor(TransitionBlock, EntryConditionBlock);
+
+  if (!isa<CompoundStmt>(W->getBody()))
+    prependScopeEnd(TransitionBlock, W, W);
 
   // There can be no more statements in the condition block since we loop back
   // to this block.  NULL out Block to force lazy creation of another block.
@@ -3104,8 +3215,13 @@ CFGBlock *CFGBuilder::VisitDoStmt(DoStmt *D) {
     if (!isa<CompoundStmt>(D->getBody()))
       addLocalScopeAndDtors(D->getBody());
 
-    // Create the body.  The returned block is the entry to the loop body.
-    BodyBlock = addStmt(D->getBody());
+    {
+      SaveAndRestore<Stmt *> save_TerminatedLoop(TerminatedLoop);
+      TerminatedLoop = isa<CompoundStmt>(D->getBody()) ? D->getBody() : D;
+
+      // Create the body.  The returned block is the entry to the loop body.
+      BodyBlock = addStmt(D->getBody());
+    }
 
     if (!BodyBlock)
       BodyBlock = EntryConditionBlock; // can happen for "do ; while(...)"
@@ -3114,6 +3230,11 @@ CFGBlock *CFGBuilder::VisitDoStmt(DoStmt *D) {
         return nullptr;
     }
 
+    if (!isa<CompoundStmt>(D->getBody())) {
+      appendScopeBegin(BodyBlock, D);
+      if (!shouldDeferScopeEnd(D->getBody()))
+        prependScopeEnd(BodyBlock, D, D);
+    }
     // Add an intermediate block between the BodyBlock and the
     // ExitConditionBlock to represent the "loop back" transition.  Create an
     // empty block to represent the transition block for looping back to the
@@ -3158,6 +3279,7 @@ CFGBlock *CFGBuilder::VisitContinueStmt(ContinueStmt *C) {
   // incomplete AST.  This means the CFG cannot be constructed.
   if (ContinueJumpTarget.block) {
     addAutomaticObjHandling(ScopePos, ContinueJumpTarget.scopePosition, C);
+    prependScopeEnd(Block, C, TerminatedLoop);
     addSuccessor(Block, ContinueJumpTarget.block);
   } else
     badCFG = true;
@@ -3261,24 +3383,37 @@ CFGBlock *CFGBuilder::VisitSwitchStmt(SwitchStmt *Terminator) {
   if (!isa<CompoundStmt>(Terminator->getBody()))
     addLocalScopeAndDtors(Terminator->getBody());
 
-  addStmt(Terminator->getBody());
-  if (Block) {
-    if (badCFG)
-      return nullptr;
+  // If the SwitchStmt contains a condition variable, end its scope after switch.
+  if (VarDecl *VD = Terminator->getConditionVariable()) {
+    if (VD->getInit()) {
+      auto VDDeclStmt = Terminator->getConditionVariableDeclStmt();
+      appendScopeEnd(Succ, VDDeclStmt, VDDeclStmt);
+    }
   }
 
-  // If we have no "default:" case, the default transition is to the code
-  // following the switch body.  Moreover, take into account if all the
-  // cases of a switch are covered (e.g., switching on an enum value).
-  //
-  // Note: We add a successor to a switch that is considered covered yet has no
-  //       case statements if the enumeration has no enumerators.
-  bool SwitchAlwaysHasSuccessor = false;
-  SwitchAlwaysHasSuccessor |= switchExclusivelyCovered;
-  SwitchAlwaysHasSuccessor |= Terminator->isAllEnumCasesCovered() &&
-                              Terminator->getSwitchCaseList();
-  addSuccessor(SwitchTerminatedBlock, DefaultCaseBlock,
-               !SwitchAlwaysHasSuccessor);
+  {
+    SaveAndRestore<bool> save_InSwitchNest(InSwitchNest);
+    InSwitchNest = true;
+
+    addStmt(Terminator->getBody());
+    if (Block) {
+      if (badCFG)
+        return nullptr;
+    }
+
+    // If we have no "default:" case, the default transition is to the code
+    // following the switch body.  Moreover, take into account if all the
+    // cases of a switch are covered (e.g., switching on an enum value).
+    //
+    // Note: We add a successor to a switch that is considered covered yet has
+    // no case statements if the enumeration has no enumerators.
+    bool SwitchAlwaysHasSuccessor = false;
+    SwitchAlwaysHasSuccessor |= switchExclusivelyCovered;
+    SwitchAlwaysHasSuccessor |=
+        Terminator->isAllEnumCasesCovered() && Terminator->getSwitchCaseList();
+    addSuccessor(SwitchTerminatedBlock, DefaultCaseBlock,
+                 !SwitchAlwaysHasSuccessor);
+  }
 
   // Add the terminator and condition in the switch block.
   SwitchTerminatedBlock->setTerminator(Terminator);
@@ -3290,8 +3425,10 @@ CFGBlock *CFGBuilder::VisitSwitchStmt(SwitchStmt *Terminator) {
   if (VarDecl *VD = Terminator->getConditionVariable()) {
     if (Expr *Init = VD->getInit()) {
       autoCreateBlock();
-      appendStmt(Block, Terminator->getConditionVariableDeclStmt());
+      auto VDDeclStmt = Terminator->getConditionVariableDeclStmt();
+      appendStmt(Block, VDDeclStmt);
       LastBlock = addStmt(Init);
+      appendScopeBegin(LastBlock, VDDeclStmt);
     }
   }
 
@@ -3558,6 +3695,8 @@ CFGBlock *CFGBuilder::VisitCXXForRangeStmt(CXXForRangeStmt *S) {
 
   LocalScope::const_iterator ContinueScopePos = ScopePos;
 
+  Stmt *LoopVarStmt = S->getLoopVarStmt();
+
   // "for" is a control-flow statement.  Thus we stop processing the current
   // block.
   CFGBlock *LoopSuccessor = nullptr;
@@ -3610,6 +3749,7 @@ CFGBlock *CFGBuilder::VisitCXXForRangeStmt(CXXForRangeStmt *S) {
     // continue statements.
     Block = nullptr;
     Succ = addStmt(S->getInc());
+    prependScopeEnd(Succ, LoopVarStmt, LoopVarStmt);
     if (badCFG)
       return nullptr;
     ContinueJumpTarget = JumpTarget(Succ, ContinueScopePos);
@@ -3627,17 +3767,29 @@ CFGBlock *CFGBuilder::VisitCXXForRangeStmt(CXXForRangeStmt *S) {
     // Add implicit scope and dtors for loop variable.
     addLocalScopeAndDtors(S->getLoopVarStmt());
 
-    // Populate a new block to contain the loop body and loop variable.
-    addStmt(S->getBody());
+    CFGBlock *BodyBlock = nullptr;
+    {
+      SaveAndRestore<Stmt *> save_TerminatedLoop(TerminatedLoop);
+      TerminatedLoop = isa<CompoundStmt>(S->getBody()) ? S->getBody() : S;
+      // Populate a new block to contain the loop body and loop variable.
+      BodyBlock = addStmt(S->getBody());
+    }
     if (badCFG)
       return nullptr;
     CFGBlock *LoopVarStmtBlock = addStmt(S->getLoopVarStmt());
     if (badCFG)
       return nullptr;
 
+    if (!isa<CompoundStmt>(S->getBody())) {
+      appendScopeBegin(BodyBlock, S);
+      if (!shouldDeferScopeEnd(S->getBody()))
+        prependScopeEnd(BodyBlock, S, S);
+    }
+
     // This new body block is a successor to our condition block.
     addSuccessor(ConditionBlock,
                  KnownVal.isFalse() ? nullptr : LoopVarStmtBlock);
+    appendScopeBegin(LoopVarStmtBlock, LoopVarStmt);
   }
 
   // Link up the condition block with the code that follows the loop (the
@@ -4026,6 +4178,8 @@ CFGImplicitDtor::getDestructorDecl(ASTContext &astContext) const {
     case CFGElement::Initializer:
     case CFGElement::NewAllocator:
     case CFGElement::LifetimeEnds:
+    case CFGElement::ScopeBegin:
+    case CFGElement::ScopeEnd:
       llvm_unreachable("getDestructorDecl should only be used with "
                        "ImplicitDtors");
     case CFGElement::AutomaticObjectDtor: {
@@ -4442,6 +4596,16 @@ static void print_elem(raw_ostream &OS, StmtPrinterHelper &Helper,
 
     OS << " (Lifetime ends)\n";
 
+  } else if (Optional<CFGScopeBegin> SB = E.getAs<CFGScopeBegin>()) {
+    OS << "CFGScopeBegin(";
+    if (const Stmt *S = SB->getTriggerStmt())
+      OS << S->getStmtClassName();
+    OS << ")\n";
+  } else if (Optional<CFGScopeEnd> SE = E.getAs<CFGScopeEnd>()) {
+    OS << "CFGScopeEnd(";
+    if (const Stmt *S = SE->getTriggerStmt())
+      OS << S->getStmtClassName();
+    OS << ")\n";
   } else if (Optional<CFGNewAllocator> NE = E.getAs<CFGNewAllocator>()) {
     OS << "CFGNewAllocator(";
     if (const CXXNewExpr *AllocExpr = NE->getAllocatorExpr())
