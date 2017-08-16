@@ -1,14 +1,14 @@
 ; RUN: llc -mtriple armv7--linux-gnueabihf -relocation-model=static -arm-promote-constant < %s | FileCheck %s --check-prefixes=CHECK,CHECK-V7,CHECK-V7ARM
 ; RUN: llc -mtriple armv7--linux-gnueabihf -relocation-model=pic -arm-promote-constant < %s | FileCheck %s --check-prefixes=CHECK,CHECK-V7,CHECK-V7ARM
-; RUN: llc -mtriple armv7--linux-gnueabihf -relocation-model=ropi -arm-promote-constant < %s | FileCheck %s --check-prefixes=CHECK,CHECK-V7,CHECK-V7ARM
+; RUN: llc -mtriple armv7--linux-gnueabihf -relocation-model=ropi -arm-promote-constant < %s | FileCheck %s --check-prefixes=CHECK-OFF
 ; RUN: llc -mtriple armv7--linux-gnueabihf -relocation-model=rwpi -arm-promote-constant < %s | FileCheck %s --check-prefixes=CHECK,CHECK-V7,CHECK-V7ARM
 ; RUN: llc -mtriple thumbv7--linux-gnueabihf -relocation-model=static -arm-promote-constant < %s | FileCheck %s --check-prefixes=CHECK,CHECK-V7,CHECK-V7THUMB
 ; RUN: llc -mtriple thumbv7--linux-gnueabihf -relocation-model=pic -arm-promote-constant < %s | FileCheck %s --check-prefixes=CHECK,CHECK-V7,CHECK-V7THUMB
-; RUN: llc -mtriple thumbv7--linux-gnueabihf -relocation-model=ropi -arm-promote-constant < %s | FileCheck %s --check-prefixes=CHECK,CHECK-V7,CHECK-V7THUMB
+; RUN: llc -mtriple thumbv7--linux-gnueabihf -relocation-model=ropi -arm-promote-constant < %s | FileCheck %s --check-prefixes=CHECK-OFF
 ; RUN: llc -mtriple thumbv7--linux-gnueabihf -relocation-model=rwpi -arm-promote-constant < %s | FileCheck %s --check-prefixes=CHECK,CHECK-V7,CHECK-V7THUMB
 ; RUN: llc -mtriple thumbv6m--linux-gnueabihf -relocation-model=static -arm-promote-constant < %s | FileCheck %s --check-prefixes=CHECK,CHECK-V6M
 ; RUN: llc -mtriple thumbv6m--linux-gnueabihf -relocation-model=pic -arm-promote-constant < %s | FileCheck %s --check-prefixes=CHECK,CHECK-V6M
-; RUN: llc -mtriple thumbv6m--linux-gnueabihf -relocation-model=ropi -arm-promote-constant < %s | FileCheck %s --check-prefixes=CHECK,CHECK-V6M
+; RUN: llc -mtriple thumbv6m--linux-gnueabihf -relocation-model=ropi -arm-promote-constant < %s | FileCheck %s --check-prefixes=CHECK-OFF
 ; RUN: llc -mtriple thumbv6m--linux-gnueabihf -relocation-model=rwpi -arm-promote-constant < %s | FileCheck %s --check-prefixes=CHECK,CHECK-V6M
 
 @.str = private unnamed_addr constant [2 x i8] c"s\00", align 1
@@ -27,6 +27,7 @@
 ; CHECK: adr r0, [[x:.*]]
 ; CHECK: [[x]]:
 ; CHECK: .asciz "s\000\000"
+; CHECK-OFF-NOT: adr
 define void @test1() #0 {
   tail call void @a(i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str, i32 0, i32 0)) #2
   ret void
@@ -37,6 +38,7 @@ declare void @a(i8*) #1
 ; CHECK-LABEL: @test2
 ; CHECK-NOT: .asci
 ; CHECK: .fnend
+; CHECK-OFF-NOT: adr
 define void @test2() #0 {
   tail call void @a(i8* getelementptr inbounds ([69 x i8], [69 x i8]* @.str1, i32 0, i32 0)) #2
   ret void
@@ -46,6 +48,7 @@ define void @test2() #0 {
 ; CHECK: adr r0, [[x:.*]]
 ; CHECK: [[x]]:
 ; CHECK: .asciz "this string is just right!\000"
+; CHECK-OFF-NOT: adr
 define void @test3() #0 {
   tail call void @a(i8* getelementptr inbounds ([27 x i8], [27 x i8]* @.str2, i32 0, i32 0)) #2
   ret void
@@ -56,6 +59,7 @@ define void @test3() #0 {
 ; CHECK: adr r{{.*}}, [[x:.*]]
 ; CHECK: [[x]]:
 ; CHECK: .asciz "this string is used twice\000\000"
+; CHECK-OFF-NOT: adr
 define void @test4() #0 {
   tail call void @a(i8* getelementptr inbounds ([26 x i8], [26 x i8]* @.str3, i32 0, i32 0)) #2
   tail call void @a(i8* getelementptr inbounds ([26 x i8], [26 x i8]* @.str3, i32 0, i32 0)) #2
@@ -64,6 +68,7 @@ define void @test4() #0 {
 
 ; CHECK-LABEL: @test5a
 ; CHECK-NOT: adr
+; CHECK-OFF-NOT: adr
 define void @test5a() #0 {
   tail call void @a(i8* getelementptr inbounds ([29 x i8], [29 x i8]* @.str4, i32 0, i32 0)) #2
   ret void
@@ -79,6 +84,7 @@ define void @test5b() #0 {
 ; CHECK: [[x]]:
 ; CHECK: .short 3
 ; CHECK: .short 4
+; CHECK-OFF-NOT: adr
 define void @test6a() #0 {
   tail call void @c(i16* getelementptr inbounds ([2 x i16], [2 x i16]* @.arr1, i32 0, i32 0)) #2
   ret void
@@ -89,6 +95,7 @@ define void @test6a() #0 {
 ; CHECK: [[x]]:
 ; CHECK: .short 3
 ; CHECK: .short 4
+; CHECK-OFF-NOT: adr
 define void @test6b() #0 {
   tail call void @c(i16* getelementptr inbounds ([2 x i16], [2 x i16]* @.arr1, i32 0, i32 0)) #2
   ret void
@@ -97,6 +104,7 @@ define void @test6b() #0 {
 ; This shouldn't be promoted, as the string is used by another global.
 ; CHECK-LABEL: @test7
 ; CHECK-NOT: adr
+; CHECK-OFF-NOT: adr
 define void @test7() #0 {
   tail call void @c(i16* getelementptr inbounds ([2 x i16], [2 x i16]* @.arr2, i32 0, i32 0)) #2
   ret void  
@@ -106,6 +114,7 @@ define void @test7() #0 {
 ; CHECK-LABEL: @test8
 ; CHECK-NOT: .zero
 ; CHECK: .fnend
+; CHECK-OFF-NOT: adr
 define void @test8() #0 {
   %a = load i16*, i16** getelementptr inbounds ([2 x i16*], [2 x i16*]* @.arr3, i32 0, i32 0)
   tail call void @c(i16* %a) #2
@@ -135,6 +144,7 @@ entry:
 ; This shouldn't be promoted, as the global requires >4 byte alignment.
 ; CHECK-LABEL: @test9
 ; CHECK-NOT: adr
+; CHECK-OFF-NOT: adr
 define void @test9() #0 {
   tail call void @c(i16* getelementptr inbounds ([2 x i16], [2 x i16]* @.arr4, i32 0, i32 0)) #2
   ret void
@@ -143,6 +153,7 @@ define void @test9() #0 {
 ; Ensure that zero sized values are supported / not promoted.
 ; CHECK-LABEL: @pr32130
 ; CHECK-NOT: adr
+; CHECK-OFF-NOT: adr
 define void @pr32130() #0 {
   tail call void @c(i16* getelementptr inbounds ([0 x i16], [0 x i16]* @.zerosize, i32 0, i32 0)) #2
   ret void
@@ -155,6 +166,7 @@ define void @pr32130() #0 {
 ; CHECK-V7: ldrb{{(.w)?}} r{{[0-9]*}}, [[x:.*]]
 ; CHECK-V7: [[x]]:
 ; CHECK-V7: .asciz "s\000\000"
+; CHECK-OFF-NOT: adr
 define void @test10(i8* %a) local_unnamed_addr #0 {
   call void @llvm.memmove.p0i8.p0i8.i32(i8* %a, i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str, i32 0, i32 0), i32 1, i32 1, i1 false)
   ret void
@@ -173,6 +185,7 @@ define void @test10(i8* %a) local_unnamed_addr #0 {
 ; CHECK-V7ARM: [[x]]:
 ; CHECK-V7ARM: .short 3
 ; CHECK-V7ARM: .short 4
+; CHECK-OFF-NOT: adr
 define void @test11(i16* %a) local_unnamed_addr #0 {
   call void @llvm.memmove.p0i16.p0i16.i32(i16* %a, i16* getelementptr inbounds ([2 x i16], [2 x i16]* @.arr1, i32 0, i32 0), i32 2, i32 2, i1 false)
   ret void

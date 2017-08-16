@@ -31,24 +31,25 @@ class MachineBasicBlock;
 
 namespace ARMCP {
 
-  enum ARMCPKind {
-    CPValue,
-    CPExtSymbol,
-    CPBlockAddress,
-    CPLSDA,
-    CPMachineBasicBlock,
-    CPPromotedGlobal
-  };
+enum ARMCPKind {
+  CPValue,
+  CPExtSymbol,
+  CPBlockAddress,
+  CPLSDA,
+  CPMachineBasicBlock,
+  CPPromotedGlobal,
+  CPIndexAddress
+};
 
-  enum ARMCPModifier {
-    no_modifier, /// None
-    TLSGD,       /// Thread Local Storage (General Dynamic Mode)
-    GOT_PREL,    /// Global Offset Table, PC Relative
-    GOTTPOFF,    /// Global Offset Table, Thread Pointer Offset
-    TPOFF,       /// Thread Pointer Offset
-    SECREL,      /// Section Relative (Windows TLS)
-    SBREL,       /// Static Base Relative (RWPI)
-  };
+enum ARMCPModifier {
+  no_modifier, /// None
+  TLSGD,       /// Thread Local Storage (General Dynamic Mode)
+  GOT_PREL,    /// Global Offset Table, PC Relative
+  GOTTPOFF,    /// Global Offset Table, Thread Pointer Offset
+  TPOFF,       /// Thread Pointer Offset
+  SECREL,      /// Section Relative (Windows TLS)
+  SBREL,       /// Static Base Relative (RWPI)
+};
 
 } // end namespace ARMCP
 
@@ -109,7 +110,8 @@ public:
   bool isLSDA() const { return Kind == ARMCP::CPLSDA; }
   bool isMachineBasicBlock() const{ return Kind == ARMCP::CPMachineBasicBlock; }
   bool isPromotedGlobal() const{ return Kind == ARMCP::CPPromotedGlobal; }
-  
+  bool isIndexAddress() const { return Kind == ARMCP::CPIndexAddress; }
+
   int getExistingMachineCPValue(MachineConstantPool *CP,
                                 unsigned Alignment) override;
 
@@ -271,6 +273,40 @@ public:
   bool equals(const ARMConstantPoolMBB *A) const {
     return MBB == A->MBB && ARMConstantPoolValue::equals(A);
   }
+};
+
+/// ARMConstantPoolIndexAddress - ARM-specific constantpool value of an index to
+/// another constant pool
+class ARMConstantPoolIndexAddress : public ARMConstantPoolValue {
+  int Index;
+
+  ARMConstantPoolIndexAddress(LLVMContext &C, int Index, unsigned ID,
+                              unsigned char PCAdj,
+                              ARMCP::ARMCPModifier Modifier,
+                              bool AddCurrentAddress);
+
+public:
+  static ARMConstantPoolIndexAddress *Create(LLVMContext &C, int Index,
+                                             unsigned ID, unsigned char PCAdj);
+
+  int getIndex() const { return Index; }
+
+  int getExistingMachineCPValue(MachineConstantPool *CP,
+                                unsigned Alignment) override;
+
+  void addSelectionDAGCSEId(FoldingSetNodeID &ID) override;
+
+  /// hasSameValue - Return true if this ARM constpool value can share the same
+  /// constantpool entry as another ARM constpool value.
+  bool hasSameValue(ARMConstantPoolValue *ACPV) override;
+
+  void print(raw_ostream &O) const override;
+
+  static bool classof(const ARMConstantPoolValue *ACPV) {
+    return ACPV->isIndexAddress();
+  }
+
+  bool equals(const ARMConstantPoolIndexAddress *A) const;
 };
 
 } // end namespace llvm

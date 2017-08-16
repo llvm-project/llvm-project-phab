@@ -16,6 +16,7 @@
 #include "ARM.h"
 #include "ARMBaseInstrInfo.h"
 #include "ARMBasicBlockInfo.h"
+#include "ARMConstantPoolValue.h"
 #include "ARMMachineFunctionInfo.h"
 #include "ARMSubtarget.h"
 #include "MCTargetDesc/ARMBaseInfo.h"
@@ -180,6 +181,10 @@ namespace {
     /// base address.
     DenseMap<int, int> JumpTableUserIndices;
 
+    /// ConvertedLoadIndices - Keeps track of cpes converted to loads
+    /// from new -> original CPI's
+    DenseMap<int, int> ConvertedLoadIndices;
+
     /// ImmBranch - One per immediate branch, keeping the machine instruction
     /// pointer, conditional or unconditional, the max displacement,
     /// and (if isCond is true) the corresponding unconditional branch
@@ -247,12 +252,14 @@ namespace {
     void updateForInsertedWaterBlock(MachineBasicBlock *NewBB);
     void adjustBBOffsetsAfter(MachineBasicBlock *BB);
     bool decrementCPEReferenceCount(unsigned CPI, MachineInstr* CPEMI);
+    unsigned getCPEReferenceCount(unsigned CPI, MachineInstr *CPEMI);
     unsigned getCombinedIndex(const MachineInstr *CPEMI);
     int findInRangeCPEntry(CPUser& U, unsigned UserOffset);
     bool findAvailableWater(CPUser&U, unsigned UserOffset,
                             water_iterator &WaterIter, bool CloserWater);
     void createNewWater(unsigned CPUserIndex, unsigned UserOffset,
                         MachineBasicBlock *&NewMBB);
+    bool convertToLoad(ARMConstantIslands::CPUser &U) const;
     bool handleConstantPoolUser(unsigned CPUserIndex, bool CloserWater);
     void removeDeadCPEMI(MachineInstr *CPEMI);
     bool removeUnusedCPEntries();
@@ -474,6 +481,7 @@ bool ARMConstantIslands::runOnMachineFunction(MachineFunction &mf) {
   CPEntries.clear();
   JumpTableEntryIndices.clear();
   JumpTableUserIndices.clear();
+  ConvertedLoadIndices.clear();
   ImmBranches.clear();
   PushPopMIs.clear();
   T2JumpTables.clear();
@@ -1141,9 +1149,23 @@ bool ARMConstantIslands::decrementCPEReferenceCount(unsigned CPI,
   return false;
 }
 
+unsigned ARMConstantIslands::getCPEReferenceCount(unsigned CPI,
+                                                  MachineInstr *CPEMI) {
+  // Find the entry.
+  CPEntry *CPE = findConstPoolEntry(CPI, CPEMI);
+  assert(CPE && "Unexpected!");
+  return CPE->RefCount;
+}
+
 unsigned ARMConstantIslands::getCombinedIndex(const MachineInstr *CPEMI) {
-  if (CPEMI->getOperand(1).isCPI())
-    return CPEMI->getOperand(1).getIndex();
+  if (CPEMI->getOperand(1).isCPI()) {
+    unsigned CPI = CPEMI->getOperand(1).getIndex();
+    if (ConvertedLoadIndices.find(CPI) != ConvertedLoadIndices.end())
+      // This is a converted entry. Find the original CPI
+      CPI = ConvertedLoadIndices[CPI];
+
+    return CPI;
+  }
 
   return JumpTableEntryIndices[CPEMI->getOperand(1).getIndex()];
 }
@@ -1182,6 +1204,11 @@ int ARMConstantIslands::findInRangeCPEntry(CPUser& U, unsigned UserOffset)
                    << CPEs[i].CPI << "\n");
       // Point the CPUser node to the replacement
       U.CPEMI = CPEs[i].CPEMI;
+
+      // Convert LEA to LDR of the address of the original CPE.
+      if (convertToLoad(U))
+        UserMI = U.MI;
+
       // Change the CPI in the instruction operand to refer to the clone.
       for (unsigned j = 0, e = UserMI->getNumOperands(); j != e; ++j)
         if (UserMI->getOperand(j).isCPI()) {
@@ -1426,6 +1453,43 @@ void ARMConstantIslands::createNewWater(unsigned CPUserIndex,
   NewMBB = splitBlockBeforeInstr(&*MI);
 }
 
+// If the user is an LEA then cloning the CPE would mean different users get
+// different addresses, which is invalid in some cases. Handle this by
+// converting the LEA into an LDR of the address of the original CPE.
+bool ARMConstantIslands::convertToLoad(CPUser &U) const {
+  if (STI->isROPI()) // FIXME, fix to be supported
+    return false;
+
+  MachineInstr *UserMI = U.MI;
+
+  switch (UserMI->getOpcode()) {
+  case ARM::LEApcrel:
+    DEBUG(dbgs() << "  Converting LEApcrel to a LDRcp\n");
+    // LDRcp has an extra immediate operand compared to LEApcrel so we need to
+    // build a new MI instead of just adjusting the desc.
+    UserMI = BuildMI(*UserMI->getParent(), UserMI, UserMI->getDebugLoc(),
+                     TII->get(ARM::LDRcp))
+                 .add(UserMI->getOperand(0))
+                 .add(UserMI->getOperand(1))
+                 .addImm(0)
+                 .add(UserMI->getOperand(2))
+                 .add(UserMI->getOperand(3));
+    U.MI->eraseFromParent();
+    U.MI = UserMI;
+    return true;
+  case ARM::t2LEApcrel:
+    DEBUG(dbgs() << "  Converting t2LEApcrel to a t2LDRpci\n");
+    UserMI->setDesc(TII->get(ARM::t2LDRpci));
+    return true;
+  case ARM::tLEApcrel:
+    DEBUG(dbgs() << "  Converting tLEApcrel to a tLDRpci\n");
+    UserMI->setDesc(TII->get(ARM::tLDRpci));
+    return true;
+  default:
+    return false;
+  }
+}
+
 /// handleConstantPoolUser - Analyze the specified user, checking to see if it
 /// is out-of-range.  If so, pick up the constant pool value and move it some
 /// place in-range.  Return true if we changed any addresses (thus must run
@@ -1433,8 +1497,7 @@ void ARMConstantIslands::createNewWater(unsigned CPUserIndex,
 bool ARMConstantIslands::handleConstantPoolUser(unsigned CPUserIndex,
                                                 bool CloserWater) {
   CPUser &U = CPUsers[CPUserIndex];
-  MachineInstr *UserMI = U.MI;
-  MachineInstr *CPEMI  = U.CPEMI;
+  MachineInstr *CPEMI = U.CPEMI;
   unsigned CPI = getCombinedIndex(CPEMI);
   unsigned Size = CPEMI->getOperand(2).getImm();
   // Compute this only once, it's expensive.
@@ -1501,9 +1564,28 @@ bool ARMConstantIslands::handleConstantPoolUser(unsigned CPUserIndex,
   // Now that we have an island to add the CPE to, clone the original CPE and
   // add it to the island.
   U.HighWaterMark = NewIsland;
+
+  // Convert LEA to LDR to the original CPE, providing there are multiple
+  // uses of the CPE (otherwise it can be moved).
+  // FIXME: Handle the case when there are multiple CPUsers of the cpe and
+  //   the CPE should be moved away from the end.
+  unsigned Index = CPEMI->getOperand(1).getIndex();
+  if (getCPEReferenceCount(CPI, CPEMI) > 1 && convertToLoad(U)) {
+    ARMConstantPoolValue *V = ARMConstantPoolIndexAddress::Create(
+        MF->getFunction()->getContext(), CPEMI->getOperand(0).getImm(), ID, 0);
+    Index = MCP->getConstantPoolIndex(V, 4);
+    ConvertedLoadIndices.insert(std::make_pair(Index, CPI));
+  }
+
+  if (ConvertedLoadIndices.find(Index) != ConvertedLoadIndices.end()) {
+    // Increment reference from converted to original CPE
+    assert(CPEntries[CPI][0].CPI == CPI && "Expected first entry to be base");
+    ++CPEntries[CPI][0].RefCount;
+  }
+
   U.CPEMI = BuildMI(NewIsland, DebugLoc(), CPEMI->getDesc())
                 .addImm(ID)
-                .add(CPEMI->getOperand(1))
+                .addConstantPoolIndex(Index)
                 .addImm(Size);
   CPEntries[CPI].push_back(CPEntry(U.CPEMI, ID, 1));
   ++NumCPEs;
@@ -1519,9 +1601,9 @@ bool ARMConstantIslands::handleConstantPoolUser(unsigned CPUserIndex,
   adjustBBOffsetsAfter(&*--NewIsland->getIterator());
 
   // Finally, change the CPI in the instruction operand to be ID.
-  for (unsigned i = 0, e = UserMI->getNumOperands(); i != e; ++i)
-    if (UserMI->getOperand(i).isCPI()) {
-      UserMI->getOperand(i).setIndex(ID);
+  for (unsigned i = 0, e = U.MI->getNumOperands(); i != e; ++i)
+    if (U.MI->getOperand(i).isCPI()) {
+      U.MI->getOperand(i).setIndex(ID);
       break;
     }
 
@@ -1534,6 +1616,13 @@ bool ARMConstantIslands::handleConstantPoolUser(unsigned CPUserIndex,
 /// removeDeadCPEMI - Remove a dead constant pool entry instruction. Update
 /// sizes and offsets of impacted basic blocks.
 void ARMConstantIslands::removeDeadCPEMI(MachineInstr *CPEMI) {
+  // Remove refcount from CPE to CPE
+  unsigned Index = CPEMI->getOperand(1).getIndex();
+  if (ConvertedLoadIndices.find(Index) != ConvertedLoadIndices.end()) {
+    Index = ConvertedLoadIndices[Index];
+    decrementCPEReferenceCount(Index, CPEntries[Index][0].CPEMI);
+  }
+
   MachineBasicBlock *CPEBB = CPEMI->getParent();
   unsigned Size = CPEMI->getOperand(2).getImm();
   CPEMI->eraseFromParent();

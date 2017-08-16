@@ -895,6 +895,9 @@ EmitMachineConstantPoolValue(MachineConstantPoolValue *MCPV) {
   } else if (ACPV->isMachineBasicBlock()) {
     const MachineBasicBlock *MBB = cast<ARMConstantPoolMBB>(ACPV)->getMBB();
     MCSym = MBB->getSymbol();
+  } else if (ACPV->isIndexAddress()) {
+    int Index = cast<ARMConstantPoolIndexAddress>(ACPV)->getIndex();
+    MCSym = GetCPISymbol(Index);
   } else {
     assert(ACPV->isExtSymbol() && "unrecognized constant pool value");
     auto Sym = cast<ARMConstantPoolSymbol>(ACPV)->getSymbol();

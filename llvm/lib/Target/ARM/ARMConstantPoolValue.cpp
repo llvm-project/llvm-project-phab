@@ -285,3 +285,49 @@ void ARMConstantPoolMBB::print(raw_ostream &O) const {
   O << "BB#" << MBB->getNumber();
   ARMConstantPoolValue::print(O);
 }
+
+//===----------------------------------------------------------------------===//
+// ARMConstantPoolIndexAddress
+//===----------------------------------------------------------------------===//
+
+ARMConstantPoolIndexAddress::ARMConstantPoolIndexAddress(
+    LLVMContext &C, int Index, unsigned ID, unsigned char PCAdj,
+    ARMCP::ARMCPModifier Modifier, bool AddCurrentAddress)
+    : ARMConstantPoolValue(C, ID, ARMCP::CPIndexAddress, PCAdj, Modifier,
+                           AddCurrentAddress),
+      Index(Index) {}
+
+ARMConstantPoolIndexAddress *
+ARMConstantPoolIndexAddress::Create(LLVMContext &C, int Index, unsigned ID,
+                                    unsigned char PCAdj) {
+  return new ARMConstantPoolIndexAddress(C, Index, ID, PCAdj,
+                                         ARMCP::no_modifier, false);
+}
+
+int ARMConstantPoolIndexAddress::getExistingMachineCPValue(
+    MachineConstantPool *CP, unsigned Alignment) {
+  return getExistingMachineCPValueImpl<ARMConstantPoolIndexAddress>(CP,
+                                                                    Alignment);
+}
+
+bool ARMConstantPoolIndexAddress::hasSameValue(ARMConstantPoolValue *ACPV) {
+  const ARMConstantPoolIndexAddress *ACPIA =
+      dyn_cast<ARMConstantPoolIndexAddress>(ACPV);
+  return ACPIA && ACPIA->Index == Index &&
+         ARMConstantPoolValue::hasSameValue(ACPV);
+}
+
+void ARMConstantPoolIndexAddress::addSelectionDAGCSEId(FoldingSetNodeID &ID) {
+  ID.AddInteger(Index);
+  ARMConstantPoolValue::addSelectionDAGCSEId(ID);
+}
+
+void ARMConstantPoolIndexAddress::print(raw_ostream &O) const {
+  O << "&cp#" << Index;
+  ARMConstantPoolValue::print(O);
+}
+
+bool ARMConstantPoolIndexAddress::equals(
+    const ARMConstantPoolIndexAddress *A) const {
+  return (Index == A->Index && ARMConstantPoolValue::equals(A));
+}

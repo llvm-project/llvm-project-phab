@@ -126,7 +126,7 @@ static cl::opt<bool> EnableConstpoolPromotion(
     "arm-promote-constant", cl::Hidden,
     cl::desc("Enable / disable promotion of unnamed_addr constants into "
              "constant pools"),
-    cl::init(false)); // FIXME: set to true by default once PR32780 is fixed
+    cl::init(true));
 static cl::opt<unsigned> ConstpoolPromotionMaxSize(
     "arm-promote-constant-max-size", cl::Hidden,
     cl::desc("Maximum size of constant to promote into a constant pool"),
@@ -3163,7 +3163,8 @@ SDValue ARMTargetLowering::LowerGlobalAddressELF(SDValue Op,
   bool IsRO = isReadOnly(GV);
 
   // promoteToConstantPool only if not generating XO text section
-  if (TM.shouldAssumeDSOLocal(*GV->getParent(), GV) && !Subtarget->genExecuteOnly())
+  if (TM.shouldAssumeDSOLocal(*GV->getParent(), GV) &&
+      !Subtarget->genExecuteOnly() && !Subtarget->isROPI())
     if (SDValue V = promoteToConstantPool(GV, DAG, PtrVT, dl))
       return V;
 
