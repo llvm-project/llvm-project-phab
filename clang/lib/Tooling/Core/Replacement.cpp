@@ -498,12 +498,10 @@ calculateRangesAfterReplacements(const Replacements &Replaces,
     return MergedRanges;
   tooling::Replacements FakeReplaces;
   for (const auto &R : MergedRanges) {
-    auto Err = FakeReplaces.add(Replacement(Replaces.begin()->getFilePath(),
-                                            R.getOffset(), R.getLength(),
-                                            std::string(R.getLength(), ' ')));
-    assert(!Err &&
-           "Replacements must not conflict since ranges have been merged.");
-    llvm::consumeError(std::move(Err));
+    // Replacements must not conflict since ranges have been merged.
+    llvm::cantFail(FakeReplaces.add(
+        Replacement(Replaces.begin()->getFilePath(), R.getOffset(),
+                    R.getLength(), std::string(R.getLength(), ' '))));
   }
   return FakeReplaces.merge(Replaces).getAffectedRanges();
 }
