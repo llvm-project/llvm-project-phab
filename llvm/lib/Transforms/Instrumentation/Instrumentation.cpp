@@ -66,6 +66,7 @@ void llvm::initializeInstrumentation(PassRegistry &Registry) {
   initializePGOMemOPSizeOptLegacyPassPass(Registry);
   initializeInstrProfilingLegacyPassPass(Registry);
   initializeMemorySanitizerPass(Registry);
+  initializeTypeSanitizerPass(Registry);
   initializeThreadSanitizerPass(Registry);
   initializeSanitizerCoverageModulePass(Registry);
   initializeDataFlowSanitizerPass(Registry);

@@ -560,6 +560,7 @@ enum AttributeKindCodes {
   ATTR_KIND_WRITEONLY = 52,
   ATTR_KIND_SPECULATABLE = 53,
   ATTR_KIND_STRICT_FP = 54,
+  ATTR_KIND_SANITIZE_TYPE = 55
 };
 
 enum ComdatSelectionKindCodes {
