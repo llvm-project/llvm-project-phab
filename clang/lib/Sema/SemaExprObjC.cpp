@@ -1320,9 +1320,11 @@ static QualType getBaseMessageSendResultType(Sema &S,
       }
   }
 
-  //   - if the receiver is the name of a class U, T is a pointer to U
+  //   - if the receiver is the name of a class U, T is a pointer to U. U should
+  //     be desugared to avoid 'decltype(self)' propagation.
   if (ReceiverType->getAsObjCInterfaceType())
-    return transferNullability(Context.getObjCObjectPointerType(ReceiverType));
+    return transferNullability(Context.getObjCObjectPointerType(
+        ReceiverType.getDesugaredType(Context)));
   //   - if the receiver is of type Class or qualified Class type,
   //     T is the declared return type of the method.
   if (ReceiverType->isObjCClassType() ||
@@ -2738,10 +2740,31 @@ ExprResult Sema::BuildInstanceMessage(Expr *Receiver,
     } else if (ReceiverType->isObjCClassOrClassKindOfType() ||
                ReceiverType->isObjCQualifiedClassType()) {
       // Handle messages to Class.
+      // Treat messages to 'self' in class methods as class messages when ARC
+      // is enabled (because self can't be reassigned when ARC is on).
+      if (Receiver->isObjCSelfExpr() && getLangOpts().ObjCAutoRefCount) {
+        assert(ReceiverType->isObjCClassType() && "expected a Class self");
+        const ObjCMethodDecl *MD = cast<ObjCMethodDecl>(
+            cast<ImplicitParamDecl>(
+                cast<DeclRefExpr>(Receiver->IgnoreParenImpCasts())->getDecl())
+                ->getDeclContext());
+        assert(MD->isClassMethod() && "expected a class method");
+        QualType ReceiverType =
+            Context.getObjCInterfaceType(MD->getClassInterface());
+        // Use a pseudo-decltype type to keep the expression in the AST.
+        assert(!Receiver->isInstantiationDependent() &&
+               "unexpected dependent expr");
+        ReceiverType = Context.getDecltypeType(Receiver, ReceiverType);
+        return BuildClassMessage(
+            Context.getTrivialTypeSourceInfo(ReceiverType, LBracLoc),
+            ReceiverType,
+            /*SuperLoc=*/SourceLocation(), Sel,
+            /*Method=*/nullptr, LBracLoc, SelectorLocs, RBracLoc, ArgsIn);
+      }
       // We allow sending a message to a qualified Class ("Class<foo>"), which
       // is ok as long as one of the protocols implements the selector (if not,
       // warn).
-      if (!ReceiverType->isObjCClassOrClassKindOfType()) {
+      else if (!ReceiverType->isObjCClassOrClassKindOfType()) {
         const ObjCObjectPointerType *QClassTy
           = ReceiverType->getAsObjCQualifiedClassType();
         // Search protocols for class methods.
