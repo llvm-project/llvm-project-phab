@@ -57,16 +57,29 @@ static void fuseInstructionPair(ScheduleDAGMI &DAG, SUnit &FirstSU,
         dbgs() << DAG.TII->getName(FirstSU.getInstr()->getOpcode()) << " - " <<
                   DAG.TII->getName(SecondSU.getInstr()->getOpcode()) << '\n'; );
 
-  if (&SecondSU != &DAG.ExitSU)
-    // Make instructions dependent on FirstSU also dependent on SecondSU to
-    // prevent them from being scheduled between FirstSU and and SecondSU.
-    for (const SDep &SI : FirstSU.Succs) {
-      if (SI.getSUnit() == &SecondSU)
-        continue;
-      DEBUG(dbgs() << "  Copy Succ ";
-            SI.getSUnit()->print(dbgs(), &DAG); dbgs() << '\n';);
-      DAG.addEdge(SI.getSUnit(), SDep(&SecondSU, SDep::Artificial));
-    }
+  // Make data dependencies from the FirstSU also dependent on the SecondSU to
+  // prevent them from being scheduled between the FirstSU and the SecondSU.
+  for (const SDep &SI : FirstSU.Succs) {
+    SUnit *SU = SI.getSUnit();
+    if (SI.isCtrl() || SU == &SecondSU || SecondSU.isPred(SU))
+      continue;
+    DEBUG(dbgs() << "  Bind ";
+          SecondSU.print(dbgs(), &DAG); dbgs() << " - ";
+          SU->print(dbgs(), &DAG); dbgs() << '\n';);
+    DAG.addEdge(SU, SDep(&SecondSU, SDep::Artificial));
+  }
+
+  // Make the FirstSU also dependent on the dependencies of the SecondSU to
+  // prevent them from being scheduled between the FirstSU and the SecondSU.
+  for (const SDep &SI : SecondSU.Preds) {
+    SUnit *SU = SI.getSUnit();
+    if (SI.isCtrl() || SU == &FirstSU || FirstSU.isPred(SU))
+      continue;
+    DEBUG(dbgs() << "  Bind ";
+          SU->print(dbgs(), &DAG); dbgs() << " - ";
+          FirstSU.print(dbgs(), &DAG); dbgs() << '\n';);
+    DAG.addEdge(&FirstSU, SDep(SU, SDep::Artificial));
+  }
 
   ++NumFused;
 }
