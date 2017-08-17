@@ -511,6 +511,7 @@ static AsanInitializer asan_initializer;
 // ---------------------- Interface ---------------- {{{1
 using namespace __asan;  // NOLINT
 
+SANITIZER_INTERFACE_ATTRIBUTE
 void NOINLINE __asan_handle_no_return() {
   if (asan_init_is_running)
     return;
