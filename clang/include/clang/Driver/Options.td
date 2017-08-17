@@ -1391,6 +1391,8 @@ def fno_debug_macro : Flag<["-"], "fno-debug-macro">, Group<f_Group>, Flags<[Cor
   HelpText<"Do not emit macro debug information">;
 def fstrict_aliasing : Flag<["-"], "fstrict-aliasing">, Group<f_Group>,
   Flags<[DriverOption, CoreOption]>;
+def fforce_tbaa : Flag<["-"], "fforce-tbaa">, Group<f_Group>,
+  Flags<[DriverOption, CoreOption]>;
 def fstrict_enums : Flag<["-"], "fstrict-enums">, Group<f_Group>, Flags<[CC1Option]>,
   HelpText<"Enable optimizations based on the strict definition of an enum's "
            "value range">;

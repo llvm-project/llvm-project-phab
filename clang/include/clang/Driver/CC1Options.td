@@ -224,6 +224,8 @@ def fuse_register_sized_bitfield_access: Flag<["-"], "fuse-register-sized-bitfie
   HelpText<"Use register sized accesses to bit-fields, when possible.">;
 def relaxed_aliasing : Flag<["-"], "relaxed-aliasing">,
   HelpText<"Turn off Type Based Alias Analysis">;
+def force_tbaa : Flag<["-"], "force-tbaa">,
+  HelpText<"Force Type Based Alias Analysis">;
 def no_struct_path_tbaa : Flag<["-"], "no-struct-path-tbaa">,
   HelpText<"Turn off struct-path aware Type Based Alias Analysis">;
 def masm_verbose : Flag<["-"], "masm-verbose">,

@@ -116,6 +116,16 @@ public:
 
   /// Get the scalar tag MDNode for a given scalar type.
   llvm::MDNode *getTBAAScalarTagInfo(llvm::MDNode *AccessNode);
+
+  /// Return true if TBAA info shall not be emitted for regular types.
+  static bool isSuppressedForRegularTypes(const CodeGenOptions &CodeGenOpts);
+  bool isSuppressedForRegularTypes() const {
+    return isSuppressedForRegularTypes(CodeGenOpts);
+  }
+
+  /// Return true if TBAA info shall not be emitted.
+  static bool isSuppressed(const CodeGenOptions &CodeGenOpts,
+                           const LangOptions &LangOpts);
 };
 
 }  // end namespace CodeGen

@@ -2379,6 +2379,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // We turn strict aliasing off by default if we're in CL mode, since MSVC
   // doesn't do any TBAA.
   bool TBAAOnByDefault = !getToolChain().getDriver().IsCLMode();
+  if (Args.hasArg(options::OPT_fforce_tbaa))
+    CmdArgs.push_back("-force-tbaa");
   if (!Args.hasFlag(options::OPT_fstrict_aliasing, StrictAliasingAliasOption,
                     options::OPT_fno_strict_aliasing, TBAAOnByDefault))
     CmdArgs.push_back("-relaxed-aliasing");

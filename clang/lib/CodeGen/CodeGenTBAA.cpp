@@ -90,8 +90,7 @@ static bool TypeHasMayAlias(QualType QTy) {
 
 llvm::MDNode *
 CodeGenTBAA::getTBAAInfo(QualType QTy) {
-  // At -O0 or relaxed aliasing, TBAA is not emitted for regular types.
-  if (CodeGenOpts.OptimizationLevel == 0 || CodeGenOpts.RelaxedAliasing)
+  if(isSuppressedForRegularTypes())
     return nullptr;
 
   // If the type has the may_alias attribute (even on a typedef), it is
@@ -326,4 +325,20 @@ CodeGenTBAA::getTBAAScalarTagInfo(llvm::MDNode *AccessNode) {
 
   return ScalarTagMetadataCache[AccessNode] =
     MDHelper.createTBAAStructTagNode(AccessNode, AccessNode, 0);
+}
+
+bool
+CodeGenTBAA::isSuppressedForRegularTypes(const CodeGenOptions &CodeGenOpts) {
+  if (CodeGenOpts.ForceTBAA)
+    return false;
+  return CodeGenOpts.RelaxedAliasing || CodeGenOpts.OptimizationLevel == 0;
+}
+
+bool CodeGenTBAA::isSuppressed(const CodeGenOptions &CodeGenOpts,
+                               const LangOptions &LangOpts) {
+  // ThreadSanitizer needs TBAA info for virtual table accesses even at -O0;
+  // see r155430.
+  if (LangOpts.Sanitize.has(SanitizerKind::Thread))
+    return false;
+  return isSuppressedForRegularTypes(CodeGenOpts);
 }

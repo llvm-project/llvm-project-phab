@@ -129,10 +129,9 @@ CodeGenModule::CodeGenModule(ASTContext &C, const HeaderSearchOptions &HSO,
   if (LangOpts.CUDA)
     createCUDARuntime();
 
-  // Enable TBAA unless it's suppressed. ThreadSanitizer needs TBAA even at O0.
-  if (LangOpts.Sanitize.has(SanitizerKind::Thread) ||
-      (!CodeGenOpts.RelaxedAliasing && CodeGenOpts.OptimizationLevel > 0))
-    TBAA.reset(new CodeGenTBAA(Context, VMContext, CodeGenOpts, getLangOpts(),
+  // Enable TBAA unless it's suppressed.
+  if (!CodeGenTBAA::isSuppressed(CodeGenOpts, LangOpts))
+    TBAA.reset(new CodeGenTBAA(Context, VMContext, CodeGenOpts, LangOpts,
                                getCXXABI().getMangleContext()));
 
   // If debug info or coverage generation is enabled, create the CGDebugInfo
