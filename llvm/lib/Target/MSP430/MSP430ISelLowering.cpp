@@ -38,6 +38,15 @@ using namespace llvm;
 
 #define DEBUG_TYPE "msp430-lower"
 
+// Limit on number of instructions the lowered multiplication may have before a
+// call to the library function should be generated instead.
+static cl::opt<unsigned> ConstantMulThreshold(
+    "msp430-constant-mul-threshold", cl::Hidden,
+    cl::desc(
+        "Maximum number of instructions to generate when lowering constant "
+        "multiplication instead of calling a library function [default=10]"),
+    cl::init(10));
+
 MSP430TargetLowering::MSP430TargetLowering(const TargetMachine &TM,
                                            const MSP430Subtarget &STI)
     : TargetLowering(TM) {
@@ -112,13 +121,12 @@ MSP430TargetLowering::MSP430TargetLowering(const TargetMachine &TM,
 
   setOperationAction(ISD::SIGN_EXTEND_INREG, MVT::i1,   Expand);
 
-  // FIXME: Implement efficiently multiplication by a constant
-  setOperationAction(ISD::MUL,              MVT::i8,    Promote);
+  setOperationAction(ISD::MUL,              MVT::i8,    Custom);
   setOperationAction(ISD::MULHS,            MVT::i8,    Promote);
   setOperationAction(ISD::MULHU,            MVT::i8,    Promote);
   setOperationAction(ISD::SMUL_LOHI,        MVT::i8,    Promote);
   setOperationAction(ISD::UMUL_LOHI,        MVT::i8,    Promote);
-  setOperationAction(ISD::MUL,              MVT::i16,   LibCall);
+  setOperationAction(ISD::MUL,              MVT::i16,   Custom);
   setOperationAction(ISD::MULHS,            MVT::i16,   Expand);
   setOperationAction(ISD::MULHU,            MVT::i16,   Expand);
   setOperationAction(ISD::SMUL_LOHI,        MVT::i16,   Expand);
@@ -342,6 +350,7 @@ SDValue MSP430TargetLowering::LowerOperation(SDValue Op,
   case ISD::FRAMEADDR:        return LowerFRAMEADDR(Op, DAG);
   case ISD::VASTART:          return LowerVASTART(Op, DAG);
   case ISD::JumpTable:        return LowerJumpTable(Op, DAG);
+  case ISD::MUL:              return LowerMUL(Op, DAG);
   default:
     llvm_unreachable("unimplemented operand");
   }
@@ -1296,6 +1305,60 @@ SDValue MSP430TargetLowering::LowerJumpTable(SDValue Op,
     auto PtrVT = getPointerTy(DAG.getDataLayout());
     SDValue Result = DAG.getTargetJumpTable(JT->getIndex(), PtrVT);
     return DAG.getNode(MSP430ISD::Wrapper, SDLoc(JT), PtrVT, Result);
+}
+
+SDValue MSP430TargetLowering::LowerMUL(SDValue Op, SelectionDAG &DAG) const {
+  EVT VT = Op->getValueType(0);
+  if (VT != MVT::i8 && VT != MVT::i16)
+    return SDValue();
+
+  SDLoc DL(Op);
+
+  ConstantSDNode *C = dyn_cast<ConstantSDNode>(Op->getOperand(1));
+  if (!C) {
+    if (VT == MVT::i8) {
+      // If the argument is i8 and is not a constant, we need to promote the mul
+      // to i16, because we don't have a libcall for i8
+      return PromoteMULi8(Op, DAG);
+    }
+    return SDValue();
+  }
+
+  // Estimate the number of operations required to multiply by this constant
+  uint64_t MulAmt = C->getZExtValue();
+  unsigned NumberOfOps = 0;
+  while (MulAmt > 0) {
+    if (MulAmt % 2 == 1) {
+      NumberOfOps += 1;
+      int Z = 2 - (MulAmt % 4);
+      MulAmt -= Z;
+    }
+    NumberOfOps += 1;
+    MulAmt >>= 1;
+  }
+
+  if (NumberOfOps > ConstantMulThreshold) {
+    if (VT == MVT::i8)
+      return PromoteMULi8(Op, DAG);
+    return SDValue();
+  }
+
+  return DAG.getMulByConstant(Op->getOperand(0), C->getZExtValue(), DL, VT,
+                              getScalarShiftAmountTy(DAG.getDataLayout(), VT));
+}
+
+SDValue MSP430TargetLowering::PromoteMULi8(SDValue Op,
+                                           SelectionDAG &DAG) const {
+  EVT VT = Op->getValueType(0);
+  assert((VT == MVT::i8) && "Unexpected value type");
+  assert((Op->getOpcode() == ISD::MUL) && "Unexpected opcode");
+
+  SDLoc DL(Op);
+  SDValue Tmp1, Tmp2;
+  Tmp1 = DAG.getNode(ISD::ANY_EXTEND, DL, MVT::i16, Op->getOperand(0));
+  Tmp2 = DAG.getNode(ISD::ANY_EXTEND, DL, MVT::i16, Op->getOperand(1));
+  Tmp1 = DAG.getNode(ISD::MUL, DL, MVT::i16, Tmp1, Tmp2);
+  return DAG.getNode(ISD::TRUNCATE, DL, MVT::i8, Tmp1);
 }
 
 /// getPostIndexedAddressParts - returns true by value, base pointer and

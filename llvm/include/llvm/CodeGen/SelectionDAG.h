@@ -917,6 +917,12 @@ public:
                    LHS, RHS, True, False, getCondCode(Cond));
   }
 
+  /// Creates a node for multiplication by a constant using a sequence of bit
+  /// shifts, ADDs and SUBs. For some constants may produce a very long
+  /// sequences.
+  SDValue getMulByConstant(SDValue X, uint64_t C, const SDLoc &DL, EVT VT,
+                           EVT ShiftTy);
+
   /// VAArg produces a result and token chain, and takes a pointer
   /// and a source value as input.
   SDValue getVAArg(EVT VT, const SDLoc &dl, SDValue Chain, SDValue Ptr,

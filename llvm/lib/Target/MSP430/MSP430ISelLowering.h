@@ -95,7 +95,9 @@ namespace llvm {
     SDValue LowerFRAMEADDR(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerVASTART(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerJumpTable(SDValue Op, SelectionDAG &DAG) const;
+    SDValue LowerMUL(SDValue Op, SelectionDAG &DAG) const;
     SDValue getReturnAddressFrameIndex(SelectionDAG &DAG) const;
+    SDValue PromoteMULi8(SDValue Op, SelectionDAG &DAG) const;
 
     TargetLowering::ConstraintType
     getConstraintType(StringRef Constraint) const override;
