@@ -415,6 +415,43 @@ public:
       TIdInfo = llvm::make_unique<TypeIdInfo>();
     TIdInfo->TypeTests.push_back(Guid);
   }
+
+  friend struct GraphTraits<FunctionSummary *>;
+};
+
+/// GraphTraits definition to build SCC for the index
+template <> struct GraphTraits<FunctionSummary *> {
+  typedef FunctionSummary *NodeRef;
+
+  static NodeRef fsumFromEdge(FunctionSummary::EdgeTy &P) {
+    if (P.first.Ref && P.first.getSummaryList().size())
+      return cast<FunctionSummary>(P.first.getSummaryList().front().get());
+    static auto ExternalCallee = llvm::make_unique<FunctionSummary>(
+        FunctionSummary::GVFlags(
+            GlobalValue::LinkageTypes::AvailableExternallyLinkage, true, false),
+        0, FunctionSummary::FFlags{}, std::vector<ValueInfo>(),
+        std::vector<FunctionSummary::EdgeTy>(),
+        std::vector<GlobalValue::GUID>(),
+        std::vector<FunctionSummary::VFuncId>(),
+        std::vector<FunctionSummary::VFuncId>(),
+        std::vector<FunctionSummary::ConstVCall>(),
+        std::vector<FunctionSummary::ConstVCall>());
+    return ExternalCallee.get();
+  }
+  using ChildIteratorType =
+      mapped_iterator<std::vector<FunctionSummary::EdgeTy>::iterator,
+                      decltype(&fsumFromEdge)>;
+
+  // Use the first callee as the entry node
+  static NodeRef getEntryNode(FunctionSummary *F) { return F; }
+
+  static ChildIteratorType child_begin(NodeRef N) {
+    return ChildIteratorType(N->CallGraphEdgeList.begin(), &fsumFromEdge);
+  }
+
+  static ChildIteratorType child_end(NodeRef N) {
+    return ChildIteratorType(N->CallGraphEdgeList.end(), &fsumFromEdge);
+  }
 };
 
 template <> struct DenseMapInfo<FunctionSummary::VFuncId> {
@@ -566,6 +603,8 @@ private:
   /// considered live.
   bool WithGlobalValueDeadStripping = false;
 
+  std::unique_ptr<FunctionSummary> CallGraphRoot;
+
   std::set<std::string> CfiFunctionDefs;
   std::set<std::string> CfiFunctionDecls;
 
@@ -583,6 +622,61 @@ public:
   gvsummary_iterator end() { return GlobalValueMap.end(); }
   const_gvsummary_iterator end() const { return GlobalValueMap.end(); }
   size_t size() const { return GlobalValueMap.size(); }
+
+  // Lazily get callgraph root
+  FunctionSummary *getCallGraphRoot() {
+    // Return already calculated root
+    if (CallGraphRoot)
+      return CallGraphRoot.get();
+
+    // Find callgraph root
+    std::map<FunctionSummary *, bool> FunctionHasParent;
+    auto isDiscovered = [&FunctionHasParent](FunctionSummary *F) {
+      return FunctionHasParent.count(F) == 1;
+    };
+
+    std::function<void(FunctionSummary *)> discoverNodes =
+        [&](FunctionSummary *F) {
+          if (!isDiscovered(F))
+            // If it's not in the map yet, we've discovered a new node
+            FunctionHasParent[F] = false;
+          for (auto I = GraphTraits<FunctionSummary *>::child_begin(F);
+               I != GraphTraits<FunctionSummary *>::child_end(F); I++) {
+            FunctionHasParent[*I] = true;
+            if (!isDiscovered(*I))
+              discoverNodes(*I);
+          }
+        };
+
+    for (auto &S : *this) {
+      FunctionSummary *FS;
+      if (!S.second.SummaryList.size() ||
+          !(FS = dyn_cast<FunctionSummary>(S.second.SummaryList.front().get())))
+        continue;
+      discoverNodes(FS);
+    }
+
+    std::vector<FunctionSummary::EdgeTy> Edges;
+    // create edges to all roots in the Index
+    for (auto &P : FunctionHasParent) {
+      if (!P.second) {
+        ValueInfo V = getOrInsertValueInfo(P.first->getOriginalName());
+        assert(V.Ref && V.getSummaryList().size());
+        Edges.push_back(std::make_pair(V, CalleeInfo{}));
+      }
+    }
+    assert(Edges.size() && "Couldn't find any roots in index callgraph!");
+    CallGraphRoot = llvm::make_unique<FunctionSummary>(
+        FunctionSummary::GVFlags(
+            GlobalValue::LinkageTypes::AvailableExternallyLinkage, true, false),
+        0, FunctionSummary::FFlags{}, std::vector<ValueInfo>(),
+        std::move(Edges), std::vector<GlobalValue::GUID>(),
+        std::vector<FunctionSummary::VFuncId>(),
+        std::vector<FunctionSummary::VFuncId>(),
+        std::vector<FunctionSummary::ConstVCall>(),
+        std::vector<FunctionSummary::ConstVCall>());
+    return CallGraphRoot.get();
+  }
 
   bool withGlobalValueDeadStripping() const {
     return WithGlobalValueDeadStripping;
@@ -769,6 +863,14 @@ public:
   /// Summary).
   void collectDefinedGVSummariesPerModule(
       StringMap<GVSummaryMapTy> &ModuleToDefinedGVSummaries) const;
+};
+
+template <>
+struct GraphTraits<ModuleSummaryIndex *>
+    : public GraphTraits<FunctionSummary *> {
+  static NodeRef getEntryNode(ModuleSummaryIndex *I) {
+    return I->getCallGraphRoot();
+  }
 };
 
 } // end namespace llvm
