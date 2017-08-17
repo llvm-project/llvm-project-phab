@@ -415,6 +415,7 @@ Error lto::thinBackend(Config &Conf, unsigned Task, AddStreamFn AddStream,
   renameModuleForThinLTO(Mod, CombinedIndex);
 
   thinLTOResolveWeakForLinkerModule(Mod, DefinedGlobals);
+  thinLTOInsertFunctionAttrsForModule(Mod, CombinedIndex);
 
   if (Conf.PostPromoteModuleHook && !Conf.PostPromoteModuleHook(Task, Mod))
     return Error::success();

@@ -1048,6 +1048,7 @@ Error LTO::runThinLTO(AddStreamFn AddStream, NativeObjectCache Cache,
     if (!ModuleToDefinedGVSummaries.count(Mod.first))
       ModuleToDefinedGVSummaries.try_emplace(Mod.first);
 
+  propagateFunctionAttrs(ThinLTO.CombinedIndex);
   StringMap<FunctionImporter::ImportMapTy> ImportLists(
       ThinLTO.ModuleMap.size());
   StringMap<FunctionImporter::ExportSetTy> ExportLists(

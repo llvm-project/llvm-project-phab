@@ -13,6 +13,7 @@
 
 #include "llvm/Transforms/IPO/FunctionImport.h"
 
+#include "llvm/ADT/SCCIterator.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/StringSet.h"
@@ -40,6 +41,12 @@ STATISTIC(NumImportedFunctions, "Number of functions imported");
 STATISTIC(NumImportedModules, "Number of modules imported from");
 STATISTIC(NumDeadSymbols, "Number of dead stripped symbols in index");
 STATISTIC(NumLiveSymbols, "Number of live symbols in index");
+STATISTIC(NumReadOnly,
+          "Number of of functions marked readonly from summary propagation");
+STATISTIC(NumReadNone,
+          "Number of of functions marked readnone from summary propagation");
+STATISTIC(NumNoRecurse,
+          "Number of of functions marked norecurse from summary propagation");
 
 /// Limit on instruction count of imported functions.
 static cl::opt<unsigned> ImportInstrLimit(
@@ -410,6 +417,77 @@ void llvm::ComputeCrossModuleImportForModule(
 #endif
 }
 
+/// Propagates ReadOnly/ReadNone and NoRecurse attributes throughout
+/// the Index (uses same method as FunctionAttrs pass)
+void llvm::propagateFunctionAttrs(ModuleSummaryIndex &Index) {
+  auto addReadAttrs = [](std::vector<FunctionSummary *> &SCCNodes) {
+    bool ReadsMemory = false;
+    for (FunctionSummary *F : SCCNodes) {
+      if (!(F->fflags().ReadOnly || F->fflags().ReadNone))
+        return false; // may write memory
+      if (F->fflags().ReadOnly)
+        ReadsMemory = true;
+    }
+
+    bool MadeChange = false;
+    for (FunctionSummary *F : SCCNodes) {
+      if (F->fflags().ReadNone || (F->fflags().ReadOnly && ReadsMemory))
+        continue; // flags are already correct
+      MadeChange = true;
+      if (ReadsMemory) {
+        NumReadOnly++;
+        F->fflags().ReadOnly = true;
+        F->fflags().ReadNone = false;
+      } else {
+        NumReadNone++;
+        F->fflags().ReadOnly = false;
+        F->fflags().ReadNone = true;
+      }
+    }
+    return MadeChange;
+  };
+
+  // TODO: implement addNoAliasAttrs once
+  // there's more information about the return type in the summary
+
+  auto addNoRecurseAttrs = [](std::vector<FunctionSummary *> &SCCNodes) {
+    if (SCCNodes.size() != 1)
+      return false;
+
+    FunctionSummary *F = SCCNodes.front();
+
+    if (F->getOriginalName() == 0 || F->fflags().NoRecurse)
+      return false;
+
+    if (std::any_of(
+            F->calls().begin(), F->calls().end(),
+            [&F](const FunctionSummary::EdgeTy &E) {
+              if (E.first.getGUID() == 0 || !E.first.getSummaryList().size())
+                return false;
+              FunctionSummary *CFS =
+                  cast<FunctionSummary>(E.first.getSummaryList().front().get());
+              return E.first.getGUID() == F->getOriginalName() ||
+                     CFS->fflags().NoRecurse;
+            }))
+      return false;
+
+    if (!F->fflags().NoRecurse) {
+      F->fflags().NoRecurse = true;
+      NumNoRecurse++;
+      return true;
+    }
+    return false;
+  };
+
+  // Call propagation functions on each SCC in the Index
+  for (scc_iterator<ModuleSummaryIndex *> I = scc_begin(&Index); !I.isAtEnd();
+       ++I) {
+    std::vector<FunctionSummary *> Nodes(*I);
+    bool Changed = addReadAttrs(Nodes);
+    Changed |= addNoRecurseAttrs(Nodes);
+  }
+}
+
 void llvm::computeDeadSymbols(
     ModuleSummaryIndex &Index,
     const DenseSet<GlobalValue::GUID> &GUIDPreservedSymbols) {
@@ -512,6 +590,22 @@ llvm::EmitImportsFiles(StringRef ModulePath, StringRef OutputFilename,
   for (auto &ILI : ModuleImports)
     ImportsOS << ILI.first() << "\n";
   return std::error_code();
+}
+
+/// Insert function attributes in the Index back into the \p TheModule.
+void llvm::thinLTOInsertFunctionAttrsForModule(
+    Module &TheModule, const ModuleSummaryIndex &Index) {
+  for (Function &F : TheModule) {
+    GlobalValueSummary *GV;
+    if (!(GV =
+              Index.findSummaryInModule(F.getGUID(), F.getParent()->getName())))
+      continue; // skip functions that aren't in the index
+    FunctionSummary *FS = cast<FunctionSummary>(GV);
+    if (FS->fflags().ReadNone)
+      F.setDoesNotAccessMemory();
+    if (FS->fflags().ReadOnly)
+      F.setOnlyReadsMemory();
+  }
 }
 
 /// Fixup WeakForLinker linkages in \p TheModule based on summary analysis.
