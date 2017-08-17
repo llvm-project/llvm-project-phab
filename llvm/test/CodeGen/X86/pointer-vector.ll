@@ -132,9 +132,8 @@ define <4 x i32> @ICMP0(<4 x i8*>* %p0, <4 x i8*>* %p1) nounwind {
 ; CHECK-NEXT:    movl {{[0-9]+}}(%esp), %ecx
 ; CHECK-NEXT:    movdqa (%ecx), %xmm0
 ; CHECK-NEXT:    pcmpgtd (%eax), %xmm0
-; CHECK-NEXT:    movaps {{.*#+}} xmm1 = [9,8,7,6]
-; CHECK-NEXT:    blendvps %xmm0, {{\.LCPI.*}}, %xmm1
-; CHECK-NEXT:    movaps %xmm1, %xmm0
+; CHECK-NEXT:    pand {{\.LCPI.*}}, %xmm0
+; CHECK-NEXT:    pxor {{\.LCPI.*}}, %xmm0
 ; CHECK-NEXT:    retl
 entry:
   %g0 = load <4 x i8*>, <4 x i8*>* %p0
@@ -151,9 +150,8 @@ define <4 x i32> @ICMP1(<4 x i8*>* %p0, <4 x i8*>* %p1) nounwind {
 ; CHECK-NEXT:    movl {{[0-9]+}}(%esp), %ecx
 ; CHECK-NEXT:    movdqa (%ecx), %xmm0
 ; CHECK-NEXT:    pcmpeqd (%eax), %xmm0
-; CHECK-NEXT:    movaps {{.*#+}} xmm1 = [9,8,7,6]
-; CHECK-NEXT:    blendvps %xmm0, {{\.LCPI.*}}, %xmm1
-; CHECK-NEXT:    movaps %xmm1, %xmm0
+; CHECK-NEXT:    pand {{\.LCPI.*}}, %xmm0
+; CHECK-NEXT:    pxor {{\.LCPI.*}}, %xmm0
 ; CHECK-NEXT:    retl
 entry:
   %g0 = load <4 x i8*>, <4 x i8*>* %p0
