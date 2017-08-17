@@ -336,14 +336,6 @@ static bool hasIrregularType(Type *Ty, const DataLayout &DL, unsigned VF) {
   return DL.getTypeAllocSizeInBits(Ty) != DL.getTypeSizeInBits(Ty);
 }
 
-/// A helper function that returns the reciprocal of the block probability of
-/// predicated blocks. If we return X, we are assuming the predicated block
-/// will execute once for for every X iterations of the loop header.
-///
-/// TODO: We should use actual block probability here, if available. Currently,
-///       we always assume predicated blocks have a 50% chance of executing.
-static unsigned getReciprocalPredBlockProb() { return 2; }
-
 /// A helper function that adds a 'fast' flag to floating-point operations.
 static Value *addFastMathFlag(Value *V) {
   if (isa<FPMathOperator>(V)) {
@@ -1815,9 +1807,10 @@ public:
                              const TargetLibraryInfo *TLI, DemandedBits *DB,
                              AssumptionCache *AC,
                              OptimizationRemarkEmitter *ORE, const Function *F,
-                             const LoopVectorizeHints *Hints)
+                             const LoopVectorizeHints *Hints,
+                             BlockFrequencyInfo *BFI )
       : TheLoop(L), PSE(PSE), LI(LI), Legal(Legal), TTI(TTI), TLI(TLI), DB(DB),
-        AC(AC), ORE(ORE), TheFunction(F), Hints(Hints) {}
+        AC(AC), ORE(ORE), TheFunction(F), Hints(Hints), BFI(BFI) {}
 
   /// \return An upper bound for the vectorization factor, or None if
   /// vectorization should be avoided up front.
@@ -2002,6 +1995,19 @@ public:
     return Legal->isInductionVariable(Op);
   }
 
+  /// Returns the reciprocal of the block probability of predicated blocks
+  /// If we return X, we are assuming the predicated block will execute
+  /// once for for every X iterations of the loop header.
+
+  unsigned getReciprocalPredBlockProb(const BasicBlock *BB) const {
+    if (!BFI || (BFI->getBlockFreq(BB)).getFrequency() == 0 ||
+        (BFI->getBlockFreq(TheLoop->getHeader())).getFrequency() == 0)
+      return 2;
+    return (BFI->getBlockFreq(TheLoop->getHeader())).getFrequency() /
+           (BFI->getBlockFreq(BB)).getFrequency();
+  }
+
+
 private:
   /// \return An upper bound for the vectorization factor, larger than zero.
   /// One is returned if vectorization should best be avoided due to cost.
@@ -2168,6 +2174,8 @@ public:
   const Function *TheFunction;
   /// Loop Vectorize Hint.
   const LoopVectorizeHints *Hints;
+  /// Block Frequency Info
+  BlockFrequencyInfo *BFI;
   /// Values to ignore in the cost model.
   SmallPtrSet<const Value *, 16> ValuesToIgnore;
   /// Values to ignore in the cost model when VF > 1.
@@ -6929,7 +6937,7 @@ int LoopVectorizationCostModel::computePredInstDiscount(
       }
 
     // Scale the total scalar cost by block probability.
-    ScalarCost /= getReciprocalPredBlockProb();
+    ScalarCost /= getReciprocalPredBlockProb(I->getParent());
 
     // Compute the discount. A non-negative discount means the vector version
     // of the instruction costs more, and scalarizing would be beneficial.
@@ -6983,8 +6991,13 @@ LoopVectorizationCostModel::expectedCost(unsigned VF) {
     // unconditionally executed. For the scalar case, we may not always execute
     // the predicated block. Thus, scale the block's cost by the probability of
     // executing it.
-    if (VF == 1 && Legal->blockNeedsPredication(BB))
-      BlockCost.first /= getReciprocalPredBlockProb();
+    if (VF == 1 && Legal->blockNeedsPredication(BB)) {
+      BlockCost.first /= getReciprocalPredBlockProb(BB);
+      DEBUG(dbgs() << "LV: Found an estimated cost of " << BlockCost.first
+                   << " for VF " << VF << " For BasicBlock: " << BB->getName()
+                   << '\n');
+    }
+
 
     Cost.first += BlockCost.first;
     Cost.second |= BlockCost.second;
@@ -7055,7 +7068,7 @@ unsigned LoopVectorizationCostModel::getMemInstScalarizationCost(Instruction *I,
   // lane. Scale the cost by the probability of executing the predicated
   // block.
   if (Legal->isScalarWithPredication(I))
-    Cost /= getReciprocalPredBlockProb();
+    Cost /= getReciprocalPredBlockProb(I->getParent());
 
   return Cost;
 }
@@ -7398,7 +7411,7 @@ unsigned LoopVectorizationCostModel::getInstructionCost(Instruction *I,
       // Scale the cost by the probability of executing the predicated blocks.
       // This assumes the predicated block for each vector lane is equally
       // likely.
-      return Cost / getReciprocalPredBlockProb();
+      return Cost / getReciprocalPredBlockProb(I->getParent());
     }
     LLVM_FALLTHROUGH;
   case Instruction::Add:
@@ -7862,7 +7875,7 @@ bool LoopVectorizePass::processLoop(Loop *L) {
 
   // Use the cost model.
   LoopVectorizationCostModel CM(L, PSE, LI, &LVL, *TTI, TLI, DB, AC, ORE, F,
-                                &Hints);
+                                &Hints, BFI);
   CM.collectValuesToIgnore();
 
   // Use the planner for vectorization.
