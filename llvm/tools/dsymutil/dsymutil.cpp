@@ -163,13 +163,13 @@ static bool createBundleDir(llvm::StringRef BundleBase) {
 
 static std::error_code getUniqueFile(const llvm::Twine &Model, int &ResultFD,
                                      llvm::SmallVectorImpl<char> &ResultPath) {
-  // If in NoOutput mode, use the createUniqueFile variant that
+  // If in NoOutput mode, use the getPotentiallyUniqueFileName that
   // doesn't open the file but still generates a somewhat unique
   // name. In the real usage scenario, we'll want to ensure that the
   // file is trully unique, and creating it is the only way to achieve
   // that.
   if (NoOutput)
-    return llvm::sys::fs::createUniqueFile(Model, ResultPath);
+    return llvm::sys::fs::getPotentiallyUniqueFileName(Model, ResultPath);
   return llvm::sys::fs::createUniqueFile(Model, ResultFD, ResultPath);
 }
 
