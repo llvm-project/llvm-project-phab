@@ -11,9 +11,8 @@ entry:
   %i.addr = alloca i16, align 2
   store i16 %i, i16* %i.addr, align 2
   %0 = load i16, i16* %i.addr, align 2
-; CHECK: mov.w #2, r13
-; CHECK: call #__mspabi_mpyi
-; CHECK: br .LJTI0_0(r12)
+; CHECK: rla.w [[REG:r[0-9]+]]
+; CHECK: br .LJTI0_0([[REG]])
   switch i16 %0, label %sw.default [
     i16 0, label %sw.bb
     i16 1, label %sw.bb1

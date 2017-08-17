@@ -6125,6 +6125,45 @@ SDValue SelectionDAG::getMaskedScatter(SDVTList VTs, EVT VT, const SDLoc &dl,
   return SDValue(N, 0);
 }
 
+SDValue SelectionDAG::getMulByConstant(SDValue X, uint64_t C, const SDLoc &DL,
+                                       EVT VT, EVT ShiftTy) {
+  assert(VT.getSizeInBits() <= 64 && "Unsupported value size");
+
+  // Clear the upper (64 - VT.sizeInBits) bits.
+  C &= ((uint64_t)-1) >> (64 - VT.getSizeInBits());
+
+  // Return 0.
+  if (C == 0)
+    return getConstant(0, DL, VT);
+
+  // Return x.
+  if (C == 1)
+    return X;
+
+  // If c is power of 2, return (shl x, log2(c)).
+  if (isPowerOf2_64(C))
+    return getNode(ISD::SHL, DL, VT, X, getConstant(Log2_64(C), DL, ShiftTy));
+
+  unsigned Log2Ceil = Log2_64_Ceil(C);
+  uint64_t Floor = 1LL << Log2_64(C);
+  uint64_t Ceil = Log2Ceil == 64 ? 0LL : 1LL << Log2Ceil;
+
+  // If |c - floor_c| <= |c - ceil_c|,
+  // where floor_c = pow(2, floor(log2(c))) and ceil_c = pow(2, ceil(log2(c))),
+  // return (add constMult(x, floor_c), constMult(x, c - floor_c)).
+  if (C - Floor <= Ceil - C) {
+    SDValue Op0 = getMulByConstant(X, Floor, DL, VT, ShiftTy);
+    SDValue Op1 = getMulByConstant(X, C - Floor, DL, VT, ShiftTy);
+    return getNode(ISD::ADD, DL, VT, Op0, Op1);
+  }
+
+  // If |c - floor_c| > |c - ceil_c|,
+  // return (sub constMult(x, ceil_c), constMult(x, ceil_c - c)).
+  SDValue Op0 = getMulByConstant(X, Ceil, DL, VT, ShiftTy);
+  SDValue Op1 = getMulByConstant(X, Ceil - C, DL, VT, ShiftTy);
+  return getNode(ISD::SUB, DL, VT, Op0, Op1);
+}
+
 SDValue SelectionDAG::getVAArg(EVT VT, const SDLoc &dl, SDValue Chain,
                                SDValue Ptr, SDValue SV, unsigned Align) {
   SDValue Ops[] = { Chain, Ptr, SV, getTargetConstant(Align, dl, MVT::i32) };
