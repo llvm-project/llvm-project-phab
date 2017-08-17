@@ -737,7 +737,8 @@ private:
   std::vector<FunctionSummary::EdgeTy> makeCallList(ArrayRef<uint64_t> Record,
                                                     bool IsOldProfileFormat,
                                                     bool HasProfile);
-  Error parseEntireSummary(unsigned ID);
+  Error parseEntireSummary(unsigned ID,
+                           DenseMap<unsigned, uint64_t> &PersonalityMap);
   Error parseModuleStringTable();
 
   std::pair<ValueInfo, GlobalValue::GUID>
@@ -4879,6 +4880,7 @@ Error ModuleSummaryIndexBitcodeReader::parseModule() {
 
   SmallVector<uint64_t, 64> Record;
   DenseMap<unsigned, GlobalValue::LinkageTypes> ValueIdToLinkageMap;
+  DenseMap<unsigned, uint64_t> PersonalityMap;
   unsigned ValueId = 0;
 
   // Read the index for this module.
@@ -4925,7 +4927,7 @@ Error ModuleSummaryIndexBitcodeReader::parseModule() {
           SeenValueSymbolTable = true;
         }
         SeenGlobalValSummary = true;
-        if (Error Err = parseEntireSummary(Entry.ID))
+        if (Error Err = parseEntireSummary(Entry.ID, PersonalityMap))
           return Err;
         break;
       case bitc::MODULE_STRTAB_BLOCK_ID:
@@ -4987,6 +4989,13 @@ Error ModuleSummaryIndexBitcodeReader::parseModule() {
           std::tie(Name, GVRecord) = readNameFromStrtab(Record);
           if (GVRecord.size() <= 3)
             return error("Invalid record");
+
+          // Remember personality routine if exist. If non-zero, the value in
+          // GVRecord is index of the personality function routine plus 1.
+          if (BitCode == bitc::MODULE_CODE_FUNCTION)
+            if (GVRecord.size() >= 15 && GVRecord[14] != 0)
+              PersonalityMap[ValueId] = GVRecord[14] - 1;
+
           uint64_t RawLinkage = GVRecord[3];
           GlobalValue::LinkageTypes Linkage = getDecodedLinkage(RawLinkage);
           if (!UseStrtab) {
@@ -5033,7 +5042,8 @@ std::vector<FunctionSummary::EdgeTy> ModuleSummaryIndexBitcodeReader::makeCallLi
 
 // Eagerly parse the entire summary block. This populates the GlobalValueSummary
 // objects in the index.
-Error ModuleSummaryIndexBitcodeReader::parseEntireSummary(unsigned ID) {
+Error ModuleSummaryIndexBitcodeReader::parseEntireSummary(
+    unsigned ID, DenseMap<unsigned, uint64_t> &PersonalityMap) {
   if (Stream.EnterSubBlock(ID))
     return error("Invalid record");
   SmallVector<uint64_t, 64> Record;
@@ -5149,6 +5159,9 @@ Error ModuleSummaryIndexBitcodeReader::parseEntireSummary(unsigned ID) {
       auto VIAndOriginalGUID = getValueInfoFromValueId(ValueID);
       FS->setModulePath(addThisModule()->first());
       FS->setOriginalName(VIAndOriginalGUID.second);
+      auto It = PersonalityMap.find(ValueID);
+      if (It != PersonalityMap.end())
+        FS->setPersonality(getValueInfoFromValueId(It->second).first);
       TheIndex.addGlobalValueSummary(VIAndOriginalGUID.first, std::move(FS));
       break;
     }

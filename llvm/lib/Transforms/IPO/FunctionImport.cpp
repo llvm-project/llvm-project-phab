@@ -457,9 +457,12 @@ void llvm::computeDeadSymbols(
     for (auto &Summary : VI.getSummaryList()) {
       for (auto Ref : Summary->refs())
         visit(Ref);
-      if (auto *FS = dyn_cast<FunctionSummary>(Summary.get()))
+      if (auto *FS = dyn_cast<FunctionSummary>(Summary.get())) {
         for (auto Call : FS->calls())
           visit(Call.first);
+        if (Optional<ValueInfo> P = FS->getPersonality())
+          visit(*P);
+      }
       if (auto *AS = dyn_cast<AliasSummary>(Summary.get())) {
         auto AliaseeGUID = AS->getAliasee().getOriginalName();
         ValueInfo AliaseeVI = Index.getValueInfo(AliaseeGUID);

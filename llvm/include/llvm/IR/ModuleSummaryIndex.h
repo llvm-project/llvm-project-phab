@@ -329,6 +329,8 @@ private:
 
   std::unique_ptr<TypeIdInfo> TIdInfo;
 
+  llvm::Optional<ValueInfo> PersonalityInfo;
+
 public:
   FunctionSummary(GVFlags Flags, unsigned NumInsts, FFlags FunFlags,
                   std::vector<ValueInfo> Refs, std::vector<EdgeTy> CGEdges,
@@ -363,6 +365,10 @@ public:
 
   /// Return the list of <CalleeValueInfo, CalleeInfo> pairs.
   ArrayRef<EdgeTy> calls() const { return CallGraphEdgeList; }
+
+  llvm::Optional<ValueInfo> getPersonality() { return PersonalityInfo; }
+
+  void setPersonality(ValueInfo Personality) { PersonalityInfo = Personality; }
 
   /// Returns the list of type identifiers used by this function in
   /// llvm.type.test intrinsics other than by an llvm.assume intrinsic,
