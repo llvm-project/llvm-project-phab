@@ -142,6 +142,17 @@ void Timer::stopTimer() {
   Time -= StartTime;
 }
 
+void RefCntTimer::startTimer() {
+  if (RefCount == 0) Timer::startTimer();
+  RefCount += 1;
+}
+
+void RefCntTimer::stopTimer() {
+  assert(RefCount != 0 && "Cannot stop a reference counted timer more times than it has been started");
+  RefCount -= 1;
+  if (RefCount == 0) Timer::stopTimer();
+}
+
 void Timer::clear() {
   Running = Triggered = false;
   Time = StartTime = TimeRecord();

@@ -98,7 +98,7 @@ public:
     assert(!TG && !T.TG && "Can only assign uninit timers");
     return *this;
   }
-  ~Timer();
+  virtual ~Timer();
 
   /// Create an uninitialized timer, client must use 'init'.
   explicit Timer() {}
@@ -118,10 +118,10 @@ public:
   /// Start the timer running.  Time between calls to startTimer/stopTimer is
   /// counted by the Timer class.  Note that these calls must be correctly
   /// paired.
-  void startTimer();
+  virtual void startTimer();
 
   /// Stop the timer.
-  void stopTimer();
+  virtual void stopTimer();
 
   /// Clear the timer state.
   void clear();
@@ -131,6 +131,26 @@ public:
 
 private:
   friend class TimerGroup;
+};
+
+/// Whereas the Timer class enforces that calls to startTimer must be followed
+/// by a call to stopTimer, this "reference-counted" RefCntTimer allows
+/// multiple calls to startTimer, as long as they are paired with the same
+/// number of calls to stopTimer.  This is useful when, for example, timing a
+/// function that calls itself recursively.
+class RefCntTimer : public Timer {
+  unsigned RefCount = 0;
+public:
+  using Timer::Timer;
+
+  /// Start the timer running.  Time between calls to startTimer/stopTimer is
+  /// counted by the RefCntTimer class.  You may call startTimer multiple times
+  /// in succession, but stopTimer must also eventually be called the same
+  /// number of times.
+  void startTimer();
+
+  /// Stop the timer.
+  void stopTimer();
 };
 
 /// The TimeRegion class is used as a helper class to call the startTimer() and
