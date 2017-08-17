@@ -59,8 +59,13 @@ public:
     // If the function is a nullptr, or the function is a declaration.
     if (!F)
       return false;
+
+    // HACK: remove this before upstreaming
+    if (F->getName().count("__radiation_rg_MOD_coe") == 0 &&
+            F->getName().count("__radiation_rg_MOD_inv") == 0) return false;
+
     if (F->isDeclaration()) {
-      DEBUG(dbgs() << "Skipping " << F->getName()
+      DEBUG(dbgs() << "SKIPPING " << F->getName()
                    << "because it is a declaration.\n");
       return false;
     }
@@ -73,16 +78,36 @@ public:
     RegionInfo &RI = FAM.getResult<RegionInfoAnalysis>(*F);
     ScopDetection &SD = FAM.getResult<ScopAnalysis>(*F);
 
-    const bool HasScopAsTopLevelRegion =
-        SD.ValidRegions.count(RI.getTopLevelRegion()) > 0;
+    const auto TopLevelRegion = RI.getTopLevelRegion();
 
-    if (HasScopAsTopLevelRegion) {
-      DEBUG(dbgs() << "Skipping " << F->getName()
-                   << " has scop as top level region");
+    // Whether the entire function can be modeled as a Scop.
+    const bool IsFullyModeledAsScop =
+        SD.ValidRegions.count(TopLevelRegion) > 0;
+
+    // Whether the function has a Scop that is a *unique* child of the top-level
+    // region.
+    const bool IsModeledByTopLevelChild = [&] {
+        // If toplevel has more than 1 child, bail out.
+        if (std::distance(TopLevelRegion->begin(), TopLevelRegion->end()) > 1)
+            return false;
+
+        for (auto ScopRegion : SD.ValidRegions) {
+            if (ScopRegion->getParent() == TopLevelRegion) {
+                return true;
+            }
+        }
+        return false;
+    }();
+
+    if (IsFullyModeledAsScop || IsModeledByTopLevelChild) {
+      FAM.clear(*F);
+
+      DEBUG(dbgs() << "@ " << F->getName() << " DOES have scop as top level region.\n");
       F->addFnAttr(llvm::Attribute::AlwaysInline);
 
       ModuleAnalysisManager MAM;
       PB.registerModuleAnalyses(MAM);
+
       ModulePassManager MPM;
       MPM.addPass(AlwaysInlinerPass());
       Module *M = F->getParent();
@@ -90,7 +115,7 @@ public:
       MPM.run(*M, MAM);
     } else {
       DEBUG(dbgs() << F->getName()
-                   << " does NOT have scop as top level region\n");
+                   << " does NOT have scop as top level region.\n");
     }
 
     return false;
