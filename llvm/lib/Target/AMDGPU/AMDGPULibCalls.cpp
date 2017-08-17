@@ -131,6 +131,9 @@ private:
   // sin/cos
   bool fold_sincos(CallInst * CI, IRBuilder<> &B, AliasAnalysis * AA);
 
+  // __read_pipe/__write_pipe
+  bool fold_read_write_pipe(CallInst *CI, IRBuilder<> &B);
+
   // Get insertion point at entry.
   BasicBlock::iterator getEntryIns(CallInst * UI);
   // Insert an Alloc instruction.
@@ -559,6 +562,67 @@ bool AMDGPULibCalls::useNative(CallInst *aCI) {
   return true;
 }
 
+// Clang emits call of __read_pipe_2 or __read_pipe_4 for OpenCL read_pipe
+// builtin, with appended type size and alignment arguments, where 2 or 4
+// indicates the original number of arguments. The library has optimized version
+// of __read_pipe_2/__read_pipe_4 when the type size and alignment has the same
+// power of 2 value. This function transforms __read_pipe_2 to __read_pipe_2_N
+// for such cases where N is the size in bytes of the type (N = 1, 2, 4, 8, ...,
+// 128). The same for __read_pipe_4, write_pipe_2, and write_pipe_4.
+bool AMDGPULibCalls::fold_read_write_pipe(CallInst *CI, IRBuilder<> &B) {
+  auto *Callee = CI->getCalledFunction();
+  assert(Callee->hasName() && "Invalid read_pipe/write_pipe function");
+  auto *M = Callee->getParent();
+  auto &Ctx = M->getContext();
+  std::string Name = Callee->getName();
+  auto NumArg = CI->getNumArgOperands();
+  if (NumArg != 4 && NumArg != 6)
+    return false;
+  auto *PacketSize = CI->getArgOperand(NumArg - 2);
+  auto *PacketAlign = CI->getArgOperand(NumArg - 1);
+  if (!isa<ConstantInt>(PacketSize) || !isa<ConstantInt>(PacketAlign))
+    return false;
+  unsigned Size = cast<ConstantInt>(PacketSize)->getZExtValue();
+  unsigned Align = cast<ConstantInt>(PacketAlign)->getZExtValue();
+  if (Size != Align || !isPowerOf2_32(Size))
+    return false;
+
+  Type *PtrElemTy;
+  if (Size <= 8)
+    PtrElemTy = Type::getIntNTy(Ctx, Size * 8);
+  else
+    PtrElemTy = VectorType::get(Type::getInt64Ty(Ctx), Size / 8);
+  unsigned PtrArgLoc = CI->getNumArgOperands() - 3;
+  auto PtrArg = CI->getArgOperand(PtrArgLoc);
+  unsigned PtrArgAS = PtrArg->getType()->getPointerAddressSpace();
+  auto *PtrTy = llvm::PointerType::get(PtrElemTy, PtrArgAS);
+
+  SmallVector<llvm::Type *, 6> ArgTys;
+  for (unsigned I = 0; I != PtrArgLoc; ++I)
+    ArgTys.push_back(CI->getArgOperand(I)->getType());
+  ArgTys.push_back(PtrTy);
+
+  Name = Name + "_" + std::to_string(Size);
+
+  auto *FTy = FunctionType::get(Callee->getReturnType(),
+                                ArrayRef<Type *>(ArgTys), false);
+  auto *BCast = B.CreatePointerCast(PtrArg, PtrTy);
+
+  SmallVector<Value *, 6> Args;
+  for (unsigned I = 0; I != PtrArgLoc; ++I)
+    Args.push_back(CI->getArgOperand(I));
+  Args.push_back(BCast);
+
+  auto *F = M->getOrInsertFunction(Name, FTy);
+  auto *NCI = B.CreateCall(F, Args);
+  NCI->setAttributes(CI->getAttributes());
+  CI->replaceAllUsesWith(NCI);
+  CI->dropAllReferences();
+  CI->eraseFromParent();
+
+  return true;
+}
+
 // This function returns false if no change; return true otherwise.
 bool AMDGPULibCalls::fold(CallInst *CI, AliasAnalysis *AA) {
   this->CI = CI;
@@ -567,6 +631,20 @@ bool AMDGPULibCalls::fold(CallInst *CI, AliasAnalysis *AA) {
   // Ignore indirect calls.
   if (Callee == 0) return false;
 
+  if (!Callee->hasName())
+    return false;
+
+  LLVMContext &Context = CI->getParent()->getContext();
+  BasicBlock *BB = CI->getParent();
+  IRBuilder<> B(Context);
+
+  // Set the builder to the instruction after the call.
+  B.SetInsertPoint(BB, CI->getIterator());
+
+  auto Name = Callee->getName();
+  if (Name.startswith("__read_pipe_") || Name.startswith("__write_pipe_"))
+    return fold_read_write_pipe(CI, B);
+
   FuncInfo FInfo;
   if (!parseFunctionName(Callee->getName(), &FInfo))
     return false;
@@ -574,13 +652,6 @@ bool AMDGPULibCalls::fold(CallInst *CI, AliasAnalysis *AA) {
   // Further check the number of arguments to see if they match.
   if (CI->getNumArgOperands() != FInfo.getNumArgs())
     return false;
-
-  BasicBlock *BB = CI->getParent();
-  LLVMContext &Context = CI->getParent()->getContext();
-  IRBuilder<> B(Context);
-
-  // Set the builder to the instruction after the call.
-  B.SetInsertPoint(BB, CI->getIterator());
 
   // Copy fast flags from the original call.
   if (const FPMathOperator *FPOp = dyn_cast<const FPMathOperator>(CI))
