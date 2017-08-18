@@ -103,6 +103,13 @@ int main(int argc, const char **argv) {
   opt::InputArgList InputArgs = T.ParseArgs(ArgsArr, MAI, MAC);
 
   for (auto &Arg : InputArgs) {
+    if (!Arg->getOption().matches(OPT_unsupported) &&
+        !Arg->getOption().matches(OPT_supported)) {
+      reportError(Twine("invalid option ") + Arg->getSpelling());
+    }
+  }
+
+  for (auto &Arg : InputArgs) {
     if (Arg->getOption().matches(OPT_unsupported)) {
       outs() << "llvm-mt: ignoring unsupported '" << Arg->getOption().getName()
              << "' option\n";
@@ -129,7 +136,7 @@ int main(int argc, const char **argv) {
     reportError("no output file specified");
   }
 
-  WindowsManifestMerger Merger;
+  windows_manifest::WindowsManifestMerger Merger;
 
   for (const auto &File : InputFiles) {
     ErrorOr<std::unique_ptr<MemoryBuffer>> ManifestOrErr =
