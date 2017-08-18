@@ -11,6 +11,8 @@
 ; PGOOD-NEXT:    1 => "hello"
 ; PGOOD-NEXT:    2 => "world"
 ; PGOOD-NEXT:  StringTable:
+; PGOOD-NEXT:  HTML (500): "index.html"
+; PGOOD-NEXT:  Cursor (Name): "hello.ico"
 
 
 ; RUN: not llvm-rc /V %p/Inputs/parser-stringtable-no-string.rc 2> %t2
@@ -65,3 +67,15 @@
 ; RUN: FileCheck %s --check-prefix PLANGUAGE2 --input-file %t10
 
 ; PLANGUAGE2:  llvm-rc: Error parsing file: expected integer, got ,
+
+
+; RUN: not llvm-rc /V %p/Inputs/parser-html-bad-string.rc 2> %t11
+; RUN: FileCheck %s --check-prefix PHTML1 --input-file %t11
+
+; PHTML1:  llvm-rc: Error parsing file: expected string, got ThisPassesInTheOriginalToolButDocSaysItShouldBeQuoted
+
+
+; RUN: not llvm-rc /V %p/Inputs/parser-html-extra-comma.rc 2> %t12
+; RUN: FileCheck %s --check-prefix PHTML2 --input-file %t12
+
+; PHTML2:  llvm-rc: Error parsing file: expected string, got ,
