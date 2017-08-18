@@ -19,6 +19,7 @@
 subdirectories =
  bugpoint
  dsymutil
+ dt-benchmark
  llc
  lli
  llvm-ar
