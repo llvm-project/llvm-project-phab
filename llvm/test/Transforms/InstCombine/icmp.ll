@@ -897,8 +897,9 @@ declare i32 @test58_d(i64)
 
 define i1 @test59(i8* %foo) {
 ; CHECK-LABEL: @test59(
-; CHECK-NEXT:    [[GEP1:%.*]] = getelementptr inbounds i8, i8* %foo, i64 8
-; CHECK-NEXT:    [[USE:%.*]] = ptrtoint i8* [[GEP1]] to i64
+; CHECK-NEXT:    %bit = bitcast i8* %foo to i32*
+; CHECK-NEXT:    [[GEP1:%.*]] = getelementptr inbounds i32, i32* %bit, i64 2
+; CHECK-NEXT:    [[USE:%.*]] = ptrtoint i32* [[GEP1]] to i64
 ; CHECK-NEXT:    [[CALL:%.*]] = call i32 @test58_d(i64 [[USE]])
 ; CHECK-NEXT:    ret i1 true
 ;
@@ -914,8 +915,9 @@ define i1 @test59(i8* %foo) {
 
 define i1 @test59_as1(i8 addrspace(1)* %foo) {
 ; CHECK-LABEL: @test59_as1(
-; CHECK-NEXT:    [[GEP1:%.*]] = getelementptr inbounds i8, i8 addrspace(1)* %foo, i16 8
-; CHECK-NEXT:    [[TMP1:%.*]] = ptrtoint i8 addrspace(1)* [[GEP1]] to i16
+; CHECK-NEXT:    %bit = bitcast i8 addrspace(1)* %foo to i32 addrspace(1)*
+; CHECK-NEXT:    [[GEP1:%.*]] = getelementptr inbounds i32, i32 addrspace(1)* %bit, i16 2 
+; CHECK-NEXT:    [[TMP1:%.*]] = ptrtoint i32 addrspace(1)* [[GEP1]] to i16
 ; CHECK-NEXT:    [[USE:%.*]] = zext i16 [[TMP1]] to i64
 ; CHECK-NEXT:    [[CALL:%.*]] = call i32 @test58_d(i64 [[USE]])
 ; CHECK-NEXT:    ret i1 true

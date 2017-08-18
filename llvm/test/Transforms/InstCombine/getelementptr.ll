@@ -541,7 +541,7 @@ define i8* @test32(i8* %v) {
 	%G = load i8*, i8** %F
 	ret i8* %G
 ; CHECK-LABEL: @test32(
-; CHECK: %D = getelementptr inbounds [4 x i8*], [4 x i8*]* %A, i64 0, i64 1
+; CHECK: %D = getelementptr inbounds { [16 x i8] }, { [16 x i8] }* %C, i64 0, i32 0, i64 8 
 ; CHECK: %F = getelementptr inbounds [4 x i8*], [4 x i8*]* %A, i64 0, i64 2
 }
 
@@ -551,7 +551,7 @@ define i8* @test32(i8* %v) {
 
 define i32* @test33(%struct.Key* %A) {
 ; CHECK-LABEL: @test33(
-; CHECK: getelementptr %struct.Key, %struct.Key* %A, i64 0, i32 0, i32 1
+; CHECK: getelementptr %struct.anon, %struct.anon* %B, i64 0, i32 2 
   %B = bitcast %struct.Key* %A to %struct.anon*
   %C = getelementptr %struct.anon, %struct.anon* %B, i32 0, i32 2
   ret i32* %C
@@ -559,7 +559,7 @@ define i32* @test33(%struct.Key* %A) {
 
 define i32 addrspace(1)* @test33_as1(%struct.Key addrspace(1)* %A) {
 ; CHECK-LABEL: @test33_as1(
-; CHECK: getelementptr %struct.Key, %struct.Key addrspace(1)* %A, i16 0, i32 0, i32 1
+; CHECK: getelementptr %struct.anon, %struct.anon addrspace(1)* %B, i16 0, i32 2 
   %B = bitcast %struct.Key addrspace(1)* %A to %struct.anon addrspace(1)*
   %C = getelementptr %struct.anon, %struct.anon addrspace(1)* %B, i32 0, i32 2
   ret i32 addrspace(1)* %C
@@ -576,7 +576,7 @@ define i32 addrspace(1)* @test33_array_as1([10 x i32] addrspace(1)* %A) {
 ; Make sure the GEP indices use the right pointer sized integer
 define i32 addrspace(1)* @test33_array_struct_as1([10 x %struct.Key] addrspace(1)* %A) {
 ; CHECK-LABEL: @test33_array_struct_as1(
-; CHECK: getelementptr [10 x %struct.Key], [10 x %struct.Key] addrspace(1)* %A, i16 0, i16 1, i32 0, i32 0
+; CHECK: getelementptr [20 x i32], [20 x i32] addrspace(1)* %B, i16 0, i16 2 
   %B = bitcast [10 x %struct.Key] addrspace(1)* %A to [20 x i32] addrspace(1)*
   %C = getelementptr [20 x i32], [20 x i32] addrspace(1)* %B, i32 0, i32 2
   ret i32 addrspace(1)* %C
@@ -584,8 +584,9 @@ define i32 addrspace(1)* @test33_array_struct_as1([10 x %struct.Key] addrspace(1
 
 define i32 addrspace(1)* @test33_addrspacecast(%struct.Key* %A) {
 ; CHECK-LABEL: @test33_addrspacecast(
-; CHECK: %C = getelementptr %struct.Key, %struct.Key* %A, i64 0, i32 0, i32 1
-; CHECK-NEXT: addrspacecast i32* %C to i32 addrspace(1)*
+; CHECK: %1 = bitcast %struct.Key* %A to %struct.anon*
+; CHECK-NEXT: %B = addrspacecast %struct.anon* %1 to %struct.anon addrspace(1)*
+; CHECK-NEXT: %C = getelementptr %struct.anon, %struct.anon addrspace(1)* %B, i16 0, i32 2
 ; CHECK-NEXT: ret
   %B = addrspacecast %struct.Key* %A to %struct.anon addrspace(1)*
   %C = getelementptr %struct.anon, %struct.anon addrspace(1)* %B, i32 0, i32 2

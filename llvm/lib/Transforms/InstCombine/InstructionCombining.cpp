@@ -1948,25 +1948,6 @@ Instruction *InstCombiner::visitGetElementPtrInst(GetElementPtrInst &GEP) {
           return new AddrSpaceCastInst(Operand, GEP.getType());
         return new BitCastInst(Operand, GEP.getType());
       }
-
-      // Otherwise, if the offset is non-zero, we need to find out if there is a
-      // field at Offset in 'A's type.  If so, we can pull the cast through the
-      // GEP.
-      SmallVector<Value*, 8> NewIndices;
-      if (FindElementAtOffset(OpType, Offset.getSExtValue(), NewIndices)) {
-        Value *NGEP =
-            GEP.isInBounds()
-                ? Builder.CreateInBoundsGEP(nullptr, Operand, NewIndices)
-                : Builder.CreateGEP(nullptr, Operand, NewIndices);
-
-        if (NGEP->getType() == GEP.getType())
-          return replaceInstUsesWith(GEP, NGEP);
-        NGEP->takeName(&GEP);
-
-        if (NGEP->getType()->getPointerAddressSpace() != GEP.getAddressSpace())
-          return new AddrSpaceCastInst(NGEP, GEP.getType());
-        return new BitCastInst(NGEP, GEP.getType());
-      }
     }
   }
 

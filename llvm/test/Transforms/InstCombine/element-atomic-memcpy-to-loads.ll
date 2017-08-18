@@ -13,14 +13,14 @@ define void @test1a(i8* %Src, i8* %Dst) {
 ; CHECK-DAG: [[VAL1:%[^\s]+]] =  load atomic i32, i32* %memcpy_unfold.src_casted unordered, align 4
 ; CHECK-DAG: store atomic i32 [[VAL1]], i32* %memcpy_unfold.dst_casted unordered, align 8
 
-; CHECK-DAG: [[VAL2:%[^\s]+]] =  load atomic i32, i32* %{{[^\s]+}} unordered, align 4
-; CHECK-DAG: store atomic i32 [[VAL2]], i32* %{{[^\s]+}} unordered, align 4
+; CHECK-DAG: [[VAL2:%[^\s]+]] =  load atomic i32, i32* %memcpy_unfold.src_addr1 unordered, align 4
+; CHECK-DAG: store atomic i32 [[VAL2]], i32* %memcpy_unfold.dst_addr2 unordered, align 4
 
-; CHECK-DAG: [[VAL3:%[^\s]+]] =  load atomic i32, i32* %{{[^\s]+}} unordered, align 4
-; CHECK-DAG: store atomic i32 [[VAL3]], i32* %{{[^\s]+}} unordered, align 4
+; CHECK-DAG: [[VAL3:%[^\s]+]] =  load atomic i32, i32* %memcpy_unfold.src_addr4 unordered, align 4
+; CHECK-DAG: store atomic i32 [[VAL3]], i32* %memcpy_unfold.dst_addr5 unordered, align 4
 
-; CHECK-DAG: [[VAL4:%[^\s]+]] =  load atomic i32, i32* %{{[^\s]+}} unordered, align 4
-; CHECK-DAG: store atomic i32 [[VAL4]], i32* %{{[^\s]+}} unordered, align 4
+; CHECK-DAG: [[VAL4:%[^\s]+]] =  load atomic i32, i32* %memcpy_unfold.src_addr7 unordered, align 4
+; CHECK-DAG: store atomic i32 [[VAL4]], i32* %memcpy_unfold.dst_addr8 unordered, align 4
 entry:
   call void @llvm.memcpy.element.unordered.atomic.p0i8.p0i8.i32(i8* align 8 %Dst, i8* align 4 %Src, i32 16, i32 4)
   ret void
