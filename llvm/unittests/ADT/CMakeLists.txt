@@ -16,6 +16,7 @@ set(ADTSources
   DenseMapTest.cpp
   DenseSetTest.cpp
   DepthFirstIteratorTest.cpp
+  FixedPoint.cpp
   FoldingSet.cpp
   FunctionRefTest.cpp
   HashingTest.cpp
