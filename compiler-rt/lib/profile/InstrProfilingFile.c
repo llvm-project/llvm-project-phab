@@ -529,7 +529,7 @@ void __llvm_profile_initialize_file(void) {
     PNS = PNS_default;
   }
 
-  parseAndSetFilename(SelectedPat, PNS, 0);
+  parseAndSetFilename(SelectedPat, PNS, 1);
 }
 
 /* This API is directly called by the user application code. It has the
