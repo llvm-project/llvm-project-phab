@@ -194,7 +194,7 @@ entry:
 ; V9:          fstoi
 
 ; SPARC64-LABEL:    test_utos_stou
-; SPARC64:     fdtos
+; SPARC64:     fxtos
 ; SPARC64:     fstoi
 
 define void @test_utos_stou(i32 %a, i32* %ptr0, float* %ptr1) {
