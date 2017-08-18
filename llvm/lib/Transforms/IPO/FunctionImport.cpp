@@ -13,6 +13,7 @@
 
 #include "llvm/Transforms/IPO/FunctionImport.h"
 
+#include "llvm/ADT/SCCIterator.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/StringSet.h"
@@ -40,6 +41,8 @@ STATISTIC(NumImportedFunctions, "Number of functions imported");
 STATISTIC(NumImportedModules, "Number of modules imported from");
 STATISTIC(NumDeadSymbols, "Number of dead stripped symbols in index");
 STATISTIC(NumLiveSymbols, "Number of live symbols in index");
+STATISTIC(NumNoRecurse,
+          "Number of of functions marked norecurse from summary propagation");
 
 /// Limit on instruction count of imported functions.
 static cl::opt<unsigned> ImportInstrLimit(
@@ -410,6 +413,55 @@ void llvm::ComputeCrossModuleImportForModule(
 #endif
 }
 
+/// Propagates NoRecurse attributes throughout
+/// the Index (uses same method as FunctionAttrs pass)
+bool llvm::propagateFunctionAttrs(ModuleSummaryIndex &Index) {
+  // TODO: implement addNoAliasAttrs once
+  // there's more information about the return type in the summary
+
+  auto addNoRecurseAttrs = [](std::vector<FunctionSummary *> &SCCNodes) {
+    if (SCCNodes.size() != 1)
+      return false;
+
+    FunctionSummary *F = SCCNodes.front();
+
+    if (F->getOriginalName() == 0 || F->fflags().NoRecurse)
+      return false;
+
+    bool calleesMightRecurse = std::any_of(
+        F->calls().begin(), F->calls().end(),
+        [&F](const FunctionSummary::EdgeTy &E) {
+          if (E.first.getGUID() == 0 || !E.first.getSummaryList().size())
+            return true; // might recurse - we can't reason about external
+                         // functions
+          FunctionSummary *CFS =
+              cast<FunctionSummary>(E.first.getSummaryList().front().get());
+          bool calleeRecurses = !CFS->fflags().NoRecurse;
+          return calleeRecurses;
+        });
+
+    if (calleesMightRecurse)
+      return false;
+
+    if (!F->fflags().NoRecurse) {
+      F->fflags().NoRecurse = true;
+      NumNoRecurse++;
+      return true;
+    }
+    return false;
+  };
+
+  bool Changed = false;
+
+  // Call propagation functions on each SCC in the Index
+  for (scc_iterator<ModuleSummaryIndex *> I = scc_begin(&Index); !I.isAtEnd();
+       ++I) {
+    std::vector<FunctionSummary *> Nodes(*I);
+    Changed |= addNoRecurseAttrs(Nodes);
+  }
+  return Changed;
+}
+
 void llvm::computeDeadSymbols(
     ModuleSummaryIndex &Index,
     const DenseSet<GlobalValue::GUID> &GUIDPreservedSymbols) {
@@ -512,6 +564,24 @@ llvm::EmitImportsFiles(StringRef ModulePath, StringRef OutputFilename,
   for (auto &ILI : ModuleImports)
     ImportsOS << ILI.first() << "\n";
   return std::error_code();
+}
+
+/// Insert function attributes in the Index back into the \p TheModule.
+void llvm::thinLTOInsertFunctionAttrsForModule(
+    Module &TheModule, const GVSummaryMapTy &DefinedGlobals) {
+  for (Function &F : TheModule) {
+    const auto &GV = DefinedGlobals.find(F.getGUID());
+    if (GV == DefinedGlobals.end())
+      return;
+
+    FunctionSummary *FS = cast<FunctionSummary>(GV->second);
+    if (FS->fflags().ReadNone)
+      F.setDoesNotAccessMemory();
+    if (FS->fflags().ReadOnly)
+      F.setOnlyReadsMemory();
+    if (FS->fflags().NoRecurse)
+      F.setDoesNotRecurse();
+  }
 }
 
 /// Fixup WeakForLinker linkages in \p TheModule based on summary analysis.

@@ -102,6 +102,15 @@ void computeDeadSymbols(
     ModuleSummaryIndex &Index,
     const DenseSet<GlobalValue::GUID> &GUIDPreservedSymbols);
 
+/// Propagate function attributes for function summaries along the index's
+/// callgraph during thinlink
+bool propagateFunctionAttrs(ModuleSummaryIndex &Index);
+
+/// Inserts the FunctionAttr flags from the Index (ReadNone, ReadOnly,
+/// NoRecurse, NoAlias) into \p TheModule.
+void thinLTOInsertFunctionAttrsForModule(Module &TheModule,
+                                         const GVSummaryMapTy &DefinedGlobals);
+
 /// Compute the set of summaries needed for a ThinLTO backend compilation of
 /// \p ModulePath.
 //
