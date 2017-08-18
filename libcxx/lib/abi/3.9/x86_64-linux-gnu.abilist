@@ -1880,6 +1880,7 @@
 {'type': 'FUNC', 'name': '__cxa_begin_catch'}
 {'type': 'FUNC', 'name': '__cxa_current_primary_exception'}
 {'type': 'FUNC', 'name': '__cxa_decrement_exception_refcount'}
+{'type': 'FUNC', 'name': '__cxa_deleted_virtual'}
 {'type': 'FUNC', 'name': '__cxa_end_catch'}
 {'type': 'FUNC', 'name': '__cxa_finalize@GLIBC_2.2.5'}
 {'type': 'FUNC', 'name': '__cxa_free_exception'}

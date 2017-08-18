@@ -1892,6 +1892,7 @@
 {'name': '__cxa_begin_catch', 'is_defined': False, 'type': 'FUNC'}
 {'name': '__cxa_current_primary_exception', 'is_defined': False, 'type': 'FUNC'}
 {'name': '__cxa_decrement_exception_refcount', 'is_defined': False, 'type': 'FUNC'}
+{'name': '__cxa_deleted_virtual', 'is_defined': False, 'type': 'FUNC'}
 {'name': '__cxa_end_catch', 'is_defined': False, 'type': 'FUNC'}
 {'name': '__cxa_free_exception', 'is_defined': False, 'type': 'FUNC'}
 {'name': '__cxa_guard_abort', 'is_defined': False, 'type': 'FUNC'}
