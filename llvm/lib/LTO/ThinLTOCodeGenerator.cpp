@@ -606,6 +606,7 @@ std::unique_ptr<ModuleSummaryIndex> ThinLTOCodeGenerator::linkCombinedIndex() {
       return nullptr;
     }
   }
+  propagateFunctionAttrs(*CombinedIndex);
   return CombinedIndex;
 }
 
@@ -681,6 +682,7 @@ void ThinLTOCodeGenerator::crossModuleImport(Module &TheModule,
                            ExportLists);
   auto &ImportList = ImportLists[TheModule.getModuleIdentifier()];
 
+  thinLTOInsertFunctionAttrsForModule(TheModule, Index);
   crossImportIntoModule(TheModule, Index, ModuleMap, ImportList);
 }
 
