@@ -736,6 +736,13 @@ public:
         return static_cast<T *>(this)->getExtCost(CI, Operands.back());
     }
 
+    if (const LoadInst *LI = dyn_cast<LoadInst>(U)) {
+      return static_cast<T *>(this)->getMemoryOpCost(LI->getOpcode(),
+                                       LI->getType(),
+                                       LI->getAlignment(),
+                                       LI->getPointerAddressSpace(), LI);
+    }
+
     return static_cast<T *>(this)->getOperationCost(
         Operator::getOpcode(U), U->getType(),
         U->getNumOperands() == 1 ? U->getOperand(0)->getType() : nullptr);
