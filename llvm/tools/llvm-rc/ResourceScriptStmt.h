@@ -90,6 +90,42 @@ public:
   raw_ostream &log(raw_ostream &) const override;
 };
 
+// ACCELERATORS resource. Defines a named table of accelerators for the app.
+//
+// Ref: msdn.microsoft.com/en-us/library/windows/desktop/aa380610(v=vs.85).aspx
+class AcceleratorsResource : public RCResource {
+public:
+  class Accelerator {
+  public:
+    IntOrString Event;
+    uint32_t Id;
+    uint8_t Flags;
+
+    enum Options {
+      ASCII = (1 << 0),
+      VIRTKEY = (1 << 1),
+      NOINVERT = (1 << 2),
+      ALT = (1 << 3),
+      SHIFT = (1 << 4),
+      CONTROL = (1 << 5)
+    };
+
+    static constexpr size_t NumFlags = 6;
+    static StringRef OptionsStr[NumFlags];
+  };
+
+  AcceleratorsResource(OptionalStmtList &&OptStmts)
+      : OptStatements(std::move(OptStmts)) {}
+  void addAccelerator(IntOrString Event, uint32_t Id, uint8_t Flags) {
+    Accelerators.push_back(Accelerator{Event, Id, Flags});
+  }
+  raw_ostream &log(raw_ostream &) const override;
+
+private:
+  std::vector<Accelerator> Accelerators;
+  OptionalStmtList OptStatements;
+};
+
 // CURSOR resource. Represents a single cursor (".cur") file.
 //
 // Ref: msdn.microsoft.com/en-us/library/windows/desktop/aa380920(v=vs.85).aspx
