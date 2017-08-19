@@ -21,8 +21,10 @@
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/BlockFrequencyInfo.h"
 #include "llvm/Analysis/BranchProbabilityInfo.h"
+#include "llvm/Analysis/FunctionAttrsAnalysis.h"
 #include "llvm/Analysis/IndirectCallPromotionAnalysis.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/ProfileSummaryInfo.h"
@@ -195,11 +197,12 @@ static void addIntrinsicToSummary(
   }
 }
 
-static void
-computeFunctionSummary(ModuleSummaryIndex &Index, const Module &M,
-                       const Function &F, BlockFrequencyInfo *BFI,
-                       ProfileSummaryInfo *PSI, bool HasLocalsInUsed,
-                       DenseSet<GlobalValue::GUID> &CantBePromoted) {
+static void computeFunctionSummary(ModuleSummaryIndex &Index, const Module &M,
+                                   const Function &F, BlockFrequencyInfo *BFI,
+                                   ProfileSummaryInfo *PSI,
+                                   bool HasLocalsInUsed,
+                                   DenseSet<GlobalValue::GUID> &CantBePromoted,
+                                   AAResults *AAR) {
   // Summary not currently supported for anonymous functions, they should
   // have been named.
   assert(F.hasName());
@@ -216,6 +219,18 @@ computeFunctionSummary(ModuleSummaryIndex &Index, const Module &M,
       TypeCheckedLoadConstVCalls;
   ICallPromotionAnalysis ICallAnalysis;
 
+  DenseMap<const Function *, ModRefInfo> CSModRefMap;
+  bool ReadNone, ReadOnly;
+  if (AAR) {
+    auto MAK = computeFunctionBodyMemoryAccess(F, *AAR, &CSModRefMap);
+    ReadNone = MAK == MAK_ReadNone;
+    ReadOnly = MAK == MAK_ReadOnly;
+    errs() << "MemAccess for " << F.getName() << " is " << ReadNone << " "
+           << ReadOnly << "\n";
+  } else {
+    ReadNone = F.hasFnAttribute(Attribute::ReadNone);
+    ReadOnly = F.hasFnAttribute(Attribute::ReadOnly);
+  }
   bool HasInlineAsmMaybeReferencingInternal = false;
   SmallPtrSet<const User *, 8> Visited;
   for (const BasicBlock &BB : F)
@@ -267,6 +282,20 @@ computeFunctionSummary(ModuleSummaryIndex &Index, const Module &M,
         CallGraphEdges[Index.getOrInsertValueInfo(
                            cast<GlobalValue>(CalledValue))]
             .updateHotness(Hotness);
+        auto I = CSModRefMap.find(CalledFunction);
+        if (I != CSModRefMap.end()) {
+          ModRefInfo MRI = I->second;
+          CalleeInfo::ModRefType ModRef = CalleeInfo::ModRefType::ReadNone;
+          if (MRI & MRI_Mod)
+            ModRef = CalleeInfo::ModRefType::MayWrite;
+          else if (MRI & MRI_Ref)
+            ModRef = CalleeInfo::ModRefType::ReadOnly;
+          errs() << "ModRef for CalledFunction " << CalledFunction->getName()
+                 << " = " << (int)ModRef << "\n";
+          CallGraphEdges[Index.getOrInsertValueInfo(
+                             cast<GlobalValue>(CalledValue))]
+              .updateModRef(ModRef);
+        }
       } else {
         // Skip inline assembly calls.
         if (CI && CI->isInlineAsm())
@@ -301,8 +330,8 @@ computeFunctionSummary(ModuleSummaryIndex &Index, const Module &M,
   GlobalValueSummary::GVFlags Flags(F.getLinkage(), NotEligibleForImport,
                                     /* Live = */ false);
   FunctionSummary::FFlags FunFlags{
-      F.hasFnAttribute(Attribute::ReadNone),
-      F.hasFnAttribute(Attribute::ReadOnly),
+      ReadNone,
+      ReadOnly,
       F.hasFnAttribute(Attribute::NoRecurse),
       F.returnDoesNotAlias(),
   };
@@ -359,7 +388,8 @@ static void setLiveRoot(ModuleSummaryIndex &Index, StringRef Name) {
 ModuleSummaryIndex llvm::buildModuleSummaryIndex(
     const Module &M,
     std::function<BlockFrequencyInfo *(const Function &F)> GetBFICallback,
-    ProfileSummaryInfo *PSI) {
+    ProfileSummaryInfo *PSI,
+    std::function<AAResults *(const Function &F)> GetAARCallback) {
   assert(PSI);
   ModuleSummaryIndex Index;
 
@@ -398,9 +428,10 @@ ModuleSummaryIndex llvm::buildModuleSummaryIndex(
       BFIPtr = llvm::make_unique<BlockFrequencyInfo>(F, BPI, LI);
       BFI = BFIPtr.get();
     }
+    AAResults *AAR = GetAARCallback ? GetAARCallback(F) : nullptr;
 
     computeFunctionSummary(Index, M, F, BFI, PSI, !LocalsUsed.empty(),
-                           CantBePromoted);
+                           CantBePromoted, AAR);
   }
 
   // Compute summaries for all variables defined in module, and save in the
@@ -534,7 +565,10 @@ ModuleSummaryIndexAnalysis::run(Module &M, ModuleAnalysisManager &AM) {
         return &FAM.getResult<BlockFrequencyAnalysis>(
             *const_cast<Function *>(&F));
       },
-      &PSI);
+      &PSI,
+      [&FAM](const Function &F) {
+        return &FAM.getResult<AAManager>(*const_cast<Function *>(&F));
+      });
 }
 
 char ModuleSummaryIndexWrapperPass::ID = 0;
@@ -543,6 +577,7 @@ INITIALIZE_PASS_BEGIN(ModuleSummaryIndexWrapperPass, "module-summary-analysis",
                       "Module Summary Analysis", false, true)
 INITIALIZE_PASS_DEPENDENCY(BlockFrequencyInfoWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(ProfileSummaryInfoWrapperPass)
+INITIALIZE_PASS_DEPENDENCY(AAResultsWrapperPass)
 INITIALIZE_PASS_END(ModuleSummaryIndexWrapperPass, "module-summary-analysis",
                     "Module Summary Analysis", false, true)
 
@@ -564,7 +599,12 @@ bool ModuleSummaryIndexWrapperPass::runOnModule(Module &M) {
                          *const_cast<Function *>(&F))
                      .getBFI());
       },
-      &PSI);
+      &PSI,
+      [this](const Function &F) {
+        return &(
+            this->getAnalysis<AAResultsWrapperPass>(*const_cast<Function *>(&F))
+                .getAAResults());
+      });
   return false;
 }
 
@@ -577,4 +617,5 @@ void ModuleSummaryIndexWrapperPass::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.setPreservesAll();
   AU.addRequired<BlockFrequencyInfoWrapperPass>();
   AU.addRequired<ProfileSummaryInfoWrapperPass>();
+  AU.addRequired<AAResultsWrapperPass>();
 }

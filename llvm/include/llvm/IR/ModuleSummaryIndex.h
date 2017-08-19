@@ -55,12 +55,18 @@ struct CalleeInfo {
     Critical = 4
   };
   HotnessType Hotness = HotnessType::Unknown;
+  enum class ModRefType : uint8_t { ReadNone = 0, ReadOnly = 1, MayWrite = 2 };
+  ModRefType ModRef = ModRefType::ReadNone;
 
   CalleeInfo() = default;
   explicit CalleeInfo(HotnessType Hotness) : Hotness(Hotness) {}
 
   void updateHotness(const HotnessType OtherHotness) {
     Hotness = std::max(Hotness, OtherHotness);
+  }
+
+  void updateModRef(const ModRefType OtherModRef) {
+    ModRef = std::max(ModRef, OtherModRef);
   }
 };
 
@@ -290,8 +296,8 @@ public:
   /// Function attribute flags. Used to track if a function accesses memory,
   /// recurses or aliases.
   struct FFlags {
-    unsigned ReadNone : 1;
-    unsigned ReadOnly : 1;
+    unsigned ReadNone : 1; // TODO: change to ReadNoneIgnoringCalls
+    unsigned ReadOnly : 1; // TODO: change to ReadOnlyIgnoringCalls
     unsigned NoRecurse : 1;
     unsigned ReturnDoesNotAlias : 1;
   };
