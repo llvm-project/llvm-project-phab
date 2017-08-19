@@ -169,3 +169,17 @@ B1 test_move() {
   return b; // expected-error {{no viable conversion from returned value of type 'MoveBlockVariable::B0' to function return type 'MoveBlockVariable::B1'}}
 }
 }
+
+namespace DefaultArg {
+void test() {
+  id x;
+  void func0(id a0, id a1 = ^{ (void)&a0; }); // expected-error {{default argument references parameter 'a0'}}
+  void func1(id a0, id a1 = ^{ (void)&x; }); // expected-error {{default argument references local variable 'x' of enclosing function}}
+  void func2(id a0, id a1 = ^{ (void)sizeof(a0); });
+  void func3(id a0 = ^{ (void)sizeof(x); });
+  void func4(id a0, id a1 = ^{
+    ^{ (void)&a0; }(); // expected-error {{default argument references parameter 'a0'}}
+    [=](){ (void)&a0; }(); // expected-error {{default argument references parameter 'a0'}}
+  });
+}
+}

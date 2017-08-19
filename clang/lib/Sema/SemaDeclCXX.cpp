@@ -59,23 +59,62 @@ namespace {
     : public StmtVisitor<CheckDefaultArgumentVisitor, bool> {
     Expr *DefaultArg;
     Sema *S;
+    bool CompoundStmtSeen;
+
+    // The set of variables declared in this default argument expression.
+    llvm::SmallPtrSet<const VarDecl *, 4> Decls;
+
+    template<class FuncDeclTy>
+    bool VisitFunctionDecl(FuncDeclTy *Func) {
+      for (ParmVarDecl *PD : Func->parameters())
+        Decls.insert(PD);
+      return Visit(Func->getBody());
+    }
 
   public:
     CheckDefaultArgumentVisitor(Expr *defarg, Sema *s)
-      : DefaultArg(defarg), S(s) {}
+      : DefaultArg(defarg), S(s), CompoundStmtSeen(false) {}
 
     bool VisitExpr(Expr *Node);
+    bool VisitStmt(Stmt *Node);
+    bool VisitCompoundStmt(CompoundStmt *Node);
+    bool VisitDeclStmt(DeclStmt *Node);
     bool VisitDeclRefExpr(DeclRefExpr *DRE);
     bool VisitCXXThisExpr(CXXThisExpr *ThisE);
+    bool VisitUnaryExprOrTypeTraitExpr(UnaryExprOrTypeTraitExpr *Node);
+    bool VisitGenericSelectionExpr(GenericSelectionExpr *Node);
     bool VisitLambdaExpr(LambdaExpr *Lambda);
+    bool VisitBlockExpr(BlockExpr *Block);
     bool VisitPseudoObjectExpr(PseudoObjectExpr *POE);
   };
 
   /// VisitExpr - Visit all of the children of this expression.
   bool CheckDefaultArgumentVisitor::VisitExpr(Expr *Node) {
+    return VisitStmt(Node);
+  }
+
+  bool CheckDefaultArgumentVisitor::VisitStmt(Stmt *Node) {
     bool IsInvalid = false;
     for (Stmt *SubStmt : Node->children())
       IsInvalid |= Visit(SubStmt);
+    return IsInvalid;
+  }
+
+  bool CheckDefaultArgumentVisitor::VisitCompoundStmt(CompoundStmt *Node) {
+    CompoundStmtSeen = true;
+    return VisitStmt(Node);
+  }
+
+  bool CheckDefaultArgumentVisitor::VisitDeclStmt(DeclStmt *Node) {
+    bool IsInvalid = false;
+
+    for (const auto *D : Node->decls())
+      if (const auto *VD = dyn_cast<VarDecl>(D))
+        Decls.insert(VD);
+
+    for (Stmt *SubStmt : Node->children())
+      IsInvalid |= Visit(SubStmt);
+
     return IsInvalid;
   }
 
@@ -84,6 +123,11 @@ namespace {
   /// argument expression.
   bool CheckDefaultArgumentVisitor::VisitDeclRefExpr(DeclRefExpr *DRE) {
     NamedDecl *Decl = DRE->getDecl();
+
+    if (auto *VD = dyn_cast<VarDecl>(Decl))
+      if (Decls.count(VD))
+        return false;
+
     if (ParmVarDecl *Param = dyn_cast<ParmVarDecl>(Decl)) {
       // C++ [dcl.fct.default]p9
       //   Default arguments are evaluated each time the function is
@@ -119,6 +163,26 @@ namespace {
                << ThisE->getSourceRange();
   }
 
+  bool CheckDefaultArgumentVisitor::VisitUnaryExprOrTypeTraitExpr(
+      UnaryExprOrTypeTraitExpr *Node) {
+    // Ignore unevaluated expressions such as sizeof.
+    return false;
+  }
+
+  bool CheckDefaultArgumentVisitor::VisitGenericSelectionExpr(
+      GenericSelectionExpr *Node) {
+    // Ignore the controlling expression and all the association expressions
+    // except the result expression. Those expressions are unevaluated.
+    if (!Node->isResultDependent())
+      return Visit(Node->getResultExpr());
+
+    bool IsInvalid = false;
+    for (Expr *AE : Node->getAssocExprs())
+      IsInvalid |= Visit(AE);
+
+    return IsInvalid;
+  }
+
   bool CheckDefaultArgumentVisitor::VisitPseudoObjectExpr(PseudoObjectExpr *POE) {
     bool Invalid = false;
     for (PseudoObjectExpr::semantics_iterator
@@ -140,11 +204,22 @@ namespace {
     // C++11 [expr.lambda.prim]p13:
     //   A lambda-expression appearing in a default argument shall not
     //   implicitly or explicitly capture any entity.
-    if (Lambda->capture_begin() == Lambda->capture_end())
-      return false;
+    // Lambda expressions in a block scope can have captures.
+    if (!CompoundStmtSeen && Lambda->capture_begin() != Lambda->capture_end())
+      return S->Diag(Lambda->getLocStart(),
+                     diag::err_lambda_capture_default_arg);
 
-    return S->Diag(Lambda->getLocStart(), 
-                   diag::err_lambda_capture_default_arg);
+    if (CXXMethodDecl *CO = Lambda->getCallOperator())
+      return VisitFunctionDecl(CO);
+
+    return false;
+  }
+
+  bool CheckDefaultArgumentVisitor::VisitBlockExpr(BlockExpr *Block) {
+    if (BlockDecl *BD = Block->getBlockDecl())
+      return VisitFunctionDecl(BD);
+
+    return false;
   }
 }
 
