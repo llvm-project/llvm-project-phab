@@ -169,3 +169,29 @@ namespace ThisLambdaIsNotMyFriend {
   }
   void bar() { foo<void>(); }
 }
+
+namespace OverloadedMemberFunctionPointer {
+  template<class T, void(T::*pMethod)()>
+  void func0() {}
+
+  template<class T>
+  void func1(void(*fn)()) {} // expected-note {{candidate function not viable: no overload of 'func0' matching 'void (*)()' for 1st argument}}
+
+  class C {
+    friend void friendFunc();
+    void overloadedMethod();
+  public:
+    void overloadedMethod(int);
+    void method() {
+      func1<int>(&func0<C, &C::overloadedMethod>);
+    }
+  };
+
+  void friendFunc() {
+    func1<int>(&func0<C, &C::overloadedMethod>);
+  }
+
+  void nonFriendFunc() {
+    func1<int>(&func0<C, &C::overloadedMethod>); // expected-error {{no matching function for call to 'func1'}}
+  }
+}
