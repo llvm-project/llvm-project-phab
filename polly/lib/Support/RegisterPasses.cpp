@@ -32,6 +32,7 @@
 #include "polly/ForwardOpTree.h"
 #include "polly/JSONExporter.h"
 #include "polly/LinkAllPasses.h"
+#include "polly/MaximalStaticExpansion.h"
 #include "polly/Options.h"
 #include "polly/PolyhedralInfo.h"
 #include "polly/ScopDetection.h"
@@ -479,6 +480,8 @@ static void buildDefaultPollyPipeline(FunctionPassManager &PM,
   if (ImportJScop)
     SPM.addPass(JSONImportPass());
   assert(!DeadCodeElim && "This option is not implemented");
+  if (FullyIndexedStaticExpansion)
+    SPM.addPass(MaximalStaticExpandPass());
   assert(!EnablePruneUnprofitable && "This option is not implemented");
   if (Target == TARGET_CPU || Target == TARGET_HYBRID)
     switch (Optimizer) {

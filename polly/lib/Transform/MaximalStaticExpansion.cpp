@@ -12,6 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "polly/MaximalStaticExpansion.h"
 #include "polly/DependenceInfo.h"
 #include "polly/FlattenAlgo.h"
 #include "polly/LinkAllPasses.h"
@@ -457,6 +458,19 @@ void MaximalStaticExpander::getAnalysisUsage(AnalysisUsage &AU) const {
 
 Pass *polly::createMaximalStaticExpansionPass() {
   return new MaximalStaticExpander();
+}
+
+PreservedAnalyses MaximalStaticExpandPass::run(Scop &S,
+                                               ScopAnalysisManager &SAM,
+                                               ScopStandardAnalysisResults &SAR,
+                                               SPMUpdater &) {
+
+  // Invalidate all analyses on Scop.
+  PreservedAnalyses PA;
+  PA.preserveSet<AllAnalysesOn<Module>>();
+  PA.preserveSet<AllAnalysesOn<Function>>();
+  PA.preserveSet<AllAnalysesOn<Loop>>();
+  return PA;
 }
 
 INITIALIZE_PASS_BEGIN(MaximalStaticExpander, "polly-mse",
