@@ -89,6 +89,21 @@ define i32 @test6(i64 %A) {
   ret i32 %D
 }
 
+define i16 @test6_ashr_mul(i8 %X, i8 %Y) {
+; CHECK-LABEL: @test6_ashr_mul(
+; CHECK-NEXT:    [[A:%.*]] = sext i8 %X to i16
+; CHECK-NEXT:    [[B:%.*]] = sext i8 %Y to i16
+; CHECK-NEXT:    [[C:%.*]] = mul nsw i16 [[A]], [[B]]
+; CHECK-NEXT:    [[D:%.*]] = ashr i16 %C, 15
+; CHECK-NEXT:    ret i16 %D
+  %A = sext i8 %X to i32
+  %B = sext i8 %Y to i32
+  %C = mul i32 %A, %B
+  %D = ashr i32 %C, 15
+  %E = trunc i32 %D to i16
+  ret i16 %E
+}
+
 define i16 @ashr_mul(i8 %X, i8 %Y) {
 ; CHECK-LABEL: @ashr_mul(
 ; CHECK-NEXT:    [[A:%.*]] = sext i8 %X to i16
