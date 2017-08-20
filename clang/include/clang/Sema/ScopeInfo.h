@@ -769,16 +769,25 @@ public:
   /// \brief If this is a generic lambda, use this as the depth of 
   /// each 'auto' parameter, during initial AST construction.
   unsigned AutoTemplateParameterDepth;
-
-  /// \brief Store the list of the auto parameters for a generic lambda.
-  /// If this is a generic lambda, store the list of the auto 
-  /// parameters converted into TemplateTypeParmDecls into a vector
-  /// that can be used to construct the generic lambda's template
+  
+  /// \brief The number of parameters in the template parameter list that were
+  /// explicitly specified by the user, as opposed to being invented by use
+  /// of an auto parameter.
+  unsigned NumExplicitTemplateParams;
+ 
+  /// \brief Source range covering the explicit template parameter list
+  /// (if it exists).
+  SourceRange ExplicitTemplateParamsRange;
+ 
+  /// \brief Store the list of the template parameters for a generic lambda.
+  /// If this is a generic lambda, this holds the explicit template parameters
+  /// followed by the auto parameters converted into TemplateTypeParmDecls.
+  /// It can be used to construct the generic lambda's template
   /// parameter list, during initial AST construction.
-  SmallVector<TemplateTypeParmDecl*, 4> AutoTemplateParams;
-
+  SmallVector<Decl*, 4> TemplateParams;
+  
   /// If this is a generic lambda, and the template parameter
-  /// list has been created (from the AutoTemplateParams) then
+  /// list has been created (from the TemplateParams) then
   /// store a reference to it (cache it to avoid reconstructing it).
   TemplateParameterList *GLTemplateParameterList;
   
@@ -820,7 +829,7 @@ public:
       CallOperator(nullptr), NumExplicitCaptures(0), Mutable(false),
       ExplicitParams(false), Cleanup{},
       ContainsUnexpandedParameterPack(false), AutoTemplateParameterDepth(0),
-      GLTemplateParameterList(nullptr) {
+      NumExplicitTemplateParams(0), GLTemplateParameterList(nullptr) {
     Kind = SK_Lambda;
   }
 
@@ -834,9 +843,9 @@ public:
   }
 
   /// Is this scope known to be for a generic lambda? (This will be false until
-  /// we parse the first 'auto'-typed parameter.
+  /// we parse a template parameter list or the first 'auto'-typed parameter).
   bool isGenericLambda() const {
-    return !AutoTemplateParams.empty() || GLTemplateParameterList;
+    return !TemplateParams.empty() || GLTemplateParameterList;
   }
 
   ///
@@ -936,6 +945,12 @@ public:
   bool hasPotentialCaptures() const { 
     return getNumPotentialVariableCaptures() || 
                                   PotentialThisCaptureLocation.isValid(); 
+  }
+
+  llvm::ArrayRef<Decl*> getExplicitTemplateParams() const {
+    // Explicit template parameters should always be first in the list.
+    return llvm::makeArrayRef(TemplateParams)
+               .slice(0, NumExplicitTemplateParams);
   }
 
   // When passed the index, returns the VarDecl and Expr associated
