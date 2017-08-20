@@ -70,5 +70,9 @@ std::pair<BBPair, llvm::BranchInst *>
 executeScopConditionally(Scop &S, llvm::Value *RTC, llvm::DominatorTree &DT,
                          llvm::RegionInfo &RI, llvm::LoopInfo &LI);
 
+llvm::BasicBlock *splitEdge(llvm::BasicBlock *Prev, llvm::BasicBlock *Succ,
+                            const char *Suffix, llvm::DominatorTree *DT,
+                            llvm::LoopInfo *LI, llvm::RegionInfo *RI);
+
 } // namespace polly
 #endif

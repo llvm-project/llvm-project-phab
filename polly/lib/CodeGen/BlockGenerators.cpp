@@ -886,8 +886,12 @@ void BlockGenerator::invalidateScalarEvolution(Scop &S) {
 void BlockGenerator::finalizeSCoP(Scop &S) {
   findOutsideUsers(S);
   createScalarInitialization(S);
-  createExitPHINodeMerges(S);
-  createScalarFinalization(S);
+
+  if (!S.getRegion().isTopLevelRegion()) {
+    createExitPHINodeMerges(S);
+    createScalarFinalization(S);
+  }
+
   invalidateScalarEvolution(S);
 }
 
