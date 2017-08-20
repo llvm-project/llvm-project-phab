@@ -229,15 +229,17 @@ getGenericLambdaTemplateParameterList(LambdaScopeInfo *LSI, Sema &SemaRef) {
   if (LSI->GLTemplateParameterList)
     return LSI->GLTemplateParameterList;
 
-  if (!LSI->AutoTemplateParams.empty()) {
-    SourceRange IntroRange = LSI->IntroducerRange;
-    SourceLocation LAngleLoc = IntroRange.getBegin();
-    SourceLocation RAngleLoc = IntroRange.getEnd();
+  if (!LSI->TemplateParams.empty()) {
+    SourceRange ListRange = LSI->ExplicitTemplateParamsRange.isValid()
+                              ? LSI->ExplicitTemplateParamsRange
+                              : LSI->IntroducerRange;
+    SourceLocation LAngleLoc = ListRange.getBegin();
+    SourceLocation RAngleLoc = ListRange.getEnd();
     LSI->GLTemplateParameterList = TemplateParameterList::Create(
         SemaRef.Context,
         /*Template kw loc*/ SourceLocation(), LAngleLoc,
-        llvm::makeArrayRef((NamedDecl *const *)LSI->AutoTemplateParams.data(),
-                           LSI->AutoTemplateParams.size()),
+        llvm::makeArrayRef((NamedDecl *const *)LSI->TemplateParams.data(),
+                           LSI->TemplateParams.size()),
         RAngleLoc, nullptr);
   }
   return LSI->GLTemplateParameterList;
@@ -477,6 +479,32 @@ void Sema::buildLambdaScope(LambdaScopeInfo *LSI,
 
 void Sema::finishLambdaExplicitCaptures(LambdaScopeInfo *LSI) {
   LSI->finishedExplicitCaptures();
+}
+
+TemplateParameterList *
+Sema::ActOnLambdaTemplateParameterList(unsigned Depth,
+                                       SourceLocation LAngleLoc,
+                                       ArrayRef<Decl *> TParams,
+                                       SourceLocation RAngleLoc) {
+  LambdaScopeInfo *LSI = getCurLambda();
+  assert(LSI && "Expected a lambda scope");
+
+  assert(LSI->NumExplicitTemplateParams == 0
+         && "Already acted on explicit template parameters");
+  assert(LSI->TemplateParams.size() == 0
+         && "Explicit template parameters should come before invented ones");
+
+  TemplateParameterList *ret = ActOnTemplateParameterList(
+      Depth,
+      /*ExportLoc=*/SourceLocation(), /*TemplateLoc=*/SourceLocation(),
+      LAngleLoc, TParams, RAngleLoc,
+      /*RequiresClause=*/nullptr);
+
+  LSI->TemplateParams.append(TParams.begin(), TParams.end());
+  LSI->NumExplicitTemplateParams = TParams.size();
+  LSI->ExplicitTemplateParamsRange = {LAngleLoc, RAngleLoc};
+
+  return ret;
 }
 
 void Sema::addLambdaParameters(CXXMethodDecl *CallOperator, Scope *CurScope) {  
@@ -811,17 +839,23 @@ FieldDecl *Sema::buildInitCaptureField(LambdaScopeInfo *LSI, VarDecl *Var) {
 void Sema::ActOnStartOfLambdaDefinition(LambdaIntroducer &Intro,
                                         Declarator &ParamInfo,
                                         Scope *CurScope) {
-  // Determine if we're within a context where we know that the lambda will
-  // be dependent, because there are template parameters in scope.
-  bool KnownDependent = false;
   LambdaScopeInfo *const LSI = getCurLambda();
   assert(LSI && "LambdaScopeInfo should be on stack!");
 
-  // The lambda-expression's closure type might be dependent even if its
-  // semantic context isn't, if it appears within a default argument of a
-  // function template.
-  if (CurScope->getTemplateParamParent())
-    KnownDependent = true;
+  // Determine if we're within a context where we know that the lambda will
+  // be dependent, because there are template parameters in scope.
+  bool KnownDependent;
+  if (LSI->NumExplicitTemplateParams > 0) {
+    auto *TemplateParamScope = CurScope->getTemplateParamParent();
+    assert(TemplateParamScope
+           && "Lambda with explicit template param list should establish a "
+              "template param scope");
+    KnownDependent = TemplateParamScope->getParent()
+                                       ->getTemplateParamParent() != nullptr;
+  }
+  else {
+    KnownDependent = CurScope->getTemplateParamParent() != nullptr;
+  }
 
   // Determine the signature of the call operator.
   TypeSourceInfo *MethodTyInfo;
