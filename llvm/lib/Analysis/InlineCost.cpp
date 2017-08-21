@@ -675,7 +675,7 @@ bool CallAnalyzer::isColdCallSite(CallSite CS, BlockFrequencyInfo *CallerBFI) {
   auto CallSiteFreq = CallerBFI->getBlockFreq(CallSiteBB);
   auto CallerEntryFreq =
       CallerBFI->getBlockFreq(&(CS.getCaller()->getEntryBlock()));
-  return CallSiteFreq < CallerEntryFreq * ColdProb;
+  return CallSiteFreq <= CallerEntryFreq * ColdProb;
 }
 
 Optional<int>
