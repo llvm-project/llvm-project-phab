@@ -41,6 +41,10 @@ public:
 private:
   void segregate(size_t Begin, size_t End, bool Constant);
 
+  template <class Compare>
+  static bool lexicographicalCompareRelocs(const SectionChunk *L,
+                                           const SectionChunk *R, Compare Comp);
+
   bool lessConstant(const SectionChunk *A, const SectionChunk *B);
   bool lessVariable(const SectionChunk *A, const SectionChunk *B);
 
@@ -97,42 +101,46 @@ void ICF::segregate(size_t Begin, size_t End, bool Constant) {
   };
 
   // I'm not sure if regular sort can be used here
-  std::stable_sort (Chunks.begin() + Begin, Chunks.begin() + End, Less);
+  std::stable_sort(Chunks.begin() + Begin, Chunks.begin() + End, Less);
 
-  auto curGroupBegin = Begin;
-  for (auto curPos = Begin + 1; curPos < End; curPos++)
-  {
-    if (!Less (Chunks[curGroupBegin], Chunks[curPos]))
+  size_t CurGroupBegin = Begin;
+  for (size_t CurPos = Begin + 1; CurPos < End; CurPos++) {
+    if (!Less(Chunks[CurGroupBegin], Chunks[CurPos]))
       continue;
 
-    // We use curPos as an equivalence class ID because every group ends with a unique index.
-    for (size_t I = curGroupBegin; I < curPos; ++I)
-      Chunks[I]->Class[(Cnt + 1) % 2] = curPos;
+    // We use curPos as an equivalence class ID because every group ends with a
+    // unique index.
+    for (size_t I = CurGroupBegin; I < CurPos; ++I)
+      Chunks[I]->Class[(Cnt + 1) % 2] = CurPos;
 
-    curGroupBegin = curPos;
+    CurGroupBegin = CurPos;
   }
 
-  for (size_t I = curGroupBegin; I < End; ++I)
+  for (size_t I = CurGroupBegin; I < End; ++I)
     Chunks[I]->Class[(Cnt + 1) % 2] = End;
 
   // If we created a group, we need to iterate the main loop again.
-  if (curGroupBegin != Begin)
+  if (CurGroupBegin != Begin)
     Repeat = true;
 }
 
 // basically the same as std::lexicographical_compare but with additional data
 // passing to the comparison function
 // Maybe it's better to implement it using range adapters
-template<class Data, class InputIt1, class InputIt2, class Compare>
-bool lexicographical_compare_helper (Data add_data1, InputIt1 first1, InputIt1 last1,
-                             Data add_data2, InputIt2 first2, InputIt2 last2,
-                             Compare comp)
-{
-    for ( ; (first1 != last1) && (first2 != last2); ++first1, (void) ++first2 ) {
-        if (comp(add_data1, *first1, add_data2, *first2)) return true;
-        if (comp(add_data2, *first2, add_data1, *first1)) return false;
-    }
-    return (first1 == last1) && (first2 != last2);
+template <class Compare>
+static bool ICF::lexicographicalCompareRelocs(const SectionChunk *L,
+                                              const SectionChunk *R,
+                                              Compare Comp) {
+  auto LFirst = L->Relocs.begin(), LLast = L->Relocs.end();
+  auto RFirst = R->Relocs.begin(), RLast = R->Relocs.end();
+
+  for (; (LFirst != LLast) && (RFirst != RLast); ++LFirst, (void)++RFirst) {
+    if (Comp(L, *LFirst, R, *RFirst))
+      return true;
+    if (Comp(R, *RFirst, L, *LFirst))
+      return false;
+  }
+  return (LFirst == LLast) && (RFirst != RLast);
 }
 
 // Compare "non-moving" part of two sections, namely everything
@@ -141,27 +149,31 @@ bool ICF::lessConstant(const SectionChunk *A, const SectionChunk *B) {
   if (A->NumRelocs != B->NumRelocs)
     return A->NumRelocs < B->NumRelocs;
 
-  auto to_tuple = [] (const SectionChunk * chunk) {
-    return std::make_tuple (chunk->getPermissions(), chunk->SectionName, chunk->getAlign(),
-                            chunk->Header->SizeOfRawData, chunk->Checksum);
+  auto toTuple = [](const SectionChunk *chunk) {
+    return std::make_tuple(chunk->getPermissions(), chunk->SectionName,
+                           chunk->getAlign(), chunk->Header->SizeOfRawData,
+                           chunk->Checksum);
   };
 
-  auto a_tuple = to_tuple (A);
-  auto b_tuple = to_tuple (B);
-  if (a_tuple != b_tuple)
-    return a_tuple < b_tuple;
+  auto ATuple = toTuple(A);
+  auto BTuple = toTuple(B);
+  if (ATuple != BTuple)
+    return ATuple < BTuple;
 
-  if (A->getContents() != B->getContents ())
-    return std::lexicographical_compare (A->getContents ().begin(), A->getContents ().end(), B->getContents ().begin(), B->getContents ().end());
+  if (A->getContents() != B->getContents())
+    return std::lexicographical_compare(
+        A->getContents().begin(), A->getContents().end(),
+        B->getContents().begin(), B->getContents().end());
 
   // Compare relocations.
-  auto Less = [this] (const SectionChunk *A, const coff_relocation &R1, const SectionChunk *B, const coff_relocation &R2) {
-      auto to_tuple = [] (const coff_relocation &rel) {
-        return std::make_tuple (rel.Type, rel.VirtualAddress);
-      };
+  auto Less = [this](const SectionChunk *A, const coff_relocation &R1,
+                     const SectionChunk *B, const coff_relocation &R2) {
+    auto toTuple = [](const coff_relocation &rel) {
+      return std::make_tuple(rel.Type, rel.VirtualAddress);
+    };
 
-    if (to_tuple (R1) != to_tuple (R2))
-      return to_tuple (R1) < to_tuple (R2);
+    if (toTuple(R1) != toTuple(R2))
+      return toTuple(R1) < toTuple(R2);
 
     SymbolBody *B1 = A->File->getSymbolBody(R1.SymbolTableIndex);
     SymbolBody *B2 = B->File->getSymbolBody(R2.SymbolTableIndex);
@@ -170,18 +182,19 @@ bool ICF::lessConstant(const SectionChunk *A, const SectionChunk *B) {
 
     if (auto *D1 = dyn_cast<DefinedRegular>(B1))
       if (auto *D2 = dyn_cast<DefinedRegular>(B2))
-        return   std::make_tuple (D1->getValue(), D1->getChunk()->Class[Cnt % 2])
-               < std::make_tuple (D2->getValue(), D2->getChunk()->Class[Cnt % 2]);
+        return std::make_tuple(D1->getValue(), D1->getChunk()->Class[Cnt % 2]) <
+               std::make_tuple(D2->getValue(), D2->getChunk()->Class[Cnt % 2]);
     return B1 < B2;
   };
 
-  return lexicographical_compare_helper (A, A->Relocs.begin(), A->Relocs.end(), B, B->Relocs.begin(), B->Relocs.end(),  Less);
+  return lexicographicalCompareRelocs(A, B, Less);
 }
 
 // Compare "moving" part of two sections, namely relocation targets.
 bool ICF::lessVariable(const SectionChunk *A, const SectionChunk *B) {
   // Compare relocations.
-  auto Less = [this](const SectionChunk *A, const coff_relocation &R1, const SectionChunk *B, const coff_relocation &R2) {
+  auto Less = [this](const SectionChunk *A, const coff_relocation &R1,
+                     const SectionChunk *B, const coff_relocation &R2) {
     SymbolBody *B1 = A->File->getSymbolBody(R1.SymbolTableIndex);
     SymbolBody *B2 = B->File->getSymbolBody(R2.SymbolTableIndex);
     if (B1 == B2)
@@ -193,9 +206,8 @@ bool ICF::lessVariable(const SectionChunk *A, const SectionChunk *B) {
 
     return B1 < B2;
   };
-  return lexicographical_compare_helper (A, A->Relocs.begin(), A->Relocs.end(), B, B->Relocs.begin(), B->Relocs.end(), Less);
+  return lexicographicalCompareRelocs(A, B, Less);
 }
-
 
 size_t ICF::findBoundary(size_t Begin, size_t End) {
   for (size_t I = Begin + 1; I < End; ++I)
