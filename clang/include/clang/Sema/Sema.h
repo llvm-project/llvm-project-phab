@@ -54,6 +54,7 @@
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/TinyPtrVector.h"
+#include "llvm/Support/Timer.h"
 #include <deque>
 #include <memory>
 #include <string>
@@ -278,6 +279,8 @@ class Sema {
   bool isMultiplexExternalSource;
 
   static bool mightHaveNonExternalLinkage(const DeclaratorDecl *FD);
+
+  llvm::RefCntTimer TemplateInstantiationTime;
 
   bool isVisibleSlow(const NamedDecl *D);
 
