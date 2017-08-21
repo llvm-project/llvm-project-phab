@@ -291,7 +291,9 @@ private:
     else if (Inst && RTCBB->getParent() == Inst->getFunction())
       IP = RTCBB->getTerminator();
     else
-      IP = RTCBB->getParent()->getEntryBlock().getTerminator();
+      IP = R.isTopLevelRegion()
+               ? R.getEntry()->getTerminator()
+               : RTCBB->getParent()->getEntryBlock().getTerminator();
 
     if (!Inst || (Inst->getOpcode() != Instruction::SRem &&
                   Inst->getOpcode() != Instruction::SDiv))

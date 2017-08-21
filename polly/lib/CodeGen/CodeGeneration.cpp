@@ -159,32 +159,41 @@ static bool CodeGen(Scop &S, IslAstInfo &AI, LoopInfo &LI, DominatorTree &DT,
   isl_ast_node *AstRoot = AI.getAst();
   if (!AstRoot)
     return false;
-
-  auto &DL = S.getFunction().getParent()->getDataLayout();
   Region *R = &S.getRegion();
-  assert(!R->isTopLevelRegion() && "Top level regions are not supported");
-
+  Function *F = R->getEntry()->getParent();
+  BasicBlock *StartBlock = nullptr, *ExitBlock = nullptr;
+  BBPair StartExitBlocks;
   ScopAnnotator Annotator;
+  PollyIRBuilder Builder = createPollyIRBuilder(R->getEntry(), Annotator);
+  auto &DL = S.getFunction().getParent()->getDataLayout();
 
-  simplifyRegion(R, &DT, &LI, &RI);
-  assert(R->isSimple());
-  BasicBlock *EnteringBB = S.getEnteringBlock();
-  assert(EnteringBB);
-  PollyIRBuilder Builder = createPollyIRBuilder(EnteringBB, Annotator);
+  if (R->isTopLevelRegion()) {
+    StartExitBlocks = std::get<0>(
+        executeTopLevelScopConditionally(S, Builder.getTrue(), DT, RI, LI));
+    StartBlock = std::get<0>(StartExitBlocks);
+    ExitBlock = std::get<1>(StartExitBlocks);
+  } else {
+    simplifyRegion(R, &DT, &LI, &RI);
+    assert(R->isSimple());
+    BasicBlock *EnteringBB = S.getEnteringBlock();
+    assert(EnteringBB);
 
-  // Only build the run-time condition and parameters _after_ having
-  // introduced the conditional branch. This is important as the conditional
-  // branch will guard the original scop from new induction variables that
-  // the SCEVExpander may introduce while code generating the parameters and
-  // which may introduce scalar dependences that prevent us from correctly
-  // code generating this scop.
-  BBPair StartExitBlocks =
-      std::get<0>(executeScopConditionally(S, Builder.getTrue(), DT, RI, LI));
-  BasicBlock *StartBlock = std::get<0>(StartExitBlocks);
-  BasicBlock *ExitBlock = std::get<1>(StartExitBlocks);
-
+    // Only build the run-time condition and parameters _after_ having
+    // introduced the conditional branch. This is important as the conditional
+    // branch will guard the original scop from new induction variables that
+    // the SCEVExpander may introduce while code generating the parameters and
+    // which may introduce scalar dependences that prevent us from correctly
+    // code generating this scop.
+    StartExitBlocks =
+        std::get<0>(executeScopConditionally(S, Builder.getTrue(), DT, RI, LI));
+    StartBlock = std::get<0>(StartExitBlocks);
+    ExitBlock = std::get<1>(StartExitBlocks);
+  }
   removeLifetimeMarkers(R);
   auto *SplitBlock = StartBlock->getSinglePredecessor();
+  if (R->isTopLevelRegion()) {
+    SplitBlock = SplitBlock->getSinglePredecessor();
+  }
 
   IslNodeBuilder NodeBuilder(Builder, Annotator, DL, LI, SE, DT, S, StartBlock);
 
@@ -194,7 +203,7 @@ static bool CodeGen(Scop &S, IslAstInfo &AI, LoopInfo &LI, DominatorTree &DT,
   Annotator.buildAliasScopes(S);
 
   if (PerfMonitoring) {
-    PerfMonitor P(S, EnteringBB->getParent()->getParent());
+    PerfMonitor P(S, F->getParent());
     P.initialize();
     P.insertRegionStart(SplitBlock->getTerminator());
 
@@ -246,10 +255,8 @@ static bool CodeGen(Scop &S, IslAstInfo &AI, LoopInfo &LI, DominatorTree &DT,
 
     NodeBuilder.create(AstRoot);
     NodeBuilder.finalize();
-    fixRegionInfo(*EnteringBB->getParent(), *R->getParent(), RI);
+    fixRegionInfo(*F, *R->getParent(), RI);
   }
-
-  Function *F = EnteringBB->getParent();
   verifyGeneratedFunction(S, *F, AI);
   for (auto *SubF : NodeBuilder.getParallelSubfunctions())
     verifyGeneratedFunction(S, *SubF, AI);
