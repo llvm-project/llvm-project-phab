@@ -153,16 +153,182 @@ static void removeLifetimeMarkers(Region *R) {
   }
 }
 
+static BasicBlock *unifyFunctionExitNodes(Function &F) {
+  // Loop over all of the blocks in a function, tracking all of the blocks that
+  // return.
+  //
+  SmallVector<BasicBlock *, 4> ReturningBlocks;
+  BasicBlock *ReturnBlock = nullptr;
+  for (BasicBlock &I : F)
+    if (isa<ReturnInst>(I.getTerminator()))
+      ReturningBlocks.push_back(&I);
+
+  // Now handle return blocks.
+  if (ReturningBlocks.empty()) {
+    llvm_unreachable("Full function Scop does not return");
+  } else if (ReturningBlocks.size() == 1) {
+    ReturnBlock = ReturningBlocks.front(); // Already has a single return block
+    return ReturnBlock;
+  }
+
+  // Otherwise, we need to insert a new basic block into the function, add a PHI
+  // nodes (if the function returns values), and convert all of the return
+  // instructions into unconditional branches.
+  //
+  BasicBlock *NewRetBlock = BasicBlock::Create(F.getContext(), "polly.ret", &F);
+
+  PHINode *PN = nullptr;
+  if (F.getReturnType()->isVoidTy()) {
+    ReturnInst::Create(F.getContext(), nullptr, NewRetBlock);
+  } else {
+    // If the function doesn't return void... add a PHI node to the block...
+    PN = PHINode::Create(F.getReturnType(), ReturningBlocks.size(),
+                         "UnifiedRetVal");
+
+    NewRetBlock->getInstList().push_back(PN);
+    ReturnInst::Create(F.getContext(), PN, NewRetBlock);
+  }
+
+  // Loop over all of the blocks, replacing the return instruction with an
+  // unconditional branch.
+  for (BasicBlock *BB : ReturningBlocks) {
+    // Add an incoming element to the PHI node for every return instruction that
+    // is merging into this new block...
+    if (PN)
+      PN->addIncoming(BB->getTerminator()->getOperand(0), BB);
+
+    BB->getTerminator()->eraseFromParent();
+    BranchInst::Create(NewRetBlock, BB);
+  }
+  return NewRetBlock;
+}
+
+static bool FullFunctionCodeGen(Scop &S, IslAstInfo &AI, LoopInfo &LI,
+                                DominatorTree &DT, ScalarEvolution &SE,
+                                RegionInfo &RI) {
+  isl_ast_node *AstRoot = AI.getAst();
+  if (!AstRoot)
+    return false;
+  Region *R = &S.getRegion();
+  Function *F = R->getEntry()->getParent();
+
+  splitEntryBlockForAlloca(R->getEntry(), &DT, &LI, &RI);
+
+  BasicBlock *SingleExitBlock = unifyFunctionExitNodes(*F);
+
+  BasicBlock *ExitPred = SingleExitBlock->getSinglePredecessor();
+  assert(ExitPred && "Exit block has multiple predessors");
+
+  ScopAnnotator Annotator;
+  PollyIRBuilder Builder = createPollyIRBuilder(R->getEntry(), Annotator);
+
+  BasicBlock *SplitBlock =
+      BasicBlock::Create(F->getContext(), "polly.split", F);
+
+  BasicBlock *JoinBlock =
+      splitEdge(ExitPred, SingleExitBlock, "polly.merge", &DT, &LI, &RI);
+
+  BasicBlock *StartBlock =
+      BasicBlock::Create(F->getContext(), "polly.start", F);
+
+  BasicBlock *ExitingBlock =
+      BasicBlock::Create(F->getContext(), "polly.exiting", F);
+
+  Builder.SetInsertPoint(SplitBlock);
+  Builder.CreateBr(StartBlock);
+
+  Builder.SetInsertPoint(StartBlock);
+  Builder.CreateBr(ExitingBlock);
+
+  Builder.SetInsertPoint(ExitingBlock);
+  Builder.CreateBr(JoinBlock);
+
+  BasicBlock *EntrySucc = R->getEntry()->getSingleSuccessor();
+  assert(EntrySucc);
+  R->getEntry()->getTerminator()->eraseFromParent();
+  Builder.SetInsertPoint(R->getEntry());
+  Builder.CreateCondBr(Builder.getTrue(), EntrySucc, SplitBlock);
+
+  DominatorTree FreeTree;
+  FreeTree.setNewRoot(SplitBlock);
+  FreeTree.addNewBlock(StartBlock, SplitBlock);
+  FreeTree.addNewBlock(ExitingBlock, StartBlock);
+  FreeTree.addNewBlock(JoinBlock, ExitingBlock);
+
+  auto &DL = S.getFunction().getParent()->getDataLayout();
+  IslNodeBuilder NodeBuilder(Builder, Annotator, DL, LI, SE, FreeTree, S,
+                             R->getEntry());
+  NodeBuilder.allocateNewArrays({StartBlock, ExitingBlock});
+  Annotator.buildAliasScopes(S);
+
+  // First generate code for the hoisted invariant loads and transitively the
+  // parameters they reference. Afterwards, for the remaining parameters that
+  // might reference the hoisted loads. Finally, build the runtime check
+  // that might reference both hoisted loads as well as parameters.
+  // If the hoisting fails we have to bail and execute the original code.
+  Builder.SetInsertPoint(R->getEntry()->getTerminator());
+  if (!NodeBuilder.preloadInvariantLoads()) {
+
+    // Patch the introduced branch condition to ensure that we always execute
+    // the original SCoP.
+    auto *FalseI1 = Builder.getFalse();
+    auto *SplitBBTerm = Builder.GetInsertBlock()->getTerminator();
+    SplitBBTerm->setOperand(0, FalseI1);
+
+    // Since the other branch is hence ignored we mark it as unreachable and
+    // adjust the dominator tree accordingly.
+    auto *ExitingBlock = StartBlock->getUniqueSuccessor();
+    assert(ExitingBlock);
+    auto *MergeBlock = ExitingBlock->getUniqueSuccessor();
+    assert(MergeBlock);
+    markBlockUnreachable(*StartBlock, Builder);
+    markBlockUnreachable(*ExitingBlock, Builder);
+    auto *ExitingBB = S.getExitingBlock();
+    assert(ExitingBB);
+    DT.changeImmediateDominator(MergeBlock, ExitingBB);
+    DT.eraseNode(ExitingBlock);
+
+  } else {
+    NodeBuilder.addParameters(S.getContext().release());
+
+    Value *RTC = NodeBuilder.createRTC(AI.getRunCondition());
+    assert(RTC);
+    R->getEntry()->getTerminator()->setOperand(0, RTC);
+
+    // Explicitly set the insert point to the end of the block to avoid that a
+    // split at the builder's current
+    // insert position would move the malloc calls to the wrong BasicBlock.
+    // Ideally we would just split the block during allocation of the new
+    // arrays, but this would break the assumption that there are no blocks
+    // between polly.start and polly.exiting (at this point).
+    Builder.SetInsertPoint(StartBlock->getTerminator());
+    NodeBuilder.create(AstRoot);
+    NodeBuilder.finalize();
+    fixRegionInfo(*F, *R->getParent(), RI);
+  }
+
+  verifyGeneratedFunction(S, *F, AI);
+  for (auto *SubF : NodeBuilder.getParallelSubfunctions())
+    verifyGeneratedFunction(S, *SubF, AI);
+
+  // Mark the function such that we run additional cleanup passes on this
+  // function (e.g. mem2reg to rediscover phi nodes).
+  F->addFnAttr("polly-optimized");
+  return true;
+}
+
 static bool CodeGen(Scop &S, IslAstInfo &AI, LoopInfo &LI, DominatorTree &DT,
                     ScalarEvolution &SE, RegionInfo &RI) {
+  Region *R = &S.getRegion();
+  if (R->isTopLevelRegion()) {
+    return FullFunctionCodeGen(S, AI, LI, DT, SE, RI);
+  }
   // Check if we created an isl_ast root node, otherwise exit.
   isl_ast_node *AstRoot = AI.getAst();
   if (!AstRoot)
     return false;
 
   auto &DL = S.getFunction().getParent()->getDataLayout();
-  Region *R = &S.getRegion();
-  assert(!R->isTopLevelRegion() && "Top level regions are not supported");
 
   ScopAnnotator Annotator;
 

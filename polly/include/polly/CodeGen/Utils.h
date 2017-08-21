@@ -70,5 +70,25 @@ std::pair<BBPair, llvm::BranchInst *>
 executeScopConditionally(Scop &S, llvm::Value *RTC, llvm::DominatorTree &DT,
                          llvm::RegionInfo &RI, llvm::LoopInfo &LI);
 
+/// Alternative to llvm::SplitCriticalEdge.
+///
+/// Creates a new block which branches to Succ. The edge to split is redirected
+/// to the new block.
+///
+/// The issue with llvm::SplitCriticalEdge is that it does nothing if the edge
+/// is not critical. The issue with llvm::SplitEdge is that it does not always
+/// create the middle block, but reuses Prev/Succ if it can. We always want a
+/// new middle block.
+///
+/// @param Prev   Edge Source BB
+/// @param Succ   Edge Destination BB
+/// @param Suffix Name to append
+/// @param DT     DominatorTree
+/// @param LI     LoopInfo
+/// @param RI     RegionInfo
+llvm::BasicBlock *splitEdge(llvm::BasicBlock *Prev, llvm::BasicBlock *Succ,
+                            const char *Suffix, llvm::DominatorTree *DT,
+                            llvm::LoopInfo *LI, llvm::RegionInfo *RI);
+
 } // namespace polly
 #endif

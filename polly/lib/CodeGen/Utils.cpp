@@ -21,16 +21,7 @@
 
 using namespace llvm;
 
-// Alternative to llvm::SplitCriticalEdge.
-//
-// Creates a new block which branches to Succ. The edge to split is redirected
-// to the new block.
-//
-// The issue with llvm::SplitCriticalEdge is that it does nothing if the edge is
-// not critical.
-// The issue with llvm::SplitEdge is that it does not always create the middle
-// block, but reuses Prev/Succ if it can. We always want a new middle block.
-static BasicBlock *splitEdge(BasicBlock *Prev, BasicBlock *Succ,
+BasicBlock *polly::splitEdge(BasicBlock *Prev, BasicBlock *Succ,
                              const char *Suffix, DominatorTree *DT,
                              LoopInfo *LI, RegionInfo *RI) {
   assert(Prev && Succ);
