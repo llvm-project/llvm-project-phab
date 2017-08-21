@@ -822,6 +822,10 @@ def warn_cxx14_compat_constexpr_on_lambda : Warning<
 def ext_constexpr_on_lambda_cxx17 : ExtWarn<
   "'constexpr' on lambda expressions is a C++17 extension">, InGroup<CXX17>;
 
+ // C++2a template lambdas
+ def err_lambda_template_parameter_list_empty : Error<
+   "lambda template parameter list cannot be empty">;
+
 // Availability attribute
 def err_expected_version : Error<
   "expected a version of the form 'major[.minor[.subminor]]'">;
