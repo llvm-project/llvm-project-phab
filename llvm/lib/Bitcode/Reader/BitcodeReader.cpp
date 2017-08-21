@@ -5017,13 +5017,16 @@ std::vector<FunctionSummary::EdgeTy> ModuleSummaryIndexBitcodeReader::makeCallLi
   for (unsigned I = 0, E = Record.size(); I != E; ++I) {
     CalleeInfo::HotnessType Hotness = CalleeInfo::HotnessType::Unknown;
     ValueInfo Callee = getValueInfoFromValueId(Record[I]).first;
+    CalleeInfo::ModRefType ModRef = CalleeInfo::ModRefType::MayWrite;
+    if (Record.size() > (I + 1 + IsOldProfileFormat + HasProfile))
+      ModRef = static_cast<CalleeInfo::ModRefType>(Record[++I]);
     if (IsOldProfileFormat) {
       I += 1; // Skip old callsitecount field
       if (HasProfile)
         I += 1; // Skip old profilecount field
     } else if (HasProfile)
       Hotness = static_cast<CalleeInfo::HotnessType>(Record[++I]);
-    Ret.push_back(FunctionSummary::EdgeTy{Callee, CalleeInfo{Hotness}});
+    Ret.push_back(FunctionSummary::EdgeTy{Callee, CalleeInfo{Hotness, ModRef}});
   }
   return Ret;
 }
@@ -5101,7 +5104,7 @@ Error ModuleSummaryIndexBitcodeReader::parseEntireSummary(unsigned ID) {
     //                numrefs x valueid, n x (valueid)]
     // FS_PERMODULE_PROFILE: [valueid, flags, instcount, fflags, numrefs,
     //                        numrefs x valueid,
-    //                        n x (valueid, hotness)]
+    //                        n x (valueid, modref, hotness)]
     case bitc::FS_PERMODULE:
     case bitc::FS_PERMODULE_PROFILE: {
       unsigned ValueID = Record[0];
@@ -5196,7 +5199,7 @@ Error ModuleSummaryIndexBitcodeReader::parseEntireSummary(unsigned ID) {
     // FS_COMBINED: [valueid, modid, flags, instcount, fflags, numrefs,
     //               numrefs x valueid, n x (valueid)]
     // FS_COMBINED_PROFILE: [valueid, modid, flags, instcount, fflags, numrefs,
-    //                       numrefs x valueid, n x (valueid, hotness)]
+    //                       numrefs x valueid, n x (valueid, modref, hotness)]
     case bitc::FS_COMBINED:
     case bitc::FS_COMBINED_PROFILE: {
       unsigned ValueID = Record[0];

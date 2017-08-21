@@ -32,7 +32,7 @@
 ; COMBINED-NEXT:    <VALUE_GUID
 ; COMBINED-NEXT:    <COMBINED
 ; See if the call to func is registered.
-; COMBINED-NEXT:    <COMBINED {{.*}} op6=[[FUNCID]]/>
+; COMBINED-NEXT:    <COMBINED {{.*}} op6=[[FUNCID]] {{.*}}/>
 ; COMBINED-NEXT:  </GLOBALVAL_SUMMARY_BLOCK>
 
 ; ModuleID = 'thinlto-function-summary-callgraph.ll'

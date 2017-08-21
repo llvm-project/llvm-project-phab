@@ -28,6 +28,7 @@ add_llvm_library(LLVMAnalysis
   DomPrinter.cpp
   DominanceFrontier.cpp
   EHPersonalities.cpp
+  FunctionAttrsAnalysis.cpp
   GlobalsModRef.cpp
   IVUsers.cpp
   IndirectCallPromotionAnalysis.cpp
