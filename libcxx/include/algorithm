@@ -642,6 +642,7 @@ template <class BidirectionalIterator, class Compare>
 #include <utility> // needed to provide swap_ranges.
 #include <memory>
 #include <iterator>
+#include <cmath>
 #include <cstddef>
 
 #if defined(__IBMCPP__)
@@ -3994,7 +3995,14 @@ __insertion_sort_move(_BirdirectionalIterator __first1, _BirdirectionalIterator 
 
 template <class _Compare, class _RandomAccessIterator>
 void
-__sort(_RandomAccessIterator __first, _RandomAccessIterator __last, _Compare __comp)
+__partial_sort(_RandomAccessIterator, _RandomAccessIterator, _RandomAccessIterator,
+            _Compare);
+
+// Using introsort algorithm for sorting
+template <class _Compare, class _RandomAccessIterator>
+void
+__intro_sort(_RandomAccessIterator __first, _RandomAccessIterator __last, _Compare __comp, 
+           typename iterator_traits<_RandomAccessIterator>::difference_type __depth_limit)
 {
     // _Compare is known to be a reference type
     typedef typename iterator_traits<_RandomAccessIterator>::difference_type difference_type;
@@ -4029,6 +4037,12 @@ __sort(_RandomAccessIterator __first, _RandomAccessIterator __last, _Compare __c
             _VSTD::__insertion_sort_3<_Compare>(__first, __last, __comp);
             return;
         }
+        if (__depth_limit == 0)
+        {
+            __partial_sort<_Compare>(__first,__last,__last,__comp);
+            return;
+        }
+
         // __len > 5
         _RandomAccessIterator __m = __first;
         _RandomAccessIterator __lm1 = __last;
@@ -4172,17 +4186,31 @@ __sort(_RandomAccessIterator __first, _RandomAccessIterator __last, _Compare __c
         // sort smaller range with recursive call and larger with tail recursion elimination
         if (__i - __first < __last - __i)
         {
-            _VSTD::__sort<_Compare>(__first, __i, __comp);
-            // _VSTD::__sort<_Compare>(__i+1, __last, __comp);
+            _VSTD::__intro_sort<_Compare>(__first, __i, __comp, __depth_limit);
+            // _VSTD::__intro_sort<_Compare>(__i+1, __last, __comp, __depth_limit);
             __first = ++__i;
         }
         else
         {
-            _VSTD::__sort<_Compare>(__i+1, __last, __comp);
-            // _VSTD::__sort<_Compare>(__first, __i, __comp);
+            _VSTD::__intro_sort<_Compare>(__i+1, __last, __comp, __depth_limit);
+            // _VSTD::__intro_sort<_Compare>(__first, __i, __comp, __depth_limit);
             __last = __i;
         }
+        --__depth_limit;
     }
+}
+
+template <class _Compare, class _RandomAccessIterator>
+void
+__sort(_RandomAccessIterator __first, _RandomAccessIterator __last, _Compare __comp)
+{
+
+  // Threshold(or depth limit) for introsort is taken to be 2*log2(size)
+  typedef typename iterator_traits<_RandomAccessIterator>::difference_type difference_type;
+  const difference_type __dp = __last - __first;
+  difference_type __depth_limit = __last == __first ? 0 : _VSTD::log2(__dp);
+  __depth_limit *= 2;
+  __intro_sort<_Compare>(__first, __last, __comp, __depth_limit);
 }
 
 // This forwarder keeps the top call and the recursive calls using the same instantiation, forcing a reference _Compare

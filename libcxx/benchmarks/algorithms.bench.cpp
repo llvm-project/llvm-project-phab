@@ -5,7 +5,7 @@
 #include "benchmark/benchmark_api.h"
 #include "GenerateInput.hpp"
 
-constexpr std::size_t TestNumInputs = 1024;
+constexpr std::size_t TestNumInputs = 1024*64;
 
 template <class GenInputs>
 void BM_Sort(benchmark::State& st, GenInputs gen) {
@@ -57,6 +57,9 @@ BENCHMARK_CAPTURE(BM_Sort, sorted_descending_strings,
 
 BENCHMARK_CAPTURE(BM_Sort, single_element_strings,
     getDuplicateStringInputs)->Arg(TestNumInputs);
+
+BENCHMARK_CAPTURE(BM_Sort, qsort_worst_uint32,
+    getQSortKiller<uint32_t>)->Arg(TestNumInputs);
 
 
 BENCHMARK_MAIN()

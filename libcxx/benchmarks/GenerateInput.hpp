@@ -138,5 +138,40 @@ inline std::vector<const char*> getRandomCStringInputs(size_t N) {
     return cinputs;
 }
 
+template <class T>
+inline std::vector<T> make_killer(size_t N) {
+    std::vector<T> inputs;
+    uint32_t candidate = 0;
+    uint32_t num_solid = 0;
+    uint32_t gas = N - 1;
+
+    std::vector<T> tmp(N);
+    inputs.resize(N);
+
+    for (T i = 0; i < N; ++i) {
+        tmp[i] = i;
+        inputs[i] = gas;
+    }
+
+    std::sort(tmp.begin(), tmp.end(), [&](T x, T y) {
+        if (inputs[x] == gas && inputs[y] == gas) {
+            if (x == candidate) inputs[x] = num_solid++;
+            else inputs[y] = num_solid++;
+        }
+
+        if (inputs[x] == gas) candidate = x;
+        else if (inputs[y] == gas) candidate = y;
+
+        return inputs[x] < inputs[y];
+    });
+    return inputs;
+}
+
+
+template <class T>
+inline std::vector<T> getQSortKiller(size_t N){
+    std::vector<T> inputs = make_killer<T>(N);
+    return inputs;
+}
 
 #endif // BENCHMARK_GENERATE_INPUT_HPP
