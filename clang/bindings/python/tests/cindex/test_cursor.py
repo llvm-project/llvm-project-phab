@@ -255,6 +255,17 @@ def test_is_virtual_method():
     assert foo.is_virtual_method()
     assert not bar.is_virtual_method()
 
+def test_is_abstract_record():
+    """Ensure Cursor.is_abstract_record works."""
+    source = 'struct X { virtual void x() = 0; }; struct Y : X { void x(); };'
+    tu = get_tu(source, lang='cpp')
+
+    cls = get_cursor(tu, 'X')
+    assert cls.is_abstract_record()
+
+    cls = get_cursor(tu, 'Y')
+    assert not cls.is_abstract_record()
+
 def test_is_scoped_enum():
     """Ensure Cursor.is_scoped_enum works."""
     source = 'class X {}; enum RegularEnum {}; enum class ScopedEnum {};'

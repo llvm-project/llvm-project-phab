@@ -4419,6 +4419,12 @@ CINDEX_LINKAGE unsigned clang_CXXMethod_isStatic(CXCursor C);
 CINDEX_LINKAGE unsigned clang_CXXMethod_isVirtual(CXCursor C);
 
 /**
+ * \brief Determine if a C++ record is abstract, i.e. whether a class or struct
+ * has a pure virtual member function.
+ */
+CINDEX_LINKAGE unsigned clang_CXXRecord_isAbstract(CXCursor C);
+
+/**
  * \brief Determine if an enum declaration refers to a scoped enum.
  */
 CINDEX_LINKAGE unsigned clang_EnumDecl_isScoped(CXCursor C);
