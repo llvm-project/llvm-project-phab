@@ -22,6 +22,7 @@
 #include "llvm/IR/PassManager.h"
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Transforms/IPO/AlwaysInliner.h"
+#include "llvm/Transforms/IPO/Inliner.h"
 
 #define DEBUG_TYPE "polly-scop-inliner"
 
@@ -29,11 +30,15 @@ using namespace polly;
 extern bool polly::PollyAllowFullFunction;
 
 namespace {
-class ScopInliner : public CallGraphSCCPass {
+class ScopInliner : public LegacyInlinerBase {
+private:
+        std::map<Function *, InlineCost> InlineCostCache;
 public:
   static char ID;
 
-  ScopInliner() : CallGraphSCCPass(ID) {}
+  ScopInliner() : LegacyInlinerBase(ID, /*InsertLifetime*/ true) {
+    // initializeAlwaysInlinerLegacyPassPass(*PassRegistry::getPassRegistry());
+  }
 
   bool doInitialization(CallGraph &CG) override {
     if (!polly::PollyAllowFullFunction) {
@@ -45,24 +50,26 @@ public:
           " enabled. "
           " If not, the entry block is not included in the Scop");
     }
-    return true;
+    return LegacyInlinerBase::doInitialization(CG);
   }
 
-  bool runOnSCC(CallGraphSCC &SCC) override {
-    // We do not try to inline non-trivial SCCs because this would lead to
-    // "infinite" inlining if we are not careful.
-    if (SCC.size() > 1)
-      return false;
-    assert(SCC.size() == 1 && "found empty SCC");
-    Function *F = (*SCC.begin())->getFunction();
+  bool doFinalization(CallGraph &CG) override {
+      InlineCostCache.clear();
+      return LegacyInlinerBase::doFinalization(CG);
+  }
 
-    // If the function is a nullptr, or the function is a declaration.
-    if (!F)
-      return false;
-    if (F->isDeclaration()) {
-      DEBUG(dbgs() << "Skipping " << F->getName()
-                   << "because it is a declaration.\n");
-      return false;
+  InlineCost getInlineCost(CallSite CS) override {
+    Function *F = CS.getCalledFunction();
+
+    if (!F || F->isDeclaration())
+      return InlineCost::getNever();
+
+    DEBUG(dbgs() << "Scop inliner running on: " << F->getName() << " | ");
+
+    std::map<Function *, InlineCost>::iterator It;
+    if ((It = InlineCostCache.find(F)) != InlineCostCache.end()) {
+        DEBUG(dbgs() << "(cached) will inline? " << (bool)It->second << ".\n");
+        return It->second;
     }
 
     PassBuilder PB;
@@ -73,32 +80,47 @@ public:
     RegionInfo &RI = FAM.getResult<RegionInfoAnalysis>(*F);
     ScopDetection &SD = FAM.getResult<ScopAnalysis>(*F);
 
-    const bool HasScopAsTopLevelRegion =
-        SD.ValidRegions.count(RI.getTopLevelRegion()) > 0;
+    const auto TopLevelRegion = RI.getTopLevelRegion();
 
-    if (HasScopAsTopLevelRegion) {
-      DEBUG(dbgs() << "Skipping " << F->getName()
-                   << " has scop as top level region");
-      F->addFnAttr(llvm::Attribute::AlwaysInline);
+    // Whether the entire function can be modeled as a Scop.
+    const bool IsFullyModeledAsScop =
+        SD.ValidRegions.count(TopLevelRegion) > 0;
 
-      ModuleAnalysisManager MAM;
-      PB.registerModuleAnalyses(MAM);
-      ModulePassManager MPM;
-      MPM.addPass(AlwaysInlinerPass());
-      Module *M = F->getParent();
-      assert(M && "Function has illegal module");
-      MPM.run(*M, MAM);
-    } else {
-      DEBUG(dbgs() << F->getName()
-                   << " does NOT have scop as top level region\n");
+    // Whether the scop contains all the children of the top-level region.
+    const bool IsModeledByTopLevelChildren = [&] {
+        for (auto ScopRegion : SD.ValidRegions)
+            if (ScopRegion->getParent() == TopLevelRegion)
+                return true;
+        return false;
+    }();
+
+    const InlineCost AnalyzedInlineCost = [&] {
+        if (IsFullyModeledAsScop || IsModeledByTopLevelChildren)
+            return InlineCost::getAlways();
+        return InlineCost::getNever();
+    }();
+
+    assert(InlineCostCache.find(F) == InlineCostCache.end() &&
+            "Cached inlining analysis was not used.");
+    // Can't use InlineCostCache[F] = AnalyzedInlineCost because
+    // copy-ctor of InlineCost has been deleted. Joy.
+    InlineCostCache.insert(std::make_pair(F, AnalyzedInlineCost));
+    DEBUG(dbgs() << "will inline? " << (bool)(AnalyzedInlineCost) << ".\n");
+
+    // If we decided to inline, then invalidate call site.
+    if (AnalyzedInlineCost) {
+        Function *Caller = CS.getCaller();
+        assert(Caller && "Callsite has invalid caller");
+
+        InlineCostCache.erase(Caller);
     }
 
-    return false;
-  };
-
-  void getAnalysisUsage(AnalysisUsage &AU) const override {
-    CallGraphSCCPass::getAnalysisUsage(AU);
+    return AnalyzedInlineCost;
   }
+
+  // Do whatever alwaysinliner does.
+  bool runOnSCC(CallGraphSCC &SCC) override { return inlineCalls(SCC); }
+
 };
 
 } // namespace
