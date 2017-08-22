@@ -60,7 +60,6 @@ namespace clang {
     ASTContext *Context;
 
     Timer LLVMIRGeneration;
-    unsigned LLVMIRGenerationRefCount;
 
     /// True if we've finished generating IR. This prevents us from generating
     /// additional LLVM IR after emitting output in HandleTranslationUnit. This
@@ -90,7 +89,6 @@ namespace clang {
           CodeGenOpts(CodeGenOpts), TargetOpts(TargetOpts), LangOpts(LangOpts),
           AsmOutStream(std::move(OS)), Context(nullptr),
           LLVMIRGeneration("irgen", "LLVM IR Generation Time"),
-          LLVMIRGenerationRefCount(0),
           Gen(CreateLLVMCodeGen(Diags, InFile, HeaderSearchOpts, PPOpts,
                                 CodeGenOpts, C, CoverageInfo)),
           LinkModules(std::move(LinkModules)) {
@@ -113,12 +111,12 @@ namespace clang {
       Context = &Ctx;
 
       if (llvm::TimePassesIsEnabled)
-        LLVMIRGeneration.startTimer();
+        LLVMIRGeneration.startReentrantTimer();
 
       Gen->Initialize(Ctx);
 
       if (llvm::TimePassesIsEnabled)
-        LLVMIRGeneration.stopTimer();
+        LLVMIRGeneration.stopReentrantTimer();
     }
 
     bool HandleTopLevelDecl(DeclGroupRef D) override {
@@ -127,19 +125,13 @@ namespace clang {
                                      "LLVM IR generation of declaration");
 
       // Recurse.
-      if (llvm::TimePassesIsEnabled) {
-        LLVMIRGenerationRefCount += 1;
-        if (LLVMIRGenerationRefCount == 1)
-          LLVMIRGeneration.startTimer();
-      }
+      if (llvm::TimePassesIsEnabled)
+        LLVMIRGeneration.startReentrantTimer();
 
       Gen->HandleTopLevelDecl(D);
 
-      if (llvm::TimePassesIsEnabled) {
-        LLVMIRGenerationRefCount -= 1;
-        if (LLVMIRGenerationRefCount == 0)
-          LLVMIRGeneration.stopTimer();
-      }
+      if (llvm::TimePassesIsEnabled)
+        LLVMIRGeneration.stopReentrantTimer();
 
       return true;
     }
@@ -149,12 +141,12 @@ namespace clang {
                                      Context->getSourceManager(),
                                      "LLVM IR generation of inline function");
       if (llvm::TimePassesIsEnabled)
-        LLVMIRGeneration.startTimer();
+        LLVMIRGeneration.startReentrantTimer();
 
       Gen->HandleInlineFunctionDefinition(D);
 
       if (llvm::TimePassesIsEnabled)
-        LLVMIRGeneration.stopTimer();
+        LLVMIRGeneration.stopReentrantTimer();
     }
 
     void HandleInterestingDecl(DeclGroupRef D) override {
@@ -195,19 +187,13 @@ namespace clang {
     void HandleTranslationUnit(ASTContext &C) override {
       {
         PrettyStackTraceString CrashInfo("Per-file LLVM IR generation");
-        if (llvm::TimePassesIsEnabled) {
-          LLVMIRGenerationRefCount += 1;
-          if (LLVMIRGenerationRefCount == 1)
-            LLVMIRGeneration.startTimer();
-        }
+        if (llvm::TimePassesIsEnabled)
+          LLVMIRGeneration.startReentrantTimer();
 
         Gen->HandleTranslationUnit(C);
 
-        if (llvm::TimePassesIsEnabled) {
-          LLVMIRGenerationRefCount -= 1;
-          if (LLVMIRGenerationRefCount == 0)
-            LLVMIRGeneration.stopTimer();
-        }
+        if (llvm::TimePassesIsEnabled)
+          LLVMIRGeneration.stopReentrantTimer();
 
 	IRGenFinished = true;
       }
