@@ -219,3 +219,108 @@ polly::executeScopConditionally(Scop &S, Value *RTC, DominatorTree &DT,
 
   return std::make_pair(std::make_pair(StartBlock, ExitingBlock), CondBr);
 }
+
+// Transforms F to have a single exit node by introducing a new basic block
+// and unconditional jumps from the existing nodes with return instructions.
+// The return value is obtained with a corresponding phi instruction.
+static BasicBlock *unifyFunctionExitNodes(Function &F) {
+  // Loop over all of the blocks in a function, tracking all of the blocks that
+  // return.
+  //
+  SmallVector<BasicBlock *, 4> ReturningBlocks;
+  BasicBlock *ReturnBlock = nullptr;
+  for (BasicBlock &I : F)
+    if (isa<ReturnInst>(I.getTerminator()))
+      ReturningBlocks.push_back(&I);
+
+  // Now handle return blocks.
+  if (ReturningBlocks.empty()) {
+    llvm_unreachable("Full function Scop does not return");
+  } else if (ReturningBlocks.size() == 1) {
+    ReturnBlock = ReturningBlocks.front(); // Already has a single return block
+    return ReturnBlock;
+  }
+
+  // Otherwise, we need to insert a new basic block into the function, add a PHI
+  // nodes (if the function returns values), and convert all of the return
+  // instructions into unconditional branches.
+  //
+  BasicBlock *NewRetBlock = BasicBlock::Create(F.getContext(), "polly.ret", &F);
+
+  PHINode *PN = nullptr;
+  if (F.getReturnType()->isVoidTy()) {
+    ReturnInst::Create(F.getContext(), nullptr, NewRetBlock);
+  } else {
+    // If the function doesn't return void... add a PHI node to the block...
+    PN = PHINode::Create(F.getReturnType(), ReturningBlocks.size(),
+                         "UnifiedRetVal");
+
+    NewRetBlock->getInstList().push_back(PN);
+    ReturnInst::Create(F.getContext(), PN, NewRetBlock);
+  }
+
+  // Loop over all of the blocks, replacing the return instruction with an
+  // unconditional branch.
+  for (BasicBlock *BB : ReturningBlocks) {
+    // Add an incoming element to the PHI node for every return instruction that
+    // is merging into this new block...
+    if (PN)
+      PN->addIncoming(BB->getTerminator()->getOperand(0), BB);
+
+    BB->getTerminator()->eraseFromParent();
+    BranchInst::Create(NewRetBlock, BB);
+  }
+  return NewRetBlock;
+}
+
+std::pair<polly::BBPair, BranchInst *>
+polly::executeTopLevelScopConditionally(Scop &S, Value *RTC, DominatorTree &DT,
+                                        RegionInfo &RI, LoopInfo &LI) {
+  Region *R = &S.getRegion();
+  Function *F = R->getEntry()->getParent();
+
+  splitEntryBlockForAlloca(R->getEntry(), &DT, &LI, &RI);
+
+  BasicBlock *SingleExitBlock = unifyFunctionExitNodes(*F);
+
+  BasicBlock *ExitPred = SingleExitBlock->getSinglePredecessor();
+  assert(ExitPred && "Multiple predessors not yet supported.");
+
+  ScopAnnotator Annotator;
+  PollyIRBuilder Builder = createPollyIRBuilder(R->getEntry(), Annotator);
+
+  BasicBlock *SplitBlock =
+      BasicBlock::Create(F->getContext(), "polly.split", F);
+
+  BasicBlock *JoinBlock =
+      splitEdge(ExitPred, SingleExitBlock, "polly.merge", &DT, &LI, &RI);
+
+  BasicBlock *StartBlock =
+      BasicBlock::Create(F->getContext(), "polly.start", F);
+
+  BasicBlock *ExitingBlock =
+      BasicBlock::Create(F->getContext(), "polly.exiting", F);
+
+  Builder.SetInsertPoint(SplitBlock);
+  Builder.CreateBr(StartBlock);
+
+  Builder.SetInsertPoint(StartBlock);
+  Builder.CreateBr(ExitingBlock);
+
+  Builder.SetInsertPoint(ExitingBlock);
+  Builder.CreateBr(JoinBlock);
+
+  BasicBlock *EntrySucc = R->getEntry()->getSingleSuccessor();
+  assert(EntrySucc);
+  R->getEntry()->getTerminator()->eraseFromParent();
+  Builder.SetInsertPoint(R->getEntry());
+  BranchInst *CondBr = Builder.CreateCondBr(RTC, EntrySucc, SplitBlock);
+
+  DT.recalculate(*F);
+  // TODO : Update DT incrementally
+  if (Loop *L = LI.getLoopFor(SplitBlock)) {
+    L->addBasicBlockToLoop(StartBlock, LI);
+    L->addBasicBlockToLoop(ExitingBlock, LI);
+  }
+  return std::make_pair(std::make_pair(StartBlock, ExitingBlock), CondBr);
+}
