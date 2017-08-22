@@ -135,11 +135,27 @@ void Timer::startTimer() {
   StartTime = TimeRecord::getCurrentTime(true);
 }
 
+void Timer::startReentrantTimer() {
+  if (RefCount == 0) startTimer();
+  RefCount += 1;
+}
+
 void Timer::stopTimer() {
   assert(Running && "Cannot stop a paused timer");
+  assert(RefCount == 0 &&
+         "startReentrantTimer must be matched with the same number of calls "
+         "to stopReentrantTimer");
   Running = false;
   Time += TimeRecord::getCurrentTime(false);
   Time -= StartTime;
+}
+
+void Timer::stopReentrantTimer() {
+  assert(RefCount > 0 &&
+         "stopReentrantTimer cannot be called more times than "
+         "startReentrantTimer");
+  RefCount -= 1;
+  if (RefCount == 0) stopTimer();
 }
 
 void Timer::clear() {

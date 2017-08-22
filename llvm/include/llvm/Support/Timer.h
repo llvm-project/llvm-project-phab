@@ -80,6 +80,7 @@ class Timer {
   std::string Description;  ///< Description of this time variable.
   bool Running;             ///< Is the timer currently running?
   bool Triggered;           ///< Has the timer ever been triggered?
+  unsigned RefCount = 0;    ///< Number of times started without being stopped.
   TimerGroup *TG = nullptr; ///< The TimerGroup this Timer is in.
 
   Timer **Prev;             ///< Pointer to \p Next of previous timer in group.
@@ -117,11 +118,29 @@ public:
 
   /// Start the timer running.  Time between calls to startTimer/stopTimer is
   /// counted by the Timer class.  Note that these calls must be correctly
-  /// paired.
+  /// paired.  It is an error to call this method on a Timer that has been
+  /// started via a call to startReentrantTimer.
   void startTimer();
 
-  /// Stop the timer.
+  /// Start the tumer running or, if it is already running from a prior call to
+  /// startRentrantTimer, increase the number of times stopReentrantTimer must
+  /// be called.  Any number of calls to startReentrantTimer are allowed, so
+  /// long as the same number of calls are eventually made to
+  /// stopReentrantTimer.  Time between the first call to startReentrantTimer
+  /// and the last call to stopReentrantTimer is counted by the Timer class.
+  /// It is an error to call this method on a Timer that has been started via
+  /// a call to startTimer.
+  void startReentrantTimer();
+
+  /// Stop the timer.  It is an error to call this method directly on a timer
+  /// that has been started with startReentrantTimer.
   void stopTimer();
+
+  /// Stop the timer or, if startReentrantTimer has been called more than once,
+  /// decrement the number of times stopReentrantTimer must be called in order
+  /// to stop the timer.  It is an error to call this method without ever having
+  /// called startReentrantTimer.
+  void stopReentrantTimer();
 
   /// Clear the timer state.
   void clear();
