@@ -90,6 +90,13 @@
 # RUN:  FileCheck --check-prefix=TERNERR %s
 # TERNERR: : expected, but got ;
 
+## Broken assignment.
+# RUN: echo "SECTIONS { .= 1; }" > %t.script
+# RUN: not ld.lld %t --script %t.script -o %t2 2>&1 | \
+# RUN:  FileCheck --check-prefix=ASSIGNERR %s
+# ASSIGNERR: unable to parse section definition for output section '.=':
+# ASSIGNERR: : expected, but got ;
+
 .globl _start
 _start:
 nop

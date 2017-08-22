@@ -78,6 +78,9 @@ void ScriptLexer::setError(const Twine &Msg) {
   if (ErrorCount)
     return;
 
+  if (!ErrorContext.empty())
+    error(ErrorContext);
+
   if (!Pos) {
     error(getCurrentLocation() + ": " + Msg);
     return;

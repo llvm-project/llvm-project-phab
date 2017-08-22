@@ -604,6 +604,8 @@ void ScriptParser::readSectionAddressType(OutputSection *Cmd) {
 }
 
 OutputSection *ScriptParser::readOutputSectionDescription(StringRef OutSec) {
+  setErrorContext("unable to parse section definition for output section '" +
+                  OutSec + "':");
   OutputSection *Cmd =
       Script->createOutputSection(OutSec, getCurrentLocation());
 
@@ -666,6 +668,7 @@ OutputSection *ScriptParser::readOutputSectionDescription(StringRef OutSec) {
   // Consume optional comma following output section command.
   consume(",");
 
+  dropErrorContext();
   return Cmd;
 }
 

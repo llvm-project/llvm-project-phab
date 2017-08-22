@@ -24,6 +24,9 @@ public:
   explicit ScriptLexer(MemoryBufferRef MB);
 
   void setError(const Twine &Msg);
+  void setErrorContext(const Twine &Msg) { ErrorContext = Msg.str(); }
+  void dropErrorContext() { ErrorContext.clear(); }
+
   void tokenize(MemoryBufferRef MB);
   static StringRef skipSpace(StringRef S);
   bool atEOF();
@@ -39,6 +42,7 @@ public:
   std::vector<StringRef> Tokens;
   bool InExpr = false;
   size_t Pos = 0;
+  std::string ErrorContext;
 
 private:
   void maybeSplitExpr();
