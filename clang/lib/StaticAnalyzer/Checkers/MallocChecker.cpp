@@ -801,11 +801,12 @@ SVal MallocChecker::evalMulForBufferSize(CheckerContext &C, const Expr *Blocks,
 }
 
 void MallocChecker::checkPostStmt(const CallExpr *CE, CheckerContext &C) const {
-  if (C.wasInlined)
-    return;
-
   const FunctionDecl *FD = C.getCalleeDecl(CE);
   if (!FD)
+    return;
+
+  if (C.wasInlined && FD->getDeclName().getCXXOverloadedOperator() != OO_New &&
+      FD->getDeclName().getCXXOverloadedOperator() != OO_Array_New)
     return;
 
   ProgramStateRef State = C.getState();
@@ -1100,6 +1101,17 @@ ProgramStateRef MallocChecker::addExtentSize(CheckerContext &C,
                  ->getAs<SubRegion>()
                  ->getSuperRegion()
                  ->getAs<SubRegion>();
+    // FIXME: Since 'ExprEngine::VisitCXXNewAllocator' has not yet been fully
+    // implemented, the custom operator new[] may return Non-ElementRegion after
+    // its inline call. When 'ExprEngine::VisitCXXNewAllocator' is fully
+    // implemented, the following 'if' statement should be deleted.
+    if (!Region) {
+      assert(NE->isArray() &&
+             !C.getSourceManager().isInSystemHeader(
+                 NE->getOperatorNew()->getLocStart()) &&
+             "The operator new[] can return non-ElementRegion only when it is "
+             "a custom version and is inlined.");
+    }
   } else {
     ElementCount = svalBuilder.makeIntVal(1, true);
     Region = (State->getSVal(NE, LCtx)).getAsRegion()->getAs<SubRegion>();
@@ -1275,8 +1287,16 @@ ProgramStateRef MallocChecker::MallocUpdateRefState(CheckerContext &C,
     return nullptr;
 
   SymbolRef Sym = retVal.getAsLocSymbol();
-  assert(Sym);
-
+  // Special case when the 'c++-allocator-inlining' config option sets true and
+  // the c++ allocator return a Null pointer.
+  if (!Sym) {
+    assert(cosnt CXXNewExpr *CNE = dyn_cast<CXXNewExpr>(E) &&
+           !C.getSourceManager().isInSystemHeader(
+               CNE->getOperatorNew()->getLocStart()) &&
+           "Only custom operator new call can be inlined and return a Null "
+           "pointer!");
+    return nullptr;
+  }
   // Set the symbol's state to Allocated.
   return State->set<RegionState>(Sym, RefState::getAllocated(Family, E));
 }
@@ -1488,7 +1508,7 @@ ProgramStateRef MallocChecker::FreeMemAux(CheckerContext &C,
 
   R = R->StripCasts();
 
-  // Blocks might show up as heap data, but should not be free()d
+  // Blocks might show up as heap data, but should not be freed
   if (isa<BlockDataRegion>(R)) {
     ReportBadFree(C, ArgVal, ArgExpr->getSourceRange(), ParentExpr);
     return nullptr;
