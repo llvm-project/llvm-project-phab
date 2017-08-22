@@ -4091,18 +4091,7 @@ void CGDebugInfo::setDwoId(uint64_t Signature) {
   TheCU->setDWOId(Signature);
 }
 
-
-void CGDebugInfo::finalize() {
-  // Creating types might create further types - invalidating the current
-  // element and the size(), so don't cache/reference them.
-  for (size_t i = 0; i != ObjCInterfaceCache.size(); ++i) {
-    ObjCInterfaceCacheEntry E = ObjCInterfaceCache[i];
-    llvm::DIType *Ty = E.Type->getDecl()->getDefinition()
-                           ? CreateTypeDefinition(E.Type, E.Unit)
-                           : E.Decl;
-    DBuilder.replaceTemporary(llvm::TempDIType(E.Decl), Ty);
-  }
-
+void CGDebugInfo::replaceTemporaryNodes() {
   for (auto p : ReplaceMap) {
     assert(p.second);
     auto *Ty = cast<llvm::DIType>(p.second);
@@ -4115,6 +4104,21 @@ void CGDebugInfo::finalize() {
     DBuilder.replaceTemporary(llvm::TempDIType(Ty),
                               cast<llvm::DIType>(it->second));
   }
+  ReplaceMap.clear();
+}
+
+void CGDebugInfo::finalize() {
+  // Creating types might create further types - invalidating the current
+  // element and the size(), so don't cache/reference them.
+  for (size_t i = 0; i != ObjCInterfaceCache.size(); ++i) {
+    ObjCInterfaceCacheEntry E = ObjCInterfaceCache[i];
+    llvm::DIType *Ty = E.Type->getDecl()->getDefinition()
+                           ? CreateTypeDefinition(E.Type, E.Unit)
+                           : E.Decl;
+    DBuilder.replaceTemporary(llvm::TempDIType(E.Decl), Ty);
+  }
+
+  replaceTemporaryNodes();
 
   for (const auto &p : FwdDeclReplaceMap) {
     assert(p.second);

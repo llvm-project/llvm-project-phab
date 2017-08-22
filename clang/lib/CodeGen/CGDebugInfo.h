@@ -440,6 +440,7 @@ public:
 
   void completeTemplateDefinition(const ClassTemplateSpecializationDecl &SD);
   void completeUnusedClass(const CXXRecordDecl &D);
+  void replaceTemporaryNodes();
 
   /// Create debug info for a macro defined by a #define directive or a macro
   /// undefined by a #undef directive.

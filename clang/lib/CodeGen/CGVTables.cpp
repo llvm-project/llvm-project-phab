@@ -152,6 +152,10 @@ CodeGenFunction::GenerateVarArgsThunk(llvm::Function *Fn,
   llvm::Value *Callee = CGM.GetAddrOfFunction(GD, Ty, /*ForVTable=*/true);
   llvm::Function *BaseFn = cast<llvm::Function>(Callee);
 
+  // Ensure we don't have any temporary MD nodes before we clone the function.
+  if (DebugInfo)
+    DebugInfo->replaceTemporaryNodes();
+
   // Clone to thunk.
   llvm::ValueToValueMapTy VMap;
   llvm::Function *NewFn = llvm::CloneFunction(BaseFn, VMap);
