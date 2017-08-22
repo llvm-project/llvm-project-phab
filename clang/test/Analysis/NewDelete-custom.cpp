@@ -1,5 +1,6 @@
-// RUN: %clang_analyze_cc1 -analyzer-checker=core,cplusplus.NewDelete,unix.Malloc -std=c++11 -fblocks -verify %s
-// RUN: %clang_analyze_cc1 -analyzer-checker=core,cplusplus.NewDelete,cplusplus.NewDeleteLeaks,unix.Malloc -std=c++11 -DLEAKS -fblocks -verify %s
+// RUN: %clang_analyze_cc1 -analyzer-checker=core,cplusplus.NewDelete,unix.Malloc -std=c++11 -fcxx-exceptions -fblocks -verify %s
+// RUN: %clang_analyze_cc1 -analyzer-checker=core,cplusplus.NewDelete,cplusplus.NewDeleteLeaks,unix.Malloc -fcxx-exceptions -std=c++11 -DLEAKS -fblocks -verify %s
+// RUN: %clang_analyze_cc1 -analyzer-checker=core,cplusplus.NewDelete,cplusplus.NewDeleteLeaks,unix.Malloc -fcxx-exceptions -std=c++11 -analyzer-config c++-allocator-inlining=true -DLEAKS -fblocks -verify %s
 #include "Inputs/system-header-simulator-cxx.h"
 
 #ifndef LEAKS
@@ -9,9 +10,24 @@
 
 void *allocator(std::size_t size);
 
-void *operator new[](std::size_t size) throw() { return allocator(size); }
-void *operator new(std::size_t size) throw() { return allocator(size); }
-void *operator new(std::size_t size, std::nothrow_t& nothrow) throw() { return allocator(size); }
+void *operator new[](std::size_t size) throw(std::bad_alloc) { return allocator(size); }
+void *operator new(std::size_t size) throw(std::bad_alloc) { return allocator(size); }
+void *operator new[](std::size_t size, const std::nothrow_t &nothrow) throw() {
+  void *p = 0;
+  try {
+    p = allocator(size);
+  } catch (...) {
+  }
+  return p;
+}
+void *operator new(std::size_t size, const std::nothrow_t &nothrow) throw() {
+  void *p = 0;
+  try {
+    p = allocator(size);
+  } catch (...) {
+  }
+  return p;
+}
 void *operator new(std::size_t, double d);
 
 class C {
@@ -31,8 +47,11 @@ void testNewMethod() {
 #endif
 
 void testOpNewArray() {
-  void *p = operator new[](0); // call is inlined, no warn
+  void *p = operator new[](0);
 }
+#ifdef LEAKS
+// expected-warning@-2{{Potential leak of memory pointed to by 'p'}}
+#endif
 
 void testNewExprArray() {
   int *p = new int[0];
@@ -44,8 +63,11 @@ void testNewExprArray() {
 
 //----- Custom non-placement operators
 void testOpNew() {
-  void *p = operator new(0); // call is inlined, no warn
+  void *p = operator new(0);
 }
+#ifdef LEAKS
+// expected-warning@-2{{Potential leak of memory pointed to by 'p'}}
+#endif
 
 void testNewExpr() {
   int *p = new int;
