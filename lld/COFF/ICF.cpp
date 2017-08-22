@@ -100,7 +100,6 @@ void ICF::segregate(size_t Begin, size_t End, bool Constant) {
     return lessVariable(L, R);
   };
 
-  // I'm not sure if regular sort can be used here
   std::stable_sort(Chunks.begin() + Begin, Chunks.begin() + End, Less);
 
   size_t CurGroupBegin = Begin;
@@ -126,7 +125,6 @@ void ICF::segregate(size_t Begin, size_t End, bool Constant) {
 
 // basically the same as std::lexicographical_compare but with additional data
 // passing to the comparison function
-// Maybe it's better to implement it using range adapters
 template <class Compare>
 static bool ICF::lexicographicalCompareRelocs(const SectionChunk *L,
                                               const SectionChunk *R,
@@ -134,7 +132,7 @@ static bool ICF::lexicographicalCompareRelocs(const SectionChunk *L,
   auto LFirst = L->Relocs.begin(), LLast = L->Relocs.end();
   auto RFirst = R->Relocs.begin(), RLast = R->Relocs.end();
 
-  for (; (LFirst != LLast) && (RFirst != RLast); ++LFirst, (void)++RFirst) {
+  for (; (LFirst != LLast) && (RFirst != RLast); ++LFirst, ++RFirst) {
     if (Comp(L, *LFirst, R, *RFirst))
       return true;
     if (Comp(R, *RFirst, L, *LFirst))
@@ -149,16 +147,20 @@ bool ICF::lessConstant(const SectionChunk *A, const SectionChunk *B) {
   if (A->NumRelocs != B->NumRelocs)
     return A->NumRelocs < B->NumRelocs;
 
-  auto toTuple = [](const SectionChunk *chunk) {
-    return std::make_tuple(chunk->getPermissions(), chunk->SectionName,
-                           chunk->getAlign(), chunk->Header->SizeOfRawData,
-                           chunk->Checksum);
-  };
+  if (A->getPermissions() != B->getPermissions())
+    return A->getPermissions() < B->getPermissions();
 
-  auto ATuple = toTuple(A);
-  auto BTuple = toTuple(B);
-  if (ATuple != BTuple)
-    return ATuple < BTuple;
+  if (A->SectionName != B->SectionName)
+    return A->SectionName < B->SectionName;
+
+  if (A->getAlign() != B->getAlign())
+    return A->getAlign() < B->getAlign();
+
+  if (A->Header->SizeOfRawData != B->Header->SizeOfRawData)
+    return A->Header->SizeOfRawData < B->Header->SizeOfRawData;
+
+  if (A->Checksum != B->Checksum)
+    return A->Checksum < B->Checksum;
 
   if (A->getContents() != B->getContents())
     return std::lexicographical_compare(
@@ -166,14 +168,15 @@ bool ICF::lessConstant(const SectionChunk *A, const SectionChunk *B) {
         B->getContents().begin(), B->getContents().end());
 
   // Compare relocations.
-  auto Less = [this](const SectionChunk *A, const coff_relocation &R1,
-                     const SectionChunk *B, const coff_relocation &R2) {
-    auto toTuple = [](const coff_relocation &rel) {
-      return std::make_tuple(rel.Type, rel.VirtualAddress);
-    };
+  auto Less = [&](const SectionChunk *A, const coff_relocation &R1,
+                  const SectionChunk *B, const coff_relocation &R2) {
 
-    if (toTuple(R1) != toTuple(R2))
-      return toTuple(R1) < toTuple(R2);
+    if (R1.Type != R2.Type)
+      return R1.Type < R2.Type;
+
+    if (R1.VirtualAddress != R2.VirtualAddress)
+      return R1.VirtualAddress < R2.VirtualAddress;
+
 
     SymbolBody *B1 = A->File->getSymbolBody(R1.SymbolTableIndex);
     SymbolBody *B2 = B->File->getSymbolBody(R2.SymbolTableIndex);
@@ -182,8 +185,12 @@ bool ICF::lessConstant(const SectionChunk *A, const SectionChunk *B) {
 
     if (auto *D1 = dyn_cast<DefinedRegular>(B1))
       if (auto *D2 = dyn_cast<DefinedRegular>(B2))
-        return std::make_tuple(D1->getValue(), D1->getChunk()->Class[Cnt % 2]) <
-               std::make_tuple(D2->getValue(), D2->getChunk()->Class[Cnt % 2]);
+      {
+        if (D1->getValue() != D2->getValue())
+          return D1->getValue() < D2->getValue();
+
+        return D1->getChunk()->Class[Cnt % 2] < D2->getChunk()->Class[Cnt % 2];
+      }
     return B1 < B2;
   };
 
@@ -193,8 +200,8 @@ bool ICF::lessConstant(const SectionChunk *A, const SectionChunk *B) {
 // Compare "moving" part of two sections, namely relocation targets.
 bool ICF::lessVariable(const SectionChunk *A, const SectionChunk *B) {
   // Compare relocations.
-  auto Less = [this](const SectionChunk *A, const coff_relocation &R1,
-                     const SectionChunk *B, const coff_relocation &R2) {
+  auto Less = [&](const SectionChunk *A, const coff_relocation &R1,
+                  const SectionChunk *B, const coff_relocation &R2) {
     SymbolBody *B1 = A->File->getSymbolBody(R1.SymbolTableIndex);
     SymbolBody *B2 = B->File->getSymbolBody(R2.SymbolTableIndex);
     if (B1 == B2)
