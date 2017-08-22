@@ -22,6 +22,9 @@ namespace lexer {
 Token getPreviousToken(const ASTContext &Context, SourceLocation Location,
                        bool SkipComments = true);
 
+/// Get source code text for statement.
+Optional<StringRef> getStmtText(const Stmt* Statement, const SourceManager& SM);
+
 } // namespace lexer
 } // namespace utils
 } // namespace tidy

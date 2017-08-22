@@ -35,6 +35,7 @@
 #include "StaticAccessedThroughInstanceCheck.h"
 #include "StaticDefinitionInAnonymousNamespaceCheck.h"
 #include "UniqueptrDeleteReleaseCheck.h"
+#include "UselessIntermediateVarCheck.h"
 
 namespace clang {
 namespace tidy {
@@ -75,6 +76,8 @@ public:
         "readability-static-accessed-through-instance");
     CheckFactories.registerCheck<StaticDefinitionInAnonymousNamespaceCheck>(
         "readability-static-definition-in-anonymous-namespace");
+    CheckFactories.registerCheck<UselessIntermediateVarCheck>(
+        "readability-useless-intermediate-var");
     CheckFactories.registerCheck<readability::NamedParameterCheck>(
         "readability-named-parameter");
     CheckFactories.registerCheck<NonConstParameterCheck>(

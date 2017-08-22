@@ -57,6 +57,14 @@ The improvements are...
 Improvements to clang-tidy
 --------------------------
 
+- New `readability-useless-intermediate-var
+  <http://clang.llvm.org/extra/clang-tidy/checks/readability-useless-intermediate-var.html>`_ check
+
+  This new checker detects useless intermediate variables before return
+  statements that return the result of a simple comparison. This checker also
+  suggests to directly inline the initializer expression of the variable
+  declaration into the return expression.
+
 - Renamed checks to use correct term "implicit conversion" instead of "implicit
   cast" and modified messages and option names accordingly:
 
