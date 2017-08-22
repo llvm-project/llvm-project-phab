@@ -53,7 +53,7 @@ class C {
   void delete_lambda(int *p) {
     delete [] p;
     delete [] (int*) { new int }; // ok, compound-literal, not lambda
-    delete [] { return new int; } (); // expected-error{{expected expression}}
+    delete [] { return new int; } (); // expected-error{{missing parentheses around lambda expression}}
     delete [&] { return new int; } (); // ok, lambda
   }
 
