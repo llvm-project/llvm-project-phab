@@ -605,18 +605,28 @@ static std::vector<StringRef> getLines(MemoryBufferRef MB) {
 //
 // ^[.*]+ [.*]+ [.*]+$
 //
-// It interprest the first value as an unsigned 64 bit weight, the second as
+// It interprets the first value as an unsigned 64 bit weight, the second as
 // the symbol the call is from, and the third as the symbol the call is to.
+//
+// Example:
+//
+// 5000 c a
+// 4000 c b
+// 18446744073709551615 e d
+//
 static void readCallGraphProfile(MemoryBufferRef MB) {
-  std::vector<StringRef> Lines = getLines(MB);
-  for (StringRef L : Lines) {
+  for (StringRef L : getLines(MB)) {
     SmallVector<StringRef, 3> Fields;
     L.split(Fields, ' ');
-    if (Fields.size() != 3)
-      fatal("parse error");
+    if (Fields.size() != 3) {
+      error("parse error");
+      return;
+    }
     uint64_t Count;
-    if (!to_integer(Fields[0], Count))
-      fatal("parse error");
+    if (!to_integer(Fields[0], Count)) {
+      error("parse error");
+      return;
+    }
     StringRef From = Fields[1];
     StringRef To = Fields[2];
     Config->CGProfile[std::make_pair(From, To)] = Count;

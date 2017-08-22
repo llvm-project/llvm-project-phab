@@ -913,15 +913,18 @@ template <class ELFT> void Writer<ELFT>::createSections() {
 
   Script->fabricateDefaultCommands();
 
-  llvm::DenseMap<const InputSectionBase *, int> OrderMap =
-      computeCallGraphProfileOrder();
+  // Use the rarely used option -callgraph-ordering-file to sort sections.
+  if (!Config->CGProfile.empty()) {
+    llvm::DenseMap<const InputSectionBase *, int> OrderMap =
+        computeCallGraphProfileOrder();
 
-  for (BaseCommand *Base : Script->Opt.Commands) {
-    auto *OS = dyn_cast<OutputSection>(Base);
-    if (!OS || OS->Name != ".text")
-      continue;
-    OS->sort([&](InputSectionBase *IS) { return OrderMap.lookup(IS); });
-    break;
+    for (BaseCommand *Base : Script->Opt.Commands) {
+      auto *OS = dyn_cast<OutputSection>(Base);
+      if (!OS || OS->Name != ".text")
+        continue;
+      OS->sort([&](InputSectionBase *IS) { return OrderMap.lookup(IS); });
+      break;
+    }
   }
 
   sortBySymbolsOrder<ELFT>();

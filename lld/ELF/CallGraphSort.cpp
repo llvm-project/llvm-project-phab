@@ -29,7 +29,7 @@ namespace {
 using NodeIndex = std::ptrdiff_t;
 
 struct Node {
-  Node() {}
+  Node() = default;
   Node(const InputSectionBase *IS) {
     Sections.push_back(IS);
     Size = IS->getSize();
@@ -55,10 +55,8 @@ struct EdgeHash {
 };
 } // end anonymous namespace
 
-typedef std::vector<Node> NodeList;
-typedef std::unordered_set<Edge, EdgeHash> EdgeSet;
-
-static void insertOrIncrementEdge(EdgeSet &Edges, const Edge E) {
+static void insertOrIncrementEdge(std::unordered_set<Edge, EdgeHash> &Edges,
+                                  const Edge E) {
   if (E.From == E.To)
     return;
   auto Res = Edges.insert(E);
@@ -68,11 +66,11 @@ static void insertOrIncrementEdge(EdgeSet &Edges, const Edge E) {
 
 // Take the edge list in Config->CGProfile, resolve symbol names to SymbolBodys,
 // and generate a graph between InputSections with the provided weights.
-static void buildCallGraph(NodeList &Nodes, EdgeSet &Edges) {
-  llvm::DenseMap<const InputSectionBase *, NodeIndex> SecToNode;
+static void buildCallGraph(std::vector<Node> &Nodes,
+                           std::unordered_set<Edge, EdgeHash> &Edges) {
+  DenseMap<const InputSectionBase *, NodeIndex> SecToNode;
 
-  auto GetOrCreateNode = [&Nodes,
-                          &SecToNode](const InputSectionBase *IS) -> NodeIndex {
+  auto GetOrCreateNode = [&](const InputSectionBase *IS) -> NodeIndex {
     auto Res = SecToNode.insert(std::make_pair(IS, Nodes.size()));
     if (Res.second)
       Nodes.emplace_back(IS);
@@ -83,10 +81,8 @@ static void buildCallGraph(NodeList &Nodes, EdgeSet &Edges) {
   for (const auto &C : Config->CGProfile) {
     if (C.second == 0)
       continue;
-    DefinedRegular *FromDR =
-        dyn_cast_or_null<DefinedRegular>(Symtab->find(C.first.first));
-    DefinedRegular *ToDR =
-        dyn_cast_or_null<DefinedRegular>(Symtab->find(C.first.second));
+    auto FromDR = dyn_cast_or_null<DefinedRegular>(Symtab->find(C.first.first));
+    auto ToDR = dyn_cast_or_null<DefinedRegular>(Symtab->find(C.first.second));
     if (!FromDR || !ToDR)
       continue;
     auto FromSB = dyn_cast_or_null<const InputSectionBase>(FromDR->Section);
@@ -102,7 +98,8 @@ static void buildCallGraph(NodeList &Nodes, EdgeSet &Edges) {
 
 // Group InputSections into clusters using the Call-Chain Clustering heuristic
 // then sort the clusters by density.
-static void generateClusters(NodeList &Nodes, EdgeSet &Edges) {
+static void generateClusters(std::vector<Node> &Nodes,
+                             std::unordered_set<Edge, EdgeHash> &Edges) {
   // Collapse the graph.
   while (!Edges.empty()) {
     // Find the largest edge
@@ -158,9 +155,9 @@ static void generateClusters(NodeList &Nodes, EdgeSet &Edges) {
 // than the page size. All clusters are then sorted by a density metric to
 // further improve locality.
 llvm::DenseMap<const InputSectionBase *, int>
-lld::elf::computeCallGraphProfileOrder() {
-  NodeList Nodes;
-  EdgeSet Edges;
+elf::computeCallGraphProfileOrder() {
+  std::vector<Node> Nodes;
+  std::unordered_set<Edge, EdgeHash> Edges;
 
   buildCallGraph(Nodes, Edges);
   generateClusters(Nodes, Edges);
