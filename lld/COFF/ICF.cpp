@@ -41,8 +41,12 @@ public:
 private:
   void segregate(size_t Begin, size_t End, bool Constant);
 
-  bool equalsConstant(const SectionChunk *A, const SectionChunk *B);
-  bool equalsVariable(const SectionChunk *A, const SectionChunk *B);
+  template <class Compare>
+  static bool lexicographicalCompareRelocs(const SectionChunk *L,
+                                           const SectionChunk *R, Compare Comp);
+
+  bool lessConstant(const SectionChunk *A, const SectionChunk *B);
+  bool lessVariable(const SectionChunk *A, const SectionChunk *B);
 
   uint32_t getHash(SectionChunk *C);
   bool isEligible(SectionChunk *C);
@@ -86,78 +90,130 @@ bool ICF::isEligible(SectionChunk *C) {
 
 // Split an equivalence class into smaller classes.
 void ICF::segregate(size_t Begin, size_t End, bool Constant) {
-  while (Begin < End) {
-    // Divide [Begin, End) into two. Let Mid be the start index of the
-    // second group.
-    auto Bound = std::stable_partition(
-        Chunks.begin() + Begin + 1, Chunks.begin() + End, [&](SectionChunk *S) {
-          if (Constant)
-            return equalsConstant(Chunks[Begin], S);
-          return equalsVariable(Chunks[Begin], S);
-        });
-    size_t Mid = Bound - Chunks.begin();
 
-    // Split [Begin, End) into [Begin, Mid) and [Mid, End). We use Mid as an
-    // equivalence class ID because every group ends with a unique index.
-    for (size_t I = Begin; I < Mid; ++I)
-      Chunks[I]->Class[(Cnt + 1) % 2] = Mid;
+  if (Begin == End)
+    return;
 
-    // If we created a group, we need to iterate the main loop again.
-    if (Mid != End)
-      Repeat = true;
+  auto Less = [&](SectionChunk *L, SectionChunk *R) {
+    if (Constant)
+      return lessConstant(L, R);
+    return lessVariable(L, R);
+  };
 
-    Begin = Mid;
+  std::stable_sort(Chunks.begin() + Begin, Chunks.begin() + End, Less);
+
+  size_t CurGroupBegin = Begin;
+  for (size_t CurPos = Begin + 1; CurPos < End; CurPos++) {
+    if (!Less(Chunks[CurGroupBegin], Chunks[CurPos]))
+      continue;
+
+    // We use curPos as an equivalence class ID because every group ends with a
+    // unique index.
+    for (size_t I = CurGroupBegin; I < CurPos; ++I)
+      Chunks[I]->Class[(Cnt + 1) % 2] = CurPos;
+
+    CurGroupBegin = CurPos;
   }
+
+  for (size_t I = CurGroupBegin; I < End; ++I)
+    Chunks[I]->Class[(Cnt + 1) % 2] = End;
+
+  // If we created a group, we need to iterate the main loop again.
+  if (CurGroupBegin != Begin)
+    Repeat = true;
+}
+
+// basically the same as std::lexicographical_compare but with additional data
+// passing to the comparison function
+template <class Compare>
+static bool ICF::lexicographicalCompareRelocs(const SectionChunk *L,
+                                              const SectionChunk *R,
+                                              Compare Comp) {
+  auto LFirst = L->Relocs.begin(), LLast = L->Relocs.end();
+  auto RFirst = R->Relocs.begin(), RLast = R->Relocs.end();
+
+  for (; (LFirst != LLast) && (RFirst != RLast); ++LFirst, ++RFirst) {
+    if (Comp(L, *LFirst, R, *RFirst))
+      return true;
+    if (Comp(R, *RFirst, L, *LFirst))
+      return false;
+  }
+  return (LFirst == LLast) && (RFirst != RLast);
 }
 
 // Compare "non-moving" part of two sections, namely everything
 // except relocation targets.
-bool ICF::equalsConstant(const SectionChunk *A, const SectionChunk *B) {
+bool ICF::lessConstant(const SectionChunk *A, const SectionChunk *B) {
   if (A->NumRelocs != B->NumRelocs)
-    return false;
+    return A->NumRelocs < B->NumRelocs;
+
+  if (A->getPermissions() != B->getPermissions())
+    return A->getPermissions() < B->getPermissions();
+
+  if (A->SectionName != B->SectionName)
+    return A->SectionName < B->SectionName;
+
+  if (A->getAlign() != B->getAlign())
+    return A->getAlign() < B->getAlign();
+
+  if (A->Header->SizeOfRawData != B->Header->SizeOfRawData)
+    return A->Header->SizeOfRawData < B->Header->SizeOfRawData;
+
+  if (A->Checksum != B->Checksum)
+    return A->Checksum < B->Checksum;
+
+  if (A->getContents() != B->getContents())
+    return std::lexicographical_compare(
+        A->getContents().begin(), A->getContents().end(),
+        B->getContents().begin(), B->getContents().end());
 
   // Compare relocations.
-  auto Eq = [&](const coff_relocation &R1, const coff_relocation &R2) {
-    if (R1.Type != R2.Type ||
-        R1.VirtualAddress != R2.VirtualAddress) {
-      return false;
-    }
+  auto Less = [&](const SectionChunk *A, const coff_relocation &R1,
+                  const SectionChunk *B, const coff_relocation &R2) {
+
+    if (R1.Type != R2.Type)
+      return R1.Type < R2.Type;
+
+    if (R1.VirtualAddress != R2.VirtualAddress)
+      return R1.VirtualAddress < R2.VirtualAddress;
+
+
     SymbolBody *B1 = A->File->getSymbolBody(R1.SymbolTableIndex);
     SymbolBody *B2 = B->File->getSymbolBody(R2.SymbolTableIndex);
     if (B1 == B2)
-      return true;
+      return false;
+
     if (auto *D1 = dyn_cast<DefinedRegular>(B1))
       if (auto *D2 = dyn_cast<DefinedRegular>(B2))
-        return D1->getValue() == D2->getValue() &&
-               D1->getChunk()->Class[Cnt % 2] == D2->getChunk()->Class[Cnt % 2];
-    return false;
-  };
-  if (!std::equal(A->Relocs.begin(), A->Relocs.end(), B->Relocs.begin(), Eq))
-    return false;
+      {
+        if (D1->getValue() != D2->getValue())
+          return D1->getValue() < D2->getValue();
 
-  // Compare section attributes and contents.
-  return A->getPermissions() == B->getPermissions() &&
-         A->SectionName == B->SectionName &&
-         A->getAlign() == B->getAlign() &&
-         A->Header->SizeOfRawData == B->Header->SizeOfRawData &&
-         A->Checksum == B->Checksum &&
-         A->getContents() == B->getContents();
+        return D1->getChunk()->Class[Cnt % 2] < D2->getChunk()->Class[Cnt % 2];
+      }
+    return B1 < B2;
+  };
+
+  return lexicographicalCompareRelocs(A, B, Less);
 }
 
 // Compare "moving" part of two sections, namely relocation targets.
-bool ICF::equalsVariable(const SectionChunk *A, const SectionChunk *B) {
+bool ICF::lessVariable(const SectionChunk *A, const SectionChunk *B) {
   // Compare relocations.
-  auto Eq = [&](const coff_relocation &R1, const coff_relocation &R2) {
+  auto Less = [&](const SectionChunk *A, const coff_relocation &R1,
+                  const SectionChunk *B, const coff_relocation &R2) {
     SymbolBody *B1 = A->File->getSymbolBody(R1.SymbolTableIndex);
     SymbolBody *B2 = B->File->getSymbolBody(R2.SymbolTableIndex);
     if (B1 == B2)
-      return true;
+      return false;
+
     if (auto *D1 = dyn_cast<DefinedRegular>(B1))
       if (auto *D2 = dyn_cast<DefinedRegular>(B2))
-        return D1->getChunk()->Class[Cnt % 2] == D2->getChunk()->Class[Cnt % 2];
-    return false;
+        return D1->getChunk()->Class[Cnt % 2] < D2->getChunk()->Class[Cnt % 2];
+
+    return B1 < B2;
   };
-  return std::equal(A->Relocs.begin(), A->Relocs.end(), B->Relocs.begin(), Eq);
+  return lexicographicalCompareRelocs(A, B, Less);
 }
 
 size_t ICF::findBoundary(size_t Begin, size_t End) {
