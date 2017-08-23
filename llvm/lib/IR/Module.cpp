@@ -145,7 +145,8 @@ Constant *Module::getOrInsertFunction(StringRef Name, FunctionType *Ty,
   GlobalValue *F = getNamedValue(Name);
   if (!F) {
     // Nope, add it
-    Function *New = Function::Create(Ty, GlobalVariable::ExternalLinkage, Name);
+    Function *New = Function::Create(Ty, GlobalVariable::ExternalLinkage,
+                                     DL.getProgramAddressSpace(), Name);
     if (!New->isIntrinsic())       // Intrinsics get attrs set on construction
       New->setAttributes(AttributeList);
     FunctionList.push_back(New);
