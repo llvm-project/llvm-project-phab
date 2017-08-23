@@ -132,6 +132,14 @@ Improvements to clang-tidy
   Finds member expressions that access static members through instances and
   replaces them with uses of the appropriate qualified-id.
 
+- New `readability-unnecessary-intermediate-var
+  <http://clang.llvm.org/extra/clang-tidy/checks/readability-unnecessary-intermediate-var.html>`_ check
+
+  This new check detects unnecessary intermediate variables before `return`
+  statements that return the result of a simple comparison. This check also
+  suggests to directly inline the initializer expression of the variable
+  declaration into the `return` expression.
+
 - Added `modernize-use-emplace.IgnoreImplicitConstructors
   <http://clang.llvm.org/extra/clang-tidy/checks/modernize-use-emplace.html#cmdoption-arg-IgnoreImplicitConstructors>`_
   option.
