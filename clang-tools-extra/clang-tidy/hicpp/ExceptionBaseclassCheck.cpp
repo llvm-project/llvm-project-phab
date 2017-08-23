@@ -11,8 +11,6 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 
-#include <iostream>
-
 using namespace clang::ast_matchers;
 
 namespace clang {
@@ -28,6 +26,7 @@ void ExceptionBaseclassCheck::registerMatchers(MatchFinder *Finder) {
           allOf(
               has(expr(unless(hasType(cxxRecordDecl(
                   isSameOrDerivedFrom(hasName("std::exception"))))))),
+              has(expr(unless(cxxUnresolvedConstructExpr()))),
               eachOf(has(expr(hasType(namedDecl().bind("decl")))), anything())))
           .bind("bad_throw"),
       this);
@@ -35,8 +34,10 @@ void ExceptionBaseclassCheck::registerMatchers(MatchFinder *Finder) {
 
 void ExceptionBaseclassCheck::check(const MatchFinder::MatchResult &Result) {
   const auto *BadThrow = Result.Nodes.getNodeAs<CXXThrowExpr>("bad_throw");
-  diag(BadThrow->getLocStart(),
-       "throwing an exception whose type is not derived from 'std::exception'")
+
+  diag(BadThrow->getSubExpr()->getLocStart(),
+       "throwing an exception whose type %0 is not derived from 'std::exception'")
+      << BadThrow->getSubExpr()->getType()
       << BadThrow->getSourceRange();
 
   const auto *TypeDecl = Result.Nodes.getNodeAs<NamedDecl>("decl");
