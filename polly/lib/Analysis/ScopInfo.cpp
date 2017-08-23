@@ -3598,129 +3598,113 @@ Scop::~Scop() {
 }
 
 void Scop::foldSizeConstantsToRight() {
-  isl_union_set *Accessed = isl_union_map_range(getAccesses().release());
-
-  for (auto Array : arrays()) {
-    if (Array->getNumberOfDimensions() <= 1)
-      continue;
-
-    isl_space *Space = Array->getSpace().release();
-
-    Space = isl_space_align_params(Space, isl_union_set_get_space(Accessed));
-
-    if (!isl_union_set_contains(Accessed, Space)) {
-      isl_space_free(Space);
-      continue;
-    }
-
-    isl_set *Elements = isl_union_set_extract_set(Accessed, Space);
-
-    isl_map *Transform =
-        isl_map_universe(isl_space_map_from_set(Array->getSpace().release()));
-
-    std::vector<int> Int;
-
-    int Dims = isl_set_dim(Elements, isl_dim_set);
-    for (int i = 0; i < Dims; i++) {
-      isl_set *DimOnly =
-          isl_set_project_out(isl_set_copy(Elements), isl_dim_set, 0, i);
-      DimOnly = isl_set_project_out(DimOnly, isl_dim_set, 1, Dims - i - 1);
-      DimOnly = isl_set_lower_bound_si(DimOnly, isl_dim_set, 0, 0);
-
-      isl_basic_set *DimHull = isl_set_affine_hull(DimOnly);
-
-      if (i == Dims - 1) {
-        Int.push_back(1);
-        Transform = isl_map_equate(Transform, isl_dim_in, i, isl_dim_out, i);
-        isl_basic_set_free(DimHull);
+   isl::union_map Accessed1 = isl::manage(getAccesses());
+   isl::union_set Accessed = isl::manage(Accessed1.release());
+   for (auto Array : arrays()) {
+      if (Array->getNumberOfDimensions() <= 1)
         continue;
-      }
-
-      if (isl_basic_set_dim(DimHull, isl_dim_div) == 1) {
-        isl_aff *Diff = isl_basic_set_get_div(DimHull, 0);
-        isl_val *Val = isl_aff_get_denominator_val(Diff);
-        isl_aff_free(Diff);
-
+  
+      isl::space Space1 = isl::manage(Array->getSpace());
+      isl::space Space  = isl::manage(Space1.release());
+      isl::space Space2 = isl::manage(Accessed.get_space());
+      Space = Space.align_params(Space2);
+  
+      if (!(Accessed.contains(Space))) {
+          continue;
+   }
+  
+      isl::set Elements =  Accessed.extract_set(Space);
+  
+      isl::map Transform = Transform.universe(Space.map_from_set());
+ 
+      std::vector<int> Int;
+      isl::dim type;
+      isl::set s1;
+      int Dims = Elements.dim(type);
+      for (int i = 0; i < Dims; i++) {
+        isl::set DimOnly =
+            Elements.project_out(type, 0, i);
+        DimOnly = DimOnly.project_out(type, 1, Dims - i - 1);
+        DimOnly = DimOnly.lower_bound_si(type, 0, 0);
+  
+        isl::basic_set DimHull = DimOnly.affine_hull();
+  
+        if (i == Dims - 1) {
+          Int.push_back(1);
+          Transform =Transform.equate(isl::dim::in, i, isl::dim::out, i);
+          continue;
+        }
+       if (DimHull.dim(isl::dim::div) == 1) {
+          isl::aff Diff = DimHull.get_div(0);
+          isl::val Val = Diff.get_denominator_val();
+  
+          int ValInt = 1;
+  
+          if (Val.is_int())
+            ValInt = Val.get_num_si();
+  
+          Int.push_back(ValInt);
+          isl::local_space lo;
+          isl::constraint C = C.alloc_equality(
+              local_space::local_space(Transform.get_space()));
+            C = C.set_coefficient_si(isl::dim::out, i, ValInt);
+            C = C.set_coefficient_si(isl::dim::in, i, -1);
+            Transform =Transform.add_constraint(C);
+            continue;
+        }
+  
+        isl::basic_set ZeroSet = ZeroSet.copy();
+        ZeroSet = ZeroSet.fix_si(isl::dim::set, 0, 0);
+  
         int ValInt = 1;
-
-        if (isl_val_is_int(Val))
-          ValInt = isl_val_get_num_si(Val);
-        isl_val_free(Val);
-
+        if (ZeroSet.is_equal(DimHull)) {
+          ValInt = 0;
+        }
+  
         Int.push_back(ValInt);
-
-        isl_constraint *C = isl_constraint_alloc_equality(
-            isl_local_space_from_space(isl_map_get_space(Transform)));
-        C = isl_constraint_set_coefficient_si(C, isl_dim_out, i, ValInt);
-        C = isl_constraint_set_coefficient_si(C, isl_dim_in, i, -1);
-        Transform = isl_map_add_constraint(Transform, C);
-        isl_basic_set_free(DimHull);
+        Transform = Transform.equate(isl::dim::in, i, isl::dim::in, i);
+      }
+  
+      isl::set MappedElements = Transform.domain(isl::map::copy());
+  
+      if (!Elements.is_subset(MappedElements)) {
         continue;
       }
-
-      isl_basic_set *ZeroSet = isl_basic_set_copy(DimHull);
-      ZeroSet = isl_basic_set_fix_si(ZeroSet, isl_dim_set, 0, 0);
-
-      int ValInt = 1;
-      if (isl_basic_set_is_equal(ZeroSet, DimHull)) {
-        ValInt = 0;
-      }
-
-      Int.push_back(ValInt);
-      Transform = isl_map_equate(Transform, isl_dim_in, i, isl_dim_out, i);
-      isl_basic_set_free(DimHull);
-      isl_basic_set_free(ZeroSet);
-    }
-
-    isl_set *MappedElements = isl_map_domain(isl_map_copy(Transform));
-
-    if (!isl_set_is_subset(Elements, MappedElements)) {
-      isl_set_free(Elements);
-      isl_set_free(MappedElements);
-      isl_map_free(Transform);
-      continue;
-    }
-
-    isl_set_free(MappedElements);
-
-    bool CanFold = true;
-
-    if (Int[0] <= 1)
-      CanFold = false;
-
-    unsigned NumDims = Array->getNumberOfDimensions();
-    for (unsigned i = 1; i < NumDims - 1; i++)
-      if (Int[0] != Int[i] && Int[i])
+  
+      bool CanFold = true;
+  
+      if (Int[0] <= 1)
         CanFold = false;
-
-    if (!CanFold) {
-      isl_set_free(Elements);
-      isl_map_free(Transform);
-      continue;
+  
+      unsigned NumDims = Array->getNumberOfDimensions();
+      for (unsigned i = 1; i < NumDims - 1; i++)
+        if (Int[0] != Int[i] && Int[i])
+          CanFold = false;
+  
+      if (!CanFold) {
+        continue;
+      }
+  
+      for (auto &Access : AccessFunctions)
+        if (Access->getScopArrayInfo() == Array)
+          Access->setAccessRelation(Access->getAccessRelation().apply_range(
+              isl::manage(isl::map *map::copy()));
+  
+      std::vector<const SCEV *> Sizes;
+      for (unsigned i = 0; i < NumDims; i++) {
+        auto Size = Array->getDimensionSize(i);
+  
+        if (i == NumDims - 1)
+          Size = SE->getMulExpr(Size, SE->getConstant(Size->getType(), Int[0]));
+        Sizes.push_back(Size);
+      }
+  
+      Array->updateSizes(Sizes, false /* CheckConsistency */);
+  
     }
+    return;
+ }
 
-    for (auto &Access : AccessFunctions)
-      if (Access->getScopArrayInfo() == Array)
-        Access->setAccessRelation(Access->getAccessRelation().apply_range(
-            isl::manage(isl_map_copy(Transform))));
-
-    isl_map_free(Transform);
-
-    std::vector<const SCEV *> Sizes;
-    for (unsigned i = 0; i < NumDims; i++) {
-      auto Size = Array->getDimensionSize(i);
-
-      if (i == NumDims - 1)
-        Size = SE->getMulExpr(Size, SE->getConstant(Size->getType(), Int[0]));
-      Sizes.push_back(Size);
-    }
-
-    Array->updateSizes(Sizes, false /* CheckConsistency */);
-
-    isl_set_free(Elements);
-  }
-  isl_union_set_free(Accessed);
-}
 
 void Scop::markFortranArrays() {
   for (ScopStmt &Stmt : Stmts) {
