@@ -85,6 +85,13 @@ struct WinResHeaderSuffix {
   support::ulittle32_t Characteristics;
 };
 
+class EmptyResError : public GenericBinaryError {
+public:
+  EmptyResError(Twine Msg, object_error ECOverride)
+      : GenericBinaryError(Msg, ECOverride) {}
+  static char ID;
+};
+
 class ResourceEntryRef {
 public:
   Error moveNext(bool &End);
