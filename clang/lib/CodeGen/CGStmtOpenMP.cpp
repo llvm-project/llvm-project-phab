@@ -338,7 +338,7 @@ static llvm::Function *emitOutlinedFunctionPrologue(
 
   llvm::Function *F =
       llvm::Function::Create(FuncLLVMTy, llvm::GlobalValue::InternalLinkage,
-                             FO.FunctionName, &CGM.getModule());
+                             FO.FunctionName, CGM.getModule());
   CGM.SetInternalFunctionAttributes(CD, F, FuncInfo);
   if (CD->isNothrow())
     F->setDoesNotThrow();

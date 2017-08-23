@@ -1672,7 +1672,7 @@ void CodeGenFunction::startOutlinedSEHHelper(CodeGenFunction &ParentCGF,
 
   llvm::FunctionType *FnTy = CGM.getTypes().GetFunctionType(FnInfo);
   llvm::Function *Fn = llvm::Function::Create(
-      FnTy, llvm::GlobalValue::InternalLinkage, Name.str(), &CGM.getModule());
+      FnTy, llvm::GlobalValue::InternalLinkage, Name.str(), CGM.getModule());
 
   IsOutlinedSEHHelper = true;
 

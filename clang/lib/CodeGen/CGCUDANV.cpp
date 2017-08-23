@@ -182,7 +182,7 @@ llvm::Function *CGNVCUDARuntime::makeRegisterGlobalsFn() {
 
   llvm::Function *RegisterKernelsFunc = llvm::Function::Create(
       llvm::FunctionType::get(VoidTy, VoidPtrPtrTy, false),
-      llvm::GlobalValue::InternalLinkage, "__cuda_register_globals", &TheModule);
+      llvm::GlobalValue::InternalLinkage, "__cuda_register_globals", TheModule);
   llvm::BasicBlock *EntryBB =
       llvm::BasicBlock::Create(Context, "entry", RegisterKernelsFunc);
   CGBuilderTy Builder(CGM, Context);
@@ -269,7 +269,7 @@ llvm::Function *CGNVCUDARuntime::makeModuleCtorFunction() {
 
   llvm::Function *ModuleCtorFunc = llvm::Function::Create(
       llvm::FunctionType::get(VoidTy, VoidPtrTy, false),
-      llvm::GlobalValue::InternalLinkage, "__cuda_module_ctor", &TheModule);
+      llvm::GlobalValue::InternalLinkage, "__cuda_module_ctor", TheModule);
   llvm::BasicBlock *CtorEntryBB =
       llvm::BasicBlock::Create(Context, "entry", ModuleCtorFunc);
   CGBuilderTy CtorBuilder(CGM, Context);
@@ -358,7 +358,7 @@ llvm::Function *CGNVCUDARuntime::makeModuleDtorFunction() {
 
   llvm::Function *ModuleDtorFunc = llvm::Function::Create(
       llvm::FunctionType::get(VoidTy, VoidPtrTy, false),
-      llvm::GlobalValue::InternalLinkage, "__cuda_module_dtor", &TheModule);
+      llvm::GlobalValue::InternalLinkage, "__cuda_module_dtor", TheModule);
   llvm::BasicBlock *DtorEntryBB =
       llvm::BasicBlock::Create(Context, "entry", ModuleDtorFunc);
   CGBuilderTy DtorBuilder(CGM, Context);

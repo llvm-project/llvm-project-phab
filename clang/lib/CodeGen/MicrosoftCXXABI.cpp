@@ -1927,7 +1927,7 @@ llvm::Function *MicrosoftCXXABI::EmitVirtualMemPtrThunk(
   llvm::FunctionType *ThunkTy = CGM.getTypes().GetFunctionType(FnInfo);
   llvm::Function *ThunkFn =
       llvm::Function::Create(ThunkTy, llvm::Function::ExternalLinkage,
-                             ThunkName.str(), &CGM.getModule());
+                             ThunkName.str(), CGM.getModule());
   assert(ThunkFn->getName() == ThunkName && "name was uniqued!");
 
   ThunkFn->setLinkage(MD->isExternallyVisible()
@@ -3855,7 +3855,7 @@ MicrosoftCXXABI::getAddrOfCXXCtorClosure(const CXXConstructorDecl *CD,
   const CXXRecordDecl *RD = CD->getParent();
   QualType RecordTy = getContext().getRecordType(RD);
   llvm::Function *ThunkFn = llvm::Function::Create(
-      ThunkTy, getLinkageForRTTI(RecordTy), ThunkName.str(), &CGM.getModule());
+      ThunkTy, getLinkageForRTTI(RecordTy), ThunkName.str(), CGM.getModule());
   ThunkFn->setCallingConv(static_cast<llvm::CallingConv::ID>(
       FnInfo.getEffectiveCallingConvention()));
   if (ThunkFn->isWeakForLinker())

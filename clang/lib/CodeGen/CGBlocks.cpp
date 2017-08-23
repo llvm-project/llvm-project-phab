@@ -1282,7 +1282,7 @@ CodeGenFunction::GenerateBlockFunction(GlobalDecl GD,
 
   StringRef name = CGM.getBlockMangledName(GD, blockDecl);
   llvm::Function *fn = llvm::Function::Create(
-      fnLLVMType, llvm::GlobalValue::InternalLinkage, name, &CGM.getModule());
+      fnLLVMType, llvm::GlobalValue::InternalLinkage, name, CGM.getModule());
   CGM.SetInternalFunctionAttributes(blockDecl, fn, fnInfo);
 
   // Begin generating the function.
@@ -1515,7 +1515,7 @@ CodeGenFunction::GenerateCopyHelperFunction(const CGBlockInfo &blockInfo) {
 
   llvm::Function *Fn =
     llvm::Function::Create(LTy, llvm::GlobalValue::InternalLinkage,
-                           "__copy_helper_block_", &CGM.getModule());
+                           "__copy_helper_block_", CGM.getModule());
 
   IdentifierInfo *II
     = &CGM.getContext().Idents.get("__copy_helper_block_");
@@ -1689,7 +1689,7 @@ CodeGenFunction::GenerateDestroyHelperFunction(const CGBlockInfo &blockInfo) {
 
   llvm::Function *Fn =
     llvm::Function::Create(LTy, llvm::GlobalValue::InternalLinkage,
-                           "__destroy_helper_block_", &CGM.getModule());
+                           "__destroy_helper_block_", CGM.getModule());
 
   IdentifierInfo *II
     = &CGM.getContext().Idents.get("__destroy_helper_block_");
@@ -1935,7 +1935,7 @@ generateByrefCopyHelper(CodeGenFunction &CGF, const BlockByrefInfo &byrefInfo,
   // internal linkage.
   llvm::Function *Fn =
     llvm::Function::Create(LTy, llvm::GlobalValue::InternalLinkage,
-                           "__Block_byref_object_copy_", &CGF.CGM.getModule());
+                           "__Block_byref_object_copy_", CGF.CGM.getModule());
 
   IdentifierInfo *II
     = &Context.Idents.get("__Block_byref_object_copy_");
@@ -2009,7 +2009,7 @@ generateByrefDisposeHelper(CodeGenFunction &CGF,
   llvm::Function *Fn =
     llvm::Function::Create(LTy, llvm::GlobalValue::InternalLinkage,
                            "__Block_byref_object_dispose_",
-                           &CGF.CGM.getModule());
+                           CGF.CGM.getModule());
 
   IdentifierInfo *II
     = &Context.Idents.get("__Block_byref_object_dispose_");

@@ -38,7 +38,7 @@ static llvm::Function *GetVprintfDeclaration(llvm::Module &M) {
   // vprintf doesn't already exist; create a declaration and insert it into the
   // module.
   return llvm::Function::Create(
-      VprintfFuncType, llvm::GlobalVariable::ExternalLinkage, "vprintf", &M);
+      VprintfFuncType, llvm::GlobalVariable::ExternalLinkage, "vprintf", M);
 }
 
 // Transforms a call to printf into a call to the NVPTX vprintf syscall (which

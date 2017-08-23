@@ -2895,7 +2895,7 @@ void CodeGenFunction::EmitCfiCheckStub() {
   auto &Ctx = M->getContext();
   llvm::Function *F = llvm::Function::Create(
       llvm::FunctionType::get(VoidTy, {Int64Ty, Int8PtrTy, Int8PtrTy}, false),
-      llvm::GlobalValue::WeakAnyLinkage, "__cfi_check", M);
+      llvm::GlobalValue::WeakAnyLinkage, "__cfi_check", *M);
   llvm::BasicBlock *BB = llvm::BasicBlock::Create(Ctx, "entry", F);
   // FIXME: consider emitting an intrinsic call like
   // call void @llvm.cfi_check(i64 %0, i8* %1, i8* %2)
@@ -2928,7 +2928,7 @@ void CodeGenFunction::EmitCfiCheckFail() {
 
   llvm::Function *F = llvm::Function::Create(
       llvm::FunctionType::get(VoidTy, {VoidPtrTy, VoidPtrTy}, false),
-      llvm::GlobalValue::WeakODRLinkage, "__cfi_check_fail", &CGM.getModule());
+      llvm::GlobalValue::WeakODRLinkage, "__cfi_check_fail", CGM.getModule());
   F->setVisibility(llvm::GlobalValue::HiddenVisibility);
 
   StartFunction(GlobalDecl(), CGM.getContext().VoidTy, F, FI, Args,
