@@ -55,8 +55,14 @@ namespace {
 static unsigned isDbgValueDescribedByReg(const MachineInstr &MI) {
   assert(MI.isDebugValue() && "expected a DBG_VALUE");
   assert(MI.getNumOperands() == 4 && "malformed DBG_VALUE");
-  // If location of variable is described using a register (directly
-  // or indirectly), this register is always a first operand.
+
+  // If the second operand is an immediate value, this must live in memory. The
+  // offset in the DBG_VALUE instruction is captured by the DIExpression.
+  if (MI.getOperand(1).isImm())
+    return 0;
+
+  // If location of variable is described directly using a register, this
+  // register is always a first operand.
   return MI.getOperand(0).isReg() ? MI.getOperand(0).getReg() : 0;
 }
 
@@ -110,25 +116,27 @@ private:
     const DebugVariable Var;
     const MachineInstr &MI; ///< Only used for cloning a new DBG_VALUE.
     mutable UserValueScopes UVS;
-    enum { InvalidKind = 0, RegisterKind } Kind;
+    enum { InvalidKind = 0, RegisterKind, MemoryKind } Kind;
 
     /// The value location. Stored separately to avoid repeatedly
     /// extracting it from MI.
-    union {
-      uint64_t RegNo;
-      uint64_t Hash;
-    } Loc;
+    uint64_t RegNo = 0;
+    const DIExpression *ExprOffset = nullptr;
 
     VarLoc(const MachineInstr &MI, LexicalScopes &LS)
         : Var(MI.getDebugVariable(), MI.getDebugLoc()->getInlinedAt()), MI(MI),
           UVS(MI.getDebugLoc(), LS), Kind(InvalidKind) {
-      static_assert((sizeof(Loc) == sizeof(uint64_t)),
-                    "hash does not cover all members of Loc");
       assert(MI.isDebugValue() && "not a DBG_VALUE");
       assert(MI.getNumOperands() == 4 && "malformed DBG_VALUE");
-      if (int RegNo = isDbgValueDescribedByReg(MI)) {
+      if (MI.isIndirectDebugValue()) {
+        Kind = MemoryKind;
+        RegNo = MI.getOperand(0).getReg();
+        // FIXME: We should really extract the offset and treat it as an
+        // integer.
+        ExprOffset = cast<DIExpression>(MI.getDebugExpression());
+      } else if (int Reg = isDbgValueDescribedByReg(MI)) {
         Kind = RegisterKind;
-        Loc.RegNo = RegNo;
+        RegNo = Reg;
       }
     }
 
@@ -136,7 +144,7 @@ private:
     /// otherwise return 0.
     unsigned isDescribedByReg() const {
       if (Kind == RegisterKind)
-        return Loc.RegNo;
+        return RegNo;
       return 0;
     }
 
@@ -149,14 +157,17 @@ private:
 #endif
 
     bool operator==(const VarLoc &Other) const {
-      return Var == Other.Var && Loc.Hash == Other.Loc.Hash;
+      return Var == Other.Var && RegNo == Other.RegNo &&
+             ExprOffset == Other.ExprOffset;
     }
 
     /// This operator guarantees that VarLocs are sorted by Variable first.
     bool operator<(const VarLoc &Other) const {
-      if (Var == Other.Var)
-        return Loc.Hash < Other.Loc.Hash;
-      return Var < Other.Var;
+      if (Var != Other.Var)
+        return Var < Other.Var;
+      if (RegNo != Other.RegNo)
+        return RegNo < Other.RegNo;
+      return ExprOffset < Other.ExprOffset;
     }
   };
 
@@ -344,9 +355,8 @@ void LiveDebugValues::transferDebugValue(const MachineInstr &MI,
   OpenRanges.erase(V);
 
   // Add the VarLoc to OpenRanges from this DBG_VALUE.
-  // TODO: Currently handles DBG_VALUE which has only reg as location.
-  if (isDbgValueDescribedByReg(MI)) {
-    VarLoc VL(MI, LS);
+  VarLoc VL(MI, LS);
+  if (VL.Kind != VarLoc::InvalidKind) {
     unsigned ID = VarLocIDs.insert(VL);
     OpenRanges.insert(ID, VL.Var);
   }

@@ -5168,6 +5168,20 @@ SelectionDAGBuilder::visitIntrinsicCall(const CallInst &I, unsigned Intrinsic) {
       return nullptr;
     }
 
+    // If the value is an alloca, get its frame index instead of looking in the
+    // node map.
+    // FIXME: Handle byval/inalloca params as above.
+    if (const AllocaInst *AI = dyn_cast<AllocaInst>(V)) {
+      auto Iter = FuncInfo.StaticAllocaMap.find(AI);
+      if (Iter != FuncInfo.StaticAllocaMap.end()) {
+        int FI = Iter->second;
+        SDV = DAG.getFrameIndexDbgValue(Variable, Expression, FI, dl,
+                                        SDNodeOrder);
+        DAG.AddDbgValue(SDV, nullptr, false);
+        return nullptr;
+      }
+    }
+
     // Do not use getValue() in here; we don't want to generate code at
     // this point if it hasn't been done yet.
     SDValue N = NodeMap[V];
