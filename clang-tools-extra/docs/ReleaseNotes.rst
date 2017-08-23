@@ -57,6 +57,12 @@ The improvements are...
 Improvements to clang-tidy
 --------------------------
 
+- New `hicpp-exception-baseclass
+  <http://clang.llvm.org/extra/clang-tidy/checks/hicpp-exception-baseclass.html>`_ check
+
+  This check ensures that all exception will be instances of ``std::exception`` and classes 
+  that are derived from it.
+
 - Renamed checks to use correct term "implicit conversion" instead of "implicit
   cast" and modified messages and option names accordingly:
 
