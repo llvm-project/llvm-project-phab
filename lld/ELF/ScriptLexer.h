@@ -39,6 +39,7 @@ public:
   std::vector<StringRef> Tokens;
   bool InExpr = false;
   size_t Pos = 0;
+  std::string ErrorPrefix;
 
 private:
   void maybeSplitExpr();

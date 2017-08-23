@@ -78,7 +78,7 @@ void ScriptLexer::setError(const Twine &Msg) {
   if (ErrorCount)
     return;
 
-  std::string S = (getCurrentLocation() + ": " + Msg).str();
+  std::string S = getCurrentLocation() + ": " + ErrorPrefix + Msg.str();
   if (Pos)
     S += "\n>>> " + getLine().str() + "\n>>> " +
          std::string(getColumnNumber(), ' ') + "^";

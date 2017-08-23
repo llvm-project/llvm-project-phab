@@ -61,7 +61,8 @@
 # RUN: echo "boom .temp : { *(.temp) } }" >> %t.script
 # RUN: not ld.lld -shared %t -o %t1 --script %t.script 2>&1 | \
 # RUN:   FileCheck -check-prefix=ERR7 -strict-whitespace %s
-# ERR7:      error: {{.*}}.script:4: malformed number: .temp
+# ERR7:      error: {{.*}}.script:4: unable to parse description for output section 'boom':
+# ERR7-NEXT: >>> malformed number: .temp
 # ERR7-NEXT: >>> boom .temp : { *(.temp) } }
 # ERR7-NEXT: >>>      ^
 
@@ -88,7 +89,8 @@
 # RUN: echo "INCLUDE \"%t.script.inc\"" > %t.script
 # RUN: not ld.lld -shared %t -o %t1 --script %t.script 2>&1 | \
 # RUN:   FileCheck -check-prefix=ERR10 -strict-whitespace %s
-# ERR10:      error: {{.*}}.script.inc:4: malformed number: .temp
+# ERR10:      error: {{.*}}.script.inc:4: unable to parse description for output section 'boom':
+# ERR10-NEXT: >>> malformed number: .temp
 # ERR10-NEXT: >>> boom .temp : { *(.temp) } }
 # ERR10-NEXT: >>>      ^
 

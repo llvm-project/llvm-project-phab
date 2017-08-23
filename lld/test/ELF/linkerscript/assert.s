@@ -33,7 +33,8 @@
 # RUN: echo "SECTIONS { .foo : { ASSERT(1, \"true\") } }" > %t7.script
 # RUN: not ld.lld -shared -o %t7 --script %t7.script %t1.o > %t.log 2>&1
 # RUN: FileCheck %s -check-prefix=CHECK-SEMI < %t.log
-# CHECK-SEMI: error: {{.*}}.script:1: ; expected, but got }
+# CHECK-SEMI: error: {{.*}}.script:1: unable to parse description for output section '.foo':
+# CHECK-SEMI-NEXT: >>> ; expected, but got }
 
 .section .foo, "a"
  .quad 0
