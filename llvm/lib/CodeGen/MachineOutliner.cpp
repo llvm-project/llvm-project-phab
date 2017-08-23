@@ -42,10 +42,13 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/Twine.h"
+#include "llvm/Analysis/OptimizationDiagnosticInfo.h"
+#include "llvm/CodeGen/MachineBlockFrequencyInfo.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineModuleInfo.h"
+#include "llvm/CodeGen/MachineOptimizationRemarkEmitter.h"
 #include "llvm/CodeGen/Passes.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/Support/Allocator.h"
@@ -64,6 +67,7 @@
 #define DEBUG_TYPE "machine-outliner"
 
 using namespace llvm;
+using namespace ore;
 
 STATISTIC(NumOutlined, "Number of candidates outlined");
 STATISTIC(FunctionsCreated, "Number of functions created");
@@ -829,6 +833,10 @@ MachineOutliner::findCandidates(SuffixTree &ST, const TargetInstrInfo &TII,
   size_t FnIdx = 0;
   size_t MaxLen = 0;
 
+  // Count the number of candidates we considered for outlining. Used to give
+  // remarks an identifier.
+  size_t NumCandidatesEvaluated = 0;
+
   // FIXME: Visit internal nodes instead of leaves.
   for (SuffixTreeNode *Leaf : ST.LeafVector) {
     assert(Leaf && "Leaves in LeafVector cannot be null!");
@@ -850,6 +858,10 @@ MachineOutliner::findCandidates(SuffixTree &ST, const TargetInstrInfo &TII,
     // instruction lengths we need more information than this.
     if (StringLen < 2)
       continue;
+
+    // We've found something we might want to outline. Keep track of an ID for
+    // remarks.
+    NumCandidatesEvaluated++;
 
     size_t CallOverhead = 0;
     size_t SequenceOverhead = StringLen;
@@ -895,8 +907,33 @@ MachineOutliner::findCandidates(SuffixTree &ST, const TargetInstrInfo &TII,
     size_t OutliningCost = CallOverhead + FrameOverhead + SequenceOverhead;
     size_t NotOutliningCost = SequenceOverhead * Parent.OccurrenceCount;
 
-    if (NotOutliningCost <= OutliningCost)
+    if (NotOutliningCost <= OutliningCost) {
+      // Emit a remark explaining why we didn't outline this candidate.
+      for (const std::pair<MachineBasicBlock::iterator,
+                           MachineBasicBlock::iterator> &C : CandidateClass) {
+        MachineBasicBlock *MBB = C.first->getParent();
+        MachineFunction *MF = MBB->getParent();
+
+        // FIXME: It would be nice to be able to store the emitters somewhere so
+        // that we don't have to emit them whenever we visit a machine function.
+        MachineOptimizationRemarkEmitter MORE(*MF, nullptr);
+        MachineOptimizationRemarkMissed R(DEBUG_TYPE, "NotOutliningCheaper",
+                                          MF->getFunction()->getSubprogram(),
+                                          MBB);
+        R << "Candidate " << NV("SequenceID", (uint64_t)NumCandidatesEvaluated)
+          << " [" << MNV("StartInstr", *C.first) << " ... "
+          << MNV("EndInstr", *C.second)
+          << "] (Length: " << NV("Length", (uint64_t)StringLen)
+          << ") not outlined from " << NV("SourceFunction", MF->getName())
+          << "; Outlining would take more instructions than not. "
+             " (OutliningCost: "
+          << NV("OutliningCost", (uint64_t)OutliningCost)
+          << ", NotOutliningCost: "
+          << NV("NotOutliningCost", (uint64_t)NotOutliningCost) << ")";
+        MORE.emit(R);
+      }
       continue;
+    }
 
     size_t Benefit = NotOutliningCost - OutliningCost;
 
