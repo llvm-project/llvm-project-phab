@@ -251,16 +251,16 @@ void ScriptParser::readLinkerScript() {
 }
 
 void ScriptParser::addFile(StringRef S) {
-  if (IsUnderSysroot && S.startswith("/")) {
-    SmallString<128> PathData;
-    StringRef Path = (Config->Sysroot + S).toStringRef(PathData);
-    if (sys::fs::exists(Path)) {
-      Driver->addFile(Saver.save(Path), /*WithLOption=*/false);
-      return;
-    }
-  }
+  assert(!ErrorCount);
 
   if (S.startswith("/")) {
+    if (IsUnderSysroot) {
+      SmallString<128> PathData;
+      StringRef Path = (Config->Sysroot + S).toStringRef(PathData);
+      if (sys::fs::exists(Path))
+        S = Saver.save(Path);
+    }
+
     Driver->addFile(S, /*WithLOption=*/false);
   } else if (S.startswith("=")) {
     if (Config->Sysroot.empty())
@@ -278,6 +278,9 @@ void ScriptParser::addFile(StringRef S) {
     else
       setError("unable to find " + S);
   }
+
+  if (ErrorCount)
+    error(">>> location:" + getCurrentLocation());
 }
 
 void ScriptParser::readAsNeeded() {
