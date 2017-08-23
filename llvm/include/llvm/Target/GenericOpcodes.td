@@ -12,6 +12,11 @@
 //
 //===----------------------------------------------------------------------===//
 
+// Ensure mayLoad and mayStore have a default value, so these generic opcodes
+// won't break targets that set guessInstructionProperties=1. Any local
+// definition of mayLoad/mayStore takes precedence over these default values.
+let mayLoad = 0, mayStore = 0 in {
+
 //------------------------------------------------------------------------------
 // Unary ops.
 //------------------------------------------------------------------------------
@@ -579,3 +584,5 @@ def G_SHUFFLE_VECTOR: Instruction {
 }
 
 // TODO: Add the other generic opcodes.
+
+} // End scope with mayLoad=0, mayStore=0
