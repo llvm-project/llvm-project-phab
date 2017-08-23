@@ -1,0 +1,4 @@
+RUN: %cpp_compiler %S/VectorTest.cpp -o %t
+
+// Test that no spurious errors are thrown.
+RUN: %t -runs=100
