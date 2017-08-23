@@ -94,7 +94,8 @@ void Timer::init(StringRef Name, StringRef Description, TimerGroup &tg) {
   assert(!TG && "Timer already initialized");
   this->Name.assign(Name.begin(), Name.end());
   this->Description.assign(Description.begin(), Description.end());
-  Running = Triggered = false;
+  Triggered = false;
+  StartCount = 0;
   TG = &tg;
   TG->addTimer(*this);
 }
@@ -130,20 +131,42 @@ TimeRecord TimeRecord::getCurrentTime(bool Start) {
 }
 
 void Timer::startTimer() {
-  assert(!Running && "Cannot start a running timer");
-  Running = Triggered = true;
+  assert(!isRunning() && "Cannot start a running timer");
+  Triggered = true;
+  StartCount += 1;
   StartTime = TimeRecord::getCurrentTime(true);
 }
 
+void Timer::startReentrantTimer() {
+  if (StartCount == 0)
+    startTimer();
+  else
+    StartCount += 1;
+}
+
 void Timer::stopTimer() {
-  assert(Running && "Cannot stop a paused timer");
-  Running = false;
+  assert(isRunning() && "Cannot stop a paused timer");
+  assert(StartCount == 1 &&
+         "startReentrantTimer must be matched with the same number of calls "
+         "to stopReentrantTimer");
+  StartCount -= 1;
   Time += TimeRecord::getCurrentTime(false);
   Time -= StartTime;
 }
 
+void Timer::stopReentrantTimer() {
+  assert(StartCount > 0 &&
+         "stopReentrantTimer cannot be called more times than "
+         "startReentrantTimer");
+  if (StartCount == 1)
+    stopTimer();
+  else
+    StartCount -= 1;
+}
+
 void Timer::clear() {
-  Running = Triggered = false;
+  Triggered = false;
+  StartCount = 0;
   Time = StartTime = TimeRecord();
 }
 

@@ -62,4 +62,26 @@ TEST(Timer, CheckIfTriggered) {
   EXPECT_FALSE(T1.hasTriggered());
 }
 
+class Recurser {
+public:
+  Timer T;
+  Recurser() : T("RCT1", "RCT1") {}
+  void Recurse(unsigned Depth) {
+    T.startReentrantTimer();
+    if (Depth < 1)
+      Recurse(Depth + 1);
+    T.stopReentrantTimer();
+  }
+};
+
+TEST(Timer, Reentrant) {
+  Recurser R;
+  ASSERT_FALSE(R.T.hasTriggered());
+  ASSERT_FALSE(R.T.isRunning());
+
+  R.Recurse(0);
+  ASSERT_TRUE(R.T.hasTriggered());
+  ASSERT_FALSE(R.T.isRunning());
+}
+
 } // end anon namespace
