@@ -57,19 +57,22 @@ WindowsResource::createWindowsResource(MemoryBufferRef Source) {
 }
 
 Expected<ResourceEntryRef> WindowsResource::getHeadEntry() {
-  Error Err = Error::success();
-  auto Ref = ResourceEntryRef(BinaryStreamRef(BBS), this, Err);
-  if (Err)
-    return std::move(Err);
-  return Ref;
+  if (BBS.getLength() < sizeof(WinResHeaderPrefix) + sizeof(WinResHeaderSuffix))
+    return make_error<EmptyResError>(".res contains no entries",
+                                     object_error::unexpected_eof);
+  return ResourceEntryRef::create(BinaryStreamRef(BBS), this);
 }
 
 ResourceEntryRef::ResourceEntryRef(BinaryStreamRef Ref,
-                                   const WindowsResource *Owner, Error &Err)
-    : Reader(Ref), OwningRes(Owner) {
-  if (loadNext())
-    Err = make_error<GenericBinaryError>("Could not read first entry.\n",
-                                         object_error::unexpected_eof);
+                                   const WindowsResource *Owner)
+    : Reader(Ref), OwningRes(Owner) {}
+
+Expected<ResourceEntryRef>
+ResourceEntryRef::create(BinaryStreamRef BSR, const WindowsResource *Owner) {
+  auto Ref = ResourceEntryRef(BSR, Owner);
+  if (auto E = Ref.loadNext())
+    return std::move(E);
+  return Ref;
 }
 
 Error ResourceEntryRef::moveNext(bool &End) {
@@ -127,8 +130,14 @@ WindowsResourceParser::WindowsResourceParser() : Root(false) {}
 
 Error WindowsResourceParser::parse(WindowsResource *WR) {
   auto EntryOrErr = WR->getHeadEntry();
-  if (!EntryOrErr)
-    return EntryOrErr.takeError();
+  if (!EntryOrErr) {
+    auto E = EntryOrErr.takeError();
+    if (E.isA<EmptyResError>()) {
+      consumeError(std::move(E));
+      return Error::success();
+    }
+    return E;
+  }
 
   ResourceEntryRef Entry = EntryOrErr.get();
   bool End = false;
