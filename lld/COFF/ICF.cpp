@@ -44,6 +44,9 @@ private:
   bool equalsConstant(const SectionChunk *A, const SectionChunk *B);
   bool equalsVariable(const SectionChunk *A, const SectionChunk *B);
 
+  bool lessConstant(const SectionChunk *A, const SectionChunk *B);
+  bool lessVariable(const SectionChunk *A, const SectionChunk *B);
+
   uint32_t getHash(SectionChunk *C);
   bool isEligible(SectionChunk *C);
 
@@ -86,28 +89,43 @@ bool ICF::isEligible(SectionChunk *C) {
 
 // Split an equivalence class into smaller classes.
 void ICF::segregate(size_t Begin, size_t End, bool Constant) {
-  while (Begin < End) {
-    // Divide [Begin, End) into two. Let Mid be the start index of the
-    // second group.
-    auto Bound = std::stable_partition(
-        Chunks.begin() + Begin + 1, Chunks.begin() + End, [&](SectionChunk *S) {
-          if (Constant)
-            return equalsConstant(Chunks[Begin], S);
-          return equalsVariable(Chunks[Begin], S);
-        });
-    size_t Mid = Bound - Chunks.begin();
+  if (Begin == End)
+    return;
 
-    // Split [Begin, End) into [Begin, Mid) and [Mid, End). We use Mid as an
-    // equivalence class ID because every group ends with a unique index.
-    for (size_t I = Begin; I < Mid; ++I)
-      Chunks[I]->Class[(Cnt + 1) % 2] = Mid;
+  auto Less = [&](SectionChunk *L, SectionChunk *R) {
+    if (Constant)
+      return lessConstant(L, R);
+    return lessVariable(L, R);
+  };
 
-    // If we created a group, we need to iterate the main loop again.
-    if (Mid != End)
-      Repeat = true;
+  auto Equal = [&](SectionChunk *L, SectionChunk *R) {
+    if (Constant)
+      return equalsConstant(L, R);
+    return equalsVariable(L, R);
+  };
 
-    Begin = Mid;
+  // Group equal chunks together and then split [Begin, End) range into smaller ranges with equal values
+  std::stable_sort(Chunks.begin() + Begin, Chunks.begin() + End, Less);
+
+  size_t GroupBegin = Begin;
+  for (size_t Pos = Begin + 1; Pos < End; Pos++) {
+    if (Equal(Chunks[GroupBegin], Chunks[Pos]))
+      continue;
+
+    // We use Pos as an equivalence class ID because every group ends with a
+    // unique index.
+    for (size_t I = GroupBegin; I < Pos; ++I)
+      Chunks[I]->Class[(Cnt + 1) % 2] = Pos;
+
+    GroupBegin = Pos;
   }
+
+  for (size_t I = GroupBegin; I < End; ++I)
+    Chunks[I]->Class[(Cnt + 1) % 2] = End;
+
+  // If we created a group, we need to iterate the main loop again.
+  if (GroupBegin != Begin)
+    Repeat = true;
 }
 
 // Compare "non-moving" part of two sections, namely everything
@@ -144,8 +162,79 @@ bool ICF::equalsConstant(const SectionChunk *A, const SectionChunk *B) {
          A->getContents() == B->getContents();
 }
 
+
+// Compare "non-moving" part of two sections, namely everything
+// except relocation targets.
+bool ICF::lessConstant(const SectionChunk *A, const SectionChunk *B) {
+  if (A->NumRelocs != B->NumRelocs)
+    return A->NumRelocs < B->NumRelocs;
+
+  if (A->getPermissions() != B->getPermissions())
+    return A->getPermissions() < B->getPermissions();
+
+  if (A->SectionName != B->SectionName)
+    return A->SectionName < B->SectionName;
+
+  if (A->getAlign() != B->getAlign())
+    return A->getAlign() < B->getAlign();
+
+  if (A->Header->SizeOfRawData != B->Header->SizeOfRawData)
+    return A->Header->SizeOfRawData < B->Header->SizeOfRawData;
+
+  if (A->Checksum != B->Checksum)
+    return A->Checksum < B->Checksum;
+
+  if (int X =
+          toStringRef(A->getContents()).compare(toStringRef(B->getContents())))
+    return X < 0;
+
+  // Compare relocations.
+  for (size_t I = 0; I != A->NumRelocs; ++I) {
+    const coff_relocation &R1 = *(A->Relocs.begin() + I);
+    const coff_relocation &R2 = *(B->Relocs.begin() + I);
+
+    if (R1.Type != R2.Type)
+      return R1.Type < R2.Type;
+    if (R1.VirtualAddress != R2.VirtualAddress)
+      return R1.VirtualAddress < R2.VirtualAddress;
+
+    SymbolBody *B1 = A->File->getSymbolBody(R1.SymbolTableIndex);
+    SymbolBody *B2 = B->File->getSymbolBody(R2.SymbolTableIndex);
+    if (B1 == B2)
+      continue;
+
+    auto *D1 = dyn_cast<DefinedRegular>(B1);
+    auto *D2 = dyn_cast<DefinedRegular>(B2);
+
+    // We cannot compare non-DefinedRegular classes by anything meaningful other
+    // than a pointer
+    // But using pointers will lead to non-deterministic builds
+    // So we just make all non-DefinedRegular classes equal to each other and
+    // less than all DefinedRegular
+    // for the purposes of sorting and separate them later
+    if (!D1 && !D2)
+      continue;
+
+    if (!D1 || !D2)
+      return D1 < D2;
+
+    if (D1->getValue() != D2->getValue())
+      return D1->getValue() < D2->getValue();
+
+    uint32_t C1 = D1->getChunk()->Class[Cnt % 2];
+    uint32_t C2 = D2->getChunk()->Class[Cnt % 2];
+    if (C1 != C2)
+      return C1 < C2;
+  }
+
+  return false;
+}
+
 // Compare "moving" part of two sections, namely relocation targets.
 bool ICF::equalsVariable(const SectionChunk *A, const SectionChunk *B) {
+  if (A->NumRelocs != B->NumRelocs)
+    return false;
+
   // Compare relocations.
   auto Eq = [&](const coff_relocation &R1, const coff_relocation &R2) {
     SymbolBody *B1 = A->File->getSymbolBody(R1.SymbolTableIndex);
@@ -158,6 +247,43 @@ bool ICF::equalsVariable(const SectionChunk *A, const SectionChunk *B) {
     return false;
   };
   return std::equal(A->Relocs.begin(), A->Relocs.end(), B->Relocs.begin(), Eq);
+}
+
+// Compare "moving" part of two sections, namely relocation targets.
+bool ICF::lessVariable(const SectionChunk *A, const SectionChunk *B) {
+  // Compare relocations.
+  if (A->NumRelocs != B->NumRelocs)
+    return A->NumRelocs < B->NumRelocs;
+
+  for (size_t I = 0; I != A->NumRelocs; ++I) {
+    const coff_relocation &R1 = *(A->Relocs.begin() + I);
+    const coff_relocation &R2 = *(B->Relocs.begin() + I);
+
+    SymbolBody *B1 = A->File->getSymbolBody(R1.SymbolTableIndex);
+    SymbolBody *B2 = B->File->getSymbolBody(R2.SymbolTableIndex);
+    if (B1 == B2)
+      continue;
+
+    auto *D1 = dyn_cast<DefinedRegular>(B1);
+    auto *D2 = dyn_cast<DefinedRegular>(B2);
+
+    // We cannot compare non-DefinedRegular classes by anything meaningful other
+    // than a pointer
+    // But using pointers will lead to non-deterministic builds
+    // So we just make all non-DefinedRegular classes equal to each other and
+    // less than all DefinedRegular
+    // for the purposes of sorting and separate them later
+    if (!D1 && !D2)
+      continue;
+
+    if (!D1 || !D2)
+      return D1 < D2;
+
+    if (D1->getChunk()->Class[Cnt % 2] != D2->getChunk()->Class[Cnt % 2])
+      return D1->getChunk()->Class[Cnt % 2] < D2->getChunk()->Class[Cnt % 2];
+  }
+
+  return false;
 }
 
 size_t ICF::findBoundary(size_t Begin, size_t End) {
