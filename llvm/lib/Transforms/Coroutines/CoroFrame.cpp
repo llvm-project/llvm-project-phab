@@ -28,6 +28,7 @@
 #include "llvm/Support/circular_raw_ostream.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Local.h"
+#include "llvm/Transforms/Utils/PromoteMemToReg.h"
 
 using namespace llvm;
 
@@ -673,7 +674,7 @@ static bool materializable(Instruction &V) {
 // Check for structural coroutine intrinsics that should not be spilled into
 // the coroutine frame.
 static bool isCoroutineStructureIntrinsic(Instruction &I) {
-  return isa<CoroIdInst>(&I) || isa<CoroBeginInst>(&I) ||
+  return isa<CoroIdInst>(&I) ||
          isa<CoroSaveInst>(&I) || isa<CoroSuspendInst>(&I);
 }
 
@@ -774,6 +775,40 @@ static BasicBlock *splitBlockIfNotFirst(Instruction *I, const Twine &Name) {
   return BB->splitBasicBlock(I, Name);
 }
 
+static bool onlyStoresConstants(AllocaInst *AI) {
+  if (!AI->getAllocatedType()->isIntegerTy())
+    return false;
+
+  for (const User *U : AI->users())
+    if (const StoreInst *SI = dyn_cast<StoreInst>(U))
+      if (!isa<ConstantInt>(SI->getOperand(0)))
+        return false;
+
+  return true;
+}
+
+// Allocas that follow the pattern of cleanup.dest.slot, namely, they are
+// integer allocas that don't escape and only store constants. We don't want
+// them to be saved into the coroutine frame (as some of the cleanup code will
+// access them after coroutine frame destroyed).
+static void promoteCleanupSlotLikeAllocasToRegisters(Function &F, AllocaInst* AI) {
+  SmallVector<AllocaInst *, 2> Allocas;
+  BasicBlock &BB = F.getEntryBlock(); // Get the entry node for the function
+
+  // Find allocas that are safe to promote, by looking at all instructions in
+  // the entry node
+  for (BasicBlock::iterator I = BB.begin(), E = --BB.end(); I != E; ++I)
+    if (AllocaInst *AI = dyn_cast<AllocaInst>(I)) // Is it an alloca?
+      if (isAllocaPromotable(AI) && onlyStoresConstants(AI))
+        Allocas.push_back(AI);
+
+  if (Allocas.empty())
+      return;
+
+  DominatorTree DT(F);
+  PromoteMemToReg(Allocas, DT);
+}
+
 // Split above and below a particular instruction so that it
 // will be all alone by itself in a block.
 static void splitAround(Instruction *I, const Twine &Name) {
@@ -798,6 +833,9 @@ void coro::buildCoroutineFrame(Function &F, Shape &Shape) {
     splitAround(CSI->getCoroSave(), "CoroSave");
     splitAround(CSI, "CoroSuspend");
   }
+
+  // Promote cleanup.slot like allocas to registers
+  promoteCleanupSlotLikeAllocasToRegisters(F, Shape.PromiseAlloca);
 
   // Put CoroEnds into their own blocks.
   for (CoroEndInst *CE : Shape.CoroEnds)
@@ -839,7 +877,7 @@ void coro::buildCoroutineFrame(Function &F, Shape &Shape) {
   for (Instruction &I : instructions(F)) {
     // Values returned from coroutine structure intrinsics should not be part
     // of the Coroutine Frame.
-    if (isCoroutineStructureIntrinsic(I))
+    if (isCoroutineStructureIntrinsic(I) || &I == Shape.CoroBegin)
       continue;
     // The Coroutine Promise always included into coroutine frame, no need to
     // check for suspend crossing.
