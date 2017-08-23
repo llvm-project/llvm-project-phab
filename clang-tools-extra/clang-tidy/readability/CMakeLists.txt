@@ -28,6 +28,7 @@ add_clang_library(clangTidyReadabilityModule
   StaticAccessedThroughInstanceCheck.cpp
   StaticDefinitionInAnonymousNamespaceCheck.cpp
   UniqueptrDeleteReleaseCheck.cpp
+  UnnecessaryIntermediateVarCheck.cpp
 
   LINK_LIBS
   clangAST

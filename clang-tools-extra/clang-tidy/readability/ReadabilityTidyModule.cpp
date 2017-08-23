@@ -35,6 +35,7 @@
 #include "StaticAccessedThroughInstanceCheck.h"
 #include "StaticDefinitionInAnonymousNamespaceCheck.h"
 #include "UniqueptrDeleteReleaseCheck.h"
+#include "UnnecessaryIntermediateVarCheck.h"
 
 namespace clang {
 namespace tidy {
@@ -93,6 +94,8 @@ public:
         "readability-simplify-boolean-expr");
     CheckFactories.registerCheck<UniqueptrDeleteReleaseCheck>(
         "readability-uniqueptr-delete-release");
+    CheckFactories.registerCheck<UnnecessaryIntermediateVarCheck>(
+        "readability-unnecessary-intermediate-var");
   }
 };
 

@@ -193,3 +193,4 @@ Clang-Tidy Checks
    readability-static-accessed-through-instance
    readability-static-definition-in-anonymous-namespace
    readability-uniqueptr-delete-release
+   readability-unnecessary-intermediate-var

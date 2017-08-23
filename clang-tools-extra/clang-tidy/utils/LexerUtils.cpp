@@ -35,6 +35,16 @@ Token getPreviousToken(const ASTContext &Context, SourceLocation Location,
   return Token;
 }
 
+Optional<StringRef> getStmtText(const Stmt* Statement, const SourceManager& SM) {
+  bool Error = false;
+  auto Ret = Lexer::getSourceText(
+    CharSourceRange::getTokenRange(Statement->getSourceRange()),
+    SM, LangOptions(),
+    &Error);
+
+  return Error ? llvm::NoneType() : Optional<StringRef>(Ret);
+}
+
 } // namespace lexer
 } // namespace utils
 } // namespace tidy
