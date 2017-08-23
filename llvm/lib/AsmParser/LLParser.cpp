@@ -1162,7 +1162,8 @@ bool LLParser::ParseFnAttributeValuePairs(AttrBuilder &B,
 static inline GlobalValue *createGlobalFwdRef(Module *M, PointerType *PTy,
                                               const std::string &Name) {
   if (auto *FT = dyn_cast<FunctionType>(PTy->getElementType()))
-    return Function::Create(FT, GlobalValue::ExternalWeakLinkage, Name, M);
+    return Function::Create(FT, GlobalValue::ExternalWeakLinkage,
+                            PTy->getAddressSpace(), Name, M);
   else
     return new GlobalVariable(*M, PTy->getElementType(), false,
                               GlobalValue::ExternalWeakLinkage, nullptr, Name,
@@ -4765,6 +4766,7 @@ bool LLParser::ParseFunctionHeader(Function *&Fn, bool isDefine) {
   std::string GC;
   GlobalValue::UnnamedAddr UnnamedAddr = GlobalValue::UnnamedAddr::None;
   LocTy UnnamedAddrLoc;
+  unsigned AddrSpace = 0;
   Constant *Prefix = nullptr;
   Constant *Prologue = nullptr;
   Constant *PersonalityFn = nullptr;
@@ -4772,6 +4774,7 @@ bool LLParser::ParseFunctionHeader(Function *&Fn, bool isDefine) {
 
   if (ParseArgumentList(ArgList, isVarArg) ||
       ParseOptionalUnnamedAddr(UnnamedAddr) ||
+      ParseOptionalAddrSpace(AddrSpace) ||
       ParseFnAttributeValuePairs(FuncAttrs, FwdRefAttrGrps, false,
                                  BuiltinLoc) ||
       (EatIfPresent(lltok::kw_section) &&
@@ -4855,7 +4858,8 @@ bool LLParser::ParseFunctionHeader(Function *&Fn, bool isDefine) {
   }
 
   if (!Fn)
-    Fn = Function::Create(FT, GlobalValue::ExternalLinkage, FunctionName, M);
+    Fn = Function::Create(FT, GlobalValue::ExternalLinkage, AddrSpace,
+                          FunctionName, M);
   else // Move the forward-reference to the correct spot in the module.
     M->getFunctionList().splice(M->end(), M->getFunctionList(), Fn);
 
