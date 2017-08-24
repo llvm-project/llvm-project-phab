@@ -2539,41 +2539,66 @@ CFGBlock *CFGBuilder::VisitSEHTryStmt(SEHTryStmt *Terminator) {
   // processing the current block.
   CFGBlock *SEHTrySuccessor = nullptr;
 
+  // We create a block for the __try (NewTryTerminatedBlock below).  This block
+  // is entered on exceptional control flow, and for a __try / __except either
+  // goes to the __except block (if the __except catches the exception) or to
+  // the end of the function (or the containing __try if it exists) if this
+  // exception isn't caught. The contents of the __try block are emitted as
+  // a regular block not connected to NewTryTerminatedBlock.  The __except
+  // block goes to the block after the __try / __except.
+  // For a __try / __finally, the __try goes to the __finally on exceptional
+  // control flow.  The __finally block connects to the block after they
+  // __try / __finally (for regular control flow) and to the end of the
+  // function (or the containing __try if it exists) on exceptional control
+  // flow.
+
   if (Block) {
     if (badCFG)
       return nullptr;
     SEHTrySuccessor = Block;
   } else SEHTrySuccessor = Succ;
 
-  // FIXME: Implement __finally support.
-  if (Terminator->getFinallyHandler())
-    return NYS();
-
   CFGBlock *PrevSEHTryTerminatedBlock = TryTerminatedBlock;
 
   // Create a new block that will contain the __try statement.
   CFGBlock *NewTryTerminatedBlock = createBlock(false);
+  CFGBlock *EndOfTry = NewTryTerminatedBlock;
 
   // Add the terminator in the __try block.
   NewTryTerminatedBlock->setTerminator(Terminator);
 
-  if (SEHExceptStmt *Except = Terminator->getExceptHandler()) {
-    // The code after the try is the implicit successor if there's an __except.
-    Succ = SEHTrySuccessor;
-    Block = nullptr;
-    CFGBlock *ExceptBlock = VisitSEHExceptStmt(Except);
-    if (!ExceptBlock)
-      return nullptr;
-    // Add this block to the list of successors for the block with the try
-    // statement.
-    addSuccessor(NewTryTerminatedBlock, ExceptBlock);
+  // The code after the try is the implicit successor of an __except,
+  // and one implicit successor of a __finally.
+  Succ = SEHTrySuccessor;
+  Block = nullptr;
+  bool AlreadyHasExitEdge = false;
+  CFGBlock *ExceptOrFinallyBlock;
+  if (SEHFinallyStmt *Finally = Terminator->getFinallyHandler()) {
+    AlreadyHasExitEdge = SEHTrySuccessor == &cfg->getExit();
+    ExceptOrFinallyBlock = VisitSEHFinallyStmt(Finally);
+    if (ExceptOrFinallyBlock) {
+      // With a __finally, the code in the __finally block should run after the
+      // code in the __try.
+      SEHTrySuccessor = ExceptOrFinallyBlock;
+      // With a __finally, we jump to the end-of-function (or enclosing __try)
+      // from the __finally block instead of from the try control block.
+      EndOfTry = ExceptOrFinallyBlock;
+    }
+  } else {
+    assert(Terminator->getExceptHandler());
+    ExceptOrFinallyBlock = VisitSEHExceptStmt(Terminator->getExceptHandler());
   }
-  if (PrevSEHTryTerminatedBlock)
-    addSuccessor(NewTryTerminatedBlock, PrevSEHTryTerminatedBlock);
-  else
-    addSuccessor(NewTryTerminatedBlock, &cfg->getExit());
+  // Add this block to the list of successors for the block with the try
+  // statement.
+  addSuccessor(NewTryTerminatedBlock, ExceptOrFinallyBlock);
 
-  // The code after the try is the implicit successor.
+  if (PrevSEHTryTerminatedBlock)
+    addSuccessor(EndOfTry, PrevSEHTryTerminatedBlock);
+  else if (!AlreadyHasExitEdge)
+    addSuccessor(EndOfTry, &cfg->getExit());
+
+  // The code after the try is the implicit successor for an __except,
+  // else the code in the __finally is the implicit successor.
   Succ = SEHTrySuccessor;
 
   // Save the current "__try" context.
@@ -2582,14 +2607,15 @@ CFGBlock *CFGBuilder::VisitSEHTryStmt(SEHTryStmt *Terminator) {
   cfg->addTryDispatchBlock(TryTerminatedBlock);
 
   // Save the current value for the __leave target.
-  // All __leaves should go to the code following the __try
-  // (FIXME: or if the __try has a __finally, to the __finally.)
-  SaveAndRestore<JumpTarget> save_break(SEHLeaveJumpTarget);
+  // All __leaves should go to the code following the __try,
+  // or if the __try has a __finally, to the __finally.
+  SaveAndRestore<JumpTarget> save_leave(SEHLeaveJumpTarget);
   SEHLeaveJumpTarget = JumpTarget(SEHTrySuccessor, ScopePos);
 
   assert(Terminator->getTryBlock() && "__try must contain a non-NULL body");
   Block = nullptr;
-  return addStmt(Terminator->getTryBlock());
+  CFGBlock* TryBodyBlock = addStmt(Terminator->getTryBlock());
+  return TryBodyBlock ? TryBodyBlock : SEHTrySuccessor;
 }
 
 CFGBlock *CFGBuilder::VisitLabelStmt(LabelStmt *L) {
