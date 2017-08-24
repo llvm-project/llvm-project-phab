@@ -13,6 +13,8 @@
 #include "llvm/BinaryFormat/ELF.h"
 #include "llvm/BinaryFormat/MachO.h"
 #include "llvm/MC/MCAsmBackend.h"
+#include "llvm/MC/MCAssembler.h"
+#include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCELFObjectWriter.h"
 #include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCFixupKindInfo.h"
@@ -119,8 +121,11 @@ public:
     // Specifically ignore overflow/underflow as long as the leakage is
     // limited to the lower bits. This is to remain compatible with
     // other assemblers.
-    assert(isIntN(Size * 8 + 1, Value) &&
-           "Value does not fit in the Fixup field");
+    if (!isIntN(Size * 8, Value)) {
+      Asm.getContext().reportError(Fixup.getLoc(),
+                                   "Value " + Twine(int64_t(Value)) +
+                                       " does not fit in the Fixup field");
+    }
 
     for (unsigned i = 0; i != Size; ++i)
       Data[Fixup.getOffset() + i] = uint8_t(Value >> (i * 8));
