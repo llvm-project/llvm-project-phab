@@ -16662,7 +16662,9 @@ SDValue X86TargetLowering::EmitTest(SDValue Op, unsigned X86CC, const SDLoc &dl,
     // likely to be selected as part of a load-modify-store instruction.
     for (SDNode::use_iterator UI = Op.getNode()->use_begin(),
            UE = Op.getNode()->use_end(); UI != UE; ++UI)
-      if (UI->getOpcode() == ISD::STORE)
+      if (UI->getOpcode() != ISD::CopyToReg &&
+          UI->getOpcode() != ISD::SETCC &&
+          UI->getOpcode() != ISD::STORE)
         goto default_case;
 
     // Otherwise use a regular EFLAGS-setting instruction.
