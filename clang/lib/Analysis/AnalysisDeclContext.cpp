@@ -69,6 +69,7 @@ AnalysisDeclContextManager::AnalysisDeclContextManager(bool useUnoptimizedCFG,
                                                        bool addTemporaryDtors,
                                                        bool addLifetime,
                                                        bool addLoopExit,
+                                                       bool addScopes,
                                                        bool synthesizeBodies,
                                                        bool addStaticInitBranch,
                                                        bool addCXXNewAllocator,
@@ -81,6 +82,7 @@ AnalysisDeclContextManager::AnalysisDeclContextManager(bool useUnoptimizedCFG,
   cfgBuildOptions.AddTemporaryDtors = addTemporaryDtors;
   cfgBuildOptions.AddLifetime = addLifetime;
   cfgBuildOptions.AddLoopExit = addLoopExit;
+  cfgBuildOptions.AddScopes = addScopes;
   cfgBuildOptions.AddStaticInitBranches = addStaticInitBranch;
   cfgBuildOptions.AddCXXNewAllocator = addCXXNewAllocator;
 }
@@ -221,6 +223,14 @@ CFG *AnalysisDeclContext::getCFG() {
 
   if (!builtCFG) {
     cfg = CFG::buildCFG(D, getBody(), &D->getASTContext(), cfgBuildOptions);
+    // If we tried to generate scopes in CFG and failed for some reason
+    // (e.g. faced GotoStmt), retry with scopes disabled.
+    if (!cfg && cfgBuildOptions.AddScopes) {
+      SaveAndRestore<bool> SavedAddScopes(cfgBuildOptions.AddScopes);
+      cfgBuildOptions.AddScopes = false;
+      cfg = CFG::buildCFG(D, getBody(), &D->getASTContext(), cfgBuildOptions);
+     }
+
     // Even when the cfg is not successfully built, we don't
     // want to try building it again.
     builtCFG = true;

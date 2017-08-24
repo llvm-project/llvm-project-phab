@@ -428,6 +428,7 @@ public:
                              bool addTemporaryDtors = false,
                              bool addLifetime = false,
                              bool addLoopExit = false,
+                             bool addScopes = false,
                              bool synthesizeBodies = false,
                              bool addStaticInitBranches = false,
                              bool addCXXNewAllocator = true,

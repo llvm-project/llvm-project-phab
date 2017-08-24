@@ -26,6 +26,7 @@ public:
 // CHECK-NEXT: cfg-implicit-dtors = true
 // CHECK-NEXT: cfg-lifetime = false
 // CHECK-NEXT: cfg-loopexit = false
+// CHECK-NEXT: cfg-scopes = false
 // CHECK-NEXT: cfg-temporary-dtors = false
 // CHECK-NEXT: faux-bodies = true
 // CHECK-NEXT: graph-trim-interval = 1000
@@ -42,4 +43,4 @@ public:
 // CHECK-NEXT: unroll-loops = false
 // CHECK-NEXT: widen-loops = false
 // CHECK-NEXT: [stats]
-// CHECK-NEXT: num-entries = 24
+// CHECK-NEXT: num-entries = 25
