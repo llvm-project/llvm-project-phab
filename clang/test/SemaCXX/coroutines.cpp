@@ -500,8 +500,7 @@ coro<bad_promise_1> missing_get_return_object() { // expected-error {{no member 
 
 struct bad_promise_2 {
   coro<bad_promise_2> get_return_object();
-  // FIXME: We shouldn't offer a typo-correction here!
-  suspend_always final_suspend(); // expected-note {{here}}
+  suspend_always final_suspend();
   void unhandled_exception();
   void return_void();
 };
@@ -512,8 +511,7 @@ coro<bad_promise_2> missing_initial_suspend() { // expected-error {{no member na
 
 struct bad_promise_3 {
   coro<bad_promise_3> get_return_object();
-  // FIXME: We shouldn't offer a typo-correction here!
-  suspend_always initial_suspend(); // expected-note {{here}}
+  suspend_always initial_suspend();
   void unhandled_exception();
   void return_void();
 };
@@ -1162,3 +1160,22 @@ template CoroMemberTag DepTestType<int>::test_member_template(long, const char *
 template CoroMemberTag DepTestType<int>::test_static_template<void>(const char *volatile &, unsigned);
 
 } // namespace CoroHandleMemberFunctionTest
+
+struct missing_await_ready {
+  void await_suspend(std::experimental::coroutine_handle<>);
+  void await_resume();
+};
+struct missing_await_suspend {
+  bool await_ready();
+  void await_resume();
+};
+struct missing_await_resume {
+  bool await_ready();
+  void await_suspend(std::experimental::coroutine_handle<>);
+};
+
+void test_missing_awaitable_members() {
+  co_await missing_await_ready{}; // expected-error {{no member named 'await_ready' in 'missing_await_ready'}}
+  co_await missing_await_suspend{}; // expected-error {{no member named 'await_suspend' in 'missing_await_suspend'}}
+  co_await missing_await_resume{}; // expected-error {{no member named 'await_resume' in 'missing_await_resume'}}
+}
