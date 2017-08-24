@@ -19,6 +19,7 @@
 
 #include "CoroInternal.h"
 #include "llvm/ADT/BitVector.h"
+#include "llvm/Analysis/PtrUseVisitor.h"
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/IRBuilder.h"
@@ -500,6 +501,9 @@ static Instruction *insertSpills(SpillInfo &Spills, coro::Shape &Shape) {
   }
 
   BasicBlock *FramePtrBB = FramePtr->getParent();
+
+  // Create AllocaSpillBlock that will become the new entry block for resume
+  // and destroy parts of the coroutine. All the alloca spills go here.
   Shape.AllocaSpillBlock =
       FramePtrBB->splitBasicBlock(FramePtr->getNextNode(), "AllocaSpillBB");
   Shape.AllocaSpillBlock->splitBasicBlock(&Shape.AllocaSpillBlock->front(),
@@ -761,6 +765,36 @@ static void moveSpillUsesAfterCoroBegin(Function &F, SpillInfo const &Spills,
     I->moveBefore(InsertPt);
 }
 
+// Checks if alloca escapes.
+static bool allocaEscapes(Instruction *I) {
+  auto *AI = dyn_cast<AllocaInst>(I);
+  if (!AI)
+    return false;
+
+  class AllocaEscapeChecker : public PtrUseVisitor<AllocaEscapeChecker> {
+    friend class PtrUseVisitor<AllocaEscapeChecker>;
+    friend class InstVisitor<AllocaEscapeChecker>;
+
+  public:
+    AllocaEscapeChecker(AllocaInst &AI)
+        : PtrUseVisitor<AllocaEscapeChecker>(AI.getModule()->getDataLayout()),
+          PtrI(visitPtr(AI)) {}
+
+    bool isEscapedOrAborted() const {
+      return PtrI.isEscaped() || PtrI.isAborted();
+    }
+
+  private:
+    void visitPHINode(PHINode &PN) { enqueueUsers(PN); }
+    void visitSelectInst(SelectInst &SI) { enqueueUsers(SI); }
+
+    PtrInfo PtrI;
+  };
+
+  AllocaEscapeChecker Checker(*AI);
+  return Checker.isEscapedOrAborted();
+}
+
 // Splits the block at a particular instruction unless it is the first
 // instruction in the block with a single predecessor.
 static BasicBlock *splitBlockIfNotFirst(Instruction *I, const Twine &Name) {
@@ -802,6 +836,11 @@ void coro::buildCoroutineFrame(Function &F, Shape &Shape) {
   // Put CoroEnds into their own blocks.
   for (CoroEndInst *CE : Shape.CoroEnds)
     splitAround(CE, "CoroEnd");
+
+  // Split the block after CoroBegin so that spill reload code will never try
+  // to insert a reload before CoroBegin itself.
+  Shape.CoroBegin->getParent()->splitBasicBlock(Shape.CoroBegin->getNextNode(),
+                                                "AfterCoroBegin");
 
   // Transforms multi-edge PHI Nodes, so that any value feeding into a PHI will
   // never has its definition separated from the PHI by the suspend point.
@@ -847,7 +886,7 @@ void coro::buildCoroutineFrame(Function &F, Shape &Shape) {
       continue;
 
     for (User *U : I.users())
-      if (Checker.isDefinitionAcrossSuspend(I, U)) {
+      if (Checker.isDefinitionAcrossSuspend(I, U) || allocaEscapes(&I)) {
         // We cannot spill a token.
         if (I.getType()->isTokenTy())
           report_fatal_error(
