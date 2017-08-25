@@ -3483,13 +3483,16 @@ public:
     DEBUG(dbgs() << "PPCGCodeGen running on : " << getUniqueScopName(S)
                  << " | loop depth: " << S->getMaxLoopDepth() << "\n");
 
+    const bool AllowCUDALibDevice = Architecture == GPUArch::NVPTX64 &&
+        CUDALibDevice != "";
+
     // We currently do not support functions other than intrinsics inside
     // kernels, as code generation will need to offload function calls to the
     // kernel. This may lead to a kernel trying to call a function on the host.
     // This also allows us to prevent codegen from trying to take the
     // address of an intrinsic function to send to the kernel.
     if (containsInvalidKernelFunction(CurrentScop,
-                                      Architecture == GPUArch::NVPTX64)) {
+                                      AllowCUDALibDevice)) {
       DEBUG(
           dbgs() << getUniqueScopName(S)
                  << " contains function which cannot be materialised in a GPU "
