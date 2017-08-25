@@ -106,6 +106,11 @@ struct ValueInfo {
   }
 };
 
+inline bool operator<(const ValueInfo &A, const ValueInfo &B) {
+  assert(A.Ref && B.Ref && "Need ValueInfo with non-null Ref to compare GUIDs");
+  return A.getGUID() < B.getGUID();
+}
+
 template <> struct DenseMapInfo<ValueInfo> {
   static inline ValueInfo getEmptyKey() {
     return ValueInfo((GlobalValueSummaryMapTy::value_type *)-1);
@@ -296,6 +301,24 @@ public:
     unsigned ReturnDoesNotAlias : 1;
   };
 
+  /// Create an empty FunctionSummary (with specified call edges).
+  /// Used to represent external nodes and the dummy root node.
+  static FunctionSummary
+  makeDummyFunctionSummary(std::vector<FunctionSummary::EdgeTy> Edges) {
+    return FunctionSummary(
+        FunctionSummary::GVFlags(
+            GlobalValue::LinkageTypes::AvailableExternallyLinkage,
+            /*NotEligibleToImport=*/true, /*Live=*/true),
+        0, FunctionSummary::FFlags{}, std::vector<ValueInfo>(),
+        std::move(Edges), std::vector<GlobalValue::GUID>(),
+        std::vector<FunctionSummary::VFuncId>(),
+        std::vector<FunctionSummary::VFuncId>(),
+        std::vector<FunctionSummary::ConstVCall>(),
+        std::vector<FunctionSummary::ConstVCall>());
+  }
+
+  static FunctionSummary ExternalNode;
+
 private:
   /// Number of instructions (ignoring debug instructions, e.g.) computed
   /// during the initial compile step when the summary index is first built.
@@ -415,6 +438,8 @@ public:
       TIdInfo = llvm::make_unique<TypeIdInfo>();
     TIdInfo->TypeTests.push_back(Guid);
   }
+
+  friend struct GraphTraits<ValueInfo>;
 };
 
 template <> struct DenseMapInfo<FunctionSummary::VFuncId> {
@@ -583,6 +608,48 @@ public:
   gvsummary_iterator end() { return GlobalValueMap.end(); }
   const_gvsummary_iterator end() const { return GlobalValueMap.end(); }
   size_t size() const { return GlobalValueMap.size(); }
+
+  // Calculate the callgraph root
+  FunctionSummary calculateCallGraphRoot() {
+    std::map<ValueInfo, bool> FunctionHasParent;
+    std::function<void(ValueInfo)> discoverNodes = [&](ValueInfo V) {
+      if (!V.getSummaryList().size())
+        return; // skip external functions that don't have summaries
+
+      // Mark discovered if we haven't yet
+      FunctionHasParent.emplace(std::make_pair(V, false));
+
+      FunctionSummary *F =
+          dyn_cast<FunctionSummary>(V.getSummaryList().front().get());
+      assert(F != nullptr && "Expected FunctionSummary node");
+
+      for (auto &C : F->calls()) {
+        auto S = FunctionHasParent.find(C.first);
+        if (S != FunctionHasParent.end() && S->second)
+          continue;
+        FunctionHasParent[C.first] = true;
+        discoverNodes(C.first);
+      }
+    };
+
+    for (auto &S : *this) {
+      if (!S.second.SummaryList.size() || // skip external functions
+          !isa<FunctionSummary>(S.second.SummaryList.front().get()))
+        continue;
+      discoverNodes(getValueInfo(S.first));
+    }
+
+    std::vector<FunctionSummary::EdgeTy> Edges;
+    // create edges to all roots in the Index
+    for (auto &P : FunctionHasParent) {
+      if (P.second)
+        continue; // skip over non-root nodes
+      Edges.push_back(std::make_pair(P.first, CalleeInfo{}));
+    }
+    assert(Edges.size() && "Couldn't find any roots in index callgraph!");
+    auto CallGraphRoot = FunctionSummary::makeDummyFunctionSummary(Edges);
+    return CallGraphRoot;
+  }
 
   bool withGlobalValueDeadStripping() const {
     return WithGlobalValueDeadStripping;
@@ -769,6 +836,55 @@ public:
   /// Summary).
   void collectDefinedGVSummariesPerModule(
       StringMap<GVSummaryMapTy> &ModuleToDefinedGVSummaries) const;
+
+  void dumpSCCs(raw_ostream &O);
+};
+
+/// GraphTraits definition to build SCC for the index
+template <> struct GraphTraits<ValueInfo> {
+  typedef ValueInfo NodeRef;
+
+  static NodeRef valueInfoFromEdge(FunctionSummary::EdgeTy &P) {
+    return P.first;
+  }
+  using ChildIteratorType =
+      mapped_iterator<std::vector<FunctionSummary::EdgeTy>::iterator,
+                      decltype(&valueInfoFromEdge)>;
+
+  static NodeRef getEntryNode(ValueInfo V) { return V; }
+
+  static ChildIteratorType child_begin(NodeRef N) {
+    if (!N.getSummaryList().size()) // handle external function
+      return ChildIteratorType(
+          FunctionSummary::ExternalNode.CallGraphEdgeList.begin(),
+          &valueInfoFromEdge);
+    FunctionSummary *F =
+        cast<FunctionSummary>(N.getSummaryList().front().get());
+    return ChildIteratorType(F->CallGraphEdgeList.begin(), &valueInfoFromEdge);
+  }
+
+  static ChildIteratorType child_end(NodeRef N) {
+    if (!N.getSummaryList().size()) // handle external function
+      return ChildIteratorType(
+          FunctionSummary::ExternalNode.CallGraphEdgeList.end(),
+          &valueInfoFromEdge);
+    FunctionSummary *F =
+        cast<FunctionSummary>(N.getSummaryList().front().get());
+    return ChildIteratorType(F->CallGraphEdgeList.end(), &valueInfoFromEdge);
+  }
+};
+
+template <>
+struct GraphTraits<ModuleSummaryIndex *> : public GraphTraits<ValueInfo> {
+  static NodeRef getEntryNode(ModuleSummaryIndex *I) {
+    std::unique_ptr<GlobalValueSummary> Root =
+        make_unique<FunctionSummary>(I->calculateCallGraphRoot());
+    GlobalValueSummaryInfo G;
+    G.SummaryList.push_back(std::move(Root));
+    static auto P =
+        GlobalValueSummaryMapTy::value_type(GlobalValue::GUID(0), std::move(G));
+    return ValueInfo(&P);
+  }
 };
 
 } // end namespace llvm

@@ -13,8 +13,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/IR/ModuleSummaryIndex.h"
+#include "llvm/ADT/SCCIterator.h"
 #include "llvm/ADT/StringMap.h"
 using namespace llvm;
+
+FunctionSummary FunctionSummary::ExternalNode =
+    FunctionSummary::makeDummyFunctionSummary({});
 
 // Collect for the given module the list of function it defines
 // (GUID -> Summary).
@@ -68,4 +72,22 @@ bool ModuleSummaryIndex::isGUIDLive(GlobalValue::GUID GUID) const {
     if (isGlobalValueLive(I.get()))
       return true;
   return false;
+}
+
+LLVM_DUMP_METHOD
+void ModuleSummaryIndex::dumpSCCs(raw_ostream &O) {
+  for (scc_iterator<ModuleSummaryIndex *> I =
+           scc_begin<ModuleSummaryIndex *>(this);
+       !I.isAtEnd(); ++I) {
+    O << "SCC (" << utostr(I->size()) << " node" << (I->size() == 1 ? "" : "s")
+      << ") {\n";
+    for (const ValueInfo V : *I) {
+      FunctionSummary *F = nullptr;
+      if (V.getSummaryList().size())
+        F = cast<FunctionSummary>(V.getSummaryList().front().get());
+      O << " " << (F ? F->modulePath() : "External") << " "
+        << utostr(V.getGUID()) << (I.hasLoop() ? " (has loop)" : "") << "\n";
+    }
+    O << "}\n";
+  }
 }
