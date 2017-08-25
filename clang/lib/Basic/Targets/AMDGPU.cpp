@@ -305,7 +305,7 @@ void AMDGPUTargetInfo::setAddressSpaceMap(bool DefaultIsPrivate) {
 AMDGPUTargetInfo::AMDGPUTargetInfo(const llvm::Triple &Triple,
                                    const TargetOptions &Opts)
     : TargetInfo(Triple), GPU(isAMDGCN(Triple) ? GK_GFX6 : GK_R600),
-      hasFP64(false), hasFMAF(false), hasLDEXPF(false),
+      GPUName(""), hasFP64(false), hasFMAF(false), hasLDEXPF(false),
       AS(isGenericZero(Triple)) {
   if (getTriple().getArch() == llvm::Triple::amdgcn) {
     hasFP64 = true;
@@ -349,10 +349,18 @@ ArrayRef<Builtin::Info> AMDGPUTargetInfo::getTargetBuiltins() const {
 
 void AMDGPUTargetInfo::getTargetDefines(const LangOptions &Opts,
                                         MacroBuilder &Builder) const {
+  Builder.defineMacro("__AMD__");
+  Builder.defineMacro("__AMDGPU__");
+
   if (getTriple().getArch() == llvm::Triple::amdgcn)
     Builder.defineMacro("__AMDGCN__");
   else
     Builder.defineMacro("__R600__");
+
+  if (!GPUName.empty()) {
+    Builder.defineMacro(Twine("__") + Twine(GPUName));
+    Builder.defineMacro(Twine("__") + Twine(GPUName) + Twine("__"));
+  }
 
   if (hasFMAF)
     Builder.defineMacro("__HAS_FMAF__");

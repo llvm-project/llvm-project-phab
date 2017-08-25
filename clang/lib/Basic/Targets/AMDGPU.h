@@ -64,6 +64,7 @@ class LLVM_LIBRARY_VISIBILITY AMDGPUTargetInfo final : public TargetInfo {
     GK_GFX9
   } GPU;
 
+  std::string GPUName;
   bool hasFP64 : 1;
   bool hasFMAF : 1;
   bool hasLDEXPF : 1;
@@ -162,6 +163,8 @@ public:
     else
       GPU = parseR600Name(Name);
 
+    if (GPU != GK_NONE)
+      GPUName = Name;
     return GPU != GK_NONE;
   }
 
