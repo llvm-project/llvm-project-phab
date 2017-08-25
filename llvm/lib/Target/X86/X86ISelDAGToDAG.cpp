@@ -2065,7 +2065,7 @@ bool X86DAGToDAGISel::foldLoadStoreIntoMemOperand(SDNode *Node) {
     return false;
 
   auto SelectOpcodeForSize = [&](unsigned Opc64, unsigned Opc32, unsigned Opc16,
-                                 unsigned Opc8) {
+                                 unsigned Opc8 = 0) {
     switch (MemVT.getSimpleVT().SimpleTy) {
     case MVT::i64:
       return Opc64;
@@ -2101,9 +2101,48 @@ bool X86DAGToDAGISel::foldLoadStoreIntoMemOperand(SDNode *Node) {
                                                 X86::ADD16mr, X86::ADD8mr)
                           : SelectOpcodeForSize(X86::SUB64mr, X86::SUB32mr,
                                                 X86::SUB16mr, X86::SUB8mr);
-    const SDValue Ops[] = {Base,      Scale,   Index,
-                           Disp,      Segment, StoredVal->getOperand(1),
-                           InputChain};
+    SDValue Operand = StoredVal->getOperand(1);
+
+    // See if the operand is a constant that we can fold into an immediate
+    // operand.
+    if (auto *OperandC = dyn_cast<ConstantSDNode>(Operand)) {
+      auto OperandV = OperandC->getAPIntValue();
+
+      // Check if we can shrink the operand enough to fit in an immediate (or
+      // fit into a smaller immediate) by negating it and switching the
+      // operation.
+      if ((MemVT != MVT::i8 && OperandV.getMinSignedBits() > 8 &&
+           (-OperandV).getMinSignedBits() <= 8) ||
+          (MemVT == MVT::i64 && OperandV.getMinSignedBits() > 32 &&
+           (-OperandV).getMinSignedBits() <= 32)) {
+        OperandV = -OperandV;
+        Opc = Opc == X86ISD::ADD ? X86ISD::SUB : X86ISD::ADD;
+      }
+
+      if (MemVT != MVT::i8 && OperandV.getMinSignedBits() <= 8) {
+        Operand = CurDAG->getTargetConstant(OperandV.trunc(8),
+                                            SDLoc(Node), MVT::i8);
+        NewOpc = Opc == X86ISD::ADD
+                     ? SelectOpcodeForSize(X86::ADD64mi8, X86::ADD32mi8,
+                                           X86::ADD16mi8)
+                     : SelectOpcodeForSize(X86::SUB64mi8, X86::SUB32mi8,
+                                           X86::SUB16mi8);
+      } else if (OperandV.getActiveBits() <= MemVT.getSizeInBits() &&
+                 (MemVT != MVT::i64 || OperandV.getMinSignedBits() <= 32)) {
+        MVT ImmVT = MemVT == MVT::i64 ? MVT::i32 : MemVT.getSimpleVT();
+        if (MemVT == MVT::i64)
+          OperandV = OperandV.trunc(32);
+        Operand = CurDAG->getTargetConstant(OperandV, SDLoc(Node), ImmVT);
+        NewOpc = Opc == X86ISD::ADD
+                     ? SelectOpcodeForSize(X86::ADD64mi32, X86::ADD32mi,
+                                           X86::ADD16mi, X86::ADD8mi)
+                     : SelectOpcodeForSize(X86::SUB64mi32, X86::SUB32mi,
+                                           X86::SUB16mi, X86::SUB8mi);
+      }
+    }
+
+    const SDValue Ops[] = {Base,    Scale,   Index,     Disp,
+                           Segment, Operand, InputChain};
     Result =
         CurDAG->getMachineNode(NewOpc, SDLoc(Node), MVT::i32, MVT::Other, Ops);
     break;
