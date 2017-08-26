@@ -1361,6 +1361,52 @@ static void printConstant(const Constant *COp, raw_ostream &CS) {
   }
 }
 
+static void printConstantPoolOp(MCStreamer &OutStreamer,
+                                const MachineInstr *MI,
+                                StringRef Op, unsigned EltSize,
+                                bool EOL) {
+  if (!OutStreamer.isVerboseAsm())
+    return;
+
+  const MCInstrDesc &Desc = MI->getDesc();
+  int MemOperand = X86II::getOperandBias(Desc) +
+                   X86II::getMemoryOperandNo(Desc.TSFlags);
+  const MachineOperand &MemOp = MI->getOperand(MemOperand + 3);
+
+  auto *C = getConstantFromPool(*MI, MemOp);
+  if (!C)
+    return;
+
+  SmallVector<uint64_t, 16> Vec;
+  APInt UndefElts;
+  if (!extractConstantMask(C, EltSize, UndefElts, Vec))
+    return;
+
+  const MachineOperand &DstOp = MI->getOperand(0);
+  const MachineOperand &SrcOp = MI->getOperand(Desc.getNumDefs());
+
+  std::string Comment;
+  raw_string_ostream CS(Comment);
+
+  CS << X86ATTInstPrinter::getRegisterName(DstOp.getReg());
+  CS << " = ";
+  CS << X86ATTInstPrinter::getRegisterName(SrcOp.getReg());
+  CS << Op << "[";
+
+  for (unsigned i = 0; i < Vec.size(); ++i) {
+    if (i != 0)
+      CS << ",";
+    if (UndefElts[i])
+      CS << 'u';
+    else
+      CS << Vec[i];
+  }
+
+  CS << "]";
+
+  OutStreamer.AddComment(CS.str(), EOL);
+}
+
 void X86AsmPrinter::EmitInstruction(const MachineInstr *MI) {
   X86MCInstLower MCInstLowering(*MF, *this);
   const X86RegisterInfo *RI = MF->getSubtarget<X86Subtarget>().getRegisterInfo();
@@ -1763,6 +1809,144 @@ void X86AsmPrinter::EmitInstruction(const MachineInstr *MI) {
     }
     break;
   }
+
+  case X86::PADDBrm:
+  case X86::VPADDBrm:
+  case X86::VPADDBYrm:
+  case X86::VPADDBZ128rm:
+  case X86::VPADDBZ256rm:
+  case X86::VPADDBZrm:
+    printConstantPoolOp(*OutStreamer, MI, " + ", 8, !EnablePrintSchedInfo);
+    break;
+  case X86::PSUBBrm:
+  case X86::VPSUBBrm:
+  case X86::VPSUBBYrm:
+  case X86::VPSUBBZ128rm:
+  case X86::VPSUBBZ256rm:
+  case X86::VPSUBBZrm:
+    printConstantPoolOp(*OutStreamer, MI, " - ", 8, !EnablePrintSchedInfo);
+    break;
+
+  case X86::PADDWrm:
+  case X86::VPADDWrm:
+  case X86::VPADDWYrm:
+  case X86::VPADDWZ128rm:
+  case X86::VPADDWZ256rm:
+  case X86::VPADDWZrm:
+    printConstantPoolOp(*OutStreamer, MI, " + ", 16, !EnablePrintSchedInfo);
+    break;
+  case X86::PSUBWrm:
+  case X86::VPSUBWrm:
+  case X86::VPSUBWYrm:
+  case X86::VPSUBWZ128rm:
+  case X86::VPSUBWZ256rm:
+  case X86::VPSUBWZrm:
+    printConstantPoolOp(*OutStreamer, MI, " - ", 16, !EnablePrintSchedInfo);
+    break;
+
+  case X86::PADDDrm:
+  case X86::VPADDDrm:
+  case X86::VPADDDYrm:
+  case X86::VPADDDZ128rm:
+  case X86::VPADDDZ256rm:
+  case X86::VPADDDZrm:
+    printConstantPoolOp(*OutStreamer, MI, " + ", 32, !EnablePrintSchedInfo);
+    break;
+  case X86::PSUBDrm:
+  case X86::VPSUBDrm:
+  case X86::VPSUBDYrm:
+  case X86::VPSUBDZ128rm:
+  case X86::VPSUBDZ256rm:
+  case X86::VPSUBDZrm:
+    printConstantPoolOp(*OutStreamer, MI, " - ", 32, !EnablePrintSchedInfo);
+    break;
+
+  case X86::PADDQrm:
+  case X86::VPADDQrm:
+  case X86::VPADDQYrm:
+  case X86::VPADDQZ128rm:
+  case X86::VPADDQZ256rm:
+  case X86::VPADDQZrm:
+    printConstantPoolOp(*OutStreamer, MI, " + ", 64, !EnablePrintSchedInfo);
+    break;
+  case X86::PSUBQrm:
+  case X86::VPSUBQrm:
+  case X86::VPSUBQYrm:
+  case X86::VPSUBQZ128rm:
+  case X86::VPSUBQZ256rm:
+  case X86::VPSUBQZrm:
+    printConstantPoolOp(*OutStreamer, MI, " - ", 64, !EnablePrintSchedInfo);
+    break;
+
+  case X86::ANDPDrm:
+  case X86::VANDPDrm:
+  case X86::VANDPDYrm:
+  case X86::VANDPDZ128rm:
+  case X86::VANDPDZ256rm:
+  case X86::VANDPDZrm:
+  case X86::ANDPSrm:
+  case X86::VANDPSrm:
+  case X86::VANDPSYrm:
+  case X86::VANDPSZ128rm:
+  case X86::VANDPSZ256rm:
+  case X86::VANDPSZrm:
+  case X86::PANDrm:
+  case X86::VPANDrm:
+  case X86::VPANDYrm:
+  case X86::VPANDDZ128rm:
+  case X86::VPANDDZ256rm:
+  case X86::VPANDDZrm:
+  case X86::VPANDQZ128rm:
+  case X86::VPANDQZ256rm:
+  case X86::VPANDQZrm:
+    printConstantPoolOp(*OutStreamer, MI, " & ", 8, !EnablePrintSchedInfo);
+    break;
+  case X86::ORPDrm:
+  case X86::VORPDrm:
+  case X86::VORPDYrm:
+  case X86::VORPDZ128rm:
+  case X86::VORPDZ256rm:
+  case X86::VORPDZrm:
+  case X86::ORPSrm:
+  case X86::VORPSrm:
+  case X86::VORPSYrm:
+  case X86::VORPSZ128rm:
+  case X86::VORPSZ256rm:
+  case X86::VORPSZrm:
+  case X86::PORrm:
+  case X86::VPORrm:
+  case X86::VPORYrm:
+  case X86::VPORDZ128rm:
+  case X86::VPORDZ256rm:
+  case X86::VPORDZrm:
+  case X86::VPORQZ128rm:
+  case X86::VPORQZ256rm:
+  case X86::VPORQZrm:
+    printConstantPoolOp(*OutStreamer, MI, " | ", 8, !EnablePrintSchedInfo);
+    break;
+  case X86::XORPDrm:
+  case X86::VXORPDrm:
+  case X86::VXORPDYrm:
+  case X86::VXORPDZ128rm:
+  case X86::VXORPDZ256rm:
+  case X86::VXORPDZrm:
+  case X86::XORPSrm:
+  case X86::VXORPSrm:
+  case X86::VXORPSYrm:
+  case X86::VXORPSZ128rm:
+  case X86::VXORPSZ256rm:
+  case X86::VXORPSZrm:
+  case X86::PXORrm:
+  case X86::VPXORrm:
+  case X86::VPXORYrm:
+  case X86::VPXORDZ128rm:
+  case X86::VPXORDZ256rm:
+  case X86::VPXORDZrm:
+  case X86::VPXORQZ128rm:
+  case X86::VPXORQZ256rm:
+  case X86::VPXORQZrm:
+    printConstantPoolOp(*OutStreamer, MI, " ^ ", 8, !EnablePrintSchedInfo);
+    break;
 
 #define MOV_CASE(Prefix, Suffix)        \
   case X86::Prefix##MOVAPD##Suffix##rm: \

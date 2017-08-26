@@ -24,9 +24,9 @@
 
 namespace llvm {
 
-static bool extractConstantMask(const Constant *C, unsigned MaskEltSizeInBits,
-                                APInt &UndefElts,
-                                SmallVectorImpl<uint64_t> &RawMask) {
+bool extractConstantMask(const Constant *C, unsigned MaskEltSizeInBits,
+                         APInt &UndefElts,
+                         SmallVectorImpl<uint64_t> &RawMask) {
   // It is not an error for shuffle masks to not be a vector of
   // MaskEltSizeInBits because the constant pool uniques constants by their
   // bit representation.

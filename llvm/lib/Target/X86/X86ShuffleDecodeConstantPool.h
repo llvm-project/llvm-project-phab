@@ -15,6 +15,7 @@
 #ifndef LLVM_LIB_TARGET_X86_X86SHUFFLEDECODECONSTANTPOOL_H
 #define LLVM_LIB_TARGET_X86_X86SHUFFLEDECODECONSTANTPOOL_H
 
+#include "llvm/ADT/APInt.h"
 #include "llvm/ADT/SmallVector.h"
 
 //===----------------------------------------------------------------------===//
@@ -24,6 +25,11 @@
 namespace llvm {
 class Constant;
 class MVT;
+
+// Extract a constant vector into an array of uint64_ts.
+bool extractConstantMask(const Constant *C, unsigned MaskEltSizeInBits,
+                         APInt &UndefElts,
+                         SmallVectorImpl<uint64_t> &RawMask);
 
 /// Decode a PSHUFB mask from an IR-level vector constant.
 void DecodePSHUFBMask(const Constant *C, SmallVectorImpl<int> &ShuffleMask);
