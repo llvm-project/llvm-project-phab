@@ -155,6 +155,15 @@ Visibility Macros
   versioning namespace. This allows throwing and catching some exception types
   between libc++ and libstdc++.
 
+Experimental Library
+====================
+
+The libc++experimental library provides special visibility macros which are
+prefixed with _LIBCPPX instead of _LIBCPP. libc++experimental is always built
+as a static library, so there may be some visibility changes needed.
+Currently this only makes a difference on Windows, where experimental API won't
+be marked with dllexport/dllimport.
+
 Links
 =====
 

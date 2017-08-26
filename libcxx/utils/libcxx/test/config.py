@@ -1056,6 +1056,13 @@ class Configuration(object):
         not_py = os.path.join(self.libcxx_src_root, 'utils', 'not.py')
         not_str = '%s %s ' % (pipes.quote(sys.executable), pipes.quote(not_py))
         sub.append(('not ', not_str))
+        # Configure check_experimental_visibility program substitutions
+        check_experimental_vis_py = os.path.join(self.libcxx_src_root,
+                                                 'utils',
+                                                 'check_experimental_visibility.py')
+        check_experimental_vis_str = '%s %s' % (pipes.quote(sys.executable),
+                                                pipes.quote(check_experimental_vis_py))
+        sub.append(('check_experimental_visibility', check_experimental_vis_str))
 
     def can_use_deployment(self):
         # Check if the host is on an Apple platform using clang.
