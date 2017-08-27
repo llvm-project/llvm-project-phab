@@ -4929,12 +4929,15 @@ bool LoopVectorizationLegality::canVectorize() {
   // Store the result and return it at the end instead of exiting early, in case
   // allowExtraAnalysis is used to report multiple reasons for not vectorizing.
   bool Result = true;
+  RemarkInfo Output;
+  ORE->allowExtraAnalysis("loop-vectorize", Output);
+  if (Output.PassedOptRemarkEnable || Output.MissedOptRemarkEnable)
   // We must have a loop in canonical form. Loops with indirectbr in them cannot
   // be canonicalized.
   if (!TheLoop->getLoopPreheader()) {
     ORE->emit(createMissedAnalysis("CFGNotUnderstood")
               << "loop control flow is not understood by vectorizer");
-    if (ORE->allowExtraAnalysis())
+  if (Output.PassedOptRemarkEnable || Output.MissedOptRemarkEnable)
       Result = false;
     else
       return false;
@@ -4947,7 +4950,7 @@ bool LoopVectorizationLegality::canVectorize() {
   if (!TheLoop->empty()) {
     ORE->emit(createMissedAnalysis("NotInnermostLoop")
               << "loop is not the innermost loop");
-    if (ORE->allowExtraAnalysis())
+    if (Output.PassedOptRemarkEnable || Output.MissedOptRemarkEnable)
       Result = false;
     else
       return false;
@@ -4957,7 +4960,7 @@ bool LoopVectorizationLegality::canVectorize() {
   if (TheLoop->getNumBackEdges() != 1) {
     ORE->emit(createMissedAnalysis("CFGNotUnderstood")
               << "loop control flow is not understood by vectorizer");
-    if (ORE->allowExtraAnalysis())
+    if (Output.PassedOptRemarkEnable || Output.MissedOptRemarkEnable)
       Result = false;
     else
       return false;
@@ -4967,7 +4970,7 @@ bool LoopVectorizationLegality::canVectorize() {
   if (!TheLoop->getExitingBlock()) {
     ORE->emit(createMissedAnalysis("CFGNotUnderstood")
               << "loop control flow is not understood by vectorizer");
-    if (ORE->allowExtraAnalysis())
+    if (Output.PassedOptRemarkEnable || Output.MissedOptRemarkEnable)
       Result = false;
     else
       return false;
@@ -4979,7 +4982,7 @@ bool LoopVectorizationLegality::canVectorize() {
   if (TheLoop->getExitingBlock() != TheLoop->getLoopLatch()) {
     ORE->emit(createMissedAnalysis("CFGNotUnderstood")
               << "loop control flow is not understood by vectorizer");
-    if (ORE->allowExtraAnalysis())
+    if (Output.PassedOptRemarkEnable || Output.MissedOptRemarkEnable)
       Result = false;
     else
       return false;
@@ -4993,7 +4996,7 @@ bool LoopVectorizationLegality::canVectorize() {
   unsigned NumBlocks = TheLoop->getNumBlocks();
   if (NumBlocks != 1 && !canVectorizeWithIfConvert()) {
     DEBUG(dbgs() << "LV: Can't if-convert the loop.\n");
-    if (ORE->allowExtraAnalysis())
+    if (Output.PassedOptRemarkEnable || Output.MissedOptRemarkEnable)
       Result = false;
     else
       return false;
@@ -5002,7 +5005,7 @@ bool LoopVectorizationLegality::canVectorize() {
   // Check if we can vectorize the instructions and CFG in this loop.
   if (!canVectorizeInstrs()) {
     DEBUG(dbgs() << "LV: Can't vectorize the instructions or CFG\n");
-    if (ORE->allowExtraAnalysis())
+    if (Output.PassedOptRemarkEnable || Output.MissedOptRemarkEnable)
       Result = false;
     else
       return false;
@@ -5011,7 +5014,7 @@ bool LoopVectorizationLegality::canVectorize() {
   // Go over each instruction and look at memory deps.
   if (!canVectorizeMemory()) {
     DEBUG(dbgs() << "LV: Can't vectorize due to memory conflicts\n");
-    if (ORE->allowExtraAnalysis())
+    if (Output.PassedOptRemarkEnable || Output.MissedOptRemarkEnable)
       Result = false;
     else
       return false;
@@ -5042,7 +5045,7 @@ bool LoopVectorizationLegality::canVectorize() {
               << "Too many SCEV assumptions need to be made and checked "
               << "at runtime");
     DEBUG(dbgs() << "LV: Too many SCEV checks needed.\n");
-    if (ORE->allowExtraAnalysis())
+    if (Output.PassedOptRemarkEnable || Output.MissedOptRemarkEnable)
       Result = false;
     else
       return false;

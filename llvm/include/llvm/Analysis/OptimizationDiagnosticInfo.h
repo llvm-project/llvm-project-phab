@@ -78,10 +78,16 @@ public:
   /// use the extra analysis (1) to filter trivial false positives or (2) to
   /// provide more context so that non-trivial false positives can be quickly
   /// detected by the user.
-  bool allowExtraAnalysis() const {
+  void allowExtraAnalysis(const std::string &PassName, RemarkInfo &Output) const {
     // For now, only allow this with -fsave-optimization-record since the -Rpass
     // options are handled in the front-end.
-    return F->getContext().getDiagnosticsOutputFile();
+    if ( F->getContext().getDiagnosticsOutputFile()) {
+      Output.MissedOptRemarkEnable = 1;
+      Output.PassedOptRemarkEnable = 1;
+      Output.AnalysisRemarkEnable = 1;
+    } else {
+      F->getContext().getDiagHandler()->isRemarkEnable(PassName, Output);
+    }
   }
 
 private:
