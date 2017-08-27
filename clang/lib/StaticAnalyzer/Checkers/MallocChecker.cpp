@@ -1275,7 +1275,17 @@ ProgramStateRef MallocChecker::MallocUpdateRefState(CheckerContext &C,
     return nullptr;
 
   SymbolRef Sym = retVal.getAsLocSymbol();
-  assert(Sym);
+  
+  // Special case when the 'c++-allocator-inlining' config option sets true and
+  // the c++ allocator return a Null pointer.
+  if (!Sym) {
+    assert(cosnt CXXNewExpr *CNE = dyn_cast<CXXNewExpr>(E) &&
+           !C.getSourceManager().isInSystemHeader(
+               CNE->getOperatorNew()->getLocStart()) &&
+           "Only custom operator new call can be inlined and return a Null "
+           "pointer!");
+    return nullptr;
+  }
 
   // Set the symbol's state to Allocated.
   return State->set<RegionState>(Sym, RefState::getAllocated(Family, E));
