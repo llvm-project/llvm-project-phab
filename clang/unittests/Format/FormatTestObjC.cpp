@@ -821,6 +821,13 @@ TEST_F(FormatTestObjC, ObjCArrayLiterals) {
                "  NSBundle.mainBundle.infoDictionary[@\"a\"]\n"
                "]];");
 }
+
+TEST_F(FormatTestObjC, FormatGenericObjCCategory) {
+  verifyFormat(
+      "@interface NSHashTable <ObjectType>(MYFoundation)\n"
+      "- (void)xyz_addObjectsFromArray:(nonnull NSArray<ObjectType> *)array;\n"
+      "@end");
+}
 } // end namespace
 } // end namespace format
 } // end namespace clang
