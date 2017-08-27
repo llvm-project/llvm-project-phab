@@ -1508,6 +1508,12 @@ Token ASTReader::ReadToken(ModuleFile &F, const RecordDataImpl &Record,
     Tok.setIdentifierInfo(II);
   Tok.setKind((tok::TokenKind)Record[Idx++]);
   Tok.setFlag((Token::TokenFlags)Record[Idx++]);
+  if (Tok.isLiteral()) {
+    const RecordData &RD = reinterpret_cast<const RecordData &>(Record);
+    std::string *Lit = new std::string(ReadString(RD, Idx));
+    TokenLiteralDataLoaded.push_back(Lit);
+    Tok.setLiteralData(Lit->c_str());
+  }
   return Tok;
 }
 
@@ -10372,6 +10378,9 @@ ASTReader::ASTReader(Preprocessor &PP, ASTContext *Context,
 ASTReader::~ASTReader() {
   if (OwnsDeserializationListener)
     delete DeserializationListener;
+  for (auto PStr : TokenLiteralDataLoaded) {
+    delete PStr;
+  }
 }
 
 IdentifierResolver &ASTReader::getIdResolver() {
