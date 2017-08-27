@@ -690,6 +690,17 @@ PathDiagnosticLocation::create(const ProgramPoint& P,
     return getLocationForCaller(CEE->getCalleeContext(),
                                 CEE->getLocationContext(),
                                 SMng);
+  } else if (Optional<BlockEntrance> BE = P.getAs<BlockEntrance>()) {
+    CFGElement BlockFront = BE->getBlock()->front();
+    if (BlockFront.getKind() == CFGElement::Kind::Statement) {
+      return PathDiagnosticLocation(
+          BlockFront.getAs<CFGStmt>()->getStmt()->getLocStart(), SMng);
+    } else if (BlockFront.getKind() == CFGElement::Kind::NewAllocator) {
+      return PathDiagnosticLocation(BlockFront.getAs<CFGNewAllocator>()
+                                        ->getAllocatorExpr()
+                                        ->getLocStart(),
+                                    SMng);
+    }
   } else {
     llvm_unreachable("Unexpected ProgramPoint");
   }
