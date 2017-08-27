@@ -156,8 +156,16 @@ Instruction *InstCombiner::PromoteCastOfAllocation(BitCastInst &CI,
   return replaceInstUsesWith(CI, New);
 }
 
-/// Given an expression that CanEvaluateTruncated or CanEvaluateSExtd returns
-/// true for, actually insert the code to evaluate the expression.
+/// Given an expression that CanEvaluate{Truncated, SExtd, ZExtd}, returns a new
+/// Value representing the inserted code to evaluate the expression. 
+Value *InstCombiner::EvaluateInDifferentTypeWrapper(Value *V, Type *Ty,
+                                                    bool isSigned) {
+  EvaluatedInstMap.clear();
+  return EvaluateInDifferentType(V, Ty, isSigned);
+}
+
+/// Recursive helper function for EvaluateInDifferentTypeWrapper.
+/// This function should not be called directly!
 Value *InstCombiner::EvaluateInDifferentType(Value *V, Type *Ty,
                                              bool isSigned) {
   if (Constant *C = dyn_cast<Constant>(V)) {
@@ -170,6 +178,11 @@ Value *InstCombiner::EvaluateInDifferentType(Value *V, Type *Ty,
 
   // Otherwise, it must be an instruction.
   Instruction *I = cast<Instruction>(V);
+
+  // Check if this instruction have already been evaluated.
+  if (EvaluatedInstMap.count(I))
+    return EvaluatedInstMap[I];
+
   Instruction *Res = nullptr;
   unsigned Opc = I->getOpcode();
   switch (Opc) {
@@ -212,6 +225,8 @@ Value *InstCombiner::EvaluateInDifferentType(Value *V, Type *Ty,
   case Instruction::PHI: {
     PHINode *OPN = cast<PHINode>(I);
     PHINode *NPN = PHINode::Create(Ty, OPN->getNumIncomingValues());
+    // Must update the evaluated instruction map here to prevent infinite loop.
+    EvaluatedInstMap[I] = NPN;
     for (unsigned i = 0, e = OPN->getNumIncomingValues(); i != e; ++i) {
       Value *V =
           EvaluateInDifferentType(OPN->getIncomingValue(i), Ty, isSigned);
@@ -225,6 +240,7 @@ Value *InstCombiner::EvaluateInDifferentType(Value *V, Type *Ty,
     llvm_unreachable("Unreachable!");
   }
 
+  EvaluatedInstMap[I] = Res;
   Res->takeName(I);
   return InsertNewInstWith(Res, *I);
 }
@@ -298,14 +314,37 @@ Instruction *InstCombiner::commonCastTransforms(CastInst &CI) {
 ///
 /// This function works on both vectors and scalars.
 ///
-static bool canEvaluateTruncated(Value *V, Type *Ty, InstCombiner &IC,
-                                 Instruction *CxtI) {
+bool InstCombiner::canEvaluateTruncatedWrapper(Value *V, Type *Ty,
+                                               InstCombiner &IC,
+                                               Instruction *CxtI) {
+  VisitedInsts.clear();
+  ToVisitInsts.clear();
+  if (!canEvaluateTruncated(V, Ty, IC, CxtI))
+    return false;
+  // We can truncate the given expression tree only if we had visited all
+  // instructions that are expected to be visited during expression evaluation.
+  for (auto *I : ToVisitInsts)
+    if (!VisitedInsts.count(I))
+      return false;
+  return true;
+}
+
+/// Recursive helper function for canEvaluateTruncatedWrapper.
+/// This function should not be called directly!
+bool InstCombiner::canEvaluateTruncated(Value *V, Type *Ty,
+                                            InstCombiner &IC,
+                                            Instruction *CxtI) {
   // We can always evaluate constants in another type.
   if (isa<Constant>(V))
     return true;
 
   Instruction *I = dyn_cast<Instruction>(V);
   if (!I) return false;
+
+  if (VisitedInsts.count(I))
+    return true;
+
+  VisitedInsts.insert(I);
 
   Type *OrigTy = V->getType();
 
@@ -315,9 +354,18 @@ static bool canEvaluateTruncated(Value *V, Type *Ty, InstCombiner &IC,
       I->getOperand(0)->getType() == Ty)
     return true;
 
-  // We can't extend or shrink something that has multiple uses: doing so would
-  // require duplicating the instruction in general, which isn't profitable.
-  if (!I->hasOneUse()) return false;
+  // We don't want to duplicate instructiosn, which isn't profitable. Thus, we
+  // can't extend or shrink something that has multiple uses, unless all users
+  // are dominated by the trunc instruction and will be visited during the
+  // expresion evaluation. Mark all users that were not visited yet to be
+  // checked later against visited list.
+  if (!I->hasOneUse()) {
+    for (auto *U : I->users()) {
+      auto *UI = dyn_cast<Instruction>(U);
+      if (UI && !VisitedInsts.count(UI))
+        ToVisitInsts.insert(UI);
+    }
+  }
 
   unsigned Opc = I->getOpcode();
   switch (Opc) {
@@ -656,13 +704,13 @@ Instruction *InstCombiner::visitTrunc(TruncInst &CI) {
   // expression tree to something weird like i93 unless the source is also
   // strange.
   if ((DestTy->isVectorTy() || shouldChangeType(SrcTy, DestTy)) &&
-      canEvaluateTruncated(Src, DestTy, *this, &CI)) {
+      canEvaluateTruncatedWrapper(Src, DestTy, *this, &CI)) {
 
     // If this cast is a truncate, evaluting in a different type always
     // eliminates the cast, so it is always a win.
     DEBUG(dbgs() << "ICE: EvaluateInDifferentType converting expression type"
           " to avoid cast: " << CI << '\n');
-    Value *Res = EvaluateInDifferentType(Src, DestTy, false);
+    Value *Res = EvaluateInDifferentTypeWrapper(Src, DestTy, false);
     assert(Res->getType() == DestTy);
     return replaceInstUsesWith(CI, Res);
   }
@@ -1046,7 +1094,7 @@ Instruction *InstCombiner::visitZExt(ZExtInst &CI) {
     // Okay, we can transform this!  Insert the new expression now.
     DEBUG(dbgs() << "ICE: EvaluateInDifferentType converting expression type"
           " to avoid zero extend: " << CI << '\n');
-    Value *Res = EvaluateInDifferentType(Src, DestTy, false);
+    Value *Res = EvaluateInDifferentTypeWrapper(Src, DestTy, false);
     assert(Res->getType() == DestTy);
 
     uint32_t SrcBitsKept = SrcTy->getScalarSizeInBits()-BitsToClear;
@@ -1329,7 +1377,7 @@ Instruction *InstCombiner::visitSExt(SExtInst &CI) {
     // Okay, we can transform this!  Insert the new expression now.
     DEBUG(dbgs() << "ICE: EvaluateInDifferentType converting expression type"
           " to avoid sign extend: " << CI << '\n');
-    Value *Res = EvaluateInDifferentType(Src, DestTy, true);
+    Value *Res = EvaluateInDifferentTypeWrapper(Src, DestTy, true);
     assert(Res->getType() == DestTy);
 
     uint32_t SrcBitSize = SrcTy->getScalarSizeInBits();

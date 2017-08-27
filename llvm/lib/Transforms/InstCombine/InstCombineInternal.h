@@ -233,6 +233,13 @@ private:
 
   bool MadeIRChange;
 
+  // Map evaluated instruction to its new instruction.
+  DenseMap<Instruction*, Instruction*> EvaluatedInstMap;
+  // Set of instructions that have been visited during expression evaluation.
+  SmallPtrSet<Instruction*, 4> VisitedInsts;
+  // Set of instruction expected to be visited during expression evaluation.
+  SmallPtrSet<Instruction*, 4> ToVisitInsts;
+
 public:
   InstCombiner(InstCombineWorklist &Worklist, BuilderTy &Builder,
                bool MinimizeSize, bool ExpensiveCombines, AliasAnalysis *AA,
@@ -748,7 +755,12 @@ private:
   Instruction *SimplifyMemTransfer(MemIntrinsic *MI);
   Instruction *SimplifyMemSet(MemSetInst *MI);
 
+  Value *EvaluateInDifferentTypeWrapper(Value *V, Type *Ty, bool isSigned);
   Value *EvaluateInDifferentType(Value *V, Type *Ty, bool isSigned);
+  bool canEvaluateTruncatedWrapper(Value *V, Type *Ty, InstCombiner &IC,
+                                   Instruction *CxtI);
+  bool canEvaluateTruncated(Value *V, Type *Ty, InstCombiner &IC,
+                            Instruction *CxtI);
 
   /// \brief Returns a value X such that Val = X * Scale, or null if none.
   ///

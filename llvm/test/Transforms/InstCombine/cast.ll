@@ -1366,6 +1366,78 @@ define i16 @test88(i16 %v) {
   ret i16 %t
 }
 
+; Cases with truncate expression tree where not all nodes have a single usage.
+; However, all the nodes are dominated by the tranc instruction.
+; Case 1: same basic block
+define i16 @test_trunc_multi_use_case1(i16 %v) {
+; CHECK-LABEL: @test_trunc_multi_use_case1(
+; CHECK-NEXT:    [[TMP1:%.*]] = ashr i16 [[V:%.*]], 1
+; CHECK-NEXT:    [[S:%.*]] = mul i16 [[TMP1]], [[TMP1]]
+; CHECK-NEXT:    ret i16 [[S]]
+;
+  %a = sext i16 %v to i32
+  %b = ashr i32 %a, 1
+  %s = mul i32 %b, %b
+  %t = trunc i32 %s to i16
+  ret i16 %t
+}
+
+; Case 2: cross basic block
+define i16 @test_trunc_multi_use_case2(i16 %v, i1 %cond) {
+; CHECK-LABEL: @test_trunc_multi_use_case2(
+; CHECK-NEXT:  BB0:
+; CHECK-NEXT:    [[B:%.*]] = shl i16 [[V:%.*]], 1
+; CHECK-NEXT:    br i1 [[COND:%.*]], label [[BB1:%.*]], label [[BB2:%.*]]
+; CHECK:       BB1:
+; CHECK-NEXT:    [[D:%.*]] = mul i16 [[B]], [[B]]
+; CHECK-NEXT:    br label [[BB2]]
+; CHECK:       BB2:
+; CHECK-NEXT:    [[S:%.*]] = phi i16 [ [[B]], [[BB0:%.*]] ], [ [[D]], [[BB1]] ]
+; CHECK-NEXT:    ret i16 [[S]]
+;
+BB0:
+  %a = sext i16 %v to i32
+  %b = shl i32 %a, 1
+  br i1 %cond, label %BB1, label %BB2
+BB1:
+  %d = mul i32 %b, %b
+  br label %BB2
+BB2:
+  %s = phi i32 [ %b, %BB0 ], [ %d, %BB1 ]
+  %t = trunc i32 %s to i16
+  ret i16 %t
+}
+
+; Case 3: cross basic block - not all nodes are dominated by trunc instruction.
+define i16 @test_trunc_multi_use_case3(i16 %v) {
+; CHECK-LABEL: @test_trunc_multi_use_case3(
+; CHECK-NEXT:  BB0:
+; CHECK-NEXT:    [[A:%.*]] = sext i16 [[V:%.*]] to i32
+; CHECK-NEXT:    [[B:%.*]] = shl nsw i32 [[A]], 1
+; CHECK-NEXT:    [[COND:%.*]] = icmp ult i32 [[B]], 777
+; CHECK-NEXT:    br i1 [[COND]], label [[BB1:%.*]], label [[BB2:%.*]]
+; CHECK:       BB1:
+; CHECK-NEXT:    [[D:%.*]] = mul nsw i32 [[A]], 1554
+; CHECK-NEXT:    br label [[BB2]]
+; CHECK:       BB2:
+; CHECK-NEXT:    [[S:%.*]] = phi i32 [ [[B]], [[BB0:%.*]] ], [ [[D]], [[BB1]] ]
+; CHECK-NEXT:    [[T:%.*]] = trunc i32 [[S]] to i16
+; CHECK-NEXT:    ret i16 [[T]]
+;
+BB0:
+  %a = sext i16 %v to i32
+  %b = shl i32 %a, 1
+  %cond = icmp ult i32 %b, 777
+  br i1 %cond, label %BB1, label %BB2
+BB1:
+  %d = mul i32 %b, 777
+  br label %BB2
+BB2:
+  %s = phi i32 [ %b, %BB0 ], [ %d, %BB1 ]
+  %t = trunc i32 %s to i16
+  ret i16 %t
+}
+
 ; Overflow on a float to int or int to float conversion is undefined (PR21130).
 
 define i8 @overflow_fptosi() {
