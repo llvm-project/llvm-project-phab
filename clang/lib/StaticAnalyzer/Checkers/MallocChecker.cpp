@@ -1099,7 +1099,19 @@ ProgramStateRef MallocChecker::addExtentSize(CheckerContext &C,
                  .getAsRegion()
                  ->getAs<SubRegion>()
                  ->getSuperRegion()
-                 ->getAs<SubRegion>();
+                 ->getAs<SubRegion>();                 
+    // FIXME: Since 'ExprEngine::VisitCXXNewAllocator' has not yet been fully
+    // implemented, the custom operator new[] may return Non-ElementRegion after
+    // its inline call. When 'ExprEngine::VisitCXXNewAllocator' is fully
+    // implemented, the following 'if' statement should be deleted.
+    if (!Region) {
+      assert(NE->isArray() &&
+             !C.getSourceManager().isInSystemHeader(
+                 NE->getOperatorNew()->getLocStart()) &&
+             "The operator new[] can return non-ElementRegion only when it is "
+             "a custom version and be inlined.");
+      return nullptr;
+    }
   } else {
     ElementCount = svalBuilder.makeIntVal(1, true);
     Region = (State->getSVal(NE, LCtx)).getAsRegion()->getAs<SubRegion>();
