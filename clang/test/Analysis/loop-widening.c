@@ -188,3 +188,15 @@ void nested_loop_inner_widen() {
   }
   clang_analyzer_eval(i >= 2); // expected-warning {{TRUE}}
 }
+
+int *p;
+int bar();
+int flag;
+int test_for_bug_25609()
+{
+  if (p == 0)
+    bar();
+  for (int i = 0; i < flag; ++i) {}
+  *p = 25609; // no-crash expected-warning {{Dereference of null pointer (loaded from variable 'p')}}
+  return *p;
+}
