@@ -1100,6 +1100,13 @@ ProgramStateRef MallocChecker::addExtentSize(CheckerContext &C,
                  ->getAs<SubRegion>()
                  ->getSuperRegion()
                  ->getAs<SubRegion>();
+    // Custom 'operator new[]' does not always return ElementRegion.
+    if (!Region) {
+      assert(!C.getSourceManager().isInSystemHeader(
+                 NE->getOperatorNew()->getLocStart()) &&
+             "Only custom 'operator new[]' can return non-ElementRegion.");
+      return nullptr;
+    }
   } else {
     ElementCount = svalBuilder.makeIntVal(1, true);
     Region = (State->getSVal(NE, LCtx)).getAsRegion()->getAs<SubRegion>();
