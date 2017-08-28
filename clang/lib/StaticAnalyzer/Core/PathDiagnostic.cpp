@@ -673,6 +673,9 @@ PathDiagnosticLocation::create(const ProgramPoint& P,
   if (Optional<BlockEdge> BE = P.getAs<BlockEdge>()) {
     const CFGBlock *BSrc = BE->getSrc();
     S = BSrc->getTerminatorCondition();
+  } else if (Optional<BlockEntrance> BE = P.getAs<BlockEntrance>()) {
+    const CFGBlock *BSrc = BE->getBlock();
+    S = BSrc->getTerminatorCondition();
   } else if (Optional<StmtPoint> SP = P.getAs<StmtPoint>()) {
     S = SP->getStmt();
     if (P.getAs<PostStmtPurgeDeadSymbols>())
