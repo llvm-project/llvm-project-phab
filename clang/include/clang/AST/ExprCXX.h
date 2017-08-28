@@ -1684,6 +1684,10 @@ public:
   /// brackets ([...]).
   SourceRange getIntroducerRange() const { return IntroducerRange; }
 
+  /// \brief Retrieve the source range covering the explicit template parameter
+  /// list, including the surrounding angle brackets (<...>).
+  SourceRange getExplicitTemplateParameterListRange() const;
+
   /// \brief Retrieve the class that corresponds to the lambda.
   /// 
   /// This is the "closure type" (C++1y [expr.prim.lambda]), and stores the
@@ -1698,6 +1702,10 @@ public:
   /// \brief If this is a generic lambda expression, retrieve the template 
   /// parameter list associated with it, or else return null. 
   TemplateParameterList *getTemplateParameterList() const;
+
+  /// \brief How many of the template parameters were explicitly specified
+  /// (as opposed to being invented by use of an auto parameter).
+  unsigned getExplicitTemplateParameterCount() const;
 
   /// \brief Whether this is a generic lambda.
   bool isGenericLambda() const { return getTemplateParameterList(); }
