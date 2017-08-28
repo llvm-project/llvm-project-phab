@@ -67,10 +67,10 @@ define amdgpu_kernel void @test_call_external_void_func_i1_imm() #0 {
 ; MESA: s_mov_b32 s33, s3{{$}}
 ; HSA: s_mov_b32 s33, s9{{$}}
 
+; GCN: buffer_load_ubyte [[VAR:v[0-9]+]]
 ; GCN: s_getpc_b64 s{{\[}}[[PC_LO:[0-9]+]]:[[PC_HI:[0-9]+]]{{\]}}
 ; GCN-NEXT: s_add_u32 s[[PC_LO]], s[[PC_LO]], external_void_func_i1_signext@rel32@lo+4
 ; GCN-NEXT: s_addc_u32 s[[PC_HI]], s[[PC_HI]], external_void_func_i1_signext@rel32@hi+4
-; GCN-NEXT: buffer_load_ubyte [[VAR:v[0-9]+]]
 ; HSA-NEXT: s_mov_b32 s4, s33
 ; HSA-NEXT: s_mov_b32 s32, s33
 
@@ -91,10 +91,10 @@ define amdgpu_kernel void @test_call_external_void_func_i1_signext(i32) #0 {
 ; GCN-LABEL: {{^}}test_call_external_void_func_i1_zeroext:
 ; MESA: s_mov_b32 s33, s3{{$}}
 
+; GCN: buffer_load_ubyte v0
 ; GCN: s_getpc_b64 s{{\[}}[[PC_LO:[0-9]+]]:[[PC_HI:[0-9]+]]{{\]}}
 ; GCN-NEXT: s_add_u32 s[[PC_LO]], s[[PC_LO]], external_void_func_i1_zeroext@rel32@lo+4
 ; GCN-NEXT: s_addc_u32 s[[PC_HI]], s[[PC_HI]], external_void_func_i1_zeroext@rel32@hi+4
-; GCN-NEXT: buffer_load_ubyte v0
 
 ; GCN-DAG: s_mov_b32 s4, s33{{$}}
 ; GCN-DAG: s_mov_b32 s32, s33{{$}}
@@ -400,8 +400,8 @@ define amdgpu_kernel void @test_call_external_void_func_v32i32() #0 {
 ; GCN-DAG: buffer_load_dwordx4 v[24:27], off
 ; GCN-DAG: buffer_load_dwordx4 v[28:31], off
 
-; GCN: buffer_store_dword [[VAL1]], off, s[{{[0-9]+}}:{{[0-9]+}}], [[SP_REG]] offset:4{{$}}
 ; GCN: s_waitcnt
+; GCN: buffer_store_dword [[VAL1]], off, s[{{[0-9]+}}:{{[0-9]+}}], [[SP_REG]] offset:4{{$}}
 ; GCN-NEXT: s_swappc_b64
 ; GCN-NEXT: s_endpgm
 define amdgpu_kernel void @test_call_external_void_func_v32i32_i32(i32) #0 {
@@ -447,23 +447,8 @@ define amdgpu_kernel void @test_call_external_void_func_struct_i8_i32() #0 {
 ; HSA-DAG: buffer_store_byte [[VAL0]], off, s[0:3], s33 offset:8
 ; HSA-DAG: buffer_store_dword [[VAL1]], off, s[0:3], s33 offset:12
 
-; GCN: s_add_u32 [[SP]], [[SP]], 0x200
-
-; HSA: buffer_load_dword [[RELOAD_VAL0:v[0-9]+]], off, s[0:3], s33 offset:8
-; HSA: buffer_load_dword [[RELOAD_VAL1:v[0-9]+]], off, s[0:3], s33 offset:12
-
-; HSA: buffer_store_dword [[RELOAD_VAL1]], off, s[0:3], [[SP]] offset:8
-; HSA: buffer_store_dword [[RELOAD_VAL0]], off, s[0:3], [[SP]] offset:4
-
-
-; MESA: buffer_load_dword [[RELOAD_VAL0:v[0-9]+]], off, s[36:39], s33 offset:8
-; MESA: buffer_load_dword [[RELOAD_VAL1:v[0-9]+]], off, s[36:39], s33 offset:12
-
-; MESA: buffer_store_dword [[RELOAD_VAL1]], off, s[36:39], [[SP]] offset:8
-; MESA: buffer_store_dword [[RELOAD_VAL0]], off, s[36:39], [[SP]] offset:4
-
-; GCN-NEXT: s_swappc_b64
-; GCN-NEXT: s_sub_u32 [[SP]], [[SP]], 0x200
+; GCN: s_swappc_b64
+; GCN: s_sub_u32 [[SP]], [[SP]], 0x200
 define amdgpu_kernel void @test_call_external_void_func_byval_struct_i8_i32() #0 {
   %val = alloca { i8, i32 }, align 4
   %gep0 = getelementptr inbounds { i8, i32 }, { i8, i32 }* %val, i32 0, i32 0

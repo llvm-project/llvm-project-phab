@@ -912,7 +912,7 @@ def BUNDLE : Instruction {
   let OutOperandList = (outs);
   let InOperandList = (ins variable_ops);
   let AsmString = "BUNDLE";
-  let hasSideEffects = 1;
+  let hasSideEffects = 0;
 }
 def LIFETIME_START : Instruction {
   let OutOperandList = (outs);
