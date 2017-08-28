@@ -727,6 +727,13 @@ void LinkerScript::adjustSectionsAfterSorting() {
   removeEmptyCommands();
 }
 
+static OutputSection *getFirstSection(PhdrEntry *Load) {
+  for (OutputSection *Sec : OutputSections)
+    if (Sec->Load == Load)
+      return Sec;
+  return nullptr;
+}
+
 // Try to find an address for the file and program headers output sections,
 // which were unconditionally added to the first PT_LOAD segment earlier.
 //
@@ -762,21 +769,9 @@ void LinkerScript::allocateHeaders(std::vector<PhdrEntry *> &Phdrs) {
     return;
   }
 
-  OutputSection *ActualFirst = nullptr;
-  for (OutputSection *Sec : OutputSections) {
-    if (Sec->FirstInPtLoad == Out::ElfHeader) {
-      ActualFirst = Sec;
-      break;
-    }
-  }
-  if (ActualFirst) {
-    for (OutputSection *Sec : OutputSections)
-      if (Sec->FirstInPtLoad == Out::ElfHeader)
-        Sec->FirstInPtLoad = ActualFirst;
-    FirstPTLoad->First = ActualFirst;
-  } else {
-    Phdrs.erase(It);
-  }
+  Out::ElfHeader->Load = nullptr;
+  Out::ProgramHeaders->Load = nullptr;
+  FirstPTLoad->First = getFirstSection(FirstPTLoad);
 
   auto PhdrI = llvm::find_if(
       Phdrs, [](const PhdrEntry *E) { return E->p_type == PT_PHDR; });

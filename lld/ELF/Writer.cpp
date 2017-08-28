@@ -743,7 +743,7 @@ void PhdrEntry::add(OutputSection *Sec) {
     First = Sec;
   p_align = std::max(p_align, Sec->Alignment);
   if (p_type == PT_LOAD)
-    Sec->FirstInPtLoad = First;
+    Sec->Load = this;
 }
 
 template <class ELFT>
@@ -1581,7 +1581,7 @@ template <class ELFT> void Writer<ELFT>::fixSectionAlignments() {
 // virtual address (modulo the page size) so that the loader can load
 // executables without any address adjustment.
 static uint64_t getFileAlignment(uint64_t Off, OutputSection *Cmd) {
-  OutputSection *First = Cmd->FirstInPtLoad;
+  OutputSection *First = Cmd->Load ? Cmd->Load->First : nullptr;
   // If the section is not in a PT_LOAD, we just have to align it.
   if (!First)
     return alignTo(Off, Cmd->Alignment);
