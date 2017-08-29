@@ -100,7 +100,7 @@ public:
   void checkCall_mkstemp(const CallExpr *CE, const FunctionDecl *FD);
   void checkCall_strcpy(const CallExpr *CE, const FunctionDecl *FD);
   void checkCall_strcat(const CallExpr *CE, const FunctionDecl *FD);
-  void checkUnsafeBufferHandling(const CallExpr *CE, const FunctionDecl *FD);
+  void checkDeprecatedOrUnsafeBufferHandling(const CallExpr *CE, const FunctionDecl *FD);
   void checkDeprecatedBufferHandling(const CallExpr *CE, const FunctionDecl *FD);
   void checkCall_rand(const CallExpr *CE, const FunctionDecl *FD);
   void checkCall_random(const CallExpr *CE, const FunctionDecl *FD);
@@ -144,20 +144,20 @@ void WalkAST::VisitCallExpr(CallExpr *CE) {
     .Case("mkstemps", &WalkAST::checkCall_mkstemp)
     .Cases("strcpy", "__strcpy_chk", &WalkAST::checkCall_strcpy)
     .Cases("strcat", "__strcat_chk", &WalkAST::checkCall_strcat)
-    .Case("sprintf", &WalkAST::checkUnsafeBufferHandling)
-    .Case("vsprintf", &WalkAST::checkUnsafeBufferHandling)
-    .Case("scanf", &WalkAST::checkUnsafeBufferHandling)
-    .Case("wscanf", &WalkAST::checkUnsafeBufferHandling)
-    .Case("fscanf", &WalkAST::checkUnsafeBufferHandling)
-    .Case("fwscanf", &WalkAST::checkUnsafeBufferHandling)
-    .Case("vscanf", &WalkAST::checkUnsafeBufferHandling)
-    .Case("vwscanf", &WalkAST::checkUnsafeBufferHandling)
-    .Case("vfscanf", &WalkAST::checkUnsafeBufferHandling)
-    .Case("vfwscanf", &WalkAST::checkUnsafeBufferHandling)
-    .Case("sscanf", &WalkAST::checkUnsafeBufferHandling)
-    .Case("swscanf", &WalkAST::checkUnsafeBufferHandling)
-    .Case("vsscanf", &WalkAST::checkUnsafeBufferHandling)
-    .Case("vswscanf", &WalkAST::checkUnsafeBufferHandling)
+    .Case("sprintf", &WalkAST::checkDeprecatedOrUnsafeBufferHandling)
+    .Case("vsprintf", &WalkAST::checkDeprecatedOrUnsafeBufferHandling)
+    .Case("scanf", &WalkAST::checkDeprecatedOrUnsafeBufferHandling)
+    .Case("wscanf", &WalkAST::checkDeprecatedOrUnsafeBufferHandling)
+    .Case("fscanf", &WalkAST::checkDeprecatedOrUnsafeBufferHandling)
+    .Case("fwscanf", &WalkAST::checkDeprecatedOrUnsafeBufferHandling)
+    .Case("vscanf", &WalkAST::checkDeprecatedOrUnsafeBufferHandling)
+    .Case("vwscanf", &WalkAST::checkDeprecatedOrUnsafeBufferHandling)
+    .Case("vfscanf", &WalkAST::checkDeprecatedOrUnsafeBufferHandling)
+    .Case("vfwscanf", &WalkAST::checkDeprecatedOrUnsafeBufferHandling)
+    .Case("sscanf", &WalkAST::checkDeprecatedOrUnsafeBufferHandling)
+    .Case("swscanf", &WalkAST::checkDeprecatedOrUnsafeBufferHandling)
+    .Case("vsscanf", &WalkAST::checkDeprecatedOrUnsafeBufferHandling)
+    .Case("vswscanf", &WalkAST::checkDeprecatedOrUnsafeBufferHandling)
     .Case("swprintf", &WalkAST::checkDeprecatedBufferHandling)
     .Case("snprintf", &WalkAST::checkDeprecatedBufferHandling)
     .Case("vswprintf", &WalkAST::checkDeprecatedBufferHandling)
@@ -604,7 +604,7 @@ void WalkAST::checkDeprecatedBufferHandling(const CallExpr *CE, const FunctionDe
   llvm::raw_svector_ostream out2(buf2);
   out1 << "Potential insecure memory buffer bounds restriction in call '"
        << Name << "'";
-  out2 << "Using '" << Name << "' is depracated as it does not "
+  out2 << "Using '" << Name << "' is deprecated as it does not "
                      "provide bounding of the memory buffer or security "
                      "checks introduced in the C11 standard. Replace "
                      "with analogous functions introduced in C11 standard that "
@@ -619,6 +619,7 @@ void WalkAST::checkDeprecatedBufferHandling(const CallExpr *CE, const FunctionDe
                      out2.str(),
                      CELoc, CE->getCallee()->getSourceRange());
 }
+
 //===----------------------------------------------------------------------===//
 // Check: Use of 'sprintf', 'vsprintf', 'scanf', 'wscanf', 'fscanf',
 //        'fwscanf', 'vscanf', 'vwscanf', 'vfscanf', 'vfwscanf', 'sscanf',
@@ -628,8 +629,7 @@ void WalkAST::checkDeprecatedBufferHandling(const CallExpr *CE, const FunctionDe
 // CWE-119: Improper Restriction of Operations within
 // the Bounds of a Memory Buffer
 //===----------------------------------------------------------------------===//
-
-void WalkAST::checkUnsafeBufferHandling(const CallExpr *CE, const FunctionDecl *FD) { //TODO:TESTS
+void WalkAST::checkDeprecatedOrUnsafeBufferHandling(const CallExpr *CE, const FunctionDecl *FD) {
   if (!filter.check_UnsafeBufferHandling)
     return;
   checkDeprecatedBufferHandling(CE, FD);
