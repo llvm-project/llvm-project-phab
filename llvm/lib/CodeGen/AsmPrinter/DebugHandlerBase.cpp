@@ -13,22 +13,30 @@
 //===----------------------------------------------------------------------===//
 
 #include "DebugHandlerBase.h"
+#include "llvm/ADT/Twine.h"
 #include "llvm/CodeGen/AsmPrinter.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/CodeGen/MachineModuleInfo.h"
 #include "llvm/IR/DebugInfo.h"
 #include "llvm/MC/MCStreamer.h"
+#include "llvm/Support/Error.h"
 #include "llvm/Target/TargetSubtargetInfo.h"
 
 using namespace llvm;
 
-bool DbgVariableLocation::extractFromMachineInstruction(
-    DbgVariableLocation &Location, const MachineInstr &Instruction) {
+Expected<DbgVariableLocation>
+DbgVariableLocation::extractFromMachineInstruction(
+    const MachineInstr &Instruction) {
+  DbgVariableLocation Location;
   if (!Instruction.isDebugValue())
-    return false;
+    return make_error<StringError>("extractFromMachineInstruction instruction "
+                                   "is not a debug value instruction",
+                                   inconvertibleErrorCode());
   if (!Instruction.getOperand(0).isReg())
-    return false;
+    return make_error<StringError>(
+        "extractFromMachineInstruction requires first operand to be a register",
+        inconvertibleErrorCode());
   Location.Register = Instruction.getOperand(0).getReg();
   Location.InMemory = Instruction.getOperand(1).isImm();
   Location.Deref = false;
@@ -65,13 +73,15 @@ bool DbgVariableLocation::extractFromMachineInstruction(
       Location.Deref = true;
       break;
     default:
-      return false;
+      return make_error<StringError>("unsupported DW_OP " + Twine(Op->getOp()) +
+                                         " in extractFromMachineInstruction",
+                                     inconvertibleErrorCode());
     }
     ++Op;
   }
 
   Location.Offset = Offset;
-  return true;
+  return Location;
 }
 
 DebugHandlerBase::DebugHandlerBase(AsmPrinter *A) : Asm(A), MMI(Asm->MMI) {}
