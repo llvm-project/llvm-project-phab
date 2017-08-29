@@ -1551,8 +1551,9 @@ void ExprEngine::processCFGBlockEntrance(const BlockEdge &L,
       return;
     // Widen.
     const LocationContext *LCtx = Pred->getLocationContext();
-    ProgramStateRef WidenedState =
-        getWidenedLoopState(Pred->getState(), LCtx, BlockCount, Term);
+    ProgramStateRef WidenedState = getWidenedLoopState(Pred->getState(),
+                                                       AMgr.getASTContext(),
+                                                       LCtx, BlockCount, Term);
     nodeBuilder.generateNode(WidenedState, Pred);
     return;
   }
