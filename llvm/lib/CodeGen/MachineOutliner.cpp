@@ -42,10 +42,12 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/Twine.h"
+#include "llvm/CodeGen/MachineBlockFrequencyInfo.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineModuleInfo.h"
+#include "llvm/CodeGen/MachineOptimizationRemarkEmitter.h"
 #include "llvm/CodeGen/Passes.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/Support/Allocator.h"
@@ -64,6 +66,7 @@
 #define DEBUG_TYPE "machine-outliner"
 
 using namespace llvm;
+using namespace ore;
 
 STATISTIC(NumOutlined, "Number of candidates outlined");
 STATISTIC(FunctionsCreated, "Number of functions created");
@@ -829,6 +832,10 @@ MachineOutliner::findCandidates(SuffixTree &ST, const TargetInstrInfo &TII,
   size_t FnIdx = 0;
   size_t MaxLen = 0;
 
+  // Count the number of candidates we considered for outlining. Used to give
+  // remarks an identifier.
+  size_t NumCandidatesEvaluated = 0;
+
   // FIXME: Visit internal nodes instead of leaves.
   for (SuffixTreeNode *Leaf : ST.LeafVector) {
     assert(Leaf && "Leaves in LeafVector cannot be null!");
@@ -850,6 +857,10 @@ MachineOutliner::findCandidates(SuffixTree &ST, const TargetInstrInfo &TII,
     // instruction lengths we need more information than this.
     if (StringLen < 2)
       continue;
+
+    // We've found something we might want to outline. Keep track of an ID for
+    // remarks.
+    NumCandidatesEvaluated++;
 
     size_t CallOverhead = 0;
     size_t SequenceOverhead = StringLen;
@@ -895,8 +906,43 @@ MachineOutliner::findCandidates(SuffixTree &ST, const TargetInstrInfo &TII,
     size_t OutliningCost = CallOverhead + FrameOverhead + SequenceOverhead;
     size_t NotOutliningCost = SequenceOverhead * Parent.OccurrenceCount;
 
-    if (NotOutliningCost <= OutliningCost)
+    // Is it better to outline this candidate than not?
+    if (NotOutliningCost <= OutliningCost) {
+      // Outlining this candidate would take more instructions than not
+      // outlining.
+      // Emit a remark explaining why we didn't outline this candidate.
+      std::pair<MachineBasicBlock::iterator, MachineBasicBlock::iterator> C =
+          CandidateClass[0];
+      MachineOptimizationRemarkEmitter MORE(
+          *(C.first->getParent()->getParent()), nullptr);
+      MachineOptimizationRemarkMissed R(DEBUG_TYPE, "NotOutliningCheaper",
+                                        C.first->getDebugLoc(),
+                                        C.first->getParent());
+      R << NV("StartLoc0", C.first->getDebugLoc()) << ": Did not outline "
+        << NV("Length", StringLen)
+        << " instructions. Outlined instruction count ("
+        << NV("OutliningCost", OutliningCost) << ")"
+        << " >= unoutlined instruction count ("
+        << NV("NotOutliningCost", NotOutliningCost) << ")"
+        << " (Also found at: ";
+
+      // Tell the user the other places the candidate was found.
+      size_t i = 1;
+      for (size_t e = CandidateClass.size() - 1; i < e; i++) {
+        R << NV("StartLoc" + std::to_string(i),
+                CandidateClass[i].first->getDebugLoc())
+          << ", ";
+      }
+
+      R << NV("StartLoc" + std::to_string(i),
+              CandidateClass[i].first->getDebugLoc())
+        << ")";
+
+      MORE.emit(R);
+
+      // Move to the next candidate.
       continue;
+    }
 
     size_t Benefit = NotOutliningCost - OutliningCost;
 
