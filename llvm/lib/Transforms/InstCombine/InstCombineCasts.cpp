@@ -156,10 +156,18 @@ Instruction *InstCombiner::PromoteCastOfAllocation(BitCastInst &CI,
   return replaceInstUsesWith(CI, New);
 }
 
-/// Given an expression that CanEvaluateTruncated or CanEvaluateSExtd returns
-/// true for, actually insert the code to evaluate the expression.
+/// Given an expression that CanEvaluate{Truncated, SExtd, ZExtd}, returns a new
+/// Value representing the inserted code to evaluate the expression. 
 Value *InstCombiner::EvaluateInDifferentType(Value *V, Type *Ty,
-                                             bool isSigned) {
+                                                    bool isSigned) {
+  EvaluatedInstMap.clear();
+  return EvaluateInDifferentTypeImpl(V, Ty, isSigned);
+}
+
+/// Recursive helper function for EvaluateInDifferentType.
+/// This function should not be called directly!
+Value *InstCombiner::EvaluateInDifferentTypeImpl(Value *V, Type *Ty,
+                                                 bool isSigned) {
   if (Constant *C = dyn_cast<Constant>(V)) {
     C = ConstantExpr::getIntegerCast(C, Ty, isSigned /*Sext or ZExt*/);
     // If we got a constantexpr back, try to simplify it with DL info.
@@ -170,6 +178,11 @@ Value *InstCombiner::EvaluateInDifferentType(Value *V, Type *Ty,
 
   // Otherwise, it must be an instruction.
   Instruction *I = cast<Instruction>(V);
+
+  // Check if this instruction have already been evaluated.
+  if (EvaluatedInstMap.count(I))
+    return EvaluatedInstMap[I];
+
   Instruction *Res = nullptr;
   unsigned Opc = I->getOpcode();
   switch (Opc) {
@@ -184,8 +197,8 @@ Value *InstCombiner::EvaluateInDifferentType(Value *V, Type *Ty,
   case Instruction::Shl:
   case Instruction::UDiv:
   case Instruction::URem: {
-    Value *LHS = EvaluateInDifferentType(I->getOperand(0), Ty, isSigned);
-    Value *RHS = EvaluateInDifferentType(I->getOperand(1), Ty, isSigned);
+    Value *LHS = EvaluateInDifferentTypeImpl(I->getOperand(0), Ty, isSigned);
+    Value *RHS = EvaluateInDifferentTypeImpl(I->getOperand(1), Ty, isSigned);
     Res = BinaryOperator::Create((Instruction::BinaryOps)Opc, LHS, RHS);
     break;
   }
@@ -204,17 +217,19 @@ Value *InstCombiner::EvaluateInDifferentType(Value *V, Type *Ty,
                                       Opc == Instruction::SExt);
     break;
   case Instruction::Select: {
-    Value *True = EvaluateInDifferentType(I->getOperand(1), Ty, isSigned);
-    Value *False = EvaluateInDifferentType(I->getOperand(2), Ty, isSigned);
+    Value *True = EvaluateInDifferentTypeImpl(I->getOperand(1), Ty, isSigned);
+    Value *False = EvaluateInDifferentTypeImpl(I->getOperand(2), Ty, isSigned);
     Res = SelectInst::Create(I->getOperand(0), True, False);
     break;
   }
   case Instruction::PHI: {
     PHINode *OPN = cast<PHINode>(I);
     PHINode *NPN = PHINode::Create(Ty, OPN->getNumIncomingValues());
+    // Must update the evaluated instruction map here to prevent infinite loop.
+    EvaluatedInstMap[I] = NPN;
     for (unsigned i = 0, e = OPN->getNumIncomingValues(); i != e; ++i) {
       Value *V =
-          EvaluateInDifferentType(OPN->getIncomingValue(i), Ty, isSigned);
+          EvaluateInDifferentTypeImpl(OPN->getIncomingValue(i), Ty, isSigned);
       NPN->addIncoming(V, OPN->getIncomingBlock(i));
     }
     Res = NPN;
@@ -225,6 +240,7 @@ Value *InstCombiner::EvaluateInDifferentType(Value *V, Type *Ty,
     llvm_unreachable("Unreachable!");
   }
 
+  EvaluatedInstMap[I] = Res;
   Res->takeName(I);
   return InsertNewInstWith(Res, *I);
 }
@@ -298,14 +314,36 @@ Instruction *InstCombiner::commonCastTransforms(CastInst &CI) {
 ///
 /// This function works on both vectors and scalars.
 ///
-static bool canEvaluateTruncated(Value *V, Type *Ty, InstCombiner &IC,
-                                 Instruction *CxtI) {
+bool InstCombiner::canEvaluateTruncated(Value *V, Type *Ty, InstCombiner &IC,
+                                        Instruction *CxtI) {
+  VisitedInsts.clear();
+  ToVisitInsts.clear();
+  if (!canEvaluateTruncatedImpl(V, Ty, IC, CxtI))
+    return false;
+  // We can truncate the given expression tree only if we had visited all
+  // instructions that are expected to be visited during expression evaluation.
+  for (auto *I : ToVisitInsts)
+    if (!VisitedInsts.count(I))
+      return false;
+  return true;
+}
+
+/// Recursive helper function for canEvaluateTruncated.
+/// This function should not be called directly!
+bool InstCombiner::canEvaluateTruncatedImpl(Value *V, Type *Ty,
+                                            InstCombiner &IC,
+                                            Instruction *CxtI) {
   // We can always evaluate constants in another type.
   if (isa<Constant>(V))
     return true;
 
   Instruction *I = dyn_cast<Instruction>(V);
   if (!I) return false;
+
+  if (VisitedInsts.count(I))
+    return true;
+
+  VisitedInsts.insert(I);
 
   Type *OrigTy = V->getType();
 
@@ -315,9 +353,18 @@ static bool canEvaluateTruncated(Value *V, Type *Ty, InstCombiner &IC,
       I->getOperand(0)->getType() == Ty)
     return true;
 
-  // We can't extend or shrink something that has multiple uses: doing so would
-  // require duplicating the instruction in general, which isn't profitable.
-  if (!I->hasOneUse()) return false;
+  // We don't want to duplicate instructiosn, which isn't profitable. Thus, we
+  // can't extend or shrink something that has multiple uses, unless all users
+  // are dominated by the trunc instruction and will be visited during the
+  // expresion evaluation. Mark all users that were not visited yet to be
+  // checked later against visited list.
+  if (!I->hasOneUse()) {
+    for (auto *U : I->users()) {
+      auto *UI = dyn_cast<Instruction>(U);
+      if (UI && !VisitedInsts.count(UI))
+        ToVisitInsts.insert(UI);
+    }
+  }
 
   unsigned Opc = I->getOpcode();
   switch (Opc) {
@@ -328,8 +375,8 @@ static bool canEvaluateTruncated(Value *V, Type *Ty, InstCombiner &IC,
   case Instruction::Or:
   case Instruction::Xor:
     // These operators can all arbitrarily be extended or truncated.
-    return canEvaluateTruncated(I->getOperand(0), Ty, IC, CxtI) &&
-           canEvaluateTruncated(I->getOperand(1), Ty, IC, CxtI);
+    return canEvaluateTruncatedImpl(I->getOperand(0), Ty, IC, CxtI) &&
+           canEvaluateTruncatedImpl(I->getOperand(1), Ty, IC, CxtI);
 
   case Instruction::UDiv:
   case Instruction::URem: {
@@ -340,8 +387,8 @@ static bool canEvaluateTruncated(Value *V, Type *Ty, InstCombiner &IC,
       APInt Mask = APInt::getHighBitsSet(OrigBitWidth, OrigBitWidth-BitWidth);
       if (IC.MaskedValueIsZero(I->getOperand(0), Mask, 0, CxtI) &&
           IC.MaskedValueIsZero(I->getOperand(1), Mask, 0, CxtI)) {
-        return canEvaluateTruncated(I->getOperand(0), Ty, IC, CxtI) &&
-               canEvaluateTruncated(I->getOperand(1), Ty, IC, CxtI);
+        return canEvaluateTruncatedImpl(I->getOperand(0), Ty, IC, CxtI) &&
+               canEvaluateTruncatedImpl(I->getOperand(1), Ty, IC, CxtI);
       }
     }
     break;
@@ -353,7 +400,7 @@ static bool canEvaluateTruncated(Value *V, Type *Ty, InstCombiner &IC,
     if (match(I->getOperand(1), m_APInt(Amt))) {
       uint32_t BitWidth = Ty->getScalarSizeInBits();
       if (Amt->getLimitedValue(BitWidth) < BitWidth)
-        return canEvaluateTruncated(I->getOperand(0), Ty, IC, CxtI);
+        return canEvaluateTruncatedImpl(I->getOperand(0), Ty, IC, CxtI);
     }
     break;
   }
@@ -368,7 +415,7 @@ static bool canEvaluateTruncated(Value *V, Type *Ty, InstCombiner &IC,
       if (IC.MaskedValueIsZero(I->getOperand(0),
             APInt::getHighBitsSet(OrigBitWidth, OrigBitWidth-BitWidth), 0, CxtI) &&
           Amt->getLimitedValue(BitWidth) < BitWidth) {
-        return canEvaluateTruncated(I->getOperand(0), Ty, IC, CxtI);
+        return canEvaluateTruncatedImpl(I->getOperand(0), Ty, IC, CxtI);
       }
     }
     break;
@@ -386,7 +433,7 @@ static bool canEvaluateTruncated(Value *V, Type *Ty, InstCombiner &IC,
       if (Amt->getLimitedValue(BitWidth) < BitWidth &&
           OrigBitWidth - BitWidth <
               IC.ComputeNumSignBits(I->getOperand(0), 0, CxtI))
-        return canEvaluateTruncated(I->getOperand(0), Ty, IC, CxtI);
+        return canEvaluateTruncatedImpl(I->getOperand(0), Ty, IC, CxtI);
     }
     break;
   }
@@ -400,8 +447,8 @@ static bool canEvaluateTruncated(Value *V, Type *Ty, InstCombiner &IC,
     return true;
   case Instruction::Select: {
     SelectInst *SI = cast<SelectInst>(I);
-    return canEvaluateTruncated(SI->getTrueValue(), Ty, IC, CxtI) &&
-           canEvaluateTruncated(SI->getFalseValue(), Ty, IC, CxtI);
+    return canEvaluateTruncatedImpl(SI->getTrueValue(), Ty, IC, CxtI) &&
+           canEvaluateTruncatedImpl(SI->getFalseValue(), Ty, IC, CxtI);
   }
   case Instruction::PHI: {
     // We can change a phi if we can change all operands.  Note that we never
@@ -409,7 +456,7 @@ static bool canEvaluateTruncated(Value *V, Type *Ty, InstCombiner &IC,
     // instructions with a single use.
     PHINode *PN = cast<PHINode>(I);
     for (Value *IncValue : PN->incoming_values())
-      if (!canEvaluateTruncated(IncValue, Ty, IC, CxtI))
+      if (!canEvaluateTruncatedImpl(IncValue, Ty, IC, CxtI))
         return false;
     return true;
   }
