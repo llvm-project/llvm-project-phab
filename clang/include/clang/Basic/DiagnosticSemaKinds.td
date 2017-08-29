@@ -5483,6 +5483,9 @@ def err_offsetof_field_of_virtual_base : Error<
 def warn_sub_ptr_zero_size_types : Warning<
   "subtraction of pointers to type %0 of zero size has undefined behavior">,
   InGroup<PointerArith>;
+def warn_pointer_arith_null_ptr : Warning<
+  "performing pointer arithmetic on a null pointer has undefined behavior">,
+  InGroup<NullPointerArithmetic>, DefaultIgnore;
 
 def warn_floatingpoint_eq : Warning<
   "comparing floating point with == or != is unsafe">,
@@ -6024,6 +6027,9 @@ def ext_gnu_void_ptr : Extension<
 def ext_gnu_ptr_func_arith : Extension<
   "arithmetic on%select{ a|}0 pointer%select{|s}0 to%select{ the|}2 function "
   "type%select{|s}2 %1%select{| and %3}2 is a GNU extension">,
+  InGroup<PointerArith>;
+def ext_gnu_null_ptr_arith : Extension<
+  "inttoptr casting using arithmetic on a null pointer is a GNU extension">,
   InGroup<PointerArith>;
 def err_readonly_message_assignment : Error<
   "assigning to 'readonly' return result of an Objective-C message not allowed">;
