@@ -23,6 +23,8 @@
 #include "PPCInstrBuilder.h"
 #include "PPCInstrInfo.h"
 #include "PPCTargetMachine.h"
+#include "llvm/ADT/Statistic.h"
+#include "llvm/CodeGen/MachineDominators.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
@@ -31,6 +33,8 @@
 using namespace llvm;
 
 #define DEBUG_TYPE "ppc-mi-peepholes"
+
+STATISTIC(NumOptADDLIs, "Number of optimized ADD instruction fed by LI");
 
 namespace llvm {
   void initializePPCMIPeepholePass(PassRegistry&);
@@ -50,6 +54,8 @@ struct PPCMIPeephole : public MachineFunctionPass {
   }
 
 private:
+  MachineDominatorTree *MDT;
+
   // Initialize class variables.
   void initialize(MachineFunction &MFParm);
 
@@ -61,6 +67,13 @@ private:
   unsigned lookThruCopyLike(unsigned SrcReg);
 
 public:
+
+  void getAnalysisUsage(AnalysisUsage &AU) const override {
+    AU.addRequired<MachineDominatorTree>();
+    AU.addPreserved<MachineDominatorTree>();
+    MachineFunctionPass::getAnalysisUsage(AU);
+  }
+
   // Main entry point for this pass.
   bool runOnMachineFunction(MachineFunction &MF) override {
     if (skipFunction(*MF.getFunction()))
@@ -74,9 +87,22 @@ public:
 void PPCMIPeephole::initialize(MachineFunction &MFParm) {
   MF = &MFParm;
   MRI = &MF->getRegInfo();
+  MDT = &getAnalysis<MachineDominatorTree>();
   TII = MF->getSubtarget<PPCSubtarget>().getInstrInfo();
   DEBUG(dbgs() << "*** PowerPC MI peephole pass ***\n\n");
   DEBUG(MF->dump());
+}
+
+MachineInstr *getVRegDefOrNull(MachineOperand *Op, MachineRegisterInfo *MRI) {
+  assert(Op && "Invalid Operand!");
+  if (!Op->isReg())
+    return nullptr;
+
+  unsigned Reg = Op->getReg();
+  if (!TargetRegisterInfo::isVirtualRegister(Reg))
+    return nullptr;
+
+  return MRI->getVRegDef(Reg);
 }
 
 // Perform peephole optimizations.
@@ -336,8 +362,99 @@ bool PPCMIPeephole::simplifyCode(void) {
         }
         break;
       }
+
+      case PPC::ADD4:
+      case PPC::ADD8: {
+        auto isSingleUsePHI = [&](MachineOperand *PhiOp) {
+          assert(PhiOp && "Invalid Operand!");
+          MachineInstr *DefPhiMI = getVRegDefOrNull(PhiOp, MRI);
+
+          if (!DefPhiMI || (DefPhiMI->getOpcode() != PPC::PHI))
+            return false;
+
+          if (!MRI->hasOneNonDBGUse(DefPhiMI->getOperand(0).getReg()))
+            return false;
+
+          return true;
+        };
+
+        auto dominatesAllSingleUseLIs = [&](MachineOperand *DominatorOp,
+                                            MachineOperand *PhiOp) {
+          assert(PhiOp && "Invalid Operand!");
+          assert(DominatorOp && "Invalid Operand!");
+          MachineInstr *DefPhiMI = getVRegDefOrNull(PhiOp, MRI);
+          MachineInstr *DefDomMI = getVRegDefOrNull(DominatorOp, MRI);
+
+          // Note: the vregs only show up at odd indices position of PHI Node,
+          // the even indices position save the BB info.
+          for (unsigned i = 1; i < DefPhiMI->getNumOperands(); i += 2) {
+            MachineInstr *LiMI =
+                getVRegDefOrNull(&DefPhiMI->getOperand(i), MRI);
+            if (!LiMI || !MRI->hasOneNonDBGUse(LiMI->getOperand(0).getReg()) ||
+                !MDT->dominates(DefDomMI, LiMI) ||
+                (LiMI->getOpcode() != PPC::LI && LiMI->getOpcode() != PPC::LI8))
+              return false;
+          }
+
+          return true;
+        };
+
+        MachineOperand Op1 = MI.getOperand(1);
+        MachineOperand Op2 = MI.getOperand(2);
+        if (isSingleUsePHI(&Op2) && dominatesAllSingleUseLIs(&Op1, &Op2))
+          std::swap(Op1, Op2);
+        else if (!isSingleUsePHI(&Op1) || !dominatesAllSingleUseLIs(&Op2, &Op1))
+          break; // We don't have and ADD fed by LI's that can be transformed
+
+        // Now we now that Op1 is the PHI node and Op2 is the dominator
+        unsigned DominatorReg = Op2.getReg();
+
+        const TargetRegisterClass *TRC =
+            MI.getOpcode() == PPC::ADD8 ? &PPC::G8RC_and_G8RC_NOX0RegClass
+                                        : &PPC::GPRC_and_GPRC_NOR0RegClass;
+        MRI->setRegClass(DominatorReg, TRC);
+
+        // replace LIs with ADDIs
+        MachineInstr *DefPhiMI = getVRegDefOrNull(&Op1, MRI);
+        for (unsigned i = 1; i < DefPhiMI->getNumOperands(); i += 2) {
+          MachineInstr *LiMI = getVRegDefOrNull(&DefPhiMI->getOperand(i), MRI);
+          DEBUG(dbgs() << "Optimizing LI to ADDI: ");
+          DEBUG(LiMI->dump());
+
+          // There could be repeated registers in the PHI, e.g: %vreg1<def> =
+          // PHI %vreg6, <BB#2>, %vreg8, <BB#3>, %vreg8, <BB#6>; So if we've
+          // already replaced the def instruction, skip.
+          if (LiMI->getOpcode() == PPC::ADDI ||
+              LiMI->getOpcode() == PPC::ADDI8)
+            continue;
+
+          assert((LiMI->getOpcode() == PPC::LI ||
+                  LiMI->getOpcode() == PPC::LI8) &&
+                 "Invalid Opcode!");
+          auto LiImm = LiMI->getOperand(1).getImm(); // save the imm of LI
+          LiMI->RemoveOperand(1);                    // remove the imm of LI
+          LiMI->setDesc(TII->get(LiMI->getOpcode() == PPC::LI ? PPC::ADDI
+                                                              : PPC::ADDI8));
+          MachineInstrBuilder(*LiMI->getParent()->getParent(), *LiMI)
+              .addReg(DominatorReg)
+              .addImm(LiImm); // restore the imm of LI
+          DEBUG(LiMI->dump());
+        }
+
+        // replace ADD with COPY
+        DEBUG(dbgs() << "Optimizing ADD to COPY: ");
+        DEBUG(MI.dump());
+        BuildMI(MBB, &MI, MI.getDebugLoc(), TII->get(PPC::COPY),
+                MI.getOperand(0).getReg())
+            .add(Op1);
+        ToErase = &MI;
+        Simplified = true;
+        NumOptADDLIs++;
+        break;
+      }
       }
     }
+
     // If the last instruction was marked for elimination,
     // remove it now.
     if (ToErase) {
