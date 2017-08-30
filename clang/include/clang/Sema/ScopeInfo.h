@@ -769,19 +769,28 @@ public:
   /// \brief If this is a generic lambda, use this as the depth of 
   /// each 'auto' parameter, during initial AST construction.
   unsigned AutoTemplateParameterDepth;
+  
+  /// \brief The number of parameters in the template parameter list that were
+  /// explicitly specified by the user, as opposed to being invented by use
+  /// of an auto parameter.
+  unsigned NumExplicitTemplateParams;
+ 
+  /// \brief Source range covering the explicit template parameter list
+  /// (if it exists).
+  SourceRange ExplicitTemplateParamsRange;
 
-  /// \brief Store the list of the auto parameters for a generic lambda.
-  /// If this is a generic lambda, store the list of the auto 
-  /// parameters converted into TemplateTypeParmDecls into a vector
-  /// that can be used to construct the generic lambda's template
+  /// \brief Store the list of the template parameters for a generic lambda.
+  /// If this is a generic lambda, this holds the explicit template parameters
+  /// followed by the auto parameters converted into TemplateTypeParmDecls.
+  /// It can be used to construct the generic lambda's template
   /// parameter list, during initial AST construction.
-  SmallVector<TemplateTypeParmDecl*, 4> AutoTemplateParams;
+  SmallVector<NamedDecl*, 4> TemplateParams;
 
   /// If this is a generic lambda, and the template parameter
-  /// list has been created (from the AutoTemplateParams) then
+  /// list has been created (from the TemplateParams) then
   /// store a reference to it (cache it to avoid reconstructing it).
   TemplateParameterList *GLTemplateParameterList;
-  
+
   /// \brief Contains all variable-referring-expressions (i.e. DeclRefExprs
   ///  or MemberExprs) that refer to local variables in a generic lambda
   ///  or a lambda in a potentially-evaluated-if-used context.
@@ -795,7 +804,6 @@ public:
   ///  will truly be odr-used (i.e. need to be captured) by that nested lambda,
   ///  until its instantiation. But we still need to capture it in the 
   ///  enclosing lambda if all intervening lambdas can capture the variable.
-
   llvm::SmallVector<Expr*, 4> PotentiallyCapturingExprs;
 
   /// \brief Contains all variable-referring-expressions that refer
@@ -820,7 +828,7 @@ public:
       CallOperator(nullptr), NumExplicitCaptures(0), Mutable(false),
       ExplicitParams(false), Cleanup{},
       ContainsUnexpandedParameterPack(false), AutoTemplateParameterDepth(0),
-      GLTemplateParameterList(nullptr) {
+      NumExplicitTemplateParams(0), GLTemplateParameterList(nullptr) {
     Kind = SK_Lambda;
   }
 
@@ -834,9 +842,9 @@ public:
   }
 
   /// Is this scope known to be for a generic lambda? (This will be false until
-  /// we parse the first 'auto'-typed parameter.
+  /// we parse a template parameter list or the first 'auto'-typed parameter).
   bool isGenericLambda() const {
-    return !AutoTemplateParams.empty() || GLTemplateParameterList;
+    return !TemplateParams.empty() || GLTemplateParameterList;
   }
 
   ///

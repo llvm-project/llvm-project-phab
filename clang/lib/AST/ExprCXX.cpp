@@ -18,6 +18,7 @@
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/TypeLoc.h"
 #include "clang/Basic/IdentifierTable.h"
+#include "llvm/ADT/STLExtras.h"
 using namespace clang;
 
 
@@ -975,6 +976,13 @@ LambdaExpr::capture_range LambdaExpr::implicit_captures() const {
   return capture_range(implicit_capture_begin(), implicit_capture_end());
 }
 
+SourceRange LambdaExpr::getExplicitTemplateParameterListRange() const {
+  TemplateParameterList *List = getTemplateParameterList();
+  if (!List)
+    return SourceRange();
+  return {List->getLAngleLoc(), List->getRAngleLoc()};
+}
+
 CXXRecordDecl *LambdaExpr::getLambdaClass() const {
   return getType()->getAsCXXRecordDecl();
 }
@@ -987,7 +995,19 @@ CXXMethodDecl *LambdaExpr::getCallOperator() const {
 TemplateParameterList *LambdaExpr::getTemplateParameterList() const {
   CXXRecordDecl *Record = getLambdaClass();
   return Record->getGenericLambdaTemplateParameterList();
+}
 
+unsigned LambdaExpr::getExplicitTemplateParameterCount() const {
+  TemplateParameterList *List = getTemplateParameterList();
+  if (!List)
+    return 0;
+
+  assert(std::is_partitioned(List->begin(), List->end(),
+                             [](const NamedDecl *D) { return !D->isImplicit(); })
+         && "Explicit template params should be ordered before implicit ones");
+
+  return std::count_if(List->begin(), List->end(),
+                       [](const NamedDecl *D) { return !D->isImplicit(); });
 }
 
 CompoundStmt *LambdaExpr::getBody() const {
