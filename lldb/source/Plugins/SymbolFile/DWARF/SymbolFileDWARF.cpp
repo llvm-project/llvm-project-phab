@@ -1640,7 +1640,21 @@ void SymbolFileDWARF::UpdateExternalModuleListIfNeeded() {
             }
             dwo_module_spec.GetArchitecture() =
                 m_obj_file->GetModule()->GetArchitecture();
-            // printf ("Loading dwo = '%s'\n", dwo_path);
+
+            // A *.dwo file itself can have DW_AT_GNU_dwo_name (but no
+            // DW_AT_comp_dir) (clang 4.0 generates such DWOs). In this case
+            // there is no need to try to get a new module, and, more over, if
+            // we try (below) the method ModuleList::GetSharedModule will return
+            // an error + nullptr since the path is ill-formed (because comp_dir
+            // is null (since DW_AT_comp_dir is not present)).
+            if (m_obj_file->GetFileSpec()
+                        .GetFileNameExtension()
+                        .GetStringRef() == "dwo" &&
+                llvm::StringRef(m_obj_file->GetFileSpec().GetPath())
+                    .endswith(dwo_module_spec.GetFileSpec().GetPath())) {
+              continue;
+            }
+
             Status error = ModuleList::GetSharedModule(
                 dwo_module_spec, module_sp, NULL, NULL, NULL);
             if (!module_sp) {
