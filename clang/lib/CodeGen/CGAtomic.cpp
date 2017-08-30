@@ -665,6 +665,20 @@ RValue CodeGenFunction::EmitAtomicExpr(AtomicExpr *E) {
     MemTy = AT->getValueType();
   CharUnits sizeChars, alignChars;
   std::tie(sizeChars, alignChars) = getContext().getTypeInfoInChars(AtomicTy);
+
+  // Get alignment from declaration.
+  if (const auto *UO = dyn_cast<UnaryOperator>(E->getPtr()))
+    if (UO->getOpcode() == UO_AddrOf) {
+      CharUnits alignDecl;
+      if (const auto *DRE = dyn_cast<DeclRefExpr>(UO->getSubExpr()))
+        alignDecl =
+            getContext().toCharUnitsFromBits(DRE->getDecl()->getMaxAlignment());
+      else if (const auto *ME = dyn_cast<MemberExpr>(UO->getSubExpr()))
+        alignDecl = getContext().toCharUnitsFromBits(
+            ME->getMemberDecl()->getMaxAlignment());
+      alignChars = std::max(alignChars, alignDecl);
+    }
+
   uint64_t Size = sizeChars.getQuantity();
   unsigned MaxInlineWidthInBits = getTarget().getMaxAtomicInlineWidth();
   bool UseLibcall = (sizeChars != alignChars ||
