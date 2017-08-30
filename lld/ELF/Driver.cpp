@@ -991,8 +991,9 @@ template <class ELFT> void LinkerDriver::link(opt::InputArgList &Args) {
   // find that it failed because there was a mistake in their command-line.
   if (auto E = tryCreateFile(Config->OutputFile))
     error("cannot open output file " + Config->OutputFile + ": " + E.message());
-  if (auto E = tryCreateFile(Config->MapFile))
-    error("cannot open map file " + Config->MapFile + ": " + E.message());
+  if (!Config->MapFile.empty())
+    if (auto E = tryCreateFile(Config->MapFile))
+      error("cannot open map file " + Config->MapFile + ": " + E.message());
   if (ErrorCount)
     return;
 
