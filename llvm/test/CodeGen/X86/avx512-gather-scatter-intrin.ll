@@ -578,9 +578,9 @@ declare void @llvm.x86.avx512.scatterdiv2.df(i8*, i8, <2 x i64>, <2 x double>, i
 define void@test_int_x86_avx512_scatterdiv2_df(i8* %x0, i8 %x1, <2 x i64> %x2, <2 x double> %x3) {
 ; CHECK-LABEL: test_int_x86_avx512_scatterdiv2_df:
 ; CHECK:       ## BB#0:
+; CHECK-NEXT:    kxnorw %k0, %k0, %k1
+; CHECK-NEXT:    vscatterqpd %xmm1, (%rdi,%xmm0,2) {%k1}
 ; CHECK-NEXT:    kmovd %esi, %k1
-; CHECK-NEXT:    kxnorw %k0, %k0, %k2
-; CHECK-NEXT:    vscatterqpd %xmm1, (%rdi,%xmm0,2) {%k2}
 ; CHECK-NEXT:    vscatterqpd %xmm1, (%rdi,%xmm0,4) {%k1}
 ; CHECK-NEXT:    retq
   call void @llvm.x86.avx512.scatterdiv2.df(i8* %x0, i8 -1, <2 x i64> %x2, <2 x double> %x3, i32 2)
@@ -655,9 +655,9 @@ declare void @llvm.x86.avx512.scatterdiv4.si(i8*, i8, <2 x i64>, <4 x i32>, i32)
 define void@test_int_x86_avx512_scatterdiv4_si(i8* %x0, i8 %x1, <2 x i64> %x2, <4 x i32> %x3) {
 ; CHECK-LABEL: test_int_x86_avx512_scatterdiv4_si:
 ; CHECK:       ## BB#0:
+; CHECK-NEXT:    kxnorw %k0, %k0, %k1
+; CHECK-NEXT:    vpscatterqd %xmm1, (%rdi,%xmm0,2) {%k1}
 ; CHECK-NEXT:    kmovd %esi, %k1
-; CHECK-NEXT:    kxnorw %k0, %k0, %k2
-; CHECK-NEXT:    vpscatterqd %xmm1, (%rdi,%xmm0,2) {%k2}
 ; CHECK-NEXT:    vpscatterqd %xmm1, (%rdi,%xmm0,4) {%k1}
 ; CHECK-NEXT:    retq
   call void @llvm.x86.avx512.scatterdiv4.si(i8* %x0, i8 -1, <2 x i64> %x2, <4 x i32> %x3, i32 2)
@@ -702,9 +702,9 @@ declare void @llvm.x86.avx512.scattersiv2.df(i8*, i8, <4 x i32>, <2 x double>, i
 define void@test_int_x86_avx512_scattersiv2_df(i8* %x0, i8 %x1, <4 x i32> %x2, <2 x double> %x3) {
 ; CHECK-LABEL: test_int_x86_avx512_scattersiv2_df:
 ; CHECK:       ## BB#0:
+; CHECK-NEXT:    kxnorw %k0, %k0, %k1
+; CHECK-NEXT:    vscatterdpd %xmm1, (%rdi,%xmm0,2) {%k1}
 ; CHECK-NEXT:    kmovd %esi, %k1
-; CHECK-NEXT:    kxnorw %k0, %k0, %k2
-; CHECK-NEXT:    vscatterdpd %xmm1, (%rdi,%xmm0,2) {%k2}
 ; CHECK-NEXT:    vscatterdpd %xmm1, (%rdi,%xmm0,4) {%k1}
 ; CHECK-NEXT:    retq
   call void @llvm.x86.avx512.scattersiv2.df(i8* %x0, i8 -1, <4 x i32> %x2, <2 x double> %x3, i32 2)
@@ -717,9 +717,9 @@ declare void @llvm.x86.avx512.scattersiv2.di(i8*, i8, <4 x i32>, <2 x i64>, i32)
 define void@test_int_x86_avx512_scattersiv2_di(i8* %x0, i8 %x1, <4 x i32> %x2, <2 x i64> %x3) {
 ; CHECK-LABEL: test_int_x86_avx512_scattersiv2_di:
 ; CHECK:       ## BB#0:
+; CHECK-NEXT:    kxnorw %k0, %k0, %k1
+; CHECK-NEXT:    vpscatterdq %xmm1, (%rdi,%xmm0,2) {%k1}
 ; CHECK-NEXT:    kmovd %esi, %k1
-; CHECK-NEXT:    kxnorw %k0, %k0, %k2
-; CHECK-NEXT:    vpscatterdq %xmm1, (%rdi,%xmm0,2) {%k2}
 ; CHECK-NEXT:    vpscatterdq %xmm1, (%rdi,%xmm0,4) {%k1}
 ; CHECK-NEXT:    retq
   call void @llvm.x86.avx512.scattersiv2.di(i8* %x0, i8 -1, <4 x i32> %x2, <2 x i64> %x3, i32 2)
@@ -748,9 +748,9 @@ declare void @llvm.x86.avx512.scattersiv4.di(i8*, i8, <4 x i32>, <4 x i64>, i32)
 define void@test_int_x86_avx512_scattersiv4_di(i8* %x0, i8 %x1, <4 x i32> %x2, <4 x i64> %x3) {
 ; CHECK-LABEL: test_int_x86_avx512_scattersiv4_di:
 ; CHECK:       ## BB#0:
+; CHECK-NEXT:    kxnorw %k0, %k0, %k1
+; CHECK-NEXT:    vpscatterdq %ymm1, (%rdi,%xmm0,2) {%k1}
 ; CHECK-NEXT:    kmovd %esi, %k1
-; CHECK-NEXT:    kxnorw %k0, %k0, %k2
-; CHECK-NEXT:    vpscatterdq %ymm1, (%rdi,%xmm0,2) {%k2}
 ; CHECK-NEXT:    vpscatterdq %ymm1, (%rdi,%xmm0,4) {%k1}
 ; CHECK-NEXT:    vzeroupper
 ; CHECK-NEXT:    retq
