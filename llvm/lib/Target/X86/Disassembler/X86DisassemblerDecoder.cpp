@@ -758,6 +758,10 @@ static int readOpcode(struct InternalInstruction* insn) {
 
       insn->opcodeType = TWOBYTE;
     }
+  } else if (current == 0xce && (insn->mode == MODE_64BIT)) {
+    // TODO: Do we need real error diagnostic in disassembler?
+    dbgprintf(insn, "Invalid instruction 'into' in 64-bit mode");
+    return -1;
   }
 
   /*
