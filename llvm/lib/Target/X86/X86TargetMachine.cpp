@@ -59,6 +59,7 @@ namespace llvm {
 void initializeWinEHStatePassPass(PassRegistry &);
 void initializeFixupLEAPassPass(PassRegistry &);
 void initializeX86ExecutionDepsFixPass(PassRegistry &);
+void initializeX86SpeculateSelectLoadPassPass(PassRegistry &);
 
 } // end namespace llvm
 
@@ -74,6 +75,7 @@ extern "C" void LLVMInitializeX86Target() {
   initializeEvexToVexInstPassPass(PR);
   initializeFixupLEAPassPass(PR);
   initializeX86ExecutionDepsFixPass(PR);
+  initializeX86SpeculateSelectLoadPassPass(PR);
 }
 
 static std::unique_ptr<TargetLoweringObjectFile> createTLOF(const Triple &TT) {
@@ -342,8 +344,10 @@ void X86PassConfig::addIRPasses() {
 
   TargetPassConfig::addIRPasses();
 
-  if (TM->getOptLevel() != CodeGenOpt::None)
+  if (TM->getOptLevel() != CodeGenOpt::None) {
     addPass(createInterleavedAccessPass());
+    addPass(createX86SpeculateSelectLoadPass());
+  }
 }
 
 bool X86PassConfig::addInstSelector() {

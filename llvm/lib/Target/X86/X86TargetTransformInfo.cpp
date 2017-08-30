@@ -2529,3 +2529,5 @@ int X86TTIImpl::getInterleavedMemoryOpCost(unsigned Opcode, Type *VecTy,
   return BaseT::getInterleavedMemoryOpCost(Opcode, VecTy, Factor, Indices,
                                            Alignment, AddressSpace);
 }
+
+unsigned X86TTIImpl::getCacheLineSize() const { return 64; }

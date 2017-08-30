@@ -16248,6 +16248,27 @@ bool DAGCombiner::SimplifySelectOps(SDNode *TheSelect, SDValue LHS,
                                       LLD->getBasePtr().getValueType()))
       return false;
 
+    // Avoid combining the load if both loads are GEPs into elements of the same
+    // struct. TODO: handle cases where the GEP is bitcasted to another type.
+    if (TLI.isDesirableToSpeculateSelectLoad()) {
+      if (LLD->getMemOperand()->getValue() &&
+          RLD->getMemOperand()->getValue()) {
+        const GetElementPtrInst *GEPTrue =
+            dyn_cast<GetElementPtrInst>(LLD->getMemOperand()->getValue());
+        const GetElementPtrInst *GEPFalse =
+            dyn_cast<GetElementPtrInst>(RLD->getMemOperand()->getValue());
+        if (GEPTrue && GEPFalse) {
+          if (GEPTrue->getSourceElementType()->isStructTy() &&
+              GEPFalse->getSourceElementType()->isStructTy() &&
+              GEPTrue->getPointerOperand() == GEPFalse->getPointerOperand() &&
+              GEPTrue->hasAllConstantIndices() &&
+              GEPFalse->hasAllConstantIndices())
+            LLD->dump();
+          return false;
+        }
+      }
+    }
+
     // Check that the select condition doesn't reach either load.  If so,
     // folding this will induce a cycle into the DAG.  If not, this is safe to
     // xform, so create a select of the addresses.

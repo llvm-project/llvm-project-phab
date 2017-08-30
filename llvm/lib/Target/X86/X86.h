@@ -77,6 +77,10 @@ FunctionPass *createX86CallFrameOptimization();
 /// Windows-specific but architecture-neutral preparation.
 FunctionPass *createX86WinEHStatePass();
 
+/// Return an IR pass that tries to speculatively load the operands of
+/// a select instruction when profitable.
+FunctionPass *createX86SpeculateSelectLoadPass();
+
 /// Return a Machine IR pass that expands X86-specific pseudo
 /// instructions into a sequence of actual instructions. This pass
 /// must run after prologue/epilogue insertion and before lowering

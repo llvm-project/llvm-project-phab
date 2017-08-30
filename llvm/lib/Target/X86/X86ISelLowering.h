@@ -805,6 +805,10 @@ namespace llvm {
     /// and some i16 instructions are slow.
     bool IsDesirableToPromoteOp(SDValue Op, EVT &PVT) const override;
 
+    /// Return true if it is desirable to speculatively load the operands
+    /// of a select instruction for the target.
+    bool isDesirableToSpeculateSelectLoad() const override { return true; }
+
     MachineBasicBlock *
     EmitInstrWithCustomInserter(MachineInstr &MI,
                                 MachineBasicBlock *MBB) const override;

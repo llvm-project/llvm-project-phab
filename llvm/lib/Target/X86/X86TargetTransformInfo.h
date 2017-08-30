@@ -115,6 +115,8 @@ public:
                            const Function *Callee) const;
   bool expandMemCmp(Instruction *I, unsigned &MaxLoadSize);
   bool enableInterleavedAccessVectorization();
+  unsigned getCacheLineSize() const;
+
 private:
   int getGSScalarCost(unsigned Opcode, Type *DataTy, bool VariableMask,
                       unsigned Alignment, unsigned AddressSpace);

@@ -45,6 +45,7 @@ set(sources
   X86RegisterInfo.cpp
   X86SelectionDAGInfo.cpp
   X86ShuffleDecodeConstantPool.cpp
+  X86SpeculateSelectLoad.cpp
   X86Subtarget.cpp
   X86TargetMachine.cpp
   X86TargetObjectFile.cpp
