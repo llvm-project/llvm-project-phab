@@ -686,7 +686,7 @@ void ScopBuilder::buildStmts(Region &SR) {
         Loop *L = LI.getLoopFor(Inst.getParent());
         if (shouldModelInst(&Inst, L))
           Instructions.push_back(&Inst);
-        if (Inst.getMetadata("polly_split_after")) {
+        if (isa<StoreInst>(Inst)) {
           Loop *SurroundingLoop = LI.getLoopFor(I->getNodeAs<BasicBlock>());
           scop->addScopStmt(I->getNodeAs<BasicBlock>(), SurroundingLoop,
                             Instructions, Count);
@@ -720,7 +720,7 @@ void ScopBuilder::buildAccessFunctions(ScopStmt *Stmt, BasicBlock &BB,
       Split = false;
       Count++;
     }
-    if (Inst.getMetadata("polly_split_after"))
+    if (isa<StoreInst>(Inst))
       Split = true;
 
     if (Stmt && Stmt->isBlockStmt() && Stmt != scop->getStmtListFor(&BB)[Count])
