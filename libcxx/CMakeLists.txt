@@ -465,10 +465,6 @@ if (LIBCXX_CONFIGURE_IDE)
   add_compile_flags_if_supported(-fcoroutines-ts)
 endif()
 
-# Let the library headers know they are currently being used to build the
-# library.
-add_definitions(-D_LIBCPP_BUILDING_LIBRARY)
-
 if (NOT LIBCXX_ENABLE_NEW_DELETE_DEFINITIONS)
   add_definitions(-D_LIBCPP_DISABLE_NEW_DELETE_DEFINITIONS)
 endif()

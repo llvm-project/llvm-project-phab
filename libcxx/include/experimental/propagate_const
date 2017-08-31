@@ -125,11 +125,11 @@ template <class _Tp>
 class propagate_const;
 
 template <class _Up>
-inline _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR
+inline _LIBCPPX_INLINE_VISIBILITY _LIBCPP_CONSTEXPR
 const _Up& get_underlying(const propagate_const<_Up>& __pu) _NOEXCEPT;
 
 template <class _Up>
-inline _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR
+inline _LIBCPPX_INLINE_VISIBILITY _LIBCPP_CONSTEXPR
 _Up& get_underlying(propagate_const<_Up>& __pu) _NOEXCEPT;
 
 template <class _Tp>
@@ -299,35 +299,35 @@ public:
 
 
 template <class _Tp>
-_LIBCPP_INLINE_VISIBILITY
+_LIBCPPX_INLINE_VISIBILITY
 _LIBCPP_CONSTEXPR bool operator==(const propagate_const<_Tp>& __pt, nullptr_t)
 {
   return _VSTD_LFTS_V2::get_underlying(__pt) == nullptr;
 }
 
 template <class _Tp>
-_LIBCPP_INLINE_VISIBILITY
+_LIBCPPX_INLINE_VISIBILITY
 _LIBCPP_CONSTEXPR bool operator==(nullptr_t, const propagate_const<_Tp>& __pt)
 {
   return nullptr == _VSTD_LFTS_V2::get_underlying(__pt);
 }
 
 template <class _Tp>
-_LIBCPP_INLINE_VISIBILITY
+_LIBCPPX_INLINE_VISIBILITY
 _LIBCPP_CONSTEXPR bool operator!=(const propagate_const<_Tp>& __pt, nullptr_t)
 {
   return _VSTD_LFTS_V2::get_underlying(__pt) != nullptr;
 }
 
 template <class _Tp>
-_LIBCPP_INLINE_VISIBILITY
+_LIBCPPX_INLINE_VISIBILITY
 _LIBCPP_CONSTEXPR bool operator!=(nullptr_t, const propagate_const<_Tp>& __pt)
 {
   return nullptr != _VSTD_LFTS_V2::get_underlying(__pt);
 }
 
 template <class _Tp, class _Up>
-_LIBCPP_INLINE_VISIBILITY
+_LIBCPPX_INLINE_VISIBILITY
 _LIBCPP_CONSTEXPR bool operator==(const propagate_const<_Tp>& __pt,
                           const propagate_const<_Up>& __pu)
 {
@@ -335,7 +335,7 @@ _LIBCPP_CONSTEXPR bool operator==(const propagate_const<_Tp>& __pt,
 }
 
 template <class _Tp, class _Up>
-_LIBCPP_INLINE_VISIBILITY
+_LIBCPPX_INLINE_VISIBILITY
 _LIBCPP_CONSTEXPR bool operator!=(const propagate_const<_Tp>& __pt,
                           const propagate_const<_Up>& __pu)
 {
@@ -343,7 +343,7 @@ _LIBCPP_CONSTEXPR bool operator!=(const propagate_const<_Tp>& __pt,
 }
 
 template <class _Tp, class _Up>
-_LIBCPP_INLINE_VISIBILITY
+_LIBCPPX_INLINE_VISIBILITY
 _LIBCPP_CONSTEXPR bool operator<(const propagate_const<_Tp>& __pt,
                          const propagate_const<_Up>& __pu)
 {
@@ -351,7 +351,7 @@ _LIBCPP_CONSTEXPR bool operator<(const propagate_const<_Tp>& __pt,
 }
 
 template <class _Tp, class _Up>
-_LIBCPP_INLINE_VISIBILITY
+_LIBCPPX_INLINE_VISIBILITY
 _LIBCPP_CONSTEXPR bool operator>(const propagate_const<_Tp>& __pt,
                          const propagate_const<_Up>& __pu)
 {
@@ -359,7 +359,7 @@ _LIBCPP_CONSTEXPR bool operator>(const propagate_const<_Tp>& __pt,
 }
 
 template <class _Tp, class _Up>
-_LIBCPP_INLINE_VISIBILITY
+_LIBCPPX_INLINE_VISIBILITY
 _LIBCPP_CONSTEXPR bool operator<=(const propagate_const<_Tp>& __pt,
                           const propagate_const<_Up>& __pu)
 {
@@ -367,7 +367,7 @@ _LIBCPP_CONSTEXPR bool operator<=(const propagate_const<_Tp>& __pt,
 }
 
 template <class _Tp, class _Up>
-_LIBCPP_INLINE_VISIBILITY
+_LIBCPPX_INLINE_VISIBILITY
 _LIBCPP_CONSTEXPR bool operator>=(const propagate_const<_Tp>& __pt,
                           const propagate_const<_Up>& __pu)
 {
@@ -375,42 +375,42 @@ _LIBCPP_CONSTEXPR bool operator>=(const propagate_const<_Tp>& __pt,
 }
 
 template <class _Tp, class _Up>
-_LIBCPP_INLINE_VISIBILITY
+_LIBCPPX_INLINE_VISIBILITY
 _LIBCPP_CONSTEXPR bool operator==(const propagate_const<_Tp>& __pt, const _Up& __u)
 {
   return _VSTD_LFTS_V2::get_underlying(__pt) == __u;
 }
 
 template <class _Tp, class _Up>
-_LIBCPP_INLINE_VISIBILITY
+_LIBCPPX_INLINE_VISIBILITY
 _LIBCPP_CONSTEXPR bool operator!=(const propagate_const<_Tp>& __pt, const _Up& __u)
 {
   return _VSTD_LFTS_V2::get_underlying(__pt) != __u;
 }
 
 template <class _Tp, class _Up>
-_LIBCPP_INLINE_VISIBILITY
+_LIBCPPX_INLINE_VISIBILITY
 _LIBCPP_CONSTEXPR bool operator<(const propagate_const<_Tp>& __pt, const _Up& __u)
 {
   return _VSTD_LFTS_V2::get_underlying(__pt) < __u;
 }
 
 template <class _Tp, class _Up>
-_LIBCPP_INLINE_VISIBILITY
+_LIBCPPX_INLINE_VISIBILITY
 _LIBCPP_CONSTEXPR bool operator>(const propagate_const<_Tp>& __pt, const _Up& __u)
 {
   return _VSTD_LFTS_V2::get_underlying(__pt) > __u;
 }
 
 template <class _Tp, class _Up>
-_LIBCPP_INLINE_VISIBILITY
+_LIBCPPX_INLINE_VISIBILITY
 _LIBCPP_CONSTEXPR bool operator<=(const propagate_const<_Tp>& __pt, const _Up& __u)
 {
   return _VSTD_LFTS_V2::get_underlying(__pt) <= __u;
 }
 
 template <class _Tp, class _Up>
-_LIBCPP_INLINE_VISIBILITY
+_LIBCPPX_INLINE_VISIBILITY
 _LIBCPP_CONSTEXPR bool operator>=(const propagate_const<_Tp>& __pt, const _Up& __u)
 {
   return _VSTD_LFTS_V2::get_underlying(__pt) >= __u;
@@ -418,49 +418,49 @@ _LIBCPP_CONSTEXPR bool operator>=(const propagate_const<_Tp>& __pt, const _Up& _
 
 
 template <class _Tp, class _Up>
-_LIBCPP_INLINE_VISIBILITY
+_LIBCPPX_INLINE_VISIBILITY
 _LIBCPP_CONSTEXPR bool operator==(const _Tp& __t, const propagate_const<_Up>& __pu)
 {
   return __t == _VSTD_LFTS_V2::get_underlying(__pu);
 }
 
 template <class _Tp, class _Up>
-_LIBCPP_INLINE_VISIBILITY
+_LIBCPPX_INLINE_VISIBILITY
 _LIBCPP_CONSTEXPR bool operator!=(const _Tp& __t, const propagate_const<_Up>& __pu)
 {
   return __t != _VSTD_LFTS_V2::get_underlying(__pu);
 }
 
 template <class _Tp, class _Up>
-_LIBCPP_INLINE_VISIBILITY
+_LIBCPPX_INLINE_VISIBILITY
 _LIBCPP_CONSTEXPR bool operator<(const _Tp& __t, const propagate_const<_Up>& __pu)
 {
   return __t < _VSTD_LFTS_V2::get_underlying(__pu);
 }
 
 template <class _Tp, class _Up>
-_LIBCPP_INLINE_VISIBILITY
+_LIBCPPX_INLINE_VISIBILITY
 _LIBCPP_CONSTEXPR bool operator>(const _Tp& __t, const propagate_const<_Up>& __pu)
 {
   return __t > _VSTD_LFTS_V2::get_underlying(__pu);
 }
 
 template <class _Tp, class _Up>
-_LIBCPP_INLINE_VISIBILITY
+_LIBCPPX_INLINE_VISIBILITY
 _LIBCPP_CONSTEXPR bool operator<=(const _Tp& __t, const propagate_const<_Up>& __pu)
 {
   return __t <= _VSTD_LFTS_V2::get_underlying(__pu);
 }
 
 template <class _Tp, class _Up>
-_LIBCPP_INLINE_VISIBILITY
+_LIBCPPX_INLINE_VISIBILITY
 _LIBCPP_CONSTEXPR bool operator>=(const _Tp& __t, const propagate_const<_Up>& __pu)
 {
   return __t >= _VSTD_LFTS_V2::get_underlying(__pu);
 }
 
 template <class _Tp>
-_LIBCPP_INLINE_VISIBILITY
+_LIBCPPX_INLINE_VISIBILITY
 _LIBCPP_CONSTEXPR void swap(propagate_const<_Tp>& __pc1, propagate_const<_Tp>& __pc2) _NOEXCEPT_(__is_nothrow_swappable<_Tp>::value)
 {
   using _VSTD::swap;
