@@ -156,6 +156,25 @@ struct RunPassOption {
       RunPassNames->push_back(PassName);
   }
 };
+
+struct LLCDiagnosticHandler : public DiagnosticHandler {
+  LLCDiagnosticHandler(void *Context) : DiagnosticHandler(Context) {}
+  bool handleDiagnostics(const DiagnosticInfo &DI) override {
+    bool *HasError = static_cast<bool *>(DiagnosticContext);
+    if (DI.getSeverity() == DS_Error)
+      *HasError = true;
+
+    if (auto *Remark = dyn_cast<DiagnosticInfoOptimizationBase>(&DI))
+      if (!Remark->isEnabled())
+        return true;
+
+    DiagnosticPrinterRawOStream DP(errs());
+    errs() << LLVMContext::getDiagnosticMessagePrefix(DI.getSeverity()) << ": ";
+    DI.print(DP);
+    errs() << "\n";
+    return true;
+  }
+};
 }
 
 static RunPassOption RunPassOpt;
@@ -235,7 +254,7 @@ GetOutputStream(const char *TargetName, Triple::OSType OS,
   return FDOut;
 }
 
-static void DiagnosticHandler(const DiagnosticInfo &DI, void *Context) {
+static void DiagnosticHandlerImpl(const DiagnosticInfo &DI, void *Context) {
   bool *HasError = static_cast<bool *>(Context);
   if (DI.getSeverity() == DS_Error)
     *HasError = true;
@@ -308,7 +327,8 @@ int main(int argc, char **argv) {
 
   // Set a diagnostic handler that doesn't exit on the first error
   bool HasError = false;
-  Context.setDiagnosticHandler(DiagnosticHandler, &HasError);
+  Context.setDiagnosticHandler(
+      llvm::make_unique<LLCDiagnosticHandler>(&HasError));
   Context.setInlineAsmDiagnosticHandler(InlineAsmDiagHandler, &HasError);
 
   if (PassRemarksWithHotness)

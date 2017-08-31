@@ -33,7 +33,6 @@ namespace llvm {
 
 // Forward declarations.
 class DiagnosticPrinter;
-class Function;
 class Instruction;
 class LLVMContext;
 class Module;
@@ -610,10 +609,8 @@ public:
     return DI->getKind() == DK_OptimizationRemark;
   }
 
-  static bool isEnabled(StringRef PassName);
-
   /// \see DiagnosticInfoOptimizationBase::isEnabled.
-  bool isEnabled() const override { return isEnabled(getPassName()); }
+  bool isEnabled() const override;
 
 private:
   /// This is deprecated now and only used by the function API below.
@@ -653,10 +650,8 @@ public:
     return DI->getKind() == DK_OptimizationRemarkMissed;
   }
 
-  static bool isEnabled(StringRef PassName);
-
   /// \see DiagnosticInfoOptimizationBase::isEnabled.
-  bool isEnabled() const override { return isEnabled(getPassName()); }
+  bool isEnabled() const override;
 
 private:
   /// This is deprecated now and only used by the function API below.
@@ -707,12 +702,8 @@ public:
     return DI->getKind() == DK_OptimizationRemarkAnalysis;
   }
 
-  static bool isEnabled(StringRef PassName);
-
   /// \see DiagnosticInfoOptimizationBase::isEnabled.
-  bool isEnabled() const override {
-    return shouldAlwaysPrint() || isEnabled(getPassName());
-  }
+  bool isEnabled() const override;
 
   static const char *AlwaysPrint;
 

@@ -129,11 +129,18 @@ void *LLVMContext::getInlineAsmDiagnosticContext() const {
   return pImpl->InlineAsmDiagContext;
 }
 
-void LLVMContext::setDiagnosticHandler(DiagnosticHandlerTy DiagnosticHandler,
-                                       void *DiagnosticContext,
-                                       bool RespectFilters) {
-  pImpl->DiagnosticHandler = DiagnosticHandler;
-  pImpl->DiagnosticContext = DiagnosticContext;
+void LLVMContext::setDiagnosticHandlerCallBack(
+  DiagnosticHandler::DiagnosticHandlerTy DiagnosticHandler,
+  void *DiagnosticContext,
+  bool RespectFilters) {
+  pImpl->DiagHandler->DiagHandlerCallback = DiagnosticHandler;
+  pImpl->DiagHandler->DiagnosticContext = DiagnosticContext;
+  pImpl->RespectDiagnosticFilters = RespectFilters;
+}
+
+void LLVMContext::setDiagnosticHandler(std::unique_ptr<DiagnosticHandler> &&DH,
+                                      bool RespectFilters) {
+  pImpl->DiagHandler = std::move(DH);
   pImpl->RespectDiagnosticFilters = RespectFilters;
 }
 
@@ -159,12 +166,12 @@ void LLVMContext::setDiagnosticsOutputFile(std::unique_ptr<yaml::Output> F) {
   pImpl->DiagnosticsOutputFile = std::move(F);
 }
 
-LLVMContext::DiagnosticHandlerTy LLVMContext::getDiagnosticHandler() const {
-  return pImpl->DiagnosticHandler;
+DiagnosticHandler::DiagnosticHandlerTy LLVMContext::getDiagnosticHandlerCallBack() const {
+  return pImpl->DiagHandler->DiagHandlerCallback;
 }
 
 void *LLVMContext::getDiagnosticContext() const {
-  return pImpl->DiagnosticContext;
+  return pImpl->DiagHandler->DiagnosticContext;
 }
 
 void LLVMContext::setYieldCallback(YieldCallbackTy Callback, void *OpaqueHandle)
@@ -194,7 +201,6 @@ static bool isDiagnosticEnabled(const DiagnosticInfo &DI) {
   // diagnostic and return.
   if (auto *Remark = dyn_cast<DiagnosticInfoOptimizationBase>(&DI))
     return Remark->isEnabled();
-
   return true;
 }
 
@@ -215,15 +221,13 @@ LLVMContext::getDiagnosticMessagePrefix(DiagnosticSeverity Severity) {
 
 void LLVMContext::diagnose(const DiagnosticInfo &DI) {
   // If there is a report handler, use it.
-  if (pImpl->DiagnosticHandler) {
+  if (pImpl->DiagHandler) {
     if (!pImpl->RespectDiagnosticFilters || isDiagnosticEnabled(DI))
-      pImpl->DiagnosticHandler(DI, pImpl->DiagnosticContext);
-    return;
+      if(pImpl->DiagHandler->handleDiagnostics(DI))
+          return;
   }
-
   if (!isDiagnosticEnabled(DI))
     return;
-
   // Otherwise, print the message with a prefix based on the severity.
   DiagnosticPrinterRawOStream DP(errs());
   errs() << getDiagnosticMessagePrefix(DI.getSeverity()) << ": ";
@@ -314,4 +318,8 @@ void LLVMContext::setDiscardValueNames(bool Discard) {
 
 OptBisect &LLVMContext::getOptBisect() {
   return pImpl->getOptBisect();
+}
+
+DiagnosticHandler *LLVMContext::getDiagHandler() const {
+  return pImpl->DiagHandler.get();
 }
