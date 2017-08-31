@@ -33,6 +33,7 @@
 #include "RedundantStringInitCheck.h"
 #include "SimplifyBooleanExprCheck.h"
 #include "StaticDefinitionInAnonymousNamespaceCheck.h"
+#include "SuspiciousCallArgumentCheck.h"
 #include "UniqueptrDeleteReleaseCheck.h"
 
 namespace clang {
@@ -72,6 +73,8 @@ public:
         "readability-redundant-member-init");
     CheckFactories.registerCheck<StaticDefinitionInAnonymousNamespaceCheck>(
         "readability-static-definition-in-anonymous-namespace");
+    CheckFactories.registerCheck<SuspiciousCallArgumentCheck>(
+        "readability-suspicious-call-argument");
     CheckFactories.registerCheck<readability::NamedParameterCheck>(
         "readability-named-parameter");
     CheckFactories.registerCheck<NonConstParameterCheck>(

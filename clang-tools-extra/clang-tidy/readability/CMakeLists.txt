@@ -26,6 +26,7 @@ add_clang_library(clangTidyReadabilityModule
   RedundantStringInitCheck.cpp
   SimplifyBooleanExprCheck.cpp
   StaticDefinitionInAnonymousNamespaceCheck.cpp
+  SuspiciousCallArgumentCheck.cpp
   UniqueptrDeleteReleaseCheck.cpp
 
   LINK_LIBS
