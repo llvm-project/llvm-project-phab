@@ -120,10 +120,9 @@ endif()
 
 if(TARGET ocaml_llvm)
   # Clear all non-OCaml cross-target dependencies when building out-of-tree.
-  if(LLVM_OCAML_OUT_OF_TREE)
+  if(DEFINED LLVM_OCAML_EXTERNAL_LLVM_LIBDIR)
     set(LLVM_TEST_DEPENDS)
   endif()
-
   set(LLVM_TEST_DEPENDS ${LLVM_TEST_DEPENDS}
           ocaml_llvm
           ocaml_llvm_all_backends

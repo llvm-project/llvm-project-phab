@@ -5,9 +5,11 @@ Prerequisites
 -------------
 
 * OCaml 4.00.0+.
+* ocamlfind.
 * ctypes 0.4+.
 * oUnit 2+ (only required for tests).
 * CMake (to build LLVM).
+* Python 2.7+ (to build LLVM).
 
 Building the bindings
 ---------------------
@@ -19,9 +21,14 @@ They will only work with the specific OCaml compiler detected during the build.
 The bindings can also be built out-of-tree, i.e. targeting a preinstalled
 LLVM. To do this, configure the LLVM build tree as follows:
 
-    $ cmake -DLLVM_OCAML_OUT_OF_TREE=TRUE \
-            -DCMAKE_INSTALL_PREFIX=[OCaml install prefix] \
+    $ cmake -DLLVM_OCAML_EXTERNAL_LLVM_LIBDIR=[Location of the preinstalled LLVM] \
+            -DCMAKE_BUILD_TYPE=[Build-mode of the preinstalled LLVM] \
+            -DLLVM_TARGETS_TO_BUILD=[Targets built of the preinstalled LLVM] \
+            -DLLVM_OCAML_INSTALL_PATH=[OCaml install prefix] \
             [... any other options]
+
+You might also want to set -DBUILD_SHARED_LIBS depending on whether you want a statically or dynamically linked library.
+This requires at least that you check if your preinstalled LLVM supports dynamic linking.
 
 then build and install it as:
 
