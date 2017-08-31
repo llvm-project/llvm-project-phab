@@ -2806,6 +2806,12 @@ public:
     return false;
   }
 
+  /// Return true if it is desirable to speculatively load the operands
+  /// of a select instruction for the target.
+  virtual bool isDesirableToSpeculateSelectLoad() const {
+    return false;
+  }
+
   /// Return true if the target supports swifterror attribute. It optimizes
   /// loads and stores to reading and writing a specific register.
   virtual bool supportSwiftError() const {
