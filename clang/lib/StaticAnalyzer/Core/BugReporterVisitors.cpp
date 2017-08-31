@@ -647,6 +647,12 @@ FindLastStoreBRVisitor::VisitNode(const ExplodedNode *Succ,
         R->printPretty(os);
       }
     }
+  } else if (StoreSite->getLocation().getAs<BlockEntrance>()) {
+    os << "Reach the maximum loop limit.";
+    os << " Invalidate the value of ";
+    if (R->canPrintPretty()) {
+      R->printPretty(os);
+    }
   }
 
   if (os.str().empty()) {
