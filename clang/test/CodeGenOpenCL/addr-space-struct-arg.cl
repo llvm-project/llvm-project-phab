@@ -1,5 +1,6 @@
 // RUN: %clang_cc1 %s -emit-llvm -o - -O0 -finclude-default-header -ffake-address-space-map -triple i686-pc-darwin | FileCheck -enable-var-scope -check-prefixes=COM,X86 %s
 // RUN: %clang_cc1 %s -emit-llvm -o - -O0 -finclude-default-header -triple amdgcn-amdhsa-amd-amdgizcl | FileCheck -enable-var-scope -check-prefixes=COM,AMD %s
+// RUN: %clang_cc1 %s -emit-llvm -o - -cl-std=CL2.0 -O0 -finclude-default-header -triple amdgcn-amdhsa-amd-amdgizcl | FileCheck -enable-var-scope -check-prefixes=COM,AMD,AMD20 %s
 
 typedef struct {
   int cells[9];
@@ -35,6 +36,9 @@ struct LargeStructTwoMember {
   int2 y[20];
 };
 
+#if __OPENCL_C_VERSION__ >= 200
+struct LargeStructOneMember g_s;
+#endif
 
 // X86-LABEL: define void @foo(%struct.Mat4X4* noalias sret %agg.result, %struct.Mat3X3* byval align 4 %in)
 // AMD-LABEL: define %struct.Mat4X4 @foo([9 x i32] %in.coerce)
@@ -80,8 +84,40 @@ void FuncOneMember(struct StructOneMember u) {
 }
 
 // AMD-LABEL: define void @FuncOneLargeMember(%struct.LargeStructOneMember addrspace(5)* byval align 8 %u)
+// AMD-NOT: addrspacecast
+// AMD:   store <2 x i32> %{{.*}}, <2 x i32> addrspace(5)*
 void FuncOneLargeMember(struct LargeStructOneMember u) {
   u.x[0] = (int2)(0, 0);
+}
+
+// AMD20-LABEL: define void @test_indirect_arg_globl()
+// AMD20:  %[[byval_temp:.*]] = alloca %struct.LargeStructOneMember, align 8, addrspace(5)
+// AMD20:  %[[r0:.*]] = bitcast %struct.LargeStructOneMember addrspace(5)* %[[byval_temp]] to i8 addrspace(5)*
+// AMD20:  call void @llvm.memcpy.p5i8.p1i8.i64(i8 addrspace(5)* %[[r0]], i8 addrspace(1)* bitcast (%struct.LargeStructOneMember addrspace(1)* @g_s to i8 addrspace(1)*), i64 800, i32 8, i1 false)
+// AMD20:  call void @FuncOneLargeMember(%struct.LargeStructOneMember addrspace(5)* byval align 8 %[[byval_temp]])
+#if __OPENCL_C_VERSION__ >= 200
+void test_indirect_arg_globl(void) {
+  FuncOneLargeMember(g_s);
+}
+#endif
+
+// AMD-LABEL: define amdgpu_kernel void @test_indirect_arg_local()
+// AMD: %[[byval_temp:.*]] = alloca %struct.LargeStructOneMember, align 8, addrspace(5)
+// AMD: %[[r0:.*]] = bitcast %struct.LargeStructOneMember addrspace(5)* %[[byval_temp]] to i8 addrspace(5)*
+// AMD: call void @llvm.memcpy.p5i8.p3i8.i64(i8 addrspace(5)* %[[r0]], i8 addrspace(3)* bitcast (%struct.LargeStructOneMember addrspace(3)* @test_indirect_arg_local.l_s to i8 addrspace(3)*), i64 800, i32 8, i1 false)
+// AMD: call void @FuncOneLargeMember(%struct.LargeStructOneMember addrspace(5)* byval align 8 %[[byval_temp]])
+kernel void test_indirect_arg_local(void) {
+  local struct LargeStructOneMember l_s;
+  FuncOneLargeMember(l_s);
+}
+
+// AMD-LABEL: define void @test_indirect_arg_private()
+// AMD: %[[p_s:.*]] = alloca %struct.LargeStructOneMember, align 8, addrspace(5)
+// AMD-NOT: @llvm.memcpy
+// AMD-NEXT: call void @FuncOneLargeMember(%struct.LargeStructOneMember addrspace(5)* byval align 8 %[[p_s]])
+void test_indirect_arg_private(void) {
+  struct LargeStructOneMember p_s;
+  FuncOneLargeMember(p_s);
 }
 
 // AMD-LABEL: define amdgpu_kernel void @KernelOneMember
@@ -111,7 +147,6 @@ void FuncTwoMember(struct StructTwoMember u) {
 void FuncLargeTwoMember(struct LargeStructTwoMember u) {
   u.y[0] = (int2)(0, 0);
 }
-
 
 // AMD-LABEL: define amdgpu_kernel void @KernelTwoMember
 // AMD-SAME:  (%struct.StructTwoMember %[[u_coerce:.*]])

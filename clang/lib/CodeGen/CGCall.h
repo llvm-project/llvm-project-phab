@@ -172,9 +172,10 @@ public:
     RValue RV;
     QualType Ty;
     bool NeedsCopy;
-    CallArg(RValue rv, QualType ty, bool needscopy)
-    : RV(rv), Ty(ty), NeedsCopy(needscopy)
-    { }
+    unsigned AS; /* Address space of indirect argument */
+    CallArg(RValue rv, QualType ty, bool needscopy,
+            unsigned _AS = LangAS::Default)
+        : RV(rv), Ty(ty), NeedsCopy(needscopy), AS(_AS) {}
   };
 
   /// CallArgList - Type for representing both the value and type of
@@ -204,8 +205,9 @@ public:
       llvm::Instruction *IsActiveIP;
     };
 
-    void add(RValue rvalue, QualType type, bool needscopy = false) {
-      push_back(CallArg(rvalue, type, needscopy));
+    void add(RValue rvalue, QualType type, bool needscopy = false,
+             unsigned AS = LangAS::Default) {
+      push_back(CallArg(rvalue, type, needscopy, AS));
     }
 
     /// Add all the arguments from another CallArgList to this one. After doing

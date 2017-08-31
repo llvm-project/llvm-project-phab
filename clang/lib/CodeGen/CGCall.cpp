@@ -3454,6 +3454,12 @@ struct DisableDebugLocationUpdates {
 void CodeGenFunction::EmitCallArg(CallArgList &args, const Expr *E,
                                   QualType type) {
   DisableDebugLocationUpdates Dis(*this, E);
+  unsigned AS = 0;
+  if (isa<ImplicitCastExpr>(E) &&
+      cast<CastExpr>(E)->getCastKind() == CK_LValueToRValue) {
+    AS = cast<CastExpr>(E)->getSubExpr()->getType().getAddressSpace();
+  }
+
   if (const ObjCIndirectCopyRestoreExpr *CRE
         = dyn_cast<ObjCIndirectCopyRestoreExpr>(E)) {
     assert(getLangOpts().ObjCAutoRefCount);
@@ -3465,7 +3471,7 @@ void CodeGenFunction::EmitCallArg(CallArgList &args, const Expr *E,
 
   if (E->isGLValue()) {
     assert(E->getObjectKind() == OK_Ordinary);
-    return args.add(EmitReferenceBindingToExpr(E), type);
+    return args.add(EmitReferenceBindingToExpr(E), type, false, AS);
   }
 
   bool HasAggregateEvalKind = hasAggregateEvaluationKind(type);
@@ -3492,7 +3498,7 @@ void CodeGenFunction::EmitCallArg(CallArgList &args, const Expr *E,
 
     EmitAggExpr(E, Slot);
     RValue RV = Slot.asRValue();
-    args.add(RV, type);
+    args.add(RV, type, false, AS);
 
     if (DestroyedInCallee) {
       // Create a no-op GEP between the placeholder and the cleanup so we can
@@ -3512,18 +3518,18 @@ void CodeGenFunction::EmitCallArg(CallArgList &args, const Expr *E,
     LValue L = EmitLValue(cast<CastExpr>(E)->getSubExpr());
     assert(L.isSimple());
     if (L.getAlignment() >= getContext().getTypeAlignInChars(type)) {
-      args.add(L.asAggregateRValue(), type, /*NeedsCopy*/true);
+      args.add(L.asAggregateRValue(), type, /*NeedsCopy*/ true, AS);
     } else {
       // We can't represent a misaligned lvalue in the CallArgList, so copy
       // to an aligned temporary now.
       Address tmp = CreateMemTemp(type);
       EmitAggregateCopy(tmp, L.getAddress(), type, L.isVolatile());
-      args.add(RValue::getAggregate(tmp), type);
+      args.add(RValue::getAggregate(tmp), type, false, AS);
     }
     return;
   }
 
-  args.add(EmitAnyExprToTemp(E), type);
+  args.add(EmitAnyExprToTemp(E), type, false, AS);
 }
 
 QualType CodeGenFunction::getVarArgType(const Expr *Arg) {
@@ -3819,6 +3825,12 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
     }
 
     case ABIArgInfo::Indirect: {
+      auto CastToAllocaAddrSpace = [&](llvm::Value *V) {
+        auto *T = V->getType()->getPointerElementType()->getPointerTo(
+            CGM.getDataLayout().getAllocaAddrSpace());
+        return getTargetHooks().performAddrSpaceCast(
+            *this, V, LangAS::Default, CGM.getASTAllocaAddressSpace(), T, true);
+      };
       assert(NumIRArgs == 1);
       if (RV.isScalar() || RV.isComplex()) {
         // Make a temporary alloca to pass the argument.
@@ -3836,21 +3848,21 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
         // 2. If the argument is byval, RV is not sufficiently aligned, and
         //    we cannot force it to be sufficiently aligned.
         // 3. If the argument is byval, but RV is located in an address space
-        //    different than that of the argument (0).
+        //    different than that of the argument (alloca address space).
         Address Addr = RV.getAggregateAddress();
         CharUnits Align = ArgInfo.getIndirectAlign();
         const llvm::DataLayout *TD = &CGM.getDataLayout();
-        const unsigned RVAddrSpace = Addr.getType()->getAddressSpace();
-        const unsigned ArgAddrSpace =
-            (FirstIRArg < IRFuncTy->getNumParams()
-                 ? IRFuncTy->getParamType(FirstIRArg)->getPointerAddressSpace()
-                 : 0);
+        const unsigned RVAddrSpace = I->AS;
+        assert((FirstIRArg >= IRFuncTy->getNumParams() ||
+             IRFuncTy->getParamType(FirstIRArg)->getPointerAddressSpace() ==
+             TD->getAllocaAddrSpace()) && "indirect argument must be in alloca address space");
         if ((!ArgInfo.getIndirectByVal() && I->NeedsCopy) ||
             (ArgInfo.getIndirectByVal() && Addr.getAlignment() < Align &&
              llvm::getOrEnforceKnownAlignment(Addr.getPointer(),
-                                              Align.getQuantity(), *TD)
-               < Align.getQuantity()) ||
-            (ArgInfo.getIndirectByVal() && (RVAddrSpace != ArgAddrSpace))) {
+                                              Align.getQuantity(),
+                                              *TD) < Align.getQuantity()) ||
+            (ArgInfo.getIndirectByVal() && RVAddrSpace != LangAS::Default &&
+             RVAddrSpace != CGM.getASTAllocaAddressSpace())) {
           // Create an aligned temporary, and copy to it.
           Address AI = CreateMemTemp(I->Ty, ArgInfo.getIndirectAlign(),
                                      "byval-temp", false);
@@ -3858,7 +3870,7 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
           EmitAggregateCopy(AI, Addr, I->Ty, RV.isVolatileQualified());
         } else {
           // Skip the extra memcpy call.
-          IRCallArgs[FirstIRArg] = Addr.getPointer();
+          IRCallArgs[FirstIRArg] = CastToAllocaAddrSpace(Addr.getPointer());
         }
       }
       break;
