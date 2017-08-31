@@ -397,29 +397,6 @@ static bool isEphemeralValueOf(const Instruction *I, const Value *E) {
   return false;
 }
 
-// Is this an intrinsic that cannot be speculated but also cannot trap?
-static bool isAssumeLikeIntrinsic(const Instruction *I) {
-  if (const CallInst *CI = dyn_cast<CallInst>(I))
-    if (Function *F = CI->getCalledFunction())
-      switch (F->getIntrinsicID()) {
-      default: break;
-      // FIXME: This list is repeated from NoTTI::getIntrinsicCost.
-      case Intrinsic::assume:
-      case Intrinsic::dbg_declare:
-      case Intrinsic::dbg_value:
-      case Intrinsic::invariant_start:
-      case Intrinsic::invariant_end:
-      case Intrinsic::lifetime_start:
-      case Intrinsic::lifetime_end:
-      case Intrinsic::objectsize:
-      case Intrinsic::ptr_annotation:
-      case Intrinsic::var_annotation:
-        return true;
-      }
-
-  return false;
-}
-
 bool llvm::isValidAssumeForContext(const Instruction *Inv,
                                    const Instruction *CxtI,
                                    const DominatorTree *DT) {
@@ -457,12 +434,18 @@ bool llvm::isValidAssumeForContext(const Instruction *Inv,
         return true;
   }
 
+  // Don't let an assume affect itself - this would cause the problems
+  // `isEphemeralValueOf` is trying to prevent, and it would also make
+  // the loop below go out of bounds.
+  if (Inv == CxtI)
+    return false;
+
   // The context comes first, but they're both in the same block. Make sure
   // there is nothing in between that might interrupt the control flow.
   for (BasicBlock::const_iterator I =
          std::next(BasicBlock::const_iterator(CxtI)), IE(Inv);
        I != IE; ++I)
-    if (!isSafeToSpeculativelyExecute(&*I) && !isAssumeLikeIntrinsic(&*I))
+    if (!isGuaranteedToTransferExecutionToSuccessor(&*I))
       return false;
 
   return !isEphemeralValueOf(Inv, CxtI);
@@ -3597,7 +3580,7 @@ static bool checkRippleForSignedAdd(const KnownBits &LHSKnown,
 
   // If either of the values is known to be non-negative, adding them can only
   // overflow if the second is also non-negative, so we can assume that.
-  // Two non-negative numbers will only overflow if there is a carry to the 
+  // Two non-negative numbers will only overflow if there is a carry to the
   // sign bit, so we can check if even when the values are as big as possible
   // there is no overflow to the sign bit.
   if (LHSKnown.isNonNegative() || RHSKnown.isNonNegative()) {
@@ -3624,7 +3607,7 @@ static bool checkRippleForSignedAdd(const KnownBits &LHSKnown,
   }
 
   // If we reached here it means that we know nothing about the sign bits.
-  // In this case we can't know if there will be an overflow, since by 
+  // In this case we can't know if there will be an overflow, since by
   // changing the sign bits any two values can be made to overflow.
   return false;
 }
@@ -3674,7 +3657,7 @@ static OverflowResult computeOverflowForSignedAdd(const Value *LHS,
   // operands.
   bool LHSOrRHSKnownNonNegative =
       (LHSKnown.isNonNegative() || RHSKnown.isNonNegative());
-  bool LHSOrRHSKnownNegative = 
+  bool LHSOrRHSKnownNegative =
       (LHSKnown.isNegative() || RHSKnown.isNegative());
   if (LHSOrRHSKnownNonNegative || LHSOrRHSKnownNegative) {
     KnownBits AddKnown = computeKnownBits(Add, DL, /*Depth=*/0, AC, CxtI, DT);
@@ -3819,8 +3802,12 @@ bool llvm::isGuaranteedToTransferExecutionToSuccessor(const Instruction *I) {
 
     // FIXME: This isn't aggressive enough; a call which only writes to a global
     // is guaranteed to return.
+
     return CS.onlyReadsMemory() || CS.onlyAccessesArgMemory() ||
-           match(I, m_Intrinsic<Intrinsic::assume>());
+           match(I, m_Intrinsic<Intrinsic::assume>()) ||
+           match(I, m_Intrinsic<Intrinsic::annotation>()) ||
+           match(I, m_Intrinsic<Intrinsic::ptr_annotation>()) ||
+           match(I, m_Intrinsic<Intrinsic::var_annotation>());
   }
 
   // Other instructions return normally.
