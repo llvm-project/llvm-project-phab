@@ -224,10 +224,10 @@ namespace clang {
       void *OldContext = Ctx.getInlineAsmDiagnosticContext();
       Ctx.setInlineAsmDiagnosticHandler(InlineAsmDiagHandler, this);
 
-      LLVMContext::DiagnosticHandlerTy OldDiagnosticHandler =
-          Ctx.getDiagnosticHandler();
-      void *OldDiagnosticContext = Ctx.getDiagnosticContext();
-      Ctx.setDiagnosticHandler(DiagnosticHandler, this);
+      //LLVMContext::DiagnosticHandlerTy OldDiagnosticHandler =
+      //    Ctx.getDiagnosticHandler();
+     // void *OldDiagnosticContext = Ctx.getDiagnosticContext();
+     // Ctx.setDiagnosticHandler(DiagnosticHandler, this);
       Ctx.setDiagnosticsHotnessRequested(CodeGenOpts.DiagnosticsWithHotness);
       if (CodeGenOpts.DiagnosticsHotnessThreshold != 0)
         Ctx.setDiagnosticsHotnessThreshold(
@@ -264,7 +264,7 @@ namespace clang {
 
       Ctx.setInlineAsmDiagnosticHandler(OldHandler, OldContext);
 
-      Ctx.setDiagnosticHandler(OldDiagnosticHandler, OldDiagnosticContext);
+      //Ctx.setDiagnosticHandler(OldDiagnosticHandler, OldDiagnosticContext);
 
       if (OptRecordFile)
         OptRecordFile->keep();
@@ -756,6 +756,31 @@ void BackendConsumer::DiagnosticHandlerImpl(const DiagnosticInfo &DI) {
 }
 #undef ComputeDiagID
 
+class ClangDiagnosticHandler final : public DiagnosticHandler {
+  public:
+  ClangDiagnosticHandler(const CodeGenOptions &CGOpts, void *DiagContext)
+    : DiagnosticHandler(DiagContext), CodeGenOpts(CGOpts) {}
+
+  bool handleDiagnostics(const DiagnosticInfo &DI) override {
+    ((BackendConsumer *)DiagnosticContext)->DiagnosticHandlerImpl(DI);
+    return true;
+  }
+  bool isAnalysisRemarkEnable(const std::string &PassName) {
+  return (CodeGenOpts.OptimizationRemarkAnalysisPattern 
+            && CodeGenOpts.OptimizationRemarkAnalysisPattern->match(PassName));
+  }
+	bool isMissedOptRemarkEnable(const std::string &PassName) {
+    return (CodeGenOpts.OptimizationRemarkMissedPattern 
+            && CodeGenOpts.OptimizationRemarkMissedPattern->match(PassName));
+  }
+	bool isPassedOptRemarkEnable(const std::string &PassName) {
+    return (CodeGenOpts.OptimizationRemarkPattern 
+            && CodeGenOpts.OptimizationRemarkPattern->match(PassName));
+  }
+  private:
+    const CodeGenOptions &CodeGenOpts; 
+};
+
 CodeGenAction::CodeGenAction(unsigned _Act, LLVMContext *_VMContext)
     : Act(_Act), VMContext(_VMContext ? _VMContext : new LLVMContext),
       OwnsVMContext(!_VMContext) {}
@@ -853,7 +878,8 @@ CodeGenAction::CreateASTConsumer(CompilerInstance &CI, StringRef InFile) {
       CI.getLangOpts(), CI.getFrontendOpts().ShowTimers, InFile,
       std::move(LinkModules), std::move(OS), *VMContext, CoverageInfo));
   BEConsumer = Result.get();
-
+  VMContext->setDiagnosticHandler(
+    llvm::make_unique<ClangDiagnosticHandler>(CI.getCodeGenOpts(), Result.get()));
   // Enable generating macro debug info only when debug info is not disabled and
   // also macro debug info is enabled.
   if (CI.getCodeGenOpts().getDebugInfo() != codegenoptions::NoDebugInfo &&
