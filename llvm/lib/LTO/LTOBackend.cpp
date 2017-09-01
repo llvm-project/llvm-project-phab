@@ -241,7 +241,7 @@ static void runOldPMPasses(Config &Conf, Module &Mod, TargetMachine *TM,
 
   PassManagerBuilder PMB;
   PMB.LibraryInfo = new TargetLibraryInfoImpl(Triple(TM->getTargetTriple()));
-  PMB.Inliner = createFunctionInliningPass();
+  PMB.Inliner = createFunctionInliningPass(ImportSummary->getInlineDecision());
   PMB.ExportSummary = ExportSummary;
   PMB.ImportSummary = ImportSummary;
   // Unconditionally verify input since it is not verified before this

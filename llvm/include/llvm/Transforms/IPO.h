@@ -14,6 +14,7 @@
 
 #ifndef LLVM_TRANSFORMS_IPO_H
 #define LLVM_TRANSFORMS_IPO_H
+#include "llvm/Transforms/IPO/ThinInline.h"
 
 #include <functional>
 #include <vector>
@@ -107,6 +108,7 @@ Pass *createFunctionImportPass();
 /// The -inline-threshold command line option takes precedence over the
 /// threshold given here.
 Pass *createFunctionInliningPass();
+Pass *createFunctionInliningPass(const ThinInlineDecision *InlineDecision);
 Pass *createFunctionInliningPass(int Threshold);
 Pass *createFunctionInliningPass(unsigned OptLevel, unsigned SizeOptLevel,
                                  bool DisableInlineHotCallSite);

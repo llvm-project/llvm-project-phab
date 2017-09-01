@@ -30,6 +30,7 @@
 #include "llvm/Support/thread.h"
 #include "llvm/Target/TargetOptions.h"
 #include "llvm/Transforms/IPO/FunctionImport.h"
+#include "llvm/Transforms/IPO/ThinInline.h"
 
 namespace llvm {
 
@@ -301,6 +302,7 @@ private:
     ModuleSummaryIndex CombinedIndex;
     MapVector<StringRef, BitcodeModule> ModuleMap;
     DenseMap<GlobalValue::GUID, StringRef> PrevailingModuleForGUID;
+    ThinInlineDecision InlineDecision;
   } ThinLTO;
 
   // The global resolution for a particular (mangled) symbol name. This is in

@@ -40,6 +40,7 @@
 #include "llvm/Target/TargetOptions.h"
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/IPO/PassManagerBuilder.h"
+#include "llvm/Transforms/IPO/ThinInline.h"
 #include "llvm/Transforms/Utils/SplitModule.h"
 
 #include <set>
@@ -821,11 +822,14 @@ protected:
   ModuleSummaryIndex &CombinedIndex;
   const StringMap<GVSummaryMapTy> &ModuleToDefinedGVSummaries;
 
+  ThinInlineDecision *InlineDecision;
+
 public:
   ThinBackendProc(Config &Conf, ModuleSummaryIndex &CombinedIndex,
                   const StringMap<GVSummaryMapTy> &ModuleToDefinedGVSummaries)
       : Conf(Conf), CombinedIndex(CombinedIndex),
-        ModuleToDefinedGVSummaries(ModuleToDefinedGVSummaries) {}
+        ModuleToDefinedGVSummaries(ModuleToDefinedGVSummaries),
+        InlineDecision(nullptr) {}
 
   virtual ~ThinBackendProc() {}
   virtual Error start(
@@ -835,6 +839,10 @@ public:
       const std::map<GlobalValue::GUID, GlobalValue::LinkageTypes> &ResolvedODR,
       MapVector<StringRef, BitcodeModule> &ModuleMap) = 0;
   virtual Error wait() = 0;
+
+  void setInlineDecision(ThinInlineDecision *Decision) {
+    InlineDecision = Decision;
+  }
 };
 
 namespace {
@@ -1035,7 +1043,8 @@ public:
                       sys::fs::OpenFlags::F_None);
     if (EC)
       return errorCodeToError(EC);
-    WriteIndexToFile(CombinedIndex, OS, &ModuleToSummariesForIndex);
+    WriteIndexToFile(CombinedIndex, OS, &ModuleToSummariesForIndex,
+                     InlineDecision);
 
     if (ShouldEmitImportsFiles)
       return errorCodeToError(
@@ -1092,6 +1101,8 @@ Error LTO::runThinLTO(AddStreamFn AddStream, NativeObjectCache Cache,
   StringMap<std::map<GlobalValue::GUID, GlobalValue::LinkageTypes>> ResolvedODR;
 
   if (Conf.OptLevel > 0) {
+    auto TI = ThinInline(ThinLTO.CombinedIndex);
+    TI.ComputeThinInlineDecision(ThinLTO.InlineDecision);
     ComputeCrossModuleImport(ThinLTO.CombinedIndex, ModuleToDefinedGVSummaries,
                              ImportLists, ExportLists);
 
@@ -1142,6 +1153,8 @@ Error LTO::runThinLTO(AddStreamFn AddStream, NativeObjectCache Cache,
   std::unique_ptr<ThinBackendProc> BackendProc =
       ThinLTO.Backend(Conf, ThinLTO.CombinedIndex, ModuleToDefinedGVSummaries,
                       AddStream, Cache);
+
+  BackendProc->setInlineDecision(&ThinLTO.InlineDecision);
 
   // Task numbers start at ParallelCodeGenParallelismLevel if an LTO
   // module is present, as tasks 0 through ParallelCodeGenParallelismLevel-1

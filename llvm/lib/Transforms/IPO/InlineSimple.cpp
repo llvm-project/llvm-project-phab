@@ -47,6 +47,11 @@ public:
     initializeSimpleInlinerPass(*PassRegistry::getPassRegistry());
   }
 
+  SimpleInliner(const ThinInlineDecision *InlineDecision)
+      : LegacyInlinerBase(ID, InlineDecision), Params(llvm::getInlineParams()) {
+    initializeSimpleInlinerPass(*PassRegistry::getPassRegistry());
+  }
+
   explicit SimpleInliner(InlineParams Params)
       : LegacyInlinerBase(ID), Params(std::move(Params)) {
     initializeSimpleInlinerPass(*PassRegistry::getPassRegistry());
@@ -98,6 +103,11 @@ INITIALIZE_PASS_END(SimpleInliner, "inline", "Function Integration/Inlining",
                     false, false)
 
 Pass *llvm::createFunctionInliningPass() { return new SimpleInliner(); }
+
+Pass *
+llvm::createFunctionInliningPass(const ThinInlineDecision *InlineDecision) {
+  return new SimpleInliner(InlineDecision);
+}
 
 Pass *llvm::createFunctionInliningPass(int Threshold) {
   return new SimpleInliner(llvm::getInlineParams(Threshold));

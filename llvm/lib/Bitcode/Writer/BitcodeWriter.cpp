@@ -354,6 +354,8 @@ class IndexBitcodeWriter : public BitcodeWriterBase {
   /// Tracks the last value id recorded in the GUIDToValueMap.
   unsigned GlobalValueId = 0;
 
+  const ThinInlineDecision *InlineDecision;
+
 public:
   /// Constructs a IndexBitcodeWriter object for the given combined index,
   /// writing to the provided \p Buffer. When writing a subset of the index
@@ -361,9 +363,11 @@ public:
   IndexBitcodeWriter(BitstreamWriter &Stream, StringTableBuilder &StrtabBuilder,
                      const ModuleSummaryIndex &Index,
                      const std::map<std::string, GVSummaryMapTy>
-                         *ModuleToSummariesForIndex = nullptr)
+                         *ModuleToSummariesForIndex = nullptr,
+                     const ThinInlineDecision *InlineDecision = nullptr)
       : BitcodeWriterBase(Stream, StrtabBuilder), Index(Index),
-        ModuleToSummariesForIndex(ModuleToSummariesForIndex) {
+        ModuleToSummariesForIndex(ModuleToSummariesForIndex),
+        InlineDecision(InlineDecision) {
     // Assign unique value ids to all summaries to be written, for use
     // in writing out the call graph edges. Save the mapping from GUID
     // to the new global value id to use when writing those edges, which
@@ -421,6 +425,7 @@ public:
 private:
   void writeModStrings();
   void writeCombinedGlobalValueSummary();
+  void writeThinInlineDecision();
 
   Optional<unsigned> getValueId(GlobalValue::GUID ValGUID) {
     auto VMI = GUIDToValueIdMap.find(ValGUID);
@@ -3313,6 +3318,7 @@ void ModuleBitcodeWriterBase::writePerModuleFunctionSummaryRecord(
   bool HasProfileData = F.getEntryCount().hasValue();
   for (auto &ECI : FS->calls()) {
     NameVals.push_back(getValueId(ECI.first));
+    NameVals.push_back(static_cast<uint8_t>(ECI.second.InlineFlag));
     if (HasProfileData)
       NameVals.push_back(static_cast<uint8_t>(ECI.second.Hotness));
   }
@@ -3693,6 +3699,25 @@ void IndexBitcodeWriter::writeCombinedGlobalValueSummary() {
   Stream.ExitBlock();
 }
 
+// Write the thin inline decision into bitcode.
+void IndexBitcodeWriter::writeThinInlineDecision() {
+  if (!InlineDecision)
+    return;
+  Stream.EnterSubblock(bitc::THIN_INLINE_BLOCK_ID, 3);
+
+  for (auto &D : *InlineDecision)
+    // FIXME: Change the GUID to ValueID.
+    // Try to do this before, but it seems some GUID is not in the GUIDToValueID
+    // map.
+    Stream.EmitRecord(bitc::THIN_INLINE_EDGE_INFO,
+                      ArrayRef<uint64_t>{ThinInlineDecision::getCallerGUID(D),
+                                         ThinInlineDecision::getCalleeGUID(D),
+                                         ThinInlineDecision::getCSID(D),
+                                         ThinInlineDecision::getNewCSID(D)});
+
+  Stream.ExitBlock();
+}
+
 /// Create the "IDENTIFICATION_BLOCK_ID" containing a single string with the
 /// current llvm version, and a record for the epoch number.
 static void writeIdentificationBlock(BitstreamWriter &Stream) {
@@ -3966,9 +3991,10 @@ void BitcodeWriter::writeModule(const Module *M,
 
 void BitcodeWriter::writeIndex(
     const ModuleSummaryIndex *Index,
-    const std::map<std::string, GVSummaryMapTy> *ModuleToSummariesForIndex) {
+    const std::map<std::string, GVSummaryMapTy> *ModuleToSummariesForIndex,
+    const ThinInlineDecision *InlineDecision) {
   IndexBitcodeWriter IndexWriter(*Stream, StrtabBuilder, *Index,
-                                 ModuleToSummariesForIndex);
+                                 ModuleToSummariesForIndex, InlineDecision);
   IndexWriter.write();
 }
 
@@ -4011,6 +4037,9 @@ void IndexBitcodeWriter::write() {
   // Write the summary combined index records.
   writeCombinedGlobalValueSummary();
 
+  // Write the thin inline decision records.
+  writeThinInlineDecision();
+
   Stream.ExitBlock();
 }
 
@@ -4020,12 +4049,13 @@ void IndexBitcodeWriter::write() {
 // index for a distributed backend, provide a \p ModuleToSummariesForIndex map.
 void llvm::WriteIndexToFile(
     const ModuleSummaryIndex &Index, raw_ostream &Out,
-    const std::map<std::string, GVSummaryMapTy> *ModuleToSummariesForIndex) {
+    const std::map<std::string, GVSummaryMapTy> *ModuleToSummariesForIndex,
+    const ThinInlineDecision *InlineDecision) {
   SmallVector<char, 0> Buffer;
   Buffer.reserve(256 * 1024);
 
   BitcodeWriter Writer(Buffer);
-  Writer.writeIndex(&Index, ModuleToSummariesForIndex);
+  Writer.writeIndex(&Index, ModuleToSummariesForIndex, InlineDecision);
   Writer.writeStrtab();
 
   Out.write((char *)&Buffer.front(), Buffer.size());

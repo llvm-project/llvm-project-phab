@@ -34,6 +34,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Transforms/IPO/ThinInline.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/Local.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"
@@ -81,6 +82,16 @@ cl::opt<InlinerFunctionImportStatsOpts> InlinerFunctionImportStats(
 
 LegacyInlinerBase::LegacyInlinerBase(char &ID)
     : CallGraphSCCPass(ID), InsertLifetime(true) {}
+
+LegacyInlinerBase::LegacyInlinerBase(char &ID,
+                                     const ThinInlineDecision *InlineDecision)
+    : CallGraphSCCPass(ID), InsertLifetime(true),
+      InlineDecision(InlineDecision) {
+  if (InlineDecision)
+    for (const auto I : *InlineDecision)
+      InlinedEdgesMap[{ThinInlineDecision::getCallerGUID(I),
+                       ThinInlineDecision::getCalleeGUID(I)}] = 0;
+}
 
 LegacyInlinerBase::LegacyInlinerBase(char &ID, bool InsertLifetime)
     : CallGraphSCCPass(ID), InsertLifetime(InsertLifetime) {}
@@ -335,6 +346,22 @@ shouldBeDeferred(Function *Caller, CallSite CS, InlineCost IC,
   return false;
 }
 
+static Optional<InlineCost>
+shouldInline(CallSite CS,
+             LegacyInlinerBase::InlinedEdgesMapTy &InlinedEdgesMap) {
+  Function *Caller = CS.getCaller();
+  Function *Callee = CS.getCalledFunction();
+  auto CallerGUID = GlobalValue::getGUID(Caller->getName());
+  auto CalleeGUID = GlobalValue::getGUID(Callee->getName());
+  if (InlinedEdgesMap.find({CallerGUID, CalleeGUID}) != InlinedEdgesMap.end()) {
+    if (InlinedEdgesMap[{CallerGUID, CalleeGUID}] > 10)
+      return None;
+    InlinedEdgesMap[{CallerGUID, CalleeGUID}]++;
+    return llvm::InlineCost::getAlways();
+  }
+  return None;
+}
+
 /// Return the cost only if the inliner should attempt to inline at the given
 /// CallSite. If we return the cost, we will emit an optimisation remark later
 /// using that cost, so we won't do so from this function.
@@ -431,7 +458,8 @@ inlineCallsImpl(CallGraphSCC &SCC, CallGraph &CG,
                 bool InsertLifetime,
                 function_ref<InlineCost(CallSite CS)> GetInlineCost,
                 function_ref<AAResults &(Function &)> AARGetter,
-                ImportedFunctionsInliningStatistics &ImportedFunctionsStats) {
+                ImportedFunctionsInliningStatistics &ImportedFunctionsStats,
+                LegacyInlinerBase::InlinedEdgesMapTy &InlinedEdgesMap) {
   SmallPtrSet<Function *, 8> SCCFunctions;
   DEBUG(dbgs() << "Inliner visiting SCC:");
   for (CallGraphNode *Node : SCC) {
@@ -505,12 +533,16 @@ inlineCallsImpl(CallGraphSCC &SCC, CallGraph &CG,
   // it looks profitable to do so.
   bool Changed = false;
   bool LocalChange;
+  auto CallSitesThreshold = CallSites.size() * 10;
   do {
     LocalChange = false;
     // Iterate over the outer loop because inlining functions can cause indirect
     // calls to become direct calls.
     // CallSites may be modified inside so ranged for loop can not be used.
     for (unsigned CSi = 0; CSi != CallSites.size(); ++CSi) {
+      if (CallSites.size() > CallSitesThreshold)
+        break;
+
       CallSite CS = CallSites[CSi].first;
 
       Function *Caller = CS.getCaller();
@@ -542,11 +574,21 @@ inlineCallsImpl(CallGraphSCC &SCC, CallGraph &CG,
       // just become a regular analysis dependency.
       OptimizationRemarkEmitter ORE(Caller);
 
-      Optional<InlineCost> OIC = shouldInline(CS, GetInlineCost, ORE);
-      // If the policy determines that we should inline this function,
-      // delete the call instead.
-      if (!OIC)
-        continue;
+      int C, T;
+      if (InlinedEdgesMap.empty()) {
+        Optional<InlineCost> OIC = shouldInline(CS, GetInlineCost, ORE);
+        // If the policy determines that we should inline this function,
+        // delete the call instead.
+        if (!OIC)
+          continue;
+        C = OIC->getCost();
+        T = OIC->getThreshold();
+      } else {
+        Optional<InlineCost> OIC = std::move(shouldInline(CS, InlinedEdgesMap));
+        C = OIC->getCost();
+        T = OIC->getThreshold();
+      }
+      InlineCost IC = InlineCost::get(C, T);
 
       // If this call site is dead and it is to a readonly function, we should
       // just delete the call instead of trying to inline it, regardless of
@@ -576,7 +618,7 @@ inlineCallsImpl(CallGraphSCC &SCC, CallGraph &CG,
         }
         ++NumInlined;
 
-        if (OIC->isAlways())
+        if (IC.isAlways())
           ORE.emit(OptimizationRemark(DEBUG_TYPE, "AlwaysInline", DLoc, Block)
                    << NV("Callee", Callee) << " inlined into "
                    << NV("Caller", Caller) << " with cost=always");
@@ -584,8 +626,8 @@ inlineCallsImpl(CallGraphSCC &SCC, CallGraph &CG,
           ORE.emit(OptimizationRemark(DEBUG_TYPE, "Inlined", DLoc, Block)
                    << NV("Callee", Callee) << " inlined into "
                    << NV("Caller", Caller)
-                   << " with cost=" << NV("Cost", OIC->getCost())
-                   << " (threshold=" << NV("Threshold", OIC->getThreshold())
+                   << " with cost=" << NV("Cost", IC.getCost())
+                   << " (threshold=" << NV("Threshold", IC.getThreshold())
                    << ")");
 
         // If inlining this function gave us any new call sites, throw them
@@ -653,7 +695,8 @@ bool LegacyInlinerBase::inlineCalls(CallGraphSCC &SCC) {
   };
   return inlineCallsImpl(SCC, CG, GetAssumptionCache, PSI, TLI, InsertLifetime,
                          [this](CallSite CS) { return getInlineCost(CS); },
-                         LegacyAARGetter(*this), ImportedFunctionsStats);
+                         LegacyAARGetter(*this), ImportedFunctionsStats,
+                         InlinedEdgesMap);
 }
 
 /// Remove now-dead linkonce functions at the end of

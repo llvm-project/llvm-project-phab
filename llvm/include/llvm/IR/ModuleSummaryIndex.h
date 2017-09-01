@@ -56,8 +56,25 @@ struct CalleeInfo {
   };
   HotnessType Hotness = HotnessType::Unknown;
 
+  // The order of this CallSite in Caller.
+  // Defualt as 0, which means unset. Starts from 1.
+  uint32_t CSID = 0;
+
+  // The inline flag from metadata.
+  enum class InlineFlagType : uint8_t { Default = 0, Always = 1, Never = 2 };
+  InlineFlagType InlineFlag = InlineFlagType::Default;
+
+  // Set as true if this CallSite is inlined by ThinInline,
+  // so that it will be forced imported.
+  bool ThinInlined = false;
+
   CalleeInfo() = default;
   explicit CalleeInfo(HotnessType Hotness) : Hotness(Hotness) {}
+  CalleeInfo(HotnessType Hotness, uint32_t CSID,
+             InlineFlagType InlineFlag = InlineFlagType::Default,
+             bool ThinInlined = false)
+      : Hotness(Hotness), CSID(CSID), InlineFlag(InlineFlag),
+        ThinInlined(ThinInlined) {}
 
   void updateHotness(const HotnessType OtherHotness) {
     Hotness = std::max(Hotness, OtherHotness);
@@ -541,6 +558,8 @@ using ModulePathStringTableTy = StringMap<std::pair<uint64_t, ModuleHash>>;
 /// a particular module, and provide efficient access to their summary.
 using GVSummaryMapTy = DenseMap<GlobalValue::GUID, GlobalValueSummary *>;
 
+class ThinInlineDecision;
+
 /// Class to hold module path string table and global value map,
 /// and encapsulate methods for operating on them.
 class ModuleSummaryIndex {
@@ -576,6 +595,12 @@ private:
   getOrInsertValuePtr(GlobalValue::GUID GUID) {
     return &*GlobalValueMap.emplace(GUID, GlobalValueSummaryInfo{}).first;
   }
+
+  // FIXME: Not sure how to properly add another parameter to LTOBackend, so
+  // currently cannot pass the Thin Inline Decision out from BitcodeReader. For
+  // now, just use the Module Summary Index to pass it out as a temperary
+  // method.
+  ThinInlineDecision *InlineDecision;
 
 public:
   gvsummary_iterator begin() { return GlobalValueMap.begin(); }
@@ -652,6 +677,12 @@ public:
       OidGuidMap[OrigGUID] = 0;
     else
       OidGuidMap[OrigGUID] = ValueGUID;
+  }
+
+  ThinInlineDecision *getInlineDecision() { return InlineDecision; }
+  ThinInlineDecision *getInlineDecision() const { return InlineDecision; }
+  void setInlineDecision(ThinInlineDecision *Decision) {
+    InlineDecision = Decision;
   }
 
   /// Find the summary for global \p GUID in module \p ModuleId, or nullptr if

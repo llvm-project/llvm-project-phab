@@ -130,6 +130,8 @@ static const char *GetBlockName(unsigned BlockID,
   case bitc::MODULE_STRTAB_BLOCK_ID:       return "MODULE_STRTAB_BLOCK";
   case bitc::STRTAB_BLOCK_ID:              return "STRTAB_BLOCK";
   case bitc::SYMTAB_BLOCK_ID:              return "SYMTAB_BLOCK";
+  case bitc::THIN_INLINE_BLOCK_ID:
+    return "THIN_INLINE_BLOCK";
   }
 }
 
@@ -402,6 +404,12 @@ static const char *GetCodeName(unsigned CodeID, unsigned BlockID,
     switch(CodeID) {
     default: return nullptr;
     case bitc::SYMTAB_BLOB: return "BLOB";
+    }
+  case bitc::THIN_INLINE_BLOCK_ID:
+    switch (CodeID) {
+    default:
+      return nullptr;
+      STRINGIFY_CODE(THIN_INLINE, EDGE_INFO);
     }
   }
 #undef STRINGIFY_CODE

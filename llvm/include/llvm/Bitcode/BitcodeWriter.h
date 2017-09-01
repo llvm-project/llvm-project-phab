@@ -16,6 +16,7 @@
 
 #include "llvm/IR/ModuleSummaryIndex.h"
 #include "llvm/MC/StringTableBuilder.h"
+#include "llvm/Transforms/IPO/ThinInline.h"
 #include <string>
 
 namespace llvm {
@@ -96,7 +97,8 @@ namespace llvm {
 
     void writeIndex(
         const ModuleSummaryIndex *Index,
-        const std::map<std::string, GVSummaryMapTy> *ModuleToSummariesForIndex);
+        const std::map<std::string, GVSummaryMapTy> *ModuleToSummariesForIndex,
+        const ThinInlineDecision *InlineDecision = nullptr);
   };
 
   /// \brief Write the specified module to the specified raw output stream.
@@ -144,7 +146,8 @@ namespace llvm {
   /// map.
   void WriteIndexToFile(const ModuleSummaryIndex &Index, raw_ostream &Out,
                         const std::map<std::string, GVSummaryMapTy>
-                            *ModuleToSummariesForIndex = nullptr);
+                            *ModuleToSummariesForIndex = nullptr,
+                        const ThinInlineDecision *InlineDecision = nullptr);
 } // End llvm namespace
 
 #endif

@@ -61,6 +61,8 @@ enum BlockIDs {
   SYMTAB_BLOCK_ID,
 
   SYNC_SCOPE_NAMES_BLOCK_ID,
+
+  THIN_INLINE_BLOCK_ID,
 };
 
 /// Identification block contains a string that describes the producer details,
@@ -576,6 +578,10 @@ enum StrtabCodes {
 
 enum SymtabCodes {
   SYMTAB_BLOB = 1,
+};
+
+enum ThinInlineCode {
+  THIN_INLINE_EDGE_INFO = 1,
 };
 
 } // End bitc namespace

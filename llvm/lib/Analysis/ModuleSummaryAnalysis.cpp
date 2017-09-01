@@ -24,6 +24,7 @@
 #include "llvm/Analysis/BlockFrequencyInfo.h"
 #include "llvm/Analysis/BranchProbabilityInfo.h"
 #include "llvm/Analysis/IndirectCallPromotionAnalysis.h"
+#include "llvm/Analysis/InlineCost.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/ProfileSummaryInfo.h"
 #include "llvm/Analysis/TypeMetadataUtils.h"
@@ -103,6 +104,32 @@ static CalleeInfo::HotnessType getHotness(uint64_t ProfileCount,
   if (PSI->isColdCount(ProfileCount))
     return CalleeInfo::HotnessType::Cold;
   return CalleeInfo::HotnessType::None;
+}
+
+// TODO: Add more inline examination.
+static CalleeInfo::InlineFlagType getInlineFlag(ImmutableCallSite &CS) {
+  auto Caller = CS.getCaller();
+  auto Callee = CS.getCalledFunction();
+  // If no Caller or Callee, should return Default or Never?
+  if (!Caller || !Callee)
+    return CalleeInfo::InlineFlagType::Default;
+  // Calls to functions with always-inline attributes should be inlined
+  // whenever possible.
+  if (CS.hasFnAttr(Attribute::AlwaysInline))
+    return CalleeInfo::InlineFlagType::Always;
+
+  // Don't inline this call if the caller has the optnone attribute.
+  if (Caller->hasFnAttribute(Attribute::OptimizeNone))
+    return CalleeInfo::InlineFlagType::Never;
+
+  // Don't inline functions which can be interposed at link-time.  Don't inline
+  // functions marked noinline or call sites marked noinline.
+  // Note: inlining non-exact non-interposable functions is fine, since we know
+  // we have *a* correct implementation of the source level function.
+  if (Callee->isInterposable() || Callee->hasFnAttribute(Attribute::NoInline) ||
+      CS.isNoInline())
+    return CalleeInfo::InlineFlagType::Never;
+  return CalleeInfo::InlineFlagType::Default;
 }
 
 static bool isNonRenamableLocal(const GlobalValue &GV) {
@@ -207,7 +234,7 @@ computeFunctionSummary(ModuleSummaryIndex &Index, const Module &M,
   unsigned NumInsts = 0;
   // Map from callee ValueId to profile count. Used to accumulate profile
   // counts for all static calls to a given callee.
-  MapVector<ValueInfo, CalleeInfo> CallGraphEdges;
+  std::vector<FunctionSummary::EdgeTy> CallGraphEdges;
   SetVector<ValueInfo> RefEdges;
   SetVector<GlobalValue::GUID> TypeTests;
   SetVector<FunctionSummary::VFuncId> TypeTestAssumeVCalls,
@@ -218,6 +245,8 @@ computeFunctionSummary(ModuleSummaryIndex &Index, const Module &M,
 
   bool HasInlineAsmMaybeReferencingInternal = false;
   SmallPtrSet<const User *, 8> Visited;
+  // CallSite Order. Note that it starts from 1.
+  uint32_t CSO = 0;
   for (const BasicBlock &BB : F)
     for (const Instruction &I : BB) {
       if (isa<DbgInfoIntrinsic>(I))
@@ -264,9 +293,9 @@ computeFunctionSummary(ModuleSummaryIndex &Index, const Module &M,
         // to record the call edge to the alias in that case. Eventually
         // an alias summary will be created to associate the alias and
         // aliasee.
-        CallGraphEdges[Index.getOrInsertValueInfo(
-                           cast<GlobalValue>(CalledValue))]
-            .updateHotness(Hotness);
+        CallGraphEdges.push_back(std::make_pair(
+            Index.getOrInsertValueInfo(cast<GlobalValue>(CalledValue)),
+            CalleeInfo(Hotness, ++CSO, getInlineFlag(CS))));
       } else {
         // Skip inline assembly calls.
         if (CI && CI->isInlineAsm())
@@ -281,16 +310,20 @@ computeFunctionSummary(ModuleSummaryIndex &Index, const Module &M,
             ICallAnalysis.getPromotionCandidatesForInstruction(
                 &I, NumVals, TotalCount, NumCandidates);
         for (auto &Candidate : CandidateProfileData)
-          CallGraphEdges[Index.getOrInsertValueInfo(Candidate.Value)]
-              .updateHotness(getHotness(Candidate.Count, PSI));
+          CallGraphEdges.push_back(
+              std::make_pair(Index.getOrInsertValueInfo(Candidate.Value),
+                             CalleeInfo(getHotness(Candidate.Count, PSI), ++CSO,
+                                        getInlineFlag(CS))));
       }
     }
 
   // Explicit add hot edges to enforce importing for designated GUIDs for
   // sample PGO, to enable the same inlines as the profiled optimized binary.
   for (auto &I : F.getImportGUIDs())
-    CallGraphEdges[Index.getOrInsertValueInfo(I)].updateHotness(
-        CalleeInfo::HotnessType::Critical);
+    CallGraphEdges.push_back(
+        std::make_pair(Index.getOrInsertValueInfo(I),
+                       CalleeInfo(CalleeInfo::HotnessType::Critical, ++CSO,
+                                  CalleeInfo::InlineFlagType::Always)));
 
   bool NonRenamableLocal = isNonRenamableLocal(F);
   bool NotEligibleForImport =
@@ -307,9 +340,9 @@ computeFunctionSummary(ModuleSummaryIndex &Index, const Module &M,
       F.returnDoesNotAlias(),
   };
   auto FuncSummary = llvm::make_unique<FunctionSummary>(
-      Flags, NumInsts, FunFlags, RefEdges.takeVector(),
-      CallGraphEdges.takeVector(), TypeTests.takeVector(),
-      TypeTestAssumeVCalls.takeVector(), TypeCheckedLoadVCalls.takeVector(),
+      Flags, NumInsts, FunFlags, RefEdges.takeVector(), CallGraphEdges,
+      TypeTests.takeVector(), TypeTestAssumeVCalls.takeVector(),
+      TypeCheckedLoadVCalls.takeVector(),
       TypeTestAssumeConstVCalls.takeVector(),
       TypeCheckedLoadConstVCalls.takeVector());
   if (NonRenamableLocal)

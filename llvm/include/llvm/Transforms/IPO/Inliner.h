@@ -15,6 +15,7 @@
 #include "llvm/Analysis/InlineCost.h"
 #include "llvm/Analysis/LazyCallGraph.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
+#include "llvm/Transforms/IPO/ThinInline.h"
 #include "llvm/Transforms/Utils/ImportedFunctionsInliningStatistics.h"
 
 namespace llvm {
@@ -30,6 +31,8 @@ class ProfileSummaryInfo;
 /// bottom-up inlining infrastructure that specific inliner passes use.
 struct LegacyInlinerBase : public CallGraphSCCPass {
   explicit LegacyInlinerBase(char &ID);
+  explicit LegacyInlinerBase(char &ID,
+                             const ThinInlineDecision *InlineDecision);
   explicit LegacyInlinerBase(char &ID, bool InsertLifetime);
 
   /// For this class, we declare that we require and preserve the call graph.
@@ -67,9 +70,16 @@ struct LegacyInlinerBase : public CallGraphSCCPass {
   /// this function unconditionally.
   bool inlineCalls(CallGraphSCC &SCC);
 
+  using InlinedEdgesMapTy =
+      std::map<std::pair<GlobalValue::GUID, GlobalValue::GUID>, unsigned>;
+
 private:
   // Insert @llvm.lifetime intrinsics.
   bool InsertLifetime;
+
+  const ThinInlineDecision *InlineDecision;
+
+  InlinedEdgesMapTy InlinedEdgesMap;
 
 protected:
   AssumptionCacheTracker *ACT;

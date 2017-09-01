@@ -72,6 +72,7 @@
 #include "llvm/Support/ManagedStatic.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Transforms/IPO/ThinInline.h"
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
@@ -734,11 +735,12 @@ private:
       uint64_t Offset,
       DenseMap<unsigned, GlobalValue::LinkageTypes> &ValueIdToLinkageMap);
   std::vector<ValueInfo> makeRefList(ArrayRef<uint64_t> Record);
-  std::vector<FunctionSummary::EdgeTy> makeCallList(ArrayRef<uint64_t> Record,
-                                                    bool IsOldProfileFormat,
-                                                    bool HasProfile);
+  std::vector<FunctionSummary::EdgeTy>
+  makeCallList(ArrayRef<uint64_t> Record, bool IsOldProfileFormat,
+               bool HasProfile, bool WithThinInlineInfo = false);
   Error parseEntireSummary(unsigned ID);
   Error parseModuleStringTable();
+  Error parseThinInlineBlock();
 
   std::pair<ValueInfo, GlobalValue::GUID>
   getValueInfoFromValueId(unsigned ValueId);
@@ -4932,6 +4934,10 @@ Error ModuleSummaryIndexBitcodeReader::parseModule() {
         if (Error Err = parseModuleStringTable())
           return Err;
         break;
+      case bitc::THIN_INLINE_BLOCK_ID:
+        if (Error Err = parseThinInlineBlock())
+          return Err;
+        break;
       }
       continue;
 
@@ -5013,20 +5019,27 @@ ModuleSummaryIndexBitcodeReader::makeRefList(ArrayRef<uint64_t> Record) {
   return Ret;
 }
 
-std::vector<FunctionSummary::EdgeTy> ModuleSummaryIndexBitcodeReader::makeCallList(
-    ArrayRef<uint64_t> Record, bool IsOldProfileFormat, bool HasProfile) {
+std::vector<FunctionSummary::EdgeTy>
+ModuleSummaryIndexBitcodeReader::makeCallList(ArrayRef<uint64_t> Record,
+                                              bool IsOldProfileFormat,
+                                              bool HasProfile,
+                                              bool WithThinInlineInfo) {
   std::vector<FunctionSummary::EdgeTy> Ret;
   Ret.reserve(Record.size());
-  for (unsigned I = 0, E = Record.size(); I != E; ++I) {
+  for (unsigned I = 0, E = Record.size(), CSO = 0; I != E; ++I) {
     CalleeInfo::HotnessType Hotness = CalleeInfo::HotnessType::Unknown;
     ValueInfo Callee = getValueInfoFromValueId(Record[I]).first;
+    CalleeInfo::InlineFlagType InlineFlag = CalleeInfo::InlineFlagType::Default;
+    if (WithThinInlineInfo)
+      InlineFlag = static_cast<CalleeInfo::InlineFlagType>(Record[++I]);
     if (IsOldProfileFormat) {
       I += 1; // Skip old callsitecount field
       if (HasProfile)
         I += 1; // Skip old profilecount field
     } else if (HasProfile)
       Hotness = static_cast<CalleeInfo::HotnessType>(Record[++I]);
-    Ret.push_back(FunctionSummary::EdgeTy{Callee, CalleeInfo{Hotness}});
+    Ret.push_back(FunctionSummary::EdgeTy{
+        Callee, CalleeInfo{Hotness, ++CSO, InlineFlag}});
   }
   return Ret;
 }
@@ -5133,7 +5146,7 @@ Error ModuleSummaryIndexBitcodeReader::parseEntireSummary(unsigned ID) {
       bool HasProfile = (BitCode == bitc::FS_PERMODULE_PROFILE);
       std::vector<FunctionSummary::EdgeTy> Calls = makeCallList(
           ArrayRef<uint64_t>(Record).slice(CallGraphEdgeStartIndex),
-          IsOldProfileFormat, HasProfile);
+          IsOldProfileFormat, HasProfile, /*WithThinInlineInfo = */ true);
       auto FS = llvm::make_unique<FunctionSummary>(
           Flags, InstCount, getDecodedFFlags(RawFunFlags), std::move(Refs),
           std::move(Calls), std::move(PendingTypeTests),
@@ -5403,6 +5416,46 @@ Error ModuleSummaryIndexBitcodeReader::parseModuleStringTable() {
       LastSeenModule = nullptr;
       break;
     }
+    }
+  }
+  llvm_unreachable("Exit infinite loop");
+}
+
+// Parse the thin inline block.
+Error ModuleSummaryIndexBitcodeReader::parseThinInlineBlock() {
+  if (Stream.EnterSubBlock(bitc::THIN_INLINE_BLOCK_ID))
+    return error("Invalid record");
+
+  SmallVector<uint64_t, 64> Record;
+
+  TheIndex.setInlineDecision(new ThinInlineDecision());
+
+  while (true) {
+    BitstreamEntry Entry = Stream.advanceSkippingSubblocks();
+
+    switch (Entry.Kind) {
+    case BitstreamEntry::SubBlock: // Handled for us already.
+    case BitstreamEntry::Error:
+      return error("Malformed block");
+    case BitstreamEntry::EndBlock:
+      return Error::success();
+    case BitstreamEntry::Record:
+      // The interesting case.
+      break;
+    }
+
+    Record.clear();
+    switch (Stream.readRecord(Entry.ID, Record)) {
+    default: // Default behavior: ignore.
+      break;
+    case bitc::THIN_INLINE_EDGE_INFO:
+      uint32_t CallerGUID = Record[0];
+      uint32_t CalleeGUID = Record[1];
+      uint32_t CSID = Record[2];
+      uint32_t NewCSID = Record[3];
+      TheIndex.getInlineDecision()->push_back(
+          std::make_tuple(CallerGUID, CalleeGUID, CSID, NewCSID));
+      break;
     }
   }
   llvm_unreachable("Exit infinite loop");
