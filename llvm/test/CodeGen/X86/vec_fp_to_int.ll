@@ -2399,51 +2399,37 @@ define <4 x i32> @fptosi_2f80_to_4i32(<2 x x86_fp80> %a) nounwind {
 define <4 x i32> @fptosi_2f128_to_4i32(<2 x fp128> %a) nounwind {
 ; SSE-LABEL: fptosi_2f128_to_4i32:
 ; SSE:       # BB#0:
-; SSE-NEXT:    pushq %r14
-; SSE-NEXT:    pushq %rbx
-; SSE-NEXT:    subq $24, %rsp
-; SSE-NEXT:    movq %rsi, %r14
-; SSE-NEXT:    movq %rdi, %rbx
-; SSE-NEXT:    movq %rdx, %rdi
-; SSE-NEXT:    movq %rcx, %rsi
+; SSE-NEXT:    subq $40, %rsp
+; SSE-NEXT:    movaps %xmm0, {{[0-9]+}}(%rsp) # 16-byte Spill
+; SSE-NEXT:    movaps %xmm1, %xmm0
 ; SSE-NEXT:    callq __fixtfdi
 ; SSE-NEXT:    movq %rax, %xmm0
 ; SSE-NEXT:    movdqa %xmm0, (%rsp) # 16-byte Spill
-; SSE-NEXT:    movq %rbx, %rdi
-; SSE-NEXT:    movq %r14, %rsi
+; SSE-NEXT:    movaps {{[0-9]+}}(%rsp), %xmm0 # 16-byte Reload
 ; SSE-NEXT:    callq __fixtfdi
 ; SSE-NEXT:    movq %rax, %xmm0
 ; SSE-NEXT:    punpcklqdq (%rsp), %xmm0 # 16-byte Folded Reload
 ; SSE-NEXT:    # xmm0 = xmm0[0],mem[0]
 ; SSE-NEXT:    xorps %xmm1, %xmm1
 ; SSE-NEXT:    shufps {{.*#+}} xmm0 = xmm0[0,2],xmm1[2,3]
-; SSE-NEXT:    addq $24, %rsp
-; SSE-NEXT:    popq %rbx
-; SSE-NEXT:    popq %r14
+; SSE-NEXT:    addq $40, %rsp
 ; SSE-NEXT:    retq
 ;
 ; AVX-LABEL: fptosi_2f128_to_4i32:
 ; AVX:       # BB#0:
-; AVX-NEXT:    pushq %r14
-; AVX-NEXT:    pushq %rbx
-; AVX-NEXT:    subq $24, %rsp
-; AVX-NEXT:    movq %rsi, %r14
-; AVX-NEXT:    movq %rdi, %rbx
-; AVX-NEXT:    movq %rdx, %rdi
-; AVX-NEXT:    movq %rcx, %rsi
+; AVX-NEXT:    subq $40, %rsp
+; AVX-NEXT:    vmovaps %xmm0, {{[0-9]+}}(%rsp) # 16-byte Spill
+; AVX-NEXT:    vmovaps %xmm1, %xmm0
 ; AVX-NEXT:    callq __fixtfdi
 ; AVX-NEXT:    vmovq %rax, %xmm0
 ; AVX-NEXT:    vmovdqa %xmm0, (%rsp) # 16-byte Spill
-; AVX-NEXT:    movq %rbx, %rdi
-; AVX-NEXT:    movq %r14, %rsi
+; AVX-NEXT:    vmovaps {{[0-9]+}}(%rsp), %xmm0 # 16-byte Reload
 ; AVX-NEXT:    callq __fixtfdi
 ; AVX-NEXT:    vmovq %rax, %xmm0
 ; AVX-NEXT:    vpunpcklqdq (%rsp), %xmm0, %xmm0 # 16-byte Folded Reload
 ; AVX-NEXT:    # xmm0 = xmm0[0],mem[0]
 ; AVX-NEXT:    vinsertps {{.*#+}} xmm0 = xmm0[0,2],zero,zero
-; AVX-NEXT:    addq $24, %rsp
-; AVX-NEXT:    popq %rbx
-; AVX-NEXT:    popq %r14
+; AVX-NEXT:    addq $40, %rsp
 ; AVX-NEXT:    retq
   %cvt = fptosi <2 x fp128> %a to <2 x i32>
   %ext = shufflevector <2 x i32> %cvt, <2 x i32> zeroinitializer, <4 x i32> <i32 0, i32 1, i32 2, i32 3>

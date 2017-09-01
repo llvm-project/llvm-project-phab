@@ -606,9 +606,9 @@ X86TargetLowering::X86TargetLowering(const X86TargetMachine &TM,
   setOperationAction(ISD::FMA, MVT::f64, Expand);
   setOperationAction(ISD::FMA, MVT::f32, Expand);
 
-  // Long double always uses X87, except f128 in MMX.
+  // Long double always uses X87, except f128 in SSE.
   if (UseX87) {
-    if (Subtarget.is64Bit() && Subtarget.hasMMX()) {
+    if (Subtarget.is64Bit() && Subtarget.hasSSE1()) {
       addRegisterClass(MVT::f128, &X86::FR128RegClass);
       ValueTypeActions.setTypeAction(MVT::f128, TypeSoftenFloat);
       setOperationAction(ISD::FABS , MVT::f128, Custom);
