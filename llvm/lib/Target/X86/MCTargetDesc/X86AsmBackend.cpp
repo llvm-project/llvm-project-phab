@@ -13,6 +13,8 @@
 #include "llvm/BinaryFormat/ELF.h"
 #include "llvm/BinaryFormat/MachO.h"
 #include "llvm/MC/MCAsmBackend.h"
+#include "llvm/MC/MCAssembler.h"
+#include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCELFObjectWriter.h"
 #include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCFixupKindInfo.h"
@@ -57,6 +59,35 @@ static unsigned getFixupKindLog2Size(unsigned Kind) {
   case FK_Data_8:
   case X86::reloc_global_offset_table8:
     return 3;
+  }
+}
+
+static bool isFixupRelative(unsigned Kind) {
+  switch (Kind) {
+  default:
+    llvm_unreachable("invalid fixup kind!");
+  case FK_Data_1:
+  case FK_Data_2:
+  case FK_Data_4:
+  case FK_Data_8:
+  case X86::reloc_signed_4byte:
+  case X86::reloc_signed_4byte_relax:
+  case X86::reloc_global_offset_table8:
+  case X86::reloc_global_offset_table:
+    return false;
+  case FK_PCRel_1:
+  case FK_SecRel_1:
+  case FK_PCRel_2:
+  case FK_SecRel_2:
+  case FK_PCRel_4:
+  case FK_SecRel_4:
+  case X86::reloc_riprel_4byte:
+  case X86::reloc_riprel_4byte_relax:
+  case X86::reloc_riprel_4byte_relax_rex:
+  case X86::reloc_riprel_4byte_movq_load:
+  case FK_PCRel_8:
+  case FK_SecRel_8:
+    return true;
   }
 }
 
@@ -119,8 +150,19 @@ public:
     // Specifically ignore overflow/underflow as long as the leakage is
     // limited to the lower bits. This is to remain compatible with
     // other assemblers.
-    assert(isIntN(Size * 8 + 1, Value) &&
-           "Value does not fit in the Fixup field");
+    if (isFixupRelative(Fixup.getKind())) {
+      if (!isIntN(Size * 8, Value)) {
+        Asm.getContext().reportError(Fixup.getLoc(),
+                                     "Value " + Twine(int64_t(Value)) +
+                                         " does not fit in the Fixup field");
+      }
+    } else {
+      if (!isIntN((Size * 8) + 1, Value)) {
+        Asm.getContext().reportError(Fixup.getLoc(),
+                                     "Value " + Twine(Value) +
+                                         " does not fit in the Fixup field");
+      }
+    }
 
     for (unsigned i = 0; i != Size; ++i)
       Data[Fixup.getOffset() + i] = uint8_t(Value >> (i * 8));
