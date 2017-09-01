@@ -186,31 +186,37 @@ endif()
 split_list(LIBCXX_COMPILE_FLAGS)
 split_list(LIBCXX_LINK_FLAGS)
 
+macro(add_msvcrt_defs_if_needed target)
+  if(WIN32 AND NOT MINGW)
+    target_compile_definitions(${target}
+                               PRIVATE
+                                 # Ignore the -MSC_VER mismatch, as we may build
+                                 # with a different compatibility version.
+                                 _ALLOW_MSC_VER_MISMATCH
+                                 # Don't check the msvcprt iterator debug levels
+                                 # as we will define the iterator types; libc++
+                                 # uses a different macro to identify the debug
+                                 # level.
+                                 _ALLOW_ITERATOR_DEBUG_LEVEL_MISMATCH
+                                 # We are building the c++ runtime, don't pull in
+                                 # msvcprt.
+                                 _CRTBLD
+                                 # Don't warn on the use of "deprecated"
+                                 # "insecure" functions which are standards
+                                 # specified.
+                                 _CRT_SECURE_NO_WARNINGS
+                                 # Use the ISO conforming behaviour for conversion
+                                 # in printf, scanf.
+                                 _CRT_STDIO_ISO_WIDE_SPECIFIERS)
+  endif()
+endmacro()
+
 # Add an object library that contains the compiled source files.
 add_library(cxx_objects OBJECT ${exclude_from_all} ${LIBCXX_SOURCES} ${LIBCXX_HEADERS})
-if(WIN32 AND NOT MINGW)
-  target_compile_definitions(cxx_objects
-                             PRIVATE
-                               # Ignore the -MSC_VER mismatch, as we may build
-                               # with a different compatibility version.
-                               _ALLOW_MSC_VER_MISMATCH
-                               # Don't check the msvcprt iterator debug levels
-                               # as we will define the iterator types; libc++
-                               # uses a different macro to identify the debug
-                               # level.
-                               _ALLOW_ITERATOR_DEBUG_LEVEL_MISMATCH
-                               # We are building the c++ runtime, don't pull in
-                               # msvcprt.
-                               _CRTBLD
-                               # Don't warn on the use of "deprecated"
-                               # "insecure" functions which are standards
-                               # specified.
-                               _CRT_SECURE_NO_WARNINGS
-                               # Use the ISO conforming behaviour for conversion
-                               # in printf, scanf.
-                               _CRT_STDIO_ISO_WIDE_SPECIFIERS)
-endif()
-
+target_compile_definitions(cxx_objects
+                           PRIVATE
+                             _LIBCPP_BUILDING_LIBRARY)
+add_msvcrt_defs_if_needed(cxx_objects)
 set_target_properties(cxx_objects
   PROPERTIES
     COMPILE_FLAGS "${LIBCXX_COMPILE_FLAGS}"
@@ -285,7 +291,13 @@ if (LIBCXX_ENABLE_EXPERIMENTAL_LIBRARY)
   if (LIBCXX_ENABLE_FILESYSTEM)
     file(GLOB LIBCXX_FILESYSTEM_SOURCES ../src/experimental/filesystem/*.cpp)
   endif()
+
   add_library(cxx_experimental STATIC ${LIBCXX_EXPERIMENTAL_SOURCES} ${LIBCXX_FILESYSTEM_SOURCES})
+  target_compile_definitions(cxx_experimental
+                             PRIVATE
+                               _LIBCPPX_BUILDING_LIBRARY)
+  add_msvcrt_defs_if_needed(cxx_experimental)
+
   if (LIBCXX_ENABLE_SHARED)
     target_link_libraries(cxx_experimental cxx_shared)
   else()
@@ -313,6 +325,9 @@ if (LIBCXX_BUILD_EXTERNAL_THREAD_LIBRARY)
     add_library(cxx_external_threads STATIC ${LIBCXX_EXTERNAL_THREADING_SUPPORT_SOURCES})
   endif()
 
+  target_compile_definitions(cxx_external_threads
+                             PRIVATE
+                               _LIBCPP_BUILDING_LIBRARY)
   set_target_properties(cxx_external_threads
     PROPERTIES
       LINK_FLAGS    "${LIBCXX_LINK_FLAGS}"
