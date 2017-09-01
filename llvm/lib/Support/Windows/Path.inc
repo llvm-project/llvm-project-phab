@@ -414,7 +414,9 @@ std::error_code rename(const Twine &from, const Twine &to) {
 
     DWORD MoveError = ::GetLastError();
     ec = mapWindowsError(MoveError);
-    if (MoveError != ERROR_ACCESS_DENIED) break;
+    if (MoveError != ERROR_ACCESS_DENIED &&
+        MoveError != ERROR_SHARING_VIOLATION)
+      break;
   }
 
   return ec;
