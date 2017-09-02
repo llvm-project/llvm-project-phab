@@ -56,7 +56,10 @@ The improvements are...
 
 Improvements to clang-tidy
 --------------------------
+- New `cert-msc54-cpp
+  <http://clang.llvm.org/extra/clang-tidy/checks/cert-msc54-cpp.html>`_ check
 
+<<<<<<< 2f301f50187ede4b9b8c7456ac4a67b9f7418004
 - Renamed checks to use correct term "implicit conversion" instead of "implicit
   cast" and modified messages and option names accordingly:
 
@@ -143,6 +146,9 @@ Improvements to clang-tidy
   option.
 
 - Added alias `hicpp-braces-around-statements <http://clang.llvm.org/extra/clang-tidy/checks/hicpp-braces-around-statements.html>`_ 
+=======
+  Checks if a signal handler is an 'extern \"C\" function without C++ constructs.
+>>>>>>> [clang-tidy] signal handler must be plain old function check
 
 Improvements to include-fixer
 -----------------------------

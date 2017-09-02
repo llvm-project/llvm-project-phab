@@ -8,6 +8,7 @@ add_clang_library(clangTidyCERTModule
   LimitedRandomnessCheck.cpp
   PostfixOperatorCheck.cpp
   SetLongJmpCheck.cpp
+  SignalHandlerMustBePlainOldFunctionCheck.cpp
   StaticObjectExceptionCheck.cpp
   StrToNumCheck.cpp
   ThrownExceptionTypeCheck.cpp
