@@ -56,6 +56,10 @@ The improvements are...
 
 Improvements to clang-tidy
 --------------------------
+- New `cert-msc54-cpp
+  <http://clang.llvm.org/extra/clang-tidy/checks/cert-msc54-cpp.html>`_ check
+
+  Checks if a signal handler is an 'extern \"C\" function without C++ constructs.
 
 - Renamed checks to use correct term "implicit conversion" instead of "implicit
   cast" and modified messages and option names accordingly:
