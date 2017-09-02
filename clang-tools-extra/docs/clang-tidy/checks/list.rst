@@ -20,6 +20,7 @@ Clang-Tidy Checks
    bugprone-integer-division
    bugprone-suspicious-memset-usage
    bugprone-undefined-memory-manipulation
+   cert-exp36-c
    cert-dcl03-c (redirects to misc-static-assert) <cert-dcl03-c>
    cert-dcl21-cpp
    cert-dcl50-cpp

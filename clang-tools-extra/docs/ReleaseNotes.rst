@@ -56,6 +56,10 @@ The improvements are...
 
 Improvements to clang-tidy
 --------------------------
+- New `cert-exp36-c
+  <http://clang.llvm.org/extra/clang-tidy/checks/cert-exp36-c.html>`_ check
+
+  Checks if a pointer value is casted to a more stricter alignment.
 
 - Renamed checks to use correct term "implicit conversion" instead of "implicit
   cast" and modified messages and option names accordingly:
@@ -143,7 +147,7 @@ Improvements to clang-tidy
   option.
 
 - Added alias `hicpp-braces-around-statements <http://clang.llvm.org/extra/clang-tidy/checks/hicpp-braces-around-statements.html>`_ 
-
+  
 Improvements to include-fixer
 -----------------------------
 
