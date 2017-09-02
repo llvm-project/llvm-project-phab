@@ -593,6 +593,10 @@ if (CLANG_ENABLE_BOOTSTRAP)
     add_dependencies(clang-bootstrap-deps compiler-rt)
   endif()
 
+  if(CLANG_BOOTSTRAP_USE_LIBCXX)
+    add_dependencies(clang-bootstrap-deps cxx)
+  endif()
+
   set(C_COMPILER "clang")
   set(CXX_COMPILER "clang++")
   if(WIN32)
