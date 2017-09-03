@@ -556,6 +556,10 @@ void CodeGenFunction::EmitLabelStmt(const LabelStmt &S) {
 
 void CodeGenFunction::EmitAttributedStmt(const AttributedStmt &S) {
   const Stmt *SubStmt = S.getSubStmt();
+
+  // Generate a stoppoint if we are emitting debug info.
+  EmitStopPoint(SubStmt);
+
   switch (SubStmt->getStmtClass()) {
   case Stmt::DoStmtClass:
     EmitDoStmt(cast<DoStmt>(*SubStmt), S.getAttrs());
