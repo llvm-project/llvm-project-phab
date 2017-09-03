@@ -1,6 +1,6 @@
-; RUN: opt -S -O1 -mtriple=amdgcn-- -amdgpu-simplify-libcall <%s | FileCheck -check-prefix=GCN -check-prefix=GCN-POSTLINK %s
-; RUN: opt -S -O1 -mtriple=amdgcn-- -amdgpu-simplify-libcall -amdgpu-prelink <%s | FileCheck -check-prefix=GCN -check-prefix=GCN-PRELINK %s
-; RUN: opt -S -O1 -mtriple=amdgcn-- -amdgpu-use-native -amdgpu-prelink <%s | FileCheck -check-prefix=GCN -check-prefix=GCN-NATIVE %s
+; RUN: opt -S -O1 -mtriple=amdgcn-- -amdgpu-simplify-libcall -instnamer <%s | FileCheck -check-prefix=GCN -check-prefix=GCN-POSTLINK %s
+; RUN: opt -S -O1 -mtriple=amdgcn-- -amdgpu-simplify-libcall -amdgpu-prelink -instnamer <%s | FileCheck -check-prefix=GCN -check-prefix=GCN-PRELINK %s
+; RUN: opt -S -O1 -mtriple=amdgcn-- -amdgpu-use-native -amdgpu-prelink -instnamer <%s | FileCheck -check-prefix=GCN -check-prefix=GCN-NATIVE %s
 
 ; GCN-LABEL: {{^}}define amdgpu_kernel void @test_sincos
 ; GCN-POSTLINK: tail call fast float @_Z3sinf(
@@ -299,8 +299,8 @@ entry:
 ; GCN: %__powx2 = fmul fast float %tmp, %tmp
 ; GCN: %__powx21 = fmul fast float %__powx2, %__powx2
 ; GCN: %__powx22 = fmul fast float %__powx2, %tmp
-; GCN: %0 = fmul fast float %__powx21, %__powx21
-; GCN: %__powprod3 = fmul fast float %0, %__powx22
+; GCN: %[[r0:.*]] = fmul fast float %__powx21, %__powx21
+; GCN: %__powprod3 = fmul fast float %[[r0]], %__powx22
 define amdgpu_kernel void @test_pow_c(float addrspace(1)* nocapture %a) {
 entry:
   %arrayidx = getelementptr inbounds float, float addrspace(1)* %a, i64 1
@@ -314,8 +314,8 @@ entry:
 ; GCN: %__powx2 = fmul fast float %tmp, %tmp
 ; GCN: %__powx21 = fmul fast float %__powx2, %__powx2
 ; GCN: %__powx22 = fmul fast float %__powx2, %tmp
-; GCN: %0 = fmul fast float %__powx21, %__powx21
-; GCN: %__powprod3 = fmul fast float %0, %__powx22
+; GCN: %[[r0:.*]] = fmul fast float %__powx21, %__powx21
+; GCN: %__powprod3 = fmul fast float %[[r0]], %__powx22
 define amdgpu_kernel void @test_powr_c(float addrspace(1)* nocapture %a) {
 entry:
   %arrayidx = getelementptr inbounds float, float addrspace(1)* %a, i64 1
@@ -331,8 +331,8 @@ declare float @_Z4powrff(float, float)
 ; GCN: %__powx2 = fmul fast float %tmp, %tmp
 ; GCN: %__powx21 = fmul fast float %__powx2, %__powx2
 ; GCN: %__powx22 = fmul fast float %__powx2, %tmp
-; GCN: %0 = fmul fast float %__powx21, %__powx21
-; GCN: %__powprod3 = fmul fast float %0, %__powx22
+; GCN: %[[r0:.*]] = fmul fast float %__powx21, %__powx21
+; GCN: %__powprod3 = fmul fast float %[[r0]], %__powx22
 define amdgpu_kernel void @test_pown_c(float addrspace(1)* nocapture %a) {
 entry:
   %arrayidx = getelementptr inbounds float, float addrspace(1)* %a, i64 1
@@ -350,12 +350,12 @@ declare float @_Z4pownfi(float, i32)
 ; GCN-PRELINK: %__log2 = tail call fast float @_Z4log2f(float %__fabs)
 ; GCN-PRELINK: %__ylogx = fmul fast float %__log2, 1.013000e+03
 ; GCN-PRELINK: %__exp2 = tail call fast float @_Z4exp2f(float %__ylogx)
-; GCN-PRELINK: %0 = bitcast float %tmp to i32
-; GCN-PRELINK: %__pow_sign = and i32 %0, -2147483648
-; GCN-PRELINK: %1 = bitcast float %__exp2 to i32
-; GCN-PRELINK: %2 = or i32 %__pow_sign, %1
-; GCN-PRELINK: %3 = bitcast float addrspace(1)* %a to i32 addrspace(1)*
-; GCN-PRELINK: store i32 %2, i32 addrspace(1)* %3, align 4
+; GCN-PRELINK: %[[r0:.*]] = bitcast float %tmp to i32
+; GCN-PRELINK: %__pow_sign = and i32 %[[r0]], -2147483648
+; GCN-PRELINK: %[[r1:.*]] = bitcast float %__exp2 to i32
+; GCN-PRELINK: %[[r2:.*]] = or i32 %__pow_sign, %[[r1]]
+; GCN-PRELINK: %[[r3:.*]] = bitcast float addrspace(1)* %a to i32 addrspace(1)*
+; GCN-PRELINK: store i32 %[[r2]], i32 addrspace(1)* %[[r3]], align 4
 define amdgpu_kernel void @test_pow(float addrspace(1)* nocapture %a) {
 entry:
   %tmp = load float, float addrspace(1)* %a, align 4
@@ -393,12 +393,12 @@ entry:
 ; GCN-PRELINK: %__ylogx = fmul fast float %__log2, %pownI2F
 ; GCN-PRELINK: %__exp2 = tail call fast float @_Z4exp2f(float %__ylogx)
 ; GCN-PRELINK: %__yeven = shl i32 %conv, 31
-; GCN-PRELINK: %0 = bitcast float %tmp to i32
-; GCN-PRELINK: %__pow_sign = and i32 %__yeven, %0
-; GCN-PRELINK: %1 = bitcast float %__exp2 to i32
-; GCN-PRELINK: %2 = or i32 %__pow_sign, %1
-; GCN-PRELINK: %3 = bitcast float addrspace(1)* %a to i32 addrspace(1)*
-; GCN-PRELINK: store i32 %2, i32 addrspace(1)* %3, align 4
+; GCN-PRELINK: %[[r0:.*]] = bitcast float %tmp to i32
+; GCN-PRELINK: %__pow_sign = and i32 %__yeven, %[[r0]]
+; GCN-PRELINK: %[[r1:.*]] = bitcast float %__exp2 to i32
+; GCN-PRELINK: %[[r2:.*]] = or i32 %__pow_sign, %[[r1]]
+; GCN-PRELINK: %[[r3:.*]] = bitcast float addrspace(1)* %a to i32 addrspace(1)*
+; GCN-PRELINK: store i32 %[[r2]], i32 addrspace(1)* %[[r3]], align 4
 define amdgpu_kernel void @test_pown(float addrspace(1)* nocapture %a) {
 entry:
   %tmp = load float, float addrspace(1)* %a, align 4
@@ -692,3 +692,96 @@ entry:
 }
 
 declare float @_Z6sincosfPU3AS4f(float, float addrspace(4)*)
+
+%opencl.pipe_t = type opaque
+%opencl.reserve_id_t = type opaque
+
+; GCN-LABEL: {{^}}define amdgpu_kernel void @test_read_pipe(%opencl.pipe_t addrspace(1)* %p, i32 addrspace(1)* %ptr)
+; GCN-PRELINK: call i32 @__read_pipe_2_4(%opencl.pipe_t addrspace(1)* %{{.*}}, i32 addrspace(4)* %{{.*}}) #[[NOUNWIND:[0-9]+]]
+; GCN-PRELINK: call i32 @__read_pipe_4_4(%opencl.pipe_t addrspace(1)* %{{.*}}, %opencl.reserve_id_t* %{{.*}}, i32 2, i32 addrspace(4)* %{{.*}}) #[[NOUNWIND]]
+define amdgpu_kernel void @test_read_pipe(%opencl.pipe_t addrspace(1)* %p, i32 addrspace(1)* %ptr) local_unnamed_addr {
+entry:
+  %0 = bitcast i32 addrspace(1)* %ptr to i8 addrspace(1)*
+  %1 = addrspacecast i8 addrspace(1)* %0 to i8 addrspace(4)*
+  %2 = tail call i32 @__read_pipe_2(%opencl.pipe_t addrspace(1)* %p, i8 addrspace(4)* %1, i32 4, i32 4) #0
+  %3 = tail call %opencl.reserve_id_t* @__reserve_read_pipe(%opencl.pipe_t addrspace(1)* %p, i32 2, i32 4, i32 4)
+  %4 = tail call i32 @__read_pipe_4(%opencl.pipe_t addrspace(1)* %p, %opencl.reserve_id_t* %3, i32 2, i8 addrspace(4)* %1, i32 4, i32 4) #0
+  tail call void @__commit_read_pipe(%opencl.pipe_t addrspace(1)* %p, %opencl.reserve_id_t* %3, i32 4, i32 4)
+  ret void
+}
+
+declare i32 @__read_pipe_2(%opencl.pipe_t addrspace(1)*, i8 addrspace(4)*, i32, i32)
+
+declare %opencl.reserve_id_t* @__reserve_read_pipe(%opencl.pipe_t addrspace(1)*, i32, i32, i32)
+
+declare i32 @__read_pipe_4(%opencl.pipe_t addrspace(1)*, %opencl.reserve_id_t*, i32, i8 addrspace(4)*, i32, i32)
+
+declare void @__commit_read_pipe(%opencl.pipe_t addrspace(1)*, %opencl.reserve_id_t*, i32, i32)
+
+; GCN-LABEL: {{^}}define amdgpu_kernel void @test_write_pipe(%opencl.pipe_t addrspace(1)* %p, i32 addrspace(1)* %ptr)
+; GCN-PRELINK: call i32 @__write_pipe_2_4(%opencl.pipe_t addrspace(1)* %{{.*}}, i32 addrspace(4)* %{{.*}}) #[[NOUNWIND]]
+; GCN-PRELINK: call i32 @__write_pipe_4_4(%opencl.pipe_t addrspace(1)* %{{.*}}, %opencl.reserve_id_t* %{{.*}}, i32 2, i32 addrspace(4)* %{{.*}}) #[[NOUNWIND]]
+define amdgpu_kernel void @test_write_pipe(%opencl.pipe_t addrspace(1)* %p, i32 addrspace(1)* %ptr) local_unnamed_addr {
+entry:
+  %0 = bitcast i32 addrspace(1)* %ptr to i8 addrspace(1)*
+  %1 = addrspacecast i8 addrspace(1)* %0 to i8 addrspace(4)*
+  %2 = tail call i32 @__write_pipe_2(%opencl.pipe_t addrspace(1)* %p, i8 addrspace(4)* %1, i32 4, i32 4) #0
+  %3 = tail call %opencl.reserve_id_t* @__reserve_write_pipe(%opencl.pipe_t addrspace(1)* %p, i32 2, i32 4, i32 4) #0
+  %4 = tail call i32 @__write_pipe_4(%opencl.pipe_t addrspace(1)* %p, %opencl.reserve_id_t* %3, i32 2, i8 addrspace(4)* %1, i32 4, i32 4) #0
+  tail call void @__commit_write_pipe(%opencl.pipe_t addrspace(1)* %p, %opencl.reserve_id_t* %3, i32 4, i32 4) #0
+  ret void
+}
+
+declare i32 @__write_pipe_2(%opencl.pipe_t addrspace(1)*, i8 addrspace(4)*, i32, i32) local_unnamed_addr
+
+declare %opencl.reserve_id_t* @__reserve_write_pipe(%opencl.pipe_t addrspace(1)*, i32, i32, i32) local_unnamed_addr
+
+declare i32 @__write_pipe_4(%opencl.pipe_t addrspace(1)*, %opencl.reserve_id_t*, i32, i8 addrspace(4)*, i32, i32) local_unnamed_addr
+
+declare void @__commit_write_pipe(%opencl.pipe_t addrspace(1)*, %opencl.reserve_id_t*, i32, i32) local_unnamed_addr
+
+%struct.S = type { [100 x i32] }
+
+; GCN-LABEL: {{^}}define amdgpu_kernel void @test_pipe_size
+; GCN-PRELINK: call i32 @__read_pipe_2_1(%opencl.pipe_t addrspace(1)* %{{.*}} i8 addrspace(4)* %{{.*}}) #[[NOUNWIND]]
+; GCN-PRELINK: call i32 @__read_pipe_2_2(%opencl.pipe_t addrspace(1)* %{{.*}} i16 addrspace(4)* %{{.*}}) #[[NOUNWIND]]
+; GCN-PRELINK: call i32 @__read_pipe_2_4(%opencl.pipe_t addrspace(1)* %{{.*}} i32 addrspace(4)* %{{.*}}) #[[NOUNWIND]]
+; GCN-PRELINK: call i32 @__read_pipe_2_8(%opencl.pipe_t addrspace(1)* %{{.*}} i64 addrspace(4)* %{{.*}}) #[[NOUNWIND]]
+; GCN-PRELINK: call i32 @__read_pipe_2_16(%opencl.pipe_t addrspace(1)* %{{.*}}, <2 x i64> addrspace(4)* %{{.*}}) #[[NOUNWIND]]
+; GCN-PRELINK: call i32 @__read_pipe_2_32(%opencl.pipe_t addrspace(1)* %{{.*}}, <4 x i64> addrspace(4)* %{{.*}} #[[NOUNWIND]]
+; GCN-PRELINK: call i32 @__read_pipe_2_64(%opencl.pipe_t addrspace(1)* %{{.*}}, <8 x i64> addrspace(4)* %{{.*}} #[[NOUNWIND]]
+; GCN-PRELINK: call i32 @__read_pipe_2_128(%opencl.pipe_t addrspace(1)* %{{.*}}, <16 x i64> addrspace(4)* %{{.*}} #[[NOUNWIND]]
+; GCN-PRELINK: call i32 @__read_pipe_2(%opencl.pipe_t addrspace(1)* %{{.*}}, i8 addrspace(4)* %{{.*}} i32 400, i32 4) #[[NOUNWIND]]
+define amdgpu_kernel void @test_pipe_size(%opencl.pipe_t addrspace(1)* %p1, i8 addrspace(1)* %ptr1, %opencl.pipe_t addrspace(1)* %p2, i16 addrspace(1)* %ptr2, %opencl.pipe_t addrspace(1)* %p4, i32 addrspace(1)* %ptr4, %opencl.pipe_t addrspace(1)* %p8, i64 addrspace(1)* %ptr8, %opencl.pipe_t addrspace(1)* %p16, <2 x i64> addrspace(1)* %ptr16, %opencl.pipe_t addrspace(1)* %p32, <4 x i64> addrspace(1)* %ptr32, %opencl.pipe_t addrspace(1)* %p64, <8 x i64> addrspace(1)* %ptr64, %opencl.pipe_t addrspace(1)* %p128, <16 x i64> addrspace(1)* %ptr128, %opencl.pipe_t addrspace(1)* %pu, %struct.S addrspace(1)* %ptru) local_unnamed_addr #0 {
+entry:
+  %0 = addrspacecast i8 addrspace(1)* %ptr1 to i8 addrspace(4)*
+  %1 = tail call i32 @__read_pipe_2(%opencl.pipe_t addrspace(1)* %p1, i8 addrspace(4)* %0, i32 1, i32 1) #0
+  %2 = bitcast i16 addrspace(1)* %ptr2 to i8 addrspace(1)*
+  %3 = addrspacecast i8 addrspace(1)* %2 to i8 addrspace(4)*
+  %4 = tail call i32 @__read_pipe_2(%opencl.pipe_t addrspace(1)* %p2, i8 addrspace(4)* %3, i32 2, i32 2) #0
+  %5 = bitcast i32 addrspace(1)* %ptr4 to i8 addrspace(1)*
+  %6 = addrspacecast i8 addrspace(1)* %5 to i8 addrspace(4)*
+  %7 = tail call i32 @__read_pipe_2(%opencl.pipe_t addrspace(1)* %p4, i8 addrspace(4)* %6, i32 4, i32 4) #0
+  %8 = bitcast i64 addrspace(1)* %ptr8 to i8 addrspace(1)*
+  %9 = addrspacecast i8 addrspace(1)* %8 to i8 addrspace(4)*
+  %10 = tail call i32 @__read_pipe_2(%opencl.pipe_t addrspace(1)* %p8, i8 addrspace(4)* %9, i32 8, i32 8) #0
+  %11 = bitcast <2 x i64> addrspace(1)* %ptr16 to i8 addrspace(1)*
+  %12 = addrspacecast i8 addrspace(1)* %11 to i8 addrspace(4)*
+  %13 = tail call i32 @__read_pipe_2(%opencl.pipe_t addrspace(1)* %p16, i8 addrspace(4)* %12, i32 16, i32 16) #0
+  %14 = bitcast <4 x i64> addrspace(1)* %ptr32 to i8 addrspace(1)*
+  %15 = addrspacecast i8 addrspace(1)* %14 to i8 addrspace(4)*
+  %16 = tail call i32 @__read_pipe_2(%opencl.pipe_t addrspace(1)* %p32, i8 addrspace(4)* %15, i32 32, i32 32) #0
+  %17 = bitcast <8 x i64> addrspace(1)* %ptr64 to i8 addrspace(1)*
+  %18 = addrspacecast i8 addrspace(1)* %17 to i8 addrspace(4)*
+  %19 = tail call i32 @__read_pipe_2(%opencl.pipe_t addrspace(1)* %p64, i8 addrspace(4)* %18, i32 64, i32 64) #0
+  %20 = bitcast <16 x i64> addrspace(1)* %ptr128 to i8 addrspace(1)*
+  %21 = addrspacecast i8 addrspace(1)* %20 to i8 addrspace(4)*
+  %22 = tail call i32 @__read_pipe_2(%opencl.pipe_t addrspace(1)* %p128, i8 addrspace(4)* %21, i32 128, i32 128) #0
+  %23 = bitcast %struct.S addrspace(1)* %ptru to i8 addrspace(1)*
+  %24 = addrspacecast i8 addrspace(1)* %23 to i8 addrspace(4)*
+  %25 = tail call i32 @__read_pipe_2(%opencl.pipe_t addrspace(1)* %pu, i8 addrspace(4)* %24, i32 400, i32 4) #0
+  ret void
+}
+
+; CGN-PRELINK: attributes #[[NOUNWIND]] = { nounwind }
+attributes #0 = { nounwind }

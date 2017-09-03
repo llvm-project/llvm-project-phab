@@ -26,6 +26,14 @@ public:
     // IMPORTANT: enums below should go in ascending by 1 value order
     // because they are used as indexes in the mangling rules table.
     // don't use explicit value assignment.
+    //
+    // There are two types of library functions: those with mangled
+    // name and those with unmangled name. The enums for the library
+    // functions with mangled name are defined before enums for the
+    // library functions with unmangled name. The enum for the last
+    // library function with mangled name is EI_LAST_MANGLED.
+    //
+    // Library functions with mangled name.
     EI_ABS,
     EI_ABS_DIFF,
     EI_ACOS,
@@ -144,7 +152,6 @@ public:
     EI_POWR,
     EI_PREFETCH,
     EI_RADIANS,
-    EI_READ_PIPE,
     EI_RECIP,
     EI_REMAINDER,
     EI_REMQUO,
@@ -212,7 +219,6 @@ public:
     EI_WRITE_IMAGEF,
     EI_WRITE_IMAGEI,
     EI_WRITE_IMAGEUI,
-    EI_WRITE_PIPE,
     EI_NCOS,
     EI_NEXP2,
     EI_NFMA,
@@ -225,6 +231,14 @@ public:
     EI_FLDEXP,
     EI_CLASS,
     EI_RCBRT,
+    EI_LAST_MANGLED =
+        EI_RCBRT, /* The last library function with mangled name */
+
+    // Library functions with unmangled name.
+    EI_READ_PIPE_2,
+    EI_READ_PIPE_4,
+    EI_WRITE_PIPE_2,
+    EI_WRITE_PIPE_4,
 
     EX_INTRINSICS_COUNT
   };
@@ -300,49 +314,85 @@ public:
   };
 
 public:
-  static bool      parse(StringRef mangledName, AMDGPULibFunc &iInfo);
+  static std::unique_ptr<AMDGPULibFunc> parse(StringRef mangledName);
 
-  AMDGPULibFunc();
-  AMDGPULibFunc(EFuncId id, const AMDGPULibFunc& copyFrom);
+  explicit AMDGPULibFunc() {}
+  virtual ~AMDGPULibFunc() {}
 
-  ENamePrefix   getPrefix() const { return FKind; }
-  EFuncId  getId() const { return FuncId; }
+  virtual unsigned getNumArgs() const = 0;
 
-  std::string   getName() const;
-  unsigned      getNumArgs() const;
+  EFuncId getId() const { return FuncId; }
 
-  FunctionType* getFunctionType(Module& M) const;
+  bool isMangled() const {
+    return static_cast<unsigned>(FuncId) <=
+           static_cast<unsigned>(EI_LAST_MANGLED);
+  }
 
-  std::string   mangle() const;
-
-  void setPrefix(ENamePrefix pfx) { FKind = pfx; }
   void setId(EFuncId id) { FuncId = id; }
+  virtual bool parseFuncName(StringRef &mangledName) = 0;
 
-  static Function* getFunction(llvm::Module *M, const AMDGPULibFunc& fInfo);
+  /// \return The mangled function name for mangled library functions
+  /// and unmangled function name for unmangled library functions.
+  virtual std::string mangle() const = 0;
 
-  static Function* getOrInsertFunction(llvm::Module *M,
-                                       const AMDGPULibFunc& fInfo);
+  void setName(StringRef N) { Name = N; }
 
-  static StringRef getUnmangledName(const StringRef& mangledName);
+  virtual FunctionType *getFunctionType(Module &M) const = 0;
+  static Function *getFunction(llvm::Module *M, const AMDGPULibFunc &fInfo);
 
-  Param         Leads[2];
+  static Function *getOrInsertFunction(llvm::Module *M,
+                                       const AMDGPULibFunc &fInfo);
 
-private:
+protected:
   EFuncId       FuncId;
-  ENamePrefix   FKind;
-  std::string   Name;
-
-  void          reset();
-
-  std::string   mangleNameItanium() const;
-  bool          parseItanuimName(StringRef& mangledName);
-
-  std::string   mangleName(const StringRef& name) const;
-  bool          parseName(const StringRef& mangledName);
-
-  template <typename Stream>
-  void          writeName(Stream& OS) const;
+  std::string Name;
 };
 
+class AMDGPUMangledLibFunc : public AMDGPULibFunc {
+public:
+  Param Leads[2];
+
+  explicit AMDGPUMangledLibFunc();
+  explicit AMDGPUMangledLibFunc(EFuncId id,
+                                const AMDGPUMangledLibFunc &copyFrom);
+  unsigned getNumArgs() const override;
+  bool parseFuncName(StringRef &mangledName) override;
+  // Methods for support type inquiry through isa, cast, and dyn_cast:
+  static bool classof(const AMDGPULibFunc *F) { return F->isMangled(); }
+
+  std::string getUnmangledName() const;
+  FunctionType *getFunctionType(Module &M) const override;
+
+  ENamePrefix getPrefix() const { return FKind; }
+  void setPrefix(ENamePrefix pfx) { FKind = pfx; }
+
+  static StringRef getUnmangledName(StringRef MangledName);
+
+  std::string mangle() const override;
+
+private:
+  ENamePrefix FKind;
+
+  std::string mangleNameItanium() const;
+
+  std::string mangleName(StringRef Name) const;
+  bool parseUnmangledName(StringRef MangledName);
+
+  template <typename Stream> void writeName(Stream &OS) const;
+};
+
+class AMDGPUUnmangledLibFunc : public AMDGPULibFunc {
+  FunctionType *FuncTy;
+
+public:
+  explicit AMDGPUUnmangledLibFunc();
+  unsigned getNumArgs() const override;
+  // Methods for support type inquiry through isa, cast, and dyn_cast:
+  static bool classof(const AMDGPULibFunc *F) { return !F->isMangled(); }
+  bool parseFuncName(StringRef &Name) override;
+  std::string mangle() const override { return Name; }
+  void setFunctionType(FunctionType *FT) { FuncTy = FT; }
+  FunctionType *getFunctionType(Module &M) const override { return FuncTy; }
+};
 }
 #endif // _AMDGPU_LIBFUNC_H_
