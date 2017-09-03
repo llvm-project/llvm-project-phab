@@ -465,6 +465,7 @@ static void freeKernelCL(PollyGPUFunction *Kernel) {
 }
 
 static PollyGPUFunction *getKernelCL(const char *BinaryBuffer,
+                                     const size_t BinarySize,
                                      const char *KernelName) {
   dump_function();
 
@@ -523,7 +524,6 @@ static PollyGPUFunction *getKernelCL(const char *BinaryBuffer,
     checkOpenCLError(Ret, "Failed to create program from llvm.\n");
     unlink("kernel.ll");
   } else {
-    size_t BinarySize = strlen(BinaryBuffer);
     ((OpenCLKernel *)Function->Kernel)->Program =
         clCreateProgramWithBinaryFcnPtr(
             ((OpenCLContext *)GlobalContext->Context)->Context, 1,
@@ -591,7 +591,7 @@ static void copyFromDeviceToHostCL(PollyGPUDevicePtr *DevData, void *HostData,
 static void launchKernelCL(PollyGPUFunction *Kernel, unsigned int GridDimX,
                            unsigned int GridDimY, unsigned int BlockDimX,
                            unsigned int BlockDimY, unsigned int BlockDimZ,
-                           void **Parameters) {
+                           void **Parameters, unsigned int UseLocalWorkSize) {
   dump_function();
 
   cl_int Ret;
@@ -622,9 +622,14 @@ static void launchKernelCL(PollyGPUFunction *Kernel, unsigned int GridDimX,
 
   static const int WorkDim = 3;
   OpenCLContext *CLContext = (OpenCLContext *)GlobalContext->Context;
-  Ret = clEnqueueNDRangeKernelFcnPtr(CLContext->CommandQueue, CLKernel->Kernel,
-                                     WorkDim, NULL, GlobalWorkSize,
-                                     LocalWorkSize, 0, NULL, NULL);
+  if (UseLocalWorkSize)
+    Ret = clEnqueueNDRangeKernelFcnPtr(CLContext->CommandQueue, CLKernel->Kernel,
+                                       WorkDim, NULL, GlobalWorkSize,
+                                       LocalWorkSize, 0, NULL, NULL);
+  else
+    Ret = clEnqueueNDRangeKernelFcnPtr(CLContext->CommandQueue, CLKernel->Kernel,
+                                       WorkDim, NULL, GlobalWorkSize,
+                                       NULL, 0, NULL, NULL);
   checkOpenCLError(Ret, "Launching OpenCL kernel failed.\n");
 }
 
@@ -1619,6 +1624,7 @@ void polly_freeKernel(PollyGPUFunction *Kernel) {
 }
 
 PollyGPUFunction *polly_getKernel(const char *BinaryBuffer,
+                                  const size_t BinarySize,
                                   const char *KernelName) {
   dump_function();
 
@@ -1632,7 +1638,7 @@ PollyGPUFunction *polly_getKernel(const char *BinaryBuffer,
 #endif /* HAS_LIBCUDART */
 #ifdef HAS_LIBOPENCL
   case RUNTIME_CL:
-    Function = getKernelCL(BinaryBuffer, KernelName);
+    Function = getKernelCL(BinaryBuffer, BinarySize, KernelName);
     break;
 #endif /* HAS_LIBOPENCL */
   default:
@@ -1685,7 +1691,7 @@ void polly_copyFromDeviceToHost(PollyGPUDevicePtr *DevData, void *HostData,
 void polly_launchKernel(PollyGPUFunction *Kernel, unsigned int GridDimX,
                         unsigned int GridDimY, unsigned int BlockDimX,
                         unsigned int BlockDimY, unsigned int BlockDimZ,
-                        void **Parameters) {
+                        void **Parameters, unsigned int CLUseLocalWorkSize) {
   dump_function();
 
   switch (Runtime) {
@@ -1698,7 +1704,7 @@ void polly_launchKernel(PollyGPUFunction *Kernel, unsigned int GridDimX,
 #ifdef HAS_LIBOPENCL
   case RUNTIME_CL:
     launchKernelCL(Kernel, GridDimX, GridDimY, BlockDimX, BlockDimY, BlockDimZ,
-                   Parameters);
+                   Parameters, CLUseLocalWorkSize);
     break;
 #endif /* HAS_LIBOPENCL */
   default:

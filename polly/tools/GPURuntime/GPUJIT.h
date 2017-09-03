@@ -50,6 +50,7 @@
  *   PollyGPUDevicePtr *DevArray;
  *   int *HostData;
  *   int MemSize;
+ *   size_t KernelSize = strlen(KernelString);
  *
  *   int GridX = 8;
  *   int GridY = 8;
@@ -61,7 +62,7 @@
  *   MemSize = 256*64*sizeof(int);
  *   Context = polly_initContext();
  *   DevArray = polly_allocateMemoryForDevice(MemSize);
- *   Kernel = polly_getKernel(KernelString, KernelName);
+ *   Kernel = polly_getKernel(KernelString, KernelSize, KernelName);
  *
  *   void *Params[1];
  *   void *DevPtr = polly_getDevicePtr(DevArray)
@@ -98,6 +99,7 @@ typedef struct CUDADevicePtrT CUDADevicePtr;
 PollyGPUContext *polly_initContextCUDA();
 PollyGPUContext *polly_initContextCL();
 PollyGPUFunction *polly_getKernel(const char *BinaryBuffer,
+                                  const size_t BinarySize,
                                   const char *KernelName);
 void polly_freeKernel(PollyGPUFunction *Kernel);
 void polly_copyFromHostToDevice(void *HostData, PollyGPUDevicePtr *DevData,
@@ -108,7 +110,7 @@ void polly_synchronizeDevice();
 void polly_launchKernel(PollyGPUFunction *Kernel, unsigned int GridDimX,
                         unsigned int GridDimY, unsigned int BlockSizeX,
                         unsigned int BlockSizeY, unsigned int BlockSizeZ,
-                        void **Parameters);
+                        void **Parameters, unsigned int CLUseLocalWorkSize);
 void polly_freeDeviceMemory(PollyGPUDevicePtr *Allocation);
 void polly_freeContext(PollyGPUContext *Context);
 

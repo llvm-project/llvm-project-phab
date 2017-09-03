@@ -124,6 +124,8 @@ static cl::opt<GPUArch>
     GPUArchChoice("polly-gpu-arch", cl::desc("The GPU Architecture to target"),
                   cl::values(clEnumValN(GPUArch::NVPTX64, "nvptx64",
                                         "target NVIDIA 64-bit architecture"),
+                             clEnumValN(GPUArch::AMDGCN64, "amdgcn64",
+                                        "target AMD GCN 64-bit architecture"),
                              clEnumValN(GPUArch::SPIR32, "spir32",
                                         "target SPIR 32-bit architecture"),
                              clEnumValN(GPUArch::SPIR64, "spir64",

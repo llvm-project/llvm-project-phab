@@ -53,6 +53,8 @@ extern "C" {
 
 #include "llvm/Support/Debug.h"
 
+#include <fstream>
+
 using namespace polly;
 using namespace llvm;
 
@@ -117,6 +119,11 @@ static cl::opt<std::string>
     CudaVersion("polly-acc-cuda-version",
                 cl::desc("The CUDA version to compile for"), cl::Hidden,
                 cl::init("sm_30"), cl::ZeroOrMore, cl::cat(PollyCategory));
+
+static cl::opt<std::string>
+    AMDArch("polly-acc-amd-arch",
+            cl::desc("The AMD architecture version to compile for"), cl::Hidden,
+            cl::init("gfx803"), cl::ZeroOrMore, cl::cat(PollyCategory));
 
 static cl::opt<int>
     MinCompute("polly-acc-mincompute",
@@ -715,10 +722,11 @@ private:
   /// Create a call to get a kernel from an assembly string.
   ///
   /// @param Buffer The string describing the kernel.
+  /// @param Size   The size of the string describing the kernel.
   /// @param Entry  The name of the kernel function to call.
   ///
   /// @returns A pointer to a kernel object
-  Value *createCallGetKernel(Value *Buffer, Value *Entry);
+  Value *createCallGetKernel(Value *Buffer, Value *Size, Value *Entry);
 
   /// Create a call to free a GPU kernel.
   ///
@@ -735,10 +743,13 @@ private:
   /// @param GridBlockZ The size of the third block dimension.
   /// @param Parameters A pointer to an array that contains itself pointers to
   ///                   the parameter values passed for each kernel argument.
+  /// @param CLUseLocalWorkSize A boolean dictating whether the OpenCL Runtime
+  ///                           should automatically determine the Local work
+  ///                           group size or use the provided dimensions.
   void createCallLaunchKernel(Value *GPUKernel, Value *GridDimX,
                               Value *GridDimY, Value *BlockDimX,
                               Value *BlockDimY, Value *BlockDimZ,
-                              Value *Parameters);
+                              Value *Parameters, Value *CLUseLocalWorkSize);
 };
 
 std::string GPUNodeBuilder::getKernelFuncName(int Kernel_id) {
@@ -861,7 +872,8 @@ void GPUNodeBuilder::freeDeviceArrays() {
     createCallFreeDeviceMemory(Array.second);
 }
 
-Value *GPUNodeBuilder::createCallGetKernel(Value *Buffer, Value *Entry) {
+Value *GPUNodeBuilder::createCallGetKernel(Value *Buffer, Value *Size,
+                                           Value *Entry) {
   const char *Name = "polly_getKernel";
   Module *M = Builder.GetInsertBlock()->getParent()->getParent();
   Function *F = M->getFunction(Name);
@@ -871,12 +883,13 @@ Value *GPUNodeBuilder::createCallGetKernel(Value *Buffer, Value *Entry) {
     GlobalValue::LinkageTypes Linkage = Function::ExternalLinkage;
     std::vector<Type *> Args;
     Args.push_back(Builder.getInt8PtrTy());
+    Args.push_back(Builder.getInt64Ty());
     Args.push_back(Builder.getInt8PtrTy());
     FunctionType *Ty = FunctionType::get(Builder.getInt8PtrTy(), Args, false);
     F = Function::Create(Ty, Linkage, Name, M);
   }
 
-  return Builder.CreateCall(F, {Buffer, Entry});
+  return Builder.CreateCall(F, {Buffer, Size, Entry});
 }
 
 Value *GPUNodeBuilder::createCallGetDevicePtr(Value *Allocation) {
@@ -899,7 +912,8 @@ Value *GPUNodeBuilder::createCallGetDevicePtr(Value *Allocation) {
 void GPUNodeBuilder::createCallLaunchKernel(Value *GPUKernel, Value *GridDimX,
                                             Value *GridDimY, Value *BlockDimX,
                                             Value *BlockDimY, Value *BlockDimZ,
-                                            Value *Parameters) {
+                                            Value *Parameters,
+                                            Value *CLUseLocalWorkSize) {
   const char *Name = "polly_launchKernel";
   Module *M = Builder.GetInsertBlock()->getParent()->getParent();
   Function *F = M->getFunction(Name);
@@ -915,12 +929,13 @@ void GPUNodeBuilder::createCallLaunchKernel(Value *GPUKernel, Value *GridDimX,
     Args.push_back(Builder.getInt32Ty());
     Args.push_back(Builder.getInt32Ty());
     Args.push_back(Builder.getInt8PtrTy());
+    Args.push_back(Builder.getInt32Ty());
     FunctionType *Ty = FunctionType::get(Builder.getVoidTy(), Args, false);
     F = Function::Create(Ty, Linkage, Name, M);
   }
 
   Builder.CreateCall(F, {GPUKernel, GridDimX, GridDimY, BlockDimX, BlockDimY,
-                         BlockDimZ, Parameters});
+                         BlockDimZ, Parameters, CLUseLocalWorkSize});
 }
 
 void GPUNodeBuilder::createCallFreeKernel(Value *GPUKernel) {
@@ -1341,6 +1356,9 @@ void GPUNodeBuilder::createKernelSync() {
     break;
   case GPUArch::NVPTX64:
     Sync = Intrinsic::getDeclaration(M, Intrinsic::nvvm_barrier0);
+    break;
+  case GPUArch::AMDGCN64:
+    Sync = Intrinsic::getDeclaration(M, Intrinsic::amdgcn_s_barrier);
     break;
   }
 
@@ -1833,14 +1851,28 @@ void GPUNodeBuilder::createKernel(__isl_take isl_ast_node *KernelStmt) {
 
   std::string Name = getKernelFuncName(Kernel->id);
   Value *KernelString = Builder.CreateGlobalStringPtr(ASMString, Name);
+  Value *KernelSize = Builder.getInt64(ASMString.length());
   Value *NameString = Builder.CreateGlobalStringPtr(Name, Name + "_name");
-  Value *GPUKernel = createCallGetKernel(KernelString, NameString);
+  Value *GPUKernel = createCallGetKernel(KernelString, KernelSize, NameString);
 
   Value *GridDimX, *GridDimY;
   std::tie(GridDimX, GridDimY) = getGridSizes(Kernel);
 
+  Value *CLUseLocalWorkSize;
+
+  switch (Arch) {
+  case GPUArch::SPIR32:
+  case GPUArch::SPIR64:
+    CLUseLocalWorkSize = Builder.getInt32(1);
+    break;
+  case GPUArch::AMDGCN64:
+  case GPUArch::NVPTX64:
+    CLUseLocalWorkSize = Builder.getInt32(0);
+    break;
+  }
+
   createCallLaunchKernel(GPUKernel, GridDimX, GridDimY, BlockDimX, BlockDimY,
-                         BlockDimZ, Parameters);
+                         BlockDimZ, Parameters, CLUseLocalWorkSize);
   createCallFreeKernel(GPUKernel);
 
   for (auto Id : KernelIds)
@@ -1866,6 +1898,13 @@ static std::string computeNVPTXDataLayout(bool is64Bit) {
   }
 
   return Ret;
+}
+
+/// Compute the DataLayout string for the AMDGPU backend.
+static std::string computeAMDGCNDataLayout() {
+  return "e-p:32:32-p1:64:64-p2:64:64-p3:32:32-p4:64:64-p5:32:32"
+         "-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128"
+         "-v192:256-v256:256-v512:512-v1024:1024-v2048:2048-n32:64";
 }
 
 /// Compute the DataLayout string for a SPIR kernel.
@@ -1969,6 +2008,9 @@ GPUNodeBuilder::createKernelFunctionDecl(ppcg_kernel *Kernel,
   case GPUArch::NVPTX64:
     FN->setCallingConv(CallingConv::PTX_Kernel);
     break;
+  case GPUArch::AMDGCN64:
+    FN->setCallingConv(CallingConv::AMDGPU_KERNEL);
+    break;
   case GPUArch::SPIR32:
   case GPUArch::SPIR64:
     FN->setCallingConv(CallingConv::SPIR_KERNEL);
@@ -2049,6 +2091,14 @@ void GPUNodeBuilder::insertKernelIntrinsics(ppcg_kernel *Kernel) {
     IntrinsicsTID[0] = Intrinsic::nvvm_read_ptx_sreg_tid_x;
     IntrinsicsTID[1] = Intrinsic::nvvm_read_ptx_sreg_tid_y;
     IntrinsicsTID[2] = Intrinsic::nvvm_read_ptx_sreg_tid_z;
+    break;
+  case GPUArch::AMDGCN64:
+    IntrinsicsBID[0] = Intrinsic::amdgcn_workitem_id_x;
+    IntrinsicsBID[1] = Intrinsic::amdgcn_workitem_id_y;
+
+    IntrinsicsTID[0] = Intrinsic::amdgcn_workgroup_id_x;
+    IntrinsicsTID[1] = Intrinsic::amdgcn_workgroup_id_y;
+    IntrinsicsTID[2] = Intrinsic::amdgcn_workgroup_id_z;
     break;
   }
 
@@ -2254,6 +2304,13 @@ void GPUNodeBuilder::createKernelFunction(
       GPUModule->setTargetTriple(Triple::normalize("nvptx64-nvidia-nvcl"));
     GPUModule->setDataLayout(computeNVPTXDataLayout(true /* is64Bit */));
     break;
+  case GPUArch::AMDGCN64:
+    if (Runtime == GPURuntime::CUDA)
+      llvm_unreachable("Cannot generate AMD code for CUDA runtime");
+    else if (Runtime == GPURuntime::OpenCL)
+      GPUModule->setTargetTriple(Triple::normalize("amdgcn-amd-amdhsa-opencl"));
+    GPUModule->setDataLayout(computeAMDGCNDataLayout());
+    break;
   case GPUArch::SPIR32:
     GPUModule->setTargetTriple(Triple::normalize("spir-unknown-unknown"));
     GPUModule->setDataLayout(computeSPIRDataLayout(false /* is64Bit */));
@@ -2281,6 +2338,7 @@ void GPUNodeBuilder::createKernelFunction(
   createKernelVariables(Kernel, FN);
 
   switch (Arch) {
+  case GPUArch::AMDGCN64:
   case GPUArch::NVPTX64:
     insertKernelIntrinsics(Kernel);
     break;
@@ -2302,6 +2360,16 @@ std::string GPUNodeBuilder::createKernelASM() {
       break;
     case GPURuntime::OpenCL:
       GPUTriple = llvm::Triple(Triple::normalize("nvptx64-nvidia-nvcl"));
+      break;
+    }
+    break;
+  case GPUArch::AMDGCN64:
+    switch (Runtime) {
+    case GPURuntime::CUDA:
+      llvm_unreachable("Cannot generate AMD code for CUDA runtime");
+      break;
+    case GPURuntime::OpenCL:
+      GPUTriple = llvm::Triple(Triple::normalize("amdgcn-amd-amdhsa-opencl"));
       break;
     }
     break;
@@ -2331,6 +2399,9 @@ std::string GPUNodeBuilder::createKernelASM() {
   case GPUArch::NVPTX64:
     subtarget = CudaVersion;
     break;
+  case GPUArch::AMDGCN64:
+    subtarget = AMDArch;
+    break;
   case GPUArch::SPIR32:
   case GPUArch::SPIR64:
     llvm_unreachable("No subtarget for SPIR architecture");
@@ -2345,15 +2416,45 @@ std::string GPUNodeBuilder::createKernelASM() {
 
   PM.add(createTargetTransformInfoWrapperPass(TargetM->getTargetIRAnalysis()));
 
-  if (TargetM->addPassesToEmitFile(
-          PM, ASMStream, TargetMachine::CGFT_AssemblyFile, true /* verify */)) {
-    errs() << "The target does not support generation of this file type!\n";
-    return "";
+  if (Arch == GPUArch::AMDGCN64) {
+    if (TargetM->addPassesToEmitFile(
+            PM, ASMStream, TargetMachine::CGFT_ObjectFile, true /* verify */)) {
+      errs() << "The target does not support generation of this file type!\n";
+      return "";
+    }
+  } else {
+    if (TargetM->addPassesToEmitFile(
+            PM, ASMStream, TargetMachine::CGFT_AssemblyFile, true /* verify */)) {
+      errs() << "The target does not support generation of this file type!\n";
+      return "";
+    }
   }
 
   PM.run(*GPUModule);
 
-  return ASMStream.str();
+  std::string Assembly = ASMStream.str();
+
+  if (Arch == GPUArch::AMDGCN64) {
+    std::string FileDir = "/tmp/";
+    std::string FileName = "polly_temp_kernel_amd.asm";
+    std::string OutName = "polly_temp_kernel_amd.bin";
+    std::ofstream ASMFile;
+    ASMFile.open(FileDir + FileName);
+    ASMFile << Assembly;
+    ASMFile.close();
+
+    std::string LLDCommand;
+    LLDCommand = "ld.lld -shared " + FileDir + FileName + " -o " + FileDir + OutName;
+    system(LLDCommand.c_str());
+
+    std::ifstream ifs(FileDir + OutName);
+    Assembly.assign((std::istreambuf_iterator<char>(ifs)), (std::istreambuf_iterator<char>()));
+
+    remove((FileDir + FileName).c_str());
+    remove((FileDir + OutName).c_str());
+  }
+
+  return Assembly;
 }
 
 bool GPUNodeBuilder::requiresCUDALibDevice() {
