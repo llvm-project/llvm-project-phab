@@ -397,18 +397,9 @@ static bool isEphemeralValueOf(const Instruction *I, const Value *E) {
   return false;
 }
 
-bool llvm::isValidAssumeForContext(const Instruction *Inv,
-                                   const Instruction *CxtI,
-                                   const DominatorTree *DT) {
-
-  // There are two restrictions on the use of an assume:
-  //  1. The assume must dominate the context (or the control flow must
-  //     reach the assume whenever it reaches the context).
-  //  2. The context must not be in the assume's set of ephemeral values
-  //     (otherwise we will use the assume to prove that the condition
-  //     feeding the assume is trivially true, thus causing the removal of
-  //     the assume).
-
+bool llvm::isGuaranteedToBeExecuted(const Instruction *Inv,
+				    const Instruction *CxtI,
+				    const DominatorTree *DT) {
   if (DT) {
     if (DT->dominates(Inv, CxtI))
       return true;
@@ -422,9 +413,9 @@ bool llvm::isValidAssumeForContext(const Instruction *Inv,
   if (Inv->getParent() != CxtI->getParent())
     return false;
 
-  // If we have a dom tree, then we now know that the assume doens't dominate
-  // the other instruction.  If we don't have a dom tree then we can check if
-  // the assume is first in the BB.
+  // If we have a dom tree, then we now know that Inv doens't dominate the
+  // other instruction.  If we don't have a dom tree then we can check if
+  // Inv is first in the BB.
   if (!DT) {
     // Search forward from the assume until we reach the context (or the end
     // of the block); the common case is that the assume will come first.
@@ -434,21 +425,29 @@ bool llvm::isValidAssumeForContext(const Instruction *Inv,
         return true;
   }
 
-  // Don't let an assume affect itself - this would cause the problems
-  // `isEphemeralValueOf` is trying to prevent, and it would also make
-  // the loop below go out of bounds.
-  if (Inv == CxtI)
-    return false;
-
-  // The context comes first, but they're both in the same block. Make sure
+  // The context comes first, but they're both in the same block.  Make sure
   // there is nothing in between that might interrupt the control flow.
-  for (BasicBlock::const_iterator I =
-         std::next(BasicBlock::const_iterator(CxtI)), IE(Inv);
+  for (BasicBlock::const_iterator I = BasicBlock::const_iterator(CxtI), IE(Inv);
        I != IE; ++I)
     if (!isGuaranteedToTransferExecutionToSuccessor(&*I))
       return false;
 
-  return !isEphemeralValueOf(Inv, CxtI);
+  return true;
+}
+
+bool llvm::isValidAssumeForContext(const Instruction *I,
+				   const Instruction *CxtI,
+				   const DominatorTree *DT) {
+  // There are two restrictions on the use of an assume:
+  //  1. The assume must dominate the context (or the control flow must
+  //     reach the assume whenever it reaches the context).
+  //  2. The context must not be in the assume's set of ephemeral values
+  //     (otherwise we will use the assume to prove that the condition
+  //     feeding the assume is trivially true, thus causing the removal of
+  //     the assume).
+
+  return isGuaranteedToBeExecuted(I, CxtI, DT) &&
+    !isEphemeralValueOf(I, CxtI);
 }
 
 static void computeKnownBitsFromAssume(const Value *V, KnownBits &Known,

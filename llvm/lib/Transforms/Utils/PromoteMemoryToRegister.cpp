@@ -217,6 +217,7 @@ struct PromoteMem2Reg {
   /// The alloca instructions being promoted.
   std::vector<AllocaInst *> Allocas;
   DominatorTree &DT;
+  const DataLayout &DL;
   DIBuilder DIB;
   /// A cache of @llvm.assume intrinsics used by SimplifyInstruction.
   AssumptionCache *AC;
@@ -262,9 +263,9 @@ public:
   PromoteMem2Reg(ArrayRef<AllocaInst *> Allocas, DominatorTree &DT,
                  AssumptionCache *AC)
       : Allocas(Allocas.begin(), Allocas.end()), DT(DT),
+	DL(DT.getRoot()->getParent()->getParent()->getDataLayout()),
         DIB(*DT.getRoot()->getParent()->getParent(), /*AllowUnresolved*/ false),
-        AC(AC), SQ(DT.getRoot()->getParent()->getParent()->getDataLayout(),
-                   nullptr, &DT, AC) {}
+        AC(AC), SQ(DL, nullptr, &DT, AC) {}
 
   void run();
 
@@ -305,6 +306,31 @@ static void addAssumeNonNull(AssumptionCache *AC, LoadInst *LI) {
   AC->registerAssumption(CI);
 }
 
+static void addAssumptionsFromMetadata(LoadInst *LI,
+				       Value *ReplVal,
+				       DominatorTree &DT,
+				       const DataLayout &DL,
+				       AssumptionCache *AC)
+{
+  if (LI->getMetadata(LLVMContext::MD_nonnull) &&
+      !llvm::isKnownNonNullAt(ReplVal, LI, &DT)) {
+    addAssumeNonNull(AC, LI);
+  }
+
+  if (auto *N = LI->getMetadata(LLVMContext::MD_range)) {
+    // Range metadata is harder to use as an assumption,
+    // so don't try to add one, but *do* try to copy
+    // the metadata to a load in the same BB.
+    if (LoadInst *NewLI = dyn_cast<LoadInst>(ReplVal)) {
+      DEBUG(dbgs() << "trying to move !range metadata from" <<
+        *LI << " to" << *NewLI << "\n");
+      if (isGuaranteedToBeExecuted(LI, NewLI, &DT)) {
+        copyRangeMetadata(DL, *LI, N, *NewLI);
+      }
+    }
+  }
+}
+
 static void removeLifetimeIntrinsicUsers(AllocaInst *AI) {
   // Knowing that this alloca is promotable, we know that it's safe to kill all
   // instructions except for load and store.
@@ -339,6 +365,7 @@ static void removeLifetimeIntrinsicUsers(AllocaInst *AI) {
 /// promotion algorithm in that case.
 static bool rewriteSingleStoreAlloca(AllocaInst *AI, AllocaInfo &Info,
                                      LargeBlockInfo &LBI, DominatorTree &DT,
+				     const DataLayout &DL,
                                      AssumptionCache *AC) {
   StoreInst *OnlyStore = Info.OnlyStore;
   bool StoringGlobalVal = !isa<Instruction>(OnlyStore->getOperand(0));
@@ -394,9 +421,7 @@ static bool rewriteSingleStoreAlloca(AllocaInst *AI, AllocaInfo &Info,
     // If the load was marked as nonnull we don't want to lose
     // that information when we erase this Load. So we preserve
     // it with an assume.
-    if (AC && LI->getMetadata(LLVMContext::MD_nonnull) &&
-        !llvm::isKnownNonNullAt(ReplVal, LI, &DT))
-      addAssumeNonNull(AC, LI);
+    addAssumptionsFromMetadata(LI, ReplVal, DT, DL, AC);
 
     LI->replaceAllUsesWith(ReplVal);
     LI->eraseFromParent();
@@ -443,6 +468,7 @@ static bool rewriteSingleStoreAlloca(AllocaInst *AI, AllocaInfo &Info,
 static bool promoteSingleBlockAlloca(AllocaInst *AI, const AllocaInfo &Info,
                                      LargeBlockInfo &LBI,
                                      DominatorTree &DT,
+				     const DataLayout &DL,
                                      AssumptionCache *AC) {
   // The trickiest case to handle is when we have large blocks. Because of this,
   // this code is optimized assuming that large blocks happen.  This does not
@@ -489,9 +515,7 @@ static bool promoteSingleBlockAlloca(AllocaInst *AI, const AllocaInfo &Info,
       // Note, if the load was marked as nonnull we don't want to lose that
       // information when we erase it. So we preserve it with an assume.
       Value *ReplVal = std::prev(I)->second->getOperand(0);
-      if (AC && LI->getMetadata(LLVMContext::MD_nonnull) &&
-          !llvm::isKnownNonNullAt(ReplVal, LI, &DT))
-        addAssumeNonNull(AC, LI);
+      addAssumptionsFromMetadata(LI, ReplVal, DT, DL, AC);
 
       LI->replaceAllUsesWith(ReplVal);
     }
@@ -560,7 +584,7 @@ void PromoteMem2Reg::run() {
     // If there is only a single store to this value, replace any loads of
     // it that are directly dominated by the definition with the value stored.
     if (Info.DefiningBlocks.size() == 1) {
-      if (rewriteSingleStoreAlloca(AI, Info, LBI, DT, AC)) {
+      if (rewriteSingleStoreAlloca(AI, Info, LBI, DT, DL, AC)) {
         // The alloca has been processed, move on.
         RemoveFromAllocasList(AllocaNum);
         ++NumSingleStore;
@@ -571,7 +595,7 @@ void PromoteMem2Reg::run() {
     // If the alloca is only read and written in one basic block, just perform a
     // linear sweep over the block to eliminate it.
     if (Info.OnlyUsedInOneBlock &&
-        promoteSingleBlockAlloca(AI, Info, LBI, DT, AC)) {
+        promoteSingleBlockAlloca(AI, Info, LBI, DT, DL, AC)) {
       // The alloca has been processed, move on.
       RemoveFromAllocasList(AllocaNum);
       continue;
@@ -930,9 +954,7 @@ NextIteration:
       // If the load was marked as nonnull we don't want to lose
       // that information when we erase this Load. So we preserve
       // it with an assume.
-      if (AC && LI->getMetadata(LLVMContext::MD_nonnull) &&
-          !llvm::isKnownNonNullAt(V, LI, &DT))
-        addAssumeNonNull(AC, LI);
+      addAssumptionsFromMetadata(LI, V, DT, DL, AC);
 
       // Anything using the load now uses the current value.
       LI->replaceAllUsesWith(V);

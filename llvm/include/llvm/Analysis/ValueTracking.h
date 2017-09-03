@@ -371,6 +371,16 @@ template <typename T> class ArrayRef;
                         const Instruction *CtxI = nullptr,
                         const DominatorTree *DT = nullptr);
 
+  /// Return true if, when CxtI executes, it is guaranteed that either
+  /// I had executed already or that I is guaranteed to be reached and
+  /// be executed.
+  ///
+  /// The useful property this guarantees is that if I exhibits undefined
+  /// behavior under some circumstances, then the whole program will exhibit
+  /// undefined behavior at CxtI.
+  bool isGuaranteedToBeExecuted(const Instruction *I, const Instruction *CxtI,
+				const DominatorTree *DT = nullptr);
+
   /// Return true if it is valid to use the assumptions provided by an
   /// assume intrinsic, I, at the point in the control-flow identified by the
   /// context instruction, CxtI.
