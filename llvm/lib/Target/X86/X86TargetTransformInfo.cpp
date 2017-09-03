@@ -2079,13 +2079,27 @@ int X86TTIImpl::getIntImmCost(unsigned Opcode, unsigned Idx, const APInt &Imm,
     }
     ImmIdx = 1;
     break;
+  case Instruction::Or:
+  case Instruction::Xor:
+    // We can handle Or/Xor with a power 2 using BTS/BTC. The default path
+    // expects bit 31 to be sign extended so check for that here.
+    if (Idx == 1 && Imm.getBitWidth() == 64 &&
+        isPowerOf2_64(Imm.getZExtValue()))
+      return TTI::TCC_Free;
+    ImmIdx = 1;
+    break;
   case Instruction::And:
     // We support 64-bit ANDs with immediates with 32-bits of leading zeroes
     // by using a 32-bit operation with implicit zero extension. Detect such
     // immediates here as the normal path expects bit 31 to be sign extended.
-    if (Idx == 1 && Imm.getBitWidth() == 64 && isUInt<32>(Imm.getZExtValue()))
-      return TTI::TCC_Free;
-    LLVM_FALLTHROUGH;
+    // We can also handle clearing a single bit using the BTR instruction.
+    if (Idx == 1 && Imm.getBitWidth() == 64) {
+      uint64_t ImmVal = Imm.getZExtValue();
+      if (isUInt<32>(Imm.getZExtValue()) || isPowerOf2_64(~ImmVal))
+        return TTI::TCC_Free;
+    }
+    ImmIdx = 1;
+    break;
   case Instruction::Add:
   case Instruction::Sub:
   case Instruction::Mul:
@@ -2093,8 +2107,6 @@ int X86TTIImpl::getIntImmCost(unsigned Opcode, unsigned Idx, const APInt &Imm,
   case Instruction::SDiv:
   case Instruction::URem:
   case Instruction::SRem:
-  case Instruction::Or:
-  case Instruction::Xor:
     ImmIdx = 1;
     break;
   // Always return TCC_Free for the shift value of a shift instruction.

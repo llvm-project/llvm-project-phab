@@ -366,6 +366,11 @@ namespace {
       return CurDAG->getTargetConstant(Imm, DL, MVT::i32);
     }
 
+    /// Return a target constant with the specified value, of type i64.
+    inline SDValue getI64Imm(uint64_t Imm, const SDLoc &DL) {
+      return CurDAG->getTargetConstant(Imm, DL, MVT::i64);
+    }
+
     /// Return an SDNode that returns the value of the global base register.
     /// Output instructions required to initialize the global base register,
     /// if necessary.

@@ -274,9 +274,8 @@ define i64 @test_fptoui_i64(half* %p) #0 {
 ; CHECK-LIBCALL-NEXT:    movss {{.*#+}} xmm1 = mem[0],zero,zero,zero
 ; CHECK-LIBCALL-NEXT:    movaps %xmm0, %xmm2
 ; CHECK-LIBCALL-NEXT:    subss %xmm1, %xmm2
-; CHECK-LIBCALL-NEXT:    cvttss2si %xmm2, %rax
-; CHECK-LIBCALL-NEXT:    movabsq $-9223372036854775808, %rcx # imm = 0x8000000000000000
-; CHECK-LIBCALL-NEXT:    xorq %rax, %rcx
+; CHECK-LIBCALL-NEXT:    cvttss2si %xmm2, %rcx
+; CHECK-LIBCALL-NEXT:    btcq $63, %rcx
 ; CHECK-LIBCALL-NEXT:    cvttss2si %xmm0, %rax
 ; CHECK-LIBCALL-NEXT:    ucomiss %xmm1, %xmm0
 ; CHECK-LIBCALL-NEXT:    cmovaeq %rcx, %rax
@@ -290,9 +289,8 @@ define i64 @test_fptoui_i64(half* %p) #0 {
 ; BWON-F16C-NEXT:    vcvtph2ps %xmm0, %xmm0
 ; BWON-F16C-NEXT:    vmovss {{.*#+}} xmm1 = mem[0],zero,zero,zero
 ; BWON-F16C-NEXT:    vsubss %xmm1, %xmm0, %xmm2
-; BWON-F16C-NEXT:    vcvttss2si %xmm2, %rax
-; BWON-F16C-NEXT:    movabsq $-9223372036854775808, %rcx # imm = 0x8000000000000000
-; BWON-F16C-NEXT:    xorq %rax, %rcx
+; BWON-F16C-NEXT:    vcvttss2si %xmm2, %rcx
+; BWON-F16C-NEXT:    btcq $63, %rcx
 ; BWON-F16C-NEXT:    vcvttss2si %xmm0, %rax
 ; BWON-F16C-NEXT:    vucomiss %xmm1, %xmm0
 ; BWON-F16C-NEXT:    cmovaeq %rcx, %rax
