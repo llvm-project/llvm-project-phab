@@ -278,4 +278,3 @@ define i1 @nonnull4(i32** %a) {
 
 attributes #0 = { nounwind uwtable }
 attributes #1 = { nounwind }
-
