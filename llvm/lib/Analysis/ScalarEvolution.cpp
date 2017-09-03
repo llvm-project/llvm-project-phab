@@ -204,6 +204,11 @@ static cl::opt<unsigned>
                   cl::desc("Max coefficients in AddRec during evolving"),
                   cl::init(16));
 
+static cl::opt<unsigned>
+    MaxConstExprSize("scalar-evolution-max-const-expr-size", cl::Hidden,
+                     cl::desc("Max number of nodes of const expression"),
+                     cl::init(2048));
+
 //===----------------------------------------------------------------------===//
 //                           SCEV class definitions
 //===----------------------------------------------------------------------===//
@@ -4759,6 +4764,7 @@ const SCEV *ScalarEvolution::createAddRecFromPHI(PHINode *PN) {
     if (Shifted != getCouldNotCompute() &&
         Start != getCouldNotCompute()) {
       const SCEV *StartVal = getSCEV(StartValueV);
+
       if (Start == StartVal) {
         // Okay, for the entire analysis of this edge we assumed the PHI
         // to be symbolic.  We now need to go back and purge all of the
@@ -6044,6 +6050,12 @@ const SCEV *ScalarEvolution::createSCEV(Value *V) {
     }
     return getSignExtendExpr(getSCEV(U->getOperand(0)), U->getType());
 
+  case Instruction::IntToPtr:
+  case Instruction::PtrToInt:
+    if (getTypeSizeInBits(U->getType()) !=
+        getTypeSizeInBits(U->getOperand(0)->getType()))
+      break;
+  // Otherwise fall through
   case Instruction::BitCast:
     // BitCasts are no-op casts so we just eliminate the cast.
     if (isSCEVable(U->getType()) && isSCEVable(U->getOperand(0)->getType()))
@@ -7403,6 +7415,18 @@ static Constant *getOtherIncomingValue(PHINode *PN, BasicBlock *BB) {
   return IncomingVal;
 }
 
+static size_t GetConstExprSize(Constant *C) {
+  ConstantExpr *CE = dyn_cast<ConstantExpr>(C);
+  if (!CE)
+    return 1;
+  size_t S = 1;
+  for (User::const_op_iterator OI = CE->op_begin(); OI != CE->op_end(); ++OI) {
+    if (Constant *CV = dyn_cast<Constant>(*OI))
+      S += GetConstExprSize(CV);
+  }
+  return S;
+}
+
 /// getConstantEvolutionLoopExitValue - If we know that the specified Phi is
 /// in the header of its containing loop, we know the loop executes a
 /// constant number of times, and the PHI node is just a recurrence
@@ -7458,6 +7482,10 @@ ScalarEvolution::getConstantEvolutionLoopExitValue(PHINode *PN,
         EvaluateExpression(BEValue, L, CurrentIterVals, DL, &TLI);
     if (!NextPHI)
       return nullptr;        // Couldn't evaluate!
+
+    if (GetConstExprSize(NextPHI) > MaxConstExprSize)
+      return nullptr;
+
     NextIterVals[PN] = NextPHI;
 
     bool StoppedEvolving = NextPHI == CurrentIterVals[PN];
@@ -10456,6 +10484,7 @@ void ScalarEvolution::SCEVCallbackVH::allUsesReplacedWith(Value *V) {
       continue;
     if (PHINode *PN = dyn_cast<PHINode>(U))
       SE->ConstantEvolutionLoopExitValue.erase(PN);
+
     SE->eraseValueFromMap(U);
     Worklist.insert(Worklist.end(), U->user_begin(), U->user_end());
   }

@@ -335,9 +335,7 @@ TEST_F(ScalarEvolutionsTest, ExpandPtrTypeSCEV) {
   // Expect the expansion code contains:
   //   %0 = bitcast i32* %bitcast2 to i8*
   //   %uglygep = getelementptr i8, i8* %0, i64 -1
-  //   %1 = bitcast i8* %uglygep to i32*
-  EXPECT_TRUE(isa<BitCastInst>(V));
-  Instruction *Gep = cast<Instruction>(V)->getPrevNode();
+  Instruction *Gep = cast<Instruction>(V);
   EXPECT_TRUE(isa<GetElementPtrInst>(Gep));
   EXPECT_TRUE(isa<ConstantInt>(Gep->getOperand(1)));
   EXPECT_EQ(cast<ConstantInt>(Gep->getOperand(1))->getSExtValue(), -1);

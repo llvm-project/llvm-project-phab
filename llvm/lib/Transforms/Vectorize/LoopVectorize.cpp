@@ -3552,6 +3552,41 @@ BasicBlock *InnerLoopVectorizer::createVectorizedLoopSkeleton() {
     // value.
     for (BasicBlock *BB : LoopBypassBlocks)
       BCResumeVal->addIncoming(II.getStartValue(), BB);
+
+    // FIXME: Strictly speaking, when an incoming operand is changed
+    // here, we should erase the cached SCEV expressions for the
+    // PHI and its related values. However as the new start value is
+    // merged from multiple predecessors, Scalar Evolution may
+    // no longer be able to rediscover the phi is an AddRecExprs. For
+    // instance,
+    //  int *p = base;
+    //  int i = 0;
+    //  do {
+    //   p1 = phi(base, p2);
+    //   i1 = phi(0, i2);
+    //   .. = *p2;
+    //   i2 = i1 + 1;
+    //   p2 = base + i2;
+    //    ..
+    //  while (...);
+    //
+    // Before the loop vetorization, scalar evolution can discover that
+    // i2 is {0, +, 1},  and p2 is derived from i2 which is {4 + base, +, 4}.
+    // It also discovers that p1 is {base, +, 4} which is shifted from 
+    // from p2. When the loop vectorizer creates the vector loop, the scalar
+    // loop's header phi's start value will become a merged merge of the
+    // original start and vector loop exit value. In this case, the start 
+    // value of p1 becomes bc_resume_val1, and i1 has start of bc_resume_val2.
+    // Scalar evolution can no longer establish that p1 is a shifted value
+    // of {4 + 4*bc_resume_val2, +, 4}.
+    //
+    // Since the scalar evolution expander can sometimes erase cached SCEV vals
+    // for some  of the phis in the scalar loop, we do a recomputation cache
+    // it here before the phi is updated (Doing on-demand recomputation after
+    // the update will produce inconsistent SCEVs with other PHIs with cached
+    // SCEVs from the original scalar loop.
+    // 
+    PSE.getSCEV(OrigPhi);
     OrigPhi->setIncomingValue(BlockIdx, BCResumeVal);
   }
 

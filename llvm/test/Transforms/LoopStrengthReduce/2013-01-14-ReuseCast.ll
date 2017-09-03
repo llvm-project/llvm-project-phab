@@ -1,4 +1,4 @@
-; RUN: opt -loop-reduce -S < %s | FileCheck %s
+; RUN: opt -loop-reduce -dce -S < %s | FileCheck %s
 ;
 ; LTO of clang, which mistakenly uses no TargetLoweringInfo, causes a
 ; miscompile. ReuseOrCreateCast replace ptrtoint operand with undef.
@@ -14,8 +14,9 @@ target datalayout = "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f3
 ; current LSR cost model.
 ; CHECK-NOT: = ptrtoint i8* undef to i64
 ; CHECK: .lr.ph
-; CHECK: [[TMP:%[^ ]+]] = add i64 %tmp{{[0-9]+}}, -1
-; CHECK: sub i64 [[TMP]], %tmp{{[0-9]+}}
+; CHECK: [[TMP:%[^ ]+]] = sub i64 -1, %tmp5
+; CHECK: getelementptr i8, i8* %tmp3, i64 [[TMP]]
+; CHECK-NOT: getelementptr
 ; CHECK: ret void
 define void @VerifyDiagnosticConsumerTest() unnamed_addr nounwind uwtable align 2 {
 bb:

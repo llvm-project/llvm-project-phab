@@ -30,7 +30,7 @@ vector.body:                                      ; preds = %vector.body, %vecto
 
 ; CHECK: @foo
 ; CHECK-DAG: li [[C0:[0-9]+]], 0
-; CHECK-DAG: li [[C15:[0-9]+]], 15
+; CHECK-DAG: li [[C15:[0-9]+]], 16
 ; CHECK-DAG: lvx [[CNST:[0-9]+]],
 ; CHECK: .LBB0_1:
 ; CHECK-DAG: lvsl [[MASK1:[0-9]+]], [[B1:[0-9]+]], [[C0]]

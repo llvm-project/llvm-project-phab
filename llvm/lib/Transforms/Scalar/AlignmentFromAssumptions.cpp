@@ -268,12 +268,14 @@ bool AlignmentFromAssumptionsPass::extractAlignmentInfo(CallInst *I,
     // Try to find the ptrtoint; subtract it and the rest is the offset.
     for (SCEVAddExpr::op_iterator J = AndLHSAddSCEV->op_begin(),
          JE = AndLHSAddSCEV->op_end(); J != JE; ++J)
-      if (const SCEVUnknown *OpUnk = dyn_cast<SCEVUnknown>(*J))
-        if (PtrToIntInst *PToI = dyn_cast<PtrToIntInst>(OpUnk->getValue())) {
+      if (const SCEVUnknown *OpUnk = dyn_cast<SCEVUnknown>(*J)) {
+        OffSCEV = SE->getMinusSCEV(AndLHSAddSCEV, *J);
+        if (PtrToIntInst *PToI = dyn_cast<PtrToIntInst>(OpUnk->getValue()))
           AAPtr = PToI->getPointerOperand();
-          OffSCEV = SE->getMinusSCEV(AndLHSAddSCEV, *J);
-          break;
-        }
+        else
+          AAPtr = OpUnk->getValue();
+        break;
+      }
   }
 
   if (!AAPtr)

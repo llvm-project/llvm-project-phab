@@ -312,31 +312,31 @@ define i1* @hoo1() nounwind {
 ; TO: }
 ; SCEV: Classifying expressions for: @fa
 ; SCEV:   %t = bitcast i64 mul (i64 ptrtoint (double* getelementptr (double, double* null, i32 1) to i64), i64 2310) to i64
-; SCEV:   -->  (2310 * sizeof(double))
+; SCEV:   -->  18480 U: [18480,18481) S: [18480,18481)
 ; SCEV: Classifying expressions for: @fb
 ; SCEV:   %t = bitcast i64 ptrtoint (double* getelementptr ({ i1, double }, { i1, double }* null, i64 0, i32 1) to i64) to i64
-; SCEV:   -->  alignof(double)
+; SCEV:   -->  8 U: [8,9) S: [8,9)
 ; SCEV: Classifying expressions for: @fc
 ; SCEV:   %t = bitcast i64 mul nuw (i64 ptrtoint (double* getelementptr (double, double* null, i32 1) to i64), i64 2) to i64
-; SCEV:   -->  (2 * sizeof(double))
+; SCEV:   --> 16 U: [16,17) S: [16,17)
 ; SCEV: Classifying expressions for: @fd
 ; SCEV:   %t = bitcast i64 mul nuw (i64 ptrtoint (double* getelementptr (double, double* null, i32 1) to i64), i64 11) to i64
-; SCEV:   -->  (11 * sizeof(double))
+; SCEV:   --> 88 U: [88,89) S: [88,89)
 ; SCEV: Classifying expressions for: @fe
 ; SCEV:   %t = bitcast i64 ptrtoint (double* getelementptr ({ double, float, double, double }, { double, float, double, double }* null, i64 0, i32 2) to i64) to i64
-; SCEV:   -->  offsetof({ double, float, double, double }, 2)
+; SCEV:   --> 16 U: [16,17) S: [16,17)
 ; SCEV: Classifying expressions for: @ff
 ; SCEV:   %t = bitcast i64 1 to i64
 ; SCEV:   -->  1
 ; SCEV: Classifying expressions for: @fg
 ; SCEV:   %t = bitcast i64 ptrtoint (double* getelementptr ({ i1, double }, { i1, double }* null, i64 0, i32 1) to i64) to i64
-; SCEV:   -->  alignof(double)
+; SCEV:   --> 8 U: [8,9) S: [8,9)
 ; SCEV: Classifying expressions for: @fh
 ; SCEV:   %t = bitcast i64 ptrtoint (i1** getelementptr (i1*, i1** null, i32 1) to i64) to i64
-; SCEV:   -->  sizeof(i1*)
+; SCEV:   --> 8 U: [8,9) S: [8,9)
 ; SCEV: Classifying expressions for: @fi
 ; SCEV:   %t = bitcast i64 ptrtoint (i1** getelementptr ({ i1, i1* }, { i1, i1* }* null, i64 0, i32 1) to i64) to i64
-; SCEV:   -->  alignof(i1*)
+; SCEV:   --> 8 U: [8,9) S: [8,9)
 
 define i64 @fa() nounwind {
   %t = bitcast i64 mul (i64 3, i64 mul (i64 ptrtoint ({[7 x double], [7 x double]}* getelementptr ({[7 x double], [7 x double]}, {[7 x double], [7 x double]}* null, i64 11) to i64), i64 5)) to i64

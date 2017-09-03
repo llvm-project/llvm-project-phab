@@ -857,8 +857,17 @@ static void ExposePointerBase(const SCEV *&Base, const SCEV *&Rest,
 /// the PHI. If so, it may be reused by expanded expressions.
 bool SCEVExpander::isNormalAddRecExprPHI(PHINode *PN, Instruction *IncV,
                                          const Loop *L) {
+  auto IsBitCast = [this](Instruction *I) {
+    if (isa<BitCastInst>(I))
+      return true;
+    if (isa<PtrToIntInst>(I) || isa<IntToPtrInst>(I))
+      return SE.getTypeSizeInBits(I->getType()) ==
+             SE.getTypeSizeInBits(I->getOperand(0)->getType());
+    return false;
+  };
+
   if (IncV->getNumOperands() == 0 || isa<PHINode>(IncV) ||
-      (isa<CastInst>(IncV) && !isa<BitCastInst>(IncV)))
+      (isa<CastInst>(IncV) && !IsBitCast(IncV)))
     return false;
   // If any of the operands don't dominate the insert position, bail.
   // Addrec operands are always loop-invariant, so this can only happen
@@ -910,6 +919,12 @@ Instruction *SCEVExpander::getIVIncOperand(Instruction *IncV,
       return dyn_cast<Instruction>(IncV->getOperand(0));
     return nullptr;
   }
+  case Instruction::IntToPtr:
+  case Instruction::PtrToInt:
+    if (SE.getTypeSizeInBits(IncV->getType()) !=
+        SE.getTypeSizeInBits(IncV->getOperand(0)->getType()))
+      return nullptr;
+  // fall through:
   case Instruction::BitCast:
     return dyn_cast<Instruction>(IncV->getOperand(0));
   case Instruction::GetElementPtr:
@@ -1495,7 +1510,7 @@ Value *SCEVExpander::visitAddRecExpr(const SCEVAddRecExpr *S) {
       // actually a pointer type.
       if (!isa<SCEVMulExpr>(Base) && !isa<SCEVUDivExpr>(Base)) {
         Value *StartV = expand(Base);
-        assert(StartV->getType() == PTy && "Pointer type mismatch for GEP!");
+        StartV = InsertNoopCastOfTo(StartV, PTy);
         return expandAddToGEP(RestArray, RestArray+1, PTy, Ty, StartV);
       }
     }
@@ -1680,6 +1695,16 @@ ScalarEvolution::ValueOffsetPair
 SCEVExpander::FindValueInExprValueMap(const SCEV *S,
                                       const Instruction *InsertPt) {
   SetVector<ScalarEvolution::ValueOffsetPair> *Set = SE.getSCEVValues(S);
+  auto IsCompatibleTy = [this](Type *Type1, Type *Type2) {
+    if (Type1 == Type2)
+      return true;
+
+    if ((!Type1->isPointerTy() && !Type1->isIntegerTy()) ||
+        (!Type2->isPointerTy() && !Type2->isIntegerTy()))
+      return false;
+
+    return SE.getTypeSizeInBits(Type1) == SE.getTypeSizeInBits(Type2);
+  };
   // If the expansion is not in CanonicalMode, and the SCEV contains any
   // sub scAddRecExpr type SCEV, it is required to expand the SCEV literally.
   if (CanonicalMode || !SE.containsAddRecurrence(S)) {
@@ -1693,7 +1718,7 @@ SCEVExpander::FindValueInExprValueMap(const SCEV *S,
         ConstantInt *Offset = VOPair.second;
         Instruction *EntInst = nullptr;
         if (V && isa<Instruction>(V) && (EntInst = cast<Instruction>(V)) &&
-            S->getType() == V->getType() &&
+            IsCompatibleTy(S->getType(), V->getType()) &&
             EntInst->getFunction() == InsertPt->getFunction() &&
             SE.DT.dominates(EntInst, InsertPt) &&
             (SE.LI.getLoopFor(EntInst->getParent()) == nullptr ||
