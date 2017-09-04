@@ -35,7 +35,7 @@ public:
   bool consumeLabel(StringRef Tok);
   std::string getCurrentLocation();
 
-  std::vector<MemoryBufferRef> MBs;
+  std::vector<std::pair<MemoryBufferRef, int8_t>> MBs;
   std::vector<StringRef> Tokens;
   bool InExpr = false;
   size_t Pos = 0;
@@ -46,7 +46,7 @@ private:
   size_t getLineNumber();
   size_t getColumnNumber();
 
-  MemoryBufferRef getCurrentMB();
+  std::pair<MemoryBufferRef, int8_t> getCurrentMB();
 };
 
 } // namespace elf

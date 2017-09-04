@@ -42,7 +42,7 @@ using namespace lld::elf;
 
 // Returns a whole line containing the current token.
 StringRef ScriptLexer::getLine() {
-  StringRef S = getCurrentMB().getBuffer();
+  StringRef S = getCurrentMB().first.getBuffer();
   StringRef Tok = Tokens[Pos - 1];
 
   size_t Pos = S.rfind('\n', Tok.data() - S.data());
@@ -53,7 +53,7 @@ StringRef ScriptLexer::getLine() {
 
 // Returns 1-based line number of the current token.
 size_t ScriptLexer::getLineNumber() {
-  StringRef S = getCurrentMB().getBuffer();
+  StringRef S = getCurrentMB().first.getBuffer();
   StringRef Tok = Tokens[Pos - 1];
   return S.substr(0, Tok.data() - S.data()).count('\n') + 1;
 }
@@ -65,7 +65,7 @@ size_t ScriptLexer::getColumnNumber() {
 }
 
 std::string ScriptLexer::getCurrentLocation() {
-  std::string Filename = getCurrentMB().getBufferIdentifier();
+  std::string Filename = getCurrentMB().first.getBufferIdentifier();
   if (!Pos)
     return Filename;
   return (Filename + ":" + Twine(getLineNumber())).str();
@@ -88,7 +88,11 @@ void ScriptLexer::setError(const Twine &Msg) {
 // Split S into linker script tokens.
 void ScriptLexer::tokenize(MemoryBufferRef MB) {
   std::vector<StringRef> Vec;
-  MBs.push_back(MB);
+  int8_t Depth = MBs.empty() ? 0 : getCurrentMB().second + 1;
+  if (Depth > 10)
+    setError("INCLUDE nesting up do 10 levels is allowed");
+
+  MBs.push_back({MB, Depth});
   StringRef S = MB.getBuffer();
   StringRef Begin = S;
 
@@ -272,14 +276,14 @@ static bool encloses(StringRef S, StringRef T) {
   return S.bytes_begin() <= T.bytes_begin() && T.bytes_end() <= S.bytes_end();
 }
 
-MemoryBufferRef ScriptLexer::getCurrentMB() {
+std::pair<MemoryBufferRef, int8_t> ScriptLexer::getCurrentMB() {
   // Find input buffer containing the current token.
   assert(!MBs.empty());
   if (!Pos)
     return MBs[0];
 
-  for (MemoryBufferRef MB : MBs)
-    if (encloses(MB.getBuffer(), Tokens[Pos - 1]))
+  for (std::pair<MemoryBufferRef, int8_t> &MB : MBs)
+    if (encloses(MB.first.getBuffer(), Tokens[Pos - 1]))
       return MB;
   llvm_unreachable("getCurrentMB: failed to find a token");
 }
