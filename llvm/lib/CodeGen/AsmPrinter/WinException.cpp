@@ -41,6 +41,23 @@
 #include "llvm/Target/TargetSubtargetInfo.h"
 using namespace llvm;
 
+static std::string GetNameFromFunction(llvm::Function const& F) {
+  std::string name;
+  if(F.hasName())
+    name = F.getName();
+  else 
+    name = std::to_string(
+        std::distance(
+          F.getParent()->begin(),
+          std::find_if(
+            F.getParent()->begin(),
+            F.getParent()->end(),
+            [&F](Function const& Fun){return &Fun == &F;})
+          )
+        );
+  return GlobalValue::getRealLinkageName(name);
+}
+
 WinException::WinException(AsmPrinter *A) : EHStreamer(A) {
   // MSVC's EH tables are always composed of 32-bit words.  All known 64-bit
   // platforms use an imagerel32 relocation to refer to symbols.
@@ -100,8 +117,7 @@ void WinException::beginFunction(const MachineFunction *MF) {
       // make sure we emit the parent offset label. Some unreferenced filter
       // functions may still refer to it.
       const WinEHFuncInfo &FuncInfo = *MF->getWinEHFuncInfo();
-      StringRef FLinkageName =
-          GlobalValue::getRealLinkageName(MF->getFunction()->getName());
+      std::string FLinkageName = GetNameFromFunction(*MF->getFunction());
       emitEHRegistrationOffsetLabel(FuncInfo, FLinkageName);
     }
     shouldEmitLSDA = hasEHFunclets;
@@ -174,7 +190,7 @@ static MCSymbol *getMCSymbolForMBB(AsmPrinter *Asm,
   // their funclet entry block's number.
   const MachineFunction *MF = MBB->getParent();
   const Function *F = MF->getFunction();
-  StringRef FuncLinkageName = GlobalValue::getRealLinkageName(F->getName());
+  std::string FuncLinkageName = GetNameFromFunction(*F);
   MCContext &Ctx = MF->getContext();
   StringRef HandlerPrefix = MBB->isCleanupFuncletEntry() ? "dtor" : "catch";
   return Ctx.getOrCreateSymbol("?" + HandlerPrefix + "$" +
@@ -252,7 +268,7 @@ void WinException::endFunclet() {
         !CurrentFuncletEntry->isCleanupFuncletEntry()) {
       // If this is a C++ catch funclet (or the parent function),
       // emit a reference to the LSDA for the parent function.
-      StringRef FuncLinkageName = GlobalValue::getRealLinkageName(F->getName());
+      std::string FuncLinkageName = GetNameFromFunction(*F);
       MCSymbol *FuncInfoXData = Asm->OutContext.getOrCreateSymbol(
           Twine("$cppxdata$", FuncLinkageName));
       Asm->OutStreamer->EmitValue(create32bitRef(FuncInfoXData), 4);
@@ -535,8 +551,7 @@ void WinException::emitCSpecificHandlerTable(const MachineFunction *MF) {
 
   // Emit a label assignment with the SEH frame offset so we can use it for
   // llvm.x86.seh.recoverfp.
-  StringRef FLinkageName =
-      GlobalValue::getRealLinkageName(MF->getFunction()->getName());
+  std::string FLinkageName = GetNameFromFunction(*MF->getFunction());
   MCSymbol *ParentFrameOffset =
       Ctx.getOrCreateParentFrameOffsetSymbol(FLinkageName);
   const MCExpr *MCOffset =
@@ -635,7 +650,7 @@ void WinException::emitCXXFrameHandler3Table(const MachineFunction *MF) {
   auto &OS = *Asm->OutStreamer;
   const WinEHFuncInfo &FuncInfo = *MF->getWinEHFuncInfo();
 
-  StringRef FuncLinkageName = GlobalValue::getRealLinkageName(F->getName());
+  std::string FuncLinkageName = GetNameFromFunction(*F);
 
   SmallVector<std::pair<const MCExpr *, int>, 4> IPToStateTable;
   MCSymbol *FuncInfoXData = nullptr;
@@ -942,7 +957,7 @@ void WinException::emitEHRegistrationOffsetLabel(const WinEHFuncInfo &FuncInfo,
 void WinException::emitExceptHandlerTable(const MachineFunction *MF) {
   MCStreamer &OS = *Asm->OutStreamer;
   const Function *F = MF->getFunction();
-  StringRef FLinkageName = GlobalValue::getRealLinkageName(F->getName());
+  std::string FLinkageName = GetNameFromFunction(*F);
 
   bool VerboseAsm = OS.isVerboseAsm();
   auto AddComment = [&](const Twine &Comment) {
