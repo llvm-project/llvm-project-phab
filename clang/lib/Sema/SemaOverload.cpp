@@ -5900,6 +5900,9 @@ Sema::AddOverloadCandidate(FunctionDecl *Function,
       Constructor->isMoveConstructor())
     return;
 
+  if (Constructor && Constructor->isCopyConstructor() && Constructor->isDeleted())
+    return;
+
   // Overload resolution is always an unevaluated context.
   EnterExpressionEvaluationContext Unevaluated(
       *this, Sema::ExpressionEvaluationContext::Unevaluated);
