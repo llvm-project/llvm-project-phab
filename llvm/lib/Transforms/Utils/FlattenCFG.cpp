@@ -240,6 +240,8 @@ bool FlattenCFGOpt::FlattenParallelAndOr(BasicBlock *BB, IRBuilder<> &Builder) {
     for (;CurrBlock != FirstCondBlock;
           CurrBlock = CurrBlock->getSinglePredecessor()) {
       BranchInst *BI = dyn_cast<BranchInst>(CurrBlock->getTerminator());
+      if (!BI)
+        continue;
       CmpInst *CI = dyn_cast<CmpInst>(BI->getCondition());
       if (!CI)
         continue;
@@ -267,6 +269,8 @@ bool FlattenCFGOpt::FlattenParallelAndOr(BasicBlock *BB, IRBuilder<> &Builder) {
   // Do the transformation.
   BasicBlock *CB;
   BranchInst *PBI = dyn_cast<BranchInst>(FirstCondBlock->getTerminator());
+  if (!PBI)
+    return false;
   bool Iteration = true;
   IRBuilder<>::InsertPointGuard Guard(Builder);
   Value *PC = PBI->getCondition();
@@ -435,6 +439,8 @@ bool FlattenCFGOpt::MergeIfRegion(BasicBlock *BB, IRBuilder<> &Builder) {
   FirstEntryBlock->getInstList()
       .splice(FirstEntryBlock->end(), SecondEntryBlock->getInstList());
   BranchInst *PBI = dyn_cast<BranchInst>(FirstEntryBlock->getTerminator());
+  if (!PBI)
+    return false;
   Value *CC = PBI->getCondition();
   BasicBlock *SaveInsertBB = Builder.GetInsertBlock();
   BasicBlock::iterator SaveInsertPt = Builder.GetInsertPoint();
