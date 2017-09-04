@@ -934,6 +934,10 @@ public:
     /// \brief Whether we are in a decltype expression.
     bool IsDecltype;
 
+    /// \brief Whether we are in an expression where lambdas
+    /// are disallowed (such as template parameters).
+    bool IsLambdaValid;
+
     /// \brief The number of active cleanup objects when we entered
     /// this expression evaluation context.
     unsigned NumCleanupObjects;
@@ -972,10 +976,11 @@ public:
                                       unsigned NumCleanupObjects,
                                       CleanupInfo ParentCleanup,
                                       Decl *ManglingContextDecl,
-                                      bool IsDecltype)
+                                      bool IsDecltype,
+                                      bool IsLambdaValid)
       : Context(Context), ParentCleanup(ParentCleanup),
-        IsDecltype(IsDecltype), NumCleanupObjects(NumCleanupObjects),
-        NumTypos(0),
+        IsDecltype(IsDecltype), IsLambdaValid(IsLambdaValid),
+        NumCleanupObjects(NumCleanupObjects), NumTypos(0),
         ManglingContextDecl(ManglingContextDecl), MangleNumbering() { }
 
     /// \brief Retrieve the mangling numbering context, used to consistently
@@ -3926,11 +3931,13 @@ public:
 
   void PushExpressionEvaluationContext(ExpressionEvaluationContext NewContext,
                                        Decl *LambdaContextDecl = nullptr,
-                                       bool IsDecltype = false);
+                                       bool IsDecltype = false,
+                                       bool IsLambdaValid = true);
   enum ReuseLambdaContextDecl_t { ReuseLambdaContextDecl };
   void PushExpressionEvaluationContext(ExpressionEvaluationContext NewContext,
                                        ReuseLambdaContextDecl_t,
-                                       bool IsDecltype = false);
+                                       bool IsDecltype = false,
+                                       bool IsLambdaValid = true);
   void PopExpressionEvaluationContext();
 
   void DiscardCleanupsInEvaluationContext();
@@ -10546,20 +10553,22 @@ public:
                                    Sema::ExpressionEvaluationContext NewContext,
                                    Decl *LambdaContextDecl = nullptr,
                                    bool IsDecltype = false,
-                                   bool ShouldEnter = true)
+                                   bool ShouldEnter = true,
+                                   bool IsLambdaValid = true)
       : Actions(Actions), Entered(ShouldEnter) {
     if (Entered)
       Actions.PushExpressionEvaluationContext(NewContext, LambdaContextDecl,
-                                              IsDecltype);
+                                              IsDecltype, IsLambdaValid);
   }
   EnterExpressionEvaluationContext(Sema &Actions,
                                    Sema::ExpressionEvaluationContext NewContext,
                                    Sema::ReuseLambdaContextDecl_t,
-                                   bool IsDecltype = false)
+                                   bool IsDecltype = false,
+                                   bool IsLambdaValid = true)
     : Actions(Actions) {
     Actions.PushExpressionEvaluationContext(NewContext,
                                             Sema::ReuseLambdaContextDecl,
-                                            IsDecltype);
+                                            IsDecltype, IsLambdaValid);
   }
 
   enum InitListTag { InitList };
