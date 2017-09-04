@@ -2034,7 +2034,7 @@ A pointer value is *based* on another pointer value according to the
 following rules:
 
 -  A pointer value formed from a ``getelementptr`` operation is *based*
-   on the second value operand of the ``getelementptr``.
+   on the pointer-typed operand of the ``getelementptr``.
 -  The result value of a ``bitcast`` is *based* on the operand of the
    ``bitcast``.
 -  A pointer value formed by an ``inttoptr`` is *based* on all pointer
