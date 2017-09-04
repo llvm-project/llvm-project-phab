@@ -124,16 +124,27 @@ entry:
 }
 
 define i32 @test8(i32 %a1, i32 %a2, i32 %a3) {
-; ALL-LABEL: test8:
-; ALL:       ## BB#0:
-; ALL-NEXT:    xorl $-2147483648, %esi ## imm = 0x80000000
-; ALL-NEXT:    testl %edx, %edx
-; ALL-NEXT:    movl $1, %eax
-; ALL-NEXT:    cmovel %eax, %edx
-; ALL-NEXT:    notl %edi
-; ALL-NEXT:    orl %edi, %esi
-; ALL-NEXT:    cmovnel %edx, %eax
-; ALL-NEXT:    retq
+; KNL-LABEL: test8:
+; KNL:       ## BB#0:
+; KNL-NEXT:    xorl $-2147483648, %esi ## imm = 0x80000000
+; KNL-NEXT:    testl %edx, %edx
+; KNL-NEXT:    movl $1, %eax
+; KNL-NEXT:    cmovel %eax, %edx
+; KNL-NEXT:    notl %edi
+; KNL-NEXT:    orl %edi, %esi
+; KNL-NEXT:    cmovnel %edx, %eax
+; KNL-NEXT:    retq
+;
+; SKX-LABEL: test8:
+; SKX:       ## BB#0:
+; SKX-NEXT:    notl %edi
+; SKX-NEXT:    xorl $-2147483648, %esi ## imm = 0x80000000
+; SKX-NEXT:    testl %edx, %edx
+; SKX-NEXT:    movl $1, %eax
+; SKX-NEXT:    cmovel %eax, %edx
+; SKX-NEXT:    orl %edi, %esi
+; SKX-NEXT:    cmovnel %edx, %eax
+; SKX-NEXT:    retq
   %tmp1 = icmp eq i32 %a1, -1
   %tmp2 = icmp eq i32 %a2, -2147483648
   %tmp3 = and i1 %tmp1, %tmp2

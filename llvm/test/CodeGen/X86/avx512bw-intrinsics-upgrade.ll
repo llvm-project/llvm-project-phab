@@ -1938,69 +1938,69 @@ define i64 @test_mask_cmp_b_512(<64 x i8> %a0, <64 x i8> %a1, i64 %mask) {
 ; AVX512F-32-NEXT:    shrl $24, %eax
 ; AVX512F-32-NEXT:    kmovd %eax, %k1
 ; AVX512F-32-NEXT:    vpmovm2b %k1, %zmm2
-; AVX512F-32-NEXT:    vpbroadcastq %xmm2, %ymm3
-; AVX512F-32-NEXT:    vpmovm2b %k0, %zmm4
-; AVX512F-32-NEXT:    vmovdqa {{.*#+}} ymm2 = [255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,0,255,255,255,255,255,255,255]
-; AVX512F-32-NEXT:    vpblendvb %ymm2, %ymm4, %ymm3, %ymm3
-; AVX512F-32-NEXT:    vshufi64x2 {{.*#+}} zmm3 = zmm3[0,1,2,3],zmm4[4,5,6,7]
-; AVX512F-32-NEXT:    vpmovb2m %zmm3, %k0
+; AVX512F-32-NEXT:    vpbroadcastq %xmm2, %ymm2
+; AVX512F-32-NEXT:    vpmovm2b %k0, %zmm3
+; AVX512F-32-NEXT:    vmovdqa {{.*#+}} ymm4 = [255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,0,255,255,255,255,255,255,255]
+; AVX512F-32-NEXT:    vpblendvb %ymm4, %ymm3, %ymm2, %ymm2
+; AVX512F-32-NEXT:    vshufi64x2 {{.*#+}} zmm2 = zmm2[0,1,2,3],zmm3[4,5,6,7]
+; AVX512F-32-NEXT:    vpmovb2m %zmm2, %k0
 ; AVX512F-32-NEXT:    movb %al, %dl
 ; AVX512F-32-NEXT:    andb $2, %dl
 ; AVX512F-32-NEXT:    shrb %dl
 ; AVX512F-32-NEXT:    kmovd %edx, %k1
-; AVX512F-32-NEXT:    vpmovm2b %k1, %zmm3
-; AVX512F-32-NEXT:    vpslldq {{.*#+}} xmm3 = zero,zero,zero,zero,zero,zero,zero,zero,zero,xmm3[0,1,2,3,4,5,6]
-; AVX512F-32-NEXT:    vinserti128 $1, %xmm3, %ymm0, %ymm4
-; AVX512F-32-NEXT:    vpmovm2b %k0, %zmm5
+; AVX512F-32-NEXT:    vpmovm2b %k1, %zmm2
+; AVX512F-32-NEXT:    vpslldq {{.*#+}} xmm2 = zero,zero,zero,zero,zero,zero,zero,zero,zero,xmm2[0,1,2,3,4,5,6]
+; AVX512F-32-NEXT:    vinserti128 $1, %xmm2, %ymm0, %ymm3
+; AVX512F-32-NEXT:    vpmovm2b %k0, %zmm4
 ; AVX512F-32-NEXT:    vmovdqa {{.*#+}} ymm2 = [255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,0,255,255,255,255,255,255]
-; AVX512F-32-NEXT:    vpblendvb %ymm2, %ymm5, %ymm4, %ymm4
-; AVX512F-32-NEXT:    vshufi64x2 {{.*#+}} zmm4 = zmm4[0,1,2,3],zmm5[4,5,6,7]
-; AVX512F-32-NEXT:    vpmovb2m %zmm4, %k0
+; AVX512F-32-NEXT:    vpblendvb %ymm2, %ymm4, %ymm3, %ymm3
+; AVX512F-32-NEXT:    vshufi64x2 {{.*#+}} zmm3 = zmm3[0,1,2,3],zmm4[4,5,6,7]
+; AVX512F-32-NEXT:    vpmovb2m %zmm3, %k0
 ; AVX512F-32-NEXT:    movb %al, %dl
 ; AVX512F-32-NEXT:    andb $15, %dl
 ; AVX512F-32-NEXT:    movb %dl, %al
 ; AVX512F-32-NEXT:    shrb $2, %dl
 ; AVX512F-32-NEXT:    kmovd %edx, %k1
-; AVX512F-32-NEXT:    vpmovm2b %k1, %zmm4
-; AVX512F-32-NEXT:    vpbroadcastw %xmm4, %xmm4
-; AVX512F-32-NEXT:    vinserti128 $1, %xmm4, %ymm0, %ymm5
-; AVX512F-32-NEXT:    vpmovm2b %k0, %zmm6
+; AVX512F-32-NEXT:    vpmovm2b %k1, %zmm3
+; AVX512F-32-NEXT:    vpbroadcastw %xmm3, %xmm3
+; AVX512F-32-NEXT:    vinserti128 $1, %xmm3, %ymm0, %ymm4
+; AVX512F-32-NEXT:    vpmovm2b %k0, %zmm5
 ; AVX512F-32-NEXT:    vmovdqa {{.*#+}} ymm2 = [255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,0,255,255,255,255,255]
-; AVX512F-32-NEXT:    vpblendvb %ymm2, %ymm6, %ymm5, %ymm5
-; AVX512F-32-NEXT:    vshufi64x2 {{.*#+}} zmm5 = zmm5[0,1,2,3],zmm6[4,5,6,7]
-; AVX512F-32-NEXT:    vpmovb2m %zmm5, %k0
+; AVX512F-32-NEXT:    vpblendvb %ymm2, %ymm5, %ymm4, %ymm4
+; AVX512F-32-NEXT:    vshufi64x2 {{.*#+}} zmm4 = zmm4[0,1,2,3],zmm5[4,5,6,7]
+; AVX512F-32-NEXT:    vpmovb2m %zmm4, %k0
 ; AVX512F-32-NEXT:    shrb $3, %al
 ; AVX512F-32-NEXT:    kmovd %eax, %k1
-; AVX512F-32-NEXT:    vpmovm2b %k1, %zmm5
-; AVX512F-32-NEXT:    vpslldq {{.*#+}} xmm5 = zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,xmm5[0,1,2,3,4]
-; AVX512F-32-NEXT:    vinserti128 $1, %xmm5, %ymm0, %ymm5
-; AVX512F-32-NEXT:    vpmovm2b %k0, %zmm7
-; AVX512F-32-NEXT:    vmovdqa {{.*#+}} ymm6 = [255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,0,255,255,255,255]
-; AVX512F-32-NEXT:    vpblendvb %ymm6, %ymm7, %ymm5, %ymm5
-; AVX512F-32-NEXT:    vshufi64x2 {{.*#+}} zmm5 = zmm5[0,1,2,3],zmm7[4,5,6,7]
+; AVX512F-32-NEXT:    vpmovm2b %k1, %zmm4
+; AVX512F-32-NEXT:    vpslldq {{.*#+}} xmm4 = zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,xmm4[0,1,2,3,4]
+; AVX512F-32-NEXT:    vinserti128 $1, %xmm4, %ymm0, %ymm5
+; AVX512F-32-NEXT:    vpmovm2b %k0, %zmm6
+; AVX512F-32-NEXT:    vmovdqa {{.*#+}} ymm2 = [255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,0,255,255,255,255]
+; AVX512F-32-NEXT:    vpblendvb %ymm2, %ymm6, %ymm5, %ymm5
+; AVX512F-32-NEXT:    vshufi64x2 {{.*#+}} zmm5 = zmm5[0,1,2,3],zmm6[4,5,6,7]
 ; AVX512F-32-NEXT:    vpmovb2m %zmm5, %k0
 ; AVX512F-32-NEXT:    movl %ecx, %eax
 ; AVX512F-32-NEXT:    shrl $28, %eax
 ; AVX512F-32-NEXT:    kmovd %eax, %k1
 ; AVX512F-32-NEXT:    vpmovm2b %k1, %zmm5
 ; AVX512F-32-NEXT:    vpbroadcastd %xmm5, %xmm5
-; AVX512F-32-NEXT:    vinserti128 $1, %xmm5, %ymm0, %ymm5
+; AVX512F-32-NEXT:    vinserti128 $1, %xmm5, %ymm0, %ymm6
 ; AVX512F-32-NEXT:    vpmovm2b %k0, %zmm7
 ; AVX512F-32-NEXT:    vmovdqa {{.*#+}} ymm2 = [255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,0,255,255,255]
-; AVX512F-32-NEXT:    vpblendvb %ymm2, %ymm7, %ymm5, %ymm5
-; AVX512F-32-NEXT:    vshufi64x2 {{.*#+}} zmm5 = zmm5[0,1,2,3],zmm7[4,5,6,7]
-; AVX512F-32-NEXT:    vpmovb2m %zmm5, %k0
+; AVX512F-32-NEXT:    vpblendvb %ymm2, %ymm7, %ymm6, %ymm6
+; AVX512F-32-NEXT:    vshufi64x2 {{.*#+}} zmm6 = zmm6[0,1,2,3],zmm7[4,5,6,7]
+; AVX512F-32-NEXT:    vpmovb2m %zmm6, %k0
 ; AVX512F-32-NEXT:    movl %ecx, %eax
 ; AVX512F-32-NEXT:    movl %ecx, %esi
 ; AVX512F-32-NEXT:    shrl $29, %eax
 ; AVX512F-32-NEXT:    andb $1, %al
 ; AVX512F-32-NEXT:    kmovd %eax, %k1
-; AVX512F-32-NEXT:    vpmovm2b %k1, %zmm5
-; AVX512F-32-NEXT:    vpslldq {{.*#+}} xmm5 = zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,xmm5[0,1,2]
-; AVX512F-32-NEXT:    vinserti128 $1, %xmm5, %ymm0, %ymm7
+; AVX512F-32-NEXT:    vpmovm2b %k1, %zmm6
+; AVX512F-32-NEXT:    vpslldq {{.*#+}} xmm6 = zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,xmm6[0,1,2]
+; AVX512F-32-NEXT:    vinserti128 $1, %xmm6, %ymm0, %ymm7
 ; AVX512F-32-NEXT:    vpmovm2b %k0, %zmm2
-; AVX512F-32-NEXT:    vmovdqa {{.*#+}} ymm3 = [255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,0,255,255]
-; AVX512F-32-NEXT:    vpblendvb %ymm3, %ymm2, %ymm7, %ymm7
+; AVX512F-32-NEXT:    vmovdqa {{.*#+}} ymm6 = [255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,0,255,255]
+; AVX512F-32-NEXT:    vpblendvb %ymm6, %ymm2, %ymm7, %ymm7
 ; AVX512F-32-NEXT:    vshufi64x2 {{.*#+}} zmm2 = zmm7[0,1,2,3],zmm2[4,5,6,7]
 ; AVX512F-32-NEXT:    vpmovb2m %zmm2, %k0
 ; AVX512F-32-NEXT:    movl %esi, %eax
@@ -2349,23 +2349,24 @@ define i64 @test_mask_cmp_b_512(<64 x i8> %a0, <64 x i8> %a1, i64 %mask) {
 ; AVX512F-32-NEXT:    vpslldq {{.*#+}} xmm3 = zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,xmm3[0,1,2,3,4]
 ; AVX512F-32-NEXT:    vinserti128 $1, %xmm3, %ymm0, %ymm3
 ; AVX512F-32-NEXT:    vextracti64x4 $1, %zmm2, %ymm4
-; AVX512F-32-NEXT:    vpblendvb %ymm6, %ymm4, %ymm3, %ymm3
-; AVX512F-32-NEXT:    movl %ecx, %eax
-; AVX512F-32-NEXT:    shrl $29, %eax
-; AVX512F-32-NEXT:    andb $1, %al
-; AVX512F-32-NEXT:    kmovd %eax, %k0
+; AVX512F-32-NEXT:    vmovdqa {{.*#+}} ymm5 = [255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,0,255,255,255,255]
+; AVX512F-32-NEXT:    vpblendvb %ymm5, %ymm4, %ymm3, %ymm3
 ; AVX512F-32-NEXT:    movl %ecx, %eax
 ; AVX512F-32-NEXT:    shrl $28, %eax
 ; AVX512F-32-NEXT:    vinserti64x4 $1, %ymm3, %zmm2, %zmm2
-; AVX512F-32-NEXT:    vpmovb2m %zmm2, %k1
-; AVX512F-32-NEXT:    vpmovm2b %k1, %zmm2
+; AVX512F-32-NEXT:    vpmovb2m %zmm2, %k0
+; AVX512F-32-NEXT:    vpmovm2b %k0, %zmm2
 ; AVX512F-32-NEXT:    vextracti64x4 $1, %zmm2, %ymm3
-; AVX512F-32-NEXT:    kmovd %eax, %k1
-; AVX512F-32-NEXT:    vpmovm2b %k1, %zmm4
+; AVX512F-32-NEXT:    kmovd %eax, %k0
+; AVX512F-32-NEXT:    vpmovm2b %k0, %zmm4
 ; AVX512F-32-NEXT:    vpbroadcastd %xmm4, %xmm4
 ; AVX512F-32-NEXT:    vinserti128 $1, %xmm4, %ymm0, %ymm4
 ; AVX512F-32-NEXT:    vmovdqa {{.*#+}} ymm5 = [255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,0,255,255,255]
 ; AVX512F-32-NEXT:    vpblendvb %ymm5, %ymm3, %ymm4, %ymm3
+; AVX512F-32-NEXT:    movl %ecx, %eax
+; AVX512F-32-NEXT:    shrl $29, %eax
+; AVX512F-32-NEXT:    andb $1, %al
+; AVX512F-32-NEXT:    kmovd %eax, %k0
 ; AVX512F-32-NEXT:    vinserti64x4 $1, %ymm3, %zmm2, %zmm2
 ; AVX512F-32-NEXT:    vpmovb2m %zmm2, %k1
 ; AVX512F-32-NEXT:    vpmovm2b %k1, %zmm2
@@ -2373,8 +2374,7 @@ define i64 @test_mask_cmp_b_512(<64 x i8> %a0, <64 x i8> %a1, i64 %mask) {
 ; AVX512F-32-NEXT:    vpmovm2b %k0, %zmm4
 ; AVX512F-32-NEXT:    vpslldq {{.*#+}} xmm4 = zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,xmm4[0,1,2]
 ; AVX512F-32-NEXT:    vinserti128 $1, %xmm4, %ymm0, %ymm4
-; AVX512F-32-NEXT:    vmovdqa {{.*#+}} ymm5 = [255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,0,255,255]
-; AVX512F-32-NEXT:    vpblendvb %ymm5, %ymm3, %ymm4, %ymm3
+; AVX512F-32-NEXT:    vpblendvb %ymm6, %ymm3, %ymm4, %ymm3
 ; AVX512F-32-NEXT:    movl %ecx, %eax
 ; AVX512F-32-NEXT:    shrl $30, %eax
 ; AVX512F-32-NEXT:    vinserti64x4 $1, %ymm3, %zmm2, %zmm2
@@ -2412,15 +2412,15 @@ define i64 @test_mask_cmp_b_512(<64 x i8> %a0, <64 x i8> %a1, i64 %mask) {
 ; AVX512F-32-NEXT:    orl {{[0-9]+}}(%esp), %edx
 ; AVX512F-32-NEXT:    orl {{[0-9]+}}(%esp), %eax
 ; AVX512F-32-NEXT:    vpcmpneqb %zmm1, %zmm0, %k0 {%k1}
-; AVX512F-32-NEXT:    vpcmpleb %zmm0, %zmm1, %k2 {%k1}
-; AVX512F-32-NEXT:    vpcmpgtb %zmm1, %zmm0, %k1 {%k1}
 ; AVX512F-32-NEXT:    kmovq %k0, {{[0-9]+}}(%esp)
 ; AVX512F-32-NEXT:    addl {{[0-9]+}}(%esp), %eax
 ; AVX512F-32-NEXT:    adcxl {{[0-9]+}}(%esp), %edx
-; AVX512F-32-NEXT:    kmovq %k2, {{[0-9]+}}(%esp)
+; AVX512F-32-NEXT:    vpcmpleb %zmm0, %zmm1, %k0 {%k1}
+; AVX512F-32-NEXT:    kmovq %k0, {{[0-9]+}}(%esp)
 ; AVX512F-32-NEXT:    addl {{[0-9]+}}(%esp), %eax
+; AVX512F-32-NEXT:    vpcmpgtb %zmm1, %zmm0, %k0 {%k1}
 ; AVX512F-32-NEXT:    adcxl {{[0-9]+}}(%esp), %edx
-; AVX512F-32-NEXT:    kmovq %k1, {{[0-9]+}}(%esp)
+; AVX512F-32-NEXT:    kmovq %k0, {{[0-9]+}}(%esp)
 ; AVX512F-32-NEXT:    addl {{[0-9]+}}(%esp), %eax
 ; AVX512F-32-NEXT:    adcxl {{[0-9]+}}(%esp), %edx
 ; AVX512F-32-NEXT:    addl %esi, %eax
@@ -2822,69 +2822,69 @@ define i64 @test_mask_x86_avx512_ucmp_b_512(<64 x i8> %a0, <64 x i8> %a1, i64 %m
 ; AVX512F-32-NEXT:    shrl $24, %eax
 ; AVX512F-32-NEXT:    kmovd %eax, %k1
 ; AVX512F-32-NEXT:    vpmovm2b %k1, %zmm2
-; AVX512F-32-NEXT:    vpbroadcastq %xmm2, %ymm3
-; AVX512F-32-NEXT:    vpmovm2b %k0, %zmm4
-; AVX512F-32-NEXT:    vmovdqa {{.*#+}} ymm2 = [255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,0,255,255,255,255,255,255,255]
-; AVX512F-32-NEXT:    vpblendvb %ymm2, %ymm4, %ymm3, %ymm3
-; AVX512F-32-NEXT:    vshufi64x2 {{.*#+}} zmm3 = zmm3[0,1,2,3],zmm4[4,5,6,7]
-; AVX512F-32-NEXT:    vpmovb2m %zmm3, %k0
+; AVX512F-32-NEXT:    vpbroadcastq %xmm2, %ymm2
+; AVX512F-32-NEXT:    vpmovm2b %k0, %zmm3
+; AVX512F-32-NEXT:    vmovdqa {{.*#+}} ymm4 = [255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,0,255,255,255,255,255,255,255]
+; AVX512F-32-NEXT:    vpblendvb %ymm4, %ymm3, %ymm2, %ymm2
+; AVX512F-32-NEXT:    vshufi64x2 {{.*#+}} zmm2 = zmm2[0,1,2,3],zmm3[4,5,6,7]
+; AVX512F-32-NEXT:    vpmovb2m %zmm2, %k0
 ; AVX512F-32-NEXT:    movb %al, %dl
 ; AVX512F-32-NEXT:    andb $2, %dl
 ; AVX512F-32-NEXT:    shrb %dl
 ; AVX512F-32-NEXT:    kmovd %edx, %k1
-; AVX512F-32-NEXT:    vpmovm2b %k1, %zmm3
-; AVX512F-32-NEXT:    vpslldq {{.*#+}} xmm3 = zero,zero,zero,zero,zero,zero,zero,zero,zero,xmm3[0,1,2,3,4,5,6]
-; AVX512F-32-NEXT:    vinserti128 $1, %xmm3, %ymm0, %ymm4
-; AVX512F-32-NEXT:    vpmovm2b %k0, %zmm5
+; AVX512F-32-NEXT:    vpmovm2b %k1, %zmm2
+; AVX512F-32-NEXT:    vpslldq {{.*#+}} xmm2 = zero,zero,zero,zero,zero,zero,zero,zero,zero,xmm2[0,1,2,3,4,5,6]
+; AVX512F-32-NEXT:    vinserti128 $1, %xmm2, %ymm0, %ymm3
+; AVX512F-32-NEXT:    vpmovm2b %k0, %zmm4
 ; AVX512F-32-NEXT:    vmovdqa {{.*#+}} ymm2 = [255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,0,255,255,255,255,255,255]
-; AVX512F-32-NEXT:    vpblendvb %ymm2, %ymm5, %ymm4, %ymm4
-; AVX512F-32-NEXT:    vshufi64x2 {{.*#+}} zmm4 = zmm4[0,1,2,3],zmm5[4,5,6,7]
-; AVX512F-32-NEXT:    vpmovb2m %zmm4, %k0
+; AVX512F-32-NEXT:    vpblendvb %ymm2, %ymm4, %ymm3, %ymm3
+; AVX512F-32-NEXT:    vshufi64x2 {{.*#+}} zmm3 = zmm3[0,1,2,3],zmm4[4,5,6,7]
+; AVX512F-32-NEXT:    vpmovb2m %zmm3, %k0
 ; AVX512F-32-NEXT:    movb %al, %dl
 ; AVX512F-32-NEXT:    andb $15, %dl
 ; AVX512F-32-NEXT:    movb %dl, %al
 ; AVX512F-32-NEXT:    shrb $2, %dl
 ; AVX512F-32-NEXT:    kmovd %edx, %k1
-; AVX512F-32-NEXT:    vpmovm2b %k1, %zmm4
-; AVX512F-32-NEXT:    vpbroadcastw %xmm4, %xmm4
-; AVX512F-32-NEXT:    vinserti128 $1, %xmm4, %ymm0, %ymm5
-; AVX512F-32-NEXT:    vpmovm2b %k0, %zmm6
+; AVX512F-32-NEXT:    vpmovm2b %k1, %zmm3
+; AVX512F-32-NEXT:    vpbroadcastw %xmm3, %xmm3
+; AVX512F-32-NEXT:    vinserti128 $1, %xmm3, %ymm0, %ymm4
+; AVX512F-32-NEXT:    vpmovm2b %k0, %zmm5
 ; AVX512F-32-NEXT:    vmovdqa {{.*#+}} ymm2 = [255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,0,255,255,255,255,255]
-; AVX512F-32-NEXT:    vpblendvb %ymm2, %ymm6, %ymm5, %ymm5
-; AVX512F-32-NEXT:    vshufi64x2 {{.*#+}} zmm5 = zmm5[0,1,2,3],zmm6[4,5,6,7]
-; AVX512F-32-NEXT:    vpmovb2m %zmm5, %k0
+; AVX512F-32-NEXT:    vpblendvb %ymm2, %ymm5, %ymm4, %ymm4
+; AVX512F-32-NEXT:    vshufi64x2 {{.*#+}} zmm4 = zmm4[0,1,2,3],zmm5[4,5,6,7]
+; AVX512F-32-NEXT:    vpmovb2m %zmm4, %k0
 ; AVX512F-32-NEXT:    shrb $3, %al
 ; AVX512F-32-NEXT:    kmovd %eax, %k1
-; AVX512F-32-NEXT:    vpmovm2b %k1, %zmm5
-; AVX512F-32-NEXT:    vpslldq {{.*#+}} xmm5 = zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,xmm5[0,1,2,3,4]
-; AVX512F-32-NEXT:    vinserti128 $1, %xmm5, %ymm0, %ymm5
-; AVX512F-32-NEXT:    vpmovm2b %k0, %zmm7
-; AVX512F-32-NEXT:    vmovdqa {{.*#+}} ymm6 = [255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,0,255,255,255,255]
-; AVX512F-32-NEXT:    vpblendvb %ymm6, %ymm7, %ymm5, %ymm5
-; AVX512F-32-NEXT:    vshufi64x2 {{.*#+}} zmm5 = zmm5[0,1,2,3],zmm7[4,5,6,7]
+; AVX512F-32-NEXT:    vpmovm2b %k1, %zmm4
+; AVX512F-32-NEXT:    vpslldq {{.*#+}} xmm4 = zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,xmm4[0,1,2,3,4]
+; AVX512F-32-NEXT:    vinserti128 $1, %xmm4, %ymm0, %ymm5
+; AVX512F-32-NEXT:    vpmovm2b %k0, %zmm6
+; AVX512F-32-NEXT:    vmovdqa {{.*#+}} ymm2 = [255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,0,255,255,255,255]
+; AVX512F-32-NEXT:    vpblendvb %ymm2, %ymm6, %ymm5, %ymm5
+; AVX512F-32-NEXT:    vshufi64x2 {{.*#+}} zmm5 = zmm5[0,1,2,3],zmm6[4,5,6,7]
 ; AVX512F-32-NEXT:    vpmovb2m %zmm5, %k0
 ; AVX512F-32-NEXT:    movl %ecx, %eax
 ; AVX512F-32-NEXT:    shrl $28, %eax
 ; AVX512F-32-NEXT:    kmovd %eax, %k1
 ; AVX512F-32-NEXT:    vpmovm2b %k1, %zmm5
 ; AVX512F-32-NEXT:    vpbroadcastd %xmm5, %xmm5
-; AVX512F-32-NEXT:    vinserti128 $1, %xmm5, %ymm0, %ymm5
+; AVX512F-32-NEXT:    vinserti128 $1, %xmm5, %ymm0, %ymm6
 ; AVX512F-32-NEXT:    vpmovm2b %k0, %zmm7
 ; AVX512F-32-NEXT:    vmovdqa {{.*#+}} ymm2 = [255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,0,255,255,255]
-; AVX512F-32-NEXT:    vpblendvb %ymm2, %ymm7, %ymm5, %ymm5
-; AVX512F-32-NEXT:    vshufi64x2 {{.*#+}} zmm5 = zmm5[0,1,2,3],zmm7[4,5,6,7]
-; AVX512F-32-NEXT:    vpmovb2m %zmm5, %k0
+; AVX512F-32-NEXT:    vpblendvb %ymm2, %ymm7, %ymm6, %ymm6
+; AVX512F-32-NEXT:    vshufi64x2 {{.*#+}} zmm6 = zmm6[0,1,2,3],zmm7[4,5,6,7]
+; AVX512F-32-NEXT:    vpmovb2m %zmm6, %k0
 ; AVX512F-32-NEXT:    movl %ecx, %eax
 ; AVX512F-32-NEXT:    movl %ecx, %esi
 ; AVX512F-32-NEXT:    shrl $29, %eax
 ; AVX512F-32-NEXT:    andb $1, %al
 ; AVX512F-32-NEXT:    kmovd %eax, %k1
-; AVX512F-32-NEXT:    vpmovm2b %k1, %zmm5
-; AVX512F-32-NEXT:    vpslldq {{.*#+}} xmm5 = zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,xmm5[0,1,2]
-; AVX512F-32-NEXT:    vinserti128 $1, %xmm5, %ymm0, %ymm7
+; AVX512F-32-NEXT:    vpmovm2b %k1, %zmm6
+; AVX512F-32-NEXT:    vpslldq {{.*#+}} xmm6 = zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,xmm6[0,1,2]
+; AVX512F-32-NEXT:    vinserti128 $1, %xmm6, %ymm0, %ymm7
 ; AVX512F-32-NEXT:    vpmovm2b %k0, %zmm2
-; AVX512F-32-NEXT:    vmovdqa {{.*#+}} ymm3 = [255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,0,255,255]
-; AVX512F-32-NEXT:    vpblendvb %ymm3, %ymm2, %ymm7, %ymm7
+; AVX512F-32-NEXT:    vmovdqa {{.*#+}} ymm6 = [255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,0,255,255]
+; AVX512F-32-NEXT:    vpblendvb %ymm6, %ymm2, %ymm7, %ymm7
 ; AVX512F-32-NEXT:    vshufi64x2 {{.*#+}} zmm2 = zmm7[0,1,2,3],zmm2[4,5,6,7]
 ; AVX512F-32-NEXT:    vpmovb2m %zmm2, %k0
 ; AVX512F-32-NEXT:    movl %esi, %eax
@@ -3233,23 +3233,24 @@ define i64 @test_mask_x86_avx512_ucmp_b_512(<64 x i8> %a0, <64 x i8> %a1, i64 %m
 ; AVX512F-32-NEXT:    vpslldq {{.*#+}} xmm3 = zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,xmm3[0,1,2,3,4]
 ; AVX512F-32-NEXT:    vinserti128 $1, %xmm3, %ymm0, %ymm3
 ; AVX512F-32-NEXT:    vextracti64x4 $1, %zmm2, %ymm4
-; AVX512F-32-NEXT:    vpblendvb %ymm6, %ymm4, %ymm3, %ymm3
-; AVX512F-32-NEXT:    movl %ecx, %eax
-; AVX512F-32-NEXT:    shrl $29, %eax
-; AVX512F-32-NEXT:    andb $1, %al
-; AVX512F-32-NEXT:    kmovd %eax, %k0
+; AVX512F-32-NEXT:    vmovdqa {{.*#+}} ymm5 = [255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,0,255,255,255,255]
+; AVX512F-32-NEXT:    vpblendvb %ymm5, %ymm4, %ymm3, %ymm3
 ; AVX512F-32-NEXT:    movl %ecx, %eax
 ; AVX512F-32-NEXT:    shrl $28, %eax
 ; AVX512F-32-NEXT:    vinserti64x4 $1, %ymm3, %zmm2, %zmm2
-; AVX512F-32-NEXT:    vpmovb2m %zmm2, %k1
-; AVX512F-32-NEXT:    vpmovm2b %k1, %zmm2
+; AVX512F-32-NEXT:    vpmovb2m %zmm2, %k0
+; AVX512F-32-NEXT:    vpmovm2b %k0, %zmm2
 ; AVX512F-32-NEXT:    vextracti64x4 $1, %zmm2, %ymm3
-; AVX512F-32-NEXT:    kmovd %eax, %k1
-; AVX512F-32-NEXT:    vpmovm2b %k1, %zmm4
+; AVX512F-32-NEXT:    kmovd %eax, %k0
+; AVX512F-32-NEXT:    vpmovm2b %k0, %zmm4
 ; AVX512F-32-NEXT:    vpbroadcastd %xmm4, %xmm4
 ; AVX512F-32-NEXT:    vinserti128 $1, %xmm4, %ymm0, %ymm4
 ; AVX512F-32-NEXT:    vmovdqa {{.*#+}} ymm5 = [255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,0,255,255,255]
 ; AVX512F-32-NEXT:    vpblendvb %ymm5, %ymm3, %ymm4, %ymm3
+; AVX512F-32-NEXT:    movl %ecx, %eax
+; AVX512F-32-NEXT:    shrl $29, %eax
+; AVX512F-32-NEXT:    andb $1, %al
+; AVX512F-32-NEXT:    kmovd %eax, %k0
 ; AVX512F-32-NEXT:    vinserti64x4 $1, %ymm3, %zmm2, %zmm2
 ; AVX512F-32-NEXT:    vpmovb2m %zmm2, %k1
 ; AVX512F-32-NEXT:    vpmovm2b %k1, %zmm2
@@ -3257,8 +3258,7 @@ define i64 @test_mask_x86_avx512_ucmp_b_512(<64 x i8> %a0, <64 x i8> %a1, i64 %m
 ; AVX512F-32-NEXT:    vpmovm2b %k0, %zmm4
 ; AVX512F-32-NEXT:    vpslldq {{.*#+}} xmm4 = zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,xmm4[0,1,2]
 ; AVX512F-32-NEXT:    vinserti128 $1, %xmm4, %ymm0, %ymm4
-; AVX512F-32-NEXT:    vmovdqa {{.*#+}} ymm5 = [255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,0,255,255]
-; AVX512F-32-NEXT:    vpblendvb %ymm5, %ymm3, %ymm4, %ymm3
+; AVX512F-32-NEXT:    vpblendvb %ymm6, %ymm3, %ymm4, %ymm3
 ; AVX512F-32-NEXT:    movl %ecx, %eax
 ; AVX512F-32-NEXT:    shrl $30, %eax
 ; AVX512F-32-NEXT:    vinserti64x4 $1, %ymm3, %zmm2, %zmm2
@@ -3296,15 +3296,15 @@ define i64 @test_mask_x86_avx512_ucmp_b_512(<64 x i8> %a0, <64 x i8> %a1, i64 %m
 ; AVX512F-32-NEXT:    orl {{[0-9]+}}(%esp), %edx
 ; AVX512F-32-NEXT:    orl {{[0-9]+}}(%esp), %eax
 ; AVX512F-32-NEXT:    vpcmpneqb %zmm1, %zmm0, %k0 {%k1}
-; AVX512F-32-NEXT:    vpcmpnltub %zmm1, %zmm0, %k2 {%k1}
-; AVX512F-32-NEXT:    vpcmpnleub %zmm1, %zmm0, %k1 {%k1}
 ; AVX512F-32-NEXT:    kmovq %k0, {{[0-9]+}}(%esp)
 ; AVX512F-32-NEXT:    addl {{[0-9]+}}(%esp), %eax
 ; AVX512F-32-NEXT:    adcxl {{[0-9]+}}(%esp), %edx
-; AVX512F-32-NEXT:    kmovq %k2, {{[0-9]+}}(%esp)
+; AVX512F-32-NEXT:    vpcmpnltub %zmm1, %zmm0, %k0 {%k1}
+; AVX512F-32-NEXT:    kmovq %k0, {{[0-9]+}}(%esp)
 ; AVX512F-32-NEXT:    addl {{[0-9]+}}(%esp), %eax
+; AVX512F-32-NEXT:    vpcmpnleub %zmm1, %zmm0, %k0 {%k1}
 ; AVX512F-32-NEXT:    adcxl {{[0-9]+}}(%esp), %edx
-; AVX512F-32-NEXT:    kmovq %k1, {{[0-9]+}}(%esp)
+; AVX512F-32-NEXT:    kmovq %k0, {{[0-9]+}}(%esp)
 ; AVX512F-32-NEXT:    addl {{[0-9]+}}(%esp), %eax
 ; AVX512F-32-NEXT:    adcxl {{[0-9]+}}(%esp), %edx
 ; AVX512F-32-NEXT:    addl %esi, %eax
