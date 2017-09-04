@@ -1127,6 +1127,9 @@ def fmodule_map_file : Joined<["-"], "fmodule-map-file=">,
 def fmodule_file : Joined<["-"], "fmodule-file=">,
   Group<i_Group>, Flags<[DriverOption,CC1Option]>, MetaVarName<"[<name>=]<file>">,
   HelpText<"Specify the mapping of module name to precompiled module file, or load a module file if name is omitted.">;
+def fmodule_file_map : Joined<["-"], "fmodule-file-map=">,
+  Group<i_Group>, Flags<[DriverOption,CC1Option]>, MetaVarName<"[<prefix>=]<file>">,
+  HelpText<"Read the mapping of module names to precompiled module files from <file>.">;
 def fmodules_ignore_macro : Joined<["-"], "fmodules-ignore-macro=">, Group<f_Group>, Flags<[CC1Option]>,
   HelpText<"Ignore the definition of the given macro when building and loading modules">;
 def fmodules_decluse : Flag <["-"], "fmodules-decluse">, Group<f_Group>,

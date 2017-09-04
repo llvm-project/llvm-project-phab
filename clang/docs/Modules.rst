@@ -222,6 +222,16 @@ Command-line parameters
   specified file also overrides this module's paths that might be embedded
   in other precompiled module files.
 
+``-fmodule-file-map=[<prefix>=]<file>``
+  Read the mapping of module names to precompiled module files from file. If
+  the argument includes optional prefix, then only lines starting with this
+  string are considered (with the prefix itself ignored). Each mapping entry
+  should be in the same form as the ``-fmodule-file`` value with module
+  name. Leading and trailing whitespaces in the value as well as blank lines
+  are ignored. The line prefix can be used to store the mapping in an already
+  existing file, for example, as comments in makefile fragments produced by
+  the ``-M`` option family.
+
 ``-fprebuilt-module-path=<directory>``
   Specify the path to the prebuilt modules. If specified, we will look for modules in this directory for a given top-level module name. We don't need a module map for loading prebuilt modules in this directory and the compiler will not try to rebuild these modules. This can be specified multiple times.
 
