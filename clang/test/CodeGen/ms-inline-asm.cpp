@@ -31,18 +31,6 @@ void t1() {
   __asm mov eax, dword ptr [Foo :: ptr]
 }
 
-int gvar = 10;
-void t2() {
-  int lvar = 10;
-  __asm mov eax, offset Foo::ptr
-  __asm mov eax, offset Foo::Bar::ptr
-// CHECK-LABEL: define void @_Z2t2v()
-// CHECK: call void asm sideeffect inteldialect
-// CHECK-SAME: mov eax, $0
-// CHECK-SAME: mov eax, $1
-// CHECK-SAME: "r,r,~{eax},~{dirflag},~{fpsr},~{flags}"(i32** @_ZN3Foo3ptrE, i32** @_ZN3Foo3Bar3ptrE)
-}
-
 // CHECK-LABEL: define void @_Z2t3v()
 void t3() {
   __asm mov eax, LENGTH Foo::ptr

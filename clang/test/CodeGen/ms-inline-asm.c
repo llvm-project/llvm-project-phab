@@ -180,25 +180,14 @@ void t14() {
 // CHECK: call void asm sideeffect inteldialect ".if 1\0A\09mov eax, $0\0A\09.else\0A\09mov ebx, j\0A\09.endif", "*m,~{eax},~{dirflag},~{fpsr},~{flags}"(i32* %{{.*}})
 }
 
-int gvar = 10;
 void t15() {
 // CHECK: t15
   int lvar = 10;
   __asm mov eax, lvar        ; eax = 10
 // CHECK: mov eax, $0
-  __asm mov eax, offset lvar ; eax = address of lvar
-// CHECK: mov eax, $1
-  __asm mov eax, offset gvar ; eax = address of gvar
-// CHECK: mov eax, $2
-// CHECK: "*m,r,r,~{eax},~{dirflag},~{fpsr},~{flags}"(i32* %{{.*}}, i32* %{{.*}}, i32* @{{.*}})
+// CHECK-SAME: "*m,~{eax},~{dirflag},~{fpsr},~{flags}"
 }
 
-void t16() {
-  int var = 10;
-  __asm mov [eax], offset var
-// CHECK: t16
-// CHECK: call void asm sideeffect inteldialect "mov [eax], $0", "r,~{dirflag},~{fpsr},~{flags}"(i32* %{{.*}})
-}
 
 void t17() {
 // CHECK: t17
