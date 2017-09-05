@@ -144,15 +144,15 @@ def apply_fixes(args, tmpdir):
   subprocess.call(invocation)
 
 
-def run_tidy(args, tmpdir, build_path, queue):
+def run_tidy(args, tmpdir, build_path, total_file_count, queue):
   """Takes filenames out of queue and runs clang-tidy on them."""
   while True:
-    name = queue.get()
+    index, name = queue.get()
     invocation = get_tidy_invocation(name, args.clang_tidy_binary, args.checks,
                                      tmpdir, build_path, args.header_filter,
                                      args.extra_arg, args.extra_arg_before,
                                      args.quiet)
-    sys.stdout.write(' '.join(invocation) + '\n')
+    sys.stdout.write('[%s/%s] Running: %s' % (index+1, total_file_count, ' '.join(invocation) + '\n'))
     subprocess.call(invocation)
     queue.task_done()
 
@@ -242,14 +242,16 @@ def main():
     task_queue = queue.Queue(max_task)
     for _ in range(max_task):
       t = threading.Thread(target=run_tidy,
-                           args=(args, tmpdir, build_path, task_queue))
+                           args=(args, tmpdir, build_path, len(files), task_queue))
       t.daemon = True
       t.start()
 
     # Fill the queue with files.
+    index = 0
     for name in files:
       if file_name_re.search(name):
-        task_queue.put(name)
+        task_queue.put((index, name))
+        index += 1
 
     # Wait for all threads to be done.
     task_queue.join()
