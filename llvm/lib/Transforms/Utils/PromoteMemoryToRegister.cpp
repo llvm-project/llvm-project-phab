@@ -17,6 +17,7 @@
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
@@ -40,6 +41,7 @@
 #include "llvm/Transforms/Utils/Local.h"
 #include "llvm/Transforms/Utils/PromoteMemToReg.h"
 #include <algorithm>
+
 using namespace llvm;
 
 #define DEBUG_TYPE "mem2reg"
@@ -163,6 +165,16 @@ public:
   ValVector Values;
 };
 
+/// \brief Semi-open interval of instructions that are guaranteed to
+/// all execute if the first one does.
+class GuaranteedExecutionRange {
+public:
+  unsigned Start;
+  unsigned End;
+
+  GuaranteedExecutionRange(unsigned S, unsigned E): Start(S), End(E) {}
+};
+
 /// \brief This assigns and keeps a per-bb relative ordering of load/store
 /// instructions in the block that directly load or store an alloca.
 ///
@@ -176,12 +188,107 @@ class LargeBlockInfo {
   /// the block.
   DenseMap<const Instruction *, unsigned> InstNumbers;
 
+  /// \brief For each basic block we track, keep track of the intervals
+  /// of instruction numbers of instructions that transfer control
+  /// to their successors, for propagating metadata.
+  DenseMap<const BasicBlock *, Optional<SmallVector<GuaranteedExecutionRange, 4>>>
+    GuaranteedExecutionIntervals;
+
 public:
 
-  /// This code only looks at accesses to allocas.
+  /// This code looks for stores to allocas, and for loads both for
+  /// allocas and for transferring metadata.
   static bool isInterestingInstruction(const Instruction *I) {
-    return (isa<LoadInst>(I) && isa<AllocaInst>(I->getOperand(0))) ||
+    return isa<LoadInst>(I) ||
            (isa<StoreInst>(I) && isa<AllocaInst>(I->getOperand(1)));
+  }
+
+  /// Compute the GuaranteedExecutionIntervals for a given BB.
+  ///
+  /// This is valid and remains valid as long as each interesting
+  /// instruction (see isInterestingInstruction) that
+  ///   A) existed when this LBI was cleared
+  ///   B) has not been deleted (deleting interesting instructions is fine)
+  /// are run in the same program executions and in the same order
+  /// as when this LBI was cleared.
+  ///
+  /// Because `PromoteMemoryToRegister` does not move memory loads at
+  /// all, this assumption is satisfied in this pass.
+  SmallVector<GuaranteedExecutionRange, 4> computeGEI(const BasicBlock *BB) {
+    SmallVector<GuaranteedExecutionRange, 4> GuaranteedExecutionIntervals;
+
+    unsigned InstNo = 0;
+    bool InRange = false;
+    unsigned FirstInstInRange = 0;
+    for (const Instruction &BBI : *BB) {
+      if (isGuaranteedToTransferExecutionToSuccessor(&BBI)) {
+        if (!InRange && isInterestingInstruction(&BBI)) {
+          InRange = true;
+          FirstInstInRange = InstNo;
+        }
+      } else {
+        if (InRange) {
+          assert(FirstInstInRange < InstNo && "Can't push an empty range here.");
+          GuaranteedExecutionIntervals.emplace_back(FirstInstInRange, InstNo);
+        }
+        InRange = false;
+      }
+
+      if (isInterestingInstruction(&BBI)) {
+        auto It = InstNumbers.find(&BBI);
+        assert(It != InstNumbers.end() &&
+               InstNo <= It->second &&
+               "missing number for interesting instruction");
+        InstNo = It->second + 1;
+      }
+    }
+
+    if (InRange) {
+      assert(FirstInstInRange < InstNo && "Can't push an empty range here.");
+      GuaranteedExecutionIntervals.emplace_back(FirstInstInRange, InstNo);
+    }
+
+    return GuaranteedExecutionIntervals;
+  }
+
+  /// Return true if, when CxtI executes, it is guaranteed that either
+  /// I had executed already or that I is guaranteed to be later executed.
+  ///
+  /// The useful property this guarantees is that if I exhibits undefined
+  /// behavior under some circumstances, then the whole program will exhibit
+  /// undefined behavior at CxtI.
+  bool isGuaranteedToBeExecuted(const Instruction *CxtI, const Instruction *I) {
+    const BasicBlock *BB = CxtI->getParent();
+
+    if (BB != I->getParent()) {
+      // Instructions in different basic blocks, so control flow
+      // can diverge between them (we could track this with
+      // postdoms, but we don't bother).
+      return false;
+    }
+
+    unsigned Index1 = getInstructionIndex(CxtI);
+    unsigned Index2 = getInstructionIndex(I);
+
+    auto& BBGEI = GuaranteedExecutionIntervals[BB];
+    if (!BBGEI.hasValue()) {
+      BBGEI.emplace(computeGEI(BB));
+    }
+
+    // We want to check whether I and CxtI are in the same range. To do that,
+    // we notice that CxtI can only be in the first range R where
+    // CxtI.end < R.end. If we find that range using binary search,
+    // we can check whether I and CxtI are both in it.
+    GuaranteedExecutionRange Bound(Index1, Index1);
+    auto R = std::upper_bound(
+      BBGEI->begin(), BBGEI->end(), Bound,
+      [](GuaranteedExecutionRange I_, GuaranteedExecutionRange R) {
+        return I_.End < R.End;
+      });
+
+    return R != BBGEI->end() &&
+      R->Start <= Index1 && Index1 < R->End &&
+      R->Start <= Index2 && Index2 < R->End;
   }
 
   /// Get or calculate the index of the specified instruction.
@@ -199,9 +306,11 @@ public:
     // avoid gratuitus rescans.
     const BasicBlock *BB = I->getParent();
     unsigned InstNo = 0;
+    GuaranteedExecutionIntervals.erase(BB);
     for (const Instruction &BBI : *BB)
       if (isInterestingInstruction(&BBI))
         InstNumbers[&BBI] = InstNo++;
+
     It = InstNumbers.find(I);
 
     assert(It != InstNumbers.end() && "Didn't insert instruction?");
@@ -210,13 +319,17 @@ public:
 
   void deleteValue(const Instruction *I) { InstNumbers.erase(I); }
 
-  void clear() { InstNumbers.clear(); }
+  void clear() {
+    InstNumbers.clear();
+    GuaranteedExecutionIntervals.clear();
+  }
 };
 
 struct PromoteMem2Reg {
   /// The alloca instructions being promoted.
   std::vector<AllocaInst *> Allocas;
   DominatorTree &DT;
+  const DataLayout &DL;
   DIBuilder DIB;
   /// A cache of @llvm.assume intrinsics used by SimplifyInstruction.
   AssumptionCache *AC;
@@ -262,9 +375,9 @@ public:
   PromoteMem2Reg(ArrayRef<AllocaInst *> Allocas, DominatorTree &DT,
                  AssumptionCache *AC)
       : Allocas(Allocas.begin(), Allocas.end()), DT(DT),
+        DL(DT.getRoot()->getParent()->getParent()->getDataLayout()),
         DIB(*DT.getRoot()->getParent()->getParent(), /*AllowUnresolved*/ false),
-        AC(AC), SQ(DT.getRoot()->getParent()->getParent()->getDataLayout(),
-                   nullptr, &DT, AC) {}
+        AC(AC), SQ(DL, nullptr, &DT, AC) {}
 
   void run();
 
@@ -287,6 +400,7 @@ private:
                            SmallPtrSetImpl<BasicBlock *> &LiveInBlocks);
   void RenamePass(BasicBlock *BB, BasicBlock *Pred,
                   RenamePassData::ValVector &IncVals,
+                  LargeBlockInfo &LBI,
                   std::vector<RenamePassData> &Worklist);
   bool QueuePhiNode(BasicBlock *BB, unsigned AllocaIdx, unsigned &Version);
 };
@@ -303,6 +417,31 @@ static void addAssumeNonNull(AssumptionCache *AC, LoadInst *LI) {
   CallInst *CI = CallInst::Create(AssumeIntrinsic, {LoadNotNull});
   CI->insertAfter(LoadNotNull);
   AC->registerAssumption(CI);
+}
+
+static void addAssumptionsFromMetadata(LoadInst *LI,
+				       Value *ReplVal,
+				       DominatorTree &DT,
+				       const DataLayout &DL,
+                                       LargeBlockInfo &LBI,
+                                       AssumptionCache *AC) {
+  if (LI->getMetadata(LLVMContext::MD_nonnull) &&
+      !isKnownNonNullAt(ReplVal, LI, &DT)) {
+    addAssumeNonNull(AC, LI);
+  }
+
+  if (auto *N = LI->getMetadata(LLVMContext::MD_range)) {
+    // Range metadata is harder to use as an assumption,
+    // so don't try to add one, but *do* try to copy
+    // the metadata to a load in the same BB.
+    if (LoadInst *NewLI = dyn_cast<LoadInst>(ReplVal)) {
+      DEBUG(dbgs() << "trying to move !range metadata from" <<
+        *LI << " to" << *NewLI << "\n");
+      if (LBI.isGuaranteedToBeExecuted(LI, NewLI)) {
+        copyRangeMetadata(DL, *LI, N, *NewLI);
+      }
+    }
+  }
 }
 
 static void removeLifetimeIntrinsicUsers(AllocaInst *AI) {
@@ -339,6 +478,7 @@ static void removeLifetimeIntrinsicUsers(AllocaInst *AI) {
 /// promotion algorithm in that case.
 static bool rewriteSingleStoreAlloca(AllocaInst *AI, AllocaInfo &Info,
                                      LargeBlockInfo &LBI, DominatorTree &DT,
+                                     const DataLayout &DL,
                                      AssumptionCache *AC) {
   StoreInst *OnlyStore = Info.OnlyStore;
   bool StoringGlobalVal = !isa<Instruction>(OnlyStore->getOperand(0));
@@ -394,9 +534,7 @@ static bool rewriteSingleStoreAlloca(AllocaInst *AI, AllocaInfo &Info,
     // If the load was marked as nonnull we don't want to lose
     // that information when we erase this Load. So we preserve
     // it with an assume.
-    if (AC && LI->getMetadata(LLVMContext::MD_nonnull) &&
-        !llvm::isKnownNonNullAt(ReplVal, LI, &DT))
-      addAssumeNonNull(AC, LI);
+    addAssumptionsFromMetadata(LI, ReplVal, DT, DL, LBI, AC);
 
     LI->replaceAllUsesWith(ReplVal);
     LI->eraseFromParent();
@@ -443,6 +581,7 @@ static bool rewriteSingleStoreAlloca(AllocaInst *AI, AllocaInfo &Info,
 static bool promoteSingleBlockAlloca(AllocaInst *AI, const AllocaInfo &Info,
                                      LargeBlockInfo &LBI,
                                      DominatorTree &DT,
+                                     const DataLayout &DL,
                                      AssumptionCache *AC) {
   // The trickiest case to handle is when we have large blocks. Because of this,
   // this code is optimized assuming that large blocks happen.  This does not
@@ -489,9 +628,7 @@ static bool promoteSingleBlockAlloca(AllocaInst *AI, const AllocaInfo &Info,
       // Note, if the load was marked as nonnull we don't want to lose that
       // information when we erase it. So we preserve it with an assume.
       Value *ReplVal = std::prev(I)->second->getOperand(0);
-      if (AC && LI->getMetadata(LLVMContext::MD_nonnull) &&
-          !llvm::isKnownNonNullAt(ReplVal, LI, &DT))
-        addAssumeNonNull(AC, LI);
+      addAssumptionsFromMetadata(LI, ReplVal, DT, DL, LBI, AC);
 
       LI->replaceAllUsesWith(ReplVal);
     }
@@ -560,7 +697,7 @@ void PromoteMem2Reg::run() {
     // If there is only a single store to this value, replace any loads of
     // it that are directly dominated by the definition with the value stored.
     if (Info.DefiningBlocks.size() == 1) {
-      if (rewriteSingleStoreAlloca(AI, Info, LBI, DT, AC)) {
+      if (rewriteSingleStoreAlloca(AI, Info, LBI, DT, DL, AC)) {
         // The alloca has been processed, move on.
         RemoveFromAllocasList(AllocaNum);
         ++NumSingleStore;
@@ -571,7 +708,7 @@ void PromoteMem2Reg::run() {
     // If the alloca is only read and written in one basic block, just perform a
     // linear sweep over the block to eliminate it.
     if (Info.OnlyUsedInOneBlock &&
-        promoteSingleBlockAlloca(AI, Info, LBI, DT, AC)) {
+        promoteSingleBlockAlloca(AI, Info, LBI, DT, DL, AC)) {
       // The alloca has been processed, move on.
       RemoveFromAllocasList(AllocaNum);
       continue;
@@ -628,7 +765,6 @@ void PromoteMem2Reg::run() {
 
   if (Allocas.empty())
     return; // All of the allocas must have been trivial!
-
   LBI.clear();
 
   // Set the incoming values for the basic block to be null values for all of
@@ -648,9 +784,10 @@ void PromoteMem2Reg::run() {
     RenamePassData RPD = std::move(RenamePassWorkList.back());
     RenamePassWorkList.pop_back();
     // RenamePass may add new worklist entries.
-    RenamePass(RPD.BB, RPD.Pred, RPD.Values, RenamePassWorkList);
+    RenamePass(RPD.BB, RPD.Pred, RPD.Values, LBI, RenamePassWorkList);
   } while (!RenamePassWorkList.empty());
 
+  LBI.clear();
   // The renamer uses the Visited set to avoid infinite loops.  Clear it now.
   Visited.clear();
 
@@ -864,6 +1001,7 @@ bool PromoteMem2Reg::QueuePhiNode(BasicBlock *BB, unsigned AllocaNo,
 /// predecessor block Pred.
 void PromoteMem2Reg::RenamePass(BasicBlock *BB, BasicBlock *Pred,
                                 RenamePassData::ValVector &IncomingVals,
+				LargeBlockInfo &LBI,
                                 std::vector<RenamePassData> &Worklist) {
 NextIteration:
   // If we are inserting any phi nodes into this BB, they will already be in the
@@ -930,13 +1068,12 @@ NextIteration:
       // If the load was marked as nonnull we don't want to lose
       // that information when we erase this Load. So we preserve
       // it with an assume.
-      if (AC && LI->getMetadata(LLVMContext::MD_nonnull) &&
-          !llvm::isKnownNonNullAt(V, LI, &DT))
-        addAssumeNonNull(AC, LI);
+      addAssumptionsFromMetadata(LI, V, DT, DL, LBI, AC);
 
       // Anything using the load now uses the current value.
       LI->replaceAllUsesWith(V);
       BB->getInstList().erase(LI);
+      LBI.deleteValue(LI);
     } else if (StoreInst *SI = dyn_cast<StoreInst>(I)) {
       // Delete this instruction and mark the name as the current holder of the
       // value
@@ -954,6 +1091,7 @@ NextIteration:
       if (DbgDeclareInst *DDI = AllocaDbgDeclares[ai->second])
         ConvertDebugDeclareToDebugValue(DDI, SI, DIB);
       BB->getInstList().erase(SI);
+      LBI.deleteValue(SI);
     }
   }
 
