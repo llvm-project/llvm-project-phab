@@ -521,11 +521,18 @@ void EhFrameSection<ELFT>::addSection(InputSectionBase *C) {
 
 template <class ELFT>
 static void writeCieFde(uint8_t *Buf, ArrayRef<uint8_t> D) {
-  memcpy(Buf, D.data(), D.size());
+  size_t DataSize = D.size();
+  memcpy(Buf, D.data(), DataSize);
+
+  size_t AlignSize = alignTo(DataSize, sizeof(typename ELFT::uint));
+
+  // Must be padded with zero if needed.
+  if (AlignSize > DataSize)
+    memset(Buf + DataSize, 0, AlignSize - DataSize);
 
   // Fix the size field. -4 since size does not include the size field itself.
   const endianness E = ELFT::TargetEndianness;
-  write32<E>(Buf, alignTo(D.size(), sizeof(typename ELFT::uint)) - 4);
+  write32<E>(Buf, AlignSize - 4);
 }
 
 template <class ELFT> void EhFrameSection<ELFT>::finalizeContents() {
