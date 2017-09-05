@@ -23,9 +23,11 @@ namespace mpi {
 
 void MPIBugReporter::reportDoubleNonblocking(
     const CallEvent &MPICallEvent, const ento::mpi::Request &Req,
-    const MemRegion *const RequestRegion,
-    const ExplodedNode *const ExplNode,
-    BugReporter &BReporter) const {
+    const MemRegion *const RequestRegion, const ExplodedNode *const ExplNode,
+    BugReporter &BReporter, const CheckerBase &CB) const {
+  if (!DoubleNonblockingBugType)
+    DoubleNonblockingBugType.reset(
+        new BugType(&CB, "Double nonblocking", MPIError));
 
   std::string ErrorText;
   ErrorText = "Double nonblocking on request " +
@@ -47,10 +49,14 @@ void MPIBugReporter::reportDoubleNonblocking(
   BReporter.emitReport(std::move(Report));
 }
 
-void MPIBugReporter::reportMissingWait(
-    const ento::mpi::Request &Req, const MemRegion *const RequestRegion,
-    const ExplodedNode *const ExplNode,
-    BugReporter &BReporter) const {
+void MPIBugReporter::reportMissingWait(const ento::mpi::Request &Req,
+                                       const MemRegion *const RequestRegion,
+                                       const ExplodedNode *const ExplNode,
+                                       BugReporter &BReporter,
+                                       const CheckerBase &CB) const {
+  if (!MissingWaitBugType)
+    MissingWaitBugType.reset(new BugType(&CB, "Missing wait", MPIError));
+
   std::string ErrorText{"Request " + RequestRegion->getDescriptiveName() +
                         " has no matching wait. "};
 
@@ -69,8 +75,11 @@ void MPIBugReporter::reportMissingWait(
 
 void MPIBugReporter::reportUnmatchedWait(
     const CallEvent &CE, const clang::ento::MemRegion *const RequestRegion,
-    const ExplodedNode *const ExplNode,
-    BugReporter &BReporter) const {
+    const ExplodedNode *const ExplNode, BugReporter &BReporter,
+    const CheckerBase &CB) const {
+  if (!UnmatchedWaitBugType)
+    UnmatchedWaitBugType.reset(new BugType(&CB, "Unmatched wait", MPIError));
+
   std::string ErrorText{"Request " + RequestRegion->getDescriptiveName() +
                         " has no matching nonblocking call. "};
 

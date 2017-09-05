@@ -88,8 +88,6 @@ class NonLocalizedStringChecker
                                       Selector S) const;
 
 public:
-  NonLocalizedStringChecker();
-
   // When this parameter is set to true, the checker assumes all
   // methods that return NSStrings are unlocalized. Thus, more false
   // positives will be reported.
@@ -106,11 +104,6 @@ public:
 
 REGISTER_MAP_WITH_PROGRAMSTATE(LocalizedMemMap, const MemRegion *,
                                LocalizedState)
-
-NonLocalizedStringChecker::NonLocalizedStringChecker() {
-  BT.reset(new BugType(this, "Unlocalizable string",
-                       "Localizability Issue (Apple)"));
-}
 
 namespace {
 class NonLocalizedStringBRVisitor final
@@ -763,6 +756,10 @@ void NonLocalizedStringChecker::reportLocalizationError(
 
   if (!ErrNode)
     return;
+
+  if (!BT)
+    BT.reset(new BugType(this, "Unlocalizable string",
+                         "Localizability Issue (Apple)"));
 
   // Generate the bug report.
   std::unique_ptr<BugReport> R(new BugReport(

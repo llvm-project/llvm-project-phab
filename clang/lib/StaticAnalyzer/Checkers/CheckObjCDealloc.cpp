@@ -104,9 +104,9 @@ class ObjCDeallocChecker
 
   mutable Selector DeallocSel, ReleaseSel;
 
-  std::unique_ptr<BugType> MissingReleaseBugType;
-  std::unique_ptr<BugType> ExtraReleaseBugType;
-  std::unique_ptr<BugType> MistakenDeallocBugType;
+  mutable std::unique_ptr<BugType> MissingReleaseBugType;
+  mutable std::unique_ptr<BugType> ExtraReleaseBugType;
+  mutable std::unique_ptr<BugType> MistakenDeallocBugType;
 
 public:
   ObjCDeallocChecker();
@@ -585,6 +585,11 @@ void ObjCDeallocChecker::diagnoseMissingReleases(CheckerContext &C) const {
     OS << " by a synthesized property but not released"
           " before '[super dealloc]'";
 
+    if (!MissingReleaseBugType)
+      MissingReleaseBugType.reset(
+          new BugType(this, "Missing ivar release (leak)",
+                      categories::MemoryCoreFoundationObjectiveC));
+
     std::unique_ptr<BugReport> BR(
         new BugReport(*MissingReleaseBugType, OS.str(), ErrNode));
 
@@ -708,6 +713,11 @@ bool ObjCDeallocChecker::diagnoseExtraRelease(SymbolRef ReleasedValue,
     OS <<  " property but was released in 'dealloc'";
   }
 
+  if (!ExtraReleaseBugType)
+    ExtraReleaseBugType.reset(
+        new BugType(this, "Extra ivar release",
+                    categories::MemoryCoreFoundationObjectiveC));
+
   std::unique_ptr<BugReport> BR(
       new BugReport(*ExtraReleaseBugType, OS.str(), ErrNode));
   BR->addRange(M.getOriginExpr()->getSourceRange());
@@ -746,6 +756,10 @@ bool ObjCDeallocChecker::diagnoseMistakenDealloc(SymbolRef DeallocedValue,
   OS << "'" << *PropImpl->getPropertyIvarDecl()
      << "' should be released rather than deallocated";
 
+  if (!MistakenDeallocBugType)
+    MistakenDeallocBugType.reset(new BugType(
+        this, "Mistaken dealloc", categories::MemoryCoreFoundationObjectiveC));
+
   std::unique_ptr<BugReport> BR(
       new BugReport(*MistakenDeallocBugType, OS.str(), ErrNode));
   BR->addRange(M.getOriginExpr()->getSourceRange());
@@ -757,20 +771,7 @@ bool ObjCDeallocChecker::diagnoseMistakenDealloc(SymbolRef DeallocedValue,
 
 ObjCDeallocChecker::ObjCDeallocChecker()
     : NSObjectII(nullptr), SenTestCaseII(nullptr), XCTestCaseII(nullptr),
-      CIFilterII(nullptr) {
-
-  MissingReleaseBugType.reset(
-      new BugType(this, "Missing ivar release (leak)",
-                  categories::MemoryCoreFoundationObjectiveC));
-
-  ExtraReleaseBugType.reset(
-      new BugType(this, "Extra ivar release",
-                  categories::MemoryCoreFoundationObjectiveC));
-
-  MistakenDeallocBugType.reset(
-      new BugType(this, "Mistaken dealloc",
-                  categories::MemoryCoreFoundationObjectiveC));
-}
+      CIFilterII(nullptr) {}
 
 void ObjCDeallocChecker::initIdentifierInfoAndSelectors(
     ASTContext &Ctx) const {

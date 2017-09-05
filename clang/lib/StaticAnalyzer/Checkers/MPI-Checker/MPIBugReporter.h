@@ -25,13 +25,6 @@ namespace mpi {
 
 class MPIBugReporter {
 public:
-  MPIBugReporter(const CheckerBase &CB) {
-    UnmatchedWaitBugType.reset(new BugType(&CB, "Unmatched wait", MPIError));
-    DoubleNonblockingBugType.reset(
-        new BugType(&CB, "Double nonblocking", MPIError));
-    MissingWaitBugType.reset(new BugType(&CB, "Missing wait", MPIError));
-  }
-
   /// Report duplicate request use by nonblocking calls without intermediate
   /// wait.
   ///
@@ -44,7 +37,8 @@ public:
                                const Request &Req,
                                const MemRegion *const RequestRegion,
                                const ExplodedNode *const ExplNode,
-                              BugReporter &BReporter) const;
+                               BugReporter &BReporter,
+                               const CheckerBase &CB) const;
 
   /// Report a missing wait for a nonblocking call.
   ///
@@ -55,7 +49,7 @@ public:
   void reportMissingWait(const Request &Req,
                          const MemRegion *const RequestRegion,
                          const ExplodedNode *const ExplNode,
-                         BugReporter &BReporter) const;
+                         BugReporter &BReporter, const CheckerBase &CB) const;
 
   /// Report a wait on a request that has not been used at all before.
   ///
@@ -66,15 +60,15 @@ public:
   void reportUnmatchedWait(const CallEvent &CE,
                            const MemRegion *const RequestRegion,
                            const ExplodedNode *const ExplNode,
-                           BugReporter &BReporter) const;
+                           BugReporter &BReporter, const CheckerBase &CB) const;
 
 private:
   const std::string MPIError = "MPI Error";
 
-  // path-sensitive bug types
-  std::unique_ptr<BugType> UnmatchedWaitBugType;
-  std::unique_ptr<BugType> MissingWaitBugType;
-  std::unique_ptr<BugType> DoubleNonblockingBugType;
+  // Path-sensitive bug types.
+  mutable std::unique_ptr<BugType> UnmatchedWaitBugType;
+  mutable std::unique_ptr<BugType> MissingWaitBugType;
+  mutable std::unique_ptr<BugType> DoubleNonblockingBugType;
 
   /// Bug visitor class to find the node where the request region was previously
   /// used in order to include it into the BugReport path.

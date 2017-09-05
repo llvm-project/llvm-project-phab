@@ -30,9 +30,7 @@ namespace mpi {
 
 class MPIChecker : public Checker<check::PreCall, check::DeadSymbols> {
 public:
-  MPIChecker() : BReporter(*this) {}
-
-  // path-sensitive callbacks
+  // Path-sensitive callbacks.
   void checkPreCall(const CallEvent &CE, CheckerContext &Ctx) const {
     dynamicInit(Ctx);
     checkUnmatchedWaits(CE, Ctx);
