@@ -9,7 +9,7 @@
 ;; Ensure that if a jump table is generated that it has Mapping Symbols
 ;; marking the data-in-code region.
 
-define void @foo(i32* %ptr, i32 %b) nounwind ssp {
+define void @foo(i32* %ptr, i32 %b) nounwind uwtable ssp {
   %tmp = load i32, i32* %ptr, align 4
   switch i32 %tmp, label %exit [
     i32 0, label %bb0

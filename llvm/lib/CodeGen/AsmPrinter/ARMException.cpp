@@ -44,8 +44,12 @@ ARMTargetStreamer &ARMException::getTargetStreamer() {
 }
 
 void ARMException::beginFunction(const MachineFunction *MF) {
-  if (Asm->MAI->getExceptionHandlingType() == ExceptionHandling::ARM)
+  const Function *F = MF->getFunction();
+
+  if (Asm->MAI->getExceptionHandlingType() == ExceptionHandling::ARM &&
+      F->hasUWTable())
     getTargetStreamer().emitFnStart();
+
   // See if we need call frame info.
   AsmPrinter::CFIMoveType MoveType = Asm->needsCFIMoves();
   assert(MoveType != AsmPrinter::CFI_M_EH &&
@@ -76,10 +80,8 @@ void ARMException::endFunction(const MachineFunction *MF) {
     F->needsUnwindTableEntry();
   bool shouldEmitPersonality = forceEmitPersonality ||
     !MF->getLandingPads().empty();
-  if (!Asm->MF->getFunction()->needsUnwindTableEntry() &&
-      !shouldEmitPersonality)
-    ATS.emitCantUnwind();
-  else if (shouldEmitPersonality) {
+
+  if (shouldEmitPersonality) {
     // Emit references to personality.
     if (Per) {
       MCSymbol *PerSym = Asm->getSymbol(Per);
@@ -93,8 +95,11 @@ void ARMException::endFunction(const MachineFunction *MF) {
     // Emit actual exception table
     emitExceptionTable();
   }
+  else if (F->doesNotThrow() && F->hasUWTable())
+    ATS.emitCantUnwind();
 
-  if (Asm->MAI->getExceptionHandlingType() == ExceptionHandling::ARM)
+  if (Asm->MAI->getExceptionHandlingType() == ExceptionHandling::ARM &&
+      F->hasUWTable())
     ATS.emitFnEnd();
 }
 

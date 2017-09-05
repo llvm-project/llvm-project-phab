@@ -90,7 +90,6 @@ define void @test_frem(half* %p, half* %q) #0 {
 }
 
 ; CHECK-ALL-LABEL: test_load_store:
-; CHECK-ALL-NEXT: .fnstart
 ; CHECK-ALL: ldrh {{r[0-9]+}}, [{{r[0-9]+}}]
 ; CHECK-ALL: strh {{r[0-9]+}}, [{{r[0-9]+}}]
 define void @test_load_store(half* %p, half* %q) #0 {
@@ -105,8 +104,6 @@ define void @test_load_store(half* %p, half* %q) #0 {
 declare half @test_callee(half %a, half %b) #0
 
 ; CHECK-ALL-LABEL: test_call:
-; CHECK-ALL-NEXT: .fnstart
-; CHECK-ALL-NEXT: .save {r11, lr}
 ; CHECK-ALL-NEXT: push {r11, lr}
 ; CHECK-ALL-NEXT: bl test_callee
 ; CHECK-ALL-NEXT: pop {r11, pc}
@@ -116,8 +113,6 @@ define half @test_call(half %a, half %b) #0 {
 }
 
 ; CHECK-ALL-LABEL: test_call_flipped:
-; CHECK-ALL-NEXT: .fnstart
-; CHECK-ALL-NEXT: .save {r11, lr}
 ; CHECK-ALL-NEXT: push {r11, lr}
 ; CHECK-VFP-NEXT: vmov.f32 s2, s0
 ; CHECK-VFP-NEXT: vmov.f32 s0, s1
@@ -133,7 +128,6 @@ define half @test_call_flipped(half %a, half %b) #0 {
 }
 
 ; CHECK-ALL-LABEL: test_tailcall_flipped:
-; CHECK-ALL-NEXT: .fnstart
 ; CHECK-VFP-NEXT: vmov.f32 s2, s0
 ; CHECK-VFP-NEXT: vmov.f32 s0, s1
 ; CHECK-VFP-NEXT: vmov.f32 s1, s2
@@ -375,7 +369,6 @@ define double @test_fpextend_double(half* %p) {
 }
 
 ; CHECK-ALL-LABEL: test_bitcast_halftoi16:
-; CHECK-ALL-NEXT: .fnstart
 ; CHECK-ALL-NEXT: ldrh r0, [r0]
 ; CHECK-ALL-NEXT: bx lr
 define i16 @test_bitcast_halftoi16(half* %p) #0 {
@@ -385,7 +378,6 @@ define i16 @test_bitcast_halftoi16(half* %p) #0 {
 }
 
 ; CHECK-ALL-LABEL: test_bitcast_i16tohalf:
-; CHECK-ALL-NEXT: .fnstart
 ; CHECK-ALL-NEXT: strh r0, [r1]
 ; CHECK-ALL-NEXT: bx lr
 define void @test_bitcast_i16tohalf(i16 %a, half* %p) #0 {
@@ -889,7 +881,6 @@ define void @test_insertvalue(%struct.dummy* %p, half* %q) {
 }
 
 ; CHECK-ALL-LABEL: test_extractvalue:
-; CHECK-ALL: .fnstart
 ; CHECK-ALL: ldrh
 ; CHECK-ALL: strh
 define void @test_extractvalue(%struct.dummy* %p, half* %q) {
@@ -910,10 +901,9 @@ define %struct.dummy @test_struct_return(%struct.dummy* %p) {
 }
 
 ; CHECK-ALL-LABEL: test_struct_arg:
-; CHECK-ALL-NEXT: .fnstart
 ; CHECK-NOVFP-NEXT: mov r0, r1
 ; CHECK-ALL-NEXT: bx lr
-define half @test_struct_arg(%struct.dummy %p) {
+define half @test_struct_arg(%struct.dummy %p)  {
   %a = extractvalue %struct.dummy %p, 1
   ret half %a
 }

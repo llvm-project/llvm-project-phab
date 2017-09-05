@@ -1061,6 +1061,7 @@ void ARMAsmPrinter::EmitUnwindingInstruction(const MachineInstr *MI) {
   const MachineFunction &MF = *MI->getParent()->getParent();
   const TargetRegisterInfo *RegInfo = MF.getSubtarget().getRegisterInfo();
   const ARMFunctionInfo &AFI = *MF.getInfo<ARMFunctionInfo>();
+  const Function* F = MF.getFunction();
 
   unsigned FramePtr = RegInfo->getFrameRegister(MF);
   unsigned Opc = MI->getOpcode();
@@ -1121,7 +1122,8 @@ void ARMAsmPrinter::EmitUnwindingInstruction(const MachineInstr *MI) {
       RegList.push_back(SrcReg);
       break;
     }
-    if (MAI->getExceptionHandlingType() == ExceptionHandling::ARM)
+    if (MAI->getExceptionHandlingType() == ExceptionHandling::ARM
+	&& F->hasUWTable())
       ATS.emitRegSave(RegList, Opc == ARM::VSTMDDB_UPD);
   } else {
     // Changes of stack / frame pointer.
@@ -1168,7 +1170,8 @@ void ARMAsmPrinter::EmitUnwindingInstruction(const MachineInstr *MI) {
       }
       }
 
-      if (MAI->getExceptionHandlingType() == ExceptionHandling::ARM) {
+      if (MAI->getExceptionHandlingType() == ExceptionHandling::ARM
+	  && F->hasUWTable()) {
         if (DstReg == FramePtr && FramePtr != ARM::SP)
           // Set-up of the frame pointer. Positive values correspond to "add"
           // instruction.
@@ -1211,7 +1214,7 @@ void ARMAsmPrinter::EmitInstruction(const MachineInstr *MI) {
 
   // Emit unwinding stuff for frame-related instructions
   if (Subtarget->isTargetEHABICompatible() &&
-       MI->getFlag(MachineInstr::FrameSetup))
+      MI->getFlag(MachineInstr::FrameSetup))
     EmitUnwindingInstruction(MI);
 
   // Do any auto-generated pseudo lowerings.

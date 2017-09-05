@@ -279,7 +279,6 @@ define i32 @select_C1_C2_signext(i1 signext %cond) {
 define i64 @opaque_constant1(i1 %cond, i64 %x) {
 ; CHECK-LABEL: opaque_constant1:
 ; CHECK:       @ BB#0:
-; CHECK-NEXT:    .save {r4, lr}
 ; CHECK-NEXT:    push {r4, lr}
 ; CHECK-NEXT:    mov lr, #1
 ; CHECK-NEXT:    ands r12, r0, #1

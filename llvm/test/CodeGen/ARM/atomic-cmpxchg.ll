@@ -32,7 +32,6 @@ entry:
 ; CHECK-THUMB: movs r0, [[R2]]
 
 ; CHECK-ARMV6-LABEL: test_cmpxchg_res_i8:
-; CHECK-ARMV6-NEXT:  .fnstart
 ; CHECK-ARMV6-NEXT: uxtb [[DESIRED:r[0-9]+]], r1
 ; CHECK-ARMV6-NEXT: [[TRY:.LBB[0-9_]+]]:
 ; CHECK-ARMV6-NEXT: ldrexb [[LD:r[0-9]+]], [r0]
@@ -58,7 +57,6 @@ entry:
 ; CHECK-THUMBV6-NEXT:  pop {{.*}}pc}
 
 ; CHECK-ARMV7-LABEL: test_cmpxchg_res_i8:
-; CHECK-ARMV7-NEXT: .fnstart
 ; CHECK-ARMV7-NEXT: uxtb [[DESIRED:r[0-9]+]], r1
 ; CHECK-ARMV7-NEXT: b [[TRY:.LBB[0-9_]+]]
 ; CHECK-ARMV7-NEXT: [[HEAD:.LBB[0-9_]+]]:
@@ -75,7 +73,6 @@ entry:
 ; CHECK-ARMV7-NEXT: bx lr
 
 ; CHECK-THUMBV7-LABEL: test_cmpxchg_res_i8:
-; CHECK-THUMBV7-NEXT: .fnstart
 ; CHECK-THUMBV7-NEXT: uxtb [[DESIRED:r[0-9]+]], r1
 ; CHECK-THUMBV7-NEXT: b [[TRYLD:.LBB[0-9_]+]]
 ; CHECK-THUMBV7-NEXT: [[TRYST:.LBB[0-9_]+]]:

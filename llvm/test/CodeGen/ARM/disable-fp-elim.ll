@@ -22,4 +22,5 @@ entry:
 
 declare i32 @foo2(i32)
 
-attributes #0 = { nounwind "no-frame-pointer-elim"="true" }
+; unwind annotations only generated if uwtable iset set.
+attributes #0 = { uwtable nounwind "no-frame-pointer-elim"="true" }

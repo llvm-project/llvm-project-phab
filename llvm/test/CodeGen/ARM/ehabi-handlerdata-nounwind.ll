@@ -25,7 +25,7 @@ declare i8* @__cxa_begin_catch(i8*)
 
 declare void @__cxa_end_catch()
 
-define void @test1() nounwind personality i8* bitcast (i32 (...)* @__gxx_personality_v0 to i8*) {
+define void @test1() nounwind uwtable personality i8* bitcast (i32 (...)* @__gxx_personality_v0 to i8*) {
 entry:
   invoke void @throw_exception() to label %try.cont unwind label %lpad
 
