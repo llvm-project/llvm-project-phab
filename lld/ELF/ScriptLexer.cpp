@@ -88,7 +88,11 @@ void ScriptLexer::setError(const Twine &Msg) {
 // Split S into linker script tokens.
 void ScriptLexer::tokenize(MemoryBufferRef MB) {
   std::vector<StringRef> Vec;
-  MBs.push_back(MB);
+  uint8_t Depth = getCurrentMBDepth();
+  if (++Depth > 10)
+    setError("maximum include nesting level of 10 exceeded");
+
+  MBs.push_back({MB, Depth});
   StringRef S = MB.getBuffer();
   StringRef Begin = S;
 
@@ -272,14 +276,24 @@ static bool encloses(StringRef S, StringRef T) {
   return S.bytes_begin() <= T.bytes_begin() && T.bytes_end() <= S.bytes_end();
 }
 
-MemoryBufferRef ScriptLexer::getCurrentMB() {
+static std::pair<MemoryBufferRef, uint8_t>
+getEnclosingMB(ArrayRef<std::pair<MemoryBufferRef, uint8_t>> V, StringRef Tok) {
   // Find input buffer containing the current token.
-  assert(!MBs.empty());
-  if (!Pos)
-    return MBs[0];
-
-  for (MemoryBufferRef MB : MBs)
-    if (encloses(MB.getBuffer(), Tokens[Pos - 1]))
+  for (const std::pair<MemoryBufferRef, int8_t> &MB : V)
+    if (encloses(MB.first.getBuffer(), Tok))
       return MB;
   llvm_unreachable("getCurrentMB: failed to find a token");
+}
+
+MemoryBufferRef ScriptLexer::getCurrentMB() {
+  assert(!MBs.empty());
+  if (!Pos)
+    return MBs[0].first;
+  return getEnclosingMB(MBs, Tokens[Pos - 1]).first;
+}
+
+uint8_t ScriptLexer::getCurrentMBDepth() {
+  if (MBs.empty() || !Pos)
+    return 0;
+  return getEnclosingMB(MBs, Tokens[Pos - 1]).second;
 }
