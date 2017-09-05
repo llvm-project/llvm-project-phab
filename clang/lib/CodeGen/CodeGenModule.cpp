@@ -914,13 +914,32 @@ static bool hasUnwindExceptions(const LangOptions &LangOpts) {
   return true;
 }
 
+// This function needs an unwind table
+bool CodeGenModule::NeedsUnwindTable() {
+  if (CodeGenOpts.UnwindTables)
+    return true;
+
+  // xxx checkarm eabi needs to emit the nowind attribute.
+  // implement function ins ARM.cpp
+  const llvm::Triple T = Context.getTargetInfo().getTriple();
+  if (hasUnwindExceptions (LangOpts)
+      && (T.isARM() || T.isThumb ())
+      && (T.getEnvironment() == llvm::Triple::EABI))
+      return true;
+
+  return false;
+}
+
 void CodeGenModule::SetLLVMFunctionAttributesForDefinition(const Decl *D,
                                                            llvm::Function *F) {
   llvm::AttrBuilder B;
 
-  if (CodeGenOpts.UnwindTables)
+  // Set the attribute if the user requests it or if the language requiers it.
+  if (NeedsUnwindTable())
     B.addAttribute(llvm::Attribute::UWTable);
 
+  // If the module doesn't support exceptions the function cannot throw.
+  // We can have a nothrow function even if unwind tables are required.
   if (!hasUnwindExceptions(LangOpts))
     B.addAttribute(llvm::Attribute::NoUnwind);
 
