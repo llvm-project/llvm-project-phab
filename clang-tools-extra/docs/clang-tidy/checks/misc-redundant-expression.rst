@@ -15,7 +15,7 @@ Depending on the operator expressions may be
 
 - always be a constant (zero or one).
 
-Example:
+Examples:
 
 .. code-block:: c++
 

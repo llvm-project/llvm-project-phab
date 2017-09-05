@@ -179,4 +179,5 @@ Clang-Tidy Checks
    readability-redundant-string-init
    readability-simplify-boolean-expr
    readability-static-definition-in-anonymous-namespace
+   readability-suspicious-call-argument
    readability-uniqueptr-delete-release

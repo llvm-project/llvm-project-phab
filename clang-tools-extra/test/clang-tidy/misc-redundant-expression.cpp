@@ -17,67 +17,67 @@ extern int bat(int x, int y);
 
 int Test(int X, int Y) {
   if (X - X) return 1;
-  // CHECK-MESSAGES: :[[@LINE-1]]:9: warning: both side of operator are equivalent [misc-redundant-expression]
+  // CHECK-MESSAGES: :[[@LINE-1]]:9: warning: both sides of operator are equivalent [misc-redundant-expression]
   if (X / X) return 1;
-  // CHECK-MESSAGES: :[[@LINE-1]]:9: warning: both side of operator are equivalent
+  // CHECK-MESSAGES: :[[@LINE-1]]:9: warning: both sides of operator are equivalent
   if (X % X) return 1;
-  // CHECK-MESSAGES: :[[@LINE-1]]:9: warning: both side of operator are equivalent
+  // CHECK-MESSAGES: :[[@LINE-1]]:9: warning: both sides of operator are equivalent
 
   if (X & X) return 1;
-  // CHECK-MESSAGES: :[[@LINE-1]]:9: warning: both side of operator are equivalent
+  // CHECK-MESSAGES: :[[@LINE-1]]:9: warning: both sides of operator are equivalent
   if (X | X) return 1;
-  // CHECK-MESSAGES: :[[@LINE-1]]:9: warning: both side of operator are equivalent
+  // CHECK-MESSAGES: :[[@LINE-1]]:9: warning: both sides of operator are equivalent
   if (X ^ X) return 1;
-  // CHECK-MESSAGES: :[[@LINE-1]]:9: warning: both side of operator are equivalent
+  // CHECK-MESSAGES: :[[@LINE-1]]:9: warning: both sides of operator are equivalent
 
   if (X < X) return 1;
-  // CHECK-MESSAGES: :[[@LINE-1]]:9: warning: both side of operator are equivalent
+  // CHECK-MESSAGES: :[[@LINE-1]]:9: warning: both sides of operator are equivalent
   if (X <= X) return 1;
-  // CHECK-MESSAGES: :[[@LINE-1]]:9: warning: both side of operator are equivalent
+  // CHECK-MESSAGES: :[[@LINE-1]]:9: warning: both sides of operator are equivalent
   if (X > X) return 1;
-  // CHECK-MESSAGES: :[[@LINE-1]]:9: warning: both side of operator are equivalent
+  // CHECK-MESSAGES: :[[@LINE-1]]:9: warning: both sides of operator are equivalent
   if (X >= X) return 1;
-  // CHECK-MESSAGES: :[[@LINE-1]]:9: warning: both side of operator are equivalent
+  // CHECK-MESSAGES: :[[@LINE-1]]:9: warning: both sides of operator are equivalent
 
   if (X && X) return 1;
-  // CHECK-MESSAGES: :[[@LINE-1]]:9: warning: both side of operator are equivalent
+  // CHECK-MESSAGES: :[[@LINE-1]]:9: warning: both sides of operator are equivalent
   if (X || X) return 1;
-  // CHECK-MESSAGES: :[[@LINE-1]]:9: warning: both side of operator are equivalent
+  // CHECK-MESSAGES: :[[@LINE-1]]:9: warning: both sides of operator are equivalent
 
   if (X != (((X)))) return 1;
-  // CHECK-MESSAGES: :[[@LINE-1]]:9: warning: both side of operator are equivalent
+  // CHECK-MESSAGES: :[[@LINE-1]]:9: warning: both sides of operator are equivalent
 
   if (X + 1 == X + 1) return 1;
-  // CHECK-MESSAGES: :[[@LINE-1]]:13: warning: both side of operator are equivalent
+  // CHECK-MESSAGES: :[[@LINE-1]]:13: warning: both sides of operator are equivalent
   if (X + 1 != X + 1) return 1;
-  // CHECK-MESSAGES: :[[@LINE-1]]:13: warning: both side of operator are equivalent
+  // CHECK-MESSAGES: :[[@LINE-1]]:13: warning: both sides of operator are equivalent
   if (X + 1 <= X + 1) return 1;
-  // CHECK-MESSAGES: :[[@LINE-1]]:13: warning: both side of operator are equivalent
+  // CHECK-MESSAGES: :[[@LINE-1]]:13: warning: both sides of operator are equivalent
   if (X + 1 >= X + 1) return 1;
-  // CHECK-MESSAGES: :[[@LINE-1]]:13: warning: both side of operator are equivalent
+  // CHECK-MESSAGES: :[[@LINE-1]]:13: warning: both sides of operator are equivalent
 
   if ((X != 1 || Y != 1) && (X != 1 || Y != 1)) return 1;
-  // CHECK-MESSAGES: :[[@LINE-1]]:26: warning: both side of operator are equivalent
+  // CHECK-MESSAGES: :[[@LINE-1]]:26: warning: both sides of operator are equivalent
   if (P.a[X - P.x] != P.a[X - P.x]) return 1;
-  // CHECK-MESSAGES: :[[@LINE-1]]:20: warning: both side of operator are equivalent
+  // CHECK-MESSAGES: :[[@LINE-1]]:20: warning: both sides of operator are equivalent
 
   if ((int)X < (int)X) return 1;
-  // CHECK-MESSAGES: :[[@LINE-1]]:14: warning: both side of operator are equivalent
+  // CHECK-MESSAGES: :[[@LINE-1]]:14: warning: both sides of operator are equivalent
 
   if ( + "dummy" == + "dummy") return 1;
-  // CHECK-MESSAGES: :[[@LINE-1]]:18: warning: both side of operator are equivalent
+  // CHECK-MESSAGES: :[[@LINE-1]]:18: warning: both sides of operator are equivalent
   if (L"abc" == L"abc") return 1;
-  // CHECK-MESSAGES: :[[@LINE-1]]:14: warning: both side of operator are equivalent
+  // CHECK-MESSAGES: :[[@LINE-1]]:14: warning: both sides of operator are equivalent
 
   if (foo(0) - 2 < foo(0) - 2) return 1;
-  // CHECK-MESSAGES: :[[@LINE-1]]:18: warning: both side of operator are equivalent
+  // CHECK-MESSAGES: :[[@LINE-1]]:18: warning: both sides of operator are equivalent
   if (foo(bar(0)) < (foo(bar((0))))) return 1;
-  // CHECK-MESSAGES: :[[@LINE-1]]:19: warning: both side of operator are equivalent
+  // CHECK-MESSAGES: :[[@LINE-1]]:19: warning: both sides of operator are equivalent
 
   if (P1.x < P2.x && P1.x < P2.x) return 1;
-  // CHECK-MESSAGES: :[[@LINE-1]]:19: warning: both side of operator are equivalent
+  // CHECK-MESSAGES: :[[@LINE-1]]:19: warning: both sides of operator are equivalent
   if (P2.a[P1.x + 2] < P2.x && P2.a[(P1.x) + (2)] < (P2.x)) return 1;
-  // CHECK-MESSAGES: :[[@LINE-1]]:29: warning: both side of operator are equivalent
+  // CHECK-MESSAGES: :[[@LINE-1]]:29: warning: both sides of operator are equivalent
 
   return 0;
 }
@@ -118,7 +118,7 @@ bool operator==(const MyStruct& lhs, const MyStruct& rhs) { return lhs.x == rhs.
 bool TestOperator(const MyStruct& S) {
   if (S == Q) return false;
   return S == S;
-  // CHECK-MESSAGES: :[[@LINE-1]]:12: warning: both side of overloaded operator are equivalent
+  // CHECK-MESSAGES: :[[@LINE-1]]:12: warning: both sides of overloaded operator are equivalent
 }
 
 #define LT(x, y) (void)((x) < (y))
@@ -149,7 +149,7 @@ int TestBannedMacros() {
 #define NOT_EAGAIN 3
   if (EAGAIN == 0 | EAGAIN == 0) return 0;
   if (NOT_EAGAIN == 0 | NOT_EAGAIN == 0) return 0;
-  // CHECK-MESSAGES: :[[@LINE-1]]:23: warning: both side of operator are equivalent
+  // CHECK-MESSAGES: :[[@LINE-1]]:23: warning: both sides of operator are equivalent
 }
 
 struct MyClass {
@@ -159,7 +159,7 @@ template <typename T, typename U>
 void TemplateCheck() {
   static_assert(T::Value == U::Value, "should be identical");
   static_assert(T::Value == T::Value, "should be identical");
-  // CHECK-MESSAGES: :[[@LINE-1]]:26: warning: both side of overloaded operator are equivalent
+  // CHECK-MESSAGES: :[[@LINE-1]]:26: warning: both sides of overloaded operator are equivalent
 }
 void TestTemplate() { TemplateCheck<MyClass, MyClass>(); }
 
@@ -289,13 +289,13 @@ int TestRelational(int X, int Y) {
   // CHECK-MESSAGES: :[[@LINE-1]]:9: warning: logical expression is always false
 
   if (X && !!X) return 1;
-  // CHECK-MESSAGES: :[[@LINE-1]]:9: warning: equivalent expression on both side of logical operator
+  // CHECK-MESSAGES: :[[@LINE-1]]:9: warning: equivalent expression on both sides of logical operator
   if (X != 0 && X) return 1;
-  // CHECK-MESSAGES: :[[@LINE-1]]:14: warning: equivalent expression on both side of logical operator
+  // CHECK-MESSAGES: :[[@LINE-1]]:14: warning: equivalent expression on both sides of logical operator
   if (X != 0 && !!X) return 1;
-  // CHECK-MESSAGES: :[[@LINE-1]]:14: warning: equivalent expression on both side of logical operator
+  // CHECK-MESSAGES: :[[@LINE-1]]:14: warning: equivalent expression on both sides of logical operator
   if (X == 0 && !X) return 1;
-  // CHECK-MESSAGES: :[[@LINE-1]]:14: warning: equivalent expression on both side of logical operator
+  // CHECK-MESSAGES: :[[@LINE-1]]:14: warning: equivalent expression on both sides of logical operator
 
   if (X == 10 && X > 10) return 1;
   // CHECK-MESSAGES: :[[@LINE-1]]:15: warning: logical expression is always false
@@ -327,14 +327,14 @@ int TestRelational(int X, int Y) {
   if (X < 7 && X < 6) return 1;
   // CHECK-MESSAGES: :[[@LINE-1]]:9: warning: expression is redundant
   if (X < 7 && X < 7) return 1;
-  // CHECK-MESSAGES: :[[@LINE-1]]:13: warning: both side of operator are equivalent
+  // CHECK-MESSAGES: :[[@LINE-1]]:13: warning: both sides of operator are equivalent
   if (X < 7 && X < 8) return 1;
   // CHECK-MESSAGES: :[[@LINE-1]]:18: warning: expression is redundant
 
   if (X < 7 && X <= 5) return 1;
   // CHECK-MESSAGES: :[[@LINE-1]]:9: warning: expression is redundant
   if (X < 7 && X <= 6) return 1;
-  // CHECK-MESSAGES: :[[@LINE-1]]:13: warning: equivalent expression on both side of logical operator
+  // CHECK-MESSAGES: :[[@LINE-1]]:13: warning: equivalent expression on both sides of logical operator
   if (X < 7 && X <= 7) return 1;
   // CHECK-MESSAGES: :[[@LINE-1]]:18: warning: expression is redundant
   if (X < 7 && X <= 8) return 1;
@@ -345,14 +345,14 @@ int TestRelational(int X, int Y) {
   if (X <= 7 && X < 7) return 1;
   // CHECK-MESSAGES: :[[@LINE-1]]:9: warning: expression is redundant
   if (X <= 7 && X < 8) return 1;
-  // CHECK-MESSAGES: :[[@LINE-1]]:14: warning: equivalent expression on both side of logical operator
+  // CHECK-MESSAGES: :[[@LINE-1]]:14: warning: equivalent expression on both sides of logical operator
 
   if (X <= 7 && X <= 5) return 1;
   // CHECK-MESSAGES: :[[@LINE-1]]:9: warning: expression is redundant
   if (X <= 7 && X <= 6) return 1;
   // CHECK-MESSAGES: :[[@LINE-1]]:9: warning: expression is redundant
   if (X <= 7 && X <= 7) return 1;
-  // CHECK-MESSAGES: :[[@LINE-1]]:14: warning: both side of operator are equivalent
+  // CHECK-MESSAGES: :[[@LINE-1]]:14: warning: both sides of operator are equivalent
   if (X <= 7 && X <= 8) return 1;
   // CHECK-MESSAGES: :[[@LINE-1]]:19: warning: expression is redundant
 
@@ -379,7 +379,7 @@ int TestRelational(int X, int Y) {
   if (X < 7 || X < 6) return 1;
   // CHECK-MESSAGES: :[[@LINE-1]]:18: warning: expression is redundant
   if (X < 7 || X < 7) return 1;
-  // CHECK-MESSAGES: :[[@LINE-1]]:13: warning: both side of operator are equivalent
+  // CHECK-MESSAGES: :[[@LINE-1]]:13: warning: both sides of operator are equivalent
   if (X < 7 || X < 8) return 1;
   // CHECK-MESSAGES: :[[@LINE-1]]:9: warning: expression is redundant
 

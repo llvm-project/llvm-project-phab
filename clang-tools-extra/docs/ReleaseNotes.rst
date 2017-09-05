@@ -57,6 +57,12 @@ The improvements are...
 Improvements to clang-tidy
 --------------------------
 
+- New `readability-suspicious-call-argument
+  <http://clang.llvm.org/extra/clang-tidy/checks/readability-suspicious-call-argument.html>`_ check
+
+  This checker finds those function calls where the function arguments are
+  provided in an incorrect order.
+
 The improvements are...
 
 Improvements to include-fixer
