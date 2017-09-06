@@ -1346,9 +1346,9 @@ template <class _Alloc, class _Pointer, class ..._Args>
 struct __has_construct
     : integral_constant<bool,
         is_same<
-            decltype(__has_construct_test(declval<_Alloc>(),
-                                          declval<_Pointer>(),
-                                          declval<_Args>()...)),
+            decltype(_VSTD::__has_construct_test(declval<_Alloc>(),
+                                                 declval<_Pointer>(),
+                                                 declval<_Args>()...)),
             true_type>::value>
 {
 };
@@ -1367,8 +1367,8 @@ template <class _Alloc, class _Pointer>
 struct __has_destroy
     : integral_constant<bool,
         is_same<
-            decltype(__has_destroy_test(declval<_Alloc>(),
-                                        declval<_Pointer>())),
+            decltype(_VSTD::__has_destroy_test(declval<_Alloc>(),
+                                               declval<_Pointer>())),
             true_type>::value>
 {
 };
@@ -1387,7 +1387,7 @@ template <class _Alloc>
 struct __has_max_size
     : integral_constant<bool,
         is_same<
-            decltype(__has_max_size_test(declval<_Alloc&>())),
+            decltype(_VSTD::__has_max_size_test(declval<_Alloc&>())),
             true_type>::value>
 {
 };
@@ -1406,7 +1406,7 @@ template <class _Alloc>
 struct __has_select_on_container_copy_construction
     : integral_constant<bool,
         is_same<
-            decltype(__has_select_on_container_copy_construction_test(declval<_Alloc&>())),
+            decltype(_VSTD::__has_select_on_container_copy_construction_test(declval<_Alloc&>())),
             true_type>::value>
 {
 };
@@ -1547,7 +1547,7 @@ struct _LIBCPP_TEMPLATE_VIS allocator_traits
     template <class _Tp>
         _LIBCPP_INLINE_VISIBILITY
         static void destroy(allocator_type& __a, _Tp* __p)
-            {__destroy(__has_destroy<allocator_type, _Tp*>(), __a, __p);}
+            {__destroy(_VSTD::__has_destroy<allocator_type, _Tp*>(), __a, __p);}
 
     _LIBCPP_INLINE_VISIBILITY
     static size_type max_size(const allocator_type& __a) _NOEXCEPT

@@ -1164,8 +1164,8 @@ void
 __deque_base<_Tp, _Allocator>::clear() _NOEXCEPT
 {
     allocator_type& __a = __alloc();
-    for (iterator __i = begin(), __e = end(); __i != __e; ++__i)
-        __alloc_traits::destroy(__a, _VSTD::addressof(*__i));
+    for (iterator __i = begin(), __e = end(); __i.__ptr_ != __e.__ptr_; __i.operator++())
+        __alloc_traits::destroy(__a, _VSTD::addressof(__i.operator*()));
     size() = 0;
     while (__map_.size() > 2)
     {
