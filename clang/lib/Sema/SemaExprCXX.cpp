@@ -7362,6 +7362,30 @@ public:
         break;
     }
 
+    // The transform is able to produce new TypoExprs while resolving the typos.
+    // These new TypoExprs are not resolved by the transform, they do not get
+    // into the TypoExprs container and are not reported, so they need to be
+    // handled separately.
+    // If the transform result is valid and contains newly created TypoExprs,
+    // transform the result expression again until no new TypoExprs get created
+    // or the result becomes an invalid expression. Return the longest valid
+    // expression to report as many typos as possible.
+    if (!Res.isInvalid()) {
+      while (true) {
+        unsigned TyposCount = TypoExprs.size();
+        FindTypoExprs(TypoExprs).TraverseStmt(Res.get());
+        if (TypoExprs.size() == TyposCount)
+          // No new TypoExprs created by the transform
+          break;
+        ExprResult TmpRes = TryTransform(Res.get());
+        if (TmpRes.isInvalid())
+          // Further transform prodices an invalid Expr.
+          // Stop with the last valid result.
+          break;
+        Res = TmpRes;
+      }
+    }
+
     // Ensure none of the TypoExprs have multiple typo correction candidates
     // with the same edit length that pass all the checks and filters.
     // TODO: Properly handle various permutations of possible corrections when
