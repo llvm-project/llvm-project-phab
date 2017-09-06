@@ -271,15 +271,29 @@ the configuration (without a prefix: ``Auto``).
     int b = 2; // comment  b                int b = 2; // comment about b
 
 **AllowAllParametersOfDeclarationOnNextLine** (``bool``)
-  Allow putting all parameters of a function declaration onto
-  the next line even if ``BinPackParameters`` is ``false``.
+  If the function declaration doesn't fit on a line,
+  allow putting all parameters onto the next line 
+  even if ``BinPackParameters`` is ``false``.
+
+  This applies to declaration, whose parameters fit on a single line.
 
   .. code-block:: c++
 
-    true:                                   false:
-    myFunction(foo,                 vs.     myFunction(foo, bar, plop);
-               bar,
-               plop);
+    true:
+    int SomeFunctionWithVeryLooooooooongName(
+        int a, int b, int c, int d, int e, int f) {
+      return 0;
+    }
+
+    false:
+    int SomeFunctionWithVeryLooooooooongName(int a,
+                                            int b,
+                                            int c,
+                                            int d,
+                                            int e,
+                                            int f) {
+      return 0;
+    } 
 
 **AllowShortBlocksOnASingleLine** (``bool``)
   Allows contracting simple braced statements to a single line.
