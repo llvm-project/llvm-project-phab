@@ -315,8 +315,11 @@ void ScriptParser::readGroup() {
 }
 
 void ScriptParser::readInclude() {
-  StringRef Tok = unquote(next());
+  uint8_t Depth = getCurrentMBDepth();
+  if (Depth == 10)
+    setError("maximum include nesting level of 10 exceeded");
 
+  StringRef Tok = unquote(next());
   // https://sourceware.org/binutils/docs/ld/File-Commands.html:
   // The file will be searched for in the current directory, and in any
   // directory specified with the -L option.

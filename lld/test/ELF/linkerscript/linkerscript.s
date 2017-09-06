@@ -44,8 +44,12 @@
 # RUN: echo "FOO(BAR)" > %t.script
 # RUN: not ld.lld -o foo %t.script > %t.log 2>&1
 # RUN: FileCheck -check-prefix=ERR1 %s < %t.log
-
 # ERR1: unknown directive: FOO
+
+# RUN: echo "INCLUDE \"%t.script3\"" > %t.script3
+# RUN: not ld.lld %t.script3 -o %t3 2>&1 | \
+# RUN:   FileCheck -check-prefix=ERR2 %s
+# ERR2: error: {{.*}}:1: maximum include nesting level of 10 exceeded
 
 .globl _start, _label
 _start:
