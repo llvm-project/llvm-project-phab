@@ -13,7 +13,7 @@
 
 ; Check that kernel launch is generated in host IR.
 ; the declare would not be generated unless a call to a kernel exists.
-; HOST-IR: declare void @polly_launchKernel(i8*, i32, i32, i32, i32, i32, i8*)
+; HOST-IR: declare void @polly_launchKernel(i8*, i32, i32, i32, i32, i32, i8*, i32)
 
 ; Check that we add variables that are local to a scop into the kills that we
 ; pass to PPCG. This should enable PPCG to codegen this example.
