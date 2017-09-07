@@ -93,7 +93,6 @@ namespace {
 
     void getAnalysisUsage(AnalysisUsage &AU) const override {
       AU.setPreservesCFG();
-      AU.addRequired<StackProtector>();
       MachineFunctionPass::getAnalysisUsage(AU);
     }
 
@@ -103,11 +102,8 @@ namespace {
 
 char LocalStackSlotPass::ID = 0;
 char &llvm::LocalStackSlotAllocationID = LocalStackSlotPass::ID;
-INITIALIZE_PASS_BEGIN(LocalStackSlotPass, DEBUG_TYPE,
-                      "Local Stack Slot Allocation", false, false)
-INITIALIZE_PASS_DEPENDENCY(StackProtector)
-INITIALIZE_PASS_END(LocalStackSlotPass, DEBUG_TYPE,
-                    "Local Stack Slot Allocation", false, false)
+INITIALIZE_PASS(LocalStackSlotPass, DEBUG_TYPE,
+                "Local Stack Slot Allocation", false, false)
 
 
 bool LocalStackSlotPass::runOnMachineFunction(MachineFunction &MF) {
@@ -198,7 +194,6 @@ void LocalStackSlotPass::calculateFrameObjectOffsets(MachineFunction &Fn) {
     TFI.getStackGrowthDirection() == TargetFrameLowering::StackGrowsDown;
   int64_t Offset = 0;
   unsigned MaxAlign = 0;
-  StackProtector *SP = &getAnalysis<StackProtector>();
 
   // Make sure that the stack protector comes before the local variables on the
   // stack.
@@ -218,16 +213,16 @@ void LocalStackSlotPass::calculateFrameObjectOffsets(MachineFunction &Fn) {
       if (MFI.getStackProtectorIndex() == (int)i)
         continue;
 
-      switch (SP->getSSPLayout(MFI.getObjectAllocation(i))) {
-      case StackProtector::SSPLK_None:
+      switch (MFI.getObjectSSPLayout(i)) {
+      case MachineFrameInfo::SSPLK_None:
         continue;
-      case StackProtector::SSPLK_SmallArray:
+      case MachineFrameInfo::SSPLK_SmallArray:
         SmallArrayObjs.insert(i);
         continue;
-      case StackProtector::SSPLK_AddrOf:
+      case MachineFrameInfo::SSPLK_AddrOf:
         AddrOfObjs.insert(i);
         continue;
-      case StackProtector::SSPLK_LargeArray:
+      case MachineFrameInfo::SSPLK_LargeArray:
         LargeArrayObjs.insert(i);
         continue;
       }

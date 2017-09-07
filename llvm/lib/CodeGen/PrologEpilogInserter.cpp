@@ -29,7 +29,6 @@
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/Passes.h"
 #include "llvm/CodeGen/RegisterScavenging.h"
-#include "llvm/CodeGen/StackProtector.h"
 #include "llvm/CodeGen/WinEHFuncInfo.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/DiagnosticInfo.h"
@@ -136,7 +135,6 @@ INITIALIZE_PASS_BEGIN(PEI, DEBUG_TYPE, "Prologue/Epilogue Insertion", false,
                       false)
 INITIALIZE_PASS_DEPENDENCY(MachineLoopInfo)
 INITIALIZE_PASS_DEPENDENCY(MachineDominatorTree)
-INITIALIZE_PASS_DEPENDENCY(StackProtector)
 INITIALIZE_PASS_DEPENDENCY(MachineOptimizationRemarkEmitterPass)
 INITIALIZE_PASS_END(PEI, DEBUG_TYPE,
                     "Prologue/Epilogue Insertion & Frame Finalization", false,
@@ -153,7 +151,6 @@ void PEI::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.setPreservesCFG();
   AU.addPreserved<MachineLoopInfo>();
   AU.addPreserved<MachineDominatorTree>();
-  AU.addRequired<StackProtector>();
   AU.addRequired<MachineOptimizationRemarkEmitterPass>();
   MachineFunctionPass::getAnalysisUsage(AU);
 }
@@ -699,7 +696,6 @@ AssignProtectedObjSet(const StackObjSet &UnassignedObjs,
 ///
 void PEI::calculateFrameObjectOffsets(MachineFunction &Fn) {
   const TargetFrameLowering &TFI = *Fn.getSubtarget().getFrameLowering();
-  StackProtector *SP = &getAnalysis<StackProtector>();
 
   bool StackGrowsDown =
     TFI.getStackGrowthDirection() == TargetFrameLowering::StackGrowsDown;
@@ -848,16 +844,16 @@ void PEI::calculateFrameObjectOffsets(MachineFunction &Fn) {
           EHRegNodeFrameIndex == (int)i)
         continue;
 
-      switch (SP->getSSPLayout(MFI.getObjectAllocation(i))) {
-      case StackProtector::SSPLK_None:
+      switch (MFI.getObjectSSPLayout(i)) {
+      case MachineFrameInfo::SSPLK_None:
         continue;
-      case StackProtector::SSPLK_SmallArray:
+      case MachineFrameInfo::SSPLK_SmallArray:
         SmallArrayObjs.insert(i);
         continue;
-      case StackProtector::SSPLK_AddrOf:
+      case MachineFrameInfo::SSPLK_AddrOf:
         AddrOfObjs.insert(i);
         continue;
-      case StackProtector::SSPLK_LargeArray:
+      case MachineFrameInfo::SSPLK_LargeArray:
         LargeArrayObjs.insert(i);
         continue;
       }
