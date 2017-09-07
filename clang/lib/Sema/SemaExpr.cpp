@@ -13355,9 +13355,9 @@ ExprResult Sema::TransformToPotentiallyEvaluated(Expr *E) {
 void
 Sema::PushExpressionEvaluationContext(ExpressionEvaluationContext NewContext,
                                       Decl *LambdaContextDecl,
-                                      bool IsDecltype) {
+                                      ExpressionType Type) {
   ExprEvalContexts.emplace_back(NewContext, ExprCleanupObjects.size(), Cleanup,
-                                LambdaContextDecl, IsDecltype);
+                                LambdaContextDecl, Type);
   Cleanup.reset();
   if (!MaybeODRUseExprs.empty())
     std::swap(MaybeODRUseExprs, ExprEvalContexts.back().SavedMaybeODRUseExprs);
@@ -13366,9 +13366,9 @@ Sema::PushExpressionEvaluationContext(ExpressionEvaluationContext NewContext,
 void
 Sema::PushExpressionEvaluationContext(ExpressionEvaluationContext NewContext,
                                       ReuseLambdaContextDecl_t,
-                                      bool IsDecltype) {
+                                      ExpressionType Type) {
   Decl *ClosureContextDecl = ExprEvalContexts.back().ManglingContextDecl;
-  PushExpressionEvaluationContext(NewContext, ClosureContextDecl, IsDecltype);
+  PushExpressionEvaluationContext(NewContext, ClosureContextDecl, Type);
 }
 
 void Sema::PopExpressionEvaluationContext() {
@@ -13376,30 +13376,29 @@ void Sema::PopExpressionEvaluationContext() {
   unsigned NumTypos = Rec.NumTypos;
 
   if (!Rec.Lambdas.empty()) {
-    if (Rec.isUnevaluated() || Rec.isConstantEvaluated()) {
+    if (Rec.Type == ExpressionType::TemplateParameter || Rec.isUnevaluated() ||
+        (Rec.isConstantEvaluated() && !getLangOpts().CPlusPlus1z)) {
       unsigned D;
       if (Rec.isUnevaluated()) {
         // C++11 [expr.prim.lambda]p2:
         //   A lambda-expression shall not appear in an unevaluated operand
         //   (Clause 5).
         D = diag::err_lambda_unevaluated_operand;
-      } else {
+      } else if (Rec.isConstantEvaluated() && !getLangOpts().CPlusPlus1z) {
         // C++1y [expr.const]p2:
         //   A conditional-expression e is a core constant expression unless the
         //   evaluation of e, following the rules of the abstract machine, would
         //   evaluate [...] a lambda-expression.
         D = diag::err_lambda_in_constant_expression;
-      }
+      } else if (Rec.Type == ExpressionType::TemplateParameter) {
+        // C++17 [expr.prim.lambda]p2:
+        // A lambda-expression shall not appear [...] in a template-argument.
+        D = diag::err_lambda_in_invalid_context;
+      } else
+        llvm_unreachable("Couldn't infer lambda error message.");
 
-      // C++1z allows lambda expressions as core constant expressions.
-      // FIXME: In C++1z, reinstate the restrictions on lambda expressions (CWG
-      // 1607) from appearing within template-arguments and array-bounds that
-      // are part of function-signatures.  Be mindful that P0315 (Lambdas in
-      // unevaluated contexts) might lift some of these restrictions in a 
-      // future version.
-      if (!Rec.isConstantEvaluated() || !getLangOpts().CPlusPlus1z)
-        for (const auto *L : Rec.Lambdas)
-          Diag(L->getLocStart(), D);
+      for (const auto *L : Rec.Lambdas)
+        Diag(L->getLocStart(), D);
     } else {
       // Mark the capture expressions odr-used. This was deferred
       // during lambda expression creation.
@@ -14861,7 +14860,7 @@ bool Sema::CheckCallReturnType(QualType ReturnType, SourceLocation Loc,
 
   // If we're inside a decltype's expression, don't check for a valid return
   // type or construct temporaries until we know whether this is the last call.
-  if (ExprEvalContexts.back().IsDecltype) {
+  if (ExprEvalContexts.back().Type == ExpressionType::Decltype) {
     ExprEvalContexts.back().DelayedDecltypeCalls.push_back(CE);
     return false;
   }

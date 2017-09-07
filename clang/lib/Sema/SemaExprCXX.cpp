@@ -6146,7 +6146,7 @@ ExprResult Sema::MaybeBindToTemporary(Expr *E) {
   if (RD->isInvalidDecl() || RD->isDependentContext())
     return E;
 
-  bool IsDecltype = ExprEvalContexts.back().IsDecltype;
+  bool IsDecltype = ExprEvalContexts.back().Type == ExpressionType::Decltype;
   CXXDestructorDecl *Destructor = IsDecltype ? nullptr : LookupDestructor(RD);
 
   if (Destructor) {
@@ -6229,7 +6229,8 @@ Stmt *Sema::MaybeCreateStmtWithCleanups(Stmt *SubStmt) {
 /// are omitted for the 'topmost' call in the decltype expression. If the
 /// topmost call bound a temporary, strip that temporary off the expression.
 ExprResult Sema::ActOnDecltypeExpression(Expr *E) {
-  assert(ExprEvalContexts.back().IsDecltype && "not in a decltype expression");
+  assert(ExprEvalContexts.back().Type == ExpressionType::Decltype &&
+         "not in a decltype expression");
 
   // C++11 [expr.call]p11:
   //   If a function call is a prvalue of object type,
@@ -6271,7 +6272,7 @@ ExprResult Sema::ActOnDecltypeExpression(Expr *E) {
     TopBind = nullptr;
 
   // Disable the special decltype handling now.
-  ExprEvalContexts.back().IsDecltype = false;
+  ExprEvalContexts.back().Type = ExpressionType::Other;
 
   // In MS mode, don't perform any extra checking of call return types within a
   // decltype expression.

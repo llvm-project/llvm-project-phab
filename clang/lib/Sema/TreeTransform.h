@@ -5450,7 +5450,7 @@ QualType TreeTransform<Derived>::TransformDecltypeType(TypeLocBuilder &TLB,
   // decltype expressions are not potentially evaluated contexts
   EnterExpressionEvaluationContext Unevaluated(
       SemaRef, Sema::ExpressionEvaluationContext::Unevaluated, nullptr,
-      /*IsDecltype=*/true);
+      Sema::ExpressionType::Decltype);
 
   ExprResult E = getDerived().TransformExpr(T->getUnderlyingExpr());
   if (E.isInvalid())

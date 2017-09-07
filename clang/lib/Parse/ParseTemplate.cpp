@@ -1189,7 +1189,9 @@ ParsedTemplateArgument Parser::ParseTemplateArgument() {
   // argument before trying to disambiguate.
 
   EnterExpressionEvaluationContext EnterConstantEvaluated(
-      Actions, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+    Actions, Sema::ExpressionEvaluationContext::ConstantEvaluated,
+    /*LambdaContextDecl=*/nullptr,
+    /*Type=*/Sema::ExpressionType::TemplateParameter);
   if (isCXXTypeId(TypeIdAsTemplateArgument)) {
     SourceLocation Loc = Tok.getLocation();
     TypeResult TypeArg = ParseTypeName(/*Range=*/nullptr,

@@ -1196,7 +1196,7 @@ StmtResult Parser::ParseIfStatement(SourceLocation *TrailingElseLoc) {
   {
     EnterExpressionEvaluationContext PotentiallyDiscarded(
         Actions, Sema::ExpressionEvaluationContext::DiscardedStatement, nullptr,
-        false,
+        Sema::ExpressionType::Other,
         /*ShouldEnter=*/ConstexprCondition && !*ConstexprCondition);
     ThenStmt = ParseStatement(&InnerStatementTrailingElseLoc);
   }
@@ -1230,7 +1230,7 @@ StmtResult Parser::ParseIfStatement(SourceLocation *TrailingElseLoc) {
 
     EnterExpressionEvaluationContext PotentiallyDiscarded(
         Actions, Sema::ExpressionEvaluationContext::DiscardedStatement, nullptr,
-        false,
+        Sema::ExpressionType::Other,
         /*ShouldEnter=*/ConstexprCondition && *ConstexprCondition);
     ElseStmt = ParseStatement();
 

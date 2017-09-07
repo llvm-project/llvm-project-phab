@@ -922,6 +922,12 @@ public:
     PotentiallyEvaluatedIfUsed
   };
 
+  /// \brief Describes whether we are in an expression that needs
+  /// special handling.
+  enum class ExpressionType {
+    Decltype, TemplateParameter, Other
+  };
+
   /// \brief Data structure used to record current or nested
   /// expression evaluation contexts.
   struct ExpressionEvaluationContextRecord {
@@ -931,8 +937,9 @@ public:
     /// \brief Whether the enclosing context needed a cleanup.
     CleanupInfo ParentCleanup;
 
-    /// \brief Whether we are in a decltype expression.
-    bool IsDecltype;
+    /// \brief Whether this is a type of expression that needs
+    /// separate handling from other expressions.
+    ExpressionType Type;
 
     /// \brief The number of active cleanup objects when we entered
     /// this expression evaluation context.
@@ -972,11 +979,10 @@ public:
                                       unsigned NumCleanupObjects,
                                       CleanupInfo ParentCleanup,
                                       Decl *ManglingContextDecl,
-                                      bool IsDecltype)
-      : Context(Context), ParentCleanup(ParentCleanup),
-        IsDecltype(IsDecltype), NumCleanupObjects(NumCleanupObjects),
-        NumTypos(0),
-        ManglingContextDecl(ManglingContextDecl), MangleNumbering() { }
+                                      ExpressionType Type)
+        : Context(Context), ParentCleanup(ParentCleanup), Type(Type),
+          NumCleanupObjects(NumCleanupObjects), NumTypos(0),
+          ManglingContextDecl(ManglingContextDecl), MangleNumbering() {}
 
     /// \brief Retrieve the mangling numbering context, used to consistently
     /// number constructs like lambdas for mangling.
@@ -3926,11 +3932,11 @@ public:
 
   void PushExpressionEvaluationContext(ExpressionEvaluationContext NewContext,
                                        Decl *LambdaContextDecl = nullptr,
-                                       bool IsDecltype = false);
+                                       ExpressionType Type = ExpressionType::Other);
   enum ReuseLambdaContextDecl_t { ReuseLambdaContextDecl };
   void PushExpressionEvaluationContext(ExpressionEvaluationContext NewContext,
                                        ReuseLambdaContextDecl_t,
-                                       bool IsDecltype = false);
+                                       ExpressionType Type = ExpressionType::Other);
   void PopExpressionEvaluationContext();
 
   void DiscardCleanupsInEvaluationContext();
@@ -10545,21 +10551,20 @@ public:
   EnterExpressionEvaluationContext(Sema &Actions,
                                    Sema::ExpressionEvaluationContext NewContext,
                                    Decl *LambdaContextDecl = nullptr,
-                                   bool IsDecltype = false,
+                                   Sema::ExpressionType Type = Sema::ExpressionType::Other,
                                    bool ShouldEnter = true)
       : Actions(Actions), Entered(ShouldEnter) {
     if (Entered)
       Actions.PushExpressionEvaluationContext(NewContext, LambdaContextDecl,
-                                              IsDecltype);
+                                              Type);
   }
   EnterExpressionEvaluationContext(Sema &Actions,
                                    Sema::ExpressionEvaluationContext NewContext,
                                    Sema::ReuseLambdaContextDecl_t,
-                                   bool IsDecltype = false)
+                                   Sema::ExpressionType Type = Sema::ExpressionType::Other)
     : Actions(Actions) {
     Actions.PushExpressionEvaluationContext(NewContext,
-                                            Sema::ReuseLambdaContextDecl,
-                                            IsDecltype);
+                                            Sema::ReuseLambdaContextDecl, Type);
   }
 
   enum InitListTag { InitList };
@@ -10573,7 +10578,7 @@ public:
     if (ShouldEnter && Actions.isUnevaluatedContext() &&
         Actions.getLangOpts().CPlusPlus11) {
       Actions.PushExpressionEvaluationContext(
-          Sema::ExpressionEvaluationContext::UnevaluatedList, nullptr, false);
+          Sema::ExpressionEvaluationContext::UnevaluatedList);
       Entered = true;
     }
   }
