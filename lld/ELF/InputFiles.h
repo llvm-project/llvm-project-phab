@@ -105,6 +105,10 @@ public:
   // Cache for toString(). Only toString() should use this member.
   mutable std::string ToStringCache;
 
+  // Keeps sections that belongs to COMDAT groups, used for -r. Each section
+  // that belongs to group should be placed to separate output section.
+  llvm::DenseSet<InputSectionBase *> GroupedSections;
+
 protected:
   InputFile(Kind K, MemoryBufferRef M);
   std::vector<InputSectionBase *> Sections;

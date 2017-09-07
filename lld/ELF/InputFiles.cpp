@@ -278,6 +278,7 @@ void ObjFile<ELFT>::initializeSections(
   this->SectionStringTable =
       check(Obj.getSectionStringTable(ObjSections), toString(this));
 
+  std::vector<const Elf_Shdr *> Groups;
   for (size_t I = 0, E = ObjSections.size(); I < E; I++) {
     if (this->Sections[I] == &InputSection::Discarded)
       continue;
@@ -304,8 +305,10 @@ void ObjFile<ELFT>::initializeSections(
       // exception is the -r option because in order to produce re-linkable
       // object files, we want to pass through basically everything.
       if (IsNew) {
-        if (Config->Relocatable)
+        if (Config->Relocatable) {
           this->Sections[I] = createInputSection(Sec);
+          Groups.push_back(&Sec);
+        }
         continue;
       }
 
@@ -331,6 +334,10 @@ void ObjFile<ELFT>::initializeSections(
     default:
       this->Sections[I] = createInputSection(Sec);
     }
+
+    for (const Elf_Shdr *Sec : Groups)
+      for (uint32_t Ndx : getShtGroupEntries(*Sec))
+        GroupedSections.insert(this->Sections[Ndx]);
 
     // .ARM.exidx sections have a reverse dependency on the InputSection they
     // have a SHF_LINK_ORDER dependency, this is identified by the sh_link.
