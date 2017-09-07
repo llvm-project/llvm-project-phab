@@ -341,6 +341,10 @@ std::string Attribute::getAsString(bool InAttrGrp) const {
     return "zeroext";
   if (hasAttribute(Attribute::Cold))
     return "cold";
+  if (hasAttribute(Attribute::PagerandoWrapper))
+    return "pagerando_wrapper";
+  if (hasAttribute(Attribute::PagerandoBinned))
+    return "pagerando_binned";
 
   // FIXME: These should be output like this:
   //

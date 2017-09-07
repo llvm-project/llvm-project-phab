@@ -1131,6 +1131,10 @@ bool LLParser::ParseFnAttributeValuePairs(AttrBuilder &B,
     case lltok::kw_strictfp: B.addAttribute(Attribute::StrictFP); break;
     case lltok::kw_uwtable: B.addAttribute(Attribute::UWTable); break;
     case lltok::kw_writeonly: B.addAttribute(Attribute::WriteOnly); break;
+    case lltok::kw_pagerando_wrapper:
+      B.addAttribute(Attribute::PagerandoWrapper); break;
+    case lltok::kw_pagerando_binned:
+      B.addAttribute(Attribute::PagerandoBinned); break;
 
     // Error handling.
     case lltok::kw_inreg:
