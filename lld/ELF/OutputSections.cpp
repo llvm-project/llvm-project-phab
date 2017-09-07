@@ -227,8 +227,10 @@ void OutputSectionFactory::addInputSec(InputSectionBase *IS,
   if (!isa<SyntheticSection>(IS) &&
       (IS->Type == SHT_REL || IS->Type == SHT_RELA)) {
     auto *Sec = cast<InputSection>(IS);
-    OutputSection *Out = Sec->getRelocatedSection()->getOutputSection();
-    addInputSec(IS, OutsecName, Out->RelocationSection);
+    if (OutputSection *Out = Sec->getRelocatedSection()->getOutputSection())
+      addInputSec(IS, OutsecName, Out->RelocationSection);
+    else
+      reportDiscarded(IS);
     return;
   }
 
