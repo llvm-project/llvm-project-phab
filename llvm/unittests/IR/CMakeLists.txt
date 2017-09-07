@@ -9,6 +9,7 @@ set(LLVM_LINK_COMPONENTS
 set(IRSources
   AsmWriterTest.cpp
   AttributesTest.cpp
+  BasicBlockRemoveEdgeTest.cpp
   BasicBlockTest.cpp
   CFGBuilder.cpp
   ConstantRangeTest.cpp
