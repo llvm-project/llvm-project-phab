@@ -84,6 +84,35 @@ LimitFPPrecision("limit-float-precision",
                           "for some float libcalls"),
                  cl::location(LimitFloatPrecision),
                  cl::init(0));
+
+/// This class is used for propagating Flags from Instruction to SDNode.
+/// These flags are later used by accessing SDNode during different
+/// DAG phases.
+class SDNodeFlagsAcquirer {
+public:
+   SDNodeFlagsAcquirer(const Instruction * I, SelectionDAGBuilder *SDB):
+                       Instr(I), SelDB(SDB) {}
+
+  ~SDNodeFlagsAcquirer() {
+      SDNode * Node = SelDB->getDAGNode(Instr);
+      if (Node) {
+        SDNodeFlags Flags = Node->getFlags();
+        if (isa<FPMathOperator>(*Instr)) { 
+          Flags.setNoNaNs(Instr->hasNoNaNs());
+          Flags.setUnsafeAlgebra(Instr->hasUnsafeAlgebra());
+          Flags.setNoSignedZeros(Instr->hasNoSignedZeros());
+          Flags.setAllowContract(Instr->hasAllowContract());
+          Flags.setAllowReciprocal(Instr->hasAllowReciprocal());
+        }
+        Node->setFlags(Flags);
+      }
+   }
+
+private:
+   const Instruction * Instr;     
+   SelectionDAGBuilder *SelDB;
+};
+
 // Limit the width of DAG chains. This is important in general to prevent
 // DAG-based analysis from blowing up. For example, alias analysis and
 // load clustering may not complete in reasonable time. It is difficult to
@@ -1056,6 +1085,12 @@ SDValue SelectionDAGBuilder::getCopyFromRegs(const Value *V, Type *Ty) {
   }
 
   return Result;
+}
+
+SDNode * SelectionDAGBuilder::getDAGNode(const Value *V) {
+  if (NodeMap.find(V) == NodeMap.end())
+    return nullptr;
+  return NodeMap[V].getNode();
 }
 
 /// getValue - Return an SDValue for the given Value.
@@ -6573,6 +6608,8 @@ bool SelectionDAGBuilder::visitBinaryFloatCall(const CallInst &I,
 }
 
 void SelectionDAGBuilder::visitCall(const CallInst &I) {
+  SDNodeFlagsAcquirer Flags(&I,this);
+
   // Handle inline assembly differently.
   if (isa<InlineAsm>(I.getCalledValue())) {
     visitInlineAsm(&I);
