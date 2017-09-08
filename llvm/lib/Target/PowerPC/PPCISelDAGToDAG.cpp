@@ -3055,8 +3055,20 @@ bool PPCDAGToDAGISel::isOffsetMultipleOf(SDNode *N, unsigned Val) const {
     AddrOp = STN->getOperand(2);
 
   short Imm = 0;
-  if (AddrOp.getOpcode() == ISD::ADD)
+  if (AddrOp.getOpcode() == ISD::ADD) {
+    // if op0 is a frame index that is under aligned, we can't do it either,
+    // because it is translated to r31 or r1 + slot + offset. We won't know the
+    // slot number until the stack frame is finalized.
+    FrameIndexSDNode *FI = dyn_cast<FrameIndexSDNode>(AddrOp.getOperand(0));
+    if (FI) {
+      int Idx = FI->getIndex();
+      const MachineFrameInfo &MFI = CurDAG->getMachineFunction().getFrameInfo();
+      unsigned SlotAlign = MFI.getObjectAlignment(Idx);
+      if ((SlotAlign % Val) != 0)
+        return false;
+    }
     return isIntS16Immediate(AddrOp.getOperand(1), Imm) && !(Imm % Val);
+  }
 
   // If the address comes from the outside, the offset will be zero.
   return AddrOp.getOpcode() == ISD::CopyFromReg;
