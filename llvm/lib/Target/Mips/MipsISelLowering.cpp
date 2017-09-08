@@ -4104,7 +4104,7 @@ void MipsTargetLowering::copyByValRegs(
 
   // Create frame object.
   EVT PtrTy = getPointerTy(DAG.getDataLayout());
-  int FI = MFI.CreateFixedObject(FrameObjSize, FrameObjOffset, true);
+  int FI = MFI.CreateFixedObject(FrameObjSize, FrameObjOffset, false);
   SDValue FIN = DAG.getFrameIndex(FI, PtrTy);
   InVals.push_back(FIN);
 
@@ -4122,7 +4122,7 @@ void MipsTargetLowering::copyByValRegs(
     SDValue StorePtr = DAG.getNode(ISD::ADD, DL, PtrTy, FIN,
                                    DAG.getConstant(Offset, DL, PtrTy));
     SDValue Store = DAG.getStore(Chain, DL, DAG.getRegister(VReg, RegTy),
-                                 StorePtr, MachinePointerInfo(FuncArg, Offset));
+                                 StorePtr, MachinePointerInfo());
     OutChains.push_back(Store);
   }
 }
