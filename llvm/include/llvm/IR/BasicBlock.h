@@ -33,6 +33,7 @@
 namespace llvm {
 
 class CallInst;
+class DominatorTree;
 class Function;
 class LandingPadInst;
 class LLVMContext;
@@ -339,6 +340,29 @@ public:
   /// operations are valid on an object that has "dropped all references",
   /// except operator delete.
   void dropAllReferences();
+
+  /// \brief Remove the edge between this and To. It does not alter the contents
+  /// of To, only the terminating instruction of this. To must be a successor of
+  /// this or an assert will be raised.
+  ///
+  /// If DT is valid the routine will preserve dominance.
+  ///
+  /// Invoke terminator instructions will raise an assert unless removeInvoke is
+  /// set to true. Invoke instructions cannot be reduced from two successors to
+  /// one: the entire instruction (and two edges) must be removed at the same
+  /// time.
+  ///
+  /// Note: it is not safe to assume one call to removeEdge decrements
+  /// this->getTerminator()->getNumSuccessors() by one. Several terminator
+  /// instructions permit branches to the same basic block and count each jump
+  /// as a unique successor. The removeEdge routine removes *all* instances of
+  /// To from the terminating instruction in this.
+  ///
+  /// Note: the routine may change the terminator instruction type and may also
+  /// create a new basic block. These changes are dependant upon on the type of
+  /// the terminator instruction and the requested edge to remove.
+  void removeEdge(BasicBlock *To, DominatorTree *DT = nullptr,
+                  bool removeInvoke = false);
 
   /// \brief Notify the BasicBlock that the predecessor \p Pred is no longer
   /// able to reach it.

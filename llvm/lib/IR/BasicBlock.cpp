@@ -16,6 +16,7 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/Constants.h"
+#include "llvm/IR/Dominators.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/LLVMContext.h"
@@ -265,6 +266,166 @@ const BasicBlock *BasicBlock::getUniqueSuccessor() const {
 
 iterator_range<BasicBlock::phi_iterator> BasicBlock::phis() {
   return make_range<phi_iterator>(dyn_cast<PHINode>(&front()), nullptr);
+}
+
+void BasicBlock::removeEdge(BasicBlock *To, DominatorTree *DT,
+                            bool removeInvoke) {
+  // Terminator instruction types: BranchInst(1/2),
+  // SwitchInst(getNumOperands()/2), IndirectBrInst(getNumOperands()-1),
+  // InvokeInst(2), CleanupReturnInst(1/0), CatchReturnInst(1),
+  // CatchSwitchInst(getNumOperands()-1)
+  //
+  // ResumeInst(0), UnreachableInst(0) are not checked because they never
+  // have successors.
+  assert(To && "To cannot be nullptr.");
+  assert(find(succ_begin(this), succ_end(this), To) != succ_end(this) &&
+         "There exists no edge between this and To.");
+
+  SmallVector<DominatorTree::UpdateType, 2> Updates;
+  TerminatorInst *TI = getTerminator();
+
+  if (CleanupReturnInst *CI = dyn_cast<CleanupReturnInst>(TI)) {
+    // To is the only successor.
+    new UnreachableInst(getContext(), this);
+    CI->eraseFromParent();
+  } else if (CatchReturnInst *CI = dyn_cast<CatchReturnInst>(TI)) {
+    // To is the only successor.
+    new UnreachableInst(getContext(), this);
+    CI->eraseFromParent();
+  } else if (InvokeInst *II = dyn_cast<InvokeInst>(TI)) {
+    assert(removeInvoke && "Invokes must have two edges removed at once.");
+    if (DT) {
+      BasicBlock *NormalDestBB = II->getNormalDest();
+      BasicBlock *UnwindDestBB = II->getUnwindDest();
+      if (this != NormalDestBB)
+        Updates.push_back({DominatorTree::Delete, this, NormalDestBB});
+      if (this != UnwindDestBB && NormalDestBB != UnwindDestBB)
+        Updates.push_back({DominatorTree::Delete, this, UnwindDestBB});
+    }
+    new UnreachableInst(getContext(), this);
+    II->eraseFromParent();
+  } else if (BranchInst *BI = dyn_cast<BranchInst>(TI)) {
+    if (BI->isConditional()) {
+      BasicBlock *L = BI->getSuccessor(0);
+      BasicBlock *R = BI->getSuccessor(1);
+      if (To == L && To == R) {
+        new UnreachableInst(getContext(), this);
+      } else if (To == L) {
+        BranchInst::Create(R, BI);
+      } else {
+        BranchInst::Create(L, BI);
+      }
+    } else {
+      new UnreachableInst(getContext(), this);
+    }
+    BI->eraseFromParent();
+  } else if (IndirectBrInst *II = dyn_cast<IndirectBrInst>(TI)) {
+    // There are 1+ instances of To in the list of destinations.
+    bool RemovedDest;
+    do {
+      unsigned NumDests = II->getNumDestinations();
+      if (NumDests == 1) {
+        if (II->getDestination(0) == To) {
+          // The only remaining destination is To.
+          new UnreachableInst(getContext(), this);
+          II->eraseFromParent();
+        }
+        break;
+      } else {
+        RemovedDest = false;
+        for (unsigned I = 0; I < NumDests; ++I)
+          if (II->getDestination(I) == To) {
+            II->removeDestination(I);
+            RemovedDest = true;
+            break;
+          }
+      }
+    } while (RemovedDest);
+  } else if (SwitchInst *SI = dyn_cast<SwitchInst>(TI)) {
+    // To is a successor of one or more case statements (including the
+    // default case). The first task is to remove all non-default case
+    // statements that branch to To.
+    bool RemovedCase;
+    do {
+      RemovedCase = false;
+      for (auto I = SI->case_begin(), E = SI->case_end(); I != E; ++I) {
+        if (I == SI->case_default())
+          continue;
+        if (I->getCaseSuccessor() == To) {
+          SI->removeCase(I);
+          RemovedCase = true;
+          break;
+        }
+      }
+    } while (RemovedCase);
+    // Now check the default case.
+    if (SI->getSuccessor(0) == To) {
+      if (SI->getNumSuccessors() == 1) {
+        // The only remaining successor is the default case.
+        new UnreachableInst(getContext(), this);
+        SI->eraseFromParent();
+      } else {
+        // The SwitchInst has non-default cases remaining. Create a new
+        // BasicBlock, set it as the new default destination, and denote
+        // the new BasicBlock as unreachable.
+        BasicBlock *UnreachBB = BasicBlock::Create(
+            getContext(), Twine(getName()) + ".unreachable_switch_default",
+            getParent());
+        SI->setDefaultDest(UnreachBB);
+        new UnreachableInst(UnreachBB->getContext(), UnreachBB);
+        if (DT)
+          Updates.push_back({DominatorTree::Insert, this, UnreachBB});
+      }
+    }
+    if (DT && this != To)
+      Updates.push_back({DominatorTree::Delete, this, To});
+  } else if (CatchSwitchInst *CI = dyn_cast<CatchSwitchInst>(TI)) {
+    // To is a successor of one or more handlers and may also be the unwind
+    // destination. The first task is to remove all the handlers that branch
+    // to To.
+    bool RemovedHandler;
+    do {
+      RemovedHandler = false;
+      for (auto I = CI->handler_begin(), E = CI->handler_end(); I != E; ++I)
+        if (*I == To) {
+          CI->removeHandler(I);
+          RemovedHandler = true;
+          break;
+        }
+    } while (RemovedHandler);
+    // Now check the unwind destination.
+    if (CI->getUnwindDest() == To) {
+      if (CI->getNumHandlers() == 0) {
+        // The only remaining successor is the unwind destination.
+        new UnreachableInst(getContext(), this);
+        CI->eraseFromParent();
+      } else {
+        // The CatchSwitchInst has one or more handlers. Create a new
+        // BasicBlock, set it as the new unwind destination, and denote
+        // the new BasicBlock as unreachable.
+        BasicBlock *UnreachBB = BasicBlock::Create(
+            getContext(), Twine(getName()) + ".unreachable_unwind_default",
+            getParent());
+        CI->setUnwindDest(UnreachBB);
+        new UnreachableInst(UnreachBB->getContext(), UnreachBB);
+        if (DT)
+          Updates.push_back({DominatorTree::Insert, this, UnreachBB});
+      }
+    }
+    if (DT && this != To)
+      Updates.push_back({DominatorTree::Delete, this, To});
+  } else {
+    llvm_unreachable("Unexpected TerminatorInst");
+  }
+  // Remove our edge from the dominator tree. If we used Updates above just
+  // apply them. Otherwise remove the edge between this and To provided it's not
+  // a loop back to itself.
+  if (DT) {
+    if (!Updates.empty())
+      DT->applyUpdates(Updates);
+    else if (this != To)
+      DT->deleteEdge(this, To);
+  }
 }
 
 /// This method is used to notify a BasicBlock that the
