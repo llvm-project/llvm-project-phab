@@ -32,6 +32,10 @@ CHECK_CXX_SOURCE_COMPILES("
 
 set(LIBFUZZER_CFLAGS ${SANITIZER_COMMON_CFLAGS})
 
+if(HAVE_LIBCXX AND COMPILER_RT_ENABLE_LIBCXX)
+  append_list_if(COMPILER_RT_CXX_SUPPORTS_STDLIB -stdlib=libc++ LIBFUZZER_CFLAGS)
+endif()
+
 if (CMAKE_CXX_FLAGS MATCHES "fsanitize-coverage")
   list(APPEND LIBFUZZER_CFLAGS -fno-sanitize-coverage=trace-pc-guard,edge,trace-cmp,indirect-calls,8bit-counters)
 endif()

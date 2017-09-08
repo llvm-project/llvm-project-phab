@@ -140,6 +140,11 @@ elseif (SANITIZER_CXX_ABI_LIBNAME STREQUAL "libstdc++")
   append_list_if(COMPILER_RT_HAS_LIBSTDCXX stdc++ SANITIZER_CXX_ABI_LIBRARY)
 endif()
 
+option(COMPILER_RT_ENABLE_LIBCXX "Use libc++ if available." OFF)
+if (COMPILER_RT_ENABLE_LIBCXX)
+	check_cxx_compiler_flag("-stdlib=libc++" COMPILER_RT_CXX_SUPPORTS_STDLIB)
+endif()
+
 option(SANITIZER_USE_COMPILER_RT "Use compiler-rt builtins instead of libgcc" OFF)
 
 #================================
