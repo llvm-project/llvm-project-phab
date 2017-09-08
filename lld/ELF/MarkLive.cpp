@@ -20,6 +20,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "EhFrame.h"
 #include "InputSection.h"
 #include "LinkerScript.h"
 #include "Memory.h"
@@ -108,45 +109,72 @@ forEachSuccessor(InputSection &Sec,
 // * FDEs refer to the function they contain information about
 // The last kind of relocation cannot keep the referred section alive, or they
 // would keep everything alive in a common object file. In fact, each FDE is
-// alive if the section it refers to is alive.
-// To keep things simple, in here we just ignore the last relocation kind. The
-// other two keep the referred section alive.
-//
-// A possible improvement would be to fully process .eh_frame in the middle of
-// the gc pass. With that we would be able to also gc some sections holding
-// LSDAs and personality functions if we found that they were unused.
+// alive if the section it refers to is alive. We mark here such FDEs,
+// as well as their dependent LSDAs, CIEs and personality function(s).
 template <class ELFT, class RelTy>
 static void
 scanEhFrameSection(EhInputSection &EH, ArrayRef<RelTy> Rels,
                    std::function<void(InputSectionBase *, uint64_t)> Fn) {
   const endianness E = ELFT::TargetEndianness;
 
+  DenseMap<size_t, EhSectionPiece *> OffsetToCie;
   for (unsigned I = 0, N = EH.Pieces.size(); I < N; ++I) {
     EhSectionPiece &Piece = EH.Pieces[I];
-    unsigned FirstRelI = Piece.FirstRelocation;
-    if (FirstRelI == (unsigned)-1)
-      continue;
-    if (read32<E>(Piece.data().data() + 4) == 0) {
-      // This is a CIE, we only need to worry about the first relocation. It is
-      // known to point to the personality function.
-      resolveReloc<ELFT>(EH, Rels[FirstRelI], Fn);
+
+    // The empty record is the end marker.
+    if (Piece.size() == 4)
+      return;
+
+    size_t Offset = Piece.InputOff;
+    uint32_t ID = read32<E>(Piece.data().data() + 4);
+    if (ID == 0) {
+      OffsetToCie[Offset] = &Piece;
       continue;
     }
-    // This is a FDE. The relocations point to the described function or to
+
+    if (Piece.Live // This FDE is already fully processed.
+        || !elf::isFdeLive<ELFT>(Piece, Rels))
+      continue;
+
+    // The FDE should be kept.
+    Piece.Live = true;
+
+    // In a FDE, the relocations point to the described function or to
     // a LSDA. We only need to keep the LSDA alive, so ignore anything that
     // points to executable sections.
     typename ELFT::uint PieceEnd = Piece.InputOff + Piece.size();
-    for (unsigned I2 = FirstRelI, N2 = Rels.size(); I2 < N2; ++I2) {
+    for (unsigned I2 = Piece.FirstRelocation + 1, N2 = Rels.size(); I2 < N2;
+         ++I2) {
       const RelTy &Rel = Rels[I2];
       if (Rel.r_offset >= PieceEnd)
         break;
-      resolveReloc<ELFT>(EH, Rels[I2],
+      resolveReloc<ELFT>(EH, Rel,
                          [&](InputSectionBase *Sec, uint64_t Offset) {
                            if (Sec && Sec != &InputSection::Discarded &&
                                !(Sec->Flags & SHF_EXECINSTR))
                              Fn(Sec, 0);
                          });
     }
+
+    // Process the corresponding CIE
+    uint32_t CieOffset = Offset + 4 - ID;
+    EhSectionPiece *Cie = OffsetToCie[CieOffset];
+    if (!Cie)
+      fatal(toString(&EH) + ": invalid CIE reference");
+
+    if (Cie->Live)
+      // Already processed.
+      continue;
+
+    Cie->Live = true;
+
+    unsigned CieFirstRelI = Cie->FirstRelocation;
+    if (CieFirstRelI == (unsigned)-1)
+      continue;
+
+    // In a CIE, we only need to worry about the first relocation.
+    // It is known to point to the personality function.
+    resolveReloc<ELFT>(EH, Rels[CieFirstRelI], Fn);
   }
 }
 
@@ -247,14 +275,15 @@ template <class ELFT> void elf::markLive() {
     if (S->includeInDynsym())
       MarkSymbol(S->body());
 
+  std::vector<EhInputSection *> EhInputSections;
+
   // Preserve special sections and those which are specified in linker
   // script KEEP command.
   for (InputSectionBase *Sec : InputSections) {
-    // .eh_frame is always marked as live now, but also it can reference to
-    // sections that contain personality. We preserve all non-text sections
-    // referred by .eh_frame here.
+    // Postpone scanning .eh_frame until we find all the secions reachable
+    // from the roots.
     if (auto *EH = dyn_cast_or_null<EhInputSection>(Sec))
-      scanEhFrameSection<ELFT>(*EH, Enqueue);
+      EhInputSections.push_back(EH);
     if (Sec->Flags & SHF_LINK_ORDER)
       continue;
     if (isReserved<ELFT>(Sec) || Script->shouldKeep(Sec))
@@ -266,8 +295,12 @@ template <class ELFT> void elf::markLive() {
   }
 
   // Mark all reachable sections.
-  while (!Q.empty())
-    forEachSuccessor<ELFT>(*Q.pop_back_val(), Enqueue);
+  while (!Q.empty()) {
+    while (!Q.empty())
+      forEachSuccessor<ELFT>(*Q.pop_back_val(), Enqueue);
+    for (EhInputSection *EH : EhInputSections)
+      scanEhFrameSection<ELFT>(*EH, Enqueue);
+  }
 }
 
 template void elf::markLive<ELF32LE>();
