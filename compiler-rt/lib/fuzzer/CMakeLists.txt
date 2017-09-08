@@ -32,6 +32,17 @@ CHECK_CXX_SOURCE_COMPILES("
 
 set(LIBFUZZER_CFLAGS ${SANITIZER_COMMON_CFLAGS})
 
+option(COMPILER_RT_ENABLE_LIBCXX "Use libc++ if available." OFF)
+
+if (COMPILER_RT_ENABLE_LIBCXX)
+  check_cxx_compiler_flag("-stdlib=libc++" COMPILER_RT_CXX_SUPPORTS_STDLIB)
+  if(HAVE_LIBCXX AND COMPILER_RT_CXX_SUPPORTS_STDLIB)
+    list(APPEND LIBFUZZER_CFLAGS -stdlib=libc++)
+  else()
+    message(WARNING "Can't specify libc++ with '-stdlib='")
+  endif()
+endif()
+
 if (CMAKE_CXX_FLAGS MATCHES "fsanitize-coverage")
   list(APPEND LIBFUZZER_CFLAGS -fno-sanitize-coverage=trace-pc-guard,edge,trace-cmp,indirect-calls,8bit-counters)
 endif()
