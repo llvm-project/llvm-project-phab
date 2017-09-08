@@ -35,6 +35,7 @@
 
 using namespace llvm;
 using namespace llvm::object;
+using namespace llvm::support;
 using namespace llvm::support::endian;
 using namespace llvm::ELF;
 using namespace lld;
@@ -52,6 +53,9 @@ public:
 RelExpr AVR::getRelExpr(uint32_t Type, const SymbolBody &S,
                         const InputFile &File, const uint8_t *Loc) const {
   switch (Type) {
+  case R_AVR_HI8_LDI:
+  case R_AVR_LO8_LDI:
+  case R_AVR_LDI:
   case R_AVR_CALL:
     return R_ABS;
   default:
@@ -62,6 +66,13 @@ RelExpr AVR::getRelExpr(uint32_t Type, const SymbolBody &S,
 
 void AVR::relocateOne(uint8_t *Loc, uint32_t Type, uint64_t Val) const {
   switch (Type) {
+  case R_AVR_HI8_LDI:
+    break;
+  case R_AVR_LO8_LDI:
+  case R_AVR_LDI: {
+    write<uint8_t, little>(Loc, read<uint8_t, little>(Loc) + Val);
+    break;
+  }
   case R_AVR_CALL: {
     uint16_t Hi = Val >> 17;
     uint16_t Lo = Val >> 1;
@@ -70,7 +81,7 @@ void AVR::relocateOne(uint8_t *Loc, uint32_t Type, uint64_t Val) const {
     break;
   }
   default:
-    error(getErrorLocation(Loc) + "unrecognized reloc " + toString(Type));
+    error(getErrorLocation(Loc) + "unrecognized reloc " + Twine(Type));
   }
 }
 

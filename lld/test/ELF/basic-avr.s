@@ -5,10 +5,20 @@
 
 main:
   call foo
+  ldi r17, lo8(foo)
+  ldi r18, hi8(bar)
+  ldi r19, foo
 foo:
   jmp foo
+bar:
+  call foo
 
 # CHECK:      main:
-# CHECK-NEXT:   0: 0e 94 02 00 <unknown>
+# CHECK-NEXT:   0: 0e 94 05 00 <unknown>
+# CHECK-NEXT:   4: 1a e0 <unknown>
+# CHECK-NEXT:   6: 20 e0 <unknown>
+# CHECK-NEXT:   8: 3a e0 <unknown>
 # CHECK:      foo:
-# CHECK-NEXT:   4: 0c 94 02 00 <unknown>
+# CHECK-NEXT:   a: 0c 94 05 00 <unknown>
+# CHECK:      bar:
+# CHECK-NEXT:   e: 0e 94 05 00 <unknown>
