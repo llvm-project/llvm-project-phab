@@ -1201,21 +1201,19 @@ static void removeUnusedSyntheticSections() {
     if ((SS == InX::Got || SS == InX::MipsGot) && ElfSym::GlobalOffsetTable)
       continue;
 
-    std::vector<BaseCommand *>::iterator Empty = OS->Commands.end();
-    for (auto I = OS->Commands.begin(), E = OS->Commands.end(); I != E; ++I) {
-      BaseCommand *B = *I;
-      if (auto *ISD = dyn_cast<InputSectionDescription>(B)) {
+    // Remove unused synthetic section.
+    for (BaseCommand *B : OS->Commands)
+      if (auto *ISD = dyn_cast<InputSectionDescription>(B))
         llvm::erase_if(ISD->Sections,
                        [=](InputSection *IS) { return IS == SS; });
-        if (ISD->Sections.empty())
-          Empty = I;
-      }
-    }
-    if (Empty != OS->Commands.end())
-      OS->Commands.erase(Empty);
 
-    // If there are no other sections in the output section, remove it from the
-    // output.
+    // Remove whole sections description command if it is empty now.
+    llvm::erase_if(OS->Commands, [](BaseCommand *B) {
+      auto *ISD = dyn_cast<InputSectionDescription>(B);
+      return ISD && ISD->Sections.empty();
+    });
+
+    // Remove whole output section if it is empty finally.
     if (OS->Commands.empty())
       llvm::erase_if(Script->Opt.Commands,
                      [&](BaseCommand *Cmd) { return Cmd == OS; });
