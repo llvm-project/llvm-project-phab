@@ -1341,7 +1341,7 @@ Implicitly search the file system for module map files.
 
 .. option:: -finput-charset=<arg>
 
-.. option:: -finstrument-functions
+.. option:: -finstrument-functions, -fno-instrument-functions, -finstrument-functions-exclude-file-list=<arg>, -finstrument-functions-exclude-function-list=<arg>
 
 Generate calls to instrument function entry and exit
 

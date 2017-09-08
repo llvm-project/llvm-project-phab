@@ -4595,3 +4595,8 @@ CodeGenModule::createOpenCLIntToSamplerConversion(const Expr *E,
                                 "__translate_sampler_initializer"),
                                 {C});
 }
+
+llvm::DenseMap<unsigned, const char*> &
+CodeGenModule::GetSourceLocToFileNameMap() {
+  return SourceLocToFileNameMap;
+}
