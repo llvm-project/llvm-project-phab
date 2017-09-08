@@ -4205,6 +4205,21 @@ bool SLPVectorizerPass::runImpl(Function &F, ScalarEvolution *SE_,
   // A general note: the vectorizer must use BoUpSLP::eraseInstruction() to
   // delete instructions.
 
+  for (auto &BB : F)
+   for (BasicBlock::iterator BBI = BB.begin(), E = BB.end(); BBI != E;) {
+     Instruction *I = &*BBI++;
+
+     CallInst *CI = dyn_cast<CallInst>(I);
+     if (!CI) continue;
+     if (getIntrinsicForCallSite(CI, TLI) == Intrinsic::phantom_mem)
+      {
+        ConstantInt *MaxOffset = cast<ConstantInt>(CI->getOperand(1));
+        PhantomMem[CI->getOperand(0)]=MaxOffset->getZExtValue();
+        CI->removeFromParent();
+        CI->dropAllReferences();
+     }
+  }
+
   // Scan the blocks in the function in post order.
   for (auto BB : post_order(&F.getEntryBlock())) {
     collectSeedInstructions(BB);
@@ -5530,12 +5545,185 @@ bool SLPVectorizerPass::vectorizeInsertValueInst(InsertValueInst *IVI,
   return tryToVectorizeList(BuildVectorOpds, R, BuildVector, false);
 }
 
+InsertElementInst *
+SLPVectorizerPass::restoreInserts(InsertElementInst *FirstInsertElem,
+                                  LoadInst *LInstr, Value *Ptr) {
+  ShuffleVectorInst *Use = nullptr;
+  DenseMap<uint64_t, LoadInst *> Loads;
+  DenseMap<uint64_t, InsertElementInst *> Inserts;
+  DenseMap<uint64_t, GetElementPtrInst *> GEPs;
+  BasicBlock *BB = FirstInsertElem->getParent();
+  VectorType *VecType = FirstInsertElem->getType();
+  uint64_t MaxOffset = PhantomMem[Ptr];
+
+  ConstantInt *C = dyn_cast<ConstantInt>(FirstInsertElem->getOperand(2));
+  if (C && C->getZExtValue() <= MaxOffset) {
+    // We found the first InsertElem in
+    // this chain.
+    uint64_t Offset = C->getZExtValue();
+    Inserts[Offset] = FirstInsertElem;
+    Loads[Offset] = LInstr;
+    GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(LInstr->getOperand(0));
+    if (GEP) {
+      if (GEP->getParent() != BB)
+        return nullptr;
+      GEPs[Offset] = GEP;
+    }
+  } else
+    return nullptr;
+
+  for (BasicBlock::iterator it = BB->begin(), e = BB->end(); it != e; it++) {
+    if (InsertElementInst *Insert = dyn_cast<InsertElementInst>(it)) {
+      ConstantInt *C = dyn_cast<ConstantInt>(Insert->getOperand(2));
+      LoadInst *Load = dyn_cast<LoadInst>(Insert->getOperand(1));
+      if (!Load || Insert == FirstInsertElem)
+        continue;
+      GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(Load->getOperand(0));
+      Value *Base = Load->getOperand(0);
+      if (Base == Ptr) {
+        if (!C || Load->getParent() != BB)
+          return nullptr;
+        uint64_t Offset = C->getZExtValue();
+        if (Offset > MaxOffset || !Load->hasOneUse())
+          return nullptr;
+        Inserts[Offset] = Insert;
+        Loads[Offset] = Load;
+        // GEP instruction might be missing for some offsets.
+        if (GEP) {
+          if (GEP->getParent() != BB)
+            return nullptr;
+          GEPs[Offset] = GEP;
+        }
+        continue;
+      }
+    }
+    if (GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(it))
+      // Examining the chain of GEP, Load, Insert.
+      if (Ptr == GEP->getOperand(0)) {
+        ConstantInt *C = dyn_cast<ConstantInt>(GEP->getOperand(1));
+        if (!C || GEP->use_empty() || !GEP->hasOneUse())
+          return nullptr;
+        uint64_t Off = C->getZExtValue();
+        LoadInst *Load = dyn_cast<LoadInst>(GEP->user_back());
+        if (!Load || Load->use_empty() || !Load->hasOneUse())
+          return nullptr;
+        InsertElementInst *Insert =
+            dyn_cast<InsertElementInst>(Load->user_back());
+        if (!Insert || Load->getParent() != BB || Insert->getParent() != BB)
+          return nullptr;
+        ConstantInt *C1 = cast<ConstantInt>(Insert->getOperand(2));
+        uint64_t Off_Ins = C1->getZExtValue();
+        // Offset from GEP must be equal to offset from
+        // Insert otherwise we have to ignore.
+        if (Off != Off_Ins)
+          return nullptr;
+        Inserts[Off] = Insert;
+        Loads[Off] = Load;
+        GEPs[Off] = GEP;
+      }
+  }
+
+  for (unsigned i = 0; i < MaxOffset + 1; i++)
+    if (Inserts[i] && !Inserts[i]->use_empty()) {
+      if (ShuffleVectorInst *Shuffle =
+              dyn_cast<ShuffleVectorInst>(Inserts[i]->user_back()))
+       {
+        if (Use != nullptr)
+          return nullptr;
+        Use = Shuffle;
+       };
+    }
+
+  if ((!Use) || Use->getParent() != BB)
+    return nullptr;
+
+  // Checking mask elements
+  SmallVector<int, 16> Mask = Use->getShuffleMask();
+  if (Mask.size() != MaxOffset + 1)
+    return nullptr;
+  for(auto const& index: Mask)
+    if (!Inserts[index])
+      return nullptr;
+
+  IRBuilder<> Builder(LInstr->getParent(), ++BasicBlock::iterator(LInstr));
+  if (!Inserts[0]) {
+    Instruction *InsertAt = LInstr->getPrevNode();
+    if (!InsertAt)
+      InsertAt = &*BB->begin();
+    Builder.SetInsertPoint(InsertAt);
+    LoadInst *NewLoad = Builder.CreateLoad(Ptr);
+    NewLoad->setAlignment(LInstr->getAlignment());
+    Loads[0] = NewLoad;
+    Value *NewInsert = Builder.CreateInsertElement(
+        UndefValue::get(VecType), NewLoad, Builder.getInt32(0));
+    Inserts[0] = cast<InsertElementInst>(NewInsert);
+  }
+  for (unsigned i = 1; i < MaxOffset + 1; i++) {
+    // Building GEP, Load, Insert for
+    // this Offset.
+    if (!Inserts[i]) {
+      assert(Loads[i - 1] != nullptr &&
+             "Couldn't find previous load in the chain.");
+      if (GEPs[i - 1] == nullptr)
+        Builder.SetInsertPoint(Loads[i - 1]->getNextNode());
+      else {
+        GetElementPtrInst *GEP = GEPs[i - 1];
+        Builder.SetInsertPoint(GEP->getNextNode());
+      }
+      Value *NewGEP =
+          Builder.CreateGEP(LInstr->getType(), Ptr, Builder.getInt64(i));
+      GEPs[i] = cast<GetElementPtrInst>(NewGEP);
+      Builder.SetInsertPoint(Loads[i - 1]->getNextNode());
+      Builder.SetCurrentDebugLocation(LInstr->getDebugLoc());
+      LoadInst *NewLoad = Builder.CreateLoad(NewGEP);
+      NewLoad->setAlignment(LInstr->getAlignment());
+      Loads[i] = NewLoad;
+      // InsertElement must be inserted just after
+      // previous InsertElement.
+      InsertElementInst *PrevIns = Inserts[i - 1];
+      Instruction *InsAt = PrevIns->getNextNode();
+      Builder.SetInsertPoint(InsAt);
+      Builder.SetCurrentDebugLocation(InsAt->getDebugLoc());
+      Value *NewInsert =
+          Builder.CreateInsertElement(PrevIns, NewLoad, Builder.getInt32(i));
+      Inserts[i] = cast<InsertElementInst>(NewInsert);
+    }
+    Inserts[i]->setOperand(0, Inserts[i - 1]);
+  }
+
+  // Update ShuffleVector with restored insert element.
+  Use->setOperand(0, Inserts[MaxOffset]);
+  return cast<InsertElementInst>(Inserts[MaxOffset]);
+}
+
 bool SLPVectorizerPass::vectorizeInsertElementInst(InsertElementInst *IEI,
                                                    BasicBlock *BB, BoUpSLP &R) {
   SmallVector<Value *, 16> BuildVector;
   SmallVector<Value *, 16> BuildVectorOpds;
   if (!findBuildVector(IEI, BuildVector, BuildVectorOpds))
     return false;
+
+  if (LoadInst *LInstr = dyn_cast<LoadInst>(
+                                          IEI->getOperand(1))) {
+    Value *Ptr = nullptr;
+    if (PhantomMem.find(LInstr->getOperand(0)) != PhantomMem.end())
+      Ptr = LInstr->getOperand(0);
+    else
+      if (GetElementPtrInst *GEP =
+             dyn_cast<GetElementPtrInst>(LInstr->getOperand(0)))
+        if (PhantomMem.find(GEP->getOperand(0)) != PhantomMem.end())
+          Ptr = GEP->getOperand(0);
+
+    if (!Ptr)
+      return false;
+    if (InsertElementInst *Insert =
+                            restoreInserts(IEI, LInstr, Ptr)) {
+      BuildVector.clear();
+      BuildVectorOpds.clear();
+      if (!findBuildVector(Insert, BuildVector, BuildVectorOpds))
+        return false;
+    }
+  }
 
   // Vectorize starting with the build vector operands ignoring the BuildVector
   // instructions for the purpose of scheduling and user extraction.
