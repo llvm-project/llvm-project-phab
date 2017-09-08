@@ -36,6 +36,7 @@
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/MDBuilder.h"
 #include "llvm/IR/Operator.h"
+#include <unordered_map>
 using namespace clang;
 using namespace CodeGen;
 
@@ -344,7 +345,7 @@ void CodeGenFunction::FinishFunction(SourceLocation EndLoc) {
   // Emit function epilog (to return).
   llvm::DebugLoc Loc = EmitReturnBlock();
 
-  if (ShouldInstrumentFunction())
+  if (ShouldInstrumentFunction(CurFn))
     EmitFunctionInstrumentation("__cyg_profile_func_exit");
 
   // Emit debug descriptor for function end.
@@ -413,13 +414,81 @@ void CodeGenFunction::FinishFunction(SourceLocation EndLoc) {
   }
 }
 
+#if !defined(_MSC_VER)
+// Assume that __cxa_demangle is provided by libcxxabi (except for Windows).
+extern "C" char *__cxa_demangle(const char *mangled_name, char *output_buffer,
+                                size_t *length, int *status);
+#endif
+
 /// ShouldInstrumentFunction - Return true if the current function should be
 /// instrumented with __cyg_profile_func_* calls
-bool CodeGenFunction::ShouldInstrumentFunction() {
+bool CodeGenFunction::ShouldInstrumentFunction(llvm::Function *Fn) {
+  typedef std::vector<std::string>::const_iterator CIt;
   if (!CGM.getCodeGenOpts().InstrumentFunctions)
     return false;
   if (!CurFuncDecl || CurFuncDecl->hasAttr<NoInstrumentFunctionAttr>())
     return false;
+
+  // Inline functions that are not externally visible mustn't be instrumented.
+  // They create a named reference to the inlined function, as the first
+  // parameter to __cyg_profile_* functions, which a linker will never be able
+  // to resolve.
+  const FunctionDecl *ActualFuncDecl = dyn_cast<FunctionDecl>(CurFuncDecl);
+  if (ActualFuncDecl &&
+      ActualFuncDecl->isInlined() &&
+      !ActualFuncDecl->isInlineDefinitionExternallyVisible()) {
+      return false;
+  }
+
+  SourceLocation SLoc = CurFuncDecl->getLocation();
+  static std::unordered_map<unsigned, std::string> cache;
+
+  if (SLoc.isFileID()) {
+    unsigned key = SLoc.getRawEncoding();
+    if (cache.find(key) == cache.end()) {
+      ASTContext &ctx = CurFuncDecl->getASTContext();
+      const SourceManager &SM = ctx.getSourceManager();
+
+      PresumedLoc PLoc = SM.getPresumedLoc(SLoc);
+      cache[key] = PLoc.getFilename();
+    }
+    std::string FunctionDeclPath = cache[key];
+
+    const std::vector<std::string> &PathSearch =
+      CGM.getCodeGenOpts().InstrumentFunctionExclusionsPathSegments;
+
+    for (CIt i = PathSearch.begin(), e = PathSearch.end(); i != e; ++i) {
+      if(FunctionDeclPath.find(*i) != std::string::npos) {
+        return false;
+      }
+    }
+  }
+
+  std::string FunctionName = Fn->getName();
+
+  // Skip demangling if decl is extern "C"
+#if !defined(_MSC_VER)
+  if (ActualFuncDecl && !ActualFuncDecl->isExternC()) {
+    int status = 0;
+    char *result = __cxa_demangle(FunctionName.c_str(), 0, 0, &status);
+
+    assert((status == 0 || status == -2) && "Couldn't demangle name.");
+
+    if (status == 0) {
+      FunctionName = result;
+      free(result);
+    }
+  }
+#endif
+
+  const std::vector<std::string> &FunctionSearch =
+    CGM.getCodeGenOpts().InstrumentFunctionExclusionsFunctions;
+  for (CIt i = FunctionSearch.begin(), e = FunctionSearch.end(); i != e; ++i) {
+    if(FunctionName.find(*i) != std::string::npos) {
+      return false;
+    }
+  }
+
   return true;
 }
 
@@ -920,7 +989,7 @@ void CodeGenFunction::StartFunction(GlobalDecl GD,
     DI->EmitFunctionStart(GD, Loc, StartLoc, FnType, CurFn, Builder);
   }
 
-  if (ShouldInstrumentFunction())
+  if (ShouldInstrumentFunction(CurFn))
     EmitFunctionInstrumentation("__cyg_profile_func_enter");
 
   // Since emitting the mcount call here impacts optimizations such as function
