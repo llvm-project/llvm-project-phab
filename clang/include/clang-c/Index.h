@@ -5075,6 +5075,19 @@ typedef struct {
 } CXCodeCompleteResults;
 
 /**
+ * \brief Retrieve a cursor corresponding to the completion result at the given index.
+ *
+ * \param result The results in which to look for the cursor.
+ * \param index The index into the CXCompletionResult array in CXCodeCompleteResults.
+ *
+ * \returns The cursor that represents the completion result at the given index,
+ *          or a null cursor when the result does not represent a cursor. This
+ *          will happen e.g. for language keywords.
+ */
+CINDEX_LINKAGE CXCursor
+clang_getCompletionCursor(CXCodeCompleteResults *Results, int Index);
+
+/**
  * \brief Flags that can be passed to \c clang_codeCompleteAt() to
  * modify its behavior.
  *
