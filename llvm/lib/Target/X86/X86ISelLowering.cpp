@@ -34328,14 +34328,25 @@ static SDValue combineFMinNumFMaxNum(SDNode *N, SelectionDAG &DAG,
   // So they always return Op0 if either input is a NaN. However, we can still
   // use those instructions for fmaxnum by selecting away a NaN input.
 
-  // If either operand is NaN, the 2nd source operand (Op0) is passed through.
-  auto MinMaxOp = N->getOpcode() == ISD::FMAXNUM ? X86ISD::FMAX : X86ISD::FMIN;
-  SDValue MinOrMax = DAG.getNode(MinMaxOp, DL, VT, Op1, Op0);
-  SDValue IsOp0Nan = DAG.getSetCC(DL, SetCCType , Op0, Op0, ISD::SETUO);
+  SDNodeFlags Flags = N->getFlags();
+  bool FastMathFlag = Flags.hasUnsafeAlgebra() || Flags.hasNoNaNs();
 
-  // If Op0 is a NaN, select Op1. Otherwise, select the max. If both operands
-  // are NaN, the NaN value of Op1 is the result.
-  return DAG.getSelect(DL, VT, IsOp0Nan, Op1, MinOrMax);
+   if (!FastMathFlag) {
+     // If either operand is NaN, the 2nd source operand (Op0) is passed through.
+     auto MinMaxOp = N->getOpcode() == ISD::FMAXNUM ? X86ISD::FMAX : X86ISD::FMIN;
+     SDValue MinOrMax = DAG.getNode(MinMaxOp, DL, VT, Op1, Op0);
+     SDValue IsOp0Nan = DAG.getSetCC(DL, SetCCType , Op0, Op0, ISD::SETUO);
+
+     // If Op0 is a NaN, select Op1. Otherwise, select the max. If both operands
+     // are NaN, the NaN value of Op1 is the result.
+     return DAG.getSelect(DL, VT, IsOp0Nan, Op1, MinOrMax);
+   } else {
+     // FastMath assume operands and result are not a NaN.
+     auto MinMaxOp = N->getOpcode() == ISD::FMAXNUM ? ISD::SETUGE : ISD::SETULE;
+     SDValue CCRes = DAG.getSetCC(DL, SetCCType , Op0, Op1, MinMaxOp);
+
+     return DAG.getSelect(DL, VT, CCRes, Op0, Op1);
+   }
 }
 
 /// Do target-specific dag combines on X86ISD::ANDNP nodes.

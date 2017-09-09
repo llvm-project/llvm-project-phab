@@ -84,6 +84,53 @@ LimitFPPrecision("limit-float-precision",
                           "for some float libcalls"),
                  cl::location(LimitFloatPrecision),
                  cl::init(0));
+
+static bool isVectorReductionOp(const User *I);
+
+/// This class is used for propagating Flags from Instruction to SDNode.
+/// These flags are later used by accessing SDNode during different
+/// DAG phases.
+class SDNodeFlagsAcquirer {
+public:
+   SDNodeFlagsAcquirer(const Instruction * I, SelectionDAGBuilder *SDB):
+                       Instr(I), SelDB(SDB) {}
+
+  ~SDNodeFlagsAcquirer() {
+      SDNode * Node = SelDB->getDAGNode(Instr);
+      if (Node) {
+        SDNodeFlags Flags = Node->getFlags();
+
+        if (isa<FPMathOperator>(*Instr)) { 
+          Flags.setNoNaNs(Instr->hasNoNaNs());
+          Flags.setNoInfs(Instr->hasNoInfs());
+          Flags.setUnsafeAlgebra(Instr->hasUnsafeAlgebra());
+          Flags.setNoSignedZeros(Instr->hasNoSignedZeros());
+          Flags.setAllowContract(Instr->hasAllowContract());
+          Flags.setAllowReciprocal(Instr->hasAllowReciprocal());
+        }
+
+        if (const OverflowingBinaryOperator *OFBinOp =
+            dyn_cast<const OverflowingBinaryOperator>(Instr)) {
+          Flags.setNoSignedWrap(OFBinOp->hasNoSignedWrap());
+          Flags.setNoUnsignedWrap(OFBinOp->hasNoUnsignedWrap());
+        }
+
+        if (const PossiblyExactOperator *ExactOp =
+            dyn_cast<const PossiblyExactOperator>(Instr))
+          Flags.setExact(ExactOp->isExact());
+
+        if (isVectorReductionOp(Instr))
+          Flags.setVectorReduction(true);
+
+        Node->setFlags(Flags);
+      }
+   }
+
+private:
+   const Instruction * Instr;     
+   SelectionDAGBuilder *SelDB;
+};
+
 // Limit the width of DAG chains. This is important in general to prevent
 // DAG-based analysis from blowing up. For example, alias analysis and
 // load clustering may not complete in reasonable time. It is difficult to
@@ -977,6 +1024,8 @@ SDValue SelectionDAGBuilder::getControlRoot() {
 }
 
 void SelectionDAGBuilder::visit(const Instruction &I) {
+  SDNodeFlagsAcquirer Flags(&I,this);
+
   // Set up outgoing PHI node register values before emitting the terminator.
   if (isa<TerminatorInst>(&I)) {
     HandlePHINodesInSuccessorBlocks(I.getParent());
@@ -1056,6 +1105,12 @@ SDValue SelectionDAGBuilder::getCopyFromRegs(const Value *V, Type *Ty) {
   }
 
   return Result;
+}
+
+SDNode * SelectionDAGBuilder::getDAGNode(const Value *V) {
+  if (NodeMap.find(V) == NodeMap.end())
+    return nullptr;
+  return NodeMap[V].getNode();
 }
 
 /// getValue - Return an SDValue for the given Value.
@@ -2637,42 +2692,11 @@ void SelectionDAGBuilder::visitBinary(const User &I, unsigned OpCode) {
   SDValue Op1 = getValue(I.getOperand(0));
   SDValue Op2 = getValue(I.getOperand(1));
 
-  bool nuw = false;
-  bool nsw = false;
-  bool exact = false;
-  bool vec_redux = false;
-  FastMathFlags FMF;
-
-  if (const OverflowingBinaryOperator *OFBinOp =
-          dyn_cast<const OverflowingBinaryOperator>(&I)) {
-    nuw = OFBinOp->hasNoUnsignedWrap();
-    nsw = OFBinOp->hasNoSignedWrap();
-  }
-  if (const PossiblyExactOperator *ExactOp =
-          dyn_cast<const PossiblyExactOperator>(&I))
-    exact = ExactOp->isExact();
-  if (const FPMathOperator *FPOp = dyn_cast<const FPMathOperator>(&I))
-    FMF = FPOp->getFastMathFlags();
-
-  if (isVectorReductionOp(&I)) {
-    vec_redux = true;
+  if (isVectorReductionOp(&I))
     DEBUG(dbgs() << "Detected a reduction operation:" << I << "\n");
-  }
-
-  SDNodeFlags Flags;
-  Flags.setExact(exact);
-  Flags.setNoSignedWrap(nsw);
-  Flags.setNoUnsignedWrap(nuw);
-  Flags.setVectorReduction(vec_redux);
-  Flags.setAllowReciprocal(FMF.allowReciprocal());
-  Flags.setAllowContract(FMF.allowContract());
-  Flags.setNoInfs(FMF.noInfs());
-  Flags.setNoNaNs(FMF.noNaNs());
-  Flags.setNoSignedZeros(FMF.noSignedZeros());
-  Flags.setUnsafeAlgebra(FMF.unsafeAlgebra());
 
   SDValue BinNodeValue = DAG.getNode(OpCode, getCurSDLoc(), Op1.getValueType(),
-                                     Op1, Op2, Flags);
+                                     Op1, Op2);
   setValue(&I, BinNodeValue);
 }
 
@@ -6573,6 +6597,7 @@ bool SelectionDAGBuilder::visitBinaryFloatCall(const CallInst &I,
 }
 
 void SelectionDAGBuilder::visitCall(const CallInst &I) {
+
   // Handle inline assembly differently.
   if (isa<InlineAsm>(I.getCalledValue())) {
     visitInlineAsm(&I);
