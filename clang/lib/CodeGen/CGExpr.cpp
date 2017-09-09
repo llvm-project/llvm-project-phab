@@ -2912,6 +2912,33 @@ void CodeGenFunction::EmitCfiSlowPathCheck(
   EmitBlock(Cont);
 }
 
+static void AddTargetAttributes(llvm::AttrBuilder &Builder,
+                                CodeGenFunction &CGF, llvm::Function *F,
+                                bool ForceThumb) {
+  StringRef TargetCPU = CGF.getTarget().getTargetOpts().CPU;
+  if (TargetCPU != "")
+    Builder.addAttribute("target-cpu", TargetCPU);
+
+  std::vector<std::string> &DefaultFeatures =
+      CGF.getTarget().getTargetOpts().Features;
+  const auto &Triple = CGF.getTarget().getTriple();
+  SmallVector<StringRef, 6> Features;
+  Features.reserve(DefaultFeatures.size() + ForceThumb);
+  if (ForceThumb && (Triple.isARM() || Triple.isThumb())) {
+    for (auto &S : DefaultFeatures)
+      if (S != "-thumb-mode" && S != "+thumb-mode")
+        Features.push_back(S);
+    Features.push_back("+thumb-mode");
+  } else {
+    for (auto &S : DefaultFeatures)
+      Features.push_back(S);
+  }
+
+  std::sort(Features.begin(), Features.end());
+  Builder.addAttribute("target-features",
+                       llvm::join(Features.begin(), Features.end(), ","));
+}
+
 // Emit a stub for __cfi_check function so that the linker knows about this
 // symbol in LTO mode.
 void CodeGenFunction::EmitCfiCheckStub() {
@@ -2928,6 +2955,15 @@ void CodeGenFunction::EmitCfiCheckStub() {
   llvm::CallInst::Create(
       llvm::Intrinsic::getDeclaration(M, llvm::Intrinsic::trap), "", BB);
   llvm::ReturnInst::Create(Ctx, nullptr, BB);
+
+  // Set default target-cpu and target-features, but force thumb encoding if
+  // applicable. Note that we don't want the whole set of default function
+  // attributes as SetLLVMFunctionAttributes sets. In particular, __cfi_check
+  // must use the default calling convention for the platform. ABI-changing
+  // flags like -mhard-float should not affect __cfi_check.
+  llvm::AttrBuilder FuncAttrs;
+  AddTargetAttributes(FuncAttrs, *this, F, /*ForceThumb*/ true);
+  F->addAttributes(llvm::AttributeList::FunctionIndex, FuncAttrs);
 }
 
 // This function is basically a switch over the CFI failure kind, which is
@@ -3011,6 +3047,11 @@ void CodeGenFunction::EmitCfiCheckFail() {
   }
 
   FinishFunction();
+
+  llvm::AttrBuilder FuncAttrs;
+  AddTargetAttributes(FuncAttrs, *this, F, /*ForceThumb*/ false);
+  F->addAttributes(llvm::AttributeList::FunctionIndex, FuncAttrs);
+
   // The only reference to this function will be created during LTO link.
   // Make sure it survives until then.
   CGM.addUsedGlobal(F);

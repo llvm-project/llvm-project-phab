@@ -117,10 +117,6 @@ void CrossDSOCFI::buildCFICheck(Module &M) {
   F->deleteBody();
   F->setAlignment(4096);
 
-  Triple T(M.getTargetTriple());
-  if (T.isARM() || T.isThumb())
-    F->addFnAttr("target-features", "+thumb-mode");
-
   auto args = F->arg_begin();
   Value &CallSiteTypeId = *(args++);
   CallSiteTypeId.setName("CallSiteTypeId");
