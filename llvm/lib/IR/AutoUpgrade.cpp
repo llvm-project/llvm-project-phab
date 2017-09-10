@@ -72,7 +72,11 @@ static bool ShouldUpgradeX86Intrinsic(Function *F, StringRef Name) {
   // like to use this information to remove upgrade code for some older
   // intrinsics. It is currently undecided how we will determine that future
   // point.
-  if (Name.startswith("sse2.pcmpeq.") || // Added in 3.1
+  if (Name.startswith("avx512.mask.pbroadcast.b.gpr") || // Added in 5.0
+      Name.startswith("avx512.mask.pbroadcast.w.gpr") || // Added in 5.0
+      Name.startswith("avx512.mask.pbroadcast.d.gpr") || // Added in 5.0
+      Name.startswith("avx512.mask.pbroadcast.q.gpr") || // Added in 5.0
+      Name.startswith("sse2.pcmpeq.") || // Added in 3.1
       Name.startswith("sse2.pcmpgt.") || // Added in 3.1
       Name.startswith("avx2.pcmpeq.") || // Added in 3.1
       Name.startswith("avx2.pcmpgt.") || // Added in 3.1
@@ -1007,6 +1011,21 @@ void llvm::UpgradeIntrinsicCall(CallInst *CI, Function *NewFn) {
       Rep = Builder.CreateICmp(CmpEq ? ICmpInst::ICMP_EQ : ICmpInst::ICMP_SGT,
                                CI->getArgOperand(0), CI->getArgOperand(1));
       Rep = Builder.CreateSExt(Rep, CI->getType(), "");
+    } else if (IsX86 && (Name.startswith("avx512.mask.pbroadcast.b.gpr") ||
+                         Name.startswith("avx512.mask.pbroadcast.w.gpr") ||
+                         Name.startswith("avx512.mask.pbroadcast.d.gpr") ||
+                         Name.startswith("avx512.mask.pbroadcast.q.gpr"))) {
+      uint32_t ZeroIndex = 0;
+      Type *VT = CI->getArgOperand(1)->getType();
+      Type *VTZero = VectorType::get(Type::getInt32Ty(CI->getContext()),
+                                     VT->getVectorNumElements());
+      Value *ZeroinItializer = llvm::Constant::getNullValue(VTZero);
+      Rep = UndefValue::get(VT);
+      Rep = Builder.CreateInsertElement(Rep, CI->getArgOperand(0), ZeroIndex);
+      Rep = Builder.CreateShuffleVector(Rep, UndefValue::get(VT),
+                                        ZeroinItializer);
+      Rep = EmitX86Select(Builder, CI->getArgOperand(2), Rep,
+                          CI->getArgOperand(1));
     } else if (IsX86 && (Name == "sse.add.ss" || Name == "sse2.add.sd")) {
       Type *I32Ty = Type::getInt32Ty(C);
       Value *Elt0 = Builder.CreateExtractElement(CI->getArgOperand(0),
