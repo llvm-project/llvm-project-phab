@@ -68,7 +68,31 @@ struct CodegenNameGenerator::Implementation {
     return Name;
   }
 
+  std::vector<std::string> getAllManglings(const ObjCContainerDecl *OCD) {
+    StringRef ClassName;
+    if (const auto *OID = dyn_cast<ObjCInterfaceDecl>(OCD))
+      ClassName = OID->getObjCRuntimeNameAsString();
+    else if (const auto *OID = dyn_cast<ObjCImplementationDecl>(OCD))
+      ClassName = OID->getObjCRuntimeNameAsString();
+    else
+      return {};
+
+    auto Mangle = [](Twine Symbol, const llvm::DataLayout &DL) -> StringRef {
+      SmallString<40> Mangled;
+      llvm::Mangler::getNameWithPrefix(Mangled, Symbol, DL);
+      return Mangled;
+    };
+
+    return {
+      Mangle("OBJC_CLASS_$_" + ClassName, DL),
+      Mangle("OBJC_METACLASS_$_" + ClassName, DL),
+    };
+  }
+
   std::vector<std::string> getAllManglings(const Decl *D) {
+    if (const auto *OCD = dyn_cast<ObjCContainerDecl>(D))
+      return getAllManglings(OCD);
+
     if (!(isa<CXXRecordDecl>(D) || isa<CXXMethodDecl>(D)))
       return {};
 
