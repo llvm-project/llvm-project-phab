@@ -63,6 +63,12 @@ ScheduleDAGSDNodes *createBURRListDAGScheduler(SelectionDAGISel *IS,
 
 /// createBURRListDAGScheduler - This creates a bottom up list scheduler that
 /// schedules nodes in source code order when possible.
+ScheduleDAGSDNodes *createGuidedSrcListDAGScheduler(SelectionDAGISel *IS,
+                                                 CodeGenOpt::Level OptLevel);
+
+
+/// createBURRListDAGScheduler - This creates a bottom up list scheduler that
+/// schedules nodes in source code order when possible.
 ScheduleDAGSDNodes *createSourceListDAGScheduler(SelectionDAGISel *IS,
                                                  CodeGenOpt::Level OptLevel);
 
