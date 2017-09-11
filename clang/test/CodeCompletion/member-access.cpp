@@ -61,6 +61,11 @@ struct Bar {
   // CHECK-CC1: memfun2 : [#void#][#Base3::#]memfun2(<#int#>)
   // CHECK-CC1: memfun3 : [#int#]memfun3(<#int#>)
 
+  // RUN: c-index-test -code-completion-at=%s:29:6 %s -o - |FileCheck -check-prefix=CHECK-CC2 %s
+  // CHECK-CC2: FieldDecl:{ResultType int}{Informative Base1::}{TypedText member1} (37) (source location: 2:7)
+  // CHECK-CC2: CXXMethod:{ResultType Base1 &}{Text Base1::}{TypedText operator=}{LeftParen (}{Placeholder const Base1 &}{RightParen )} (36) (source location: 0:0)
+  // CHECK-CC2: CXXDestructor:{ResultType void}{TypedText ~Derived}{LeftParen (}{RightParen )} (34) (source location: 0:0)
+
 // Make sure this doesn't crash
 // RUN: %clang_cc1 -fsyntax-only -code-completion-at=%s:36:7 %s -verify
 
@@ -91,17 +96,17 @@ void completeDependentMembers(TemplateClass<T, S> &object,
                               TemplateClass<int, S> *object2) {
   object.field;
   object2->field;
-// CHECK-CC2: baseTemplateField : [#T#][#BaseTemplate<T>::#]baseTemplateField
-// CHECK-CC2: baseTemplateFunction : [#T#][#BaseTemplate<T>::#]baseTemplateFunction()
-// CHECK-CC2: field : [#T#]field
-// CHECK-CC2: function : [#T#]function()
-// CHECK-CC2: member1 : [#int#][#Base1::#]member1
-// CHECK-CC2: member2 : [#float#][#Base1::#]member2
-// CHECK-CC2: overload1 : [#void#]overload1(<#const T &#>)
-// CHECK-CC2: overload1 : [#void#]overload1(<#const S &#>)
+// CHECK-CC3: baseTemplateField : [#T#][#BaseTemplate<T>::#]baseTemplateField
+// CHECK-CC3: baseTemplateFunction : [#T#][#BaseTemplate<T>::#]baseTemplateFunction()
+// CHECK-CC3: field : [#T#]field
+// CHECK-CC3: function : [#T#]function()
+// CHECK-CC3: member1 : [#int#][#Base1::#]member1
+// CHECK-CC3: member2 : [#float#][#Base1::#]member2
+// CHECK-CC3: overload1 : [#void#]overload1(<#const T &#>)
+// CHECK-CC3: overload1 : [#void#]overload1(<#const S &#>)
 
-// RUN: %clang_cc1 -fsyntax-only -code-completion-at=%s:92:10 %s -o - | FileCheck -check-prefix=CHECK-CC2 %s
-// RUN: %clang_cc1 -fsyntax-only -code-completion-at=%s:93:12 %s -o - | FileCheck -check-prefix=CHECK-CC2 %s
+// RUN: %clang_cc1 -fsyntax-only -code-completion-at=%s:97:10 %s -o - | FileCheck -check-prefix=CHECK-CC3 %s
+// RUN: %clang_cc1 -fsyntax-only -code-completion-at=%s:98:12 %s -o - | FileCheck -check-prefix=CHECK-CC3 %s
 }
 
 
@@ -109,17 +114,17 @@ void completeDependentSpecializedMembers(TemplateClass<int, double> &object,
                                          TemplateClass<int, double> *object2) {
   object.field;
   object2->field;
-// CHECK-CC3: baseTemplateField : [#int#][#BaseTemplate<int>::#]baseTemplateField
-// CHECK-CC3: baseTemplateFunction : [#int#][#BaseTemplate<int>::#]baseTemplateFunction()
-// CHECK-CC3: field : [#int#]field
-// CHECK-CC3: function : [#int#]function()
-// CHECK-CC3: member1 : [#int#][#Base1::#]member1
-// CHECK-CC3: member2 : [#float#][#Base1::#]member2
-// CHECK-CC3: overload1 : [#void#]overload1(<#const int &#>)
-// CHECK-CC3: overload1 : [#void#]overload1(<#const double &#>)
+// CHECK-CC4: baseTemplateField : [#int#][#BaseTemplate<int>::#]baseTemplateField
+// CHECK-CC4: baseTemplateFunction : [#int#][#BaseTemplate<int>::#]baseTemplateFunction()
+// CHECK-CC4: field : [#int#]field
+// CHECK-CC4: function : [#int#]function()
+// CHECK-CC4: member1 : [#int#][#Base1::#]member1
+// CHECK-CC4: member2 : [#float#][#Base1::#]member2
+// CHECK-CC4: overload1 : [#void#]overload1(<#const int &#>)
+// CHECK-CC4: overload1 : [#void#]overload1(<#const double &#>)
 
-// RUN: %clang_cc1 -fsyntax-only -code-completion-at=%s:110:10 %s -o - | FileCheck -check-prefix=CHECK-CC3 %s
-// RUN: %clang_cc1 -fsyntax-only -code-completion-at=%s:111:12 %s -o - | FileCheck -check-prefix=CHECK-CC3 %s
+// RUN: %clang_cc1 -fsyntax-only -code-completion-at=%s:115:10 %s -o - | FileCheck -check-prefix=CHECK-CC4 %s
+// RUN: %clang_cc1 -fsyntax-only -code-completion-at=%s:116:12 %s -o - | FileCheck -check-prefix=CHECK-CC4 %s
 }
 
 template <typename T>
@@ -130,20 +135,20 @@ public:
 
   void function() {
     o1.baseTemplateField;
-// CHECK-CC4: BaseTemplate : BaseTemplate::
-// CHECK-CC4: baseTemplateField : [#int#]baseTemplateField
-// CHECK-CC4: baseTemplateFunction : [#int#]baseTemplateFunction()
-// RUN: %clang_cc1 -fsyntax-only -code-completion-at=%s:132:8 %s -o - | FileCheck -check-prefix=CHECK-CC4 %s
-    o2.baseTemplateField;
 // CHECK-CC5: BaseTemplate : BaseTemplate::
-// CHECK-CC5: baseTemplateField : [#T#]baseTemplateField
-// CHECK-CC5: baseTemplateFunction : [#T#]baseTemplateFunction()
+// CHECK-CC5: baseTemplateField : [#int#]baseTemplateField
+// CHECK-CC5: baseTemplateFunction : [#int#]baseTemplateFunction()
 // RUN: %clang_cc1 -fsyntax-only -code-completion-at=%s:137:8 %s -o - | FileCheck -check-prefix=CHECK-CC5 %s
+    o2.baseTemplateField;
+// CHECK-CC6: BaseTemplate : BaseTemplate::
+// CHECK-CC6: baseTemplateField : [#T#]baseTemplateField
+// CHECK-CC6: baseTemplateFunction : [#T#]baseTemplateFunction()
+// RUN: %clang_cc1 -fsyntax-only -code-completion-at=%s:142:8 %s -o - | FileCheck -check-prefix=CHECK-CC6 %s
     this->o1;
-// CHECK-CC6: [#void#]function()
-// CHECK-CC6: o1 : [#BaseTemplate<int>#]o1
-// CHECK-CC6: o2 : [#BaseTemplate<T>#]o2
-// RUN: %clang_cc1 -fsyntax-only -code-completion-at=%s:142:11 %s -o - | FileCheck -check-prefix=CHECK-CC6 %s
+// CHECK-CC7: [#void#]function()
+// CHECK-CC7: o1 : [#BaseTemplate<int>#]o1
+// CHECK-CC7: o2 : [#BaseTemplate<T>#]o2
+// RUN: %clang_cc1 -fsyntax-only -code-completion-at=%s:147:11 %s -o - | FileCheck -check-prefix=CHECK-CC7 %s
   }
 
   static void staticFn(T &obj);
@@ -154,13 +159,13 @@ public:
 template<typename T>
 void dependentColonColonCompletion() {
   Template<T>::staticFn();
-// CHECK-CC7: function : [#void#]function()
-// CHECK-CC7: Nested : Nested
-// CHECK-CC7: o1 : [#BaseTemplate<int>#]o1
-// CHECK-CC7: o2 : [#BaseTemplate<T>#]o2
-// CHECK-CC7: staticFn : [#void#]staticFn(<#T &obj#>)
-// CHECK-CC7: Template : Template
-// RUN: %clang_cc1 -fsyntax-only -code-completion-at=%s:156:16 %s -o - | FileCheck -check-prefix=CHECK-CC7 %s
+// CHECK-CC8: function : [#void#]function()
+// CHECK-CC8: Nested : Nested
+// CHECK-CC8: o1 : [#BaseTemplate<int>#]o1
+// CHECK-CC8: o2 : [#BaseTemplate<T>#]o2
+// CHECK-CC8: staticFn : [#void#]staticFn(<#T &obj#>)
+// CHECK-CC8: Template : Template
+// RUN: %clang_cc1 -fsyntax-only -code-completion-at=%s:161:16 %s -o - | FileCheck -check-prefix=CHECK-CC8 %s
   typename Template<T>::Nested m;
-// RUN: %clang_cc1 -fsyntax-only -code-completion-at=%s:164:25 %s -o - | FileCheck -check-prefix=CHECK-CC7 %s
+// RUN: %clang_cc1 -fsyntax-only -code-completion-at=%s:169:25 %s -o - | FileCheck -check-prefix=CHECK-CC8 %s
 }

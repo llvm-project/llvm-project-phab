@@ -161,6 +161,7 @@ clang_getCanonicalCursor
 clang_getCanonicalType
 clang_getChildDiagnostics
 clang_getClangVersion
+clang_getCompletionCursor
 clang_getCompletionAnnotation
 clang_getCompletionAvailability
 clang_getCompletionBriefComment
