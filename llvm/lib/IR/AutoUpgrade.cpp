@@ -1015,15 +1015,9 @@ void llvm::UpgradeIntrinsicCall(CallInst *CI, Function *NewFn) {
                          Name.startswith("avx512.mask.pbroadcast.w.gpr") ||
                          Name.startswith("avx512.mask.pbroadcast.d.gpr") ||
                          Name.startswith("avx512.mask.pbroadcast.q.gpr"))) {
-      uint32_t ZeroIndex = 0;
-      Type *VT = CI->getArgOperand(1)->getType();
-      Type *VTZero = VectorType::get(Type::getInt32Ty(CI->getContext()),
-                                     VT->getVectorNumElements());
-      Value *ZeroinItializer = llvm::Constant::getNullValue(VTZero);
-      Rep = UndefValue::get(VT);
-      Rep = Builder.CreateInsertElement(Rep, CI->getArgOperand(0), ZeroIndex);
-      Rep = Builder.CreateShuffleVector(Rep, UndefValue::get(VT),
-                                        ZeroinItializer);
+      unsigned NumElts =
+          CI->getArgOperand(1)->getType()->getVectorNumElements();
+      Rep = Builder.CreateVectorSplat(NumElts, CI->getArgOperand(0));
       Rep = EmitX86Select(Builder, CI->getArgOperand(2), Rep,
                           CI->getArgOperand(1));
     } else if (IsX86 && (Name == "sse.add.ss" || Name == "sse2.add.sd")) {
