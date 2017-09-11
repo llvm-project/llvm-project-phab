@@ -57,6 +57,10 @@ static bool isARMBareMetal(const llvm::Triple &Triple) {
   return true;
 }
 
+bool BareMetal::IsUnwindTablesDefault(const ArgList &Args) const {
+  return getDriver().CCCIsCXX();
+}
+
 bool BareMetal::handlesTarget(const llvm::Triple &Triple) {
   return isARMBareMetal(Triple);
 }
