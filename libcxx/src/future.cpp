@@ -91,7 +91,7 @@ __assoc_sub_state::__on_zero_shared() _NOEXCEPT
 void
 __assoc_sub_state::set_value()
 {
-    unique_lock<mutex> __lk(__mut_);
+    unique_lock<__spin_lock> __lk(__mut_);
 #ifndef _LIBCPP_NO_EXCEPTIONS
     if (__has_value())
         throw future_error(make_error_code(future_errc::promise_already_satisfied));
@@ -103,7 +103,7 @@ __assoc_sub_state::set_value()
 void
 __assoc_sub_state::set_value_at_thread_exit()
 {
-    unique_lock<mutex> __lk(__mut_);
+    unique_lock<__spin_lock> __lk(__mut_);
 #ifndef _LIBCPP_NO_EXCEPTIONS
     if (__has_value())
         throw future_error(make_error_code(future_errc::promise_already_satisfied));
@@ -115,7 +115,7 @@ __assoc_sub_state::set_value_at_thread_exit()
 void
 __assoc_sub_state::set_exception(exception_ptr __p)
 {
-    unique_lock<mutex> __lk(__mut_);
+    unique_lock<__spin_lock> __lk(__mut_);
 #ifndef _LIBCPP_NO_EXCEPTIONS
     if (__has_value())
         throw future_error(make_error_code(future_errc::promise_already_satisfied));
@@ -128,7 +128,7 @@ __assoc_sub_state::set_exception(exception_ptr __p)
 void
 __assoc_sub_state::set_exception_at_thread_exit(exception_ptr __p)
 {
-    unique_lock<mutex> __lk(__mut_);
+    unique_lock<__spin_lock> __lk(__mut_);
 #ifndef _LIBCPP_NO_EXCEPTIONS
     if (__has_value())
         throw future_error(make_error_code(future_errc::promise_already_satisfied));
@@ -140,7 +140,7 @@ __assoc_sub_state::set_exception_at_thread_exit(exception_ptr __p)
 void
 __assoc_sub_state::__make_ready()
 {
-    unique_lock<mutex> __lk(__mut_);
+    unique_lock<__spin_lock> __lk(__mut_);
     __state_ |= ready;
     __cv_.notify_all();
 }
@@ -148,7 +148,7 @@ __assoc_sub_state::__make_ready()
 void
 __assoc_sub_state::copy()
 {
-    unique_lock<mutex> __lk(__mut_);
+    unique_lock<__spin_lock> __lk(__mut_);
     __sub_wait(__lk);
     if (__exception_ != nullptr)
         rethrow_exception(__exception_);
@@ -157,12 +157,12 @@ __assoc_sub_state::copy()
 void
 __assoc_sub_state::wait()
 {
-    unique_lock<mutex> __lk(__mut_);
+    unique_lock<__spin_lock> __lk(__mut_);
     __sub_wait(__lk);
 }
 
 void
-__assoc_sub_state::__sub_wait(unique_lock<mutex>& __lk)
+__assoc_sub_state::__sub_wait(unique_lock<__spin_lock>& __lk)
 {
     if (!__is_ready())
     {

@@ -367,7 +367,8 @@ template <class R, class Alloc> struct uses_allocator<packaged_task<R>, Alloc>;
 #include <memory>
 #include <chrono>
 #include <exception>
-#include <mutex>
+#include <atomic>
+#include <condition_variable>
 #include <thread>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
@@ -533,12 +534,24 @@ class _LIBCPP_TYPE_VIS _LIBCPP_AVAILABILITY_FUTURE __assoc_sub_state
 {
 protected:
     exception_ptr __exception_;
-    mutable mutex __mut_;
-    mutable condition_variable __cv_;
+
+    mutable class __spin_lock
+    {
+        atomic_flag __locked_ = ATOMIC_FLAG_INIT ;
+    public:
+        void lock() {
+            while (__locked_.test_and_set(memory_order_acquire)) { ; }
+        }
+        void unlock() {
+            __locked_.clear(memory_order_release);
+        }
+    } __mut_;
+
+    mutable condition_variable_any __cv_;
     unsigned __state_;
 
     virtual void __on_zero_shared() _NOEXCEPT;
-    void __sub_wait(unique_lock<mutex>& __lk);
+    void __sub_wait(unique_lock<__spin_lock>& __lk);
 public:
     enum
     {
@@ -558,7 +571,7 @@ public:
     _LIBCPP_INLINE_VISIBILITY
     void __set_future_attached()
     {
-        lock_guard<mutex> __lk(__mut_);
+        lock_guard<__spin_lock> __lk(__mut_);
         __state_ |= __future_attached;
     }
     _LIBCPP_INLINE_VISIBILITY
@@ -596,7 +609,7 @@ template <class _Clock, class _Duration>
 future_status
 __assoc_sub_state::wait_until(const chrono::time_point<_Clock, _Duration>& __abs_time) const
 {
-    unique_lock<mutex> __lk(__mut_);
+    unique_lock<__spin_lock> __lk(__mut_);
     if (__state_ & deferred)
         return future_status::deferred;
     while (!(__state_ & ready) && _Clock::now() < __abs_time)
@@ -663,7 +676,7 @@ __assoc_state<_Rp>::set_value(_Arg&& __arg)
 __assoc_state<_Rp>::set_value(_Arg& __arg)
 #endif
 {
-    unique_lock<mutex> __lk(this->__mut_);
+    unique_lock<__spin_lock> __lk(this->__mut_);
     if (this->__has_value())
         __throw_future_error(future_errc::promise_already_satisfied);
     ::new(&__value_) _Rp(_VSTD::forward<_Arg>(__arg));
@@ -680,7 +693,7 @@ __assoc_state<_Rp>::set_value_at_thread_exit(_Arg&& __arg)
 __assoc_state<_Rp>::set_value_at_thread_exit(_Arg& __arg)
 #endif
 {
-    unique_lock<mutex> __lk(this->__mut_);
+    unique_lock<__spin_lock> __lk(this->__mut_);
     if (this->__has_value())
         __throw_future_error(future_errc::promise_already_satisfied);
     ::new(&__value_) _Rp(_VSTD::forward<_Arg>(__arg));
@@ -692,7 +705,7 @@ template <class _Rp>
 _Rp
 __assoc_state<_Rp>::move()
 {
-    unique_lock<mutex> __lk(this->__mut_);
+    unique_lock<__spin_lock> __lk(this->__mut_);
     this->__sub_wait(__lk);
     if (this->__exception_ != nullptr)
         rethrow_exception(this->__exception_);
@@ -703,7 +716,7 @@ template <class _Rp>
 typename add_lvalue_reference<_Rp>::type
 __assoc_state<_Rp>::copy()
 {
-    unique_lock<mutex> __lk(this->__mut_);
+    unique_lock<__spin_lock> __lk(this->__mut_);
     this->__sub_wait(__lk);
     if (this->__exception_ != nullptr)
         rethrow_exception(this->__exception_);
@@ -739,7 +752,7 @@ template <class _Rp>
 void
 __assoc_state<_Rp&>::set_value(_Rp& __arg)
 {
-    unique_lock<mutex> __lk(this->__mut_);
+    unique_lock<__spin_lock> __lk(this->__mut_);
     if (this->__has_value())
         __throw_future_error(future_errc::promise_already_satisfied);
     __value_ = _VSTD::addressof(__arg);
@@ -751,7 +764,7 @@ template <class _Rp>
 void
 __assoc_state<_Rp&>::set_value_at_thread_exit(_Rp& __arg)
 {
-    unique_lock<mutex> __lk(this->__mut_);
+    unique_lock<__spin_lock> __lk(this->__mut_);
     if (this->__has_value())
         __throw_future_error(future_errc::promise_already_satisfied);
     __value_ = _VSTD::addressof(__arg);
@@ -763,7 +776,7 @@ template <class _Rp>
 _Rp&
 __assoc_state<_Rp&>::copy()
 {
-    unique_lock<mutex> __lk(this->__mut_);
+    unique_lock<__spin_lock> __lk(this->__mut_);
     this->__sub_wait(__lk);
     if (this->__exception_ != nullptr)
         rethrow_exception(this->__exception_);
