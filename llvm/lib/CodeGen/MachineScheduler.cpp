@@ -1559,7 +1559,10 @@ void BaseMemOpClusterMutation::clusterNeighboringMemOps(
   std::sort(MemOpRecords.begin(), MemOpRecords.end());
   unsigned ClusterLength = 1;
   for (unsigned Idx = 0, End = MemOpRecords.size(); Idx < (End - 1); ++Idx) {
-    if (MemOpRecords[Idx].BaseReg != MemOpRecords[Idx+1].BaseReg) {
+    if (!TII->doMemOpsHaveSameBasePtr(*MemOpRecords[Idx].SU->getInstr(),
+                                      MemOpRecords[Idx].BaseReg,
+                                      *MemOpRecords[Idx+1].SU->getInstr(),
+                                      MemOpRecords[Idx+1].BaseReg)) {
       ClusterLength = 1;
       continue;
     }

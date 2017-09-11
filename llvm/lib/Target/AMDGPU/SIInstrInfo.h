@@ -151,6 +151,10 @@ public:
                              int64_t &Offset,
                              const TargetRegisterInfo *TRI) const final;
 
+  bool doMemOpsHaveSameBasePtr(const MachineInstr &SU1, unsigned BaseReg1,
+                               const MachineInstr &SU2, unsigned BaseReg2)
+                              const final;
+
   bool shouldClusterMemOps(MachineInstr &FirstLdSt, MachineInstr &SecondLdSt,
                            unsigned NumLoads) const final;
 

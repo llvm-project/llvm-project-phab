@@ -27,6 +27,7 @@
 #include "llvm/ADT/iterator_range.h"
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/MemoryLocation.h"
+#include "llvm/Analysis/ValueTracking.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
@@ -356,6 +357,36 @@ bool SIInstrInfo::getMemOpBaseRegImmOfs(MachineInstr &LdSt, unsigned &BaseReg,
   return false;
 }
 
+bool SIInstrInfo::doMemOpsHaveSameBasePtr(const MachineInstr &MI1,
+                                          unsigned BaseReg1,
+                                          const MachineInstr &MI2,
+                                          unsigned BaseReg2) const {
+  if (BaseReg1 == BaseReg2)
+    return true;
+
+  if (!MI1.hasOneMemOperand() || !MI2.hasOneMemOperand())
+    return false;
+
+  auto MO1 = *MI1.memoperands_begin();
+  auto MO2 = *MI2.memoperands_begin();
+  if (MO1->getAddrSpace() != MO2->getAddrSpace())
+    return false;
+
+  auto Base1 = MO1->getValue();
+  auto Base2 = MO2->getValue();
+  if (!Base1 || !Base2)
+    return false;
+  const MachineFunction &MF = *MI1.getParent()->getParent();
+  const DataLayout &DL = MF.getFunction()->getParent()->getDataLayout();
+  Base1 = GetUnderlyingObject(Base1, DL);
+  Base2 = GetUnderlyingObject(Base1, DL);
+
+  if (isa<UndefValue>(Base1) || isa<UndefValue>(Base2))
+    return false;
+
+  return Base1 == Base2;
+}
+
 bool SIInstrInfo::shouldClusterMemOps(MachineInstr &FirstLdSt,
                                       MachineInstr &SecondLdSt,
                                       unsigned NumLoads) const {
@@ -365,6 +396,10 @@ bool SIInstrInfo::shouldClusterMemOps(MachineInstr &FirstLdSt,
   if ((isMUBUF(FirstLdSt) && isMUBUF(SecondLdSt)) ||
       (isMTBUF(FirstLdSt) && isMTBUF(SecondLdSt)) ||
       (isFLAT(FirstLdSt) && isFLAT(SecondLdSt))) {
+    const unsigned MaxGlobalLoadCluster = 6;
+    if (NumLoads > MaxGlobalLoadCluster)
+      return false;
+
     FirstDst = getNamedOperand(FirstLdSt, AMDGPU::OpName::vdata);
     if (!FirstDst)
       FirstDst = getNamedOperand(FirstLdSt, AMDGPU::OpName::vdst);
