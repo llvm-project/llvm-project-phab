@@ -258,6 +258,9 @@ public:
   void addSymbol(SymbolAssignment *Cmd);
   void processCommands(OutputSectionFactory &Factory);
 
+  void addInputSection(OutputSectionFactory &Factory, InputSectionBase *IS,
+                       StringRef OutsecName, OutputSection *Sec);
+
   // Parsed linker script configurations are set to this struct.
   ScriptConfiguration Opt;
 };

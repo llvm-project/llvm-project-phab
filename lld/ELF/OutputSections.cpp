@@ -214,7 +214,7 @@ void OutputSectionFactory::addInputSec(InputSectionBase *IS,
   // creates broken section contents.
   if (IS->Type == SHT_GROUP) {
     OutputSection *Out = nullptr;
-    addInputSec(IS, OutsecName, Out);
+    addInputSecToOutput(IS, OutsecName, Out);
     return;
   }
 
@@ -228,23 +228,18 @@ void OutputSectionFactory::addInputSec(InputSectionBase *IS,
       (IS->Type == SHT_REL || IS->Type == SHT_RELA)) {
     auto *Sec = cast<InputSection>(IS);
     OutputSection *Out = Sec->getRelocatedSection()->getOutputSection();
-    addInputSec(IS, OutsecName, Out->RelocationSection);
+    addInputSecToOutput(IS, OutsecName, Out->RelocationSection);
     return;
   }
 
   SectionKey Key = createKey(IS, OutsecName);
   OutputSection *&Sec = Map[Key];
-  addInputSec(IS, OutsecName, Sec);
+  addInputSecToOutput(IS, OutsecName, Sec);
 }
 
-void OutputSectionFactory::addInputSec(InputSectionBase *IS,
-                                       StringRef OutsecName,
-                                       OutputSection *&Sec) {
-  if (!IS->Live) {
-    reportDiscarded(IS);
-    return;
-  }
-
+void OutputSectionFactory::addInputSecToOutput(InputSectionBase *IS,
+                                               StringRef OutsecName,
+                                               OutputSection *&Sec) {
   if (Sec && Sec->Live) {
     if (getIncompatibleFlags(Sec->Flags) != getIncompatibleFlags(IS->Flags))
       error("incompatible section flags for " + Sec->Name + "\n>>> " +

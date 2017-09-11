@@ -351,6 +351,19 @@ LinkerScript::createInputSectionList(OutputSection &OutCmd) {
   return Ret;
 }
 
+void LinkerScript::addInputSection(OutputSectionFactory &F,
+                                   InputSectionBase *IS, StringRef OutsecName,
+                                   OutputSection *Sec) {
+  if (!IS->Live) {
+    reportDiscarded(IS);
+    return;
+  }
+  if (!Sec)
+    F.addInputSec(IS, OutsecName);
+  else
+    F.addInputSecToOutput(IS, OutsecName, Sec);
+}
+
 void LinkerScript::processCommands(OutputSectionFactory &Factory) {
   // A symbol can be assigned before any section is mentioned in the linker
   // script. In an DSO, the symbol values are addresses, so the only important
@@ -421,7 +434,7 @@ void LinkerScript::processCommands(OutputSectionFactory &Factory) {
 
       // Add input sections to an output section.
       for (InputSectionBase *S : V)
-        Factory.addInputSec(S, Sec->Name, Sec);
+        addInputSection(Factory, S, Sec->Name, Sec);
       assert(Sec->SectionIndex == INT_MAX);
       Sec->SectionIndex = I;
       if (Sec->Noload)
@@ -466,11 +479,11 @@ void LinkerScript::addOrphanSections(OutputSectionFactory &Factory) {
       return false;
     });
     if (I == End) {
-      Factory.addInputSec(S, Name);
+      addInputSection(Factory, S, Name, nullptr);
       assert(S->getOutputSection()->SectionIndex == INT_MAX);
     } else {
       OutputSection *Sec = cast<OutputSection>(*I);
-      Factory.addInputSec(S, Name, Sec);
+      addInputSection(Factory, S, Name, Sec);
       unsigned Index = std::distance(Opt.Commands.begin(), I);
       assert(Sec->SectionIndex == INT_MAX || Sec->SectionIndex == Index);
       Sec->SectionIndex = Index;

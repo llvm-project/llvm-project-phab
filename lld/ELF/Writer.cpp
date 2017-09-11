@@ -910,8 +910,8 @@ template <class ELFT> void Writer<ELFT>::createSections() {
   std::vector<BaseCommand *> Old = Script->Opt.Commands;
   Script->Opt.Commands.clear();
   for (InputSectionBase *IS : InputSections)
-    if (IS)
-      Factory.addInputSec(IS, getOutputSectionName(IS->Name));
+    Script->addInputSection(Factory, IS, getOutputSectionName(IS->Name),
+                            nullptr);
   Script->Opt.Commands.insert(Script->Opt.Commands.end(), Old.begin(),
                               Old.end());
 
