@@ -21,9 +21,9 @@ define <32 x i8> @test_pabsb(<32 x i8> %a0, <32 x i8> *%a1) {
 ;
 ; SKYLAKE-LABEL: test_pabsb:
 ; SKYLAKE:       # BB#0:
-; SKYLAKE-NEXT:    vpabsb %ymm0, %ymm0 # sched: [1:0.50]
+; SKYLAKE-NEXT:    vpabsb %ymm0, %ymm0 # sched: [1:1.00]
 ; SKYLAKE-NEXT:    vpabsb (%rdi), %ymm1 # sched: [1:0.50]
-; SKYLAKE-NEXT:    vpor %ymm1, %ymm0, %ymm0 # sched: [1:0.33]
+; SKYLAKE-NEXT:    vpor %ymm1, %ymm0, %ymm0 # sched: [1:0.50]
 ; SKYLAKE-NEXT:    retq # sched: [2:1.00]
 ;
 ; ZNVER1-LABEL: test_pabsb:
@@ -57,9 +57,9 @@ define <8 x i32> @test_pabsd(<8 x i32> %a0, <8 x i32> *%a1) {
 ;
 ; SKYLAKE-LABEL: test_pabsd:
 ; SKYLAKE:       # BB#0:
-; SKYLAKE-NEXT:    vpabsd %ymm0, %ymm0 # sched: [1:0.50]
+; SKYLAKE-NEXT:    vpabsd %ymm0, %ymm0 # sched: [1:1.00]
 ; SKYLAKE-NEXT:    vpabsd (%rdi), %ymm1 # sched: [1:0.50]
-; SKYLAKE-NEXT:    vpor %ymm1, %ymm0, %ymm0 # sched: [1:0.33]
+; SKYLAKE-NEXT:    vpor %ymm1, %ymm0, %ymm0 # sched: [1:0.50]
 ; SKYLAKE-NEXT:    retq # sched: [2:1.00]
 ;
 ; ZNVER1-LABEL: test_pabsd:
@@ -93,9 +93,9 @@ define <16 x i16> @test_pabsw(<16 x i16> %a0, <16 x i16> *%a1) {
 ;
 ; SKYLAKE-LABEL: test_pabsw:
 ; SKYLAKE:       # BB#0:
-; SKYLAKE-NEXT:    vpabsw %ymm0, %ymm0 # sched: [1:0.50]
+; SKYLAKE-NEXT:    vpabsw %ymm0, %ymm0 # sched: [1:1.00]
 ; SKYLAKE-NEXT:    vpabsw (%rdi), %ymm1 # sched: [1:0.50]
-; SKYLAKE-NEXT:    vpor %ymm1, %ymm0, %ymm0 # sched: [1:0.33]
+; SKYLAKE-NEXT:    vpor %ymm1, %ymm0, %ymm0 # sched: [1:0.50]
 ; SKYLAKE-NEXT:    retq # sched: [2:1.00]
 ;
 ; ZNVER1-LABEL: test_pabsw:
@@ -249,7 +249,7 @@ define <4 x i64> @test_pand(<4 x i64> %a0, <4 x i64> %a1, <4 x i64> *%a2) {
 ;
 ; SKYLAKE-LABEL: test_pand:
 ; SKYLAKE:       # BB#0:
-; SKYLAKE-NEXT:    vpand %ymm1, %ymm0, %ymm0 # sched: [1:0.33]
+; SKYLAKE-NEXT:    vpand %ymm1, %ymm0, %ymm0 # sched: [1:0.50]
 ; SKYLAKE-NEXT:    vpand (%rdi), %ymm0, %ymm0 # sched: [1:0.50]
 ; SKYLAKE-NEXT:    vpaddq %ymm1, %ymm0, %ymm0 # sched: [1:0.50]
 ; SKYLAKE-NEXT:    retq # sched: [2:1.00]
@@ -284,7 +284,7 @@ define <4 x i64> @test_pandn(<4 x i64> %a0, <4 x i64> %a1, <4 x i64> *%a2) {
 ;
 ; SKYLAKE-LABEL: test_pandn:
 ; SKYLAKE:       # BB#0:
-; SKYLAKE-NEXT:    vpandn %ymm1, %ymm0, %ymm0 # sched: [1:0.33]
+; SKYLAKE-NEXT:    vpandn %ymm1, %ymm0, %ymm0 # sched: [1:0.50]
 ; SKYLAKE-NEXT:    vpandn (%rdi), %ymm0, %ymm1 # sched: [1:0.50]
 ; SKYLAKE-NEXT:    vpaddq %ymm1, %ymm0, %ymm0 # sched: [1:0.50]
 ; SKYLAKE-NEXT:    retq # sched: [2:1.00]
@@ -319,8 +319,8 @@ define <8 x i32> @test_pmulld(<8 x i32> %a0, <8 x i32> %a1, <8 x i32> *%a2) {
 ;
 ; SKYLAKE-LABEL: test_pmulld:
 ; SKYLAKE:       # BB#0:
-; SKYLAKE-NEXT:    vpmulld %ymm1, %ymm0, %ymm0 # sched: [10:2.00]
-; SKYLAKE-NEXT:    vpmulld (%rdi), %ymm0, %ymm0 # sched: [10:2.00]
+; SKYLAKE-NEXT:    vpmulld %ymm1, %ymm0, %ymm0 # sched: [8:0.67]
+; SKYLAKE-NEXT:    vpmulld (%rdi), %ymm0, %ymm0 # sched: [8:0.67]
 ; SKYLAKE-NEXT:    retq # sched: [2:1.00]
 ;
 ; ZNVER1-LABEL: test_pmulld:
@@ -349,8 +349,8 @@ define <16 x i16> @test_pmullw(<16 x i16> %a0, <16 x i16> %a1, <16 x i16> *%a2) 
 ;
 ; SKYLAKE-LABEL: test_pmullw:
 ; SKYLAKE:       # BB#0:
-; SKYLAKE-NEXT:    vpmullw %ymm1, %ymm0, %ymm0 # sched: [5:1.00]
-; SKYLAKE-NEXT:    vpmullw (%rdi), %ymm0, %ymm0 # sched: [5:1.00]
+; SKYLAKE-NEXT:    vpmullw %ymm1, %ymm0, %ymm0 # sched: [4:0.33]
+; SKYLAKE-NEXT:    vpmullw (%rdi), %ymm0, %ymm0 # sched: [4:0.50]
 ; SKYLAKE-NEXT:    retq # sched: [2:1.00]
 ;
 ; ZNVER1-LABEL: test_pmullw:
@@ -381,7 +381,7 @@ define <4 x i64> @test_por(<4 x i64> %a0, <4 x i64> %a1, <4 x i64> *%a2) {
 ;
 ; SKYLAKE-LABEL: test_por:
 ; SKYLAKE:       # BB#0:
-; SKYLAKE-NEXT:    vpor %ymm1, %ymm0, %ymm0 # sched: [1:0.33]
+; SKYLAKE-NEXT:    vpor %ymm1, %ymm0, %ymm0 # sched: [1:0.50]
 ; SKYLAKE-NEXT:    vpor (%rdi), %ymm0, %ymm0 # sched: [1:0.50]
 ; SKYLAKE-NEXT:    vpaddq %ymm1, %ymm0, %ymm0 # sched: [1:0.50]
 ; SKYLAKE-NEXT:    retq # sched: [2:1.00]
@@ -536,7 +536,7 @@ define <4 x i64> @test_pxor(<4 x i64> %a0, <4 x i64> %a1, <4 x i64> *%a2) {
 ;
 ; SKYLAKE-LABEL: test_pxor:
 ; SKYLAKE:       # BB#0:
-; SKYLAKE-NEXT:    vpxor %ymm1, %ymm0, %ymm0 # sched: [1:0.33]
+; SKYLAKE-NEXT:    vpxor %ymm1, %ymm0, %ymm0 # sched: [1:0.50]
 ; SKYLAKE-NEXT:    vpxor (%rdi), %ymm0, %ymm0 # sched: [1:0.50]
 ; SKYLAKE-NEXT:    vpaddq %ymm1, %ymm0, %ymm0 # sched: [1:0.50]
 ; SKYLAKE-NEXT:    retq # sched: [2:1.00]
