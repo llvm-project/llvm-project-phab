@@ -347,12 +347,15 @@ template<> struct simplify_type<SDUse> {
 /// These are IR-level optimization flags that may be propagated to SDNodes.
 /// TODO: This data structure should be shared by the IR optimizer and the
 /// the backend.
+/// Propagation of Flags from IR to SDNode is done by SDNodeFlagsAcquirer.
 struct SDNodeFlags {
 private:
   // This bit is used to determine if the flags are in a defined state.
   // Flag bits can only be masked out during intersection if the masking flags
   // are defined.
   bool AnyDefined : 1;
+  bool PropagateFlagsToOperands : 1;
+  bool AcquireFlagsFromUser : 1;
 
   bool NoUnsignedWrap : 1;
   bool NoSignedWrap : 1;
@@ -419,6 +422,12 @@ public:
     setDefined();
     AllowContract = b;
   }
+  void setAcquireFlagsFromUser(bool b) {
+    AcquireFlagsFromUser = b;
+  }
+  void setPropagateFlagsToOperands(bool b) {
+    PropagateFlagsToOperands = b;
+  }
 
   // These are accessors for each flag.
   bool hasNoUnsignedWrap() const { return NoUnsignedWrap; }
@@ -431,6 +440,9 @@ public:
   bool hasAllowReciprocal() const { return AllowReciprocal; }
   bool hasVectorReduction() const { return VectorReduction; }
   bool hasAllowContract() const { return AllowContract; }
+
+  bool hasPropagateFlagsToOperands() const { return PropagateFlagsToOperands; }
+  bool hasAcquireFlagsFromUser() const { return AcquireFlagsFromUser; }
 
   /// Clear any flags in this flag set that aren't also set in Flags.
   /// If the given Flags are undefined then don't do anything.
