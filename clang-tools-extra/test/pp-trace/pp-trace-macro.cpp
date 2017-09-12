@@ -1,4 +1,4 @@
-// RUN: pp-trace -ignore FileChanged %s -undef -target x86_64 -std=c++11 | FileCheck --strict-whitespace %s
+// RUN: pp-trace -ignore FileChanged %s -undef -ffreestanding -target x86_64 -std=c++11 | FileCheck --strict-whitespace %s
 
 #define MACRO 1
 int i = MACRO;

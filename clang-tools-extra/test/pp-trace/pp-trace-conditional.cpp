@@ -1,4 +1,4 @@
-// RUN: pp-trace -ignore FileChanged %s -undef -target x86_64 -std=c++11 | FileCheck --strict-whitespace %s
+// RUN: pp-trace -ignore FileChanged %s -ffreestanding -undef -target x86_64 -std=c++11 | FileCheck --strict-whitespace %s
 
 #if 1
 #endif
