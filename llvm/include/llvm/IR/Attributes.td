@@ -179,6 +179,12 @@ def WriteOnly : EnumAttr<"writeonly">;
 /// Zero extended before/after call.
 def ZExt : EnumAttr<"zeroext">;
 
+/// Function is a Pagerando wrapper.
+def PagerandoWrapper : EnumAttr<"pagerando_wrapper">;
+
+/// Function is placed into a Pagerando bin.
+def PagerandoBinned : EnumAttr<"pagerando_binned">;
+
 /// Target-independent string attributes.
 def LessPreciseFPMAD : StrBoolAttr<"less-precise-fpmad">;
 def NoInfsFPMath : StrBoolAttr<"no-infs-fp-math">;

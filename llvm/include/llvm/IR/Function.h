@@ -508,6 +508,17 @@ public:
            AttributeSets.hasParamAttribute(1, Attribute::StructRet);
   }
 
+  /// @brief True if the function is a Pagerando wrapper.
+  bool isPagerandoWrapper() const {
+    return hasFnAttribute(Attribute::PagerandoWrapper);
+  }
+
+  /// @brief True if the function is compatible with Pagerando and should be
+  /// placed into a randomized bin.
+  bool isPagerando() const {
+    return hasFnAttribute(Attribute::PagerandoBinned);
+  }
+
   /// @brief Determine if the parameter or return value is marked with NoAlias
   /// attribute.
   bool returnDoesNotAlias() const {

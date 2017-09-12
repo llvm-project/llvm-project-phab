@@ -1388,6 +1388,8 @@ static bool isFuncOnlyAttr(Attribute::AttrKind Kind) {
   case Attribute::AllocSize:
   case Attribute::Speculatable:
   case Attribute::StrictFP:
+  case Attribute::PagerandoWrapper:
+  case Attribute::PagerandoBinned:
     return true;
   default:
     break;
