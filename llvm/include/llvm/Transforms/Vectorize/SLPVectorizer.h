@@ -57,7 +57,7 @@ class BoUpSLP;
 } // end namespace slpvectorizer
 
 struct SLPVectorizerPass : public PassInfoMixin<SLPVectorizerPass> {
-  using StoreList = SmallVector<StoreInst *, 8>;
+  using StoreList = SmallVector<Instruction *, 8>;
   using StoreListMap = MapVector<Value *, StoreList>;
   using WeakTrackingVHList = SmallVector<WeakTrackingVH, 8>;
   using WeakTrackingVHListMap = MapVector<Value *, WeakTrackingVHList>;
@@ -140,8 +140,6 @@ private:
 
   bool vectorizeStoreChain(ArrayRef<Value *> Chain, slpvectorizer::BoUpSLP &R,
                            unsigned VecRegSize);
-
-  bool vectorizeStores(ArrayRef<StoreInst *> Stores, slpvectorizer::BoUpSLP &R);
 
   /// The store instructions in a basic block organized by base pointer.
   StoreListMap Stores;

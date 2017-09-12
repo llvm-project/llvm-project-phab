@@ -3301,10 +3301,168 @@ BoUpSLP::vectorizeTree(ExtraValueToDebugLocsMap &ExternallyUsedValues) {
   return VectorizableTree[0].VectorizedValue;
 }
 
+/// \brief Check that the Values in the slice in VL array are still existent in
+/// the WeakTrackingVH array.
+/// Vectorization of part of the VL array may cause later values in the VL array
+/// to become invalid. We track when this has happened in the WeakTrackingVH
+/// array.
+static bool hasValueBeenRAUWed(ArrayRef<Value *> VL,
+                               ArrayRef<WeakTrackingVH> VH, unsigned SliceBegin,
+                               unsigned SliceSize) {
+  VL = VL.slice(SliceBegin, SliceSize);
+  VH = VH.slice(SliceBegin, SliceSize);
+  return !std::equal(VL.begin(), VL.end(), VH.begin());
+}
+
+bool vectorizeAccessChain(ArrayRef<Value *> Chain, BoUpSLP &R,
+                         unsigned VecRegSize) {
+  assert(!Chain.empty() &&
+         (isa<LoadInst>(Chain[0]) || isa<StoreInst>(Chain[0])) &&
+         "Chain has to be non-empty and contain load or store instructions");
+
+  unsigned ChainLen = Chain.size();
+  DEBUG(dbgs() << "SLP: Analyzing a "
+               << (isa<StoreInst>(Chain[0]) ? "store" : "load")
+               << " chain of length " << ChainLen << "\n");
+  unsigned Sz = R.getVectorElementSize(Chain[0]);
+  unsigned VF = VecRegSize / Sz;
+
+  if (!isPowerOf2_32(Sz) || VF < 2)
+    return false;
+
+  // Keep track of values that were deleted by vectorizing in the loop below.
+  SmallVector<WeakTrackingVH, 8> TrackValues(Chain.begin(), Chain.end());
+
+  bool Changed = false;
+  // Look for profitable vectorizable trees at all offsets, starting at zero.
+  for (unsigned i = 0, e = ChainLen; i < e; ++i) {
+    if (i + VF > e)
+      break;
+
+    // Check that a previous iteration of this loop did not delete the Value.
+    if (hasValueBeenRAUWed(Chain, TrackValues, i, VF))
+      continue;
+
+    DEBUG(dbgs() << "SLP: Analyzing " << VF << " "
+                 << (isa<StoreInst>(Chain[0]) ? "stores" : "loads")
+                 << " at offset " << i << "\n");
+    ArrayRef<Value *> Operands = Chain.slice(i, VF);
+
+    R.buildTree(Operands);
+    if (R.isTreeTinyAndNotFullyVectorizable())
+      continue;
+
+    R.computeMinimumValueSizes();
+
+    int Cost = R.getTreeCost();
+
+    DEBUG(dbgs() << "SLP: Found cost=" << Cost << " for VF=" << VF << "\n");
+    if (Cost < -SLPCostThreshold) {
+      DEBUG(dbgs() << "SLP: Decided to vectorize cost=" << Cost << "\n");
+
+      using namespace ore;
+      auto *ORE = R.getORE();
+      if (isa<StoreInst>(Chain[i]))
+        ORE->emit(OptimizationRemark(SV_NAME, "StoresVectorized",
+                                     cast<StoreInst>(Chain[i]))
+                  << " Stores SLP vectorized with cost " << NV("Cost", Cost)
+                  << " and with tree size " << NV("TreeSize", R.getTreeSize()));
+      else
+        ORE->emit(OptimizationRemark(SV_NAME, "LoadsVectorized",
+                                     cast<LoadInst>(Chain[i]))
+                  << " Loads SLP vectorized with cost " << NV("Cost", Cost)
+                  << " and with tree size " << NV("TreeSize", R.getTreeSize()));
+
+      R.vectorizeTree();
+
+      // Move to the next bundle.
+      i += VF - 1;
+      Changed = true;
+    }
+  }
+
+  return Changed;
+}
+
+
+static bool
+vectorizeAccesses(ArrayRef<Instruction *> Accesses, BoUpSLP &R,
+                  const DataLayout *DL, ScalarEvolution *SE) {
+  SetVector<Instruction *> Heads, Tails;
+  SmallDenseMap<Instruction*, Instruction *> ConsecutiveChain;
+
+  // We may run into multiple chains that merge into a single chain. We mark the
+  // stores that we vectorized so that we don't visit the same store twice.
+  BoUpSLP::ValueSet VectorizedAccesses;
+
+  // Do a quadratic search on all of the given loads or stores and find
+  // all of the pairs of loads or stores that follow each other.
+  SmallVector<unsigned, 16> IndexQueue;
+  for (unsigned i = 0, e = Accesses.size(); i < e; ++i) {
+    IndexQueue.clear();
+    // If a load or store has multiple consecutive store candidates, search
+    // array according to the sequence: from i+1 to e, then from i-1 to 0.
+    // This is because usually pairing with immediate succeeding or preceding
+    // candidate create the best chance to find slp vectorization opportunity.
+    unsigned j = 0;
+    for (j = i + 1; j < e; ++j)
+      IndexQueue.push_back(j);
+    for (j = i; j > 0; --j)
+      IndexQueue.push_back(j - 1);
+
+    for (auto &k : IndexQueue) {
+      if (isConsecutiveAccess(Accesses[i], Accesses[k], *DL, *SE)) {
+        Tails.insert(Accesses[k]);
+        Heads.insert(Accesses[i]);
+        ConsecutiveChain[Accesses[i]] = Accesses[k];
+        break;
+      }
+    }
+  }
+
+  bool Changed = false;
+
+  // For loads or stores that start but don't end a link in the chain:
+  for (SetVector<Instruction *>::iterator it = Heads.begin(), e = Heads.end();
+       it != e; ++it) {
+    if (Tails.count(*it))
+      continue;
+
+    // We found a load or store instr that starts a chain. Now follow the chain
+    // and try to vectorize it.
+    BoUpSLP::ValueList Operands;
+    Instruction *I = *it;
+    // Collect the chain into a list.
+    while (Tails.count(I) || Heads.count(I)) {
+      if (VectorizedAccesses.count(I))
+        break;
+      Operands.push_back(I);
+      // Move to the next value in the chain.
+      I = ConsecutiveChain[I];
+    }
+    //
+    // FIXME: Is division-by-2 the correct step? Should we assert that the
+    // register size is a power-of-2?
+    for (unsigned Size = R.getMaxVecRegSize(); Size >= R.getMinVecRegSize();
+         Size /= 2) {
+      if (vectorizeAccessChain(Operands, R, Size)) {
+        // Mark the vectorized stores so that we don't vectorize them again.
+        VectorizedAccesses.insert(Operands.begin(), Operands.end());
+        Changed = true;
+        break;
+      }
+    }
+  }
+
+  return Changed;
+}
+
+
 void BoUpSLP::optimizeGatherSequence() {
   DEBUG(dbgs() << "SLP: Optimizing " << GatherSeq.size()
         << " gather sequences instructions.\n");
   // LICM InsertElementInst sequences.
+
   for (Instruction *it : GatherSeq) {
     InsertElementInst *Insert = dyn_cast<InsertElementInst>(it);
 
@@ -3382,6 +3540,7 @@ void BoUpSLP::optimizeGatherSequence() {
       }
     }
   }
+
   CSEBlocks.clear();
   GatherSeq.clear();
 }
@@ -4237,18 +4396,6 @@ bool SLPVectorizerPass::runImpl(Function &F, ScalarEvolution *SE_,
   return Changed;
 }
 
-/// \brief Check that the Values in the slice in VL array are still existent in
-/// the WeakTrackingVH array.
-/// Vectorization of part of the VL array may cause later values in the VL array
-/// to become invalid. We track when this has happened in the WeakTrackingVH
-/// array.
-static bool hasValueBeenRAUWed(ArrayRef<Value *> VL,
-                               ArrayRef<WeakTrackingVH> VH, unsigned SliceBegin,
-                               unsigned SliceSize) {
-  VL = VL.slice(SliceBegin, SliceSize);
-  VH = VH.slice(SliceBegin, SliceSize);
-  return !std::equal(VL.begin(), VL.end(), VH.begin());
-}
 
 bool SLPVectorizerPass::vectorizeStoreChain(ArrayRef<Value *> Chain, BoUpSLP &R,
                                             unsigned VecRegSize) {
@@ -4303,76 +4450,6 @@ bool SLPVectorizerPass::vectorizeStoreChain(ArrayRef<Value *> Chain, BoUpSLP &R,
       // Move to the next bundle.
       i += VF - 1;
       Changed = true;
-    }
-  }
-
-  return Changed;
-}
-
-bool SLPVectorizerPass::vectorizeStores(ArrayRef<StoreInst *> Stores,
-                                        BoUpSLP &R) {
-  SetVector<StoreInst *> Heads, Tails;
-  SmallDenseMap<StoreInst *, StoreInst *> ConsecutiveChain;
-
-  // We may run into multiple chains that merge into a single chain. We mark the
-  // stores that we vectorized so that we don't visit the same store twice.
-  BoUpSLP::ValueSet VectorizedStores;
-  bool Changed = false;
-
-  // Do a quadratic search on all of the given stores and find
-  // all of the pairs of stores that follow each other.
-  SmallVector<unsigned, 16> IndexQueue;
-  for (unsigned i = 0, e = Stores.size(); i < e; ++i) {
-    IndexQueue.clear();
-    // If a store has multiple consecutive store candidates, search Stores
-    // array according to the sequence: from i+1 to e, then from i-1 to 0.
-    // This is because usually pairing with immediate succeeding or preceding
-    // candidate create the best chance to find slp vectorization opportunity.
-    unsigned j = 0;
-    for (j = i + 1; j < e; ++j)
-      IndexQueue.push_back(j);
-    for (j = i; j > 0; --j)
-      IndexQueue.push_back(j - 1);
-
-    for (auto &k : IndexQueue) {
-      if (isConsecutiveAccess(Stores[i], Stores[k], *DL, *SE)) {
-        Tails.insert(Stores[k]);
-        Heads.insert(Stores[i]);
-        ConsecutiveChain[Stores[i]] = Stores[k];
-        break;
-      }
-    }
-  }
-
-  // For stores that start but don't end a link in the chain:
-  for (SetVector<StoreInst *>::iterator it = Heads.begin(), e = Heads.end();
-       it != e; ++it) {
-    if (Tails.count(*it))
-      continue;
-
-    // We found a store instr that starts a chain. Now follow the chain and try
-    // to vectorize it.
-    BoUpSLP::ValueList Operands;
-    StoreInst *I = *it;
-    // Collect the chain into a list.
-    while (Tails.count(I) || Heads.count(I)) {
-      if (VectorizedStores.count(I))
-        break;
-      Operands.push_back(I);
-      // Move to the next value in the chain.
-      I = ConsecutiveChain[I];
-    }
-
-    // FIXME: Is division-by-2 the correct step? Should we assert that the
-    // register size is a power-of-2?
-    for (unsigned Size = R.getMaxVecRegSize(); Size >= R.getMinVecRegSize();
-         Size /= 2) {
-      if (vectorizeStoreChain(Operands, R, Size)) {
-        // Mark the vectorized stores so that we don't vectorize them again.
-        VectorizedStores.insert(Operands.begin(), Operands.end());
-        Changed = true;
-        break;
-      }
     }
   }
 
@@ -5804,7 +5881,8 @@ bool SLPVectorizerPass::vectorizeStoreChains(BoUpSLP &R) {
     //       may cause a significant compile-time increase.
     for (unsigned CI = 0, CE = it->second.size(); CI < CE; CI+=16) {
       unsigned Len = std::min<unsigned>(CE - CI, 16);
-      Changed |= vectorizeStores(makeArrayRef(&it->second[CI], Len), R);
+      Changed |= vectorizeAccesses(makeArrayRef(&it->second[CI], Len), R, DL,
+                                   SE);
     }
   }
   return Changed;
