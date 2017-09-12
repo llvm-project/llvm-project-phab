@@ -173,6 +173,8 @@ struct Configuration {
   bool LargeAddressAware = false;
   bool HighEntropyVA = false;
   bool AppContainer = false;
+
+  bool MinGW = false;
 };
 
 extern Configuration *Config;

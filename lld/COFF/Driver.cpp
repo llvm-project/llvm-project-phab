@@ -219,6 +219,12 @@ void LinkerDriver::parseDirectives(StringRef S) {
       break;
     case OPT_export: {
       Export E = parseExport(Arg->getValue());
+      if (Config->Machine == I386 && Config->MinGW) {
+        if (!isDecorated(E.Name))
+          E.Name = Saver.save("_" + E.Name);
+        if (!E.ExtName.empty() && !isDecorated(E.ExtName))
+          E.ExtName = Saver.save("_" + E.ExtName);
+      }
       E.Directives = true;
       Config->Exports.push_back(E);
       break;
@@ -703,6 +709,10 @@ void LinkerDriver::link(ArrayRef<const char *> ArgsArr) {
     printHelp(ArgsArr[0]);
     return;
   }
+
+  // Handle /mingw early, since it can potentially affect how other
+  // options are handled.
+  Config->MinGW = Args.hasArg(OPT_mingw);
 
   if (auto *Arg = Args.getLastArg(OPT_linkrepro)) {
     SmallString<64> Path = StringRef(Arg->getValue());
