@@ -11,6 +11,7 @@ set(CodeGenSources
   MachineInstrBundleIteratorTest.cpp
   MachineOperandTest.cpp
   ScalableVectorMVTsTest.cpp
+  PagerandoBinningTest.cpp
   )
 
 add_llvm_unittest(CodeGenTests

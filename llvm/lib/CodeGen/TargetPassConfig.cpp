@@ -812,6 +812,9 @@ void TargetPassConfig::addMachinePasses() {
   if (TM->Options.EnableIPRA)
     addPass(createRegUsageInfoPropPass());
 
+  if (TM->isPagerando())
+    addPass(createPagerandoBinningPass());
+
   // Run pre-ra passes.
   addPreRegAlloc();
 
