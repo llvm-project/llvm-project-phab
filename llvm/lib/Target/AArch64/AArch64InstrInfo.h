@@ -242,6 +242,12 @@ public:
   bool getMemOpInfo(unsigned Opcode, unsigned &Scale, unsigned &Width,
                     int64_t &MinOffset, int64_t &MaxOffset) const;
 
+  bool doMemOpsHaveSameBasePtr(const MachineInstr &SU1, unsigned BaseReg1,
+                               const MachineInstr &SU2, unsigned BaseReg2)
+                              const final {
+    return BaseReg1 == BaseReg2;
+  }
+
   bool shouldClusterMemOps(MachineInstr &FirstLdSt, MachineInstr &SecondLdSt,
                            unsigned NumLoads) const override;
 

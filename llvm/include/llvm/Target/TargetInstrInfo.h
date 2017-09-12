@@ -1092,16 +1092,12 @@ public:
   }
 
   /// Used by MachineScheduler to determine if it should attempt to cluster
-  /// these memory operations. Implementation of this callback is needed
-  /// when an instruction requires a fully calculated address and does not
-  /// have separate base register and offset operands. If it does have
-  /// separate offset field the getMemOpBaseRegImmOfs should suffice.
+  /// these memory operations. Arguments are two candidate instructions
+  /// and base registers as returned by the getMemOpBaseRegImmOfs.
   virtual bool doMemOpsHaveSameBasePtr(const MachineInstr &MI1,
                                        unsigned BaseReg1,
                                        const MachineInstr &MI2,
-                                       unsigned BaseReg2) const {
-    return BaseReg1 == BaseReg2;
-  }
+                                       unsigned BaseReg2) const;
 
   /// Returns true if the two given memory operations should be scheduled
   /// adjacent. Note that you have to add:

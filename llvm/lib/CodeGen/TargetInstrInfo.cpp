@@ -12,6 +12,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Target/TargetInstrInfo.h"
+#include "llvm/Analysis/ValueTracking.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineMemOperand.h"
@@ -642,6 +643,39 @@ bool TargetInstrInfo::isReassociationCandidate(const MachineInstr &Inst,
   return isAssociativeAndCommutative(Inst) &&
          hasReassociableOperands(Inst, Inst.getParent()) &&
          hasReassociableSibling(Inst, Commuted);
+}
+
+/// Used by MachineScheduler to determine if it should attempt to cluster
+/// these memory operations. Arguments are two candidate instructions
+/// and base registers as returned by the getMemOpBaseRegImmOfs.
+bool TargetInstrInfo::doMemOpsHaveSameBasePtr(const MachineInstr &MI1,
+                                              unsigned BaseReg1,
+                                              const MachineInstr &MI2,
+                                              unsigned BaseReg2) const {
+  if (BaseReg1 == BaseReg2)
+    return true;
+
+  if (!MI1.hasOneMemOperand() || !MI2.hasOneMemOperand())
+    return false;
+
+  auto MO1 = *MI1.memoperands_begin();
+  auto MO2 = *MI2.memoperands_begin();
+  if (MO1->getAddrSpace() != MO2->getAddrSpace())
+    return false;
+
+  auto Base1 = MO1->getValue();
+  auto Base2 = MO2->getValue();
+  if (!Base1 || !Base2)
+    return false;
+  const MachineFunction &MF = *MI1.getParent()->getParent();
+  const DataLayout &DL = MF.getFunction()->getParent()->getDataLayout();
+  Base1 = GetUnderlyingObject(Base1, DL);
+  Base2 = GetUnderlyingObject(Base1, DL);
+
+  if (isa<UndefValue>(Base1) || isa<UndefValue>(Base2))
+    return false;
+
+  return Base1 == Base2;
 }
 
 // The concept of the reassociation pass is that these operations can benefit
