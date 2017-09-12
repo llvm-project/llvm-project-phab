@@ -429,14 +429,19 @@ template <class ELFT> void ICF<ELFT>::run() {
     }
   });
 
-  // Mark ARM Exception Index table sections that refer to folded code
+  // Mark SHF_LINK_ORDER sections that refer to folded code
   // sections as not live. These sections have an implict dependency
   // via the link order dependency.
-  if (Config->EMachine == EM_ARM)
-    for (InputSectionBase *Sec : InputSections)
-      if (auto *S = dyn_cast<InputSection>(Sec))
-        if (S->Flags & SHF_LINK_ORDER)
-          S->Live = S->getLinkOrderDep()->Live;
+  for (InputSectionBase *Sec : InputSections) {
+    auto *S = dyn_cast<InputSection>(Sec);
+    if (!S || !S->Live)
+      continue;
+    InputSection *Dep = S->getLinkOrderDep();
+    if (Dep && !Dep->Live) {
+      log("  removed " + S->Name);
+      S->Live = false;
+    }
+  }
 }
 
 // ICF entry point function.
