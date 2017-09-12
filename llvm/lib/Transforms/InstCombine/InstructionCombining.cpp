@@ -2830,8 +2830,7 @@ Instruction *InstCombiner::visitLandingPadInst(LandingPadInst &LI) {
 /// beginning of DestBlock, which can only happen if it's safe to move the
 /// instruction past all of the instructions between it and the end of its
 /// block.
-static bool TryToSinkInstruction(Instruction *I, BasicBlock *DestBlock) {
-  assert(I->hasOneUse() && "Invariants didn't hold!");
+static bool TryToSinkInstructionInto(Instruction *I, BasicBlock *DestBlock) {
 
   // Cannot move control-flow-involving, volatile loads, vaarg, etc.
   if (isa<PHINode>(I) || I->isEHPad() || I->mayHaveSideEffects() ||
@@ -2866,6 +2865,61 @@ static bool TryToSinkInstruction(Instruction *I, BasicBlock *DestBlock) {
   I->moveBefore(&*InsertPos);
   ++NumSunkInst;
   return true;
+}
+
+void InstCombiner::tryToSinkInstruction(Instruction *I) {
+  BasicBlock *BB = I->getParent();
+
+  BasicBlock *DestBlock = nullptr;
+
+  for (auto UI = I->user_begin(), UE = I->user_end(); UI != UE; ++UI) {
+    Instruction *UserInst = cast<Instruction>(*UI);
+
+    // Get the block the use occurs in.
+    BasicBlock *UserParent;
+    if (PHINode *PN = dyn_cast<PHINode>(UserInst))
+      UserParent = PN->getIncomingBlock(UI.getUse());
+    else
+      UserParent = UserInst->getParent();
+
+    // If this User is the current block, there's nothing to do.
+    if (UserParent == BB)
+      return;
+
+    if (!DestBlock) {
+      bool UserIsSuccessor = false;
+      // See if the user is one of our successors.
+      for (succ_iterator SI = succ_begin(BB), E = succ_end(BB); SI != E; ++SI)
+        if (*SI == UserParent) {
+          UserIsSuccessor = true;
+          break;
+        }
+
+      // If the user is one of our immediate successors, and if that successor
+      // only has us as a predecessors (we'd have to split the critical edge
+      // otherwise), we can keep going.
+      if (!UserIsSuccessor || !UserParent->getUniquePredecessor())
+        return;
+
+      DestBlock = UserParent;
+    } else if (DestBlock != UserParent)
+      return;
+  }
+
+  if (!DestBlock)
+    return;
+
+  // Okay, the CFG is simple enough, try to sink this instruction.
+  if (TryToSinkInstructionInto(I, DestBlock)) {
+    DEBUG(dbgs() << "IC: Sink: " << *I << '\n');
+    MadeIRChange = true;
+    // We'll add uses of the sunk instruction below, but since sinking
+    // can expose opportunities for it's *operands* add them to the
+    // worklist
+    for (Use &U : I->operands())
+      if (Instruction *OpI = dyn_cast<Instruction>(U.get()))
+        Worklist.Add(OpI);
+  }
 }
 
 bool InstCombiner::run() {
@@ -2922,44 +2976,7 @@ bool InstCombiner::run() {
     }
 
     // See if we can trivially sink this instruction to a successor basic block.
-    if (I->hasOneUse()) {
-      BasicBlock *BB = I->getParent();
-      Instruction *UserInst = cast<Instruction>(*I->user_begin());
-      BasicBlock *UserParent;
-
-      // Get the block the use occurs in.
-      if (PHINode *PN = dyn_cast<PHINode>(UserInst))
-        UserParent = PN->getIncomingBlock(*I->use_begin());
-      else
-        UserParent = UserInst->getParent();
-
-      if (UserParent != BB) {
-        bool UserIsSuccessor = false;
-        // See if the user is one of our successors.
-        for (succ_iterator SI = succ_begin(BB), E = succ_end(BB); SI != E; ++SI)
-          if (*SI == UserParent) {
-            UserIsSuccessor = true;
-            break;
-          }
-
-        // If the user is one of our immediate successors, and if that successor
-        // only has us as a predecessors (we'd have to split the critical edge
-        // otherwise), we can keep going.
-        if (UserIsSuccessor && UserParent->getUniquePredecessor()) {
-          // Okay, the CFG is simple enough, try to sink this instruction.
-          if (TryToSinkInstruction(I, UserParent)) {
-            DEBUG(dbgs() << "IC: Sink: " << *I << '\n');
-            MadeIRChange = true;
-            // We'll add uses of the sunk instruction below, but since sinking
-            // can expose opportunities for it's *operands* add them to the
-            // worklist
-            for (Use &U : I->operands())
-              if (Instruction *OpI = dyn_cast<Instruction>(U.get()))
-                Worklist.Add(OpI);
-          }
-        }
-      }
-    }
+    tryToSinkInstruction(I);
 
     // Now that we have an instruction, try combining it to simplify it.
     Builder.SetInsertPoint(I);

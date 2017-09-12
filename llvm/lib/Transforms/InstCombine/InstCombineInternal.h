@@ -757,6 +757,9 @@ private:
   ///
   /// If the multiplication is known not to overflow then NoSignedWrap is set.
   Value *Descale(Value *Val, APInt Scale, bool &NoSignedWrap);
+
+  // Try to sink instruction from its current block to one of its successors.
+  void tryToSinkInstruction(Instruction *I);
 };
 
 } // end namespace llvm.
