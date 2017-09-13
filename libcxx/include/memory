@@ -5535,6 +5535,66 @@ struct __temp_value {
     };
 #endif
 
+template <class _To, class _From, class _Traits,
+          bool _DirectCast = _Traits::_RequireVoidCast::value>
+struct __pointer_cast_traits_imp {
+  static _To __cast(_From __f) {
+    return _Traits::__direct_cast(__f);
+  }
+};
+
+template <class _To, class _From, class _Traits>
+struct __pointer_cast_traits_imp<_To, _From, _Traits, /*RequireVoidCast*/true> {
+  static _To __cast(_From __f) {
+    return _Traits::__indirect_cast(__f);
+  }
+};
+
+template <class _To, class _From>
+struct __pointer_cast_traits {
+  typedef pointer_traits<_To> _ToT;
+  typedef pointer_traits<_From> _FromT;
+  typedef typename pointer_traits<_To>::element_type _ToElem;
+  typedef typename pointer_traits<_From>::element_type _FromElem;
+  typedef typename __rebind_pointer<_From, void>::type _VoidPtr;
+  static_assert((is_same<typename __rebind_pointer<_From, _ToElem>::type,
+                        _To>::value), "invalid cast types");
+  typedef is_class<_From> _RequireVoidCast;
+  typedef __pointer_cast_traits_imp<_To, _From, __pointer_cast_traits> _Imp;
+
+  static inline _LIBCPP_INLINE_VISIBILITY
+  _VoidPtr __void_cast(_From __f) _NOEXCEPT {
+    return static_cast<_VoidPtr>(__f);
+  }
+
+  static inline _LIBCPP_INLINE_VISIBILITY
+  _To __direct_cast(_From __f) _NOEXCEPT {
+    return static_cast<_To>(__f);
+  }
+
+  static inline _LIBCPP_INLINE_VISIBILITY
+  _To __indirect_cast(_From __f) _NOEXCEPT {
+    return static_cast<_To>(__void_cast(__f));
+  }
+
+  static inline _LIBCPP_INLINE_VISIBILITY
+  _To __cast(_From __f) {
+    return _Imp::__cast(__f);
+  }
+};
+
+
+template <class _To, class _From>
+inline _LIBCPP_INLINE_VISIBILITY
+_To __pointer_cast(_From __f) {
+  return __pointer_cast_traits<_To, _From>::__cast(__f);
+}
+
+template <class _To>
+_To __pointer_cast(nullptr_t) {
+  return _To(nullptr);
+}
+
 _LIBCPP_END_NAMESPACE_STD
 
 _LIBCPP_POP_MACROS
