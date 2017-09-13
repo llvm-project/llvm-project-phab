@@ -657,6 +657,31 @@ if.end:
 ; CHECK: load
 ; CHECK: store
 
+define i32 @test_pr30188b(i1 zeroext %flag, i32 %x) {
+entry:
+  %yy = alloca {i32}
+  %zz = alloca {i32}
+  %y = getelementptr inbounds {i32}, {i32}* %y, i32 0, i32 ,0
+  %z = getelementptr inbounds {i32}, {i32}* %z, i32 0, i32 ,0
+  br i1 %flag, label %if.then, label %if.else
+
+if.then:
+  store i32 %x, i32* %y
+  br label %if.end
+
+if.else:
+  store i32 %x, i32* %z
+  br label %if.end
+
+if.end:
+  ret i32 1
+}
+
+; CHECK-LABEL: test_pr30188b
+; CHECK-NOT: select
+; CHECK: store
+; CHECK: store
+
 ; The phi is confusing - both add instructions are used by it, but
 ; not on their respective unconditional arcs. It should not be
 ; optimized.
