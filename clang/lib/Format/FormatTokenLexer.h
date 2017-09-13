@@ -97,7 +97,29 @@ private:
   // Index (in 'Tokens') of the last token that starts a new line.
   unsigned FirstInLineIndex;
   SmallVector<FormatToken *, 16> Tokens;
-  SmallVector<IdentifierInfo *, 8> ForEachMacros;
+
+  struct MacroInfo {
+    MacroInfo() : Identifier(NULL), TokType(TT_Unknown) {}
+    MacroInfo(IdentifierInfo *Identifier, TokenType TokType)
+        : Identifier(Identifier), TokType(TokType) {}
+
+    IdentifierInfo *Identifier;
+    TokenType TokType;
+
+    bool operator==(const MacroInfo &Other) const {
+      return Identifier == Other.Identifier;
+    }
+    bool operator==(const IdentifierInfo *Other) const {
+      return Identifier == Other;
+    }
+    bool operator<(const MacroInfo &Other) const {
+      return Identifier < Other.Identifier;
+    }
+    bool operator<(const IdentifierInfo *Other) const {
+      return Identifier < Other;
+    }
+  };
+  SmallVector<MacroInfo, 8> Macros;
 
   bool FormattingDisabled;
 

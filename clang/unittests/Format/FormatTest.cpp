@@ -2385,6 +2385,26 @@ TEST_F(FormatTest, MacroCallsWithoutTrailingSemicolon) {
                    getLLVMStyleWithColumns(40)));
 
   verifyFormat("MACRO(>)");
+
+  // Some macros contain an implicit semicolon
+  FormatStyle Style = getLLVMStyle();
+  Style.StatementMacros.push_back("FOO");
+  verifyFormat("FOO(a) int b = 0;");
+  verifyFormat("FOO(a)\n"
+               "int b = 0;",
+               Style);
+  verifyFormat("FOO(a);\n"
+               "int b = 0;",
+               Style);
+  verifyFormat("FOO(argc, argv, \"4.0.2\")\n"
+               "int b = 0;",
+               Style);
+  verifyFormat("FOO()\n"
+               "int b = 0;",
+               Style);
+  verifyFormat("FOO\n"
+               "int b = 0;",
+               Style);
 }
 
 TEST_F(FormatTest, LayoutMacroDefinitionsStatementsSpanningBlocks) {
@@ -10184,6 +10204,12 @@ TEST_F(FormatTest, ParsesConfiguration) {
   BoostAndQForeach.push_back("Q_FOREACH");
   CHECK_PARSE("ForEachMacros: [BOOST_FOREACH, Q_FOREACH]", ForEachMacros,
               BoostAndQForeach);
+
+  Style.StatementMacros.clear();
+  CHECK_PARSE("StatementMacros: [QUNUSED]", StatementMacros,
+              std::vector<std::string>{"QUNUSED"});
+  CHECK_PARSE("StatementMacros: [QUNUSED, QT_REQUIRE_VERSION]", StatementMacros,
+              std::vector<std::string>({"QUNUSED", "QT_REQUIRE_VERSION"}));
 
   Style.IncludeCategories.clear();
   std::vector<FormatStyle::IncludeCategory> ExpectedCategories = {{"abc/.*", 2},
