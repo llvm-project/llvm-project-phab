@@ -28,6 +28,7 @@
 #include "llvm/ADT/SetOperations.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Analysis/EHPersonalities.h"
+#include "llvm/CodeGen/GlobalISel/RegisterBankInfo.h"
 #include "llvm/CodeGen/LiveIntervalAnalysis.h"
 #include "llvm/CodeGen/LiveStackAnalysis.h"
 #include "llvm/CodeGen/LiveVariables.h"
@@ -941,6 +942,24 @@ void MachineVerifier::visitMachineInstrBefore(const MachineInstr *MI) {
       report("Generic Instruction G_PHI has operands with incompatible/missing "
              "types",
              MI);
+    break;
+  }
+  case TargetOpcode::COPY: {
+    const MachineOperand &DstOp = MI->getOperand(0);
+    const MachineOperand &SrcOp = MI->getOperand(1);
+    unsigned DstSize =
+        RegisterBankInfo::getSizeInBits(DstOp.getReg(), *MRI, *TRI);
+    unsigned SrcSize =
+        RegisterBankInfo::getSizeInBits(SrcOp.getReg(), *MRI, *TRI);
+    bool HasGenericType = MRI->getType(DstOp.getReg()).isValid() ||
+                          MRI->getType(SrcOp.getReg()).isValid();
+    if (HasGenericType && (DstSize != SrcSize))
+      // Catch only obvious cases not involving subregs for now.
+      if (!DstOp.getSubReg() && !SrcOp.getSubReg()) {
+        report("Copy Instruction is illegal with mismatching sizes", MI);
+        errs() << "Def Size = " << DstSize << ", Src Size = " << SrcSize
+               << "\n";
+      }
     break;
   }
   case TargetOpcode::STATEPOINT:
