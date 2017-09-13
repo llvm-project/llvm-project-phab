@@ -40,6 +40,8 @@ FormatTokenLexer::FormatTokenLexer(const SourceManager &SourceMgr, FileID ID,
     Macros.emplace_back(&IdentTable.get(ForEachMacro), TT_ForEachMacro);
   for (const std::string &StatementMacro : Style.StatementMacros)
     Macros.emplace_back(&IdentTable.get(StatementMacro), TT_StatementMacro);
+  for (const std::string &NamespaceMacro : Style.NamespaceMacros)
+    Macros.emplace_back(&IdentTable.get(NamespaceMacro), TT_NamespaceMacro);
   std::sort(Macros.begin(), Macros.end());
 }
 
