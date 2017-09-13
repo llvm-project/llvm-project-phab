@@ -91,8 +91,31 @@ namespace {
 
   public:
     static char ID; // Pass identification
-    JumpThreading(int T = -1) : FunctionPass(ID), Impl(T) {
+    JumpThreading(int T = -1) : FunctionPass(ID), Impl(T, false) {
       initializeJumpThreadingPass(*PassRegistry::getPassRegistry());
+    }
+
+    bool runOnFunction(Function &F) override;
+
+    void getAnalysisUsage(AnalysisUsage &AU) const override {
+      if (PrintLVIAfterJumpThreading)
+        AU.addRequired<DominatorTreeWrapperPass>();
+      AU.addRequired<AAResultsWrapperPass>();
+      AU.addRequired<LazyValueInfoWrapperPass>();
+      AU.addPreserved<GlobalsAAWrapperPass>();
+      AU.addRequired<TargetLibraryInfoWrapperPass>();
+    }
+
+    void releaseMemory() override { Impl.releaseMemory(); }
+  };
+
+  class LateJumpThreading : public FunctionPass {
+    JumpThreadingPass Impl;
+
+  public:
+    static char ID; // Pass identification
+    LateJumpThreading(int T = -1) : FunctionPass(ID), Impl(T, true) {
+      initializeLateJumpThreadingPass(*PassRegistry::getPassRegistry());
     }
 
     bool runOnFunction(Function &F) override;
@@ -119,10 +142,24 @@ INITIALIZE_PASS_DEPENDENCY(AAResultsWrapperPass)
 INITIALIZE_PASS_END(JumpThreading, "jump-threading",
                 "Jump Threading", false, false)
 
-// Public interface to the Jump Threading pass
-FunctionPass *llvm::createJumpThreadingPass(int Threshold) { return new JumpThreading(Threshold); }
+char LateJumpThreading::ID = 0;
+INITIALIZE_PASS_BEGIN(LateJumpThreading, "late-jump-threading",
+                "Late Jump Threading", false, false)
+INITIALIZE_PASS_DEPENDENCY(LazyValueInfoWrapperPass)
+INITIALIZE_PASS_DEPENDENCY(TargetLibraryInfoWrapperPass)
+INITIALIZE_PASS_DEPENDENCY(AAResultsWrapperPass)
+INITIALIZE_PASS_END(LateJumpThreading, "late-jump-threading",
+                "Late Jump Threading", false, false)
 
-JumpThreadingPass::JumpThreadingPass(int T) {
+// Public interface to the Jump Threading pass
+FunctionPass *llvm::createJumpThreadingPass(int Threshold) {
+  return new JumpThreading(Threshold);
+}
+FunctionPass *llvm::createLateJumpThreadingPass(int Threshold) {
+  return new LateJumpThreading(Threshold);
+}
+
+JumpThreadingPass::JumpThreadingPass(int T, bool Late) : IsLate(Late) {
   BBDupThreshold = (T == -1) ? BBDuplicateThreshold : unsigned(T);
 }
 
@@ -238,6 +275,31 @@ static void updatePredecessorProfileMetadata(PHINode *PN, BasicBlock *BB) {
 /// runOnFunction - Toplevel algorithm.
 ///
 bool JumpThreading::runOnFunction(Function &F) {
+  if (skipFunction(F))
+    return false;
+  auto TLI = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
+  auto LVI = &getAnalysis<LazyValueInfoWrapperPass>().getLVI();
+  auto AA = &getAnalysis<AAResultsWrapperPass>().getAAResults();
+  std::unique_ptr<BlockFrequencyInfo> BFI;
+  std::unique_ptr<BranchProbabilityInfo> BPI;
+  bool HasProfileData = F.getEntryCount().hasValue();
+  if (HasProfileData) {
+    LoopInfo LI{DominatorTree(F)};
+    BPI.reset(new BranchProbabilityInfo(F, LI, TLI));
+    BFI.reset(new BlockFrequencyInfo(F, *BPI, LI));
+  }
+
+  bool Changed = Impl.runImpl(F, TLI, LVI, AA, HasProfileData, std::move(BFI),
+                              std::move(BPI));
+  if (PrintLVIAfterJumpThreading) {
+    dbgs() << "LVI for function '" << F.getName() << "':\n";
+    LVI->printLVI(F, getAnalysis<DominatorTreeWrapperPass>().getDomTree(),
+                  dbgs());
+  }
+  return Changed;
+}
+
+bool LateJumpThreading::runOnFunction(Function &F) {
   if (skipFunction(F))
     return false;
   auto TLI = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
@@ -1791,7 +1853,7 @@ bool JumpThreadingPass::ThreadEdge(BasicBlock *BB,
 
   // If threading this would thread across a loop header, don't thread the edge.
   // See the comments above FindLoopHeaders for justifications and caveats.
-  if (LoopHeaders.count(BB) || LoopHeaders.count(SuccBB)) {
+  if (LoopHeaders.count(BB) || (!IsLate && LoopHeaders.count(SuccBB))) {
     DEBUG({
       bool BBIsHeader = LoopHeaders.count(BB);
       bool SuccIsHeader = LoopHeaders.count(SuccBB);
