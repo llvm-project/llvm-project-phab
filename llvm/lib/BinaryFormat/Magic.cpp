@@ -196,6 +196,10 @@ file_magic llvm::identify_magic(StringRef Magic) {
       return file_magic::coff_object;
     break;
 
+  case 0x2d: // Tapi File '-'
+    if (startswith(Magic, "---\narchs:") || startswith(Magic, "--- !tapi"))
+      return file_magic::tapi_file;
+
   default:
     break;
   }

@@ -77,6 +77,7 @@ Expected<std::unique_ptr<Binary>> object::createBinary(MemoryBufferRef Buffer,
     return WindowsResource::createWindowsResource(Buffer);
   case file_magic::unknown:
   case file_magic::coff_cl_gl_object:
+  case file_magic::tapi_file:
     // Unrecognized object file format.
     return errorCodeToError(object_error::invalid_file_type);
   }
