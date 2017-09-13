@@ -309,7 +309,6 @@ void SetSoftRssLimitExceededCallback(void (*Callback)(bool exceeded));
 typedef void (*SignalHandlerType)(int, void *, void *);
 HandleSignalMode GetHandleSignalMode(int signum);
 void InstallDeadlySignalHandlers(SignalHandlerType handler);
-const char *DescribeSignalOrException(int signo);
 // Signal reporting.
 void StartReportDeadlySignal();
 bool IsStackOverflow(const SignalContext &sig);
@@ -828,7 +827,7 @@ struct SignalContext {
   int Get() const;
 
   // String description of the signal.
-  const char *Describe() const { return DescribeSignalOrException(Get()); }
+  const char *Describe() const;
 };
 
 void GetPcSpBp(void *context, uptr *pc, uptr *sp, uptr *bp);

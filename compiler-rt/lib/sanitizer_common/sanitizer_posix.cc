@@ -310,8 +310,8 @@ int SignalContext::Get() const {
   return static_cast<const siginfo_t *>(siginfo)->si_signo;
 }
 
-const char *DescribeSignalOrException(int signo) {
-  switch (signo) {
+const char *SignalContext::Describe() const {
+  switch (Get()) {
     case SIGFPE:
       return "FPE";
     case SIGILL:
