@@ -41,8 +41,13 @@ void promoteInternals(Module &ExportM, Module &ImportM, StringRef ModuleId,
 
     auto Name = ExportGV.getName();
     GlobalValue *ImportGV = ImportM.getNamedValue(Name);
-    if ((!ImportGV || ImportGV->use_empty()) && !PromoteExtra.count(&ExportGV))
-      continue;
+    if (!PromoteExtra.count(&ExportGV)) {
+      if (!ImportGV)
+        continue;
+      ImportGV->removeDeadConstantUsers();
+      if (ImportGV->use_empty())
+        continue;
+    }
 
     std::string NewName = (Name + ModuleId).str();
 
