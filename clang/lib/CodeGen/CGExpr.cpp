@@ -924,6 +924,7 @@ Address CodeGenFunction::EmitPointerWithAlignment(const Expr *E,
     // Non-converting casts (but not C's implicit conversion from void*).
     case CK_BitCast:
     case CK_NoOp:
+    case CK_AddressSpaceConversion:
       if (auto PtrTy = CE->getSubExpr()->getType()->getAs<PointerType>()) {
         if (PtrTy->getPointeeType()->isVoidType())
           break;
@@ -953,7 +954,8 @@ Address CodeGenFunction::EmitPointerWithAlignment(const Expr *E,
                                       CE->getLocStart());
         }
 
-        return Builder.CreateBitCast(Addr, ConvertType(E->getType()));
+        return Builder.CreatePointerBitCastOrAddrSpaceCast(
+            Addr, ConvertType(E->getType()));
       }
       break;
 
