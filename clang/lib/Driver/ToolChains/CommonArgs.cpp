@@ -366,9 +366,7 @@ unsigned tools::getLTOParallelism(const ArgList &Args, const Driver &D) {
 // CloudABI and WebAssembly use -ffunction-sections and -fdata-sections by
 // default.
 bool tools::isUseSeparateSections(const llvm::Triple &Triple) {
-  return Triple.getOS() == llvm::Triple::CloudABI ||
-         Triple.getArch() == llvm::Triple::wasm32 ||
-         Triple.getArch() == llvm::Triple::wasm64;
+  return Triple.getOS() == llvm::Triple::CloudABI;
 }
 
 void tools::AddGoldPlugin(const ToolChain &ToolChain, const ArgList &Args,
