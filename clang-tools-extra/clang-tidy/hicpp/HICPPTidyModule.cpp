@@ -35,6 +35,7 @@
 #include "../readability/FunctionSizeCheck.h"
 #include "../readability/IdentifierNamingCheck.h"
 #include "ExceptionBaseclassCheck.h"
+#include "MultiwayPathsCoveredCheck.h"
 #include "NoAssemblerCheck.h"
 #include "SignedBitwiseCheck.h"
 
@@ -57,6 +58,8 @@ public:
         "hicpp-explicit-conversions");
     CheckFactories.registerCheck<readability::FunctionSizeCheck>(
         "hicpp-function-size");
+    CheckFactories.registerCheck<MultiwayPathsCoveredCheck>(
+        "hicpp-multiway-paths-covered");
     CheckFactories.registerCheck<readability::IdentifierNamingCheck>(
         "hicpp-named-parameter");
     CheckFactories.registerCheck<misc::UseAfterMoveCheck>(
