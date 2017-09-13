@@ -309,7 +309,6 @@ void SetSoftRssLimitExceededCallback(void (*Callback)(bool exceeded));
 typedef void (*SignalHandlerType)(int, void *, void *);
 HandleSignalMode GetHandleSignalMode(int signum);
 void InstallDeadlySignalHandlers(SignalHandlerType handler);
-const char *DescribeSignalOrException(int signo);
 // Signal reporting.
 void StartReportDeadlySignal();
 bool IsStackOverflow(const SignalContext &sig);
@@ -805,6 +804,9 @@ struct SignalContext {
 
   enum WriteFlag { UNKNOWN, READ, WRITE } write_flag;
 
+  // VS2013 doesn't implement unrestricted unions, so we need a trivial default
+  // constructor
+  SignalContext() = default;
   SignalContext(void *siginfo, void *context, uptr addr, uptr pc, uptr sp,
                 uptr bp, bool is_memory_access, WriteFlag write_flag)
       : siginfo(siginfo),
@@ -828,7 +830,7 @@ struct SignalContext {
   int Get() const;
 
   // String description of the signal.
-  const char *Describe() const { return DescribeSignalOrException(Get()); }
+  const char *Describe() const;
 };
 
 void GetPcSpBp(void *context, uptr *pc, uptr *sp, uptr *bp);
