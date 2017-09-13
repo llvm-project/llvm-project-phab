@@ -370,6 +370,7 @@ template <> struct MappingTraits<FormatStyle> {
     IO.mapOptional("MacroBlockEnd", Style.MacroBlockEnd);
     IO.mapOptional("MaxEmptyLinesToKeep", Style.MaxEmptyLinesToKeep);
     IO.mapOptional("NamespaceIndentation", Style.NamespaceIndentation);
+    IO.mapOptional("NamespaceMacros", Style.NamespaceMacros);
     IO.mapOptional("ObjCBlockIndentWidth", Style.ObjCBlockIndentWidth);
     IO.mapOptional("ObjCSpaceAfterProperty", Style.ObjCSpaceAfterProperty);
     IO.mapOptional("ObjCSpaceBeforeProtocolList",
@@ -405,6 +406,7 @@ template <> struct MappingTraits<FormatStyle> {
     IO.mapOptional("SpacesInParentheses", Style.SpacesInParentheses);
     IO.mapOptional("SpacesInSquareBrackets", Style.SpacesInSquareBrackets);
     IO.mapOptional("Standard", Style.Standard);
+    IO.mapOptional("StatementMacros", Style.StatementMacros);
     IO.mapOptional("TabWidth", Style.TabWidth);
     IO.mapOptional("UseTab", Style.UseTab);
   }
@@ -637,6 +639,8 @@ FormatStyle getLLVMStyle() {
   LLVMStyle.DisableFormat = false;
   LLVMStyle.SortIncludes = true;
   LLVMStyle.SortUsingDeclarations = true;
+  LLVMStyle.StatementMacros.push_back("Q_UNUSED");
+  LLVMStyle.StatementMacros.push_back("QT_REQUIRE_VERSION");
 
   return LLVMStyle;
 }
