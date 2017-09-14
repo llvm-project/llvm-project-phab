@@ -685,6 +685,15 @@ def DIVDE : XOForm_1<31, 425, 0, (outs g8rc:$rT), (ins g8rc:$rA, g8rc:$rB),
                      isPPC64, Requires<[HasExtDiv]>;
 
 let Predicates = [IsISA3_0] in {
+def MADDHD : VAForm_1a<48, (outs g8rc :$RT), (ins g8rc:$RA, g8rc:$RB, g8rc:$RC),
+                       "maddhd $RT, $RA, $RB, $RC", IIC_IntMulHD, []>;
+def MADDHDU : VAForm_1a<49, (outs g8rc :$RT), (ins g8rc:$RA, g8rc:$RB, g8rc:$RC),
+                       "maddhdu $RT, $RA, $RB, $RC", IIC_IntMulHD, []>;
+def MADDLD : VAForm_1a<51, (outs g8rc :$RT), (ins g8rc:$RA, g8rc:$RB, g8rc:$RC),
+                       "maddld $RT, $RA, $RB, $RC", IIC_IntMulHD, []>;
+}
+
+let Predicates = [IsISA3_0] in {
 def MODSD : XForm_8<31, 777, (outs g8rc:$rT), (ins g8rc:$rA, g8rc:$rB),
                         "modsd $rT, $rA, $rB", IIC_IntDivW,
                         [(set i64:$rT, (srem i64:$rA, i64:$rB))]>;
