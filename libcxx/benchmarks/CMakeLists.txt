@@ -143,7 +143,16 @@ endmacro()
 #==============================================================================
 # Register Benchmark tests
 #==============================================================================
-file(GLOB BENCHMARK_TESTS "*.bench.cpp")
+include(LLVMProcessSources)
+set(BENCHMARK_TESTS
+      algorithms.bench.cpp
+      filesystem.bench.cpp
+      string.bench.cpp
+      stringstream.bench.cpp
+      unordered_set_operations.bench.cpp
+      util_smartptr.bench.cpp
+      vector_operations.bench.cpp)
+llvm_check_source_file_list(${BENCHMARK_TESTS})
 foreach(test_path ${BENCHMARK_TESTS})
   get_filename_component(test_file "${test_path}" NAME)
   string(REPLACE ".bench.cpp" "" test_name "${test_file}")

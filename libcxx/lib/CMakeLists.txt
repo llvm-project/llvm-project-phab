@@ -1,13 +1,48 @@
 set(LIBCXX_LIB_CMAKEFILES_DIR "${CMAKE_CURRENT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}"  PARENT_SCOPE)
 
-# Get sources
-# FIXME: Don't use glob here
-file(GLOB LIBCXX_SOURCES ../src/*.cpp)
+include(LLVMProcessSources)
+set(LIBCXX_SOURCES
+      ../src/algorithm.cpp
+      ../src/any.cpp
+      ../src/bind.cpp
+      ../src/chrono.cpp
+      ../src/condition_variable.cpp
+      ../src/debug.cpp
+      ../src/exception.cpp
+      ../src/functional.cpp
+      ../src/future.cpp
+      ../src/hash.cpp
+      ../src/ios.cpp
+      ../src/iostream.cpp
+      ../src/locale.cpp
+      ../src/memory.cpp
+      ../src/mutex.cpp
+      ../src/new.cpp
+      ../src/optional.cpp
+      ../src/random.cpp
+      ../src/regex.cpp
+      ../src/shared_mutex.cpp
+      ../src/stdexcept.cpp
+      ../src/string.cpp
+      ../src/strstream.cpp
+      ../src/system_error.cpp
+      ../src/thread.cpp
+      ../src/typeinfo.cpp
+      ../src/utility.cpp
+      ../src/valarray.cpp
+      ../src/variant.cpp
+      ../src/vector.cpp)
+llvm_check_source_file_list(${LIBCXX_SOURCES} SOURCE_DIR ../src)
 if(WIN32)
-  file(GLOB LIBCXX_WIN32_SOURCES ../src/support/win32/*.cpp)
+  set(LIBCXX_WIN32_SOURCES
+        ../src/support/win32/locale_win32.cpp
+        ../src/support/win32/support.cpp)
+  llvm_check_source_file_list(${LIBCXX_WIN32_SOURCES} SOURCE_DIR ../src/support/win32)
   list(APPEND LIBCXX_SOURCES ${LIBCXX_WIN32_SOURCES})
 elseif("${CMAKE_SYSTEM_NAME}" STREQUAL "SunOS")
-  file(GLOB LIBCXX_SOLARIS_SOURCES ../src/support/solaris/*.cpp)
+  set(LIBCXX_SOLARIS_SOURCES
+        ../src/support/solaris/xlocale.cpp)
+  llvm_check_source_file_list(${LIBCXX_SOLARIS_SOURCES} SOURCE_DIR ../src/support/solaris)
   list(APPEND LIBCXX_SOURCES ${LIBCXX_SOLARIS_SOURCES})
 endif()
 
@@ -283,9 +318,15 @@ endif()
 add_custom_target(cxx DEPENDS ${LIBCXX_TARGETS})
 
 if (LIBCXX_ENABLE_EXPERIMENTAL_LIBRARY)
-  file(GLOB LIBCXX_EXPERIMENTAL_SOURCES ../src/experimental/*.cpp)
+  set(LIBCXX_EXPERIMENTAL_SOURCES
+        ../src/experimental/memory_resource.cpp)
+  llvm_check_source_file_list(${LIBCXX_EXPERIMENTAL_SOURCES} SOURCE_DIR ../src/experimental)
   if (LIBCXX_ENABLE_FILESYSTEM)
-    file(GLOB LIBCXX_FILESYSTEM_SOURCES ../src/experimental/filesystem/*.cpp)
+    set(LIBCXX_FILESYSTEM_SOURCES
+          ../src/experimental/filesystem/directory_iterator.cpp
+          ../src/experimental/filesystem/operations.cpp
+          ../src/experimental/filesystem/path.cpp)
+    llvm_check_source_file_list(${LIBCXX_FILESYSTEM_SOURCES} SOURCE_DIR ../src/experimental/filesystem)
   endif()
   add_library(cxx_experimental STATIC ${LIBCXX_EXPERIMENTAL_SOURCES} ${LIBCXX_FILESYSTEM_SOURCES})
   if (LIBCXX_ENABLE_SHARED)
