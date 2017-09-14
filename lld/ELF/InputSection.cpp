@@ -83,7 +83,10 @@ InputSectionBase::InputSectionBase(InputFile *File, uint64_t Flags,
     : SectionBase(SectionKind, Name, Flags, Entsize, Alignment, Type, Info,
                   Link),
       File(File), Data(Data), Repl(this) {
-  Live = !Config->GcSections || !(Flags & SHF_ALLOC);
+  Live = !Config->GcSections;
+  if (!(Flags & SHF_ALLOC))
+    Live = Type != SHT_REL && Type != SHT_RELA;
+
   Assigned = false;
   NumRelocations = 0;
   AreRelocsRela = false;
