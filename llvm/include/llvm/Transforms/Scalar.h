@@ -251,6 +251,7 @@ FunctionPass *createReassociatePass();
 // internal BB duplication default threshold.
 //
 FunctionPass *createJumpThreadingPass(int Threshold = -1);
+FunctionPass *createLateJumpThreadingPass(int Threshold = -1);
 
 //===----------------------------------------------------------------------===//
 //

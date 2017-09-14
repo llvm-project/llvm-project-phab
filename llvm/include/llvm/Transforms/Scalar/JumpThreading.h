@@ -66,6 +66,7 @@ class JumpThreadingPass : public PassInfoMixin<JumpThreadingPass> {
   std::unique_ptr<BranchProbabilityInfo> BPI;
   bool HasProfileData = false;
   bool HasGuards = false;
+  bool IsLate = false;
 #ifdef NDEBUG
   SmallPtrSet<const BasicBlock *, 16> LoopHeaders;
 #else
@@ -88,7 +89,7 @@ class JumpThreadingPass : public PassInfoMixin<JumpThreadingPass> {
   };
 
 public:
-  JumpThreadingPass(int T = -1);
+  JumpThreadingPass(int T = -1, bool Late = false);
 
   // Glue for old PM.
   bool runImpl(Function &F, TargetLibraryInfo *TLI_, LazyValueInfo *LVI_,
@@ -137,6 +138,11 @@ private:
                                     BasicBlock *NewBB, BasicBlock *SuccBB);
   /// Check if the block has profile metadata for its outgoing edges.
   bool doesBlockHaveProfileData(BasicBlock *BB);
+};
+
+class LateJumpThreadingPass : public JumpThreadingPass {
+public:
+  LateJumpThreadingPass(int T = -1) : JumpThreadingPass(T, true) {}
 };
 
 } // end namespace llvm

@@ -86,14 +86,12 @@ namespace {
   /// In this case, the unconditional branch at the end of the first if can be
   /// revectored to the false side of the second if.
   ///
-  class JumpThreading : public FunctionPass {
+  class JumpThreadingBase : public FunctionPass {
     JumpThreadingPass Impl;
 
   public:
-    static char ID; // Pass identification
-    JumpThreading(int T = -1) : FunctionPass(ID), Impl(T) {
-      initializeJumpThreadingPass(*PassRegistry::getPassRegistry());
-    }
+    JumpThreadingBase(int T, bool Late, char &ID)
+      : FunctionPass(ID), Impl(T, false) {}
 
     bool runOnFunction(Function &F) override;
 
@@ -108,6 +106,24 @@ namespace {
 
     void releaseMemory() override { Impl.releaseMemory(); }
   };
+
+  class JumpThreading : public JumpThreadingBase {
+  public:
+    static char ID; // Pass identification
+    JumpThreading(int T = -1) : JumpThreadingBase(T, false, ID) {
+      initializeJumpThreadingPass(*PassRegistry::getPassRegistry());
+    }
+  };
+
+  class LateJumpThreading : public JumpThreadingBase {
+    JumpThreadingPass Impl;
+
+  public:
+    static char ID; // Pass identification
+    LateJumpThreading(int T = -1) : JumpThreadingBase(T, false, ID) {
+      initializeLateJumpThreadingPass(*PassRegistry::getPassRegistry());
+    }
+  };
 }
 
 char JumpThreading::ID = 0;
@@ -119,10 +135,24 @@ INITIALIZE_PASS_DEPENDENCY(AAResultsWrapperPass)
 INITIALIZE_PASS_END(JumpThreading, "jump-threading",
                 "Jump Threading", false, false)
 
-// Public interface to the Jump Threading pass
-FunctionPass *llvm::createJumpThreadingPass(int Threshold) { return new JumpThreading(Threshold); }
+char LateJumpThreading::ID = 0;
+INITIALIZE_PASS_BEGIN(LateJumpThreading, "late-jump-threading",
+                "Late Jump Threading", false, false)
+INITIALIZE_PASS_DEPENDENCY(LazyValueInfoWrapperPass)
+INITIALIZE_PASS_DEPENDENCY(TargetLibraryInfoWrapperPass)
+INITIALIZE_PASS_DEPENDENCY(AAResultsWrapperPass)
+INITIALIZE_PASS_END(LateJumpThreading, "late-jump-threading",
+                "Late Jump Threading", false, false)
 
-JumpThreadingPass::JumpThreadingPass(int T) {
+// Public interface to the Jump Threading pass
+FunctionPass *llvm::createJumpThreadingPass(int Threshold) {
+  return new JumpThreading(Threshold);
+}
+FunctionPass *llvm::createLateJumpThreadingPass(int Threshold) {
+  return new LateJumpThreading(Threshold);
+}
+
+JumpThreadingPass::JumpThreadingPass(int T, bool Late) : IsLate(Late) {
   BBDupThreshold = (T == -1) ? BBDuplicateThreshold : unsigned(T);
 }
 
@@ -237,7 +267,7 @@ static void updatePredecessorProfileMetadata(PHINode *PN, BasicBlock *BB) {
 
 /// runOnFunction - Toplevel algorithm.
 ///
-bool JumpThreading::runOnFunction(Function &F) {
+bool JumpThreadingBase::runOnFunction(Function &F) {
   if (skipFunction(F))
     return false;
   auto TLI = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
@@ -1791,7 +1821,7 @@ bool JumpThreadingPass::ThreadEdge(BasicBlock *BB,
 
   // If threading this would thread across a loop header, don't thread the edge.
   // See the comments above FindLoopHeaders for justifications and caveats.
-  if (LoopHeaders.count(BB) || LoopHeaders.count(SuccBB)) {
+  if (LoopHeaders.count(BB) || (!IsLate && LoopHeaders.count(SuccBB))) {
     DEBUG({
       bool BBIsHeader = LoopHeaders.count(BB);
       bool SuccIsHeader = LoopHeaders.count(SuccBB);
