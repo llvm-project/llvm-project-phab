@@ -84,6 +84,7 @@
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetOptions.h"
 #include "llvm/Target/TargetSubtargetInfo.h"
+#include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/BypassSlowDivision.h"
 #include "llvm/Transforms/Utils/Cloning.h"
@@ -266,6 +267,7 @@ class TypePromotionTransaction;
       AU.addRequired<TargetLibraryInfoWrapperPass>();
       AU.addRequired<TargetTransformInfoWrapperPass>();
       AU.addRequired<LoopInfoWrapperPass>();
+      AU.addRequiredID(LoopSimplifyID);
     }
 
   private:
@@ -314,6 +316,7 @@ char CodeGenPrepare::ID = 0;
 
 INITIALIZE_PASS_BEGIN(CodeGenPrepare, DEBUG_TYPE,
                       "Optimize for code generation", false, false)
+INITIALIZE_PASS_DEPENDENCY(LoopSimplify)
 INITIALIZE_PASS_DEPENDENCY(ProfileSummaryInfoWrapperPass)
 INITIALIZE_PASS_END(CodeGenPrepare, DEBUG_TYPE,
                     "Optimize for code generation", false, false)

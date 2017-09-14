@@ -84,6 +84,8 @@ static cl::opt<bool> DisableLSR("disable-lsr", cl::Hidden,
     cl::desc("Disable Loop Strength Reduction Pass"));
 static cl::opt<bool> DisableConstantHoisting("disable-constant-hoisting",
     cl::Hidden, cl::desc("Disable ConstantHoisting"));
+static cl::opt<bool> DisableLateJumpThreading("disable-late-jt", cl::Hidden,
+    cl::desc("Disable Late Jump Threading"));
 static cl::opt<bool> DisableCGP("disable-cgp", cl::Hidden,
     cl::desc("Disable Codegen Prepare"));
 static cl::opt<bool> DisableCopyProp("disable-copyprop", cl::Hidden,
@@ -664,6 +666,8 @@ void TargetPassConfig::addPassesToHandleExceptions() {
 /// Add pass to prepare the LLVM IR for code generation. This should be done
 /// before exception handling preparation passes.
 void TargetPassConfig::addCodeGenPrepare() {
+  if (getOptLevel() != CodeGenOpt::None && !DisableLateJumpThreading)
+    addPass(createLateJumpThreadingPass());
   if (getOptLevel() != CodeGenOpt::None && !DisableCGP)
     addPass(createCodeGenPreparePass());
   addPass(createRewriteSymbolsPass());
