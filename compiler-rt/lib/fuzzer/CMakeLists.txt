@@ -32,6 +32,20 @@ CHECK_CXX_SOURCE_COMPILES("
 
 set(LIBFUZZER_CFLAGS ${SANITIZER_COMMON_CFLAGS})
 
+option(COMPILER_RT_ENABLE_LIBCXX "Use libc++ if available." OFF)
+
+if (COMPILER_RT_ENABLE_LIBCXX)
+  check_cxx_compiler_flag("-stdlib=libc++" COMPILER_RT_CXX_SUPPORTS_STDLIB)
+  if(COMPILER_RT_CXX_SUPPORTS_STDLIB)
+    list(APPEND LIBFUZZER_CFLAGS -stdlib=libc++)
+    if(COMPILER_RT_HAS_LIBCXX_SOURCES)
+      list(APPEND LIBFUZZER_CFLAGS -D_LIBCPP_ABI_VERSION=Fuzzer)
+    endif()
+  else()
+    message(WARNING "Can't specify libc++ with '-stdlib='")
+  endif()
+endif()
+
 if (CMAKE_CXX_FLAGS MATCHES "fsanitize-coverage")
   list(APPEND LIBFUZZER_CFLAGS -fno-sanitize-coverage=trace-pc-guard,edge,trace-cmp,indirect-calls,8bit-counters)
 endif()
@@ -71,6 +85,24 @@ add_compiler_rt_runtime(clang_rt.fuzzer_no_main
   OBJECT_LIBS RTfuzzer
   CFLAGS ${LIBFUZZER_CFLAGS}
   PARENT_TARGET fuzzer)
+
+if(COMPILER_RT_ENABLE_LIBCXX AND COMPILER_RT_CXX_SUPPORTS_STDLIB AND COMPILER_RT_HAS_LIBCXX_SOURCES)
+  foreach(arch ${FUZZER_SUPPORTED_ARCH})
+    get_target_flags_for_arch(${arch} TARGET_CFLAGS)
+    set(LIBCXX_PREFIX ${CMAKE_CURRENT_BINARY_DIR}/libcxx_fuzzer_${arch})
+    add_custom_libcxx(libcxx_fuzzer_${arch} ${LIBCXX_PREFIX}
+      CFLAGS ${TARGET_CFLAGS} -D_LIBCPP_ABI_VERSION=Fuzzer)
+    add_dependencies(clang_rt.fuzzer-${arch} libcxx_fuzzer_${arch})
+    add_custom_command(TARGET clang_rt.fuzzer-${arch} POST_BUILD
+      COMMAND
+        ${PYTHON_EXECUTABLE} ${COMPILER_RT_LIBCXX_PATH}/utils/merge_archives.py
+      ARGS
+        -o $<TARGET_LINKER_FILE:clang_rt.fuzzer-${arch}>
+        "$<TARGET_LINKER_FILE:clang_rt.fuzzer-${arch}>"
+        "${CMAKE_CURRENT_BINARY_DIR}/libcxx_fuzzer_${arch}/lib/libc++.a"
+    )
+  endforeach()
+endif()
 
 if(COMPILER_RT_INCLUDE_TESTS)
   add_subdirectory(tests)
