@@ -40,6 +40,7 @@ namespace {
 
     DominatorTree *DT;
     const TargetLowering *TLI;
+    bool PruneUnreachableResumes;
 
     bool InsertUnwindResumeCalls(Function &Fn);
     Value *GetExceptionObject(ResumeInst *RI);
@@ -51,9 +52,9 @@ namespace {
   public:
     static char ID; // Pass identification, replacement for typeid.
 
-    DwarfEHPrepare()
-        : FunctionPass(ID), RewindFunction(nullptr), DT(nullptr), TLI(nullptr) {
-    }
+    DwarfEHPrepare(bool PruneUnreachableResumes = true)
+        : FunctionPass(ID), RewindFunction(nullptr), DT(nullptr), TLI(nullptr),
+          PruneUnreachableResumes(PruneUnreachableResumes) {}
 
     bool runOnFunction(Function &Fn) override;
 
@@ -79,7 +80,9 @@ INITIALIZE_PASS_DEPENDENCY(TargetTransformInfoWrapperPass)
 INITIALIZE_PASS_END(DwarfEHPrepare, DEBUG_TYPE,
                     "Prepare DWARF exceptions", false, false)
 
-FunctionPass *llvm::createDwarfEHPass() { return new DwarfEHPrepare(); }
+FunctionPass *llvm::createDwarfEHPass(bool PruneUnreachableResumes) {
+  return new DwarfEHPrepare(PruneUnreachableResumes);
+}
 
 void DwarfEHPrepare::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<TargetPassConfig>();
@@ -192,9 +195,12 @@ bool DwarfEHPrepare::InsertUnwindResumeCalls(Function &Fn) {
 
   LLVMContext &Ctx = Fn.getContext();
 
-  size_t ResumesLeft = pruneUnreachableResumes(Fn, Resumes, CleanupLPads);
-  if (ResumesLeft == 0)
-    return true; // We pruned them all.
+  size_t ResumesLeft = Resumes.size();
+  if (PruneUnreachableResumes) {
+    ResumesLeft = pruneUnreachableResumes(Fn, Resumes, CleanupLPads);
+    if (ResumesLeft == 0)
+      return true; // We pruned them all.
+  }
 
   // Find the rewind function if we didn't already.
   if (!RewindFunction) {
