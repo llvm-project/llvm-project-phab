@@ -57,6 +57,14 @@ static bool isARMBareMetal(const llvm::Triple &Triple) {
   return true;
 }
 
+bool BareMetal::IsUnwindTablesDefault(const ArgList &Args) const {
+  // Unwind tables are not emitted in C or if -fno-exceptions is supplied.
+  // For C++ we cannot rely on UWTable because we still need the .exidx section
+  // even if the function does not throw.
+  return Args.hasFlag(options::OPT_fexceptions, options::OPT_fno_exceptions,
+		      getDriver().CCCIsCXX());
+}
+
 bool BareMetal::handlesTarget(const llvm::Triple &Triple) {
   return isARMBareMetal(Triple);
 }
