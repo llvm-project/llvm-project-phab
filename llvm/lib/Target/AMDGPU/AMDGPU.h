@@ -40,6 +40,7 @@ FunctionPass *createR600ISelDag(TargetMachine *TM, CodeGenOpt::Level OptLevel);
 FunctionPass *createSIAnnotateControlFlowPass();
 FunctionPass *createSIFoldOperandsPass();
 FunctionPass *createSIPeepholeSDWAPass();
+FunctionPass *createSIMergeSDWAPreservePass();
 FunctionPass *createSILowerI1CopiesPass();
 FunctionPass *createSIShrinkInstructionsPass();
 FunctionPass *createSILoadStoreOptimizerPass();
@@ -96,6 +97,9 @@ extern char &SIFoldOperandsID;
 
 void initializeSIPeepholeSDWAPass(PassRegistry &);
 extern char &SIPeepholeSDWAID;
+
+void initializeSIMergeSDWAPreservePass(PassRegistry &);
+extern char &SIMergeSDWAPreserveID;
 
 void initializeSIShrinkInstructionsPass(PassRegistry&);
 extern char &SIShrinkInstructionsID;

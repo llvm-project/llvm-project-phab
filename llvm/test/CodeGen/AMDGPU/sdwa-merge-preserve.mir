@@ -1,0 +1,98 @@
+# RUN: llc -march=amdgcn -mcpu=fiji -run-pass=si-merge-sdwa-preserve -verify-machineinstrs -o - %s | FileCheck -check-prefix=SDWA %s
+# RUN: llc -march=amdgcn -mcpu=gfx900 -run-pass=si-merge-sdwa-preserve -verify-machineinstrs -o - %s | FileCheck -check-prefix=SDWA %s
+
+# SDWA-LABEL: {{^}}name: add_f16
+
+# SDWA: [[FIRST:%[0-9]+]] = FLAT_LOAD_DWORD %{{[0-9]+}}, 0, 0, 0, implicit %exec, implicit %flat_scr :: (load 4)
+# SDWA: [[SECOND:%[0-9]+]] = FLAT_LOAD_DWORD %{{[0-9]+}}, 0, 0, 0, implicit %exec, implicit %flat_scr :: (load 4)
+
+# SDWA: [[RES:%[0-9]+]] = V_ADD_F16_e64 0, [[FIRST]], 0, [[SECOND]], 0, 0, implicit %exec
+# SDWA: [[RES:%[0-9]+]] = V_ADD_F16_sdwa 0, [[FIRST]], 0, [[SECOND]], 0, 0, 5, 2, 5, 5, implicit %exec, implicit [[RES]]
+# SDWA: [[COPY:%[0-9]+]] = COPY [[RES]]
+
+# SDWA: FLAT_STORE_DWORD %{{[0-9]+}}, [[COPY:%[0-9]+]], 0, 0, 0, implicit %exec, implicit %flat_scr :: (store 4)
+
+---
+name:            add_f16
+tracksRegLiveness: true
+registers:       
+  - { id: 0, class: vreg_64 }
+  - { id: 1, class: vreg_64 }
+  - { id: 2, class: sreg_64 }
+  - { id: 3, class: vgpr_32 }
+  - { id: 4, class: vgpr_32 }
+  - { id: 5, class: sreg_32_xm0 }
+  - { id: 6, class: sreg_32 }
+  - { id: 7, class: sreg_32_xm0 }
+  - { id: 8, class: sreg_32 }
+  - { id: 9, class: vgpr_32 }
+  - { id: 10, class: vgpr_32 }
+  - { id: 11, class: vgpr_32 }
+  - { id: 12, class: sreg_32_xm0 }
+body:             |
+  bb.0:
+    liveins: %vgpr0_vgpr1, %vgpr2_vgpr3, %sgpr30_sgpr31
+  
+    %2 = COPY %sgpr30_sgpr31
+    %1 = COPY %vgpr2_vgpr3
+    %0 = COPY %vgpr0_vgpr1
+    ; This is needed to force MIR to treat this as non-SSA
+    %0 = COPY %vgpr0_vgpr1
+    %3 = FLAT_LOAD_DWORD %0, 0, 0, 0, implicit %exec, implicit %flat_scr :: (load 4)
+    %4 = FLAT_LOAD_DWORD %1, 0, 0, 0, implicit %exec, implicit %flat_scr :: (load 4)
+
+    %10 = V_ADD_F16_e64 0, %3, 0, %4, 0, 0, implicit %exec
+    %11 = V_ADD_F16_sdwa 0, %3, 0, %4, 0, 0, 5, 2, 5, 5, implicit %exec, implicit %10
+
+    FLAT_STORE_DWORD %0, %11, 0, 0, 0, implicit %exec, implicit %flat_scr :: (store 4)
+    %sgpr30_sgpr31 = COPY %2
+    S_SETPC_B64_return %sgpr30_sgpr31
+
+...
+
+# SDWA-LABEL: {{^}}name: add_f16_no_merge
+
+# SDWA: [[FIRST:%[0-9]+]] = FLAT_LOAD_DWORD %{{[0-9]+}}, 0, 0, 0, implicit %exec, implicit %flat_scr :: (load 4)
+# SDWA: [[SECOND:%[0-9]+]] = FLAT_LOAD_DWORD %{{[0-9]+}}, 0, 0, 0, implicit %exec, implicit %flat_scr :: (load 4)
+
+# SDWA: [[LOW:%[0-9]+]] = V_ADD_F16_e64 0, [[FIRST]], 0, [[SECOND]], 0, 0, implicit %exec
+# SDWA: [[HIGH:%[0-9]+]] = V_ADD_F16_sdwa 0, [[FIRST]], 0, [[SECOND]], 0, 0, 5, 2, 5, 5, implicit %exec
+
+# SDWA: FLAT_STORE_DWORD %{{[0-9]+}}, [[HIGH:%[0-9]+]], 0, 0, 0, implicit %exec, implicit %flat_scr :: (store 4)
+
+---
+name:            add_f16_no_merge
+tracksRegLiveness: true
+registers:       
+  - { id: 0, class: vreg_64 }
+  - { id: 1, class: vreg_64 }
+  - { id: 2, class: sreg_64 }
+  - { id: 3, class: vgpr_32 }
+  - { id: 4, class: vgpr_32 }
+  - { id: 5, class: sreg_32_xm0 }
+  - { id: 6, class: sreg_32 }
+  - { id: 7, class: sreg_32_xm0 }
+  - { id: 8, class: sreg_32 }
+  - { id: 9, class: vgpr_32 }
+  - { id: 10, class: vgpr_32 }
+  - { id: 11, class: vgpr_32 }
+  - { id: 12, class: sreg_32_xm0 }
+body:             |
+  bb.0:
+    liveins: %vgpr0_vgpr1, %vgpr2_vgpr3, %sgpr30_sgpr31
+  
+    %2 = COPY %sgpr30_sgpr31
+    %1 = COPY %vgpr2_vgpr3
+    %0 = COPY %vgpr0_vgpr1
+    ; This is needed to force MIR to treat this as non-SSA
+    %0 = COPY %vgpr0_vgpr1
+    %3 = FLAT_LOAD_DWORD %0, 0, 0, 0, implicit %exec, implicit %flat_scr :: (load 4)
+    %4 = FLAT_LOAD_DWORD %1, 0, 0, 0, implicit %exec, implicit %flat_scr :: (load 4)
+
+    %10 = V_ADD_F16_e64 0, %3, 0, %4, 0, 0, implicit %exec
+    %11 = V_ADD_F16_sdwa 0, %3, 0, %4, 0, 0, 5, 2, 5, 5, implicit %exec
+
+    FLAT_STORE_DWORD %0, %11, 0, 0, 0, implicit %exec, implicit %flat_scr :: (store 4)
+    %sgpr30_sgpr31 = COPY %2
+    S_SETPC_B64_return %sgpr30_sgpr31
+

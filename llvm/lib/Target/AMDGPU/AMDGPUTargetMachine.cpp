@@ -153,6 +153,7 @@ extern "C" void LLVMInitializeAMDGPUTarget() {
   initializeSIFixVGPRCopiesPass(*PR);
   initializeSIFoldOperandsPass(*PR);
   initializeSIPeepholeSDWAPass(*PR);
+  initializeSIMergeSDWAPreservePass(*PR);
   initializeSIShrinkInstructionsPass(*PR);
   initializeSIOptimizeExecMaskingPreRAPass(*PR);
   initializeSILoadStoreOptimizerPass(*PR);
@@ -814,6 +815,12 @@ void GCNPassConfig::addFastRegAlloc(FunctionPass *RegAllocPass) {
   // machine-level CFG, but before register allocation.
   insertPass(&SILowerControlFlowID, &SIFixWWMLivenessID, false);
 
+  // This must be run before TwoAddressInstructions, otherwise it will introduce
+  // a copy of merged register after SDWA instruction
+  if (EnableSDWAPeephole) {
+    insertPass(&SIFixWWMLivenessID, &SIMergeSDWAPreserveID, false);
+  }
+
   TargetPassConfig::addFastRegAlloc(RegAllocPass);
 }
 
@@ -828,6 +835,12 @@ void GCNPassConfig::addOptimizedRegAlloc(FunctionPass *RegAllocPass) {
   // This must be run after SILowerControlFlow, since it needs to use the
   // machine-level CFG, but before register allocation.
   insertPass(&SILowerControlFlowID, &SIFixWWMLivenessID, false);
+
+  // This must be run before TwoAddressInstructions, otherwise it will introduce
+  // a copy of merged register after SDWA instruction
+  if (EnableSDWAPeephole) {
+    insertPass(&SIFixWWMLivenessID, &SIMergeSDWAPreserveID, false);
+  }
 
   TargetPassConfig::addOptimizedRegAlloc(RegAllocPass);
 }
