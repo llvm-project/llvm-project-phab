@@ -741,6 +741,10 @@ public:
   virtual const RegClassWeight &getRegClassWeight(
     const TargetRegisterClass *RC) const = 0;
 
+  /// Get size of Reg by querying MRI (or the Target if physical Reg).
+  /// Returns 0 if dealing with generic type.
+  unsigned getRegSizeInBits(unsigned Reg, const MachineRegisterInfo &MRI) const;
+
   /// Get the weight in units of pressure for this register unit.
   virtual unsigned getRegUnitWeight(unsigned RegUnit) const = 0;
 

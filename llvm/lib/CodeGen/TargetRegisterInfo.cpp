@@ -421,6 +421,18 @@ bool TargetRegisterInfo::regmaskSubsetEqual(const uint32_t *mask0,
   return true;
 }
 
+unsigned
+TargetRegisterInfo::getRegSizeInBits(unsigned Reg,
+                                     const MachineRegisterInfo &MRI) const {
+  const TargetRegisterClass *RC = nullptr;
+  if (isPhysicalRegister(Reg))
+    RC = getMinimalPhysRegClass(Reg);
+  else
+    RC = MRI.getRegClassOrNull(Reg);
+  if (!RC)
+    return 0;
+  return getRegSizeInBits(*RC);
+}
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
 LLVM_DUMP_METHOD
 void TargetRegisterInfo::dumpReg(unsigned Reg, unsigned SubRegIndex,

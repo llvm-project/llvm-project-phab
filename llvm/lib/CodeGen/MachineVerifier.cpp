@@ -943,6 +943,30 @@ void MachineVerifier::visitMachineInstrBefore(const MachineInstr *MI) {
              MI);
     break;
   }
+  case TargetOpcode::COPY: {
+    const MachineOperand &DstOp = MI->getOperand(0);
+    const MachineOperand &SrcOp = MI->getOperand(1);
+    LLT DstTy = MRI->getType(DstOp.getReg());
+    LLT SrcTy = MRI->getType(SrcOp.getReg());
+    if (SrcTy.isValid() || DstTy.isValid()) {
+      unsigned SrcSize = SrcTy.isValid()
+                             ? SrcTy.getSizeInBits()
+                             : TRI->getRegSizeInBits(SrcOp.getReg(), *MRI);
+      unsigned DstSize = DstTy.isValid()
+                             ? DstTy.getSizeInBits()
+                             : TRI->getRegSizeInBits(DstOp.getReg(), *MRI);
+      assert(SrcSize && "Expecting size here");
+      assert(DstSize && "Expecting size here");
+      if (SrcSize != DstSize)
+        // Catch only obvious cases not involving subregs for now.
+        if (!DstOp.getSubReg() && !SrcOp.getSubReg()) {
+          report("Copy Instruction is illegal with mismatching sizes", MI);
+          errs() << "Def Size = " << DstSize << ", Src Size = " << SrcSize
+                 << "\n";
+        }
+    }
+    break;
+  }
   case TargetOpcode::STATEPOINT:
     if (!MI->getOperand(StatepointOpers::IDPos).isImm() ||
         !MI->getOperand(StatepointOpers::NBytesPos).isImm() ||
