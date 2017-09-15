@@ -185,6 +185,12 @@ MipsTargetMachine::getSubtargetImpl(const Function &F) const {
   if (softFloat)
     FS += FS.empty() ? "+soft-float" : ",+soft-float";
 
+  if (CPU == "mips64r6" && HasMicroMipsAttr) {
+    errs() << "LLVM currently does not support microMIPS for '" << CPU << "'.\n";
+    HasMicroMipsAttr = false;
+    HasNoMicroMipsAttr = true;
+  }
+
   auto &I = SubtargetMap[CPU + FS];
   if (!I) {
     // This needs to be done before we create a new subtarget since any

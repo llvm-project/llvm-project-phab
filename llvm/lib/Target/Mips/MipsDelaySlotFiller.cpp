@@ -598,8 +598,8 @@ bool Filler::runOnMachineBasicBlock(MachineBasicBlock &MBB) {
   const MipsInstrInfo *TII = STI.getInstrInfo();
 
   if (InMicroMipsMode && STI.hasMips32r6()) {
-    // This is microMIPS32r6 or microMIPS64r6 processor. Delay slot for
-    // branching instructions is not needed.
+    // This is microMIPS32r6 processor. Delay slot for branching
+    // instructions is not needed.
     return Changed;
   }
 
