@@ -438,11 +438,13 @@ void NVPTX::OpenMPLinker::ConstructJob(Compilation &C, const JobAction &JA,
     if (!II.isFilename())
       continue;
 
-    SmallString<256> Name = llvm::sys::path::filename(II.getFilename());
+    SmallString<256> Name = llvm::sys::path::relative_path(II.getFilename());
+    SmallString<256> FullPath = llvm::sys::path::root_path(II.getFilename());
     llvm::sys::path::replace_extension(Name, "cubin");
+    llvm::sys::path::append(FullPath, Name);
 
     const char *CubinF =
-        C.addTempFile(C.getArgs().MakeArgString(Name));
+        C.addTempFile(C.getArgs().MakeArgString(FullPath));
 
     CmdArgs.push_back(CubinF);
   }
