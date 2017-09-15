@@ -2338,10 +2338,32 @@ const SCEV *ScalarEvolution::getAddExpr(SmallVectorImpl<const SCEV *> &Ops,
 
   // Check for truncates. If all the operands are truncated from the same
   // type, see if factoring out the truncate would permit the result to be
-  // folded. eg., trunc(x) + m*trunc(n) --> trunc(x + trunc(m)*n)
+  // folded. eg., n*trunc(x) + m*trunc(y) --> trunc(trunc(m)*x + trunc(n)*y)
   // if the contents of the resulting outer trunc fold to something simple.
-  for (; Idx < Ops.size() && isa<SCEVTruncateExpr>(Ops[Idx]); ++Idx) {
-    const SCEVTruncateExpr *Trunc = cast<SCEVTruncateExpr>(Ops[Idx]);
+  auto FindTrunc = [&]() -> const SCEVTruncateExpr* {
+    // Go through the available Ops to see if we have a compatible trunc() to
+    // start processing.
+    for (unsigned i=Idx; i<Ops.size() && Ops[i]->getSCEVType() <= scMulExpr; ++i) {
+      if (isa<SCEVTruncateExpr>(Ops[i])) {
+        return cast<SCEVTruncateExpr>(Ops[i]);
+      } else if (const auto *Mul = dyn_cast<SCEVMulExpr>(Ops[i])) {
+        bool Ok = true;
+        for (unsigned j=0, e=Mul->getNumOperands(); Ok && j<e; ++j) {
+          const auto *Op = Mul->getOperand(j);
+          if (const auto *T = dyn_cast<SCEVTruncateExpr>(Op)) {
+            return T;
+          } else if (!isa<SCEVConstant>(Op)) {
+            Ok = false;
+          }
+        }
+        if (!Ok) break;
+      } else {
+        break;
+      }
+    }
+    return nullptr;
+  };
+  if (const auto *Trunc = FindTrunc()) {
     Type *DstType = Trunc->getType();
     Type *SrcType = Trunc->getOperand()->getType();
     SmallVector<const SCEV *, 8> LargeOps;
