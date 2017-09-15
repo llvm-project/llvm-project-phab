@@ -1236,10 +1236,8 @@ def : Pat<(i32 (anyext GR8 :$src)), (MOVZX32rr8  GR8 :$src)>;
 def : Pat<(i32 (anyext GR16:$src)),
           (INSERT_SUBREG (i32 (IMPLICIT_DEF)), GR16:$src, sub_16bit)>;
 
-def : Pat<(i64 (anyext GR8 :$src)),
-          (SUBREG_TO_REG (i64 0), (MOVZX32rr8  GR8  :$src), sub_32bit)>;
-def : Pat<(i64 (anyext GR16:$src)),
-          (SUBREG_TO_REG (i64 0), (MOVZX32rr16 GR16 :$src), sub_32bit)>;
+def : Pat<(i64 (anyext GR8 :$src)), (MOVZX64rr8_alt  GR8  :$src)>;
+def : Pat<(i64 (anyext GR16:$src)), (MOVZX64rr16_alt GR16 :$src)>;
 def : Pat<(i64 (anyext GR32:$src)),
           (SUBREG_TO_REG (i64 0), GR32:$src, sub_32bit)>;
 
@@ -1412,19 +1410,13 @@ def : Pat<(and GR16:$src1, 0xff),
 
 // r & (2^32-1) ==> movz
 def : Pat<(and GR64:$src, 0x00000000FFFFFFFF),
-          (SUBREG_TO_REG (i64 0),
-                         (MOV32rr (EXTRACT_SUBREG GR64:$src, sub_32bit)),
-                         sub_32bit)>;
+          (MOVZX64rr32 (EXTRACT_SUBREG GR64:$src, sub_32bit))>;
 // r & (2^16-1) ==> movz
 def : Pat<(and GR64:$src, 0xffff),
-          (SUBREG_TO_REG (i64 0),
-                      (MOVZX32rr16 (i16 (EXTRACT_SUBREG GR64:$src, sub_16bit))),
-                      sub_32bit)>;
+          (MOVZX64rr16_alt (i16 (EXTRACT_SUBREG GR64:$src, sub_16bit)))>;
 // r & (2^8-1) ==> movz
 def : Pat<(and GR64:$src, 0xff),
-          (SUBREG_TO_REG (i64 0),
-                         (MOVZX32rr8 (i8 (EXTRACT_SUBREG GR64:$src, sub_8bit))),
-                         sub_32bit)>;
+          (MOVZX64rr8_alt (i8 (EXTRACT_SUBREG GR64:$src, sub_8bit)))>;
 // r & (2^8-1) ==> movz
 def : Pat<(and GR32:$src1, 0xff),
            (MOVZX32rr8 (EXTRACT_SUBREG GR32:$src1, sub_8bit))>,
@@ -1475,6 +1467,12 @@ def: Pat<(i16 (zext GR8:$src)),
           (EXTRACT_SUBREG (MOVZX32rr8 GR8:$src), sub_16bit)>;
 def: Pat<(zextloadi16i8 addr:$src),
           (EXTRACT_SUBREG (MOVZX32rm8 addr:$src), sub_16bit)>;
+def: Pat<(zextloadi64i8 addr:$src),
+          (SUBREG_TO_REG (i64 0), (MOVZX32rm8 addr:$src), sub_32bit)>;
+def: Pat<(zextloadi64i16 addr:$src),
+          (SUBREG_TO_REG (i64 0), (MOVZX32rm16 addr:$src), sub_32bit)>;
+def: Pat<(zextloadi64i32 addr:$src),
+          (SUBREG_TO_REG (i64 0), (MOV32rm addr:$src), sub_32bit)>;
 
 // trunc patterns
 def : Pat<(i16 (trunc GR32:$src)),

@@ -134,7 +134,8 @@ bool X86FixupSetCCPass::runOnMachineFunction(MachineFunction &MF) {
 
       MachineInstr *ZExt = nullptr;
       for (auto &Use : MRI->use_instructions(MI.getOperand(0).getReg()))
-        if (Use.getOpcode() == X86::MOVZX32rr8)
+        if (Use.getOpcode() == X86::MOVZX32rr8 ||
+            Use.getOpcode() == X86::MOVZX64rr8_alt)
           ZExt = &Use;
 
       if (!ZExt)
@@ -162,14 +163,24 @@ bool X86FixupSetCCPass::runOnMachineFunction(MachineFunction &MF) {
                                           ? &X86::GR32RegClass
                                           : &X86::GR32_ABCDRegClass;
       unsigned ZeroReg = MRI->createVirtualRegister(RC);
-      unsigned InsertReg = MRI->createVirtualRegister(RC);
 
       // Initialize a register with 0. This must go before the eflags def
       BuildMI(MBB, FlagsDefMI, MI.getDebugLoc(), TII->get(X86::MOV32r0),
               ZeroReg);
 
+      // If this is a 64-bit zero extend we need to wrap with a subreg_to_reg.
+      if (ZExt->getOpcode() == X86::MOVZX64rr8_alt) {
+        RC = &X86::GR64RegClass;
+        unsigned Reg = MRI->createVirtualRegister(RC);
+        BuildMI(MBB, FlagsDefMI, MI.getDebugLoc(),
+                TII->get(TargetOpcode::SUBREG_TO_REG), Reg)
+            .addImm(0).addReg(ZeroReg).addImm(X86::sub_32bit);
+        ZeroReg = Reg;
+      }
+
       // X86 setcc only takes an output GR8, so fake a GR32 input by inserting
       // the setcc result into the low byte of the zeroed register.
+      unsigned InsertReg = MRI->createVirtualRegister(RC);
       BuildMI(*ZExt->getParent(), ZExt, ZExt->getDebugLoc(),
               TII->get(X86::INSERT_SUBREG), InsertReg)
           .addReg(ZeroReg)

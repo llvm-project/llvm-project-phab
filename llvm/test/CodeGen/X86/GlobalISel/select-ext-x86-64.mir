@@ -151,7 +151,7 @@ registers:
   - { id: 2, class: gpr }
 # ALL:          %0 = COPY %rdi
 # ALL-NEXT:     %1 = COPY %0.sub_8bit
-# ALL-NEXT:     %2 = SUBREG_TO_REG 0, %1, 1
+# ALL-NEXT:     %2 = MOVZX64rr8_alt %1
 # ALL-NEXT:     %rax = COPY %2
 # ALL-NEXT:     RET 0, implicit %rax
 body:             |
@@ -180,7 +180,7 @@ registers:
   - { id: 2, class: gpr }
 # ALL:          %0 = COPY %rdi
 # ALL-NEXT:     %1 = COPY %0.sub_16bit
-# ALL-NEXT:     %2 = SUBREG_TO_REG 0, %1, 3
+# ALL-NEXT:     %2 = MOVZX64rr16_alt %1
 # ALL-NEXT:     %rax = COPY %2
 # ALL-NEXT:     RET 0, implicit %rax
 body:             |

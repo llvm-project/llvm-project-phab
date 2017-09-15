@@ -27,7 +27,6 @@ define void @foo() {
 ; X640-NEXT:    movzwl var_27, %ecx
 ; X640-NEXT:    subl $16610, %ecx # imm = 0x40E2
 ; X640-NEXT:    movl %ecx, %ecx
-; X640-NEXT:    # kill: %RCX<def> %ECX<kill>
 ; X640-NEXT:    # kill: %CL<def> %RCX<kill>
 ; X640-NEXT:    sarq %cl, %rsi
 ; X640-NEXT:    movb %sil, %cl

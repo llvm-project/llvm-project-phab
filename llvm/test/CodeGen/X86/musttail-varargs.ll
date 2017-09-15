@@ -129,8 +129,8 @@ define void @g_thunk(i8* %fptr_i8, ...) {
 ; LINUX: jmpq *%rdi  # TAILCALL
 
 ; LINUX-X32-LABEL: g_thunk:
-; LINUX-X32-DAG: movl %edi, %[[REG:e[abcd]x|ebp|esi|edi|r8|r9|r1[0-5]]]
-; LINUX-X32-DAG: jmpq *%[[REG]]  # TAILCALL
+; LINUX-X32-DAG: movl %edi, %edi
+; LINUX-X32-DAG: jmpq *%rdi  # TAILCALL
 
 ; WINDOWS-LABEL: g_thunk:
 ; WINDOWS-NOT: movq

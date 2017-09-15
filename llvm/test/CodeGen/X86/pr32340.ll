@@ -26,27 +26,27 @@ define void @foo() {
 ; X64-NEXT:    addl %eax, %esi
 ; X64-NEXT:    movslq %esi, %r8
 ; X64-NEXT:    movq %r8, var_826
-; X64-NEXT:    movzwl var_32, %eax
-; X64-NEXT:    movl %eax, %r8d
+; X64-NEXT:    movw var_32, %r9w
+; X64-NEXT:    movzwl %r9w, %r8d
 ; X64-NEXT:    movzwl var_901, %eax
 ; X64-NEXT:    xorl $51981, %eax # imm = 0xCB0D
-; X64-NEXT:    movslq %eax, %r9
-; X64-NEXT:    xorq %rdx, %r9
+; X64-NEXT:    movslq %eax, %r10
+; X64-NEXT:    xorq %rdx, %r10
 ; X64-NEXT:    movq %r8, %rdx
-; X64-NEXT:    xorq %r9, %rdx
+; X64-NEXT:    xorq %r10, %rdx
 ; X64-NEXT:    xorq $-1, %rdx
 ; X64-NEXT:    xorq %rdx, %r8
 ; X64-NEXT:    movq %r8, %rdx
 ; X64-NEXT:    orq var_57, %rdx
 ; X64-NEXT:    orq %rdx, %r8
-; X64-NEXT:    movw %r8w, %r10w
-; X64-NEXT:    movw %r10w, var_900
+; X64-NEXT:    movw %r8w, %r9w
+; X64-NEXT:    movw %r9w, var_900
 ; X64-NEXT:    cmpq var_28, %rcx
 ; X64-NEXT:    setne %r11b
 ; X64-NEXT:    andb $1, %r11b
 ; X64-NEXT:    movzbl %r11b, %eax
-; X64-NEXT:    movw %ax, %r10w
-; X64-NEXT:    movw %r10w, var_827
+; X64-NEXT:    movw %ax, %r9w
+; X64-NEXT:    movw %r9w, var_827
 ; X64-NEXT:    retq
 entry:
   store i16 0, i16* @var_825, align 2

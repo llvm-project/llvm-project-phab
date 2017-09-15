@@ -3681,6 +3681,7 @@ X86InstrInfo::isCoalescableExtInstr(const MachineInstr &MI,
   case X86::MOVSX32rr8:
   case X86::MOVZX32rr8:
   case X86::MOVSX64rr8:
+  case X86::MOVZX64rr8_alt:
     if (!Subtarget.is64Bit())
       // It's not always legal to reference the low 8-bit of the larger
       // register in 32-bit mode.
@@ -3689,7 +3690,9 @@ X86InstrInfo::isCoalescableExtInstr(const MachineInstr &MI,
   case X86::MOVSX32rr16:
   case X86::MOVZX32rr16:
   case X86::MOVSX64rr16:
-  case X86::MOVSX64rr32: {
+  case X86::MOVZX64rr16_alt:
+  case X86::MOVSX64rr32:
+  case X86::MOVZX64rr32: {
     if (MI.getOperand(0).getSubReg() || MI.getOperand(1).getSubReg())
       // Be conservative.
       return false;
@@ -3702,14 +3705,17 @@ X86InstrInfo::isCoalescableExtInstr(const MachineInstr &MI,
     case X86::MOVSX32rr8:
     case X86::MOVZX32rr8:
     case X86::MOVSX64rr8:
+    case X86::MOVZX64rr8_alt:
       SubIdx = X86::sub_8bit;
       break;
     case X86::MOVSX32rr16:
     case X86::MOVZX32rr16:
     case X86::MOVSX64rr16:
+    case X86::MOVZX64rr16_alt:
       SubIdx = X86::sub_16bit;
       break;
     case X86::MOVSX64rr32:
+    case X86::MOVZX64rr32:
       SubIdx = X86::sub_32bit;
       break;
     }
@@ -7700,10 +7706,27 @@ static bool expandNOVLXStore(MachineInstrBuilder &MIB,
 
   return true;
 }
+
+static bool expandZeroExtend64(MachineInstrBuilder &MIB,
+                               const MCInstrDesc &Desc) {
+  MIB->setDesc(Desc);
+  unsigned DestReg = MIB->getOperand(0).getReg();
+  MIB->getOperand(0).setReg(getX86SubSuperRegister(DestReg, 32));
+  MIB.addReg(DestReg, RegState::ImplicitDefine);
+  return true;
+}
+
+
 bool X86InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   bool HasAVX = Subtarget.hasAVX();
   MachineInstrBuilder MIB(*MI.getParent()->getParent(), MI);
   switch (MI.getOpcode()) {
+  case X86::MOVZX64rr8_alt:
+    return expandZeroExtend64(MIB, get(X86::MOVZX32rr8));
+  case X86::MOVZX64rr16_alt:
+    return expandZeroExtend64(MIB, get(X86::MOVZX32rr16));
+  case X86::MOVZX64rr32:
+    return expandZeroExtend64(MIB, get(X86::MOV32rr));
   case X86::MOV32r0:
     return Expand2AddrUndef(MIB, get(X86::XOR32rr));
   case X86::MOV32r1:
