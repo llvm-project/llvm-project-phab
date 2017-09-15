@@ -256,6 +256,22 @@ If a bug can't be reproduced, or stops being a blocker, it should be removed
 from the Meta and its priority decreased to *normal*. Debugging can continue,
 but on trunk.
 
+Merge Requests
+--------------
+
+You can use any of the following methods to request that a revision from trunk
+be merged into a release branch:
+
+#. Use the ``utils/release/merge-request.sh`` script which will automatically file
+a bug at bugs.llvm.org requesting that the patch be merged. e.g.
+``$PROJ.src/utils/release/merge-request.sh -stable-version X.Y -r 12345 -user bugzilla@example.com``
+
+#. Manually file a bug at bugs.llvm.org with the subject: "Merge r12345 into the X.Y branch"
+and enter the commit(s) that you want merged in the "Fixed by Commit(s)" field.
+
+#. Reply to the commit email on llvm-commits for the revision to merge and cc
+ the release manager.
+
 Release Patch Rules
 -------------------
 
