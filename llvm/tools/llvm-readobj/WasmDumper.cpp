@@ -160,6 +160,16 @@ void WasmDumper::printSections() {
           W.printNumber("DataAlignment", LinkingData.DataAlignment);
       }
       break;
+    case wasm::WASM_SEC_DATA: {
+      ListScope Group(W, "Segments");
+      for (const WasmSegment &Segment : Obj->dataSegments()) {
+        DictScope Group(W, "Segment");
+        if (!Segment.Data.Name.empty())
+          W.printString("Name", Segment.Data.Name);
+        W.printNumber("Size", Segment.Data.Content.size());
+      }
+      break;
+    }
     case wasm::WASM_SEC_MEMORY:
       ListScope Group(W, "Memories");
       for (const wasm::WasmLimits &Memory : Obj->memories()) {
