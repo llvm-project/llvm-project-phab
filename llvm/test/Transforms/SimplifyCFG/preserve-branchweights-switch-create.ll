@@ -1,4 +1,4 @@
-; RUN: opt -simplifycfg -S -o - < %s | FileCheck %s
+; RUN: opt -simplifycfg -peel-dominant-switch-case=false -S -o - < %s | FileCheck %s
 
 declare void @func2(i32)
 declare void @func4(i32)
