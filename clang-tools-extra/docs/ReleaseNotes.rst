@@ -137,6 +137,12 @@ Improvements to clang-tidy
   Checks if the required file flag ``IN_CLOEXEC`` is present in the argument of
   ``inotify_init1()``.
 
+- New `readability-function-cognitive-complexity
+  <http://clang.llvm.org/extra/clang-tidy/checks/readability-function-cognitive-complexity.html>`_ check
+
+  For each function, calculates Cognitive Complexity metric, and flags the
+  functions with that metric exceeding the configured limit.
+
 - New `readability-static-accessed-through-instance
   <http://clang.llvm.org/extra/clang-tidy/checks/readability-static-accessed-through-instance.html>`_ check
 
