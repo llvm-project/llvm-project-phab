@@ -83,7 +83,14 @@ InputSectionBase::InputSectionBase(InputFile *File, uint64_t Flags,
     : SectionBase(SectionKind, Name, Flags, Entsize, Alignment, Type, Info,
                   Link),
       File(File), Data(Data), Repl(this) {
-  Live = !Config->GcSections || !(Flags & SHF_ALLOC);
+  Live = !Config->GcSections;
+  // Non-allocatable sections are usually used for debug information,
+  // we do not run GC for them. But we should still eliminate SHT_REL[A]
+  // sections in case when their target sections were GCed.
+  // It is required for -emit-relocs.
+  if (!(Flags & SHF_ALLOC))
+    Live |= Type != SHT_REL && Type != SHT_RELA;
+
   Assigned = false;
   NumRelocations = 0;
   AreRelocsRela = false;
