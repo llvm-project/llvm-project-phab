@@ -103,8 +103,106 @@ ExprEngine::~ExprEngine() {
 // Utility methods.
 //===----------------------------------------------------------------------===//
 
+static bool isChanged(const Stmt *S, const VarDecl *VD, bool W) {
+  if (!S)
+    return false;
+  if (const BinaryOperator *B = dyn_cast<BinaryOperator>(S)) {
+    if (B->isAssignmentOp())
+      return isChanged(B->getLHS(), VD, true) || isChanged(B->getRHS(), VD, W);
+  } else if (const UnaryOperator *U = dyn_cast<UnaryOperator>(S)) {
+    if (U->getOpcode() == UO_AddrOf || U->getOpcode() == UO_PreInc ||
+        U->getOpcode() == UO_PreDec || U->getOpcode() == UO_PostInc ||
+        U->getOpcode() == UO_PostDec)
+      return isChanged(U->getSubExpr(), VD, true);
+  } else if (const DeclRefExpr *D = dyn_cast<DeclRefExpr>(S)) {
+    return W && D->getDecl() == VD;
+  }
+
+  for (const Stmt *Child : S->children()) {
+    if (isChanged(Child, VD, W))
+      return true;
+  }
+  return false;
+}
+
+static bool isChanged(const Decl *D, const VarDecl *VD) {
+  if (isa<FunctionDecl>(D))
+    return isChanged(D->getBody(), VD, false);
+  if (const auto *Rec = dyn_cast<TagDecl>(D)) {
+    for (const auto *RecChild : Rec->decls()) {
+      if (isChanged(RecChild, VD))
+        return true;
+    }
+  }
+  return false;
+}
+
+ProgramStateRef ExprEngine::getInitialState(const LocationContext *LCtx,
+                                            ProgramStateRef State,
+                                            const VarDecl *VD) {
+  // Is variable used in location context?
+  const FunctionDecl *FD = dyn_cast<FunctionDecl>(LCtx->getDecl());
+  if (!FD)
+    return State;
+
+  // Is variable changed anywhere in TU?
+  for (const Decl *D : AMgr.getASTContext().getTranslationUnitDecl()->decls()) {
+    if (isChanged(D, VD))
+      return State;
+  }
+
+  // What is the initialized value?
+  llvm::APSInt InitVal;
+  if (const Expr *I = VD->getInit()) {
+    if (!I->EvaluateAsInt(InitVal, getContext()))
+      return State;
+  } else {
+    InitVal = 0;
+  }
+
+  const MemRegion *R = State->getRegion(VD, LCtx);
+  if (!R)
+    return State;
+  SVal V = State->getSVal(loc::MemRegionVal(R));
+  SVal Constraint_untested =
+      evalBinOp(State, BO_EQ, V, svalBuilder.makeIntVal(InitVal),
+                svalBuilder.getConditionType());
+  Optional<DefinedOrUnknownSVal> Constraint =
+      Constraint_untested.getAs<DefinedOrUnknownSVal>();
+  if (!Constraint)
+    return State;
+  return State->assume(*Constraint, true);
+}
+
+static void getStaticVars(const Stmt *S,
+                          llvm::SmallSet<const VarDecl *, 4> *Vars) {
+  if (!S)
+    return;
+  if (const DeclRefExpr *D = dyn_cast<DeclRefExpr>(S)) {
+    const VarDecl *VD = dyn_cast<VarDecl>(D->getDecl());
+    if (VD && VD->isDefinedOutsideFunctionOrMethod() &&
+        VD->getType()->isIntegerType() && VD->getStorageClass() == SC_Static &&
+        !VD->getType()->isPointerType()) {
+      Vars->insert(VD);
+    }
+  }
+  for (const Stmt *Child : S->children()) {
+    getStaticVars(Child, Vars);
+  }
+}
+
 ProgramStateRef ExprEngine::getInitialState(const LocationContext *InitLoc) {
   ProgramStateRef state = StateMgr.getInitialState(InitLoc);
+
+  // Get initial states for static global variables.
+  if (const auto *FD = dyn_cast<FunctionDecl>(InitLoc->getDecl())) {
+    llvm::SmallSet<const VarDecl *, 4> Vars;
+    getStaticVars(FD->getBody(), &Vars);
+    for (const VarDecl *VD : Vars) {
+      state = getInitialState(InitLoc, state, VD);
+    }
+  }
+
   const Decl *D = InitLoc->getDecl();
 
   // Preconditions.
