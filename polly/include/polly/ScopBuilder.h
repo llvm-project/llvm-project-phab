@@ -146,6 +146,13 @@ class ScopBuilder {
   void buildScop(Region &R, AssumptionCache &AC,
                  OptimizationRemarkEmitter &ORE);
 
+  /// Try to build an index expression from a load of an abstract location
+  /// Load/Store <array> (GEP <function idx>)
+  ///
+  /// @param Inst       The Load/Store instruction that access the memory
+  /// @param Stmt       The parent statement of the instruction
+  bool buildAccessPollyAbstractMatrix(MemAccInst Inst, ScopStmt *Stmt);
+
   /// Try to build a multi-dimensional fixed sized MemoryAccess from the
   /// Load/Store instruction.
   ///
@@ -269,7 +276,7 @@ class ScopBuilder {
                                 Value *BaseAddress, Type *ElemType, bool Affine,
                                 Value *AccessValue,
                                 ArrayRef<const SCEV *> Subscripts,
-                                ArrayRef<const SCEV *> Sizes, MemoryKind Kind);
+                                ShapeInfo Shape, MemoryKind Kind);
 
   /// Create a MemoryAccess that represents either a LoadInst or
   /// StoreInst.
@@ -288,8 +295,8 @@ class ScopBuilder {
   void addArrayAccess(ScopStmt *Stmt, MemAccInst MemAccInst,
                       MemoryAccess::AccessType AccType, Value *BaseAddress,
                       Type *ElemType, bool IsAffine,
-                      ArrayRef<const SCEV *> Subscripts,
-                      ArrayRef<const SCEV *> Sizes, Value *AccessValue);
+                      ArrayRef<const SCEV *> Subscripts, ShapeInfo Shape,
+                      Value *AccessValue);
 
   /// Create a MemoryAccess for writing an llvm::Instruction.
   ///

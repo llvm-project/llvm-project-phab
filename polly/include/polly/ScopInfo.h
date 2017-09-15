@@ -25,6 +25,7 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/MapVector.h"
+#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringMap.h"
@@ -110,6 +111,189 @@ enum AssumptionKind {
   INVARIANTLOAD,
   DELINEARIZATION,
 };
+
+// Abstract over a notion of the shape of an array:
+// Once can compute indeces using both sizes and strides.
+class ShapeInfo {
+private:
+  using SCEVArrayTy = SmallVector<const SCEV *, 4>;
+  using SCEVArrayRefTy = ArrayRef<const SCEV *>;
+
+  using OptionalSCEVArrayTy = Optional<SCEVArrayTy>;
+  using OptionalSCEVArrayRefTy = Optional<SCEVArrayRefTy>;
+
+  llvm::Optional<SmallVector<const SCEV *, 4>> Sizes;
+  llvm::Optional<SmallVector<const SCEV *, 4>> Strides;
+  llvm::Optional<const SCEV *> Offset;
+
+  llvm::Optional<GlobalValue *>HackFAD;
+
+  ShapeInfo(Optional<ArrayRef<const SCEV *>> SizesRef,
+            Optional<ArrayRef<const SCEV *>> StridesRef,
+            llvm::Optional<const SCEV *> Offset, 
+            llvm::Optional<GlobalValue *>HackFAD)
+      : Offset(Offset), HackFAD(HackFAD) {
+    // Can check for XOR
+    assert(bool(SizesRef) || bool(StridesRef));
+    assert(!(bool(SizesRef) && bool(StridesRef)));
+
+    if (StridesRef || Offset) {
+      assert(Offset);
+      assert(StridesRef);
+    }
+
+    if (SizesRef)
+      Sizes =
+          OptionalSCEVArrayTy(SCEVArrayTy(SizesRef->begin(), SizesRef->end()));
+
+    if (StridesRef)
+      Strides = OptionalSCEVArrayTy(
+          SCEVArrayTy(StridesRef->begin(), StridesRef->end()));
+  }
+
+  ShapeInfo(NoneType) : Sizes(None), Strides(None), Offset(None), HackFAD(None) {}
+
+public:
+  static ShapeInfo fromSizes(ArrayRef<const SCEV *> Sizes) {
+    return ShapeInfo(OptionalSCEVArrayRefTy(Sizes), None, None, None);
+  }
+
+  ShapeInfo(const ShapeInfo &other) {
+    Sizes = other.Sizes;
+    Strides = other.Strides;
+    Offset = other.Offset;
+    HackFAD = other.HackFAD;
+  }
+
+  ShapeInfo &operator=(const ShapeInfo &other) {
+    Sizes = other.Sizes;
+    Strides = other.Strides;
+    Offset = other.Offset;
+    HackFAD = other.HackFAD;
+    return *this;
+  }
+
+  static ShapeInfo fromStrides(ArrayRef<const SCEV *> Strides,
+                               const SCEV *Offset,
+                               GlobalValue *FAD) {
+    assert(Offset && "offset is null");
+    return ShapeInfo(None, OptionalSCEVArrayRefTy(Strides),
+                     Optional<const SCEV *>(Offset),
+                     Optional<GlobalValue *>(FAD));
+  }
+
+  static ShapeInfo none() { return ShapeInfo(None); }
+
+  unsigned getNumberOfDimensions() const {
+    // assert(isInitialized());
+    if (Sizes)
+      return Sizes->size();
+
+    if (Strides)
+      return Strides->size();
+
+    return 0;
+  }
+
+  /// Set the sizes of the Shape. It checks the invariant
+  /// That this shape does not have strides.
+  void setSizes(SmallVector<const SCEV *, 4> NewSizes) {
+    assert(!bool(Strides));
+
+    if (!bool(Sizes)) {
+      Sizes = Optional<SmallVector<const SCEV *, 4>>(
+          SmallVector<const SCEV *, 4>());
+    }
+
+    Sizes = NewSizes;
+  }
+
+  /// Set the strides of the Shape. It checks the invariant
+  /// That this shape does not have sizes.
+  void setStrides(ArrayRef<const SCEV *> NewStrides, const SCEV *NewOffset, GlobalValue *NewHackFAD) {
+    Offset = NewOffset;
+    assert(!bool(Sizes));
+
+    // Be explicit because GCC(5.3.0) is unable to deduce this.
+    if (!Strides)
+      Strides = Optional<SmallVector<const SCEV *, 4>>(
+          SmallVector<const SCEV *, 4>());
+
+    Strides->clear();
+    Strides->insert(Strides->begin(), NewStrides.begin(), NewStrides.end());
+
+    HackFAD = NewHackFAD;
+
+    assert(Offset && "offset is null");
+  }
+
+  const SmallVector<const SCEV *, 4> &sizes() const {
+    assert(!bool(Strides));
+    return Sizes.getValue();
+  }
+
+  const SCEV *offset() const { return Offset.getValue(); }
+
+
+  GlobalValue *hackFAD() const { return HackFAD.getValue(); }
+
+  SmallVector<const SCEV *, 4> &sizes_mut() {
+    assert(!bool(Strides));
+    return Sizes.getValue();
+  }
+
+  bool isInitialized() const { return bool(Sizes) || bool(Strides); }
+
+  const SmallVector<const SCEV *, 4> &strides() const {
+    assert(!bool(Sizes));
+    return Strides.getValue();
+  }
+
+  bool hasSizes() const { return bool(Sizes); }
+  bool hasStrides() const { return bool(Strides); }
+
+  template <typename Ret>
+  Ret mapSizes(std::function<Ret(SmallVector<const SCEV *, 4> &)> func,
+               Ret otherwise) {
+    if (Sizes)
+      return func(*Sizes);
+
+    return otherwise;
+  }
+
+  void mapSizes(std::function<void(SmallVector<const SCEV *, 4> &)> func) {
+    if (Sizes)
+      func(*Sizes);
+  }
+
+  raw_ostream &print(raw_ostream &OS) const {
+    if (Sizes) {
+      OS << "Sizes: ";
+      for (auto Size : *Sizes) {
+        if (Size)
+          OS << *Size << ", ";
+        else
+          OS << "null"
+             << ", ";
+      }
+      return OS;
+    } else if (Strides) {
+      OS << "Strides: ";
+      for (auto Stride : *Strides) {
+        if (Stride)
+          OS << *Stride << ", ";
+        else
+          OS << "null"
+             << ", ";
+      }
+      return OS;
+    }
+    OS << "Uninitialized.\n";
+    return OS;
+  }
+};
+
+raw_ostream &operator<<(raw_ostream &OS, const ShapeInfo &Shape);
 
 /// Enum to distinguish between assumptions and restrictions.
 enum AssumptionSign { AS_ASSUMPTION, AS_RESTRICTION };
@@ -265,8 +449,8 @@ public:
   /// @param S              The scop this array object belongs to.
   /// @param BaseName       The optional name of this memory reference.
   ScopArrayInfo(Value *BasePtr, Type *ElementType, isl::ctx IslCtx,
-                ArrayRef<const SCEV *> DimensionSizes, MemoryKind Kind,
-                const DataLayout &DL, Scop *S, const char *BaseName = nullptr);
+                ShapeInfo Shape, MemoryKind Kind, const DataLayout &DL, Scop *S,
+                const char *BaseName = nullptr);
 
   /// Destructor to free the isl id of the base pointer.
   ~ScopArrayInfo();
@@ -294,6 +478,13 @@ public:
   ///  @param CheckConsistency Update sizes, even if new sizes are inconsistent
   ///                          with old sizes
   bool updateSizes(ArrayRef<const SCEV *> Sizes, bool CheckConsistency = true);
+
+  /// Update the strides of a ScopArrayInfo object.
+  void overwriteSizeWithStrides(ArrayRef<const SCEV *> Strides,
+                                const SCEV *Offset, GlobalValue *HackFAD);
+
+  /// Update the strides of a ScopArrayInfo object.
+  bool updateStrides(ArrayRef<const SCEV *> Strides, const SCEV *Offset, GlobalValue *HackFAD);
 
   /// Make the ScopArrayInfo model a Fortran array.
   /// It receives the Fortran array descriptor and stores this.
@@ -327,8 +518,10 @@ public:
     if (Kind == MemoryKind::PHI || Kind == MemoryKind::ExitPHI ||
         Kind == MemoryKind::Value)
       return 0;
-    return DimensionSizes.size();
+    return Shape.getNumberOfDimensions();
   }
+
+  ShapeInfo getShape() const { return Shape; }
 
   /// Return the size of dimension @p dim as SCEV*.
   //
@@ -337,8 +530,15 @@ public:
   //  information, in case the array is not newly created.
   const SCEV *getDimensionSize(unsigned Dim) const {
     assert(Dim < getNumberOfDimensions() && "Invalid dimension");
-    return DimensionSizes[Dim];
+    return Shape.sizes()[Dim];
   }
+
+  const SCEV *getDimensionStride(unsigned Dim) const {
+    assert(Dim < getNumberOfDimensions() && "Invalid dimension");
+    return Shape.strides()[Dim];
+  }
+
+  const SCEV *getStrideOffset() const { return Shape.offset(); }
 
   /// Return the size of dimension @p dim as isl::pw_aff.
   //
@@ -349,6 +549,18 @@ public:
     assert(Dim < getNumberOfDimensions() && "Invalid dimension");
     return DimensionSizesPw[Dim];
   }
+
+  isl::id getDimensionSizeId(unsigned Dim) const {
+    isl_pw_aff *ParametricPwAff = getDimensionSizePw(Dim).release();
+    assert(ParametricPwAff && "parametric pw_aff corresponding "
+                              "to dimension does not "
+                              "exist");
+
+    isl_id *Id = isl_pw_aff_get_dim_id(ParametricPwAff, isl_dim_param, 0);
+    isl_pw_aff_free(ParametricPwAff);
+    assert(Id && "pw_aff is not parametric");
+    return isl::manage(Id);
+  };
 
   /// Get the canonical element type of this array.
   ///
@@ -426,6 +638,8 @@ public:
   /// @returns True, if the arrays are compatible, False otherwise.
   bool isCompatibleWith(const ScopArrayInfo *Array) const;
 
+  bool hasStrides() const { return Shape.hasStrides(); }
+
 private:
   void addDerivedSAI(ScopArrayInfo *DerivedSAI) {
     DerivedSAIs.insert(DerivedSAI);
@@ -455,9 +669,6 @@ private:
   /// True if the newly allocated array is on heap.
   bool IsOnHeap = false;
 
-  /// The sizes of each dimension as SCEV*.
-  SmallVector<const SCEV *, 4> DimensionSizes;
-
   /// The sizes of each dimension as isl::pw_aff.
   SmallVector<isl::pw_aff, 4> DimensionSizesPw;
 
@@ -468,6 +679,9 @@ private:
 
   /// The data layout of the module.
   const DataLayout &DL;
+
+  /// The sizes of each dimension as SCEV*.
+  ShapeInfo Shape;
 
   /// The scop this SAI object belongs to.
   Scop &S;
@@ -591,7 +805,7 @@ private:
   Type *ElementType;
 
   /// Size of each dimension of the accessed array.
-  SmallVector<const SCEV *, 4> Sizes;
+  ShapeInfo Shape;
   // @}
 
   // Properties describing the accessed element.
@@ -759,10 +973,10 @@ public:
   /// @param IsAffine   Whether the subscripts are affine expressions.
   /// @param Kind       The kind of memory accessed.
   /// @param Subscripts Subscript expressions
-  /// @param Sizes      Dimension lengths of the accessed array.
+  /// @param ShapeInfo  Shape of the accessed array.
   MemoryAccess(ScopStmt *Stmt, Instruction *AccessInst, AccessType AccType,
                Value *BaseAddress, Type *ElemType, bool Affine,
-               ArrayRef<const SCEV *> Subscripts, ArrayRef<const SCEV *> Sizes,
+               ArrayRef<const SCEV *> Subscripts, ShapeInfo Sizes,
                Value *AccessValue, MemoryKind Kind);
 
   /// Create a new MemoryAccess that corresponds to @p AccRel.
@@ -2801,8 +3015,7 @@ public:
   /// @param Kind        The kind of the array info object.
   /// @param BaseName    The optional name of this memory reference.
   ScopArrayInfo *getOrCreateScopArrayInfo(Value *BasePtr, Type *ElementType,
-                                          ArrayRef<const SCEV *> Sizes,
-                                          MemoryKind Kind,
+                                          ShapeInfo Shape, MemoryKind Kind,
                                           const char *BaseName = nullptr);
 
   /// Create an array and return the corresponding ScopArrayInfo object.

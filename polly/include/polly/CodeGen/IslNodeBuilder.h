@@ -100,8 +100,8 @@ public:
                  const DataLayout &DL, LoopInfo &LI, ScalarEvolution &SE,
                  DominatorTree &DT, Scop &S, BasicBlock *StartBlock)
       : S(S), Builder(Builder), Annotator(Annotator),
-        ExprBuilder(S, Builder, IDToValue, ValueMap, DL, SE, DT, LI,
-                    StartBlock),
+        ExprBuilder(S, Builder, IDToValue, SCEVToValue, ValueMap, DL, SE, DT,
+                    LI, StartBlock),
         BlockGen(Builder, LI, SE, DT, ScalarMap, EscapeMap, ValueMap,
                  &ExprBuilder, StartBlock),
         RegionGen(BlockGen), DL(DL), LI(LI), SE(SE), DT(DT),
@@ -117,6 +117,10 @@ public:
   /// @returns False, if a problem occurred and a Fortran array was not
   /// materialized. True otherwise.
   bool materializeFortranArrayOutermostDimension();
+
+  Value *extractStrideFromFAD(GlobalValue *FAD, int dimension);
+  Value *extractOffsetFromFAD(GlobalValue *FAD);
+  void materializeStridedArraySizes();
 
   /// Generate code that evaluates @p Condition at run-time.
   ///
@@ -197,6 +201,10 @@ protected:
   // on, the only isl_ids that are stored here are the newly calculated loop
   // ivs.
   IslExprBuilder::IDToValueTy IDToValue;
+
+  // This maps a const SCEV* to the Value* it has in the generated program. For
+  // now, this stores strides and offsets of SAIs.
+  IslExprBuilder::SCEVToValueTy SCEVToValue;
 
   /// A collection of all parallel subfunctions that have been created.
   SmallVector<Function *, 8> ParallelSubfunctions;

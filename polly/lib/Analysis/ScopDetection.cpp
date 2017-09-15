@@ -535,9 +535,41 @@ bool ScopDetection::involvesMultiplePtrs(const SCEV *S0, const SCEV *S1,
   return false;
 }
 
+/// Return if S is a call to a function that we use to denote multidimensional
+// accesses
+bool isSCEVCallToPollyAbstractIndex(const SCEV *S) {
+  if (isa<SCEVUnknown>(S)) {
+    Value *V = cast<SCEVUnknown>(S)->getValue();
+    CallInst *Call = dyn_cast<CallInst>(V);
+    if (Call && Call->getCalledFunction()->getName().count(
+                    POLLY_ABSTRACT_INDEX_BASENAME))
+      return true;
+  }
+  return false;
+}
+
+/// Return if scev represents a multidim access.
+bool isSCEVMultidimArrayAccess(const SCEV *S) {
+  if (isSCEVCallToPollyAbstractIndex(S))
+    return true;
+  const SCEVMulExpr *Mul = dyn_cast<SCEVMulExpr>(S);
+  if (!Mul)
+    return false;
+  if (Mul->getNumOperands() != 2)
+    return false;
+  return isSCEVCallToPollyAbstractIndex(Mul->getOperand(0)) ||
+         isSCEVCallToPollyAbstractIndex(Mul->getOperand(1));
+}
+
 bool ScopDetection::isAffine(const SCEV *S, Loop *Scope,
                              DetectionContext &Context) const {
+
+  if (isSCEVMultidimArrayAccess(S)) {
+    return true;
+  }
+
   InvariantLoadsSetTy AccessILS;
+
   if (!isAffineExpr(&Context.CurRegion, Scope, S, SE, &AccessILS))
     return false;
 
@@ -681,9 +713,15 @@ bool ScopDetection::isValidCallInst(CallInst &CI,
 
   Function *CalledFunction = CI.getCalledFunction();
 
+
   // Indirect calls are not supported.
   if (CalledFunction == nullptr)
     return false;
+  
+  // Function being called is a polly indexing function.
+  if (CalledFunction->getName().count(POLLY_ABSTRACT_INDEX_BASENAME)) {
+      return true;
+  }
 
   if (AllowModrefCall) {
     switch (AA.getModRefBehavior(CalledFunction)) {
@@ -921,10 +959,12 @@ bool ScopDetection::hasValidArraySizes(DetectionContext &Context,
       }
     }
     if (hasScalarDepsInsideRegion(DelinearizedSize, &CurRegion, Scope, false,
-                                  Context.RequiredILS))
+                                  Context.RequiredILS)) {
+
       return invalid<ReportNonAffineAccess>(
           Context, /*Assert=*/true, DelinearizedSize,
           Context.Accesses[BasePointer].front().first, BaseValue);
+    }
   }
 
   // No array shape derived.
@@ -958,6 +998,7 @@ bool ScopDetection::computeAccessFunctions(
     DetectionContext &Context, const SCEVUnknown *BasePointer,
     std::shared_ptr<ArrayShape> Shape) const {
   Value *BaseValue = BasePointer->getValue();
+
   bool BasePtrHasNonAffine = false;
   MapInsnToMemAcc TempMemoryAccesses;
   for (const auto &Pair : Context.Accesses[BasePointer]) {
@@ -972,16 +1013,18 @@ bool ScopDetection::computeAccessFunctions(
     if (!AF) {
       if (isAffine(Pair.second, Scope, Context))
         Acc->DelinearizedSubscripts.push_back(Pair.second);
-      else
+      else {
         IsNonAffine = true;
+      }
     } else {
       if (Shape->DelinearizedSizes.size() == 0) {
         Acc->DelinearizedSubscripts.push_back(AF);
       } else {
         SE.computeAccessFunctions(AF, Acc->DelinearizedSubscripts,
                                   Shape->DelinearizedSizes);
-        if (Acc->DelinearizedSubscripts.size() == 0)
+        if (Acc->DelinearizedSubscripts.size() == 0) {
           IsNonAffine = true;
+        }
       }
       for (const SCEV *S : Acc->DelinearizedSubscripts)
         if (!isAffine(S, Scope, Context))
@@ -991,9 +1034,11 @@ bool ScopDetection::computeAccessFunctions(
     // (Possibly) report non affine access
     if (IsNonAffine) {
       BasePtrHasNonAffine = true;
-      if (!AllowNonAffine)
+      if (!AllowNonAffine) {
         invalid<ReportNonAffineAccess>(Context, /*Assert=*/true, Pair.second,
                                        Insn, BaseValue);
+      }
+
       if (!KeepGoing && !AllowNonAffine)
         return false;
     }
@@ -1045,7 +1090,6 @@ bool ScopDetection::hasAffineMemoryAccesses(DetectionContext &Context) const {
 bool ScopDetection::isValidAccess(Instruction *Inst, const SCEV *AF,
                                   const SCEVUnknown *BP,
                                   DetectionContext &Context) const {
-
   if (!BP)
     return invalid<ReportNoBasePtr>(Context, /*Assert=*/true, Inst);
 
@@ -1150,6 +1194,10 @@ bool ScopDetection::isValidAccess(Instruction *Inst, const SCEV *AF,
 
 bool ScopDetection::isValidMemoryAccess(MemAccInst Inst,
                                         DetectionContext &Context) const {
+  if (getAbstractMatrixCall(Inst, SE)) {
+    return true;
+  }
+
   Value *Ptr = Inst.getPointerOperand();
   Loop *L = LI.getLoopFor(Inst->getParent());
   const SCEV *AccessFunction = SE.getSCEVAtScope(Ptr, L);

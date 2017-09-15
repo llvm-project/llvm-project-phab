@@ -39,8 +39,10 @@
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Transforms/IPO/PassManagerBuilder.h"
+#include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 
+#include "polly/Support/ISLOStream.h"
 #include "isl/union_map.h"
 
 extern "C" {
@@ -531,7 +533,7 @@ private:
   ///
   /// @param Array The array for which to compute the offset.
   /// @returns An llvm::Value that contains the offset of the array.
-  Value *getArrayOffset(gpu_array_info *Array);
+  Value *getArrayOffset(const ScopArrayInfo *SAI, gpu_array_info *Array);
 
   /// Prepare the kernel arguments for kernel code generation
   ///
@@ -781,7 +783,7 @@ void GPUNodeBuilder::allocateDeviceArrays() {
     DevArrayName.append(Array->name);
 
     Value *ArraySize = getArraySize(Array);
-    Value *Offset = getArrayOffset(Array);
+    Value *Offset = getArrayOffset(ScopArray, Array);
     if (Offset)
       ArraySize = Builder.CreateSub(
           ArraySize,
@@ -793,10 +795,10 @@ void GPUNodeBuilder::allocateDeviceArrays() {
     // choose to be defensive and catch this at the compile phase. It is
     // most likely that we are doing something wrong with size computation.
     if (SizeSCEV->isZero()) {
-      errs() << getUniqueScopName(&S)
-             << " has computed array size 0: " << *ArraySize
-             << " | for array: " << *(ScopArray->getBasePtr())
-             << ". This is illegal, exiting.\n";
+      errs() << getUniqueScopName(&S) << " has array size 0.\n "
+             << "Array with size 0: " << *(ScopArray->getBasePtr())
+             << "Size expression: " << *ArraySize
+             << "\nThis is illegal, exiting.\n";
       report_fatal_error("array size was computed to be 0");
     }
 
@@ -822,7 +824,8 @@ void GPUNodeBuilder::prepareManagedDeviceArrays() {
       HostPtr = ScopArray->getBasePtr();
     HostPtr = getLatestValue(HostPtr);
 
-    Value *Offset = getArrayOffset(Array);
+    /*
+    Value *Offset = getArrayOffset(ScopArray, Array);
     if (Offset) {
       HostPtr = Builder.CreatePointerCast(
           HostPtr, ScopArray->getElementType()->getPointerTo());
@@ -830,6 +833,7 @@ void GPUNodeBuilder::prepareManagedDeviceArrays() {
     }
 
     HostPtr = Builder.CreatePointerCast(HostPtr, Builder.getInt8PtrTy());
+    */
     DeviceAllocations[ScopArray] = HostPtr;
   }
 }
@@ -1054,6 +1058,7 @@ Value *GPUNodeBuilder::createCallInitContext() {
     break;
   case GPURuntime::OpenCL:
     Name = "polly_initContextCL";
+
     break;
   }
 
@@ -1121,9 +1126,15 @@ Value *GPUNodeBuilder::getArraySize(gpu_array_info *Array) {
   return ArraySize;
 }
 
-Value *GPUNodeBuilder::getArrayOffset(gpu_array_info *Array) {
+Value *GPUNodeBuilder::getArrayOffset(const ScopArrayInfo *SAI,
+                                      gpu_array_info *Array) {
   if (gpu_array_is_scalar(Array))
     return nullptr;
+
+  if (SAI->hasStrides()) {
+      return nullptr;
+    // return generateSCEV(SAI->getStrideOffset());
+  }
 
   isl::ast_build Build = isl::ast_build::from_context(S.getContext());
 
@@ -1177,7 +1188,7 @@ void GPUNodeBuilder::createDataTransfer(__isl_take isl_ast_node *TransferStmt,
   auto ScopArray = (ScopArrayInfo *)(Array->user);
 
   Value *Size = getArraySize(Array);
-  Value *Offset = getArrayOffset(Array);
+  Value *Offset = getArrayOffset(ScopArray, Array);
   Value *DevPtr = DeviceAllocations[ScopArray];
 
   Value *HostPtr;
@@ -1428,6 +1439,9 @@ static bool isValidFunctionInKernel(llvm::Function *F, bool AllowLibDevice) {
   if (AllowLibDevice && getCUDALibDeviceFuntion(F).length() > 0)
     return true;
 
+  if (Name.count("polly_array_index"))
+    return true;
+
   return F->isIntrinsic() &&
          (Name.startswith("llvm.sqrt") || Name.startswith("llvm.fabs") ||
           Name.startswith("llvm.copysign"));
@@ -1471,6 +1485,9 @@ GPUNodeBuilder::getReferencesInKernel(ppcg_kernel *Kernel) {
       &ParamSpace};
 
   for (const auto &I : IDToValue)
+    SubtreeValues.insert(I.second);
+
+  for (const auto &I : SCEVToValue)
     SubtreeValues.insert(I.second);
 
   // NOTE: this is populated in IslNodeBuilder::addParameters
@@ -1651,16 +1668,22 @@ GPUNodeBuilder::createLaunchParameters(ppcg_kernel *Kernel, Function *F,
       DevArray = DeviceAllocations[const_cast<ScopArrayInfo *>(SAI)];
       DevArray = createCallGetDevicePtr(DevArray);
     }
-    assert(DevArray != nullptr && "Array to be offloaded to device not "
-                                  "initialized");
-    Value *Offset = getArrayOffset(&Prog->array[i]);
+
+    Value *Offset = getArrayOffset(SAI, &Prog->array[i]);
 
     if (Offset) {
       DevArray = Builder.CreatePointerCast(
           DevArray, SAI->getElementType()->getPointerTo());
-      DevArray = Builder.CreateGEP(DevArray, Builder.CreateNeg(Offset));
+
+      // NO NEGATION FOR STRIDES ARRAY.
+      if (SAI->hasStrides())
+        DevArray = Builder.CreateGEP(DevArray, Offset);
+      else
+        DevArray = Builder.CreateGEP(DevArray, Builder.CreateNeg(Offset));
       DevArray = Builder.CreatePointerCast(DevArray, Builder.getInt8PtrTy());
     }
+    assert(DevArray != nullptr && "Array to be offloaded to device not "
+                                  "initialized");
     Value *Slot = Builder.CreateGEP(
         Parameters, {Builder.getInt64(0), Builder.getInt64(Index)});
 
@@ -1681,7 +1704,9 @@ GPUNodeBuilder::createLaunchParameters(ppcg_kernel *Kernel, Function *F,
           new AllocaInst(Builder.getInt8PtrTy(), AddressSpace,
                          Launch + "_param_" + std::to_string(Index),
                          EntryBlock->getTerminator());
-      Builder.CreateStore(DevArray, Param);
+      Value *DevArrayCast =
+          Builder.CreatePointerCast(DevArray, Builder.getInt8PtrTy());
+      Builder.CreateStore(DevArrayCast, Param);
       Value *ParamTyped =
           Builder.CreatePointerCast(Param, Builder.getInt8PtrTy());
       Builder.CreateStore(ParamTyped, Slot);
@@ -1769,6 +1794,12 @@ void GPUNodeBuilder::setupKernelSubtreeFunctions(
       Clone =
           Function::Create(Fn->getFunctionType(), GlobalValue::ExternalLinkage,
                            ClonedFnName, GPUModule.get());
+
+    // For our polly_array_index function, we need readnone attribute so that
+    // dead code elimination nukes it. In general, it is good practice
+    // to copy over attributes.
+    Clone->setAttributes(Fn->getAttributes());
+
     assert(Clone && "Expected cloned function to be initialized.");
     assert(ValueMap.find(Fn) == ValueMap.end() &&
            "Fn already present in ValueMap");
@@ -2009,17 +2040,34 @@ GPUNodeBuilder::createKernelFunctionDecl(ppcg_kernel *Kernel,
     Type *EleTy = SAI->getElementType();
     Value *Val = &*Arg;
     SmallVector<const SCEV *, 4> Sizes;
+    ShapeInfo NewShape = ShapeInfo::none();
     isl_ast_build *Build =
         isl_ast_build_from_context(isl_set_copy(Prog->context));
-    Sizes.push_back(nullptr);
-    for (long j = 1, n = Kernel->array[i].array->n_index; j < n; j++) {
-      isl_ast_expr *DimSize = isl_ast_build_expr_from_pw_aff(
-          Build, isl_multi_pw_aff_get_pw_aff(Kernel->array[i].array->bound, j));
-      auto V = ExprBuilder.create(DimSize);
-      Sizes.push_back(SE.getSCEV(V));
+
+    if (SAI->hasStrides()) {
+      for (long j = 0, n = Kernel->array[i].array->n_index; j < n; j++) {
+        isl_ast_expr *DimSize = isl_ast_build_expr_from_pw_aff(
+            Build,
+            isl_multi_pw_aff_get_pw_aff(Kernel->array[i].array->bound, j));
+        auto V = ExprBuilder.create(DimSize);
+        Sizes.push_back(SE.getSCEV(V));
+      }
+      NewShape = SAI->getShape();
+      // NewShape = ShapeInfo::fromStrides(Sizes, SAI->getStrideOffset());
+    } else {
+      Sizes.push_back(nullptr);
+      for (long j = 1, n = Kernel->array[i].array->n_index; j < n; j++) {
+        isl_ast_expr *DimSize = isl_ast_build_expr_from_pw_aff(
+            Build,
+            isl_multi_pw_aff_get_pw_aff(Kernel->array[i].array->bound, j));
+        auto V = ExprBuilder.create(DimSize);
+        Sizes.push_back(SE.getSCEV(V));
+      }
+      NewShape = ShapeInfo::fromSizes(Sizes);
     }
     const ScopArrayInfo *SAIRep =
-        S.getOrCreateScopArrayInfo(Val, EleTy, Sizes, MemoryKind::Array);
+        S.getOrCreateScopArrayInfo(Val, EleTy, NewShape, MemoryKind::Array);
+
     LocalArrays.push_back(Val);
 
     isl_ast_build_free(Build);
@@ -2201,11 +2249,12 @@ void GPUNodeBuilder::finalizeKernelArguments(ppcg_kernel *Kernel) {
     /// To support this case we need to store these scalars back at each
     /// memory store or at least before each kernel barrier.
     if (Kernel->n_block != 0 || Kernel->n_grid != 0) {
-      BuildSuccessful = 0;
-      DEBUG(
-          dbgs() << getUniqueScopName(&S)
-                 << " has a store to a scalar value that"
-                    " would be undefined to run in parallel. Bailing out.\n";);
+      // BuildSuccessful = 0;
+      DEBUG(dbgs() << __PRETTY_FUNCTION__ << "HACK: disabling bailout on StoredScalar\n";);
+      //DEBUG(
+      //    dbgs() << getUniqueScopName(&S)
+      //           << " has a store to a scalar value that"
+      //              " would be undefined to run in parallel. Bailing out.\n";);
     }
   }
 }
@@ -2216,24 +2265,51 @@ void GPUNodeBuilder::createKernelVariables(ppcg_kernel *Kernel, Function *FN) {
   for (int i = 0; i < Kernel->n_var; ++i) {
     struct ppcg_kernel_var &Var = Kernel->var[i];
     isl_id *Id = isl_space_get_tuple_id(Var.array->space, isl_dim_set);
+    const ScopArrayInfo *OriginalSAI =
+        ScopArrayInfo::getFromId(isl::manage(isl_id_copy(Id)));
+    assert(OriginalSAI);
+
     Type *EleTy = ScopArrayInfo::getFromId(isl::manage(Id))->getElementType();
 
     Type *ArrayTy = EleTy;
-    SmallVector<const SCEV *, 4> Sizes;
+    ShapeInfo NewShape = ShapeInfo::none();
+    if (OriginalSAI->hasStrides()) {
+      SmallVector<const SCEV *, 4> Strides;
+      for (unsigned int j = 0; j < Var.array->n_index; ++j) {
+        isl_val *Val = isl_vec_get_element_val(Var.size, j);
+        long Bound = isl_val_get_num_si(Val);
+        isl_val_free(Val);
+        Strides.push_back(S.getSE()->getConstant(Builder.getInt64Ty(), Bound));
+      }
 
-    Sizes.push_back(nullptr);
-    for (unsigned int j = 1; j < Var.array->n_index; ++j) {
-      isl_val *Val = isl_vec_get_element_val(Var.size, j);
-      long Bound = isl_val_get_num_si(Val);
-      isl_val_free(Val);
-      Sizes.push_back(S.getSE()->getConstant(Builder.getInt64Ty(), Bound));
-    }
+      for (int j = Var.array->n_index - 1; j >= 0; --j) {
+        isl_val *Val = isl_vec_get_element_val(Var.size, j);
+        long Bound = isl_val_get_num_si(Val);
+        isl_val_free(Val);
+        ArrayTy = ArrayType::get(ArrayTy, Bound);
+      }
 
-    for (int j = Var.array->n_index - 1; j >= 0; --j) {
-      isl_val *Val = isl_vec_get_element_val(Var.size, j);
-      long Bound = isl_val_get_num_si(Val);
-      isl_val_free(Val);
-      ArrayTy = ArrayType::get(ArrayTy, Bound);
+      NewShape = OriginalSAI->getShape();
+      // NewShape =
+      //     ShapeInfo::fromStrides(Strides, OriginalSAI->getStrideOffset());
+    } else {
+      SmallVector<const SCEV *, 4> Sizes;
+      Sizes.push_back(nullptr);
+      for (unsigned int j = 1; j < Var.array->n_index; ++j) {
+        isl_val *Val = isl_vec_get_element_val(Var.size, j);
+        long Bound = isl_val_get_num_si(Val);
+        isl_val_free(Val);
+        Sizes.push_back(S.getSE()->getConstant(Builder.getInt64Ty(), Bound));
+      }
+
+      // ASK TOBIAS: what is going on here?
+      for (int j = Var.array->n_index - 1; j >= 0; --j) {
+        isl_val *Val = isl_vec_get_element_val(Var.size, j);
+        long Bound = isl_val_get_num_si(Val);
+        isl_val_free(Val);
+        ArrayTy = ArrayType::get(ArrayTy, Bound);
+      }
+      NewShape = ShapeInfo::fromSizes(Sizes);
     }
 
     const ScopArrayInfo *SAI;
@@ -2251,8 +2327,8 @@ void GPUNodeBuilder::createKernelVariables(ppcg_kernel *Kernel, Function *FN) {
     } else {
       llvm_unreachable("unknown variable type");
     }
-    SAI =
-        S.getOrCreateScopArrayInfo(Allocation, EleTy, Sizes, MemoryKind::Array);
+    SAI = S.getOrCreateScopArrayInfo(Allocation, EleTy, NewShape,
+                                     MemoryKind::Array);
     Id = isl_id_alloc(S.getIslCtx(), Var.name, nullptr);
     IDToValue[Id] = Allocation;
     LocalArrays.push_back(Allocation);
@@ -2435,6 +2511,21 @@ void GPUNodeBuilder::addCUDALibDevice() {
 }
 
 std::string GPUNodeBuilder::finalizeKernelFunction() {
+  {
+    // NOTE: We currently copy all uses of gfortran_polly_array_index.
+    // However, these are unsused, but they refer to host side values
+    // So, ADCE them out.
+    // For correctness, we should probably add these to
+    // BlockGenerators.cpp - polly::isIgnoredIntrinsic.
+    llvm::legacy::PassManager OptPasses;
+    OptPasses.add(createAggressiveDCEPass());
+    // Comment this to allow tests to pass:
+    // Polly :: GPGPU/host-control-flow.ll
+    // Polly :: GPGPU/kernel-params-only-some-arrays.ll
+    // Polly :: GPGPU/live-range-reordering-with-privatization.ll
+    // Polly :: GPGPU/phi-nodes-in-kernel.ll
+    OptPasses.run(*GPUModule);
+  }
 
   if (verifyModule(*GPUModule)) {
     DEBUG(dbgs() << "verifyModule failed on module:\n";
@@ -2862,22 +2953,26 @@ public:
     for (unsigned i = 1; i < NumDims; ++i)
       Extent = Extent.lower_bound_si(isl::dim::set, i, 0);
 
-    for (unsigned i = 0; i < NumDims; ++i) {
-      isl::pw_aff PwAff = Array->getDimensionSizePw(i);
+    if (!Array->hasStrides()) {
+      for (unsigned i = 0; i < NumDims; ++i) {
+        isl::pw_aff PwAff = Array->getDimensionSizePw(i);
 
-      // isl_pw_aff can be NULL for zero dimension. Only in the case of a
-      // Fortran array will we have a legitimate dimension.
-      if (PwAff.is_null()) {
-        assert(i == 0 && "invalid dimension isl_pw_aff for nonzero dimension");
-        continue;
+        // isl_pw_aff can be NULL for zero dimension. Only in the case of a
+        // Fortran array will we have a legitimate dimension.
+        if (PwAff.is_null()) {
+          assert(i == 0 &&
+                 "invalid dimension isl_pw_aff for nonzero dimension");
+          continue;
+        }
+
+        isl::pw_aff Val = isl::aff::var_on_domain(
+            isl::local_space(Array->getSpace()), isl::dim::set, i);
+        PwAff = PwAff.add_dims(isl::dim::in, Val.dim(isl::dim::in));
+        PwAff =
+            PwAff.set_tuple_id(isl::dim::in, Val.get_tuple_id(isl::dim::in));
+        isl::set Set = PwAff.gt_set(Val);
+        Extent = Set.intersect(Extent);
       }
-
-      isl::pw_aff Val = isl::aff::var_on_domain(
-          isl::local_space(Array->getSpace()), isl::dim::set, i);
-      PwAff = PwAff.add_dims(isl::dim::in, Val.dim(isl::dim::in));
-      PwAff = PwAff.set_tuple_id(isl::dim::in, Val.get_tuple_id(isl::dim::in));
-      isl::set Set = PwAff.gt_set(Val);
-      Extent = Set.intersect(Extent);
     }
 
     return Extent;
@@ -2894,34 +2989,63 @@ public:
   void setArrayBounds(gpu_array_info &PPCGArray, ScopArrayInfo *Array) {
     std::vector<isl_pw_aff *> Bounds;
 
-    if (PPCGArray.n_index > 0) {
-      if (isl_set_is_empty(PPCGArray.extent)) {
-        isl_set *Dom = isl_set_copy(PPCGArray.extent);
-        isl_local_space *LS = isl_local_space_from_space(
-            isl_space_params(isl_set_get_space(Dom)));
-        isl_set_free(Dom);
-        isl_pw_aff *Zero = isl_pw_aff_from_aff(isl_aff_zero_on_domain(LS));
-        Bounds.push_back(Zero);
-      } else {
-        isl_set *Dom = isl_set_copy(PPCGArray.extent);
-        Dom = isl_set_project_out(Dom, isl_dim_set, 1, PPCGArray.n_index - 1);
-        isl_pw_aff *Bound = isl_set_dim_max(isl_set_copy(Dom), 0);
-        isl_set_free(Dom);
-        Dom = isl_pw_aff_domain(isl_pw_aff_copy(Bound));
-        isl_local_space *LS =
-            isl_local_space_from_space(isl_set_get_space(Dom));
-        isl_aff *One = isl_aff_zero_on_domain(LS);
-        One = isl_aff_add_constant_si(One, 1);
-        Bound = isl_pw_aff_add(Bound, isl_pw_aff_alloc(Dom, One));
-        Bound = isl_pw_aff_gist(Bound, S->getContext().release());
-        Bounds.push_back(Bound);
+    if (!Array->hasStrides()) {
+      if (PPCGArray.n_index > 0) {
+        if (isl_set_is_empty(PPCGArray.extent)) {
+          isl_set *Dom = isl_set_copy(PPCGArray.extent);
+          isl_local_space *LS = isl_local_space_from_space(
+              isl_space_params(isl_set_get_space(Dom)));
+          isl_set_free(Dom);
+          isl_pw_aff *Zero = isl_pw_aff_from_aff(isl_aff_zero_on_domain(LS));
+          Bounds.push_back(Zero);
+        } else {
+          isl_set *Dom = isl_set_copy(PPCGArray.extent);
+          Dom = isl_set_project_out(Dom, isl_dim_set, 1, PPCGArray.n_index - 1);
+          isl_pw_aff *Bound = isl_set_dim_max(isl_set_copy(Dom), 0);
+          isl_set_free(Dom);
+          Dom = isl_pw_aff_domain(isl_pw_aff_copy(Bound));
+          isl_local_space *LS =
+              isl_local_space_from_space(isl_set_get_space(Dom));
+          isl_aff *One = isl_aff_zero_on_domain(LS);
+          One = isl_aff_add_constant_si(One, 1);
+          Bound = isl_pw_aff_add(Bound, isl_pw_aff_alloc(Dom, One));
+          Bound = isl_pw_aff_gist(Bound, S->getContext().release());
+          Bounds.push_back(Bound);
+        }
       }
     }
 
-    for (unsigned i = 1; i < PPCGArray.n_index; ++i) {
+    const int BeginIndex = Array->hasStrides() ? 0 : 1;
+    for (unsigned i = BeginIndex; i < PPCGArray.n_index; ++i) {
       isl_pw_aff *Bound = Array->getDimensionSizePw(i).release();
       auto LS = isl_pw_aff_get_domain_space(Bound);
       auto Aff = isl_multi_aff_zero(LS);
+
+      // We need types to work out, which is why we perform this weird dance
+      // with `Aff` and `Bound`. Consider this example:
+
+      // LS: [p] -> { [] }
+      // Zero: [p] -> { [] } | Implicitly, is [p] -> { ~ -> [] }.
+      // This `~` is used to denote a "null space" (which is different from
+      // a *zero dimensional* space), which is something that ISL does not
+      // show you when pretty printing.
+
+      // Bound: [p] -> { [] -> [(10p)] } | Here, the [] is a *zero
+      // dimensional* space, not a "null space" which does not exist at all.
+
+      // When we pullback (precompose) `Bound` with `Zero`, we get:
+      // Bound . Zero =
+      //     ([p] -> { [] -> [(10p)] }) . ([p] -> {~ -> [] }) =
+      //     [p] -> { ~ -> [(10p)] } =
+      //     [p] -> [(10p)] (as ISL pretty prints it)
+      // Bound Pullback: [p] -> { [(10p)] }
+
+      // We want this kind of an expression for Bound, without a
+      // zero dimensional input, but with a "null space" input for the types
+      // to work out later on, as far as I (Siddharth Bhat) understand.
+      // I was unable to find a reference to this in the ISL manual.
+      // References: Tobias Grosser.
+
       Bound = isl_pw_aff_pullback_multi_aff(Bound, Aff);
       Bounds.push_back(Bound);
     }
@@ -2933,8 +3057,10 @@ public:
     /// `-polly-ignore-parameter-bounds` enabled, the Scop::Context does not
     /// contain all parameter dimensions.
     /// So, use the helper `alignPwAffs` to align all the `isl_pw_aff` together.
-    isl_space *SeedAlignSpace = S->getParamSpace().release();
+    isl_space *SeedAlignSpace = S->getFullParamSpace().release();
     SeedAlignSpace = isl_space_add_dims(SeedAlignSpace, isl_dim_set, 1);
+    SeedAlignSpace = isl_space_align_params(
+        SeedAlignSpace, isl_set_get_space(PPCGArray.extent));
 
     isl_space *AlignSpace = nullptr;
     std::vector<isl_pw_aff *> AlignedBounds;
@@ -3197,6 +3323,8 @@ public:
 
     Schedule =
         isl_schedule_align_params(Schedule, S->getFullParamSpace().release());
+    // errs() << S->getFullParamSpace() << "\n";
+    // report_fatal_error("see full param space");
 
     if (!has_permutable || has_permutable < 0) {
       Schedule = isl_schedule_free(Schedule);

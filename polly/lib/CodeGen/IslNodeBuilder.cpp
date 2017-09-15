@@ -562,8 +562,13 @@ void IslNodeBuilder::createForSequential(__isl_take isl_ast_node *For,
   UB = getUpperBound(For, Predicate);
 
   ValueLB = ExprBuilder.create(Init);
+  ValueLB = getLatestValue(ValueLB);
+
   ValueUB = ExprBuilder.create(UB);
+  ValueUB = getLatestValue(ValueUB);
+
   ValueInc = ExprBuilder.create(Inc);
+  ValueInc = getLatestValue(ValueInc);
 
   MaxType = ExprBuilder.getType(Iterator);
   MaxType = ExprBuilder.getWidestType(MaxType, ValueLB->getType());
@@ -1209,6 +1214,114 @@ bool IslNodeBuilder::materializeFortranArrayOutermostDimension() {
   return true;
 }
 
+// given a scev of the form baseptr + offset(constant), return baseptr
+Value *getBasePtrFromConstIndexSCEV(const SCEV *S) {
+    errs() << "S:" << *S << "\n";
+    const SCEVAddExpr *Add = cast<SCEVAddExpr>(S);
+    assert(Add->getNumOperands() == 2);
+    if (isa<SCEVUnknown>(Add->getOperand(0)))
+            return cast<SCEVUnknown>(Add->getOperand(0))->getValue();
+
+    if (isa<SCEVUnknown>(Add->getOperand(1)))
+            return cast<SCEVUnknown>(Add->getOperand(1))->getValue();
+    assert(false);
+}
+
+/*
+    struct gfc_array_descriptor
+    {
+      array *data
+      index offset;
+      index dtype;
+      struct descriptor_dimension dimension[N_DIM];
+    }
+
+    struct descriptor_dimension
+    {
+      index stride;
+      index lbound;
+      index ubound;
+    }
+*/
+Value *IslNodeBuilder::extractStrideFromFAD(GlobalValue *FAD, int dimension) {
+    Type *Ity = Builder.getInt32Ty();
+    std::vector<Value *> Idxs =  { ConstantInt::get(Ity, 0), //global idx
+        ConstantInt::get(Ity, 3), // location of descriptor dim array
+        ConstantInt::get(Ity, dimension),//nth descriptor dim array,
+        ConstantInt::get(Ity, 0) // stride 
+    };
+    Value *Loc = Builder.CreateGEP(FAD, Idxs, "stride." + std::to_string(dimension) + ".loc");
+    return Builder.CreateLoad(Loc);
+}
+
+Value *IslNodeBuilder::extractOffsetFromFAD(GlobalValue *FAD) {
+    Type *Ity = Builder.getInt32Ty();
+    std::vector<Value *> Idxs = {ConstantInt::get(Ity, 0) // global idx
+        , ConstantInt::get(Ity, 1) // offset loc
+    };
+    Value *OffsetLoc = Builder.CreateGEP(FAD, Idxs, "offset.loc");
+    return Builder.CreateLoad(OffsetLoc);
+}
+
+void IslNodeBuilder::materializeStridedArraySizes() {
+    for (ScopArrayInfo *Array : S.arrays()) {
+        if (!Array->hasStrides())
+            continue;
+
+        GlobalValue *FAD = nullptr;
+
+        for (unsigned i = 0; i < Array->getNumberOfDimensions(); i++) {
+            isl_pw_aff *ParametricPwAff = Array->getDimensionSizePw(i).release();
+            assert(ParametricPwAff && "parametric pw_aff corresponding "
+                    "to outermost dimension does not "
+                    "exist");
+
+            isl_id *Id = isl_pw_aff_get_dim_id(ParametricPwAff, isl_dim_param, 0);
+            isl_pw_aff_free(ParametricPwAff);
+
+            assert(Id && "pw_aff is not parametric");
+
+            DEBUG(
+            dbgs() << "-\n";
+            dbgs() << "i: " << i << "\n";
+            dbgs() << "ID: " <<Id << "\n";);
+            const SCEV *StrideSCEV = Array->getDimensionStride(i);
+            // dbgs() << "StrideSCEV: " << *StrideSCEV << "\n";
+
+            Value *Stride = nullptr;
+            if (FAD) {
+                assert(false);
+                // We need to pass a SCEV to the IslExprBuilder for
+                // kernel strides. We can't synthesize a value because it would be
+                // different across host and kernel code.
+                Stride = extractStrideFromFAD(FAD, Array->getNumberOfDimensions() - 1 -i);
+            }
+            else {
+                // assert(isa<SCEVConstant>(StrideSCEV));
+                Stride = generateSCEV(StrideSCEV);
+            }
+            assert(Stride);
+
+            // errs() << "StrideVal: " << *Stride << "\n";
+            IDToValue[Id] = Stride;
+            SCEVToValue[Array->getDimensionStride(i)] = Stride;
+            isl_id_free(Id);
+        }
+
+        Value *Offset = nullptr;
+        const SCEV *OffsetSCEV = Array->getStrideOffset();
+        if (FAD) {
+            assert(false);
+            Offset = extractOffsetFromFAD(FAD);
+        } else {
+            // assert(isa<SCEVConstant>(OffsetSCEV));
+            Offset = generateSCEV(OffsetSCEV);
+        }
+        assert(Offset);
+        SCEVToValue[OffsetSCEV] = Offset;
+    }
+}
+
 Value *IslNodeBuilder::preloadUnconditionally(isl_set *AccessRange,
                                               isl_ast_build *Build,
                                               Instruction *AccInst) {
@@ -1372,10 +1485,9 @@ bool IslNodeBuilder::preloadInvariantEquivClass(
 
   // If the size of a dimension is dependent on another class, make sure it is
   // preloaded.
-  for (unsigned i = 1, e = SAI->getNumberOfDimensions(); i < e; ++i) {
-    const SCEV *Dim = SAI->getDimensionSize(i);
+  auto PreloadSCEV = [&](const SCEV *ToPreload) {
     SetVector<Value *> Values;
-    findValues(Dim, SE, Values);
+    findValues(ToPreload, SE, Values);
     for (auto *Val : Values) {
       if (auto *BaseIAClass = S.lookupInvariantEquivClass(Val)) {
         if (!preloadInvariantEquivClass(*BaseIAClass))
@@ -1386,6 +1498,21 @@ bool IslNodeBuilder::preloadInvariantEquivClass(
         isl_set *BaseExecutionCtx = isl_set_copy(BaseIAClass->ExecutionContext);
         ExecutionCtx = isl_set_intersect(ExecutionCtx, BaseExecutionCtx);
       }
+    }
+    return true;
+  };
+
+  if (SAI->hasStrides()) {
+    if (!PreloadSCEV(SAI->getStrideOffset()))
+      return false;
+    for (unsigned i = 0, e = SAI->getNumberOfDimensions(); i < e; ++i) {
+      if (!PreloadSCEV(SAI->getDimensionStride(i)))
+        return false;
+    }
+  } else {
+    for (unsigned i = 1, e = SAI->getNumberOfDimensions(); i < e; ++i) {
+      if (!PreloadSCEV(SAI->getDimensionSize(i)))
+        return false;
     }
   }
 
@@ -1544,6 +1671,8 @@ void IslNodeBuilder::addParameters(__isl_take isl_set *Context) {
   // the SCEVs. We don't have a corresponding SCEV for the array size
   // parameter
   materializeFortranArrayOutermostDimension();
+
+  materializeStridedArraySizes();
 
   // Generate values for the current loop iteration for all surrounding loops.
   //

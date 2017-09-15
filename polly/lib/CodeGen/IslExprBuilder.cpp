@@ -40,12 +40,14 @@ static cl::opt<OverflowTrackingChoice> OTMode(
     cl::Hidden, cl::init(OT_REQUEST), cl::ZeroOrMore, cl::cat(PollyCategory));
 
 IslExprBuilder::IslExprBuilder(Scop &S, PollyIRBuilder &Builder,
-                               IDToValueTy &IDToValue, ValueMapT &GlobalMap,
+                               IDToValueTy &IDToValue,
+                               SCEVToValueTy &SCEVToValue, ValueMapT &GlobalMap,
                                const DataLayout &DL, ScalarEvolution &SE,
                                DominatorTree &DT, LoopInfo &LI,
                                BasicBlock *StartBlock)
-    : S(S), Builder(Builder), IDToValue(IDToValue), GlobalMap(GlobalMap),
-      DL(DL), SE(SE), DT(DT), LI(LI), StartBlock(StartBlock) {
+    : S(S), Builder(Builder), IDToValue(IDToValue), SCEVToValue(SCEVToValue),
+      GlobalMap(GlobalMap), DL(DL), SE(SE), DT(DT), LI(LI),
+      StartBlock(StartBlock) {
   OverflowState = (OTMode == OT_ALWAYS) ? Builder.getFalse() : nullptr;
 }
 
@@ -262,50 +264,142 @@ Value *IslExprBuilder::createAccessAddress(isl_ast_expr *Expr) {
   }
 
   IndexOp = nullptr;
-  for (unsigned u = 1, e = isl_ast_expr_get_op_n_arg(Expr); u < e; u++) {
-    Value *NextIndex = create(isl_ast_expr_get_op_arg(Expr, u));
-    assert(NextIndex->getType()->isIntegerTy() &&
-           "Access index should be an integer");
+  const std::string Name = Builder.GetInsertBlock()->getModule()->getName();
+  if (SAI->hasStrides()) {
+    for (unsigned u = 1, e = isl_ast_expr_get_op_n_arg(Expr); u < e; u++) {
+      Value *NextIndex = create(isl_ast_expr_get_op_arg(Expr, u));
+      assert(NextIndex->getType()->isIntegerTy() &&
+             "Access index should be an integer");
 
-    if (PollyDebugPrinting)
-      RuntimeDebugBuilder::createCPUPrinter(Builder, "[", NextIndex, "]");
-
-    if (!IndexOp) {
-      IndexOp = NextIndex;
-    } else {
-      Type *Ty = getWidestType(NextIndex->getType(), IndexOp->getType());
+      Type *Ty = [&]() {
+        if (IndexOp)
+          return getWidestType(NextIndex->getType(), IndexOp->getType());
+        else
+          return NextIndex->getType();
+      }();
 
       if (Ty != NextIndex->getType())
         NextIndex = Builder.CreateIntCast(NextIndex, Ty, true);
-      if (Ty != IndexOp->getType())
-        IndexOp = Builder.CreateIntCast(IndexOp, Ty, true);
 
-      IndexOp = createAdd(IndexOp, NextIndex, "polly.access.add." + BaseName);
-    }
+      const SCEV *DimSCEV = SAI->getDimensionStride(u - 1);
+      assert(DimSCEV);
 
-    // For every but the last dimension multiply the size, for the last
-    // dimension we can exit the loop.
-    if (u + 1 >= e)
-      break;
+      Value *DimSize = nullptr;
+      llvm::ValueToValueMap Map(GlobalMap.begin(), GlobalMap.end());
 
-    const SCEV *DimSCEV = SAI->getDimensionSize(u);
+      // HACK: we do this because we know the kernel name.
+      if (Name.find("FUNC__") != std::string::npos) {
+        auto OldValue = SCEVToValue.find(DimSCEV);
+        if (OldValue == SCEVToValue.end())
+          assert(false && "!OldValue");
 
+        auto NewDimSizeIt = Map.find(OldValue->second);
+        if (NewDimSizeIt == Map.end())
+          assert(false && "!NewDimSizeIt");
+        DimSize = NewDimSizeIt->second;
+      } else {
+
+        DimSCEV = SCEVParameterRewriter::rewrite(DimSCEV, SE, Map);
+        DimSize = expandCodeFor(S, SE, DL, "polly", DimSCEV, DimSCEV->getType(),
+                                &*Builder.GetInsertPoint(), nullptr,
+                                StartBlock->getSinglePredecessor());
+      }
+      assert(DimSize && "dimsize uninitialized");
+
+      if (Ty != NextIndex->getType())
+        NextIndex = Builder.CreateSExtOrTrunc(NextIndex, Ty,
+                                              "polly.access.idxval." + BaseName + std::to_string(u - 1));
+      if (Ty != DimSize->getType())
+        DimSize = Builder.CreateSExtOrTrunc(DimSize, Ty,
+                                            "polly.access.stride." + BaseName + std::to_string(u - 1));
+
+      NextIndex = createMul(NextIndex, DimSize, "polly.access.idxval_x_stride." + BaseName + std::to_string(u - 1));
+
+      if (PollyDebugPrinting)
+        RuntimeDebugBuilder::createCPUPrinter(Builder, "[", NextIndex, "]");
+      if (!IndexOp) {
+        IndexOp = NextIndex;
+      } else {
+        if (Ty != IndexOp->getType())
+          IndexOp = Builder.CreateIntCast(IndexOp, Ty, true);
+        IndexOp = createAdd(IndexOp, NextIndex, "polly.access.idx_accum." + BaseName);
+      } // end else
+    }   // end for loop over stride dims
+    assert(IndexOp && "expected correct index op");
+    Value *Offset = nullptr;
+    // If we are in the kernel, then the base pointer has already been
+    // offset correctly so we need not do anything about it.
+    if (Name.find("FUNC__") != std::string::npos) {
+      llvm::ValueToValueMap Map(GlobalMap.begin(), GlobalMap.end());
+        const SCEV *OffsetSCEV = SAI->getStrideOffset();
+        auto OldValue = SCEVToValue.find(OffsetSCEV);
+        if (OldValue == SCEVToValue.end())
+          assert(false && "!OldValue offset");
+
+        auto NewIt = Map.find(OldValue->second);
+        if (NewIt == Map.end())
+          assert(false && "!NewIt offset");
+        Offset = NewIt->second;
+    } else {
+    const SCEV *OffsetSCEV = SAI->getStrideOffset();
     llvm::ValueToValueMap Map(GlobalMap.begin(), GlobalMap.end());
-    DimSCEV = SCEVParameterRewriter::rewrite(DimSCEV, SE, Map);
-    Value *DimSize =
-        expandCodeFor(S, SE, DL, "polly", DimSCEV, DimSCEV->getType(),
-                      &*Builder.GetInsertPoint(), nullptr,
-                      StartBlock->getSinglePredecessor());
 
-    Type *Ty = getWidestType(DimSize->getType(), IndexOp->getType());
+      // If we are outside a kernel, then we do need to synthesize an offset.
+      OffsetSCEV = SCEVParameterRewriter::rewrite(OffsetSCEV, SE, Map);
+      Offset = expandCodeFor(S, SE, DL, "polly", OffsetSCEV,
+                             OffsetSCEV->getType(), &*Builder.GetInsertPoint(),
+                             nullptr, StartBlock->getSinglePredecessor());
+      Offset = Builder.CreateIntCast(Offset, IndexOp->getType(), true);
+    }
+    assert(Offset && "dimsize uninitialized");
+    IndexOp = createAdd(IndexOp, Offset, "polly.access.offseted." + BaseName);
+  } // end hasStride
+  else {
+    for (unsigned u = 1, e = isl_ast_expr_get_op_n_arg(Expr); u < e; u++) {
+      Value *NextIndex = create(isl_ast_expr_get_op_arg(Expr, u));
+      assert(NextIndex->getType()->isIntegerTy() &&
+             "Access index should be an integer");
 
-    if (Ty != IndexOp->getType())
-      IndexOp = Builder.CreateSExtOrTrunc(IndexOp, Ty,
-                                          "polly.access.sext." + BaseName);
-    if (Ty != DimSize->getType())
-      DimSize = Builder.CreateSExtOrTrunc(DimSize, Ty,
-                                          "polly.access.sext." + BaseName);
-    IndexOp = createMul(IndexOp, DimSize, "polly.access.mul." + BaseName);
+      if (PollyDebugPrinting)
+        RuntimeDebugBuilder::createCPUPrinter(Builder, "[", NextIndex, "]");
+
+      if (!IndexOp) {
+        IndexOp = NextIndex;
+      } else {
+        Type *Ty = getWidestType(NextIndex->getType(), IndexOp->getType());
+
+        if (Ty != NextIndex->getType())
+          NextIndex = Builder.CreateIntCast(NextIndex, Ty, true);
+        if (Ty != IndexOp->getType())
+          IndexOp = Builder.CreateIntCast(IndexOp, Ty, true);
+
+        IndexOp = createAdd(IndexOp, NextIndex, "polly.access.add." + BaseName);
+      }
+
+      // For every but the last dimension multiply the size, for the last
+      // dimension we can exit the loop.
+      if (u + 1 >= e)
+        break;
+
+      const SCEV *DimSCEV = SAI->getDimensionSize(u);
+
+      llvm::ValueToValueMap Map(GlobalMap.begin(), GlobalMap.end());
+      DimSCEV = SCEVParameterRewriter::rewrite(DimSCEV, SE, Map);
+      Value *DimSize =
+          expandCodeFor(S, SE, DL, "polly", DimSCEV, DimSCEV->getType(),
+                        &*Builder.GetInsertPoint(), nullptr,
+                        StartBlock->getSinglePredecessor());
+
+      Type *Ty = getWidestType(DimSize->getType(), IndexOp->getType());
+
+      if (Ty != IndexOp->getType())
+        IndexOp = Builder.CreateSExtOrTrunc(IndexOp, Ty,
+                                            "polly.access.sext." + BaseName);
+      if (Ty != DimSize->getType())
+        DimSize = Builder.CreateSExtOrTrunc(DimSize, Ty,
+                                            "polly.access.sext." + BaseName);
+      IndexOp = createMul(IndexOp, DimSize, "polly.access.mul." + BaseName);
+    }
   }
 
   Access = Builder.CreateGEP(Base, IndexOp, "polly.access." + BaseName);
@@ -319,7 +413,8 @@ Value *IslExprBuilder::createAccessAddress(isl_ast_expr *Expr) {
 Value *IslExprBuilder::createOpAccess(isl_ast_expr *Expr) {
   Value *Addr = createAccessAddress(Expr);
   assert(Addr && "Could not create op access address");
-  return Builder.CreateLoad(Addr, Addr->getName() + ".load");
+  auto LoadVal = Builder.CreateLoad(Addr, Addr->getName() + ".load");
+  return LoadVal;
 }
 
 Value *IslExprBuilder::createOpBin(__isl_take isl_ast_expr *Expr) {
