@@ -37,6 +37,9 @@
 ; CHECK-O2-NEXT: FunctionPass Manager
 ; CHECK-O2-NOT: Manager
 ; CHECK-O2: Loop Pass Manager
+; FIXME: Adition of MemorySSA splits the Loop Pass Manager into 3.
+; CHECK-O2: Loop Pass Manager
+; CHECK-O2: Loop Pass Manager
 ; CHECK-O2-NOT: Manager
 ; FIXME: We shouldn't be pulling out to simplify-cfg and instcombine and
 ; causing new loop pass managers.

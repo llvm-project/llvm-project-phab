@@ -93,6 +93,14 @@ extern bool VerifyDomInfo;
 ///
 extern bool VerifyLoopInfo;
 
+/// Enables memory ssa as a dependency for loop passes.
+///
+extern bool EnableMSSALoopDep;
+
+/// Enables LICM to use MSSA if available
+///
+extern bool UseLICMwMSSA;
+
 ///\}
 
 /// EnableDebugBuffering - This defaults to false.  If true, the debug
