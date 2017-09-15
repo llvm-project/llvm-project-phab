@@ -179,6 +179,7 @@ extern "C" void LLVMInitializeAMDGPUTarget() {
   initializeAMDGPUAAWrapperPassPass(*PR);
   initializeAMDGPUUseNativeCallsPass(*PR);
   initializeAMDGPUSimplifyLibCallsPass(*PR);
+  initializeAMDGPUInlinerPass(*PR);
 }
 
 static std::unique_ptr<TargetLoweringObjectFile> createTLOF(const Triple &TT) {
@@ -325,9 +326,11 @@ void AMDGPUTargetMachine::adjustPassManager(PassManagerBuilder &Builder) {
   bool EnableOpt = getOptLevel() > CodeGenOpt::None;
   bool Internalize = InternalizeSymbols && EnableOpt &&
                      (getTargetTriple().getArch() == Triple::amdgcn);
-  bool EarlyInline = EarlyInlineAll && EnableOpt;
+  bool EarlyInline = EarlyInlineAll && EnableOpt && !EnableAMDGPUFunctionCalls;
   bool AMDGPUAA = EnableAMDGPUAliasAnalysis && EnableOpt;
   bool LibCallSimplify = EnableLibCallSimplify && EnableOpt;
+
+  Builder.Inliner = createAMDGPUFunctionInliningPass();
 
   Builder.addExtension(
     PassManagerBuilder::EP_ModuleOptimizerEarly,
