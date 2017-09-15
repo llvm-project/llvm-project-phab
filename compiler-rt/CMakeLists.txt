@@ -62,6 +62,7 @@ if (COMPILER_RT_STANDALONE_BUILD)
     set(LIT_ARGS_DEFAULT "${LIT_ARGS_DEFAULT} --no-progress-bar")
   endif()
   set(LLVM_LIT_ARGS "${LIT_ARGS_DEFAULT}" CACHE STRING "Default options for lit")
+  set(LLVM_LIT_OUTPUT_DIR "${COMPILER_RT_EXEC_OUTPUT_DIR}")
 endif()
 
 construct_compiler_rt_default_triple()
@@ -225,7 +226,7 @@ append_list_if(COMPILER_RT_DEBUG -DSANITIZER_DEBUG=1 SANITIZER_COMMON_CFLAGS)
 # always respect the optimization flags set by CMAKE_BUILD_TYPE instead.
 if (NOT MSVC)
 
-  # Build with optimization, unless we're in debug mode. 
+  # Build with optimization, unless we're in debug mode.
   if(COMPILER_RT_DEBUG)
     list(APPEND SANITIZER_COMMON_CFLAGS -O0)
   else()
@@ -345,4 +346,7 @@ add_subdirectory(lib)
 if(COMPILER_RT_INCLUDE_TESTS)
   add_subdirectory(unittests)
   add_subdirectory(test)
+  if (COMPILER_RT_STANDALONE_BUILD)
+    add_subdirectory(${LLVM_MAIN_SRC_DIR}/utils/llvm-lit ${CMAKE_CURRENT_BINARY_DIR}/llvm-lit)
+  endif()
 endif()
