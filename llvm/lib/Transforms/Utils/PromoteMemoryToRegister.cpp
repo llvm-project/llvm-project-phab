@@ -68,6 +68,33 @@ bool llvm::isAllocaPromotable(const AllocaInst *AI) {
       // not have any meaning for a local alloca.
       if (SI->isVolatile())
         return false;
+    } else if (const MemCpyInst *MCI = dyn_cast<MemCpyInst>(U)) {
+      // Punt if this alloca is an array allocation
+      if (AI->isArrayAllocation())
+        return false;
+      if (MCI->isVolatile())
+        return false;
+      Value *Length = MCI->getLength();
+      if (!isa<ConstantInt>(Length))
+        return false;
+      // Anything less than the full alloca, we leave for SROA
+      const DataLayout &DL = AI->getModule()->getDataLayout();
+      size_t AIElSize = DL.getTypeAllocSize(AI->getAllocatedType());
+      if (cast<ConstantInt>(Length)->getZExtValue() != AIElSize)
+        return false;
+      // If the other argument is also an alloca, we need to be sure that either
+      // the types are bitcastable, or the other alloca is not eligible for
+      // promotion (e.g. because the memcpy is for less than the whole size of
+      // that alloca), otherwise we risk turning an allocatable alloca into a
+      // non-allocatable one when splitting the memcpy.
+      AllocaInst *OtherAI = dyn_cast<AllocaInst>(
+          AI == MCI->getRawSource() ? MCI->getRawDest() : MCI->getRawSource());
+      if (OtherAI) {
+        if (!CastInst::isBitCastable(AI->getAllocatedType(),
+                                     OtherAI->getAllocatedType()) &&
+            DL.getTypeAllocSize(OtherAI->getAllocatedType()) == AIElSize)
+          return false;
+      }
     } else if (const IntrinsicInst *II = dyn_cast<IntrinsicInst>(U)) {
       if (II->getIntrinsicID() != Intrinsic::lifetime_start &&
           II->getIntrinsicID() != Intrinsic::lifetime_end)
@@ -98,11 +125,14 @@ struct AllocaInfo {
   SmallVector<BasicBlock *, 32> DefiningBlocks;
   SmallVector<BasicBlock *, 32> UsingBlocks;
 
+  // This gets updated with stores we find as we get along. Our use of
+  // a vector for DefiningBlocks has the side effect of counting the number
+  // of stores, so if DefiningBlocks.size() == 1, there is only one store
+  // and we can quickly find it here.
   StoreInst *OnlyStore;
   BasicBlock *OnlyBlock;
   bool OnlyUsedInOneBlock;
 
-  Value *AllocaPointerVal;
   DbgDeclareInst *DbgDeclare;
 
   void clear() {
@@ -111,7 +141,6 @@ struct AllocaInfo {
     OnlyStore = nullptr;
     OnlyBlock = nullptr;
     OnlyUsedInOneBlock = true;
-    AllocaPointerVal = nullptr;
     DbgDeclare = nullptr;
   }
 
@@ -129,14 +158,11 @@ struct AllocaInfo {
       if (StoreInst *SI = dyn_cast<StoreInst>(User)) {
         // Remember the basic blocks which define new values for the alloca
         DefiningBlocks.push_back(SI->getParent());
-        AllocaPointerVal = SI->getOperand(0);
         OnlyStore = SI;
       } else {
         LoadInst *LI = cast<LoadInst>(User);
-        // Otherwise it must be a load instruction, keep track of variable
-        // reads.
+        // Keep track of variable reads.
         UsingBlocks.push_back(LI->getParent());
-        AllocaPointerVal = LI;
       }
 
       if (OnlyUsedInOneBlock) {
@@ -181,7 +207,9 @@ public:
   /// This code only looks at accesses to allocas.
   static bool isInterestingInstruction(const Instruction *I) {
     return (isa<LoadInst>(I) && isa<AllocaInst>(I->getOperand(0))) ||
-           (isa<StoreInst>(I) && isa<AllocaInst>(I->getOperand(1)));
+           (isa<StoreInst>(I) && isa<AllocaInst>(I->getOperand(1))) ||
+           (isa<MemCpyInst>(I) && (isa<AllocaInst>(I->getOperand(0)) ||
+                                   isa<AllocaInst>(I->getOperand(1))));
   }
 
   /// Get or calculate the index of the specified instruction.
@@ -206,6 +234,24 @@ public:
 
     assert(It != InstNumbers.end() && "Didn't insert instruction?");
     return It->second;
+  }
+
+  // When we split a memcpy intrinsic, we need to update the numbering in this
+  // struct. To make sure the relative ordering remains the same, we give both
+  // the LI and the SI the number that the MCI used to have (if they are both
+  // interesting). This means that they will have equal numbers, which usually
+  // can't happen. However, since they can never reference the same alloca
+  // (since memcpy operands may not overlap), this is fine, because we will
+  // never compare instruction indices for instructions that operate on distinct
+  // allocas.
+  void splitMemCpy(MemCpyInst *MCI, LoadInst *LI, StoreInst *SI) {
+    DenseMap<const Instruction *, unsigned>::iterator It =
+        InstNumbers.find(MCI);
+    if (It == InstNumbers.end())
+      return;
+    InstNumbers[LI] = It->second;
+    InstNumbers[SI] = It->second;
+    deleteValue(MCI);
   }
 
   void deleteValue(const Instruction *I) { InstNumbers.erase(I); }
@@ -305,15 +351,48 @@ static void addAssumeNonNull(AssumptionCache *AC, LoadInst *LI) {
   AC->registerAssumption(CI);
 }
 
-static void removeLifetimeIntrinsicUsers(AllocaInst *AI) {
-  // Knowing that this alloca is promotable, we know that it's safe to kill all
-  // instructions except for load and store.
+static void canonicalizeUsers(LargeBlockInfo &LBI, AllocaInst *AI) {
+  // Knowing that this alloca is promotable, we know that it's safe to split
+  // MTIs into load/store and to kill all other instructions except for
+  // load and store.
 
   for (auto UI = AI->user_begin(), UE = AI->user_end(); UI != UE;) {
     Instruction *I = cast<Instruction>(*UI);
     ++UI;
     if (isa<LoadInst>(I) || isa<StoreInst>(I))
       continue;
+
+    if (isa<MemCpyInst>(I)) {
+      MemCpyInst *MCI = cast<MemCpyInst>(I);
+      AAMDNodes AA;
+      MCI->getAAMetadata(AA);
+      // This might add to the end of the use list, but that's fine. At worst,
+      // we'd not visit the instructions we insert here, but we don't care
+      // about them in this loop anyway.
+      LoadInst *LI =
+          new LoadInst(AI->getAllocatedType(), MCI->getRawSource(), "",
+                       MCI->isVolatile(), MCI->getAlignment(), MCI);
+      Value *Val = LI;
+      Value *Dest = MCI->getRawDest();
+      Type *DestElTy = cast<PointerType>(Dest->getType())->getElementType();
+      if (LI->getType() != DestElTy) {
+        if (CastInst::isBitCastable(LI->getType(), DestElTy))
+          Val = CastInst::Create(Instruction::BitCast, Val, DestElTy, "", MCI);
+        else
+          Dest = CastInst::Create(
+              Instruction::BitCast, Dest,
+              LI->getType()->getPointerTo(
+                  cast<PointerType>(Dest->getType())->getAddressSpace()),
+              "", MCI);
+      }
+      StoreInst *SI =
+          new StoreInst(Val, Dest, MCI->isVolatile(), MCI->getAlignment(), MCI);
+      LI->setAAMetadata(AA);
+      SI->setAAMetadata(AA);
+      LBI.splitMemCpy(MCI, LI, SI);
+      MCI->eraseFromParent();
+      continue;
+    }
 
     if (!I->getType()->isVoidTy()) {
       // The only users of this bitcast/GEP instruction are lifetime intrinsics.
@@ -542,7 +621,7 @@ void PromoteMem2Reg::run() {
     assert(AI->getParent()->getParent() == &F &&
            "All allocas should be in the same function, which is same as DF!");
 
-    removeLifetimeIntrinsicUsers(AI);
+    canonicalizeUsers(LBI, AI);
 
     if (AI->use_empty()) {
       // If there are no uses of the alloca, just delete it now.
