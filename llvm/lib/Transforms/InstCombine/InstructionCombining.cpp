@@ -2247,7 +2247,9 @@ Instruction *InstCombiner::visitFree(CallInst &FI) {
   // if (foo) free(foo);
   // into
   // free(foo);
-  if (MinimizeSize)
+  // Note we can't really do it in the case of `operator delete` as this one
+  // can have visible side effects.
+  if (MinimizeSize && !hasSideEffectsFreeCall(&FI, TLI))
     if (Instruction *I = tryToMoveFreeBeforeNullTest(FI))
       return I;
 

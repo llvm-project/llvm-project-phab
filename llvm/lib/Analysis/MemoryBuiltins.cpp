@@ -348,6 +348,26 @@ const CallInst *llvm::extractCallocCall(const Value *I,
   return isCallocLikeFn(I, TLI) ? cast<CallInst>(I) : nullptr;
 }
 
+/// hasSideEffectsFreeCall - Returns true if the call has side effects.
+bool llvm::hasSideEffectsFreeCall(const CallInst *CI,
+                                  const TargetLibraryInfo &TLI) {
+  Function *Callee = CI->getCalledFunction();
+  if (Callee == nullptr)
+    return false;
+
+  StringRef FnName = Callee->getName();
+  LibFunc TLIFn;
+  if (!TLI.getLibFunc(FnName, TLIFn) || !TLI.has(TLIFn))
+    return false;
+
+  return TLIFn == LibFunc_ZdlPv ||                   // operator delete(void*)
+         TLIFn == LibFunc_ZdaPv ||                   // operator delete[](void*)
+         TLIFn == LibFunc_msvc_delete_ptr32 ||       // operator delete(void*)
+         TLIFn == LibFunc_msvc_delete_ptr64 ||       // operator delete(void*)
+         TLIFn == LibFunc_msvc_delete_array_ptr32 || // operator delete[](void*)
+         TLIFn == LibFunc_msvc_delete_array_ptr64;   // operator delete[](void*)
+}
+
 /// isFreeCall - Returns non-null if the value is a call to the builtin free()
 const CallInst *llvm::isFreeCall(const Value *I, const TargetLibraryInfo *TLI) {
   const CallInst *CI = dyn_cast<CallInst>(I);

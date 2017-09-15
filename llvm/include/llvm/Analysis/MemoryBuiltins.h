@@ -137,6 +137,9 @@ static inline CallInst *extractCallocCall(Value *I,
 //  free Call Utility Functions.
 //
 
+/// hasSideEffectsFreeCall - Returns true if the call has side effects.
+bool hasSideEffectsFreeCall(const CallInst *CI, const TargetLibraryInfo &TLI);
+
 /// isFreeCall - Returns non-null if the value is a call to the builtin free()
 const CallInst *isFreeCall(const Value *I, const TargetLibraryInfo *TLI);
 
