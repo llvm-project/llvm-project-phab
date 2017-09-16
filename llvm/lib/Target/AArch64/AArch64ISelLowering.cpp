@@ -4961,8 +4961,7 @@ SDValue AArch64TargetLowering::getSqrtEstimate(SDValue Operand,
       SDLoc DL(Operand);
       EVT VT = Operand.getValueType();
 
-      SDNodeFlags Flags;
-      Flags.setUnsafeAlgebra(true);
+      SDNodeFlags Flags = Operand.getNode()->getFlags();
 
       // Newton reciprocal square root iteration: E * 0.5 * (3 - X * E^2)
       // AArch64 reciprocal square root iteration instruction: 0.5 * (3 - M * N)
@@ -5001,8 +5000,7 @@ SDValue AArch64TargetLowering::getRecipEstimate(SDValue Operand,
       SDLoc DL(Operand);
       EVT VT = Operand.getValueType();
 
-      SDNodeFlags Flags;
-      Flags.setUnsafeAlgebra(true);
+      SDNodeFlags Flags = Operand.getNode()->getFlags();
 
       // Newton reciprocal iteration: E * (2 - X * E)
       // AArch64 reciprocal iteration instruction: (2 - M * N)

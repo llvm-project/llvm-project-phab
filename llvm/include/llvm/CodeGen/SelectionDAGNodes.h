@@ -347,12 +347,26 @@ template<> struct simplify_type<SDUse> {
 /// These are IR-level optimization flags that may be propagated to SDNodes.
 /// TODO: This data structure should be shared by the IR optimizer and the
 /// the backend.
+/// Propagation of Flags from Instruction to SDNode is done by
+/// SDNodeFlagsAcquirer after the DAG node is created. Any flags which are set
+/// during the Build DAG are eventually merged with flags which are present over
+/// Instruction (IR).
 struct SDNodeFlags {
 private:
   // This bit is used to determine if the flags are in a defined state.
   // Flag bits can only be masked out during intersection if the masking flags
   // are defined.
   bool AnyDefined : 1;
+
+  // Following two bit are used for Flags propagation from
+  // a DAG node to its operands. When Propagate bit is set then
+  // Flags from DAG node are propagated to only those operands which
+  // have their Acquire bit set.
+  // These bits are set by invocation of
+  // SDNodeFlagsAcquirer::PropagateFlagsToOperands and reset once the
+  // propagation is through.
+  bool PropagateFlagsToOperands : 1;
+  bool AcquireFlagsFromUser : 1;
 
   bool NoUnsignedWrap : 1;
   bool NoSignedWrap : 1;
@@ -368,57 +382,60 @@ private:
 public:
   /// Default constructor turns off all optimization flags.
   SDNodeFlags()
-      : AnyDefined(false), NoUnsignedWrap(false), NoSignedWrap(false),
+      : AnyDefined(false), PropagateFlagsToOperands(false),
+        AcquireFlagsFromUser(false), NoUnsignedWrap(false), NoSignedWrap(false),
         Exact(false), UnsafeAlgebra(false), NoNaNs(false), NoInfs(false),
         NoSignedZeros(false), AllowReciprocal(false), VectorReduction(false),
         AllowContract(false) {}
 
   /// Sets the state of the flags to the defined state.
-  void setDefined() { AnyDefined = true; }
+  void setDefined(bool Val) { AnyDefined = Val; }
   /// Returns true if the flags are in a defined state.
   bool isDefined() const { return AnyDefined; }
 
   // These are mutators for each flag.
-  void setNoUnsignedWrap(bool b) {
-    setDefined();
+  void setNoUnsignedWrap(bool b, bool Commit = true) {
+    setDefined(Commit);
     NoUnsignedWrap = b;
   }
-  void setNoSignedWrap(bool b) {
-    setDefined();
+  void setNoSignedWrap(bool b, bool Commit = true) {
+    setDefined(Commit);
     NoSignedWrap = b;
   }
-  void setExact(bool b) {
-    setDefined();
+  void setExact(bool b, bool Commit = true) {
+    setDefined(Commit);
     Exact = b;
   }
-  void setUnsafeAlgebra(bool b) {
-    setDefined();
+  void setUnsafeAlgebra(bool b, bool Commit = true) {
+    setDefined(Commit);
     UnsafeAlgebra = b;
   }
-  void setNoNaNs(bool b) {
-    setDefined();
+  void setNoNaNs(bool b, bool Commit = true) {
+    setDefined(Commit);
     NoNaNs = b;
   }
-  void setNoInfs(bool b) {
-    setDefined();
+  void setNoInfs(bool b, bool Commit = true) {
+    setDefined(Commit);
     NoInfs = b;
   }
-  void setNoSignedZeros(bool b) {
-    setDefined();
+  void setNoSignedZeros(bool b, bool Commit = true) {
+    setDefined(Commit);
     NoSignedZeros = b;
   }
-  void setAllowReciprocal(bool b) {
-    setDefined();
+  void setAllowReciprocal(bool b, bool Commit = true) {
+    setDefined(Commit);
     AllowReciprocal = b;
   }
-  void setVectorReduction(bool b) {
-    setDefined();
+  void setVectorReduction(bool b, bool Commit = true) {
+    setDefined(Commit);
     VectorReduction = b;
   }
-  void setAllowContract(bool b) {
-    setDefined();
+  void setAllowContract(bool b, bool Commit = true) {
+    setDefined(Commit);
     AllowContract = b;
   }
+  void setAcquireFlagsFromUser(bool b) { AcquireFlagsFromUser = b; }
+  void setPropagateFlagsToOperands(bool b) { PropagateFlagsToOperands = b; }
 
   // These are accessors for each flag.
   bool hasNoUnsignedWrap() const { return NoUnsignedWrap; }
@@ -431,6 +448,9 @@ public:
   bool hasAllowReciprocal() const { return AllowReciprocal; }
   bool hasVectorReduction() const { return VectorReduction; }
   bool hasAllowContract() const { return AllowContract; }
+
+  bool hasPropagateFlagsToOperands() const { return PropagateFlagsToOperands; }
+  bool hasAcquireFlagsFromUser() const { return AcquireFlagsFromUser; }
 
   /// Clear any flags in this flag set that aren't also set in Flags.
   /// If the given Flags are undefined then don't do anything.
@@ -447,7 +467,25 @@ public:
     AllowReciprocal &= Flags.AllowReciprocal;
     VectorReduction &= Flags.VectorReduction;
     AllowContract &= Flags.AllowContract;
+    AnyDefined = true;
   }
+
+  void mergeWith(const SDNodeFlags Flags) {
+    if (!Flags.isDefined())
+      return;
+    NoUnsignedWrap |= Flags.NoUnsignedWrap;
+    NoSignedWrap |= Flags.NoSignedWrap;
+    Exact |= Flags.Exact;
+    UnsafeAlgebra |= Flags.UnsafeAlgebra;
+    NoNaNs |= Flags.NoNaNs;
+    NoInfs |= Flags.NoInfs;
+    NoSignedZeros |= Flags.NoSignedZeros;
+    AllowReciprocal |= Flags.AllowReciprocal;
+    VectorReduction |= Flags.VectorReduction;
+    AllowContract |= Flags.AllowContract;
+    AnyDefined = true;
+  }
+
 };
 
 /// Represents one node in the SelectionDAG.
@@ -888,6 +926,11 @@ public:
   /// Clear any flags in this node that aren't also set in Flags.
   /// If Flags is not in a defined state then this has no effect.
   void intersectFlagsWith(const SDNodeFlags Flags);
+
+  /// Returns Flags which is an intersection of flags over node
+  /// and its operands. This is used for enabling certain FMF 
+  /// based optimizations.
+  SDNodeFlags getUnifiedFlags();
 
   /// Return the number of values defined/returned by this operator.
   unsigned getNumValues() const { return NumValues; }

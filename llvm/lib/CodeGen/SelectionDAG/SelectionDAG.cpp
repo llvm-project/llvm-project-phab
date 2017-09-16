@@ -7675,6 +7675,14 @@ void SDNode::intersectFlagsWith(const SDNodeFlags Flags) {
   this->Flags.intersectWith(Flags);
 }
 
+SDNodeFlags SDNode::getUnifiedFlags() {
+   SDNodeFlags Flags = this->getFlags();
+   for (auto & Val : this->ops()) {
+       Flags.intersectWith(Val.getNode()->getFlags()); 
+   }
+   return Flags;
+}
+
 SDValue SelectionDAG::UnrollVectorOp(SDNode *N, unsigned ResNE) {
   assert(N->getNumValues() == 1 &&
          "Can't unroll a vector with multiple results!");
