@@ -210,10 +210,10 @@ def X86kshiftr : SDNode<"X86ISD::KSHIFTR",
 def X86vrotli  : SDNode<"X86ISD::VROTLI", SDTIntShiftOp>;
 def X86vrotri  : SDNode<"X86ISD::VROTRI", SDTIntShiftOp>;
 
-def X86vprot   : SDNode<"X86ISD::VPROT",
+def X86vprot   : SDNode<"ISD::ROTL",
                         SDTypeProfile<1, 2, [SDTCisVec<0>, SDTCisSameAs<0,1>,
                                              SDTCisSameAs<0,2>]>>;
-def X86vproti  : SDNode<"X86ISD::VPROTI",
+def X86vproti  : SDNode<"X86ISD::VROTLI",
                         SDTypeProfile<1, 2, [SDTCisVec<0>, SDTCisSameAs<0,1>,
                                              SDTCisVT<2, i8>]>>;
 
