@@ -593,6 +593,12 @@ if (CLANG_ENABLE_BOOTSTRAP)
     add_dependencies(clang-bootstrap-deps compiler-rt)
   endif()
 
+  if(CLANG_BOOTSTRAP_USE_LIBCXX)
+    add_dependencies(clang-bootstrap-deps cxx)
+    list(APPEND BOOTSTRAP_CMAKE_INSTALL_RPATH "${LLVM_LIBRARY_DIR}")
+    set(BOOTSTRAP_CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
+  endif()
+
   set(C_COMPILER "clang")
   set(CXX_COMPILER "clang++")
   if(WIN32)
