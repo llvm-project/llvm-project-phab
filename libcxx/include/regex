@@ -1745,8 +1745,6 @@ template <class _CharT>
 void
 __back_ref<_CharT>::__exec(__state& __s) const
 {
-    if (__mexp_ > __s.__sub_matches_.size())
-        __throw_regex_error<regex_constants::error_backref>();
     sub_match<const _CharT*>& __sm = __s.__sub_matches_[__mexp_-1];
     if (__sm.matched)
     {
@@ -4320,8 +4318,6 @@ basic_regex<_CharT, _Traits>::__parse_decimal_escape(_ForwardIterator __first,
             for (++__first;
                     __first != __last && '0' <= *__first && *__first <= '9'; ++__first)
                 __v = 10 * __v + *__first - '0';
-            if (__v > mark_count())
-                __throw_regex_error<regex_constants::error_backref>();
             __push_back_ref(__v);
         }
     }
@@ -4712,6 +4708,9 @@ template <class _CharT, class _Traits>
 void
 basic_regex<_CharT, _Traits>::__push_back_ref(int __i)
 {
+    if (__i > static_cast<int>(mark_count()))
+        __throw_regex_error<regex_constants::error_backref>();
+
     if (flags() & icase)
         __end_->first() = new __back_ref_icase<_CharT, _Traits>
                                               (__traits_, __i, __end_->first());

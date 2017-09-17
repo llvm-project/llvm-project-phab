@@ -19,11 +19,14 @@
 #include <cassert>
 #include "test_macros.h"
 
-static bool error_badbackref_thrown(const char *pat)
+static bool error_badbackref_thrown(
+    const char *pat,
+    std::regex_constants::syntax_option_type flags =
+        std::regex_constants::ECMAScript)
 {
     bool result = false;
     try {
-        std::regex re(pat);
+        std::regex re(pat, flags);
     } catch (const std::regex_error &ex) {
         result = (ex.code() == std::regex_constants::error_backref);
     }
@@ -34,6 +37,7 @@ int main()
 {
     assert(error_badbackref_thrown("\\1abc"));      // no references
     assert(error_badbackref_thrown("ab(c)\\2def")); // only one reference
+    assert(error_badbackref_thrown("(cat)\\1", std::regex_constants::basic));
 
 //  this should NOT throw, because we only should look at the '1'
 //  See https://bugs.llvm.org/show_bug.cgi?id=31387
