@@ -147,7 +147,7 @@ void BackgroundThread(void *arg) {
 }
 #endif
 
-#if !SANITIZER_GO
+#if !SANITIZER_FUCHSIA && !SANITIZER_GO
 static void MaybeReportNonExecRegion(uptr pc) {
 #if SANITIZER_FREEBSD || SANITIZER_LINUX || SANITIZER_NETBSD
   MemoryMappingLayout proc_maps(/*cache_enabled*/ true);
@@ -246,7 +246,7 @@ void ReportDeadlySignal(const SignalContext &sig, u32 tid,
   else
     ReportDeadlySignalImpl(sig, tid, unwind, unwind_context);
 }
-#endif  // !SANITIZER_GO
+#endif  // !SANITIZER_FUCHSIA && !SANITIZER_GO
 
 void WriteToSyslog(const char *msg) {
   InternalScopedString msg_copy(kErrorMessageBufferSize);
