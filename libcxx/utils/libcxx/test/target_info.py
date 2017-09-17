@@ -55,6 +55,7 @@ def add_common_locales(features, lit_config, is_windows=False):
         ('fr_FR.UTF-8', 'French_France.1252'),
         ('ru_RU.UTF-8', 'Russian_Russia.1251'),
         ('zh_CN.UTF-8', 'Chinese_China.936'),
+        ('ja_JP.UTF-8', 'Japanese_Japan.932'),
         ('fr_CA.ISO8859-1', 'French_Canada.1252'),
         ('cs_CZ.ISO8859-2', 'Czech_Czech Republic.1250')
     ]
