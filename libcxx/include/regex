@@ -2213,8 +2213,8 @@ class __bracket_expression
     vector<pair<string_type, string_type> > __ranges_;
     vector<pair<_CharT, _CharT> > __digraphs_;
     vector<string_type> __equivalences_;
-    typename regex_traits<_CharT>::char_class_type __mask_;
-    typename regex_traits<_CharT>::char_class_type __neg_mask_;
+    typename _Traits::char_class_type __mask_;
+    typename _Traits::char_class_type __neg_mask_;
     bool __negate_;
     bool __icase_;
     bool __collate_;
@@ -2307,12 +2307,26 @@ public:
     _LIBCPP_INLINE_VISIBILITY
     void __add_equivalence(const string_type& __s)
         {__equivalences_.push_back(__s);}
+
+    template <class _Iter>
     _LIBCPP_INLINE_VISIBILITY
-    void __add_class(typename regex_traits<_CharT>::char_class_type __mask)
-        {__mask_ |= __mask;}
+    void __add_class(_Iter __begin, _Iter __end)
+    {
+      auto __class_type = __traits_.lookup_classname(__begin, __end, __icase_);
+      if (__class_type == 0)
+          __throw_regex_error<regex_constants::error_brack>();
+      __mask_ |= __class_type;
+    }
+
+    template <class _Iter>
     _LIBCPP_INLINE_VISIBILITY
-    void __add_neg_class(typename regex_traits<_CharT>::char_class_type __mask)
-        {__neg_mask_ |= __mask;}
+    void __add_neg_class(_Iter __begin, _Iter __end)
+    {
+      auto __class_type = __traits_.lookup_classname(__begin, __end, true);
+      if (__class_type == 0)
+          __throw_regex_error<regex_constants::error_brack>();
+      __neg_mask_ |= __class_type;
+    }
 };
 
 template <class _CharT, class _Traits>
@@ -3841,23 +3855,23 @@ basic_regex<_CharT, _Traits>::__parse_class_escape(_ForwardIterator __first,
         __str = _CharT(8);
         return ++__first;
     case 'd':
-        __ml->__add_class(ctype_base::digit);
+        __ml->__add_class(__first, std::next(__first));
         return ++__first;
     case 'D':
-        __ml->__add_neg_class(ctype_base::digit);
+        __ml->__add_neg_class(__first, std::next(__first));
         return ++__first;
     case 's':
-        __ml->__add_class(ctype_base::space);
+        __ml->__add_class(__first, std::next(__first));
         return ++__first;
     case 'S':
-        __ml->__add_neg_class(ctype_base::space);
+        __ml->__add_neg_class(__first, std::next(__first));
         return ++__first;
     case 'w':
-        __ml->__add_class(ctype_base::alnum);
+        __ml->__add_class(__first, std::next(__first));
         __ml->__add_char('_');
         return ++__first;
     case 'W':
-        __ml->__add_neg_class(ctype_base::alnum);
+        __ml->__add_neg_class(__first, std::next(__first));
         __ml->__add_neg_char('_');
         return ++__first;
     }
@@ -4003,12 +4017,7 @@ basic_regex<_CharT, _Traits>::__parse_character_class(_ForwardIterator __first,
     if (__temp == __last)
         __throw_regex_error<regex_constants::error_brack>();
     // [__first, __temp) contains all text in [: ... :]
-    typedef typename _Traits::char_class_type char_class_type;
-    char_class_type __class_type =
-        __traits_.lookup_classname(__first, __temp, __flags_ & icase);
-    if (__class_type == 0)
-        __throw_regex_error<regex_constants::error_brack>();
-    __ml->__add_class(__class_type);
+    __ml->__add_class(__first, __temp);
     __first = _VSTD::next(__temp, 2);
     return __first;
 }
@@ -4341,33 +4350,33 @@ basic_regex<_CharT, _Traits>::__parse_character_class_escape(_ForwardIterator __
         {
         case 'd':
             __ml = __start_matching_list(false);
-            __ml->__add_class(ctype_base::digit);
+            __ml->__add_class(__first, std::next(__first));
             ++__first;
             break;
         case 'D':
             __ml = __start_matching_list(true);
-            __ml->__add_class(ctype_base::digit);
+            __ml->__add_class(__first, std::next(__first));
             ++__first;
             break;
         case 's':
             __ml = __start_matching_list(false);
-            __ml->__add_class(ctype_base::space);
+            __ml->__add_class(__first, std::next(__first));
             ++__first;
             break;
         case 'S':
             __ml = __start_matching_list(true);
-            __ml->__add_class(ctype_base::space);
+            __ml->__add_class(__first, std::next(__first));
             ++__first;
             break;
         case 'w':
             __ml = __start_matching_list(false);
-            __ml->__add_class(ctype_base::alnum);
+            __ml->__add_class(__first, std::next(__first));
             __ml->__add_char('_');
             ++__first;
             break;
         case 'W':
             __ml = __start_matching_list(true);
-            __ml->__add_class(ctype_base::alnum);
+            __ml->__add_class(__first, std::next(__first));
             __ml->__add_char('_');
             ++__first;
             break;
