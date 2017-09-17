@@ -174,7 +174,8 @@ class CallAnalyzer : public InstVisitor<CallAnalyzer, bool> {
   bool accumulateGEPOffset(GEPOperator &GEP, APInt &Offset);
   bool simplifyCallSite(Function *F, CallSite CS);
   template <typename Callable>
-  bool simplifyInstruction(Instruction &I, Callable Evaluate);
+  bool simplifyInstruction(Instruction &I, Callable Evaluate,
+                           bool AllConstants = true);
   ConstantInt *stripAndComputeInBoundsConstantOffsets(Value *&V);
 
   /// Return true if the given argument to the function being considered for
@@ -240,6 +241,7 @@ class CallAnalyzer : public InstVisitor<CallAnalyzer, bool> {
   bool visitCallSite(CallSite CS);
   bool visitReturnInst(ReturnInst &RI);
   bool visitBranchInst(BranchInst &BI);
+  bool visitSelectInst(SelectInst &SI);
   bool visitSwitchInst(SwitchInst &SI);
   bool visitIndirectBrInst(IndirectBrInst &IBI);
   bool visitResumeInst(ResumeInst &RI);
@@ -483,31 +485,56 @@ bool CallAnalyzer::visitGetElementPtr(GetElementPtrInst &I) {
   return isGEPFree(I);
 }
 
-/// Simplify \p I if its operands are constants and update SimplifiedValues.
-/// \p Evaluate is a callable specific to instruction type that evaluates the
-/// instruction when all the operands are constants.
+/// Simplify \p I and update lists such as SimplifiedValues.  \p Evaluate is a
+/// callable specific to instruction type that evaluates the instruction.  If \p
+/// AllConstants is set to true, this function tries to map all constant
+/// operands to a constant.  Otherwise, it tries to fold the instruction to a
+/// simplified value.
 template <typename Callable>
-bool CallAnalyzer::simplifyInstruction(Instruction &I, Callable Evaluate) {
-  SmallVector<Constant *, 2> COps;
+bool CallAnalyzer::simplifyInstruction(Instruction &I, Callable Evaluate,
+                                       bool AllConstants) {
+  SmallVector<Value *, 2> Ops;
   for (Value *Op : I.operands()) {
-    Constant *COp = dyn_cast<Constant>(Op);
-    if (!COp)
-      COp = SimplifiedValues.lookup(Op);
-    if (!COp)
-      return false;
-    COps.push_back(COp);
+    Constant *COp =
+        isa<Constant>(Op) ? cast<Constant>(Op) : SimplifiedValues.lookup(Op);
+    if (COp)
+      Ops.push_back(COp);
+    else {
+      if (AllConstants)
+        return false;
+      else
+        Ops.push_back(Op);
+    }
   }
-  auto *C = Evaluate(COps);
-  if (!C)
+  auto *V = Evaluate(Ops);
+  if (!V)
     return false;
-  SimplifiedValues[&I] = C;
+  if (Constant *C = dyn_cast_or_null<Constant>(V)) {
+    SimplifiedValues[&I] = C;
+    return true;
+  }
+
+  // We cannot simplify the instruction into a constant.
+  if (AllConstants)
+    return false;
+
+  if (I.getType()->isPointerTy()) {
+    std::pair<Value *, APInt> BaseAndOffset = ConstantOffsetPtrs.lookup(V);
+    if (BaseAndOffset.first)
+      ConstantOffsetPtrs[&I] = BaseAndOffset;
+    Value *SROAArg;
+    DenseMap<Value *, int>::iterator CostIt;
+    if (lookupSROAArgAndCost(V, SROAArg, CostIt))
+      SROAArgValues[&I] = SROAArg;
+  }
+
   return true;
 }
 
 bool CallAnalyzer::visitBitCast(BitCastInst &I) {
   // Propagate constants through bitcasts.
-  if (simplifyInstruction(I, [&](SmallVectorImpl<Constant *> &COps) {
-        return ConstantExpr::getBitCast(COps[0], I.getType());
+  if (simplifyInstruction(I, [&](SmallVectorImpl<Value *> &COps) {
+        return ConstantExpr::getBitCast(cast<Constant>(COps[0]), I.getType());
       }))
     return true;
 
@@ -530,8 +557,8 @@ bool CallAnalyzer::visitBitCast(BitCastInst &I) {
 
 bool CallAnalyzer::visitPtrToInt(PtrToIntInst &I) {
   // Propagate constants through ptrtoint.
-  if (simplifyInstruction(I, [&](SmallVectorImpl<Constant *> &COps) {
-        return ConstantExpr::getPtrToInt(COps[0], I.getType());
+  if (simplifyInstruction(I, [&](SmallVectorImpl<Value *> &COps) {
+        return ConstantExpr::getPtrToInt(cast<Constant>(COps[0]), I.getType());
       }))
     return true;
 
@@ -562,8 +589,8 @@ bool CallAnalyzer::visitPtrToInt(PtrToIntInst &I) {
 
 bool CallAnalyzer::visitIntToPtr(IntToPtrInst &I) {
   // Propagate constants through ptrtoint.
-  if (simplifyInstruction(I, [&](SmallVectorImpl<Constant *> &COps) {
-        return ConstantExpr::getIntToPtr(COps[0], I.getType());
+  if (simplifyInstruction(I, [&](SmallVectorImpl<Value *> &COps) {
+        return ConstantExpr::getIntToPtr(cast<Constant>(COps[0]), I.getType());
       }))
     return true;
 
@@ -588,8 +615,9 @@ bool CallAnalyzer::visitIntToPtr(IntToPtrInst &I) {
 
 bool CallAnalyzer::visitCastInst(CastInst &I) {
   // Propagate constants through ptrtoint.
-  if (simplifyInstruction(I, [&](SmallVectorImpl<Constant *> &COps) {
-        return ConstantExpr::getCast(I.getOpcode(), COps[0], I.getType());
+  if (simplifyInstruction(I, [&](SmallVectorImpl<Value *> &COps) {
+        return ConstantExpr::getCast(I.getOpcode(), cast<Constant>(COps[0]),
+                                     I.getType());
       }))
     return true;
 
@@ -601,8 +629,8 @@ bool CallAnalyzer::visitCastInst(CastInst &I) {
 
 bool CallAnalyzer::visitUnaryInstruction(UnaryInstruction &I) {
   Value *Operand = I.getOperand(0);
-  if (simplifyInstruction(I, [&](SmallVectorImpl<Constant *> &COps) {
-        return ConstantFoldInstOperands(&I, COps[0], DL);
+  if (simplifyInstruction(I, [&](SmallVectorImpl<Value *> &COps) {
+        return ConstantFoldInstOperands(&I, cast<Constant>(COps[0]), DL);
       }))
     return true;
 
@@ -848,8 +876,9 @@ void CallAnalyzer::updateThreshold(CallSite CS, Function &Callee) {
 bool CallAnalyzer::visitCmpInst(CmpInst &I) {
   Value *LHS = I.getOperand(0), *RHS = I.getOperand(1);
   // First try to handle simplified comparisons.
-  if (simplifyInstruction(I, [&](SmallVectorImpl<Constant *> &COps) {
-        return ConstantExpr::getCompare(I.getPredicate(), COps[0], COps[1]);
+  if (simplifyInstruction(I, [&](SmallVectorImpl<Value *> &COps) {
+        return ConstantExpr::getCompare(
+            I.getPredicate(), cast<Constant>(COps[0]), cast<Constant>(COps[1]));
       }))
     return true;
 
@@ -957,13 +986,15 @@ bool CallAnalyzer::visitSub(BinaryOperator &I) {
 
 bool CallAnalyzer::visitBinaryOperator(BinaryOperator &I) {
   Value *LHS = I.getOperand(0), *RHS = I.getOperand(1);
-  auto Evaluate = [&](SmallVectorImpl<Constant *> &COps) {
+  auto Evaluate = [&](SmallVectorImpl<Value *> &COps) {
     Value *SimpleV = nullptr;
     if (auto FI = dyn_cast<FPMathOperator>(&I))
-      SimpleV = SimplifyFPBinOp(I.getOpcode(), COps[0], COps[1],
-                                FI->getFastMathFlags(), DL);
+      SimpleV =
+          SimplifyFPBinOp(I.getOpcode(), cast<Constant>(COps[0]),
+                          cast<Constant>(COps[1]), FI->getFastMathFlags(), DL);
     else
-      SimpleV = SimplifyBinOp(I.getOpcode(), COps[0], COps[1], DL);
+      SimpleV = SimplifyBinOp(I.getOpcode(), cast<Constant>(COps[0]),
+                              cast<Constant>(COps[1]), DL);
     return dyn_cast_or_null<Constant>(SimpleV);
   };
 
@@ -1009,8 +1040,9 @@ bool CallAnalyzer::visitStore(StoreInst &I) {
 
 bool CallAnalyzer::visitExtractValue(ExtractValueInst &I) {
   // Constant folding for extract value is trivial.
-  if (simplifyInstruction(I, [&](SmallVectorImpl<Constant *> &COps) {
-        return ConstantExpr::getExtractValue(COps[0], I.getIndices());
+  if (simplifyInstruction(I, [&](SmallVectorImpl<Value *> &COps) {
+        return ConstantExpr::getExtractValue(cast<Constant>(COps[0]),
+                                             I.getIndices());
       }))
     return true;
 
@@ -1020,10 +1052,10 @@ bool CallAnalyzer::visitExtractValue(ExtractValueInst &I) {
 
 bool CallAnalyzer::visitInsertValue(InsertValueInst &I) {
   // Constant folding for insert value is trivial.
-  if (simplifyInstruction(I, [&](SmallVectorImpl<Constant *> &COps) {
-        return ConstantExpr::getInsertValue(/*AggregateOperand*/ COps[0],
-                                            /*InsertedValueOperand*/ COps[1],
-                                            I.getIndices());
+  if (simplifyInstruction(I, [&](SmallVectorImpl<Value *> &COps) {
+        return ConstantExpr::getInsertValue(
+            /*AggregateOperand*/ cast<Constant>(COps[0]),
+            /*InsertedValueOperand*/ cast<Constant>(COps[1]), I.getIndices());
       }))
     return true;
 
@@ -1172,6 +1204,18 @@ bool CallAnalyzer::visitBranchInst(BranchInst &BI) {
   return BI.isUnconditional() || isa<ConstantInt>(BI.getCondition()) ||
          dyn_cast_or_null<ConstantInt>(
              SimplifiedValues.lookup(BI.getCondition()));
+}
+
+bool CallAnalyzer::visitSelectInst(SelectInst &SI) {
+  if (simplifyInstruction(SI,
+                          [&](SmallVectorImpl<Value *> &Ops) {
+                            return SimplifySelectInst(Ops[0], Ops[1], Ops[2],
+                                                      DL);
+                          },
+                          false))
+    return true;
+
+  return Base::visitSelectInst(SI);
 }
 
 bool CallAnalyzer::visitSwitchInst(SwitchInst &SI) {
