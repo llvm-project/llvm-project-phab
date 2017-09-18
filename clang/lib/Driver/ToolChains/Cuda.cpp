@@ -253,7 +253,8 @@ void NVPTX::Assembler::ConstructJob(Compilation &C, const JobAction &JA,
 
   // Obtain architecture from the action.
   CudaArch gpu_arch = StringToCudaArch(GPUArchName);
-  assert(gpu_arch != CudaArch::UNKNOWN &&
+  assert((gpu_arch != CudaArch::UNKNOWN ||
+          Args.hasArg(options::OPT_nocudalib)) &&
          "Device action expected to have an architecture.");
 
   // Check that our installation's ptxas supports gpu_arch.
@@ -492,10 +493,10 @@ void CudaToolChain::addClangTargetOptions(
     if (DriverArgs.hasFlag(options::OPT_fcuda_approx_transcendentals,
                            options::OPT_fno_cuda_approx_transcendentals, false))
       CC1Args.push_back("-fcuda-approx-transcendentals");
-
-    if (DriverArgs.hasArg(options::OPT_nocudalib))
-      return;
   }
+
+  if (DriverArgs.hasArg(options::OPT_nocudalib))
+    return;
 
   std::string LibDeviceFile = CudaInstallation.getLibDeviceFile(GpuArch);
 
