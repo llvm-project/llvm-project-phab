@@ -710,6 +710,15 @@ ConstantFP* ConstantFP::get(LLVMContext &Context, const APFloat& V) {
   return Slot.get();
 }
 
+Constant* ConstantFP::get(Type *Ty, const APFloat& V) {
+  ConstantFP *C = get(Ty->getContext(), V);
+
+  if (VectorType *VTy = dyn_cast<VectorType>(Ty))
+    return ConstantVector::getSplat(VTy->getNumElements(), C);
+
+  return C;
+}
+
 Constant *ConstantFP::getInfinity(Type *Ty, bool Negative) {
   const fltSemantics &Semantics = *TypeToFloatSemantics(Ty->getScalarType());
   Constant *C = get(Ty->getContext(), APFloat::getInf(Semantics, Negative));

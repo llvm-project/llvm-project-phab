@@ -4385,6 +4385,29 @@ static bool maskIsAllZeroOrUndef(Value *Mask) {
   return true;
 }
 
+static Value *simplifyCanonicalize(Value *Src) {
+  // Any bit value is necessarily a valid canonical value, but 0 is always
+  // canonical.
+  if (isa<UndefValue>(Src))
+    return ConstantFP::get(Src->getType(), 0.0);
+
+  const APFloat *C;
+
+  if (!match(Src, m_APFloat(C)))
+    return nullptr;
+
+  // Zero is always canonical and the sign must be preserved.
+  if (C->isZero())
+    return ConstantFP::get(Src->getType(), *C);
+
+  // Denorms and special values may have special rules, but it should be OK to
+  // fold a totally average number.
+  if (C->isNormal())
+    return ConstantFP::get(Src->getType(), *C);
+
+  return nullptr;
+}
+
 template <typename IterTy>
 static Value *SimplifyIntrinsic(Function *F, IterTy ArgBegin, IterTy ArgEnd,
                                 const SimplifyQuery &Q, unsigned MaxRecurse) {
@@ -4407,6 +4430,8 @@ static Value *SimplifyIntrinsic(Function *F, IterTy ArgBegin, IterTy ArgEnd,
         return *ArgBegin;
       return nullptr;
     }
+    case Intrinsic::canonicalize:
+      return simplifyCanonicalize(*ArgBegin);
     default:
       return nullptr;
     }

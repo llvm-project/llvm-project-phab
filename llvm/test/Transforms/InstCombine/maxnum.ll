@@ -137,8 +137,7 @@ define float @maxnum_f32_val_nan(float %x) #0 {
 }
 
 ; CHECK-LABEL: @fold_maxnum_f32_undef_undef
-; CHECK-NEXT: %1 = call float @llvm.canonicalize.f32(float undef)
-; CHECK-NEXT: ret float %1
+; CHECK-NEXT: ret float 0.000000e+00
 define float @fold_maxnum_f32_undef_undef() nounwind {
   %val = call float @llvm.maxnum.f32(float undef, float undef) #0
   ret float %val
