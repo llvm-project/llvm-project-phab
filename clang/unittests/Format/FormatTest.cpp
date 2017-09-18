@@ -1117,6 +1117,16 @@ TEST_F(FormatTest, FormatsLabels) {
                "  int i = 0;\n"
                "}");
 }
+  
+TEST_F(FormatTest, SpaceInEmptyInlineFunction) {
+  FormatStyle Style = getMozillaStyle();
+  Style.AddSpaceInEmptyInlineFunction = true;
+  verifyFormat("class T\n"
+               "{\n"
+               "  void f() { }\n"
+               "};",
+               Style);
+}
 
 //===----------------------------------------------------------------------===//
 // Tests for classes, namespaces, etc.
@@ -9973,6 +9983,7 @@ TEST_F(FormatTest, ParsesConfigurationBools) {
   CHECK_PARSE_BOOL(AllowAllParametersOfDeclarationOnNextLine);
   CHECK_PARSE_BOOL(AllowShortBlocksOnASingleLine);
   CHECK_PARSE_BOOL(AllowShortCaseLabelsOnASingleLine);
+  CHECK_PARSE_BOOL(AddSpaceInEmptyInlineFunction);
   CHECK_PARSE_BOOL(AllowShortIfStatementsOnASingleLine);
   CHECK_PARSE_BOOL(AllowShortLoopsOnASingleLine);
   CHECK_PARSE_BOOL(AlwaysBreakTemplateDeclarations);
