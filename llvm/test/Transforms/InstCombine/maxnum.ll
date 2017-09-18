@@ -113,42 +113,48 @@ define float @canonicalize_constant_maxnum_f32(float %x) #0 {
 }
 
 ; CHECK-LABEL: @noop_maxnum_f32
-; CHECK-NEXT: ret float %x
+; CHECK-NEXT: %1 = call float @llvm.canonicalize.f32(float %x)
+; CHECK-NEXT: ret float %1
 define float @noop_maxnum_f32(float %x) #0 {
   %y = call float @llvm.maxnum.f32(float %x, float %x) #0
   ret float %y
 }
 
 ; CHECK-LABEL: @maxnum_f32_nan_val
-; CHECK-NEXT: ret float %x
+; CHECK-NEXT: %1 = call float @llvm.canonicalize.f32(float %x)
+; CHECK-NEXT: ret float %1
 define float @maxnum_f32_nan_val(float %x) #0 {
   %y = call float @llvm.maxnum.f32(float 0x7FF8000000000000, float %x) #0
   ret float %y
 }
 
 ; CHECK-LABEL: @maxnum_f32_val_nan
-; CHECK-NEXT: ret float %x
+; CHECK-NEXT: %1 = call float @llvm.canonicalize.f32(float %x)
+; CHECK-NEXT: ret float %1
 define float @maxnum_f32_val_nan(float %x) #0 {
   %y = call float @llvm.maxnum.f32(float %x, float 0x7FF8000000000000) #0
   ret float %y
 }
 
 ; CHECK-LABEL: @fold_maxnum_f32_undef_undef
-; CHECK-NEXT: ret float undef
-define float @fold_maxnum_f32_undef_undef(float %x) nounwind {
+; CHECK-NEXT: %1 = call float @llvm.canonicalize.f32(float undef)
+; CHECK-NEXT: ret float %1
+define float @fold_maxnum_f32_undef_undef() nounwind {
   %val = call float @llvm.maxnum.f32(float undef, float undef) #0
   ret float %val
 }
 
 ; CHECK-LABEL: @fold_maxnum_f32_val_undef
-; CHECK-NEXT: ret float %x
+; CHECK-NEXT: %1 = call float @llvm.canonicalize.f32(float %x)
+; CHECK-NEXT: ret float %1
 define float @fold_maxnum_f32_val_undef(float %x) nounwind {
   %val = call float @llvm.maxnum.f32(float %x, float undef) #0
   ret float %val
 }
 
 ; CHECK-LABEL: @fold_maxnum_f32_undef_val
-; CHECK-NEXT: ret float %x
+; CHECK-NEXT: %1 = call float @llvm.canonicalize.f32(float %x)
+; CHECK-NEXT: ret float %1
 define float @fold_maxnum_f32_undef_val(float %x) nounwind {
   %val = call float @llvm.maxnum.f32(float undef, float %x) #0
   ret float %val
@@ -205,7 +211,8 @@ define float @maxnum4(float %x, float %y, float %z, float %w) #0 {
 }
 
 ; CHECK-LABEL: @fold_maxnum_f32_inf_val
-; CHECK-NEXT: ret float 0x7FF0000000000000
+; CHECK-NEXT: %1 = call float @llvm.canonicalize.f32(float 0x7FF0000000000000)
+; CHECK-NEXT: ret float %1
 define float @fold_maxnum_f32_inf_val(float %x) nounwind {
   %val = call float @llvm.maxnum.f32(float 0x7FF0000000000000, float %x) #0
   ret float %val

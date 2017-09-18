@@ -1206,21 +1206,24 @@ define float @fmed3_constant_src2_1_f32(float %x, float %y) {
 }
 
 ; CHECK-LABEL: @fmed3_x_qnan0_qnan1_f32(
-; CHECK: ret float %x
+; CHECK-NEXT: %1 = call float @llvm.canonicalize.f32(float %x)
+; CHECK-NEXT: ret float %1
 define float @fmed3_x_qnan0_qnan1_f32(float %x) {
   %med3 = call float @llvm.amdgcn.fmed3.f32(float %x, float 0x7FF8001000000000, float 0x7FF8002000000000)
   ret float %med3
 }
 
 ; CHECK-LABEL: @fmed3_qnan0_x_qnan1_f32(
-; CHECK: ret float %x
+; CHECK-NEXT: %1 = call float @llvm.canonicalize.f32(float %x)
+; CHECK-NEXT: ret float %1
 define float @fmed3_qnan0_x_qnan1_f32(float %x) {
   %med3 = call float @llvm.amdgcn.fmed3.f32(float 0x7FF8001000000000, float %x, float 0x7FF8002000000000)
   ret float %med3
 }
 
 ; CHECK-LABEL: @fmed3_qnan0_qnan1_x_f32(
-; CHECK: ret float %x
+; CHECK-NEXT: %1 = call float @llvm.canonicalize.f32(float %x)
+; CHECK-NEXT: ret float %1
 define float @fmed3_qnan0_qnan1_x_f32(float %x) {
   %med3 = call float @llvm.amdgcn.fmed3.f32(float 0x7FF8001000000000, float 0x7FF8002000000000, float %x)
   ret float %med3

@@ -10881,10 +10881,11 @@ Semantics:
 Follows the IEEE-754 semantics for minNum, which also match for libm's
 fmin.
 
-If either operand is a NaN, returns the other non-NaN operand. Returns
-NaN only if both operands are NaN. If the operands compare equal,
-returns a value that compares equal to both operands. This means that
-fmin(+/-0.0, +/-0.0) could return either -0.0 or 0.0.
+If either operand is a NaN, returns the canonicalized other non-NaN
+operand. Returns NaN only if both operands are NaN. If the operands
+compare equal, returns a value that compares equal to both
+operands. This means that fmin(+/-0.0, +/-0.0) could return either
+-0.0 or 0.0.
 
 '``llvm.maxnum.*``' Intrinsic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -10922,10 +10923,11 @@ Semantics:
 Follows the IEEE-754 semantics for maxNum, which also match for libm's
 fmax.
 
-If either operand is a NaN, returns the other non-NaN operand. Returns
-NaN only if both operands are NaN. If the operands compare equal,
-returns a value that compares equal to both operands. This means that
-fmax(+/-0.0, +/-0.0) could return either -0.0 or 0.0.
+If either operand is a NaN, returns the canonicalized other non-NaN
+operand. Returns NaN only if both operands are NaN. If the operands
+compare equal, returns a value that compares equal to both
+operands. This means that fmax(+/-0.0, +/-0.0) could return either
+-0.0 or 0.0.
 
 '``llvm.copysign.*``' Intrinsic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

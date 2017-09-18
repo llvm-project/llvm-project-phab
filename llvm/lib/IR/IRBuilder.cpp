@@ -613,10 +613,17 @@ CallInst *IRBuilderBase::CreateGCRelocate(Instruction *Statepoint,
  return createCallHelper(FnGCRelocate, Args, this, Name);
 }
 
+CallInst *IRBuilderBase::CreateUnaryIntrinsic(Intrinsic::ID ID, Value *Op,
+                                              const Twine &Name) {
+  Module *M = BB->getParent()->getParent();
+  Function *Fn = Intrinsic::getDeclaration(M, ID, { Op->getType() });
+  return createCallHelper(Fn, { Op }, this, Name);
+}
+
 CallInst *IRBuilderBase::CreateBinaryIntrinsic(Intrinsic::ID ID,
                                                Value *LHS, Value *RHS,
                                                const Twine &Name) {
   Module *M = BB->getParent()->getParent();
-  Function *Fn =  Intrinsic::getDeclaration(M, ID, { LHS->getType() });
+  Function *Fn = Intrinsic::getDeclaration(M, ID, { LHS->getType() });
   return createCallHelper(Fn, { LHS, RHS }, this, Name);
 }

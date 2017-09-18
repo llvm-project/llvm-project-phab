@@ -1163,30 +1163,31 @@ static Value *emitX86MaskSelect(Value *Mask, Value *Op0, Value *Op1,
   return Builder.CreateSelect(Mask, Op0, Op1);
 }
 
-static Value *simplifyMinnumMaxnum(const IntrinsicInst &II) {
+static Value *simplifyMinnumMaxnum(const IntrinsicInst &II,
+                                   InstCombiner::BuilderTy &Builder) {
   Value *Arg0 = II.getArgOperand(0);
   Value *Arg1 = II.getArgOperand(1);
 
   // fmin(x, x) -> x
   if (Arg0 == Arg1)
-    return Arg0;
+    return Builder.CreateCanonicalize(Arg0);
 
   const auto *C1 = dyn_cast<ConstantFP>(Arg1);
 
   // fmin(x, nan) -> x
   if (C1 && C1->isNaN())
-    return Arg0;
+    return Builder.CreateCanonicalize(Arg0);
 
   // This is the value because if undef were NaN, we would return the other
   // value and cannot return a NaN unless both operands are.
   //
   // fmin(undef, x) -> x
   if (isa<UndefValue>(Arg0))
-    return Arg1;
+    return Builder.CreateCanonicalize(Arg1);
 
   // fmin(x, undef) -> x
   if (isa<UndefValue>(Arg1))
-    return Arg0;
+    return Builder.CreateCanonicalize(Arg0);
 
   Value *X = nullptr;
   Value *Y = nullptr;
@@ -1194,8 +1195,9 @@ static Value *simplifyMinnumMaxnum(const IntrinsicInst &II) {
     // fmin(x, fmin(x, y)) -> fmin(x, y)
     // fmin(y, fmin(x, y)) -> fmin(x, y)
     if (match(Arg1, m_FMin(m_Value(X), m_Value(Y)))) {
-      if (Arg0 == X || Arg0 == Y)
+      if (Arg0 == X || Arg0 == Y) {
         return Arg1;
+      }
     }
 
     // fmin(fmin(x, y), x) -> fmin(x, y)
@@ -1210,7 +1212,7 @@ static Value *simplifyMinnumMaxnum(const IntrinsicInst &II) {
     if (C1 && C1->isInfinity()) {
       // fmin(x, -inf) -> -inf
       if (C1->isNegative())
-        return Arg1;
+        return Builder.CreateCanonicalize(Arg1);
     }
   } else {
     assert(II.getIntrinsicID() == Intrinsic::maxnum);
@@ -1233,7 +1235,7 @@ static Value *simplifyMinnumMaxnum(const IntrinsicInst &II) {
     if (C1 && C1->isInfinity()) {
       // fmax(x, inf) -> inf
       if (!C1->isNegative())
-        return Arg1;
+        return Builder.CreateCanonicalize(Arg1);
     }
   }
   return nullptr;
@@ -2000,7 +2002,7 @@ Instruction *InstCombiner::visitCallInst(CallInst &CI) {
       II->setArgOperand(1, Arg0);
       return II;
     }
-    if (Value *V = simplifyMinnumMaxnum(*II))
+    if (Value *V = simplifyMinnumMaxnum(*II, Builder))
       return replaceInstUsesWith(*II, V);
     break;
   }
