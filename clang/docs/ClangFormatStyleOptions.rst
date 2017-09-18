@@ -150,6 +150,19 @@ the configuration (without a prefix: ``Auto``).
 **AccessModifierOffset** (``int``)
   The extra indent or outdent of access modifiers, e.g. ``public:``.
 
+**AddSpaceInEmptyInlineFunction** (``bool``)
+  if ``true`` empty inline class functions will have an extra space
+  between the two block braces. This is valid only with AfterFunction and
+  SFS_InlineOnly
+
+  .. code-block:: c++
+
+    true:                             false:
+    class T                           class T
+    {                         vs.     {
+      void f() { }                      void f() {}
+    };                                };
+
 **AlignAfterOpenBracket** (``BracketAlignmentStyle``)
   If ``true``, horizontally aligns arguments after an open bracket.
 

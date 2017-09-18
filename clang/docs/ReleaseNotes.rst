@@ -212,6 +212,21 @@ clang-format
   |    #endif            |   #endif             |
   +----------------------+----------------------+
 
+* Option *AddSpaceInEmptyInlineFunction* added to support putting an empty
+  space in between the braces in empty inline class functions. It is used only
+  in combination with AfterFunction and SFS_InlineOnly flags.
+
+  +----------------------+----------------------+
+  | Before               | After                |
+  +======================+======================+
+  |  .. code-block:: c++ | .. code-block:: c++  |
+  |                      |                      |
+  |   class T            |   class T            |
+  |   {                  |   {                  |
+  |     void f() {}      |     void f() { }     |
+  |   };                 |   };                 |
+  +----------------------+----------------------+
+
 * Option -verbose added to the command line.
   Shows the list of processed files.
 

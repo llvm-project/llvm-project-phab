@@ -287,6 +287,8 @@ template <> struct MappingTraits<FormatStyle> {
                    Style.AllowShortBlocksOnASingleLine);
     IO.mapOptional("AllowShortCaseLabelsOnASingleLine",
                    Style.AllowShortCaseLabelsOnASingleLine);
+    IO.mapOptional("AddSpaceInEmptyInlineFunction",
+                   Style.AddSpaceInEmptyInlineFunction);
     IO.mapOptional("AllowShortFunctionsOnASingleLine",
                    Style.AllowShortFunctionsOnASingleLine);
     IO.mapOptional("AllowShortIfStatementsOnASingleLine",
@@ -565,6 +567,7 @@ FormatStyle getLLVMStyle() {
   LLVMStyle.AllowShortFunctionsOnASingleLine = FormatStyle::SFS_All;
   LLVMStyle.AllowShortBlocksOnASingleLine = false;
   LLVMStyle.AllowShortCaseLabelsOnASingleLine = false;
+  LLVMStyle.AddSpaceInEmptyInlineFunction = false;
   LLVMStyle.AllowShortIfStatementsOnASingleLine = false;
   LLVMStyle.AllowShortLoopsOnASingleLine = false;
   LLVMStyle.AlwaysBreakAfterReturnType = FormatStyle::RTBS_None;
@@ -742,6 +745,7 @@ FormatStyle getMozillaStyle() {
       FormatStyle::RTBS_TopLevel;
   MozillaStyle.AlwaysBreakAfterDefinitionReturnType =
       FormatStyle::DRTBS_TopLevel;
+  MozillaStyle.AddSpaceInEmptyInlineFunction = true;
   MozillaStyle.AlwaysBreakTemplateDeclarations = true;
   MozillaStyle.BinPackParameters = false;
   MozillaStyle.BinPackArguments = false;

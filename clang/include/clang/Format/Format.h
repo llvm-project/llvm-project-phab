@@ -186,6 +186,18 @@ struct FormatStyle {
   /// \endcode
   bool AllowShortCaseLabelsOnASingleLine;
 
+  /// \brief if ``true`` empty inline class functions will have an extra space
+  /// between the two block braces. This is valid only with AfterFunction and
+  /// SFS_InlineOnly
+  /// \code
+  ///   true:                             false:
+  ///   class T                           class T
+  ///   {                         vs.     {
+  ///     void f() { }                      void f() {}
+  ///   };                                };
+  /// \endcode
+  bool AddSpaceInEmptyInlineFunction;
+  
   /// \brief Different styles for merging short functions containing at most one
   /// statement.
   enum ShortFunctionStyle {
@@ -1533,6 +1545,7 @@ struct FormatStyle {
            AllowShortBlocksOnASingleLine == R.AllowShortBlocksOnASingleLine &&
            AllowShortCaseLabelsOnASingleLine ==
                R.AllowShortCaseLabelsOnASingleLine &&
+           AddSpaceInEmptyInlineFunction == R.AddSpaceInEmptyInlineFunction &&
            AllowShortFunctionsOnASingleLine ==
                R.AllowShortFunctionsOnASingleLine &&
            AllowShortIfStatementsOnASingleLine ==

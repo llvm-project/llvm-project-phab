@@ -328,15 +328,23 @@ private:
       Limit -= 2;
 
       unsigned MergedLines = 0;
+      bool EmptyFunc = I[1]->First == I[1]->Last && I + 2 != E &&
+                       I[2]->First->is(tok::r_brace);
       if (MergeShortFunctions ||
           (Style.AllowShortFunctionsOnASingleLine >= FormatStyle::SFS_Empty &&
-           I[1]->First == I[1]->Last && I + 2 != E &&
-           I[2]->First->is(tok::r_brace))) {
+           EmptyFunc)) {
         MergedLines = tryMergeSimpleBlock(I + 1, E, Limit);
         // If we managed to merge the block, count the function header, which is
         // on a separate line.
         if (MergedLines > 0)
           ++MergedLines;
+      }
+
+      if (Style.AddSpaceInEmptyInlineFunction && EmptyFunc &&
+          Style.AllowShortFunctionsOnASingleLine &
+              FormatStyle::SFS_InlineOnly &&
+          TheLine->Level != 0) {
+        I[2]->First->SpacesRequiredBefore = 1;
       }
       return MergedLines;
     }
