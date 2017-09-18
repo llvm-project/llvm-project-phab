@@ -337,7 +337,7 @@ private:
 extern std::vector<InputSectionBase *> InputSections;
 
 // Builds section order for handling --symbol-ordering-file.
-template <class ELFT> llvm::DenseMap<SectionBase *, int> buildSectionOrder();
+llvm::DenseMap<SectionBase *, int> buildSectionOrder();
 
 } // namespace elf
 
