@@ -1,7 +1,7 @@
-; RUN: llc -mtriple=powerpc64le-unknown-linux-gnu -verify-machineinstrs -enable-ppc-branch-coalesce < %s | FileCheck %s
-; RUN: llc -mcpu=pwr8 -mtriple=powerpc64-unknown-linux-gnu -verify-machineinstrs -enable-ppc-branch-coalesce < %s | FileCheck %s
-; RUN: llc -mtriple=powerpc64le-unknown-linux-gnu -verify-machineinstrs < %s | FileCheck --check-prefix=CHECK-NOCOALESCE %s
-; RUN: llc -mcpu=pwr8 -mtriple=powerpc64-unknown-linux-gnu -verify-machineinstrs < %s | FileCheck --check-prefix=CHECK-NOCOALESCE %s
+; RUN: llc -mtriple=powerpc64le-unknown-linux-gnu -verify-machineinstrs < %s | FileCheck %s
+; RUN: llc -mcpu=pwr8 -mtriple=powerpc64-unknown-linux-gnu -verify-machineinstrs < %s | FileCheck %s
+; RUN: llc -mtriple=powerpc64le-unknown-linux-gnu -verify-machineinstrs -disable-ppc-branch-coalesce < %s | FileCheck --check-prefix=CHECK-NOCOALESCE %s
+; RUN: llc -mcpu=pwr8 -mtriple=powerpc64-unknown-linux-gnu -verify-machineinstrs -disable-ppc-branch-coalesce < %s | FileCheck --check-prefix=CHECK-NOCOALESCE %s
 
 ; Function Attrs: nounwind
 define double @testBranchCoal(double %a, double %b, double %c, i32 %x) {
