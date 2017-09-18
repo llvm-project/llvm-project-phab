@@ -102,6 +102,18 @@ static cl::opt<bool> DisableMultiplicativeReductions(
     cl::desc("Disable multiplicative reductions"), cl::Hidden, cl::ZeroOrMore,
     cl::init(false), cl::cat(PollyCategory));
 
+enum class GranularityChoice { BasicBlocks, Stores };
+
+static cl::opt<GranularityChoice>
+    StmtGranularity("polly-stmt-granularity",
+                    cl::desc("Select the statement granularity algorithm"),
+                    cl::values(clEnumValN(GranularityChoice::BasicBlocks, "bb",
+                                          "Entire basic blocks granularity"),
+                               clEnumValN(GranularityChoice::Stores, "store",
+                                          "Store-level granularity")),
+                    cl::init(GranularityChoice::BasicBlocks),
+                    cl::cat(PollyCategory));
+
 void ScopBuilder::buildPHIAccesses(ScopStmt *PHIStmt, PHINode *PHI,
                                    Region *NonAffineSubRegion,
                                    bool IsExitBlock) {
@@ -686,7 +698,9 @@ void ScopBuilder::buildStmts(Region &SR) {
         Loop *L = LI.getLoopFor(Inst.getParent());
         if (shouldModelInst(&Inst, L))
           Instructions.push_back(&Inst);
-        if (Inst.getMetadata("polly_split_after")) {
+        if (Inst.getMetadata("polly_split_after") ||
+            (StmtGranularity == GranularityChoice::Stores &&
+             isa<StoreInst>(Inst))) {
           Loop *SurroundingLoop = LI.getLoopFor(I->getNodeAs<BasicBlock>());
           scop->addScopStmt(I->getNodeAs<BasicBlock>(), SurroundingLoop,
                             Instructions, Count);
@@ -694,9 +708,11 @@ void ScopBuilder::buildStmts(Region &SR) {
           Instructions.clear();
         }
       }
-      Loop *SurroundingLoop = LI.getLoopFor(I->getNodeAs<BasicBlock>());
-      scop->addScopStmt(I->getNodeAs<BasicBlock>(), SurroundingLoop,
-                        Instructions, Count);
+      if (Count == 0 || !Instructions.empty()) {
+        Loop *SurroundingLoop = LI.getLoopFor(I->getNodeAs<BasicBlock>());
+        scop->addScopStmt(I->getNodeAs<BasicBlock>(), SurroundingLoop,
+                          Instructions, Count);
+      }
     }
 }
 
@@ -720,8 +736,12 @@ void ScopBuilder::buildAccessFunctions(ScopStmt *Stmt, BasicBlock &BB,
       Split = false;
       Count++;
     }
-    if (Inst.getMetadata("polly_split_after"))
+    if (Inst.getMetadata("polly_split_after") ||
+        (StmtGranularity == GranularityChoice::Stores && isa<StoreInst>(Inst)))
       Split = true;
+
+    if (Count > scop->getStmtListFor(&BB).size() - 1)
+      break;
 
     if (Stmt && Stmt->isBlockStmt() && Stmt != scop->getStmtListFor(&BB)[Count])
       continue;
