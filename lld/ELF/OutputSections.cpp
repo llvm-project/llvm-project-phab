@@ -256,7 +256,11 @@ void OutputSectionFactory::addInputSec(InputSectionBase *IS,
   // dedup'ed section groups by their signatures. For the -r, we want to pass
   // through all SHT_GROUP sections without merging them because merging them
   // creates broken section contents.
-  if (IS->Type == SHT_GROUP) {
+  // We also do not merge any SHF_GROUP sections with any others. If we would do
+  // that we either end up with multiple SHT_GROUP sections containing the
+  // same output section or with situation when SHF_GROUP section is merged with
+  // regular section with the same name. Both cases are semantically incorrect.
+  if (IS->Type == SHT_GROUP || (IS->Flags & SHF_GROUP)) {
     addSection(IS, OutsecName, nullptr);
     return;
   }
