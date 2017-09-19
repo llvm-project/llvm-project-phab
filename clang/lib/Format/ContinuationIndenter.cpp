@@ -1313,6 +1313,40 @@ unsigned ContinuationIndenter::breakProtrudingToken(const FormatToken &Current,
   if (Current.UnbreakableTailLength >= ColumnLimit)
     return 0;
 
+  // Verify if the comment should be reflown
+  LineState PrevState = State;
+  unsigned Penalty = reflowProtrudingToken(Current, State, Token, ColumnLimit, true, true);
+  bool Reflow = true;
+  if (Penalty > 0) {
+    LineState NoReflowState = PrevState;
+    unsigned NoReflowPenalty = reflowProtrudingToken(Current, NoReflowState, Token, ColumnLimit,
+                                                     true, false);
+    if (NoReflowPenalty <= Penalty) {
+      Reflow = false;
+      State = NoReflowState;
+      Penalty = NoReflowPenalty;
+    }
+  }
+
+  // Actually do the reflow, if DryRun=false
+  if (!DryRun)
+    reflowProtrudingToken(Current, PrevState, Token, ColumnLimit, false, Reflow);
+
+  // Do not count the penalty twice, it will be added afterwards
+  if (State.Column > getColumnLimit(State)) {
+    unsigned ExcessCharacters = State.Column - getColumnLimit(State);
+    Penalty -= Style.PenaltyExcessCharacter * ExcessCharacters;
+  }
+
+  return Penalty;
+}
+
+unsigned ContinuationIndenter::reflowProtrudingToken(const FormatToken &Current, LineState &State,
+                                                     std::unique_ptr<BreakableToken> &Token,
+                                                     unsigned ColumnLimit, bool DryRun,
+                                                     bool Reflow) {
+  unsigned StartColumn = State.Column - Current.ColumnWidth;
+
   unsigned RemainingSpace = ColumnLimit - Current.UnbreakableTailLength;
   bool BreakInserted = false;
   // We use a conservative reflowing strategy. Reflow starts after a line is
@@ -1337,14 +1371,18 @@ unsigned ContinuationIndenter::breakProtrudingToken(const FormatToken &Current,
                                      RemainingSpace, SplitBefore, Whitespaces);
     RemainingTokenColumns = Token->getLineLengthAfterSplitBefore(
         LineIndex, TailOffset, RemainingTokenColumns, ColumnLimit, SplitBefore);
+    if (!Reflow) {
+      if (RemainingTokenColumns > RemainingSpace)
+        Penalty += Style.PenaltyExcessCharacter *
+                   (RemainingTokenColumns - RemainingSpace);
+      continue;
+    }
     while (RemainingTokenColumns > RemainingSpace) {
       BreakableToken::Split Split = Token->getSplit(
           LineIndex, TailOffset, ColumnLimit, CommentPragmasRegex);
       if (Split.first == StringRef::npos) {
-        // The last line's penalty is handled in addNextStateToQueue().
-        if (LineIndex < EndIndex - 1)
-          Penalty += Style.PenaltyExcessCharacter *
-                     (RemainingTokenColumns - RemainingSpace);
+        Penalty += Style.PenaltyExcessCharacter *
+                   (RemainingTokenColumns - RemainingSpace);
         break;
       }
       assert(Split.first != 0);
@@ -1400,6 +1438,8 @@ unsigned ContinuationIndenter::breakProtrudingToken(const FormatToken &Current,
   State.Column = RemainingTokenColumns;
 
   if (BreakInserted) {
+    assert(Reflow);
+
     // If we break the token inside a parameter list, we need to break before
     // the next parameter on all levels, so that the next parameter is clearly
     // visible. Line comments already introduce a break.
