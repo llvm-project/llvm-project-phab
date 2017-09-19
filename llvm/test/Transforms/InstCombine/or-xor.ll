@@ -414,3 +414,25 @@ define i32 @test22(i32 %x, i32 %y) {
   %xor = xor i32 %or1, %or2
   ret i32 %xor
 }
+
+; (((x ^ C1) | (x & C2)) | ((y ^ C1) | (y & C2))) ->
+; (((x ^ C1) | (y ^ C2)) | ((x | y) & C2))
+define i32 @or_or_xor_and(i32 %x, i32 %y) local_unnamed_addr #0  {
+; CHECK-LABEL: @or_or_xor_and(
+; CHECK-NEXT:    [[XOR1:%.*]] = xor i32 %x, 15
+; CHECK-NEXT:    [[XOR2:%.*]] = xor i32 %y, 15
+; CHECK-NEXT:    [[OR1:%.*]] = or i32 %x, %y
+; CHECK-NEXT:    [[AND:%.*]] = and i32 [[OR1]], 38
+; CHECK-NEXT:    [[OR2:%.*]] = or i32 [[XOR1]], [[XOR2]]
+; CHECK-NEXT:    [[OR3:%.*]] = or i32 [[OR2]], [[AND]]
+; CHECK-NEXT:    ret i32 [[OR3]]
+;
+  %1 = xor i32 %x, 15
+  %2 = and i32 %x, 38
+  %3 = or i32 %1, %2
+  %4 = xor i32 %y, 15
+  %5 = and i32 %y, 38
+  %6 = or i32 %4, %5
+  %7 = or i32 %3, %6
+  ret i32 %7
+}
