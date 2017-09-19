@@ -4840,3 +4840,20 @@ void explicit_maps_member_pointer_references(SSA *sap) {
 }
 #endif
 #endif
+
+///==========================================================================///
+// RUN: %clang_cc1 -DCK30 -std=c++11 -fopenmp -S -emit-llvm -fopenmp -fopenmp-targets=nvptx64-nvidia-cuda %s -o - 2>&1 | FileCheck -check-prefix=CK30 %s
+
+#ifdef CK30
+
+void target_maps_parallel_integer(int a){
+  int ParamToKernel = a;
+#pragma omp target map(tofrom: ParamToKernel)
+  {
+    ParamToKernel += 1;
+  }
+}
+
+// CK30: {{.*}}void @__omp_offloading_{{.*}}(i32* dereferenceable(4) %ParamToKernel) #0 {
+
+#endif
