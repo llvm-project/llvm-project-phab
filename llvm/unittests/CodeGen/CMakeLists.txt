@@ -1,8 +1,10 @@
 set(LLVM_LINK_COMPONENTS
+  ${LLVM_TARGETS_TO_BUILD}
   AsmPrinter
   CodeGen
   Core
   Support
+  Target
   )
 
 set(CodeGenSources
@@ -11,6 +13,7 @@ set(CodeGenSources
   MachineInstrBundleIteratorTest.cpp
   MachineOperandTest.cpp
   ScalableVectorMVTsTest.cpp
+  TargetOptionsTest.cpp
   )
 
 add_llvm_unittest(CodeGenTests
