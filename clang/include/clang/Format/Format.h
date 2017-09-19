@@ -981,6 +981,18 @@ struct FormatStyle {
   /// For example: Q_UNUSED
   std::vector<std::string> StatementMacros;
 
+  /// \brief A vector of macros which are used to open namespace blocks.
+  ///
+  /// These are expected to be macros of the form:
+  /// \code
+  ///   NAMESPACE(<namespace-name>, ...) {
+  ///     <namespace-content>
+  ///   }
+  /// \endcode
+  ///
+  /// For example: TESTSUITE
+  std::vector<std::string> NamespaceMacros;
+
   /// \brief See documentation of ``IncludeCategories``.
   struct IncludeCategory {
     /// \brief The regular expression that this category matches.
@@ -1575,6 +1587,7 @@ struct FormatStyle {
            MacroBlockEnd == R.MacroBlockEnd &&
            MaxEmptyLinesToKeep == R.MaxEmptyLinesToKeep &&
            NamespaceIndentation == R.NamespaceIndentation &&
+           NamespaceMacros == R.NamespaceMacros &&
            ObjCBlockIndentWidth == R.ObjCBlockIndentWidth &&
            ObjCSpaceAfterProperty == R.ObjCSpaceAfterProperty &&
            ObjCSpaceBeforeProtocolList == R.ObjCSpaceBeforeProtocolList &&

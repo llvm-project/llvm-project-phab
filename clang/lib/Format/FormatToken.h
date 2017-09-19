@@ -68,6 +68,7 @@ namespace format {
   TYPE(LineComment) \
   TYPE(MacroBlockBegin) \
   TYPE(MacroBlockEnd) \
+  TYPE(NamespaceMacro) \
   TYPE(ObjCBlockLBrace) \
   TYPE(ObjCBlockLParen) \
   TYPE(ObjCDecl) \
@@ -489,8 +490,10 @@ struct FormatToken {
     // Detect "(inline)? namespace" in the beginning of a line.
     if (NamespaceTok && NamespaceTok->is(tok::kw_inline))
       NamespaceTok = NamespaceTok->getNextNonComment();
-    return NamespaceTok && NamespaceTok->is(tok::kw_namespace) ? NamespaceTok
-                                                               : nullptr;
+    return NamespaceTok &&
+                   NamespaceTok->isOneOf(tok::kw_namespace, TT_NamespaceMacro)
+               ? NamespaceTok
+               : nullptr;
   }
 
 private:
