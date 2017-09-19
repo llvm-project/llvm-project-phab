@@ -2782,7 +2782,34 @@ void AArch64DAGToDAGISel::Select(SDNode *Node) {
     }
     break;
   }
-
+  case ISD::CopyToReg: {
+    // Special case for copy of zero to avoid a double copy.
+    SDNode *CopyVal = Node->getOperand(2).getNode();
+    if (ConstantSDNode *CopyValConst = dyn_cast<ConstantSDNode>(CopyVal)) {
+      if (CopyValConst->isNullValue()) {
+        const SDValue &Dest = Node->getOperand(1);
+        if (!TargetRegisterInfo::isVirtualRegister(
+                cast<RegisterSDNode>(Dest)->getReg()))
+          break;
+        if (Node->getValueType(Node->getNumValues() - 1) == MVT::Glue)
+          break;
+        unsigned ZeroReg;
+        EVT ZeroVT = CopyValConst->getValueType(0);
+        if (ZeroVT == MVT::i32)
+          ZeroReg = AArch64::WZR;
+        else if (ZeroVT == MVT::i64)
+          ZeroReg = AArch64::XZR;
+        else
+          break;
+        SDValue ZeroRegVal = CurDAG->getRegister(ZeroReg, ZeroVT);
+        SDValue New = CurDAG->getNode(ISD::CopyToReg, SDLoc(Node), MVT::Other,
+                                      Node->getOperand(0), Dest, ZeroRegVal);
+        ReplaceNode(Node, New.getNode());
+        return;
+      }
+    }
+    break;
+  }
   case ISD::FrameIndex: {
     // Selects to ADDXri FI, 0 which in turn will become ADDXri SP, imm.
     int FI = cast<FrameIndexSDNode>(Node)->getIndex();
