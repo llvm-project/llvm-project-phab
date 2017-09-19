@@ -1,7 +1,7 @@
 // REQUIRES: aarch64-registered-target
-// RUN: %clang_cc1 -triple arm64-apple-ios -S -o /dev/null %s -O2 -dwarf-column-info -Rpass-missed=regalloc 2>&1 | FileCheck -check-prefix=REMARK %s
-// RUN: %clang_cc1 -triple arm64-apple-ios -S -o /dev/null %s -O2 -dwarf-column-info 2>&1 | FileCheck -allow-empty -check-prefix=NO_REMARK %s
-// RUN: %clang_cc1 -triple arm64-apple-ios -S -o /dev/null %s -O2 -dwarf-column-info -opt-record-file %t.yaml
+// RUN: %clang_cc1 -triple arm64-apple-ios -S -o /dev/null %s -O2 -debug-column-info -Rpass-missed=regalloc 2>&1 | FileCheck -check-prefix=REMARK %s
+// RUN: %clang_cc1 -triple arm64-apple-ios -S -o /dev/null %s -O2 -debug-column-info 2>&1 | FileCheck -allow-empty -check-prefix=NO_REMARK %s
+// RUN: %clang_cc1 -triple arm64-apple-ios -S -o /dev/null %s -O2 -debug-column-info -opt-record-file %t.yaml
 // RUN: cat %t.yaml | FileCheck -check-prefix=YAML %s
 
 void bar(float);

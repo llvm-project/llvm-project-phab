@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsyntax-only -verify -std=c++11 %s 
+// RUN: %clang_cc1 -debug-column-info -fsyntax-only -verify -std=c++11 %s
 
 void test() {
   int x;

@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 -triple %itanium_abi_triple %s -fsyntax-only -verify -pedantic
-enum e {A, 
+// RUN: %clang_cc1 -triple %itanium_abi_triple %s -debug-column-info -fsyntax-only -verify -pedantic
+enum e {A,
         B = 42LL << 32,        // expected-warning {{ISO C restricts enumerator values to range of 'int'}}
       C = -4, D = 12456 };
 
@@ -11,7 +11,7 @@ enum g {  // too negative
 enum h { e = -2147483648, // too pos
    f = 2147483648,           // expected-warning {{ISO C restricts enumerator values to range of 'int'}}
   i = 0xFFFF0000 // expected-warning {{too large}}
-}; 
+};
 
 // minll maxull
 enum x                      // expected-warning {{enumeration values exceed range of largest integer}}

@@ -227,9 +227,9 @@
 //
 // NOFDTS-NOT: "-backend-option" "-generate-type-units"
 //
-// CI: "-dwarf-column-info"
+// CI: "-debug-column-info"
 //
-// NOCI-NOT: "-dwarf-column-info"
+// NOCI-NOT: "-debug-column-info"
 //
 // GEXTREFS: "-dwarf-ext-refs" "-fmodule-format=obj" "-debug-info-kind={{standalone|limited}}"
 

@@ -234,6 +234,9 @@ PrintingPolicy CGDebugInfo::getPrintingPolicy() const {
   if (CGM.getCodeGenOpts().EmitCodeView)
     PP.MSVCFormatting = true;
 
+  if (!CGM.getCodeGenOpts().DebugColumnInfo)
+    PP.AnonymousTagLocations = false;
+
   return PP;
 }
 

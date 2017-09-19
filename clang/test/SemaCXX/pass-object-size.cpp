@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsyntax-only -verify %s -std=c++11
+// RUN: %clang_cc1 -debug-column-info -fsyntax-only -verify %s -std=c++11
 
 namespace simple {
 int Foo(void *const p __attribute__((pass_object_size(0))));

@@ -2907,7 +2907,7 @@ static void RenderDebugOptions(const ToolChain &TC, const Driver &D,
   // include any column info.
   if (Args.hasFlag(options::OPT_gcolumn_info, options::OPT_gno_column_info,
                    /*Default=*/ !IsPS4CPU && !(IsWindowsMSVC && EmitCodeView)))
-    CmdArgs.push_back("-dwarf-column-info");
+    CmdArgs.push_back("-debug-column-info");
 
   // FIXME: Move backend command line options to the module.
   // If -gline-tables-only is the last option it wins.

@@ -488,6 +488,10 @@ void CompilerInstance::createASTContext() {
                                  PP.getIdentifierTable(), PP.getSelectorTable(),
                                  PP.getBuiltinInfo());
   Context->InitBuiltinTypes(getTarget(), getAuxTarget());
+  PrintingPolicy Policy = Context->getPrintingPolicy();
+  if (!getCodeGenOpts().DebugColumnInfo)
+    Policy.AnonymousTagLocations = false;
+  Context->setPrintingPolicy(Policy);
   setASTContext(Context);
 }
 

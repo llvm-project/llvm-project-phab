@@ -2,12 +2,12 @@
 // RUN:    -std=c++11 -gcodeview -emit-llvm -o - %s \
 // RUN:    | FileCheck -check-prefix=NONEST %s
 // RUN: %clang_cc1 -triple=x86_64-pc-windows-msvc -debug-info-kind=limited \
-// RUN:    -std=c++11 -gcodeview -dwarf-column-info -emit-llvm -o - %s \
+// RUN:    -std=c++11 -gcodeview -debug-column-info -emit-llvm -o - %s \
 // RUN:    | FileCheck -check-prefix=COLUMNS %s
 // RUN: %clang_cc1 -triple=x86_64-unknown-linux-gnu -debug-info-kind=limited \
 // RUN:    -std=c++11 -emit-llvm -o - %s | FileCheck -check-prefix=NESTED %s
 // RUN: %clang_cc1 -triple=x86_64-unknown-linux-gnu -debug-info-kind=limited \
-// RUN:    -std=c++11 -dwarf-column-info -emit-llvm -o - %s \
+// RUN:    -std=c++11 -debug-column-info -emit-llvm -o - %s \
 // RUN:    | FileCheck -check-prefix=COLUMNS %s
 
 class Foo {

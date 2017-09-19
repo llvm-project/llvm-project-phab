@@ -549,7 +549,7 @@ std::string PredefinedExpr::ComputeName(IdentType IT, const Decl *CurrentDecl) {
         Out << "static ";
     }
 
-    PrintingPolicy Policy(Context.getLangOpts());
+    PrintingPolicy Policy(Context.getPrintingPolicy());
     std::string Proto;
     llvm::raw_string_ostream POut(Proto);
 

@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -std=c++14 -Wno-unused-value -fsyntax-only -verify -fblocks %s
+// RUN: %clang_cc1 -std=c++14 -Wno-unused-value -debug-column-info -fsyntax-only -verify -fblocks %s
 
 namespace std { class type_info; };
 

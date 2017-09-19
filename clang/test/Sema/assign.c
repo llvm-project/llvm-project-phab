@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsyntax-only -verify %s
+// RUN: %clang_cc1 -debug-column-info -fsyntax-only -verify %s
 
 void *test1(void) { return 0; }
 
