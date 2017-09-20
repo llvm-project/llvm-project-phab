@@ -892,6 +892,14 @@ public:
                                                          HasSizeMismatch);
   }
 
+  void setMaxAtomicWidth() override {
+    if (!hasFeature("cx16")) {
+      MaxAtomicPromoteWidth = 64;
+      MaxAtomicInlineWidth = 64;
+    }
+    return;
+  }
+
   ArrayRef<Builtin::Info> getTargetBuiltins() const override;
 };
 
