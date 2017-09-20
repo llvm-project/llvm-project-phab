@@ -17,6 +17,7 @@
 #include "sanitizer_common.h"
 #include "sanitizer_placement_new.h"
 #include "sanitizer_procmaps.h"
+#include "sanitizer_linux.h"
 
 namespace __sanitizer {
 

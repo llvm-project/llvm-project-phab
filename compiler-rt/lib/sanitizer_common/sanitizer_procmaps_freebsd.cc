@@ -14,6 +14,7 @@
 #if SANITIZER_FREEBSD || SANITIZER_NETBSD
 #include "sanitizer_common.h"
 #if SANITIZER_FREEBSD
+#include "sanitizer_linux.h"
 #include "sanitizer_freebsd.h"
 #endif
 #include "sanitizer_procmaps.h"
@@ -34,6 +35,18 @@
 
 namespace __sanitizer {
 
+  struct ProcSelfMapsBuff {
+    char *data;
+    uptr mmaped_size;
+    uptr len;
+  };
+  struct MemoryMappingLayoutData {
+    ProcSelfMapsBuff proc_self_maps;
+    const char *current;
+    // Static mappings cache.
+    static ProcSelfMapsBuff cached_proc_self_maps;
+    static StaticSpinMutex cache_lock;  // protects cached_proc_self_maps_
+  };
 void ReadProcMaps(ProcSelfMapsBuff *proc_maps) {
   const int Mib[] = {
 #if SANITIZER_FREEBSD
@@ -67,9 +80,9 @@ void ReadProcMaps(ProcSelfMapsBuff *proc_maps) {
 }
 
 bool MemoryMappingLayout::Next(MemoryMappedSegment *segment) {
-  char *last = proc_self_maps_.data + proc_self_maps_.len;
-  if (current_ >= last) return false;
-  struct kinfo_vmentry *VmEntry = (struct kinfo_vmentry*)current_;
+  char *last = data_->proc_self_maps.data + data_->proc_self_maps.len;
+  if (data_->current >= last) return false;
+  struct kinfo_vmentry *VmEntry = (struct kinfo_vmentry*)data_->current;
 
   segment->start = (uptr)VmEntry->kve_start;
   segment->end = (uptr)VmEntry->kve_end;
@@ -90,9 +103,9 @@ bool MemoryMappingLayout::Next(MemoryMappedSegment *segment) {
   }
 
 #if SANITIZER_FREEBSD
-  current_ += VmEntry->kve_structsize;
+  data_->current += VmEntry->kve_structsize;
 #else
-  current_ += sizeof(*VmEntry);
+  data_->current += sizeof(*VmEntry);
 #endif
 
   return true;

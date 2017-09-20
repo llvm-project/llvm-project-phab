@@ -20,16 +20,7 @@
 
 namespace __sanitizer {
 
-#if SANITIZER_FREEBSD || SANITIZER_LINUX || SANITIZER_NETBSD
-struct ProcSelfMapsBuff {
-  char *data;
-  uptr mmaped_size;
-  uptr len;
-};
-
-// Reads process memory map in an OS-specific way.
-void ReadProcMaps(ProcSelfMapsBuff *proc_maps);
-#endif  // SANITIZER_FREEBSD || SANITIZER_LINUX || SANITIZER_NETBSD
+struct MemoryMappingLayoutData;
 
 // Memory protection masks.
 static const uptr kProtectionRead = 1;
@@ -94,18 +85,8 @@ class MemoryMappingLayout {
   // Static mappings cache.
   static ProcSelfMapsBuff cached_proc_self_maps_;
   static StaticSpinMutex cache_lock_;  // protects cached_proc_self_maps_.
-# elif SANITIZER_MAC
-  template <u32 kLCSegment, typename SegmentCommand>
-  bool NextSegmentLoad(MemoryMappedSegment *segment);
-  int current_image_;
-  u32 current_magic_;
-  u32 current_filetype_;
-  ModuleArch current_arch_;
-  u8 current_uuid_[kModuleUUIDSize];
-  int current_load_cmd_count_;
-  char *current_load_cmd_addr_;
-  bool current_instrumented_;
 # endif
+  MemoryMappingLayoutData *data_;
 };
 
 typedef void (*fill_profile_f)(uptr start, uptr rss, bool file,

@@ -28,6 +28,9 @@ namespace __sanitizer {
 // the one in <dirent.h>, which is used by readdir().
 struct linux_dirent;
 
+struct ProcSelfMapsBuff;
+void ReadProcMaps(ProcSelfMapsBuff *proc_maps);
+
 // Syscall wrappers.
 uptr internal_getdents(fd_t fd, struct linux_dirent *dirp, unsigned int count);
 uptr internal_sigaltstack(const void* ss, void* oss);
