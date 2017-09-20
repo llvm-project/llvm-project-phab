@@ -73,3 +73,33 @@ ldi r25, -pm_hi8(foo)
 
 ; CHECK-NEXT: R_AVR_HH8_LDI_PM_NEG
 ldi r25, -pm_hh8(foo)
+
+; CHECK-NEXT: R_AVR_LO8_LDI_GS
+ldi r17, lo8(gs(foo))
+
+; CHECK-NEXT: R_AVR_HI8_LDI_GS
+ldi r18, hi8(gs(foo))
+
+; CHECK-NEXT: R_AVR_16_PM
+.short foo
+
+; CHECK-NEXT: R_AVR_8
+.byte foo
+
+; CHECK-NEXT: R_AVR_8_LO8
+.byte lo8(foo)
+
+; CHECK-NEXT: R_AVR_8_HI8
+.byte hi8(foo)
+
+; CHECK-NEXT: R_AVR_8_HLO8
+.byte hlo8(foo)
+
+; CHECK-NEXT: R_AVR_DIFF8
+.byte foo - bar
+
+; CHECK-NEXT: R_AVR_DIFF16
+.word foo - bar
+
+; CHECK-NEXT: R_AVR_DIFF32
+.long foo - bar

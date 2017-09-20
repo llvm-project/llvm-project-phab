@@ -119,6 +119,9 @@ enum Fixups {
   /// Is the only stateful fixup. We do not support it yet.
   fixup_sym_diff,
   fixup_16_ldst,
+  fixup_diff8,
+  fixup_diff16,
+  fixup_diff32,
 
   fixup_lds_sts_16,
 

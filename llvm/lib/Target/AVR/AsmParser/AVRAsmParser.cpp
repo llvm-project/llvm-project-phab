@@ -80,6 +80,8 @@ class AVRAsmParser : public MCTargetAsmParser {
                       uint64_t const &ErrorInfo);
   bool missingFeature(SMLoc const &Loc, uint64_t const &ErrorInfo);
 
+  bool parseLiteralValues(unsigned Size, SMLoc L);
+
 public:
   AVRAsmParser(const MCSubtargetInfo &STI, MCAsmParser &Parser,
                const MCInstrInfo &MII, const MCTargetOptions &Options)
@@ -432,6 +434,11 @@ bool AVRAsmParser::tryParseRelocExpression(OperandVector &Operands) {
   if (ModifierKind != AVRMCExpr::VK_AVR_None) {
     Parser.Lex();
     Parser.Lex(); // Eat modifier name and parenthesis
+    // FIXME: Not support gs(foo) so just eat gs.
+    if (Parser.getTok().getString() == "gs" &&
+        Parser.getTok().getKind() == AsmToken::Identifier) {
+      Parser.Lex();
+    }
   } else {
     return Error(Parser.getTok().getLoc(), "unknown modifier");
   }
@@ -580,7 +587,35 @@ bool AVRAsmParser::ParseInstruction(ParseInstructionInfo &Info,
   return false;
 }
 
-bool AVRAsmParser::ParseDirective(llvm::AsmToken DirectiveID) { return true; }
+bool AVRAsmParser::ParseDirective(llvm::AsmToken DirectiveID) {
+  StringRef IDVal = DirectiveID.getIdentifier();
+  if (IDVal == ".long")
+    parseLiteralValues(8, DirectiveID.getLoc());
+  else if (IDVal == ".word")
+    parseLiteralValues(4, DirectiveID.getLoc());
+  else if (IDVal == ".short")
+    parseLiteralValues(2, DirectiveID.getLoc());
+  else if (IDVal == ".byte")
+    parseLiteralValues(1, DirectiveID.getLoc());
+  return true;
+}
+
+bool AVRAsmParser::parseLiteralValues(unsigned Size, SMLoc L) {
+  MCAsmParser &Parser = getParser();
+  if (Parser.getTok().getKind() == AsmToken::Identifier &&
+      Parser.getLexer().peekTok().getKind() == AsmToken::LParen) {
+    const MCExpr *Value;
+    return Parser.parseExpression(Value);
+  }
+  auto parseOne = [&]() -> bool {
+    const MCExpr *Value;
+    if (Parser.parseExpression(Value))
+      return true;
+    Parser.getStreamer().EmitValue(Value, Size, L);
+    return false;
+  };
+  return (parseMany(parseOne));
+}
 
 extern "C" void LLVMInitializeAVRAsmParser() {
   RegisterMCAsmParser<AVRAsmParser> X(getTheAVRTarget());
