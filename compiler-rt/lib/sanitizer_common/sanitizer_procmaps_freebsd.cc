@@ -13,6 +13,7 @@
 #include "sanitizer_platform.h"
 #if SANITIZER_FREEBSD || SANITIZER_NETBSD
 #include "sanitizer_common.h"
+#include "sanitizer_linux.h"
 #if SANITIZER_FREEBSD
 #include "sanitizer_freebsd.h"
 #endif
@@ -67,9 +68,9 @@ void ReadProcMaps(ProcSelfMapsBuff *proc_maps) {
 }
 
 bool MemoryMappingLayout::Next(MemoryMappedSegment *segment) {
-  char *last = proc_self_maps_.data + proc_self_maps_.len;
-  if (current_ >= last) return false;
-  struct kinfo_vmentry *VmEntry = (struct kinfo_vmentry*)current_;
+  char *last = data_->proc_self_maps.data + data_->proc_self_maps.len;
+  if (data_->current >= last) return false;
+  struct kinfo_vmentry *VmEntry = (struct kinfo_vmentry*)data_->current;
 
   segment->start = (uptr)VmEntry->kve_start;
   segment->end = (uptr)VmEntry->kve_end;
@@ -90,9 +91,9 @@ bool MemoryMappingLayout::Next(MemoryMappedSegment *segment) {
   }
 
 #if SANITIZER_FREEBSD
-  current_ += VmEntry->kve_structsize;
+  data_->current += VmEntry->kve_structsize;
 #else
-  current_ += sizeof(*VmEntry);
+  data_->current += sizeof(*VmEntry);
 #endif
 
   return true;
