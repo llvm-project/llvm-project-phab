@@ -1190,22 +1190,23 @@ static void removeUnusedSyntheticSections() {
     if ((SS == InX::Got || SS == InX::MipsGot) && ElfSym::GlobalOffsetTable)
       continue;
 
-    std::vector<BaseCommand *>::iterator Empty = OS->Commands.end();
-    for (auto I = OS->Commands.begin(), E = OS->Commands.end(); I != E; ++I) {
-      BaseCommand *B = *I;
+    // SS is an unused synthetic section. Remove it from output section command.
+    for (BaseCommand *B : OS->Commands) {
       if (auto *ISD = dyn_cast<InputSectionDescription>(B)) {
-        llvm::erase_if(ISD->Sections,
-                       [=](InputSection *IS) { return IS == SS; });
-        if (ISD->Sections.empty())
-          Empty = I;
+        auto It = llvm::find(ISD->Sections, SS);
+        if (It == ISD->Sections.end())
+          continue;
+        ISD->Sections.erase(It);
+        break;
       }
     }
-    if (Empty != OS->Commands.end())
-      OS->Commands.erase(Empty);
 
-    // If there are no other sections in the output section, remove it from the
-    // output.
-    if (OS->Commands.empty())
+    // If SS was the only section content, remove the entire output section.
+    bool IsEmpty = llvm::all_of(OS->Commands, [](BaseCommand *B) {
+      auto *ISD = dyn_cast<InputSectionDescription>(B);
+      return ISD && ISD->Sections.empty();
+    });
+    if (IsEmpty)
       llvm::erase_if(Script->Opt.Commands,
                      [&](BaseCommand *Cmd) { return Cmd == OS; });
   }
