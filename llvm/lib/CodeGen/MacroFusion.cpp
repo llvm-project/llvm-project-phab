@@ -33,42 +33,68 @@ using namespace llvm;
 static cl::opt<bool> EnableMacroFusion("misched-fusion", cl::Hidden,
   cl::desc("Enable scheduling for macro fusion."), cl::init(true));
 
-static void fuseInstructionPair(ScheduleDAGMI &DAG, SUnit &FirstSU,
+static bool fuseInstructionPair(ScheduleDAGMI &DAG, SUnit &FirstSU,
                                 SUnit &SecondSU) {
+  // Check that neither instr is already paired with another along the edge
+  // between them.
+  for (SDep &SI : FirstSU.Succs)
+    if (SI.isCluster())
+      return false;
+
+  for (SDep &SI : SecondSU.Preds)
+    if (SI.isCluster())
+      return false;
+
   // Create a single weak edge between the adjacent instrs. The only effect is
   // to cause bottom-up scheduling to heavily prioritize the clustered instrs.
-  DAG.addEdge(&SecondSU, SDep(&FirstSU, SDep::Cluster));
+  if (!DAG.addEdge(&SecondSU, SDep(&FirstSU, SDep::Cluster)))
+    return false;
 
-  // Adjust the latency between the anchor instr and its
-  // predecessors.
-  for (SDep &IDep : SecondSU.Preds)
-    if (IDep.getSUnit() == &FirstSU)
-      IDep.setLatency(0);
+  // Adjust the latency between both instrs.
+  for (SDep &SI : FirstSU.Succs)
+    if (SI.getSUnit() == &SecondSU)
+      SI.setLatency(0);
 
-  // Adjust the latency between the dependent instr and its
-  // predecessors.
-  for (SDep &IDep : FirstSU.Succs)
-    if (IDep.getSUnit() == &SecondSU)
-      IDep.setLatency(0);
+  for (SDep &SI : SecondSU.Preds)
+    if (SI.getSUnit() == &FirstSU)
+      SI.setLatency(0);
 
-  DEBUG(dbgs() << DAG.MF.getName() << "(): Macro fuse ";
+  DEBUG(dbgs() << "Macro fuse: ";
         FirstSU.print(dbgs(), &DAG); dbgs() << " - ";
         SecondSU.print(dbgs(), &DAG); dbgs() << " /  ";
         dbgs() << DAG.TII->getName(FirstSU.getInstr()->getOpcode()) << " - " <<
                   DAG.TII->getName(SecondSU.getInstr()->getOpcode()) << '\n'; );
 
-  if (&SecondSU != &DAG.ExitSU)
-    // Make instructions dependent on FirstSU also dependent on SecondSU to
-    // prevent them from being scheduled between FirstSU and and SecondSU.
-    for (const SDep &SI : FirstSU.Succs) {
-      if (SI.getSUnit() == &SecondSU)
-        continue;
-      DEBUG(dbgs() << "  Copy Succ ";
-            SI.getSUnit()->print(dbgs(), &DAG); dbgs() << '\n';);
-      DAG.addEdge(SI.getSUnit(), SDep(&SecondSU, SDep::Artificial));
-    }
+  // Make data dependencies from the FirstSU also dependent on the SecondSU to
+  // prevent them from being scheduled between the FirstSU and the SecondSU.
+  for (const SDep &SI : FirstSU.Succs) {
+    SUnit *SU = SI.getSUnit();
+    if (SI.isWeak() || (SI.getKind() != SDep::Order && SI.isCtrl()) ||
+        &SecondSU == &DAG.ExitSU || SU == &DAG.ExitSU ||
+        SU == &SecondSU || SU->isPred(&SecondSU))
+      continue;
+    DEBUG(dbgs() << "  Bind ";
+          SecondSU.print(dbgs(), &DAG); dbgs() << " - ";
+          SU->print(dbgs(), &DAG); dbgs() << '\n';);
+    DAG.addEdge(SU, SDep(&SecondSU, SDep::Artificial));
+  }
+
+  // Make the FirstSU also dependent on the dependencies of the SecondSU to
+  // prevent them from being scheduled between the FirstSU and the SecondSU.
+  for (const SDep &SI : SecondSU.Preds) {
+    SUnit *SU = SI.getSUnit();
+    if (SI.isWeak() || (SI.getKind() != SDep::Order && SI.isCtrl()) ||
+        SU == &DAG.ExitSU || &FirstSU == &DAG.ExitSU ||
+        &FirstSU == SU || FirstSU.isSucc(SU))
+      continue;
+    DEBUG(dbgs() << "  Bind ";
+          SU->print(dbgs(), &DAG); dbgs() << " - ";
+          FirstSU.print(dbgs(), &DAG); dbgs() << '\n';);
+    DAG.addEdge(&FirstSU, SDep(SU, SDep::Artificial));
+  }
 
   ++NumFused;
+  return true;
 }
 
 namespace {
@@ -117,8 +143,7 @@ bool MacroFusion::scheduleAdjacentImpl(ScheduleDAGMI &DAG, SUnit &AnchorSU) {
   // Explorer for fusion candidates among the dependencies of the anchor instr.
   for (SDep &Dep : AnchorSU.Preds) {
     // Ignore dependencies that don't enforce ordering.
-    if (Dep.getKind() == SDep::Anti || Dep.getKind() == SDep::Output ||
-        Dep.isWeak())
+    if (Dep.isWeak() || (Dep.getKind() != SDep::Order && Dep.isCtrl()))
       continue;
 
     SUnit &DepSU = *Dep.getSUnit();
@@ -129,8 +154,8 @@ bool MacroFusion::scheduleAdjacentImpl(ScheduleDAGMI &DAG, SUnit &AnchorSU) {
     if (!shouldScheduleAdjacent(TII, ST, DepMI, AnchorMI))
       continue;
 
-    fuseInstructionPair(DAG, DepSU, AnchorSU);
-    return true;
+    if (fuseInstructionPair(DAG, DepSU, AnchorSU))
+      return true;
   }
 
   return false;
