@@ -304,6 +304,7 @@ public:
     // those.
     FAM.registerPass([&] { return AAManager(); });
     FAM.registerPass([&] { return AssumptionAnalysis(); });
+    FAM.registerPass([&] { return MemorySSAAnalysis(); });
     FAM.registerPass([&] { return ScalarEvolutionAnalysis(); });
     FAM.registerPass([&] { return TargetLibraryAnalysis(); });
     FAM.registerPass([&] { return TargetIRAnalysis(); });
