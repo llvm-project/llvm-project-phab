@@ -745,7 +745,7 @@ public:
 
 private:
   /// Platform-specific mapping state.
-  uint64_t Size;
+  size_t Size;
   void *Mapping;
 
   std::error_code init(int FD, uint64_t Offset, mapmode Mode);
@@ -763,7 +763,7 @@ public:
 
   ~mapped_file_region();
 
-  uint64_t size() const;
+  size_t size() const;
   char *data() const;
 
   /// Get a const view of the data. Modifying this memory has undefined
