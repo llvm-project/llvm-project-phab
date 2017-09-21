@@ -38,6 +38,9 @@ class BasicBlock;
 class DataLayout;
 class Loop;
 class LoopInfo;
+class MemorySSA;
+class MemorySSAUpdater;
+class MemorySSAAliasSets;
 class OptimizationRemarkEmitter;
 class PredicatedScalarEvolution;
 class PredIteratorCache;
@@ -425,7 +428,8 @@ bool formLCSSARecursively(Loop &L, DominatorTree &DT, LoopInfo *LI,
 /// arguments. Diagnostics is emitted via \p ORE. It returns changed status.
 bool sinkRegion(DomTreeNode *, AliasAnalysis *, LoopInfo *, DominatorTree *,
                 TargetLibraryInfo *, Loop *, AliasSetTracker *,
-                LoopSafetyInfo *, OptimizationRemarkEmitter *ORE);
+                MemorySSAUpdater *, MemorySSA *, LoopSafetyInfo *,
+                OptimizationRemarkEmitter *ORE);
 
 /// \brief Walk the specified region of the CFG (defined by all blocks
 /// dominated by the specified block, and that are in the current loop) in depth
@@ -437,7 +441,8 @@ bool sinkRegion(DomTreeNode *, AliasAnalysis *, LoopInfo *, DominatorTree *,
 /// ORE. It returns changed status.
 bool hoistRegion(DomTreeNode *, AliasAnalysis *, LoopInfo *, DominatorTree *,
                  TargetLibraryInfo *, Loop *, AliasSetTracker *,
-                 LoopSafetyInfo *, OptimizationRemarkEmitter *ORE);
+                 MemorySSAUpdater *, MemorySSA *, LoopSafetyInfo *,
+                 OptimizationRemarkEmitter *ORE);
 
 /// \brief Try to promote memory values to scalars by sinking stores out of
 /// the loop and moving loads to before the loop.  We do this by looping over
@@ -446,19 +451,18 @@ bool hoistRegion(DomTreeNode *, AliasAnalysis *, LoopInfo *, DominatorTree *,
 /// vector, loop exit blocks insertion point vector, PredIteratorCache,
 /// LoopInfo, DominatorTree, Loop, AliasSet information for all instructions
 /// of the loop and loop safety information as arguments.
+/// The AliasSetTracker and MemorySSAAliasSets are alternatives to one another.
 /// Diagnostics is emitted via \p ORE. It returns changed status.
-bool promoteLoopAccessesToScalars(const SmallSetVector<Value *, 8> &,
-                                  SmallVectorImpl<BasicBlock *> &,
-                                  SmallVectorImpl<Instruction *> &,
-                                  PredIteratorCache &, LoopInfo *,
-                                  DominatorTree *, const TargetLibraryInfo *,
-                                  Loop *, AliasSetTracker *, LoopSafetyInfo *,
-                                  OptimizationRemarkEmitter *);
+bool promoteLoopAccessesToScalars(
+    const SmallSetVector<Value *, 8> &, SmallVectorImpl<BasicBlock *> &,
+    SmallVectorImpl<Instruction *> &, PredIteratorCache &, LoopInfo *,
+    DominatorTree *, const TargetLibraryInfo *, Loop *, AliasSetTracker *,
+    MemorySSAAliasSets *, LoopSafetyInfo *, OptimizationRemarkEmitter *);
 
 /// Does a BFS from a given node to all of its children inside a given loop.
 /// The returned vector of nodes includes the starting point.
 SmallVector<DomTreeNode *, 16> collectChildrenInLoop(DomTreeNode *N,
-                                                     const Loop *CurLoop);
+                                                     Loop *CurLoop);
 
 /// \brief Computes safety information for a loop
 /// checks loop body & header for the possibility of may throw
@@ -506,9 +510,9 @@ void getLoopAnalysisUsage(AnalysisUsage &AU);
 /// instructions from loop body to preheader/exit. Check if the instruction
 /// can execute speculatively.
 /// If \p ORE is set use it to emit optimization remarks.
-bool canSinkOrHoistInst(Instruction &I, AAResults *AA, DominatorTree *DT,
-                        Loop *CurLoop, AliasSetTracker *CurAST,
-                        LoopSafetyInfo *SafetyInfo,
+bool canSinkOrHoistInst(Instruction &, AAResults *, DominatorTree *, Loop *,
+                        AliasSetTracker *, MemorySSAUpdater *, MemorySSA *,
+                        LoopSafetyInfo *,
                         OptimizationRemarkEmitter *ORE = nullptr);
 
 /// Generates a vector reduction using shufflevectors to reduce the value.

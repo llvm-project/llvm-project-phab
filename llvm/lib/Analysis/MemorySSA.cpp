@@ -55,6 +55,8 @@
 #include <utility>
 
 using namespace llvm;
+bool llvm::EnableMSSALoopDep = false;
+bool llvm::UseLICMwMSSA = false;
 
 #define DEBUG_TYPE "memoryssa"
 
