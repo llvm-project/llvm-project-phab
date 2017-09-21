@@ -2607,6 +2607,14 @@ void Sema::mergeDeclAttributes(NamedDecl *New, Decl *Old,
     }
   }
 
+  // This redeclaration adds a section attribute to a declaration that has
+  // already been ODR-used.
+  if (New->hasAttr<SectionAttr>() && !Old->hasAttr<SectionAttr>() &&
+      Old->isUsed()) {
+    Diag(New->getLocation(), diag::warn_attribute_section_on_redeclaration);
+    Diag(Old->getLocation(), diag::note_previous_declaration);
+  }
+
   if (!Old->hasAttrs())
     return;
 
