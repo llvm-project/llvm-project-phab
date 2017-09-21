@@ -3409,13 +3409,15 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("-mpie-copy-relocations");
   }
 
+  bool isCXX = C.getDriver().CCCIsCXX() || types::isCXX(Input.getType());
+
   // This is a coarse approximation of what llvm-gcc actually does, both
   // -fasynchronous-unwind-tables and -fnon-call-exceptions interact in more
   // complicated ways.
   bool AsynchronousUnwindTables =
       Args.hasFlag(options::OPT_fasynchronous_unwind_tables,
                    options::OPT_fno_asynchronous_unwind_tables,
-                   (getToolChain().IsUnwindTablesDefault(Args) ||
+                   (getToolChain().IsUnwindTablesDefault(Args, isCXX) ||
                     getToolChain().getSanitizerArgs().needsUnwindTables()) &&
                        !KernelOrKext);
   if (Args.hasFlag(options::OPT_funwind_tables, options::OPT_fno_unwind_tables,

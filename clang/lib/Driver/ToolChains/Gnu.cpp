@@ -2175,8 +2175,22 @@ void Generic_GCC::printVerboseInfo(raw_ostream &OS) const {
   CudaInstallation.print(OS);
 }
 
-bool Generic_GCC::IsUnwindTablesDefault(const ArgList &Args) const {
-  return getArch() == llvm::Triple::x86_64;
+bool Generic_GCC::IsUnwindTablesDefault(const ArgList &Args, bool isCXX) const {
+
+  // Unwind tables are emitted when targeting x86_64 and ARM for C++ or -fexceptions only).
+  // For ARM we cannot just use UWTable because we still need the .exidx section
+  // even if the function does not throw.
+  switch (getArch()) {
+  case llvm::Triple::arm:
+  case llvm::Triple::armeb:
+  case llvm::Triple::thumb:
+  case llvm::Triple::thumbeb:
+    return tools::arm::ARMNeedUnwindTable(Args, isCXX);
+  case llvm::Triple::x86_64:
+    return true;
+  default:
+    return false;
+  }
 }
 
 bool Generic_GCC::isPICDefault() const {

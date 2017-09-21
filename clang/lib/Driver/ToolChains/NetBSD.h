@@ -65,7 +65,7 @@ public:
       const llvm::opt::ArgList &DriverArgs,
       llvm::opt::ArgStringList &CC1Args) const override;
 
-  bool IsUnwindTablesDefault(const llvm::opt::ArgList &Args) const override {
+  bool IsUnwindTablesDefault(const llvm::opt::ArgList &Args, bool isCXX) const override {
     return true;
   }
 

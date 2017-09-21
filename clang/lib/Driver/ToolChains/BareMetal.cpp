@@ -13,6 +13,7 @@
 #include "InputInfo.h"
 #include "Gnu.h"
 
+#include "Arch/ARM.h"
 #include "clang/Basic/VirtualFileSystem.h"
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/Driver.h"
@@ -55,6 +56,18 @@ static bool isARMBareMetal(const llvm::Triple &Triple) {
     return false;
 
   return true;
+}
+
+bool BareMetal::IsUnwindTablesDefault(const ArgList &Args, bool isCXX) const {
+  switch (getArch()) {
+  case llvm::Triple::arm:
+  case llvm::Triple::armeb:
+  case llvm::Triple::thumb:
+  case llvm::Triple::thumbeb:
+    return tools::arm::ARMNeedUnwindTable(Args, isCXX);
+  default:
+    return false;
+  }
 }
 
 bool BareMetal::handlesTarget(const llvm::Triple &Triple) {

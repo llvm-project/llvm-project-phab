@@ -32,6 +32,7 @@ protected:
 
 public:
   bool useIntegratedAs() const override { return true; }
+  bool IsUnwindTablesDefault(const llvm::opt::ArgList &Args, bool isCXX) const override;
   bool isCrossCompiling() const override { return true; }
   bool isPICDefault() const override { return false; }
   bool isPIEDefault() const override { return false; }

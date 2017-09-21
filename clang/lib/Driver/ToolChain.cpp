@@ -220,7 +220,7 @@ StringRef ToolChain::getDefaultUniversalArchName() const {
   }
 }
 
-bool ToolChain::IsUnwindTablesDefault(const ArgList &Args) const {
+bool ToolChain::IsUnwindTablesDefault(const ArgList &Args, bool isCXX) const {
   return false;
 }
 

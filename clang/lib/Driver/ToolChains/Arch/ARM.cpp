@@ -565,3 +565,10 @@ void arm::appendEBLinkFlags(const ArgList &Args, ArgStringList &CmdArgs,
   if (arm::getARMSubArchVersionNumber(Triple) >= 7 || arm::isARMMProfile(Triple))
     CmdArgs.push_back("--be8");
 }
+
+bool arm::ARMNeedUnwindTable(const llvm::opt::ArgList &Args, bool isCXX) {
+  // Unwind tables are emitted for C++ or if -fno-exceptions is supplied.
+  // We cannot rely on noThrow attribute because we still need the .exidx section
+  // even if the function does not throw. (Excepted for NetBSD that uses DwarfCFI).
+  return Args.hasFlag(options::OPT_fexceptions, options::OPT_fno_exceptions, isCXX);
+}
