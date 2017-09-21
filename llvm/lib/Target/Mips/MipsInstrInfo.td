@@ -1688,7 +1688,7 @@ class ExtBase<string opstr, RegisterOperand RO, Operand PosOpnd,
               Operand SizeOpnd, PatFrag PosImm, PatFrag SizeImm,
               SDPatternOperator Op = null_frag> :
   InstSE<(outs RO:$rt), (ins RO:$rs, PosOpnd:$pos, SizeOpnd:$size),
-         !strconcat(opstr, " $rt, $rs, $pos, $size"),
+         !strconcat(opstr, "\t$rt, $rs, $pos, $size"),
          [(set RO:$rt, (Op RO:$rs, PosImm:$pos, SizeImm:$size))], II_EXT,
          FrmR, opstr>, ISA_MIPS32R2;
 
@@ -1696,7 +1696,7 @@ class InsBase<string opstr, RegisterOperand RO, Operand PosOpnd,
               Operand SizeOpnd, PatFrag PosImm, PatFrag SizeImm,
               SDPatternOperator Op = null_frag>:
   InstSE<(outs RO:$rt), (ins RO:$rs, PosOpnd:$pos, SizeOpnd:$size, RO:$src),
-         !strconcat(opstr, " $rt, $rs, $pos, $size"),
+         !strconcat(opstr, "\t$rt, $rs, $pos, $size"),
          [(set RO:$rt, (Op RO:$rs, PosImm:$pos, SizeImm:$size, RO:$src))],
          II_INS, FrmR, opstr>, ISA_MIPS32R2 {
   let Constraints = "$src = $rt";
