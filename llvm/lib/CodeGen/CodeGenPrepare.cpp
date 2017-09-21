@@ -2676,17 +2676,12 @@ namespace {
 struct ExtAddrMode : public TargetLowering::AddrMode {
   Value *BaseReg = nullptr;
   Value *ScaledReg = nullptr;
+  Value *OriginalValue = nullptr;
 
   ExtAddrMode() = default;
 
   void print(raw_ostream &OS) const;
   void dump() const;
-
-  bool operator==(const ExtAddrMode& O) const {
-    return (BaseReg == O.BaseReg) && (ScaledReg == O.ScaledReg) &&
-           (BaseGV == O.BaseGV) && (BaseOffs == O.BaseOffs) &&
-           (HasBaseReg == O.HasBaseReg) && (Scale == O.Scale);
-  }
 };
 
 } // end anonymous namespace
@@ -4360,6 +4355,75 @@ static bool IsNonLocalValue(Value *V, BasicBlock *BB) {
   return false;
 }
 
+// Convert a null Value to a null value constant
+static Value *NullValueToNullConstant(Value *V, Type *T) {
+  if (V)
+    return V;
+  else
+    return Constant::getNullValue(T);
+}
+
+static Value *CreateSelectOrPHI(Value *Addr,
+                                SmallVectorImpl<ExtAddrMode> &AddrModes,
+                                IRBuilder<> &Builder,
+                                std::function<Value *(ExtAddrMode &)> GetVal) {
+  // Start off by figuring out the type
+  Type *T = nullptr;
+  for (ExtAddrMode &AM : AddrModes) {
+    Value *V = GetVal(AM);
+    if (V) {
+      Type *NewT = V->getType();
+      if (!T)
+        T = NewT;
+      else if (T != NewT)
+        return nullptr; // We can't handle mismatched types
+    }
+  }
+  Value *Result = nullptr;
+  if (PHINode *OrigPHI = dyn_cast<PHINode>(Addr)) {
+    // We can't do anything if addrmodes doesn't match the number of incoming
+    // values
+    if (AddrModes.size() != OrigPHI->getNumIncomingValues())
+      return nullptr;
+    PHINode *NewPHI = PHINode::Create(T, OrigPHI->getNumIncomingValues(),
+                                      OrigPHI->getName(),
+                                      OrigPHI->getParent()->getFirstNonPHI());
+    for (BasicBlock *BB : OrigPHI->blocks()) {
+      Value *IV = OrigPHI->getIncomingValueForBlock(BB);
+      // Find the AddrMode this corresponds to
+      for (ExtAddrMode &AM : AddrModes) {
+        if (AM.OriginalValue == IV) {
+          Value *V = NullValueToNullConstant(GetVal(AM), T);
+          NewPHI->addIncoming(V, BB);
+          break;
+        }
+      }
+    }
+    // If we failed to add an incoming value for each in the original then we
+    // can't proceed
+    if (NewPHI->getNumIncomingValues() != OrigPHI->getNumIncomingValues()) {
+      NewPHI->eraseFromParent();
+      return nullptr;
+    }
+    Result = NewPHI;
+  } else if (SelectInst *OrigSelect = dyn_cast<SelectInst>(Addr)) {
+    // Can't do anything if we don't have exactly two addrmodes
+    if (AddrModes.size() != 2)
+      return nullptr;
+    // The two addrmodes we have must correspond to the operands of the select
+    if (AddrModes[0].OriginalValue != OrigSelect->getTrueValue())
+      return nullptr;
+    if (AddrModes[1].OriginalValue != OrigSelect->getFalseValue())
+      return nullptr;
+    Value *X = NullValueToNullConstant(GetVal(AddrModes[0]), T);
+    Value *Y = NullValueToNullConstant(GetVal(AddrModes[1]), T);
+    Result = Builder.CreateSelect(OrigSelect->getCondition(), X, Y);
+  } else {
+    llvm_unreachable("Addr should be PHI or Select");
+  }
+  return Result;
+}
+
 /// Sink addressing mode computation immediate before MemoryInst if doing so
 /// can be done without increasing register pressure.  The need for the
 /// register pressure constraint means this can end up being an all or nothing
@@ -4389,13 +4453,21 @@ bool CodeGenPrepare::optimizeMemoryInst(Instruction *MemoryInst, Value *Addr,
   SmallPtrSet<Value*, 16> Visited;
   worklist.push_back(Addr);
 
+  // When examining PHIs and selects we need to keep track of how the
+  // addressing modes differ from each other.
+  bool DifferentBaseReg = false;
+  bool DifferentBaseGV = false;
+  bool DifferentBaseOffs = false;
+  bool DifferentScaledReg = false;
+  bool DifferentScale = false;
+  bool TrivialAddrMode = true;
+
   // Use a worklist to iteratively look through PHI nodes, and ensure that
   // the addressing mode obtained from the non-PHI roots of the graph
-  // are equivalent.
-  bool AddrModeFound = false;
+  // are compatible.
   bool PhiSeen = false;
   SmallVector<Instruction*, 16> AddrModeInsts;
-  ExtAddrMode AddrMode;
+  SmallVector<ExtAddrMode, 16> AddrModes;
   TypePromotionTransaction TPT(RemovedInsts);
   TypePromotionTransaction::ConstRestorationPt LastKnownGood =
       TPT.getRestorationPoint();
@@ -4422,6 +4494,13 @@ bool CodeGenPrepare::optimizeMemoryInst(Instruction *MemoryInst, Value *Addr,
       PhiSeen = true;
       continue;
     }
+    // Similar for select.
+    if (SelectInst *SI = dyn_cast<SelectInst>(V)) {
+      worklist.push_back(SI->getFalseValue());
+      worklist.push_back(SI->getTrueValue());
+      PhiSeen = true;
+      continue;
+    }
 
     // For non-PHIs, determine the addressing mode being computed.  Note that
     // the result may differ depending on what other uses our candidate
@@ -4430,26 +4509,72 @@ bool CodeGenPrepare::optimizeMemoryInst(Instruction *MemoryInst, Value *Addr,
     ExtAddrMode NewAddrMode = AddressingModeMatcher::Match(
         V, AccessTy, AddrSpace, MemoryInst, AddrModeInsts, *TLI, *TRI,
         InsertedInsts, PromotedInsts, TPT);
+    NewAddrMode.OriginalValue = V;
 
-    if (!AddrModeFound) {
-      AddrModeFound = true;
-      AddrMode = NewAddrMode;
+    // AddrModes with a base reg or gv where the reg/gv is just the original
+    // value are trivial. We need to detect these to avoid introducing a phi or
+    // select which just duplicates what's already there.
+    if ((!NewAddrMode.BaseReg && !NewAddrMode.BaseGV) ||
+        (NewAddrMode.BaseGV &&
+         NewAddrMode.BaseGV != NewAddrMode.OriginalValue) ||
+        (NewAddrMode.BaseReg &&
+         NewAddrMode.BaseReg != NewAddrMode.OriginalValue))
+      TrivialAddrMode = false;
+
+    // If this is the first addrmode then everything is fine.
+    if (AddrModes.size() == 0) {
+      AddrModes.emplace_back(NewAddrMode);
       continue;
     }
-    if (NewAddrMode == AddrMode)
+
+    // Figure out how different this is from the other address modes.
+    for (ExtAddrMode &AM : AddrModes) {
+      if (AM.BaseReg != NewAddrMode.BaseReg)
+        DifferentBaseReg = true;
+      if (AM.BaseGV != NewAddrMode.BaseGV)
+        DifferentBaseGV = true;
+      if (AM.BaseOffs != NewAddrMode.BaseOffs)
+        DifferentBaseOffs = true;
+      if (AM.ScaledReg != NewAddrMode.ScaledReg)
+        DifferentScaledReg = true;
+      // Don't count 0 as being a different scale, because that actually means
+      // unscaled (which will already be counted by having no ScaledReg).
+      if (AM.Scale && NewAddrMode.Scale && AM.Scale != NewAddrMode.Scale)
+        DifferentScale = true;
+    }
+    unsigned DifferCount = DifferentBaseReg + DifferentBaseGV +
+                           DifferentBaseOffs + DifferentScaledReg +
+                           DifferentScale;
+
+    // If this addrmode is the same as all the others then everything is fine
+    // (which should only happen when there is actually only one addrmode).
+    if (DifferCount == 0)
       continue;
 
-    AddrModeFound = false;
+    // If NewAddrMode differs in only one dimension and comes from a phi or
+    // select then we can handle it by inserting a phi/select later on.
+    if ((isa<PHINode>(Addr) || isa<SelectInst>(Addr)) && Addr->hasOneUse() &&
+        DifferCount == 1) {
+      AddrModes.emplace_back(NewAddrMode);
+      continue;
+    }
+
+    AddrModes.clear();
     break;
   }
 
   // If the addressing mode couldn't be determined, or if multiple different
-  // ones were determined, bail out now.
-  if (!AddrModeFound) {
+  // ones were determined but we can't do anything useful with them, bail out
+  // now.
+  if (AddrModes.size() == 0 || (AddrModes.size() > 1 && TrivialAddrMode)) {
     TPT.rollback(LastKnownGood);
     return false;
   }
   TPT.commit();
+
+  // If we have only one AddrMode then it will be first in AddrModes, otherwise
+  // we adjust the elements as we go.
+  ExtAddrMode AddrMode = AddrModes.front();
 
   // If all the instructions matched are already in this BB, don't do anything.
   // If we saw Phi node then it is not local definitely.
@@ -4485,7 +4610,58 @@ bool CodeGenPrepare::optimizeMemoryInst(Instruction *MemoryInst, Value *Addr,
     Type *IntPtrTy = DL->getIntPtrType(Addr->getType());
     Value *ResultPtr = nullptr, *ResultIndex = nullptr;
 
-    // First, find the pointer.
+    // If we have more than one AddrMode then insert a select or phi for each
+    // field in which the AddrModes differ.
+    if (AddrModes.size() > 1) {
+      // We can't cope with scale being different
+      if (DifferentScale)
+        return false;
+      // Set BaseReg if bases differ
+      if (DifferentBaseReg) {
+        AddrMode.BaseReg =
+            CreateSelectOrPHI(Addr, AddrModes, Builder,
+                              [&](ExtAddrMode &AM) { return AM.BaseReg; });
+        if (!AddrMode.BaseReg)
+          return false;
+      }
+      // Set BaseReg if we have different global variables
+      if (DifferentBaseGV) {
+        assert(!AddrMode.BaseReg);
+        AddrMode.BaseReg =
+            CreateSelectOrPHI(Addr, AddrModes, Builder,
+                              [&](ExtAddrMode &AM) { return AM.BaseGV; });
+        if (!AddrMode.BaseReg)
+          return false;
+        AddrMode.BaseGV = nullptr;
+      }
+      // Set ResultIndex if offsets differ
+      if (DifferentBaseOffs) {
+        ResultIndex =
+            CreateSelectOrPHI(Addr, AddrModes, Builder, [&](ExtAddrMode &AM) {
+              return ConstantInt::get(IntPtrTy, AM.BaseOffs);
+            });
+        if (!ResultIndex)
+          return false;
+        AddrMode.BaseOffs = 0;
+      }
+      // Adjust ScaledReg to a select if it differs
+      if (DifferentScaledReg) {
+        AddrMode.ScaledReg =
+            CreateSelectOrPHI(Addr, AddrModes, Builder,
+                              [&](ExtAddrMode &AM) { return AM.ScaledReg; });
+        if (!AddrMode.ScaledReg)
+          return false;
+        // If we have a mix of scaled and unscaled addrmodes then we want scale
+        // to be the scale and not zero
+        if (!AddrMode.Scale)
+          for (ExtAddrMode &AM : AddrModes)
+            if (AM.Scale) {
+              AddrMode.Scale = AM.Scale;
+              break;
+            }
+      }
+    }
+
     if (AddrMode.BaseReg && AddrMode.BaseReg->getType()->isPointerTy()) {
       ResultPtr = AddrMode.BaseReg;
       AddrMode.BaseReg = nullptr;
