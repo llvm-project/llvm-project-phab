@@ -652,6 +652,12 @@ void TargetPassConfig::addPassesToHandleExceptions() {
     addPass(createWinEHPass());
     addPass(createDwarfEHPass());
     break;
+  case ExceptionHandling::Wasm:
+    addPass(createWasmEHPreparePass());
+    // We shouldn't prune unreachable resumes in Wasm EH, because unwinding
+    // stops at every call frame with a landing pad.
+    addPass(createDwarfEHPass(false));
+    break;
   case ExceptionHandling::None:
     addPass(createLowerInvokePass());
 
