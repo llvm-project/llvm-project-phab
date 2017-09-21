@@ -1,0 +1,12 @@
+RUN: clang -g -O0 -fexceptions %S/Inputs/foo.c -c -o %t.o
+RUN: dsymutil %t.o -flat -o %t.dsym
+RUN: llvm-dwarfdump -debug-frame %t.dsym | FileCheck %s
+
+This generates an empty dSYM companion file with a stripped .eh_frame section.
+
+CHECK: .debug_frame contents:
+CHECK-NOT: CIE
+CHECK-NOT: FDE
+CHECK: .eh_frame contents:
+CHECK-NOT: CIE
+CHECK-NOT: FDE
