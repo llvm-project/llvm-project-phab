@@ -1,0 +1,45 @@
+# RUN: llc -mtriple=s390x-linux-gnu -start-before=greedy %s -o - | FileCheck %s
+# Test that %r2d is copied directly to %r1d
+
+--- |
+  
+  define void @f5(void (i32, i32, i32, i32)* %foo) {
+    tail call void %foo(i32 1, i32 2, i32 3, i32 4)
+    ret void
+  }
+  
+  ; Function Attrs: nounwind
+  declare void @llvm.stackprotector(i8*, i8**) #0
+  
+  attributes #0 = { nounwind }
+
+...
+
+# CHECK: lgr     %r1, %r2
+# CHECK-NOT: lgr
+
+---
+name:            f5
+alignment:       2
+tracksRegLiveness: true
+registers:       
+  - { id: 0, class: gr64bit }
+  - { id: 1, class: gr32bit }
+  - { id: 2, class: gr32bit }
+  - { id: 3, class: gr32bit }
+  - { id: 4, class: gr32bit }
+liveins:         
+  - { reg: '%r2d', virtual-reg: '%0' }
+body:             |
+  bb.0 (%ir-block.0):
+    liveins: %r2d
+  
+    %0 = COPY %r2d
+    %r2l = LHI 1
+    %r3l = LHI 2
+    %r4l = LHI 3
+    %r5l = LHI 4
+    %r1d = COPY %0
+    CallBR csr_systemz, implicit %r1d, implicit %r2l, implicit killed %r3l, implicit killed %r4l, implicit killed %r5l
+
+...
