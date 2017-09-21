@@ -644,11 +644,16 @@ std::error_code mapped_file_region::init(int FD, uint64_t Offset,
 mapped_file_region::mapped_file_region(int fd, mapmode mode, uint64_t length,
                                        uint64_t offset, std::error_code &ec)
     : Size(length), Mapping() {
+  static_assert(std::numeric_limits<size_t>::max() == SIZE_MAX, "");
+  static_assert(std::numeric_limits<uint64_t>::max() == UINT64_MAX, "");
+
+#if UINT64_MAX > SIZE_MAX
   // Make sure that the requested size fits within SIZE_T.
   if (length > std::numeric_limits<size_t>::max()) {
     ec = make_error_code(errc::invalid_argument);
     return;
   }
+#endif
 
   ec = init(fd, offset, mode);
   if (ec)
