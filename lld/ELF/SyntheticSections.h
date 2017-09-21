@@ -95,9 +95,6 @@ private:
   template <class RelTy>
   CieRecord *addCie(EhSectionPiece &Piece, ArrayRef<RelTy> Rels);
 
-  template <class RelTy>
-  bool isFdeLive(EhSectionPiece &Piece, ArrayRef<RelTy> Rels);
-
   uint64_t getFdePc(uint8_t *Buf, size_t Off, uint8_t Enc);
 
   std::vector<CieRecord *> CieRecords;
