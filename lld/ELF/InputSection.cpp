@@ -241,6 +241,15 @@ InputSection *InputSectionBase::getLinkOrderDep() const {
   return nullptr;
 }
 
+InputSection *InputSectionBase::getLinkOrderSec() const {
+  std::vector<InputSection *> V;
+  for (InputSectionBase *S : DependentSections)
+    if (InputSection *Dep = S->getLinkOrderDep())
+      V.push_back(cast<InputSection>(S));
+  assert(V.size() <= 1);
+  return V.empty() ? nullptr : V[0];
+}
+
 // Returns a source location string. Used to construct an error message.
 template <class ELFT>
 std::string InputSectionBase::getLocation(uint64_t Offset) {
@@ -808,6 +817,11 @@ void InputSection::replace(InputSection *Other) {
   this->Alignment = std::max(this->Alignment, Other->Alignment);
   Other->Repl = this->Repl;
   Other->Live = false;
+
+  // Handle SHF_LINK_ORDER sections. These sections have an
+  // implicit dependency via the link order dependency.
+  if (InputSection *LinkOrder = getLinkOrderSec())
+    LinkOrder->replace(Other->getLinkOrderSec());
 }
 
 template <class ELFT>

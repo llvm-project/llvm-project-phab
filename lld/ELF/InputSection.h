@@ -164,6 +164,7 @@ public:
   }
 
   InputSection *getLinkOrderDep() const;
+  InputSection *getLinkOrderSec() const;
 
   void uncompress();
 
