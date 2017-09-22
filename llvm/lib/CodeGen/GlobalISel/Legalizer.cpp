@@ -52,6 +52,48 @@ void Legalizer::getAnalysisUsage(AnalysisUsage &AU) const {
 void Legalizer::init(MachineFunction &MF) {
 }
 
+struct WorkListType {
+  WorkListType() = default;
+
+  void push_back(MachineInstr *MI) {
+    // Do not push back duplicates.
+    if (!S.count(MI)) {
+      Q.push_back(MI);
+      S.insert(MI);
+    }
+  }
+
+  void insert(MachineInstr *MI) { push_back(MI); }
+
+  MachineInstr *pop_front_val() {
+    MachineInstr *V = Q.front();
+    Q.pop_front();
+    S.erase(V);
+    return V;
+  }
+
+  bool remove(MachineInstr *MI) {
+    if (S.erase(MI)) {
+      auto It = find(Q.begin(), Q.end(), MI);
+      assert(It != Q.end() && "Invalid element in list");
+      Q.erase(It);
+      return true;
+    }
+    return false;
+  }
+
+  bool empty() const { return Q.empty(); }
+  unsigned size() const { return Q.size(); }
+  MachineInstr *operator[](uint64_t n) const {
+    assert(n < Q.size() && "Access out of range!");
+    return Q[n];
+  }
+
+private:
+  std::deque<MachineInstr *> Q;
+  std::set<MachineInstr *> S;
+};
+
 bool Legalizer::runOnMachineFunction(MachineFunction &MF) {
   // If the ISel pipeline failed, do not bother running that pass.
   if (MF.getProperties().hasProperty(
@@ -81,9 +123,8 @@ bool Legalizer::runOnMachineFunction(MachineFunction &MF) {
       if (!isPreISelGenericOpcode(MI->getOpcode()))
         continue;
       unsigned NumNewInsns = 0;
-      using VecType = SetVector<MachineInstr *, SmallVector<MachineInstr *, 8>>;
-      VecType WorkList;
-      VecType CombineList;
+      WorkListType WorkList;
+      WorkListType CombineList;
       Helper.MIRBuilder.recordInsertions([&](MachineInstr *MI) {
         // Only legalize pre-isel generic instructions.
         // Legalization process could generate Target specific pseudo
@@ -102,7 +143,7 @@ bool Legalizer::runOnMachineFunction(MachineFunction &MF) {
         assert(!WorkList.empty() && "Expecting illegal ops");
         while (!WorkList.empty()) {
           NumNewInsns = 0;
-          MachineInstr *CurrInst = WorkList.pop_back_val();
+          MachineInstr *CurrInst = WorkList.pop_front_val();
           Res = Helper.legalizeInstrStep(*CurrInst);
           // Error out if we couldn't legalize this instruction. We may want to
           // fall back to DAG ISel instead in the future.
@@ -131,7 +172,7 @@ bool Legalizer::runOnMachineFunction(MachineFunction &MF) {
         // Do the combines.
         while (!CombineList.empty()) {
           NumNewInsns = 0;
-          MachineInstr *CurrInst = CombineList.pop_back_val();
+          MachineInstr *CurrInst = CombineList.pop_front_val();
           SmallVector<MachineInstr *, 4> DeadInstructions;
           Changed |= C.tryCombineInstruction(*CurrInst, DeadInstructions);
           for (auto *DeadMI : DeadInstructions) {
