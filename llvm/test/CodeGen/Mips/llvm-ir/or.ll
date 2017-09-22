@@ -15,8 +15,6 @@
 ; RUN:    -check-prefixes=ALL,MM,MM32
 ; RUN: llc < %s -march=mips -mcpu=mips32r6 -mattr=+micromips | FileCheck %s \
 ; RUN:    -check-prefixes=ALL,MM,MM32
-; RUN: llc < %s -march=mips -mcpu=mips64r6 -target-abi n64 -mattr=+micromips | FileCheck %s \
-; RUN:    -check-prefixes=ALL,MM,MM64
 
 define signext i1 @or_i1(i1 signext %a, i1 signext %b) {
 entry:
@@ -76,9 +74,6 @@ entry:
   ; MM32:         or16    $[[T0:[0-9]+]], $5
   ; MM32:         move    $2, $[[T0]]
 
-  ; MM64:         or      $[[T0:[0-9]+]], $4, $5
-  ; MM64:         sll     $2, $[[T0]], 0
-
   %r = or i32 %a, %b
   ret i32 %r
 }
@@ -96,8 +91,6 @@ entry:
   ; MM32:         or16    $[[T1:[0-9]+]], $7
   ; MM32:         move    $2, $[[T0]]
   ; MM32:         move    $3, $[[T1]]
-
-  ; MM64:         or      $2, $4, $5
 
   %r = or i64 %a, %b
   ret i64 %r
@@ -127,9 +120,6 @@ entry:
   ; MM32:         or16    $[[T0]], $6
   ; MM32:         lw      $[[T3:[0-9]+]], 28($sp)
   ; MM32:         or16    $[[T3]], $7
-
-  ; MM64:         or      $2, $4, $6
-  ; MM64:         or      $3, $5, $7
 
   %r = or i128 %a, %b
   ret i128 %r
@@ -187,8 +177,6 @@ entry:
   ; MM32:         ori     $3, $5, 4
   ; MM32:         move    $2, $4
 
-  ; MM64:         ori     $2, $4, 4
-
   %r = or i64 4, %b
   ret i64 %r
 }
@@ -211,9 +199,6 @@ entry:
   ; MM32:         move    $3, $5
   ; MM32:         move    $4, $6
   ; MM32:         move    $5, $[[T0]]
-
-  ; MM64:         ori     $3, $5, 4
-  ; MM64:         move    $2, $4
 
   %r = or i128 4, %b
   ret i128 %r
@@ -275,8 +260,6 @@ entry:
   ; MM32:         ori     $3, $5, 31
   ; MM32:         move    $2, $4
 
-  ; MM64:         ori     $2, $4, 31
-
   %r = or i64 31, %b
   ret i64 %r
 }
@@ -299,9 +282,6 @@ entry:
   ; MM32:         move    $3, $5
   ; MM32:         move    $4, $6
   ; MM32:         move    $5, $[[T0]]
-
-  ; MM64:         ori     $3, $5, 31
-  ; MM64:         move    $2, $4
 
   %r = or i128 31, %b
   ret i128 %r
@@ -367,8 +347,6 @@ entry:
   ; MM32:         ori     $3, $5, 255
   ; MM32:         move    $2, $4
 
-  ; MM64:         ori     $2, $4, 255
-
   %r = or i64 255, %b
   ret i64 %r
 }
@@ -391,9 +369,6 @@ entry:
   ; MM32:         move    $3, $5
   ; MM32:         move    $4, $6
   ; MM32:         move    $5, $[[T0]]
-
-  ; MM64:         ori     $3, $5, 255
-  ; MM64:         move    $2, $4
 
   %r = or i128 255, %b
   ret i128 %r
@@ -458,8 +433,6 @@ entry:
   ; MM32:         ori     $3, $5, 32768
   ; MM32:         move    $2, $4
 
-  ; MM64:         ori     $2, $4, 32768
-
   %r = or i64 32768, %b
   ret i64 %r
 }
@@ -482,9 +455,6 @@ entry:
   ; MM32:         move    $3, $5
   ; MM32:         move    $4, $6
   ; MM32:         move    $5, $[[T0]]
-
-  ; MM64:         ori     $3, $5, 32768
-  ; MM64:         move    $2, $4
 
   %r = or i128 32768, %b
   ret i128 %r
@@ -546,8 +516,6 @@ entry:
   ; MM32:         ori     $3, $5, 65
   ; MM32:         move    $2, $4
 
-  ; MM64:         ori     $2, $4, 65
-
   %r = or i64 65, %b
   ret i64 %r
 }
@@ -570,9 +538,6 @@ entry:
   ; MM32:         move    $3, $5
   ; MM32:         move    $4, $6
   ; MM32:         move    $5, $[[T0]]
-
-  ; MM64:         ori     $3, $5, 65
-  ; MM64:         move    $2, $4
 
   %r = or i128 65, %b
   ret i128 %r
@@ -630,8 +595,6 @@ entry:
   ; MM32:         ori     $3, $5, 256
   ; MM32:         move    $2, $4
 
-  ; MM64:         ori     $2, $4, 256
-
   %r = or i64 256, %b
   ret i64 %r
 }
@@ -654,9 +617,6 @@ entry:
   ; MM32:         move    $3, $5
   ; MM32:         move    $4, $6
   ; MM32:         move    $5, $[[T0]]
-
-  ; MM64:         ori     $3, $5, 256
-  ; MM64:         move    $2, $4
 
   %r = or i128 256, %b
   ret i128 %r

@@ -568,73 +568,69 @@ defm : MipsHiLoRelocs<LUi64, DADDiu, ZERO_64, GPR64Opnd>, SYM_32;
 def : MipsPat<(MipsGotHi tglobaladdr:$in), (LUi64 tglobaladdr:$in)>;
 def : MipsPat<(MipsGotHi texternalsym:$in), (LUi64 texternalsym:$in)>;
 
-multiclass MipsHighestHigherHiLoRelocs<Instruction Lui, Instruction Daddiu> {
+// highest/higher/hi/lo relocs
+let AdditionalPredicates = [NotInMicroMips] in {
   def : MipsPat<(MipsJmpLink (i64 texternalsym:$dst)),
-                (JAL texternalsym:$dst)>;
+                (JAL texternalsym:$dst)>, SYM_64;
   def : MipsPat<(MipsHighest (i64 tglobaladdr:$in)),
-                (Lui tglobaladdr:$in)>;
+                (LUi64 tglobaladdr:$in)>, SYM_64;
   def : MipsPat<(MipsHighest (i64 tblockaddress:$in)),
-                (Lui tblockaddress:$in)>;
+                (LUi64 tblockaddress:$in)>, SYM_64;
   def : MipsPat<(MipsHighest (i64 tjumptable:$in)),
-                (Lui tjumptable:$in)>;
+                (LUi64 tjumptable:$in)>, SYM_64;
   def : MipsPat<(MipsHighest (i64 tconstpool:$in)),
-                (Lui tconstpool:$in)>;
+                (LUi64 tconstpool:$in)>, SYM_64;
   def : MipsPat<(MipsHighest (i64 tglobaltlsaddr:$in)),
-                (Lui tglobaltlsaddr:$in)>;
+                (LUi64 tglobaltlsaddr:$in)>, SYM_64;
   def : MipsPat<(MipsHighest (i64 texternalsym:$in)),
-                (Lui texternalsym:$in)>;
+                (LUi64 texternalsym:$in)>, SYM_64;
 
   def : MipsPat<(MipsHigher (i64 tglobaladdr:$in)),
-                (Daddiu ZERO_64, tglobaladdr:$in)>;
+                (DADDiu ZERO_64, tglobaladdr:$in)>, SYM_64;
   def : MipsPat<(MipsHigher (i64 tblockaddress:$in)),
-                (Daddiu ZERO_64, tblockaddress:$in)>;
+                (DADDiu ZERO_64, tblockaddress:$in)>, SYM_64;
   def : MipsPat<(MipsHigher (i64 tjumptable:$in)),
-                (Daddiu ZERO_64, tjumptable:$in)>;
+                (DADDiu ZERO_64, tjumptable:$in)>, SYM_64;
   def : MipsPat<(MipsHigher (i64 tconstpool:$in)),
-                (Daddiu ZERO_64, tconstpool:$in)>;
+                (DADDiu ZERO_64, tconstpool:$in)>, SYM_64;
   def : MipsPat<(MipsHigher (i64 tglobaltlsaddr:$in)),
-                (Daddiu ZERO_64, tglobaltlsaddr:$in)>;
+                (DADDiu ZERO_64, tglobaltlsaddr:$in)>, SYM_64;
   def : MipsPat<(MipsHigher (i64 texternalsym:$in)),
-                (Daddiu ZERO_64, texternalsym:$in)>;
+                (DADDiu ZERO_64, texternalsym:$in)>, SYM_64;
 
   def : MipsPat<(add GPR64:$hi, (MipsHigher (i64 tglobaladdr:$lo))),
-                (Daddiu GPR64:$hi, tglobaladdr:$lo)>;
+                (DADDiu GPR64:$hi, tglobaladdr:$lo)>, SYM_64;
   def : MipsPat<(add GPR64:$hi, (MipsHigher (i64 tblockaddress:$lo))),
-                (Daddiu GPR64:$hi, tblockaddress:$lo)>;
+                (DADDiu GPR64:$hi, tblockaddress:$lo)>, SYM_64;
   def : MipsPat<(add GPR64:$hi, (MipsHigher (i64 tjumptable:$lo))),
-                (Daddiu GPR64:$hi, tjumptable:$lo)>;
+                (DADDiu GPR64:$hi, tjumptable:$lo)>, SYM_64;
   def : MipsPat<(add GPR64:$hi, (MipsHigher (i64 tconstpool:$lo))),
-                (Daddiu GPR64:$hi, tconstpool:$lo)>;
+                (DADDiu GPR64:$hi, tconstpool:$lo)>, SYM_64;
   def : MipsPat<(add GPR64:$hi, (MipsHigher (i64 tglobaltlsaddr:$lo))),
-                (Daddiu GPR64:$hi, tglobaltlsaddr:$lo)>;
+                (DADDiu GPR64:$hi, tglobaltlsaddr:$lo)>, SYM_64;
 
   def : MipsPat<(add GPR64:$hi, (MipsHi (i64 tglobaladdr:$lo))),
-                (Daddiu GPR64:$hi, tglobaladdr:$lo)>;
+                (DADDiu GPR64:$hi, tglobaladdr:$lo)>, SYM_64;
   def : MipsPat<(add GPR64:$hi, (MipsHi (i64 tblockaddress:$lo))),
-                (Daddiu GPR64:$hi, tblockaddress:$lo)>;
+                (DADDiu GPR64:$hi, tblockaddress:$lo)>, SYM_64;
   def : MipsPat<(add GPR64:$hi, (MipsHi (i64 tjumptable:$lo))),
-                (Daddiu GPR64:$hi, tjumptable:$lo)>;
+                (DADDiu GPR64:$hi, tjumptable:$lo)>, SYM_64;
   def : MipsPat<(add GPR64:$hi, (MipsHi (i64 tconstpool:$lo))),
-                (Daddiu GPR64:$hi, tconstpool:$lo)>;
+                (DADDiu GPR64:$hi, tconstpool:$lo)>, SYM_64;
   def : MipsPat<(add GPR64:$hi, (MipsHi (i64 tglobaltlsaddr:$lo))),
-                (Daddiu GPR64:$hi, tglobaltlsaddr:$lo)>;
+                (DADDiu GPR64:$hi, tglobaltlsaddr:$lo)>, SYM_64;
 
   def : MipsPat<(add GPR64:$hi, (MipsLo (i64 tglobaladdr:$lo))),
-                (Daddiu GPR64:$hi, tglobaladdr:$lo)>;
+                (DADDiu GPR64:$hi, tglobaladdr:$lo)>, SYM_64;
   def : MipsPat<(add GPR64:$hi, (MipsLo (i64 tblockaddress:$lo))),
-                (Daddiu GPR64:$hi, tblockaddress:$lo)>;
+                (DADDiu GPR64:$hi, tblockaddress:$lo)>, SYM_64;
   def : MipsPat<(add GPR64:$hi, (MipsLo (i64 tjumptable:$lo))),
-                (Daddiu GPR64:$hi, tjumptable:$lo)>;
+                (DADDiu GPR64:$hi, tjumptable:$lo)>, SYM_64;
   def : MipsPat<(add GPR64:$hi, (MipsLo (i64 tconstpool:$lo))),
-                (Daddiu GPR64:$hi, tconstpool:$lo)>;
+                (DADDiu GPR64:$hi, tconstpool:$lo)>, SYM_64;
   def : MipsPat<(add GPR64:$hi, (MipsLo (i64 tglobaltlsaddr:$lo))),
-                (Daddiu GPR64:$hi, tglobaltlsaddr:$lo)>;
-
+                (DADDiu GPR64:$hi, tglobaltlsaddr:$lo)>, SYM_64;
 }
-
-// highest/higher/hi/lo relocs
-let AdditionalPredicates = [NotInMicroMips] in
-defm : MipsHighestHigherHiLoRelocs<LUi64, DADDiu>, SYM_64;
 
 // gp_rel relocs
 def : MipsPat<(add GPR64:$gp, (MipsGPRel tglobaladdr:$in)),
