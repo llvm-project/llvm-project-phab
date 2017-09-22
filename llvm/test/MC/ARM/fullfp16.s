@@ -1,5 +1,7 @@
-@ RUN: llvm-mc -triple armv8a-none-eabi -mattr=+fullfp16 -show-encoding < %s | FileCheck %s --check-prefix=ARM
-@ RUN: llvm-mc -triple armv8a-none-eabi -mattr=+fullfp16,+thumb-mode -show-encoding < %s | FileCheck %s --check-prefix=THUMB
+@ RUN: not llvm-mc -triple armv8a-none-eabi -mattr=+fullfp16 -show-encoding < %s 2> %t | FileCheck %s --check-prefix=ARM
+@ RUN: FileCheck --check-prefix=ERROR-ARM < %t %s
+@ RUN: not llvm-mc -triple armv8a-none-eabi -mattr=+fullfp16,+thumb-mode -show-encoding < %s 2> %t | FileCheck %s --check-prefix=THUMB
+@ RUN: FileCheck --check-prefix=ERROR-THUMB < %t %s
 
          vadd.f16  s0, s1, s0
 @ ARM:    vadd.f16 s0, s1, s0        @ encoding: [0x80,0x09,0x30,0xee]
@@ -255,3 +257,10 @@
 @ ARM:   vmov.f16        r3, s4          @ encoding: [0x10,0x39,0x12,0xee]
 @ THUMB: vmov.f16       s1, r2          @ encoding: [0x00,0xee,0x90,0x29]
 @ THUMB: vmov.f16       r3, s4          @ encoding: [0x12,0xee,0x10,0x39]
+
+  vmov.f16 pc, r0
+@ ERROR-ARM: invalid operand for instruction
+@ ERROR-THUMB: invalid operand for instruction
+  vmov.f16 r0, pc
+@ ERROR-ARM: invalid operand for instruction
+@ ERROR-THUMB: invalid operand for instruction
