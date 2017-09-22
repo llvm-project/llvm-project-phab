@@ -205,3 +205,23 @@ OTC::~OTC() try {} catch(...) {}
   };
 
 STRUCT_WITH_DEFAULT(unsigned char, InMacro)
+
+// Unions
+union UnionOfPOD {
+  UnionOfPOD() {}
+  // CHECK-MESSAGES: :[[@LINE-1]]:3: warning: use '= default'
+  // CHECK-FIXES: UnionOfPOD() = default;
+  ~UnionOfPOD() {}
+  // CHECK-MESSAGES: :[[@LINE-1]]:3: warning: use '= default'
+  // CHECK-FIXES: ~UnionOfPOD() = default;
+  int i;
+  double j;
+};
+
+union UnionOfNonTrivial {
+  UnionOfNonTrivial() {}
+  ~UnionOfNonTrivial() {}
+  int i;
+  double j;
+  NE k;
+};

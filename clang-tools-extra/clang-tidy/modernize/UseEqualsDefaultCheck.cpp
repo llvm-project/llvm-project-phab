@@ -111,6 +111,44 @@ static bool isCopyConstructorAndCanBeDefaulted(ASTContext *Context,
          BasesToInit.size() + FieldsToInit.size();
 }
 
+/// Checks that the given default constructor can be defaulted.
+static bool defaultConstructorCanBeDefaulted(ASTContext *Context,
+                                             const CXXMethodDecl *Operator) {
+  const auto *Record = Operator->getParent();
+
+  // A defaulted default constructor of a union with a field with a non trivial
+  // default constructor would be deleted.
+  if (Record->isUnion()) {
+    auto FieldsToInit = getAllNamedFields(Record);
+
+    for (const auto *Field : FieldsToInit) {
+      QualType T = Context->getBaseElementType(Field->getType());
+
+      if (const RecordType *RecordTy = T->getAs<RecordType>()) {
+        CXXRecordDecl *FieldRec = cast<CXXRecordDecl>(RecordTy->getDecl());
+
+        if (FieldRec->hasNonTrivialDefaultConstructor())
+          return false;
+      }
+    }
+  }
+
+  return true;
+}
+
+/// Checks that the given destructor can be defaulted.
+static bool destructorCanBeDefaulted(ASTContext *Context,
+                                     const CXXMethodDecl *Operator) {
+  const auto *Record = Operator->getParent();
+
+  // A defaulted destructor of a union with a field with a non trivial
+  // destructor would be deleted.
+  if (Record->defaultedDestructorIsDeleted())
+    return false;
+
+  return true;
+}
+
 /// \brief Checks that the given method is an overloading of the assignment
 /// operator, has copy signature, returns a reference to "*this" and copies
 /// all its members and subobjects.
@@ -274,6 +312,8 @@ void UseEqualsDefaultCheck::check(const MatchFinder::MatchResult &Result) {
 
   if (const auto *Ctor = dyn_cast<CXXConstructorDecl>(SpecialFunctionDecl)) {
     if (Ctor->getNumParams() == 0) {
+      if (!defaultConstructorCanBeDefaulted(Result.Context, Ctor))
+        return;
       SpecialFunctionName = "default constructor";
     } else {
       if (!isCopyConstructorAndCanBeDefaulted(Result.Context, Ctor))
@@ -286,6 +326,8 @@ void UseEqualsDefaultCheck::check(const MatchFinder::MatchResult &Result) {
       }
     }
   } else if (isa<CXXDestructorDecl>(SpecialFunctionDecl)) {
+    if (!destructorCanBeDefaulted(Result.Context, SpecialFunctionDecl))
+      return;
     SpecialFunctionName = "destructor";
   } else {
     if (!isCopyAssignmentAndCanBeDefaulted(Result.Context, SpecialFunctionDecl))
