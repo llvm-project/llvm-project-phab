@@ -326,4 +326,6 @@ def warn_drv_msvc_not_found : Warning<
   "unable to find a Visual Studio installation; "
   "try running Clang from a developer command prompt">,
   InGroup<DiagGroup<"msvc-not-found">>;
+
+def err_drv_invalid_module_file_map : Error<"invalid module file mapping '%0'">;
 }

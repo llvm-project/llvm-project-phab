@@ -3685,6 +3685,14 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   else
     Args.ClaimAllArgs(options::OPT_fmodule_file);
 
+  // -fmodule-file-map specifies the file containing the module names to
+  // precompiled module files mapping.
+  //
+  if (HaveModules)
+    Args.AddAllArgs(CmdArgs, options::OPT_fmodule_file_map);
+  else
+    Args.ClaimAllArgs(options::OPT_fmodule_file_map);
+
   // When building modules and generating crashdumps, we need to dump a module
   // dependency VFS alongside the output.
   if (HaveClangModules && C.isForDiagnostics()) {

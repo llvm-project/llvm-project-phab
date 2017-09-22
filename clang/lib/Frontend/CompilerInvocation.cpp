@@ -1528,8 +1528,80 @@ std::string CompilerInvocation::GetResourcesPath(const char *Argv0,
   return P.str();
 }
 
+// Read the mapping of module names to precompiled module files from a file.
+// The argument can include an optional line prefix ([<prefix>]=<file>), in
+// which case only lines that start with the prefix are considered (with the
+// prefix and the following whitespaces, if any, ignored).
+//
+// Each mapping entry should be in the same form as the -fmodule-file option
+// value (<name>=<file>) with leading/trailing whitespaces ignored.
+//
+static void LoadModuleFileMap(HeaderSearchOptions &Opts,
+                              DiagnosticsEngine &Diags, FileManager &FileMgr,
+                              StringRef Val, const std::string &Arg) {
+  // See if we have the prefix.
+  StringRef File;
+  StringRef Prefix;
+  if (Val.find('=') != StringRef::npos) {
+    auto Pair = Val.split('=');
+    Prefix = Pair.first;
+    File = Pair.second;
+    if (Prefix.empty()) {
+      Diags.Report(diag::err_drv_invalid_value) << Arg << Val;
+      return;
+    }
+  } else
+    File = Val;
+
+  if (File.empty()) {
+    Diags.Report(diag::err_drv_invalid_value) << Arg << Val;
+    return;
+  }
+
+  auto *Buf = FileMgr.getBufferForFile(File);
+  if (!Buf) {
+    Diags.Report(diag::err_cannot_open_file)
+        << File << Buf.getError().message();
+    return;
+  }
+
+  // Read the file line by line.
+  StringRef Str = Buf.get()->getBuffer();
+  for (size_t B = 0, E = 0; B < Str.size(); B = E + 1) {
+    E = Str.find_first_of(StringRef("\n\0", 2), B);
+
+    if (E == StringRef::npos)
+      E = Str.size();
+    else if (Str[E] == '\0')
+      break; // The file (or the rest of it) is binary, bail out.
+
+    // [B, E) is our line. Compare and skip the prefix, if any.
+    StringRef Line = Str.substr(B, E - B);
+    if (!Prefix.empty()) {
+      if (!Line.startswith(Prefix))
+        continue;
+
+      Line = Line.substr(Prefix.size());
+    }
+
+    // Skip leading and trailing whitespaces and ignore blanks (even if they
+    // had prefix; think make comments).
+    Line = Line.trim();
+    if (Line.empty())
+      continue;
+
+    if (Line.find('=') == StringRef::npos) {
+      Diags.Report(diag::err_drv_invalid_module_file_map) << Line;
+      continue;
+    }
+
+    Opts.PrebuiltModuleFiles.insert(Line.split('='));
+  }
+}
+
 static void ParseHeaderSearchArgs(HeaderSearchOptions &Opts, ArgList &Args,
-                                  const std::string &WorkingDir) {
+                                  DiagnosticsEngine &Diags,
+                                  FileManager &FileMgr) {
   using namespace options;
   Opts.Sysroot = Args.getLastArgValue(OPT_isysroot, "/");
   Opts.Verbose = Args.hasArg(OPT_v);
@@ -1543,6 +1615,7 @@ static void ParseHeaderSearchArgs(HeaderSearchOptions &Opts, ArgList &Args,
   // Canonicalize -fmodules-cache-path before storing it.
   SmallString<128> P(Args.getLastArgValue(OPT_fmodules_cache_path));
   if (!(P.empty() || llvm::sys::path::is_absolute(P))) {
+    const std::string &WorkingDir (FileMgr.getFileSystemOpts().WorkingDir);
     if (WorkingDir.empty())
       llvm::sys::fs::make_absolute(P);
     else
@@ -1558,6 +1631,8 @@ static void ParseHeaderSearchArgs(HeaderSearchOptions &Opts, ArgList &Args,
     if (Val.find('=') != StringRef::npos)
       Opts.PrebuiltModuleFiles.insert(Val.split('='));
   }
+  for (const Arg *A : Args.filtered(OPT_fmodule_file_map))
+    LoadModuleFileMap(Opts, Diags, FileMgr, A->getValue(), A->getAsString(Args));
   for (const Arg *A : Args.filtered(OPT_fprebuilt_module_path))
     Opts.AddPrebuiltModulePath(A->getValue());
   Opts.DisableModuleHash = Args.hasArg(OPT_fdisable_module_hash);
@@ -2511,7 +2586,6 @@ static bool isStrictlyPreprocessorAction(frontend::ActionKind Action) {
 }
 
 static void ParsePreprocessorArgs(PreprocessorOptions &Opts, ArgList &Args,
-                                  FileManager &FileMgr,
                                   DiagnosticsEngine &Diags,
                                   frontend::ActionKind Action) {
   using namespace options;
@@ -2680,14 +2754,19 @@ bool CompilerInvocation::CreateFromArgs(CompilerInvocation &Res,
                           false /*DefaultDiagColor*/, false /*DefaultShowOpt*/);
   ParseCommentArgs(LangOpts.CommentOpts, Args);
   ParseFileSystemArgs(Res.getFileSystemOpts(), Args);
+
+  // File manager used during option parsing (e.g., for loading map files,
+  // etc).
+  //
+  FileManager FileMgr(Res.getFileSystemOpts());
+
   // FIXME: We shouldn't have to pass the DashX option around here
   InputKind DashX = ParseFrontendArgs(Res.getFrontendOpts(), Args, Diags,
                                       LangOpts.IsHeaderFile);
   ParseTargetArgs(Res.getTargetOpts(), Args, Diags);
   Success &= ParseCodeGenArgs(Res.getCodeGenOpts(), Args, DashX, Diags,
                               Res.getTargetOpts());
-  ParseHeaderSearchArgs(Res.getHeaderSearchOpts(), Args,
-                        Res.getFileSystemOpts().WorkingDir);
+  ParseHeaderSearchArgs(Res.getHeaderSearchOpts(), Args, Diags, FileMgr);
   if (DashX.getFormat() == InputKind::Precompiled ||
       DashX.getLanguage() == InputKind::LLVM_IR) {
     // ObjCAAutoRefCount and Sanitize LangOpts are used to setup the
@@ -2728,12 +2807,7 @@ bool CompilerInvocation::CreateFromArgs(CompilerInvocation &Res,
       !LangOpts.Sanitize.has(SanitizerKind::Address) &&
       !LangOpts.Sanitize.has(SanitizerKind::Memory);
 
-  // FIXME: ParsePreprocessorArgs uses the FileManager to read the contents of
-  // PCH file and find the original header name. Remove the need to do that in
-  // ParsePreprocessorArgs and remove the FileManager
-  // parameters from the function and the "FileManager.h" #include.
-  FileManager FileMgr(Res.getFileSystemOpts());
-  ParsePreprocessorArgs(Res.getPreprocessorOpts(), Args, FileMgr, Diags,
+  ParsePreprocessorArgs(Res.getPreprocessorOpts(), Args, Diags,
                         Res.getFrontendOpts().ProgramAction);
   ParsePreprocessorOutputArgs(Res.getPreprocessorOutputOpts(), Args,
                               Res.getFrontendOpts().ProgramAction);
