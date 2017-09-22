@@ -2774,6 +2774,19 @@ static bool tryPressure(const PressureChange &TryP,
                  Reason)) {
     return true;
   }
+
+  // If one of the candidates does neither increase or decrease pressure, but
+  // the other does increase the pressure, go with it.
+  if (TryP.getUnitInc() == 0 && CandP.getUnitInc() > 0) {
+    TryCand.Reason = Reason;
+    return true;
+  }
+  if (TryP.getUnitInc() > 0 && CandP.getUnitInc() == 0) {
+    if (Cand.Reason > Reason)
+      Cand.Reason = Reason;
+    return true;
+  }
+
   // Do not compare the magnitude of pressure changes between top and bottom
   // boundary.
   if (Cand.AtTop != TryCand.AtTop)
