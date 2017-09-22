@@ -10,6 +10,7 @@
 #include "SystemZRegisterInfo.h"
 #include "SystemZInstrInfo.h"
 #include "SystemZSubtarget.h"
+#include "llvm/ADT/SmallSet.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/Target/TargetFrameLowering.h"
@@ -21,6 +22,65 @@ using namespace llvm;
 
 SystemZRegisterInfo::SystemZRegisterInfo()
     : SystemZGenRegisterInfo(SystemZ::R14D) {}
+
+void
+SystemZRegisterInfo::getRegAllocationHints(unsigned VirtReg,
+                                           ArrayRef<MCPhysReg> Order,
+                                           SmallVectorImpl<MCPhysReg> &Hints,
+                                           const MachineFunction &MF,
+                                           const VirtRegMap *VRM,
+                                           const LiveRegMatrix *Matrix) const {
+  const MachineRegisterInfo *MRI = &MF.getRegInfo();
+  const TargetRegisterInfo *TRI = MF.getSubtarget().getRegisterInfo();
+
+  // Hint all physregs that are connected with VirtReg via COPYs.
+  const TargetRegisterClass *RC = MRI->getRegClass(VirtReg);
+  SmallSet<unsigned,4> ConnectedPhysRegs;
+  for (auto &Use : MRI->use_instructions(VirtReg)) {
+    if (Use.isCopy()) {
+      unsigned PhysReg = 0;
+      MachineOperand &DstMO = Use.getOperand(0);
+      MachineOperand &SrcMO = Use.getOperand(1);
+      MachineOperand *VirtRegMO = nullptr;
+      // Get the connected physreg, if any.
+      if (TRI->isPhysicalRegister(DstMO.getReg())) {
+        PhysReg = DstMO.getReg();
+        if (DstMO.getSubReg())
+          PhysReg = TRI->getSubReg(PhysReg, DstMO.getSubReg());
+        VirtRegMO = &SrcMO;
+      } else if (TRI->isPhysicalRegister(SrcMO.getReg())) {
+        PhysReg = SrcMO.getReg();
+        if (SrcMO.getSubReg())
+          PhysReg = TRI->getSubReg(PhysReg, SrcMO.getSubReg());
+        VirtRegMO = &DstMO;
+      }
+      if (!PhysReg)
+        continue;
+
+      if (RC->contains(PhysReg)) {
+        ConnectedPhysRegs.insert(PhysReg);
+        continue;
+      }
+
+      // Check if the subreg index match so that a super register of PhysReg
+      // could be hinted.
+      if (VirtRegMO->getSubReg() != SystemZ::NoSubRegister) {
+        if (unsigned SuperReg =
+            TRI->getMatchingSuperReg(PhysReg, VirtRegMO->getSubReg(), RC))
+          ConnectedPhysRegs.insert(SuperReg);
+      }
+    }
+  }
+
+  if (!ConnectedPhysRegs.empty()) {
+    // Add the connected physregs sorted by the allocation order.
+    for (MCPhysReg Reg : Order)
+      if (ConnectedPhysRegs.count(Reg) && !MRI->isReserved(Reg))
+        Hints.push_back(Reg);
+  }
+
+  TargetRegisterInfo::getRegAllocationHints(VirtReg, Order, Hints, MF, VRM);
+}
 
 const MCPhysReg *
 SystemZRegisterInfo::getCalleeSavedRegs(const MachineFunction *MF) const {
