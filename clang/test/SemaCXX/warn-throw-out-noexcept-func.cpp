@@ -14,6 +14,12 @@ struct R_ShouldDiag : A_ShouldDiag {
   ~R_ShouldDiag() { // expected-note  {{destructor has a implicit non-throwing exception specification}}
     throw 1; // expected-warning {{has a non-throwing exception specification but}}
   }
+  __attribute__((nothrow)) R_ShouldDiag() {// expected-note {{function declared non-throwing here}}
+    throw 1;// expected-warning {{has a non-throwing exception specification but}}
+  }
+  void __attribute__((nothrow)) SomeThrow() {// expected-note {{function declared non-throwing here}}
+   throw 1; // expected-warning {{has a non-throwing exception specification but}}
+  }
 };
 
 struct M_ShouldNotDiag {
