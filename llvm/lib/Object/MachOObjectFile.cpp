@@ -1928,6 +1928,19 @@ bool MachOObjectFile::isSectionBitcode(DataRefImpl Sec) const {
   return false;
 }
 
+bool MachOObjectFile::isSectionStripped(DataRefImpl Sec) const {
+  // When dsymutil generates the companion file, its strips all unnecessary
+  // sections (e.g. everything in the _TEXT segment) by omitting their body and
+  // setting the offset in their corresponding load command to zero.
+  //
+  // While the load command itself is valid, reading the section corresponds to
+  // reading the number of bytes specified in the load command, starting from
+  // offset 0 (i.e. the Mach-O header at the beginning of the file).
+  if (is64Bit())
+    return getSection64(Sec).offset == 0;
+  return getSection(Sec).offset == 0;
+}
+
 relocation_iterator MachOObjectFile::section_rel_begin(DataRefImpl Sec) const {
   DataRefImpl Ret;
   Ret.d.a = Sec.d.a;
