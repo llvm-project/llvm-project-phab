@@ -374,9 +374,15 @@ void ClangTidyDiagnosticConsumer::HandleDiagnostic(
     StringRef WarningOption =
         Context.DiagEngine->getDiagnosticIDs()->getWarningOptionForDiag(
             Info.getID());
-    std::string CheckName = !WarningOption.empty()
-                                ? ("clang-diagnostic-" + WarningOption).str()
-                                : Context.getCheckName(Info.getID()).str();
+    auto Alias = Context.WarningCheckAliases.find(Info.getID());
+    std::string CheckName;
+    if (Alias != Context.WarningCheckAliases.end() &&
+        Context.isCheckEnabled(Alias->second))
+      CheckName = Alias->second;
+    else
+      CheckName = !WarningOption.empty()
+                      ? ("clang-diagnostic-" + WarningOption).str()
+                      : Context.getCheckName(Info.getID()).str();
 
     if (CheckName.empty()) {
       // This is a compiler diagnostic without a warning option. Assign check

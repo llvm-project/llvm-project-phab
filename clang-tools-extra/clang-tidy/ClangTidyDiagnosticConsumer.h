@@ -17,6 +17,7 @@
 #include "clang/Tooling/Refactoring.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/StringMap.h"
+#include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Regex.h"
 #include "llvm/Support/Timer.h"
 
@@ -185,6 +186,8 @@ public:
   const std::string &getCurrentBuildDirectory() {
     return CurrentBuildDirectory;
   }
+
+  llvm::DenseMap<unsigned, llvm::StringRef> WarningCheckAliases;
 
 private:
   // Calls setDiagnosticsEngine() and storeError().
