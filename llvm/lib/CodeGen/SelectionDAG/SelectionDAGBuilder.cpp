@@ -84,6 +84,87 @@ LimitFPPrecision("limit-float-precision",
                           "for some float libcalls"),
                  cl::location(LimitFloatPrecision),
                  cl::init(0));
+
+static bool isVectorReductionOp(const User *I);
+
+/// This class is used for propagating Flags from Instruction to SDNode.
+/// These flags are later used by accessing SDNode during different
+/// DAG phases.
+/// Propagation is done once the DAG node is created. Any flag which is
+/// applied during Build DAG phase is eventually merged with the flags
+/// over Instruction. Since a DAG node could be shared b/w multiple Instructions
+/// thus flags held by node are intersection of flags contributed by
+/// each instruction.
+class SDNodeFlagsAcquirer {
+public:
+  SDNodeFlagsAcquirer(const Instruction *I, SelectionDAGBuilder *SDB)
+      : Instr(I), SelDB(SDB) {}
+
+  ~SDNodeFlagsAcquirer() {
+    SDNode *Node = SelDB->getDAGNode(Instr);
+    if (Node) {
+      SDNodeFlags InstrFlags;
+      SDNodeFlags Flags = Node->getFlags();
+      bool PropFlagsToOperands = Flags.hasPropagateFlagsToOperands();
+
+      if (isa<FPMathOperator>(*Instr)) {
+        InstrFlags.setNoNaNs(Instr->hasNoNaNs());
+        InstrFlags.setNoInfs(Instr->hasNoInfs());
+        InstrFlags.setUnsafeAlgebra(Instr->hasUnsafeAlgebra());
+        InstrFlags.setNoSignedZeros(Instr->hasNoSignedZeros());
+        InstrFlags.setAllowContract(Instr->hasAllowContract());
+        InstrFlags.setAllowReciprocal(Instr->hasAllowReciprocal());
+      }
+
+      if (auto *OFBinOp = dyn_cast<const OverflowingBinaryOperator>(Instr)) {
+        InstrFlags.setNoSignedWrap(OFBinOp->hasNoSignedWrap());
+        InstrFlags.setNoUnsignedWrap(OFBinOp->hasNoUnsignedWrap());
+      }
+
+      if (auto *ExactOp = dyn_cast<const PossiblyExactOperator>(Instr))
+        InstrFlags.setExact(ExactOp->isExact());
+
+      if (isVectorReductionOp(Instr))
+        InstrFlags.setVectorReduction(true);
+
+      Flags.setAcquireFlagsFromUser(false);
+      Flags.setPropagateFlagsToOperands(false);
+
+      if (!Flags.isDefined())
+        Flags.mergeWith(InstrFlags);
+      else 
+        Flags.intersectWith(InstrFlags);
+
+      Node->setFlags(Flags);
+      if (PropFlagsToOperands)
+        std::for_each(Node->op_begin(), Node->op_end(),
+                      [&](const SDValue &Val) {
+                        if (Val.getNode()->getFlags().hasAcquireFlagsFromUser())
+                          Val.getNode()->setFlags(Node->getFlags());
+                      });
+    }
+  }
+
+  // This function sets the Propagation bit over Parent DAG Node
+  // and Acquire bit over Operand DAG node[s] which inherits the 
+  // flags from its parent.
+  static void PropagateFlagsToOperands(SDValue &Parent,
+                                       ArrayRef<SDValue> Operands) {
+    SDNodeFlags PFlags = Parent.getNode()->getFlags();
+    PFlags.setPropagateFlagsToOperands(true);
+    Parent.getNode()->setFlags(PFlags);
+
+    SDNodeFlags CFlags;
+    CFlags.setAcquireFlagsFromUser(true);
+    for (auto &Val : Operands)
+      Val.getNode()->setFlags(CFlags);
+  }
+
+private:
+  const Instruction *Instr;
+  SelectionDAGBuilder *SelDB;
+};
+
 // Limit the width of DAG chains. This is important in general to prevent
 // DAG-based analysis from blowing up. For example, alias analysis and
 // load clustering may not complete in reasonable time. It is difficult to
@@ -977,6 +1058,8 @@ SDValue SelectionDAGBuilder::getControlRoot() {
 }
 
 void SelectionDAGBuilder::visit(const Instruction &I) {
+  SDNodeFlagsAcquirer Flags(&I, this);
+
   // Set up outgoing PHI node register values before emitting the terminator.
   if (isa<TerminatorInst>(&I)) {
     HandlePHINodesInSuccessorBlocks(I.getParent());
@@ -1056,6 +1139,12 @@ SDValue SelectionDAGBuilder::getCopyFromRegs(const Value *V, Type *Ty) {
   }
 
   return Result;
+}
+
+SDNode * SelectionDAGBuilder::getDAGNode(const Value *V) {
+  if (NodeMap.find(V) == NodeMap.end())
+    return nullptr;
+  return NodeMap[V].getNode();
 }
 
 /// getValue - Return an SDValue for the given Value.
@@ -1423,7 +1512,7 @@ void SelectionDAGBuilder::visitRet(const ReturnInst &I) {
     // An aggregate return value cannot wrap around the address space, so
     // offsets to its parts don't wrap either.
     SDNodeFlags Flags;
-    Flags.setNoUnsignedWrap(true);
+    Flags.setNoUnsignedWrap(true, false);
 
     SmallVector<SDValue, 4> Chains(NumValues);
     for (unsigned i = 0; i != NumValues; ++i) {
@@ -2637,42 +2726,11 @@ void SelectionDAGBuilder::visitBinary(const User &I, unsigned OpCode) {
   SDValue Op1 = getValue(I.getOperand(0));
   SDValue Op2 = getValue(I.getOperand(1));
 
-  bool nuw = false;
-  bool nsw = false;
-  bool exact = false;
-  bool vec_redux = false;
-  FastMathFlags FMF;
-
-  if (const OverflowingBinaryOperator *OFBinOp =
-          dyn_cast<const OverflowingBinaryOperator>(&I)) {
-    nuw = OFBinOp->hasNoUnsignedWrap();
-    nsw = OFBinOp->hasNoSignedWrap();
-  }
-  if (const PossiblyExactOperator *ExactOp =
-          dyn_cast<const PossiblyExactOperator>(&I))
-    exact = ExactOp->isExact();
-  if (const FPMathOperator *FPOp = dyn_cast<const FPMathOperator>(&I))
-    FMF = FPOp->getFastMathFlags();
-
-  if (isVectorReductionOp(&I)) {
-    vec_redux = true;
+  if (isVectorReductionOp(&I))
     DEBUG(dbgs() << "Detected a reduction operation:" << I << "\n");
-  }
-
-  SDNodeFlags Flags;
-  Flags.setExact(exact);
-  Flags.setNoSignedWrap(nsw);
-  Flags.setNoUnsignedWrap(nuw);
-  Flags.setVectorReduction(vec_redux);
-  Flags.setAllowReciprocal(FMF.allowReciprocal());
-  Flags.setAllowContract(FMF.allowContract());
-  Flags.setNoInfs(FMF.noInfs());
-  Flags.setNoNaNs(FMF.noNaNs());
-  Flags.setNoSignedZeros(FMF.noSignedZeros());
-  Flags.setUnsafeAlgebra(FMF.unsafeAlgebra());
 
   SDValue BinNodeValue = DAG.getNode(OpCode, getCurSDLoc(), Op1.getValueType(),
-                                     Op1, Op2, Flags);
+                                     Op1, Op2);
   setValue(&I, BinNodeValue);
 }
 
@@ -2705,27 +2763,7 @@ void SelectionDAGBuilder::visitShift(const User &I, unsigned Opcode) {
       Op2 = DAG.getZExtOrTrunc(Op2, DL, MVT::i32);
   }
 
-  bool nuw = false;
-  bool nsw = false;
-  bool exact = false;
-
-  if (Opcode == ISD::SRL || Opcode == ISD::SRA || Opcode == ISD::SHL) {
-
-    if (const OverflowingBinaryOperator *OFBinOp =
-            dyn_cast<const OverflowingBinaryOperator>(&I)) {
-      nuw = OFBinOp->hasNoUnsignedWrap();
-      nsw = OFBinOp->hasNoSignedWrap();
-    }
-    if (const PossiblyExactOperator *ExactOp =
-            dyn_cast<const PossiblyExactOperator>(&I))
-      exact = ExactOp->isExact();
-  }
-  SDNodeFlags Flags;
-  Flags.setExact(exact);
-  Flags.setNoSignedWrap(nsw);
-  Flags.setNoUnsignedWrap(nuw);
-  SDValue Res = DAG.getNode(Opcode, getCurSDLoc(), Op1.getValueType(), Op1, Op2,
-                            Flags);
+  SDValue Res = DAG.getNode(Opcode, getCurSDLoc(), Op1.getValueType(), Op1, Op2);
   setValue(&I, Res);
 }
 
@@ -2733,11 +2771,7 @@ void SelectionDAGBuilder::visitSDiv(const User &I) {
   SDValue Op1 = getValue(I.getOperand(0));
   SDValue Op2 = getValue(I.getOperand(1));
 
-  SDNodeFlags Flags;
-  Flags.setExact(isa<PossiblyExactOperator>(&I) &&
-                 cast<PossiblyExactOperator>(&I)->isExact());
-  setValue(&I, DAG.getNode(ISD::SDIV, getCurSDLoc(), Op1.getValueType(), Op1,
-                           Op2, Flags));
+  setValue(&I, DAG.getNode(ISD::SDIV, getCurSDLoc(), Op1.getValueType(), Op1, Op2));
 }
 
 void SelectionDAGBuilder::visitICmp(const User &I) {
@@ -3358,7 +3392,7 @@ void SelectionDAGBuilder::visitGetElementPtr(const User &I) {
         // interpreted as signed, assume there is no unsigned overflow.
         SDNodeFlags Flags;
         if (int64_t(Offset) >= 0 && cast<GEPOperator>(I).isInBounds())
-          Flags.setNoUnsignedWrap(true);
+          Flags.setNoUnsignedWrap(true, false);
 
         N = DAG.getNode(ISD::ADD, dl, N.getValueType(), N,
                         DAG.getConstant(Offset, dl, N.getValueType()), Flags);
@@ -3389,7 +3423,7 @@ void SelectionDAGBuilder::visitGetElementPtr(const User &I) {
         // interpreted as signed, assume there is no unsigned overflow.
         SDNodeFlags Flags;
         if (Offs.isNonNegative() && cast<GEPOperator>(I).isInBounds())
-          Flags.setNoUnsignedWrap(true);
+          Flags.setNoUnsignedWrap(true, false);
 
         N = DAG.getNode(ISD::ADD, dl, N.getValueType(), N, OffsVal, Flags);
         continue;
@@ -3466,7 +3500,7 @@ void SelectionDAGBuilder::visitAlloca(const AllocaInst &I) {
   // by add SA-1 to the size. This doesn't overflow because we're computing
   // an address inside an alloca.
   SDNodeFlags Flags;
-  Flags.setNoUnsignedWrap(true);
+  Flags.setNoUnsignedWrap(true, false);
   AllocSize = DAG.getNode(ISD::ADD, dl,
                           AllocSize.getValueType(), AllocSize,
                           DAG.getIntPtrConstant(StackAlign - 1, dl), Flags);
@@ -3550,7 +3584,7 @@ void SelectionDAGBuilder::visitLoad(const LoadInst &I) {
   // An aggregate load cannot wrap around the address space, so offsets to its
   // parts don't wrap either.
   SDNodeFlags Flags;
-  Flags.setNoUnsignedWrap(true);
+  Flags.setNoUnsignedWrap(true, false);
 
   SmallVector<SDValue, 4> Values(NumValues);
   SmallVector<SDValue, 4> Chains(std::min(MaxParallelChains, NumValues));
@@ -3718,7 +3752,7 @@ void SelectionDAGBuilder::visitStore(const StoreInst &I) {
   // An aggregate load cannot wrap around the address space, so offsets to its
   // parts don't wrap either.
   SDNodeFlags Flags;
-  Flags.setNoUnsignedWrap(true);
+  Flags.setNoUnsignedWrap(true, false);
 
   unsigned ChainI = 0;
   for (unsigned i = 0; i != NumValues; ++i, ++ChainI) {
@@ -5501,6 +5535,8 @@ SelectionDAGBuilder::visitIntrinsicCall(const CallInst &I, unsigned Intrinsic) {
                                 getValue(I.getArgOperand(0)).getValueType(),
                                 Mul,
                                 getValue(I.getArgOperand(2)));
+
+      SDNodeFlagsAcquirer::PropagateFlagsToOperands(Add,{Mul});
       setValue(&I, Add);
     }
     return nullptr;
@@ -7920,8 +7956,6 @@ void SelectionDAGBuilder::visitVectorReduce(const CallInst &I,
   FastMathFlags FMF;
   if (isa<FPMathOperator>(I))
     FMF = I.getFastMathFlags();
-  SDNodeFlags SDFlags;
-  SDFlags.setNoNaNs(FMF.noNaNs());
 
   switch (Intrinsic) {
   case Intrinsic::experimental_vector_reduce_fadd:
@@ -7964,11 +7998,11 @@ void SelectionDAGBuilder::visitVectorReduce(const CallInst &I,
     Res = DAG.getNode(ISD::VECREDUCE_UMIN, dl, VT, Op1);
     break;
   case Intrinsic::experimental_vector_reduce_fmax: {
-    Res = DAG.getNode(ISD::VECREDUCE_FMAX, dl, VT, Op1, SDFlags);
+    Res = DAG.getNode(ISD::VECREDUCE_FMAX, dl, VT, Op1);
     break;
   }
   case Intrinsic::experimental_vector_reduce_fmin: {
-    Res = DAG.getNode(ISD::VECREDUCE_FMIN, dl, VT, Op1, SDFlags);
+    Res = DAG.getNode(ISD::VECREDUCE_FMIN, dl, VT, Op1);
     break;
   }
   default:
