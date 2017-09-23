@@ -87,7 +87,7 @@ Available checks are:
   -  ``-fsanitize=float-divide-by-zero``: Floating point division by
      zero.
   -  ``-fsanitize=function``: Indirect call of a function through a
-     function pointer of the wrong type (Darwin/Linux, C++ and x86/x86_64
+     function pointer of the wrong type (Darwin/Linux and x86/x86_64
      only).
   -  ``-fsanitize=integer-divide-by-zero``: Integer division by zero.
   -  ``-fsanitize=nonnull-attribute``: Passing null pointer as a function
