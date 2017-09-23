@@ -46,9 +46,10 @@ entry:
 ; CHECK-ARMV6-NEXT: b [[TRY]]
 
 ; CHECK-THUMBV6-LABEL: test_cmpxchg_res_i8:
-; CHECK-THUMBV6:       mov [[EXPECTED:r[0-9]+]], r1
+; CHECK-THUMBV6:       mov [[TMP:r[0-9]+]], r1
 ; CHECK-THUMBV6-NEXT:  bl __sync_val_compare_and_swap_1
 ; CHECK-THUMBV6-NEXT:  mov [[RES:r[0-9]+]], r0
+; CHECK-THUMBV6-NEXT:  uxtb [[EXPECTED:r[0-9]+]], [[TMP]]
 ; CHECK-THUMBV6-NEXT:  movs r0, #1
 ; CHECK-THUMBV6-NEXT:  movs [[ZERO:r[0-9]+]], #0
 ; CHECK-THUMBV6-NEXT:  cmp [[RES]], [[EXPECTED]]

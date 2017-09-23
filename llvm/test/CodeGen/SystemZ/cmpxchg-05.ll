@@ -79,3 +79,17 @@ define zeroext i8 @f6(i8* nocapture, i8 zeroext, i8 zeroext, i32*) {
   %xres = sext i1 %res to i8
   ret i8 %xres
 }
+
+; Verify that computing the comparison result extends the input value
+; CHECK-LABEL: f7
+; CHECK: llc [[VAL:%r[0-9]+]], 0(%r3)
+; CHECK: llcr [[REG:%r[0-9]+]], [[RES:%r[0-9]+]]
+; CHECK: cr [[REG]], [[VAL]]
+define zeroext i8 @f7(i8* nocapture, i8 *, i8 zeroext) {
+  %val = load i8, i8 *%1
+  %cx = cmpxchg i8* %0, i8 %val, i8 %2 seq_cst seq_cst
+  %res = extractvalue { i8, i1 } %cx, 1
+  %xres = sext i1 %res to i8
+  ret i8 %xres
+}
+
