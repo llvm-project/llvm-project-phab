@@ -4495,6 +4495,62 @@ llvm::Constant *CodeGenModule::GetAddrOfRTTIDescriptor(QualType Ty,
   return getCXXABI().getAddrOfRTTIDescriptor(Ty);
 }
 
+llvm::Constant *CodeGenModule::GetUBSanFunctionTypeDescriptor(QualType Ty) {
+  if (getLangOpts().CPlusPlus)
+    return GetAddrOfRTTIDescriptor(Ty, /*ForEH=*/true);
+
+  // Bits:
+  //  0    : unused
+  //  1    : unused
+  //  2-4  : encode(returnType)
+  //  5-6  : encode(param1)
+  //  ...  : encode(paramK)
+  //  30-32: encode(param9)
+
+  auto encode = [this](QualType EncodeTy) {
+    // Encode one of: ?, void, f32, f64, i8, i16, i32, i64 (in 3 bits)
+    const auto *T = EncodeTy.getTypePtr();
+    if (T->isVoidType())
+      return 1;
+
+    uint64_t Size = getContext().getTypeSize(EncodeTy);
+    if (T->hasFloatingRepresentation()) {
+      switch (Size) {
+      case 32:
+        return 2;
+      case 64:
+        return 3;
+      default:
+        return 0;
+      }
+    }
+
+    switch (Size) {
+    case 8:
+      return 4;
+    case 16:
+      return 5;
+    case 32:
+      return 6;
+    case 64:
+      return 7;
+    default:
+      return 0;
+    }
+  };
+
+  const auto *FuncTy = Ty->getAs<FunctionType>();
+  unsigned Encoding = encode(FuncTy->getReturnType()) << 2;
+  if (auto *ProtoTy = dyn_cast<FunctionProtoType>(FuncTy)) {
+    auto Types = ProtoTy->getParamTypes();
+    for (unsigned I = 0, E = Types.size(); I < E && I < 9; ++I)
+      Encoding |= encode(Types[I]) << (5 + (3 * I));
+  }
+
+  return llvm::ConstantExpr::getIntToPtr(
+      llvm::ConstantInt::get(IntPtrTy, Encoding), Int8PtrTy);
+}
+
 void CodeGenModule::EmitOMPThreadPrivateDecl(const OMPThreadPrivateDecl *D) {
   for (auto RefExpr : D->varlists()) {
     auto *VD = cast<VarDecl>(cast<DeclRefExpr>(RefExpr)->getDecl());

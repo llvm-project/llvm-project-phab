@@ -745,6 +745,9 @@ public:
   /// Get the address of the RTTI descriptor for the given type.
   llvm::Constant *GetAddrOfRTTIDescriptor(QualType Ty, bool ForEH = false);
 
+  /// Get the type descriptor for a function for use with UBSan.
+  llvm::Constant *GetUBSanFunctionTypeDescriptor(QualType Ty);
+
   /// Get the address of a uuid descriptor .
   ConstantAddress GetAddrOfUuidDescriptor(const CXXUuidofExpr* E);
 
