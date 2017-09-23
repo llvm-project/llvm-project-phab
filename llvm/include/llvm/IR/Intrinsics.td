@@ -955,6 +955,11 @@ def int_experimental_vector_reduce_fmin : Intrinsic<[llvm_anyfloat_ty],
 
 def int_ssa_copy : Intrinsic<[llvm_any_ty], [LLVMMatchType<0>],
                              [IntrNoMem, Returned<0>]>;
+
+def int_phantom_mem : Intrinsic<[],
+                            [llvm_anyptr_ty, llvm_anyptr_ty, llvm_i64_ty],
+                            [IntrArgMemOnly]>;
+
 //===----------------------------------------------------------------------===//
 // Target-specific intrinsics
 //===----------------------------------------------------------------------===//

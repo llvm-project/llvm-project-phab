@@ -112,6 +112,10 @@ private:
   /// collected in GEPs.
   bool vectorizeGEPIndices(BasicBlock *BB, slpvectorizer::BoUpSLP &R);
 
+  /// \brief Restore inserts, loads out of phantom_mem intrinsic.
+  InsertElementInst * restoreInserts(InsertElementInst *FirstInsertElem,
+                                     LoadInst *LInstr, Value* Ptr);
+
   /// Try to find horizontal reduction or otherwise vectorize a chain of binary
   /// operators.
   bool vectorizeRootInstruction(PHINode *P, Value *V, BasicBlock *BB,
@@ -148,6 +152,8 @@ private:
 
   /// The getelementptr instructions in a basic block organized by base pointer.
   WeakTrackingVHListMap GEPs;
+
+  DenseMap<Value*, uint64_t> PhantomMem;
 };
 
 } // end namespace llvm
