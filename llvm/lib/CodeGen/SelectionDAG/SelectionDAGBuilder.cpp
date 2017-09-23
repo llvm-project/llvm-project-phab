@@ -5986,6 +5986,8 @@ SelectionDAGBuilder::visitIntrinsicCall(const CallInst &I, unsigned Intrinsic) {
     visitVectorReduce(I, Intrinsic);
     return nullptr;
   }
+  case Intrinsic::phantom_mem:
+    return nullptr;
 
   }
 }
