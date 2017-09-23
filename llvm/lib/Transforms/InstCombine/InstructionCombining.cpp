@@ -1466,6 +1466,27 @@ Value *InstCombiner::SimplifyVectorOp(BinaryOperator &Inst) {
 Instruction *InstCombiner::visitGetElementPtrInst(GetElementPtrInst &GEP) {
   SmallVector<Value*, 8> Ops(GEP.op_begin(), GEP.op_end());
 
+  // Here we have to avoid any GEPs with vector types or with
+  // number of operands that is not equal to two or GEPs
+  // in a loop, except it's origin is in the same basic block.
+  if (!dyn_cast<VectorType>(Ops[0]->getType()) && GEP.getNumOperands() == 2 &&
+      LI != nullptr) {
+    bool ValidGEP = (LI->getLoopDepth(GEP.getParent()) == 0);
+    Value *Ptr = GEP.getOperand(0);
+    if (!ValidGEP)
+      if (Instruction *PtrInst = dyn_cast<Instruction>(Ptr))
+        ValidGEP = PtrInst->getParent() == GEP.getParent();
+    if (ValidGEP)
+      if (ConstantInt *CST = dyn_cast<ConstantInt>(GEP.getOperand(1))) {
+        uint64_t NewOffset = CST->getZExtValue();
+        if (Ptrs.find(Ptr) != Ptrs.end()) {
+          if (NewOffset > Ptrs[Ptr].first && !Ptrs[Ptr].second)
+            Ptrs[Ptr].first = NewOffset;
+        } else
+          Ptrs[Ptr] = {NewOffset, false};
+      }
+  }
+
   if (Value *V = SimplifyGEPInst(GEP.getSourceElementType(), Ops,
                                  SQ.getWithInstruction(&GEP)))
     return replaceInstUsesWith(GEP, V);
@@ -2896,6 +2917,47 @@ static bool TryToSinkInstruction(Instruction *I, BasicBlock *DestBlock) {
   return true;
 }
 
+static void recordDeadLoad(LoadInst *Load, InstCombiner::BuilderTy &Builder,
+                    PtrInfoTy &Ptrs) {
+  BasicBlock *BB = Load->getParent();
+  for (BasicBlock::iterator Iter = BB->begin(), E = BB->end(); Iter != E;) {
+    long long MaxOffset = 0;
+    Value *Ptr = nullptr;
+    if (LoadInst *LInstr = dyn_cast<LoadInst>(Iter++)) {
+      if (Ptrs.find(LInstr->getOperand(0)) != Ptrs.end()) {
+        Ptr = LInstr->getOperand(0);
+        MaxOffset = Ptrs[Ptr].first;
+      } else if (GetElementPtrInst *GEP =
+                     dyn_cast<GetElementPtrInst>(LInstr->getOperand(0)))
+        if (Ptrs.find(GEP->getOperand(0)) != Ptrs.end()) {
+          Ptr = GEP->getOperand(0);
+          MaxOffset = Ptrs[Ptr].first;
+        }
+      if (Ptr && MaxOffset > 0 && !Ptrs[Ptr].second) {
+        Instruction *PtrInst = dyn_cast<Instruction>(Ptr);
+        // if PtrInst is not an Instruction then we consider
+        // it as a parameter to the function.
+        if (PtrInst == nullptr) {
+          BasicBlock *BBEntry = &BB->getParent()->getEntryBlock();
+          assert(BBEntry && "Entry block not found!");
+          BasicBlock::iterator ItNew;
+          ItNew = BBEntry->begin();
+          Builder.SetInsertPoint(&*ItNew);
+        } else
+          Builder.SetInsertPoint(BB, ++PtrInst->getIterator());
+        Value *Ops[] = {Ptr, Constant::getNullValue(Ptr->getType()),
+                        Builder.getInt64(MaxOffset)};
+        Module *M = BB->getParent()->getParent();
+        Value *TheFn = Intrinsic::getDeclaration(
+            M, Intrinsic::phantom_mem, {Ptr->getType(), Ptr->getType()});
+        const Twine &Name = "";
+        Builder.CreateCall(TheFn, Ops, Name);
+        Ptrs[Ptr].second = true;
+      }
+    }
+  }
+}
+
 bool InstCombiner::run() {
   while (!Worklist.isEmpty()) {
     Instruction *I = Worklist.RemoveOne();
@@ -2904,6 +2966,8 @@ bool InstCombiner::run() {
     // Check to see if we can DCE the instruction.
     if (isInstructionTriviallyDead(I, &TLI)) {
       DEBUG(dbgs() << "IC: DCE: " << *I << '\n');
+      if (LoadInst *Load = dyn_cast<LoadInst>(I))
+        recordDeadLoad(Load, Builder, Ptrs);
       eraseInstFromFunction(*I);
       ++NumDeadInst;
       MadeIRChange = true;
@@ -3214,6 +3278,8 @@ static bool combineInstructionsOverFunction(
           AC.registerAssumption(cast<CallInst>(I));
       }));
 
+  PtrInfoTy Ptrs;
+
   // Lower dbg.declare intrinsics otherwise their value may be clobbered
   // by instcombiner.
   bool MadeIRChange = false;
@@ -3230,7 +3296,7 @@ static bool combineInstructionsOverFunction(
     MadeIRChange |= prepareICWorklistFromFunction(F, DL, &TLI, Worklist);
 
     InstCombiner IC(Worklist, Builder, F.optForMinSize(), ExpensiveCombines, AA,
-                    AC, TLI, DT, ORE, DL, LI);
+                    AC, TLI, DT, ORE, DL, LI, Ptrs);
     IC.MaxArraySizeForCombine = MaxArraySize;
 
     if (!IC.run())

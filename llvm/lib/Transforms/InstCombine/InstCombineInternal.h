@@ -196,6 +196,8 @@ IntrinsicIDToOverflowCheckFlavor(unsigned ID) {
   }
 }
 
+typedef DenseMap<Value*, std::pair<uint64_t, bool>> PtrInfoTy;
+
 /// \brief The core instruction combiner logic.
 ///
 /// This class provides both the logic to recursively visit instructions and
@@ -230,6 +232,7 @@ private:
   // Optional analyses. When non-null, these can both be used to do better
   // combining and will be updated to reflect any changes.
   LoopInfo *LI;
+  PtrInfoTy &Ptrs;
 
   bool MadeIRChange;
 
@@ -238,10 +241,10 @@ public:
                bool MinimizeSize, bool ExpensiveCombines, AliasAnalysis *AA,
                AssumptionCache &AC, TargetLibraryInfo &TLI, DominatorTree &DT,
                OptimizationRemarkEmitter &ORE, const DataLayout &DL,
-               LoopInfo *LI)
+               LoopInfo *LI, PtrInfoTy &Ptrs)
       : Worklist(Worklist), Builder(Builder), MinimizeSize(MinimizeSize),
         ExpensiveCombines(ExpensiveCombines), AA(AA), AC(AC), TLI(TLI), DT(DT),
-        DL(DL), SQ(DL, &TLI, &DT, &AC), ORE(ORE), LI(LI), MadeIRChange(false) {}
+        DL(DL), SQ(DL, &TLI, &DT, &AC), ORE(ORE), LI(LI), Ptrs(Ptrs), MadeIRChange(false) {}
 
   /// \brief Run the combiner over the entire worklist until it is empty.
   ///
