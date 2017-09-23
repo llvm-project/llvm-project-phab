@@ -582,10 +582,10 @@ define <4 x i32> @combine_vec_shl_mul0(<4 x i32> %x) {
 ;
 ; AVX-LABEL: combine_vec_shl_mul0:
 ; AVX:       # BB#0:
-; AVX-NEXT:    vpbroadcastd {{.*#+}} xmm1 = [20,20,20,20]
+; AVX-NEXT:    vpbroadcastd {{.*#+}} xmm1 = [44,44,44,44]
 ; AVX-NEXT:    vpmulld %xmm1, %xmm0, %xmm0
 ; AVX-NEXT:    retq
-  %1 = mul <4 x i32> %x, <i32 5, i32 5, i32 5, i32 5>
+  %1 = mul <4 x i32> %x, <i32 11, i32 11, i32 11, i32 11>
   %2 = shl <4 x i32> %1, <i32 2, i32 2, i32 2, i32 2>
   ret <4 x i32> %2
 }

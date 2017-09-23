@@ -1386,14 +1386,15 @@ define <32 x i16> @test_rem7_32i16(<32 x i16> %a) nounwind {
 ; AVX512F-NEXT:    vpsrlw $15, %ymm3, %ymm4
 ; AVX512F-NEXT:    vpsraw $1, %ymm3, %ymm3
 ; AVX512F-NEXT:    vpaddw %ymm4, %ymm3, %ymm3
-; AVX512F-NEXT:    vmovdqa {{.*#+}} ymm4 = [7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7]
-; AVX512F-NEXT:    vpmullw %ymm4, %ymm3, %ymm3
+; AVX512F-NEXT:    vpsllw $3, %ymm3, %ymm4
+; AVX512F-NEXT:    vpsubw %ymm3, %ymm4, %ymm3
 ; AVX512F-NEXT:    vpsubw %ymm3, %ymm0, %ymm0
 ; AVX512F-NEXT:    vpmulhw %ymm2, %ymm1, %ymm2
 ; AVX512F-NEXT:    vpsrlw $15, %ymm2, %ymm3
 ; AVX512F-NEXT:    vpsraw $1, %ymm2, %ymm2
 ; AVX512F-NEXT:    vpaddw %ymm3, %ymm2, %ymm2
-; AVX512F-NEXT:    vpmullw %ymm4, %ymm2, %ymm2
+; AVX512F-NEXT:    vpsllw $3, %ymm2, %ymm3
+; AVX512F-NEXT:    vpsubw %ymm2, %ymm3, %ymm2
 ; AVX512F-NEXT:    vpsubw %ymm2, %ymm1, %ymm1
 ; AVX512F-NEXT:    retq
 ;
@@ -1403,7 +1404,8 @@ define <32 x i16> @test_rem7_32i16(<32 x i16> %a) nounwind {
 ; AVX512BW-NEXT:    vpsrlw $15, %zmm1, %zmm2
 ; AVX512BW-NEXT:    vpsraw $1, %zmm1, %zmm1
 ; AVX512BW-NEXT:    vpaddw %zmm2, %zmm1, %zmm1
-; AVX512BW-NEXT:    vpmullw {{.*}}(%rip), %zmm1, %zmm1
+; AVX512BW-NEXT:    vpsllw $3, %zmm1, %zmm2
+; AVX512BW-NEXT:    vpsubw %zmm1, %zmm2, %zmm1
 ; AVX512BW-NEXT:    vpsubw %zmm1, %zmm0, %zmm0
 ; AVX512BW-NEXT:    retq
   %res = srem <32 x i16> %a, <i16 7, i16 7, i16 7, i16 7, i16 7, i16 7, i16 7, i16 7, i16 7, i16 7, i16 7, i16 7, i16 7, i16 7, i16 7, i16 7, i16 7, i16 7, i16 7, i16 7, i16 7, i16 7, i16 7, i16 7, i16 7, i16 7, i16 7, i16 7, i16 7, i16 7, i16 7, i16 7>
@@ -1428,56 +1430,42 @@ define <64 x i8> @test_rem7_64i8(<64 x i8> %a) nounwind {
 ; AVX512F-NEXT:    vinserti128 $1, %xmm4, %ymm5, %ymm4
 ; AVX512F-NEXT:    vpackuswb %ymm6, %ymm4, %ymm4
 ; AVX512F-NEXT:    vpaddb %ymm0, %ymm4, %ymm4
-; AVX512F-NEXT:    vpsrlw $7, %ymm4, %ymm6
-; AVX512F-NEXT:    vmovdqa {{.*#+}} ymm10 = [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
-; AVX512F-NEXT:    vpand %ymm10, %ymm6, %ymm8
+; AVX512F-NEXT:    vpsrlw $7, %ymm4, %ymm5
+; AVX512F-NEXT:    vmovdqa {{.*#+}} ymm6 = [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+; AVX512F-NEXT:    vpand %ymm6, %ymm5, %ymm5
 ; AVX512F-NEXT:    vpsrlw $2, %ymm4, %ymm4
-; AVX512F-NEXT:    vmovdqa {{.*#+}} ymm6 = [63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63]
-; AVX512F-NEXT:    vpand %ymm6, %ymm4, %ymm4
-; AVX512F-NEXT:    vmovdqa {{.*#+}} ymm7 = [32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32]
-; AVX512F-NEXT:    vpxor %ymm7, %ymm4, %ymm4
-; AVX512F-NEXT:    vpsubb %ymm7, %ymm4, %ymm4
-; AVX512F-NEXT:    vpaddb %ymm8, %ymm4, %ymm8
-; AVX512F-NEXT:    vpmovsxbw %xmm8, %ymm9
-; AVX512F-NEXT:    vmovdqa {{.*#+}} ymm4 = [7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7]
-; AVX512F-NEXT:    vpmullw %ymm4, %ymm9, %ymm9
-; AVX512F-NEXT:    vpmovsxwd %ymm9, %zmm9
-; AVX512F-NEXT:    vpmovdb %zmm9, %xmm9
-; AVX512F-NEXT:    vextracti128 $1, %ymm8, %xmm5
-; AVX512F-NEXT:    vpmovsxbw %xmm5, %ymm5
-; AVX512F-NEXT:    vpmullw %ymm4, %ymm5, %ymm5
-; AVX512F-NEXT:    vpmovsxwd %ymm5, %zmm5
-; AVX512F-NEXT:    vpmovdb %zmm5, %xmm5
-; AVX512F-NEXT:    vinserti128 $1, %xmm5, %ymm9, %ymm5
-; AVX512F-NEXT:    vpsubb %ymm5, %ymm0, %ymm0
-; AVX512F-NEXT:    vextracti128 $1, %ymm1, %xmm5
-; AVX512F-NEXT:    vpmovsxbw %xmm5, %ymm5
-; AVX512F-NEXT:    vpmullw %ymm2, %ymm5, %ymm2
+; AVX512F-NEXT:    vmovdqa {{.*#+}} ymm7 = [63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63]
+; AVX512F-NEXT:    vpand %ymm7, %ymm4, %ymm4
+; AVX512F-NEXT:    vmovdqa {{.*#+}} ymm8 = [32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32]
+; AVX512F-NEXT:    vpxor %ymm8, %ymm4, %ymm4
+; AVX512F-NEXT:    vpsubb %ymm8, %ymm4, %ymm4
+; AVX512F-NEXT:    vpaddb %ymm5, %ymm4, %ymm4
+; AVX512F-NEXT:    vpsllw $3, %ymm4, %ymm5
+; AVX512F-NEXT:    vmovdqa {{.*#+}} ymm9 = [248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248,248]
+; AVX512F-NEXT:    vpand %ymm9, %ymm5, %ymm5
+; AVX512F-NEXT:    vpsubb %ymm4, %ymm5, %ymm4
+; AVX512F-NEXT:    vpsubb %ymm4, %ymm0, %ymm0
+; AVX512F-NEXT:    vextracti128 $1, %ymm1, %xmm4
+; AVX512F-NEXT:    vpmovsxbw %xmm4, %ymm4
+; AVX512F-NEXT:    vpmullw %ymm2, %ymm4, %ymm2
 ; AVX512F-NEXT:    vpsrlw $8, %ymm2, %ymm2
-; AVX512F-NEXT:    vpmovsxbw %xmm1, %ymm5
-; AVX512F-NEXT:    vpmullw %ymm3, %ymm5, %ymm3
+; AVX512F-NEXT:    vpmovsxbw %xmm1, %ymm4
+; AVX512F-NEXT:    vpmullw %ymm3, %ymm4, %ymm3
 ; AVX512F-NEXT:    vpsrlw $8, %ymm3, %ymm3
-; AVX512F-NEXT:    vperm2i128 {{.*#+}} ymm5 = ymm3[2,3],ymm2[2,3]
+; AVX512F-NEXT:    vperm2i128 {{.*#+}} ymm4 = ymm3[2,3],ymm2[2,3]
 ; AVX512F-NEXT:    vinserti128 $1, %xmm2, %ymm3, %ymm2
-; AVX512F-NEXT:    vpackuswb %ymm5, %ymm2, %ymm2
+; AVX512F-NEXT:    vpackuswb %ymm4, %ymm2, %ymm2
 ; AVX512F-NEXT:    vpaddb %ymm1, %ymm2, %ymm2
 ; AVX512F-NEXT:    vpsrlw $7, %ymm2, %ymm3
-; AVX512F-NEXT:    vpand %ymm10, %ymm3, %ymm3
+; AVX512F-NEXT:    vpand %ymm6, %ymm3, %ymm3
 ; AVX512F-NEXT:    vpsrlw $2, %ymm2, %ymm2
-; AVX512F-NEXT:    vpand %ymm6, %ymm2, %ymm2
-; AVX512F-NEXT:    vpxor %ymm7, %ymm2, %ymm2
-; AVX512F-NEXT:    vpsubb %ymm7, %ymm2, %ymm2
+; AVX512F-NEXT:    vpand %ymm7, %ymm2, %ymm2
+; AVX512F-NEXT:    vpxor %ymm8, %ymm2, %ymm2
+; AVX512F-NEXT:    vpsubb %ymm8, %ymm2, %ymm2
 ; AVX512F-NEXT:    vpaddb %ymm3, %ymm2, %ymm2
-; AVX512F-NEXT:    vpmovsxbw %xmm2, %ymm3
-; AVX512F-NEXT:    vpmullw %ymm4, %ymm3, %ymm3
-; AVX512F-NEXT:    vpmovsxwd %ymm3, %zmm3
-; AVX512F-NEXT:    vpmovdb %zmm3, %xmm3
-; AVX512F-NEXT:    vextracti128 $1, %ymm2, %xmm2
-; AVX512F-NEXT:    vpmovsxbw %xmm2, %ymm2
-; AVX512F-NEXT:    vpmullw %ymm4, %ymm2, %ymm2
-; AVX512F-NEXT:    vpmovsxwd %ymm2, %zmm2
-; AVX512F-NEXT:    vpmovdb %zmm2, %xmm2
-; AVX512F-NEXT:    vinserti128 $1, %xmm2, %ymm3, %ymm2
+; AVX512F-NEXT:    vpsllw $3, %ymm2, %ymm3
+; AVX512F-NEXT:    vpand %ymm9, %ymm3, %ymm3
+; AVX512F-NEXT:    vpsubb %ymm2, %ymm3, %ymm2
 ; AVX512F-NEXT:    vpsubb %ymm2, %ymm1, %ymm1
 ; AVX512F-NEXT:    retq
 ;

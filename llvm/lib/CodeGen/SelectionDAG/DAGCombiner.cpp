@@ -544,6 +544,14 @@ namespace {
     /// single-use) and if missed an empty SDValue is returned.
     SDValue distributeTruncateThroughAnd(SDNode *N);
 
+    /// \brief Try to transform a multiplication of shape:
+    /// (mul x,  (2^N + 1)) =>  (add (shl x, N), x)
+    /// (mul x,  (2^N - 1)) =>  (sub (shl x, N), x)
+    /// (mul x, -(2^N - 1)) =>  (sub x, (shl x, N))
+    /// (mul x, -(2^N + 1)) => -(add (shl x, N), x)
+    /// (mul x, (2^N + 1) * 2^M) => (shl (add (shl x, N), x), M)
+    SDValue TransformMulWithPow2DisplacedBy1(SDNode* N);
+
   public:
     /// Runs the dag combiner on all nodes in the work list
     void Run(CombineLevel AtLevel);
@@ -2604,6 +2612,109 @@ SDValue DAGCombiner::visitSUBCARRY(SDNode *N) {
   return SDValue();
 }
 
+SDValue DAGCombiner::TransformMulWithPow2DisplacedBy1(SDNode *N) {
+    SDValue N0 = N->getOperand(0);
+    SDValue N1 = N->getOperand(1);
+    EVT VT = N0.getValueType();
+
+  // Perform transformation only for legal types to
+  // avoid problems with backends like Hexagon.
+
+  if (TLI.isTypeLegal(VT)){
+    // FIXME: There is a possible regression in x86.
+    // lea-3.ll test fails because RDI is used instead RCX.
+    // So we do nothing for non-vector types for now.
+    if (!VT.isVector())
+      return SDValue();
+    // AllArePow2 holds the amount of lanes which are:
+    // 1) constant
+    // 2) of value (2^C) +/- 1
+    // 3) have equal sign to the first lane
+    // AllArePow2 > 0 indicates that constants are (2^C) + 1
+    // AllArePow2 < 0 indicates taht constants are (2^C) - 1
+    int AllArePow2 = 0;
+    // SignDirection indeciates that constants are:
+    // positive if SignDirection > 0
+    // negative if SignDirection < 0
+    int SignDirection = 0;
+    // TrailingZeros holds the number of trailing zeros if
+    // constants are (+/-(2^N) +/- 1) * (2^M)
+    unsigned TrailingZeroes = 0;
+    bool match = matchUnaryPredicate(N1, [&](ConstantSDNode *C) {
+      const APInt &ConstantValue = C->getAPIntValue();
+      if (!TrailingZeroes && ConstantValue.getSExtValue() != 0) {
+        TrailingZeroes = ConstantValue.countTrailingZeros();
+      } else {
+        // Trailing zeros does not match for all constants in a vector.
+        if (TrailingZeroes != ConstantValue.countTrailingZeros())
+          return false;
+      }
+
+      APInt Plus1 = ConstantValue.ashr(TrailingZeroes).abs() + 1;
+      APInt Minus1 = ConstantValue.ashr(TrailingZeroes).abs() - 1;
+
+      int IsPow2 = Plus1.isPowerOf2() ? 1 : Minus1.isPowerOf2() ? -1 : 0;
+      if (!SignDirection) {
+        SignDirection = ConstantValue.isNonNegative() ? 1 : -1;
+      }
+      // Avoid getting poisoned through shifts > bitsize.
+      if (IsPow2 && VT.getScalarSizeInBits() > (ConstantValue + IsPow2).logBase2()) {
+        // Only match values which have equal sign bits.
+        if ((ConstantValue.getSExtValue() < 0) == (SignDirection < 0)) {
+          AllArePow2 += IsPow2;
+          return true;
+        }
+      }
+      return false;
+    });
+
+    if (match && static_cast<unsigned>(abs(AllArePow2)) == (VT.isVector() ? VT.getVectorNumElements() : 1)) {
+      SDLoc DL(N);
+      SDValue Const0 = DAG.getConstant(0, DL, VT);
+      SDValue &Multipliers = N1;
+      if (SignDirection < 0) {
+        // Clear the sign bits of the constant vector.
+        Multipliers = DAG.FoldConstantArithmetic(ISD::SUB, DL, VT,
+                                                 Const0.getNode(),
+                                                 Multipliers.getNode());
+      }
+      if (TrailingZeroes) {
+        Multipliers = DAG.FoldConstantArithmetic(ISD::SRA, DL, VT,
+                                                 Multipliers.getNode(),
+                                                 DAG.getConstant(TrailingZeroes, DL, VT).getNode());
+      }
+
+      SDValue LogBase2 = BuildLogBase2(
+          DAG.FoldConstantArithmetic(ISD::ADD, DL, VT, Multipliers.getNode(),
+                                     DAG.getConstant((AllArePow2 > 0 ? 1 : -1), DL, VT).getNode()), DL);
+      AddToWorklist(LogBase2.getNode());
+
+      SDValue Shl = DAG.getNode(ISD::SHL, DL, VT, N0, LogBase2);
+      Shl.getNode()->setFlags(N->getFlags());
+      AddToWorklist(Shl.getNode());
+
+      SDValue *LHS = &Shl, *RHS = &N0;
+      if (SignDirection < 0) {
+        std::swap(LHS, RHS);
+      }
+      auto Res = DAG.getNode(AllArePow2 > 0 ? ISD::SUB : ISD::ADD, DL, VT, *LHS, *RHS);
+
+      if (SignDirection < 0 && AllArePow2 < 0) {
+        AddToWorklist(Res.getNode());
+        Res = DAG.getNode(ISD::SUB, DL, VT, Const0, Res);
+      }
+      if (TrailingZeroes) {
+        AddToWorklist(Res.getNode());
+        return DAG.getNode(ISD::SHL, DL, VT, Res,
+                           DAG.getConstant(TrailingZeroes, DL, VT));
+      }
+
+      return Res;
+    }
+  }
+  return SDValue();
+}
+
 SDValue DAGCombiner::visitMUL(SDNode *N) {
   SDValue N0 = N->getOperand(0);
   SDValue N1 = N->getOperand(1);
@@ -2693,7 +2804,11 @@ SDValue DAGCombiner::visitMUL(SDNode *N) {
                             DAG.getConstant(Log2Val, DL,
                                       getShiftAmountTy(N0.getValueType()))));
   }
-
+  // Transform (mul X, +/-(1 << c) +/- 1) to appropriate shift patterns.
+  if (isConstantOrConstantVector(N1)) {
+    if (SDValue Res = TransformMulWithPow2DisplacedBy1(N))
+      return Res;
+  }
   // (mul (shl X, c1), c2) -> (mul X, c2 << c1)
   if (N0.getOpcode() == ISD::SHL &&
       isConstantOrConstantVector(N1, /* NoOpaques */ true) &&
