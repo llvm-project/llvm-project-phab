@@ -60,7 +60,7 @@ inline bool isLambdaConversionOperator(Decl *D) {
   return false;
 }
 
-inline bool isGenericLambdaCallOperatorSpecialization(DeclContext *DC) {
+inline bool isGenericLambdaCallOperatorSpecialization(const DeclContext *DC) {
   return isGenericLambdaCallOperatorSpecialization(
                                           dyn_cast<CXXMethodDecl>(DC));
 }
