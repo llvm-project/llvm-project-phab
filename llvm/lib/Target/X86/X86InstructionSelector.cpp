@@ -91,6 +91,8 @@ private:
   bool materializeFP(MachineInstr &I, MachineRegisterInfo &MRI,
                      MachineFunction &MF) const;
   bool selectImplicitDefOrPHI(MachineInstr &I, MachineRegisterInfo &MRI) const;
+  bool selectShift(MachineInstr &I, MachineRegisterInfo &MRI,
+                   MachineFunction &MF) const;
 
   // emit insert subreg instruction and insert it before MachineInstr &I
   bool emitInsertSubreg(unsigned DstReg, unsigned SrcReg, MachineInstr &I,
@@ -349,6 +351,10 @@ bool X86InstructionSelector::select(MachineInstr &I) const {
   case TargetOpcode::G_IMPLICIT_DEF:
   case TargetOpcode::G_PHI:
     return selectImplicitDefOrPHI(I, MRI);
+  case TargetOpcode::G_SHL:
+  case TargetOpcode::G_ASHR:
+  case TargetOpcode::G_LSHR:
+    return selectShift(I, MRI, MF);
   }
 
   return false;
@@ -1288,6 +1294,85 @@ bool X86InstructionSelector::selectImplicitDefOrPHI(
   else
     I.setDesc(TII.get(X86::PHI));
 
+  return true;
+}
+
+bool X86InstructionSelector::selectShift(MachineInstr &I,
+                                         MachineRegisterInfo &MRI,
+                                         MachineFunction &MF) const {
+
+  assert((I.getOpcode() == TargetOpcode::G_SHL ||
+          I.getOpcode() == TargetOpcode::G_ASHR ||
+          I.getOpcode() == TargetOpcode::G_LSHR) &&
+         "unexpected instruction");
+
+  unsigned DstReg = I.getOperand(0).getReg();
+  const LLT DstTy = MRI.getType(DstReg);
+  const RegisterBank &DstRB = *RBI.getRegBank(DstReg, MRI, TRI);
+
+  const static unsigned NumTypes = 4; // i8, i16, i32, i64
+  const static struct ShiftEntry {
+    unsigned CReg;
+    unsigned OpLSHR;
+    unsigned OpASHR;
+    unsigned OpSHL;
+  } OpTable[NumTypes] = {
+      {X86::CL, X86::SHR8rCL, X86::SAR8rCL, X86::SHL8rCL},     // i8
+      {X86::CX, X86::SHR16rCL, X86::SAR16rCL, X86::SHL16rCL},  // i16
+      {X86::ECX, X86::SHR32rCL, X86::SAR32rCL, X86::SHL32rCL}, // i32
+      {X86::RCX, X86::SHR64rCL, X86::SAR64rCL, X86::SHL64rCL}  // i64
+  };
+
+  if (DstRB.getID() != X86::GPRRegBankID)
+    return false;
+
+  unsigned TypeIndex;
+  if (DstTy.getSizeInBits() == 8)
+    TypeIndex = 0;
+  else if (DstTy.getSizeInBits() == 16)
+    TypeIndex = 1;
+  else if (DstTy.getSizeInBits() == 32)
+    TypeIndex = 2;
+  else if (DstTy.getSizeInBits() == 64)
+    TypeIndex = 3;
+  else
+    return false;
+
+  unsigned CReg = OpTable[TypeIndex].CReg, Opcode = 0;
+  switch (I.getOpcode()) {
+  case TargetOpcode::G_SHL:
+    Opcode = OpTable[TypeIndex].OpSHL;
+    break;
+  case TargetOpcode::G_ASHR:
+    Opcode = OpTable[TypeIndex].OpASHR;
+    break;
+  case TargetOpcode::G_LSHR:
+    Opcode = OpTable[TypeIndex].OpLSHR;
+    break;
+  default:
+    return false;
+  }
+
+  unsigned Op0Reg = I.getOperand(1).getReg();
+  unsigned Op1Reg = I.getOperand(2).getReg();
+
+  BuildMI(*I.getParent(), I, I.getDebugLoc(), TII.get(TargetOpcode::COPY),
+          OpTable[TypeIndex].CReg)
+      .addReg(Op1Reg);
+
+  // The shift instruction uses X86::CL. If we defined a super-register
+  // of X86::CL, emit a subreg KILL to precisely describe what we're doing here.
+  if (CReg != X86::CL)
+    BuildMI(*I.getParent(), I, I.getDebugLoc(), TII.get(TargetOpcode::KILL),
+            X86::CL)
+        .addReg(CReg, RegState::Kill);
+
+  MachineInstr &ShiftInst =
+      *BuildMI(*I.getParent(), I, I.getDebugLoc(), TII.get(Opcode), DstReg)
+           .addReg(Op0Reg);
+
+  constrainSelectedInstRegOperands(ShiftInst, TII, TRI, RBI);
+  I.eraseFromParent();
   return true;
 }
 

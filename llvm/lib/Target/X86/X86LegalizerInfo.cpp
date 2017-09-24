@@ -116,6 +116,14 @@ void X86LegalizerInfo::setLegalizerInfo32bit() {
 
   for (auto Ty : {s8, s16, s32, p0})
     setAction({G_ICMP, 1, Ty}, Legal);
+
+  // Shifts
+  for (unsigned ShiftOp : {G_LSHR, G_ASHR, G_SHL}) {
+    for (auto Ty : {s8, s16, s32, s64})
+      setAction({ShiftOp, Ty}, Legal);
+
+    setAction({ShiftOp, s1}, WidenScalar);
+  }
 }
 
 void X86LegalizerInfo::setLegalizerInfo64bit() {
@@ -150,6 +158,10 @@ void X86LegalizerInfo::setLegalizerInfo64bit() {
 
   // Comparison
   setAction({G_ICMP, 1, s64}, Legal);
+
+  // Shifts
+  for (unsigned ShiftOp : {G_LSHR, G_ASHR, G_SHL})
+    setAction({ShiftOp, s64}, Legal);
 }
 
 void X86LegalizerInfo::setLegalizerInfoSSE1() {

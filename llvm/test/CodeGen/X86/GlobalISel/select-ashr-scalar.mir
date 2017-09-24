@@ -1,0 +1,540 @@
+# RUN: llc -mtriple=x86_64-linux-gnu -global-isel -run-pass=instruction-select -verify-machineinstrs %s -o - | FileCheck %s --check-prefix=ALL
+--- |
+
+  define i64 @test_ashr_i64(i64 %arg1, i64 %arg2) {
+    %res = ashr i64 %arg1, %arg2
+    ret i64 %res
+  }
+
+  define i64 @test_ashr_i64_imm(i64 %arg1) {
+    %res = ashr i64 %arg1, 5
+    ret i64 %res
+  }
+
+  define i64 @test_ashr_i64_imm1(i64 %arg1) {
+    %res = ashr i64 %arg1, 1
+    ret i64 %res
+  }
+
+  define i32 @test_ashr_i32(i32 %arg1, i32 %arg2) {
+    %res = ashr i32 %arg1, %arg2
+    ret i32 %res
+  }
+
+  define i32 @test_ashr_i32_imm(i32 %arg1) {
+    %res = ashr i32 %arg1, 5
+    ret i32 %res
+  }
+
+  define i32 @test_ashr_i32_imm1(i32 %arg1) {
+    %res = ashr i32 %arg1, 1
+    ret i32 %res
+  }
+
+  define i16 @test_ashr_i16(i32 %arg1, i32 %arg2) {
+    %a = trunc i32 %arg1 to i16
+    %a2 = trunc i32 %arg2 to i16
+    %res = ashr i16 %a, %a2
+    ret i16 %res
+  }
+
+  define i16 @test_ashr_i16_imm(i32 %arg1) {
+    %a = trunc i32 %arg1 to i16
+    %res = ashr i16 %a, 5
+    ret i16 %res
+  }
+
+  define i16 @test_ashr_i16_imm1(i32 %arg1) {
+    %a = trunc i32 %arg1 to i16
+    %res = ashr i16 %a, 1
+    ret i16 %res
+  }
+
+  define i8 @test_ashr_i8(i32 %arg1, i32 %arg2) {
+    %a = trunc i32 %arg1 to i8
+    %a2 = trunc i32 %arg2 to i8
+    %res = ashr i8 %a, %a2
+    ret i8 %res
+  }
+
+  define i8 @test_ashr_i8_imm(i32 %arg1) {
+    %a = trunc i32 %arg1 to i8
+    %res = ashr i8 %a, 5
+    ret i8 %res
+  }
+
+  define i8 @test_ashr_i8_imm1(i32 %arg1) {
+    %a = trunc i32 %arg1 to i8
+    %res = ashr i8 %a, 1
+    ret i8 %res
+  }
+...
+---
+name:            test_ashr_i64
+# ALL-LABEL: name:  test_ashr_i64
+alignment:       4
+legalized:       true
+regBankSelected: true
+tracksRegLiveness: true
+# ALL:      registers:
+# ALL-NEXT:   - { id: 0, class: gr64, preferred-register: '' }
+# ALL-NEXT:   - { id: 1, class: gr64, preferred-register: '' }
+# ALL-NEXT:   - { id: 2, class: gr64, preferred-register: '' }
+registers:
+  - { id: 0, class: gpr, preferred-register: '' }
+  - { id: 1, class: gpr, preferred-register: '' }
+  - { id: 2, class: gpr, preferred-register: '' }
+liveins:
+fixedStack:
+stack:
+constants:
+# ALL:          %0 = COPY %rdi
+# ALL-NEXT:     %1 = COPY %rsi
+# ALL-NEXT:     %rcx = COPY %1
+# ALL-NEXT:     %cl = KILL killed %rcx
+# ALL-NEXT:     %2 = SAR64rCL %0, implicit-def %eflags, implicit %cl
+# ALL-NEXT:     %rax = COPY %2
+# ALL-NEXT:     RET 0, implicit %rax
+body:             |
+  bb.1 (%ir-block.0):
+    liveins: %rdi, %rsi
+
+    %0(s64) = COPY %rdi
+    %1(s64) = COPY %rsi
+    %2(s64) = G_ASHR %0, %1
+    %rax = COPY %2(s64)
+    RET 0, implicit %rax
+
+...
+---
+name:            test_ashr_i64_imm
+# ALL-LABEL: name:  test_ashr_i64_imm
+alignment:       4
+legalized:       true
+regBankSelected: true
+tracksRegLiveness: true
+# ALL:      registers:
+# ALL-NEXT:   - { id: 0, class: gr64, preferred-register: '' }
+# ALL-NEXT:   - { id: 1, class: gr64, preferred-register: '' }
+# ALL-NEXT:   - { id: 2, class: gr64, preferred-register: '' }
+registers:
+  - { id: 0, class: gpr, preferred-register: '' }
+  - { id: 1, class: gpr, preferred-register: '' }
+  - { id: 2, class: gpr, preferred-register: '' }
+liveins:
+fixedStack:
+stack:
+constants:
+# ALL:          %0 = COPY %rdi
+# ALL-NEXT:     %1 = MOV64ri32 5
+# ALL-NEXT:     %rcx = COPY %1
+# ALL-NEXT:     %cl = KILL killed %rcx
+# ALL-NEXT:     %2 = SAR64rCL %0, implicit-def %eflags, implicit %cl
+# ALL-NEXT:     %rax = COPY %2
+# ALL-NEXT:     RET 0, implicit %rax
+body:             |
+  bb.1 (%ir-block.0):
+    liveins: %rdi
+
+    %0(s64) = COPY %rdi
+    %1(s64) = G_CONSTANT i64 5
+    %2(s64) = G_ASHR %0, %1
+    %rax = COPY %2(s64)
+    RET 0, implicit %rax
+
+...
+---
+name:            test_ashr_i64_imm1
+# ALL-LABEL: name:  test_ashr_i64_imm1
+alignment:       4
+legalized:       true
+regBankSelected: true
+tracksRegLiveness: true
+# ALL:      registers:
+# ALL-NEXT:   - { id: 0, class: gr64, preferred-register: '' }
+# ALL-NEXT:   - { id: 1, class: gr64, preferred-register: '' }
+# ALL-NEXT:   - { id: 2, class: gr64, preferred-register: '' }
+registers:
+  - { id: 0, class: gpr, preferred-register: '' }
+  - { id: 1, class: gpr, preferred-register: '' }
+  - { id: 2, class: gpr, preferred-register: '' }
+liveins:
+fixedStack:
+stack:
+constants:
+# ALL:          %0 = COPY %rdi
+# ALL-NEXT:     %1 = MOV64ri32 1
+# ALL-NEXT:     %rcx = COPY %1
+# ALL-NEXT:     %cl = KILL killed %rcx
+# ALL-NEXT:     %2 = SAR64rCL %0, implicit-def %eflags, implicit %cl
+# ALL-NEXT:     %rax = COPY %2
+# ALL-NEXT:     RET 0, implicit %rax
+body:             |
+  bb.1 (%ir-block.0):
+    liveins: %rdi
+
+    %0(s64) = COPY %rdi
+    %1(s64) = G_CONSTANT i64 1
+    %2(s64) = G_ASHR %0, %1
+    %rax = COPY %2(s64)
+    RET 0, implicit %rax
+
+...
+---
+name:            test_ashr_i32
+# ALL-LABEL: name:  test_ashr_i32
+alignment:       4
+legalized:       true
+regBankSelected: true
+tracksRegLiveness: true
+# ALL:      registers:
+# ALL-NEXT:   - { id: 0, class: gr32, preferred-register: '' }
+# ALL-NEXT:   - { id: 1, class: gr32, preferred-register: '' }
+# ALL-NEXT:   - { id: 2, class: gr32, preferred-register: '' }
+registers:
+  - { id: 0, class: gpr, preferred-register: '' }
+  - { id: 1, class: gpr, preferred-register: '' }
+  - { id: 2, class: gpr, preferred-register: '' }
+liveins:
+fixedStack:
+stack:
+constants:
+# ALL:          %0 = COPY %edi
+# ALL-NEXT:     %1 = COPY %esi
+# ALL-NEXT:     %ecx = COPY %1
+# ALL-NEXT:     %cl = KILL killed %ecx
+# ALL-NEXT:     %2 = SAR32rCL %0, implicit-def %eflags, implicit %cl
+# ALL-NEXT:     %eax = COPY %2
+# ALL-NEXT:     RET 0, implicit %eax
+body:             |
+  bb.1 (%ir-block.0):
+    liveins: %edi, %esi
+
+    %0(s32) = COPY %edi
+    %1(s32) = COPY %esi
+    %2(s32) = G_ASHR %0, %1
+    %eax = COPY %2(s32)
+    RET 0, implicit %eax
+
+...
+---
+name:            test_ashr_i32_imm
+# ALL-LABEL: name:  test_ashr_i32_imm
+alignment:       4
+legalized:       true
+regBankSelected: true
+tracksRegLiveness: true
+# ALL:      registers:
+# ALL-NEXT:   - { id: 0, class: gr32, preferred-register: '' }
+# ALL-NEXT:   - { id: 1, class: gr32, preferred-register: '' }
+# ALL-NEXT:   - { id: 2, class: gr32, preferred-register: '' }
+registers:
+  - { id: 0, class: gpr, preferred-register: '' }
+  - { id: 1, class: gpr, preferred-register: '' }
+  - { id: 2, class: gpr, preferred-register: '' }
+liveins:
+fixedStack:
+stack:
+constants:
+# ALL:          %0 = COPY %edi
+# ALL-NEXT:     %1 = MOV32ri 5
+# ALL-NEXT:     %ecx = COPY %1
+# ALL-NEXT:     %cl = KILL killed %ecx
+# ALL-NEXT:     %2 = SAR32rCL %0, implicit-def %eflags, implicit %cl
+# ALL-NEXT:     %eax = COPY %2
+# ALL-NEXT:     RET 0, implicit %eax
+body:             |
+  bb.1 (%ir-block.0):
+    liveins: %edi
+
+    %0(s32) = COPY %edi
+    %1(s32) = G_CONSTANT i32 5
+    %2(s32) = G_ASHR %0, %1
+    %eax = COPY %2(s32)
+    RET 0, implicit %eax
+
+...
+---
+name:            test_ashr_i32_imm1
+# ALL-LABEL: name:  test_ashr_i32_imm1
+alignment:       4
+legalized:       true
+regBankSelected: true
+tracksRegLiveness: true
+# ALL:      registers:
+# ALL-NEXT:   - { id: 0, class: gr32, preferred-register: '' }
+# ALL-NEXT:   - { id: 1, class: gr32, preferred-register: '' }
+# ALL-NEXT:   - { id: 2, class: gr32, preferred-register: '' }
+registers:
+  - { id: 0, class: gpr, preferred-register: '' }
+  - { id: 1, class: gpr, preferred-register: '' }
+  - { id: 2, class: gpr, preferred-register: '' }
+liveins:
+fixedStack:
+stack:
+constants:
+# ALL:          %0 = COPY %edi
+# ALL-NEXT:     %1 = MOV32ri 1
+# ALL-NEXT:     %ecx = COPY %1
+# ALL-NEXT:     %cl = KILL killed %ecx
+# ALL-NEXT:     %2 = SAR32rCL %0, implicit-def %eflags, implicit %cl
+# ALL-NEXT:     %eax = COPY %2
+# ALL-NEXT:     RET 0, implicit %eax
+body:             |
+  bb.1 (%ir-block.0):
+    liveins: %edi
+
+    %0(s32) = COPY %edi
+    %1(s32) = G_CONSTANT i32 1
+    %2(s32) = G_ASHR %0, %1
+    %eax = COPY %2(s32)
+    RET 0, implicit %eax
+
+...
+---
+name:            test_ashr_i16
+# ALL-LABEL: name:  test_ashr_i16
+alignment:       4
+legalized:       true
+regBankSelected: true
+tracksRegLiveness: true
+# ALL:      registers:
+# ALL-NEXT:   - { id: 0, class: gr32, preferred-register: '' }
+# ALL-NEXT:   - { id: 1, class: gr32, preferred-register: '' }
+# ALL-NEXT:   - { id: 2, class: gr16, preferred-register: '' }
+# ALL-NEXT:   - { id: 3, class: gr16, preferred-register: '' }
+# ALL-NEXT:   - { id: 4, class: gr16, preferred-register: '' }
+registers:
+  - { id: 0, class: gpr, preferred-register: '' }
+  - { id: 1, class: gpr, preferred-register: '' }
+  - { id: 2, class: gpr, preferred-register: '' }
+  - { id: 3, class: gpr, preferred-register: '' }
+  - { id: 4, class: gpr, preferred-register: '' }
+liveins:
+fixedStack:
+stack:
+constants:
+# ALL:          %0 = COPY %edi
+# ALL-NEXT:     %1 = COPY %esi
+# ALL-NEXT:     %2 = COPY %0.sub_16bit
+# ALL-NEXT:     %3 = COPY %1.sub_16bit
+# ALL-NEXT:     %cx = COPY %3
+# ALL-NEXT:     %cl = KILL killed %cx
+# ALL-NEXT:     %4 = SAR16rCL %2, implicit-def %eflags, implicit %cl
+# ALL-NEXT:     %ax = COPY %4
+# ALL-NEXT:     RET 0, implicit %ax
+body:             |
+  bb.1 (%ir-block.0):
+    liveins: %edi, %esi
+
+    %0(s32) = COPY %edi
+    %1(s32) = COPY %esi
+    %2(s16) = G_TRUNC %0(s32)
+    %3(s16) = G_TRUNC %1(s32)
+    %4(s16) = G_ASHR %2, %3
+    %ax = COPY %4(s16)
+    RET 0, implicit %ax
+
+...
+---
+name:            test_ashr_i16_imm
+# ALL-LABEL: name:  test_ashr_i16_imm
+alignment:       4
+legalized:       true
+regBankSelected: true
+tracksRegLiveness: true
+# ALL:      registers:
+# ALL-NEXT:   - { id: 0, class: gr32, preferred-register: '' }
+# ALL-NEXT:   - { id: 1, class: gr16, preferred-register: '' }
+# ALL-NEXT:   - { id: 2, class: gr16, preferred-register: '' }
+# ALL-NEXT:   - { id: 3, class: gr16, preferred-register: '' }
+registers:
+  - { id: 0, class: gpr, preferred-register: '' }
+  - { id: 1, class: gpr, preferred-register: '' }
+  - { id: 2, class: gpr, preferred-register: '' }
+  - { id: 3, class: gpr, preferred-register: '' }
+liveins:
+fixedStack:
+stack:
+constants:
+# ALL:          %0 = COPY %edi
+# ALL-NEXT:     %2 = MOV16ri 5
+# ALL-NEXT:     %1 = COPY %0.sub_16bit
+# ALL-NEXT:     %cx = COPY %2
+# ALL-NEXT:     %cl = KILL killed %cx
+# ALL-NEXT:     %3 = SAR16rCL %1, implicit-def %eflags, implicit %cl
+# ALL-NEXT:     %ax = COPY %3
+# ALL-NEXT:     RET 0, implicit %ax
+body:             |
+  bb.1 (%ir-block.0):
+    liveins: %edi
+
+    %0(s32) = COPY %edi
+    %2(s16) = G_CONSTANT i16 5
+    %1(s16) = G_TRUNC %0(s32)
+    %3(s16) = G_ASHR %1, %2
+    %ax = COPY %3(s16)
+    RET 0, implicit %ax
+
+...
+---
+name:            test_ashr_i16_imm1
+# ALL-LABEL: name:  test_ashr_i16_imm1
+alignment:       4
+legalized:       true
+regBankSelected: true
+tracksRegLiveness: true
+# ALL:      registers:
+# ALL-NEXT:   - { id: 0, class: gr32, preferred-register: '' }
+# ALL-NEXT:   - { id: 1, class: gr16, preferred-register: '' }
+# ALL-NEXT:   - { id: 2, class: gr16, preferred-register: '' }
+# ALL-NEXT:   - { id: 3, class: gr16, preferred-register: '' }
+registers:
+  - { id: 0, class: gpr, preferred-register: '' }
+  - { id: 1, class: gpr, preferred-register: '' }
+  - { id: 2, class: gpr, preferred-register: '' }
+  - { id: 3, class: gpr, preferred-register: '' }
+liveins:
+fixedStack:
+stack:
+constants:
+# ALL:          %0 = COPY %edi
+# ALL-NEXT:     %2 = MOV16ri 1
+# ALL-NEXT:     %1 = COPY %0.sub_16bit
+# ALL-NEXT:     %cx = COPY %2
+# ALL-NEXT:     %cl = KILL killed %cx
+# ALL-NEXT:     %3 = SAR16rCL %1, implicit-def %eflags, implicit %cl
+# ALL-NEXT:     %ax = COPY %3
+# ALL-NEXT:     RET 0, implicit %ax
+body:             |
+  bb.1 (%ir-block.0):
+    liveins: %edi
+
+    %0(s32) = COPY %edi
+    %2(s16) = G_CONSTANT i16 1
+    %1(s16) = G_TRUNC %0(s32)
+    %3(s16) = G_ASHR %1, %2
+    %ax = COPY %3(s16)
+    RET 0, implicit %ax
+
+...
+---
+name:            test_ashr_i8
+# ALL-LABEL: name:  test_ashr_i8
+alignment:       4
+legalized:       true
+regBankSelected: true
+tracksRegLiveness: true
+# ALL:      registers:
+# ALL-NEXT:   - { id: 0, class: gr32, preferred-register: '' }
+# ALL-NEXT:   - { id: 1, class: gr32, preferred-register: '' }
+# ALL-NEXT:   - { id: 2, class: gr8, preferred-register: '' }
+# ALL-NEXT:   - { id: 3, class: gr8, preferred-register: '' }
+# ALL-NEXT:   - { id: 4, class: gr8, preferred-register: '' }
+registers:
+  - { id: 0, class: gpr, preferred-register: '' }
+  - { id: 1, class: gpr, preferred-register: '' }
+  - { id: 2, class: gpr, preferred-register: '' }
+  - { id: 3, class: gpr, preferred-register: '' }
+  - { id: 4, class: gpr, preferred-register: '' }
+liveins:
+fixedStack:
+stack:
+constants:
+# ALL:          %0 = COPY %edi
+# ALL-NEXT:     %1 = COPY %esi
+# ALL-NEXT:     %2 = COPY %0.sub_8bit
+# ALL-NEXT:     %3 = COPY %1.sub_8bit
+# ALL-NEXT:     %cl = COPY %3
+# ALL-NEXT:     %4 = SAR8rCL %2, implicit-def %eflags, implicit %cl
+# ALL-NEXT:     %al = COPY %4
+# ALL-NEXT:     RET 0, implicit %al
+body:             |
+  bb.1 (%ir-block.0):
+    liveins: %edi, %esi
+
+    %0(s32) = COPY %edi
+    %1(s32) = COPY %esi
+    %2(s8) = G_TRUNC %0(s32)
+    %3(s8) = G_TRUNC %1(s32)
+    %4(s8) = G_ASHR %2, %3
+    %al = COPY %4(s8)
+    RET 0, implicit %al
+
+...
+---
+name:            test_ashr_i8_imm
+# ALL-LABEL: name:  test_ashr_i8_imm
+alignment:       4
+legalized:       true
+regBankSelected: true
+tracksRegLiveness: true
+# ALL:      registers:
+# ALL-NEXT:   - { id: 0, class: gr32, preferred-register: '' }
+# ALL-NEXT:   - { id: 1, class: gr8, preferred-register: '' }
+# ALL-NEXT:   - { id: 2, class: gpr, preferred-register: '' }
+# ALL-NEXT:   - { id: 3, class: gr8, preferred-register: '' }
+registers:
+  - { id: 0, class: gpr, preferred-register: '' }
+  - { id: 1, class: gpr, preferred-register: '' }
+  - { id: 2, class: gpr, preferred-register: '' }
+  - { id: 3, class: gpr, preferred-register: '' }
+liveins:
+fixedStack:
+stack:
+constants:
+# ALL:          %0 = COPY %edi
+# ALL-NEXT:     %1 = COPY %0.sub_8bit
+# ALL-NEXT:     %3 = SAR8ri %1, 5, implicit-def %eflags
+# ALL-NEXT:     %al = COPY %3
+# ALL-NEXT:     RET 0, implicit %al
+body:             |
+  bb.1 (%ir-block.0):
+    liveins: %edi
+
+    %0(s32) = COPY %edi
+    %2(s8) = G_CONSTANT i8 5
+    %1(s8) = G_TRUNC %0(s32)
+    %3(s8) = G_ASHR %1, %2
+    %al = COPY %3(s8)
+    RET 0, implicit %al
+
+...
+---
+name:            test_ashr_i8_imm1
+# ALL-LABEL: name:  test_ashr_i8_imm1
+alignment:       4
+legalized:       true
+regBankSelected: true
+tracksRegLiveness: true
+# ALL:      registers:
+# ALL-NEXT:   - { id: 0, class: gr32, preferred-register: '' }
+# ALL-NEXT:   - { id: 1, class: gr8, preferred-register: '' }
+# ALL-NEXT:   - { id: 2, class: gpr, preferred-register: '' }
+# ALL-NEXT:   - { id: 3, class: gr8, preferred-register: '' }
+registers:
+  - { id: 0, class: gpr, preferred-register: '' }
+  - { id: 1, class: gpr, preferred-register: '' }
+  - { id: 2, class: gpr, preferred-register: '' }
+  - { id: 3, class: gpr, preferred-register: '' }
+liveins:
+fixedStack:
+stack:
+constants:
+# ALL:          %0 = COPY %edi
+# ALL-NEXT:     %1 = COPY %0.sub_8bit
+# ALL-NEXT:     %3 = SAR8r1 %1, implicit-def %eflags
+# ALL-NEXT:     %al = COPY %3
+# ALL-NEXT:     RET 0, implicit %al
+body:             |
+  bb.1 (%ir-block.0):
+    liveins: %edi
+
+    %0(s32) = COPY %edi
+    %2(s8) = G_CONSTANT i8 1
+    %1(s8) = G_TRUNC %0(s32)
+    %3(s8) = G_ASHR %1, %2
+    %al = COPY %3(s8)
+    RET 0, implicit %al
+
+...
