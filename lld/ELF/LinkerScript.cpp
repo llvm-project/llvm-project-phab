@@ -79,13 +79,21 @@ uint64_t ExprValue::getSectionOffset() const {
   return getValue() - getSecAddr();
 }
 
-static SymbolBody *addRegular(SymbolAssignment *Cmd) {
+static SymbolBody *addRegular(SymbolAssignment *Cmd, bool Prefetch) {
   Symbol *Sym;
   uint8_t Visibility = Cmd->Hidden ? STV_HIDDEN : STV_DEFAULT;
   std::tie(Sym, std::ignore) = Symtab->insert(Cmd->Name, /*Type*/ 0, Visibility,
                                               /*CanOmitFromDynSym*/ false,
                                               /*File*/ nullptr);
   Sym->Binding = STB_GLOBAL;
+
+  // Create dummy symbols when prefetching, their values will be updated later.
+  if (Prefetch) {
+    replaceBody<DefinedRegular>(Sym, nullptr, Cmd->Name, /*IsLocal=*/false,
+                                Visibility, STT_NOTYPE, 0, 0, nullptr);
+    return Sym->body();
+  }
+
   ExprValue Value = Cmd->Expression();
   SectionBase *Sec = Value.isAbsolute() ? nullptr : Value.Sec;
 
@@ -155,17 +163,32 @@ void LinkerScript::assignSymbol(SymbolAssignment *Cmd, bool InSec) {
   }
 }
 
-void LinkerScript::addSymbol(SymbolAssignment *Cmd) {
+SymbolBody *LinkerScript::addSymbol(SymbolAssignment *Cmd) {
   if (Cmd->Name == ".")
-    return;
+    return nullptr;
 
+  SymbolBody *B = Symtab->find(Cmd->Name);
   // If a symbol was in PROVIDE(), we need to define it only when
   // it is a referenced undefined symbol.
-  SymbolBody *B = Symtab->find(Cmd->Name);
   if (Cmd->Provide && (!B || B->isDefined()))
-    return;
+    return nullptr;
 
-  Cmd->Sym = addRegular(Cmd);
+  // During prefetching symbols we ignore those we already know about.
+  bool Prefetch = CurAddressState == nullptr;
+  if (B && Prefetch)
+    return B;
+  return addRegular(Cmd, Prefetch);
+}
+
+// We want to prefetch symbols assigned by linker script early enough,
+// so we can work with them before script commands are processed.
+void LinkerScript::prefetchSymbols() {
+  assert(!CurAddressState);
+  // Tell LTO to stop inlining symbols redefined by linker script.
+  for (BaseCommand *Base : Opt.Commands)
+    if (SymbolAssignment *Cmd = dyn_cast<SymbolAssignment>(Base))
+      if (SymbolBody *Body = addSymbol(Cmd))
+        Body->symbol()->CanInline = false;
 }
 
 bool SymbolAssignment::classof(const BaseCommand *C) {
@@ -370,7 +393,7 @@ void LinkerScript::processCommands(OutputSectionFactory &Factory) {
   for (size_t I = 0; I < Opt.Commands.size(); ++I) {
     // Handle symbol assignments outside of any output section.
     if (auto *Cmd = dyn_cast<SymbolAssignment>(Opt.Commands[I])) {
-      addSymbol(Cmd);
+      Cmd->Sym = addSymbol(Cmd);
       continue;
     }
 
@@ -403,7 +426,7 @@ void LinkerScript::processCommands(OutputSectionFactory &Factory) {
       // ".foo : { ...; bar = .; }". Handle them.
       for (BaseCommand *Base : Sec->Commands)
         if (auto *OutCmd = dyn_cast<SymbolAssignment>(Base))
-          addSymbol(OutCmd);
+          OutCmd->Sym = addSymbol(OutCmd);
 
       // Handle subalign (e.g. ".foo : SUBALIGN(32) { ... }"). If subalign
       // is given, input sections are aligned to that value, whether the
