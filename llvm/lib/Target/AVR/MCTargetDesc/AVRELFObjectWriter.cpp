@@ -107,6 +107,12 @@ unsigned AVRELFObjectWriter::getRelocType(MCContext &Ctx,
     return ELF::R_AVR_SYM_DIFF;
   case AVR::fixup_16_ldst:
     return ELF::R_AVR_16_LDST;
+  case AVR::fixup_diff8:
+    return ELF::R_AVR_DIFF8;
+  case AVR::fixup_diff16:
+    return ELF::R_AVR_DIFF16;
+  case AVR::fixup_diff32:
+    return ELF::R_AVR_DIFF32;
   case AVR::fixup_lds_sts_16:
     return ELF::R_AVR_LDS_STS_16;
   case AVR::fixup_port6:
