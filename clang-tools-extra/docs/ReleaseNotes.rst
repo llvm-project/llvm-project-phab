@@ -57,6 +57,11 @@ The improvements are...
 Improvements to clang-tidy
 --------------------------
 
+- New `cert-dcl51-cpp
+  <http://clang.llvm.org/extra/clang-tidy/checks/cert-dcl51-cpp.html>`_ check
+
+  Checks if a name is declared or defined with a reserved identifier.
+
 - Renamed checks to use correct term "implicit conversion" instead of "implicit
   cast" and modified messages and option names accordingly:
 
