@@ -285,6 +285,7 @@ void initializePeepholeOptimizerPass(PassRegistry&);
 void initializePhysicalRegisterUsageInfoPass(PassRegistry&);
 void initializePlaceBackedgeSafepointsImplPass(PassRegistry&);
 void initializePlaceSafepointsPass(PassRegistry&);
+void initializePolyhedralValueInfoWrapperPassPass(PassRegistry&);
 void initializePostDomOnlyPrinterPass(PassRegistry&);
 void initializePostDomOnlyViewerPass(PassRegistry&);
 void initializePostDomPrinterPass(PassRegistry&);

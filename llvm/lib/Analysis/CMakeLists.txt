@@ -1,3 +1,5 @@
+add_subdirectory(isl)
+
 add_llvm_library(LLVMAnalysis
   AliasAnalysis.cpp
   AliasAnalysisEvaluator.cpp
@@ -64,9 +66,11 @@ add_llvm_library(LLVMAnalysis
   OptimizationDiagnosticInfo.cpp
   OrderedBasicBlock.cpp
   PHITransAddr.cpp
+  PolyhedralValueInfo.cpp
   PostDominators.cpp
   ProfileSummaryInfo.cpp
   PtrUseVisitor.cpp
+  PValue.cpp
   RegionInfo.cpp
   RegionPass.cpp
   RegionPrinter.cpp

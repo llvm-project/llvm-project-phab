@@ -96,6 +96,12 @@ namespace llvm {
   //
   FunctionPass *createMemDerefPrinter();
 
+  //===--------------------------------------------------------------------===//
+  //
+  // createPolyhedralValueInfoWrapperPass - This pass offers a polyhedral-based
+  // value analysis.
+  //
+  FunctionPass *createPolyhedralValueInfoWrapperPass();
 }
 
 #endif
