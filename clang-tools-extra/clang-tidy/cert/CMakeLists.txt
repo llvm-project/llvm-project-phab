@@ -1,6 +1,7 @@
 set(LLVM_LINK_COMPONENTS support)
 
 add_clang_library(clangTidyCERTModule
+  AvoidPointerCastToMoreStrictAlignmentCheck.cpp
   CERTTidyModule.cpp
   CommandProcessorCheck.cpp
   DontModifyStdNamespaceCheck.cpp
