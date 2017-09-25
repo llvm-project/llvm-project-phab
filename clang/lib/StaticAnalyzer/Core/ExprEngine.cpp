@@ -23,6 +23,7 @@
 #include "clang/Basic/Builtins.h"
 #include "clang/Basic/PrettyStackTrace.h"
 #include "clang/Basic/SourceManager.h"
+#include "clang/CrossTU/CrossTranslationUnit.h"
 #include "clang/StaticAnalyzer/Core/BugReporter/BugType.h"
 #include "clang/StaticAnalyzer/Core/CheckerManager.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/AnalysisManager.h"
@@ -69,25 +70,20 @@ REGISTER_TRAIT_WITH_PROGRAMSTATE(InitializedTemporariesSet,
 
 static const char* TagProviderName = "ExprEngine";
 
-ExprEngine::ExprEngine(AnalysisManager &mgr, bool gcEnabled,
+ExprEngine::ExprEngine(cross_tu::CrossTranslationUnitContext &CTU,
+                       AnalysisManager &mgr, bool gcEnabled,
                        SetOfConstDecls *VisitedCalleesIn,
-                       FunctionSummariesTy *FS,
-                       InliningModes HowToInlineIn)
-  : AMgr(mgr),
-    AnalysisDeclContexts(mgr.getAnalysisDeclContextManager()),
-    Engine(*this, FS),
-    G(Engine.getGraph()),
-    StateMgr(getContext(), mgr.getStoreManagerCreator(),
-             mgr.getConstraintManagerCreator(), G.getAllocator(),
-             this),
-    SymMgr(StateMgr.getSymbolManager()),
-    svalBuilder(StateMgr.getSValBuilder()),
-    currStmtIdx(0), currBldrCtx(nullptr),
-    ObjCNoRet(mgr.getASTContext()),
-    ObjCGCEnabled(gcEnabled), BR(mgr, *this),
-    VisitedCallees(VisitedCalleesIn),
-    HowToInline(HowToInlineIn)
-{
+                       FunctionSummariesTy *FS, InliningModes HowToInlineIn)
+    : CTU(CTU), AMgr(mgr),
+      AnalysisDeclContexts(mgr.getAnalysisDeclContextManager()),
+      Engine(*this, FS), G(Engine.getGraph()),
+      StateMgr(getContext(), mgr.getStoreManagerCreator(),
+               mgr.getConstraintManagerCreator(), G.getAllocator(), this),
+      SymMgr(StateMgr.getSymbolManager()),
+      svalBuilder(StateMgr.getSValBuilder()), currStmtIdx(0),
+      currBldrCtx(nullptr), ObjCNoRet(mgr.getASTContext()),
+      ObjCGCEnabled(gcEnabled), BR(mgr, *this),
+      VisitedCallees(VisitedCalleesIn), HowToInline(HowToInlineIn) {
   unsigned TrimInterval = mgr.options.getGraphTrimInterval();
   if (TrimInterval != 0) {
     // Enable eager node reclaimation when constructing the ExplodedGraph.
