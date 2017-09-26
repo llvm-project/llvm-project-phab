@@ -38,3 +38,31 @@ define float @test3(i1 zeroext %arg) #0 {
 ; CHECK: ret float %tmp2
 }
 
+declare void @use_float(float)
+; Tests folding constants if the selects have multiple uses but
+; we can fold away the binary op with a select.
+define float @test4(i1 zeroext %arg) #0 {
+  %tmp = select i1 %arg, float 5.000000e+00, float 6.000000e+00
+  %tmp1 = select i1 %arg, float 1.000000e+00, float 9.000000e+00
+  %tmp2 = fmul float %tmp, %tmp1
+  call void @use_float(float %tmp)
+  ret float %tmp2
+; CHECK-LABEL: @test4(
+; CHECK: select i1 %arg, float 5.000000e+00, float 6.000000e+00
+; CHECK-NEXT: select i1 %arg, float 5.000000e+00, float 5.400000e+01
+; CHECK-NEXT: call void @use_float(float %tmp)
+; CHECK: ret float %tmp2
+}
+
+; Tests not folding constants if we cannot fold away any of the selects.
+define float @test5(i1 zeroext %arg, float %div) {
+  %tmp = select i1 %arg, float %div, float 5.000000e+00
+  %mul = fmul contract float %tmp, %tmp
+  call void @use_float(float %tmp)
+  ret float %mul
+; CHECK-LABEL: @test5(
+; CHECK: [[TMP:%.*]] = select i1 %arg, float %div, float 5.000000e+00
+; CHECK-NEXT: [[MUL:%.*]] = fmul contract float [[TMP]], [[TMP]]
+; CHECK-NOT: fmul contract float %div, %div
+; CHECK: ret float [[MUL]]
+}

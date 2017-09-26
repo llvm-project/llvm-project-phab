@@ -739,9 +739,9 @@ Value *InstCombiner::SimplifySelectsFeedingBinaryOp(BinaryOperator &I,
     Value *V2 = SimplifyBinOp(Opcode, B, D, SQ.getWithInstruction(&I));
     if (V1 && V2)
       SI = Builder.CreateSelect(A, V2, V1);
-    else if (V2)
+    else if (LHS->hasOneUse() && RHS->hasOneUse() && V2)
       SI = Builder.CreateSelect(A, V2, Builder.CreateBinOp(Opcode, C, E));
-    else if (V1)
+    else if (LHS->hasOneUse() && RHS->hasOneUse() && V1)
       SI = Builder.CreateSelect(A, Builder.CreateBinOp(Opcode, B, D), V1);
 
     if (SI)
