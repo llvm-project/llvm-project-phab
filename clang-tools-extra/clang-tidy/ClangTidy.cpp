@@ -286,6 +286,7 @@ ClangTidyASTConsumerFactory::ClangTidyASTConsumerFactory(
        I != E; ++I) {
     std::unique_ptr<ClangTidyModule> Module(I->instantiate());
     Module->addCheckFactories(*CheckFactories);
+    Module->addWarningCheckAliases(Context.WarningCheckAliases);
   }
 }
 
@@ -397,6 +398,10 @@ std::vector<std::string> ClangTidyASTConsumerFactory::getCheckNames() {
       CheckNames.push_back(CheckFactory.first);
   }
 
+  for (const auto &Alias : Context.WarningCheckAliases)
+    if (Context.isCheckEnabled(Alias.second))
+      CheckNames.push_back(Alias.second);
+
   for (const auto &AnalyzerCheck : getCheckersControlList(Context))
     CheckNames.push_back(AnalyzerCheckNamePrefix + AnalyzerCheck.first);
 
@@ -492,6 +497,13 @@ void runClangTidy(clang::tidy::ClangTidyContext &Context,
         if (Opts.ExtraArgs)
           AdjustedArgs.insert(AdjustedArgs.end(), Opts.ExtraArgs->begin(),
                               Opts.ExtraArgs->end());
+
+        for (const auto &Alias : Context.WarningCheckAliases)
+          if (Context.isCheckEnabled(Alias.second))
+            AdjustedArgs.push_back(
+                "-W" +
+                DiagnosticIDs::getWarningOptionForDiag(Alias.first).str());
+
         return AdjustedArgs;
       };
 

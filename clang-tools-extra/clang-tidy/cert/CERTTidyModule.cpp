@@ -26,6 +26,7 @@
 #include "StrToNumCheck.h"
 #include "ThrownExceptionTypeCheck.h"
 #include "VariadicFunctionDefCheck.h"
+#include "clang/Sema/SemaDiagnostic.h"
 
 namespace clang {
 namespace tidy {
@@ -72,6 +73,14 @@ public:
     CheckFactories.registerCheck<StrToNumCheck>("cert-err34-c");
     // MSC
     CheckFactories.registerCheck<LimitedRandomnessCheck>("cert-msc30-c");
+  }
+
+  void addWarningCheckAliases(
+      llvm::DenseMap<unsigned, llvm::StringRef> &WarningCheckAliases) override {
+    WarningCheckAliases.try_emplace(
+        diag::warn_exception_caught_by_earlier_handler, "cert-err54-cpp");
+    WarningCheckAliases.try_emplace(
+        diag::ext_offsetof_non_pod_type, "cert-exp59-cpp");
   }
 };
 
