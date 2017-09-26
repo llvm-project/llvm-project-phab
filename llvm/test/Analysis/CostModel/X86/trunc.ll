@@ -45,7 +45,8 @@ define i32 @trunc_vXi16() {
   %V4i64 = trunc <4 x i64> undef to <4 x i16>
 
   ; SSE: cost of 3 {{.*}} %V8i64 = trunc
-  ; AVX: cost of 0 {{.*}} %V8i64 = trunc
+  ; AVX1: cost of 9 {{.*}} %V8i64 = trunc
+  ; AVX2: cost of 5 {{.*}} %V8i64 = trunc
   %V8i64 = trunc <8 x i64> undef to <8 x i16>
 
   ; SSE2: cost of 3 {{.*}} %V4i32 = trunc
@@ -88,7 +89,8 @@ define i32 @trunc_vXi8() {
   %V4i64 = trunc <4 x i64> undef to <4 x i8>
 
   ; SSE: cost of 3 {{.*}} %V8i64 = trunc
-  ; AVX: cost of 0 {{.*}} %V8i64 = trunc
+  ; AVX1: cost of 9 {{.*}} %V8i64 = trunc
+  ; AVX2: cost of 5 {{.*}} %V8i64 = trunc
   %V8i64 = trunc <8 x i64> undef to <8 x i8>
 
   ; SSE: cost of 0 {{.*}} %V2i32 = trunc

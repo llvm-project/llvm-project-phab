@@ -24777,12 +24777,14 @@ bool X86TargetLowering::isVectorShiftByScalarCheap(Type *Ty) const {
   return true;
 }
 
-bool X86TargetLowering::isTruncateFree(Type *Ty1, Type *Ty2) const {
-  if (!Ty1->isIntegerTy() || !Ty2->isIntegerTy())
+bool X86TargetLowering::isTruncateFree(Type *SrcTy, Type *DstTy) const {
+  if (!SrcTy->isIntegerTy() || !DstTy->isIntegerTy())
     return false;
-  unsigned NumBits1 = Ty1->getPrimitiveSizeInBits();
-  unsigned NumBits2 = Ty2->getPrimitiveSizeInBits();
-  return NumBits1 > NumBits2;
+  unsigned SrcBits = SrcTy->getPrimitiveSizeInBits();
+  unsigned DstBits = DstTy->getPrimitiveSizeInBits();
+  return SrcBits > DstBits &&
+         (SrcBits == 64 || SrcBits == 32 || SrcBits == 16) &&
+         (DstBits == 32 || DstBits == 16 || DstBits == 8);
 }
 
 bool X86TargetLowering::allowTruncateForTailCall(Type *Ty1, Type *Ty2) const {
@@ -24808,12 +24810,14 @@ bool X86TargetLowering::isLegalAddImmediate(int64_t Imm) const {
   return isInt<32>(Imm);
 }
 
-bool X86TargetLowering::isTruncateFree(EVT VT1, EVT VT2) const {
-  if (!VT1.isInteger() || !VT2.isInteger())
+bool X86TargetLowering::isTruncateFree(EVT SrcVT, EVT DstVT) const {
+  if (!SrcVT.isScalarInteger() || !DstVT.isScalarInteger())
     return false;
-  unsigned NumBits1 = VT1.getSizeInBits();
-  unsigned NumBits2 = VT2.getSizeInBits();
-  return NumBits1 > NumBits2;
+  unsigned SrcBits = SrcVT.getSizeInBits();
+  unsigned DstBits = DstVT.getSizeInBits();
+  return SrcBits > DstBits &&
+         (SrcBits == 64 || SrcBits == 32 || SrcBits == 16) &&
+         (DstBits == 32 || DstBits == 16 || DstBits == 8);
 }
 
 bool X86TargetLowering::isZExtFree(Type *Ty1, Type *Ty2) const {

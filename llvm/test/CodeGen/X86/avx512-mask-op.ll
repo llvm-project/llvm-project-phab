@@ -1629,9 +1629,12 @@ define void @store_v16i1(<16 x i1> %c , <16 x i1>* %ptr) {
 define void @f1(i32 %c) {
 ; CHECK-LABEL: f1:
 ; CHECK:       ## BB#0: ## %entry
-; CHECK-NEXT:    movzbl {{.*}}(%rip), %edi
-; CHECK-NEXT:    xorl $1, %edi
-; CHECK-NEXT:    movb %dil, {{.*}}(%rip)
+; CHECK-NEXT:    movb {{.*}}(%rip), %al
+; CHECK-NEXT:    xorb $1, %al
+; CHECK-NEXT:    movzbl %al, %edi
+; CHECK-NEXT:    andb $1, %al
+; CHECK-NEXT:    movb %al, {{.*}}(%rip)
+; CHECK-NEXT:    andl $1, %edi
 ; CHECK-NEXT:    jmp _f2 ## TAILCALL
 entry:
   %.b1 = load i1, i1* @f1.v, align 4
