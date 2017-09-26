@@ -729,8 +729,8 @@ Value *InstCombiner::SimplifySelectsFeedingBinaryOp(BinaryOperator &I,
   // c, e)))
   Value *A, *B, *C, *D, *E;
   Value *SI = nullptr;
-  if (match(LHS, m_Select(m_Value(A), m_Value(B), m_Value(C))) &&
-      match(RHS, m_Select(m_Specific(A), m_Value(D), m_Value(E)))) {
+  if (match(LHS, m_OneUse(m_Select(m_Value(A), m_Value(B), m_Value(C)))) &&
+      match(RHS, m_OneUse(m_Select(m_Specific(A), m_Value(D), m_Value(E))))) {
     BuilderTy::FastMathFlagGuard Guard(Builder);
     if (isa<FPMathOperator>(&I))
       Builder.setFastMathFlags(I.getFastMathFlags());

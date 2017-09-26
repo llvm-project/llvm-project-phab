@@ -38,3 +38,16 @@ define float @test3(i1 zeroext %arg) #0 {
 ; CHECK: ret float %tmp2
 }
 
+; Tests not folding constants if the selects have more than one use.
+declare void @use_double(double)
+define double @test4(i1 zeroext %arg, double %div) {
+  %tmp = select i1 %arg, double %div, double 5.000000e-03
+  %mul = fmul contract double %tmp, %tmp
+  call void @use_double(double %tmp)
+  ret double %mul
+; CHECK-LABEL: @test4(
+; CHECK: [[TMP:%.*]] = select i1 %arg, double %div, double 5.000000e-03
+; CHECK-NEXT: [[MUL:%.*]] = fmul contract double [[TMP]], [[TMP]]
+; CHECK-NOT: fmul contract double %div, %div
+; CHECK: ret double [[MUL]]
+}
