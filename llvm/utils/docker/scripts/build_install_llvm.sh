@@ -191,6 +191,14 @@ else
   echo "Skipping checksumming checks..."
 fi
 
+# Copy licences into docker image.
+LICENCES_DIR="$CLANG_INSTALL_DIR/share/llvm/licenses"
+mkdir -p "$LICENCES_DIR"
+
+python "$(dirname $0)/llvm_checksum/collect_licenses.py" \
+  --target "$LICENCES_DIR" \
+  --llvm_path "$CLANG_BUILD_DIR/src" --multi_dir
+
 mkdir "$CLANG_BUILD_DIR/build"
 pushd "$CLANG_BUILD_DIR/build"
 

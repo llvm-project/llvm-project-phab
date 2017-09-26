@@ -15,6 +15,7 @@ FROM ubuntu
 
 # FIXME: Change maintainer name.
 LABEL maintainer "Maintainer <maintainer@email>"
+LABEL licences "LLVM licenses are under /usr/local/share/llvm/licences"
 
 # FIXME: Install all packages you want to have in your release container.
 # A minimal useful installation must include libstdc++ and binutils.
