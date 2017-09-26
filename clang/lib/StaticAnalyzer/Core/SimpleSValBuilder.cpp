@@ -559,6 +559,98 @@ SVal SimpleSValBuilder::evalBinOpNN(ProgramStateRef state,
       if (const llvm::APSInt *RHSValue = getKnownValue(state, rhs))
         return MakeSymIntVal(Sym, op, *RHSValue, resultTy);
 
+      // If comparing two symbolic expressions of the format S, S+n or S-n
+      // rearrange the comparison by moving symbols to the left side and the
+      // concrete integer to the right. This enables the range based constraint
+      // manager to handle these comparisons.
+      if (BinaryOperator::isComparisonOp(op) &&
+          rhs.getSubKind() == nonloc::SymbolValKind) {
+        SymbolRef rSym = rhs.castAs<nonloc::SymbolVal>().getSymbol();
+        if (Sym->getType() == rSym->getType() &&
+            Sym->getType()->isSignedIntegerOrEnumerationType()) {
+          // FIXME: Support unsigned types using signed differences
+          const llvm::APSInt *lInt = nullptr, *rInt = nullptr;
+          BinaryOperator::Opcode lop, rop;
+
+          // Type of n in S+n or S-n is the same as the type of S+n or S-n.
+          // Since they are equal on both sides, no need to convert them.
+          if (const SymIntExpr *lSymIntExpr = dyn_cast<SymIntExpr>(Sym)) {
+            lop = lSymIntExpr->getOpcode();
+            if (BinaryOperator::isAdditiveOp(lop)) {
+              lInt = &lSymIntExpr->getRHS();
+              Sym = lSymIntExpr->getLHS();
+            }
+          }
+          if (const SymIntExpr *rSymIntExpr = dyn_cast<SymIntExpr>(rSym)) {
+            rop = rSymIntExpr->getOpcode();
+            if (BinaryOperator::isAdditiveOp(rop)) {
+              rInt = &rSymIntExpr->getRHS();
+              rSym = rSymIntExpr->getLHS();
+            }
+          }
+
+          // To avoid overflow cases we restrict rearrangement to comparisons
+          // where both concrete integers are int the range [min/4..max/4]
+          auto min =
+            BasicVals.getAPSIntType(Sym->getType()).getMinValue().getExtValue();
+          auto max =
+            BasicVals.getAPSIntType(Sym->getType()).getMaxValue().getExtValue();
+          bool inRange;
+
+          bool reverse; // Avoid negative numbers in case of unsigned types
+          const llvm::APSInt *newRhs;
+          if (lInt && rInt) {
+            inRange = (*lInt >= min / 4) && (*lInt <= max / 4) &&
+              (*rInt >= min / 4) && (*rInt <= max / 4);
+            int64_t newRhsExt;
+            if (lop != rop) {
+              newRhsExt = lInt->getExtValue() + rInt->getExtValue();
+              reverse = (lop == BO_Add);
+            } else {
+              if (*lInt >= *rInt) {
+                newRhsExt = lInt->getExtValue() - rInt->getExtValue();
+                reverse = (lop == BO_Add);
+              } else {
+                newRhsExt = rInt->getExtValue() - lInt->getExtValue();
+                reverse = (lop == BO_Sub);
+              }
+            }
+            newRhs = &BasicVals.getValue(newRhsExt, Sym->getType());
+          } else if (lInt) {
+            inRange = (*lInt >= min / 2) && (*lInt <= max / 2);
+            newRhs = lInt;
+            reverse = (lop == BO_Add);
+          } else if (rInt) {
+            inRange = (*rInt >= min / 2) && (*rInt <= max / 2);
+            newRhs = rInt;
+            reverse = (rop == BO_Sub);
+          } else {
+            inRange = true;
+            newRhs = &BasicVals.getValue(0, Sym->getType());
+            reverse = false;
+          }
+
+          if (inRange) {
+            // If the two symbols are equal, compare only the integers and
+            // return the concrete result. If they are different, return the
+            // rearranged expression.
+            if (Sym == rSym) {
+              return nonloc::ConcreteInt(*BasicVals.evalAPSInt(
+                        op, BasicVals.getValue(0, Sym->getType()), *newRhs));
+            } else {
+              if (reverse) {
+                op = BinaryOperator::reverseComparisonOp(op);
+              }
+              const SymExpr *newLhs =
+                reverse
+                ? SymMgr.getSymSymExpr(rSym, BO_Sub, Sym, Sym->getType())
+                : SymMgr.getSymSymExpr(Sym, BO_Sub, rSym, Sym->getType());
+              return makeNonLoc(newLhs, op, *newRhs, resultTy);
+            }
+          }
+        }
+      }
+
       // Give up -- this is not a symbolic expression we can handle.
       return makeSymExprValNN(state, op, InputLHS, InputRHS, resultTy);
     }
