@@ -1031,6 +1031,8 @@ template <class ELFT> void LinkerDriver::link(opt::InputArgList &Args) {
   for (StringRef Sym : Script->Opt.ReferencedSymbols)
     Symtab->addUndefined<ELFT>(Sym);
 
+  Script->defineSymbols();
+
   // If an entry symbol is in a static archive, pull out that file now
   // to complete the symbol table. After this, no new names except a
   // few linker-synthesized ones will be added to the symbol table.

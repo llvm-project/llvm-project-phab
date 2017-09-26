@@ -256,7 +256,8 @@ public:
   void assignOffsets(OutputSection *Sec);
   void assignAddresses();
   void allocateHeaders(std::vector<PhdrEntry *> &Phdrs);
-  void addSymbol(SymbolAssignment *Cmd);
+  SymbolBody *addSymbol(SymbolAssignment *Cmd);
+  void defineSymbols();
   void processCommands(OutputSectionFactory &Factory);
 
   // Parsed linker script configurations are set to this struct.
