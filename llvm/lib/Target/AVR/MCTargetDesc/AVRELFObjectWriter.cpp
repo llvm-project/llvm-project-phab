@@ -39,8 +39,15 @@ unsigned AVRELFObjectWriter::getRelocType(MCContext &Ctx,
                                           const MCValue &Target,
                                           const MCFixup &Fixup,
                                           bool IsPCRel) const {
+  MCSymbolRefExpr::VariantKind Modifier = Target.getAccessVariant();
   switch ((unsigned) Fixup.getKind()) {
   case FK_Data_1:
+    switch (Modifier) {
+    case MCSymbolRefExpr::VK_None:
+      return ELF::R_AVR_8;
+    }
+  case AVR::fixup_8:
+    return ELF::R_AVR_8;
   case FK_Data_4:
     llvm_unreachable("unsupported relocation type");
   case FK_Data_2:
@@ -95,18 +102,18 @@ unsigned AVRELFObjectWriter::getRelocType(MCContext &Ctx,
     return ELF::R_AVR_LO8_LDI_GS;
   case AVR::fixup_hi8_ldi_gs:
     return ELF::R_AVR_HI8_LDI_GS;
-  case AVR::fixup_8:
-    return ELF::R_AVR_8;
   case AVR::fixup_8_lo8:
     return ELF::R_AVR_8_LO8;
   case AVR::fixup_8_hi8:
     return ELF::R_AVR_8_HI8;
   case AVR::fixup_8_hlo8:
     return ELF::R_AVR_8_HLO8;
-  case AVR::fixup_sym_diff:
-    return ELF::R_AVR_SYM_DIFF;
-  case AVR::fixup_16_ldst:
-    return ELF::R_AVR_16_LDST;
+  case AVR::fixup_diff8:
+    return ELF::R_AVR_DIFF8;
+  case AVR::fixup_diff16:
+    return ELF::R_AVR_DIFF16;
+  case AVR::fixup_diff32:
+    return ELF::R_AVR_DIFF32;
   case AVR::fixup_lds_sts_16:
     return ELF::R_AVR_LDS_STS_16;
   case AVR::fixup_port6:
