@@ -1091,8 +1091,6 @@ template <class ELFT> void LinkerDriver::link(opt::InputArgList &Args) {
   if (Config->GcSections)
     markLive<ELFT>();
   decompressAndMergeSections();
-  if (Config->ICF)
-    doIcf<ELFT>();
 
   // Write the result to the file.
   writeResult<ELFT>();
