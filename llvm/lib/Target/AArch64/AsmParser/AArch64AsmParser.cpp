@@ -153,7 +153,7 @@ public:
   bool ParseInstruction(ParseInstructionInfo &Info, StringRef Name,
                         SMLoc NameLoc, OperandVector &Operands) override;
   bool ParseRegister(unsigned &RegNo, SMLoc &StartLoc, SMLoc &EndLoc) override;
-  bool ParseDirective(AsmToken DirectiveID) override;
+  bool ParseDirective(AsmToken DirectiveID, OperandVector &Operands) override;
   unsigned validateTargetOperandClass(MCParsedAsmOperand &Op,
                                       unsigned Kind) override;
 
@@ -3848,7 +3848,8 @@ bool AArch64AsmParser::MatchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
 }
 
 /// ParseDirective parses the arm specific directives
-bool AArch64AsmParser::ParseDirective(AsmToken DirectiveID) {
+bool AArch64AsmParser::ParseDirective(AsmToken DirectiveID,
+                                      OperandVector &Operands) {
   const MCObjectFileInfo::Environment Format =
     getContext().getObjectFileInfo()->getObjectFileType();
   bool IsMachO = Format == MCObjectFileInfo::IsMachO;

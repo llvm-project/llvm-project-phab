@@ -436,7 +436,7 @@ public:
   }
 
   // Override MCTargetAsmParser.
-  bool ParseDirective(AsmToken DirectiveID) override;
+  bool ParseDirective(AsmToken DirectiveID, OperandVector &Operands) override;
   bool ParseRegister(unsigned &RegNo, SMLoc &StartLoc, SMLoc &EndLoc) override;
   bool ParseInstruction(ParseInstructionInfo &Info, StringRef Name,
                         SMLoc NameLoc, OperandVector &Operands) override;
@@ -948,7 +948,8 @@ SystemZAsmParser::parseAddress(OperandVector &Operands, MemoryKind MemKind,
   return MatchOperand_Success;
 }
 
-bool SystemZAsmParser::ParseDirective(AsmToken DirectiveID) {
+bool SystemZAsmParser::ParseDirective(AsmToken DirectiveID,
+                                      OperandVector &Operands) {
   StringRef IDVal = DirectiveID.getIdentifier();
 
   if (IDVal == ".insn")

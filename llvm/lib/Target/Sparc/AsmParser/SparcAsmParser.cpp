@@ -70,7 +70,7 @@ class SparcAsmParser : public MCTargetAsmParser {
   bool ParseRegister(unsigned &RegNo, SMLoc &StartLoc, SMLoc &EndLoc) override;
   bool ParseInstruction(ParseInstructionInfo &Info, StringRef Name,
                         SMLoc NameLoc, OperandVector &Operands) override;
-  bool ParseDirective(AsmToken DirectiveID) override;
+  bool ParseDirective(AsmToken DirectiveID, OperandVector &Operands) override;
 
   unsigned validateTargetOperandClass(MCParsedAsmOperand &Op,
                                       unsigned Kind) override;
@@ -678,7 +678,7 @@ bool SparcAsmParser::ParseInstruction(ParseInstructionInfo &Info,
 }
 
 bool SparcAsmParser::
-ParseDirective(AsmToken DirectiveID)
+ParseDirective(AsmToken DirectiveID, OperandVector &Operands)
 {
   StringRef IDVal = DirectiveID.getString();
 

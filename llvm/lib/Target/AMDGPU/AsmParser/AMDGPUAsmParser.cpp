@@ -953,7 +953,7 @@ public:
                                OperandVector &Operands, MCStreamer &Out,
                                uint64_t &ErrorInfo,
                                bool MatchingInlineAsm) override;
-  bool ParseDirective(AsmToken DirectiveID) override;
+  bool ParseDirective(AsmToken DirectiveID, OperandVector &Operands) override;
   OperandMatchResultTy parseOperand(OperandVector &Operands, StringRef Mnemonic);
   StringRef parseMnemonicSuffix(StringRef Name);
   bool ParseInstruction(ParseInstructionInfo &Info, StringRef Name,
@@ -2493,7 +2493,8 @@ bool AMDGPUAsmParser::ParseDirectiveAMDGPUHsaKernel() {
   return false;
 }
 
-bool AMDGPUAsmParser::ParseDirective(AsmToken DirectiveID) {
+bool AMDGPUAsmParser::ParseDirective(AsmToken DirectiveID,
+                                     OperandVector &Operands) {
   StringRef IDVal = DirectiveID.getString();
 
   if (IDVal == ".hsa_code_object_version")

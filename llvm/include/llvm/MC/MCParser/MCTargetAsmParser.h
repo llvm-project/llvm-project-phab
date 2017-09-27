@@ -221,7 +221,10 @@ public:
   /// end-of-statement token and false is returned.
   ///
   /// \param DirectiveID - the identifier token of the directive.
-  virtual bool ParseDirective(AsmToken DirectiveID) = 0;
+  //  \param Operands [out] -  The list of parsed operands, this returns
+  //         ownership of them to the caller.
+  virtual bool ParseDirective(AsmToken DirectiveID,
+                              OperandVector &Operands) = 0;
 
   /// MatchAndEmitInstruction - Recognize a series of operands of a parsed
   /// instruction as an actual MCInst and emit it to the specified MCStreamer.

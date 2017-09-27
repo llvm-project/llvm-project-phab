@@ -311,7 +311,7 @@ public:
   bool ParseInstruction(ParseInstructionInfo &Info, StringRef Name,
                         SMLoc NameLoc, OperandVector &Operands) override;
 
-  bool ParseDirective(AsmToken DirectiveID) override;
+  bool ParseDirective(AsmToken DirectiveID, OperandVector &Operands) override;
 
   unsigned validateTargetOperandClass(MCParsedAsmOperand &Op,
                                       unsigned Kind) override;
@@ -1747,7 +1747,8 @@ bool PPCAsmParser::ParseInstruction(ParseInstructionInfo &Info, StringRef Name,
 }
 
 /// ParseDirective parses the PPC specific directives
-bool PPCAsmParser::ParseDirective(AsmToken DirectiveID) {
+bool PPCAsmParser::ParseDirective(AsmToken DirectiveID,
+                                  OperandVector &Operands) {
   StringRef IDVal = DirectiveID.getIdentifier();
   if (isDarwin()) {
     if (IDVal == ".machine")

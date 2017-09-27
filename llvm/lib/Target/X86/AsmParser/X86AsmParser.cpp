@@ -931,7 +931,7 @@ public:
   bool ParseInstruction(ParseInstructionInfo &Info, StringRef Name,
                         SMLoc NameLoc, OperandVector &Operands) override;
 
-  bool ParseDirective(AsmToken DirectiveID) override;
+  bool ParseDirective(AsmToken DirectiveID, OperandVector &Operands) override;
 };
 } // end anonymous namespace
 
@@ -2962,7 +2962,8 @@ bool X86AsmParser::OmitRegisterFromClobberLists(unsigned RegNo) {
   return X86MCRegisterClasses[X86::SEGMENT_REGRegClassID].contains(RegNo);
 }
 
-bool X86AsmParser::ParseDirective(AsmToken DirectiveID) {
+bool X86AsmParser::ParseDirective(AsmToken DirectiveID,
+                                  OperandVector &Operands) {
   MCAsmParser &Parser = getParser();
   StringRef IDVal = DirectiveID.getIdentifier();
   if (IDVal == ".word")

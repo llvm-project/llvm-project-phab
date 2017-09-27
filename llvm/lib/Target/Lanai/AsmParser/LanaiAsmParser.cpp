@@ -61,7 +61,7 @@ class LanaiAsmParser : public MCTargetAsmParser {
 
   bool parsePrePost(StringRef Type, int *OffsetValue);
 
-  bool ParseDirective(AsmToken DirectiveID) override;
+  bool ParseDirective(AsmToken DirectiveID, OperandVector &Operands) override;
 
   bool ParseInstruction(ParseInstructionInfo &Info, StringRef Name,
                         SMLoc NameLoc, OperandVector &Operands) override;
@@ -644,7 +644,10 @@ public:
 
 } // end anonymous namespace
 
-bool LanaiAsmParser::ParseDirective(AsmToken /*DirectiveId*/) { return true; }
+bool LanaiAsmParser::ParseDirective(AsmToken /*DirectiveId*/,
+                                    OperandVector &Operands) {
+  return true;
+}
 
 bool LanaiAsmParser::MatchAndEmitInstruction(SMLoc IdLoc, unsigned &Opcode,
                                              OperandVector &Operands,

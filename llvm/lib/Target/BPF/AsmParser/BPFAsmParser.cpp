@@ -40,7 +40,7 @@ class BPFAsmParser : public MCTargetAsmParser {
   bool ParseInstruction(ParseInstructionInfo &Info, StringRef Name,
                         SMLoc NameLoc, OperandVector &Operands) override;
 
-  bool ParseDirective(AsmToken DirectiveID) override;
+  bool ParseDirective(AsmToken DirectiveID, OperandVector &Operands) override;
 
   // "=" is used as assignment operator for assembly statment, so can't be used
   // for symbol assignment.
@@ -463,7 +463,10 @@ bool BPFAsmParser::ParseInstruction(ParseInstructionInfo &Info, StringRef Name,
   return false;
 }
 
-bool BPFAsmParser::ParseDirective(AsmToken DirectiveID) { return true; }
+bool BPFAsmParser::ParseDirective(AsmToken DirectiveID,
+                                  OperandVector &Operands) {
+ return true;
+}
 
 extern "C" void LLVMInitializeBPFAsmParser() {
   RegisterMCAsmParser<BPFAsmParser> X(getTheBPFTarget());

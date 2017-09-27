@@ -184,7 +184,7 @@ public:
   bool ParseInstruction(ParseInstructionInfo &Info, StringRef Name, AsmToken ID,
                         OperandVector &Operands) override;
 
-  bool ParseDirective(AsmToken DirectiveID) override;
+  bool ParseDirective(AsmToken DirectiveID, OperandVector &Operands) override;
 };
 
 /// HexagonOperand - Instances of this class represent a parsed Hexagon machine
@@ -616,7 +616,8 @@ bool HexagonAsmParser::MatchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
 }
 
 /// ParseDirective parses the Hexagon specific directives
-bool HexagonAsmParser::ParseDirective(AsmToken DirectiveID) {
+bool HexagonAsmParser::ParseDirective(AsmToken DirectiveID,
+                                      OperandVector &Operands) {
   StringRef IDVal = DirectiveID.getIdentifier();
   if ((IDVal.lower() == ".word") || (IDVal.lower() == ".4byte"))
     return ParseDirectiveValue(4, DirectiveID.getLoc());

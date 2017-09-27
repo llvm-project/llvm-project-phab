@@ -1857,7 +1857,8 @@ bool AsmParser::parseStatement(ParseStatementInfo &Info,
     getTargetParser().flushPendingInstructions(getStreamer());
 
     SMLoc StartTokLoc = getTok().getLoc();
-    bool TPDirectiveReturn = getTargetParser().ParseDirective(ID);
+    bool TPDirectiveReturn =
+        getTargetParser().ParseDirective(ID, Info.ParsedOperands);
 
     if (hasPendingError())
       return true;

@@ -44,7 +44,7 @@ class RISCVAsmParser : public MCTargetAsmParser {
   bool ParseInstruction(ParseInstructionInfo &Info, StringRef Name,
                         SMLoc NameLoc, OperandVector &Operands) override;
 
-  bool ParseDirective(AsmToken DirectiveID) override;
+  bool ParseDirective(AsmToken DirectiveID, OperandVector &Operands) override;
 
 // Auto-generated instruction matching functions
 #define GET_ASSEMBLER_HEADER
@@ -498,7 +498,10 @@ bool RISCVAsmParser::ParseInstruction(ParseInstructionInfo &Info,
   return false;
 }
 
-bool RISCVAsmParser::ParseDirective(AsmToken DirectiveID) { return true; }
+bool RISCVAsmParser::ParseDirective(AsmToken DirectiveID,
+                                    OperandVector &Operands) {
+  return true;
+}
 
 extern "C" void LLVMInitializeRISCVAsmParser() {
   RegisterMCAsmParser<RISCVAsmParser> X(getTheRISCV32Target());
