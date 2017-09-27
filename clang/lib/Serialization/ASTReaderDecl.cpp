@@ -440,6 +440,14 @@ public:
 };
 } // end anonymous namespace
 
+/// Inherit the default template argument from \p From to \p To. Returns
+/// \c false if there is no default template for \p From.
+/// It is an error to call this method more than once on \p To, with differing
+/// \p From decls.
+template <typename ParmDecl>
+static bool inheritDefaultTemplateArgument(ASTContext &Context, ParmDecl *From,
+                                           Decl *ToD);
+
 template <typename DeclT>
 static llvm::iterator_range<MergedRedeclIterator<DeclT>>
 merged_redecls(DeclT *D) {
@@ -2239,6 +2247,11 @@ void ASTDeclReader::VisitTemplateTypeParmDecl(TemplateTypeParmDecl *D) {
 
   if (Record.readInt())
     D->setDefaultArgument(GetTypeSourceInfo());
+
+  if (Record.readInt()) {
+    inheritDefaultTemplateArgument(
+        Reader.getContext(), Record.readDeclAs<TemplateTypeParmDecl>(), D);
+  }
 }
 
 void ASTDeclReader::VisitNonTypeTemplateParmDecl(NonTypeTemplateParmDecl *D) {
@@ -2256,8 +2269,14 @@ void ASTDeclReader::VisitNonTypeTemplateParmDecl(NonTypeTemplateParmDecl *D) {
   } else {
     // Rest of NonTypeTemplateParmDecl.
     D->ParameterPack = Record.readInt();
+
     if (Record.readInt())
       D->setDefaultArgument(Record.readExpr());
+
+    if (Record.readInt()) {
+      inheritDefaultTemplateArgument(
+          Reader.getContext(), Record.readDeclAs<NonTypeTemplateParmDecl>(), D);
+    }
   }
 }
 
@@ -2275,9 +2294,16 @@ void ASTDeclReader::VisitTemplateTemplateParmDecl(TemplateTemplateParmDecl *D) {
   } else {
     // Rest of TemplateTemplateParmDecl.
     D->ParameterPack = Record.readInt();
+
     if (Record.readInt())
       D->setDefaultArgument(Reader.getContext(),
                             Record.readTemplateArgumentLoc());
+
+    if (Record.readInt()) {
+      inheritDefaultTemplateArgument(
+          Reader.getContext(), Record.readDeclAs<TemplateTemplateParmDecl>(),
+          D);
+    }
   }
 }
 
@@ -3256,12 +3282,20 @@ void ASTDeclReader::attachPreviousDeclImpl(ASTReader &Reader, ...) {
 
 /// Inherit the default template argument from \p From to \p To. Returns
 /// \c false if there is no default template for \p From.
+/// It is an error to call this method more than once on \p To, with differing
+/// \p From decls.
 template <typename ParmDecl>
 static bool inheritDefaultTemplateArgument(ASTContext &Context, ParmDecl *From,
                                            Decl *ToD) {
   auto *To = cast<ParmDecl>(ToD);
   if (!From->hasDefaultArgument())
     return false;
+  auto const &DA = To->getDefaultArgStorage();
+  if (DA.isSet() && DA.isInherited()) {
+    assert(DA.getInheritedFrom() == From &&
+           "template arg already inherits from a different decl");
+    return true;
+  }
   To->setInheritedDefaultArgument(Context, From);
   return true;
 }

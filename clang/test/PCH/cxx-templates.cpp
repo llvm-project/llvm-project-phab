@@ -116,3 +116,14 @@ namespace MemberSpecializationLocation {
 #endif
   int k = A<int>::n;
 }
+
+// https://bugs.llvm.org/show_bug.cgi?id=34728
+namespace PR34728 {
+int test() {
+  int z1 = func1(2.718);
+  int z2 = func2(3.142);
+  int z3 = 12;
+  Container<int> c = func3(z3);
+  return z1 + z2 + c.item;
+}
+} // end namespace PR34728
