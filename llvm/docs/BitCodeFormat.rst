@@ -1039,6 +1039,7 @@ The integer codes are mapped to well-known attributes as follows.
 * code 50: ``inaccessiblememonly_or_argmemonly``
 * code 51: ``allocsize(<EltSizeParam>[, <NumEltsParam>])``
 * code 52: ``writeonly``
+* code 55: ``pagerando``
 
 .. note::
   The ``allocsize`` attribute has a special encoding for its arguments. Its two
