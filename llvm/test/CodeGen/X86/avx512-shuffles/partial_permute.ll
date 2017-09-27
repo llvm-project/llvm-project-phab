@@ -6,7 +6,8 @@
 define <8 x i16> @test_16xi16_to_8xi16_perm_mask0(<16 x i16> %vec) {
 ; CHECK-LABEL: test_16xi16_to_8xi16_perm_mask0:
 ; CHECK:       # BB#0:
-; CHECK-NEXT:    vpshufb {{.*#+}} xmm1 = xmm0[8,9,12,13,12,13,8,9,14,15,10,11,12,13,14,15]
+; CHECK-NEXT:    vpshufhw {{.*#+}} xmm1 = xmm0[0,1,2,3,7,6,6,4]
+; CHECK-NEXT:    vpshufd {{.*#+}} xmm1 = xmm1[2,3,2,3]
 ; CHECK-NEXT:    vextracti128 $1, %ymm0, %xmm0
 ; CHECK-NEXT:    vpshufd {{.*#+}} xmm0 = xmm0[0,2,0,3]
 ; CHECK-NEXT:    vpshufhw {{.*#+}} xmm0 = xmm0[0,1,2,3,4,5,6,4]
@@ -19,7 +20,8 @@ define <8 x i16> @test_16xi16_to_8xi16_perm_mask0(<16 x i16> %vec) {
 define <8 x i16> @test_masked_16xi16_to_8xi16_perm_mask0(<16 x i16> %vec, <8 x i16> %vec2) {
 ; CHECK-LABEL: test_masked_16xi16_to_8xi16_perm_mask0:
 ; CHECK:       # BB#0:
-; CHECK-NEXT:    vpshufb {{.*#+}} xmm2 = xmm0[8,9,12,13,12,13,8,9,14,15,10,11,12,13,14,15]
+; CHECK-NEXT:    vpshufhw {{.*#+}} xmm2 = xmm0[0,1,2,3,7,6,6,4]
+; CHECK-NEXT:    vpshufd {{.*#+}} xmm2 = xmm2[2,3,2,3]
 ; CHECK-NEXT:    vextracti128 $1, %ymm0, %xmm0
 ; CHECK-NEXT:    vpshufd {{.*#+}} xmm0 = xmm0[0,2,0,3]
 ; CHECK-NEXT:    vpshufhw {{.*#+}} xmm0 = xmm0[0,1,2,3,4,5,6,4]
@@ -37,7 +39,8 @@ define <8 x i16> @test_masked_16xi16_to_8xi16_perm_mask0(<16 x i16> %vec, <8 x i
 define <8 x i16> @test_masked_z_16xi16_to_8xi16_perm_mask0(<16 x i16> %vec) {
 ; CHECK-LABEL: test_masked_z_16xi16_to_8xi16_perm_mask0:
 ; CHECK:       # BB#0:
-; CHECK-NEXT:    vpshufb {{.*#+}} xmm1 = xmm0[8,9,12,13,12,13,8,9,14,15,10,11,12,13,14,15]
+; CHECK-NEXT:    vpshufhw {{.*#+}} xmm1 = xmm0[0,1,2,3,7,6,6,4]
+; CHECK-NEXT:    vpshufd {{.*#+}} xmm1 = xmm1[2,3,2,3]
 ; CHECK-NEXT:    vextracti128 $1, %ymm0, %xmm0
 ; CHECK-NEXT:    vpshufd {{.*#+}} xmm0 = xmm0[0,2,0,3]
 ; CHECK-NEXT:    vpshufhw {{.*#+}} xmm0 = xmm0[0,1,2,3,4,5,6,4]
@@ -56,8 +59,8 @@ define <8 x i16> @test_masked_16xi16_to_8xi16_perm_mask1(<16 x i16> %vec, <8 x i
 ; CHECK:       # BB#0:
 ; CHECK-NEXT:    vextracti128 $1, %ymm0, %xmm2
 ; CHECK-NEXT:    vpshufb {{.*#+}} xmm2 = xmm2[0,1,8,9,2,3,10,11,12,13,14,15,8,9,12,13]
-; CHECK-NEXT:    vpshufd {{.*#+}} xmm0 = xmm0[2,1,2,3]
-; CHECK-NEXT:    vpshuflw {{.*#+}} xmm0 = xmm0[0,1,2,0,4,5,6,7]
+; CHECK-NEXT:    vpshufhw {{.*#+}} xmm0 = xmm0[0,1,2,3,4,4,6,7]
+; CHECK-NEXT:    vpshufd {{.*#+}} xmm0 = xmm0[2,2,2,3]
 ; CHECK-NEXT:    vpblendw {{.*#+}} xmm0 = xmm0[0],xmm2[1,2],xmm0[3],xmm2[4,5,6,7]
 ; CHECK-NEXT:    movb $-63, %al
 ; CHECK-NEXT:    kmovd %eax, %k1
@@ -74,8 +77,8 @@ define <8 x i16> @test_masked_z_16xi16_to_8xi16_perm_mask1(<16 x i16> %vec) {
 ; CHECK:       # BB#0:
 ; CHECK-NEXT:    vextracti128 $1, %ymm0, %xmm1
 ; CHECK-NEXT:    vpshufb {{.*#+}} xmm1 = xmm1[0,1,8,9,2,3,10,11,12,13,14,15,8,9,12,13]
-; CHECK-NEXT:    vpshufd {{.*#+}} xmm0 = xmm0[2,1,2,3]
-; CHECK-NEXT:    vpshuflw {{.*#+}} xmm0 = xmm0[0,1,2,0,4,5,6,7]
+; CHECK-NEXT:    vpshufhw {{.*#+}} xmm0 = xmm0[0,1,2,3,4,4,6,7]
+; CHECK-NEXT:    vpshufd {{.*#+}} xmm0 = xmm0[2,2,2,3]
 ; CHECK-NEXT:    vpblendw {{.*#+}} xmm0 = xmm0[0],xmm1[1,2],xmm0[3],xmm1[4,5,6,7]
 ; CHECK-NEXT:    movb $-63, %al
 ; CHECK-NEXT:    kmovd %eax, %k1
