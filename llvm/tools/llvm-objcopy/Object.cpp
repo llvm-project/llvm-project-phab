@@ -582,14 +582,20 @@ void Object<ELFT>::writeHeader(FileOutputBuffer &Out) const {
   Ehdr.e_version = Version;
   Ehdr.e_entry = Entry;
   Ehdr.e_phoff = sizeof(Elf_Ehdr);
-  Ehdr.e_shoff = SHOffset;
   Ehdr.e_flags = Flags;
   Ehdr.e_ehsize = sizeof(Elf_Ehdr);
   Ehdr.e_phentsize = sizeof(Elf_Phdr);
   Ehdr.e_phnum = Segments.size();
   Ehdr.e_shentsize = sizeof(Elf_Shdr);
-  Ehdr.e_shnum = Sections.size() + 1;
-  Ehdr.e_shstrndx = SectionNames->Index;
+  if (SectionNames != nullptr) {
+    Ehdr.e_shoff = SHOffset;
+    Ehdr.e_shnum = Sections.size() + 1;
+    Ehdr.e_shstrndx = SectionNames->Index;
+  } else {
+    Ehdr.e_shoff = 0;
+    Ehdr.e_shnum = 0;
+    Ehdr.e_shstrndx = 0;
+  }
 }
 
 template <class ELFT>
@@ -621,8 +627,19 @@ void Object<ELFT>::writeSectionHeaders(FileOutputBuffer &Out) const {
 
 template <class ELFT>
 void Object<ELFT>::writeSectionData(FileOutputBuffer &Out) const {
-  for (auto &Section : Sections)
-    Section->writeSection(Out);
+  // First write segment data that needs to be loaded
+  for (auto &Segment : this->Segments) {
+    if (Segment->Type == llvm::ELF::PT_LOAD) {
+      Segment->writeSegment(Out);
+    }
+  }
+  for (auto &Section : Sections) {
+    // Since we already write PT_LOAD segment data before this we don't need to
+    // write the data a second time.
+    if (Section->ParentSegment == nullptr ||
+        Section->ParentSegment->Type != PT_LOAD)
+      Section->writeSection(Out);
+  }
 }
 
 template <class ELFT>
@@ -637,7 +654,20 @@ void Object<ELFT>::removeSections(
         if (auto RelSec = dyn_cast<RelocationSectionBase>(Sec.get()))
           return !ToRemove(*RelSec->getSection());
         return true;
-  });
+      });
+  // The Object type maintains some references to certian special sections. We
+  // can remove those as well though and the output should still be sensible.
+  if (ToRemove(*SymbolTable))
+    SymbolTable = nullptr;
+  if (ToRemove(*SectionNames)) {
+    // It only makes sense to remove the section header names if we also remove
+    // all sections.
+    if (Iter != Sections.begin())
+      error("Cannot remove " + SectionNames->Name +
+            " because it is the section header string table and some sections"
+            " are being left in the section header table");
+    SectionNames = nullptr;
+  }
   // Now make sure there are no remaining references to the sections that will
   // be removed. Sometimes it is impossible to remove a reference so we emit
   // an error here instead.
@@ -737,30 +767,35 @@ template <class ELFT> void ELFObject<ELFT>::assignOffsets() {
 template <class ELFT> size_t ELFObject<ELFT>::totalSize() const {
   // We already have the section header offset so we can calculate the total
   // size by just adding up the size of each section header.
+  auto NullSectionSize = this->SectionNames != nullptr ? sizeof(Elf_Shdr) : 0;
   return this->SHOffset + this->Sections.size() * sizeof(Elf_Shdr) +
-         sizeof(Elf_Shdr);
+         NullSectionSize;
 }
 
 template <class ELFT> void ELFObject<ELFT>::write(FileOutputBuffer &Out) const {
   this->writeHeader(Out);
   this->writeProgramHeaders(Out);
   this->writeSectionData(Out);
-  this->writeSectionHeaders(Out);
+  if (this->SectionNames != nullptr)
+    this->writeSectionHeaders(Out);
 }
 
 template <class ELFT> void ELFObject<ELFT>::finalize() {
   // Make sure we add the names of all the sections.
-  for (const auto &Section : this->Sections) {
-    this->SectionNames->addString(Section->Name);
-  }
+  if (this->SectionNames != nullptr)
+    for (const auto &Section : this->Sections) {
+      this->SectionNames->addString(Section->Name);
+    }
   // Make sure we add the names of all the symbols.
-  this->SymbolTable->addSymbolNames();
+  if (this->SymbolTable != nullptr)
+    this->SymbolTable->addSymbolNames();
 
   sortSections();
   assignOffsets();
 
   // Finalize SectionNames first so that we can assign name indexes.
-  this->SectionNames->finalize();
+  if (this->SectionNames != nullptr)
+    this->SectionNames->finalize();
   // Finally now that all offsets and indexes have been set we can finalize any
   // remaining issues.
   uint64_t Offset = this->SHOffset + sizeof(Elf_Shdr);
