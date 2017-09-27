@@ -30,9 +30,9 @@ namespace {
     }
 
     void EmitCommonSymbol(MCSymbol *Symbol, uint64_t Size,
-                          unsigned ByteAlignment) override {}
+                          uint64_t ByteAlignment) override {}
     void EmitZerofill(MCSection *Section, MCSymbol *Symbol = nullptr,
-                      uint64_t Size = 0, unsigned ByteAlignment = 0) override {}
+                      uint64_t Size = 0, uint64_t ByteAlignment = 0) override {}
     void EmitGPRel32Value(const MCExpr *Value) override {}
     void BeginCOFFSymbolDef(const MCSymbol *Symbol) override {}
     void EmitCOFFSymbolStorageClass(int StorageClass) override {}

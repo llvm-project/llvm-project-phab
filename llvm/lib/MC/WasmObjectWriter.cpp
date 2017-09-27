@@ -282,7 +282,7 @@ private:
   void writeDataRelocSection();
   void writeLinkingMetaDataSection(
       ArrayRef<WasmDataSegment> Segments, uint32_t DataSize,
-      uint32_t DataAlignment,
+      uint64_t DataAlignment,
       SmallVector<std::pair<StringRef, uint32_t>, 4> SymbolFlags,
       bool HasStackPointer, uint32_t StackPointerGlobal);
 
@@ -499,7 +499,7 @@ WasmObjectWriter::getProvisionalValue(const WasmRelocationEntry &RelEntry) {
 }
 
 static void addData(SmallVectorImpl<char> &DataBytes,
-                    MCSectionWasm &DataSection, uint32_t &DataAlignment) {
+                    MCSectionWasm &DataSection, uint64_t &DataAlignment) {
   DataBytes.resize(alignTo(DataBytes.size(), DataSection.getAlignment()));
   DataAlignment = std::max(DataAlignment, DataSection.getAlignment());
   DEBUG(errs() << "addData: " << DataSection.getSectionName() << "\n");
@@ -914,7 +914,7 @@ void WasmObjectWriter::writeDataRelocSection() {
 
 void WasmObjectWriter::writeLinkingMetaDataSection(
     ArrayRef<WasmDataSegment> Segments, uint32_t DataSize,
-    uint32_t DataAlignment,
+    uint64_t DataAlignment,
     SmallVector<std::pair<StringRef, uint32_t>, 4> SymbolFlags,
     bool HasStackPointer, uint32_t StackPointerGlobal) {
   SectionBookkeeping Section;
@@ -998,7 +998,7 @@ void WasmObjectWriter::writeObject(MCAssembler &Asm,
   SmallPtrSet<const MCSymbolWasm *, 4> IsAddressTaken;
   unsigned NumFuncImports = 0;
   SmallVector<WasmDataSegment, 4> DataSegments;
-  uint32_t DataAlignment = 1;
+  uint64_t DataAlignment = 1;
   uint32_t StackPointerGlobal = 0;
   uint32_t DataSize = 0;
   bool HasStackPointer = false;

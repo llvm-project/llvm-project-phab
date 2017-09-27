@@ -155,7 +155,7 @@ class ELFObjectWriter : public MCObjectWriter {
     return TargetObjectWriter->getRelocType(Ctx, Target, Fixup, IsPCRel);
   }
 
-  void align(unsigned Alignment);
+  void align(uint64_t Alignment);
 
   bool maybeWriteCompression(uint64_t Size,
                              SmallVectorImpl<char> &CompressedContents,
@@ -257,7 +257,7 @@ public:
 
 } // end anonymous namespace
 
-void ELFObjectWriter::align(unsigned Alignment) {
+void ELFObjectWriter::align(uint64_t Alignment) {
   uint64_t Padding = OffsetToAlignment(getStream().tell(), Alignment);
   WriteZeros(Padding);
 }

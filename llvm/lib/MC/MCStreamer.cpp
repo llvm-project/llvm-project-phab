@@ -837,9 +837,9 @@ void MCStreamer::emitELFSize(MCSymbol *Symbol, const MCExpr *Value) {}
 void MCStreamer::emitELFSymverDirective(MCSymbol *Alias,
                                         const MCSymbol *Aliasee) {}
 void MCStreamer::EmitLocalCommonSymbol(MCSymbol *Symbol, uint64_t Size,
-                                       unsigned ByteAlignment) {}
+                                       uint64_t ByteAlignment) {}
 void MCStreamer::EmitTBSSSymbol(MCSection *Section, MCSymbol *Symbol,
-                                uint64_t Size, unsigned ByteAlignment) {}
+                                uint64_t Size, uint64_t ByteAlignment) {}
 void MCStreamer::ChangeSection(MCSection *, const MCExpr *) {}
 void MCStreamer::EmitWeakReference(MCSymbol *Alias, const MCSymbol *Symbol) {}
 void MCStreamer::EmitBytes(StringRef Data) {}
@@ -852,11 +852,11 @@ void MCStreamer::EmitSLEB128Value(const MCExpr *Value) {}
 void MCStreamer::emitFill(const MCExpr &NumBytes, uint64_t Value, SMLoc Loc) {}
 void MCStreamer::emitFill(const MCExpr &NumValues, int64_t Size, int64_t Expr,
                           SMLoc Loc) {}
-void MCStreamer::EmitValueToAlignment(unsigned ByteAlignment, int64_t Value,
+void MCStreamer::EmitValueToAlignment(uint64_t ByteAlignment, int64_t Value,
                                       unsigned ValueSize,
-                                      unsigned MaxBytesToEmit) {}
-void MCStreamer::EmitCodeAlignment(unsigned ByteAlignment,
-                                   unsigned MaxBytesToEmit) {}
+                                      uint64_t MaxBytesToEmit) {}
+void MCStreamer::EmitCodeAlignment(uint64_t ByteAlignment,
+                                   uint64_t MaxBytesToEmit) {}
 void MCStreamer::emitValueToOffset(const MCExpr *Offset, unsigned char Value,
                                    SMLoc Loc) {}
 void MCStreamer::EmitBundleAlignMode(unsigned AlignPow2) {}

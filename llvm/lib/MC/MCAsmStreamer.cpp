@@ -156,7 +156,7 @@ public:
   void EmitCOFFSecRel32(MCSymbol const *Symbol, uint64_t Offset) override;
   void emitELFSize(MCSymbol *Symbol, const MCExpr *Value) override;
   void EmitCommonSymbol(MCSymbol *Symbol, uint64_t Size,
-                        unsigned ByteAlignment) override;
+                        uint64_t ByteAlignment) override;
 
   /// EmitLocalCommonSymbol - Emit a local common (.lcomm) symbol.
   ///
@@ -164,13 +164,13 @@ public:
   /// @param Size - The size of the common symbol.
   /// @param ByteAlignment - The alignment of the common symbol in bytes.
   void EmitLocalCommonSymbol(MCSymbol *Symbol, uint64_t Size,
-                             unsigned ByteAlignment) override;
+                             uint64_t ByteAlignment) override;
 
   void EmitZerofill(MCSection *Section, MCSymbol *Symbol = nullptr,
-                    uint64_t Size = 0, unsigned ByteAlignment = 0) override;
+                    uint64_t Size = 0, uint64_t ByteAlignment = 0) override;
 
   void EmitTBSSSymbol(MCSection *Section, MCSymbol *Symbol, uint64_t Size,
-                      unsigned ByteAlignment = 0) override;
+                      uint64_t ByteAlignment = 0) override;
 
   void EmitBinaryData(StringRef Data) override;
 
@@ -204,12 +204,12 @@ public:
   void emitFill(const MCExpr &NumValues, int64_t Size, int64_t Expr,
                 SMLoc Loc = SMLoc()) override;
 
-  void EmitValueToAlignment(unsigned ByteAlignment, int64_t Value = 0,
+  void EmitValueToAlignment(uint64_t ByteAlignment, int64_t Value = 0,
                             unsigned ValueSize = 1,
-                            unsigned MaxBytesToEmit = 0) override;
+                            uint64_t MaxBytesToEmit = 0) override;
 
-  void EmitCodeAlignment(unsigned ByteAlignment,
-                         unsigned MaxBytesToEmit = 0) override;
+  void EmitCodeAlignment(uint64_t ByteAlignment,
+                         uint64_t MaxBytesToEmit = 0) override;
 
   void emitValueToOffset(const MCExpr *Offset,
                          unsigned char Value,
@@ -644,7 +644,7 @@ void MCAsmStreamer::emitELFSize(MCSymbol *Symbol, const MCExpr *Value) {
 }
 
 void MCAsmStreamer::EmitCommonSymbol(MCSymbol *Symbol, uint64_t Size,
-                                     unsigned ByteAlignment) {
+                                     uint64_t ByteAlignment) {
   OS << "\t.comm\t";
   Symbol->print(OS, MAI);
   OS << ',' << Size;
@@ -663,7 +663,7 @@ void MCAsmStreamer::EmitCommonSymbol(MCSymbol *Symbol, uint64_t Size,
 /// @param Symbol - The common symbol to emit.
 /// @param Size - The size of the common symbol.
 void MCAsmStreamer::EmitLocalCommonSymbol(MCSymbol *Symbol, uint64_t Size,
-                                          unsigned ByteAlign) {
+                                          uint64_t ByteAlign) {
   OS << "\t.lcomm\t";
   Symbol->print(OS, MAI);
   OS << ',' << Size;
@@ -685,7 +685,7 @@ void MCAsmStreamer::EmitLocalCommonSymbol(MCSymbol *Symbol, uint64_t Size,
 }
 
 void MCAsmStreamer::EmitZerofill(MCSection *Section, MCSymbol *Symbol,
-                                 uint64_t Size, unsigned ByteAlignment) {
+                                 uint64_t Size, uint64_t ByteAlignment) {
   if (Symbol)
     AssignFragment(Symbol, &Section->getDummyFragment());
 
@@ -710,7 +710,7 @@ void MCAsmStreamer::EmitZerofill(MCSection *Section, MCSymbol *Symbol,
 // This depends that the symbol has already been mangled from the original,
 // e.g. _a.
 void MCAsmStreamer::EmitTBSSSymbol(MCSection *Section, MCSymbol *Symbol,
-                                   uint64_t Size, unsigned ByteAlignment) {
+                                   uint64_t Size, uint64_t ByteAlignment) {
   AssignFragment(Symbol, &Section->getDummyFragment());
 
   assert(Symbol && "Symbol shouldn't be NULL!");
@@ -965,9 +965,9 @@ void MCAsmStreamer::emitFill(const MCExpr &NumValues, int64_t Size,
   EmitEOL();
 }
 
-void MCAsmStreamer::EmitValueToAlignment(unsigned ByteAlignment, int64_t Value,
+void MCAsmStreamer::EmitValueToAlignment(uint64_t ByteAlignment, int64_t Value,
                                          unsigned ValueSize,
-                                         unsigned MaxBytesToEmit) {
+                                         uint64_t MaxBytesToEmit) {
   // Some assemblers don't support non-power of two alignments, so we always
   // emit alignments as a power of two if possible.
   if (isPowerOf2_32(ByteAlignment)) {
@@ -1017,8 +1017,8 @@ void MCAsmStreamer::EmitValueToAlignment(unsigned ByteAlignment, int64_t Value,
   EmitEOL();
 }
 
-void MCAsmStreamer::EmitCodeAlignment(unsigned ByteAlignment,
-                                      unsigned MaxBytesToEmit) {
+void MCAsmStreamer::EmitCodeAlignment(uint64_t ByteAlignment,
+                                      uint64_t MaxBytesToEmit) {
   // Emit with a text fill value.
   EmitValueToAlignment(ByteAlignment, MAI->getTextAlignFillValue(),
                        1, MaxBytesToEmit);

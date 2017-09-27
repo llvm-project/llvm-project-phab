@@ -776,9 +776,9 @@ void MipsTargetELFStreamer::finish() {
   MCSection &BSSSection = *OFI.getBSSSection();
   MCA.registerSection(BSSSection);
 
-  TextSection.setAlignment(std::max(16u, TextSection.getAlignment()));
-  DataSection.setAlignment(std::max(16u, DataSection.getAlignment()));
-  BSSSection.setAlignment(std::max(16u, BSSSection.getAlignment()));
+  TextSection.setAlignment(std::max((uint64_t)16u, TextSection.getAlignment()));
+  DataSection.setAlignment(std::max((uint64_t)16u, DataSection.getAlignment()));
+  BSSSection.setAlignment(std::max((uint64_t)16u, BSSSection.getAlignment()));
 
   if (RoundSectionSizes) {
     // Make sections sizes a multiple of the alignment. This is useful for

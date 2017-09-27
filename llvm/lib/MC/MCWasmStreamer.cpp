@@ -129,7 +129,7 @@ bool MCWasmStreamer::EmitSymbolAttribute(MCSymbol *S, MCSymbolAttr Attribute) {
 }
 
 void MCWasmStreamer::EmitCommonSymbol(MCSymbol *S, uint64_t Size,
-                                      unsigned ByteAlignment) {
+                                      uint64_t ByteAlignment) {
   llvm_unreachable("Common symbols are not yet implemented for Wasm");
 }
 
@@ -138,7 +138,7 @@ void MCWasmStreamer::emitELFSize(MCSymbol *Symbol, const MCExpr *Value) {
 }
 
 void MCWasmStreamer::EmitLocalCommonSymbol(MCSymbol *S, uint64_t Size,
-                                           unsigned ByteAlignment) {
+                                           uint64_t ByteAlignment) {
   llvm_unreachable("Local common symbols are not yet implemented for Wasm");
 }
 
@@ -147,9 +147,9 @@ void MCWasmStreamer::EmitValueImpl(const MCExpr *Value, unsigned Size,
   MCObjectStreamer::EmitValueImpl(Value, Size, Loc);
 }
 
-void MCWasmStreamer::EmitValueToAlignment(unsigned ByteAlignment, int64_t Value,
+void MCWasmStreamer::EmitValueToAlignment(uint64_t ByteAlignment, int64_t Value,
                                           unsigned ValueSize,
-                                          unsigned MaxBytesToEmit) {
+                                          uint64_t MaxBytesToEmit) {
   MCObjectStreamer::EmitValueToAlignment(ByteAlignment, Value, ValueSize,
                                          MaxBytesToEmit);
 }
@@ -218,11 +218,11 @@ void MCWasmStreamer::EmitSymbolDesc(MCSymbol *Symbol, unsigned DescValue) {
 }
 
 void MCWasmStreamer::EmitZerofill(MCSection *Section, MCSymbol *Symbol,
-                                  uint64_t Size, unsigned ByteAlignment) {
+                                  uint64_t Size, uint64_t ByteAlignment) {
   llvm_unreachable("Wasm doesn't support this directive");
 }
 
 void MCWasmStreamer::EmitTBSSSymbol(MCSection *Section, MCSymbol *Symbol,
-                                    uint64_t Size, unsigned ByteAlignment) {
+                                    uint64_t Size, uint64_t ByteAlignment) {
   llvm_unreachable("Wasm doesn't support this directive");
 }

@@ -109,11 +109,11 @@ public:
   void EmitBundleLock(bool AlignToEnd) override;
   void EmitBundleUnlock() override;
   void EmitBytes(StringRef Data) override;
-  void EmitValueToAlignment(unsigned ByteAlignment, int64_t Value = 0,
+  void EmitValueToAlignment(uint64_t ByteAlignment, int64_t Value = 0,
                             unsigned ValueSize = 1,
-                            unsigned MaxBytesToEmit = 0) override;
-  void EmitCodeAlignment(unsigned ByteAlignment,
-                         unsigned MaxBytesToEmit = 0) override;
+                            uint64_t MaxBytesToEmit = 0) override;
+  void EmitCodeAlignment(uint64_t ByteAlignment,
+                         uint64_t MaxBytesToEmit = 0) override;
   void emitValueToOffset(const MCExpr *Offset, unsigned char Value,
                          SMLoc Loc) override;
   void EmitDwarfLocDirective(unsigned FileNo, unsigned Line,

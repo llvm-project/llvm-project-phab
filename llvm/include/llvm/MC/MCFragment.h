@@ -278,7 +278,7 @@ public:
 
 class MCAlignFragment : public MCFragment {
   /// Alignment - The alignment to ensure, in bytes.
-  unsigned Alignment;
+  uint64_t Alignment;
 
   /// EmitNops - Flag to indicate that (optimal) NOPs should be emitted instead
   /// of using the provided value. The exact interpretation of this flag is
@@ -293,25 +293,25 @@ class MCAlignFragment : public MCFragment {
 
   /// MaxBytesToEmit - The maximum number of bytes to emit; if the alignment
   /// cannot be satisfied in this width then this fragment is ignored.
-  unsigned MaxBytesToEmit;
+  uint64_t MaxBytesToEmit;
 
 public:
-  MCAlignFragment(unsigned Alignment, int64_t Value, unsigned ValueSize,
-                  unsigned MaxBytesToEmit, MCSection *Sec = nullptr)
+  MCAlignFragment(uint64_t Alignment, int64_t Value, unsigned ValueSize,
+                  uint64_t MaxBytesToEmit, MCSection *Sec = nullptr)
       : MCFragment(FT_Align, false, 0, Sec), Alignment(Alignment),
-        EmitNops(false), Value(Value),
-        ValueSize(ValueSize), MaxBytesToEmit(MaxBytesToEmit) {}
+        EmitNops(false), Value(Value), ValueSize(ValueSize),
+        MaxBytesToEmit(MaxBytesToEmit) {}
 
   /// \name Accessors
   /// @{
 
-  unsigned getAlignment() const { return Alignment; }
+  uint64_t getAlignment() const { return Alignment; }
 
   int64_t getValue() const { return Value; }
 
   unsigned getValueSize() const { return ValueSize; }
 
-  unsigned getMaxBytesToEmit() const { return MaxBytesToEmit; }
+  uint64_t getMaxBytesToEmit() const { return MaxBytesToEmit; }
 
   bool hasEmitNops() const { return EmitNops; }
   void setEmitNops(bool Value) { EmitNops = Value; }

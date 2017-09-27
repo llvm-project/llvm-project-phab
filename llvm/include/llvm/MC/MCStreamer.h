@@ -509,7 +509,7 @@ public:
   /// \param ByteAlignment - The alignment of the symbol if
   /// non-zero. This must be a power of 2.
   virtual void EmitCommonSymbol(MCSymbol *Symbol, uint64_t Size,
-                                unsigned ByteAlignment) = 0;
+                                uint64_t ByteAlignment) = 0;
 
   /// \brief Emit a local common (.lcomm) symbol.
   ///
@@ -517,7 +517,7 @@ public:
   /// \param Size - The size of the common symbol.
   /// \param ByteAlignment - The alignment of the common symbol in bytes.
   virtual void EmitLocalCommonSymbol(MCSymbol *Symbol, uint64_t Size,
-                                     unsigned ByteAlignment);
+                                     uint64_t ByteAlignment);
 
   /// \brief Emit the zerofill section and an optional symbol.
   ///
@@ -527,7 +527,7 @@ public:
   /// \param ByteAlignment - The alignment of the zerofill symbol if
   /// non-zero. This must be a power of 2 on some targets.
   virtual void EmitZerofill(MCSection *Section, MCSymbol *Symbol = nullptr,
-                            uint64_t Size = 0, unsigned ByteAlignment = 0) = 0;
+                            uint64_t Size = 0, uint64_t ByteAlignment = 0) = 0;
 
   /// \brief Emit a thread local bss (.tbss) symbol.
   ///
@@ -537,7 +537,7 @@ public:
   /// \param ByteAlignment - The alignment of the thread local common symbol
   /// if non-zero.  This must be a power of 2 on some targets.
   virtual void EmitTBSSSymbol(MCSection *Section, MCSymbol *Symbol,
-                              uint64_t Size, unsigned ByteAlignment = 0);
+                              uint64_t Size, uint64_t ByteAlignment = 0);
 
   /// @}
   /// \name Generating Data
@@ -682,9 +682,9 @@ public:
   /// \param MaxBytesToEmit - The maximum numbers of bytes to emit, or 0. If
   /// the alignment cannot be reached in this many bytes, no bytes are
   /// emitted.
-  virtual void EmitValueToAlignment(unsigned ByteAlignment, int64_t Value = 0,
+  virtual void EmitValueToAlignment(uint64_t ByteAlignment, int64_t Value = 0,
                                     unsigned ValueSize = 1,
-                                    unsigned MaxBytesToEmit = 0);
+                                    uint64_t MaxBytesToEmit = 0);
 
   /// \brief Emit nops until the byte alignment \p ByteAlignment is reached.
   ///
@@ -696,8 +696,8 @@ public:
   /// \param MaxBytesToEmit - The maximum numbers of bytes to emit, or 0. If
   /// the alignment cannot be reached in this many bytes, no bytes are
   /// emitted.
-  virtual void EmitCodeAlignment(unsigned ByteAlignment,
-                                 unsigned MaxBytesToEmit = 0);
+  virtual void EmitCodeAlignment(uint64_t ByteAlignment,
+                                 uint64_t MaxBytesToEmit = 0);
 
   /// \brief Emit some number of copies of \p Value until the byte offset \p
   /// Offset is reached.

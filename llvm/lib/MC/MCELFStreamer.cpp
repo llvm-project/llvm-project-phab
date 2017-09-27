@@ -290,7 +290,7 @@ bool MCELFStreamer::EmitSymbolAttribute(MCSymbol *S, MCSymbolAttr Attribute) {
 }
 
 void MCELFStreamer::EmitCommonSymbol(MCSymbol *S, uint64_t Size,
-                                     unsigned ByteAlignment) {
+                                     uint64_t ByteAlignment) {
   auto *Symbol = cast<MCSymbolELF>(S);
   getAssembler().registerSymbol(*Symbol);
 
@@ -331,7 +331,7 @@ void MCELFStreamer::emitELFSize(MCSymbol *Symbol, const MCExpr *Value) {
 }
 
 void MCELFStreamer::EmitLocalCommonSymbol(MCSymbol *S, uint64_t Size,
-                                          unsigned ByteAlignment) {
+                                          uint64_t ByteAlignment) {
   auto *Symbol = cast<MCSymbolELF>(S);
   // FIXME: Should this be caught and done earlier?
   getAssembler().registerSymbol(*Symbol);
@@ -348,10 +348,9 @@ void MCELFStreamer::EmitValueImpl(const MCExpr *Value, unsigned Size,
   MCObjectStreamer::EmitValueImpl(Value, Size, Loc);
 }
 
-void MCELFStreamer::EmitValueToAlignment(unsigned ByteAlignment,
-                                         int64_t Value,
+void MCELFStreamer::EmitValueToAlignment(uint64_t ByteAlignment, int64_t Value,
                                          unsigned ValueSize,
-                                         unsigned MaxBytesToEmit) {
+                                         uint64_t MaxBytesToEmit) {
   if (isBundleLocked())
     report_fatal_error("Emitting values inside a locked bundle is forbidden");
   MCObjectStreamer::EmitValueToAlignment(ByteAlignment, Value,
@@ -629,12 +628,12 @@ void MCELFStreamer::EmitSymbolDesc(MCSymbol *Symbol, unsigned DescValue) {
 }
 
 void MCELFStreamer::EmitZerofill(MCSection *Section, MCSymbol *Symbol,
-                                 uint64_t Size, unsigned ByteAlignment) {
+                                 uint64_t Size, uint64_t ByteAlignment) {
   llvm_unreachable("ELF doesn't support this directive");
 }
 
 void MCELFStreamer::EmitTBSSSymbol(MCSection *Section, MCSymbol *Symbol,
-                                   uint64_t Size, unsigned ByteAlignment) {
+                                   uint64_t Size, uint64_t ByteAlignment) {
   llvm_unreachable("ELF doesn't support this directive");
 }
 

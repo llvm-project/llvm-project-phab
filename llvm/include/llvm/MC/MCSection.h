@@ -59,7 +59,7 @@ private:
   MCSymbol *Begin;
   MCSymbol *End = nullptr;
   /// The alignment requirement of this section.
-  unsigned Alignment = 1;
+  uint64_t Alignment = 1;
   /// The section index in the assemblers section list.
   unsigned Ordinal = 0;
   /// The index of this section in the layout order.
@@ -114,8 +114,8 @@ public:
   MCSymbol *getEndSymbol(MCContext &Ctx);
   bool hasEnded() const;
 
-  unsigned getAlignment() const { return Alignment; }
-  void setAlignment(unsigned Value) { Alignment = Value; }
+  uint64_t getAlignment() const { return Alignment; }
+  void setAlignment(uint64_t Value) { Alignment = Value; }
 
   unsigned getOrdinal() const { return Ordinal; }
   void setOrdinal(unsigned Value) { Ordinal = Value; }

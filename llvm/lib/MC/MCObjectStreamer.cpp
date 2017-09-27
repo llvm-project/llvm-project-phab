@@ -438,10 +438,9 @@ void MCObjectStreamer::EmitBytes(StringRef Data) {
   DF->getContents().append(Data.begin(), Data.end());
 }
 
-void MCObjectStreamer::EmitValueToAlignment(unsigned ByteAlignment,
-                                            int64_t Value,
-                                            unsigned ValueSize,
-                                            unsigned MaxBytesToEmit) {
+void MCObjectStreamer::EmitValueToAlignment(uint64_t ByteAlignment,
+                                            int64_t Value, unsigned ValueSize,
+                                            uint64_t MaxBytesToEmit) {
   if (MaxBytesToEmit == 0)
     MaxBytesToEmit = ByteAlignment;
   insert(new MCAlignFragment(ByteAlignment, Value, ValueSize, MaxBytesToEmit));
@@ -452,8 +451,8 @@ void MCObjectStreamer::EmitValueToAlignment(unsigned ByteAlignment,
     CurSec->setAlignment(ByteAlignment);
 }
 
-void MCObjectStreamer::EmitCodeAlignment(unsigned ByteAlignment,
-                                         unsigned MaxBytesToEmit) {
+void MCObjectStreamer::EmitCodeAlignment(uint64_t ByteAlignment,
+                                         uint64_t MaxBytesToEmit) {
   EmitValueToAlignment(ByteAlignment, 0, 1, MaxBytesToEmit);
   cast<MCAlignFragment>(getCurrentFragment())->setEmitNops(true);
 }
