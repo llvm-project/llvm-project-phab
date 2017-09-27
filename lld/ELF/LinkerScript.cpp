@@ -624,6 +624,11 @@ void LinkerScript::assignOffsets(OutputSection *Sec) {
   if (CurAddressState->OutSec->Flags & SHF_COMPRESSED)
     return;
 
+  // The Size was previously calculated for compressed debug sections. We now
+  // reset it, because unused synthetic sections may have since been removed,
+  // leaving the Size invalid.
+  Sec->Size = 0;
+
   for (BaseCommand *C : Sec->Commands)
     process(*C);
 }
