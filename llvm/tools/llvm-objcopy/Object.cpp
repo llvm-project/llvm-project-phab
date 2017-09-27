@@ -301,11 +301,9 @@ bool SectionWithStrTab::classof(const SectionBase *S) {
 }
 
 void SectionWithStrTab::initialize(SectionTableRef SecTable) {
-  setStrTab(SecTable.getSectionOfType<StringTableSection>(
-      Link,
-      "Link field value " + Twine(Link) + " in section " + Name + " is invalid",
-      "Link field value " + Twine(Link) + " in section " + Name +
-          " is not a string table"));
+  setStrTab(SecTable.getSection(Link,
+                                "Link field value " + Twine(Link) +
+                                    " in section " + Name + " is invalid"));
 }
 
 void SectionWithStrTab::finalize() { this->Link = StrTab->Index; }
@@ -546,15 +544,6 @@ SectionTableRef Object<ELFT>::readSectionHeaders(const ELFFile<ELFT> &ElfFile) {
       else
         initRelocations(RelSec, SymbolTable,
                         unwrapOrError(ElfFile.relas(Shdr)));
-    }
-
-    if (auto Sec = dyn_cast<SectionWithStrTab>(Section.get())) {
-      Sec->setStrTab(SecTable.getSectionOfType<StringTableSection>(
-          Sec->Link,
-          "Link field value " + Twine(Sec->Link) + " in section " + Sec->Name +
-              " is invalid",
-          "Link field value " + Twine(Sec->Link) + " in section " + Sec->Name +
-              " is not a string table"));
     }
   }
 

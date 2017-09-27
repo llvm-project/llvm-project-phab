@@ -130,6 +130,8 @@ public:
   void finalize() override;
   void writeSection(llvm::FileOutputBuffer &Out) const override;
   static bool classof(const SectionBase *S) {
+    if (S->Flags & llvm::ELF::SHF_ALLOC)
+      return false;
     return S->Type == llvm::ELF::SHT_STRTAB;
   }
 };
@@ -246,11 +248,11 @@ public:
 
 class SectionWithStrTab : public Section {
 private:
-  StringTableSection *StrTab = nullptr;
+  const SectionBase *StrTab = nullptr;
 
 public:
   SectionWithStrTab(llvm::ArrayRef<uint8_t> Data) : Section(Data) {}
-  void setStrTab(StringTableSection *StringTable) { StrTab = StringTable; }
+  void setStrTab(const SectionBase *StringTable) { StrTab = StringTable; }
   void removeSectionReferences(const SectionBase *Sec) override;
   void initialize(SectionTableRef SecTable) override;
   void finalize() override;
