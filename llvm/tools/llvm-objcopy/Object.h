@@ -58,6 +58,7 @@ public:
   virtual ~SectionBase() {}
   virtual void initialize(SectionTableRef SecTable);
   virtual void finalize();
+  virtual void removeSectionReferences(const SectionBase *Sec);
   template <class ELFT> void writeHeader(llvm::FileOutputBuffer &Out) const;
   virtual void writeSection(llvm::FileOutputBuffer &Out) const = 0;
 };
@@ -99,7 +100,8 @@ public:
       return *Sections.begin();
     return nullptr;
   }
-  void addSection(const SectionBase *sec) { Sections.insert(sec); }
+  void removeSection(const SectionBase *Sec) { Sections.erase(Sec); }
+  void addSection(const SectionBase *Sec) { Sections.insert(Sec); }
   template <class ELFT> void writeHeader(llvm::FileOutputBuffer &Out) const;
   void writeSegment(llvm::FileOutputBuffer &Out) const;
 };
@@ -165,6 +167,8 @@ protected:
   std::vector<std::unique_ptr<Symbol>> Symbols;
   StringTableSection *SymbolNames = nullptr;
 
+  typedef std::unique_ptr<Symbol> SymPtr;
+
 public:
   void setStrTab(StringTableSection *StrTab) { SymbolNames = StrTab; }
   void addSymbol(llvm::StringRef Name, uint8_t Bind, uint8_t Type,
@@ -172,6 +176,7 @@ public:
                  uint64_t Sz);
   void addSymbolNames();
   const Symbol *getSymbolByIndex(uint32_t Index) const;
+  void removeSectionReferences(const SectionBase *Sec) override;
   void initialize(SectionTableRef SecTable) override;
   void finalize() override;
   static bool classof(const SectionBase *S) {
@@ -191,20 +196,35 @@ struct Relocation {
   uint32_t Type;
 };
 
-template <class SymTabType> class RelocationSectionBase : public SectionBase {
-private:
-  SymTabType *Symbols = nullptr;
+class RelocationSectionBase : public SectionBase {
+protected:
   SectionBase *SecToApplyRel = nullptr;
 
 public:
-  void setSymTab(SymTabType *StrTab) { Symbols = StrTab; }
+  const SectionBase *getSection() const { return SecToApplyRel; }
   void setSection(SectionBase *Sec) { SecToApplyRel = Sec; }
+
+  static bool classof(const SectionBase *S) {
+    return S->Type == llvm::ELF::SHT_REL || S->Type == llvm::ELF::SHT_RELA;
+  }
+};
+
+template <class SymTabType>
+class RelocSectionWithSymtabBase : public RelocationSectionBase {
+private:
+  SymTabType *Symbols = nullptr;
+
+public:
+  void setSymTab(SymTabType *StrTab) { Symbols = StrTab; }
+
+  void removeSectionReferences(const SectionBase *Sec) override;
   void initialize(SectionTableRef SecTable) override;
   void finalize() override;
 };
 
 template <class ELFT>
-class RelocationSection : public RelocationSectionBase<SymbolTableSection> {
+class RelocationSection
+    : public RelocSectionWithSymtabBase<SymbolTableSection> {
 private:
   typedef typename ELFT::Rel Elf_Rel;
   typedef typename ELFT::Rela Elf_Rela;
@@ -231,6 +251,7 @@ private:
 public:
   SectionWithStrTab(llvm::ArrayRef<uint8_t> Data) : Section(Data) {}
   void setStrTab(StringTableSection *StringTable) { StrTab = StringTable; }
+  void removeSectionReferences(const SectionBase *Sec) override;
   void initialize(SectionTableRef SecTable) override;
   void finalize() override;
   static bool classof(const SectionBase *S);
@@ -254,7 +275,7 @@ public:
 };
 
 class DynamicRelocationSection
-    : public RelocationSectionBase<DynamicSymbolTableSection> {
+    : public RelocSectionWithSymtabBase<DynamicSymbolTableSection> {
 private:
   llvm::ArrayRef<uint8_t> Contents;
 
@@ -305,6 +326,7 @@ public:
   uint32_t Flags;
 
   Object(const llvm::object::ELFObjectFile<ELFT> &Obj);
+  void removeSections(std::function<bool(const SectionBase &)> ToRemove);
   virtual size_t totalSize() const = 0;
   virtual void finalize() = 0;
   virtual void write(llvm::FileOutputBuffer &Out) const = 0;

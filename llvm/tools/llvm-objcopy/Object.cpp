@@ -49,6 +49,7 @@ void Segment::writeSegment(FileOutputBuffer &Out) const {
   std::copy(std::begin(Contents), std::end(Contents), Buf);
 }
 
+void SectionBase::removeSectionReferences(const SectionBase *Sec) {}
 void SectionBase::initialize(SectionTableRef SecTable) {}
 void SectionBase::finalize() {}
 
@@ -150,6 +151,19 @@ void SymbolTableSection::addSymbol(StringRef Name, uint8_t Bind, uint8_t Type,
   Size += this->EntrySize;
 }
 
+void SymbolTableSection::removeSectionReferences(const SectionBase *Sec) {
+  if (SymbolNames == Sec) {
+    error("String table " + SymbolNames->Name +
+          " cannot be removed because it is referenced by the symbol table " +
+          this->Name);
+  }
+  auto Iter =
+      std::remove_if(std::begin(Symbols), std::end(Symbols),
+                     [=](const SymPtr &Sym) { return Sym->DefinedIn == Sec; });
+  Size -= (std::end(Symbols) - Iter) * this->EntrySize;
+  Symbols.erase(Iter, std::end(Symbols));
+}
+
 void SymbolTableSection::initialize(SectionTableRef SecTable) {
   Size = 0;
   setStrTab(SecTable.getSectionOfType<StringTableSection>(
@@ -207,7 +221,19 @@ void SymbolTableSectionImpl<ELFT>::writeSection(
 }
 
 template <class SymTabType>
-void RelocationSectionBase<SymTabType>::initialize(SectionTableRef SecTable) {
+void RelocSectionWithSymtabBase<SymTabType>::removeSectionReferences(
+    const SectionBase *Sec) {
+  if (Symbols == Sec) {
+    error("Symbol table " + Symbols->Name + " cannot be removed because it is "
+                                            "referenced by the relocation "
+                                            "section " +
+          this->Name);
+  }
+}
+
+template <class SymTabType>
+void RelocSectionWithSymtabBase<SymTabType>::initialize(
+    SectionTableRef SecTable) {
   setSymTab(SecTable.getSectionOfType<SymTabType>(
       Link,
       "Link field value " + Twine(Link) + " in section " + Name + " is invalid",
@@ -222,7 +248,8 @@ void RelocationSectionBase<SymTabType>::initialize(SectionTableRef SecTable) {
     setSection(nullptr);
 }
 
-template <class SymTabType> void RelocationSectionBase<SymTabType>::finalize() {
+template <class SymTabType>
+void RelocSectionWithSymtabBase<SymTabType>::finalize() {
   this->Link = Symbols->Index;
   if (SecToApplyRel != nullptr)
     this->Info = SecToApplyRel->Index;
@@ -259,6 +286,14 @@ void RelocationSection<ELFT>::writeSection(llvm::FileOutputBuffer &Out) const {
 void DynamicRelocationSection::writeSection(llvm::FileOutputBuffer &Out) const {
   std::copy(std::begin(Contents), std::end(Contents),
             Out.getBufferStart() + Offset);
+}
+
+void SectionWithStrTab::removeSectionReferences(const SectionBase *Sec) {
+  if (StrTab == Sec) {
+    error("String table " + StrTab->Name + " cannot be removed because it is "
+                                           "referenced by the section " +
+          this->Name);
+  }
 }
 
 bool SectionWithStrTab::classof(const SectionBase *S) {
@@ -599,6 +634,32 @@ template <class ELFT>
 void Object<ELFT>::writeSectionData(FileOutputBuffer &Out) const {
   for (auto &Section : Sections)
     Section->writeSection(Out);
+}
+
+template <class ELFT>
+void Object<ELFT>::removeSections(
+    std::function<bool(const SectionBase &)> ToRemove) {
+
+  auto Iter =
+      std::stable_partition(std::begin(Sections), std::end(Sections),
+                            [=](const SecPtr &Sec) {
+        if (ToRemove(*Sec))
+          return false;
+        if (auto RelSec = dyn_cast<RelocationSectionBase>(Sec.get()))
+          return !ToRemove(*RelSec->getSection());
+        return true;
+  });
+  // Now make sure there are no remaining references to the sections that will
+  // be removed. Sometimes it is impossible to remove a reference so we emit
+  // an error here instead.
+  for (auto &RemoveSec : make_range(Iter, std::end(Sections))) {
+    for (auto &Segment : Segments)
+      Segment->removeSection(RemoveSec.get());
+    for (auto &KeepSec : make_range(std::begin(Sections), Iter))
+      KeepSec->removeSectionReferences(RemoveSec.get());
+  }
+  // Now finally get rid of them all togethor.
+  Sections.erase(Iter, std::end(Sections));
 }
 
 template <class ELFT> void ELFObject<ELFT>::sortSections() {
