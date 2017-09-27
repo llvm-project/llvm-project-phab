@@ -16,6 +16,7 @@ FROM nvidia/cuda:8.0-devel
 
 # FIXME: Change maintainer name.
 LABEL maintainer "LLVM Developers"
+LABEL licences "LLVM licenses are under /usr/local/share/llvm/licences"
 
 # Unpack clang installation into this container.
 ADD clang.tar.gz /usr/local/

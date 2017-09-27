@@ -191,6 +191,37 @@ else
   echo "Skipping checksumming checks..."
 fi
 
+# Copy licences into docker image.
+LICENCES_DIR="$CLANG_INSTALL_DIR/share/llvm/licenses"
+mkdir -p "$LICENCES_DIR"
+
+function copy_license_file() {
+  local SOURCE_RELPATH="$1"
+  local SOURCE_DIR_RELPATH="$(dirname "$SOURCE_RELPATH")"
+
+  echo "Copying licencese file $SOURCE_RELPATH"
+  mkdir -p "$LICENCES_DIR/$SOURCE_DIR_RELPATH"
+  cp "$SOURCE_RELPATH" "$LICENCES_DIR/$SOURCE_RELPATH"
+}
+
+echo "Copying licences for the Docker images."
+echo "Please note that the list of licenses may be incomplete or outdated."
+
+pushd "$CLANG_BUILD_DIR/src"
+
+for PROJECT in $LLVM_PROJECTS; do
+  find "$PROJECT" -iname "license*" | while read SOURCE_FILE; do
+    copy_license_file "$SOURCE_FILE"
+  done
+
+  if [ "$PROJECT" == "llvm" ]; then
+    copy_license_file "llvm/lib/Support/MD5.cpp"
+    copy_license_file "llvm/include/llvm/Support/MD5.h"
+  fi
+done
+
+popd # "$CLANG_BUILD_DIR/src"
+
 mkdir "$CLANG_BUILD_DIR/build"
 pushd "$CLANG_BUILD_DIR/build"
 

@@ -11,6 +11,7 @@
 FROM launcher.gcr.io/google/debian8:latest
 
 LABEL maintainer "LLVM Developers"
+LABEL licences "LLVM licenses are under /usr/local/share/llvm/licences"
 
 # Install packages for minimal useful image.
 RUN apt-get update && \
