@@ -523,6 +523,9 @@ ARMTargetLowering::ARMTargetLowering(const TargetMachine &TM,
       !Subtarget->isThumb1Only()) {
     addRegisterClass(MVT::f32, &ARM::SPRRegClass);
     addRegisterClass(MVT::f64, &ARM::DPRRegClass);
+
+    if(Subtarget->hasFullFP16())
+      addRegisterClass(MVT::f16, &ARM::HPRRegClass);
   }
 
   for (MVT VT : MVT::vector_valuetypes()) {
@@ -3698,7 +3701,9 @@ SDValue ARMTargetLowering::LowerFormalArguments(
       } else {
         const TargetRegisterClass *RC;
 
-        if (RegVT == MVT::f32)
+        if (RegVT == MVT::f16)
+          RC = &ARM::HPRRegClass;
+        else if (RegVT == MVT::f32)
           RC = &ARM::SPRRegClass;
         else if (RegVT == MVT::f64)
           RC = &ARM::DPRRegClass;

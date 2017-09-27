@@ -296,6 +296,17 @@ def SPR : RegisterClass<"ARM", [f32], 32, (sequence "S%u", 0, 31)> {
   }];
 }
 
+def HPR : RegisterClass<"ARM", [f16], 32, (sequence "S%u", 0, 31)> {
+  let AltOrders = [(add (decimate SPR, 2), SPR),
+                   (add (decimate SPR, 4),
+                        (decimate SPR, 2),
+                        (decimate (rotl SPR, 1), 4),
+                        (decimate (rotl SPR, 1), 2))];
+  let AltOrderSelect = [{
+    return 1 + MF.getSubtarget<ARMSubtarget>().useStride4VFPs(MF);
+  }];
+}
+
 // Subset of SPR which can be used as a source of NEON scalars for 16-bit
 // operations
 def SPR_8 : RegisterClass<"ARM", [f32], 32, (sequence "S%u", 0, 15)>;

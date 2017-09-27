@@ -156,6 +156,8 @@ static DecodeStatus DecoderGPRRegisterClass(MCInst &Inst, unsigned RegNo,
                                    uint64_t Address, const void *Decoder);
 static DecodeStatus DecodeGPRPairRegisterClass(MCInst &Inst, unsigned RegNo,
                                    uint64_t Address, const void *Decoder);
+static DecodeStatus DecodeHPRRegisterClass(MCInst &Inst, unsigned RegNo,
+                                   uint64_t Address, const void *Decoder);
 static DecodeStatus DecodeSPRRegisterClass(MCInst &Inst, unsigned RegNo,
                                    uint64_t Address, const void *Decoder);
 static DecodeStatus DecodeDPRRegisterClass(MCInst &Inst, unsigned RegNo,
@@ -179,6 +181,8 @@ static DecodeStatus DecodePredicateOperand(MCInst &Inst, unsigned Val,
 static DecodeStatus DecodeCCOutOperand(MCInst &Inst, unsigned Val,
                                uint64_t Address, const void *Decoder);
 static DecodeStatus DecodeRegListOperand(MCInst &Inst, unsigned Val,
+                               uint64_t Address, const void *Decoder);
+static DecodeStatus DecodeHPRRegListOperand(MCInst &Inst, unsigned Val,
                                uint64_t Address, const void *Decoder);
 static DecodeStatus DecodeSPRRegListOperand(MCInst &Inst, unsigned Val,
                                uint64_t Address, const void *Decoder);
@@ -988,6 +992,11 @@ static DecodeStatus DecodeSPRRegisterClass(MCInst &Inst, unsigned RegNo,
   return MCDisassembler::Success;
 }
 
+static DecodeStatus DecodeHPRRegisterClass(MCInst &Inst, unsigned RegNo,
+                                   uint64_t Address, const void *Decoder) {
+  return DecodeSPRRegisterClass(Inst, RegNo, Address, Decoder);
+}
+
 static const uint16_t DPRDecoderTable[] = {
      ARM::D0,  ARM::D1,  ARM::D2,  ARM::D3,
      ARM::D4,  ARM::D5,  ARM::D6,  ARM::D7,
@@ -1243,6 +1252,11 @@ static DecodeStatus DecodeSPRRegListOperand(MCInst &Inst, unsigned Val,
   }
 
   return S;
+}
+
+static DecodeStatus DecodeHPRRegListOperand(MCInst &Inst, unsigned Val,
+                                 uint64_t Address, const void *Decoder) {
+  return DecodeSPRRegListOperand(Inst, Val, Address, Decoder);
 }
 
 static DecodeStatus DecodeDPRRegListOperand(MCInst &Inst, unsigned Val,

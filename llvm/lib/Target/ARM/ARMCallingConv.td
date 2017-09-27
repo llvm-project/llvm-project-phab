@@ -21,7 +21,7 @@ def CC_ARM_APCS : CallingConv<[
   // Handles byval parameters.
   CCIfByVal<CCPassByVal<4, 4>>,
     
-  CCIfType<[i1, i8, i16], CCPromoteToType<i32>>,
+  CCIfType<[i1, i8, i16, f16], CCPromoteToType<i32>>,
 
   // Pass SwiftSelf in a callee saved register.
   CCIfSwiftSelf<CCIfType<[i32], CCAssignToReg<[R10]>>>,
@@ -46,7 +46,7 @@ def CC_ARM_APCS : CallingConv<[
 
 def RetCC_ARM_APCS : CallingConv<[
   CCIfType<[i1, i8, i16], CCPromoteToType<i32>>,
-  CCIfType<[f32], CCBitConvertToType<i32>>,
+  CCIfType<[f16, f32], CCBitConvertToType<i32>>,
 
   // Pass SwiftSelf in a callee saved register.
   CCIfSwiftSelf<CCIfType<[i32], CCAssignToReg<[R10]>>>,
@@ -74,7 +74,7 @@ def FastCC_ARM_APCS : CallingConv<[
 
   CCIfType<[v2f64], CCAssignToReg<[Q0, Q1, Q2, Q3]>>,
   CCIfType<[f64], CCAssignToReg<[D0, D1, D2, D3, D4, D5, D6, D7]>>,
-  CCIfType<[f32], CCAssignToReg<[S0, S1, S2, S3, S4, S5, S6, S7, S8,
+  CCIfType<[f16, f32], CCAssignToReg<[S0, S1, S2, S3, S4, S5, S6, S7, S8,
                                  S9, S10, S11, S12, S13, S14, S15]>>,
 
   // CPRCs may be allocated to co-processor registers or the stack - they
@@ -93,7 +93,7 @@ def RetFastCC_ARM_APCS : CallingConv<[
 
   CCIfType<[v2f64], CCAssignToReg<[Q0, Q1, Q2, Q3]>>,
   CCIfType<[f64], CCAssignToReg<[D0, D1, D2, D3, D4, D5, D6, D7]>>,
-  CCIfType<[f32], CCAssignToReg<[S0, S1, S2, S3, S4, S5, S6, S7, S8,
+  CCIfType<[f16, f32], CCAssignToReg<[S0, S1, S2, S3, S4, S5, S6, S7, S8,
                                  S9, S10, S11, S12, S13, S14, S15]>>,
   CCDelegateTo<RetCC_ARM_APCS>
 ]>;
@@ -109,7 +109,7 @@ def CC_ARM_APCS_GHC : CallingConv<[
 
   CCIfType<[v2f64], CCAssignToReg<[Q4, Q5]>>,
   CCIfType<[f64], CCAssignToReg<[D8, D9, D10, D11]>>,
-  CCIfType<[f32], CCAssignToReg<[S16, S17, S18, S19, S20, S21, S22, S23]>>,
+  CCIfType<[f16, f32], CCAssignToReg<[S16, S17, S18, S19, S20, S21, S22, S23]>>,
 
   // Promote i8/i16 arguments to i32.
   CCIfType<[i8, i16], CCPromoteToType<i32>>,
@@ -124,7 +124,7 @@ def CC_ARM_APCS_GHC : CallingConv<[
 
 def CC_ARM_AAPCS_Common : CallingConv<[
 
-  CCIfType<[i1, i8, i16], CCPromoteToType<i32>>,
+  CCIfType<[i1, i8, i16, f16], CCPromoteToType<i32>>,
 
   // i64/f64 is passed in even pairs of GPRs
   // i64 is 8-aligned i32 here, so we may need to eat R1 as a pad register
@@ -214,8 +214,8 @@ def CC_ARM_AAPCS_VFP : CallingConv<[
 
   CCIfType<[v2f64], CCAssignToReg<[Q0, Q1, Q2, Q3]>>,
   CCIfType<[f64], CCAssignToReg<[D0, D1, D2, D3, D4, D5, D6, D7]>>,
-  CCIfType<[f32], CCAssignToReg<[S0, S1, S2, S3, S4, S5, S6, S7, S8,
-                                 S9, S10, S11, S12, S13, S14, S15]>>,
+  CCIfType<[f16, f32], CCAssignToReg<[S0, S1, S2, S3, S4, S5, S6, S7, S8,
+                                      S9, S10, S11, S12, S13, S14, S15]>>,
   CCDelegateTo<CC_ARM_AAPCS_Common>
 ]>;
 
@@ -232,7 +232,7 @@ def RetCC_ARM_AAPCS_VFP : CallingConv<[
 
   CCIfType<[v2f64], CCAssignToReg<[Q0, Q1, Q2, Q3]>>,
   CCIfType<[f64], CCAssignToReg<[D0, D1, D2, D3, D4, D5, D6, D7]>>,
-  CCIfType<[f32], CCAssignToReg<[S0, S1, S2, S3, S4, S5, S6, S7, S8,
+  CCIfType<[f16, f32], CCAssignToReg<[S0, S1, S2, S3, S4, S5, S6, S7, S8,
                                  S9, S10, S11, S12, S13, S14, S15]>>,
   CCDelegateTo<RetCC_ARM_AAPCS_Common>
 ]>;
