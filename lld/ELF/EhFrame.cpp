@@ -64,6 +64,36 @@ size_t elf::readEhRecordSize(InputSectionBase *S, size_t Off) {
   return EhReader<ELFT>(S, S->Data.slice(Off)).readEhRecordSize();
 }
 
+bool elf::equalsFde(EhSectionPiece *A, EhSectionPiece *B) {
+  if (!A || !B)
+    return A == B;
+  // We want to compare FDEs contents, for that we want to ignore
+  // CIE pointer field which used to get offset of the start of the
+  // associated CIE and therefore is fickle. We also ignore length
+  // field which can differ because of padding.
+  ArrayRef<uint8_t> DataA = A->data().drop_front(4 + 4);
+  ArrayRef<uint8_t> DataB = B->data().drop_front(4 + 4);
+  if (DataA.size() == DataB.size())
+    return DataA == DataB;
+
+  // FDEs may contain padding at the end which should not affect comparsion.
+  size_t AlignedSizeA = alignTo(DataA.size(), Config->Wordsize);
+  size_t AlignedSizeB = alignTo(DataB.size(), Config->Wordsize);
+  if (AlignedSizeA != AlignedSizeB)
+    return false;
+
+  if (DataA.size() > DataB.size())
+    std::swap(DataA, DataB);
+
+  // Check data before possible padding bytes.
+  if (memcmp(DataA.data(), DataB.data(), DataA.size()))
+    return false;
+
+  // If tail is filled with zeroes, it is padding.
+  return llvm::all_of(DataB.drop_front(DataA.size()),
+                      [](uint8_t C) { return C == 0; });
+}
+
 // .eh_frame section is a sequence of records. Each record starts with
 // a 4 byte length field. This function reads the length.
 template <class ELFT> size_t EhReader<ELFT>::readEhRecordSize() {

@@ -428,12 +428,10 @@ CieRecord *EhFrameSection<ELFT>::addCie(EhSectionPiece &Cie,
   return Rec;
 }
 
-// There is one FDE per function. Returns true if a given FDE
-// points to a live function.
-template <class ELFT>
-template <class RelTy>
-bool EhFrameSection<ELFT>::isFdeLive(EhSectionPiece &Fde,
-                                     ArrayRef<RelTy> Rels) {
+// There is one FDE per function. Returns section where function lives.
+template <class ELFT, class RelTy>
+static InputSection *getFdeTargetSection(EhSectionPiece &Fde,
+                                         ArrayRef<RelTy> Rels) {
   auto *Sec = cast<EhInputSection>(Fde.Sec);
   unsigned FirstRelI = Fde.FirstRelocation;
 
@@ -443,14 +441,19 @@ bool EhFrameSection<ELFT>::isFdeLive(EhSectionPiece &Fde,
   // corresponding FDEs, which results in creating bad .eh_frame sections.
   // To deal with that, we ignore such FDEs.
   if (FirstRelI == (unsigned)-1)
-    return false;
+    return nullptr;
 
   const RelTy &Rel = Rels[FirstRelI];
   SymbolBody &B = Sec->template getFile<ELFT>()->getRelocTargetSym(Rel);
-  if (auto *D = dyn_cast<DefinedRegular>(&B))
-    if (D->Section)
-      return cast<InputSectionBase>(D->Section)->Repl->Live;
-  return false;
+  if (DefinedRegular *DR = dyn_cast<DefinedRegular>(&B))
+      return cast_or_null<InputSection>(DR->Section);
+  return nullptr;
+}
+
+// There is one FDE per function. Returns true if a given FDE
+// points to a live function.
+static bool isFdeLive(EhSectionPiece &Fde) {
+  return Fde.FdeTargetSec && Fde.FdeTargetSec->Repl->Live;
 }
 
 // .eh_frame is a sequence of CIE or FDE records. In general, there
@@ -481,10 +484,11 @@ void EhFrameSection<ELFT>::addSectionAux(EhInputSection *Sec,
     if (!Rec)
       fatal(toString(Sec) + ": invalid CIE reference");
 
-    if (!isFdeLive(Piece, Rels))
-      continue;
+    Piece.FdeTargetSec = getFdeTargetSection<ELFT>(Piece, Rels);
+    if (Piece.FdeTargetSec)
+      Piece.FdeTargetSec->Fde = &Piece;
+
     Rec->Fdes.push_back(&Piece);
-    NumFdes++;
   }
 }
 
@@ -536,8 +540,11 @@ template <class ELFT> void EhFrameSection<ELFT>::finalizeContents() {
     Off += alignTo(Rec->Cie->Size, Config->Wordsize);
 
     for (EhSectionPiece *Fde : Rec->Fdes) {
+      if (!isFdeLive(*Fde))
+        continue;
       Fde->OutputOff = Off;
       Off += alignTo(Fde->Size, Config->Wordsize);
+      ++NumFdes;
     }
   }
 
@@ -590,6 +597,9 @@ template <class ELFT> void EhFrameSection<ELFT>::writeTo(uint8_t *Buf) {
     writeCieFde<ELFT>(Buf + CieOffset, Rec->Cie->data());
 
     for (EhSectionPiece *Fde : Rec->Fdes) {
+      if (!isFdeLive(*Fde))
+        continue;
+
       size_t Off = Fde->OutputOff;
       writeCieFde<ELFT>(Buf + Off, Fde->data());
 
@@ -609,6 +619,8 @@ template <class ELFT> void EhFrameSection<ELFT>::writeTo(uint8_t *Buf) {
     for (CieRecord *Rec : CieRecords) {
       uint8_t Enc = getFdeEncoding<ELFT>(Rec->Cie);
       for (EhSectionPiece *Fde : Rec->Fdes) {
+        if (!isFdeLive(*Fde))
+          continue;
         uint64_t Pc = getFdePc(Buf, Fde->OutputOff, Enc);
         uint64_t FdeVA = getParent()->Addr + Fde->OutputOff;
         In<ELFT>::EhFrameHdr->addFde(Pc, FdeVA);
