@@ -919,6 +919,14 @@ void MemoryDependenceResults::getNonLocalPointerDependency(
     Instruction *QueryInst, SmallVectorImpl<NonLocalDepResult> &Result) {
   const MemoryLocation Loc = MemoryLocation::get(QueryInst);
   bool isLoad = isa<LoadInst>(QueryInst);
+  return getSpecificNonLocalPointerDependency(QueryInst, Loc, isLoad, Result);
+}
+
+void MemoryDependenceResults::getSpecificNonLocalPointerDependency(
+    Instruction *QueryInst,
+    const MemoryLocation &Loc,
+    bool isLoad,
+    SmallVectorImpl<NonLocalDepResult> &Result) {
   BasicBlock *FromBB = QueryInst->getParent();
   assert(FromBB);
 
