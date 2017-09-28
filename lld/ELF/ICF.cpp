@@ -279,6 +279,12 @@ bool ICF<ELFT>::equalsConstant(const InputSection *A, const InputSection *B) {
       A->getSize() != B->getSize() || A->Data != B->Data)
     return false;
 
+  const InputSection *LinkSecA = A->getLinkOrderSec();
+  const InputSection *LinkSecB = B->getLinkOrderSec();
+  if (LinkSecA || LinkSecB)
+    if (!LinkSecA || !LinkSecB || !equalsConstant(LinkSecA, LinkSecB))
+      return false;
+
   if (A->AreRelocsRela)
     return constantEq(A, A->template relas<ELFT>(), B,
                       B->template relas<ELFT>());
@@ -423,20 +429,9 @@ template <class ELFT> void ICF<ELFT>::run() {
       return;
 
     log("selected " + Sections[Begin]->Name);
-    for (size_t I = Begin + 1; I < End; ++I) {
-      log("  removed " + Sections[I]->Name);
+    for (size_t I = Begin + 1; I < End; ++I)
       Sections[Begin]->replace(Sections[I]);
-    }
   });
-
-  // Mark ARM Exception Index table sections that refer to folded code
-  // sections as not live. These sections have an implict dependency
-  // via the link order dependency.
-  if (Config->EMachine == EM_ARM)
-    for (InputSectionBase *Sec : InputSections)
-      if (auto *S = dyn_cast<InputSection>(Sec))
-        if (S->Flags & SHF_LINK_ORDER)
-          S->Live = S->getLinkOrderDep()->Live;
 }
 
 // ICF entry point function.

@@ -241,6 +241,19 @@ InputSection *InputSectionBase::getLinkOrderDep() const {
   return nullptr;
 }
 
+InputSection *InputSectionBase::getLinkOrderSec() const {
+  InputSection *Ret = nullptr;
+  for (InputSectionBase *Sec : DependentSections) {
+    if (!(Sec->Flags & SHF_LINK_ORDER))
+      continue;
+    if (Ret)
+      error("multiple SHF_LINK_ORDER sections are not supported: " +
+            toString(this));
+    Ret = cast<InputSection>(Sec);
+  }
+  return Ret;
+}
+
 // Returns a source location string. Used to construct an error message.
 template <class ELFT>
 std::string InputSectionBase::getLocation(uint64_t Offset) {
@@ -800,9 +813,15 @@ template <class ELFT> void InputSection::writeTo(uint8_t *Buf) {
 }
 
 void InputSection::replace(InputSection *Other) {
+  log("  removed " + Other->Name);
   this->Alignment = std::max(this->Alignment, Other->Alignment);
   Other->Repl = this->Repl;
   Other->Live = false;
+
+  // Handle SHF_LINK_ORDER sections. These sections have an
+  // implicit dependency via the link order dependency.
+  if (InputSection *LinkOrder = getLinkOrderSec())
+    LinkOrder->replace(Other->getLinkOrderSec());
 }
 
 template <class ELFT>
