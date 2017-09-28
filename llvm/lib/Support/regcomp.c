@@ -403,10 +403,17 @@ p_ere_exp(struct parse *p)
 			EMIT(O_BACK, backrefnum);
 			p->g->backrefs = 1;
 		} else {
-			/* Other chars are simply themselves when escaped with a backslash.
-			 */
-			ordinary(p, c);
-		}
+            switch (c) {
+            case 't':
+              ordinary(p, '\t');
+              break;
+            default:
+              /* Other chars are simply themselves when escaped with a
+               * backslash. */
+              ordinary(p, c);
+              break;
+            }
+        }
 		break;
 	case '{':		/* okay as ordinary except if digit follows */
 		REQUIRE(!MORE() || !isdigit((uch)PEEK()), REG_BADRPT);
@@ -787,7 +794,19 @@ p_b_term(struct parse *p, cset *cs)
 	default:		/* symbol, ordinary character, or range */
 /* xxx revision needed for multichar stuff */
 		start = p_b_symbol(p);
-		if (SEE('-') && MORE2() && PEEK2() != ']') {
+        if ((start == '\\')) {
+          /* escape */
+          REQUIRE(MORE(), REG_EESCAPE);
+          c = GETNEXT();
+          switch (c) {
+          case 't':
+            start = finish = '\t';
+            break;
+          default:
+            start = finish = c;
+            break;
+          }
+		} else if (SEE('-') && MORE2() && PEEK2() != ']') {
 			/* range */
 			NEXT();
 			if (EAT('-'))
