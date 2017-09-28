@@ -2280,7 +2280,7 @@ Instruction *InstCombiner::foldICmpDivConstant(ICmpInst &Cmp,
     default: llvm_unreachable("Unhandled icmp opcode!");
     case ICmpInst::ICMP_EQ:
       if (LoOverflow && HiOverflow)
-        return replaceInstUsesWith(Cmp, Builder.getFalse());
+        return replaceInstUsesWith(Cmp, ConstantInt::getFalse(Cmp.getType()));
       if (HiOverflow)
         return new ICmpInst(DivIsSigned ? ICmpInst::ICMP_SGE :
                             ICmpInst::ICMP_UGE, X, LoBound);
@@ -2292,7 +2292,7 @@ Instruction *InstCombiner::foldICmpDivConstant(ICmpInst &Cmp,
                                HiBound->getUniqueInteger(), DivIsSigned, true));
     case ICmpInst::ICMP_NE:
       if (LoOverflow && HiOverflow)
-        return replaceInstUsesWith(Cmp, Builder.getTrue());
+        return replaceInstUsesWith(Cmp, ConstantInt::getTrue(Cmp.getType()));
       if (HiOverflow)
         return new ICmpInst(DivIsSigned ? ICmpInst::ICMP_SLT :
                             ICmpInst::ICMP_ULT, X, LoBound);
@@ -2306,16 +2306,16 @@ Instruction *InstCombiner::foldICmpDivConstant(ICmpInst &Cmp,
     case ICmpInst::ICMP_ULT:
     case ICmpInst::ICMP_SLT:
       if (LoOverflow == +1)   // Low bound is greater than input range.
-        return replaceInstUsesWith(Cmp, Builder.getTrue());
+        return replaceInstUsesWith(Cmp, ConstantInt::getTrue(Cmp.getType()));
       if (LoOverflow == -1)   // Low bound is less than input range.
-        return replaceInstUsesWith(Cmp, Builder.getFalse());
+        return replaceInstUsesWith(Cmp, ConstantInt::getFalse(Cmp.getType()));
       return new ICmpInst(Pred, X, LoBound);
     case ICmpInst::ICMP_UGT:
     case ICmpInst::ICMP_SGT:
       if (HiOverflow == +1)       // High bound greater than input range.
-        return replaceInstUsesWith(Cmp, Builder.getFalse());
+        return replaceInstUsesWith(Cmp, ConstantInt::getFalse(Cmp.getType()));
       if (HiOverflow == -1)       // High bound less than input range.
-        return replaceInstUsesWith(Cmp, Builder.getTrue());
+        return replaceInstUsesWith(Cmp, ConstantInt::getTrue(Cmp.getType()));
       if (Pred == ICmpInst::ICMP_UGT)
         return new ICmpInst(ICmpInst::ICMP_UGE, X, HiBound);
       return new ICmpInst(ICmpInst::ICMP_SGE, X, HiBound);
