@@ -1700,6 +1700,297 @@ X86TargetLowering::X86TargetLowering(const X86TargetMachine &TM,
   verifyIntrinsicTables();
 }
 
+typedef enum : unsigned { MMX = 0, XMM = 1, YMM = 3, ZMM = 7 } VecRegKind;
+enum : unsigned { UNDEF, FRWD, BKWD };
+
+static inline int GetLaneIndex(int Bits, int StartIdx = 0) {
+  return (((Bits + 64) >> 6) - 1) + StartIdx;
+}
+
+/// Find the smallest sub-register which accommodates all the non-undefs
+/// of a node, Lane granularity is taken as 64 bit (MMX). Lookup is
+/// performed in both forward and backward directions.
+static bool GetMinimalUsedSubReg(SmallBitVector &Lanes, int &ForwardSubReg,
+                                 VecRegKind &SubRegKind) {
+  if (Lanes.all() || Lanes.none()) {
+    ForwardSubReg = UNDEF;
+    SubRegKind = ZMM;
+    return false;
+  }
+
+  auto GetSubReg = [&](bool ScanForward) -> VecRegKind {
+    VecRegKind SubReg = ZMM;
+    VecRegKind VecSubRegs[4] = {MMX, XMM, YMM, ZMM};
+    for (int i = 0; i < 4; i++) {
+      int Checker = ScanForward ? Lanes.find_next(VecSubRegs[i])
+                                : Lanes.find_prev(ZMM - VecSubRegs[i]);
+      if (Checker == -1) {
+        SubReg = VecSubRegs[i];
+        break;
+      }
+    }
+    return SubReg;
+  };
+
+  VecRegKind FrwdSubReg = GetSubReg(true);
+  VecRegKind BkwdSubReg = GetSubReg(false);
+  if (FrwdSubReg < BkwdSubReg) {
+    ForwardSubReg = FRWD;
+    SubRegKind = FrwdSubReg;
+    return true;
+  } else if (BkwdSubReg < FrwdSubReg) {
+    ForwardSubReg = BKWD;
+    SubRegKind = BkwdSubReg;
+    return true;
+  }
+  return false;
+}
+
+// Granularity of the lane considered is 64 bit, mark a bit in the
+// bitvector if corresponding lane is accessed.
+static bool MarkLanesUsedByOperands(SDNode *N, SmallBitVector &Lanes,
+                                    int StartIdx) {
+  bool retVal = false;
+
+  switch (N->getOpcode()) {
+  default: {
+    EVT VT = N->getValueType(0);
+    if (VT.isSimple() && VT.isVector()) {
+      int VTSz = VT.getSizeInBits();
+      for (int i = StartIdx, e = GetLaneIndex(VTSz, StartIdx); i < e; i++)
+        Lanes[i] = 1;
+    } else {
+      // Mark all the lanes used in default case.
+      Lanes.set(0,Lanes.size());
+    }
+  } break;
+  case ISD::CONCAT_VECTORS: {
+    int SZInBits = 0;
+    for (auto &Oprnd : N->op_values()) {
+      if (!Oprnd.isUndef())
+        retVal |= MarkLanesUsedByOperands(Oprnd.getNode(), Lanes, StartIdx);
+      SZInBits += Oprnd.getValueType().getSizeInBits();
+      StartIdx = GetLaneIndex(SZInBits);
+    }
+  } break;
+  case ISD::VECTOR_SHUFFLE: {
+    ShuffleVectorSDNode *SV = dyn_cast<ShuffleVectorSDNode>(N);
+    EVT ElemTy = SV->getOperand(0).getValueType().getVectorElementType();
+    int OperNumElems = SV->getOperand(0).getValueType().getVectorNumElements();
+    int ElemSz = ElemTy.getSizeInBits();
+
+    bool OpersUndef[2] = {SV->getOperand(0).isUndef(),
+                          SV->getOperand(1).isUndef()};
+
+    ArrayRef<int> Mask = SV->getMask();
+    for (int i = 0, e = Mask.size(); i < e; i++) {
+      if (Mask[i] >= 0 && !OpersUndef[Mask[i] >= OperNumElems])
+        Lanes[GetLaneIndex(i * ElemSz, StartIdx)] = 1;
+    }
+  } break;
+  }
+
+  if (Lanes.all())
+    return true;
+
+  return retVal;
+}
+
+// A generic routine which checks if operands of a binary operation
+// can be scaled down to a lower sub-register, also it sets the
+// StartIdx (from where operand's extraction needs to start)
+// NewOperVT (new value type of result) and PadVT (value type of
+// padding for result).
+static bool CheckDownScalingBinOpByOperands(SDNode *N, SelectionDAG &DAG,
+                                            const X86Subtarget &Subtarget,
+                                            uint64_t &StartIdx, EVT &NewOperVT,
+                                            EVT &PadVT) {
+  SDLoc DL(N);
+  VecRegKind Op0SubReg, Op1SubReg;
+  int Op0FrwdSubReg, Op1FrwdSubReg;
+
+  if (N->getNumOperands() != 2)
+    return false;
+
+  SDValue Op0 = N->getOperand(0);
+  SDValue Op1 = N->getOperand(1);
+
+  if (!Op0.getValueType().isVector() || !Op1.getValueType().isVector())
+    return false;
+
+  EVT OperVT = Op0.getValueType();
+  int LaneSz = GetLaneIndex(OperVT.getSizeInBits());
+
+  SmallBitVector Op0Lanes(LaneSz, 0);
+  SmallBitVector Op1Lanes(LaneSz, 0);
+
+  if (!OperVT.isSimple() || OperVT.getSizeInBits() < 64)
+    return false;
+
+  EVT OperElemVT = OperVT.getVectorElementType();
+  int OperNumElems = OperVT.getVectorNumElements();
+  int OperElemSZ = OperElemVT.getSizeInBits();
+
+  // Mark bit corresponding to 64 bit lane if the particular
+  // lane is accessed by the node.
+  bool Op0FullUse = MarkLanesUsedByOperands(Op0.getNode(), Op0Lanes, 0);
+  bool Op1FullUse = MarkLanesUsedByOperands(Op1.getNode(), Op1Lanes, 0);
+  if (Op0FullUse && Op1FullUse)
+    return false;
+
+  // Find the smallest sub-register which can accommodate
+  // non-undef part of operands.
+  bool Res0 = GetMinimalUsedSubReg(Op0Lanes, Op0FrwdSubReg, Op0SubReg);
+  bool Res1 = GetMinimalUsedSubReg(Op1Lanes, Op1FrwdSubReg, Op1SubReg);
+  if (!Res0 && !Res1)
+    return false;
+
+  int OperSubReg = std::min(Op0SubReg, Op1SubReg);
+  int PadNumElems =
+      PowerOf2Floor(OperNumElems - ((OperSubReg + 1) * 64) / OperElemSZ);
+  int NewOperNumElems = OperNumElems - PadNumElems;
+
+  if ((Op0FrwdSubReg && Op1FrwdSubReg && Op0FrwdSubReg != Op1FrwdSubReg) ||
+      NewOperNumElems >= OperNumElems)
+    return false;
+
+  // Legal direction for one of the operand could be UNDEF
+  // hence both operand direction are OR'ed to ascertain
+  // the actual direction of subreg.
+  int FrwdSubReg = Op0FrwdSubReg | Op1FrwdSubReg;
+  NewOperVT = EVT::getVectorVT(*DAG.getContext(), OperElemVT, NewOperNumElems);
+  PadVT = EVT::getVectorVT(*DAG.getContext(), OperElemVT, PadNumElems);
+
+  const TargetLowering &TLI = DAG.getTargetLoweringInfo();
+  if (!TLI.isTypeLegal(NewOperVT) || !TLI.isTypeLegal(PadVT))
+    return false;
+
+  StartIdx = FrwdSubReg == FRWD ? 0 : PadNumElems;
+  return true;
+}
+
+static bool MarkLanesUsedByUsers(SDNode *N, SmallBitVector &Lanes) {
+  unsigned ElemSz = 0;
+  int64_t SubVecSize = 1;
+
+  switch (N->getOpcode()) {
+  default: {
+    EVT VT = N->getValueType(0);
+    if (VT.isSimple() && VT.isVector()) {
+      int VTSz = VT.getSizeInBits();
+      for (int i = 0, e = GetLaneIndex(VTSz); i < e; i++)
+        Lanes[i] = 1;
+    } else {
+      // Mark all the lanes used in default case.
+      Lanes.set(0,Lanes.size());
+    }
+  } break;
+
+  case ISD::EXTRACT_SUBVECTOR: {
+    SubVecSize = N->getValueType(0).getVectorNumElements();
+    ElemSz = N->getValueType(0).getVectorElementType().getSizeInBits();
+  }
+  case ISD::EXTRACT_VECTOR_ELT: {
+    SDValue Idx = N->getOperand(1);
+    ElemSz = ElemSz ? ElemSz : N->getValueType(0).getSizeInBits();
+    if (!isa<ConstantSDNode>(Idx))
+      return false;
+
+    int64_t StartIdx =
+        (dyn_cast<ConstantSDNode>(Idx.getNode()))->getSExtValue();
+    int64_t EndIdx = StartIdx + SubVecSize - 1;
+    for (int i = StartIdx, e = EndIdx; i <= e; i++)
+      Lanes[GetLaneIndex(i * ElemSz)] = 1;
+  } break;
+
+  case ISD::VECTOR_SHUFFLE: {
+    ShuffleVectorSDNode *SV = dyn_cast<ShuffleVectorSDNode>(N);
+    EVT ElemTy = SV->getOperand(0).getValueType().getVectorElementType();
+    int OperNumElems = SV->getOperand(0).getValueType().getVectorNumElements();
+    int ElemSz = ElemTy.getSizeInBits();
+    ArrayRef<int> Mask = SV->getMask();
+
+    bool FirstOprd = SV->getOperand(0).getNode() == N;
+    bool UsedOprd[2] = {FirstOprd, !FirstOprd};
+
+    // Mark lane bits of node N which are used by
+    // the shuffle vector.
+    for (int i = 0, e = Mask.size(); i < e; i++)
+      if (Mask[i] >= 0 && UsedOprd[Mask[i] >= OperNumElems])
+        Lanes[GetLaneIndex(i * ElemSz)] = 1;
+  } break;
+  }
+
+  if (Lanes.all())
+    return false;
+
+  return true;
+}
+
+static bool CheckDownScalingBinOpByUses(SDNode *N, SelectionDAG &DAG,
+                                        const X86Subtarget &Subtarget,
+                                        uint64_t &StartIdx, EVT &NewVT,
+                                        EVT &PadVT) {
+  int FrwdSubReg;
+  VecRegKind SubReg;
+  EVT VT = N->getValueType(0);
+
+  if (!VT.isSimple() || VT.getSizeInBits() < 64)
+    return false;
+
+  int LaneSz = GetLaneIndex(VT.getSizeInBits());
+  SmallBitVector Lanes(LaneSz, 0);
+
+  for (SDNode::use_iterator UI = N->use_begin(), UE = N->use_end(); UI != UE;
+       ++UI)
+    if (!MarkLanesUsedByUsers(*UI, Lanes))
+      return false;
+
+  if (!GetMinimalUsedSubReg(Lanes, FrwdSubReg, SubReg))
+    return false;
+
+  EVT ElemVT = VT.getVectorElementType();
+  int ElemSZ = ElemVT.getSizeInBits();
+  int NumElems = VT.getVectorNumElements();
+
+  int PadNumElems = PowerOf2Floor(NumElems - ((SubReg + 1) * 64) / ElemSZ);
+  int NewNumElems = NumElems - PadNumElems;
+
+  if (NewNumElems >= NumElems)
+    return false;
+
+  NewVT = EVT::getVectorVT(*DAG.getContext(), ElemVT, NewNumElems);
+  PadVT = EVT::getVectorVT(*DAG.getContext(), ElemVT, PadNumElems);
+
+  const TargetLowering &TLI = DAG.getTargetLoweringInfo();
+  if (!TLI.isTypeLegal(NewVT) || !TLI.isTypeLegal(PadVT))
+    return false;
+
+  StartIdx = FrwdSubReg == FRWD ? 0 : PadNumElems;
+  return true;
+}
+
+static SDValue CreateScaledDownBinOper(SDLoc &DL, EVT VT, SDValue Op0,
+                                       SDValue Op1, SelectionDAG &DAG,
+                                       unsigned OpCode, uint64_t StartIdx,
+                                       EVT OperVT, EVT PadVT,
+                                       const X86Subtarget &Subtarget) {
+  SDValue ConstOffset = DAG.getIntPtrConstant(StartIdx, DL);
+  SDValue NewOp0 =
+      DAG.getNode(ISD::EXTRACT_SUBVECTOR, DL, OperVT, Op0, ConstOffset);
+
+  SDValue NewOp1 =
+      DAG.getNode(ISD::EXTRACT_SUBVECTOR, DL, OperVT, Op1, ConstOffset);
+
+  SDValue NewN = DAG.getNode(OpCode, DL, OperVT, NewOp0, NewOp1);
+  SDValue ConcatOps[2] = {DAG.getUNDEF(PadVT), NewN};
+  if (StartIdx == 0) {
+    ConcatOps[0] = NewN;
+    ConcatOps[1] = DAG.getUNDEF(PadVT);
+  }
+  return DAG.getNode(ISD::CONCAT_VECTORS, DL, VT, ConcatOps);
+}
+
 // This has so far only been implemented for 64-bit MachO.
 bool X86TargetLowering::useLoadStackGuardNode() const {
   return Subtarget.isTargetMachO() && Subtarget.is64Bit();
@@ -33529,7 +33820,8 @@ static SDValue combineStore(SDNode *N, SelectionDAG &DAG,
 /// set to A, RHS to B, and the routine returns 'true'.
 /// Note that the binary operation should have the property that if one of the
 /// operands is UNDEF then the result is UNDEF.
-static bool isHorizontalBinOp(SDValue &LHS, SDValue &RHS, bool IsCommutative) {
+static bool isHorizontalBinOp(SDValue &LHS, SDValue &RHS, bool IsCommutative,
+                              SelectionDAG &DAG) {
   // Look for the following pattern: if
   //   A = < float a0, float a1, float a2, float a3 >
   //   B = < float b0, float b1, float b2, float b3 >
@@ -33544,10 +33836,12 @@ static bool isHorizontalBinOp(SDValue &LHS, SDValue &RHS, bool IsCommutative) {
       RHS.getOpcode() != ISD::VECTOR_SHUFFLE)
     return false;
 
-  MVT VT = LHS.getSimpleValueType();
+  if (!LHS.getValueType().isSimple() || !RHS.getValueType().isSimple())
+    return false;
 
-  assert((VT.is128BitVector() || VT.is256BitVector()) &&
-         "Unsupported vector type for horizontal add/sub");
+  MVT VT = LHS.getSimpleValueType();
+  if (!(VT.is128BitVector() || VT.is256BitVector() || VT.is512BitVector()))
+    return false;
 
   // Handle 128 and 256-bit vector lengths. AVX defines horizontal add/sub to
   // operate independently on 128-bit lanes.
@@ -33615,9 +33909,9 @@ static bool isHorizontalBinOp(SDValue &LHS, SDValue &RHS, bool IsCommutative) {
   //   LHS = VECTOR_SHUFFLE A, B, LMask
   //   RHS = VECTOR_SHUFFLE A, B, RMask
   // Check that the masks correspond to performing a horizontal operation.
-  for (unsigned l = 0; l != NumElts; l += NumLaneElts) {
+  for (unsigned L = 0; L != NumElts; L += NumLaneElts) {
     for (unsigned i = 0; i != NumLaneElts; ++i) {
-      int LIdx = LMask[i+l], RIdx = RMask[i+l];
+      int LIdx = LMask[i+L], RIdx = RMask[i+L];
 
       // Ignore any UNDEF components.
       if (LIdx < 0 || RIdx < 0 ||
@@ -33628,7 +33922,7 @@ static bool isHorizontalBinOp(SDValue &LHS, SDValue &RHS, bool IsCommutative) {
       // Check that successive elements are being operated on.  If not, this is
       // not a horizontal operation.
       unsigned Src = (i/HalfLaneElts); // each lane is split between srcs
-      int Index = 2*(i%HalfLaneElts) + NumElts*Src + l;
+      int Index = 2*(i%HalfLaneElts) + NumElts*Src + L;
       if (!(LIdx == Index && RIdx == Index + 1) &&
           !(IsCommutative && LIdx == Index + 1 && RIdx == Index))
         return false;
@@ -33637,25 +33931,72 @@ static bool isHorizontalBinOp(SDValue &LHS, SDValue &RHS, bool IsCommutative) {
 
   LHS = A.getNode() ? A : B; // If A is 'UNDEF', use B for it.
   RHS = B.getNode() ? B : A; // If B is 'UNDEF', use A for it.
+
   return true;
+}
+
+// Combining DAG of ADD/SUB with shuffles to Horizontal Operations.
+static SDValue combineToHorizontalOperation(SDNode *N, bool IsIntegeralOp,
+                                            bool IsCommutative, unsigned OpCode,
+                                            const X86Subtarget &Subtarget,
+                                            SelectionDAG &DAG) {
+  SDLoc DL(N);
+  EVT VT = N->getValueType(0);
+  SDValue Op0 = N->getOperand(0);
+  SDValue Op1 = N->getOperand(1);
+
+  auto ValidHorizontalTypes = [&](EVT ValTyp) -> bool {
+    if (IsIntegeralOp)
+      return ((Subtarget.hasSSSE3() &&
+               (ValTyp == MVT::v8i16 || ValTyp == MVT::v4i32)) ||
+              (Subtarget.hasInt256() &&
+               (ValTyp == MVT::v16i16 || ValTyp == MVT::v8i32)));
+    else
+      return ((Subtarget.hasSSE3() &&
+               (ValTyp == MVT::v4f32 || ValTyp == MVT::v2f64)) ||
+              (Subtarget.hasFp256() &&
+               (ValTyp == MVT::v8f32 || ValTyp == MVT::v4f64)));
+  };
+
+  // Try to synthesize horizontal [f]add/[f]sub from adds of shuffles.
+  bool ValidHorizontalPattern = isHorizontalBinOp(Op0, Op1, IsCommutative, DAG);
+
+  if (ValidHorizontalPattern && ValidHorizontalTypes(VT))
+    return DAG.getNode(OpCode, DL, VT, Op0, Op1);
+
+  if (ValidHorizontalPattern && VT.is512BitVector()) {
+    uint64_t StartIdx;
+    EVT NewOperVT, PadVT;
+
+    if (CheckDownScalingBinOpByUses(N, DAG, Subtarget, StartIdx, NewOperVT,
+                                    PadVT) &&
+        ValidHorizontalTypes(NewOperVT))
+      return CreateScaledDownBinOper(DL, VT, Op0, Op1, DAG, OpCode, StartIdx,
+                                     NewOperVT, PadVT, Subtarget);
+    else if (CheckDownScalingBinOpByOperands(N, DAG, Subtarget, StartIdx,
+                                             NewOperVT, PadVT) &&
+             ValidHorizontalTypes(NewOperVT))
+      return CreateScaledDownBinOper(DL, VT, Op0, Op1, DAG, OpCode, StartIdx,
+                                     NewOperVT, PadVT, Subtarget);
+    else {
+      // Not creating multiple Horizontal add/sub due to latency considerations.
+    }
+  }
+
+  return SDValue();
 }
 
 /// Do target-specific dag combines on floating-point adds/subs.
 static SDValue combineFaddFsub(SDNode *N, SelectionDAG &DAG,
                                const X86Subtarget &Subtarget) {
-  EVT VT = N->getValueType(0);
-  SDValue LHS = N->getOperand(0);
-  SDValue RHS = N->getOperand(1);
   bool IsFadd = N->getOpcode() == ISD::FADD;
   assert((IsFadd || N->getOpcode() == ISD::FSUB) && "Wrong opcode");
 
-  // Try to synthesize horizontal add/sub from adds/subs of shuffles.
-  if (((Subtarget.hasSSE3() && (VT == MVT::v4f32 || VT == MVT::v2f64)) ||
-       (Subtarget.hasFp256() && (VT == MVT::v8f32 || VT == MVT::v4f64))) &&
-      isHorizontalBinOp(LHS, RHS, IsFadd)) {
-    auto NewOpcode = IsFadd ? X86ISD::FHADD : X86ISD::FHSUB;
-    return DAG.getNode(NewOpcode, SDLoc(N), VT, LHS, RHS);
-  }
+  auto NewOpcode = IsFadd ? X86ISD::FHADD : X86ISD::FHSUB;
+  if (SDValue V = combineToHorizontalOperation(N, false, IsFadd, NewOpcode,
+                                               Subtarget, DAG))
+    return V;
+
   return SDValue();
 }
 
@@ -35564,6 +35905,8 @@ static SDValue combineIncDecVector(SDNode *N, SelectionDAG &DAG) {
 
 static SDValue combineAdd(SDNode *N, SelectionDAG &DAG,
                           const X86Subtarget &Subtarget) {
+  SDLoc DL(N);
+
   const SDNodeFlags Flags = N->getFlags();
   if (Flags.hasVectorReduction()) {
     if (SDValue Sad = combineLoopSADPattern(N, DAG, Subtarget))
@@ -35571,20 +35914,18 @@ static SDValue combineAdd(SDNode *N, SelectionDAG &DAG,
     if (SDValue MAdd = combineLoopMAddPattern(N, DAG, Subtarget))
       return MAdd;
   }
-  EVT VT = N->getValueType(0);
-  SDValue Op0 = N->getOperand(0);
-  SDValue Op1 = N->getOperand(1);
 
-  // Try to synthesize horizontal adds from adds of shuffles.
-  if (((Subtarget.hasSSSE3() && (VT == MVT::v8i16 || VT == MVT::v4i32)) ||
-       (Subtarget.hasInt256() && (VT == MVT::v16i16 || VT == MVT::v8i32))) &&
-      isHorizontalBinOp(Op0, Op1, true))
-    return DAG.getNode(X86ISD::HADD, SDLoc(N), VT, Op0, Op1);
+  if (SDValue V = combineToHorizontalOperation(N, true, true, X86ISD::HADD,
+                                               Subtarget, DAG))
+    return V;
 
   if (SDValue V = combineIncDecVector(N, DAG))
     return V;
 
-  return combineAddOrSubToADCOrSBB(N, DAG);
+  if (SDValue V = combineAddOrSubToADCOrSBB(N, DAG))
+    return V;
+
+  return SDValue();
 }
 
 static SDValue combineSub(SDNode *N, SelectionDAG &DAG,
@@ -35610,17 +35951,17 @@ static SDValue combineSub(SDNode *N, SelectionDAG &DAG,
     }
   }
 
-  // Try to synthesize horizontal subs from subs of shuffles.
-  EVT VT = N->getValueType(0);
-  if (((Subtarget.hasSSSE3() && (VT == MVT::v8i16 || VT == MVT::v4i32)) ||
-       (Subtarget.hasInt256() && (VT == MVT::v16i16 || VT == MVT::v8i32))) &&
-      isHorizontalBinOp(Op0, Op1, false))
-    return DAG.getNode(X86ISD::HSUB, SDLoc(N), VT, Op0, Op1);
+  if (SDValue V = combineToHorizontalOperation(N, true, false, X86ISD::HSUB,
+                                               Subtarget, DAG))
+    return V;
 
   if (SDValue V = combineIncDecVector(N, DAG))
     return V;
 
-  return combineAddOrSubToADCOrSBB(N, DAG);
+  if (SDValue V = combineAddOrSubToADCOrSBB(N, DAG))
+    return V;
+
+  return SDValue();
 }
 
 static SDValue combineVSZext(SDNode *N, SelectionDAG &DAG,

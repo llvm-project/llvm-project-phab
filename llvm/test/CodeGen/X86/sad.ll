@@ -78,8 +78,7 @@ define i32 @sad_16i8() nounwind {
 ; AVX512F-NEXT:    vpaddd %zmm1, %zmm0, %zmm0
 ; AVX512F-NEXT:    vpshufd {{.*#+}} xmm1 = xmm0[2,3,0,1]
 ; AVX512F-NEXT:    vpaddd %zmm1, %zmm0, %zmm0
-; AVX512F-NEXT:    vpshufd {{.*#+}} xmm1 = xmm0[1,1,2,3]
-; AVX512F-NEXT:    vpaddd %zmm1, %zmm0, %zmm0
+; AVX512F-NEXT:    vphaddd %ymm0, %ymm0, %ymm0
 ; AVX512F-NEXT:    vmovd %xmm0, %eax
 ; AVX512F-NEXT:    vzeroupper
 ; AVX512F-NEXT:    retq
@@ -104,8 +103,7 @@ define i32 @sad_16i8() nounwind {
 ; AVX512BW-NEXT:    vpaddd %zmm1, %zmm0, %zmm0
 ; AVX512BW-NEXT:    vpshufd {{.*#+}} xmm1 = xmm0[2,3,0,1]
 ; AVX512BW-NEXT:    vpaddd %zmm1, %zmm0, %zmm0
-; AVX512BW-NEXT:    vpshufd {{.*#+}} xmm1 = xmm0[1,1,2,3]
-; AVX512BW-NEXT:    vpaddd %zmm1, %zmm0, %zmm0
+; AVX512BW-NEXT:    vphaddd %ymm0, %ymm0, %ymm0
 ; AVX512BW-NEXT:    vmovd %xmm0, %eax
 ; AVX512BW-NEXT:    vzeroupper
 ; AVX512BW-NEXT:    retq
@@ -327,8 +325,7 @@ define i32 @sad_32i8() nounwind {
 ; AVX512F-NEXT:    vpaddd %zmm1, %zmm0, %zmm0
 ; AVX512F-NEXT:    vpshufd {{.*#+}} xmm1 = xmm0[2,3,0,1]
 ; AVX512F-NEXT:    vpaddd %zmm1, %zmm0, %zmm0
-; AVX512F-NEXT:    vpshufd {{.*#+}} xmm1 = xmm0[1,1,2,3]
-; AVX512F-NEXT:    vpaddd %zmm1, %zmm0, %zmm0
+; AVX512F-NEXT:    vphaddd %ymm0, %ymm0, %ymm0
 ; AVX512F-NEXT:    vmovd %xmm0, %eax
 ; AVX512F-NEXT:    vzeroupper
 ; AVX512F-NEXT:    retq
@@ -355,8 +352,7 @@ define i32 @sad_32i8() nounwind {
 ; AVX512BW-NEXT:    vpaddd %zmm1, %zmm0, %zmm0
 ; AVX512BW-NEXT:    vpshufd {{.*#+}} xmm1 = xmm0[2,3,0,1]
 ; AVX512BW-NEXT:    vpaddd %zmm1, %zmm0, %zmm0
-; AVX512BW-NEXT:    vpshufd {{.*#+}} xmm1 = xmm0[1,1,2,3]
-; AVX512BW-NEXT:    vpaddd %zmm1, %zmm0, %zmm0
+; AVX512BW-NEXT:    vphaddd %ymm0, %ymm0, %ymm0
 ; AVX512BW-NEXT:    vmovd %xmm0, %eax
 ; AVX512BW-NEXT:    vzeroupper
 ; AVX512BW-NEXT:    retq
@@ -800,8 +796,7 @@ define i32 @sad_avx64i8() nounwind {
 ; AVX512F-NEXT:    vpaddd %zmm1, %zmm0, %zmm0
 ; AVX512F-NEXT:    vpshufd {{.*#+}} xmm1 = xmm0[2,3,0,1]
 ; AVX512F-NEXT:    vpaddd %zmm1, %zmm0, %zmm0
-; AVX512F-NEXT:    vpshufd {{.*#+}} xmm1 = xmm0[1,1,2,3]
-; AVX512F-NEXT:    vpaddd %zmm1, %zmm0, %zmm0
+; AVX512F-NEXT:    vphaddd %ymm0, %ymm0, %ymm0
 ; AVX512F-NEXT:    vmovd %xmm0, %eax
 ; AVX512F-NEXT:    vzeroupper
 ; AVX512F-NEXT:    retq
@@ -829,8 +824,7 @@ define i32 @sad_avx64i8() nounwind {
 ; AVX512BW-NEXT:    vpaddd %zmm1, %zmm0, %zmm0
 ; AVX512BW-NEXT:    vpshufd {{.*#+}} xmm1 = xmm0[2,3,0,1]
 ; AVX512BW-NEXT:    vpaddd %zmm1, %zmm0, %zmm0
-; AVX512BW-NEXT:    vpshufd {{.*#+}} xmm1 = xmm0[1,1,2,3]
-; AVX512BW-NEXT:    vpaddd %zmm1, %zmm0, %zmm0
+; AVX512BW-NEXT:    vphaddd %ymm0, %ymm0, %ymm0
 ; AVX512BW-NEXT:    vmovd %xmm0, %eax
 ; AVX512BW-NEXT:    vzeroupper
 ; AVX512BW-NEXT:    retq
