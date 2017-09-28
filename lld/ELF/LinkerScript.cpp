@@ -79,13 +79,30 @@ uint64_t ExprValue::getSectionOffset() const {
   return getValue() - getSecAddr();
 }
 
-static SymbolBody *addRegular(SymbolAssignment *Cmd) {
+static Symbol *createSymbol(SymbolAssignment *Cmd) {
   Symbol *Sym;
   uint8_t Visibility = Cmd->Hidden ? STV_HIDDEN : STV_DEFAULT;
   std::tie(Sym, std::ignore) = Symtab->insert(Cmd->Name, /*Type*/ 0, Visibility,
                                               /*CanOmitFromDynSym*/ false,
                                               /*File*/ nullptr);
   Sym->Binding = STB_GLOBAL;
+  return Sym;
+}
+
+static SymbolBody *addDummyRegular(SymbolAssignment *Cmd) {
+  // We do not need to add dummy symbol if already have non-dummy one.
+  if (SymbolBody *B = Symtab->find(Cmd->Name))
+    return B;
+
+  Symbol *Sym = createSymbol(Cmd);
+  replaceBody<DefinedRegular>(Sym, nullptr, Cmd->Name, /*IsLocal=*/false,
+                              Cmd->Hidden ? STV_HIDDEN : STV_DEFAULT,
+                              STT_NOTYPE, 0, 0, nullptr);
+  return Sym->body();
+}
+
+static SymbolBody *addRegular(SymbolAssignment *Cmd) {
+  Symbol *Sym = createSymbol(Cmd);
   ExprValue Value = Cmd->Expression();
   SectionBase *Sec = Value.isAbsolute() ? nullptr : Value.Sec;
 
@@ -94,7 +111,8 @@ static SymbolBody *addRegular(SymbolAssignment *Cmd) {
   // like this: `alignment = 16; . = ALIGN(., alignment)`
   uint64_t SymValue = Value.Sec ? 0 : Value.getValue();
   replaceBody<DefinedRegular>(Sym, nullptr, Cmd->Name, /*IsLocal=*/false,
-                              Visibility, STT_NOTYPE, SymValue, 0, Sec);
+                              Cmd->Hidden ? STV_HIDDEN : STV_DEFAULT,
+                              STT_NOTYPE, SymValue, 0, Sec);
   return Sym->body();
 }
 
@@ -155,17 +173,32 @@ void LinkerScript::assignSymbol(SymbolAssignment *Cmd, bool InSec) {
   }
 }
 
-void LinkerScript::addSymbol(SymbolAssignment *Cmd) {
+static bool shouldAddSymbol(SymbolAssignment *Cmd) {
   if (Cmd->Name == ".")
-    return;
-
+    return false;
   // If a symbol was in PROVIDE(), we need to define it only when
   // it is a referenced undefined symbol.
+  if (!Cmd->Provide)
+    return true;
   SymbolBody *B = Symtab->find(Cmd->Name);
-  if (Cmd->Provide && (!B || B->isDefined()))
-    return;
+  return B && B->isUndefined();
+}
 
+void LinkerScript::addSymbol(SymbolAssignment *Cmd) {
+  if (!shouldAddSymbol(Cmd))
+    return;
   Cmd->Sym = addRegular(Cmd);
+}
+
+// We want to define symbols assigned by linker script early enough,
+// so we can version them or change another attributes before the rest script
+// commands are processed and their values are finalized.
+void LinkerScript::defineSymbols() {
+  assert(!CurAddressState);
+  for (BaseCommand *Base : Opt.Commands)
+    if (SymbolAssignment *Cmd = dyn_cast<SymbolAssignment>(Base))
+      if (shouldAddSymbol(Cmd))
+        addDummyRegular(Cmd)->symbol()->CanInline = false;
 }
 
 bool SymbolAssignment::classof(const BaseCommand *C) {
