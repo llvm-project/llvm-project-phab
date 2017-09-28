@@ -2832,6 +2832,23 @@ static int biasPhysRegCopy(const SUnit *SU, bool isTop) {
   return 0;
 }
 
+static int physRegCopy2(const SUnit *SU, bool isTop) {
+  const MachineInstr *MI = SU->getInstr();
+  // Look for operands that use a virtual register which is defined only by a
+  // COPY of a preg.
+  const MachineRegisterInfo &MRI = MI->getParent()->getParent()->getRegInfo();
+  unsigned NumCopiedPhysRegUses = 0;
+  for (auto &MO : MI->uses()) {
+    if (!MO.isReg())
+      continue;
+    MachineInstr *DefMI = MRI.getUniqueVRegDef(MO.getReg());
+    if (DefMI != nullptr && DefMI->isCopy() &&
+        TargetRegisterInfo::isPhysicalRegister(DefMI->getOperand(1).getReg()))
+      NumCopiedPhysRegUses++;
+  }
+  return (isTop ? NumCopiedPhysRegUses : -NumCopiedPhysRegUses);
+}
+
 void GenericScheduler::initCandidate(SchedCandidate &Cand, SUnit *SU,
                                      bool AtTop,
                                      const RegPressureTracker &RPTracker,
@@ -2972,6 +2989,12 @@ void GenericScheduler::tryCandidate(SchedCandidate &Cand,
     // For acyclic path limited loops, latency was already checked above.
     if (!RegionPolicy.DisableLatencyHeuristic && TryCand.Policy.ReduceLatency &&
         !Rem.IsAcyclicLatencyLimited && tryLatency(TryCand, Cand, *Zone))
+      return;
+
+    // Try to minimize live ranges of copied physregs.
+    if (tryGreater(physRegCopy2(TryCand.SU, TryCand.AtTop),
+                   physRegCopy2(Cand.SU, Cand.AtTop),
+                   TryCand, Cand, PhysRegCopy))
       return;
 
     // Fall through to original instruction order.
