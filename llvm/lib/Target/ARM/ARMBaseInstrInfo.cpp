@@ -2525,14 +2525,28 @@ inline static ARMCC::CondCodes getSwappedCondition(ARMCC::CondCodes CC) {
   }
 }
 
+/// getCmpToAddCondition - assume the flags are set by CMP(a,b), return
+/// the condition code if we modify the instructions such that flags are
+/// set by ADD(a,b,X).
+inline static ARMCC::CondCodes getCmpToAddCondition(ARMCC::CondCodes CC) {
+  switch (CC) {
+  default: return ARMCC::AL;
+  case ARMCC::HS: return ARMCC::LO;
+  case ARMCC::LO: return ARMCC::HS;
+  case ARMCC::VS: return ARMCC::VS;
+  case ARMCC::VC: return ARMCC::VC;
+  }
+}
+
 /// isRedundantFlagInstr - check whether the first instruction, whose only
 /// purpose is to update flags, can be made redundant.
 /// CMPrr can be made redundant by SUBrr if the operands are the same.
 /// CMPri can be made redundant by SUBri if the operands are the same.
+/// CMPrr(r0, r1) can be made redundant by ADDr[ri](r0, r1, X).
 /// This function can be extended later on.
-inline static bool isRedundantFlagInstr(MachineInstr *CmpI, unsigned SrcReg,
-                                        unsigned SrcReg2, int ImmValue,
-                                        MachineInstr *OI) {
+inline static bool isRedundantFlagInstr(const MachineInstr *CmpI,
+                                        unsigned SrcReg, unsigned SrcReg2,
+                                        int ImmValue, const MachineInstr *OI) {
   if ((CmpI->getOpcode() == ARM::CMPrr ||
        CmpI->getOpcode() == ARM::t2CMPrr) &&
       (OI->getOpcode() == ARM::SUBrr ||
@@ -2549,6 +2563,14 @@ inline static bool isRedundantFlagInstr(MachineInstr *CmpI, unsigned SrcReg,
        OI->getOpcode() == ARM::t2SUBri) &&
       OI->getOperand(1).getReg() == SrcReg &&
       OI->getOperand(2).getImm() == ImmValue)
+    return true;
+
+  if ((CmpI->getOpcode() == ARM::CMPrr || CmpI->getOpcode() == ARM::t2CMPrr) &&
+      (OI->getOpcode() == ARM::ADDrr || OI->getOpcode() == ARM::t2ADDrr ||
+       OI->getOpcode() == ARM::ADDri || OI->getOpcode() == ARM::t2ADDri) &&
+      OI->getOperand(0).isReg() && OI->getOperand(1).isReg() &&
+      OI->getOperand(0).getReg() == SrcReg &&
+      OI->getOperand(1).getReg() == SrcReg2)
     return true;
   return false;
 }
@@ -2655,14 +2677,14 @@ bool ARMBaseInstrInfo::optimizeCompareInstr(
   // One is MI, the other is a SUB instruction.
   // For CMPrr(r1,r2), we are looking for SUB(r1,r2) or SUB(r2,r1).
   // For CMPri(r1, CmpValue), we are looking for SUBri(r1, CmpValue).
-  MachineInstr *Sub = nullptr;
+  MachineInstr *SubAdd = nullptr;
   if (SrcReg2 != 0)
     // MI is not a candidate for CMPrr.
     MI = nullptr;
   else if (MI->getParent() != CmpInstr.getParent() || CmpValue != 0) {
     // Conservatively refuse to convert an instruction which isn't in the same
     // BB as the comparison.
-    // For CMPri w/ CmpValue != 0, a Sub may still be a candidate.
+    // For CMPri w/ CmpValue != 0, a SubAdd may still be a candidate.
     // Thus we cannot return here.
     if (CmpInstr.getOpcode() == ARM::CMPri ||
         CmpInstr.getOpcode() == ARM::t2CMPri)
@@ -2704,10 +2726,13 @@ bool ARMBaseInstrInfo::optimizeCompareInstr(
     }
     I = CmpInstr;
     E = MI;
+  } else {
+    // Allow MI to be SubAdd.
+    --E;
   }
 
   // Check that CPSR isn't set between the comparison instruction and the one we
-  // want to change. At the same time, search for Sub.
+  // want to change. At the same time, search for SubAdd.
   const TargetRegisterInfo *TRI = &getRegisterInfo();
   --I;
   for (; I != E; --I) {
@@ -2716,12 +2741,13 @@ bool ARMBaseInstrInfo::optimizeCompareInstr(
     if (Instr.modifiesRegister(ARM::CPSR, TRI) ||
         Instr.readsRegister(ARM::CPSR, TRI))
       // This instruction modifies or uses CPSR after the one we want to
-      // change. We can't do this transformation.
-      return false;
+      // change. We can't do this transformation with MI, but we might
+      // still be able to use SubAdd.
+      MI = nullptr;
 
     // Check whether CmpInstr can be made redundant by the current instruction.
     if (isRedundantFlagInstr(&CmpInstr, SrcReg, SrcReg2, CmpValue, &*I)) {
-      Sub = &*I;
+      SubAdd = &*I;
       break;
     }
 
@@ -2731,11 +2757,11 @@ bool ARMBaseInstrInfo::optimizeCompareInstr(
   }
 
   // Return false if no candidates exist.
-  if (!MI && !Sub)
+  if (!MI && !SubAdd)
     return false;
 
   // The single candidate is called MI.
-  if (!MI) MI = Sub;
+  if (!MI) MI = SubAdd;
 
   // We can't use a predicated instruction - it doesn't always write the flags.
   if (isPredicated(*MI))
@@ -2793,25 +2819,31 @@ bool ARMBaseInstrInfo::optimizeCompareInstr(
         break;
       }
 
-      if (Sub) {
-        ARMCC::CondCodes NewCC = getSwappedCondition(CC);
-        if (NewCC == ARMCC::AL)
-          return false;
+      if (SubAdd) {
         // If we have SUB(r1, r2) and CMP(r2, r1), the condition code based
         // on CMP needs to be updated to be based on SUB.
+        // If we have ADD(r1, r2, X) and CMP(r1, r2), the condition code also
+        // needs to be modified.
         // Push the condition code operands to OperandsToUpdate.
         // If it is safe to remove CmpInstr, the condition code of these
         // operands will be modified.
-        if (SrcReg2 != 0 && Sub->getOperand(1).getReg() == SrcReg2 &&
-            Sub->getOperand(2).getReg() == SrcReg) {
+        unsigned Opc = SubAdd->getOpcode();
+        bool IsSub = Opc == ARM::SUBrr || Opc == ARM::t2SUBrr ||
+                     Opc == ARM::SUBri || Opc == ARM::t2SUBri;
+        if (!IsSub || (SrcReg2 != 0 && SubAdd->getOperand(1).getReg() == SrcReg2 &&
+                       SubAdd->getOperand(2).getReg() == SrcReg)) {
           // VSel doesn't support condition code update.
           if (IsInstrVSel)
+            return false;
+          // Ensure we can swap the condition.
+          ARMCC::CondCodes NewCC = (IsSub ? getSwappedCondition(CC) : getCmpToAddCondition(CC));
+          if (NewCC == ARMCC::AL)
             return false;
           OperandsToUpdate.push_back(
               std::make_pair(&((*I).getOperand(IO - 1)), NewCC));
         }
       } else {
-        // No Sub, so this is x = <op> y, z; cmp x, 0.
+        // No SubAdd, so this is x = <op> y, z; cmp x, 0.
         switch (CC) {
         case ARMCC::EQ: // Z
         case ARMCC::NE: // Z
@@ -2862,6 +2894,23 @@ bool ARMBaseInstrInfo::optimizeCompareInstr(
   for (unsigned i = 0, e = OperandsToUpdate.size(); i < e; i++)
     OperandsToUpdate[i].first->setImm(OperandsToUpdate[i].second);
 
+  return true;
+}
+
+bool ARMBaseInstrInfo::shouldSink(const MachineInstr &MI) const {
+  // Do not sink MI if it might be used to optimize a redundant compare.
+  // We heuristically only look at the instruction immediately following MI to
+  // avoid potentially searching the entire basic block.
+  if (isPredicated(MI))
+    return true;
+  MachineBasicBlock::const_iterator Next = &MI;
+  ++Next;
+  unsigned SrcReg, SrcReg2;
+  int CmpMask, CmpValue;
+  if (Next != MI.getParent()->end() &&
+      analyzeCompare(*Next, SrcReg, SrcReg2, CmpMask, CmpValue) &&
+      isRedundantFlagInstr(&*Next, SrcReg, SrcReg2, CmpValue, &MI))
+    return false;
   return true;
 }
 

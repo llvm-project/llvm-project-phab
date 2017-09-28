@@ -3,9 +3,7 @@
 
 define i32 @sadd(i32 %a, i32 %b) local_unnamed_addr #0 {
 ; CHECK-LABEL: sadd:
-; CHECK:    mov r[[R0:[0-9]+]], r0
-; CHECK-NEXT:    add r[[R1:[0-9]+]], r[[R0]], r1
-; CHECK-NEXT:    cmp r[[R1]], r[[R0]]
+; CHECK:    adds r0, r0, r1
 ; CHECK-NEXT:    movvc pc, lr
 entry:
   %0 = tail call { i32, i1 } @llvm.sadd.with.overflow.i32(i32 %a, i32 %b)
@@ -24,10 +22,8 @@ cont:
 
 define i32 @uadd(i32 %a, i32 %b) local_unnamed_addr #0 {
 ; CHECK-LABEL: uadd:
-; CHECK:    mov r[[R0:[0-9]+]], r0
-; CHECK-NEXT:    adds r[[R1:[0-9]+]], r[[R0]], r1
-; CHECK-NEXT:    cmp r[[R1]], r[[R0]]
-; CHECK-NEXT:    movhs pc, lr
+; CHECK:    adds r0, r0, r1
+; CHECK-NEXT:    movlo pc, lr
 entry:
   %0 = tail call { i32, i1 } @llvm.uadd.with.overflow.i32(i32 %a, i32 %b)
   %1 = extractvalue { i32, i1 } %0, 1
@@ -45,8 +41,7 @@ cont:
 
 define i32 @ssub(i32 %a, i32 %b) local_unnamed_addr #0 {
 ; CHECK-LABEL: ssub:
-; CHECK:    cmp r0, r1
-; CHECK-NEXT:    subvc r0, r0, r1
+; CHECK:    subs r0, r0, r1
 ; CHECK-NEXT:    movvc pc, lr
 entry:
   %0 = tail call { i32, i1 } @llvm.ssub.with.overflow.i32(i32 %a, i32 %b)
@@ -65,9 +60,7 @@ cont:
 
 define i32 @usub(i32 %a, i32 %b) local_unnamed_addr #0 {
 ; CHECK-LABEL: usub:
-; CHECK:    mov r2, r0
-; CHECK-NEXT:    subs r0, r2, r1
-; CHECK-NEXT:    cmp r2, r1
+; CHECK:    subs r0, r0, r1
 ; CHECK-NEXT:    movhs pc, lr
 entry:
   %0 = tail call { i32, i1 } @llvm.usub.with.overflow.i32(i32 %a, i32 %b)
@@ -88,11 +81,9 @@ define void @sum(i32* %a, i32* %b, i32 %n) local_unnamed_addr #0 {
 ; CHECK-LABEL: sum:
 ; CHECK:    ldr [[R0:r[0-9]+]],
 ; CHECK-NEXT:    ldr [[R1:r[0-9]+|lr]],
-; CHECK-NEXT:    add [[R2:r[0-9]+]], [[R1]], [[R0]]
-; CHECK-NEXT:    cmp [[R2]], [[R1]]
+; CHECK-NEXT:    adds [[R2:r[0-9]+]], [[R1]], [[R0]]
 ; CHECK-NEXT:    strvc [[R2]],
-; CHECK-NEXT:    addvc
-; CHECK-NEXT:    cmpvc
+; CHECK-NEXT:    addsvc
 ; CHECK-NEXT:    bvs
 entry:
   %cmp7 = icmp eq i32 %n, 0
