@@ -85,3 +85,4 @@ attributes #1 = { nounwind readnone }
 !31 = !{!32}
 !32 = !DILocalVariable(name: "n", arg: 1, scope: !30, file: !1, line: 8, type: !7)
 
+; REQUIRES: llvm-lto

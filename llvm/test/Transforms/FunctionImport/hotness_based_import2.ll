@@ -51,3 +51,5 @@ declare void @hot() #1
 !14 = !{i32 999999, i64 2, i32 4}
 !28 = !{!"function_entry_count", i64 110}
 !29 = !{!"function_entry_count", i64 1}
+
+; REQUIRES: llvm-lto

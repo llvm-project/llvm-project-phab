@@ -18,3 +18,5 @@ entry:
 }
 
 declare void @foo()
+
+; REQUIRES: llvm-lto

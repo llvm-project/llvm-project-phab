@@ -17,3 +17,5 @@ entry:
 
 ; CHECK: declare void @foo(i64*)
 declare void @foo(i64*) #1
+
+; REQUIRES: llvm-lto

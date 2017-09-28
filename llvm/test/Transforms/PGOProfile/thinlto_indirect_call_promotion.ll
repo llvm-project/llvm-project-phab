@@ -37,3 +37,5 @@ entry:
 ; ICALL-PROM-NOT: !"VP"
 ; ICALL-PROM: [[BRANCH_WEIGHT]] = !{!"branch_weights", i32 1, i32 0}
 ; ICALL-PROM-NOT: !"VP"
+
+; REQUIRES: llvm-lto

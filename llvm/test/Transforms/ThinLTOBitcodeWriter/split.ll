@@ -42,3 +42,5 @@ define i8* @f() {
 
 ; M1: !0 = !{i32 0, !"typeid"}
 !0 = !{i32 0, !"typeid"}
+
+; REQUIRES: llvm-lto

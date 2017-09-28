@@ -103,3 +103,5 @@ define {i8*, i1} @f6(i8* %vtable) {
 declare i1 @llvm.type.test(i8*, metadata) nounwind readnone
 declare void @llvm.assume(i1)
 declare {i8*, i1} @llvm.type.checked.load(i8*, i32, metadata)
+
+; REQUIRES: llvm-lto

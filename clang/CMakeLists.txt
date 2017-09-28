@@ -183,7 +183,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
 
 # Don't look for libxml if we're using MSan, since uninstrumented third party
 # code may call MSan interceptors like strlen, leading to false positives.
-if(NOT LLVM_USE_SANITIZER MATCHES "Memory.*")
+if(NOT LLVM_USE_SANITIZER MATCHES "Memory.*" AND LLVM_ENABLE_LIBXML2)
   set (LIBXML2_FOUND 0)
   find_package(LibXml2 2.5.3 QUIET)
   if (LIBXML2_FOUND)

@@ -61,3 +61,5 @@ entry:
 !31 = !{!"clang version 5.0.0 (trunk 297016)"}
 !34 = !{!"function_entry_count", i64 1}
 !40 = !{!"VP", i32 0, i64 3000, i64 -8789629626369651636, i64 3000}
+
+; REQUIRES: llvm-lto

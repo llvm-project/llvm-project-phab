@@ -15,3 +15,5 @@ define void @caller() {
   call void @foo()
   ret void
 }
+
+; REQUIRES: llvm-lto

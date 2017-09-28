@@ -33,3 +33,5 @@
 define void @foo() {
     ret void
 }
+
+; REQUIRES: llvm-lto

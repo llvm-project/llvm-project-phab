@@ -28,3 +28,5 @@ target triple = "x86_64-unknown-linux-gnu"
 define internal void @foo() {
     ret void
 }
+
+; REQUIRES: llvm-lto

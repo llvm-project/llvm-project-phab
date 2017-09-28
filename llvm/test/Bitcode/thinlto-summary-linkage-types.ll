@@ -59,3 +59,5 @@ define external void @external()
 {
   ret void
 }
+
+; REQUIRES: llvm-lto

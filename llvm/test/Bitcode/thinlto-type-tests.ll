@@ -28,3 +28,5 @@ define i1 @h() {
 }
 
 declare i1 @llvm.type.test(i8*, metadata) nounwind readnone
+
+; REQUIRES: llvm-lto

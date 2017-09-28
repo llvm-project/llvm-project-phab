@@ -23,3 +23,5 @@ entry:
 
 declare void @callanalias() #1
 ; CHECK-DAG: define available_externally void @callanalias()
+
+; REQUIRES: llvm-lto

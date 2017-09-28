@@ -51,3 +51,5 @@ attributes #1 = { "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-
 !10 = !{!"clang version 3.8.0 (trunk 255685) (llvm/trunk 255682)"}
 !11 = !DILocation(line: 3, column: 3, scope: !4)
 !12 = !DILocation(line: 4, column: 1, scope: !4)
+
+; REQUIRES: llvm-lto

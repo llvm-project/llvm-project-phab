@@ -194,3 +194,5 @@ define internal void @staticfunc2() #0 {
 entry:
   ret void
 }
+
+; REQUIRES: llvm-lto

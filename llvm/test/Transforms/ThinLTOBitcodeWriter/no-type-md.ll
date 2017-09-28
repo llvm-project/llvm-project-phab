@@ -34,3 +34,5 @@
 define void @f() {
   ret void
 }
+
+; REQUIRES: llvm-lto

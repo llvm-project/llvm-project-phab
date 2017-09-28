@@ -118,3 +118,5 @@ declare void @none3() #1
 !14 = !{i32 999999, i64 1, i32 2}
 !15 = !{!"branch_weights", i32 100}
 !16 = !{!"branch_weights", i32 1}
+
+; REQUIRES: llvm-lto

@@ -29,3 +29,4 @@ entry:
   ret void
 }
 
+; REQUIRES: llvm-lto

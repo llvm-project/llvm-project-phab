@@ -11,3 +11,5 @@
 define internal void @functionWithSection() section "some_section" {
     ret void
 }
+
+; REQUIRES: llvm-lto

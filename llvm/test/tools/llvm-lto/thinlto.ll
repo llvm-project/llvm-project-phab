@@ -1,4 +1,6 @@
 ; Test combined function index generation for ThinLTO via llvm-lto.
+; REQUIRES: llvm-lto
+
 ; RUN: opt -module-summary %s -o %t.o
 ; RUN: opt -module-summary %p/Inputs/thinlto.ll -o %t2.o
 ; RUN: llvm-lto -thinlto -o %t3 %t.o %t2.o

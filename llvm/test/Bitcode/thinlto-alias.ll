@@ -43,3 +43,5 @@ entry:
 }
 
 declare void @analias(...)
+
+; REQUIRES: llvm-lto

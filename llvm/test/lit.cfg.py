@@ -259,6 +259,9 @@ def have_ld64_plugin_support():
 if have_ld64_plugin_support():
     config.available_features.add('ld64_plugin')
 
+if config.llvm_tool_lto_build:
+    config.available_features.add('llvm-lto')
+
 # Ask llvm-config about asserts and global-isel.
 llvm_config.feature_config(
   [('--assertion-mode', {'ON' : 'asserts'}),

@@ -26,3 +26,5 @@ $comdat2 = comdat any
 define internal void @comdat2_func1() comdat($comdat2) {
   ret void
 }
+
+; REQUIRES: llvm-lto

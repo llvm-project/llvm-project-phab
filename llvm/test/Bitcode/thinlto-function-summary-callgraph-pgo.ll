@@ -49,3 +49,5 @@ declare void @func(...) #1
 
 ; OLD: Index {{.*}} contains 1 nodes (1 functions, 0 alias, 0 globals) and 1 edges (0 refs and 1 calls)
 ; OLD-COMBINED: Index {{.*}} contains 2 nodes (2 functions, 0 alias, 0 globals) and 1 edges (0 refs and 1 calls)
+
+; REQUIRES: llvm-lto
