@@ -82,17 +82,23 @@ static uint64_t updateOffset(uint64_t Off, InputSection *S) {
   return Off + S->getSize();
 }
 
+static bool shouldCompress(uint64_t Flags, StringRef SectionName) {
+  return Config->CompressDebugSections && !(Flags & SHF_ALLOC) &&
+         SectionName.startswith(".debug_");
+}
+
 void OutputSection::addSection(InputSection *S) {
   assert(S->Live);
   Live = true;
   S->Parent = this;
   this->updateAlignment(S->Alignment);
 
-  // The actual offsets will be computed by assignAddresses. For now, use
-  // crude approximation so that it is at least easy for other code to know the
-  // section order. It is also used to calculate the output section size early
-  // for compressed debug sections.
-  this->Size = updateOffset(Size, S);
+  S->OutSecPos = InputSectionCount++;
+
+  // The offset and size needs to be calculated early for compressed debug
+  // sections.
+  if (shouldCompress(Flags, Name))
+    Size = updateOffset(Size, S);
 
   // If this section contains a table of fixed-size entries, sh_entsize
   // holds the element size. Consequently, if this contains two or more
@@ -331,8 +337,7 @@ template <class ELFT> void OutputSection::maybeCompress() {
   typedef typename ELFT::Chdr Elf_Chdr;
 
   // Compress only DWARF debug sections.
-  if (!Config->CompressDebugSections || (Flags & SHF_ALLOC) ||
-      !Name.startswith(".debug_"))
+  if (!shouldCompress(Flags, Name))
     return;
 
   // Create a section header.
@@ -427,7 +432,7 @@ static bool compareByFilePosition(InputSection *A, InputSection *B) {
   OutputSection *BOut = LB->getParent();
   if (AOut != BOut)
     return AOut->SectionIndex < BOut->SectionIndex;
-  return LA->OutSecOff < LB->OutSecOff;
+  return LA->OutSecPos < LB->OutSecPos;
 }
 
 template <class ELFT>

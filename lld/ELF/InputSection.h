@@ -314,6 +314,10 @@ public:
   // to. The writer sets a value.
   uint64_t OutSecOff = 0;
 
+  // The order in which the section was added to its output section. This is
+  // used when ordering SHF_LINK_ORDER sections.
+  size_t OutSecPos = 0;
+
   static bool classof(const SectionBase *S);
 
   InputSectionBase *getRelocatedSection();

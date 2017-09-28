@@ -113,6 +113,10 @@ public:
   void sort(std::function<int(InputSectionBase *S)> Order);
   void sortInitFini();
   void sortCtorsDtors();
+
+private:
+  // The number of input sections assigned to this section.
+  size_t InputSectionCount = 0;
 };
 
 int getPriority(StringRef S);
