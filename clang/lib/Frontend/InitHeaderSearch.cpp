@@ -99,7 +99,7 @@ public:
 
   /// Realize - Merges all search path lists into one list and send it to
   /// HeaderSearch.
-  void Realize(const LangOptions &Lang);
+  void Realize(const LangOptions &Lang, bool msvc);
 };
 
 }  // end anonymous namespace.
@@ -493,7 +493,7 @@ void InitHeaderSearch::AddDefaultIncludePaths(const LangOptions &Lang,
 /// search list, remove the later (dead) ones.  Returns the number of non-system
 /// headers removed, which is used to update NumAngled.
 static unsigned RemoveDuplicates(std::vector<DirectoryLookup> &SearchList,
-                                 unsigned First, bool Verbose) {
+                                 unsigned First, bool Verbose, bool msvc) {
   llvm::SmallPtrSet<const DirectoryEntry *, 8> SeenDirs;
   llvm::SmallPtrSet<const DirectoryEntry *, 8> SeenFrameworkDirs;
   llvm::SmallPtrSet<const HeaderMap *, 8> SeenHeaderMaps;
@@ -525,7 +525,7 @@ static unsigned RemoveDuplicates(std::vector<DirectoryLookup> &SearchList,
     //
     // Since dupes of system dirs are rare, just rescan to find the original
     // that we're nuking instead of using a DenseMap.
-    if (CurEntry.getDirCharacteristic() != SrcMgr::C_User) {
+    if (!msvc && (CurEntry.getDirCharacteristic() != SrcMgr::C_User)) {
       // Find the dir that this is the same of.
       unsigned FirstDir;
       for (FirstDir = First;; ++FirstDir) {
@@ -576,7 +576,7 @@ static unsigned RemoveDuplicates(std::vector<DirectoryLookup> &SearchList,
 }
 
 
-void InitHeaderSearch::Realize(const LangOptions &Lang) {
+void InitHeaderSearch::Realize(const LangOptions &Lang, bool msvc) {
   // Concatenate ANGLE+SYSTEM+AFTER chains together into SearchList.
   std::vector<DirectoryLookup> SearchList;
   SearchList.reserve(IncludePath.size());
@@ -587,14 +587,14 @@ void InitHeaderSearch::Realize(const LangOptions &Lang) {
       SearchList.push_back(Include.second);
 
   // Deduplicate and remember index.
-  RemoveDuplicates(SearchList, 0, Verbose);
+  RemoveDuplicates(SearchList, 0, Verbose, msvc);
   unsigned NumQuoted = SearchList.size();
 
   for (auto &Include : IncludePath)
     if (Include.first == Angled || Include.first == IndexHeaderMap)
       SearchList.push_back(Include.second);
 
-  RemoveDuplicates(SearchList, NumQuoted, Verbose);
+  RemoveDuplicates(SearchList, NumQuoted, Verbose, msvc);
   unsigned NumAngled = SearchList.size();
 
   for (auto &Include : IncludePath)
@@ -613,7 +613,8 @@ void InitHeaderSearch::Realize(const LangOptions &Lang) {
   // Remove duplicates across both the Angled and System directories.  GCC does
   // this and failing to remove duplicates across these two groups breaks
   // #include_next.
-  unsigned NonSystemRemoved = RemoveDuplicates(SearchList, NumQuoted, Verbose);
+  unsigned NonSystemRemoved =
+      RemoveDuplicates(SearchList, NumQuoted, Verbose, msvc);
   NumAngled -= NonSystemRemoved;
 
   bool DontSearchCurDir = false;  // TODO: set to true if -I- is set?
@@ -673,5 +674,6 @@ void clang::ApplyHeaderSearchOptions(HeaderSearch &HS,
       HS.getModuleMap().setBuiltinIncludeDir(Dir);
   }
 
-  Init.Realize(Lang);
+  Init.Realize(Lang,
+               Triple.getEnvironment() == llvm::Triple::EnvironmentType::MSVC);
 }
