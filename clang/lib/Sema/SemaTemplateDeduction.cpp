@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===/
 
 #include "clang/Sema/TemplateDeduction.h"
+#include "DepthAndIndex.h"
 #include "TreeTransform.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/ASTLambda.h"
@@ -577,19 +578,6 @@ static bool IsPossiblyOpaquelyQualifiedType(QualType T) {
   default:
     return false;
   }
-}
-
-/// \brief Retrieve the depth and index of a template parameter.
-static std::pair<unsigned, unsigned>
-getDepthAndIndex(NamedDecl *ND) {
-  if (TemplateTypeParmDecl *TTP = dyn_cast<TemplateTypeParmDecl>(ND))
-    return std::make_pair(TTP->getDepth(), TTP->getIndex());
-
-  if (NonTypeTemplateParmDecl *NTTP = dyn_cast<NonTypeTemplateParmDecl>(ND))
-    return std::make_pair(NTTP->getDepth(), NTTP->getIndex());
-
-  TemplateTemplateParmDecl *TTP = cast<TemplateTemplateParmDecl>(ND);
-  return std::make_pair(TTP->getDepth(), TTP->getIndex());
 }
 
 /// \brief Retrieve the depth and index of an unexpanded parameter pack.
