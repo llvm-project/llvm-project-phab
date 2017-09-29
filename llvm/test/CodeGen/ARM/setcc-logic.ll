@@ -49,7 +49,6 @@ define zeroext i1 @or_ne(i32 %a, i32 %b, i32 %c, i32 %d) nounwind {
 define <4 x i1> @and_eq_vec(<4 x i32> %a, <4 x i32> %b, <4 x i32> %c, <4 x i32> %d) nounwind {
 ; CHECK-LABEL: and_eq_vec:
 ; CHECK:       @ BB#0:
-; CHECK-NEXT:    .save {r11, lr}
 ; CHECK-NEXT:    push {r11, lr}
 ; CHECK-NEXT:    vmov d19, r2, r3
 ; CHECK-NEXT:    add r12, sp, #40

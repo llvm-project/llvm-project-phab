@@ -9,7 +9,7 @@
 ; CHECK-LABEL: @test1
 ; CHECK-DAG: const1:
 ; CHECK-DAG: const2:
-; CHECK: .fnend
+
 define void @test1() {
   %1 = load i32, i32* @const1, align 4
   call void @a(i32 %1)

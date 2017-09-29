@@ -73,7 +73,7 @@ return:                                           ; preds = %entry, %sw.bb8, %sw
 
 @.str = private unnamed_addr constant [4 x i8] c"FOO\00", align 1
 
-define hidden i8* @string_literal() {
+define hidden i8* @string_literal() uwtable {
 entry:
 ; CHECK-LABEL: string_literal:
 ; CHECK-NOT: .asciz

@@ -14,7 +14,6 @@ target triple = "armv7-linux-gnueabihf"
 
 ; CHECK: .code  32
 ; CHECK-NEXT: main
-; CHECK-NEXT: .fnstart
 ; CHECK-NEXT: mov r0, #30
 
 ; CHECK: .code  16

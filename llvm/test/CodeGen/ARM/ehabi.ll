@@ -10,7 +10,7 @@
 ; (4) .vsave directive should come with vpush instruction.
 ; (5) .pad directive should come with stack pointer adjustment.
 ; (6) .cantunwind directive should be available if the function is marked with
-;     nounwind function attribute.
+;     nounwind uwtable function attributes.
 
 ; We have to check several cases:
 ; (1) arm with -disable-fp-elim
@@ -105,7 +105,7 @@ declare void @_Z5printddddd(double, double, double, double, double)
 
 define void @_Z4testiiiiiddddd(i32 %a, i32 %b, i32 %c, i32 %d, i32 %e,
                                double %m, double %n, double %p,
-                               double %q, double %r) personality i8* bitcast (i32 (...)* @__gxx_personality_v0 to i8*) {
+                               double %q, double %r) uwtable personality i8* bitcast (i32 (...)* @__gxx_personality_v0 to i8*) {
 entry:
   invoke void @_Z5printiiiii(i32 %a, i32 %b, i32 %c, i32 %d, i32 %e)
           to label %try.cont unwind label %lpad
@@ -295,7 +295,7 @@ declare void @_ZSt9terminatev()
 
 declare void @throw_exception_2()
 
-define void @test2() {
+define void @test2() uwtable {
 entry:
   call void @throw_exception_2()
   ret void
@@ -385,7 +385,7 @@ entry:
 declare void @throw_exception_3(i32)
 
 define i32 @test3(i32 %a, i32 %b, i32 %c, i32 %d,
-                  i32 %e, i32 %f, i32 %g, i32 %h) {
+                  i32 %e, i32 %f, i32 %g, i32 %h) uwtable {
 entry:
   %add = add nsw i32 %b, %a
   %add1 = add nsw i32 %add, %c
@@ -493,30 +493,6 @@ entry:
   ret void
 }
 
-; CHECK-FP-LABEL: test4:
-; CHECK-FP:   .fnstart
-; CHECK-FP:   mov pc, lr
-; CHECK-FP:   .cantunwind
-; CHECK-FP:   .fnend
-
-; CHECK-FP-ELIM-LABEL: test4:
-; CHECK-FP-ELIM:   .fnstart
-; CHECK-FP-ELIM:   mov pc, lr
-; CHECK-FP-ELIM:   .cantunwind
-; CHECK-FP-ELIM:   .fnend
-
-; CHECK-V7-FP-LABEL: test4:
-; CHECK-V7-FP:   .fnstart
-; CHECK-V7-FP:   bx lr
-; CHECK-V7-FP:   .cantunwind
-; CHECK-V7-FP:   .fnend
-
-; CHECK-V7-FP-ELIM-LABEL: test4:
-; CHECK-V7-FP-ELIM:   .fnstart
-; CHECK-V7-FP-ELIM:   bx lr
-; CHECK-V7-FP-ELIM:   .cantunwind
-; CHECK-V7-FP-ELIM:   .fnend
-
 ; DWARF-FP-LABEL: test4:
 ; DWARF-FP-NOT: .cfi_startproc
 ; DWARF-FP:    mov pc, lr
@@ -540,3 +516,36 @@ entry:
 ; DWARF-V7-FP-ELIM:     bx lr
 ; DWARF-V7-FP-ELIM-NOT: .cfi_endproc
 ; DWARF-V7-FP-ELIM:     .size test4,
+
+;-------------------------------------------------------------------------------
+; Test 5
+;-------------------------------------------------------------------------------
+
+define void @test5() nounwind uwtable {
+entry:
+  ret void
+}
+
+; CHECK-FP-LABEL: test5:
+; CHECK-FP:   .fnstart
+; CHECK-FP:   mov pc, lr
+; CHECK-FP:   .cantunwind
+; CHECK-FP:   .fnend
+
+; CHECK-FP-ELIM-LABEL: test5:
+; CHECK-FP-ELIM:   .fnstart
+; CHECK-FP-ELIM:   mov pc, lr
+; CHECK-FP-ELIM:   .cantunwind
+; CHECK-FP-ELIM:   .fnend
+
+; CHECK-V7-FP-LABEL: test5:
+; CHECK-V7-FP:   .fnstart
+; CHECK-V7-FP:   bx lr
+; CHECK-V7-FP:   .cantunwind
+; CHECK-V7-FP:   .fnend
+
+; CHECK-V7-FP-ELIM-LABEL: test5:
+; CHECK-V7-FP-ELIM:   .fnstart
+; CHECK-V7-FP-ELIM:   bx lr
+; CHECK-V7-FP-ELIM:   .cantunwind
+; CHECK-V7-FP-ELIM:   .fnend

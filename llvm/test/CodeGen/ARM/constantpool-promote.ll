@@ -36,7 +36,6 @@ declare void @a(i8*) #1
 
 ; CHECK-LABEL: @test2
 ; CHECK-NOT: .asci
-; CHECK: .fnend
 define void @test2() #0 {
   tail call void @a(i8* getelementptr inbounds ([69 x i8], [69 x i8]* @.str1, i32 0, i32 0)) #2
   ret void
@@ -105,7 +104,6 @@ define void @test7() #0 {
 ; This shouldn't be promoted, because the array contains pointers.
 ; CHECK-LABEL: @test8
 ; CHECK-NOT: .zero
-; CHECK: .fnend
 define void @test8() #0 {
   %a = load i16*, i16** getelementptr inbounds ([2 x i16*], [2 x i16*]* @.arr3, i32 0, i32 0)
   tail call void @c(i16* %a) #2

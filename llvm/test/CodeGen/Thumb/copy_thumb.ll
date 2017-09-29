@@ -10,7 +10,6 @@
 ; CHECK-LOLOMOV-NEXT:   mov [[SRC1]], [[SRC2:r[01]]]
 ; CHECK-LOLOMOV-NEXT:   mov [[SRC2]], [[TMP]]
 ; CHECK-LOLOMOV-LABEL:  bar
-; CHECK-LOLOMOV-LABEL:  fnend
 ; 
 ; 'MOV lo, lo' in Thumb mode produces undefined results on pre-v6 hardware
 ; RUN: llc -mtriple=thumbv4t-none--eabi < %s | FileCheck %s --check-prefix=CHECK-NOLOLOMOV
@@ -20,7 +19,6 @@
 ; CHECK-NOLOLOMOV-NEXT:  movs [[SRC1]], [[SRC2:r[01]]]
 ; CHECK-NOLOLOMOV-NEXT:  movs [[SRC2]], [[TMP]]
 ; CHECK-NOLOLOMOV-LABEL: bar
-; CHECK-NOLOLOMOV-LABEL: fnend
 
 declare void @bar(i32, i32)
 

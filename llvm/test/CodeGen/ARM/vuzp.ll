@@ -353,7 +353,6 @@ define <8 x i8> @cmpsel_trunc(<8 x i8> %in0, <8 x i8> %in1, <8 x i32> %cmp0, <8 
 define <8 x i8> @vuzp_trunc_and_shuffle(<8 x i8> %tr0, <8 x i8> %tr1,
 ; CHECK-LABEL: vuzp_trunc_and_shuffle:
 ; CHECK:       @ BB#0:
-; CHECK-NEXT:	.save	{r11, lr}
 ; CHECK-NEXT:	push	{r11, lr}
 ; CHECK-NEXT:	add	r12, sp, #8
 ; CHECK-NEXT:	add	lr, sp, #24
@@ -459,9 +458,7 @@ define <8 x i8> @vuzp_trunc_and_shuffle_undef_left(<8 x i8> %tr0, <8 x i8> %tr1,
 define <10 x i8> @vuzp_wide_type(<10 x i8> %tr0, <10 x i8> %tr1,
 ; CHECK-LABEL: vuzp_wide_type:
 ; CHECK:       @ BB#0:
-; CHECK-NEXT:	.save	{r4, r10, r11, lr}
 ; CHECK-NEXT:	push	{r4, r10, r11, lr}
-; CHECK-NEXT:	.setfp	r11, sp, #8
 ; CHECK-NEXT:	add	r11, sp, #8
 ; CHECK-NEXT:	bic	sp, sp, #15
 ; CHECK-NEXT:	add	r12, r11, #32

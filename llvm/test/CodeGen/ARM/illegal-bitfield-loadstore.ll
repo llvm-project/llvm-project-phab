@@ -156,7 +156,6 @@ define void @i56_insert_bit(i56* %a, i1 zeroext %bit) {
 ;
 ; BE-LABEL: i56_insert_bit:
 ; BE:       @ BB#0:
-; BE-NEXT:    .save {r11, lr}
 ; BE-NEXT:    push {r11, lr}
 ; BE-NEXT:    mov r2, r0
 ; BE-NEXT:    ldr lr, [r0]

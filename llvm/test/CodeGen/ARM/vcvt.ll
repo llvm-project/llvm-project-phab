@@ -258,9 +258,7 @@ define <4 x i16> @fix_float_to_i16(<4 x float> %in) {
 define <2 x i64> @fix_float_to_i64(<2 x float> %in) {
 ; CHECK-LABEL: fix_float_to_i64:
 ; CHECK:       @ BB#0:
-; CHECK-NEXT:    .save {r4, lr}
 ; CHECK-NEXT:    push {r4, lr}
-; CHECK-NEXT:    .vsave {d8, d9}
 ; CHECK-NEXT:    vpush {d8, d9}
 ; CHECK-NEXT:    vmov d16, r0, r1
 ; CHECK-NEXT:    vadd.f32 d8, d16, d16
@@ -320,9 +318,7 @@ define <4 x i16> @fix_double_to_i16(<4 x double> %in) {
 define <2 x i64> @fix_double_to_i64(<2 x double> %in) {
 ; CHECK-LABEL: fix_double_to_i64:
 ; CHECK:       @ BB#0:
-; CHECK-NEXT:    .save {r4, lr}
 ; CHECK-NEXT:    push {r4, lr}
-; CHECK-NEXT:    .vsave {d8, d9}
 ; CHECK-NEXT:    vpush {d8, d9}
 ; CHECK-NEXT:    vmov d16, r2, r3
 ; CHECK-NEXT:    vadd.f64 d16, d16, d16
