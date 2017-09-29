@@ -10,6 +10,7 @@
 //===----------------------------------------------------------------------===/
 
 #include "clang/Sema/Sema.h"
+#include "DepthAndIndex.h"
 #include "TypeLocBuilder.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/RecursiveASTVisitor.h"
@@ -25,19 +26,6 @@ using namespace clang;
 //----------------------------------------------------------------------------
 // Visitor that collects unexpanded parameter packs
 //----------------------------------------------------------------------------
-
-/// \brief Retrieve the depth and index of a parameter pack.
-static std::pair<unsigned, unsigned> 
-getDepthAndIndex(NamedDecl *ND) {
-  if (TemplateTypeParmDecl *TTP = dyn_cast<TemplateTypeParmDecl>(ND))
-    return std::make_pair(TTP->getDepth(), TTP->getIndex());
-  
-  if (NonTypeTemplateParmDecl *NTTP = dyn_cast<NonTypeTemplateParmDecl>(ND))
-    return std::make_pair(NTTP->getDepth(), NTTP->getIndex());
-  
-  TemplateTemplateParmDecl *TTP = cast<TemplateTemplateParmDecl>(ND);
-  return std::make_pair(TTP->getDepth(), TTP->getIndex());
-}
 
 namespace {
   /// \brief A class that collects unexpanded parameter packs.

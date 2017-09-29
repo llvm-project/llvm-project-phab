@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===/
 
 #include "clang/Sema/SemaInternal.h"
+#include "DepthAndIndex.h"
 #include "TreeTransform.h"
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/ASTContext.h"
@@ -691,19 +692,6 @@ Optional<TemplateDeductionInfo *> Sema::isSFINAEContext() const {
   }
 
   return None;
-}
-
-/// \brief Retrieve the depth and index of a parameter pack.
-static std::pair<unsigned, unsigned> 
-getDepthAndIndex(NamedDecl *ND) {
-  if (TemplateTypeParmDecl *TTP = dyn_cast<TemplateTypeParmDecl>(ND))
-    return std::make_pair(TTP->getDepth(), TTP->getIndex());
-  
-  if (NonTypeTemplateParmDecl *NTTP = dyn_cast<NonTypeTemplateParmDecl>(ND))
-    return std::make_pair(NTTP->getDepth(), NTTP->getIndex());
-  
-  TemplateTemplateParmDecl *TTP = cast<TemplateTemplateParmDecl>(ND);
-  return std::make_pair(TTP->getDepth(), TTP->getIndex());
 }
 
 //===----------------------------------------------------------------------===/
