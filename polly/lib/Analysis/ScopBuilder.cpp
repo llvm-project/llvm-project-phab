@@ -25,6 +25,7 @@
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/EquivalenceClasses.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/AliasAnalysis.h"
@@ -101,6 +102,17 @@ static cl::opt<bool> DisableMultiplicativeReductions(
     "polly-disable-multiplicative-reductions",
     cl::desc("Disable multiplicative reductions"), cl::Hidden, cl::ZeroOrMore,
     cl::init(false), cl::cat(PollyCategory));
+
+enum class GranularityChoice { BasicBlocks, ScalarIndepependence };
+
+static cl::opt<GranularityChoice> StmtGranularity(
+    "polly-stmt-granularity",
+    cl::desc("Select the statement granularity algorithm"),
+    cl::values(clEnumValN(GranularityChoice::BasicBlocks, "bb",
+                          "Entire basic blocks granularity"),
+               clEnumValN(GranularityChoice::ScalarIndepependence,
+                          "scalar-indep", "Scalar independence heuristic")),
+    cl::init(GranularityChoice::BasicBlocks), cl::cat(PollyCategory));
 
 void ScopBuilder::buildPHIAccesses(ScopStmt *PHIStmt, PHINode *PHI,
                                    Region *NonAffineSubRegion,
@@ -664,6 +676,144 @@ bool ScopBuilder::shouldModelInst(Instruction *Inst, Loop *L) {
          !canSynthesize(Inst, *scop, &SE, L);
 }
 
+static bool isOrderedInstruction(const Instruction &Inst) {
+  return Inst.mayHaveSideEffects() || Inst.mayReadOrWriteMemory();
+}
+
+void ScopBuilder::buildSequentialBlockStmts(BasicBlock *BB) {
+  Loop *SurroundingLoop = LI.getLoopFor(BB);
+
+  int Count = 0;
+  std::vector<Instruction *> Instructions;
+  for (Instruction &Inst : *BB) {
+    if (shouldModelInst(&Inst, SurroundingLoop))
+      Instructions.push_back(&Inst);
+    if (Inst.getMetadata("polly_split_after")) {
+      scop->addScopStmt(BB, SurroundingLoop, Instructions, Count);
+      Count++;
+      Instructions.clear();
+    }
+  }
+
+  scop->addScopStmt(BB, SurroundingLoop, Instructions, Count);
+}
+
+void ScopBuilder::buildEqivClassBlockStmts(BasicBlock *BB) {
+  Loop *L = LI.getLoopFor(BB);
+
+  EquivalenceClasses<Instruction *> UnionFind;
+  Instruction *PHIWrites = nullptr;
+  UnionFind.insert(PHIWrites);
+  for (Instruction &Inst : *BB) {
+    if (!shouldModelInst(&Inst, L))
+      continue;
+    UnionFind.insert(&Inst);
+  }
+
+  // Ensure that instructions using the same scalar will be in the same
+  // statement.
+  for (Instruction &Inst : *BB) {
+    if (UnionFind.findValue(&Inst) == UnionFind.end())
+      continue;
+
+    if (auto PHI = dyn_cast<PHINode>(&Inst)) {
+      continue;
+    }
+
+    for (auto &Op : Inst.operands()) {
+      auto Def = dyn_cast<Instruction>(Op.get());
+      if (!Def)
+        continue;
+      if (Def->getParent() != BB)
+        continue;
+      if (UnionFind.findValue(Def) == UnionFind.end())
+        continue;
+      UnionFind.unionSets(&Inst, Def);
+    }
+  }
+
+  // Join the PHI write epilogue if necessary.
+  for (auto Succ : successors(BB)) {
+    for (auto &SuccInst : *Succ) {
+      auto SuccPHI = dyn_cast<PHINode>(&SuccInst);
+      if (!SuccPHI)
+        break;
+
+      auto IncomingVal = SuccPHI->getIncomingValueForBlock(BB);
+      auto IncomingInst = dyn_cast<Instruction>(IncomingVal);
+      if (!IncomingInst)
+        continue;
+      if (IncomingInst->getParent() != BB)
+        continue;
+      if (UnionFind.findValue(IncomingInst) == UnionFind.end())
+        continue;
+      UnionFind.unionSets(PHIWrites, IncomingInst);
+    }
+  }
+
+  // Ensure that the order of ordered instructions does not change.
+  SetVector<Instruction *> SeenLeaders; // TODO: Maybe string an iterator here
+                                        // would not make repeated
+                                        // getLeaderValue() necessary.
+  for (Instruction &Inst : *BB) {
+    if (!isOrderedInstruction(Inst))
+      continue;
+
+    auto LeaderIt = UnionFind.findLeader(&Inst);
+    if (LeaderIt == UnionFind.member_end())
+      continue;
+
+    auto Leader = *LeaderIt;
+    auto Inserted = SeenLeaders.insert(Leader);
+    if (Inserted)
+      continue;
+
+    for (auto Prev : reverse(SeenLeaders)) {
+      auto PrevLeader = UnionFind.getLeaderValue(SeenLeaders.back());
+      if (PrevLeader == Leader)
+        break;
+      UnionFind.unionSets(Prev, Leader);
+    }
+  }
+
+  SmallPtrSet<Instruction *, 16> ProcessedLeaders;
+  int Count = UnionFind.getNumClasses() > 1;
+  for (Instruction &Inst : *BB) {
+    auto LeaderIt = UnionFind.findLeader(&Inst);
+    assert((LeaderIt != UnionFind.member_end()) == shouldModelInst(&Inst, L));
+    if (LeaderIt == UnionFind.member_end())
+      continue;
+
+    auto Leader = *LeaderIt;
+    auto P = ProcessedLeaders.insert(Leader);
+    if (!P.second)
+      continue;
+
+    std::vector<Instruction *> Instructions;
+
+    // FIXME: Maybe we can avoid this nested loop; I am not sure whether
+    // UnionFind preserves the member's order.
+    for (Instruction &LeaderInst : *BB) {
+      auto LeaderInstLeaderIt = UnionFind.findLeader(&LeaderInst);
+      if (LeaderInstLeaderIt == UnionFind.member_end())
+        continue;
+
+      auto InstLeader = *LeaderInstLeaderIt;
+      if (InstLeader != Leader)
+        continue;
+
+      Instructions.push_back(&LeaderInst);
+    }
+
+    scop->addScopStmt(BB, L, Instructions, Count);
+    Count += 1;
+  }
+
+  auto EpiLeader = UnionFind.getLeaderValue(PHIWrites);
+  if (!ProcessedLeaders.count(EpiLeader))
+    scop->addScopStmt(BB, L, {}, Count);
+}
+
 void ScopBuilder::buildStmts(Region &SR) {
   if (scop->isNonAffineSubRegion(&SR)) {
     std::vector<Instruction *> Instructions;
@@ -680,23 +830,15 @@ void ScopBuilder::buildStmts(Region &SR) {
     if (I->isSubRegion())
       buildStmts(*I->getNodeAs<Region>());
     else {
-      int Count = 0;
-      std::vector<Instruction *> Instructions;
-      for (Instruction &Inst : *I->getNodeAs<BasicBlock>()) {
-        Loop *L = LI.getLoopFor(Inst.getParent());
-        if (shouldModelInst(&Inst, L))
-          Instructions.push_back(&Inst);
-        if (Inst.getMetadata("polly_split_after")) {
-          Loop *SurroundingLoop = LI.getLoopFor(I->getNodeAs<BasicBlock>());
-          scop->addScopStmt(I->getNodeAs<BasicBlock>(), SurroundingLoop,
-                            Instructions, Count);
-          Count++;
-          Instructions.clear();
-        }
+      auto *BB = I->getNodeAs<BasicBlock>();
+      switch (StmtGranularity) {
+      case GranularityChoice::BasicBlocks:
+        buildSequentialBlockStmts(BB);
+        break;
+      case GranularityChoice::ScalarIndepependence:
+        buildEqivClassBlockStmts(BB);
+        break;
       }
-      Loop *SurroundingLoop = LI.getLoopFor(I->getNodeAs<BasicBlock>());
-      scop->addScopStmt(I->getNodeAs<BasicBlock>(), SurroundingLoop,
-                        Instructions, Count);
     }
 }
 
@@ -712,6 +854,43 @@ void ScopBuilder::buildAccessFunctions(ScopStmt *Stmt, BasicBlock &BB,
   // instructions we can not model.
   if (isErrorBlock(BB, scop->getRegion(), LI, DT) && !IsExitBlock)
     return;
+
+  if (Stmt && Stmt->isBlockStmt() &&
+      (StmtGranularity == GranularityChoice::ScalarIndepependence)) {
+    // FIXME: Ugly workaround; Invariant loads should not be added to any
+    // statement in the first place.
+    if (Stmt == scop->getStmtListFor(&BB)[0]) {
+      for (auto &InvLoad : scop->getRequiredInvariantLoads()) {
+        if (InvLoad->getParent() != &BB)
+          continue;
+
+        // scop->getOrCreateScopArrayInfo(InvLoad->getPointerOperand(),
+        // InvLoad->getType(), { nullptr }, MemoryKind::Array);
+        auto Stmt = scop->getStmtListFor(&BB)[0];
+        buildMemoryAccess(MemAccInst(InvLoad), Stmt);
+      }
+    }
+
+    for (auto *Inst : Stmt->getInstructions()) {
+      PHINode *PHI = dyn_cast<PHINode>(Inst);
+      if (PHI)
+        buildPHIAccesses(Stmt, PHI, NonAffineSubRegion, IsExitBlock);
+      else
+        buildScalarDependences(Stmt, Inst);
+
+      if (auto MemInst = MemAccInst::dyn_cast(Inst)) {
+        assert(Stmt &&
+               "Cannot build access function in non-existing statement");
+        buildMemoryAccess(MemInst, Stmt);
+      }
+    }
+
+    for (Instruction &Inst : BB) {
+      buildEscapingDependences(&Inst);
+    }
+
+    return;
+  }
 
   int Count = 0;
   bool Split = false;
@@ -1184,6 +1363,15 @@ void ScopBuilder::buildScop(Region &R, AssumptionCache &AC,
   scop.reset(new Scop(R, SE, LI, DT, *SD.getDetectionContext(&R), ORE));
 
   buildStmts(R);
+
+  //  auto &Inv = scop->getRequiredInvariantLoads();
+  //  for (auto &InvLoad : Inv) {
+  //	  scop->getOrCreateScopArrayInfo(InvLoad->getPointerOperand(),
+  // InvLoad->getType(), {nullptr}, MemoryKind::Array);
+
+  //	  auto Stmt = scop->getStmtListFor(InvLoad->getParent())[0];
+  //	  buildMemoryAccess(MemAccInst( InvLoad), Stmt);
+  //  }
   buildAccessFunctions();
 
   // In case the region does not have an exiting block we will later (during

@@ -229,6 +229,10 @@ class ScopBuilder {
   /// @returns True if the instruction should be modeled.
   bool shouldModelInst(Instruction *Inst, Loop *L);
 
+  void buildSequentialBlockStmts(BasicBlock *BB);
+
+  void buildEqivClassBlockStmts(BasicBlock *BB);
+
   /// Create ScopStmt for all BBs and non-affine subregions of @p SR.
   ///
   /// @param SR A subregion of @p R.
