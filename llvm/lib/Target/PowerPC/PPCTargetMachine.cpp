@@ -97,6 +97,7 @@ extern "C" void LLVMInitializePowerPCTarget() {
   PassRegistry &PR = *PassRegistry::getPassRegistry();
   initializePPCBoolRetToIntPass(PR);
   initializePPCExpandISELPass(PR);
+  initializePPCColdCCPass(PR);
   initializePPCTLSDynamicCallPass(PR);
 }
 
@@ -345,6 +346,9 @@ void PPCPassConfig::addIRPasses() {
     // invariant.
     addPass(createLICMPass());
   }
+
+  if (TM->getOptLevel() != CodeGenOpt::None)
+    addPass(createPPCColdCCPass());
 
   TargetPassConfig::addIRPasses();
 }

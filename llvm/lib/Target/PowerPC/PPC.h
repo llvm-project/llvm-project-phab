@@ -26,6 +26,7 @@ namespace llvm {
   class PassRegistry;
   class FunctionPass;
   class MachineInstr;
+  class ModulePass;
   class AsmPrinter;
   class MCInst;
 
@@ -47,12 +48,14 @@ namespace llvm {
   FunctionPass *createPPCTLSDynamicCallPass();
   FunctionPass *createPPCBoolRetToIntPass();
   FunctionPass *createPPCExpandISELPass();
+  ModulePass *createPPCColdCCPass();
   void LowerPPCMachineInstrToMCInst(const MachineInstr *MI, MCInst &OutMI,
                                     AsmPrinter &AP, bool isDarwin);
 
   void initializePPCVSXFMAMutatePass(PassRegistry&);
   void initializePPCBoolRetToIntPass(PassRegistry&);
   void initializePPCExpandISELPass(PassRegistry &);
+  void initializePPCColdCCPass(PassRegistry &);
   void initializePPCTLSDynamicCallPass(PassRegistry &);
   extern char &PPCVSXFMAMutateID;
 

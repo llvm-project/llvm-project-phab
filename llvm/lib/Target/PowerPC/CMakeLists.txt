@@ -27,6 +27,7 @@ add_llvm_target(PowerPCCodeGen
   PPCFastISel.cpp
   PPCFrameLowering.cpp
   PPCLoopPreIncPrep.cpp
+  PPCColdCC.cpp
   PPCMCInstLower.cpp
   PPCMachineFunctionInfo.cpp
   PPCMIPeephole.cpp

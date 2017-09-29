@@ -113,6 +113,10 @@ PPCRegisterInfo::getPointerRegClass(const MachineFunction &MF, unsigned Kind)
 const MCPhysReg*
 PPCRegisterInfo::getCalleeSavedRegs(const MachineFunction *MF) const {
   const PPCSubtarget &Subtarget = MF->getSubtarget<PPCSubtarget>();
+
+  // On PPC64, we might need to save r2 (but only if it is not reserved).
+  bool SaveR2 = MF->getRegInfo().isAllocatable(PPC::X2);
+
   if (MF->getFunction()->getCallingConv() == CallingConv::AnyReg) {
     if (Subtarget.hasVSX())
       return CSR_64_AllRegs_VSX_SaveList;
@@ -131,8 +135,16 @@ PPCRegisterInfo::getCalleeSavedRegs(const MachineFunction *MF) const {
   if (TM.isPPC64() && MF->getInfo<PPCFunctionInfo>()->isSplitCSR())
     return CSR_SRV464_TLS_PE_SaveList;
 
-  // On PPC64, we might need to save r2 (but only if it is not reserved).
-  bool SaveR2 = MF->getRegInfo().isAllocatable(PPC::X2);
+  if (MF->getFunction()->getCallingConv() == CallingConv::Cold) {
+    return TM.isPPC64()
+               ? (Subtarget.hasAltivec()
+                      ? (SaveR2 ? CSR_SVR64_ColdCC_R2_Altivec_SaveList
+                                : CSR_SVR64_ColdCC_Altivec_SaveList)
+                      : (SaveR2 ? CSR_SVR64_ColdCC_R2_SaveList
+                                : CSR_SVR64_ColdCC_SaveList))
+               : (Subtarget.hasAltivec() ? CSR_SVR32_ColdCC_Altivec_SaveList
+                                         : CSR_SVR32_ColdCC_SaveList);
+  }
 
   return TM.isPPC64()
              ? (Subtarget.hasAltivec()
@@ -185,6 +197,13 @@ PPCRegisterInfo::getCallPreservedMask(const MachineFunction &MF,
                                                   : CSR_Darwin64_RegMask)
                         : (Subtarget.hasAltivec() ? CSR_Darwin32_Altivec_RegMask
                                                   : CSR_Darwin32_RegMask);
+
+  if (CC == CallingConv::Cold) {
+    return TM.isPPC64() ? (Subtarget.hasAltivec() ? CSR_SVR64_ColdCC_Altivec_RegMask
+                                                  : CSR_SVR64_ColdCC_RegMask)
+                        : (Subtarget.hasAltivec() ? CSR_SVR32_ColdCC_Altivec_RegMask
+                                                  : CSR_SVR32_ColdCC_RegMask);
+  }
 
   return TM.isPPC64() ? (Subtarget.hasAltivec() ? CSR_SVR464_Altivec_RegMask
                                                 : CSR_SVR464_RegMask)

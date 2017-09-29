@@ -1952,7 +1952,11 @@ PPCFrameLowering::spillCalleeSavedRegisters(MachineBasicBlock &MBB,
     bool IsCRField = PPC::CR2 <= Reg && Reg <= PPC::CR4;
 
     // Add the callee-saved register as live-in; it's killed at the spill.
-    MBB.addLiveIn(Reg);
+    const MachineRegisterInfo &MRI = MF->getRegInfo();
+    bool isLiveIn = MRI.isLiveIn(Reg);
+    if (!isLiveIn) {
+       MBB.addLiveIn(Reg);
+    }
 
     if (CRSpilled && IsCRField) {
       CRMIB.addReg(Reg, RegState::ImplicitKill);
@@ -1982,7 +1986,7 @@ PPCFrameLowering::spillCalleeSavedRegisters(MachineBasicBlock &MBB,
       }
     } else {
       const TargetRegisterClass *RC = TRI->getMinimalPhysRegClass(Reg);
-      TII.storeRegToStackSlot(MBB, MI, Reg, true,
+      TII.storeRegToStackSlot(MBB, MI, Reg, !isLiveIn,
                               CSI[i].getFrameIdx(), RC, TRI);
     }
   }
