@@ -18,6 +18,7 @@
 
 #include "EhFrame.h"
 #include "Error.h"
+#include "InputFiles.h"
 #include "InputSection.h"
 #include "Relocations.h"
 #include "Strings.h"
@@ -200,6 +201,37 @@ template <class ELFT> uint8_t EhReader<ELFT>::getFdeEncoding() {
   return DW_EH_PE_absptr;
 }
 
+// There is one FDE per function. Returns true if a given FDE
+// points to a live function.
+template <class ELFT, class RelTy>
+InputSectionBase *elf::getDescribedSection(EhSectionPiece &Fde,
+                                           ArrayRef<RelTy> Rels) {
+  auto *Sec = cast<EhInputSection>(Fde.Sec);
+  unsigned FirstRelI = Fde.FirstRelocation;
+
+  // An FDE should point to some function because FDEs are to describe
+  // functions. That's however not always the case due to an issue of
+  // ld.gold with -r. ld.gold may discard only functions and leave their
+  // corresponding FDEs, which results in creating bad .eh_frame sections.
+  // To deal with that, we ignore such FDEs.
+  if (FirstRelI == (unsigned)-1)
+    return nullptr;
+
+  const RelTy &Rel = Rels[FirstRelI];
+  SymbolBody &B = Sec->template getFile<ELFT>()->getRelocTargetSym(Rel);
+  if (auto *D = dyn_cast<DefinedRegular>(&B))
+    if (D->Section)
+      return cast<InputSectionBase>(D->Section)->Repl;
+  return nullptr;
+}
+
+// There is one FDE per function. Returns true if a given FDE
+// points to a live function.
+template <class ELFT, class RelTy>
+bool elf::isFdeLive(EhSectionPiece &Fde, ArrayRef<RelTy> Rels) {
+  InputSectionBase *Sec = getDescribedSection<ELFT>(Fde, Rels);
+  return Sec && Sec->Live;
+}
 template size_t elf::readEhRecordSize<ELF32LE>(InputSectionBase *S, size_t Off);
 template size_t elf::readEhRecordSize<ELF32BE>(InputSectionBase *S, size_t Off);
 template size_t elf::readEhRecordSize<ELF64LE>(InputSectionBase *S, size_t Off);
@@ -209,3 +241,45 @@ template uint8_t elf::getFdeEncoding<ELF32LE>(EhSectionPiece *P);
 template uint8_t elf::getFdeEncoding<ELF32BE>(EhSectionPiece *P);
 template uint8_t elf::getFdeEncoding<ELF64LE>(EhSectionPiece *P);
 template uint8_t elf::getFdeEncoding<ELF64BE>(EhSectionPiece *P);
+
+template InputSectionBase *
+elf::getDescribedSection<ELF32LE>(EhSectionPiece &Fde,
+                                  ArrayRef<ELF32LE::Rel> Rels);
+template InputSectionBase *
+elf::getDescribedSection<ELF32LE>(EhSectionPiece &Fde,
+                                  ArrayRef<ELF32LE::Rela> Rels);
+template InputSectionBase *
+elf::getDescribedSection<ELF32BE>(EhSectionPiece &Fde,
+                                  ArrayRef<ELF32BE::Rel> Rels);
+template InputSectionBase *
+elf::getDescribedSection<ELF32BE>(EhSectionPiece &Fde,
+                                  ArrayRef<ELF32BE::Rela> Rels);
+template InputSectionBase *
+elf::getDescribedSection<ELF64LE>(EhSectionPiece &Fde,
+                                  ArrayRef<ELF64LE::Rel> Rels);
+template InputSectionBase *
+elf::getDescribedSection<ELF64LE>(EhSectionPiece &Fde,
+                                  ArrayRef<ELF64LE::Rela> Rels);
+template InputSectionBase *
+elf::getDescribedSection<ELF64BE>(EhSectionPiece &Fde,
+                                  ArrayRef<ELF64BE::Rel> Rels);
+template InputSectionBase *
+elf::getDescribedSection<ELF64BE>(EhSectionPiece &Fde,
+                                  ArrayRef<ELF64BE::Rela> Rels);
+
+template bool elf::isFdeLive<ELF32LE>(EhSectionPiece &Fde,
+                                      ArrayRef<ELF32LE::Rel> Rels);
+template bool elf::isFdeLive<ELF32LE>(EhSectionPiece &Fde,
+                                      ArrayRef<ELF32LE::Rela> Rels);
+template bool elf::isFdeLive<ELF32BE>(EhSectionPiece &Fde,
+                                      ArrayRef<ELF32BE::Rel> Rels);
+template bool elf::isFdeLive<ELF32BE>(EhSectionPiece &Fde,
+                                      ArrayRef<ELF32BE::Rela> Rels);
+template bool elf::isFdeLive<ELF64LE>(EhSectionPiece &Fde,
+                                      ArrayRef<ELF64LE::Rel> Rels);
+template bool elf::isFdeLive<ELF64LE>(EhSectionPiece &Fde,
+                                      ArrayRef<ELF64LE::Rela> Rels);
+template bool elf::isFdeLive<ELF64BE>(EhSectionPiece &Fde,
+                                      ArrayRef<ELF64BE::Rel> Rels);
+template bool elf::isFdeLive<ELF64BE>(EhSectionPiece &Fde,
+                                      ArrayRef<ELF64BE::Rela> Rels);

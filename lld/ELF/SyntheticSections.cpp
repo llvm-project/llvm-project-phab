@@ -16,6 +16,7 @@
 
 #include "SyntheticSections.h"
 #include "Config.h"
+#include "EhFrame.h"
 #include "Error.h"
 #include "InputFiles.h"
 #include "LinkerScript.h"
@@ -428,31 +429,6 @@ CieRecord *EhFrameSection<ELFT>::addCie(EhSectionPiece &Cie,
   return Rec;
 }
 
-// There is one FDE per function. Returns true if a given FDE
-// points to a live function.
-template <class ELFT>
-template <class RelTy>
-bool EhFrameSection<ELFT>::isFdeLive(EhSectionPiece &Fde,
-                                     ArrayRef<RelTy> Rels) {
-  auto *Sec = cast<EhInputSection>(Fde.Sec);
-  unsigned FirstRelI = Fde.FirstRelocation;
-
-  // An FDE should point to some function because FDEs are to describe
-  // functions. That's however not always the case due to an issue of
-  // ld.gold with -r. ld.gold may discard only functions and leave their
-  // corresponding FDEs, which results in creating bad .eh_frame sections.
-  // To deal with that, we ignore such FDEs.
-  if (FirstRelI == (unsigned)-1)
-    return false;
-
-  const RelTy &Rel = Rels[FirstRelI];
-  SymbolBody &B = Sec->template getFile<ELFT>()->getRelocTargetSym(Rel);
-  if (auto *D = dyn_cast<DefinedRegular>(&B))
-    if (D->Section)
-      return cast<InputSectionBase>(D->Section)->Repl->Live;
-  return false;
-}
-
 // .eh_frame is a sequence of CIE or FDE records. In general, there
 // is one CIE record per input object file which is followed by
 // a list of FDEs. This function searches an existing CIE or create a new
@@ -469,6 +445,9 @@ void EhFrameSection<ELFT>::addSectionAux(EhInputSection *Sec,
     if (Piece.Size == 4)
       return;
 
+    if (!Piece.Live)
+      continue;
+
     size_t Offset = Piece.InputOff;
     uint32_t ID = read32<E>(Piece.data().data() + 4);
     if (ID == 0) {
@@ -481,7 +460,7 @@ void EhFrameSection<ELFT>::addSectionAux(EhInputSection *Sec,
     if (!Rec)
       fatal(toString(Sec) + ": invalid CIE reference");
 
-    if (!isFdeLive(Piece, Rels))
+    if (!Config->GcSections && !elf::isFdeLive<ELFT>(Piece, Rels))
       continue;
     Rec->Fdes.push_back(&Piece);
     NumFdes++;
