@@ -2254,8 +2254,12 @@ Decl *ASTNodeImporter::VisitFriendDecl(FriendDecl *D) {
 
   // Not found. Create it.
   FriendDecl::FriendUnion ToFU;
-  if (NamedDecl *FriendD = D->getFriendDecl())
-    ToFU = cast_or_null<NamedDecl>(Importer.Import(FriendD));
+  if (NamedDecl *FriendD = D->getFriendDecl()) {
+    auto ToFriendD = cast_or_null<NamedDecl>(Importer.Import(FriendD));
+    if (ToFriendD && FriendD->getFriendObjectKind() != Decl::FOK_None)
+      ToFriendD->setObjectOfFriendDecl(true);
+     ToFU = ToFriendD;
+  }
   else
     ToFU = Importer.Import(D->getFriendType());
   if (!ToFU)
@@ -2277,7 +2281,6 @@ Decl *ASTNodeImporter::VisitFriendDecl(FriendDecl *D) {
                                        ToTPLists);
 
   Importer.Imported(D, FrD);
-  RD->pushFriendDecl(FrD);
 
   FrD->setAccess(D->getAccess());
   FrD->setLexicalDeclContext(LexicalDC);
