@@ -11,6 +11,7 @@ set(ADTSources
   BitVectorTest.cpp
   BreadthFirstIteratorTest.cpp
   BumpPtrListTest.cpp
+  ChunkedListTest.cpp
   DAGDeltaAlgorithmTest.cpp
   DeltaAlgorithmTest.cpp
   DenseMapTest.cpp
