@@ -227,7 +227,7 @@ define <8 x i16> @smull_extvec_v8i8_v8i16(<8 x i8> %arg) nounwind {
 ; CHECK-LABEL: smull_extvec_v8i8_v8i16:
 ; CHECK: smull {{v[0-9]+}}.8h, {{v[0-9]+}}.8b, {{v[0-9]+}}.8b
   %tmp3 = sext <8 x i8> %arg to <8 x i16>
-  %tmp4 = mul <8 x i16> %tmp3, <i16 -12, i16 -12, i16 -12, i16 -12, i16 -12, i16 -12, i16 -12, i16 -12>
+  %tmp4 = mul <8 x i16> %tmp3, <i16 -13, i16 -13, i16 -13, i16 -13, i16 -13, i16 -13, i16 -13, i16 -13>
   ret <8 x i16> %tmp4
 }
 
@@ -245,7 +245,7 @@ define <4 x i32> @smull_extvec_v4i16_v4i32(<4 x i16> %arg) nounwind {
 ; CHECK-LABEL: smull_extvec_v4i16_v4i32:
 ; CHECK:  smull {{v[0-9]+}}.4s, {{v[0-9]+}}.4h, {{v[0-9]+}}.4h
   %tmp3 = sext <4 x i16> %arg to <4 x i32>
-  %tmp4 = mul <4 x i32> %tmp3, <i32 -12, i32 -12, i32 -12, i32 -12>
+  %tmp4 = mul <4 x i32> %tmp3, <i32 -13, i32 -13, i32 -13, i32 -13>
   ret <4 x i32> %tmp4
 }
 
@@ -261,7 +261,7 @@ define <8 x i16> @umull_extvec_v8i8_v8i16(<8 x i8> %arg) nounwind {
 ; CHECK-LABEL: umull_extvec_v8i8_v8i16:
 ; CHECK: umull {{v[0-9]+}}.8h, {{v[0-9]+}}.8b, {{v[0-9]+}}.8b
   %tmp3 = zext <8 x i8> %arg to <8 x i16>
-  %tmp4 = mul <8 x i16> %tmp3, <i16 12, i16 12, i16 12, i16 12, i16 12, i16 12, i16 12, i16 12>
+  %tmp4 = mul <8 x i16> %tmp3, <i16 13, i16 13, i16 13, i16 13, i16 13, i16 13, i16 13, i16 13>
   ret <8 x i16> %tmp4
 }
 
@@ -297,7 +297,7 @@ define i16 @smullWithInconsistentExtensions(<8 x i8> %vec) {
 ; CHECK-LABEL: smullWithInconsistentExtensions:
 ; CHECK: mul {{v[0-9]+}}.8h, {{v[0-9]+}}.8h, {{v[0-9]+}}.8h
   %1 = sext <8 x i8> %vec to <8 x i16>
-  %2 = mul <8 x i16> %1, <i16 255, i16 255, i16 255, i16 255, i16 255, i16 255, i16 255, i16 255>
+  %2 = mul <8 x i16> %1, <i16 253, i16 253, i16 253, i16 253, i16 253, i16 253, i16 253, i16 253>
   %3 = extractelement <8 x i16> %2, i32 0
   ret i16 %3
 }
