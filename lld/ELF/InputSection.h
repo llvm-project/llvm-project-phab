@@ -264,14 +264,16 @@ private:
 struct EhSectionPiece {
   EhSectionPiece(size_t Off, InputSectionBase *Sec, uint32_t Size,
                  unsigned FirstRelocation)
-      : InputOff(Off), Sec(Sec), Size(Size), FirstRelocation(FirstRelocation) {}
+      : InputOff(Off), Sec(Sec), Size(Size), Live(!Config->GcSections),
+        FirstRelocation(FirstRelocation) {}
 
   ArrayRef<uint8_t> data() { return {Sec->Data.data() + this->InputOff, Size}; }
 
   size_t InputOff;
   ssize_t OutputOff = -1;
   InputSectionBase *Sec;
-  uint32_t Size;
+  uint32_t Size : 31;
+  uint32_t Live : 1;
   unsigned FirstRelocation;
 };
 
