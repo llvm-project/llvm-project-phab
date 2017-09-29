@@ -2180,8 +2180,18 @@ void Generic_GCC::printVerboseInfo(raw_ostream &OS) const {
   CudaInstallation.print(OS);
 }
 
-bool Generic_GCC::IsUnwindTablesDefault(const ArgList &Args) const {
-  return getArch() == llvm::Triple::x86_64;
+bool Generic_GCC::IsUnwindTablesDefault(const ArgList &Args, types::ID InputType) const {
+  switch (getArch()) {
+  case llvm::Triple::arm:
+  case llvm::Triple::armeb:
+  case llvm::Triple::thumb:
+  case llvm::Triple::thumbeb:
+    return tools::arm::ARMNeedUnwindTable(Args, types::isCXX(InputType));
+  case llvm::Triple::x86_64:
+    return true;
+  default:
+    return false;
+  }
 }
 
 bool Generic_GCC::isPICDefault() const {

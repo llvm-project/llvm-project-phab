@@ -13,6 +13,7 @@
 #include "InputInfo.h"
 #include "Gnu.h"
 
+#include "Arch/ARM.h"
 #include "clang/Basic/VirtualFileSystem.h"
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/Driver.h"
@@ -199,4 +200,16 @@ void baremetal::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   C.addCommand(llvm::make_unique<Command>(JA, *this,
                                           Args.MakeArgString(TC.GetLinkerPath()),
                                           CmdArgs, Inputs));
+}
+
+bool BareMetal::IsUnwindTablesDefault(const ArgList &Args, types::ID InputType) const {
+  switch (getArch()) {
+  case llvm::Triple::arm:
+  case llvm::Triple::armeb:
+  case llvm::Triple::thumb:
+  case llvm::Triple::thumbeb:
+    return tools::arm::ARMNeedUnwindTable(Args, types::isCXX(InputType));
+  default:
+    return false;
+  }
 }

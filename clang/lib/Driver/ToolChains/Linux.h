@@ -36,6 +36,8 @@ public:
   void AddIAMCUIncludeArgs(const llvm::opt::ArgList &DriverArgs,
                            llvm::opt::ArgStringList &CC1Args) const override;
   bool isPIEDefault() const override;
+  bool IsUnwindTablesDefault(const llvm::opt::ArgList &Args,
+			     types::ID InputType) const override;
   SanitizerMask getSupportedSanitizers() const override;
   void addProfileRTLibs(const llvm::opt::ArgList &Args,
                         llvm::opt::ArgStringList &CmdArgs) const override;

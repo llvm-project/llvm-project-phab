@@ -8,6 +8,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "CrossWindows.h"
+#include "Arch/ARM.h"
 #include "CommonArgs.h"
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/Driver.h"
@@ -209,10 +210,20 @@ CrossWindowsToolChain::CrossWindowsToolChain(const Driver &D,
                                              const llvm::opt::ArgList &Args)
     : Generic_GCC(D, T, Args) {}
 
-bool CrossWindowsToolChain::IsUnwindTablesDefault(const ArgList &Args) const {
+bool CrossWindowsToolChain::IsUnwindTablesDefault(const ArgList &Args, types::ID InputType) const {
   // FIXME: all non-x86 targets need unwind tables, however, LLVM currently does
   // not know how to emit them.
-  return getArch() == llvm::Triple::x86_64;
+  switch (getArch()) {
+  case llvm::Triple::arm:
+  case llvm::Triple::armeb:
+  case llvm::Triple::thumb:
+  case llvm::Triple::thumbeb:
+    return tools::arm::ARMNeedUnwindTable(Args, types::isCXX(InputType));
+  case  llvm::Triple::x86_64:
+    return true;
+  default:
+    return false;
+  }
 }
 
 bool CrossWindowsToolChain::isPICDefault() const {

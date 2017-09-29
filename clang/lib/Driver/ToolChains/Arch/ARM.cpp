@@ -589,3 +589,9 @@ void arm::appendEBLinkFlags(const ArgList &Args, ArgStringList &CmdArgs,
   if (arm::getARMSubArchVersionNumber(Triple) >= 7 || arm::isARMMProfile(Triple))
     CmdArgs.push_back("--be8");
 }
+
+bool arm::ARMNeedUnwindTable(const ArgList &Args, bool isCXX) {
+  // Emit the uwtable attribute to generate an unwind table when exceptions are
+  // supported, even the functions that do not throw still need a .cantunwind directive.
+  return Args.hasFlag(options::OPT_fexceptions, options::OPT_fno_exceptions, isCXX);
+}

@@ -59,6 +59,8 @@ void getARMTargetFeatures(const ToolChain &TC, const llvm::Triple &Triple,
 int getARMSubArchVersionNumber(const llvm::Triple &Triple);
 bool isARMMProfile(const llvm::Triple &Triple);
 
+bool ARMNeedUnwindTable(const llvm::opt::ArgList &Args, bool isCXX);
+
 } // end namespace arm
 } // end namespace tools
 } // end namespace driver

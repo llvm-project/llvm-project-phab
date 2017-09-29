@@ -8,6 +8,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "MinGW.h"
+#include "Arch/ARM.h"
 #include "InputInfo.h"
 #include "CommonArgs.h"
 #include "clang/Driver/Compilation.h"
@@ -361,8 +362,18 @@ Tool *toolchains::MinGW::buildLinker() const {
   return new tools::MinGW::Linker(*this);
 }
 
-bool toolchains::MinGW::IsUnwindTablesDefault(const ArgList &Args) const {
-  return getArch() == llvm::Triple::x86_64;
+bool toolchains::MinGW::IsUnwindTablesDefault(const ArgList &Args, types::ID InputType) const {
+  switch (getArch()) {
+  case llvm::Triple::arm:
+  case llvm::Triple::armeb:
+  case llvm::Triple::thumb:
+  case llvm::Triple::thumbeb:
+    return tools::arm::ARMNeedUnwindTable(Args, types::isCXX(InputType));
+  case llvm::Triple::x86_64:
+    return true;
+  default:
+    return false;
+  }
 }
 
 bool toolchains::MinGW::isPICDefault() const {

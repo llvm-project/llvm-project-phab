@@ -10,6 +10,7 @@
 #include "MSVC.h"
 #include "CommonArgs.h"
 #include "Darwin.h"
+#include "Arch/ARM.h"
 #include "clang/Basic/CharInfo.h"
 #include "clang/Basic/Version.h"
 #include "clang/Driver/Compilation.h"
@@ -707,7 +708,7 @@ bool MSVCToolChain::IsIntegratedAssemblerDefault() const {
   return true;
 }
 
-bool MSVCToolChain::IsUnwindTablesDefault(const ArgList &Args) const {
+bool MSVCToolChain::IsUnwindTablesDefault(const ArgList &Args, types::ID InputType) const {
   // Emit unwind tables by default on Win64. All non-x86_32 Windows platforms
   // such as ARM and PPC actually require unwind tables, but LLVM doesn't know
   // how to generate them yet.
@@ -716,7 +717,17 @@ bool MSVCToolChain::IsUnwindTablesDefault(const ArgList &Args) const {
   if (getTriple().isOSBinFormatMachO())
     return false;
 
-  return getArch() == llvm::Triple::x86_64;
+  switch (getArch()) {
+  case llvm::Triple::arm:
+  case llvm::Triple::armeb:
+  case llvm::Triple::thumb:
+  case llvm::Triple::thumbeb:
+    return tools::arm::ARMNeedUnwindTable(Args, types::isCXX(InputType));
+  case llvm::Triple::x86_64:
+    return true;
+  default:
+    return false;
+  }
 }
 
 bool MSVCToolChain::isPICDefault() const {

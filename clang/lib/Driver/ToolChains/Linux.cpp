@@ -859,3 +859,17 @@ void Linux::addProfileRTLibs(const llvm::opt::ArgList &Args,
         Twine("-u", llvm::getInstrProfRuntimeHookVarName())));
   ToolChain::addProfileRTLibs(Args, CmdArgs);
 }
+
+bool Linux::IsUnwindTablesDefault(const ArgList &Args, types::ID InputType) const {
+  switch (getArch()) {
+  case llvm::Triple::arm:
+  case llvm::Triple::armeb:
+  case llvm::Triple::thumb:
+  case llvm::Triple::thumbeb:
+    return tools::arm::ARMNeedUnwindTable(Args, types::isCXX(InputType));
+  case llvm::Triple::x86_64:
+    return true;
+  default:
+    return false;
+  }
+}

@@ -3412,7 +3412,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   bool AsynchronousUnwindTables =
       Args.hasFlag(options::OPT_fasynchronous_unwind_tables,
                    options::OPT_fno_asynchronous_unwind_tables,
-                   (getToolChain().IsUnwindTablesDefault(Args) ||
+                   (getToolChain().IsUnwindTablesDefault(Args, Input.getType()) ||
                     getToolChain().getSanitizerArgs().needsUnwindTables()) &&
                        !Freestanding);
   if (Args.hasFlag(options::OPT_funwind_tables, options::OPT_fno_unwind_tables,
