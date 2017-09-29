@@ -774,3 +774,11 @@ std::string CompletionItem::unparse(const CompletionItem &CI) {
   Result.back() = '}';
   return Result;
 }
+
+
+std::string DocumentHighlight::unparse(const DocumentHighlight &DH) {
+    std::string Result;
+    llvm::raw_string_ostream(Result) << llvm::format(
+        R"({"range": %s, "number": %d})", Range::unparse(DH.range).c_str(), DH.kind);
+    return Result;
+  }
