@@ -773,6 +773,12 @@ static bool ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args, InputKind IK,
 
   Opts.PreserveVec3Type = Args.hasArg(OPT_fpreserve_vec3_type);
   Opts.InstrumentFunctions = Args.hasArg(OPT_finstrument_functions);
+  if (Opts.InstrumentFunctions) {
+    Opts.InstrumentFunctionExclusionsFunctions
+        = Args.getAllArgValues(OPT_finstrument_functions_exclude_function_list);
+    Opts.InstrumentFunctionExclusionsPathSegments
+        = Args.getAllArgValues(OPT_finstrument_functions_exclude_file_list);
+  }
   Opts.XRayInstrumentFunctions = Args.hasArg(OPT_fxray_instrument);
   Opts.XRayInstructionThreshold =
       getLastArgIntValue(Args, OPT_fxray_instruction_threshold_EQ, 200, Diags);

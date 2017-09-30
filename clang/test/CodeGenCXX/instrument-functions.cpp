@@ -1,10 +1,28 @@
 // RUN: %clang_cc1 -S -emit-llvm -triple %itanium_abi_triple -o - %s -finstrument-functions | FileCheck %s
 
+// RUN: %clang -S -emit-llvm -o - %s -finstrument-functions | FileCheck %s
+// RUN: %clang -S -emit-llvm -o - %s -fno-instrument-functions | FileCheck %s --check-prefix=NOINSTR
+
+// RUN: %clang -S -emit-llvm -o - %s -finstrument-functions -finstrument-functions-exclude-file-list=instrument | FileCheck %s --check-prefix=NOFILE
+// RUN: %clang -S -emit-llvm -o - %s -finstrument-functions -finstrument-functions-exclude-function-list=test3 | FileCheck %s --check-prefix=NOFUNC
+
 // CHECK: @_Z5test1i
+// NOINSTR: @_Z5test1i
+// NOFILE: @_Z5test1i
+// NOFUNC: @_Z5test1i
 int test1(int x) {
 // CHECK: __cyg_profile_func_enter
 // CHECK: __cyg_profile_func_exit
 // CHECK: ret
+// NOINSTR-NOT: __cyg_profile_func_enter
+// NOINSTR-NOT: __cyg_profile_func_exit
+// NOINSTR: ret
+// NOFILE-NOT: __cyg_profile_func_enter
+// NOFILE-NOT: __cyg_profile_func_exit
+// NOFILE: ret
+// NOFUNC: __cyg_profile_func_enter
+// NOFUNC: __cyg_profile_func_exit
+// NOFUNC: ret
   return x;
 }
 
@@ -14,6 +32,26 @@ int test2(int x) {
 // CHECK-NOT: __cyg_profile_func_enter
 // CHECK-NOT: __cyg_profile_func_exit
 // CHECK: ret
+  return x;
+}
+
+// CHECK: @_Z5test3i
+// NOINSTR: @_Z5test3i
+// NOFILE: @_Z5test3i
+// NOFUNC: @_Z5test3i
+int test3(int x){
+// CHECK: __cyg_profile_func_enter
+// CHECK: __cyg_profile_func_exit
+// CHECK: ret
+// NOINSTR-NOT: __cyg_profile_func_enter
+// NOINSTR-NOT: __cyg_profile_func_exit
+// NOINSTR: ret
+// NOFILE-NOT: __cyg_profile_func_enter
+// NOFILE-NOT: __cyg_profile_func_exit
+// NOFILE: ret
+// NOFUNC-NOT: __cyg_profile_func_enter
+// NOFUNC-NOT: __cyg_profile_func_exit
+// NOFUNC: ret
   return x;
 }
 
