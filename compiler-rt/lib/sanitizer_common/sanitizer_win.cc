@@ -235,6 +235,16 @@ void *MmapFixedOrDie(uptr fixed_addr, uptr size) {
   return p;
 }
 
+// Uses fixed_addr for now.
+// Will use offset instead once we've implemented this function for real.
+uptr ReservedAddressRange::Map(uptr fixed_addr, uptr size,
+                               bool tolerate_enomem) {
+  if (tolerate_enomem) {
+    return reinterpret_cast<uptr>(MmapFixedOrDieOnFatalError(fixed_addr, size));
+  }
+  return reinterpret_cast<uptr>(MmapFixedOrDie(uptr fixed_addr, uptr size));
+}
+
 void *MmapFixedOrDieOnFatalError(uptr fixed_addr, uptr size) {
   void *p = VirtualAlloc((LPVOID)fixed_addr, size,
       MEM_COMMIT, PAGE_READWRITE);
@@ -250,6 +260,13 @@ void *MmapFixedOrDieOnFatalError(uptr fixed_addr, uptr size) {
 void *MmapNoReserveOrDie(uptr size, const char *mem_type) {
   // FIXME: make this really NoReserve?
   return MmapOrDie(size, mem_type);
+}
+
+uptr ReservedAddressRange::Init(uptr size, const char *name, uptr fixed_addr) {
+  if (fixed_addr) {
+    return reinterpret_cast<uptr>(MmapFixedNoAccess(fixed_addr, size, name));
+  }
+  return reinterpret_cast<uptr>(MmapNoAccess(size));
 }
 
 void *MmapFixedNoAccess(uptr fixed_addr, uptr size, const char *name) {

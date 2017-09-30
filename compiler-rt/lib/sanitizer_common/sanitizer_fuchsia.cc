@@ -236,6 +236,19 @@ void *MmapOrDieOnFatalError(uptr size, const char *mem_type) {
   return DoAnonymousMmapOrDie(size, mem_type, false, false);
 }
 
+uptr ReservedAddressRange::Init(uptr init_size, const char* name = nullptr,
+                                uptr fixed_addr = uptr(0)) {
+  return reinterpret_cast<uptr>(MmapNoAccess(init_size));
+}
+
+// Uses fixed_addr for now.
+// Will use offset instead once we've implemented this function for real.
+uptr ReservedAddressRange::Map(uptr fixed_addr, uptr map_size,
+                               bool tolerate_enomem = true) {
+  return reinterpret_cast<uptr>(MmapFixedOrDie(fixed_addr, size,
+                                               tolerate_enomem));
+}
+
 // MmapNoAccess and MmapFixedOrDie are used only by sanitizer_allocator.
 // Instead of doing exactly what they say, we make MmapNoAccess actually
 // just allocate a VMAR to reserve the address space.  Then MmapFixedOrDie

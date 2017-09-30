@@ -209,6 +209,16 @@ class SizeClassAllocator64 {
     UnmapWithCallbackOrDie(SpaceBeg(), kSpaceSize + AdditionalSize());
   }
 
+  // Test-only.
+  uptr TestOnlySize() {
+    return kSpaceSize + AdditionalSize();
+  }
+
+  // Test-only.
+  uptr TestOnlySpaceBeg() {
+    return SpaceBeg();
+  }
+
   static void FillMemoryProfile(uptr start, uptr rss, bool file, uptr *stats,
                            uptr stats_size) {
     for (uptr class_id = 0; class_id < stats_size; class_id++)

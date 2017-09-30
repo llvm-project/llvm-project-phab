@@ -481,6 +481,28 @@ TEST(SanitizerCommon, SizeClassAllocator64Overflow) {
 }
 #endif
 
+#if SANITIZER_CAN_USE_ALLOCATOR64
+
+TEST(SanitizerCommon, ReservedAddressRange) {
+  Allocator64 a;
+  a.Init(kReleaseToOSIntervalNever);
+  // Returns (beginnning address of mmaped space + (kRegionSize * 0)).
+  // We have to use this indirect way of determining it, since the starting
+  // address is private.
+  uptr addr = a.GetRegionBeginBySizeClass(0);
+  uptr size = a.TestOnlySize();
+  // The actual beginning of the space can be different from addr.
+  uptr spacebeg = a.TestOnlySpaceBeg();
+  a.TestOnlyUnmap();
+
+  // Try to make a ReservedAddressSpace where the Allocator64 was.
+  ReservedAddressRange address_range;
+  address_range.Init(size, "", addr);
+  CHECK_EQ(addr, reinterpret_cast<uptr>(address_range.base()));
+}
+
+#endif
+
 TEST(SanitizerCommon, LargeMmapAllocator) {
   LargeMmapAllocator<NoOpMapUnmapCallback, DieOnFailure> a;
   a.Init();

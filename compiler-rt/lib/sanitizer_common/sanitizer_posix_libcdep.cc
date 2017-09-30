@@ -337,6 +337,16 @@ void *MmapFixedNoReserve(uptr fixed_addr, uptr size, const char *name) {
   return (void *)p;
 }
 
+uptr ReservedAddressRange::Init(uptr size, const char *name, uptr fixed_addr) {
+  if (fixed_addr) {
+    base_ = MmapFixedNoAccess(fixed_addr, size, name);
+  } else {
+    base_ = MmapNoAccess(size);
+  }
+  size_ = size;
+  return reinterpret_cast<uptr>(base_);
+}
+
 void *MmapFixedNoAccess(uptr fixed_addr, uptr size, const char *name) {
   int fd = name ? GetNamedMappingFd(name, size) : -1;
   unsigned flags = MAP_PRIVATE | MAP_FIXED | MAP_NORESERVE;

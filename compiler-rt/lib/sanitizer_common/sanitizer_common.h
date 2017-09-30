@@ -83,6 +83,20 @@ void GetThreadStackAndTls(bool main, uptr *stk_addr, uptr *stk_size,
                           uptr *tls_addr, uptr *tls_size);
 
 // Memory management
+// This class relies on zero-initialization.
+class ReservedAddressRange {
+ public:
+  uptr Init(uptr size, const char *name = nullptr, uptr fixed_addr = 0);
+  uptr Map(uptr offset, uptr size, bool tolerate_enomem = false);
+  void *base() { return base_; }
+ private:
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-private-field"
+  uptr os_cookie_;
+  void* base_;
+  uptr size_;
+};
+
 void *MmapOrDie(uptr size, const char *mem_type, bool raw_report = false);
 INLINE void *MmapOrDieQuietly(uptr size, const char *mem_type) {
   return MmapOrDie(size, mem_type, /*raw_report*/ true);

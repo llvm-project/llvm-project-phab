@@ -141,6 +141,16 @@ void *MmapFixedOrDie(uptr fixed_addr, uptr size) {
   return MmapFixedImpl(fixed_addr, size, false /*tolerate_enomem*/);
 }
 
+// Uses fixed_addr for now.
+// Will use offset instead once we've implemented this function for real.
+uptr ReservedAddressRange::Map(uptr fixed_addr, uptr size,
+                               bool tolerate_enomem) {
+  if (tolerate_enomem) {
+    return reinterpret_cast<uptr>(MmapFixedOrDieOnFatalError(fixed_addr, size));
+  }
+  return reinterpret_cast<uptr>(MmapFixedOrDie(fixed_addr, size));
+}
+
 void *MmapFixedOrDieOnFatalError(uptr fixed_addr, uptr size) {
   return MmapFixedImpl(fixed_addr, size, true /*tolerate_enomem*/);
 }
