@@ -3535,7 +3535,14 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                     options::OPT_fno_unique_section_names, true))
     CmdArgs.push_back("-fno-unique-section-names");
 
-  Args.AddAllArgs(CmdArgs, options::OPT_finstrument_functions);
+  if (Args.hasArg(options::OPT_finstrument_functions,
+                  options::OPT_fno_instrument_functions, false)) {
+    Args.AddAllArgs(CmdArgs, options::OPT_finstrument_functions);
+    Args.AddAllArgs(CmdArgs,
+                    options::OPT_finstrument_functions_exclude_file_list);
+    Args.AddAllArgs(CmdArgs,
+                    options::OPT_finstrument_functions_exclude_function_list);
+  }
 
   addPGOAndCoverageFlags(C, D, Output, Args, CmdArgs);
 
