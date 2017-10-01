@@ -47,7 +47,8 @@ enum isl_ast_expr_type {
 	isl_ast_expr_error = -1,
 	isl_ast_expr_op,
 	isl_ast_expr_id,
-	isl_ast_expr_int
+	isl_ast_expr_int,
+	isl_ast_expr_bound_t
 };
 
 enum isl_ast_node_type {

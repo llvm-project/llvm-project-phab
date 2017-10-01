@@ -21,6 +21,17 @@
 using namespace llvm;
 using namespace polly;
 
+static cl::opt<bool>
+    UseBounds("polly-ast-use-bounds",
+              cl::desc("Use computed bounds to determine types"),
+              cl::init(true), cl::ZeroOrMore, cl::cat(PollyCategory));
+
+static cl::opt<bool>
+    ExtendBounds("polly-ast-extend-bounds",
+                 cl::desc("Extend types smaller than 64 bits to 64 bits"),
+                 cl::init(true), cl::Hidden, cl::Optional,
+                 cl::cat(PollyCategory));
+
 /// Different overflow tracking modes.
 enum OverflowTrackingChoice {
   OT_NEVER,   ///< Never tack potential overflows.
@@ -713,10 +724,34 @@ Value *IslExprBuilder::createId(__isl_take isl_ast_expr *Expr) {
 }
 
 IntegerType *IslExprBuilder::getType(__isl_keep isl_ast_expr *Expr) {
-  // XXX: We assume i64 is large enough. This is often true, but in general
-  //      incorrect. Also, on 32bit architectures, it would be beneficial to
-  //      use a smaller type. We can and should directly derive this information
-  //      during code generation.
+  if (isl_options_get_ast_build_compute_bounds(isl_ast_expr_get_ctx(Expr)) &&
+      UseBounds && !FixedSizeMode) {
+    if (CurrentBound == NULL) {
+      // Bail out with verbose error during dev:
+      llvm::errs() << "BEGIN EXPR\n";
+      isl_printer *p = isl_printer_to_file(isl_ast_expr_get_ctx(Expr), stderr);
+      p = isl_printer_set_output_format(p, ISL_FORMAT_C);
+      p = isl_printer_print_ast_expr(p, Expr);
+      isl_printer_free(p);
+      llvm::errs() << "\nEND EXPR\n";
+      llvm_unreachable("Unbound expression!");
+    }
+
+    int size = isl_ast_expr_get_bound_bits(CurrentBound);
+    if (isl_ast_expr_get_bound_signed(CurrentBound) != isl_bool_true)
+      size++;
+
+    // Extend to 64. After discussing this with Tobias, it might actually be
+    // more useful to only use the exact type for annotations and only use this
+    // for code generation on specific request. For now, there is a flag to
+    // toggle this behaviour.
+    if (size < 64 && ExtendBounds)
+      size = 64;
+
+    CurrentBound = nullptr;
+    return IntegerType::get(Builder.getContext(), size);
+  }
+  CurrentBound = nullptr;
   return IntegerType::get(Builder.getContext(), 64);
 }
 
@@ -754,7 +789,31 @@ Value *IslExprBuilder::create(__isl_take isl_ast_expr *Expr) {
     return createId(Expr);
   case isl_ast_expr_int:
     return createInt(Expr);
+  case isl_ast_expr_bound_t:
+    return createBound(Expr);
   }
 
   llvm_unreachable("Unexpected enum value");
+}
+
+Value *IslExprBuilder::createBound(__isl_take isl_ast_expr *Expr) {
+  Value *V;
+  assert(isl_ast_expr_get_type(Expr) == isl_ast_expr_bound_t &&
+         "Expression not of type isl_ast_expr_bound_t");
+
+  isl_ast_expr *OldBound = CurrentBound;
+  CurrentBound = Expr;
+  V = create(isl_ast_expr_get_bound_expr(Expr));
+  isl_ast_expr_free(Expr);
+  CurrentBound = OldBound;
+  return V;
+}
+
+void IslExprBuilder::injectBound(__isl_keep isl_ast_expr *Bound) {
+  if (UseBounds) {
+    assert(!CurrentBound &&
+           "Cannot inject bound while previous bound is not consumed");
+
+    CurrentBound = Bound;
+  }
 }

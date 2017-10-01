@@ -54,6 +54,26 @@ void isl_imath_submul_ui(mp_int rop, mp_int op1, unsigned long op2)
 	mp_int_clear(&temp);
 }
 
+size_t isl_imath_size_in_bits(mp_int val, int sign) {
+	mp_result result;
+	mpz_t tmp;
+
+	if ((result = mp_int_count_bits(val)) < 0)
+		isl_die(NULL, isl_error_invalid, "Coudln't get size", return 1);
+
+	if (MP_SIGN(val)!=0) {
+		mp_int_init(&tmp);
+		mp_int_neg(val, &tmp);
+		if (mp_int_is_pow2(&tmp)<0)
+			result++;
+		mp_int_clear(&tmp);
+	} else if (MP_SIGN(val)==0 && sign==1) {
+		result++;
+	}
+
+	return result;
+}
+
 /* Compute the division of lhs by a rhs of type unsigned long, rounding towards
  * positive infinity (Ceil).
  */

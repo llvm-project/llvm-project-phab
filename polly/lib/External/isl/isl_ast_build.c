@@ -19,6 +19,7 @@
 #include <isl_ast_build_private.h>
 #include <isl_ast_private.h>
 #include <isl_config.h>
+#include <include/isl/hash.h>
 
 /* Construct a map that isolates the current dimension.
  *
@@ -41,6 +42,26 @@ __isl_give isl_map *isl_ast_build_map_to_iterator(
 	map = isl_map_eliminate(map, isl_dim_in, build->depth, 1);
 
 	return map;
+}
+
+/* Initialize the local copy of the build-specific options
+ * from the associated isl_ctx.
+ */
+__isl_give isl_ast_build *isl_ast_build_init_options(
+	__isl_take isl_ast_build *build)
+{
+	isl_ctx *ctx;
+
+	build = isl_ast_build_cow(build);
+	if (!build)
+	        return NULL;
+	
+	ctx = isl_ast_build_get_ctx(build);
+	build->compute_bounds = isl_options_get_ast_build_compute_bounds(ctx);
+	build->approximate_bounds = isl_options_get_ast_build_approximate_computed_bounds(ctx);
+	build->maximum_size = isl_options_get_ast_build_maximum_native_type(ctx);
+
+	return build;
 }
 
 /* Initialize the information derived during the AST generation to default
@@ -145,6 +166,10 @@ __isl_give isl_ast_build *isl_ast_build_from_context(__isl_take isl_set *set)
 	space = isl_set_get_space(set);
 	if (isl_space_is_params(space))
 		space = isl_space_set_from_params(space);
+	build->compute_bounds = isl_options_get_ast_build_compute_bounds(ctx);
+	build->approximate_bounds = isl_options_get_ast_build_approximate_computed_bounds(ctx);
+	build->maximum_size = isl_options_get_ast_build_maximum_native_type(ctx);
+
 
 	return isl_ast_build_init_derived(build, space);
 error:
@@ -188,6 +213,9 @@ __isl_give isl_ast_build *isl_ast_build_dup(__isl_keep isl_ast_build *build)
 		return NULL;
 
 	dup->ref = 1;
+	dup->compute_bounds = build->compute_bounds;
+	dup->approximate_bounds = build->approximate_bounds;
+	dup->maximum_size = build->maximum_size;
 	dup->outer_pos = build->outer_pos;
 	dup->depth = build->depth;
 	dup->iterators = isl_id_list_copy(build->iterators);
@@ -292,6 +320,15 @@ __isl_give isl_ast_build *isl_ast_build_cow(__isl_take isl_ast_build *build)
 	return isl_ast_build_dup(build);
 }
 
+static isl_stat free_cache_entry(void **p, void *user)
+{
+	struct isl_aff *expr = *p;
+
+	isl_aff_free(expr);
+
+	return isl_stat_ok;
+}
+
 __isl_null isl_ast_build *isl_ast_build_free(
 	__isl_take isl_ast_build *build)
 {
@@ -300,6 +337,11 @@ __isl_null isl_ast_build *isl_ast_build_free(
 
 	if (--build->ref > 0)
 		return NULL;
+
+	if (build->cache) {
+		isl_hash_table_foreach(isl_ast_build_get_ctx(build), build->cache, &free_cache_entry, NULL);
+		isl_hash_table_free(isl_ast_build_get_ctx(build), build->cache);
+	}
 
 	isl_id_list_free(build->iterators);
 	isl_set_free(build->domain);

@@ -184,7 +184,48 @@ public:
   /// @return The llvm::Value* containing the result of the computation.
   llvm::Value *createAccessAddress(__isl_take isl_ast_expr *Expr);
 
+  /// Inject \p Bound into the expression generator. Normally, a node in the
+  /// AST tree is preceded by it's bound, therefore it's sufficient to store
+  /// the bound in @link CurrentBound before descending.
+  /// However, when generating nodes manually (e.g. as done in our
+  /// LoopGenerators), this does not work as the nodes we create do not form
+  /// a full AST tree. This function is therefore used in those instances to
+  /// manually inject a bound for the next expression before calling
+  /// @link create.
+  ///
+  /// @param Bound The bound to inject
+  void injectBound(__isl_keep isl_ast_expr *Bound);
+
+  /// Execute the enclosed funtion with @link FixedSizeMode set to true.
+  template <typename R> R withFixedSizeMode(std::function<R()> Fun) {
+    FixedSizeMode = true;
+    R Result = Fun();
+    FixedSizeMode = false;
+    return Result;
+  };
+
+  /// Execute the enclosed funtion with @link FixedSizeMode set to true.
+  void withFixedSizeMode(std::function<void()> Fun) {
+    FixedSizeMode = true;
+    Fun();
+    FixedSizeMode = false;
+  };
+
 private:
+  /// The current bound, that is the bound that we expect the next call of
+  /// @link getType to refer to. This is set everytime we encounter an AST
+  /// expression node with a type of isl_ast_expr_bound_t and cleared on every
+  /// call to @link getType.
+  isl_ast_expr *CurrentBound = nullptr;
+
+  /// Whether to always use 64 bits.
+  /// If enabled, the expression generator will always use 64 bit types
+  /// regardless of what bounds were actually calculated. This is useful for
+  /// example when generating the RTC, where we track overflows and therefore
+  /// do not need to use types >64 bits, which can be generated for ISL in this
+  /// context.
+  bool FixedSizeMode = false;
+
   Scop &S;
 
   /// Flag that will be set if an overflow occurred at runtime.
@@ -222,6 +263,18 @@ private:
   llvm::Value *createId(__isl_take isl_ast_expr *Expr);
   llvm::Value *createInt(__isl_take isl_ast_expr *Expr);
   llvm::Value *createOpAddressOf(__isl_take isl_ast_expr *Expr);
+
+  /// Create a 'bound': An expression node with a type of isl_ast_expr_bound_t
+  /// is inserted into the AST expression tree directly above each 'numerical'
+  /// node. To use them, we store the bound in @link CurrentBound before
+  /// generating the inner expression which is then read by @link getType when
+  /// asked for the expression's type.
+  /// When encountering a bound while the previous bound is not consumed, it is
+  /// saved and restored after the subtree has been generated.
+  ///
+  /// @param Expr The expression to generate
+  /// @return The value the expression represents
+  llvm::Value *createBound(__isl_take isl_ast_expr *Expr);
 
   /// Create a binary operation @p Opc and track overflows if requested.
   ///
@@ -268,3 +321,4 @@ private:
 } // namespace polly
 
 #endif
+/* vim: set ts=8 sw=8 tw=0 noet :*/
