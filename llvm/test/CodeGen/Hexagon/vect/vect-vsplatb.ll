@@ -1,5 +1,5 @@
 ; RUN: llc -march=hexagon -disable-hcp < %s | FileCheck %s
-; Make sure we build the constant vector <7, 7, 7, 7> with a vsplatb.
+; Make sure we build the constant vector <11, 11, 11, 11> with a vsplatb.
 ; CHECK: vsplatb
 @B = common global [400 x i8] zeroinitializer, align 8
 @A = common global [400 x i8] zeroinitializer, align 8
@@ -19,7 +19,7 @@ polly.loop_body:                                  ; preds = %entry, %polly.loop_
   %p_arrayidx = getelementptr [400 x i8], [400 x i8]* @B, i32 0, i32 %polly.loopiv25
   %vector_ptr = bitcast i8* %p_arrayidx to <4 x i8>*
   %_p_vec_full = load <4 x i8>, <4 x i8>* %vector_ptr, align 8
-  %mulp_vec = mul <4 x i8> %_p_vec_full, <i8 7, i8 7, i8 7, i8 7>
+  %mulp_vec = mul <4 x i8> %_p_vec_full, <i8 11, i8 11, i8 11, i8 11>
   %vector_ptr14 = bitcast i8* %p_arrayidx1 to <4 x i8>*
   %_p_vec_full15 = load <4 x i8>, <4 x i8>* %vector_ptr14, align 8
   %addp_vec = add <4 x i8> %_p_vec_full15, %mulp_vec

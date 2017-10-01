@@ -94,7 +94,8 @@ define void @test3(<4 x i32> %induction30, <4 x i16>* %tmp16, <4 x i16>* %tmp17,
 ; AVX1-NEXT:    vpblendw {{.*#+}} xmm3 = xmm3[0,1],xmm4[2,3],xmm3[4,5],xmm4[6,7]
 ; AVX1-NEXT:    vpsrld $31, %xmm3, %xmm4
 ; AVX1-NEXT:    vpaddd %xmm4, %xmm3, %xmm3
-; AVX1-NEXT:    vpmulld {{.*}}(%rip), %xmm3, %xmm3
+; AVX1-NEXT:    vpslld $2, %xmm3, %xmm4
+; AVX1-NEXT:    vpsubd %xmm3, %xmm4, %xmm3
 ; AVX1-NEXT:    vpsubd %xmm3, %xmm0, %xmm0
 ; AVX1-NEXT:    vpxor %xmm3, %xmm3, %xmm3
 ; AVX1-NEXT:    vpcmpeqd %xmm3, %xmm0, %xmm0
@@ -117,8 +118,8 @@ define void @test3(<4 x i32> %induction30, <4 x i16>* %tmp16, <4 x i16>* %tmp17,
 ; AVX2-NEXT:    vpblendd {{.*#+}} xmm3 = xmm3[0],xmm4[1],xmm3[2],xmm4[3]
 ; AVX2-NEXT:    vpsrld $31, %xmm3, %xmm4
 ; AVX2-NEXT:    vpaddd %xmm4, %xmm3, %xmm3
-; AVX2-NEXT:    vpbroadcastd {{.*#+}} xmm4 = [3,3,3,3]
-; AVX2-NEXT:    vpmulld %xmm4, %xmm3, %xmm3
+; AVX2-NEXT:    vpslld $2, %xmm3, %xmm4
+; AVX2-NEXT:    vpsubd %xmm3, %xmm4, %xmm3
 ; AVX2-NEXT:    vpsubd %xmm3, %xmm0, %xmm0
 ; AVX2-NEXT:    vpxor %xmm3, %xmm3, %xmm3
 ; AVX2-NEXT:    vpcmpeqd %xmm3, %xmm0, %xmm0

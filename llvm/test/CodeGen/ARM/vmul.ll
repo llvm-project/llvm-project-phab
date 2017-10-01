@@ -374,7 +374,7 @@ define <8 x i16> @vmull_extvec_s8(<8 x i8> %arg) nounwind {
 ; CHECK: vmull_extvec_s8
 ; CHECK: vmull.s8
   %tmp3 = sext <8 x i8> %arg to <8 x i16>
-  %tmp4 = mul <8 x i16> %tmp3, <i16 -12, i16 -12, i16 -12, i16 -12, i16 -12, i16 -12, i16 -12, i16 -12>
+  %tmp4 = mul <8 x i16> %tmp3, <i16 -13, i16 -13, i16 -13, i16 -13, i16 -13, i16 -13, i16 -13, i16 -13>
   ret <8 x i16> %tmp4
 }
 
@@ -382,7 +382,7 @@ define <8 x i16> @vmull_extvec_u8(<8 x i8> %arg) nounwind {
 ; CHECK: vmull_extvec_u8
 ; CHECK: vmull.u8
   %tmp3 = zext <8 x i8> %arg to <8 x i16>
-  %tmp4 = mul <8 x i16> %tmp3, <i16 12, i16 12, i16 12, i16 12, i16 12, i16 12, i16 12, i16 12>
+  %tmp4 = mul <8 x i16> %tmp3, <i16 11, i16 11, i16 11, i16 11, i16 11, i16 11, i16 11, i16 11>
   ret <8 x i16> %tmp4
 }
 
@@ -410,7 +410,7 @@ define <4 x i32> @vmull_extvec_s16(<4 x i16> %arg) nounwind {
 ; CHECK: vmull_extvec_s16
 ; CHECK: vmull.s16
   %tmp3 = sext <4 x i16> %arg to <4 x i32>
-  %tmp4 = mul <4 x i32> %tmp3, <i32 -12, i32 -12, i32 -12, i32 -12>
+  %tmp4 = mul <4 x i32> %tmp3, <i32 -13, i32 -13, i32 -13, i32 -13>
   ret <4 x i32> %tmp4
 }
 

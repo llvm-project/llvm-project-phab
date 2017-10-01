@@ -1,6 +1,6 @@
 ; RUN: llc -march=hexagon -mcpu=hexagonv5 -disable-hsdr < %s | FileCheck %s
 ; This one should generate a combine with two immediates.
-; CHECK: combine(#7,#7)
+; CHECK: combine(#11,#11)
 @B = common global [400 x i32] zeroinitializer, align 8
 @A = common global [400 x i32] zeroinitializer, align 8
 @C = common global [400 x i32] zeroinitializer, align 8
@@ -19,7 +19,7 @@ polly.loop_body:                                  ; preds = %entry, %polly.loop_
   %p_arrayidx = getelementptr [400 x i32], [400 x i32]* @B, i32 0, i32 %polly.loopiv23
   %vector_ptr = bitcast i32* %p_arrayidx to <4 x i32>*
   %_p_vec_full = load <4 x i32>, <4 x i32>* %vector_ptr, align 8
-  %mulp_vec = mul <4 x i32> %_p_vec_full, <i32 7, i32 7, i32 7, i32 7>
+  %mulp_vec = mul <4 x i32> %_p_vec_full, <i32 11, i32 11, i32 11, i32 11>
   %vector_ptr12 = bitcast i32* %p_arrayidx1 to <4 x i32>*
   %_p_vec_full13 = load <4 x i32>, <4 x i32>* %vector_ptr12, align 8
   %addp_vec = add <4 x i32> %_p_vec_full13, %mulp_vec
