@@ -75,7 +75,9 @@
 
 #include "ICF.h"
 #include "Config.h"
+#include "EhFrame.h"
 #include "SymbolTable.h"
+#include "SyntheticSections.h"
 #include "Threads.h"
 #include "llvm/ADT/Hashing.h"
 #include "llvm/BinaryFormat/ELF.h"
@@ -163,8 +165,9 @@ static bool isEligible(InputSection *S) {
   // .init and .fini contains instructions that must be executed to
   // initialize and finalize the process. They cannot and should not
   // be merged.
-  return S->Live && (S->Flags & SHF_ALLOC) && (S->Flags & SHF_EXECINSTR) &&
-         !(S->Flags & SHF_WRITE) && S->Name != ".init" && S->Name != ".fini";
+  return S->Live && !isa<SyntheticSection>(S) && (S->Flags & SHF_ALLOC) &&
+         (S->Flags & SHF_EXECINSTR) && !(S->Flags & SHF_WRITE) &&
+         S->Name != ".init" && S->Name != ".fini";
 }
 
 // Split an equivalence class into smaller classes.
@@ -277,6 +280,9 @@ template <class ELFT>
 bool ICF<ELFT>::equalsConstant(const InputSection *A, const InputSection *B) {
   if (A->NumRelocations != B->NumRelocations || A->Flags != B->Flags ||
       A->getSize() != B->getSize() || A->Data != B->Data)
+    return false;
+
+  if (!equalsFdes(A->Fdes, B->Fdes))
     return false;
 
   if (A->AreRelocsRela)
