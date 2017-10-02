@@ -78,6 +78,10 @@ llvm::FunctionType *convertFreeFunctionType(CodeGenModule &CGM,
 
 llvm::Type *convertTypeForMemory(CodeGenModule &CGM, QualType T);
 
+// Returns a field number for a struct suitable for GEP'ing
+unsigned getFieldNumber(CodeGenModule &CGM,
+                        const RecordDecl *RD, const FieldDecl *FD);
+
 }  // end namespace CodeGen
 }  // end namespace clang
 
