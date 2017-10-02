@@ -57,6 +57,11 @@ The improvements are...
 Improvements to clang-tidy
 --------------------------
 
+- New `cppcoreguidelines-narrowing-conversions
+  <http://clang.llvm.org/extra/clang-tidy/checks/cppcoreguidelines-narrowing-conversions.html>`_ check
+
+  Checks for narrowing conversions, e.g. ``int i = 0; i += 0.1;``.
+
 - Renamed checks to use correct term "implicit conversion" instead of "implicit
   cast" and modified messages and option names accordingly:
 
