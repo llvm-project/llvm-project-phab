@@ -156,7 +156,7 @@ void CrossDSOCFI::buildCFICheck(Module &M) {
         BitsetTestFn, {&Addr, MetadataAsValue::get(
                                   Ctx, ConstantAsMetadata::get(CaseTypeId))});
     BranchInst *BI = IRBTest.CreateCondBr(Test, ExitBB, TrapBB);
-    BI->setMetadata(LLVMContext::MD_prof, VeryLikelyWeights);
+    BI->setProfMetadata(LLVMContext::MD_PROF_branch_weights, VeryLikelyWeights);
 
     SI->addCase(CaseTypeId, TestBB);
     ++NumTypeIds;

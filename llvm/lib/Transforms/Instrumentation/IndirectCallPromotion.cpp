@@ -486,7 +486,7 @@ static Instruction *createDirectCallInst(const Instruction *Inst,
                                      NewInst);
 
   // Clear the value profile data.
-  NewInst->setMetadata(LLVMContext::MD_prof, nullptr);
+  NewInst->setProfMetadata(LLVMContext::MD_PROF_VP, nullptr);
   CallSite NewCS(NewInst);
   FunctionType *DirectCalleeType = DirectCallee->getFunctionType();
   unsigned ParamNum = DirectCalleeType->getFunctionNumParams();
@@ -567,7 +567,8 @@ Instruction *llvm::promoteIndirectCall(Instruction *Inst,
     Weights.push_back(Count);
     MDBuilder MDB(NewInst->getContext());
     if (Instruction *DI = dyn_cast<Instruction>(NewInst->stripPointerCasts()))
-      DI->setMetadata(LLVMContext::MD_prof, MDB.createBranchWeights(Weights));
+      DI->setProfMetadata(LLVMContext::MD_PROF_branch_weights,
+                          MDB.createBranchWeights(Weights));
   }
 
   // Move Inst from MergeBB to IndirectCallBB.
@@ -645,7 +646,7 @@ bool ICallPromotionFunc::processFunction(ProfileSummaryInfo *PSI) {
 
     Changed = true;
     // Adjust the MD.prof metadata. First delete the old one.
-    I->setMetadata(LLVMContext::MD_prof, nullptr);
+    I->setProfMetadata(LLVMContext::MD_PROF_VP, nullptr);
     // If all promoted, we don't need the MD.prof metadata.
     if (TotalCount == 0 || NumPromoted == NumVals)
       continue;

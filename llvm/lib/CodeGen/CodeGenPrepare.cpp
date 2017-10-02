@@ -6727,14 +6727,16 @@ bool CodeGenPrepare::splitBranchCondition(Function &F) {
         uint64_t NewTrueWeight = TrueWeight;
         uint64_t NewFalseWeight = TrueWeight + 2 * FalseWeight;
         scaleWeights(NewTrueWeight, NewFalseWeight);
-        Br1->setMetadata(LLVMContext::MD_prof, MDBuilder(Br1->getContext())
-                         .createBranchWeights(TrueWeight, FalseWeight));
+        Br1->setProfMetadata(LLVMContext::MD_PROF_branch_weights,
+                             MDBuilder(Br1->getContext())
+                             .createBranchWeights(TrueWeight, FalseWeight));
 
         NewTrueWeight = TrueWeight;
         NewFalseWeight = 2 * FalseWeight;
         scaleWeights(NewTrueWeight, NewFalseWeight);
-        Br2->setMetadata(LLVMContext::MD_prof, MDBuilder(Br2->getContext())
-                         .createBranchWeights(TrueWeight, FalseWeight));
+        Br2->setProfMetadata(LLVMContext::MD_PROF_branch_weights,
+                             MDBuilder(Br2->getContext())
+                             .createBranchWeights(TrueWeight, FalseWeight));
       }
     } else {
       // Codegen X & Y as:
@@ -6760,14 +6762,16 @@ bool CodeGenPrepare::splitBranchCondition(Function &F) {
         uint64_t NewTrueWeight = 2 * TrueWeight + FalseWeight;
         uint64_t NewFalseWeight = FalseWeight;
         scaleWeights(NewTrueWeight, NewFalseWeight);
-        Br1->setMetadata(LLVMContext::MD_prof, MDBuilder(Br1->getContext())
-                         .createBranchWeights(TrueWeight, FalseWeight));
+        Br1->setProfMetadata(LLVMContext::MD_PROF_branch_weights,
+                             MDBuilder(Br1->getContext())
+                             .createBranchWeights(TrueWeight, FalseWeight));
 
         NewTrueWeight = 2 * TrueWeight;
         NewFalseWeight = FalseWeight;
         scaleWeights(NewTrueWeight, NewFalseWeight);
-        Br2->setMetadata(LLVMContext::MD_prof, MDBuilder(Br2->getContext())
-                         .createBranchWeights(TrueWeight, FalseWeight));
+        Br2->setProfMetadata(LLVMContext::MD_PROF_branch_weights,
+                             MDBuilder(Br2->getContext())
+                             .createBranchWeights(TrueWeight, FalseWeight));
       }
     }
 

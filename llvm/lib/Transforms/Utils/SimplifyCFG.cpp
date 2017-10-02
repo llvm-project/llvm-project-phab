@@ -837,7 +837,7 @@ bool SimplifyCFGOpt::SimplifyEqualityComparisonWithOnlyPredecessor(
 
     // Collect branch weights into a vector.
     SmallVector<uint32_t, 8> Weights;
-    MDNode *MD = SI->getMetadata(LLVMContext::MD_prof);
+    MDNode *MD = SI->getProfMetadata(LLVMContext::MD_PROF_branch_weights);
     bool HasWeight = MD && (MD->getNumOperands() == 2 + SI->getNumCases());
     if (HasWeight)
       for (unsigned MD_i = 1, MD_e = MD->getNumOperands(); MD_i < MD_e;
@@ -857,8 +857,8 @@ bool SimplifyCFGOpt::SimplifyEqualityComparisonWithOnlyPredecessor(
       }
     }
     if (HasWeight && Weights.size() >= 2)
-      SI->setMetadata(LLVMContext::MD_prof,
-                      MDBuilder(SI->getParent()->getContext())
+      SI->setProfMetadata(LLVMContext::MD_PROF_branch_weights,
+                          MDBuilder(SI->getParent()->getContext())
                           .createBranchWeights(Weights));
 
     DEBUG(dbgs() << "Leaving: " << *TI << "\n");
@@ -933,12 +933,7 @@ static int ConstantIntSortPredicate(ConstantInt *const *P1,
 }
 
 static inline bool HasBranchWeights(const Instruction *I) {
-  MDNode *ProfMD = I->getMetadata(LLVMContext::MD_prof);
-  if (ProfMD && ProfMD->getOperand(0))
-    if (MDString *MDS = dyn_cast<MDString>(ProfMD->getOperand(0)))
-      return MDS->getString().equals("branch_weights");
-
-  return false;
+  return I->getProfMetadata(LLVMContext::MD_PROF_branch_weights) != nullptr;
 }
 
 /// Get Weights of a given TerminatorInst, the default weight is at the front
@@ -946,7 +941,7 @@ static inline bool HasBranchWeights(const Instruction *I) {
 /// metadata.
 static void GetBranchWeights(TerminatorInst *TI,
                              SmallVectorImpl<uint64_t> &Weights) {
-  MDNode *MD = TI->getMetadata(LLVMContext::MD_prof);
+  MDNode *MD = TI->getProfMetadata(LLVMContext::MD_PROF_branch_weights);
   assert(MD);
   for (unsigned i = 1, e = MD->getNumOperands(); i < e; ++i) {
     ConstantInt *CI = mdconst::extract<ConstantInt>(MD->getOperand(i));
@@ -1164,8 +1159,8 @@ bool SimplifyCFGOpt::FoldValueComparisonIntoPredecessors(TerminatorInst *TI,
 
         SmallVector<uint32_t, 8> MDWeights(Weights.begin(), Weights.end());
 
-        NewSI->setMetadata(
-            LLVMContext::MD_prof,
+        NewSI->setProfMetadata(
+            LLVMContext::MD_PROF_branch_weights,
             MDBuilder(BB->getContext()).createBranchWeights(MDWeights));
       }
 
@@ -2720,11 +2715,11 @@ bool llvm::FoldBranchToCommonDest(BranchInst *BI, unsigned BonusInstThreshold) {
 
         SmallVector<uint32_t, 8> MDWeights(NewWeights.begin(),
                                            NewWeights.end());
-        PBI->setMetadata(
-            LLVMContext::MD_prof,
+        PBI->setProfMetadata(
+            LLVMContext::MD_PROF_branch_weights,
             MDBuilder(BI->getContext()).createBranchWeights(MDWeights));
       } else
-        PBI->setMetadata(LLVMContext::MD_prof, nullptr);
+        PBI->setProfMetadata(LLVMContext::MD_PROF_branch_weights, nullptr);
     } else {
       // Update PHI nodes in the common successors.
       for (unsigned i = 0, e = PHIs.size(); i != e; ++i) {
@@ -3290,8 +3285,8 @@ static bool SimplifyCondBranchToCondBranch(BranchInst *PBI, BranchInst *BI,
     // Halve the weights if any of them cannot fit in an uint32_t
     FitWeights(NewWeights);
 
-    PBI->setMetadata(LLVMContext::MD_prof,
-                     MDBuilder(BI->getContext())
+    PBI->setProfMetadata(LLVMContext::MD_PROF_branch_weights,
+                         MDBuilder(BI->getContext())
                          .createBranchWeights(NewWeights[0], NewWeights[1]));
   }
 
@@ -3330,8 +3325,8 @@ static bool SimplifyCondBranchToCondBranch(BranchInst *PBI, BranchInst *BI,
 
         FitWeights(NewWeights);
 
-        NV->setMetadata(LLVMContext::MD_prof,
-                        MDBuilder(BI->getContext())
+        NV->setProfMetadata(LLVMContext::MD_PROF_branch_weights,
+                            MDBuilder(BI->getContext())
                             .createBranchWeights(NewWeights[0], NewWeights[1]));
       }
     }
@@ -3387,8 +3382,8 @@ static bool SimplifyTerminatorOnSelect(TerminatorInst *OldTerm, Value *Cond,
       // Create a conditional branch sharing the condition of the select.
       BranchInst *NewBI = Builder.CreateCondBr(Cond, TrueBB, FalseBB);
       if (TrueWeight != FalseWeight)
-        NewBI->setMetadata(LLVMContext::MD_prof,
-                           MDBuilder(OldTerm->getContext())
+        NewBI->setProfMetadata(LLVMContext::MD_PROF_branch_weights,
+                               MDBuilder(OldTerm->getContext())
                                .createBranchWeights(TrueWeight, FalseWeight));
     }
   } else if (KeepEdge1 && (KeepEdge2 || TrueBB == FalseBB)) {
@@ -3576,8 +3571,8 @@ static bool TryToSimplifyUncondBranchWithICmpInIt(
       Weights.push_back(Weights[0]);
 
       SmallVector<uint32_t, 8> MDWeights(Weights.begin(), Weights.end());
-      SI->setMetadata(
-          LLVMContext::MD_prof,
+      SI->setProfMetadata(
+          LLVMContext::MD_PROF_branch_weights,
           MDBuilder(SI->getContext()).createBranchWeights(MDWeights));
     }
   }
@@ -4305,8 +4300,8 @@ static bool TurnSwitchRangeIntoICmp(SwitchInst *SI, IRBuilder<> &Builder) {
         TrueWeight /= 2;
         FalseWeight /= 2;
       }
-      NewBI->setMetadata(LLVMContext::MD_prof,
-                         MDBuilder(SI->getContext())
+      NewBI->setProfMetadata(LLVMContext::MD_PROF_branch_weights,
+                             MDBuilder(SI->getContext())
                              .createBranchWeights((uint32_t)TrueWeight,
                                                   (uint32_t)FalseWeight));
     }
@@ -4405,8 +4400,8 @@ static bool EliminateDeadSwitchCases(SwitchInst *SI, AssumptionCache *AC,
   }
   if (HasWeight && Weights.size() >= 2) {
     SmallVector<uint32_t, 8> MDWeights(Weights.begin(), Weights.end());
-    SI->setMetadata(LLVMContext::MD_prof,
-                    MDBuilder(SI->getParent()->getContext())
+    SI->setProfMetadata(LLVMContext::MD_PROF_branch_weights,
+                        MDBuilder(SI->getParent()->getContext())
                         .createBranchWeights(MDWeights));
   }
 

@@ -102,6 +102,13 @@ public:
     MD_associated = 22,               // "associated"
   };
 
+  // The types of the MD_prof metadata.
+  enum {
+    MD_PROF_branch_weights = 0,          // "branch_weights"
+    MD_PROF_function_entry_count = 1,    // "function_entry_count"
+    MD_PROF_VP = 2,                      // "VP"
+  };
+
   /// Known operand bundle tag IDs, which always have the same value.  All
   /// operand bundle tags that LLVM has special knowledge of are listed here.
   /// Additionally, this scheme allows LLVM to efficiently check for specific
@@ -119,6 +126,11 @@ public:
   /// getMDKindNames - Populate client supplied SmallVector with the name for
   /// custom metadata IDs registered in this LLVMContext.
   void getMDKindNames(SmallVectorImpl<StringRef> &Result) const;
+
+  static const char* getMDProfKindName(unsigned MDProfKindId) {
+    assert(MDProfKindId < sizeof(MDProfKindNames) && "out of range");
+    return MDProfKindNames[MDProfKindId];
+  }
 
   /// getOperandBundleTags - Populate client supplied SmallVector with the
   /// bundle tags registered in this LLVMContext.  The bundle tags are ordered
@@ -319,6 +331,9 @@ public:
 private:
   // Module needs access to the add/removeModule methods.
   friend class Module;
+
+  // The strings holding the names of the MD_Prof metadata types.
+  static const char *MDProfKindNames[3];
 
   /// addModule - Register a module as being instantiated in this context.  If
   /// the context is deleted, the module will be deleted as well.

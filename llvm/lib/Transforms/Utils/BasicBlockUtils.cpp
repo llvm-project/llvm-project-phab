@@ -629,7 +629,8 @@ llvm::SplitBlockAndInsertIfThen(Value *Cond, Instruction *SplitBefore,
   CheckTerm->setDebugLoc(SplitBefore->getDebugLoc());
   BranchInst *HeadNewTerm =
     BranchInst::Create(/*ifTrue*/ThenBlock, /*ifFalse*/Tail, Cond);
-  HeadNewTerm->setMetadata(LLVMContext::MD_prof, BranchWeights);
+  HeadNewTerm->setProfMetadata(LLVMContext::MD_PROF_branch_weights,
+                               BranchWeights);
   ReplaceInstWithInst(HeadOldTerm, HeadNewTerm);
 
   if (DT) {
@@ -671,7 +672,8 @@ void llvm::SplitBlockAndInsertIfThenElse(Value *Cond, Instruction *SplitBefore,
   (*ElseTerm)->setDebugLoc(SplitBefore->getDebugLoc());
   BranchInst *HeadNewTerm =
     BranchInst::Create(/*ifTrue*/ThenBlock, /*ifFalse*/ElseBlock, Cond);
-  HeadNewTerm->setMetadata(LLVMContext::MD_prof, BranchWeights);
+  HeadNewTerm->setProfMetadata(LLVMContext::MD_PROF_branch_weights,
+                               BranchWeights);
   ReplaceInstWithInst(HeadOldTerm, HeadNewTerm);
 }
 

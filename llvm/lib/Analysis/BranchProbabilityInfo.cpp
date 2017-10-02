@@ -249,7 +249,8 @@ bool BranchProbabilityInfo::calcMetadataWeights(const BasicBlock *BB) {
   if (!(isa<BranchInst>(TI) || isa<SwitchInst>(TI) || isa<IndirectBrInst>(TI)))
     return false;
 
-  MDNode *WeightsNode = TI->getMetadata(LLVMContext::MD_prof);
+  MDNode *WeightsNode = TI->getProfMetadata(
+      LLVMContext::MD_PROF_branch_weights);
   if (!WeightsNode)
     return false;
 

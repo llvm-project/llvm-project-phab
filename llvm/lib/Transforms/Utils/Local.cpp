@@ -60,6 +60,46 @@ STATISTIC(NumRemoved, "Number of unreachable basic blocks removed");
 //  Local constant propagation.
 //
 
+template<typename WeightIntType>
+static void mergeProfWeightToDefaultCase(SwitchInst *SI,
+                                         SwitchInst::CaseIt CaseIt,
+                                         MDNode *MD, unsigned MDProfKindId,
+                                         LLVMContext &Ctx) {
+  assert(MD == SI->getProfMetadata(MDProfKindId) && "Mismatching MD");
+  // Collect branch weights into a vector.
+  SmallVector<WeightIntType, 8> Weights;
+  for (unsigned i = 1, e = MD->getNumOperands(); i < e; ++i) {
+    auto *CI = mdconst::extract<ConstantInt>(MD->getOperand(i));
+    Weights.push_back(CI->getValue().getZExtValue());
+  }
+  // Merge weight of this case to the default weight.
+  unsigned idx = CaseIt->getCaseIndex();
+  Weights[0] += Weights[idx+1];
+  // Remove weight for this case.
+  std::swap(Weights[idx+1], Weights.back());
+  Weights.pop_back();
+  SI->setProfMetadata(MDProfKindId, MDBuilder(Ctx).
+                      createProfWeights<WeightIntType>(
+                          MDProfKindId, Weights));
+}
+
+template<typename WeightIntType>
+static void copyProfWeightToBranch(MDNode *MD, unsigned MDProfKindId,
+                                   BranchInst *Br, LLVMContext &Ctx) {
+  ConstantInt *SICase =
+      mdconst::dyn_extract<ConstantInt>(MD->getOperand(2));
+  ConstantInt *SIDef =
+      mdconst::dyn_extract<ConstantInt>(MD->getOperand(1));
+  assert(SICase && SIDef);
+  // The TrueWeight should be the weight for the single case of SI.
+  Br->setProfMetadata(
+      LLVMContext::MD_PROF_branch_weights,
+      MDBuilder(Ctx).
+      createProfWeights<WeightIntType>(MDProfKindId,
+                                       SICase->getValue().getZExtValue(),
+                                       SIDef->getValue().getZExtValue()));
+}
+
 /// ConstantFoldTerminator - If a terminator instruction is predicated on a
 /// constant value, convert it into an unconditional branch to the constant
 /// destination.  This is a nontrivial operation because the successors of this
@@ -142,27 +182,16 @@ bool llvm::ConstantFoldTerminator(BasicBlock *BB, bool DeleteDeadConditions,
       // Check to see if this branch is going to the same place as the default
       // dest.  If so, eliminate it as an explicit compare.
       if (i->getCaseSuccessor() == DefaultDest) {
-        MDNode *MD = SI->getMetadata(LLVMContext::MD_prof);
+        MDNode *MDBranchWeight =
+            SI->getProfMetadata(LLVMContext::MD_PROF_branch_weights);
         unsigned NCases = SI->getNumCases();
         // Fold the case metadata into the default if there will be any branches
         // left, unless the metadata doesn't match the switch.
-        if (NCases > 1 && MD && MD->getNumOperands() == 2 + NCases) {
-          // Collect branch weights into a vector.
-          SmallVector<uint32_t, 8> Weights;
-          for (unsigned MD_i = 1, MD_e = MD->getNumOperands(); MD_i < MD_e;
-               ++MD_i) {
-            auto *CI = mdconst::extract<ConstantInt>(MD->getOperand(MD_i));
-            Weights.push_back(CI->getValue().getZExtValue());
-          }
-          // Merge weight of this case to the default weight.
-          unsigned idx = i->getCaseIndex();
-          Weights[0] += Weights[idx+1];
-          // Remove weight for this case.
-          std::swap(Weights[idx+1], Weights.back());
-          Weights.pop_back();
-          SI->setMetadata(LLVMContext::MD_prof,
-                          MDBuilder(BB->getContext()).
-                          createBranchWeights(Weights));
+        if (NCases > 1 && MDBranchWeight &&
+            MDBranchWeight->getNumOperands() == 2 + NCases) {
+          mergeProfWeightToDefaultCase<uint32_t>(
+              SI, i, MDBranchWeight,
+              LLVMContext::MD_PROF_branch_weights, BB->getContext());
         }
         // Remove this entry.
         DefaultDest->removePredecessor(SI->getParent());
@@ -222,18 +251,12 @@ bool llvm::ConstantFoldTerminator(BasicBlock *BB, bool DeleteDeadConditions,
       BranchInst *NewBr = Builder.CreateCondBr(Cond,
                                                FirstCase.getCaseSuccessor(),
                                                SI->getDefaultDest());
-      MDNode *MD = SI->getMetadata(LLVMContext::MD_prof);
-      if (MD && MD->getNumOperands() == 3) {
-        ConstantInt *SICase =
-            mdconst::dyn_extract<ConstantInt>(MD->getOperand(2));
-        ConstantInt *SIDef =
-            mdconst::dyn_extract<ConstantInt>(MD->getOperand(1));
-        assert(SICase && SIDef);
-        // The TrueWeight should be the weight for the single case of SI.
-        NewBr->setMetadata(LLVMContext::MD_prof,
-                        MDBuilder(BB->getContext()).
-                        createBranchWeights(SICase->getValue().getZExtValue(),
-                                            SIDef->getValue().getZExtValue()));
+      MDNode *MDBranchWeight =
+          SI->getProfMetadata(LLVMContext::MD_PROF_branch_weights);
+      if (MDBranchWeight && MDBranchWeight->getNumOperands() == 3) {
+        copyProfWeightToBranch<uint32_t>(
+            MDBranchWeight, LLVMContext::MD_PROF_branch_weights,
+            NewBr, BB->getContext());
       }
 
       // Update make.implicit metadata to the newly-created conditional branch.

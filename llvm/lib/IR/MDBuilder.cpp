@@ -40,17 +40,45 @@ MDNode *MDBuilder::createBranchWeights(uint32_t TrueWeight,
 }
 
 MDNode *MDBuilder::createBranchWeights(ArrayRef<uint32_t> Weights) {
-  assert(Weights.size() >= 1 && "Need at least one branch weights!");
+  return createProfWeights<uint32_t>(LLVMContext::MD_PROF_branch_weights,
+                                     Weights);
+}
+
+template<typename WeightIntType>
+MDNode *MDBuilder::createProfWeights(unsigned MDProfKindId,
+                                     WeightIntType TrueWeight,
+                                     WeightIntType FalseWeight) {
+  return createProfWeights<WeightIntType>(MDProfKindId,
+                                          {TrueWeight, FalseWeight});
+}
+
+template MDNode *MDBuilder::createProfWeights<uint32_t>(
+    unsigned MDProfKindId, uint32_t TrueWeight, uint32_t FalseWeight);
+template MDNode *MDBuilder::createProfWeights<uint64_t>(
+    unsigned MDProfKindId, uint64_t TrueWeight, uint64_t FalseWeight);
+
+template<typename WeightIntType>
+MDNode *MDBuilder::createProfWeights(unsigned MDProfKindId,
+                                     ArrayRef<WeightIntType> Weights) {
+  assert(Weights.size() >= 1 && "Need at least one weights!");
 
   SmallVector<Metadata *, 4> Vals(Weights.size() + 1);
-  Vals[0] = createString("branch_weights");
+  Vals[0] = createString(LLVMContext::getMDProfKindName(MDProfKindId));
 
-  Type *Int32Ty = Type::getInt32Ty(Context);
+  static_assert(sizeof(WeightIntType) == 8 || sizeof(WeightIntType) == 4,
+                "Weight type is not 4 nor 8 byte long");
+  Type *WeightType = sizeof(WeightIntType) == 8 ?
+      Type::getInt64Ty(Context) : Type::getInt32Ty(Context);
   for (unsigned i = 0, e = Weights.size(); i != e; ++i)
-    Vals[i + 1] = createConstant(ConstantInt::get(Int32Ty, Weights[i]));
+    Vals[i + 1] = createConstant(ConstantInt::get(WeightType, Weights[i]));
 
   return MDNode::get(Context, Vals);
 }
+
+template MDNode *MDBuilder::createProfWeights<uint32_t>(
+    unsigned MDProfKindId, ArrayRef<uint32_t> Weights);
+template MDNode *MDBuilder::createProfWeights<uint64_t>(
+    unsigned MDProfKindId, ArrayRef<uint64_t> Weights);
 
 MDNode *MDBuilder::createUnpredictable() {
   return MDNode::get(Context, None);

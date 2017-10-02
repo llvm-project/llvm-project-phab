@@ -732,9 +732,9 @@ private:
   /// instruction.
   /// \returns The annotated instruction.
   template <typename InstTy>
-  InstTy *addBranchMetadata(InstTy *I, MDNode *Weights, MDNode *Unpredictable) {
-    if (Weights)
-      I->setMetadata(LLVMContext::MD_prof, Weights);
+  InstTy *addProfMetadata(InstTy *I, MDNode *Prof, MDNode *Unpredictable) {
+    if (Prof)
+      I->setMetadata(LLVMContext::MD_prof, Prof);
     if (Unpredictable)
       I->setMetadata(LLVMContext::MD_unpredictable, Unpredictable);
     return I;
@@ -773,10 +773,10 @@ public:
   /// \brief Create a conditional 'br Cond, TrueDest, FalseDest'
   /// instruction.
   BranchInst *CreateCondBr(Value *Cond, BasicBlock *True, BasicBlock *False,
-                           MDNode *BranchWeights = nullptr,
+                           MDNode *Prof = nullptr,
                            MDNode *Unpredictable = nullptr) {
-    return Insert(addBranchMetadata(BranchInst::Create(True, False, Cond),
-                                    BranchWeights, Unpredictable));
+    return Insert(addProfMetadata(BranchInst::Create(True, False, Cond),
+                                  Prof, Unpredictable));
   }
 
   /// \brief Create a conditional 'br Cond, TrueDest, FalseDest'
@@ -796,10 +796,10 @@ public:
   /// and with a hint for the number of cases that will be added (for efficient
   /// allocation).
   SwitchInst *CreateSwitch(Value *V, BasicBlock *Dest, unsigned NumCases = 10,
-                           MDNode *BranchWeights = nullptr,
+                           MDNode *Prof = nullptr,
                            MDNode *Unpredictable = nullptr) {
-    return Insert(addBranchMetadata(SwitchInst::Create(V, Dest, NumCases),
-                                    BranchWeights, Unpredictable));
+    return Insert(addProfMetadata(SwitchInst::Create(V, Dest, NumCases),
+                                  Prof, Unpredictable));
   }
 
   /// \brief Create an indirect branch instruction with the specified address
@@ -1697,7 +1697,7 @@ public:
     if (MDFrom) {
       MDNode *Prof = MDFrom->getMetadata(LLVMContext::MD_prof);
       MDNode *Unpred = MDFrom->getMetadata(LLVMContext::MD_unpredictable);
-      Sel = addBranchMetadata(Sel, Prof, Unpred);
+      Sel = addProfMetadata(Sel, Prof, Unpred);
     }
     return Insert(Sel, Name);
   }

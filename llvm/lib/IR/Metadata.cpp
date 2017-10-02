@@ -1306,16 +1306,12 @@ bool Instruction::extractProfMetadata(uint64_t &TrueVal,
       (getOpcode() == Instruction::Br || getOpcode() == Instruction::Select) &&
       "Looking for branch weights on something besides branch or select");
 
-  auto *ProfileData = getMetadata(LLVMContext::MD_prof);
-  if (!ProfileData || ProfileData->getNumOperands() != 3)
+  auto *BranchWeights = getProfMetadata(LLVMContext::MD_PROF_branch_weights);
+  if (!BranchWeights || BranchWeights->getNumOperands() != 3)
     return false;
 
-  auto *ProfDataName = dyn_cast<MDString>(ProfileData->getOperand(0));
-  if (!ProfDataName || !ProfDataName->getString().equals("branch_weights"))
-    return false;
-
-  auto *CITrue = mdconst::dyn_extract<ConstantInt>(ProfileData->getOperand(1));
-  auto *CIFalse = mdconst::dyn_extract<ConstantInt>(ProfileData->getOperand(2));
+  auto *CITrue = mdconst::dyn_extract<ConstantInt>(BranchWeights->getOperand(1));
+  auto *CIFalse = mdconst::dyn_extract<ConstantInt>(BranchWeights->getOperand(2));
   if (!CITrue || !CIFalse)
     return false;
 
@@ -1334,15 +1330,16 @@ bool Instruction::extractProfTotalWeight(uint64_t &TotalVal) const {
          "Looking for branch weights on something besides branch");
 
   TotalVal = 0;
-  auto *ProfileData = getMetadata(LLVMContext::MD_prof);
+  auto *BranchWeights = getProfMetadata(LLVMContext::MD_PROF_branch_weights);
+  auto *VP = getProfMetadata(LLVMContext::MD_PROF_VP);
+  assert(((BranchWeights && !VP) || (!BranchWeights && VP) ||
+          (!BranchWeights && !VP)) &&
+         "Only up to one of BranchWeights and VP should be there");
+  auto *ProfileData = BranchWeights ? BranchWeights : VP;
   if (!ProfileData)
     return false;
 
-  auto *ProfDataName = dyn_cast<MDString>(ProfileData->getOperand(0));
-  if (!ProfDataName)
-    return false;
-
-  if (ProfDataName->getString().equals("branch_weights")) {
+  if (ProfileData == BranchWeights) {
     TotalVal = 0;
     for (unsigned i = 1; i < ProfileData->getNumOperands(); i++) {
       auto *V = mdconst::dyn_extract<ConstantInt>(ProfileData->getOperand(i));
@@ -1351,7 +1348,7 @@ bool Instruction::extractProfTotalWeight(uint64_t &TotalVal) const {
       TotalVal += V->getValue().getZExtValue();
     }
     return true;
-  } else if (ProfDataName->getString().equals("VP") &&
+  } else if (ProfileData == VP &&
              ProfileData->getNumOperands() > 3) {
     TotalVal = mdconst::dyn_extract<ConstantInt>(ProfileData->getOperand(2))
                    ->getValue()
@@ -1359,6 +1356,102 @@ bool Instruction::extractProfTotalWeight(uint64_t &TotalVal) const {
     return true;
   }
   return false;
+}
+
+MDNode *Instruction::getProfMetadata(unsigned MDProfKindId) const {
+  MDNode *ProfNode = getMetadata(LLVMContext::MD_prof);
+  if (!ProfNode)
+    return nullptr;
+  if (ProfNode->getOperand(0) != ProfNode) {
+    // Single-level.
+    MDString *MDName = cast<MDString>(ProfNode->getOperand(0));
+    if (MDName->getString() == LLVMContext::getMDProfKindName(MDProfKindId))
+      return ProfNode;
+    return nullptr;
+  }
+  // Two-level.
+  for (unsigned I = 1; I < ProfNode->getNumOperands(); ++I) {
+    MDNode *MD = cast<MDNode>(ProfNode->getOperand(I));
+    MDString *MDName = cast<MDString>(MD->getOperand(0));
+    if (MDName->getString() == LLVMContext::getMDProfKindName(MDProfKindId))
+      return MD;
+  }
+  return nullptr;
+}
+
+void Instruction::setProfMetadata(unsigned MDProfKindId,
+                                  MDNode *NewNode) {
+  DEBUG({
+    if (NewNode) {
+      MDString *MDName = cast<MDString>(NewNode->getOperand(0));
+      assert(MDName->getString() ==
+             LLVMContext::getMDProfKindName(MDProfKindId) &&
+             "Mismatching MD prof kind name/id");
+    }
+  });
+  MDNode *ProfNode = getMetadata(LLVMContext::MD_prof);
+  if (!ProfNode) {
+    // Insert as a single-level.
+    setMetadata(LLVMContext::MD_prof, NewNode);
+    return;
+  }
+  if (ProfNode->getOperand(0) != ProfNode) {
+    // Single-level.
+    MDString *MDName = cast<MDString>(ProfNode->getOperand(0));
+    if (MDName->getString() == LLVMContext::getMDProfKindName(MDProfKindId)) {
+      // Replace.
+      setMetadata(LLVMContext::MD_prof, NewNode);
+      return;
+    }
+    if (NewNode == nullptr)
+      return;
+    // Promote to two-level.
+    LLVMContext &Ctx = getContext();
+    auto TempNode = MDNode::getTemporary(Ctx, None);
+    auto NewProfNode = MDNode::get(Ctx, {TempNode.get(), ProfNode, NewNode});
+    NewProfNode->replaceOperandWith(0, NewProfNode);
+    setMetadata(LLVMContext::MD_prof, NewProfNode);
+    return;
+  }
+  // Two-level.
+  for (unsigned I = 1; I < ProfNode->getNumOperands(); ++I) {
+    MDNode *MDI = cast<MDNode>(ProfNode->getOperand(I));
+    MDString *MDName = cast<MDString>(MDI->getOperand(0));
+    if (MDName->getString() == LLVMContext::getMDProfKindName(MDProfKindId)) {
+      if (NewNode == nullptr) {
+        // Remove.
+        SmallVector<Metadata *, 3> Ops;
+        Ops.reserve(ProfNode->getNumOperands() - 1);
+        for (unsigned J = 1; J < ProfNode->getNumOperands(); ++J)
+          if (I != J) {
+            MDNode *MDJ = cast<MDNode>(ProfNode->getOperand(J));
+            Ops.push_back(MDJ);
+          }
+        if (Ops.size() == 0) {
+          // No metadata left. Clear it.
+          setMetadata(LLVMContext::MD_prof, nullptr);
+        } else if (Ops.size() == 1) {
+          // One remaining. Demote to single-level.
+          setMetadata(LLVMContext::MD_prof, cast<MDNode>(Ops[0]));
+        } else {
+          setMetadata(LLVMContext::MD_prof, MDNode::get(getContext(), Ops));
+        }
+      } else {
+        // Replace.
+        ProfNode->replaceOperandWith(I, NewNode);
+      }
+      return;
+    }
+  }
+  if (NewNode == nullptr)
+    return;
+  // Append.
+  SmallVector<Metadata *, 3> Ops;
+  Ops.reserve(ProfNode->getNumOperands() + 1);
+  for (Metadata *MD : ProfNode->operands())
+    Ops.push_back(MD);
+  Ops.push_back(NewNode);
+  setMetadata(LLVMContext::MD_prof, MDNode::get(getContext(), Ops));
 }
 
 void Instruction::clearMetadataHashEntries() {

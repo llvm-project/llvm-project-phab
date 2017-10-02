@@ -241,6 +241,11 @@ public:
   /// metadata.
   void swapProfMetadata();
 
+  /// Get a MD_prof metadata.
+  MDNode *getProfMetadata(unsigned MDProfKindId) const;
+  /// Set a MD_prof metadata.
+  void setProfMetadata(unsigned MDProfKindId, MDNode *NewNode);
+
   /// Drop all unknown metadata except for debug locations.
   /// @{
   /// Passes are required to drop metadata they don't understand. This is a

@@ -32,6 +32,12 @@
 
 using namespace llvm;
 
+const char *LLVMContext::MDProfKindNames[] = {
+  "branch_weights",
+  "function_entry_count",
+  "VP",
+};
+
 LLVMContext::LLVMContext() : pImpl(new LLVMContextImpl(*this)) {
   // Create the fixed metadata kinds. This is done in the same order as the
   // MD_* enum values so that they correspond.

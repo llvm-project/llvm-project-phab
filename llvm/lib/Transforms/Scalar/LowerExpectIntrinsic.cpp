@@ -77,8 +77,8 @@ static bool handleSwitchExpect(SwitchInst &SI) {
   else
     Weights[Case.getCaseIndex() + 1] = LikelyBranchWeight;
 
-  SI.setMetadata(LLVMContext::MD_prof,
-                 MDBuilder(CI->getContext()).createBranchWeights(Weights));
+  SI.setProfMetadata(LLVMContext::MD_PROF_branch_weights,
+                     MDBuilder(CI->getContext()).createBranchWeights(Weights));
 
   SI.setCondition(ArgValue);
   return true;
@@ -219,12 +219,12 @@ static void handlePhiDef(CallInst *Expect) {
     };
 
     if (IsOpndComingFromSuccessor(BI->getSuccessor(1)))
-      BI->setMetadata(
-          LLVMContext::MD_prof,
+      BI->setProfMetadata(
+          LLVMContext::MD_PROF_branch_weights,
           MDB.createBranchWeights(LikelyBranchWeight, UnlikelyBranchWeight));
     else if (IsOpndComingFromSuccessor(BI->getSuccessor(0)))
-      BI->setMetadata(
-          LLVMContext::MD_prof,
+      BI->setProfMetadata(
+          LLVMContext::MD_PROF_branch_weights,
           MDB.createBranchWeights(UnlikelyBranchWeight, LikelyBranchWeight));
   }
 }
@@ -288,7 +288,7 @@ template <class BrSelInst> static bool handleBrSelExpect(BrSelInst &BSI) {
   else
     Node = MDB.createBranchWeights(UnlikelyBranchWeight, LikelyBranchWeight);
 
-  BSI.setMetadata(LLVMContext::MD_prof, Node);
+  BSI.setProfMetadata(LLVMContext::MD_PROF_branch_weights, Node);
 
   if (CmpI)
     CmpI->setOperand(0, ArgValue);

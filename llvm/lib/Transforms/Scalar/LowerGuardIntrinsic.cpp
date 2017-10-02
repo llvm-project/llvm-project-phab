@@ -68,8 +68,9 @@ static void MakeGuardControlFlowExplicit(Function *DeoptIntrinsic,
     CheckBI->setMetadata(LLVMContext::MD_make_implicit, MD);
 
   MDBuilder MDB(CI->getContext());
-  CheckBI->setMetadata(LLVMContext::MD_prof,
-                       MDB.createBranchWeights(PredicatePassBranchWeight, 1));
+  CheckBI->setProfMetadata(
+      LLVMContext::MD_PROF_branch_weights,
+      MDB.createBranchWeights(PredicatePassBranchWeight, 1));
 
   IRBuilder<> B(DeoptBlockTerm);
   auto *DeoptCall = B.CreateCall(DeoptIntrinsic, Args, {DeoptOB}, "");

@@ -1263,7 +1263,8 @@ void SampleProfileLoader::propagateWeights(Function &F) {
         } else if (!dyn_cast<IntrinsicInst>(&I)) {
           SmallVector<uint32_t, 1> Weights;
           Weights.push_back(BlockWeights[BB]);
-          I.setMetadata(LLVMContext::MD_prof, MDB.createBranchWeights(Weights));
+          I.setProfMetadata(LLVMContext::MD_PROF_branch_weights,
+                            MDB.createBranchWeights(Weights));
         }
       }
     }
@@ -1312,7 +1313,7 @@ void SampleProfileLoader::propagateWeights(Function &F) {
     // weights, the second pass does not need to set it.
     if (MaxWeight > 0 && !TI->extractProfTotalWeight(TempWeight)) {
       DEBUG(dbgs() << "SUCCESS. Found non-zero weights.\n");
-      TI->setMetadata(llvm::LLVMContext::MD_prof,
+      TI->setProfMetadata(llvm::LLVMContext::MD_PROF_branch_weights,
                       MDB.createBranchWeights(Weights));
       ORE->emit(OptimizationRemark(DEBUG_TYPE, "PopularDest", MaxDestInst)
                 << "most popular destination for conditional branches at "
