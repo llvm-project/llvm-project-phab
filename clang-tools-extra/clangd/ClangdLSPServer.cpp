@@ -71,6 +71,8 @@ public:
                     JSONOutput &Out) override;
   void onGoToDefinition(TextDocumentPositionParams Params, StringRef ID,
                         JSONOutput &Out) override;
+  void onDocumentHighlight(TextDocumentPositionParams Params, StringRef ID,
+                           JSONOutput &Out) override;
 
 private:
   ClangdLSPServer &LangServer;
@@ -87,7 +89,8 @@ void ClangdLSPServer::LSPProtocolCallbacks::onInitialize(StringRef ID,
           "documentOnTypeFormattingProvider": {"firstTriggerCharacter":"}","moreTriggerCharacter":[]},
           "codeActionProvider": true,
           "completionProvider": {"resolveProvider": false, "triggerCharacters": [".",">",":"]},
-          "definitionProvider": true
+          "definitionProvider": true,
+          "documentHighlightProvider": true
         }}})");
 }
 
@@ -218,6 +221,28 @@ void ClangdLSPServer::LSPProtocolCallbacks::onGoToDefinition(
   Out.writeMessage(
       R"({"jsonrpc":"2.0","id":)" + ID.str() +
       R"(,"result":[)" + Locations + R"(]})");
+}
+
+void ClangdLSPServer::LSPProtocolCallbacks::onDocumentHighlight(
+    TextDocumentPositionParams Params, StringRef ID, JSONOutput &Out) {
+
+  auto Items = LangServer.Server
+                   .findDocumentHighlights(Params.textDocument.uri.file,
+                                           Position{Params.position.line,
+                                                    Params.position.character})
+                   .Value;
+
+  std::string Highlights;
+
+  for (const auto &Item : Items) {
+    Highlights += DocumentHighlight::unparse(Item);
+    Highlights += ",";
+  }
+  if (!Highlights.empty())
+    Highlights.pop_back();
+  Out.writeMessage(
+      R"({"jsonrpc":"2.0","id":)" + ID.str() +
+      R"(,"result":[)" + Highlights + R"(]})");
 }
 
 ClangdLSPServer::ClangdLSPServer(JSONOutput &Out, unsigned AsyncThreadsCount,

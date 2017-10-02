@@ -158,8 +158,8 @@ std::future<void> ClangdServer::addDocument(PathRef File, StringRef Contents) {
   DocVersion Version = DraftMgr.updateDraft(File, Contents);
 
   auto TaggedFS = FSProvider.getTaggedFileSystem(File);
-  std::shared_ptr<CppFile> Resources =
-      Units.getOrCreateFile(File, ResourceDir, CDB, PCHs, TaggedFS.Value, Logger);
+  std::shared_ptr<CppFile> Resources = Units.getOrCreateFile(
+      File, ResourceDir, CDB, PCHs, TaggedFS.Value, Logger);
   return scheduleReparseAndDiags(File, VersionedDraft{Version, Contents.str()},
                                  std::move(Resources), std::move(TaggedFS));
 }
@@ -284,6 +284,26 @@ Tagged<std::vector<Location>> ClangdServer::findDefinitions(PathRef File,
     if (!AST)
       return;
     Result = clangd::findDefinitions(*AST, Pos, Logger);
+  });
+  return make_tagged(std::move(Result), TaggedFS.Tag);
+}
+
+Tagged<std::vector<DocumentHighlight>>
+ClangdServer::findDocumentHighlights(PathRef File, Position Pos) {
+  auto FileContents = DraftMgr.getDraft(File);
+  assert(FileContents.Draft &&
+         "findDocumentHighlights is called for non-added document");
+
+  auto TaggedFS = FSProvider.getTaggedFileSystem(File);
+
+  std::shared_ptr<CppFile> Resources = Units.getFile(File);
+  assert(Resources && "Calling findDocumentHighlights on non-added file");
+
+  std::vector<DocumentHighlight> Result;
+  Resources->getAST().get()->runUnderLock([Pos, &Result, this](ParsedAST *AST) {
+    if (!AST)
+      return;
+    Result = clangd::findDocumentHighlights(*AST, Pos, Logger);
   });
   return make_tagged(std::move(Result), TaggedFS.Tag);
 }

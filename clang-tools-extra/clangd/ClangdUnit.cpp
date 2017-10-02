@@ -716,6 +716,7 @@ public:
                       ArrayRef<index::SymbolRelation> Relations, FileID FID,
                       unsigned Offset,
                       index::IndexDataConsumer::ASTNodeInfo ASTNode) override {
+
     if (isSearchedLocation(FID, Offset)) {
       addDeclarationLocation(D->getSourceRange());
     }
@@ -773,6 +774,167 @@ private:
         if (MacroInf) {
           addDeclarationLocation(SourceRange(MacroInf->getDefinitionLoc(),
                                              MacroInf->getDefinitionEndLoc()));
+        }
+      }
+    }
+  }
+};
+
+/// Finds declarations locations that a given source location refers to.
+class TargetDeclarationFinder : public index::IndexDataConsumer {
+  std::vector<Location> DeclarationLocations;
+  const SourceLocation &SearchedLocation;
+  const ASTContext &AST;
+  Preprocessor &PP;
+
+public:
+  TargetDeclarationFinder(raw_ostream &OS,
+                             const SourceLocation &SearchedLocation,
+                             ASTContext &AST, Preprocessor &PP)
+      : SearchedLocation(SearchedLocation), AST(AST), PP(PP) {}
+
+  unsigned TargetDeclFileOffset;
+  FileID TargetDeclFileID;
+
+  bool
+  handleDeclOccurence(const Decl *D, index::SymbolRoleSet Roles,
+                      ArrayRef<index::SymbolRelation> Relations, FileID FID,
+                      unsigned Offset,
+                      index::IndexDataConsumer::ASTNodeInfo ASTNode) override {
+
+    if (isSearchedLocation(FID, Offset)) {
+      TargetDeclFileOffset =
+          AST.getSourceManager().getFileOffset(D->getSourceRange().getBegin());
+      TargetDeclFileID = FID;
+    }
+    return true;
+  }
+
+private:
+  bool isSearchedLocation(FileID FID, unsigned Offset) const {
+    const SourceManager &SourceMgr = AST.getSourceManager();
+    return SourceMgr.getFileOffset(SearchedLocation) == Offset &&
+           SourceMgr.getFileID(SearchedLocation) == FID;
+  }
+};
+
+/// Finds document highlights that a given FileID and file offset refers to.
+class DocumentHighlightsFinder : public index::IndexDataConsumer {
+  std::vector<DocumentHighlight> DeclarationLocations;
+  const SourceLocation &SearchedLocation;
+  const ASTContext &AST;
+  Preprocessor &PP;
+
+public:
+  unsigned TargetDeclFileOffset;
+  FileID TargetDeclFileID;
+
+  DocumentHighlightsFinder(raw_ostream &OS,
+                           const SourceLocation &SearchedLocation,
+                           ASTContext &AST, Preprocessor &PP,
+                           unsigned TargetDeclFileOffset,
+                           FileID TargetDeclFileID)
+      : SearchedLocation(SearchedLocation), AST(AST), PP(PP),
+        TargetDeclFileOffset(TargetDeclFileOffset),
+        TargetDeclFileID(TargetDeclFileID) {}
+
+  std::vector<DocumentHighlight> takeHighlights() {
+    // Don't keep the same location multiple times.
+    // This can happen when nodes in the AST are visited twice.
+    std::sort(DeclarationLocations.begin(), DeclarationLocations.end());
+    auto last =
+        std::unique(DeclarationLocations.begin(), DeclarationLocations.end());
+    DeclarationLocations.erase(last, DeclarationLocations.end());
+    return std::move(DeclarationLocations);
+  }
+
+  bool
+  handleDeclOccurence(const Decl *D, index::SymbolRoleSet Roles,
+                      ArrayRef<index::SymbolRelation> Relations, FileID FID,
+                      unsigned Offset,
+                      index::IndexDataConsumer::ASTNodeInfo ASTNode) override {
+    const SourceManager &SourceMgr = AST.getSourceManager();
+
+    if (isValidHighlight(
+            SourceMgr.getFileID(D->getSourceRange().getBegin()),
+            SourceMgr.getFileOffset(D->getSourceRange().getBegin()))) {
+      SourceLocation Begin, End;
+      const LangOptions &LangOpts = AST.getLangOpts();
+      SourceLocation StartOfFileLoc = SourceMgr.getLocForStartOfFile(FID);
+      SourceLocation HightlightStartLoc =
+          StartOfFileLoc.getLocWithOffset(Offset);
+      End = Lexer::getLocForEndOfToken(HightlightStartLoc, 0, SourceMgr,
+                                       LangOpts);
+      SourceRange SR(HightlightStartLoc, End);
+      DocumentHighlightKind Kind;
+      switch (Roles) {
+      case (unsigned)index::SymbolRole::Read:
+        Kind = DocumentHighlightKind::Read;
+        break;
+      case (unsigned)index::SymbolRole::Write:
+        Kind = DocumentHighlightKind::Write;
+        break;
+      default:
+        Kind = DocumentHighlightKind::Text;
+        break;
+      }
+
+      addHighlightLocation(SR, Kind);
+    }
+
+    return true;
+  }
+
+private:
+  bool isValidHighlight(FileID FID, unsigned Offset) const {
+    return TargetDeclFileOffset == Offset && TargetDeclFileID == FID;
+  }
+
+  void addHighlightLocation(const SourceRange &ValSourceRange,
+                            DocumentHighlightKind Kind) {
+    const SourceManager &SourceMgr = AST.getSourceManager();
+    const LangOptions &LangOpts = AST.getLangOpts();
+    SourceLocation LocStart = ValSourceRange.getBegin();
+    SourceLocation LocEnd = Lexer::getLocForEndOfToken(ValSourceRange.getEnd(),
+                                                       0, SourceMgr, LangOpts);
+    Position Begin;
+    Begin.line = SourceMgr.getSpellingLineNumber(LocStart) - 1;
+    Begin.character = SourceMgr.getSpellingColumnNumber(LocStart) - 1;
+    Position End;
+    End.line = SourceMgr.getSpellingLineNumber(LocEnd) - 1;
+    End.character = SourceMgr.getSpellingColumnNumber(LocEnd) - 1;
+    Range R = {Begin, End};
+    DocumentHighlight DH;
+    DH.range = R;
+    DH.kind = Kind;
+    DeclarationLocations.push_back(DH);
+  }
+
+  void finish() override {
+    // Also handle possible macro at the searched location.
+    Token Result;
+    if (!Lexer::getRawToken(SearchedLocation, Result, AST.getSourceManager(),
+                            AST.getLangOpts(), false)) {
+      if (Result.is(tok::raw_identifier)) {
+        PP.LookUpIdentifierInfo(Result);
+      }
+      IdentifierInfo *IdentifierInfo = Result.getIdentifierInfo();
+      if (IdentifierInfo && IdentifierInfo->hadMacroDefinition()) {
+        std::pair<FileID, unsigned int> DecLoc =
+            AST.getSourceManager().getDecomposedExpansionLoc(SearchedLocation);
+        // Get the definition just before the searched location so that a macro
+        // referenced in a '#undef MACRO' can still be found.
+        SourceLocation BeforeSearchedLocation = getMacroArgExpandedLocation(
+            AST.getSourceManager(),
+            AST.getSourceManager().getFileEntryForID(DecLoc.first),
+            DecLoc.second - 1);
+        MacroDefinition MacroDef =
+            PP.getMacroDefinitionAtLoc(IdentifierInfo, BeforeSearchedLocation);
+        MacroInfo *MacroInf = MacroDef.getMacroInfo();
+        if (MacroInf) {
+          addHighlightLocation(SourceRange(MacroInf->getDefinitionLoc(),
+                                           MacroInf->getDefinitionEndLoc()),
+                               DocumentHighlightKind::Text);
         }
       }
     }
@@ -840,6 +1002,42 @@ std::vector<Location> clangd::findDefinitions(ParsedAST &AST, Position Pos,
                      DeclLocationsFinder, IndexOpts);
 
   return DeclLocationsFinder->takeLocations();
+}
+
+std::vector<DocumentHighlight>
+clangd::findDocumentHighlights(ParsedAST &AST, Position Pos,
+                               clangd::Logger &Logger) {
+  const SourceManager &SourceMgr = AST.getASTContext().getSourceManager();
+  const FileEntry *FE = SourceMgr.getFileEntryForID(SourceMgr.getMainFileID());
+  if (!FE)
+    return {};
+
+  SourceLocation SourceLocationBeg = getBeginningOfIdentifier(AST, Pos, FE);
+
+  auto DeclLocationsFinder = std::make_shared<TargetDeclarationFinder>(
+      llvm::errs(), SourceLocationBeg, AST.getASTContext(),
+      AST.getPreprocessor());
+  index::IndexingOptions IndexOpts;
+  IndexOpts.SystemSymbolFilter =
+      index::IndexingOptions::SystemSymbolFilterKind::All;
+  IndexOpts.IndexFunctionLocals = true;
+
+  indexTopLevelDecls(AST.getASTContext(), AST.getTopLevelDecls(),
+                     DeclLocationsFinder, IndexOpts);
+
+  auto DocHighlightsFinder = std::make_shared<DocumentHighlightsFinder>(
+      llvm::errs(), SourceLocationBeg, AST.getASTContext(),
+      AST.getPreprocessor(), DeclLocationsFinder->TargetDeclFileOffset,
+      DeclLocationsFinder->TargetDeclFileID);
+
+  IndexOpts.SystemSymbolFilter =
+      index::IndexingOptions::SystemSymbolFilterKind::All;
+  IndexOpts.IndexFunctionLocals = true;
+
+  indexTopLevelDecls(AST.getASTContext(), AST.getTopLevelDecls(),
+                     DocHighlightsFinder, IndexOpts);
+
+  return DocHighlightsFinder->takeHighlights();
 }
 
 void ParsedAST::ensurePreambleDeclsDeserialized() {

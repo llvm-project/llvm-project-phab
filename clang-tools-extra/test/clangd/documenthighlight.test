@@ -1,0 +1,29 @@
+# RUN: clangd -run-synchronously < %s | FileCheck %s
+# It is absolutely vital that this file has CRLF line endings.
+#
+Content-Length: 125
+
+{"jsonrpc":"2.0","id":0,"method":"initialize","params":{"processId":123,"rootPath":"clangd","capabilities":{},"trace":"off"}}
+
+Content-Length: 455
+
+{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///main.cpp","languageId":"cpp","version":1,"text":"#define MACRO 1\nnamespace ns1 {\nstruct MyClass {\nint xasd;\nvoid anotherOperation() {\n}\nstatic int foo(MyClass*) {\nreturn 0;\n}\n\n};\nstruct Foo {\nint xasd;\n};\n}\nint main() {\nint bonjour;\nbonjour = 2;\nns1::Foo bar = { xasd : 1};\nbar.xasd = 3;\nns1::MyClass* Params;\nParams->anotherOperation();}\n"}}}
+
+Content-Length: 156
+
+{"jsonrpc":"2.0","id":1,"method":"textDocument/documentHighlight","params":{"textDocument":{"uri":"file:///main.cpp"},"position":{"line":17,"character":2}}}
+# Go to local variable
+# CHECK: {"jsonrpc":"2.0","id":1,"result":[{"range": {"start": {"line": 16, "character": 4}, "end": {"line": 16, "character": 12}}, "number": 1},{"range": {"start": {"line": 17, "character": 0}, "end": {"line": 17, "character": 7}}, "number": 1}]}
+
+Content-Length: 157
+
+{"jsonrpc":"2.0","id":1,"method":"textDocument/documentHighlight","params":{"textDocument":{"uri":"file:///main.cpp"},"position":{"line":18,"character":17}}}
+# Go to local variable
+# CHECK: {"jsonrpc":"2.0","id":1,"result":[{"range": {"start": {"line": 12, "character": 4}, "end": {"line": 12, "character": 9}}, "number": 1},{"range": {"start": {"line": 18, "character": 17}, "end": {"line": 18, "character": 21}}, "number": 1},{"range": {"start": {"line": 19, "character": 4}, "end": {"line": 19, "character": 8}}, "number": 1}]}
+
+Content-Length: 157
+
+{"jsonrpc":"2.0","id":1,"method":"textDocument/documentHighlight","params":{"textDocument":{"uri":"file:///main.cpp"},"position":{"line":21,"character":10}}}
+# Go to local variable
+# CHECK: {"jsonrpc":"2.0","id":1,"result":[{"range": {"start": {"line": 4, "character": 5}, "end": {"line": 4, "character": 22}}, "number": 1},{"range": {"start": {"line": 21, "character": 8}, "end": {"line": 21, "character": 25}}, "number": 1}]}
+

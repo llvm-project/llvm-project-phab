@@ -204,6 +204,24 @@ private:
   ProtocolCallbacks &Callbacks;
 };
 
+struct DocumentHighlightHandler : Handler {
+  DocumentHighlightHandler(JSONOutput &Output, ProtocolCallbacks &Callbacks)
+      : Handler(Output), Callbacks(Callbacks) {}
+
+  void handleMethod(llvm::yaml::MappingNode *Params, StringRef ID) override {
+    auto TDPP = TextDocumentPositionParams::parse(Params, Output);
+    if (!TDPP) {
+      Output.log("Failed to decode TextDocumentPositionParams!\n");
+      return;
+    }
+
+    Callbacks.onDocumentHighlight(*TDPP, ID, Output);
+  }
+
+private:
+  ProtocolCallbacks &Callbacks;
+};
+
 } // namespace
 
 void clangd::regiterCallbackHandlers(JSONRPCDispatcher &Dispatcher,
@@ -240,4 +258,7 @@ void clangd::regiterCallbackHandlers(JSONRPCDispatcher &Dispatcher,
   Dispatcher.registerHandler(
       "textDocument/definition",
       llvm::make_unique<GotoDefinitionHandler>(Out, Callbacks));
+  Dispatcher.registerHandler(
+      "textDocument/documentHighlight",
+      llvm::make_unique<DocumentHighlightHandler>(Out, Callbacks));    
 }
