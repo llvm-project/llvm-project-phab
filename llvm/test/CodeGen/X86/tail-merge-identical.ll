@@ -8,8 +8,8 @@ target triple = "x86_64-unknown-linux-gnu"
 ; %else1 and %then2 end up lowering to identical blocks. These blocks should be
 ; merged during tail-merging.
 ; CHECK-LABEL: merge_identical_blocks
-; CHECK: movl $data+4
-; CHECK-NOT: movl $data+4
+; CHECK: movl $4
+; CHECK-NOT: movl $4
 ; CHECK: retq
 define void @merge_identical_blocks(i1 %a, i1 %b) {
 entry:

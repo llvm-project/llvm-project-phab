@@ -2677,6 +2677,7 @@ struct ExtAddrMode : public TargetLowering::AddrMode {
   Value *BaseReg = nullptr;
   Value *ScaledReg = nullptr;
   Value *OriginalValue = nullptr;
+  User *AddrModeUser = nullptr;
 
   enum FieldName {
     NoField        = 0x00,
@@ -3347,7 +3348,11 @@ private:
   /// Are the AddrModes that we have all just equal to their original values?
   bool AllAddrModesTrivial = true;
 
+  const DataLayout &DL;
+
 public:
+  AddressingModeCombiner(const DataLayout &DL) : DL(DL) { }
+
   /// \brief Get the combined AddrMode
   const ExtAddrMode &getAddrMode() const {
     return AddrModes[0];
@@ -3415,9 +3420,140 @@ public:
     if (AllAddrModesTrivial)
       return false;
 
-    // TODO: Combine multiple AddrModes by inserting a select or phi for the
+    // If we have more than one AddrMode then insert a select or phi for the
     // field in which the AddrModes differ.
-    return false;
+    switch (DifferentField) {
+    default:
+      llvm_unreachable("Expected a single field to be different");
+      return false;
+
+    case ExtAddrMode::ScaleField:
+      // We can't cope with scale being different.
+      return false;
+
+    case ExtAddrMode::BaseRegField:
+      AddrModes[0].BaseReg =
+        CreateSelectOrPHI([&](ExtAddrMode &AM) { return AM.BaseReg; });
+      if (!AddrModes[0].BaseReg)
+        return false;
+      break;
+
+    case ExtAddrMode::BaseGVField:
+      // Set BaseReg to be the select/phi of the BaseGV.
+      assert(!AddrModes[0].BaseReg);
+      AddrModes[0].BaseReg =
+        CreateSelectOrPHI([&](ExtAddrMode &AM) { return AM.BaseGV; });
+      if (!AddrModes[0].BaseReg)
+        return false;
+      AddrModes[0].BaseGV = nullptr;
+      break;
+
+    case ExtAddrMode::BaseOffsField:
+    {
+      // Handle differing offsets by setting ScaledReg to be the select/phi of
+      // the offset values, with a scale of 1.
+      Type *IntPtrTy = DL.getIntPtrType(AddrModes[0].OriginalValue->getType());
+      assert(AddrModes[0].Scale == 0);
+      assert(!AddrModes[0].ScaledReg);
+      AddrModes[0].Scale = 1;
+      AddrModes[0].ScaledReg = CreateSelectOrPHI([&](ExtAddrMode &AM) {
+          return ConstantInt::get(IntPtrTy, AM.BaseOffs);
+        });
+      if (!AddrModes[0].ScaledReg)
+        return false;
+      AddrModes[0].BaseOffs = 0;
+      break;
+    }
+
+    case ExtAddrMode::ScaledRegField:
+      AddrModes[0].ScaledReg =
+        CreateSelectOrPHI([&](ExtAddrMode &AM) { return AM.ScaledReg; });
+      if (!AddrModes[0].ScaledReg)
+        return false;
+      // If we have a mix of scaled and unscaled addrmodes then we want scale
+      // to be the scale and not zero.
+      if (!AddrModes[0].Scale)
+        for (ExtAddrMode &AM : AddrModes)
+          if (AM.Scale) {
+            AddrModes[0].Scale = AM.Scale;
+            break;
+          }
+      break;
+    }
+
+    return true;
+  }
+
+  // Convert a null Value to a null value constant
+  static Value *NullValueToNullConstant(Value *V, Type *T) {
+    if (V)
+      return V;
+    else
+      return Constant::getNullValue(T);
+  }
+
+  Value *CreateSelectOrPHI(std::function<Value *(ExtAddrMode &)> GetVal) {
+    Value *Addr = AddrModes[0].AddrModeUser;
+    // The select/phi has to be used only in the memory instruction the addrmode
+    // will be folded into.
+    if (!Addr->hasOneUse())
+      return nullptr;
+    // Start off by figuring out the type
+    Type *T = nullptr;
+    for (ExtAddrMode &AM : AddrModes) {
+      Value *V = GetVal(AM);
+      if (V) {
+        Type *NewT = V->getType();
+        if (!T)
+          T = NewT;
+        else if (T != NewT)
+          return nullptr; // We can't handle mismatched types
+      }
+    }
+    Value *Result = nullptr;
+    if (PHINode *OrigPHI = dyn_cast<PHINode>(Addr)) {
+      // We can't do anything if addrmodes doesn't match the number of incoming
+      // values
+      if (AddrModes.size() != OrigPHI->getNumIncomingValues())
+        return nullptr;
+      PHINode *NewPHI = PHINode::Create(T, OrigPHI->getNumIncomingValues(),
+                                        OrigPHI->getName(),
+                                        OrigPHI->getParent()->getFirstNonPHI());
+      for (BasicBlock *BB : OrigPHI->blocks()) {
+        Value *IV = OrigPHI->getIncomingValueForBlock(BB);
+        // Find the AddrMode this corresponds to
+        for (ExtAddrMode &AM : AddrModes) {
+          if (AM.OriginalValue == IV) {
+            Value *V = NullValueToNullConstant(GetVal(AM), T);
+            NewPHI->addIncoming(V, BB);
+            break;
+          }
+        }
+      }
+      // If we failed to add an incoming value for each in the original then we
+      // can't proceed
+      if (NewPHI->getNumIncomingValues() != OrigPHI->getNumIncomingValues()) {
+        NewPHI->eraseFromParent();
+        return nullptr;
+      }
+      Result = NewPHI;
+    } else if (SelectInst *OrigSelect = dyn_cast<SelectInst>(Addr)) {
+      // Can't do anything if we don't have exactly two addrmodes
+      if (AddrModes.size() != 2)
+        return nullptr;
+      // The two addrmodes we have must correspond to the operands of the select
+      if (AddrModes[0].OriginalValue != OrigSelect->getTrueValue())
+        return nullptr;
+      if (AddrModes[1].OriginalValue != OrigSelect->getFalseValue())
+        return nullptr;
+      Value *X = NullValueToNullConstant(GetVal(AddrModes[0]), T);
+      Value *Y = NullValueToNullConstant(GetVal(AddrModes[1]), T);
+      Result = SelectInst::Create(OrigSelect->getCondition(), X, Y,
+                                  OrigSelect->getName(), OrigSelect, OrigSelect);
+    } else {
+      llvm_unreachable("Addr should be PHI or Select");
+    }
+    return Result;
   }
 };
 
@@ -4504,21 +4640,22 @@ bool CodeGenPrepare::optimizeMemoryInst(Instruction *MemoryInst, Value *Addr,
 
   // Try to collapse single-value PHI nodes.  This is necessary to undo
   // unprofitable PRE transformations.
-  SmallVector<Value*, 8> worklist;
+  SmallVector<std::pair<Value*, User*>, 8> worklist;
   SmallPtrSet<Value*, 16> Visited;
-  worklist.push_back(Addr);
+  worklist.push_back({Addr,MemoryInst});
 
   // Use a worklist to iteratively look through PHI and select nodes, and
   // ensure that the addressing mode obtained from the non-PHI/select roots of
   // the graph are compatible.
   bool PhiOrSelectSeen = false;
   SmallVector<Instruction*, 16> AddrModeInsts;
-  AddressingModeCombiner AddrModes;
+  AddressingModeCombiner AddrModes(*DL);
   TypePromotionTransaction TPT(RemovedInsts);
   TypePromotionTransaction::ConstRestorationPt LastKnownGood =
       TPT.getRestorationPoint();
   while (!worklist.empty()) {
-    Value *V = worklist.back();
+    Value *V = worklist.back().first;
+    User *U = worklist.back().second;
     worklist.pop_back();
 
     // We allow traversing cyclic Phi nodes.
@@ -4536,14 +4673,14 @@ bool CodeGenPrepare::optimizeMemoryInst(Instruction *MemoryInst, Value *Addr,
     // For a PHI node, push all of its incoming values.
     if (PHINode *P = dyn_cast<PHINode>(V)) {
       for (Value *IncValue : P->incoming_values())
-        worklist.push_back(IncValue);
+        worklist.push_back({IncValue,P});
       PhiOrSelectSeen = true;
       continue;
     }
     // Similar for select.
     if (SelectInst *SI = dyn_cast<SelectInst>(V)) {
-      worklist.push_back(SI->getFalseValue());
-      worklist.push_back(SI->getTrueValue());
+      worklist.push_back({SI->getFalseValue(),SI});
+      worklist.push_back({SI->getTrueValue(),SI});
       PhiOrSelectSeen = true;
       continue;
     }
@@ -4556,6 +4693,7 @@ bool CodeGenPrepare::optimizeMemoryInst(Instruction *MemoryInst, Value *Addr,
         V, AccessTy, AddrSpace, MemoryInst, AddrModeInsts, *TLI, *TRI,
         InsertedInsts, PromotedInsts, TPT);
     NewAddrMode.OriginalValue = V;
+    NewAddrMode.AddrModeUser = U;
 
     if (!AddrModes.addNewAddrMode(NewAddrMode))
       break;
