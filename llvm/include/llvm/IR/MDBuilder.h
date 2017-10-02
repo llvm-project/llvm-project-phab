@@ -62,6 +62,16 @@ public:
   /// \brief Return metadata containing a number of branch weights.
   MDNode *createBranchWeights(ArrayRef<uint32_t> Weights);
 
+  /// \brief Return metadata containing two weights.
+  template<typename WeightIntType>
+  MDNode *createProfWeights(unsigned MDProfKindId,
+                            WeightIntType TrueWeight, WeightIntType FalseWeight);
+
+  /// \brief Return metadata containing a number of weights.
+  template<typename WeightIntType>
+  MDNode *createProfWeights(unsigned MDProfKindId,
+                            ArrayRef<WeightIntType> Weights);
+
   /// Return metadata specifying that a branch or switch is unpredictable.
   MDNode *createUnpredictable();
 

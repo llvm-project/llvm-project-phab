@@ -351,7 +351,7 @@ bool MemOPSizeOpt::perform(MemIntrinsic *MI) {
   SwitchInst *SI = IRB.CreateSwitch(SizeVar, DefaultBB, SizeIds.size());
 
   // Clear the value profile data.
-  MI->setMetadata(LLVMContext::MD_prof, nullptr);
+  MI->setProfMetadata(LLVMContext::MD_PROF_VP, nullptr);
   // If all promoted, we don't need the MD.prof metadata.
   if (SavedRemainCount > 0 || Version != NumVals)
     // Otherwise we need update with the un-promoted records back.
@@ -376,7 +376,7 @@ bool MemOPSizeOpt::perform(MemIntrinsic *MI) {
     SI->addCase(CaseSizeId, CaseBB);
     DEBUG(dbgs() << *CaseBB << "\n");
   }
-  setProfMetadata(Func.getParent(), SI, CaseCounts, MaxCount);
+  setBranchWeightsMetadata(Func.getParent(), SI, CaseCounts, MaxCount);
 
   DEBUG(dbgs() << *BB << "\n");
   DEBUG(dbgs() << *DefaultBB << "\n");

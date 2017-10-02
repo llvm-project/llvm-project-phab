@@ -54,8 +54,8 @@ public:
   PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 
-void setProfMetadata(Module *M, Instruction *TI, ArrayRef<uint64_t> EdgeCounts,
-                     uint64_t MaxCount);
+void setBranchWeightsMetadata(Module *M, Instruction *TI,
+                              ArrayRef<uint64_t> EdgeCounts, uint64_t MaxCount);
 
 } // End llvm namespace
 #endif

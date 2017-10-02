@@ -266,8 +266,8 @@ static void updatePredecessorProfileMetadata(PHINode *PN, BasicBlock *BB) {
       Weights.push_back(BP.getCompl().getNumerator());
       Weights.push_back(BP.getNumerator());
     }
-    PredBr->setMetadata(LLVMContext::MD_prof,
-                        MDBuilder(PredBr->getParent()->getContext())
+    PredBr->setProfMetadata(LLVMContext::MD_PROF_branch_weights,
+                            MDBuilder(PredBr->getParent()->getContext())
                             .createBranchWeights(Weights));
   }
 }
@@ -1990,12 +1990,9 @@ bool JumpThreadingPass::doesBlockHaveProfileData(BasicBlock *BB) {
   const TerminatorInst *TI = BB->getTerminator();
   assert(TI->getNumSuccessors() > 1 && "not a split");
 
-  MDNode *WeightsNode = TI->getMetadata(LLVMContext::MD_prof);
+  MDNode *WeightsNode =
+      TI->getProfMetadata(LLVMContext::MD_PROF_branch_weights);
   if (!WeightsNode)
-    return false;
-
-  MDString *MDName = cast<MDString>(WeightsNode->getOperand(0));
-  if (MDName->getString() != "branch_weights")
     return false;
 
   // Ensure there are weights for all of the successors. Note that the first
@@ -2093,8 +2090,8 @@ void JumpThreadingPass::UpdateBlockFreqAndEdgeWeight(BasicBlock *PredBB,
       Weights.push_back(Prob.getNumerator());
 
     auto TI = BB->getTerminator();
-    TI->setMetadata(
-        LLVMContext::MD_prof,
+    TI->setProfMetadata(
+        LLVMContext::MD_PROF_branch_weights,
         MDBuilder(TI->getParent()->getContext()).createBranchWeights(Weights));
   }
 }

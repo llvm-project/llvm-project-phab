@@ -154,12 +154,9 @@ struct DOTGraphTraits<const Function*> : public DefaultDOTGraphTraits {
     if (TI->getNumSuccessors() == 1)
       return "";
 
-    MDNode *WeightsNode = TI->getMetadata(LLVMContext::MD_prof);
+    MDNode *WeightsNode = TI->getProfMetadata(
+        LLVMContext::MD_PROF_branch_weights);
     if (!WeightsNode)
-      return "";
-
-    MDString *MDName = cast<MDString>(WeightsNode->getOperand(0));
-    if (MDName->getString() != "branch_weights")
       return "";
 
     unsigned OpNo = I.getSuccessorIndex() + 1;

@@ -635,8 +635,9 @@ Value *LowerTypeTestsModule::lowerTypeTestCall(Metadata *TypeId, CallInst *CI,
         BasicBlock *Then = InitialBB->splitBasicBlock(CI->getIterator());
         BasicBlock *Else = Br->getSuccessor(1);
         BranchInst *NewBr = BranchInst::Create(Then, Else, OffsetInRange);
-        NewBr->setMetadata(LLVMContext::MD_prof,
-                           Br->getMetadata(LLVMContext::MD_prof));
+        NewBr->setProfMetadata(
+            LLVMContext::MD_PROF_branch_weights,
+            Br->getProfMetadata(LLVMContext::MD_PROF_branch_weights));
         ReplaceInstWithInst(InitialBB->getTerminator(), NewBr);
 
         // Update phis in Else resulting from InitialBB being split

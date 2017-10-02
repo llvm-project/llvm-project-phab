@@ -850,7 +850,7 @@ void annotateValueSite(Module &M, Instruction &Inst,
     if (--MDCount == 0)
       break;
   }
-  Inst.setMetadata(LLVMContext::MD_prof, MDNode::get(Ctx, Vals));
+  Inst.setProfMetadata(LLVMContext::MD_PROF_VP, MDNode::get(Ctx, Vals));
 }
 
 bool getValueProfDataFromInst(const Instruction &Inst,
@@ -858,21 +858,13 @@ bool getValueProfDataFromInst(const Instruction &Inst,
                               uint32_t MaxNumValueData,
                               InstrProfValueData ValueData[],
                               uint32_t &ActualNumValueData, uint64_t &TotalC) {
-  MDNode *MD = Inst.getMetadata(LLVMContext::MD_prof);
+  MDNode *MD = Inst.getProfMetadata(LLVMContext::MD_PROF_VP);
   if (!MD)
     return false;
 
   unsigned NOps = MD->getNumOperands();
 
   if (NOps < 5)
-    return false;
-
-  // Operand 0 is a string tag "VP":
-  MDString *Tag = cast<MDString>(MD->getOperand(0));
-  if (!Tag)
-    return false;
-
-  if (!Tag->getString().equals("VP"))
     return false;
 
   // Now check kind:

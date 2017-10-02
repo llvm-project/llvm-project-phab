@@ -590,20 +590,14 @@ Instruction *Instruction::cloneImpl() const {
 }
 
 void Instruction::swapProfMetadata() {
-  MDNode *ProfileData = getMetadata(LLVMContext::MD_prof);
-  if (!ProfileData || ProfileData->getNumOperands() != 3 ||
-      !isa<MDString>(ProfileData->getOperand(0)))
-    return;
-
-  MDString *MDName = cast<MDString>(ProfileData->getOperand(0));
-  if (MDName->getString() != "branch_weights")
-    return;
-
-  // The first operand is the name. Fetch them backwards and build a new one.
-  Metadata *Ops[] = {ProfileData->getOperand(0), ProfileData->getOperand(2),
-                     ProfileData->getOperand(1)};
-  setMetadata(LLVMContext::MD_prof,
-              MDNode::get(ProfileData->getContext(), Ops));
+  MDNode *BranchWeights = getProfMetadata(LLVMContext::MD_PROF_branch_weights);
+  if (BranchWeights && BranchWeights->getNumOperands() == 3) {
+    // The first operand is the name. Fetch them backwards and build a new one.
+    Metadata *Ops[] = {BranchWeights->getOperand(0), BranchWeights->getOperand(2),
+                       BranchWeights->getOperand(1)};
+    setProfMetadata(LLVMContext::MD_PROF_branch_weights,
+                    MDNode::get(BranchWeights->getContext(), Ops));
+  }
 }
 
 void Instruction::copyMetadata(const Instruction &SrcInst,
@@ -647,20 +641,20 @@ Instruction *Instruction::clone() const {
 }
 
 void Instruction::updateProfWeight(uint64_t S, uint64_t T) {
-  auto *ProfileData = getMetadata(LLVMContext::MD_prof);
+  auto *BranchWeights = getProfMetadata(LLVMContext::MD_PROF_branch_weights);
+  auto *VP = getProfMetadata(LLVMContext::MD_PROF_VP);
+  assert(((BranchWeights && !VP) || (!BranchWeights && VP) ||
+          (!BranchWeights && !VP)) &&
+         "Only one of BranchWeights and VP should be there");
+  auto *ProfileData = BranchWeights ? BranchWeights : VP;
   if (ProfileData == nullptr)
-    return;
-
-  auto *ProfDataName = dyn_cast<MDString>(ProfileData->getOperand(0));
-  if (!ProfDataName || (!ProfDataName->getString().equals("branch_weights") &&
-                        !ProfDataName->getString().equals("VP")))
     return;
 
   MDBuilder MDB(getContext());
   SmallVector<Metadata *, 3> Vals;
   Vals.push_back(ProfileData->getOperand(0));
   APInt APS(128, S), APT(128, T);
-  if (ProfDataName->getString().equals("branch_weights"))
+  if (ProfileData == BranchWeights) {
     for (unsigned i = 1; i < ProfileData->getNumOperands(); i++) {
       // Using APInt::div may be expensive, but most cases should fit 64 bits.
       APInt Val(128,
@@ -672,7 +666,9 @@ void Instruction::updateProfWeight(uint64_t S, uint64_t T) {
           ConstantInt::get(Type::getInt64Ty(getContext()),
                            Val.udiv(APT).getLimitedValue())));
     }
-  else if (ProfDataName->getString().equals("VP"))
+    setProfMetadata(LLVMContext::MD_PROF_branch_weights,
+                    MDNode::get(getContext(), Vals));
+  } else if (ProfileData == VP) {
     for (unsigned i = 1; i < ProfileData->getNumOperands(); i += 2) {
       // The first value is the key of the value profile, which will not change.
       Vals.push_back(ProfileData->getOperand(i));
@@ -686,7 +682,9 @@ void Instruction::updateProfWeight(uint64_t S, uint64_t T) {
           ConstantInt::get(Type::getInt64Ty(getContext()),
                            Val.udiv(APT).getLimitedValue())));
     }
-  setMetadata(LLVMContext::MD_prof, MDNode::get(getContext(), Vals));
+    setProfMetadata(LLVMContext::MD_PROF_VP,
+                    MDNode::get(getContext(), Vals));
+  }
 }
 
 void Instruction::setProfWeight(uint64_t W) {
@@ -695,5 +693,6 @@ void Instruction::setProfWeight(uint64_t W) {
   SmallVector<uint32_t, 1> Weights;
   Weights.push_back(W);
   MDBuilder MDB(getContext());
-  setMetadata(LLVMContext::MD_prof, MDB.createBranchWeights(Weights));
+  setProfMetadata(LLVMContext::MD_PROF_branch_weights,
+                  MDB.createBranchWeights(Weights));
 }

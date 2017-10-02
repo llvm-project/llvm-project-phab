@@ -252,7 +252,7 @@ static void updateBranchWeights(BasicBlock *Header, BranchInst *LatchBR,
     MDNode *WeightNode =
         HeaderIdx ? MDB.createBranchWeights(ExitWeight, FallThruWeight)
                   : MDB.createBranchWeights(FallThruWeight, ExitWeight);
-    LatchBR->setMetadata(LLVMContext::MD_prof, WeightNode);
+    LatchBR->setProfMetadata(LLVMContext::MD_PROF_branch_weights, WeightNode);
   }
 }
 
@@ -534,7 +534,7 @@ bool llvm::peelLoop(Loop *L, unsigned PeelCount, LoopInfo *LI,
     MDNode *WeightNode =
         HeaderIdx ? MDB.createBranchWeights(ExitWeight, BackEdgeWeight)
                   : MDB.createBranchWeights(BackEdgeWeight, ExitWeight);
-    LatchBR->setMetadata(LLVMContext::MD_prof, WeightNode);
+    LatchBR->setProfMetadata(LLVMContext::MD_PROF_branch_weights, WeightNode);
   }
 
   // If the loop is nested, we changed the parent loop, update SE.

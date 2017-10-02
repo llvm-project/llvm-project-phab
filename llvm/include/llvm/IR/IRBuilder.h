@@ -734,7 +734,7 @@ private:
   template <typename InstTy>
   InstTy *addBranchMetadata(InstTy *I, MDNode *Weights, MDNode *Unpredictable) {
     if (Weights)
-      I->setMetadata(LLVMContext::MD_prof, Weights);
+      I->setProfMetadata(LLVMContext::MD_PROF_branch_weights, Weights);
     if (Unpredictable)
       I->setMetadata(LLVMContext::MD_unpredictable, Unpredictable);
     return I;

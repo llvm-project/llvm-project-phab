@@ -976,8 +976,8 @@ void CodeExtractor::calculateNewCallTerminatorWeights(
     BranchProbability BP(Weight.Amount, BranchDist.Total);
     BPI->setEdgeProbability(CodeReplacer, Weight.TargetNode.Index, BP);
   }
-  TI->setMetadata(
-      LLVMContext::MD_prof,
+  TI->setProfMetadata(
+      LLVMContext::MD_PROF_branch_weights,
       MDBuilder(TI->getContext()).createBranchWeights(BranchWeights));
 }
 
