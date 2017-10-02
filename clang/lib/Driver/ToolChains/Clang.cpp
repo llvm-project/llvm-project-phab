@@ -1310,6 +1310,24 @@ static bool isNoCommonDefault(const llvm::Triple &Triple) {
   }
 }
 
+static void addGeneralRegsOnlyArgs(const Driver &D, const ArgList &Args,
+                                   ArgStringList &CmdArgs) {
+  if (Args.getLastArg(options::OPT_mgeneral_regs_only)) {
+    if (Args.hasFlag(options::OPT_mimplicit_float,
+                     options::OPT_mno_implicit_float, false)) {
+      D.Diag(diag::err_drv_argument_not_allowed_with) << "-mimplicit-float"
+                                                      << "-mgeneral-regs-only";
+      return;
+    }
+
+    CmdArgs.push_back("-general-regs-only");
+    CmdArgs.push_back("-no-implicit-float");
+  } else if (!Args.hasFlag(options::OPT_mimplicit_float,
+                           options::OPT_mno_implicit_float, true)) {
+    CmdArgs.push_back("-no-implicit-float");
+  }
+}
+
 void Clang::AddARMTargetArgs(const llvm::Triple &Triple, const ArgList &Args,
                              ArgStringList &CmdArgs, bool KernelOrKext) const {
   // Select the ABI to use.
@@ -1355,9 +1373,7 @@ void Clang::AddARMTargetArgs(const llvm::Triple &Triple, const ArgList &Args,
       CmdArgs.push_back("-arm-global-merge=true");
   }
 
-  if (!Args.hasFlag(options::OPT_mimplicit_float,
-                    options::OPT_mno_implicit_float, true))
-    CmdArgs.push_back("-no-implicit-float");
+  addGeneralRegsOnlyArgs(getToolChain().getDriver(), Args, CmdArgs);
 }
 
 void Clang::RenderTargetOptions(const llvm::Triple &EffectiveTriple,
@@ -1440,9 +1456,7 @@ void Clang::AddAArch64TargetArgs(const ArgList &Args,
       Args.hasArg(options::OPT_fapple_kext))
     CmdArgs.push_back("-disable-red-zone");
 
-  if (!Args.hasFlag(options::OPT_mimplicit_float,
-                    options::OPT_mno_implicit_float, true))
-    CmdArgs.push_back("-no-implicit-float");
+  addGeneralRegsOnlyArgs(getToolChain().getDriver(), Args, CmdArgs);
 
   const char *ABIName = nullptr;
   if (Arg *A = Args.getLastArg(options::OPT_mabi_EQ))

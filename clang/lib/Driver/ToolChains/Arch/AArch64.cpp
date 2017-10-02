@@ -172,12 +172,6 @@ void aarch64::getAArch64TargetFeatures(const Driver &D, const ArgList &Args,
   if (!success)
     D.Diag(diag::err_drv_clang_unsupported) << A->getAsString(Args);
 
-  if (Args.getLastArg(options::OPT_mgeneral_regs_only)) {
-    Features.push_back("-fp-armv8");
-    Features.push_back("-crypto");
-    Features.push_back("-neon");
-  }
-
   // En/disable crc
   if (Arg *A = Args.getLastArg(options::OPT_mcrc, options::OPT_mnocrc)) {
     if (A->getOption().matches(options::OPT_mcrc))
