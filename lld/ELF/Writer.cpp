@@ -15,6 +15,7 @@
 #include "Memory.h"
 #include "OutputSections.h"
 #include "Relocations.h"
+#include "SectionPatcher.h"
 #include "Strings.h"
 #include "SymbolTable.h"
 #include "SyntheticSections.h"
@@ -1386,6 +1387,10 @@ template <class ELFT> void Writer<ELFT>::finalizeSections() {
       if (TC.createThunks(OutputSections))
         fatal("All non-range thunks should be created in first call");
     }
+  }
+  if (Config->EMachine == EM_AARCH64 && Config->FixCortexA53Errata843419) {
+    Script->assignAddresses();
+    createA53Errata843419Fixes(OutputSections);
   }
 
   // Fill other section headers. The dynamic table is finalized
