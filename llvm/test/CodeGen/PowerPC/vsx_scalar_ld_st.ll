@@ -20,7 +20,7 @@ entry:
   ret void
 ; CHECK-LABEL: @dblToInt
 ; CHECK: xscvdpsxws [[REGCONV1:[0-9]+]],
-; CHECK: stxsiwx [[REGCONV1]],
+; CHECK: stfiwx [[REGCONV1]],
 }
 
 ; Function Attrs: nounwind
@@ -33,7 +33,7 @@ entry:
   ret void
 ; CHECK-LABEL: @fltToInt
 ; CHECK: xscvdpsxws [[REGCONV2:[0-9]+]],
-; CHECK: stxsiwx [[REGCONV2]],
+; CHECK: stfiwx [[REGCONV2]],
 }
 
 ; Function Attrs: nounwind
@@ -72,7 +72,7 @@ entry:
   ret void
 ; CHECK-LABEL: @dblToUInt
 ; CHECK: xscvdpuxws [[REGCONV3:[0-9]+]],
-; CHECK: stxsiwx [[REGCONV3]],
+; CHECK: stfiwx [[REGCONV3]],
 }
 
 ; Function Attrs: nounwind
@@ -85,7 +85,7 @@ entry:
   ret void
 ; CHECK-LABEL: @fltToUInt
 ; CHECK: xscvdpuxws [[REGCONV4:[0-9]+]],
-; CHECK: stxsiwx [[REGCONV4]],
+; CHECK: stfiwx [[REGCONV4]],
 }
 
 ; Function Attrs: nounwind
@@ -139,7 +139,7 @@ entry:
   store volatile double %conv, double* %dd, align 8
   ret void
 ; CHECK-LABEL: @floatToDbl
-; CHECK: lxsspx [[REGLD5:[0-9]+]],
+; CHECK: lfs [[REGLD5:[0-9]+]],
 ; CHECK: stxsdx [[REGLD5]],
 ; CHECK-P9-LABEL: @floatToDbl
 ; CHECK-P9: lfs [[REGLD5:[0-9]+]],

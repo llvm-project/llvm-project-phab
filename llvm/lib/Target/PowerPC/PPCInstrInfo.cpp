@@ -2036,6 +2036,57 @@ bool PPCInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     MI.setDesc(get(Opcode));
     return true;
   }
+  case PPC::XFLOADf32:
+  case PPC::XFLOADf64:
+  case PPC::XFSTOREf32:
+  case PPC::XFSTOREf64:
+  case PPC::LIWAX:
+  case PPC::LIWZX:
+  case PPC::STIWX: {
+    assert(MI.getOperand(2).isReg() && MI.getOperand(1).isReg() &&
+           "X-form op must have register and register operands");
+    unsigned UpperOpcode, LowerOpcode;
+    switch (MI.getOpcode()) {
+    case PPC::XFLOADf32:
+      UpperOpcode = PPC::LXSSPX;
+      LowerOpcode = PPC::LFSX;
+    case PPC::XFLOADf64:
+      UpperOpcode = PPC::LXSDX;
+      LowerOpcode = PPC::LFDX;
+      break;
+    case PPC::XFSTOREf32:
+      UpperOpcode = PPC::STXSSPX;
+      LowerOpcode = PPC::STFSX;
+      break;
+    case PPC::XFSTOREf64:
+      UpperOpcode = PPC::STXSDX;
+      LowerOpcode = PPC::STFDX;
+      break;
+    case PPC::LIWAX:
+      UpperOpcode = PPC::LXSIWAX;
+      LowerOpcode = PPC::LFIWAX;
+      break;
+    case PPC::LIWZX:
+      UpperOpcode = PPC::LXSIWZX;
+      LowerOpcode = PPC::LFIWZX;
+      break;
+    case PPC::STIWX:
+      UpperOpcode = PPC::STXSIWX;
+      LowerOpcode = PPC::STFIWX;
+      break;
+    default:
+    llvm_unreachable("Unknown X-form operation!");
+    }
+    unsigned TargetReg = MI.getOperand(0).getReg();
+    unsigned Opcode;
+    if ((TargetReg >= PPC::F0 && TargetReg <= PPC::F31) ||
+        (TargetReg >= PPC::VSL0 && TargetReg <= PPC::VSL31))
+      Opcode = LowerOpcode;
+    else
+      Opcode = UpperOpcode;
+    MI.setDesc(get(Opcode));
+    return true;
+  }
   case PPC::SPILLTOVSR_LD: {
     unsigned TargetReg = MI.getOperand(0).getReg();
     if (PPC::VSFRCRegClass.contains(TargetReg)) {

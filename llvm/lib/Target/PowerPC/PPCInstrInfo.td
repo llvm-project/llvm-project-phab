@@ -1900,11 +1900,9 @@ def LFDX   : XForm_25<31, 599, (outs f8rc:$frD), (ins memrr:$src),
                       [(set f64:$frD, (load xaddr:$src))]>;
 
 def LFIWAX : XForm_25<31, 855, (outs f8rc:$frD), (ins memrr:$src),
-                      "lfiwax $frD, $src", IIC_LdStLFD,
-                      [(set f64:$frD, (PPClfiwax xoaddr:$src))]>;
+                      "lfiwax $frD, $src", IIC_LdStLFD, []>;
 def LFIWZX : XForm_25<31, 887, (outs f8rc:$frD), (ins memrr:$src),
-                      "lfiwzx $frD, $src", IIC_LdStLFD,
-                      [(set f64:$frD, (PPClfiwzx xoaddr:$src))]>;
+                      "lfiwzx $frD, $src", IIC_LdStLFD, []>;
 }
 
 // Load Multiple
@@ -1992,8 +1990,7 @@ def STWBRX: XForm_8<31, 662, (outs), (ins gprc:$rS, memrr:$dst),
                    PPC970_DGroup_Cracked;
 
 def STFIWX: XForm_28<31, 983, (outs), (ins f8rc:$frS, memrr:$dst),
-                     "stfiwx $frS, $dst", IIC_LdStSTFD,
-                     [(PPCstfiwx f64:$frS, xoaddr:$dst)]>;
+                     "stfiwx $frS, $dst", IIC_LdStSTFD, []>;
                      
 def STFSX : XForm_28<31, 663, (outs), (ins f4rc:$frS, memrr:$dst),
                      "stfsx $frS, $dst", IIC_LdStSTFD,
