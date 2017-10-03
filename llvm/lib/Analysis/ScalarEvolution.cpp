@@ -4987,6 +4987,29 @@ const SCEV *ScalarEvolution::createNodeForPHI(PHINode *PN) {
   return getUnknown(PN);
 }
 
+const SCEV *ScalarEvolution::evaluateForICmp(ICmpInst *IC) {
+  BasicBlock *Latch = nullptr;
+  const Loop *L = LI.getLoopFor(IC->getParent());
+
+  // If compare instruction is same or inverse of the compare in the
+  // branch of the loop latch, then return a constant evolution
+  // node. This shall facilitate computations of loop exit counts
+  // in cases where compare appears in the evolution chain of induction
+  // variables.
+  if (L && (Latch = L->getLoopLatch())) {
+    BranchInst *BI = dyn_cast<BranchInst>(Latch->getTerminator());
+    if (BI && BI->isConditional() && BI->getCondition() == IC) {
+      if (BI->getSuccessor(0) != L->getHeader())
+        return getConstant(Type::getInt1Ty(getContext()), 0, false);
+      else
+        return getConstant(Type::getInt1Ty(getContext()), 1, false);
+    }
+  }
+
+  return getUnknown(IC);
+}
+
+
 const SCEV *ScalarEvolution::createNodeForSelectOrPHI(Instruction *I,
                                                       Value *Cond,
                                                       Value *TrueVal,
@@ -6104,6 +6127,11 @@ const SCEV *ScalarEvolution::createSCEV(Value *V) {
 
   case Instruction::PHI:
     return createNodeForPHI(cast<PHINode>(U));
+
+  case Instruction::ICmp:
+    if (isa<Instruction>(U))
+      return evaluateForICmp(cast<ICmpInst>(U));
+    break;
 
   case Instruction::Select:
     // U can also be a select constant expr, which let fall through.  Since
