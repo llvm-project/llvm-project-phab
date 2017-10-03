@@ -43,8 +43,7 @@ WebAssemblyMCAsmInfoELF::WebAssemblyMCAsmInfoELF(const Triple &T) {
 
   SupportsDebugInformation = true;
 
-  // For now, WebAssembly does not support exceptions.
-  ExceptionsType = ExceptionHandling::None;
+  ExceptionsType = ExceptionHandling::Wasm;
 
   // TODO: UseIntegratedAssembler?
 
@@ -76,8 +75,7 @@ WebAssemblyMCAsmInfo::WebAssemblyMCAsmInfo(const Triple &T) {
 
   SupportsDebugInformation = true;
 
-  // For now, WebAssembly does not support exceptions.
-  ExceptionsType = ExceptionHandling::None;
+  ExceptionsType = ExceptionHandling::Wasm;
 
   // TODO: UseIntegratedAssembler?
 }
