@@ -8978,11 +8978,14 @@ Decl *Sema::ActOnUsingDeclaration(Scope *S,
     return nullptr;
 
   // Warn about access declarations.
+  // MSVC allow access decl without using
   if (UsingLoc.isInvalid()) {
     Diag(Name.getLocStart(),
-         getLangOpts().CPlusPlus11 ? diag::err_access_decl
-                                   : diag::warn_access_decl_deprecated)
-      << FixItHint::CreateInsertion(SS.getRange().getBegin(), "using ");
+         getLangOpts().MSVCCompat
+             ? diag::warn_access_decl_deprecated
+             : (getLangOpts().CPlusPlus11 ? diag::err_access_decl
+                                          : diag::warn_access_decl_deprecated))
+        << FixItHint::CreateInsertion(SS.getRange().getBegin(), "using ");
   }
 
   if (EllipsisLoc.isInvalid()) {
