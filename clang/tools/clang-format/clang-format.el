@@ -120,11 +120,11 @@ is a zero-based file offset, assuming ‘utf-8-unix’ coding."
 
 ;;;###autoload
 (defun clang-format-region (start end &optional style assume-file-name)
-  "Use clang-format to format the code between START and END according to STYLE
-using ASSUME-FILE-NAME to locate a style config file. If called interactively
-uses the region or the current statement if there is no active region. If no
-style is given uses `clang-format-style'. If no assume-file-name is given uses
-`buffer-file-name'."
+  "Use clang-format to format the code between START and END according to STYLE.
+If called interactively uses the region or the current statement if there is no
+no active region. If no style is given uses `clang-format-style'. Use
+ASSUME-FILE-NAME to locate a style config file, if no  assume-file-name is given
+uses the function `buffer-file-name'."
   (interactive
    (if (use-region-p)
        (list (region-beginning) (region-end))
@@ -154,8 +154,9 @@ style is given uses `clang-format-style'. If no assume-file-name is given uses
                              nil `(,temp-buffer ,temp-file) nil
                              `("-output-replacements-xml"
                                ;; Gaurd against a nil assume-file-name.
-                               ;; If -assume-filename is given a blank string
-                               ;; it will crash as per the following bug report
+                               ;; If the clang-format option -assume-filename
+                               ;; is given a blank string it will crash as per
+                               ;; the following bug report
                                ;; https://bugs.llvm.org/show_bug.cgi?id=34667
                                ,@(and assume-file-name
                                       (list "-assume-filename" assume-file-name))
@@ -191,9 +192,10 @@ style is given uses `clang-format-style'. If no assume-file-name is given uses
 
 ;;;###autoload
 (defun clang-format-buffer (&optional style assume-file-name)
-  "Use clang-format to format the current buffer according to STYLE using
-ASSUME-FILE-NAME to locate a style config file. If no style is given uses
-`clang-format-style'. If no assume-file-name is given uses `buffer-file-name'."
+  "Use clang-format to format the current buffer according to STYLE.
+If no style is given uses `clang-format-style'. Use ASSUME-FILE-NAME
+to locate a style config file. If no assume-file-name is given uses
+the function `buffer-file-name'."
   (interactive)
   (clang-format-region (point-min) (point-max) style assume-file-name))
 
