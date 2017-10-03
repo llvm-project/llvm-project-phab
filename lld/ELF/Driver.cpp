@@ -1083,6 +1083,28 @@ template <class ELFT> void LinkerDriver::link(opt::InputArgList &Args) {
   if (Config->EMachine == EM_MIPS)
     Config->MipsEFlags = calcMipsEFlags<ELFT>();
 
+  if (Config->EMachine == EM_ARM) {
+    if (InX::ARMAttributes == nullptr) {
+      // No ARM attributes section present (assembler without .eabi_attribute
+      // directives, like lld tests), assume support for all features
+      Config->ARMHasBlx = true;
+      Config->ARMHasMovtMovw = true;
+      Config->ARMJ1J2BranchEncoding = true;
+    }
+    // FIXME: These warnings can be removed when lld only uses these features
+    // when the input objects have been compiled with an architecture that
+    // supports them.
+    if (Config->ARMHasBlx == false)
+      warn("lld uses blx instruction, no object with architecture supporting "
+           "feature detected.");
+    if (Config->ARMJ1J2BranchEncoding == false)
+      warn("lld uses extended branch encoding, no object with architecture "
+           "supporting feature detected.");
+    if (Config->ARMHasMovtMovw == false)
+      warn("lld may use movt/movw, no object with architecture supporting "
+           "feature detected.");
+  }
+
   // This adds a .comment section containing a version string. We have to add it
   // before decompressAndMergeSections because the .comment section is a
   // mergeable section.
