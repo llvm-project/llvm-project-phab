@@ -122,8 +122,8 @@ is a zero-based file offset, assuming ‘utf-8-unix’ coding."
 (defun clang-format-region (start end &optional style assume-file-name)
   "Use clang-format to format the code between START and END according to STYLE.
 If called interactively uses the region or the current statement if there is no
-no active region. If no style is given uses `clang-format-style'. Use
-ASSUME-FILE-NAME to locate a style config file, if no  assume-file-name is given
+no active region. If no STYLE is given uses `clang-format-style'. Use
+ASSUME-FILE-NAME to locate a style config file, if no ASSUME-FILE-NAME is given
 uses the function `buffer-file-name'."
   (interactive
    (if (use-region-p)
@@ -193,8 +193,8 @@ uses the function `buffer-file-name'."
 ;;;###autoload
 (defun clang-format-buffer (&optional style assume-file-name)
   "Use clang-format to format the current buffer according to STYLE.
-If no style is given uses `clang-format-style'. Use ASSUME-FILE-NAME
-to locate a style config file. If no assume-file-name is given uses
+If no STYLE is given uses `clang-format-style'. Use ASSUME-FILE-NAME
+to locate a style config file. If no ASSUME-FILE-NAME is given uses
 the function `buffer-file-name'."
   (interactive)
   (clang-format-region (point-min) (point-max) style assume-file-name))
