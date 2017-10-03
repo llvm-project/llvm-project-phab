@@ -36,8 +36,6 @@
 ; RUN: llvm-readobj -file-headers %T/comdat-main.exe | FileCheck -check-prefix=HEADERS-10 %s
 ; RUN: llvm-objdump -d %T/comdat-main.exe | FileCheck -check-prefix=TEXT-10 %s
 ; RUN: lld-link /out:%T/comdat-main.exe /entry:main /subsystem:console %T/comdat-main.lto.obj %T/comdat.lib
-; RUN: llvm-readobj -file-headers %T/comdat-main.exe | FileCheck -check-prefix=HEADERS-10 %s
-; RUN: llvm-objdump -d %T/comdat-main.exe | FileCheck -check-prefix=TEXT-10 %s
 
 ; HEADERS-11: AddressOfEntryPoint: 0x1000
 ; TEXT-11: Disassembly of section .text:

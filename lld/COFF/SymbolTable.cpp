@@ -69,7 +69,29 @@ void SymbolTable::addFile(InputFile *File) {
   }
 
   if (auto *F = dyn_cast<ObjFile>(File)) {
-    ObjFile::Instances.push_back(F);
+    if (!F->ParentName.empty()) {
+      // TODO:
+      // Sort object files from within the same parent library alphabetically,
+      // to include the .idata headers before the individual imported functions.
+      // This is O(n^2) though (but could be implemented with one map per
+      // ParentName), and breaks code linking to msvcrt.lib (for some
+      // yet unknown reason).
+      // This requires adjustments to test/COFF/lto-comdat.ll.
+      auto Iter = ObjFile::Instances.begin(), End = ObjFile::Instances.end();
+      for (; Iter != End; Iter++) {
+        if ((*Iter)->ParentName == F->ParentName) {
+          while (Iter != End && (*Iter)->ParentName == F->ParentName &&
+                 (*Iter)->getName() < F->getName())
+            Iter++;
+          ObjFile::Instances.insert(Iter, F);
+          break;
+        }
+      }
+      if (Iter == End)
+        ObjFile::Instances.push_back(F);
+    } else {
+      ObjFile::Instances.push_back(F);
+    }
   } else if (auto *F = dyn_cast<BitcodeFile>(File)) {
     BitcodeFile::Instances.push_back(F);
   } else if (auto *F = dyn_cast<ImportFile>(File)) {

@@ -113,7 +113,8 @@ public:
 private:
   void createSections();
   void createMiscChunks();
-  void createImportTables();
+  void createImportTables1();
+  void createImportTables2();
   void createExportTable();
   void assignAddresses();
   void removeEmptySections();
@@ -142,6 +143,10 @@ private:
   std::vector<char> Strtab;
   std::vector<llvm::object::coff_symbol16> OutputSymtab;
   IdataContents Idata;
+  Chunk *ImportTableStart = nullptr;
+  uint64_t ImportTableSize = 0;
+  Chunk *IATStart = nullptr;
+  uint64_t IATSize = 0;
   DelayLoadContents DelayIdata;
   EdataContents Edata;
   SEHTableChunk *SEHTable = nullptr;
@@ -282,9 +287,24 @@ static Optional<codeview::DebugInfo> loadExistingBuildId(StringRef Path) {
 
 // The main function of the writer.
 void Writer::run() {
+  createImportTables1();
   createSections();
   createMiscChunks();
-  createImportTables();
+
+  // Move .idata to the same spot as prior to this refactoring, to
+  // avoid changes in the output section order, to avoid changes to
+  // tests. This can be omitted later.
+  for (auto Iter = OutputSections.begin(), End = OutputSections.end();
+       Iter != End; Iter++) {
+    OutputSection *Sec = *Iter;
+    if (Sec->getName() == ".idata") {
+      OutputSections.erase(Iter);
+      OutputSections.push_back(Sec);
+      break;
+    }
+  }
+  createImportTables2();
+
   createExportTable();
   if (Config->Relocatable)
     createSection(".reloc");
@@ -341,11 +361,45 @@ void Writer::createSections() {
     Map[C->getSectionName()].push_back(C);
   }
 
+  if (!Idata.empty()) {
+    // Add the .idata content in the right section groups, to allow
+    // chunks from other linked in object files to be grouped together.
+    // See Microsoft PE/COFF spec 5.4 for details.
+    auto AddChunks = [&](StringRef N, std::vector<Chunk *> &V) {
+      Map[N].insert(Map[N].end(), V.begin(), V.end());
+    };
+    // The loader assumes a specific order of data.
+    // Add each type in the correct order.
+    AddChunks(".idata$2", Idata.Dirs);
+    AddChunks(".idata$4", Idata.Lookups);
+    AddChunks(".idata$5", Idata.Addresses);
+    AddChunks(".idata$6", Idata.Hints);
+    AddChunks(".idata$7", Idata.DLLNames);
+  }
+
   // Then create an OutputSection for each section.
   // '$' and all following characters in input section names are
   // discarded when determining output section. So, .text$foo
   // contributes to .text, for example. See PE/COFF spec 3.2.
   SmallDenseMap<StringRef, OutputSection *> Sections;
+
+  if (Map.find(".idata$2") != Map.end()) {
+    // Make sure to create .idata first with the right default permissions;
+    // none of the chunks set the IMAGE_SCN_CNT_INITIALIZED_DATA flag.
+    Sections[".idata"] = createSection(".idata");
+
+    std::vector<Chunk *> &ImportTables = Map[".idata$2"];
+    ImportTableStart = ImportTables.front();
+    for (Chunk *C : ImportTables)
+      ImportTableSize += C->getSize();
+
+    std::vector<Chunk *> &IAT = Map[".idata$5"];
+    if (!IAT.empty())
+      IATStart = IAT.front();
+    for (Chunk *C : IAT)
+      IATSize += C->getSize();
+  }
+
   for (auto Pair : Map) {
     StringRef Name = getOutputSection(Pair.first);
     OutputSection *&Sec = Sections[Name];
@@ -415,10 +469,7 @@ void Writer::createMiscChunks() {
 // The format of this section is inherently Windows-specific.
 // IdataContents class abstracted away the details for us,
 // so we just let it create chunks and add them to the section.
-void Writer::createImportTables() {
-  if (ImportFile::Instances.empty())
-    return;
-
+void Writer::createImportTables1() {
   // Initialize DLLOrder so that import entries are ordered in
   // the same order as in the command line. (That affects DLL
   // initialization order, and this ordering is MSVC-compatible.)
@@ -431,13 +482,9 @@ void Writer::createImportTables() {
       Config->DLLOrder[DLL] = Config->DLLOrder.size();
   }
 
-  OutputSection *Text = createSection(".text");
   for (ImportFile *File : ImportFile::Instances) {
     if (!File->Live)
       continue;
-
-    if (DefinedImportThunk *Thunk = File->ThunkSym)
-      Text->addChunk(Thunk->getChunk());
 
     if (Config->DelayLoads.count(StringRef(File->DLLName).lower())) {
       if (!File->ThunkSym)
@@ -449,10 +496,21 @@ void Writer::createImportTables() {
     }
   }
 
-  if (!Idata.empty()) {
-    OutputSection *Sec = createSection(".idata");
-    for (Chunk *C : Idata.getChunks())
-      Sec->addChunk(C);
+  if (!Idata.empty())
+    Idata.create();
+}
+
+void Writer::createImportTables2() {
+  if (ImportFile::Instances.empty())
+    return;
+
+  OutputSection *Text = createSection(".text");
+  for (ImportFile *File : ImportFile::Instances) {
+    if (!File->Live)
+      continue;
+
+    if (DefinedImportThunk *Thunk = File->ThunkSym)
+      Text->addChunk(Thunk->getChunk());
   }
 
   if (!DelayIdata.empty()) {
@@ -713,11 +771,11 @@ template <typename PEHeaderTy> void Writer::writeHeader() {
     Dir[EXPORT_TABLE].RelativeVirtualAddress = Sec->getRVA();
     Dir[EXPORT_TABLE].Size = Sec->getVirtualSize();
   }
-  if (!Idata.empty()) {
-    Dir[IMPORT_TABLE].RelativeVirtualAddress = Idata.getDirRVA();
-    Dir[IMPORT_TABLE].Size = Idata.getDirSize();
-    Dir[IAT].RelativeVirtualAddress = Idata.getIATRVA();
-    Dir[IAT].Size = Idata.getIATSize();
+  if (ImportTableSize) {
+    Dir[IMPORT_TABLE].RelativeVirtualAddress = ImportTableStart->getRVA();
+    Dir[IMPORT_TABLE].Size = ImportTableSize;
+    Dir[IAT].RelativeVirtualAddress = IATStart->getRVA();
+    Dir[IAT].Size = IATSize;
   }
   if (OutputSection *Sec = findSection(".rsrc")) {
     Dir[RESOURCE_TABLE].RelativeVirtualAddress = Sec->getRVA();
