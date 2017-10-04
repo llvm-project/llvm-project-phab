@@ -150,6 +150,7 @@ add_llvm_library(LLVMCodeGen
   TwoAddressInstructionPass.cpp
   UnreachableBlockElim.cpp
   VirtRegMap.cpp
+  WasmEHPrepare.cpp
   WinEHPrepare.cpp
   XRayInstrumentation.cpp
 

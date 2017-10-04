@@ -359,6 +359,9 @@ bool AsmPrinter::doInitialization(Module &M) {
       break;
     }
     break;
+  case ExceptionHandling::Wasm:
+    // TODO Add Wasm EH
+    break;
   }
   if (ES)
     Handlers.push_back(HandlerInfo(ES, EHTimerName, EHTimerDescription,
