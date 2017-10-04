@@ -196,9 +196,18 @@ public:
   /// \brief Estimate the cost of a GEP operation when lowered.
   ///
   /// This user-based overload adds the ability to check if the GEP can be
-  /// folded into its users.
+  /// folded into all of its users.
   int getGEPCost(const GEPOperator *GEP,
                  ArrayRef<const Value *> Operands) const;
+
+  /// \brief Estimate the cost of a GEP operation when lowered.
+  ///
+  /// This user-based overload adds the ability to check if the GEP can be
+  /// folded into its users in \p Users.
+  int getGEPCost(const GEPOperator *GEP,
+                 ArrayRef<const Value *> Operands,
+                 ArrayRef<const User *>Users) const;
+
 
   /// \brief Estimate the cost of a EXT operation when lowered.
   ///
@@ -941,6 +950,9 @@ public:
                          ArrayRef<const Value *> Operands) = 0;
   virtual int getGEPCost(const GEPOperator *GEP,
                          ArrayRef<const Value *> Operands) = 0;
+  virtual int getGEPCost(const GEPOperator *GEP,
+                         ArrayRef<const Value *> Operands,
+                         ArrayRef<const User *>Users) = 0;
   virtual int getExtCost(const Instruction *I, const Value *Src) = 0;
   virtual int getCallCost(FunctionType *FTy, int NumArgs) = 0;
   virtual int getCallCost(const Function *F, int NumArgs) = 0;
@@ -1125,6 +1137,11 @@ public:
   int getGEPCost(const GEPOperator *GEP,
                  ArrayRef<const Value *> Operands) override {
     return Impl.getGEPCost(GEP, Operands);
+  }
+  int getGEPCost(const GEPOperator *GEP,
+                 ArrayRef<const Value *> Operands,
+                 ArrayRef<const User *>Users) override {
+    return Impl.getGEPCost(GEP, Operands, Users);
   }
   int getExtCost(const Instruction *I, const Value *Src) override {
     return Impl.getExtCost(I, Src);

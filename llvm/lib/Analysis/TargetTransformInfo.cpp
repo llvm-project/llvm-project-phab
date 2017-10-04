@@ -93,6 +93,12 @@ int TargetTransformInfo::getGEPCost(const GEPOperator *GEP,
   return TTIImpl->getGEPCost(GEP, Operands);
 }
 
+int TargetTransformInfo::getGEPCost(const GEPOperator *GEP,
+                                    ArrayRef<const Value *> Operands,
+                                    ArrayRef<const User *>Users) const {
+  return TTIImpl->getGEPCost(GEP, Operands, Users);
+}
+
 int TargetTransformInfo::getExtCost(const Instruction *I,
                                     const Value *Src) const {
   return TTIImpl->getExtCost(I, Src);

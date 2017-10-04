@@ -727,6 +727,13 @@ public:
   }
 
   int getGEPCost(const GEPOperator *GEP, ArrayRef<const Value *> Operands) {
+    SmallVector<const User *, 8> Users(GEP->user_begin(), GEP->user_end());
+    return getGEPCost(GEP, Operands, Users);
+  }
+
+
+  int getGEPCost(const GEPOperator *GEP, ArrayRef<const Value *> Operands,
+                 ArrayRef<const User *>Users) {
     if (!isa<Instruction>(GEP))
       return TTI::TCC_Basic;
 
@@ -741,7 +748,7 @@ public:
       // load/store instructions together with other instructions (e.g., other
       // GEPs). Handling all such cases must be expensive to be performed
       // in this function, so we stay conservative for now.
-      for (const User *U : GEP->users()) {
+      for (const User *U : Users) {
         const Operator *UOP = cast<Operator>(U);
         const Value *PointerOperand = nullptr;
         if (auto *LI = dyn_cast<LoadInst>(UOP))
