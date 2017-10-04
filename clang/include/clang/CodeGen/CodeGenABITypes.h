@@ -78,6 +78,12 @@ llvm::FunctionType *convertFreeFunctionType(CodeGenModule &CGM,
 
 llvm::Type *convertTypeForMemory(CodeGenModule &CGM, QualType T);
 
+// Given a non-bitfield struct field, return its index within the elements of
+// the struct's converted type.
+// FD must be a field in RD directly (i.e. not an inherited field).
+unsigned getLLVMFieldNumber(CodeGenModule &CGM,
+                            const RecordDecl *RD, const FieldDecl *FD);
+
 }  // end namespace CodeGen
 }  // end namespace clang
 
