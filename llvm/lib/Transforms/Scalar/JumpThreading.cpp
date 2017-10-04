@@ -98,8 +98,13 @@ ImplicationSearchThreshold(
 
 static cl::opt<bool> PrintLVIAfterJumpThreading(
     "print-lvi-after-jump-threading",
-    cl::desc("Print the LazyValueInfo cache after JumpThreading"), cl::init(false),
-    cl::Hidden);
+    cl::desc("Print the LazyValueInfo cache after JumpThreading"),
+    cl::init(false), cl::Hidden);
+
+static cl::opt<bool> PreserveDTandLVI(
+    "jump-threading-preserve-dt-and-lvi",
+    cl::desc("Preserve DominatorTree and LazyValueInfo while JumpThreading"),
+    cl::init(false), cl::Hidden);
 
 namespace {
 
@@ -132,10 +137,12 @@ namespace {
 
     void getAnalysisUsage(AnalysisUsage &AU) const override {
       AU.addRequired<DominatorTreeWrapperPass>();
-      AU.addPreserved<DominatorTreeWrapperPass>();
+      if (PreserveDTandLVI)
+        AU.addPreserved<DominatorTreeWrapperPass>();
       AU.addRequired<AAResultsWrapperPass>();
       AU.addRequired<LazyValueInfoWrapperPass>();
-      AU.addPreserved<LazyValueInfoWrapperPass>();
+      if (PreserveDTandLVI)
+        AU.addPreserved<LazyValueInfoWrapperPass>();
       AU.addPreserved<GlobalsAAWrapperPass>();
       AU.addRequired<TargetLibraryInfoWrapperPass>();
     }
@@ -297,6 +304,8 @@ bool JumpThreading::runOnFunction(Function &F) {
                               std::move(BFI), std::move(BPI));
   if (PrintLVIAfterJumpThreading) {
     dbgs() << "LVI for function '" << F.getName() << "':\n";
+    if (!PreserveDTandLVI)
+      DT->recalculate(F);
     LVI->printLVI(F, *DT, dbgs());
   }
   return Changed;
@@ -327,8 +336,10 @@ PreservedAnalyses JumpThreadingPass::run(Function &F,
     return PreservedAnalyses::all();
   PreservedAnalyses PA;
   PA.preserve<GlobalsAA>();
-  PA.preserve<DominatorTreeAnalysis>();
-  PA.preserve<LazyValueAnalysis>();
+  if (PreserveDTandLVI) {
+    PA.preserve<DominatorTreeAnalysis>();
+    PA.preserve<LazyValueAnalysis>();
+  }
   return PA;
 }
 
@@ -341,7 +352,10 @@ bool JumpThreadingPass::runImpl(Function &F, TargetLibraryInfo *TLI_,
   TLI = TLI_;
   LVI = LVI_;
   AA = AA_;
-  DT = DT_;
+  if (PreserveDTandLVI)
+    DT = DT_;
+  else
+    DT = nullptr;
   BFI.reset();
   BPI.reset();
   // When profile data is available, we need to update edge weights after
@@ -1050,17 +1064,20 @@ bool JumpThreadingPass::ProcessBlock(BasicBlock *BB) {
       Succ->removePredecessor(BB, true);
       if (Succ == BB)
         continue;
-      DominatorTree::UpdateType UT = {DominatorTree::Delete, BB, Succ};
-      // Make sure to remove a DT edge exactly once and not an edge to itself.
-      if (std::find(Updates.begin(), Updates.end(), UT) == Updates.end())
-        Updates.push_back(UT);
+      if (DT) {
+        DominatorTree::UpdateType UT = {DominatorTree::Delete, BB, Succ};
+        // Make sure to remove a DT edge exactly once and not an edge to itself.
+        if (std::find(Updates.begin(), Updates.end(), UT) == Updates.end())
+          Updates.push_back(UT);
+      }
     }
 
     DEBUG(dbgs() << "  In block '" << BB->getName()
           << "' folding undef terminator: " << *BBTerm << '\n');
     BranchInst::Create(BBTerm->getSuccessor(BestSucc), BBTerm);
     BBTerm->eraseFromParent();
-    DT->applyUpdates(Updates);
+    if (DT)
+      DT->applyUpdates(Updates);
     return true;
   }
 
@@ -1109,7 +1126,7 @@ bool JumpThreadingPass::ProcessBlock(BasicBlock *BB) {
         ToRemoveSucc->removePredecessor(BB, true);
         BranchInst::Create(CondBr->getSuccessor(ToKeep), CondBr);
         CondBr->eraseFromParent();
-        if (BB != ToRemoveSucc && ToRemoveSucc != ToKeepSucc)
+        if (DT && BB != ToRemoveSucc && ToRemoveSucc != ToKeepSucc)
           DT->deleteEdge(BB, ToRemoveSucc);
         if (CondCmp->use_empty())
           CondCmp->eraseFromParent();
@@ -1209,7 +1226,7 @@ bool JumpThreadingPass::ProcessImpliedCondition(BasicBlock *BB) {
       RemoveSucc->removePredecessor(BB);
       BranchInst::Create(KeepSucc, BI);
       BI->eraseFromParent();
-      if (BB != RemoveSucc && RemoveSucc != KeepSucc)
+      if (DT && BB != RemoveSucc && RemoveSucc != KeepSucc)
         DT->deleteEdge(BB, RemoveSucc);
       return true;
     }
@@ -1609,7 +1626,7 @@ bool JumpThreadingPass::ProcessThreadableEdges(Value *Cond, BasicBlock *BB,
           SeenFirstBranchToOnlyDest = true; // Don't modify the first branch.
         } else {
           SuccBB->removePredecessor(BB, true); // This is unreachable successor.
-          if (SuccBB != OnlyDest && SuccBB != BB) {
+          if (DT && SuccBB != OnlyDest && SuccBB != BB) {
             DominatorTree::UpdateType UT = {DominatorTree::Delete, BB, SuccBB};
             // Make sure to remove a DT edge exactly once.
             if (std::find(Updates.begin(), Updates.end(), UT) == Updates.end())
@@ -1622,7 +1639,8 @@ bool JumpThreadingPass::ProcessThreadableEdges(Value *Cond, BasicBlock *BB,
       TerminatorInst *Term = BB->getTerminator();
       BranchInst::Create(OnlyDest, Term);
       Term->eraseFromParent();
-      DT->applyUpdates(Updates);
+      if (DT)
+        DT->applyUpdates(Updates);
 
       // If the condition is now dead due to the removal of the old terminator,
       // erase it.
@@ -1985,9 +2003,10 @@ bool JumpThreadingPass::ThreadEdge(BasicBlock *BB,
       PredTerm->setSuccessor(i, NewBB);
     }
 
-  DT->applyUpdates({{DominatorTree::Insert, NewBB, SuccBB},
-                    {DominatorTree::Insert, PredBB, NewBB},
-                    {DominatorTree::Delete, PredBB, BB}});
+  if (DT)
+    DT->applyUpdates({{DominatorTree::Insert, NewBB, SuccBB},
+                      {DominatorTree::Insert, PredBB, NewBB},
+                      {DominatorTree::Delete, PredBB, BB}});
 
   // At this point, the IR is fully up to date and consistent.  Do a quick scan
   // over the new instructions and zap any that are constants or dead.  This
@@ -2282,7 +2301,7 @@ bool JumpThreadingPass::DuplicateCondBranchOnPHIIntoPred(
 
   // Remove the unconditional branch at the end of the PredBB block.
   OldPredBranch->eraseFromParent();
-  if (BB != PredBB)
+  if (DT && BB != PredBB)
     DT->deleteEdge(PredBB, BB);
 
   ++NumDupes;
@@ -2349,7 +2368,8 @@ bool JumpThreadingPass::TryToUnfoldSelect(CmpInst *CondCmp, BasicBlock *BB) {
       // Move the unconditional branch to NewBB.
       PredTerm->removeFromParent();
       NewBB->getInstList().insert(NewBB->end(), PredTerm);
-      DT->insertEdge(NewBB, BB);
+      if (DT)
+        DT->insertEdge(NewBB, BB);
       // Create a conditional branch and update PHI nodes.
       BranchInst::Create(NewBB, BB, SI->getCondition(), Pred);
       CondLHS->setIncomingValue(I, SI->getFalseValue());
@@ -2357,7 +2377,8 @@ bool JumpThreadingPass::TryToUnfoldSelect(CmpInst *CondCmp, BasicBlock *BB) {
       // The select is now dead.
       SI->eraseFromParent();
 
-      DT->insertEdge(Pred, NewBB);
+      if (DT)
+        DT->insertEdge(Pred, NewBB);
       // Update any other PHI nodes in BB.
       for (BasicBlock::iterator BI = BB->begin();
            PHINode *Phi = dyn_cast<PHINode>(BI); ++BI)
@@ -2551,14 +2572,16 @@ bool JumpThreadingPass::ThreadGuard(BasicBlock *BB, IntrinsicInst *Guard,
   // DuplicateInstructionsInSplitBetween inserts a new block, BB.split, between
   // PredBB and BB. We need to perform two inserts and one delete in DT for each
   // of the above calls.
-  DT->applyUpdates({// Guarded block split.
-                    {DominatorTree::Delete, PredGuardedBlock, BB},
-                    {DominatorTree::Insert, PredGuardedBlock, GuardedBlock},
-                    {DominatorTree::Insert, GuardedBlock, BB},
-                    // Unguarded block split.
-                    {DominatorTree::Delete, PredUnguardedBlock, BB},
-                    {DominatorTree::Insert, PredUnguardedBlock, UnguardedBlock},
-                    {DominatorTree::Insert, UnguardedBlock, BB}});
+  if (DT)
+    DT->applyUpdates(
+        {// Guarded block split.
+         {DominatorTree::Delete, PredGuardedBlock, BB},
+         {DominatorTree::Insert, PredGuardedBlock, GuardedBlock},
+         {DominatorTree::Insert, GuardedBlock, BB},
+         // Unguarded block split.
+         {DominatorTree::Delete, PredUnguardedBlock, BB},
+         {DominatorTree::Insert, PredUnguardedBlock, UnguardedBlock},
+         {DominatorTree::Insert, UnguardedBlock, BB}});
 
   // Some instructions before the guard may still have uses. For them, we need
   // to create Phi nodes merging their copies in both guarded and unguarded
