@@ -285,7 +285,13 @@ FileSpec Symbols::LocateExecutableSymbolFile(const ModuleSpec &module_spec) {
           if (num_specs == 1) {
             ModuleSpec mspec;
             if (specs.GetModuleSpecAtIndex(0, mspec)) {
-              if (mspec.GetUUID() == module_uuid)
+              // FIXME: at the moment llvm-dwp doesn't output build ids,
+              // nor does binutils dwp. Thus in the case of DWPs
+              // we skip uuids check. This needs to be fixed
+              // to avoid consistency issues as soon as
+              // llvm-dwp and binutils dwp gain support for build ids.
+              if (file_spec.GetFileNameExtension().GetStringRef() == "dwp" ||
+                  mspec.GetUUID() == module_uuid)
                 return file_spec;
             }
           }
