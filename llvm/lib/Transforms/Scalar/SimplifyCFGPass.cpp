@@ -202,12 +202,14 @@ struct BaseCFGSimplifyPass : public FunctionPass {
   int BonusInstThreshold;
   bool ConvertSwitchToLookupTable;
   bool KeepCanonicalLoops;
+  bool SinkCommonInsts;
 
   BaseCFGSimplifyPass(int T, bool ConvertSwitch, bool KeepLoops,
+                      bool SinkCommon,
                       std::function<bool(const Function &)> Ftor, char &ID)
       : FunctionPass(ID), PredicateFtor(std::move(Ftor)),
         ConvertSwitchToLookupTable(ConvertSwitch),
-        KeepCanonicalLoops(KeepLoops) {
+        KeepCanonicalLoops(KeepLoops), SinkCommonInsts(SinkCommon) {
     BonusInstThreshold = (T == -1) ? UserBonusInstThreshold : T;
   }
   bool runOnFunction(Function &F) override {
@@ -220,7 +222,7 @@ struct BaseCFGSimplifyPass : public FunctionPass {
         getAnalysis<TargetTransformInfoWrapperPass>().getTTI(F);
     return simplifyFunctionCFG(F, TTI,
                                {BonusInstThreshold, ConvertSwitchToLookupTable,
-                                KeepCanonicalLoops, AC});
+                                KeepCanonicalLoops, SinkCommonInsts, AC});
   }
 
   void getAnalysisUsage(AnalysisUsage &AU) const override {
@@ -235,7 +237,7 @@ struct CFGSimplifyPass : public BaseCFGSimplifyPass {
 
   CFGSimplifyPass(int T = -1,
                   std::function<bool(const Function &)> Ftor = nullptr)
-                  : BaseCFGSimplifyPass(T, false, true, Ftor, ID) {
+                  : BaseCFGSimplifyPass(T, false, true, false, Ftor, ID) {
     initializeCFGSimplifyPassPass(*PassRegistry::getPassRegistry());
   }
 };
@@ -245,7 +247,7 @@ struct LateCFGSimplifyPass : public BaseCFGSimplifyPass {
 
   LateCFGSimplifyPass(int T = -1,
                       std::function<bool(const Function &)> Ftor = nullptr)
-                      : BaseCFGSimplifyPass(T, true, false, Ftor, ID) {
+                      : BaseCFGSimplifyPass(T, true, false, true, Ftor, ID) {
     initializeLateCFGSimplifyPassPass(*PassRegistry::getPassRegistry());
   }
 };

@@ -1,4 +1,5 @@
-; RUN: opt < %s -simplifycfg -S | FileCheck %s
+; RUN: opt < %s -simplifycfg -S | FileCheck %s --check-prefix=EARLY
+; RUN: opt < %s -latesimplifycfg -S | FileCheck %s
 
 define zeroext i1 @test1(i1 zeroext %flag, i32 %blksA, i32 %blksB, i32 %nblks) {
 entry:
@@ -841,6 +842,65 @@ if.end:
 ; CHECK: select
 ; CHECK: insertvalue
 ; CHECK-NOT: insertvalue
+
+; PR34603 - https://bugs.llvm.org/show_bug.cgi?id=34603
+; We should only sink things like this late because it interferes with early-cse and other passes.
+
+define double @max_of_loads(double* %x, double* %y, i64 %i) {
+; EARLY-LABEL: @max_of_loads(
+; EARLY-NEXT:  entry:
+; EARLY-NEXT:    [[XI_PTR:%.*]] = getelementptr double, double* [[X:%.*]], i64 [[I:%.*]]
+; EARLY-NEXT:    [[YI_PTR:%.*]] = getelementptr double, double* [[Y:%.*]], i64 [[I]]
+; EARLY-NEXT:    [[XI:%.*]] = load double, double* [[XI_PTR]]
+; EARLY-NEXT:    [[YI:%.*]] = load double, double* [[YI_PTR]]
+; EARLY-NEXT:    [[CMP:%.*]] = fcmp ogt double [[XI]], [[YI]]
+; EARLY-NEXT:    br i1 [[CMP]], label [[IF:%.*]], label [[ELSE:%.*]]
+; EARLY:       if:
+; EARLY-NEXT:    [[XI_PTR_AGAIN:%.*]] = getelementptr double, double* [[X]], i64 [[I]]
+; EARLY-NEXT:    [[XI_AGAIN:%.*]] = load double, double* [[XI_PTR_AGAIN]]
+; EARLY-NEXT:    br label [[END:%.*]]
+; EARLY:       else:
+; EARLY-NEXT:    [[YI_PTR_AGAIN:%.*]] = getelementptr double, double* [[Y]], i64 [[I]]
+; EARLY-NEXT:    [[YI_AGAIN:%.*]] = load double, double* [[YI_PTR_AGAIN]]
+; EARLY-NEXT:    br label [[END]]
+; EARLY:       end:
+; EARLY-NEXT:    [[MAX:%.*]] = phi double [ [[XI_AGAIN]], [[IF]] ], [ [[YI_AGAIN]], [[ELSE]] ]
+; EARLY-NEXT:    ret double [[MAX]]
+;
+; CHECK-LABEL: @max_of_loads(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[XI_PTR:%.*]] = getelementptr double, double* [[X:%.*]], i64 [[I:%.*]]
+; CHECK-NEXT:    [[YI_PTR:%.*]] = getelementptr double, double* [[Y:%.*]], i64 [[I]]
+; CHECK-NEXT:    [[XI:%.*]] = load double, double* [[XI_PTR]]
+; CHECK-NEXT:    [[YI:%.*]] = load double, double* [[YI_PTR]]
+; CHECK-NEXT:    [[CMP:%.*]] = fcmp ogt double [[XI]], [[YI]]
+; CHECK-NEXT:    [[Y_SINK:%.*]] = select i1 [[CMP]], double* [[X]], double* [[Y]]
+; CHECK-NEXT:    [[YI_PTR_AGAIN:%.*]] = getelementptr double, double* [[Y_SINK]], i64 [[I]]
+; CHECK-NEXT:    [[YI_AGAIN:%.*]] = load double, double* [[YI_PTR_AGAIN]]
+; CHECK-NEXT:    ret double [[YI_AGAIN]]
+;
+entry:
+  %xi_ptr = getelementptr double, double* %x, i64 %i
+  %yi_ptr = getelementptr double, double* %y, i64 %i
+  %xi = load double, double* %xi_ptr
+  %yi = load double, double* %yi_ptr
+  %cmp = fcmp ogt double %xi, %yi
+  br i1 %cmp, label %if, label %else
+
+if:
+  %xi_ptr_again = getelementptr double, double* %x, i64 %i
+  %xi_again = load double, double* %xi_ptr_again
+  br label %end
+
+else:
+  %yi_ptr_again = getelementptr double, double* %y, i64 %i
+  %yi_again = load double, double* %yi_ptr_again
+  br label %end
+
+end:
+  %max = phi double [ %xi_again,  %if ], [ %yi_again, %else ]
+  ret double %max
+}
 
 ; CHECK: ![[TBAA]] = !{![[TYPE:[0-9]]], ![[TYPE]], i64 0}
 ; CHECK: ![[TYPE]] = !{!"float", ![[TEXT:[0-9]]]}

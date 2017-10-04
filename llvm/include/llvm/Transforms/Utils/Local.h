@@ -59,14 +59,16 @@ struct SimplifyCFGOptions {
   int BonusInstThreshold;
   bool ConvertSwitchToLookupTable;
   bool NeedCanonicalLoop;
+  bool SinkCommonInsts;
   AssumptionCache *AC;
 
   SimplifyCFGOptions(int BonusThreshold = 1, bool SwitchToLookup = false,
-                     bool CanonicalLoops = true,
+                     bool CanonicalLoops = true, bool SinkCommon = false,
                      AssumptionCache *AssumpCache = nullptr)
       : BonusInstThreshold(BonusThreshold),
         ConvertSwitchToLookupTable(SwitchToLookup),
         NeedCanonicalLoop(CanonicalLoops),
+        SinkCommonInsts(SinkCommon),
         AC(AssumpCache) {}
 };
 
