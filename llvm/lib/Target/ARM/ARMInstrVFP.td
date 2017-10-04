@@ -355,9 +355,9 @@ def VADDS  : ASbIn<0b11100, 0b11, 0, 0,
 
 let TwoOperandAliasConstraint = "$Sn = $Sd" in
 def VADDH  : AHbI<0b11100, 0b11, 0, 0,
-                  (outs SPR:$Sd), (ins SPR:$Sn, SPR:$Sm),
+                  (outs HPR:$Sd), (ins HPR:$Sn, HPR:$Sm),
                   IIC_fpALU16, "vadd", ".f16\t$Sd, $Sn, $Sm",
-                  []>,
+                  [(set HPR:$Sd, (fadd HPR:$Sn, HPR:$Sm))]>,
              Sched<[WriteFPALU32]>;
 
 let TwoOperandAliasConstraint = "$Dn = $Dd" in
@@ -380,9 +380,9 @@ def VSUBS  : ASbIn<0b11100, 0b11, 1, 0,
 
 let TwoOperandAliasConstraint = "$Sn = $Sd" in
 def VSUBH  : AHbI<0b11100, 0b11, 1, 0,
-                  (outs SPR:$Sd), (ins SPR:$Sn, SPR:$Sm),
+                  (outs HPR:$Sd), (ins HPR:$Sn, HPR:$Sm),
                   IIC_fpALU16, "vsub", ".f16\t$Sd, $Sn, $Sm",
-                  []>,
+                  [(set HPR:$Sd, (fsub HPR:$Sn, HPR:$Sm))]>,
             Sched<[WriteFPALU32]>;
 
 let TwoOperandAliasConstraint = "$Dn = $Dd" in

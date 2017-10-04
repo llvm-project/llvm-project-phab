@@ -296,6 +296,23 @@ def SPR : RegisterClass<"ARM", [f32], 32, (sequence "S%u", 0, 31)> {
   }];
 }
 
+// Half-precision (FullFP16) register class. It's exactly the same as the 
+// single-precision class, using the same S-registers. Each instruction that generates a 
+// FP16 result writes that to the bottom 16 bits of the associated 32-bit Floating-point
+// register and the top 16 bits of the 32-bit floating-point register are written to 0.
+// A different register class is added, as opposed to adding f16 to SPR, to avoid 
+// modifying and adding type information to the rules.
+def HPR : RegisterClass<"ARM", [f16], 32, (sequence "S%u", 0, 31)> {
+  let AltOrders = [(add (decimate SPR, 2), SPR),
+                   (add (decimate SPR, 4),
+                        (decimate SPR, 2),
+                        (decimate (rotl SPR, 1), 4),
+                        (decimate (rotl SPR, 1), 2))];
+  let AltOrderSelect = [{
+    return 1 + MF.getSubtarget<ARMSubtarget>().useStride4VFPs(MF);
+  }];
+}
+
 // Subset of SPR which can be used as a source of NEON scalars for 16-bit
 // operations
 def SPR_8 : RegisterClass<"ARM", [f32], 32, (sequence "S%u", 0, 15)>;
