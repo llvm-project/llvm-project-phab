@@ -1144,6 +1144,7 @@ static uint64_t getRawAttributeMask(Attribute::AttrKind Val) {
   case Attribute::WriteOnly:       return 1ULL << 53;
   case Attribute::Speculatable:    return 1ULL << 54;
   case Attribute::StrictFP:        return 1ULL << 55;
+  case Attribute::SanitizeType:    return 1ULL << 56;
   case Attribute::Dereferenceable:
     llvm_unreachable("dereferenceable attribute not supported in raw format");
     break;
@@ -1360,6 +1361,8 @@ static Attribute::AttrKind getAttrFromCode(uint64_t Code) {
     return Attribute::SanitizeThread;
   case bitc::ATTR_KIND_SANITIZE_MEMORY:
     return Attribute::SanitizeMemory;
+  case bitc::ATTR_KIND_SANITIZE_TYPE:
+    return Attribute::SanitizeType;
   case bitc::ATTR_KIND_SWIFT_ERROR:
     return Attribute::SwiftError;
   case bitc::ATTR_KIND_SWIFT_SELF:

@@ -667,6 +667,8 @@ static uint64_t getAttrKindEncoding(Attribute::AttrKind Kind) {
     return bitc::ATTR_KIND_SANITIZE_THREAD;
   case Attribute::SanitizeMemory:
     return bitc::ATTR_KIND_SANITIZE_MEMORY;
+  case Attribute::SanitizeType:
+    return bitc::ATTR_KIND_SANITIZE_TYPE;
   case Attribute::SwiftError:
     return bitc::ATTR_KIND_SWIFT_ERROR;
   case Attribute::SwiftSelf:

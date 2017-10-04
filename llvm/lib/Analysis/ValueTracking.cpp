@@ -3522,7 +3522,10 @@ bool llvm::isSafeToSpeculativelyExecute(const Value *V,
         // Speculative load may create a race that did not exist in the source.
         LI->getFunction()->hasFnAttribute(Attribute::SanitizeThread) ||
         // Speculative load may load data from dirty regions.
-        LI->getFunction()->hasFnAttribute(Attribute::SanitizeAddress))
+        LI->getFunction()->hasFnAttribute(Attribute::SanitizeAddress) ||
+        // Speculative load may load data of the wrong type.
+        (LI->getFunction()->hasFnAttribute(Attribute::SanitizeType) &&
+         LI->getMetadata(LLVMContext::MD_tbaa) != nullptr))
       return false;
     const DataLayout &DL = LI->getModule()->getDataLayout();
     return isDereferenceableAndAlignedPointer(LI->getPointerOperand(),
