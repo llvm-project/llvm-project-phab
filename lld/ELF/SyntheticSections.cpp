@@ -49,7 +49,7 @@ using namespace llvm::support::endian;
 using namespace lld;
 using namespace lld::elf;
 
-constexpr size_t MergeNoTailSection::NumShards;
+constexpr size_t MergeSyntheticSection::NumShards;
 
 uint64_t SyntheticSection::getVA() const {
   if (OutputSection *Sec = getParent())
@@ -2179,41 +2179,28 @@ template <class ELFT> bool VersionNeedSection<ELFT>::empty() const {
   return getNeedNum() == 0;
 }
 
+MergeSyntheticSection::MergeSyntheticSection(StringRef Name, uint32_t Type,
+                                             uint64_t Flags, uint32_t Alignment)
+    : SyntheticSection(Flags, Type, Alignment, Name) {
+  // Initialize string builders.
+  for (size_t I = 0; I < NumShards; ++I)
+    Shards.emplace_back(StringTableBuilder::RAW, Alignment);
+
+  // Initializes concurrency level. Must be a power of 2 to avoid
+  // the expensive modulo operation when dividing with this value.
+  if (Config->Threads)
+    Concurrency =
+        std::min<size_t>(PowerOf2Floor(hardware_concurrency()), NumShards);
+  else
+    Concurrency = 1;
+}
+
 void MergeSyntheticSection::addSection(MergeInputSection *MS) {
   MS->Parent = this;
   Sections.push_back(MS);
 }
 
-MergeTailSection::MergeTailSection(StringRef Name, uint32_t Type,
-                                   uint64_t Flags, uint32_t Alignment)
-    : MergeSyntheticSection(Name, Type, Flags, Alignment),
-      Builder(StringTableBuilder::RAW, Alignment) {}
-
-size_t MergeTailSection::getSize() const { return Builder.getSize(); }
-
-void MergeTailSection::writeTo(uint8_t *Buf) { Builder.write(Buf); }
-
-void MergeTailSection::finalizeContents() {
-  // Add all string pieces to the string table builder to create section
-  // contents.
-  for (MergeInputSection *Sec : Sections)
-    for (size_t I = 0, E = Sec->Pieces.size(); I != E; ++I)
-      if (Sec->Pieces[I].Live)
-        Builder.add(Sec->getData(I));
-
-  // Fix the string table content. After this, the contents will never change.
-  Builder.finalize();
-
-  // finalize() fixed tail-optimized strings, so we can now get
-  // offsets of strings. Get an offset for each string and save it
-  // to a corresponding StringPiece for easy access.
-  for (MergeInputSection *Sec : Sections)
-    for (size_t I = 0, E = Sec->Pieces.size(); I != E; ++I)
-      if (Sec->Pieces[I].Live)
-        Sec->Pieces[I].OutputOff = Builder.getOffset(Sec->getData(I));
-}
-
-void MergeNoTailSection::writeTo(uint8_t *Buf) {
+void MergeSyntheticSection::writeTo(uint8_t *Buf) {
   for (size_t I = 0; I < NumShards; ++I)
     Shards[I].write(Buf + ShardOffsets[I]);
 }
@@ -2227,17 +2214,6 @@ void MergeNoTailSection::writeTo(uint8_t *Buf) {
 // T into different string builders without worrying about merge misses.
 // We do it in parallel.
 void MergeNoTailSection::finalizeContents() {
-  // Initializes string table builders.
-  for (size_t I = 0; I < NumShards; ++I)
-    Shards.emplace_back(StringTableBuilder::RAW, Alignment);
-
-  // Concurrency level. Must be a power of 2 to avoid expensive modulo
-  // operations in the following tight loop.
-  size_t Concurrency = 1;
-  if (Config->Threads)
-    Concurrency =
-        std::min<size_t>(PowerOf2Floor(hardware_concurrency()), NumShards);
-
   // Add section pieces to the builders.
   parallelForEachN(0, Concurrency, [&](size_t ThreadId) {
     for (MergeInputSection *Sec : Sections) {
@@ -2270,6 +2246,70 @@ void MergeNoTailSection::finalizeContents() {
       if (Sec->Pieces[I].Live)
         Sec->Pieces[I].OutputOff +=
             ShardOffsets[getShardId(Sec->getData(I).hash())];
+  });
+}
+
+static uint32_t tailHash(StringRef S) {
+  if (S.size() < 4)
+    return 0;
+  return xxHash64(S.substr(S.size() - 4));
+}
+
+// This function basically does the same thing as MergeNoTailSection
+// does but creates a tail-merged string table. E.g. "def\0" is merged
+// with "abcdef\0". This is enabled only when -O2 is given.
+//
+// Input strings are sharded based on their very last few characters.
+// This works because, if strings S and T can be tail-merged, S and T
+// must share the same tail substring. Currently we use the last 4
+// characters for sharding.
+//
+// Note that strings shorter than 4 characters may not be tail-merged.
+// That is okay because the loss seems negligible. My observation is
+// that a loss is 8 KiB when we create a 1.7 GiB clang executable.
+void MergeTailSection::finalizeContents() {
+  // Initializes TailHashes by hash values of last few characters.
+  parallelForEach(Sections, [&](MergeInputSection *Sec) {
+    Sec->TailHashes.resize(Sec->Pieces.size());
+    for (size_t I = 0, E = Sec->Pieces.size(); I != E; ++I)
+      if (Sec->Pieces[I].Live)
+        Sec->TailHashes[I] = tailHash(Sec->getData(I).val());
+  });
+
+  // Add section pieces to the builders.
+  parallelForEachN(0, Concurrency, [&](size_t ThreadId) {
+    for (MergeInputSection *Sec : Sections) {
+      for (size_t I = 0, E = Sec->Pieces.size(); I != E; ++I) {
+        if (!Sec->Pieces[I].Live)
+          continue;
+        size_t ShardId = Sec->TailHashes[I] % NumShards;
+        if ((ShardId & (Concurrency - 1)) == ThreadId)
+          Shards[ShardId].add(Sec->getData(I));
+      }
+    }
+  });
+
+  parallelForEach(Shards, [](StringTableBuilder &S) { S.finalize(); });
+
+  // Compute an in-section offset for each shard.
+  size_t Off = 0;
+  for (size_t I = 0; I < NumShards; ++I) {
+    if (Shards[I].getSize() > 0)
+      Off = alignTo(Off, Alignment);
+    ShardOffsets[I] = Off;
+    Off += Shards[I].getSize();
+  }
+  Size = Off;
+
+  // Set to section piece offsets.
+  parallelForEach(Sections, [&](MergeInputSection *Sec) {
+    for (size_t I = 0, E = Sec->Pieces.size(); I != E; ++I) {
+      if (!Sec->Pieces[I].Live)
+        continue;
+      size_t ShardId = Sec->TailHashes[I] % NumShards;
+      Sec->Pieces[I].OutputOff =
+          ShardOffsets[ShardId] + Shards[ShardId].getOffset(Sec->getData(I));
+    }
   });
 }
 

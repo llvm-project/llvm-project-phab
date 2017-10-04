@@ -228,6 +228,9 @@ public:
   // rather than a single large blob of data.
   std::vector<SectionPiece> Pieces;
 
+  // Used by MergeTailSection.
+  std::vector<uint16_t> TailHashes;
+
   // Returns I'th piece's data. This function is very hot when
   // string merging is enabled, so we want to inline.
   LLVM_ATTRIBUTE_ALWAYS_INLINE
@@ -254,7 +257,6 @@ private:
   void splitNonStrings(ArrayRef<uint8_t> A, size_t Size);
 
   std::vector<uint32_t> Hashes;
-
   mutable llvm::DenseMap<uint64_t, uint64_t> OffsetMap;
   mutable llvm::once_flag InitOffsetMap;
 
