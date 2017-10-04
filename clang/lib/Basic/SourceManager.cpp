@@ -1084,11 +1084,50 @@ const char *SourceManager::getCharacterData(SourceLocation SL,
   return Buffer->getBufferStart() + (CharDataInvalid? 0 : LocInfo.second);
 }
 
+static unsigned correctForMultiByteChars(const char *Buf, unsigned LineStart,
+                                         unsigned Column) {
+  auto isDiacriticMark = [Buf, LineStart, Column](unsigned I) -> bool {
+    if (I + 1 >= Column)
+      return false;
+    unsigned char FirstByte = static_cast<unsigned char>(Buf[LineStart + I]);
+    unsigned char SecondByte =
+        static_cast<unsigned char>(Buf[LineStart + I + 1]);
+    if (FirstByte == 0xcc) {
+      return SecondByte >= 0x80;
+    } else if (FirstByte == 0xcd) {
+      return SecondByte < 0xaf;
+    }
+    return false;
+  };
+
+  unsigned CorrectedColumn = Column;
+  unsigned char FirstByte;
+  for (unsigned I = 0; I < Column; ++I) {
+    FirstByte = static_cast<unsigned char>(Buf[LineStart + I]);
+    if (FirstByte < 0xc0)
+      continue;
+    if (isDiacriticMark(I)) {
+      CorrectedColumn -= 2;
+      ++I;
+    } else if (FirstByte < 0xe0) {
+      --CorrectedColumn;
+      ++I;
+    } else if (FirstByte < 0xf0) {
+      CorrectedColumn -= 2;
+      I += 2;
+    } else {
+      CorrectedColumn -= 3;
+      I += 3;
+    }
+  }
+  return CorrectedColumn;
+}
 
 /// getColumnNumber - Return the column # for the specified file position.
 /// this is significantly cheaper to compute than the line number.
 unsigned SourceManager::getColumnNumber(FileID FID, unsigned FilePos,
-                                        bool *Invalid) const {
+                                        bool *Invalid,
+                                        bool BytePosition) const {
   bool MyInvalid = false;
   llvm::MemoryBuffer *MemBuf = getBuffer(FID, &MyInvalid);
   if (Invalid)
@@ -1122,14 +1161,18 @@ unsigned SourceManager::getColumnNumber(FileID FID, unsigned FilePos,
         if (Buf[FilePos - 1] == '\r' || Buf[FilePos - 1] == '\n')
           --FilePos;
       }
-      return FilePos - LineStart + 1;
+      unsigned Column = FilePos - LineStart + 1;
+      return BytePosition ? Column
+                          : correctForMultiByteChars(Buf, LineStart, Column);
     }
   }
 
   unsigned LineStart = FilePos;
   while (LineStart && Buf[LineStart-1] != '\n' && Buf[LineStart-1] != '\r')
     --LineStart;
-  return FilePos-LineStart+1;
+  unsigned Column = FilePos - LineStart + 1;
+  return BytePosition ? Column
+                      : correctForMultiByteChars(Buf, LineStart, Column);
 }
 
 // isInvalid - Return the result of calling loc.isInvalid(), and
@@ -1454,7 +1497,8 @@ PresumedLoc SourceManager::getPresumedLoc(SourceLocation Loc,
   unsigned LineNo = getLineNumber(LocInfo.first, LocInfo.second, &Invalid);
   if (Invalid)
     return PresumedLoc();
-  unsigned ColNo  = getColumnNumber(LocInfo.first, LocInfo.second, &Invalid);
+  unsigned ColNo = getColumnNumber(LocInfo.first, LocInfo.second, &Invalid,
+                                   /*BytePosition=*/false);
   if (Invalid)
     return PresumedLoc();
   

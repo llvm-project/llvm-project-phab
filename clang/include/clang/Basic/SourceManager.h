@@ -1300,7 +1300,8 @@ public:
   /// on a file sloc, so you must choose a spelling or expansion location
   /// before calling this method.
   unsigned getColumnNumber(FileID FID, unsigned FilePos,
-                           bool *Invalid = nullptr) const;
+                           bool *Invalid = nullptr,
+                           bool BytePosition = true) const;
   unsigned getSpellingColumnNumber(SourceLocation Loc,
                                    bool *Invalid = nullptr) const;
   unsigned getExpansionColumnNumber(SourceLocation Loc,
