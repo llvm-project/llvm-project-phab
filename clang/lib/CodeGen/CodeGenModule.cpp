@@ -133,8 +133,9 @@ CodeGenModule::CodeGenModule(ASTContext &C, const HeaderSearchOptions &HSO,
   if (LangOpts.CUDA)
     createCUDARuntime();
 
-  // Enable TBAA unless it's suppressed. ThreadSanitizer needs TBAA even at O0.
-  if (LangOpts.Sanitize.has(SanitizerKind::Thread) ||
+  // Enable TBAA unless it's suppressed. ThreadSanitizer needs TBAA even at O0
+  // (as does TypeSanitizer).
+  if (LangOpts.Sanitize.hasOneOf(SanitizerKind::Thread | SanitizerKind::Type) ||
       (!CodeGenOpts.RelaxedAliasing && CodeGenOpts.OptimizationLevel > 0))
     TBAA.reset(new CodeGenTBAA(Context, VMContext, CodeGenOpts, getLangOpts(),
                                getCXXABI().getMangleContext()));
@@ -2940,6 +2941,7 @@ void CodeGenModule::EmitGlobalVarDefinition(const VarDecl *D,
     EmitCXXGlobalVarDeclInitFunc(D, GV, NeedsGlobalCtor);
 
   SanitizerMD->reportGlobalToASan(GV, *D, NeedsGlobalCtor);
+  SanitizerMD->reportGlobalToTySan(GV, *D);
 
   // Emit global variable debug information.
   if (CGDebugInfo *DI = getModuleDebugInfo())
