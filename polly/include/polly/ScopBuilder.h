@@ -233,7 +233,7 @@ class ScopBuilder {
   ///
   /// Consecutive instructions are associated to the same statement until a
   /// separator is found.
-  void buildSequentialBlockStmts(BasicBlock *BB);
+  void buildSequentialBlockStmts(BasicBlock *BB, bool Split = false);
 
   /// Create ScopStmt for all BBs and non-affine subregions of @p SR.
   ///

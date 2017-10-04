@@ -102,14 +102,16 @@ static cl::opt<bool> DisableMultiplicativeReductions(
     cl::desc("Disable multiplicative reductions"), cl::Hidden, cl::ZeroOrMore,
     cl::init(false), cl::cat(PollyCategory));
 
-enum class GranularityChoice { BasicBlocks };
+enum class GranularityChoice { BasicBlocks, Stores };
 
 static cl::opt<GranularityChoice> StmtGranularity(
     "polly-stmt-granularity",
     cl::desc(
         "Algorithm to use for splitting basic blocks into multiple statements"),
     cl::values(clEnumValN(GranularityChoice::BasicBlocks, "bb",
-                          "One statement per basic block")),
+                          "One statement per basic block"),
+               clEnumValN(GranularityChoice::Stores, "store",
+                          "Store-level granularity")),
     cl::init(GranularityChoice::BasicBlocks), cl::cat(PollyCategory));
 
 void ScopBuilder::buildPHIAccesses(ScopStmt *PHIStmt, PHINode *PHI,
@@ -683,7 +685,7 @@ bool ScopBuilder::shouldModelInst(Instruction *Inst, Loop *L) {
          !canSynthesize(Inst, *scop, &SE, L);
 }
 
-void ScopBuilder::buildSequentialBlockStmts(BasicBlock *BB) {
+void ScopBuilder::buildSequentialBlockStmts(BasicBlock *BB, bool Split) {
   Loop *SurroundingLoop = LI.getLoopFor(BB);
 
   int Count = 0;
@@ -691,7 +693,8 @@ void ScopBuilder::buildSequentialBlockStmts(BasicBlock *BB) {
   for (Instruction &Inst : *BB) {
     if (shouldModelInst(&Inst, SurroundingLoop))
       Instructions.push_back(&Inst);
-    if (Inst.getMetadata("polly_split_after")) {
+    if (Inst.getMetadata("polly_split_after") ||
+        (Split && isa<StoreInst>(Inst))) {
       scop->addScopStmt(BB, SurroundingLoop, Instructions, Count);
       Count++;
       Instructions.clear();
@@ -721,6 +724,9 @@ void ScopBuilder::buildStmts(Region &SR) {
       switch (StmtGranularity) {
       case GranularityChoice::BasicBlocks:
         buildSequentialBlockStmts(BB);
+        break;
+      case GranularityChoice::Stores:
+        buildSequentialBlockStmts(BB, true);
         break;
       }
     }
