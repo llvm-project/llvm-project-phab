@@ -21,6 +21,7 @@
 #include "llvm/Analysis/BlockFrequencyInfo.h"
 #include "llvm/Analysis/CodeMetrics.h"
 #include "llvm/Analysis/ConstantFolding.h"
+#include "llvm/Analysis/CFG.h"
 #include "llvm/Analysis/InstructionSimplify.h"
 #include "llvm/Analysis/ProfileSummaryInfo.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
@@ -163,12 +164,20 @@ class CallAnalyzer : public InstVisitor<CallAnalyzer, bool> {
   /// Keep track of values which map to a pointer base and constant offset.
   DenseMap<Value *, std::pair<Value *, APInt>> ConstantOffsetPtrs;
 
+  /// Kepp track of dead blocks due to the constant arguments.
+  SetVector<BasicBlock *> DeadBlocks;
+
+  /// The mapping of the blocks to their known successors due to the constant
+  /// arguments.
+  DenseMap<BasicBlock *, BasicBlock *> KnownSuccessors;
+
   // Custom simplification helper routines.
   bool isAllocaDerivedArg(Value *V);
   bool lookupSROAArgAndCost(Value *V, Value *&Arg,
                             DenseMap<Value *, int>::iterator &CostIt);
   void disableSROA(DenseMap<Value *, int>::iterator CostIt);
   void disableSROA(Value *V);
+  void findDeadBlocks(BasicBlock *CurrBB, BasicBlock *NextBB);
   void accumulateSROACost(DenseMap<Value *, int>::iterator CostIt,
                           int InstructionCost);
   bool isGEPFree(GetElementPtrInst &GEP);
@@ -419,15 +428,94 @@ bool CallAnalyzer::visitAlloca(AllocaInst &I) {
 }
 
 bool CallAnalyzer::visitPHI(PHINode &I) {
-  // FIXME: We should potentially be tracking values through phi nodes,
-  // especially when they collapse to a single value due to deleted CFG edges
-  // during inlining.
-
   // FIXME: We need to propagate SROA *disabling* through phi nodes, even
   // though we don't want to propagate it's bonuses. The idea is to disable
   // SROA if it *might* be used in an inappropriate manner.
 
   // Phi nodes are always zero-cost.
+
+  APInt ZeroOffset = APInt::getNullValue(DL.getPointerSizeInBits());
+  bool CheckSROA = I.getType()->isPointerTy();
+
+  // Track the constant or pointer with constant offset we've seen so far.
+  Constant *FirstC = nullptr;
+  std::pair<Value *, APInt> FirstBaseAndOffset = {nullptr, ZeroOffset};
+  Value *FirstV = nullptr;
+
+  for (unsigned i = 0, e = I.getNumIncomingValues(); i != e; ++i) {
+    BasicBlock *Pred = I.getIncomingBlock(i);
+    // If the incoming block is dead, skip the incoming block.
+    if (DeadBlocks.count(Pred))
+      continue;
+    // If the parent block of phi is not the known successor of the incoming
+    // block, skip the incoming block.
+    BasicBlock *KnownSuccessor = KnownSuccessors[Pred];
+    if (KnownSuccessor && KnownSuccessor != I.getParent())
+      continue;
+
+    Value *V = I.getIncomingValue(i);
+    // If the incoming value is this phi itself, skip the incoming value.
+    if (&I == V)
+      continue;
+
+    Constant *C = dyn_cast<Constant>(V);
+    if (!C)
+      C = SimplifiedValues.lookup(V);
+
+    if (C) {
+      if (!FirstC)
+        // If this is the 1st time we've seen a constant, record it.
+        FirstC = C;
+      else if (C != FirstC)
+        // If the incoming consant value is different from what we saw before,
+        // exit early.
+        return true;
+
+      continue;
+    }
+
+    if (!CheckSROA)
+      // The incoming value is not a constant and has no SROA opportunity, exit
+      // early.
+      return true;
+
+    std::pair<Value *, APInt> BaseAndOffset = ConstantOffsetPtrs.lookup(V);
+
+    if (BaseAndOffset.first) {
+      if (!FirstV) {
+        // If this is the 1st time we've seen a pointer with constant offset,
+        // record it.
+        FirstV = V;
+        FirstBaseAndOffset = BaseAndOffset;
+      } else if (BaseAndOffset != FirstBaseAndOffset)
+        // If the incoming value is different from what we saw before, exit
+        // early.
+        return true;
+
+      continue;
+    }
+
+    // Eearly exit since there is no opportunity to propogate constants or
+    // pointers with constant offsets
+    return true;
+  }
+
+  // Check if we can map phi to a constant.
+  if (FirstC) {
+    SimplifiedValues[&I] = FirstC;
+    return true;
+  }
+
+  // Check if we can map phi to a pointer with constant offset.
+  if (FirstBaseAndOffset.first) {
+    ConstantOffsetPtrs[&I] = FirstBaseAndOffset;
+
+    Value *SROAArg;
+    DenseMap<Value *, int>::iterator CostIt;
+    if (lookupSROAArgAndCost(FirstV, SROAArg, CostIt))
+      SROAArgValues[&I] = SROAArg;
+  }
+
   return true;
 }
 
@@ -1514,6 +1602,40 @@ ConstantInt *CallAnalyzer::stripAndComputeInBoundsConstantOffsets(Value *&V) {
   return cast<ConstantInt>(ConstantInt::get(IntPtrTy, Offset));
 }
 
+/// \brief Find dead blocks due to deleted CFG edges during inlining.
+///
+/// If we know the successor of the current block, \p CurrBB, has to be \p
+/// NextBB, the other successors of \p CurrBB are dead if these successors have
+/// no other predecessors or the other predecessors are also dead.  If one block
+/// is found to be dead, we can continue growing the dead block list by checking
+/// the successors of the dead blocks to see if all their predecessors are dead.
+void CallAnalyzer::findDeadBlocks(BasicBlock *CurrBB, BasicBlock *NextBB) {
+  for (BasicBlock *Succ : successors(CurrBB)) {
+    if (Succ == NextBB || DeadBlocks.count(Succ) ||
+        // Succ is live if any of its predecessors other than CurrBB is live.
+        llvm::any_of(predecessors(Succ), [&](BasicBlock *Pred) {
+          return (Pred != CurrBB && !DeadBlocks.count(Pred));
+        }))
+      continue;
+    SmallVector<BasicBlock *, 4> NewDead;
+    NewDead.push_back(Succ);
+    while (!NewDead.empty()) {
+      BasicBlock *Dead = NewDead.pop_back_val();
+      if (DeadBlocks.insert(Dead)) {
+        // Continue growing the dead block lists.  If all the predessors of the
+        // dead block's successor are all dead, the successor is also dead.
+        for (BasicBlock *S : successors(Dead)) {
+          if (!DeadBlocks.count(S) &&
+              llvm::all_of(predecessors(S), [&](BasicBlock *P) {
+                return (DeadBlocks.count(P));
+              }))
+            NewDead.push_back(S);
+        }
+      }
+    }
+  }
+}
+
 /// \brief Analyze a call site for potential inlining.
 ///
 /// Returns true if inlining this call is viable, and false if it is not
@@ -1651,7 +1773,10 @@ bool CallAnalyzer::analyzeCall(CallSite CS) {
         Value *Cond = BI->getCondition();
         if (ConstantInt *SimpleCond =
                 dyn_cast_or_null<ConstantInt>(SimplifiedValues.lookup(Cond))) {
-          BBWorklist.insert(BI->getSuccessor(SimpleCond->isZero() ? 1 : 0));
+          BasicBlock *NextBB = BI->getSuccessor(SimpleCond->isZero() ? 1 : 0);
+          BBWorklist.insert(NextBB);
+          KnownSuccessors[BB] = NextBB;
+          findDeadBlocks(BB, NextBB);
           continue;
         }
       }
@@ -1659,7 +1784,10 @@ bool CallAnalyzer::analyzeCall(CallSite CS) {
       Value *Cond = SI->getCondition();
       if (ConstantInt *SimpleCond =
               dyn_cast_or_null<ConstantInt>(SimplifiedValues.lookup(Cond))) {
-        BBWorklist.insert(SI->findCaseValue(SimpleCond)->getCaseSuccessor());
+        BasicBlock *NextBB = SI->findCaseValue(SimpleCond)->getCaseSuccessor();
+        BBWorklist.insert(NextBB);
+        KnownSuccessors[BB] = NextBB;
+        findDeadBlocks(BB, NextBB);
         continue;
       }
     }
