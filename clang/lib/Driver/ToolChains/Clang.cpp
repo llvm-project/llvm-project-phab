@@ -2252,6 +2252,8 @@ static void RenderAnalyzerOptions(const ArgList &Args, ArgStringList &CmdArgs,
       CmdArgs.push_back("-analyzer-checker=security.insecureAPI.mktemp");
       CmdArgs.push_back("-analyzer-checker=security.insecureAPI.mkstemp");
       CmdArgs.push_back("-analyzer-checker=security.insecureAPI.vfork");
+      CmdArgs.push_back("-analyzer-checker=security.insecureAPI.DeprecatedOrUnsafeBufferHandling");
+      CmdArgs.push_back("-analyzer-checker=security.insecureAPI.DeprecatedBufferHandling");
     }
 
     // Default nullability checks.
