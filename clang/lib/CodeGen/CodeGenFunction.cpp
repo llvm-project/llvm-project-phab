@@ -2274,3 +2274,56 @@ llvm::DebugLoc CodeGenFunction::SourceLocToDebugLoc(SourceLocation Location) {
 
   return llvm::DebugLoc();
 }
+
+llvm::Value *
+CodeGenFunction::FormResolverCondition(const ResolverOption &RO) {
+  llvm::Value *TrueCondition = nullptr;
+  if (!RO.AttrInfo.Architecture.empty())
+    TrueCondition = EmitX86CpuIs(RO.AttrInfo.Architecture);
+
+  if (!RO.AttrInfo.Features.empty()) {
+    SmallVector<StringRef, 8> FeatureList;
+    std::for_each(std::begin(RO.AttrInfo.Features),
+                  std::end(RO.AttrInfo.Features),
+                  [&FeatureList](const std::string &Feature) {
+                    FeatureList.push_back(StringRef{Feature}.substr(1));
+                  });
+    llvm::Value *FeatureCmp = EmitX86CpuSupports(FeatureList);
+    TrueCondition = TrueCondition
+                        ? Builder.CreateAnd(TrueCondition, FeatureCmp)
+                        : FeatureCmp;
+  }
+  return TrueCondition;
+}
+
+void CodeGenFunction::EmitMultiVersionResolver(
+    llvm::Function *ResolverFunc, ArrayRef<ResolverOption> ResolverOptions) {
+  assert((getContext().getTargetInfo().getTriple().getArch() ==
+              llvm::Triple::x86 ||
+          getContext().getTargetInfo().getTriple().getArch() ==
+              llvm::Triple::x86_64) &&
+         "Only implemented for x86 targets");
+
+  // Main function's basic block.
+  llvm::BasicBlock *CurBlock = createBasicBlock("entry", ResolverFunc);
+
+  llvm::Function *DefaultFunc = nullptr;
+  for (const ResolverOption &RO : ResolverOptions) {
+    Builder.SetInsertPoint(CurBlock);
+    llvm::Value *TrueCondition = FormResolverCondition(RO);
+
+    if (!TrueCondition) {
+      DefaultFunc = RO.Function;
+    } else {
+      llvm::BasicBlock *RetBlock = createBasicBlock("ro_ret", ResolverFunc);
+      llvm::IRBuilder<> RetBuilder(RetBlock);
+      RetBuilder.CreateRet(RO.Function);
+      CurBlock = createBasicBlock("ro_else", ResolverFunc);
+      Builder.CreateCondBr(TrueCondition, RetBlock, CurBlock);
+    }
+  }
+  assert(DefaultFunc && "No default version?");
+  // Emit return from the 'else-ist' block.
+  Builder.SetInsertPoint(CurBlock);
+  Builder.CreateRet(DefaultFunc);
+}

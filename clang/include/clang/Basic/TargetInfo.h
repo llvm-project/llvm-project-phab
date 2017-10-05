@@ -922,6 +922,12 @@ public:
   // argument.
   virtual bool validateCpuIs(StringRef Name) const { return false; }
 
+  // \brief Provide ordering for the CPU Features and Names such that it can
+  // used for dispatchers.
+  virtual bool compareCpusAndFeatures(StringRef Lhs, StringRef Rhs) const {
+    return false;
+  }
+
   // \brief Returns maximal number of args passed in registers.
   unsigned getRegParmMax() const {
     assert(RegParmMax < 7 && "RegParmMax value is larger than AST can handle");

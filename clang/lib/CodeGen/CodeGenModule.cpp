@@ -285,6 +285,49 @@ static const llvm::GlobalObject *getAliasedGlobal(
   }
 }
 
+void CodeGenModule::EmitMultiVersionResolver(StringRef MangledName,
+                                             const FunctionDecl *FD) {
+  llvm::Function *ResolverFunc =
+      cast<llvm::Function>(GetGlobalValue((MangledName + ".resolver").str()));
+  SmallVector<CodeGenFunction::ResolverOption, 8> ResolverOptions;
+  for (FunctionDecl *CurFD : FD->redecls()) {
+    std::string FuncName = MakeMultiVersionName(MangledName, CurFD);
+    llvm::Constant *Func = GetGlobalValue(FuncName);
+    if (!Func) {
+      GlobalDecl GD{CurFD};
+      if (CurFD->isThisDeclarationADefinition()) {
+        // If the function is defined, make sure we emit it.
+        EmitGlobalDefinition(GD);
+        Func = GetGlobalValue(FuncName);
+      } else {
+        // We still need to create declarations, since the resolver needs them.
+        const CGFunctionInfo &FI = getTypes().arrangeGlobalDeclaration(GD);
+        llvm::FunctionType *Ty = getTypes().GetFunctionType(FI);
+        Func = GetAddrOfFunction(GD, Ty, /*ForVTable=*/false,
+                                 /*DontDefer=*/false, ForDefinition);
+      }
+      assert(Func && "This should have just been created");
+    }
+
+    ResolverOptions.emplace_back(CurFD->getAttr<TargetAttr>()->parse(),
+                                 cast<llvm::Function>(Func));
+  }
+
+  // Sort resolver options.
+  auto *TargetInfo = &Context.getTargetInfo();
+  auto CmpFunc = [TargetInfo](StringRef LHS, StringRef RHS) {
+    return TargetInfo->compareCpusAndFeatures(LHS, RHS);
+  };
+  std::sort(std::begin(ResolverOptions), std::end(ResolverOptions),
+            [CmpFunc](const CodeGenFunction::ResolverOption &LHS,
+                      const CodeGenFunction::ResolverOption &RHS) {
+              return CmpFunc(LHS.AttrInfo.getHighestPriority(CmpFunc),
+                             RHS.AttrInfo.getHighestPriority(CmpFunc));
+            });
+  CodeGenFunction CGF(*this);
+  CGF.EmitMultiVersionResolver(ResolverFunc, ResolverOptions);
+}
+
 void CodeGenModule::checkAliases() {
   // Check if the constructed aliases are well formed. It is really unfortunate
   // that we have to do this in CodeGen, but we only construct mangled names
@@ -362,6 +405,40 @@ void CodeGenModule::checkAliases() {
   }
 }
 
+void CodeGenModule::checkMultiversions() {
+  // Cleanup the IFuncs calls for multiversioning.
+  for (const GlobalDecl &GD : MultiVersionFuncs) {
+    bool DefaultFound = false;
+    for (auto *Decl : GD.getDecl()->getMostRecentDecl()->redecls())
+      if (Decl->getAttr<TargetAttr>()->getFeaturesStr() == "default")
+        DefaultFound = true;
+
+    StringRef MangledName = getMangledName(GD);
+    llvm::GlobalValue *BaseFunc = GetGlobalValue(MangledName);
+    llvm::GlobalValue *IFunc = GetGlobalValue((MangledName + ".ifunc").str());
+    assert(IFunc && "Multiversioning not legal without an IFunc");
+    if (!DefaultFound && cast<FunctionDecl>(GD.getDecl())->isDefined()) {
+      Diags.Report(
+          cast<FunctionDecl>(GD.getDecl())->getFirstDecl()->getLocation(),
+          diag::err_target_without_default);
+      // In the error case, replace all uses with an undef.
+      if (BaseFunc) {
+        BaseFunc->replaceAllUsesWith(
+            llvm::UndefValue::get(BaseFunc->getType()));
+        BaseFunc->eraseFromParent();
+      }
+      continue;
+    }
+
+    if (cast<FunctionDecl>(GD.getDecl())->isDefined())
+      EmitMultiVersionResolver(
+          MangledName, cast<FunctionDecl>(GD.getDecl()->getMostRecentDecl()));
+    if (BaseFunc)
+      BaseFunc->replaceAllUsesWith(
+          llvm::ConstantExpr::getBitCast(IFunc, BaseFunc->getType()));
+  }
+}
+
 void CodeGenModule::clear() {
   DeferredDeclsToEmit.clear();
   if (OpenMPRuntime)
@@ -391,6 +468,7 @@ void CodeGenModule::Release() {
   applyGlobalValReplacements();
   applyReplacements();
   checkAliases();
+  checkMultiversions();
   EmitCXXGlobalInitFunc();
   EmitCXXGlobalDtorFunc();
   EmitCXXThreadLocalInitFunc();
@@ -2032,6 +2110,73 @@ void CodeGenModule::EmitGlobalDefinition(GlobalDecl GD, llvm::GlobalValue *GV) {
 static void ReplaceUsesOfNonProtoTypeWithRealFunction(llvm::GlobalValue *Old,
                                                       llvm::Function *NewFn);
 
+std::string CodeGenModule::MakeMultiVersionName(StringRef MangledName,
+                                                const Decl *D) {
+  assert(D && "Decl cannot be null");
+  const auto *TA = D->getAttr<TargetAttr>();
+  assert(TA && "Decl must have a Target Attribute");
+  auto Append = TA->multiVersionMangleAddition();
+  if (Append.empty())
+    return MangledName;
+  return (MangledName + "." + Append).str();
+}
+
+llvm::GlobalValue *CodeGenModule::GetOrCreateMultiVersionIFunc(
+    GlobalDecl GD, llvm::Type *DeclTy, StringRef MangledName,
+    const FunctionDecl *FD, llvm::GlobalValue *GV) {
+  std::string IFuncName = (MangledName + ".ifunc").str();
+  llvm::GlobalValue *IFuncGV = GetGlobalValue(IFuncName);
+
+  if (IFuncGV)
+    return IFuncGV;
+
+  // Since this is the first time we've created this IFunc, make sure
+  // that we put this multiversioned function into the list to be 
+  // replaced later.
+  MultiVersionFuncs.push_back(GD);
+
+  std::string ResolverName = (MangledName + ".resolver").str();
+  llvm::Type *ResolverType = llvm::FunctionType::get(
+      llvm::PointerType::get(DeclTy,
+                             Context.getTargetAddressSpace(FD->getType())),
+      false);
+  llvm::Constant *Resolver =
+      GetOrCreateLLVMFunction(ResolverName, ResolverType, GlobalDecl{},
+                              /*ForVTable=*/false);
+  llvm::GlobalIFunc *GIF = llvm::GlobalIFunc::create(
+      DeclTy, 0, llvm::Function::ExternalLinkage, "", Resolver, &getModule());
+  GIF->setName(IFuncName);
+  SetCommonAttributes(FD, GIF);
+
+  return GIF;
+}
+
+/// GetOrCreateLLVMFunctionOrMultiVersion - Wrapper for GetOrCreateLLVMFunction
+/// that will also check to see if this is a FunctionDecl that is
+/// multiversioned. In the case where this is NOT for a definition, this will
+/// create the llvm GlobalValue, but return the iFunc. If this FOR definition,
+/// it will return the newly mangled name.
+llvm::Constant *CodeGenModule::GetOrCreateLLVMFunctionOrMultiVersion(
+    StringRef MangledName, llvm::Type *Ty, GlobalDecl GD, bool ForVTable,
+    bool DontDefer, bool IsThunk, llvm::AttributeList ExtraAttrs,
+    ForDefinition_t IsForDefinition) {
+  const FunctionDecl *FD = cast<FunctionDecl>(GD.getDecl());
+  std::string MVName;
+
+  if (FD->getMultiVersionKind() ==
+      FunctionDecl::MultiVersionKind::MultiVersion) {
+    llvm::GlobalValue *ExistingDef = GetGlobalValue(MangledName);
+    GetOrCreateMultiVersionIFunc(GD, Ty, MangledName, FD, ExistingDef);
+    if (IsForDefinition == ForDefinition) {
+      MVName = MakeMultiVersionName(MangledName, FD);
+      MangledName = MVName;
+    }
+  }
+
+  return GetOrCreateLLVMFunction(MangledName, Ty, GD, ForVTable, DontDefer,
+                                 IsThunk, ExtraAttrs, IsForDefinition);
+}
+
 /// GetOrCreateLLVMFunction - If the specified mangled name is not in the
 /// module, create and return an llvm Function with the specified type. If there
 /// is something in the module with the specified name, return it potentially
@@ -2209,9 +2354,9 @@ llvm::Constant *CodeGenModule::GetAddrOfFunction(GlobalDecl GD,
   }
 
   StringRef MangledName = getMangledName(GD);
-  return GetOrCreateLLVMFunction(MangledName, Ty, GD, ForVTable, DontDefer,
-                                 /*IsThunk=*/false, llvm::AttributeList(),
-                                 IsForDefinition);
+  return GetOrCreateLLVMFunctionOrMultiVersion(
+      MangledName, Ty, GD, ForVTable, DontDefer,
+      /*IsThunk=*/false, llvm::AttributeList(), IsForDefinition);
 }
 
 static const FunctionDecl *

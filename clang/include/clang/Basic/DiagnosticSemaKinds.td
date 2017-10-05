@@ -9294,4 +9294,18 @@ def warn_shadow_field :
   InGroup<ShadowField>, DefaultIgnore;
 def note_shadow_field : Note<"declared here">;
 
+def err_target_required_in_redecl
+    : Error<"function redeclaration is missing 'target' attribute in a "
+            "multiversioned function">;
+def err_target_causes_illegal_multiversioning
+    : Error<"function redeclaration causes a multiversioned function, but a "
+            "previous declaration lacks a 'target' attribute">;
+def err_target_unimplemented_arch
+    : Error<"function multiversioning with 'target' is only supported on "
+            "X86/x86_64 architectures">;
+def err_bad_multiversion_option
+    : Error<"function multiversioning doesn't support "
+            "%select{feature|architecture}0 '%1'">;
+def err_target_without_default : Error<"function multiversioning with 'target' "
+                                       "requires a 'default' implementation">;
 } // end of sema component.

@@ -3701,6 +3701,16 @@ public:
   /// point operation, expressed as the maximum relative error in ulp.
   void SetFPAccuracy(llvm::Value *Val, float Accuracy);
 
+  struct ResolverOption {
+    TargetAttr::ParsedTargetAttr AttrInfo;
+    llvm::Function *Function;
+    ResolverOption(TargetAttr::ParsedTargetAttr &&AttrInfo,// can be moved?
+                   llvm::Function *Function)
+        : AttrInfo(std::move(AttrInfo)), Function(Function) {}
+  };
+  void EmitMultiVersionResolver(llvm::Function *ResolverFunc,
+                                ArrayRef<ResolverOption> ResolverOptions);
+
 private:
   llvm::MDNode *getRangeForLoadFromType(QualType Ty);
   void EmitReturnOfRValue(RValue RV, QualType Ty);
@@ -3876,6 +3886,7 @@ private:
   llvm::Value *EmitX86CpuIs(StringRef CPUStr);
   llvm::Value *EmitX86CpuSupports(const CallExpr *E);
   llvm::Value *EmitX86CpuSupports(ArrayRef<StringRef> FeatureStrs);
+  llvm::Value *FormResolverCondition(const ResolverOption &RO);
 };
 
 /// Helper class with most of the code for saving a value for a

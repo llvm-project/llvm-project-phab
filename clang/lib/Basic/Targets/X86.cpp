@@ -1292,7 +1292,9 @@ bool X86TargetInfo::validateCpuIs(StringRef FeatureStr) const {
   return llvm::StringSwitch<bool>(FeatureStr)
       .Case("amd", true)
       .Case("amdfam10h", true)
+      .Case("amdfam10", true)
       .Case("amdfam15h", true)
+      .Case("amdfam15", true)
       .Case("atom", true)
       .Case("barcelona", true)
       .Case("bdver1", true)
@@ -1320,6 +1322,90 @@ bool X86TargetInfo::validateCpuIs(StringRef FeatureStr) const {
       .Case("westmere", true)
       .Case("znver1", true)
       .Default(false);
+}
+
+bool X86TargetInfo::compareCpusAndFeatures(StringRef Lhs, StringRef Rhs) const {
+  // The following are in order from new to old.  These are required for the 
+  // ordering of the GCC Target attribute.
+  const auto TargetArray = {"avx512vpopcntdq",
+                            "avx5124fmaps",
+                            "avx5124vnniw",
+                            "avx512ifma",
+                            "avx512vbmi",
+                            "avx512pf",
+                            "avx512er",
+                            "avx512cd",
+                            "avx512dq",
+                            "avx512bw",
+                            "avx512vl",
+                            "knl",
+                            "avx512f",
+                            "znver1",
+                            "skylake-avx512",
+                            "skylake",
+                            "haswell",
+                            "broadwell",
+                            "bdver4",
+                            "avx2",
+                            "bmi2",
+                            "bdver3",
+                            "bdver2",
+                            "fma",
+                            "bdver1",
+                            "amdfam15h",
+                            "amdfam15",
+                            "xop",
+                            "fma4",
+                            "btver2",
+                            "bmi",
+                            "sandybridge",
+                            "ivybridge",
+                            "avx",
+                            "pclmul",
+                            "aes",
+                            "popcnt",
+                            "westmere",
+                            "slm",
+                            "silvermont",
+                            "nehalem",
+                            "corei7",
+                            "sse4.2",
+                            "sse4.1",
+                            "btver1",
+                            "istanbul",
+                            "shanghai",
+                            "barcelona",
+                            "amdfam10h",
+                            "amdfam10",
+                            "sse4a",
+                            "core2",
+                            "bonnell",
+                            "atom",
+                            "ssse3",
+                            "sse3",
+                            "sse2",
+                            "sse",
+                            "mmx",
+                            "cmov",
+                            "intel",
+                            "amd"};
+
+  if (Lhs == Rhs)
+    return false;
+  // Default location doesn't matter except that sort should be repeatable, but
+  // move default to the end.
+  if (Lhs.empty())
+    return false;
+  if (Rhs.empty())
+    return true;
+
+  for (auto &Str : TargetArray) {
+    if (Lhs == Str)
+      return true;
+    else if (Rhs == Str)
+      return false;
+  }
+  assert(false && "Invalid item passed to compareCpusAndFeatures");
 }
 
 bool X86TargetInfo::validateAsmConstraint(
@@ -1563,7 +1649,7 @@ X86TargetInfo::CPUKind X86TargetInfo::getCPUKind(StringRef CPU) const {
       .Cases("amdfam10", "barcelona", CK_AMDFAM10)
       .Case("btver1", CK_BTVER1)
       .Case("btver2", CK_BTVER2)
-      .Case("bdver1", CK_BDVER1)
+      .Cases("amdfam15", "bdver1", CK_BDVER1)
       .Case("bdver2", CK_BDVER2)
       .Case("bdver3", CK_BDVER3)
       .Case("bdver4", CK_BDVER4)
