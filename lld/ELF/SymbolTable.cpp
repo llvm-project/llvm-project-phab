@@ -164,6 +164,11 @@ template <class ELFT> void SymbolTable::addSymbolWrap(StringRef Name) {
 
   defsym(Real, Sym);
   defsym(Sym, Wrap);
+
+  auto It = Symtab.find(CachedHashStringRef(Wrap->body()->getName()));
+  std::pair<unsigned, Symbol *> Foo =
+      std::make_pair<unsigned, Symbol *>(It->second.Idx, (Symbol *)Real);
+  WrapSymbols.push_back(Foo);
 }
 
 // Creates alias for symbol. Used to implement --defsym=ALIAS=SYM.
@@ -183,10 +188,39 @@ void SymbolTable::addSymbolAlias(StringRef Alias, StringRef Name) {
 // LTO (if LTO is running) not to include these symbols in IPO. Now that the
 // symbols are finalized, we can perform the replacement.
 void SymbolTable::applySymbolRenames() {
+  // This function rotates 3 symbols:
+  //
+  // __real_foo becomes foo
+  // foo        becomes __wrap_foo
+  // __wrap_foo becomes __real_foo
+  //
+  // The last part is special in that we don't want to change what references to
+  // __wrap_foo point to, we just want to use its spot in the symbol table.
+
+  // First make a copy of __real_foo
+  std::vector<Symbol> Origs;
+  Origs.resize(WrapSymbols.size());
+  for (unsigned I = 0, N = WrapSymbols.size(); I < N; ++I) {
+    Symbol *S = WrapSymbols[I].second;
+    memcpy(&Origs[I], S, sizeof(Symbol));
+  }
+
+  // Replace __real_foo with foo and foo with __wrap_foo
   for (SymbolRenaming &S : Defsyms) {
     S.Dst->body()->copyFrom(S.Src->body());
     S.Dst->File = S.Src->File;
     S.Dst->Binding = S.Binding;
+  }
+
+  // Create a new symbol where __wrap_foo was and copy __real_foo into it.
+  for (unsigned I = 0, N = WrapSymbols.size(); I < N; ++I) {
+    unsigned Idx = WrapSymbols[I].first;
+    SymVector[Idx] = make<Symbol>();
+    memcpy(SymVector[Idx], &Origs[I], sizeof(Symbol));
+
+    // If __real_foo was undefined, we don't want it in the symbol table.
+    if (SymVector[Idx]->body()->isUndefined())
+      SymVector[Idx]->IsUsedInRegularObj = false;
   }
 }
 
