@@ -1,5 +1,5 @@
-; RUN: llc -verify-machineinstrs -mtriple=armv7-linux-gnu -O0 %s -o - | FileCheck %s
-; RUN: llc -verify-machineinstrs -mtriple=thumbv8-linux-gnu -O0 %s -o - | FileCheck %s
+; RUN: llc -verify-machineinstrs -mtriple=armv7-linux-gnu -O0 %s -o - | FileCheck --check-prefix=CHECK --check-prefix=CHECK-ARM %s
+; RUN: llc -verify-machineinstrs -mtriple=thumbv8-linux-gnu -O0 %s -o - | FileCheck --check-prefix=CHECK --check-prefix=CHECK-THUMB %s
 ; RUN: llc -verify-machineinstrs -mtriple=thumbv6m-none-eabi -O0 %s -o - | FileCheck %s --check-prefix=CHECK-T1
 
 ; CHECK-T1-NOT: ldrex
@@ -17,8 +17,11 @@ define { i8, i1 } @test_cmpxchg_8(i8* %addr, i8 %desired, i8 %new) nounwind {
 ; CHECK:     cmp{{(\.w)?}} [[STATUS]], #0
 ; CHECK:     bne [[RETRY]]
 ; CHECK: [[DONE]]:
-; CHECK:     cmp{{(\.w)?}} [[OLD]], [[DESIRED]]
-; CHECK:     {{moveq|movweq}} {{r[0-9]+}}, #1
+; CHECK-ARM:     cmp{{(\.w)?}} [[OLD]], [[DESIRED]]
+; CHECK-ARM:     {{moveq|movweq}} {{r[0-9]+}}, #1
+; CHECK-THUMB:     sub{{(s)?}} [[CMP1:r[0-9]+]], [[OLD]], [[DESIRED]]
+; CHECK-THUMB:     clz [[CMP2:r[0-9]+]], [[CMP1]]
+; CHECK-THUMB:     lsr{{(s)?}} {{r[0-9]+}}, [[CMP2]], #5
 ; CHECK:     dmb ish
   %res = cmpxchg i8* %addr, i8 %desired, i8 %new seq_cst monotonic
   ret { i8, i1 } %res
@@ -36,8 +39,11 @@ define { i16, i1 } @test_cmpxchg_16(i16* %addr, i16 %desired, i16 %new) nounwind
 ; CHECK:     cmp{{(\.w)?}} [[STATUS]], #0
 ; CHECK:     bne [[RETRY]]
 ; CHECK: [[DONE]]:
-; CHECK:     cmp{{(\.w)?}} [[OLD]], [[DESIRED]]
-; CHECK:     {{moveq|movweq}} {{r[0-9]+}}, #1
+; CHECK-ARM:     cmp{{(\.w)?}} [[OLD]], [[DESIRED]]
+; CHECK-ARM:     {{moveq|movweq}} {{r[0-9]+}}, #1
+; CHECK-THUMB:     sub{{(s)?}} [[CMP1:r[0-9]+]], [[OLD]], [[DESIRED]]
+; CHECK-THUMB:     clz [[CMP2:r[0-9]+]], [[CMP1]]
+; CHECK-THUMB:     lsr{{(s)?}} {{r[0-9]+}}, [[CMP2]], #5
 ; CHECK:     dmb ish
   %res = cmpxchg i16* %addr, i16 %desired, i16 %new seq_cst monotonic
   ret { i16, i1 } %res
@@ -55,8 +61,11 @@ define { i32, i1 } @test_cmpxchg_32(i32* %addr, i32 %desired, i32 %new) nounwind
 ; CHECK:     cmp{{(\.w)?}} [[STATUS]], #0
 ; CHECK:     bne [[RETRY]]
 ; CHECK: [[DONE]]:
-; CHECK:     cmp{{(\.w)?}} [[OLD]], [[DESIRED]]
-; CHECK:     {{moveq|movweq}} {{r[0-9]+}}, #1
+; CHECK-ARM:     cmp{{(\.w)?}} [[OLD]], [[DESIRED]]
+; CHECK-ARM:     {{moveq|movweq}} {{r[0-9]+}}, #1
+; CHECK-THUMB:     sub{{(s)?}} [[CMP1:r[0-9]+]], [[OLD]], [[DESIRED]]
+; CHECK-THUMB:     clz [[CMP2:r[0-9]+]], [[CMP1]]
+; CHECK-THUMB:     lsr{{(s)?}} {{r[0-9]+}}, [[CMP2]], #5
 ; CHECK:     dmb ish
   %res = cmpxchg i32* %addr, i32 %desired, i32 %new seq_cst monotonic
   ret { i32, i1 } %res
