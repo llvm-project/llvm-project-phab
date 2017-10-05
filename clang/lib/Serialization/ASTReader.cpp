@@ -2995,8 +2995,16 @@ ASTReader::ReadASTBlock(ModuleFile &F, unsigned ClientLoadCapabilities) {
 
     case PP_CONDITIONAL_STACK:
       if (!Record.empty()) {
+        unsigned Idx = 0, End = Record.size() - 1;
+        Preprocessor::PreambleSkipInfo SkipInfo;
+        SkipInfo.ReachedEOFWhileSkipping = Record[Idx++];
+        SkipInfo.HashToken = ReadSourceLocation(F, Record, Idx);
+        SkipInfo.IfTokenLoc = ReadSourceLocation(F, Record, Idx);
+        SkipInfo.FoundNonSkipPortion = Record[Idx++];
+        SkipInfo.FoundElse = Record[Idx++];
+        SkipInfo.ElseLoc = ReadSourceLocation(F, Record, Idx);
         SmallVector<PPConditionalInfo, 4> ConditionalStack;
-        for (unsigned Idx = 0, N = Record.size() - 1; Idx < N; /* in loop */) {
+        while (Idx < End) {
           auto Loc = ReadSourceLocation(F, Record, Idx);
           bool WasSkipping = Record[Idx++];
           bool FoundNonSkip = Record[Idx++];
@@ -3004,7 +3012,7 @@ ASTReader::ReadASTBlock(ModuleFile &F, unsigned ClientLoadCapabilities) {
           ConditionalStack.push_back(
               {Loc, WasSkipping, FoundNonSkip, FoundElse});
         }
-        PP.setReplayablePreambleConditionalStack(ConditionalStack);
+        PP.setReplayablePreambleConditionalStack(ConditionalStack, SkipInfo);
       }
       break;
 

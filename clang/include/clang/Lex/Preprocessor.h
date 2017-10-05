@@ -96,6 +96,17 @@ enum MacroUse {
 /// know anything about preprocessor-level issues like the \#include stack,
 /// token expansion, etc.
 class Preprocessor {
+public:
+  struct PreambleSkipInfo {
+    bool ReachedEOFWhileSkipping;
+    SourceLocation HashToken;
+    SourceLocation IfTokenLoc;
+    bool FoundNonSkipPortion;
+    bool FoundElse;
+    SourceLocation ElseLoc;
+  };
+
+private:
   friend class VariadicMacroScopeGuard;
   std::shared_ptr<PreprocessorOptions> PPOpts;
   DiagnosticsEngine        *Diags;
@@ -292,7 +303,9 @@ class Preprocessor {
     };
 
   public:
-    PreambleConditionalStackStore() : ConditionalStackState(Off) {}
+    PreambleConditionalStackStore() : ConditionalStackState(Off) {
+      SkipInfo.ReachedEOFWhileSkipping = false;
+    }
 
     void startRecording() { ConditionalStackState = Recording; }
     void startReplaying() { ConditionalStackState = Replaying; }
@@ -316,6 +329,12 @@ class Preprocessor {
     }
 
     bool hasRecordedPreamble() const { return !ConditionalStack.empty(); }
+
+    PreambleSkipInfo SkipInfo;
+
+    bool reachedEOFWhileSkipping() const {
+      return SkipInfo.ReachedEOFWhileSkipping;
+    }
 
   private:
     SmallVector<PPConditionalInfo, 4> ConditionalStack;
@@ -1837,7 +1856,7 @@ private:
   /// \p FoundElse is false, then \#else directives are ok, if not, then we have
   /// already seen one so a \#else directive is a duplicate.  When this returns,
   /// the caller can lex the first valid token.
-  void SkipExcludedConditionalBlock(const Token &HashToken,
+  void SkipExcludedConditionalBlock(SourceLocation HashToken,
                                     SourceLocation IfTokenLoc,
                                     bool FoundNonSkipPortion, bool FoundElse,
                                     SourceLocation ElseLoc = SourceLocation());
@@ -2017,9 +2036,15 @@ public:
     PreambleConditionalStack.setStack(s);
   }
 
-  void setReplayablePreambleConditionalStack(ArrayRef<PPConditionalInfo> s) {
+  void setReplayablePreambleConditionalStack(ArrayRef<PPConditionalInfo> s,
+                                             const PreambleSkipInfo &SkipInfo) {
     PreambleConditionalStack.startReplaying();
     PreambleConditionalStack.setStack(s);
+    PreambleConditionalStack.SkipInfo = SkipInfo;
+  }
+
+  const PreambleSkipInfo &getPreambleSkipInfo() const {
+    return PreambleConditionalStack.SkipInfo;
   }
 
 private:

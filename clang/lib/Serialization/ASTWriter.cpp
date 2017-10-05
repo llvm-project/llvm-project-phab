@@ -2407,6 +2407,13 @@ void ASTWriter::WritePreprocessor(const Preprocessor &PP, bool IsModule) {
 
   if (PP.isRecordingPreamble() && PP.hasRecordedPreamble()) {
     assert(!IsModule);
+    const Preprocessor::PreambleSkipInfo &SkipInfo = PP.getPreambleSkipInfo();
+    Record.push_back(SkipInfo.ReachedEOFWhileSkipping);
+    AddSourceLocation(SkipInfo.HashToken, Record);
+    AddSourceLocation(SkipInfo.IfTokenLoc, Record);
+    Record.push_back(SkipInfo.FoundNonSkipPortion);
+    Record.push_back(SkipInfo.FoundElse);
+    AddSourceLocation(SkipInfo.ElseLoc, Record);
     for (const auto &Cond : PP.getPreambleConditionalStack()) {
       AddSourceLocation(Cond.IfLoc, Record);
       Record.push_back(Cond.WasSkipping);
