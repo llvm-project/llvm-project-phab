@@ -56,7 +56,7 @@ cl::OptionCategory PollyCategory("Polly Options",
 
 static cl::opt<bool>
     PollyEnabled("polly", cl::desc("Enable the polly optimizer (only at -O3)"),
-                 cl::init(false), cl::ZeroOrMore, cl::cat(PollyCategory));
+                 cl::init(true), cl::ZeroOrMore, cl::cat(PollyCategory));
 
 static cl::opt<bool> PollyDetectOnly(
     "polly-only-scop-detection",

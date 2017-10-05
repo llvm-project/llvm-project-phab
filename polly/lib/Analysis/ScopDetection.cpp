@@ -237,7 +237,7 @@ bool polly::PollyInvariantLoadHoisting;
 static cl::opt<bool, true> XPollyInvariantLoadHoisting(
     "polly-invariant-load-hoisting", cl::desc("Hoist invariant loads."),
     cl::location(PollyInvariantLoadHoisting), cl::Hidden, cl::ZeroOrMore,
-    cl::init(false), cl::cat(PollyCategory));
+    cl::init(true), cl::cat(PollyCategory));
 
 /// The minimal trip count under which loops are considered unprofitable.
 static const unsigned MIN_LOOP_TRIP_COUNT = 8;
@@ -1185,11 +1185,11 @@ bool ScopDetection::isValidInstruction(Instruction &Inst,
       continue;
 
     if (isErrorBlock(*OpInst->getParent(), Context.CurRegion, LI, DT)) {
-      auto *PHI = dyn_cast<PHINode>(OpInst);
+      auto *PHI = dyn_cast<PHINode>(&Inst);
       if (PHI) {
         for (User *U : PHI->users()) {
           if (!isa<TerminatorInst>(U))
-            return false;
+            return true;
         }
       } else {
         return false;

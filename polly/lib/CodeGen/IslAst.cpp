@@ -814,7 +814,7 @@ bool IslAstInfoWrapperPass::runOnScop(Scop &Scop) {
 
   Ast.reset(new IslAstInfo(Scop, D));
 
-  DEBUG(printScop(dbgs(), Scop));
+  printScop(errs(), Scop);
   return false;
 }
 
