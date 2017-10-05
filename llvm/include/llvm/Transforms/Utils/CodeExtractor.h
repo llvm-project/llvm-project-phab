@@ -86,9 +86,11 @@ template <typename T> class ArrayRef;
 
     /// \brief Perform the extraction, returning the new function.
     ///
+    /// @param VarArg Extract the given function as vararg function.
+    ///
     /// Returns zero when called on a CodeExtractor instance where isEligible
     /// returns false.
-    Function *extractCodeRegion();
+    Function *extractCodeRegion(bool VarArg = false);
 
     /// \brief Test whether this code extractor is eligible.
     ///
@@ -141,7 +143,8 @@ template <typename T> class ArrayRef;
                                 const ValueSet &outputs,
                                 BasicBlock *header,
                                 BasicBlock *newRootNode, BasicBlock *newHeader,
-                                Function *oldFunction, Module *M);
+                                Function *oldFunction, Module *M,
+                                bool VarArg);
 
     void moveCodeToFunction(Function *newFunction);
 

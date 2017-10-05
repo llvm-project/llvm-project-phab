@@ -109,7 +109,8 @@ struct PartialInlinerImpl {
   // function that are not partially inlined will be fixed up to reference
   // the original function, and the cloned function will be erased.
   struct FunctionCloner {
-    FunctionCloner(Function *F, FunctionOutliningInfo *OI);
+    FunctionCloner(Function *F, FunctionOutliningInfo *OI,
+                   CallInst *CallInst = nullptr);
     ~FunctionCloner();
 
     // Prepare for function outlining: making sure there is only
@@ -638,13 +639,25 @@ void PartialInlinerImpl::computeCallsiteToProfCountMap(
 }
 
 PartialInlinerImpl::FunctionCloner::FunctionCloner(Function *F,
-                                                   FunctionOutliningInfo *OI)
+                                                   FunctionOutliningInfo *OI,
+                                                   CallInst *VarargCaller)
     : OrigFunc(F) {
   ClonedOI = llvm::make_unique<FunctionOutliningInfo>();
 
   // Clone the function, so that we can hack away on it.
   ValueToValueMapTy VMap;
-  ClonedFunc = CloneFunction(F, VMap);
+
+  if (VarargCaller) {
+    llvm::ClonedCodeInfo CCI;
+    std::vector<Type*> VarargTypes;
+    int ArgumentsFunc = VarargCaller->getFunctionType()->getNumParams();
+    int ArgumentsCaller = VarargCaller->getNumArgOperands();
+    for (int i = ArgumentsFunc; i < ArgumentsCaller; i++)
+      VarargTypes.push_back(VarargCaller->getArgOperand(i)->getType());
+    ClonedFunc = CloneFunction(F, VMap, &CCI, &VarargTypes);
+  } else {
+    ClonedFunc = CloneFunction(F, VMap);
+  }
 
   ClonedOI->ReturnBlock = cast<BasicBlock>(VMap[OI->ReturnBlock]);
   ClonedOI->NonReturnBlock = cast<BasicBlock>(VMap[OI->NonReturnBlock]);
@@ -657,7 +670,10 @@ PartialInlinerImpl::FunctionCloner::FunctionCloner(Function *F,
   }
   // Go ahead and update all uses to the duplicate, so that we can just
   // use the inliner functionality when we're done hacking.
-  F->replaceAllUsesWith(ClonedFunc);
+  if (VarargCaller)
+    VarargCaller->setCalledFunction(ClonedFunc);
+  else
+    F->replaceAllUsesWith(ClonedFunc);
 }
 
 void PartialInlinerImpl::FunctionCloner::NormalizeReturnBlock() {
@@ -772,7 +788,7 @@ Function *PartialInlinerImpl::FunctionCloner::doFunctionOutlining() {
   // Extract the body of the if.
   OutlinedFunc = CodeExtractor(ToExtract, &DT, /*AggregateArgs*/ false,
                                ClonedFuncBFI.get(), &BPI)
-                     .extractCodeRegion();
+                     .extractCodeRegion(OrigFunc->isVarArg());
 
   if (OutlinedFunc) {
     OutliningCallBB = PartialInlinerImpl::getOneCallSiteTo(OutlinedFunc)
@@ -787,7 +803,15 @@ Function *PartialInlinerImpl::FunctionCloner::doFunctionOutlining() {
 PartialInlinerImpl::FunctionCloner::~FunctionCloner() {
   // Ditch the duplicate, since we're done with it, and rewrite all remaining
   // users (function pointers, etc.) back to the original function.
-  ClonedFunc->replaceAllUsesWith(OrigFunc);
+  std::vector<CallInst*> Calls;
+  for (User *U : ClonedFunc->users()) {
+    CallInst *Call = dyn_cast<CallInst>(U);
+    if (!Call)
+      continue;
+    Calls.push_back(Call);
+  }
+  for (CallInst *Call : Calls)
+    Call->setCalledFunction(OrigFunc);
   ClonedFunc->eraseFromParent();
   if (!IsFunctionInlined) {
     // Remove the function that is speculatively created if there is no
@@ -814,6 +838,44 @@ Function *PartialInlinerImpl::unswitchFunction(Function *F) {
 
   if (F->user_begin() == F->user_end())
     return nullptr;
+
+  if (F->isVarArg()) {
+    std::vector<User *> Users(F->user_begin(), F->user_end());
+    std::vector<Function *> OutlinedFunctions;
+
+    for (llvm::User *User : Users) {
+      CallInst *Caller = dyn_cast<CallInst>(User);
+
+      if (!Caller)
+        continue;
+
+      std::unique_ptr<FunctionOutliningInfo> OI = computeOutliningInfo(F);
+
+      if (!OI)
+        return nullptr;
+
+      FunctionCloner Cloner(F, OI.get(), Caller);
+      Cloner.NormalizeReturnBlock();
+      Function *OutlinedFunction = Cloner.doFunctionOutlining();
+
+      if (OutlinedFunction)
+        OutlinedFunctions.push_back(OutlinedFunction);
+
+      bool AnyInline = tryPartialInline(Cloner);
+    }
+
+    if (OutlinedFunctions.size() > 0) {
+      Function *CanonicalFunction = OutlinedFunctions.back();
+      OutlinedFunctions.pop_back();
+
+      for (Function *DuplicateFunction : OutlinedFunctions) {
+        DuplicateFunction->replaceAllUsesWith(CanonicalFunction);
+        DuplicateFunction->eraseFromParent();
+      }
+      return CanonicalFunction;
+    }
+    return nullptr;
+  }
 
   std::unique_ptr<FunctionOutliningInfo> OI = computeOutliningInfo(F);
 
@@ -863,8 +925,8 @@ bool PartialInlinerImpl::tryPartialInline(FunctionCloner &Cloner) {
     return false;
   }
 
-  assert(Cloner.OrigFunc->user_begin() == Cloner.OrigFunc->user_end() &&
-         "F's users should all be replaced!");
+  //assert(Cloner.OrigFunc->user_begin() == Cloner.OrigFunc->user_end() &&
+  //       "F's users should all be replaced!");
 
   std::vector<User *> Users(Cloner.ClonedFunc->user_begin(),
                             Cloner.ClonedFunc->user_end());

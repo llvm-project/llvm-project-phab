@@ -126,8 +126,14 @@ BasicBlock *CloneBasicBlock(const BasicBlock *BB, ValueToValueMapTy &VMap,
 /// VMap contains no non-identity GlobalValue mappings and debug info metadata
 /// will not be cloned.
 ///
+/// In case VarargTypes is set, the cloned function is not code generated as
+/// vararg function, but instead a fixed set of arguments is provided that
+/// replace the variable set of arguments normally expected. This temporary set
+/// of arguments helps the partial inliner to later inline the cloned function at
+/// a specific callsite.
 Function *CloneFunction(Function *F, ValueToValueMapTy &VMap,
-                        ClonedCodeInfo *CodeInfo = nullptr);
+                        ClonedCodeInfo *CodeInfo = nullptr,
+                        std::vector<Type*> *VarargTypes = nullptr);
 
 /// Clone OldFunc into NewFunc, transforming the old arguments into references
 /// to VMap values.  Note that if NewFunc already has basic blocks, the ones

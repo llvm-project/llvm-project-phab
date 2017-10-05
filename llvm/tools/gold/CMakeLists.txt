@@ -15,4 +15,8 @@ if( LLVM_ENABLE_PIC AND LLVM_BINUTILS_INCDIR )
     gold-plugin.cpp
     )
 
+if(WITH_POLLY AND LINK_POLLY_INTO_TOOLS)
+  target_link_libraries(LLVMgold PUBLIC Polly)
+endif(WITH_POLLY AND LINK_POLLY_INTO_TOOLS)
+
 endif()

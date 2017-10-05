@@ -227,8 +227,13 @@ void llvm::CloneFunctionInto(Function *NewFunc, const Function *OldFunc,
 /// function.  The VMap is updated to include mappings from all of the
 /// instructions and basicblocks in the function from their old to new values.
 ///
+/// In case VarargTypes is set, the function is not cloned as vararg function,
+/// but instead a fixed set of arguments replaces the vararg part of the
+/// function declaration.
+///
 Function *llvm::CloneFunction(Function *F, ValueToValueMapTy &VMap,
-                              ClonedCodeInfo *CodeInfo) {
+                              ClonedCodeInfo *CodeInfo,
+                              std::vector<Type*> *VarargTypes) {
   std::vector<Type*> ArgTypes;
 
   // The user might be deleting arguments to the function by specifying them in
@@ -238,9 +243,14 @@ Function *llvm::CloneFunction(Function *F, ValueToValueMapTy &VMap,
     if (VMap.count(&I) == 0) // Haven't mapped the argument to anything yet?
       ArgTypes.push_back(I.getType());
 
+  if (VarargTypes)
+    for (Type *T : *VarargTypes)
+      ArgTypes.push_back(T);
+
   // Create a new function type...
+  bool Vararg = F->getFunctionType()->isVarArg() && !VarargTypes;
   FunctionType *FTy = FunctionType::get(F->getFunctionType()->getReturnType(),
-                                    ArgTypes, F->getFunctionType()->isVarArg());
+                                    ArgTypes, Vararg);
 
   // Create the new function...
   Function *NewF =

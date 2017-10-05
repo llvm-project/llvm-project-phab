@@ -160,7 +160,11 @@ static TargetTransformInfo::UnrollingPreferences gatherUnrollingPreferences(
   UP.BEInsns = 2;
   UP.Partial = false;
   UP.Runtime = false;
-  UP.AllowRemainder = true;
+  // Do not expand loops before LTO phase. When running LTO we want to
+  // per-TU passes to canonicalize, but not yet specialize for a given
+  // piece of hardware as such specialization will hinder proper inlining
+  // and also creates a loop structure that is harder to analyze for Polly.
+  UP.AllowRemainder = false;
   UP.UnrollRemainder = false;
   UP.AllowExpensiveTripCount = false;
   UP.Force = false;

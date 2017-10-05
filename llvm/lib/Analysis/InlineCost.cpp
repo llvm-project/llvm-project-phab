@@ -840,8 +840,8 @@ void CallAnalyzer::updateThreshold(CallSite CS, Function &Callee) {
   // If there is only one call of the function, and it has internal linkage,
   // the cost of inlining it drops dramatically. It may seem odd to update
   // Cost in updateThreshold, but the bonus depends on the logic in this method.
-  if (OnlyOneCallAndLocalLinkage)
-    Cost -= LastCallToStaticBonus;
+  // if (OnlyOneCallAndLocalLinkage)
+  //  Cost -= LastCallToStaticBonus;
 }
 
 bool CallAnalyzer::visitCmpInst(CmpInst &I) {

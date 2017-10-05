@@ -43,8 +43,10 @@
 
 using namespace llvm;
 
+// Enable partial inliner here. It is needed for libquantum and it is not clear
+// to me how to pass -mllvm flags to the gold plugin.
 static cl::opt<bool>
-    RunPartialInlining("enable-partial-inlining", cl::init(false), cl::Hidden,
+    RunPartialInlining("enable-partial-inlining", cl::init(true), cl::Hidden,
                        cl::ZeroOrMore, cl::desc("Run Partial inlinining pass"));
 
 static cl::opt<bool>
@@ -569,7 +571,10 @@ void PassManagerBuilder::populateModulePassManager(
 
   MPM.add(createFloat2IntPass());
 
-  addExtensionsToPM(EP_VectorizerStart, MPM);
+  // Do not run Polly before LTO. The per-TU optimizations before LTO should
+  // be canonicalizations, not specializations. Polly clearly specializes too
+  // much to be run early in LTO mode.
+  // addExtensionsToPM(EP_VectorizerStart, MPM);
 
   // Re-rotate loops in all our loop nests. These may have fallout out of
   // rotated form due to GVN or other transformations, and the vectorizer relies
@@ -744,6 +749,14 @@ void PassManagerBuilder::addLTOOptimizationPasses(legacy::PassManagerBase &PM) {
     Inliner = nullptr;
   }
 
+  // Add partial inliner to LTO mode. Some partial inlining opportunities
+  // in libquantum (quantum_objcode_put and quantum_decohere) only arise in the
+  // context of LTO.
+  PM.add(createBarrierNoopPass());
+  if (RunPartialInlining)
+    PM.add(createPartialInliningPass());
+  PM.add(createBarrierNoopPass());
+
   PM.add(createPruneEHPass());   // Remove dead EH info.
 
   // Optimize globals again if we ran the inliner.
@@ -784,6 +797,10 @@ void PassManagerBuilder::addLTOOptimizationPasses(legacy::PassManagerBase &PM) {
 
   if (!DisableUnrollLoops)
     PM.add(createSimpleLoopUnrollPass(OptLevel));   // Unroll small loops
+
+  // Add Polly as LTO optimization.
+  addExtensionsToPM(EP_VectorizerStart, PM);
+
   PM.add(createLoopVectorizePass(true, LoopVectorize));
   // The vectorizer may have significantly shortened a loop body; unroll again.
   if (!DisableUnrollLoops)

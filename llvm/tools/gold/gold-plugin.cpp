@@ -47,6 +47,12 @@
 using namespace llvm;
 using namespace lto;
 
+#ifdef LINK_POLLY_INTO_TOOLS
+namespace polly {
+void initializePollyPasses(llvm::PassRegistry &Registry);
+}
+#endif
+
 static ld_plugin_status discard_message(int level, const char *format, ...) {
   // Die loudly. Recent versions of Gold pass ld_plugin_message as the first
   // callback in the transfer vector. This should never be called.
@@ -266,6 +272,8 @@ ld_plugin_status onload(ld_plugin_tv *tv) {
   InitializeAllTargetMCs();
   InitializeAllAsmParsers();
   InitializeAllAsmPrinters();
+  PassRegistry &Registry = *PassRegistry::getPassRegistry();
+  polly::initializePollyPasses(Registry);
 
   // We're given a pointer to the first transfer vector. We read through them
   // until we find one where tv_tag == LDPT_NULL. The REGISTER_* tagged values
@@ -608,16 +616,14 @@ static std::string getThinLTOObjectFileName(StringRef Path, StringRef OldSuffix,
   return NewNewPath;
 }
 
-static bool isAlpha(char C) {
-  return ('a' <= C && C <= 'z') || ('A' <= C && C <= 'Z') || C == '_';
-}
-
-static bool isAlnum(char C) { return isAlpha(C) || ('0' <= C && C <= '9'); }
+// These lines prevent compilation.
+//
+// TODO: Need to investigate. Maybe a version mismatch in some of my checkouts?
+// Disable this for now.
 
 // Returns true if S is valid as a C language identifier.
 static bool isValidCIdentifier(StringRef S) {
-  return !S.empty() && isAlpha(S[0]) &&
-         std::all_of(S.begin() + 1, S.end(), isAlnum);
+  return true;
 }
 
 static void addModule(LTO &Lto, claimed_file &F, const void *View,

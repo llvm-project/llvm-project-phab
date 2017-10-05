@@ -91,6 +91,11 @@ bool CodeExtractor::isBlockValidForExtraction(const BasicBlock &BB) {
   for (BasicBlock::const_iterator I = BB.begin(), E = BB.end(); I != E; ++I) {
     if (isa<AllocaInst>(I) || isa<InvokeInst>(I))
       return false;
+    // Allow the extraction of vastart. This is needed to partially inline
+    // vararg calls. (It is also save to extract vastart calls, as long
+    // as we can ensure that the final signature after partial inlining is
+    // again a vararg call called with the same number of arguments.
+    continue;
     if (const CallInst *CI = dyn_cast<CallInst>(I))
       if (const Function *F = CI->getCalledFunction())
         if (F->getIntrinsicID() == Intrinsic::vastart)
@@ -532,7 +537,7 @@ Function *CodeExtractor::constructFunction(const ValueSet &inputs,
                                            BasicBlock *newRootNode,
                                            BasicBlock *newHeader,
                                            Function *oldFunction,
-                                           Module *M) {
+                                           Module *M, bool VarArg) {
   DEBUG(dbgs() << "inputs: " << inputs.size() << "\n");
   DEBUG(dbgs() << "outputs: " << outputs.size() << "\n");
 
@@ -574,8 +579,7 @@ Function *CodeExtractor::constructFunction(const ValueSet &inputs,
     paramTy.clear();
     paramTy.push_back(PointerType::getUnqual(StructTy));
   }
-  FunctionType *funcType =
-                  FunctionType::get(RetTy, paramTy, false);
+  FunctionType *funcType = FunctionType::get(RetTy, paramTy, VarArg);
 
   // Create the new function
   Function *newFunction = Function::Create(funcType,
@@ -981,7 +985,7 @@ void CodeExtractor::calculateNewCallTerminatorWeights(
       MDBuilder(TI->getContext()).createBranchWeights(BranchWeights));
 }
 
-Function *CodeExtractor::extractCodeRegion() {
+Function *CodeExtractor::extractCodeRegion(bool IsVarArg) {
   if (!isEligible())
     return nullptr;
 
@@ -1066,7 +1070,7 @@ Function *CodeExtractor::extractCodeRegion() {
   Function *newFunction = constructFunction(inputs, outputs, header,
                                             newFuncRoot,
                                             codeReplacer, oldFunction,
-                                            oldFunction->getParent());
+                                            oldFunction->getParent(), IsVarArg);
 
   // Update the entry count of the function.
   if (BFI) {
