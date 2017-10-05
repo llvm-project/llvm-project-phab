@@ -1314,6 +1314,31 @@ const TargetRegisterClass *SIRegisterInfo::getSubRegClass(
   }
 }
 
+bool SIRegisterInfo::isSameReg(const MachineOperand &LHS,
+                               const MachineOperand &RHS) const {
+  return LHS.isReg() &&
+    RHS.isReg() &&
+    LHS.getReg() == RHS.getReg() &&
+    LHS.getSubReg() == RHS.getSubReg();
+}
+
+bool SIRegisterInfo::isSubregOf(const MachineOperand &SubReg,
+                                const MachineOperand &SuperReg) const {
+  if (!SuperReg.isReg() || !SubReg.isReg())
+    return false;
+
+  if (isSameReg(SuperReg, SubReg))
+    return true;
+
+  if (SuperReg.getReg() != SubReg.getReg())
+    return false;
+
+  LaneBitmask SuperMask = getSubRegIndexLaneMask(SuperReg.getSubReg());
+  LaneBitmask SubMask = getSubRegIndexLaneMask(SubReg.getSubReg());
+  SuperMask |= ~SubMask;
+  return SuperMask.all();
+}
+
 bool SIRegisterInfo::shouldRewriteCopySrc(
   const TargetRegisterClass *DefRC,
   unsigned DefSubReg,

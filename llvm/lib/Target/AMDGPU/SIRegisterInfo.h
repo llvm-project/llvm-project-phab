@@ -166,6 +166,11 @@ public:
   const TargetRegisterClass *getSubRegClass(const TargetRegisterClass *RC,
                                             unsigned SubIdx) const;
 
+  bool isSameReg(const MachineOperand &LHS, const MachineOperand &RHS) const;
+
+  bool isSubregOf(const MachineOperand &SubReg,
+                  const MachineOperand &SuperReg) const;
+
   bool shouldRewriteCopySrc(const TargetRegisterClass *DefRC,
                             unsigned DefSubReg,
                             const TargetRegisterClass *SrcRC,
