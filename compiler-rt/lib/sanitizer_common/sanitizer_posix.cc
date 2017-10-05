@@ -151,6 +151,16 @@ uptr ReservedAddressRange::Map(uptr fixed_addr, uptr size,
   return reinterpret_cast<uptr>(MmapFixedOrDie(fixed_addr, size));
 }
 
+// TODO(flowerhack): add sanity checks to make sure addr is actually
+// within address_range
+void ReservedAddressRange::Unmap(void *addr, uptr size) {
+  UnmapOrDie(addr, size);
+  if (addr == base_) {
+    base_ = reinterpret_cast<void*>(reinterpret_cast<uptr>(addr) + size);
+  }
+  size_ = size_ - size;
+}
+
 void *MmapFixedOrDieOnFatalError(uptr fixed_addr, uptr size) {
   return MmapFixedImpl(fixed_addr, size, true /*tolerate_enomem*/);
 }

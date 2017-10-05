@@ -84,11 +84,14 @@ void GetThreadStackAndTls(bool main, uptr *stk_addr, uptr *stk_size,
 
 // Memory management
 // This class relies on zero-initialization.
-class ReservedAddressRange {
+// TODO(flowerhack) this is a hack; move MinAlignment into sanitizer_common.h
+class alignas(1 << FIRST_32_SECOND_64(3, 4)) ReservedAddressRange {
  public:
   uptr Init(uptr size, const char *name = nullptr, uptr fixed_addr = 0);
   uptr Map(uptr offset, uptr size, bool tolerate_enomem = false);
+  void Unmap(void *addr, uptr size);
   void *base() { return base_; }
+  uptr size() { return size_; }
  private:
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunused-private-field"

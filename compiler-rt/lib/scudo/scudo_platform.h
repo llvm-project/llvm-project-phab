@@ -15,6 +15,7 @@
 #define SCUDO_PLATFORM_H_
 
 #include "sanitizer_common/sanitizer_allocator.h"
+#include "sanitizer_common/sanitizer_placement_new.h"
 
 #if !SANITIZER_LINUX && !SANITIZER_FUCHSIA
 # error "The Scudo hardened allocator is not supported on this platform."
