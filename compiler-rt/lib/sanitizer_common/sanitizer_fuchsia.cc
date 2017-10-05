@@ -238,7 +238,18 @@ void *MmapOrDieOnFatalError(uptr size, const char *mem_type) {
 
 uptr ReservedAddressRange::Init(uptr init_size, const char* name = nullptr,
                                 uptr fixed_addr = uptr(0)) {
-  return reinterpret_cast<uptr>(MmapNoAccess(init_size));
+  init_size = RoundUpTo(init_size, PAGE_SIZE);
+  CHECK_EQ(os_cookie_, ZX_HANDLE_INVALID);
+  uintptr_t base;
+  mx_status_t status = _zx_vmar_allocate(_zx_vmar_root_self(), 0, init_size,
+                                         ZX_VM_FLAG_CAN_MAP_READ | ZX_VM_FLAG_CAN_MAP_WRITE |
+                                         ZX_VM_FLAG_CAN_MAP_SPECIFIC, &os_cookie_, &base);
+  if (status != ZX_OK)
+    ReportMmapFailureAndDie(init_size, "sanitizer allocator address space", "zx_vmar_allocate", status);
+  base_ = base;
+  size_ = init_size;
+
+  return base_;
 }
 
 // Uses fixed_addr for now.
@@ -258,25 +269,36 @@ zx_handle_t allocator_vmar = ZX_HANDLE_INVALID;
 uintptr_t allocator_vmar_base;
 size_t allocator_vmar_size;
 
-void *MmapNoAccess(uptr size) {
-  size = RoundUpTo(size, PAGE_SIZE);
-  CHECK_EQ(allocator_vmar, ZX_HANDLE_INVALID);
-  uintptr_t base;
-  zx_status_t status =
-      _zx_vmar_allocate(_zx_vmar_root_self(), 0, size,
-                        ZX_VM_FLAG_CAN_MAP_READ | ZX_VM_FLAG_CAN_MAP_WRITE |
-                            ZX_VM_FLAG_CAN_MAP_SPECIFIC,
-                        &allocator_vmar, &base);
-  if (status != ZX_OK)
-    ReportMmapFailureAndDie(size, "sanitizer allocator address space",
-                            "zx_vmar_allocate", status);
-
-  allocator_vmar_base = base;
-  allocator_vmar_size = size;
-  return reinterpret_cast<void *>(base);
-}
-
 constexpr const char kAllocatorVmoName[] = "sanitizer_allocator";
+
+uptr ReservedAddressRange::Map(uptr offset, uptr map_size,
+                                bool tolerate_enomem = true) {
+  map_size = RoundUpTo(map_size, PAGE_SIZE);
+  zx_handle_t vmo;
+  zx_status_t status = _zx_vmo_create(map_size, 0, &vmo);
+  if (status != ZX_OK) {
+    if (status != ZX_ERR_NO_MEMORY || die_for_nomem)
+      ReportMmapFailureAndDie(map_size, kAllocatorVmoName,
+                              "zx_vmo_create", status());
+    return nullptr;
+  }
+  _zx_object_set_property(vmo, ZX_PROP_NAME, kAllocatorVmoName,
+                          sizeof(kAllocatorVmoName) - 1);
+  DCHECK_GE(base_ + size_, map_size + offset);
+  uintptr_t addr;
+  status = _zx_vmar_map(
+    static_cast<zx_handle_t>(os_cookie_), offset, vmo, 0, size,
+    ZX_VM_FLAG_PERM_READ | ZX_VM_FLAG_PERM_WRITE | ZX_VM_FLAG_SPECIFIC,
+    &addr);
+  _zx_handle_close(vmo);
+  if (status != ZX_OK) {
+    if (status != ZX_ERR_NO_MEMORY || die_for_nomem)
+      ReportMmapFailureAndDie(size, kAllocatorVmoName, "zx_vmar_map", status);
+    return nullptr;
+  }
+  IncreaseTotalMmap(map_size);
+  return reinterpret_cast<uptr>(addr);
+}
 
 static void *DoMmapFixedOrDie(uptr fixed_addr, uptr size, bool die_for_nomem) {
   size = RoundUpTo(size, PAGE_SIZE);
