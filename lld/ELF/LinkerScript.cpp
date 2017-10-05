@@ -367,6 +367,7 @@ void LinkerScript::processCommands(OutputSectionFactory &Factory) {
   CurAddressState->OutSec = Aether;
   Dot = 0;
 
+  uint64_t PrevFlags = SHF_ALLOC;
   for (size_t I = 0; I < Opt.Commands.size(); ++I) {
     // Handle symbol assignments outside of any output section.
     if (auto *Cmd = dyn_cast<SymbolAssignment>(Opt.Commands[I])) {
@@ -399,12 +400,6 @@ void LinkerScript::processCommands(OutputSectionFactory &Factory) {
         continue;
       }
 
-      // A directive may contain symbol definitions like this:
-      // ".foo : { ...; bar = .; }". Handle them.
-      for (BaseCommand *Base : Sec->Commands)
-        if (auto *OutCmd = dyn_cast<SymbolAssignment>(Base))
-          addSymbol(OutCmd);
-
       // Handle subalign (e.g. ".foo : SUBALIGN(32) { ... }"). If subalign
       // is given, input sections are aligned to that value, whether the
       // given value is larger or smaller than the original section alignment.
@@ -421,6 +416,28 @@ void LinkerScript::processCommands(OutputSectionFactory &Factory) {
       Sec->SectionIndex = I;
       if (Sec->Noload)
         Sec->Type = SHT_NOBITS;
+
+      if (Sec->Live)
+        PrevFlags = Sec->Flags;
+
+      for (BaseCommand *Base : Sec->Commands) {
+        // A directive may contain symbol definitions like this:
+        // ".foo : { ...; bar = .; }". Handle them.
+        if (auto *OutCmd = dyn_cast<SymbolAssignment>(Base))
+          addSymbol(OutCmd);
+
+        if (Sec->Live || isa<InputSectionDescription>(Base))
+          continue;
+
+        // If the output section contains any other commands except input
+        // section descriptions, we create a corresponding output section. The
+        // bfd linker seems to only create them if  '.' is assigned to. But
+        // creating these section should not have any bad consequeces and gives
+        // us a section to put in the content of commands like BYTE() or attach
+        // symbols assigned.
+        Sec->Live = true;
+        Sec->Flags = PrevFlags;
+      }
     }
   }
   CurAddressState = nullptr;
@@ -640,37 +657,6 @@ void LinkerScript::removeEmptyCommands() {
       return !Sec->Live;
     return false;
   });
-}
-
-static bool isAllSectionDescription(const OutputSection &Cmd) {
-  for (BaseCommand *Base : Cmd.Commands)
-    if (!isa<InputSectionDescription>(*Base))
-      return false;
-  return true;
-}
-
-void LinkerScript::adjustSectionsBeforeSorting() {
-  // If the output section contains only symbol assignments, create a
-  // corresponding output section. The bfd linker seems to only create them if
-  // '.' is assigned to, but creating these section should not have any bad
-  // consequeces and gives us a section to put the symbol in.
-  uint64_t Flags = SHF_ALLOC;
-
-  for (BaseCommand * Cmd : Opt.Commands) {
-    auto *Sec = dyn_cast<OutputSection>(Cmd);
-    if (!Sec)
-      continue;
-    if (Sec->Live) {
-      Flags = Sec->Flags;
-      continue;
-    }
-
-    if (isAllSectionDescription(*Sec))
-      continue;
-
-    Sec->Live = true;
-    Sec->Flags = Flags;
-  }
 }
 
 void LinkerScript::adjustSectionsAfterSorting() {

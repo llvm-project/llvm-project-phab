@@ -1048,8 +1048,6 @@ findOrphanPos(std::vector<BaseCommand *>::iterator B,
 }
 
 template <class ELFT> void Writer<ELFT>::sortSections() {
-  Script->adjustSectionsBeforeSorting();
-
   // Don't sort if using -r. It is not necessary and we want to preserve the
   // relative order for SHF_LINK_ORDER sections.
   if (Config->Relocatable)
