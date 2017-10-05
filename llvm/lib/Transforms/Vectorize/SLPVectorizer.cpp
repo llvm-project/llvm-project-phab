@@ -3344,10 +3344,11 @@ void BoUpSLP::optimizeGatherSequence() {
 
   // Sort blocks by domination. This ensures we visit a block after all blocks
   // dominating it are visited.
-  std::stable_sort(CSEWorkList.begin(), CSEWorkList.end(),
-                   [this](const DomTreeNode *A, const DomTreeNode *B) {
-    return DT->properlyDominates(A, B);
-  });
+  // std::sort is unavailable since the comparator is asymmetric.
+  for (auto A = CSEWorkList.begin(), E = CSEWorkList.end(); A != E; ++A)
+    for (auto B = std::next(A); B != E; ++B)
+      if (DT->properlyDominates(*B, *A))
+        std::swap(*A, *B);
 
   // Perform O(N^2) search over the gather sequences and merge identical
   // instructions. TODO: We can further optimize this scan if we split the
