@@ -88,11 +88,7 @@ void OutputSection::addSection(InputSection *S) {
   S->Parent = this;
   this->updateAlignment(S->Alignment);
 
-  // The actual offsets will be computed by assignAddresses. For now, use
-  // crude approximation so that it is at least easy for other code to know the
-  // section order. It is also used to calculate the output section size early
-  // for compressed debug sections.
-  this->Size = updateOffset(Size, S);
+  S->OutSecPos = InputSectionCount++;
 
   // If this section contains a table of fixed-size entries, sh_entsize
   // holds the element size. Consequently, if this contains two or more
@@ -335,6 +331,12 @@ template <class ELFT> void OutputSection::maybeCompress() {
       !Name.startswith(".debug_"))
     return;
 
+  // Calculate the section offsets and size pre-compression.
+  for (BaseCommand * Cmd : Commands)
+    if (auto *ISD = dyn_cast<InputSectionDescription>(Cmd))
+      for (InputSection *IS : ISD->Sections)
+        Size = updateOffset(Size, IS);
+
   // Create a section header.
   ZDebugHeader.resize(sizeof(Elf_Chdr));
   auto *Hdr = reinterpret_cast<Elf_Chdr *>(ZDebugHeader.data());
@@ -427,7 +429,7 @@ static bool compareByFilePosition(InputSection *A, InputSection *B) {
   OutputSection *BOut = LB->getParent();
   if (AOut != BOut)
     return AOut->SectionIndex < BOut->SectionIndex;
-  return LA->OutSecOff < LB->OutSecOff;
+  return LA->OutSecPos < LB->OutSecPos;
 }
 
 template <class ELFT>

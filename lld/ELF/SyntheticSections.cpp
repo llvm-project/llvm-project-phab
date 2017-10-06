@@ -821,6 +821,18 @@ unsigned MipsGotSection::getLocalEntriesNum() const {
 
 void MipsGotSection::finalizeContents() { updateAllocSize(); }
 
+static uint64_t estimateOutputSectionSize(const OutputSection *OS) {
+  uint64_t Size = 0;
+  for (BaseCommand *Cmd : OS->Commands) {
+    if (auto *ISD = cast<InputSectionDescription>(Cmd)) {
+      for (InputSection *IS : ISD->Sections) {
+        Size = alignTo(Size, IS->Alignment) + IS->getSize();
+      }
+    }
+  }
+  return Size;
+}
+
 void MipsGotSection::updateAllocSize() {
   PageEntriesNum = 0;
   for (std::pair<const OutputSection *, size_t> &P : PageIndexMap) {
@@ -831,7 +843,13 @@ void MipsGotSection::updateAllocSize() {
     // against it. And take in account the case when the section intersects
     // page boundaries.
     P.second = PageEntriesNum;
-    PageEntriesNum += getMipsPageCount(P.first->Size);
+    // The OutputSection Size is not set until after assignAddresses has been
+    // called, so we cannot use it. Instead we make a rough estimate of the
+    // section size, which will be accurate as long as users don't modify the
+    // section size via the linker script. If they do use a custom layout
+    // using linker scripts, then the size may be lower than necessary,
+    // resulting in fewer GOT entries than are potentially needed.
+    PageEntriesNum += getMipsPageCount(estimateOutputSectionSize(P.first));
   }
   Size = (getLocalEntriesNum() + GlobalEntries.size() + TlsEntries.size()) *
          Config->Wordsize;
