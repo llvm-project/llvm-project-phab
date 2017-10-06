@@ -44,6 +44,8 @@ ProgramStateRef updateLoopStack(const Stmt *LoopStmt, ASTContext &ASTCtx,
 /// element of the stack of loops.
 ProgramStateRef processLoopEnd(const Stmt *LoopStmt, ProgramStateRef State);
 
+bool isVarChanged(const FunctionDecl *FD, const VarDecl *VD);
+
 } // end namespace ento
 } // end namespace clang
 

@@ -99,7 +99,10 @@ changeIntBoundNode(internal::Matcher<Decl> VarNodeMatcher) {
                         declRefExpr(to(varDecl(VarNodeMatcher)))))),
       binaryOperator(anyOf(hasOperatorName("="), hasOperatorName("+="),
                            hasOperatorName("/="), hasOperatorName("*="),
-                           hasOperatorName("-=")),
+                           hasOperatorName("-="), hasOperatorName("%="),
+                           hasOperatorName("<<="), hasOperatorName(">>="),
+                           hasOperatorName("&="), hasOperatorName("|="),
+                           hasOperatorName("^=")),
                      hasLHS(ignoringParenImpCasts(
                          declRefExpr(to(varDecl(VarNodeMatcher)))))));
 }
@@ -283,5 +286,16 @@ bool isUnrolledState(ProgramStateRef State) {
     return false;
   return true;
 }
+
+bool isVarChanged(const FunctionDecl *FD, const VarDecl *VD) {
+  if (!FD->getBody())
+    return false;
+  auto Match = match(
+      stmt(hasDescendant(stmt(anyOf(
+          callByRef(equalsNode(VD)), getAddrTo(equalsNode(VD)),
+          assignedToRef(equalsNode(VD)), changeIntBoundNode(equalsNode(VD)))))),
+      *FD->getBody(), FD->getASTContext());
+  return !Match.empty();
 }
-}
+} // namespace ento
+} // namespace clang

@@ -575,15 +575,17 @@ public:
   /// \brief Default implementation of call evaluation.
   void defaultEvalCall(NodeBuilder &B, ExplodedNode *Pred,
                        const CallEvent &Call);
+
 private:
+  ProgramStateRef getInitialStateForGlobalStaticVar(const LocationContext *LCtx,
+                                                    const ProgramStateRef State,
+                                                    const VarDecl *VD);
+
   void evalLoadCommon(ExplodedNodeSet &Dst,
-                      const Expr *NodeEx,  /* Eventually will be a CFGStmt */
-                      const Expr *BoundEx,
-                      ExplodedNode *Pred,
-                      ProgramStateRef St,
-                      SVal location,
-                      const ProgramPointTag *tag,
-                      QualType LoadTy);
+                      const Expr *NodeEx, /* Eventually will be a CFGStmt */
+                      const Expr *BoundEx, ExplodedNode *Pred,
+                      ProgramStateRef St, SVal location,
+                      const ProgramPointTag *tag, QualType LoadTy);
 
   // FIXME: 'tag' should be removed, and a LocationContext should be used
   // instead.
