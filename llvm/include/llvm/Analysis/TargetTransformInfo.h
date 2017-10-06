@@ -349,6 +349,7 @@ public:
     unsigned ImmCost;
     unsigned SetupCost;
     unsigned ScaleCost;
+    unsigned FoldedAddress;
   };
 
   /// Parameters that control the generic loop unrolling transformation.

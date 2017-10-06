@@ -16,74 +16,74 @@
 ; alias analysis ability (that doesn't require any AliasAnalysis pass).
 ;
 ; TOPDOWN-LABEL: %for.body
+; TOPDOWN: movl %{{.*}}, -12(
+; TOPDOWN-NOT: imull {{[0-9]*}}(
+; TOPDOWN: movl %{{.*}}, -8(
+; TOPDOWN-NOT: imull {{[0-9]*}}(
+; TOPDOWN: movl %{{.*}}, -4(
 ; TOPDOWN: movl %{{.*}}, (
-; TOPDOWN-NOT: imull {{[0-9]*}}(
-; TOPDOWN: movl %{{.*}}, 4(
-; TOPDOWN-NOT: imull {{[0-9]*}}(
-; TOPDOWN: movl %{{.*}}, 8(
-; TOPDOWN: movl %{{.*}}, 12(
 ; TOPDOWN-LABEL: %for.end
 ;
 ; For -misched=ilpmin, verify that each expression subtree is
 ; scheduled independently, and that the imull/adds are interleaved.
 ;
 ; ILPMIN-LABEL: %for.body
+; ILPMIN: movl %{{.*}}, -12(
+; ILPMIN: imull
+; ILPMIN: imull
+; ILPMIN: addl
+; ILPMIN: imull
+; ILPMIN: addl
+; ILPMIN: imull
+; ILPMIN: addl
+; ILPMIN: movl %{{.*}}, -8(
+; ILPMIN: imull
+; ILPMIN: imull
+; ILPMIN: addl
+; ILPMIN: imull
+; ILPMIN: addl
+; ILPMIN: imull
+; ILPMIN: addl
+; ILPMIN: movl %{{.*}}, -4(
+; ILPMIN: imull
+; ILPMIN: imull
+; ILPMIN: addl
+; ILPMIN: imull
+; ILPMIN: addl
+; ILPMIN: imull
+; ILPMIN: addl
 ; ILPMIN: movl %{{.*}}, (
-; ILPMIN: imull
-; ILPMIN: imull
-; ILPMIN: addl
-; ILPMIN: imull
-; ILPMIN: addl
-; ILPMIN: imull
-; ILPMIN: addl
-; ILPMIN: movl %{{.*}}, 4(
-; ILPMIN: imull
-; ILPMIN: imull
-; ILPMIN: addl
-; ILPMIN: imull
-; ILPMIN: addl
-; ILPMIN: imull
-; ILPMIN: addl
-; ILPMIN: movl %{{.*}}, 8(
-; ILPMIN: imull
-; ILPMIN: imull
-; ILPMIN: addl
-; ILPMIN: imull
-; ILPMIN: addl
-; ILPMIN: imull
-; ILPMIN: addl
-; ILPMIN: movl %{{.*}}, 12(
 ; ILPMIN-LABEL: %for.end
 ;
 ; For -misched=ilpmax, verify that each expression subtree is
 ; scheduled independently, and that the imull/adds are clustered.
 ;
 ; ILPMAX-LABEL: %for.body
+; ILPMAX: movl %{{.*}}, -12(
+; ILPMAX: imull
+; ILPMAX: imull
+; ILPMAX: imull
+; ILPMAX: imull
+; ILPMAX: addl
+; ILPMAX: addl
+; ILPMAX: addl
+; ILPMAX: movl %{{.*}}, -8(
+; ILPMAX: imull
+; ILPMAX: imull
+; ILPMAX: imull
+; ILPMAX: imull
+; ILPMAX: addl
+; ILPMAX: addl
+; ILPMAX: addl
+; ILPMAX: movl %{{.*}}, -4(
+; ILPMAX: imull
+; ILPMAX: imull
+; ILPMAX: imull
+; ILPMAX: imull
+; ILPMAX: addl
+; ILPMAX: addl
+; ILPMAX: addl
 ; ILPMAX: movl %{{.*}}, (
-; ILPMAX: imull
-; ILPMAX: imull
-; ILPMAX: imull
-; ILPMAX: imull
-; ILPMAX: addl
-; ILPMAX: addl
-; ILPMAX: addl
-; ILPMAX: movl %{{.*}}, 4(
-; ILPMAX: imull
-; ILPMAX: imull
-; ILPMAX: imull
-; ILPMAX: imull
-; ILPMAX: addl
-; ILPMAX: addl
-; ILPMAX: addl
-; ILPMAX: movl %{{.*}}, 8(
-; ILPMAX: imull
-; ILPMAX: imull
-; ILPMAX: imull
-; ILPMAX: imull
-; ILPMAX: addl
-; ILPMAX: addl
-; ILPMAX: addl
-; ILPMAX: movl %{{.*}}, 12(
 ; ILPMAX-LABEL: %for.end
 
 define void @mmult([4 x i32]* noalias nocapture %m1, [4 x i32]* noalias nocapture %m2,

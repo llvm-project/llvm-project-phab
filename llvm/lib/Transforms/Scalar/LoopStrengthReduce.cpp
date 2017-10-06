@@ -976,6 +976,7 @@ public:
     C.ImmCost = 0;
     C.SetupCost = 0;
     C.ScaleCost = 0;
+    C.FoldedAddress = 0;
   }
 
   bool isLess(Cost &Other, const TargetTransformInfo &TTI);
@@ -986,9 +987,9 @@ public:
   // Once any of the metrics loses, they must all remain losers.
   bool isValid() {
     return ((C.Insns | C.NumRegs | C.AddRecCost | C.NumIVMuls | C.NumBaseAdds
-             | C.ImmCost | C.SetupCost | C.ScaleCost) != ~0u)
+             | C.ImmCost | C.SetupCost | C.ScaleCost | C.FoldedAddress) != ~0u)
       || ((C.Insns & C.NumRegs & C.AddRecCost & C.NumIVMuls & C.NumBaseAdds
-           & C.ImmCost & C.SetupCost & C.ScaleCost) == ~0u);
+           & C.ImmCost & C.SetupCost & C.ScaleCost & C.FoldedAddress) == ~0u);
   }
 #endif
 
@@ -1298,6 +1299,9 @@ void Cost::RateFormula(const TargetTransformInfo &TTI,
                               Offset, F.HasBaseReg, F.Scale, Fixup.UserInst))
       C.NumBaseAdds++;
   }
+  if (NumBaseParts > 1 && LU.Kind == LSRUse::Address &&
+      isAMCompletelyFolded(TTI, LU, F))
+    C.FoldedAddress += LU.Fixups.size();
 
   // If we don't count instruction cost exit here.
   if (!InsnsCost) {
@@ -1347,6 +1351,7 @@ void Cost::Lose() {
   C.ImmCost = ~0u;
   C.SetupCost = ~0u;
   C.ScaleCost = ~0u;
+  C.FoldedAddress = ~0u;
 }
 
 /// Choose the lower cost.
@@ -1376,6 +1381,9 @@ void Cost::print(raw_ostream &OS) const {
     OS << ", plus " << C.ImmCost << " imm cost";
   if (C.SetupCost != 0)
     OS << ", plus " << C.SetupCost << " setup cost";
+  if (C.FoldedAddress != 0)
+    OS << ", plus " << C.FoldedAddress << " folded address"
+       << (C.FoldedAddress == 1 ? "" : "es");
 }
 
 LLVM_DUMP_METHOD void Cost::dump() const {
