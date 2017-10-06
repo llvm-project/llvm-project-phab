@@ -316,6 +316,12 @@ SITargetLowering::SITargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::FDIV, MVT::f32, Custom);
   setOperationAction(ISD::FDIV, MVT::f64, Custom);
 
+  //setOperationAction(ISD::FMA, MVT::f32, Custom);
+  //setOperationAction(ISD::FMA, MVT::f64, Custom);
+
+  setOperationAction(ISD::STRICT_FMA, MVT::f32, Custom);
+  setOperationAction(ISD::STRICT_FMA, MVT::f64, Custom);
+
   if (Subtarget->has16BitInsts()) {
     setOperationAction(ISD::Constant, MVT::i16, Legal);
 
@@ -3168,6 +3174,7 @@ SDValue SITargetLowering::LowerOperation(SDValue Op, SelectionDAG &DAG) const {
     return LowerTrig(Op, DAG);
   case ISD::SELECT: return LowerSELECT(Op, DAG);
   case ISD::FDIV: return LowerFDIV(Op, DAG);
+  case ISD::STRICT_FMA: return LowerConstrainedFMA(Op, DAG);
   case ISD::ATOMIC_CMP_SWAP: return LowerATOMIC_CMP_SWAP(Op, DAG);
   case ISD::STORE: return LowerSTORE(Op, DAG);
   case ISD::GlobalAddress: {
@@ -4657,7 +4664,7 @@ static SDValue getFPTernOp(SelectionDAG &DAG, unsigned Opcode, const SDLoc &SL,
     return DAG.getNode(Opcode, SL, VT, A, B, C);
   }
 
-  assert(GlueChain->getNumValues() == 3);
+  assert(GlueChain->getNumValues() == 3 || GlueChain->getNumValues() == 2);
 
   SDVTList VTList = DAG.getVTList(VT, MVT::Other, MVT::Glue);
   switch (Opcode) {
@@ -4667,8 +4674,12 @@ static SDValue getFPTernOp(SelectionDAG &DAG, unsigned Opcode, const SDLoc &SL,
     break;
   }
 
-  return DAG.getNode(Opcode, SL, VTList, GlueChain.getValue(1), A, B, C,
-                     GlueChain.getValue(2));
+  if (GlueChain->getNumValues() == 3)
+    return DAG.getNode(Opcode, SL, VTList, GlueChain.getValue(1), A, B, C,
+                       GlueChain.getValue(2));
+  else if (GlueChain->getNumValues() == 2)
+    return DAG.getNode(Opcode, SL, VTList, GlueChain.getValue(0), A, B, C,
+                       GlueChain.getValue(1));
 }
 
 SDValue SITargetLowering::LowerFDIV16(SDValue Op, SelectionDAG &DAG) const {
@@ -4888,6 +4899,49 @@ SDValue SITargetLowering::LowerFDIV(SDValue Op, SelectionDAG &DAG) const {
     return LowerFDIV16(Op, DAG);
 
   llvm_unreachable("Unexpected type for fdiv");
+}
+
+SDValue SITargetLowering::LowerConstrainedFMA(SDValue Op, SelectionDAG &DAG) const {
+  SDLoc SL(Op);
+
+  // Retrieve FP Rouding Mode.
+  bool RoundMode = Op->getFlags().hasRoundDynamic();
+  // TODO: Based on retrieved FP RoundMode to set up register modes.
+  const unsigned Denorm32Reg = AMDGPU::Hwreg::ID_MODE |
+                               (2 << AMDGPU::Hwreg::OFFSET_SHIFT_) |
+                               (1 << AMDGPU::Hwreg::WIDTH_M1_SHIFT_);
+
+  const SDValue BitField = DAG.getTargetConstant(Denorm32Reg, SL, MVT::i16);
+
+  SDVTList BindParamVTs = DAG.getVTList(MVT::Other, MVT::Glue);
+  const SDValue EnableDenormValue = DAG.getConstant(FP_DENORM_FLUSH_NONE,
+                                                      SL, MVT::i32);
+
+  SDValue EnableDenorm = DAG.getNode(AMDGPUISD::SETREG, SL, BindParamVTs,
+                                     DAG.getEntryNode(),
+                                     EnableDenormValue, BitField);
+
+  SDValue FMA = getFPTernOp(DAG, ISD::FMA, SL, MVT::f64, Op.getOperand(0),
+                                                         Op.getOperand(1),
+                                                         Op.getOperand(2),
+                                                         EnableDenorm);
+
+  const SDValue DisableDenormValue = DAG.getConstant(FP_DENORM_FLUSH_NONE,
+                                                     SL, MVT::i32);
+
+  SDValue DisableDenorm = DAG.getNode(AMDGPUISD::SETREG, SL, BindParamVTs,
+                                      FMA.getValue(1),
+                                      DisableDenormValue,
+                                      BitField,
+                                      FMA.getValue(2));
+
+  SDValue OutputChain = DAG.getNode(ISD::TokenFactor, SL, MVT::Other,
+                                    DisableDenorm, DAG.getRoot());
+  DAG.setRoot(OutputChain);
+
+  return FMA;
+
+  llvm_unreachable("Unexpected type for fma");
 }
 
 SDValue SITargetLowering::LowerSTORE(SDValue Op, SelectionDAG &DAG) const {

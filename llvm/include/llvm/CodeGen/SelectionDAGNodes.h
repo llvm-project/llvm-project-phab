@@ -365,13 +365,25 @@ private:
   bool VectorReduction : 1;
   bool AllowContract : 1;
 
+  bool RoundDynamic : 1;
+  bool RoundTonearest : 1;
+  bool RoundDownward : 1;
+  bool RoundUpward : 1;
+  bool RoundTowardZero : 1;
+
+  bool ExceptIgnore : 1;
+  bool ExceptMayTrap : 1;
+  bool ExceptStrict : 1;
+
 public:
   /// Default constructor turns off all optimization flags.
   SDNodeFlags()
       : AnyDefined(false), NoUnsignedWrap(false), NoSignedWrap(false),
         Exact(false), UnsafeAlgebra(false), NoNaNs(false), NoInfs(false),
         NoSignedZeros(false), AllowReciprocal(false), VectorReduction(false),
-        AllowContract(false) {}
+        AllowContract(false), RoundDynamic(false),  RoundTonearest(false),
+        RoundDownward(false), RoundUpward(false), RoundTowardZero(false),
+        ExceptIgnore(false), ExceptMayTrap(false), ExceptStrict(false) {}
 
   /// Sets the state of the flags to the defined state.
   void setDefined() { AnyDefined = true; }
@@ -420,6 +432,46 @@ public:
     AllowContract = b;
   }
 
+  void setRoundDynamic(bool b) {
+	setDefined();
+	RoundDynamic = b;
+  }
+
+  void setRoundTonearest(bool b) {
+	  setDefined();
+	  RoundTonearest = b;
+  }
+
+  void setRoundDownward(bool b) {
+	setDefined();
+	RoundDownward = b;
+  }
+
+  void setRoundUpward(bool b) {
+	setDefined();
+	RoundUpward = b;
+  }
+
+  void setRoundTowardZero(bool b) {
+	setDefined();
+	RoundTowardZero = b;
+  }
+
+  void setExceptIgnore(bool b) {
+	setDefined();
+	ExceptIgnore = b;
+  }
+
+  void setExceptMayTrap(bool b) {
+	setDefined();
+	ExceptMayTrap = b;
+  }
+
+  void setExceptStrict(bool b) {
+	setDefined();
+	ExceptStrict = b;
+  }
+
   // These are accessors for each flag.
   bool hasNoUnsignedWrap() const { return NoUnsignedWrap; }
   bool hasNoSignedWrap() const { return NoSignedWrap; }
@@ -431,6 +483,14 @@ public:
   bool hasAllowReciprocal() const { return AllowReciprocal; }
   bool hasVectorReduction() const { return VectorReduction; }
   bool hasAllowContract() const { return AllowContract; }
+  bool hasRoundDynamic() const { return RoundDynamic; }
+  bool hasRoundTonearest() const { return RoundTonearest; }
+  bool hasRoundDownward() const { return RoundDownward; }
+  bool hasRoundUpward() const { return RoundUpward; }
+  bool hasRoundTowardZero() const { return RoundTowardZero; }
+  bool hasExceptIgnore() const { return ExceptIgnore; }
+  bool hasExceptMayTrap() const { return ExceptMayTrap; }
+  bool hasExceptStrict() const { return ExceptStrict; }
 
   /// Clear any flags in this flag set that aren't also set in Flags.
   /// If the given Flags are undefined then don't do anything.
@@ -447,6 +507,14 @@ public:
     AllowReciprocal &= Flags.AllowReciprocal;
     VectorReduction &= Flags.VectorReduction;
     AllowContract &= Flags.AllowContract;
+    RoundDynamic &= Flags.RoundDynamic;
+    RoundTonearest &= Flags.RoundTonearest;
+    RoundDownward &= Flags.RoundDownward;
+    RoundUpward &= Flags.RoundUpward;
+    RoundTowardZero &= Flags.RoundTowardZero;
+    ExceptIgnore &= Flags.ExceptIgnore;
+    ExceptMayTrap &= Flags.ExceptMayTrap;
+    ExceptStrict &= Flags.ExceptStrict;
   }
 };
 

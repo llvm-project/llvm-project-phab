@@ -780,8 +780,12 @@ void AMDGPUDAGToDAGISel::SelectFMA_W_CHAIN(SDNode *N) {
   SelectVOP3Mods(N->getOperand(3), Ops[5], Ops[4]);
   Ops[8] = N->getOperand(0);
   Ops[9] = N->getOperand(4);
-
-  CurDAG->SelectNodeTo(N, AMDGPU::V_FMA_F32, N->getVTList(), Ops);
+  assert((N->getValueType(0) == MVT::f32 || N->getValueType(0) == MVT::f64) &&
+         "Incorrent Value Type!");
+  unsigned TargetOpc = N->getValueType(0) == MVT::f32 ?
+                       AMDGPU::V_FMA_F32 :
+                       AMDGPU::V_FMA_F64;
+  CurDAG->SelectNodeTo(N, TargetOpc, N->getVTList(), Ops);
 }
 
 void AMDGPUDAGToDAGISel::SelectFMUL_W_CHAIN(SDNode *N) {

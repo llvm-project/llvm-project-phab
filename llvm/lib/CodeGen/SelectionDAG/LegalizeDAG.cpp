@@ -940,7 +940,7 @@ getStrictFPOpcodeAction(const TargetLowering &TLI, unsigned Opcode, EVT VT) {
     case ISD::STRICT_FSQRT: EqOpc = ISD::FSQRT; break;
     case ISD::STRICT_FPOW: EqOpc = ISD::FPOW; break;
     case ISD::STRICT_FPOWI: EqOpc = ISD::FPOWI; break;
-    case ISD::STRICT_FMA: EqOpc = ISD::FMA; break;
+    case ISD::STRICT_FMA: EqOpc = ISD::STRICT_FMA; break;
     case ISD::STRICT_FSIN: EqOpc = ISD::FSIN; break;
     case ISD::STRICT_FCOS: EqOpc = ISD::FCOS; break;
     case ISD::STRICT_FEXP: EqOpc = ISD::FEXP; break;
@@ -953,6 +953,9 @@ getStrictFPOpcodeAction(const TargetLowering &TLI, unsigned Opcode, EVT VT) {
   }
 
   auto Action = TLI.getOperationAction(EqOpc, VT);
+
+  if (Action == TargetLowering::Custom)
+    return Action;
 
   // We don't currently handle Custom or Promote for strict FP pseudo-ops.
   // For now, we just expand for those cases.

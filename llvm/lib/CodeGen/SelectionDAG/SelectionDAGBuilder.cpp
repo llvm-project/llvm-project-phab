@@ -5467,7 +5467,22 @@ SelectionDAGBuilder::visitIntrinsicCall(const CallInst &I, unsigned Intrinsic) {
   case Intrinsic::experimental_constrained_fmul:
   case Intrinsic::experimental_constrained_fdiv:
   case Intrinsic::experimental_constrained_frem:
-  case Intrinsic::experimental_constrained_fma:
+  case Intrinsic::experimental_constrained_fma: {
+    SDNodeFlags SDFlags;
+    const ConstrainedFPIntrinsic &FPI = cast<ConstrainedFPIntrinsic>(I);
+    if (FPI.getRoundingMode() == llvm::ConstrainedFPIntrinsic::rmDynamic)
+      SDFlags.setRoundDynamic(true);
+
+    EVT VT = TLI.getValueType(DAG.getDataLayout(), I.getType());
+    SDValue Res = DAG.getNode(ISD::STRICT_FMA, sdl, VT,
+                              getValue(I.getArgOperand(0)),
+                              getValue(I.getArgOperand(1)),
+                              getValue(I.getArgOperand(2)));
+
+    Res.getNode()->setFlags(SDFlags);
+    setValue(&I, Res);
+    return nullptr;
+  }
   case Intrinsic::experimental_constrained_sqrt:
   case Intrinsic::experimental_constrained_pow:
   case Intrinsic::experimental_constrained_powi:
