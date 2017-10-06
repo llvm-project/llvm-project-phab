@@ -29,6 +29,7 @@ class CXXCompiler(object):
         self.flags = list(flags or [])
         self.compile_flags = list(compile_flags or [])
         self.link_flags = list(link_flags or [])
+        self.first_link_flags = []
         self.warning_flags = list(warning_flags or [])
         self.verify_supported = verify_supported
         self.use_verify = use_verify
@@ -99,13 +100,14 @@ class CXXCompiler(object):
         self.version = (major_ver, minor_ver, patchlevel)
 
     def _basicCmd(self, source_files, out, mode=CM_Default, flags=[],
-                  input_is_cxx=False):
+                  input_is_cxx=False, first_flags=[]):
         cmd = []
         if self.use_ccache \
                 and not mode == self.CM_Link \
                 and not mode == self.CM_PreProcess:
             cmd += ['ccache']
         cmd += [self.path]
+        cmd += first_flags
         if out is not None:
             cmd += ['-o', out]
         if input_is_cxx:
@@ -147,10 +149,12 @@ class CXXCompiler(object):
 
     def linkCmd(self, source_files, out=None, flags=[]):
         return self._basicCmd(source_files, out, flags=flags,
-                              mode=self.CM_Link)
+                              mode=self.CM_Link,
+                              first_flags=self.first_link_flags)
 
     def compileLinkCmd(self, source_files, out=None, flags=[]):
-        return self._basicCmd(source_files, out, flags=flags)
+        return self._basicCmd(source_files, out, flags=flags,
+                              first_flags=self.first_link_flags)
 
     def preprocess(self, source_files, out=None, flags=[], cwd=None):
         cmd = self.preprocessCmd(source_files, out, flags)
