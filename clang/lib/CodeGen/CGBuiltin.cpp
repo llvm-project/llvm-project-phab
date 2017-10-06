@@ -7708,7 +7708,7 @@ Value *CodeGenFunction::EmitX86CpuSupports(ArrayRef<StringRef> FeatureStrs) {
   return Builder.CreateICmpNE(Bitset, llvm::ConstantInt::get(Int32Ty, 0));
 }
 
-Value *CodeGenFunction::EmitX86CpuInit() {
+Value *CodeGenFunction::EmitX86CpuInit(CGBuilderTy &Builder) {
   llvm::FunctionType *FTy = llvm::FunctionType::get(VoidTy,
                                                     /*Variadic*/ false);
   llvm::Constant *Func = CGM.CreateRuntimeFunction(FTy, "__cpu_indicator_init");
@@ -7722,7 +7722,7 @@ Value *CodeGenFunction::EmitX86BuiltinExpr(unsigned BuiltinID,
   if (BuiltinID == X86::BI__builtin_cpu_supports)
     return EmitX86CpuSupports(E);
   if (BuiltinID == X86::BI__builtin_cpu_init)
-    return EmitX86CpuInit();
+    return EmitX86CpuInit(Builder);
 
   SmallVector<Value*, 4> Ops;
 
