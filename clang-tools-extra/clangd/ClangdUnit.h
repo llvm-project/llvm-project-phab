@@ -127,11 +127,13 @@ private:
 struct PreambleData {
   PreambleData(PrecompiledPreamble Preamble,
                std::vector<serialization::DeclID> TopLevelDeclIDs,
-               std::vector<DiagWithFixIts> Diags);
+               std::vector<DiagWithFixIts> Diags,
+               std::map<SourceLocation, std::string> IncludeMap);
 
   PrecompiledPreamble Preamble;
   std::vector<serialization::DeclID> TopLevelDeclIDs;
   std::vector<DiagWithFixIts> Diags;
+  std::map<SourceLocation, std::string> IncludeMap;
 };
 
 /// Manages resources, required by clangd. Allows to rebuild file with new
@@ -261,7 +263,8 @@ codeComplete(PathRef FileName, tooling::CompileCommand Command,
 
 /// Get definition of symbol at a specified \p Pos.
 std::vector<Location> findDefinitions(ParsedAST &AST, Position Pos,
-                                      clangd::Logger &Logger);
+                                      clangd::Logger &Logger,
+                                      std::map<SourceLocation, std::string>);
 
 /// For testing/debugging purposes. Note that this method deserializes all
 /// unserialized Decls, so use with care.

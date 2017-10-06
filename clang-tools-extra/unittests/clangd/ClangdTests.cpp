@@ -7,7 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "ClangdLSPServer.h"
 #include "ClangdServer.h"
 #include "Logger.h"
 #include "clang/Basic/VirtualFileSystem.h"
@@ -976,6 +975,57 @@ TEST_F(ClangdVFSTest, CheckSourceHeaderSwitch) {
   // string.
   PathResult = Server.switchSourceHeader(Invalid);
   EXPECT_FALSE(PathResult.hasValue());
+}
+
+TEST_F(ClangdVFSTest, CheckDefinitionIncludes) {
+  MockFSProvider FS;
+  ErrorCheckingDiagConsumer DiagConsumer;
+  MockCompilationDatabase CDB(/*AddFreestandingFlag=*/true);
+
+  ClangdServer Server(CDB, DiagConsumer, FS, 0,
+                      /*SnippetCompletions=*/false, EmptyLogger::getInstance());
+
+  auto FooCpp = getVirtualTestFilePath("foo.cpp");
+  const auto SourceContents = R"cpp(
+  #include "foo.h"
+  #include "invalid.h"
+  int b = a;
+  )cpp";
+  FS.Files[FooCpp] = SourceContents;
+  auto FooH = getVirtualTestFilePath("foo.h");
+  const auto HeaderContents = "int a;";
+
+  FS.Files[FooCpp] = SourceContents;
+  FS.Files[FooH] = HeaderContents;
+
+  Server.addDocument(FooH, HeaderContents);
+  Server.addDocument(FooCpp, SourceContents);
+
+  Position P = Position{1, 11};
+
+  std::vector<Location> Locations = (Server.findDefinitions(FooCpp, P)).Value;
+  EXPECT_TRUE(!Locations.empty());
+  std::string s("file:///");
+  std::string check = URI::unparse(Locations[0].uri);
+  check = check.erase(0, s.size());
+  check = check.substr(0, check.size() - 1);
+  ASSERT_EQ(check, FooH);
+  ASSERT_EQ(Locations[0].range.start.line, 0);
+  ASSERT_EQ(Locations[0].range.start.character, 0);
+  ASSERT_EQ(Locations[0].range.end.line, 0);
+  ASSERT_EQ(Locations[0].range.end.character, 0);
+
+  // Test ctrl-clicking on the #include part on the statement
+  Position P3 = Position{1, 3};
+
+  Locations = (Server.findDefinitions(FooCpp, P3)).Value;
+  EXPECT_TRUE(!Locations.empty());
+
+  // Test invalid include
+  Position P2 = Position{2, 11};
+
+  Locations = (Server.findDefinitions(FooCpp, P2)).Value;
+  EXPECT_TRUE(Locations.empty());
 }
 
 TEST_F(ClangdThreadingTest, NoConcurrentDiagnostics) {
