@@ -80,7 +80,7 @@ typename iterator_traits<InputIterator>::difference_type n = 1);
 
 template <class BidirectionalIterator>  // constexpr in C++17
   constexpr BidirectionalIterator prev(BidirectionalIterator x,
-    typename iterator_traits<BidirectionalIterator>::difference_type n = 1);    
+    typename iterator_traits<BidirectionalIterator>::difference_type n = 1);
 
 template <class Iterator>
 class reverse_iterator
@@ -147,7 +147,7 @@ operator-(const reverse_iterator<Iterator1>& x, const reverse_iterator<Iterator2
 
 template <class Iterator>
 constexpr reverse_iterator<Iterator>
-operator+(typename reverse_iterator<Iterator>::difference_type n, 
+operator+(typename reverse_iterator<Iterator>::difference_type n,
           const reverse_iterator<Iterator>& x);   // constexpr in C++17
 
 template <class Iterator>
@@ -227,7 +227,7 @@ public:
     typedef typename iterator_traits<Iterator>::value_type        value_type;
     typedef typename iterator_traits<Iterator>::iterator_category iterator_category;
     typedef value_type&&                                          reference;
- 
+
     constexpr move_iterator();  // all the constexprs are in C++17
     constexpr explicit move_iterator(Iterator i);
     template <class U>
@@ -241,10 +241,10 @@ public:
     constexpr move_iterator operator++(int);
     constexpr move_iterator& operator--();
     constexpr move_iterator operator--(int);
-    constexpr move_iterator operator+(difference_type n) const; 
-    constexpr move_iterator& operator+=(difference_type n); 
-    constexpr move_iterator operator-(difference_type n) const; 
-    constexpr move_iterator& operator-=(difference_type n); 
+    constexpr move_iterator operator+(difference_type n) const;
+    constexpr move_iterator& operator+=(difference_type n);
+    constexpr move_iterator operator-(difference_type n) const;
+    constexpr move_iterator& operator-=(difference_type n);
     constexpr unspecified operator[](difference_type n) const;
 private:
     Iterator current; // exposition only
@@ -281,7 +281,7 @@ operator-(const move_iterator<Iterator1>& x,
 
 template <class Iterator>
 constexpr move_iterator<Iterator> operator+(   // constexpr in C++17
-            typename move_iterator<Iterator>::difference_type n, 
+            typename move_iterator<Iterator>::difference_type n,
             const move_iterator<Iterator>& x);
 
 template <class Iterator>   // constexpr in C++17
@@ -522,8 +522,8 @@ struct __is_random_access_iterator : public __has_iterator_category_convertible_
 
 template <class _Tp>
 struct __is_exactly_input_iterator
-    : public integral_constant<bool, 
-         __has_iterator_category_convertible_to<_Tp, input_iterator_tag>::value && 
+    : public integral_constant<bool,
+         __has_iterator_category_convertible_to<_Tp, input_iterator_tag>::value &&
         !__has_iterator_category_convertible_to<_Tp, forward_iterator_tag>::value> {};
 
 template<class _Category, class _Tp, class _Distance = ptrdiff_t,
@@ -606,7 +606,7 @@ template <class _InputIter>
 inline _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX14
 typename enable_if
 <
-    __is_input_iterator<_InputIter>::value, 
+    __is_input_iterator<_InputIter>::value,
     _InputIter
 >::type
 next(_InputIter __x,
@@ -620,7 +620,7 @@ template <class _BidirectionalIter>
 inline _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX14
 typename enable_if
 <
-    __is_bidirectional_iterator<_BidirectionalIter>::value, 
+    __is_bidirectional_iterator<_BidirectionalIter>::value,
     _BidirectionalIter
 >::type
 prev(_BidirectionalIter __x,
@@ -1093,7 +1093,7 @@ public:
       _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX14
       move_iterator(const move_iterator<_Up>& __u) : __i(__u.base()) {}
     _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX14 _Iter base() const {return __i;}
-    _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX14 
+    _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX14
     reference operator*() const { return static_cast<reference>(*__i); }
     _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX14
     pointer  operator->() const { return __i;}
@@ -1460,30 +1460,9 @@ private:
     __wrap_iter<_Iter1>
     operator+(typename __wrap_iter<_Iter1>::difference_type, __wrap_iter<_Iter1>) _NOEXCEPT_DEBUG;
 
-    template <class _Ip, class _Op> friend _Op copy(_Ip, _Ip, _Op);
-    template <class _B1, class _B2> friend _B2 copy_backward(_B1, _B1, _B2);
-    template <class _Ip, class _Op> friend _Op move(_Ip, _Ip, _Op);
-    template <class _B1, class _B2> friend _B2 move_backward(_B1, _B1, _B2);
 
-#if _LIBCPP_DEBUG_LEVEL < 2
-    template <class _Tp>
-    friend
-    typename enable_if
-    <
-        is_trivially_copy_assignable<_Tp>::value,
-        _Tp*
-    >::type
-    __unwrap_iter(__wrap_iter<_Tp*>);
-#else
-  template <class _Tp>
-  inline _LIBCPP_INLINE_VISIBILITY
-  typename enable_if
-  <
-      is_trivially_copy_assignable<_Tp>::value,
-      __wrap_iter<_Tp*>
-  >::type
-  __unwrap_iter(__wrap_iter<_Tp*> __i);
-#endif
+    template <bool __is_backward, class _CopyTraits, class _Ip, class _Op> friend _Op __do_copy(_Ip, _Ip, _Op);
+    template <bool __condition> friend struct  __unwrap_iter_impl;
 };
 
 template <class _Iter1, class _Iter2>
@@ -1610,7 +1589,7 @@ operator+(typename __wrap_iter<_Iter>::difference_type __n,
 template <class _Iter>
 struct __libcpp_is_trivial_iterator
     : public _LIBCPP_BOOL_CONSTANT(is_pointer<_Iter>::value) {};
-    
+
 template <class _Iter>
 struct __libcpp_is_trivial_iterator<move_iterator<_Iter> >
     : public _LIBCPP_BOOL_CONSTANT(__libcpp_is_trivial_iterator<_Iter>::value) {};
