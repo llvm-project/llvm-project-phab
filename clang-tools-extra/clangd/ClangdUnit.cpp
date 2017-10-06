@@ -78,6 +78,10 @@ public:
     return std::move(TopLevelDeclIDs);
   }
 
+  std::map<SourceLocation, std::string> takeIncludeMap() {
+    return std::move(IncludeMap);
+  }
+
   void AfterPCHEmitted(ASTWriter &Writer) override {
     TopLevelDeclIDs.reserve(TopLevelDecls.size());
     for (Decl *D : TopLevelDecls) {
@@ -96,9 +100,55 @@ public:
     }
   }
 
+  void AfterExecute(CompilerInstance &CI) override {
+    const SourceManager &SM = CI.getSourceManager();
+    unsigned n = SM.local_sloc_entry_size();
+    SmallVector<SourceLocation, 10> InclusionStack;
+    std::map<SourceLocation, std::string>::iterator it = IncludeMap.begin();
+
+    for (unsigned i = 0; i < n; ++i) {
+      bool Invalid = false;
+      const SrcMgr::SLocEntry &SL = SM.getLocalSLocEntry(i, &Invalid);
+      if (!SL.isFile() || Invalid)
+        continue;
+      const SrcMgr::FileInfo &FI = SL.getFile();
+      SourceLocation L = FI.getIncludeLoc();
+      InclusionStack.clear();
+
+      SourceLocation LocationToInsert;
+
+      while (L.isValid()) {
+        PresumedLoc PLoc = SM.getPresumedLoc(L);
+        InclusionStack.push_back(L);
+        L = PLoc.isValid() ? PLoc.getIncludeLoc() : SourceLocation();
+      }
+      if (InclusionStack.size() == 0) {
+        // Skip main file
+        continue;
+      }
+
+      if (InclusionStack.size() > 1) {
+        // Don't care about includes of includes
+        continue;
+      }
+
+      StringRef FilePath =
+          FI.getContentCache()->OrigEntry->tryGetRealPathName();
+      if (FilePath.empty()) {
+        // FIXME: Does tryGetRealPathName return empty if and only if the path
+        // to  the include doesn't exist? If that's the case we should skip this
+        // include.
+        FilePath = FI.getContentCache()->OrigEntry->getName();
+      }
+      IncludeMap.insert(std::pair<SourceLocation, std::string>(
+          InclusionStack.front(), FilePath.str()));
+    }
+  }
+
 private:
   std::vector<Decl *> TopLevelDecls;
   std::vector<serialization::DeclID> TopLevelDeclIDs;
+  std::map<SourceLocation, std::string> IncludeMap;
 };
 
 /// Convert from clang diagnostic level to LSP severity.
@@ -709,12 +759,15 @@ class DeclarationLocationsFinder : public index::IndexDataConsumer {
   const SourceLocation &SearchedLocation;
   const ASTContext &AST;
   Preprocessor &PP;
+  std::map<SourceLocation, std::string> IncludeMap;
 
 public:
   DeclarationLocationsFinder(raw_ostream &OS,
                              const SourceLocation &SearchedLocation,
-                             ASTContext &AST, Preprocessor &PP)
-      : SearchedLocation(SearchedLocation), AST(AST), PP(PP) {}
+                             ASTContext &AST, Preprocessor &PP,
+                             std::map<SourceLocation, std::string> IncludeMap)
+      : SearchedLocation(SearchedLocation), AST(AST), PP(PP),
+        IncludeMap(IncludeMap) {}
 
   std::vector<Location> takeLocations() {
     // Don't keep the same location multiple times.
@@ -744,7 +797,13 @@ private:
            SourceMgr.getFileID(SearchedLocation) == FID;
   }
 
-  void addDeclarationLocation(const SourceRange &ValSourceRange) {
+  bool isSameLine(unsigned line) const {
+    const SourceManager &SourceMgr = AST.getSourceManager();
+    return line == SourceMgr.getSpellingLineNumber(SearchedLocation);
+  }
+
+  void addDeclarationLocation(const SourceRange &ValSourceRange,
+                              bool test = false) {
     const SourceManager &SourceMgr = AST.getSourceManager();
     const LangOptions &LangOpts = AST.getLangOpts();
     SourceLocation LocStart = ValSourceRange.getBegin();
@@ -757,14 +816,30 @@ private:
     End.line = SourceMgr.getSpellingLineNumber(LocEnd) - 1;
     End.character = SourceMgr.getSpellingColumnNumber(LocEnd) - 1;
     Range R = {Begin, End};
+    addLocation(URI::fromFile(
+                    SourceMgr.getFilename(SourceMgr.getSpellingLoc(LocStart))),
+                R);
+  }
+
+  void addLocation(URI uri, Range R) {
+
     Location L;
-    L.uri = URI::fromFile(
-        SourceMgr.getFilename(SourceMgr.getSpellingLoc(LocStart)));
+    L.uri = uri;
     L.range = R;
     DeclarationLocations.push_back(L);
   }
 
   void finish() override {
+
+    for (auto it = IncludeMap.begin(); it != IncludeMap.end(); ++it) {
+      SourceLocation L = it->first;
+      std::string &Path = it->second;
+      Range r = Range();
+      unsigned line = AST.getSourceManager().getSpellingLineNumber(L);
+      if (isSameLine(line))
+        addLocation(URI::fromFile(Path), Range());
+    }
+
     // Also handle possible macro at the searched location.
     Token Result;
     if (!Lexer::getRawToken(SearchedLocation, Result, AST.getSourceManager(),
@@ -834,8 +909,9 @@ SourceLocation getBeginningOfIdentifier(ParsedAST &Unit, const Position &Pos,
 }
 } // namespace
 
-std::vector<Location> clangd::findDefinitions(ParsedAST &AST, Position Pos,
-                                              clangd::Logger &Logger) {
+std::vector<Location>
+clangd::findDefinitions(ParsedAST &AST, Position Pos, clangd::Logger &Logger,
+                        std::map<SourceLocation, std::string> IncludeMap) {
   const SourceManager &SourceMgr = AST.getASTContext().getSourceManager();
   const FileEntry *FE = SourceMgr.getFileEntryForID(SourceMgr.getMainFileID());
   if (!FE)
@@ -845,7 +921,7 @@ std::vector<Location> clangd::findDefinitions(ParsedAST &AST, Position Pos,
 
   auto DeclLocationsFinder = std::make_shared<DeclarationLocationsFinder>(
       llvm::errs(), SourceLocationBeg, AST.getASTContext(),
-      AST.getPreprocessor());
+      AST.getPreprocessor(), IncludeMap);
   index::IndexingOptions IndexOpts;
   IndexOpts.SystemSymbolFilter =
       index::IndexingOptions::SystemSymbolFilterKind::All;
@@ -929,9 +1005,11 @@ ParsedASTWrapper::ParsedASTWrapper(llvm::Optional<ParsedAST> AST)
 
 PreambleData::PreambleData(PrecompiledPreamble Preamble,
                            std::vector<serialization::DeclID> TopLevelDeclIDs,
-                           std::vector<DiagWithFixIts> Diags)
+                           std::vector<DiagWithFixIts> Diags,
+                           std::map<SourceLocation, std::string> IncludeMap)
     : Preamble(std::move(Preamble)),
-      TopLevelDeclIDs(std::move(TopLevelDeclIDs)), Diags(std::move(Diags)) {}
+      TopLevelDeclIDs(std::move(TopLevelDeclIDs)), Diags(std::move(Diags)),
+      IncludeMap(std::move(IncludeMap)) {}
 
 std::shared_ptr<CppFile>
 CppFile::Create(PathRef FileName, tooling::CompileCommand Command,
@@ -1093,7 +1171,8 @@ CppFile::deferRebuild(StringRef NewContents,
         return std::make_shared<PreambleData>(
             std::move(*BuiltPreamble),
             SerializedDeclsCollector.takeTopLevelDeclIDs(),
-            std::move(PreambleDiags));
+            std::move(PreambleDiags),
+            SerializedDeclsCollector.takeIncludeMap());
       } else {
         return nullptr;
       }

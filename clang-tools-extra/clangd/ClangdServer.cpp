@@ -287,11 +287,18 @@ Tagged<std::vector<Location>> ClangdServer::findDefinitions(PathRef File,
   assert(Resources && "Calling findDefinitions on non-added file");
 
   std::vector<Location> Result;
-  Resources->getAST().get()->runUnderLock([Pos, &Result, this](ParsedAST *AST) {
-    if (!AST)
-      return;
-    Result = clangd::findDefinitions(*AST, Pos, Logger);
-  });
+  std::map<SourceLocation, std::string> IncludeMap;
+  std::shared_ptr<const PreambleData> StalePreamble =
+      Resources->getPossiblyStalePreamble();
+  if (StalePreamble)
+    IncludeMap = StalePreamble->IncludeMap;
+  Resources->getAST().get()->runUnderLock(
+      [Pos, &Result, IncludeMap, this](ParsedAST *AST) {
+        if (!AST)
+          return;
+
+        Result = clangd::findDefinitions(*AST, Pos, Logger, IncludeMap);
+      });
   return make_tagged(std::move(Result), TaggedFS.Tag);
 }
 
@@ -344,7 +351,7 @@ llvm::Optional<Path> ClangdServer::switchSourceHeader(PathRef Path) {
       return NewPath.str().str(); // First str() to convert from SmallString to
                                   // StringRef, second to convert from StringRef
                                   // to std::string
-    
+
     // Also check NewExt in upper-case, just in case.
     llvm::sys::path::replace_extension(NewPath, NewExt.upper());
     if (FS->exists(NewPath))

@@ -7,7 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "ClangdLSPServer.h"
 #include "ClangdServer.h"
 #include "Logger.h"
 #include "clang/Basic/VirtualFileSystem.h"
@@ -900,82 +899,55 @@ int d;
   }
 }
 
-TEST_F(ClangdVFSTest, CheckSourceHeaderSwitch) {
+TEST_F(ClangdVFSTest, CheckDefinitionIncludes) {
   MockFSProvider FS;
   ErrorCheckingDiagConsumer DiagConsumer;
   MockCompilationDatabase CDB(/*AddFreestandingFlag=*/true);
 
-  ClangdServer Server(CDB, DiagConsumer, FS, getDefaultAsyncThreadsCount(),
+  ClangdServer Server(CDB, DiagConsumer, FS, 0,
                       /*SnippetCompletions=*/false, EmptyLogger::getInstance());
 
-  auto SourceContents = R"cpp(
+  auto FooCpp = getVirtualTestFilePath("foo.cpp");
+  const auto SourceContents = R"cpp(
   #include "foo.h"
+  #include "invalid.h"
   int b = a;
   )cpp";
-
-  auto FooCpp = getVirtualTestFilePath("foo.cpp");
+  FS.Files[FooCpp] = SourceContents;
   auto FooH = getVirtualTestFilePath("foo.h");
-  auto Invalid = getVirtualTestFilePath("main.cpp");
+  const auto HeaderContents = "int a;";
 
   FS.Files[FooCpp] = SourceContents;
-  FS.Files[FooH] = "int a;";
-  FS.Files[Invalid] = "int main() { \n return 0; \n }";
+  FS.Files[FooH] = HeaderContents;
 
-  llvm::Optional<Path> PathResult = Server.switchSourceHeader(FooCpp);
-  EXPECT_TRUE(PathResult.hasValue());
-  ASSERT_EQ(PathResult.getValue(), FooH);
+  Server.addDocument(FooH, HeaderContents);
+  Server.addDocument(FooCpp, SourceContents);
 
-  PathResult = Server.switchSourceHeader(FooH);
-  EXPECT_TRUE(PathResult.hasValue());
-  ASSERT_EQ(PathResult.getValue(), FooCpp);
+  Position P = Position{1, 11};
 
-  SourceContents = R"c(
-  #include "foo.HH"
-  int b = a;
-  )c";
+  std::vector<Location> Locations = (Server.findDefinitions(FooCpp, P)).Value;
+  EXPECT_TRUE(!Locations.empty());
+  std::string s("file:///");
+  std::string check = URI::unparse(Locations[0].uri);
+  check = check.erase(0, s.size());
+  check = check.substr(0, check.size() - 1);
+  ASSERT_EQ(check, FooH);
+  ASSERT_EQ(Locations[0].range.start.line, 0);
+  ASSERT_EQ(Locations[0].range.start.character, 0);
+  ASSERT_EQ(Locations[0].range.end.line, 0);
+  ASSERT_EQ(Locations[0].range.end.character, 0);
 
-  // Test with header file in capital letters and different extension, source
-  // file with different extension
-  auto FooC = getVirtualTestFilePath("bar.c");
-  auto FooHH = getVirtualTestFilePath("bar.HH");
+  // Test ctrl-clicking on the #include part on the statement
+  Position P3 = Position{1, 3};
 
-  FS.Files[FooC] = SourceContents;
-  FS.Files[FooHH] = "int a;";
+  Locations = (Server.findDefinitions(FooCpp, P3)).Value;
+  EXPECT_TRUE(!Locations.empty());
 
-  PathResult = Server.switchSourceHeader(FooC);
-  EXPECT_TRUE(PathResult.hasValue());
-  ASSERT_EQ(PathResult.getValue(), FooHH);
+  // Test invalid include
+  Position P2 = Position{2, 11};
 
-  // Test with both capital letters
-  auto Foo2C = getVirtualTestFilePath("foo2.C");
-  auto Foo2HH = getVirtualTestFilePath("foo2.HH");
-  FS.Files[Foo2C] = SourceContents;
-  FS.Files[Foo2HH] = "int a;";
-
-  PathResult = Server.switchSourceHeader(Foo2C);
-  EXPECT_TRUE(PathResult.hasValue());
-  ASSERT_EQ(PathResult.getValue(), Foo2HH);
-
-  // Test with source file as capital letter and .hxx header file
-  auto Foo3C = getVirtualTestFilePath("foo3.C");
-  auto Foo3HXX = getVirtualTestFilePath("foo3.hxx");
-
-  SourceContents = R"c(
-  #include "foo3.hxx"
-  int b = a;
-  )c";
-
-  FS.Files[Foo3C] = SourceContents;
-  FS.Files[Foo3HXX] = "int a;";
-
-  PathResult = Server.switchSourceHeader(Foo3C);
-  EXPECT_TRUE(PathResult.hasValue());
-  ASSERT_EQ(PathResult.getValue(), Foo3HXX);
-
-  // Test if asking for a corresponding file that doesn't exist returns an empty
-  // string.
-  PathResult = Server.switchSourceHeader(Invalid);
-  EXPECT_FALSE(PathResult.hasValue());
+  Locations = (Server.findDefinitions(FooCpp, P2)).Value;
+  EXPECT_TRUE(Locations.empty());
 }
 
 TEST_F(ClangdThreadingTest, NoConcurrentDiagnostics) {
