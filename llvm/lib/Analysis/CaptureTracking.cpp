@@ -30,6 +30,14 @@
 
 using namespace llvm;
 
+/// TODO: Write a new FunctionPass AliasAnalysis so that it can keep
+/// a cache. Then we can move the code from BasicAliasAnalysis into
+/// that path, and remove this threshold.
+static cl::opt<unsigned> Threshold(
+    "capture-tracking-threshold", cl::Hidden, cl::init(20),
+    cl::desc("The maximum number of uses that the capture tracker"
+             "will consider trying to walk past (default = 20)"));
+
 CaptureTracker::~CaptureTracker() {}
 
 bool CaptureTracker::shouldExplore(const Use *U) { return true; }
@@ -206,15 +214,10 @@ bool llvm::PointerMayBeCapturedBefore(const Value *V, bool ReturnCaptures,
   return CB.Captured;
 }
 
-/// TODO: Write a new FunctionPass AliasAnalysis so that it can keep
-/// a cache. Then we can move the code from BasicAliasAnalysis into
-/// that path, and remove this threshold.
-static int const Threshold = 20;
-
 void llvm::PointerMayBeCaptured(const Value *V, CaptureTracker *Tracker) {
   assert(V->getType()->isPointerTy() && "Capture is for pointers only!");
-  SmallVector<const Use *, Threshold> Worklist;
-  SmallSet<const Use *, Threshold> Visited;
+  SmallVector<const Use *, 20> Worklist;
+  SmallSet<const Use *, 20> Visited;
   int Count = 0;
 
   for (const Use &U : V->uses()) {
