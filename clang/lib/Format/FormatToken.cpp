@@ -154,17 +154,13 @@ void CommaSeparatedList::precomputeFormattingInfos(const FormatToken *Token) {
       !Token->isOneOf(tok::l_brace, TT_ArrayInitializerLSquare))
     return;
 
-  // In C++11 braced list style, we should not format in columns unless they
-  // have many items (20 or more) or we allow bin-packing of function call
-  // arguments.
-  if (Style.Cpp11BracedListStyle && !Style.BinPackArguments &&
-      Commas.size() < 19)
+  // In C++11 braced list style, we should not format in columns unless  we
+  // allow bin-packing of function call arguments.
+  if (Style.Cpp11BracedListStyle && !Style.BinPackArguments)
     return;
 
-  // Limit column layout for JavaScript array initializers to 20 or more items
-  // for now to introduce it carefully. We can become more aggressive if this
-  // necessary.
-  if (Token->is(TT_ArrayInitializerLSquare) && Commas.size() < 19)
+  // The same applies to JavaScript array literals.
+  if (Token->is(TT_ArrayInitializerLSquare) && !Style.BinPackArguments)
     return;
 
   // Column format doesn't really make sense if we don't align after brackets.
