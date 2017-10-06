@@ -2189,9 +2189,25 @@ bool GVN::performScalarPRE(Instruction *CurInst) {
   unsigned NumWithout = 0;
   BasicBlock *PREPred = nullptr;
   BasicBlock *CurrentBlock = CurInst->getParent();
+  bool IsSafeToSpeculativelyExecute = isSafeToSpeculativelyExecute(CurInst);
+
+  // Make sure that there are no instructions with implicit control flow that
+  // could prevent us from reaching our instruction.
+  if (!IsSafeToSpeculativelyExecute) {
+    auto It = FirstImplicitControlFlowInsts.find(CurrentBlock);
+    if (It != FirstImplicitControlFlowInsts.end()) {
+      assert(It->second->getParent() == CurrentBlock &&
+             "Implicit control flow map broken?");
+      if (OI->dominates(It->second, CurInst))
+        return false;
+    }
+  }
 
   SmallVector<std::pair<Value *, BasicBlock *>, 8> predMap;
   for (BasicBlock *P : predecessors(CurrentBlock)) {
+    // Don't PRE across predecessors with implicit control flow.
+    if (!IsSafeToSpeculativelyExecute && FirstImplicitControlFlowInsts.count(P))
+      return false;
     // We're not interested in PRE where blocks with predecessors that are
     // not reachable.
     if (!DT->isReachableFromEntry(P)) {
