@@ -323,6 +323,9 @@ public:
   /// the backends/clients are updated.
   unsigned getPointerSize(unsigned AS = 0) const;
 
+  /// Returns the maximum pointer size over all address spaces.
+  unsigned getMaxPointerSize() const;
+
   /// Return the address spaces containing non-integral pointers.  Pointers in
   /// this address space don't have a well-defined bitwise representation.
   ArrayRef<unsigned> getNonIntegralAddressSpaces() const {
@@ -345,6 +348,11 @@ public:
   /// the backends/clients are updated.
   unsigned getPointerSizeInBits(unsigned AS = 0) const {
     return getPointerSize(AS) * 8;
+  }
+
+  /// Returns the maximum pointer size over all address spaces.
+  unsigned getMaxPointerSizeInBits() const {
+    return getMaxPointerSize() * 8;
   }
 
   /// Layout pointer size, in bits, based on the type.  If this function is

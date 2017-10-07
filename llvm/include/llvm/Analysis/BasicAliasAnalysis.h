@@ -110,7 +110,7 @@ private:
     unsigned ZExtBits;
     unsigned SExtBits;
 
-    int64_t Scale;
+    APInt Scale;
 
     bool operator==(const VariableGEPIndex &Other) const {
       return V == Other.V && ZExtBits == Other.ZExtBits &&
@@ -128,10 +128,10 @@ private:
     // Base pointer of the GEP
     const Value *Base;
     // Total constant offset w.r.t the base from indexing into structs
-    int64_t StructOffset;
+    APInt StructOffset;
     // Total constant offset w.r.t the base from indexing through
     // pointers/arrays/vectors
-    int64_t OtherOffset;
+    APInt OtherOffset;
     // Scaled variable (non-constant) indices.
     SmallVector<VariableGEPIndex, 4> VarIndices;
   };
@@ -183,7 +183,7 @@ private:
   /// the addition overflows.
   bool
   constantOffsetHeuristic(const SmallVectorImpl<VariableGEPIndex> &VarIndices,
-                          uint64_t V1Size, uint64_t V2Size, int64_t BaseOffset,
+                          uint64_t V1Size, uint64_t V2Size, APInt BaseOffset,
                           AssumptionCache *AC, DominatorTree *DT);
 
   bool isValueEqualInPotentialCycles(const Value *V1, const Value *V2);
