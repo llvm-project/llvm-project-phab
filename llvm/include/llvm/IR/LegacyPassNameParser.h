@@ -105,6 +105,8 @@ private:
   Filter filter;
 
 public:
+  FilteredPassNameParser(cl::Option &O) : PassNameParser(O) {}
+
   bool ignorablePassImpl(const PassInfo *P) const override {
     return !filter(*P);
   }
