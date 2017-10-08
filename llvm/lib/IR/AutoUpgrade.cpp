@@ -75,6 +75,8 @@ static bool ShouldUpgradeX86Intrinsic(Function *F, StringRef Name) {
   if (Name=="ssse3.pabs.b.128" || // Added in 6.0
       Name=="ssse3.pabs.w.128" || // Added in 6.0
       Name=="ssse3.pabs.d.128" || // Added in 6.0
+      Name.startswith("avx512.mask.shuf.i") || // Added in 6.0
+      Name.startswith("avx512.mask.shuf.f") || // Added in 6.0
       Name.startswith("avx2.pabs.") || // Added in 6.0
       Name.startswith("avx512.mask.pabs.") || // Added in 6.0
       Name.startswith("avx512.mask.pbroadcast") || // Added in 6.0
@@ -1266,7 +1268,36 @@ void llvm::UpgradeIntrinsicCall(CallInst *CI, Function *NewFn) {
       else
         Rep = Builder.CreateShuffleVector(Load, UndefValue::get(Load->getType()),
                                           { 0, 1, 2, 3, 0, 1, 2, 3 });
-    } else if (IsX86 && (Name.startswith("avx512.mask.broadcastf") ||
+    } else if (IsX86 && (Name.startswith("avx512.mask.shuf.i") || 
+                         Name.startswith("avx512.mask.shuf.f"))) {   
+      unsigned Imm = cast<ConstantInt>(CI->getArgOperand(2))->getZExtValue();
+      unsigned NumElts = CI->getType()->getVectorNumElements();
+      unsigned NumLaneElts = 128/CI->getType()->getScalarSizeInBits();
+      unsigned BitToTest = 1;
+      unsigned BitToMove = 1;
+      if(NumElts * CI->getType()->getScalarSizeInBits() == 512){
+        BitToTest = 3;
+        BitToMove = 2;
+      }
+      SmallVector<uint32_t, 8> Idxs(NumElts);
+      for (unsigned i = 0; i != NumElts; ++i) {
+        // Base index is the starting element of the lane.
+        Idxs[i] = i ;
+        // If we are half way through the lane switch to the other source.
+        if (i >= NumLaneElts && BitToTest == 1)
+          Idxs[i] += NumLaneElts;
+        if (((i / NumLaneElts) % 2) && (BitToTest == 3))
+          Idxs[i] -= NumLaneElts; 
+        // Now select the specific element. By adding HalfLaneElts bits from
+        // the immediate. Wrapping around the immediate every 8-bits.
+        Idxs[i] += (((Imm >> ((i / NumLaneElts) * BitToMove)) & BitToTest) * NumLaneElts) ;
+      }
+      Rep = Builder.CreateShuffleVector(CI->getArgOperand(0),
+                                        CI->getArgOperand(1),
+                                        Idxs);
+      Rep = EmitX86Select(Builder, CI->getArgOperand(4), Rep,
+                          CI->getArgOperand(3));
+    }else if (IsX86 && (Name.startswith("avx512.mask.broadcastf") ||
                          Name.startswith("avx512.mask.broadcasti"))) {
       unsigned NumSrcElts =
                         CI->getArgOperand(0)->getType()->getVectorNumElements();

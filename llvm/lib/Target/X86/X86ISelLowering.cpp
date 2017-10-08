@@ -5235,6 +5235,15 @@ static SDValue peekThroughOneUseBitcasts(SDValue V) {
   return V;
 }
 
+static bool hasOpcodeUserThroughBitcast(SDNode *N, unsigned Opcode) {
+  if (N->getOpcode() == ISD::BITCAST)
+    for (SDNode::use_iterator UI = N->use_begin(), UE = N->use_end(); UI != UE;
+         ++UI)
+      if (UI.getUse().getUser()->getOpcode() == Opcode)
+        return true;
+  return false;
+}
+
 static const Constant *getTargetConstantFromNode(SDValue Op) {
   Op = peekThroughBitcasts(Op);
 
@@ -29070,6 +29079,33 @@ static SDValue combineShuffle(SDNode *N, SelectionDAG &DAG,
 
     if (SDValue HAddSub = foldShuffleOfHorizOp(N))
       return HAddSub;
+  }
+
+  // Attempt to use SHUF128 for masked X86ISD::VPERM2X128
+  // from this paterrn:
+  //  a. t0 = VPERM2X128
+  //  b. t1 = VSELECT
+  //
+  // Create SHUF128
+  if (N->getOpcode() == X86ISD::VPERM2X128) {
+    for (SDNode::use_iterator UI = N->use_begin(), UE = N->use_end(); UI != UE;
+         ++UI) {
+      if (UI.getUse().getUser()->getOpcode() == ISD::VSELECT ||
+          hasOpcodeUserThroughBitcast(UI.getUse().getUser(), ISD::VSELECT)) {
+        uint64_t Imm = N->getConstantOperandVal(2);
+        if (((Imm & 0x02) == 0) && ((Imm & 0x20) == 0x20)) {
+          unsigned NewImm = (Imm & 0x01);
+          if (Imm & 0x10)
+            NewImm = (NewImm | 0x02);
+          SDLoc DL(N);
+          EVT VT = UI.getUse().getUser()->getValueType(0);
+          SDValue shuffle = DAG.getNode(X86ISD::SHUF128, DL, VT,
+                                        N->getOperand(0), N->getOperand(1),
+                                        DAG.getConstant(NewImm, DL, MVT::i8));
+          return DAG.getBitcast(N->getSimpleValueType(0), shuffle);
+        }
+      }
+    }
   }
 
   // During Type Legalization, when promoting illegal vector types,
