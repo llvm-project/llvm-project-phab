@@ -1583,11 +1583,7 @@ MachineBasicBlock *MachineBlockPlacement::selectBestCandidateBlock(
     assert(MBB->isEHPad() == IsEHPad &&
            "EHPad mismatch between block and work list.");
 
-    BlockChain &SuccChain = *BlockToChain[MBB];
-    if (&SuccChain == &Chain)
-      continue;
-
-    assert(SuccChain.UnscheduledPredecessors == 0 &&
+    assert(BlockToChain[MBB]->UnscheduledPredecessors == 0 &&
            "Found CFG-violating block");
 
     BlockFrequency CandidateFreq = MBFI->getBlockFreq(MBB);
