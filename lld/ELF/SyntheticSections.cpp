@@ -819,8 +819,6 @@ unsigned MipsGotSection::getLocalEntriesNum() const {
          LocalEntries32.size();
 }
 
-void MipsGotSection::finalizeContents() { updateAllocSize(); }
-
 void MipsGotSection::updateAllocSize() {
   PageEntriesNum = 0;
   for (std::pair<const OutputSection *, size_t> &P : PageIndexMap) {
@@ -1161,7 +1159,9 @@ template <class ELFT> void DynamicSection<ELFT>::finalizeContents() {
     add({DT_MIPS_FLAGS, RHF_NOTPOT});
     add({DT_MIPS_BASE_ADDRESS, Config->ImageBase});
     add({DT_MIPS_SYMTABNO, InX::DynSymTab->getNumSymbols()});
-    add({DT_MIPS_LOCAL_GOTNO, InX::MipsGot->getLocalEntriesNum()});
+    // The number of local got entries has not yet been determined. This value
+    // will be updated in postThunkContents().
+    add({DT_MIPS_LOCAL_GOTNO, uint64_t(0)});
     if (const SymbolBody *B = InX::MipsGot->getFirstGlobalEntry())
       add({DT_MIPS_GOTSYM, B->DynsymIndex});
     else
@@ -1175,6 +1175,18 @@ template <class ELFT> void DynamicSection<ELFT>::finalizeContents() {
 
   // +1 for DT_NULL
   this->Size = (Entries.size() + 1) * this->Entsize;
+}
+
+template <class ELFT> void DynamicSection<ELFT>::postThunkContents() {
+  if (!InX::MipsGot)
+    return;
+
+  for (Entry &E : Entries) {
+    if (E.Tag == DT_MIPS_LOCAL_GOTNO) {
+      E.Val = InX::MipsGot->getLocalEntriesNum();
+      return;
+    }
+  }
 }
 
 template <class ELFT> void DynamicSection<ELFT>::writeTo(uint8_t *Buf) {

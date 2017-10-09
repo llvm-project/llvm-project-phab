@@ -1367,16 +1367,23 @@ template <class ELFT> void Writer<ELFT>::finalizeSections() {
   // jump instructions if jump targets are too far. Create thunks.
   if (Target->NeedsThunks) {
     // FIXME: only ARM Interworking and Mips LA25 Thunks are implemented,
-    // these
-    // do not require address information. To support range extension Thunks
-    // we need to assign addresses so that we can tell if jump instructions
-    // are out of range. This will need to turn into a loop that converges
-    // when no more Thunks are added
+    // these do not require address information. To support range extension
+    // Thunks we need to assign addresses so that we can tell if jump
+    // instructions are out of range. This will need to turn into a loop that
+    // converges when no more Thunks are added.
     ThunkCreator TC;
     Script->assignAddresses();
+    applySynthetic({InX::MipsGot},
+                   [](SyntheticSection *SS) { SS->updateAllocSize(); });
     if (TC.createThunks(OutputSections)) {
-      applySynthetic({InX::MipsGot},
-                     [](SyntheticSection *SS) { SS->updateAllocSize(); });
+      applySynthetic({InX::MipsGot}, [](SyntheticSection *SS) {
+        // Adding thunks might have affected the output section sizes. We need
+        // to update them before updating the MIPS GOT size once more, as it
+        // might now need more entries than before. assignAddresses() does this
+        // job.
+        Script->assignAddresses();
+        SS->updateAllocSize();
+      });
       if (TC.createThunks(OutputSections))
         fatal("All non-range thunks should be created in first call");
     }
@@ -1388,8 +1395,10 @@ template <class ELFT> void Writer<ELFT>::finalizeSections() {
   for (OutputSection *Sec : OutputSections)
     Sec->finalize<ELFT>();
 
-  // createThunks may have added local symbols to the static symbol table
-  applySynthetic({InX::SymTab, InX::ShStrTab, InX::StrTab},
+  // createThunks may have added local symbols to the static symbol table.
+  // The value of the DT_MIPS_LOCAL_GOTNO entry also needs setting now that the
+  // number of entries has been determined.
+  applySynthetic({InX::SymTab, InX::Dynamic},
                  [](SyntheticSection *SS) { SS->postThunkContents(); });
 }
 
