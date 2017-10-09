@@ -67,9 +67,8 @@ public:
 
 template <typename T>
 ::testing::AssertionResult
-PrintedStmtMatches(StringRef Code, const std::vector<std::string> &Args,
-                   const T &NodeMatch, StringRef ExpectedPrinted) {
-
+PrintedStmtMatchesInternal(StringRef Code, const std::vector<std::string> &Args,
+                           const T &NodeMatch, StringRef ExpectedPrinted) {
   PrintMatch Printer;
   MatchFinder Finder;
   Finder.addMatcher(NodeMatch, &Printer);
@@ -97,65 +96,52 @@ PrintedStmtMatches(StringRef Code, const std::vector<std::string> &Args,
   return ::testing::AssertionSuccess();
 }
 
+enum class StdVer { CXX98, CXX11, CXX14, CXX17, CXX2a };
+
+DeclarationMatcher FunctionBodyMatcher(StringRef ContainingFunction) {
+  return functionDecl(hasName(ContainingFunction),
+                      has(compoundStmt(has(stmt().bind("id")))));
+}
+
+template <typename T>
 ::testing::AssertionResult
-PrintedStmtCXX98Matches(StringRef Code, const StatementMatcher &NodeMatch,
-                        StringRef ExpectedPrinted) {
-  std::vector<std::string> Args;
-  Args.push_back("-std=c++98");
-  Args.push_back("-Wno-unused-value");
-  return PrintedStmtMatches(Code, Args, NodeMatch, ExpectedPrinted);
+PrintedStmtMatches(StdVer Standard, StringRef Code,
+                   const T &NodeMatch, StringRef ExpectedPrinted) {
+  const char *StdOpt;
+  switch (Standard) {
+  case StdVer::CXX98: StdOpt = "-std=c++98"; break;
+  case StdVer::CXX11: StdOpt = "-std=c++11"; break;
+  case StdVer::CXX14: StdOpt = "-std=c++14"; break;
+  case StdVer::CXX17: StdOpt = "-std=c++17"; break;
+  case StdVer::CXX2a: StdOpt = "-std=c++2a"; break;
+  }
+  return PrintedStmtMatchesInternal(Code, {StdOpt, "-Wno-unused-value"},
+                                    NodeMatch, ExpectedPrinted);
 }
 
-::testing::AssertionResult PrintedStmtCXX98Matches(
-                                              StringRef Code,
-                                              StringRef ContainingFunction,
-                                              StringRef ExpectedPrinted) {
-  std::vector<std::string> Args;
-  Args.push_back("-std=c++98");
-  Args.push_back("-Wno-unused-value");
-  return PrintedStmtMatches(Code,
-                            Args,
-                            functionDecl(hasName(ContainingFunction),
-                                         has(compoundStmt(has(stmt().bind("id"))))),
-                            ExpectedPrinted);
-}
-
+template <typename T>
 ::testing::AssertionResult
-PrintedStmtCXX11Matches(StringRef Code, const StatementMatcher &NodeMatch,
-                        StringRef ExpectedPrinted) {
-  std::vector<std::string> Args;
-  Args.push_back("-std=c++11");
-  Args.push_back("-Wno-unused-value");
-  return PrintedStmtMatches(Code, Args, NodeMatch, ExpectedPrinted);
-}
-
-::testing::AssertionResult PrintedStmtMSMatches(
-                                              StringRef Code,
-                                              StringRef ContainingFunction,
-                                              StringRef ExpectedPrinted) {
-  std::vector<std::string> Args;
-  Args.push_back("-target");
-  Args.push_back("i686-pc-win32");
-  Args.push_back("-std=c++98");
-  Args.push_back("-fms-extensions");
-  Args.push_back("-Wno-unused-value");
-  return PrintedStmtMatches(Code,
-                            Args,
-                            functionDecl(hasName(ContainingFunction),
-                                         has(compoundStmt(has(stmt().bind("id"))))),
-                            ExpectedPrinted);
+PrintedStmtMSMatches(StringRef Code,
+                     const T &NodeMatch, StringRef ExpectedPrinted) {
+  std::vector<std::string> Args = {
+    "-std=c++98",
+    "-target", "i686-pc-win32",
+    "-fms-extensions",
+    "-Wno-unused-value",
+  };
+  return PrintedStmtMatchesInternal(Code, Args, NodeMatch, ExpectedPrinted);
 }
 
 } // unnamed namespace
 
 TEST(StmtPrinter, TestIntegerLiteral) {
-  ASSERT_TRUE(PrintedStmtCXX98Matches(
+  ASSERT_TRUE(PrintedStmtMatches(StdVer::CXX98,
     "void A() {"
     "  1, -1, 1U, 1u,"
     "  1L, 1l, -1L, 1UL, 1ul,"
     "  1LL, -1LL, 1ULL;"
     "}",
-    "A",
+    FunctionBodyMatcher("A"),
     "1 , -1 , 1U , 1U , "
     "1L , 1L , -1L , 1UL , 1UL , "
     "1LL , -1LL , 1ULL"));
@@ -170,7 +156,7 @@ TEST(StmtPrinter, TestMSIntegerLiteral) {
     "  1i32, -1i32, 1ui32, "
     "  1i64, -1i64, 1ui64;"
     "}",
-    "A",
+    FunctionBodyMatcher("A"),
     "1i8 , -1i8 , 1Ui8 , "
     "1i16 , -1i16 , 1Ui16 , "
     "1 , -1 , 1U , "
@@ -179,15 +165,15 @@ TEST(StmtPrinter, TestMSIntegerLiteral) {
 }
 
 TEST(StmtPrinter, TestFloatingPointLiteral) {
-  ASSERT_TRUE(PrintedStmtCXX98Matches(
+  ASSERT_TRUE(PrintedStmtMatches(StdVer::CXX98,
     "void A() { 1.0f, -1.0f, 1.0, -1.0, 1.0l, -1.0l; }",
-    "A",
+    FunctionBodyMatcher("A"),
     "1.F , -1.F , 1. , -1. , 1.L , -1.L"));
     // Should be: with semicolon
 }
 
 TEST(StmtPrinter, TestCXXConversionDeclImplicit) {
-  ASSERT_TRUE(PrintedStmtCXX98Matches(
+  ASSERT_TRUE(PrintedStmtMatches(StdVer::CXX98,
     "struct A {"
       "operator void *();"
       "A operator&(A);"
@@ -201,7 +187,7 @@ TEST(StmtPrinter, TestCXXConversionDeclImplicit) {
 }
 
 TEST(StmtPrinter, TestCXXConversionDeclExplicit) {
-  ASSERT_TRUE(PrintedStmtCXX11Matches(
+  ASSERT_TRUE(PrintedStmtMatches(StdVer::CXX11,
     "struct A {"
       "operator void *();"
       "A operator&(A);"
@@ -213,4 +199,41 @@ TEST(StmtPrinter, TestCXXConversionDeclExplicit) {
     cxxMemberCallExpr(anything()).bind("id"),
     "(a & b)"));
     // WRONG; Should be: (a & b).operator void *()
+}
+
+TEST(StmtPrinter, TestCXXLamda) {
+  ASSERT_TRUE(PrintedStmtMatches(StdVer::CXX11,
+    "void A() {"
+    "  auto l = [] { };"
+    "}",
+    lambdaExpr(anything()).bind("id"),
+    "[] {\n"
+    "}"));
+
+  ASSERT_TRUE(PrintedStmtMatches(StdVer::CXX11,
+    "void A() {"
+    "  int a = 0, b = 1;"
+    "  auto l = [a,b](int c, float d) { };"
+    "}",
+    lambdaExpr(anything()).bind("id"),
+    "[a, b](int c, float d) {\n"
+    "}"));
+
+  ASSERT_TRUE(PrintedStmtMatches(StdVer::CXX14,
+    "void A() {"
+    "  auto l = [](auto a, int b, auto c, int, auto) { };"
+    "}",
+    lambdaExpr(anything()).bind("id"),
+    "[](auto a, int b, auto c, int, auto) {\n"
+    "}"));
+
+  ASSERT_TRUE(PrintedStmtMatches(StdVer::CXX2a,
+    "void A() {"
+    "  auto l = []<typename T1, class T2, int I,"
+    "              template<class, typename> class T3>"
+    "           (int a, auto, int, auto d) { };"
+    "}",
+    lambdaExpr(anything()).bind("id"),
+    "[]<typename T1, class T2, int I, template <class, typename> class T3>(int a, auto, int, auto d) {\n"
+    "}"));
 }

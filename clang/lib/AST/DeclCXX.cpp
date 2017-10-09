@@ -10,6 +10,7 @@
 // This file implements the C++ related Decl classes.
 //
 //===----------------------------------------------------------------------===//
+#include <algorithm>
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/ASTLambda.h"
@@ -1149,11 +1150,24 @@ void CXXRecordDecl::getCaptureFields(
 
 TemplateParameterList * 
 CXXRecordDecl::getGenericLambdaTemplateParameterList() const {
-  if (!isLambda()) return nullptr;
+  if (!isGenericLambda()) return nullptr;
   CXXMethodDecl *CallOp = getLambdaCallOperator();     
   if (FunctionTemplateDecl *Tmpl = CallOp->getDescribedFunctionTemplate())
     return Tmpl->getTemplateParameters();
   return nullptr;
+}
+
+unsigned CXXRecordDecl::getLambdaExplicitTemplateParameterCount() const {
+  TemplateParameterList *List = getGenericLambdaTemplateParameterList();
+  if (!List)
+    return 0;
+
+  assert(std::is_partitioned(List->begin(), List->end(),
+                             [](const NamedDecl *D) { return !D->isImplicit(); })
+         && "Explicit template params should be ordered before implicit ones");
+
+  return std::count_if(List->begin(), List->end(),
+                       [](const NamedDecl *D) { return !D->isImplicit(); });
 }
 
 Decl *CXXRecordDecl::getLambdaContextDecl() const {

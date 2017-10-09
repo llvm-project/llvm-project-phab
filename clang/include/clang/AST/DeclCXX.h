@@ -1135,6 +1135,10 @@ public:
   /// lambda.
   TemplateParameterList *getGenericLambdaTemplateParameterList() const;
 
+  /// \brief Retrieve the number of lambda template parameter's that were
+  /// specified explicitly in code.
+  unsigned getLambdaExplicitTemplateParameterCount() const;
+
   LambdaCaptureDefault getLambdaCaptureDefault() const {
     assert(isLambda());
     return static_cast<LambdaCaptureDefault>(getLambdaData().CaptureDefault);

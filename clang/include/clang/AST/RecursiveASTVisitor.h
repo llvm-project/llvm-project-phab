@@ -2379,6 +2379,13 @@ DEF_TRAVERSE_STMT(LambdaExpr, {
     }
   }
 
+  if (TemplateParameterList *TPL = S->getTemplateParameterList()) {
+    for (Decl *D : *TPL) {
+      if (!D->isImplicit() || getDerived().shouldVisitImplicitCode())
+        TRY_TO(TraverseDecl(D));
+    }
+  }
+
   TypeLoc TL = S->getCallOperator()->getTypeSourceInfo()->getTypeLoc();
   FunctionProtoTypeLoc Proto = TL.getAsAdjusted<FunctionProtoTypeLoc>();
 

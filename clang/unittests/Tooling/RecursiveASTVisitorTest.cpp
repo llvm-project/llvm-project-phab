@@ -79,6 +79,41 @@ TEST(RecursiveASTVisitor, HasCaptureDefaultLoc) {
                               LambdaDefaultCaptureVisitor::Lang_CXX11));
 }
 
+// Matches (optional) explicit template parameters.
+class LambdaTemplateParametersVisitor
+  : public ExpectedLocationVisitor<LambdaTemplateParametersVisitor> {
+public:
+  bool shouldVisitImplicitCode() const { return false; }
+
+  bool VisitTemplateTypeParmDecl(TemplateTypeParmDecl *D) {
+    EXPECT_FALSE(D->isImplicit());
+    Match(D->getName(), D->getLocStart());
+    return true;
+  }
+  bool VisitNonTypeTemplateParmDecl(NonTypeTemplateParmDecl *D) {
+    EXPECT_FALSE(D->isImplicit());
+    Match(D->getName(), D->getLocStart());
+    return true;
+  }
+  bool VisitTemplateTemplateParmDecl(TemplateTemplateParmDecl *D) {
+    EXPECT_FALSE(D->isImplicit());
+    Match(D->getName(), D->getLocStart());
+    return true;
+  }
+};
+
+TEST(RecursiveASTVisitor, VisitsLambdaExplicitTemplateParameters) {
+  LambdaTemplateParametersVisitor Visitor;
+  Visitor.ExpectMatch("T",  2, 15);
+  Visitor.ExpectMatch("I",  2, 24);
+  Visitor.ExpectMatch("TT", 2, 31);
+  EXPECT_TRUE(Visitor.runOver(
+      "void f() { \n"
+      "  auto l = []<class T, int I, template<class> class TT>(auto p) { }; \n"
+      "}",
+      LambdaTemplateParametersVisitor::Lang_CXX2a));
+}
+
 // Checks for lambda classes that are not marked as implicitly-generated.
 // (There should be none.)
 class ClassVisitor : public ExpectedLocationVisitor<ClassVisitor> {

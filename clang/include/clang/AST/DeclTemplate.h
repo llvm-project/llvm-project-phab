@@ -157,6 +157,11 @@ public:
     return SourceRange(TemplateLoc, RAngleLoc);
   }
 
+  void print(raw_ostream &Out, const ASTContext &Context,
+             bool OmitTemplateKW = false) const;
+  void print(raw_ostream &Out, const ASTContext &Context,
+             const PrintingPolicy &Policy, bool OmitTemplateKW = false) const;
+
   friend TrailingObjects;
 
   template <size_t N, bool HasRequiresClause>

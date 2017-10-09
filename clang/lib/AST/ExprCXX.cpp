@@ -975,6 +975,13 @@ LambdaExpr::capture_range LambdaExpr::implicit_captures() const {
   return capture_range(implicit_capture_begin(), implicit_capture_end());
 }
 
+SourceRange LambdaExpr::getExplicitTemplateParameterListRange() const {
+  TemplateParameterList *List = getTemplateParameterList();
+  if (!List)
+    return SourceRange();
+  return {List->getLAngleLoc(), List->getRAngleLoc()};
+}
+
 CXXRecordDecl *LambdaExpr::getLambdaClass() const {
   return getType()->getAsCXXRecordDecl();
 }
@@ -987,7 +994,11 @@ CXXMethodDecl *LambdaExpr::getCallOperator() const {
 TemplateParameterList *LambdaExpr::getTemplateParameterList() const {
   CXXRecordDecl *Record = getLambdaClass();
   return Record->getGenericLambdaTemplateParameterList();
+}
 
+unsigned LambdaExpr::getExplicitTemplateParameterCount() const {
+  const CXXRecordDecl *Record = getLambdaClass();
+  return Record->getLambdaExplicitTemplateParameterCount();
 }
 
 CompoundStmt *LambdaExpr::getBody() const {
