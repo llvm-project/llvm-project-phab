@@ -7,18 +7,26 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file contains a pass that performs optimization for vector by element
-// SIMD instructions.
+// This file contains a pass that performs optimization on SIMD instructions
+// with high latency by splitting them into more efficient series of
+// instructions.
 //
-// Certain SIMD instructions with vector element operand are not efficient.
-// Rewrite them into SIMD instructions with vector operands. This rewrite
-// is driven by the latency of the instructions.
-//
+// 1. Rewrite certain SIMD instructions with vector element due to their
+// inefficiency on some targets.
 // Example:
 //    fmla v0.4s, v1.4s, v2.s[1]
 //    is rewritten into
 //    dup v3.4s, v2.s[1]
 //    fmla v0.4s, v1.4s, v3.4s
+//
+// 2. Rewrite Interleaved memory access instructions due to their
+// inefficiency on some targets.
+// Example:
+//    st2 {v0.4s, v1.4s}, addr
+//    is rewritten into
+//    zip1 v2.4s, v0.4s, v1.4s
+//    zip2 v3.4s, v0.4s, v1.4s
+//    stp  q2, q3,  addr
 //
 //===----------------------------------------------------------------------===//
 
@@ -60,30 +68,49 @@ struct AArch64VectorByElementOpt : public MachineFunctionPass {
   MachineRegisterInfo *MRI;
   TargetSchedModel SchedModel;
 
+  typedef enum {
+    VectorElem,
+    Interleave,
+    unsupportedSub
+  } Subpass;
+
+  typedef enum {
+    TwoVectors,
+    FourVectors,
+    unsupportedAcc
+  } AccessType;
+
+  // A costly instruction is replaced in this work by N efficient instructions
+  // The maximum of N is curently 10 and it is for ST4 case.
+  static const unsigned MaxNumRepl = 10;
+
   AArch64VectorByElementOpt() : MachineFunctionPass(ID) {
     initializeAArch64VectorByElementOptPass(*PassRegistry::getPassRegistry());
   }
 
   /// Based only on latency of instructions, determine if it is cost efficient
-  /// to replace the instruction InstDesc by the two instructions InstDescRep1
-  /// and InstDescRep2.
+  /// to replace the instruction InstDesc by the instructions stored in the
+  /// array InstDescRepl.
   /// Return true if replacement is recommended.
-  bool
-  shouldReplaceInstruction(MachineFunction *MF, const MCInstrDesc *InstDesc,
-                           const MCInstrDesc *InstDescRep1,
-                           const MCInstrDesc *InstDescRep2,
-                           std::map<unsigned, bool> &VecInstElemTable) const;
+  bool shouldReplaceInstruction(MachineFunction *MF,
+                                const MCInstrDesc *InstDesc,
+                                SmallVectorImpl<const MCInstrDesc*>
+                                &ReplInstrMCID,
+                                std::map<unsigned, bool> &VecInstElemTable)
+                                const;
 
-  /// Determine if we need to exit the vector by element instruction
-  /// optimization pass early. This makes sure that Targets with no need
-  /// for this optimization do not spent any compile time on this pass.
-  /// This check is done by comparing the latency of an indexed FMLA
-  /// instruction to the latency of the DUP + the latency of a vector
-  /// FMLA instruction. We do not check on other related instructions such
-  /// as FMLS as we assume that if the situation shows up for one
-  /// instruction, then it is likely to show up for the related ones.
-  /// Return true if early exit of the pass is recommended.
-  bool earlyExitVectElement(MachineFunction *MF);
+  /// Determine if we need to exit the instruction replacement optimization
+  /// subpasses early. This makes sure that Targets with no need for this
+  /// optimization do not spend any compile time on this subpass other than the
+  /// simple check performed here. This simple check is done by comparing the
+  /// latency of the original instruction to the latency of the replacement
+  /// instructions. We only check for a representative instruction in the class
+  /// instructions. We only check for a representative instruction in the class
+  /// of instructions and not all concerned instructions. For the VectorElem
+  /// subpass, we check for the FMLA instruction while for the interleave subpass
+	/// we check for the st2.4s instruction.
+  /// Return true if early exit of the subpass is recommended.
+  bool earlyExitVectElement(MachineFunction *MF, Subpass sp);
 
   /// Check whether an equivalent DUP instruction has already been
   /// created or not.
@@ -98,6 +125,27 @@ struct AArch64VectorByElementOpt : public MachineFunctionPass {
   /// Return true if the SIMD instruction is modified.
   bool optimizeVectElement(MachineInstr &MI,
                            std::map<unsigned, bool> *VecInstElemTable) const;
+
+  /// Process The REG_SEQUENCE instruction, and extract the source
+  /// operands of the st2/4 instruction from it.
+  /// Example of such instructions.
+  ///    %dest = REG_SEQUENCE %st2_src1, dsub0, %st2_src2, dsub1;
+  /// Return true when the instruction is processed successfully.
+  bool processSeqRegInst(MachineInstr *DefiningMI, unsigned* StReg,
+                         unsigned* StRegKill, unsigned NumArg) const;
+
+  /// Prepare the parameters needed to build the replacement statements.
+  void prepareStmtParam(unsigned Opcode1, unsigned Opcode2,
+                        const TargetRegisterClass *RC,
+                        SmallVectorImpl<const MCInstrDesc*> &ReplInstrMCID,
+                        SmallVectorImpl<unsigned> &ZipDest, AccessType AccT)
+                        const;
+
+  /// Load/Store Interleaving instructions are not always beneficial.
+  /// Replace them by zip instructionand classical load/store.
+  /// Return true if the SIMD instruction is modified.
+  bool optimizeLdStInterleave(
+      MachineInstr &MI, std::map<unsigned, bool> *VecInstElemTable) const;
 
   bool runOnMachineFunction(MachineFunction &Fn) override;
 
@@ -114,14 +162,12 @@ INITIALIZE_PASS(AArch64VectorByElementOpt, "aarch64-vectorbyelement-opt",
                 AARCH64_VECTOR_BY_ELEMENT_OPT_NAME, false, false)
 
 /// Based only on latency of instructions, determine if it is cost efficient
-/// to replace the instruction InstDesc by the two instructions InstDescRep1
-/// and InstDescRep2. Note that it is assumed in this fuction that an
-/// instruction of type InstDesc is always replaced by the same two
-/// instructions as results are cached here.
+/// to replace the instruction InstDesc by the instructions stored in the
+/// array InstDescRepl.
 /// Return true if replacement is recommended.
 bool AArch64VectorByElementOpt::shouldReplaceInstruction(
     MachineFunction *MF, const MCInstrDesc *InstDesc,
-    const MCInstrDesc *InstDescRep1, const MCInstrDesc *InstDescRep2,
+    SmallVectorImpl<const MCInstrDesc*> &InstDescRepl,
     std::map<unsigned, bool> &VecInstElemTable) const {
   // Check if replacment decision is alredy available in the cached table.
   // if so, return it.
@@ -130,52 +176,83 @@ bool AArch64VectorByElementOpt::shouldReplaceInstruction(
     return VecInstElemTable[InstDesc->getOpcode()];
 
   unsigned SCIdx = InstDesc->getSchedClass();
-  unsigned SCIdxRep1 = InstDescRep1->getSchedClass();
-  unsigned SCIdxRep2 = InstDescRep2->getSchedClass();
   const MCSchedClassDesc *SCDesc =
-      SchedModel.getMCSchedModel()->getSchedClassDesc(SCIdx);
-  const MCSchedClassDesc *SCDescRep1 =
-      SchedModel.getMCSchedModel()->getSchedClassDesc(SCIdxRep1);
-  const MCSchedClassDesc *SCDescRep2 =
-      SchedModel.getMCSchedModel()->getSchedClassDesc(SCIdxRep2);
+    SchedModel.getMCSchedModel()->getSchedClassDesc(SCIdx);
 
-  // If a subtarget does not define resources for any of the instructions
+  // If a subtarget does not define resources for the instructions
   // of interest, then return false for no replacement.
-  if (!SCDesc->isValid() || SCDesc->isVariant() || !SCDescRep1->isValid() ||
-      SCDescRep1->isVariant() || !SCDescRep2->isValid() ||
-      SCDescRep2->isVariant()) {
+  const MCSchedClassDesc *SCDescRepl;
+  if (!SCDesc->isValid() || SCDesc->isVariant())
+  {
     VecInstElemTable[InstDesc->getOpcode()] = false;
     return false;
   }
+  for (unsigned i=0; i<InstDescRepl.size(); i++)
+  {
+    SCDescRepl = SchedModel.getMCSchedModel()->getSchedClassDesc(
+      InstDescRepl[i]->getSchedClass());
+    if (!SCDescRepl->isValid() || SCDescRepl->isVariant())
+    {
+      VecInstElemTable[InstDesc->getOpcode()] = false;
+      return false;
+    }
+  }
 
-  if (SchedModel.computeInstrLatency(InstDesc->getOpcode()) >
-      SchedModel.computeInstrLatency(InstDescRep1->getOpcode()) +
-          SchedModel.computeInstrLatency(InstDescRep2->getOpcode())) {
+  // Replacement cost.
+  unsigned ReplCost = 0;
+  for (unsigned i=0; i<InstDescRepl.size(); i++)
+    ReplCost += SchedModel.computeInstrLatency(InstDescRepl[i]->getOpcode());
+
+  if (SchedModel.computeInstrLatency(InstDesc->getOpcode()) > ReplCost)
+  {
     VecInstElemTable[InstDesc->getOpcode()] = true;
     return true;
   }
-  VecInstElemTable[InstDesc->getOpcode()] = false;
-  return false;
+  else
+  {
+    VecInstElemTable[InstDesc->getOpcode()] = false;
+    return false;
+  }
 }
 
-/// Determine if we need to exit the vector by element instruction
-/// optimization pass early. This makes sure that Targets with no need
-/// for this optimization do not spent any compile time on this pass.
-/// This check is done by comparing the latency of an indexed FMLA
-/// instruction to the latency of the DUP + the latency of a vector
-/// FMLA instruction. We do not check on other related instructions such
-/// as FMLS as we assume that if the situation shows up for one
-/// instruction, then it is likely to show up for the related ones.
-/// Return true if early exit of the pass is recommended.
-bool AArch64VectorByElementOpt::earlyExitVectElement(MachineFunction *MF) {
+/// Determine if we need to exit the instruction replacement optimization
+/// subpasses early. This makes sure that Targets with no need for this
+/// optimization do not spend any compile time on this subpass other than the
+/// simple check performed here. This simple check is done by comparing the
+/// latency of the original instruction to the latency of the replacement
+/// instructions. We only check for a representative instruction in the class of
+/// instructions and not all concerned instructions. For the VectorElem subpass,
+/// we check for the FMLA instruction while for the interleave subpass we check
+/// for the st2.4s instruction.
+/// Return true if early exit of the subpass is recommended.
+bool AArch64VectorByElementOpt::earlyExitVectElement(MachineFunction *MF,
+                                                     Subpass sp) {
   std::map<unsigned, bool> VecInstElemTable;
-  const MCInstrDesc *IndexMulMCID = &TII->get(AArch64::FMLAv4i32_indexed);
-  const MCInstrDesc *DupMCID = &TII->get(AArch64::DUPv4i32lane);
-  const MCInstrDesc *MulMCID = &TII->get(AArch64::FMULv4f32);
+  const MCInstrDesc* OriginalMCID;
+  SmallVector<const MCInstrDesc*, 3> ReplInstrMCID;
 
-  if (!shouldReplaceInstruction(MF, IndexMulMCID, DupMCID, MulMCID,
-                                VecInstElemTable))
-    return true;
+  switch (sp) {
+  default:
+    llvm_unreachable("Unexpected subpass code");
+  case VectorElem:
+    OriginalMCID = &TII->get(AArch64::FMLAv4i32_indexed);
+    ReplInstrMCID.push_back(&TII->get(AArch64::DUPv4i32lane));
+    ReplInstrMCID.push_back(&TII->get(AArch64::FMULv4f32));
+    if (!shouldReplaceInstruction(MF, OriginalMCID, ReplInstrMCID,
+                                  VecInstElemTable))
+      return true;
+    break;
+  case Interleave:
+    OriginalMCID = &TII->get(AArch64::ST2Twov4s);
+    ReplInstrMCID.push_back(&TII->get(AArch64::ZIP1v4i32));
+    ReplInstrMCID.push_back(&TII->get(AArch64::ZIP2v4i32));
+    ReplInstrMCID.push_back(&TII->get(AArch64::STPQi));
+    if (!shouldReplaceInstruction(MF, OriginalMCID, ReplInstrMCID,
+                                    VecInstElemTable))
+      return true;
+    break;
+  }
+
   return false;
 }
 
@@ -283,8 +360,11 @@ bool AArch64VectorByElementOpt::optimizeVectElement(
     break;
   }
 
+  SmallVector<const MCInstrDesc*, 2> ReplInstrMCID;
+  ReplInstrMCID.push_back(DupMCID);
+  ReplInstrMCID.push_back(MulMCID);
   if (!shouldReplaceInstruction(MI.getParent()->getParent(),
-                                &TII->get(MI.getOpcode()), DupMCID, MulMCID,
+                                &TII->get(MI.getOpcode()), ReplInstrMCID,
                                 *VecInstElemTable))
     return false;
 
@@ -305,7 +385,6 @@ bool AArch64VectorByElementOpt::optimizeVectElement(
     unsigned SrcReg2 = MI.getOperand(3).getReg();
     unsigned Src2IsKill = getKillRegState(MI.getOperand(3).isKill());
     unsigned LaneNumber = MI.getOperand(4).getImm();
-
     // Create a new DUP instruction. Note that if an equivalent DUP instruction
     // has already been created before, then use that one instread of creating
     // a new one.
@@ -338,6 +417,303 @@ bool AArch64VectorByElementOpt::optimizeVectElement(
   return true;
 }
 
+/// Load/Store Interleaving instructions are not always beneficial.
+/// Replace them by zip instructions and classical load/store.
+///
+/// Example:
+///    st2 {v0.4s, v1.4s}, addr
+///    is rewritten into
+///    zip1 v2.4s, v0.4s, v1.4s
+///    zip2 v3.4s, v0.4s, v1.4s
+///    stp  q2, q3, addr
+//
+/// Example:
+///    st4 {v0.4s, v1.4s, v2.4s, v3.4s}, addr
+///    is rewritten into
+///    zip1 v4.4s, v0.4s, v2.4s
+///    zip2 v5.4s, v0.4s, v2.4s
+///    zip1 v6.4s, v1.4s, v3.4s
+///    zip2 v7.4s, v1.4s, v3.4s
+///    zip1 v8.4s, v4.4s, v6.4s
+///    zip2 v9.4s, v4.4s, v6.4s
+///    zip1 v10.4s, v5.4s, v7.4s
+///    zip2 v11.4s, v5.4s, v7.4s
+///    stp  q8, q9, addr
+///    stp  q10, q11, addr+32
+/// Currently only instructions related to st2 and st4 are considered.
+/// Other may be added later.
+/// Return true if the SIMD instruction is modified.
+bool AArch64VectorByElementOpt::optimizeLdStInterleave(
+    MachineInstr &MI, std::map<unsigned, bool> *VecInstElemTable) const {
+
+  unsigned SeqReg, AddrReg;
+  unsigned StReg[4], StRegKill[4];
+  const TargetRegisterClass *RC128 = &AArch64::FPR128RegClass;
+  const TargetRegisterClass *RC64  = &AArch64::FPR64RegClass;
+  MachineInstr *DefiningMI;
+  const DebugLoc &DL = MI.getDebugLoc();
+  MachineBasicBlock &MBB = *MI.getParent();
+  SmallVector<unsigned, MaxNumRepl> ZipDest;
+  SmallVector<const MCInstrDesc*, MaxNumRepl> ReplInstrMCID;
+
+  // Common code among all instructions.
+  switch (MI.getOpcode()) {
+  default:
+    return false;
+  case AArch64::ST2Twov16b:
+  case AArch64::ST2Twov8b:
+  case AArch64::ST2Twov8h:
+  case AArch64::ST2Twov4h:
+  case AArch64::ST2Twov4s:
+  case AArch64::ST2Twov2s:
+  case AArch64::ST2Twov2d:
+    SeqReg  = MI.getOperand(0).getReg();
+    AddrReg = MI.getOperand(1).getReg();
+    DefiningMI = MRI->getUniqueVRegDef(SeqReg);
+    if (!processSeqRegInst(DefiningMI, StReg, StRegKill, 2))
+      return false;
+    break;
+  case AArch64::ST4Fourv16b:
+  case AArch64::ST4Fourv8b:
+  case AArch64::ST4Fourv8h:
+  case AArch64::ST4Fourv4h:
+  case AArch64::ST4Fourv4s:
+  case AArch64::ST4Fourv2s:
+  case AArch64::ST4Fourv2d:
+    SeqReg  = MI.getOperand(0).getReg();
+    AddrReg = MI.getOperand(1).getReg();
+    DefiningMI = MRI->getUniqueVRegDef(SeqReg);
+    if (!processSeqRegInst(DefiningMI, StReg, StRegKill, 4))
+      return false;
+    break;
+  }
+
+  // Specialized code
+  switch (MI.getOpcode()) {
+  default:
+    return false;
+  // ST2 case
+  case AArch64::ST2Twov2d:
+    prepareStmtParam(AArch64::ZIP1v2i64, AArch64::ZIP2v2i64, RC128, ReplInstrMCID,
+      ZipDest, TwoVectors);
+    break;
+  case AArch64::ST2Twov4s:
+    prepareStmtParam(AArch64::ZIP1v4i32, AArch64::ZIP2v4i32, RC128, ReplInstrMCID,
+      ZipDest, TwoVectors);
+    break;
+  case AArch64::ST2Twov2s:
+    prepareStmtParam(AArch64::ZIP1v2i32, AArch64::ZIP2v2i32, RC64, ReplInstrMCID,
+      ZipDest, TwoVectors);
+    break;
+  case AArch64::ST2Twov8h:
+    prepareStmtParam(AArch64::ZIP1v8i16, AArch64::ZIP2v8i16, RC128, ReplInstrMCID,
+      ZipDest, TwoVectors);
+    break;
+  case AArch64::ST2Twov4h:
+    prepareStmtParam(AArch64::ZIP1v4i16, AArch64::ZIP2v4i16, RC64, ReplInstrMCID,
+      ZipDest, TwoVectors);
+    break;
+  case AArch64::ST2Twov16b:
+    prepareStmtParam(AArch64::ZIP1v16i8, AArch64::ZIP2v16i8, RC128, ReplInstrMCID,
+      ZipDest, TwoVectors);
+    break;
+  case AArch64::ST2Twov8b:
+    prepareStmtParam(AArch64::ZIP1v8i8, AArch64::ZIP2v8i8, RC64, ReplInstrMCID,
+      ZipDest, TwoVectors);
+    break;
+
+  // St4 case
+  case AArch64::ST4Fourv2d:
+   prepareStmtParam(AArch64::ZIP1v2i64, AArch64::ZIP2v2i64, RC128, ReplInstrMCID,
+      ZipDest, FourVectors);
+    break;
+  case AArch64::ST4Fourv4s:
+   prepareStmtParam(AArch64::ZIP1v4i32, AArch64::ZIP2v4i32, RC128, ReplInstrMCID,
+      ZipDest, FourVectors);
+    break;
+  case AArch64::ST4Fourv2s:
+   prepareStmtParam(AArch64::ZIP1v2i32, AArch64::ZIP2v2i32, RC64, ReplInstrMCID,
+      ZipDest, FourVectors);
+    break;
+  case AArch64::ST4Fourv8h:
+    prepareStmtParam(AArch64::ZIP1v8i16, AArch64::ZIP2v8i16, RC128, ReplInstrMCID,
+      ZipDest, FourVectors);
+    break;
+  case AArch64::ST4Fourv4h:
+    prepareStmtParam(AArch64::ZIP1v4i16, AArch64::ZIP2v4i16, RC64, ReplInstrMCID,
+      ZipDest, FourVectors);
+    break;
+  case AArch64::ST4Fourv16b:
+    prepareStmtParam(AArch64::ZIP1v16i8, AArch64::ZIP2v16i8, RC128, ReplInstrMCID,
+      ZipDest, FourVectors);
+    break;
+  case AArch64::ST4Fourv8b:
+    prepareStmtParam(AArch64::ZIP1v8i8, AArch64::ZIP2v8i8, RC64, ReplInstrMCID,
+      ZipDest, FourVectors);
+    break;
+  }
+
+  if (!shouldReplaceInstruction(MI.getParent()->getParent(),
+                                &TII->get(MI.getOpcode()), ReplInstrMCID,
+                                *VecInstElemTable))
+    return false;
+
+  // Generate the replacement instructions composed of zip1, zip2, and stp
+  switch (MI.getOpcode()) {
+  default:
+    return false;
+  case AArch64::ST2Twov16b:
+  case AArch64::ST2Twov8b:
+  case AArch64::ST2Twov8h:
+  case AArch64::ST2Twov4h:
+  case AArch64::ST2Twov4s:
+  case AArch64::ST2Twov2s:
+  case AArch64::ST2Twov2d:
+    // zip instructions
+    BuildMI(MBB, MI, DL, *ReplInstrMCID[0], ZipDest[0])
+        .addReg(StReg[0])
+        .addReg(StReg[1]);
+    BuildMI(MBB, MI, DL, *ReplInstrMCID[1], ZipDest[1])
+        .addReg(StReg[0], StRegKill[0])
+        .addReg(StReg[1], StRegKill[1]);
+    // stp instructions
+    BuildMI(MBB, MI, DL, *ReplInstrMCID[2])
+        .addReg(ZipDest[0])
+        .addReg(ZipDest[1])
+        .addReg(AddrReg)
+        .addImm(0);
+    break;
+  case AArch64::ST4Fourv16b:
+  case AArch64::ST4Fourv8b:
+  case AArch64::ST4Fourv8h:
+  case AArch64::ST4Fourv4h:
+  case AArch64::ST4Fourv4s:
+  case AArch64::ST4Fourv2s:
+  case AArch64::ST4Fourv2d:
+    // zip instructions
+    BuildMI(MBB, MI, DL, *ReplInstrMCID[0], ZipDest[0])
+        .addReg(StReg[0])
+        .addReg(StReg[2]);
+    BuildMI(MBB, MI, DL, *ReplInstrMCID[1], ZipDest[1])
+        .addReg(StReg[0], StRegKill[0])
+        .addReg(StReg[2], StRegKill[2]);
+    BuildMI(MBB, MI, DL, *ReplInstrMCID[2], ZipDest[2])
+        .addReg(StReg[1])
+        .addReg(StReg[3]);
+    BuildMI(MBB, MI, DL, *ReplInstrMCID[3], ZipDest[3])
+        .addReg(StReg[1], StRegKill[1])
+        .addReg(StReg[3], StRegKill[3]);
+    BuildMI(MBB, MI, DL, *ReplInstrMCID[4], ZipDest[4])
+        .addReg(ZipDest[0])
+        .addReg(ZipDest[2]);
+    BuildMI(MBB, MI, DL, *ReplInstrMCID[5], ZipDest[5])
+        .addReg(ZipDest[0])
+        .addReg(ZipDest[2]);
+    BuildMI(MBB, MI, DL, *ReplInstrMCID[6], ZipDest[6])
+        .addReg(ZipDest[1])
+        .addReg(ZipDest[3]);
+    BuildMI(MBB, MI, DL, *ReplInstrMCID[7], ZipDest[7])
+        .addReg(ZipDest[1])
+        .addReg(ZipDest[3]);
+    // stp instructions
+    BuildMI(MBB, MI, DL, *ReplInstrMCID[8])
+        .addReg(ZipDest[4])
+        .addReg(ZipDest[5])
+        .addReg(AddrReg)
+        .addImm(0);
+    BuildMI(MBB, MI, DL, *ReplInstrMCID[9])
+        .addReg(ZipDest[6])
+        .addReg(ZipDest[7])
+        .addReg(AddrReg)
+        .addImm(2);
+    break;
+  }
+
+  ++NumModifiedInstr;
+  return true;
+}
+
+/// Process The REG_SEQUENCE instruction, and extract the source
+/// operands of the st2/4 instruction from it.
+/// Example of such instruction.
+///    %dest = REG_SEQUENCE %st2_src1, dsub0, %st2_src2, dsub1;
+/// Return true when the instruction is processed successfully.
+bool AArch64VectorByElementOpt::processSeqRegInst(MachineInstr *DefiningMI,
+     unsigned* StReg, unsigned* StRegKill, unsigned NumArg) const
+{
+  assert (DefiningMI != NULL);
+  if (DefiningMI->getOpcode() != AArch64::REG_SEQUENCE)
+    return false;
+
+  for (unsigned i=0; i<NumArg; i++)
+  {
+    StReg[i]     = DefiningMI->getOperand(2*i+1).getReg();
+    StRegKill[i] = getKillRegState(DefiningMI->getOperand(2*i+1).isKill());
+
+    // Sanity check for the other arguments.
+    if (DefiningMI->getOperand(2*i+2).isImm())
+    {
+      switch (DefiningMI->getOperand(2*i+2).getImm()) {
+      default:
+        return false;
+      case AArch64::dsub0:
+      case AArch64::dsub1:
+      case AArch64::dsub2:
+      case AArch64::dsub3:
+      case AArch64::qsub0:
+      case AArch64::qsub1:
+      case AArch64::qsub2:
+      case AArch64::qsub3:
+        break;
+      }
+    }
+    else
+      return false;
+  }
+  return true;
+}
+
+/// Prepare the parameters needed to build the replacement statements
+void AArch64VectorByElementOpt::prepareStmtParam(unsigned Opcode1,
+     unsigned Opcode2, const TargetRegisterClass *RC,
+     SmallVectorImpl<const MCInstrDesc*> &ReplInstrMCID,
+     SmallVectorImpl<unsigned>& ZipDest, AccessType AccT) const
+{
+  switch(AccT) {
+  default:
+    llvm_unreachable("Unexpected memory access type" );
+  case TwoVectors:
+    ReplInstrMCID.push_back(&TII->get(Opcode1));
+    ZipDest.push_back(MRI->createVirtualRegister(RC));
+    ReplInstrMCID.push_back(&TII->get(Opcode2));
+    ZipDest.push_back(MRI->createVirtualRegister(RC));
+    if (RC == &AArch64::FPR128RegClass)
+      ReplInstrMCID.push_back(&TII->get(AArch64::STPQi));
+    else
+      ReplInstrMCID.push_back(&TII->get(AArch64::STPDi));
+    break;
+  case FourVectors:
+    for (int i=0; i<4; i++)
+    {
+       ReplInstrMCID.push_back(&TII->get(Opcode1));
+       ZipDest.push_back(MRI->createVirtualRegister(RC));
+       ReplInstrMCID.push_back(&TII->get(Opcode2));
+       ZipDest.push_back(MRI->createVirtualRegister(RC));
+    }
+    if (RC == &AArch64::FPR128RegClass)
+    {
+      ReplInstrMCID.push_back(&TII->get(AArch64::STPQi));
+      ReplInstrMCID.push_back(&TII->get(AArch64::STPQi));
+    }
+    else
+    {
+      ReplInstrMCID.push_back(&TII->get(AArch64::STPDi));
+      ReplInstrMCID.push_back(&TII->get(AArch64::STPDi));
+    }
+    break;
+  }
+}
+
 bool AArch64VectorByElementOpt::runOnMachineFunction(MachineFunction &MF) {
   if (skipFunction(*MF.getFunction()))
     return false;
@@ -353,30 +729,53 @@ bool AArch64VectorByElementOpt::runOnMachineFunction(MachineFunction &MF) {
   if (!SchedModel.hasInstrSchedModel())
     return false;
 
-  // A simple check to exit this pass early for targets that do not need it.
-  if (earlyExitVectElement(&MF))
-    return false;
-
   bool Changed = false;
-  std::map<unsigned, bool> VecInstElemTable;
-  SmallVector<MachineInstr *, 8> RemoveMIs;
 
-  for (MachineBasicBlock &MBB : MF) {
-    for (MachineBasicBlock::iterator MII = MBB.begin(), MIE = MBB.end();
-         MII != MIE;) {
-      MachineInstr &MI = *MII;
-      if (optimizeVectElement(MI, &VecInstElemTable)) {
-        // Add MI to the list of instructions to be removed given that it has
-        // been replaced.
-        RemoveMIs.push_back(&MI);
-        Changed = true;
+  // A simple check to exit the by vector element sub-pass early for targets
+  // that do not need it.
+  if (!earlyExitVectElement(&MF, VectorElem))
+  {
+    std::map<unsigned, bool> VecInstElemTable;
+    SmallVector<MachineInstr *, 8> RemoveMIs;
+    for (MachineBasicBlock &MBB : MF) {
+      for (MachineBasicBlock::iterator MII = MBB.begin(), MIE = MBB.end();
+           MII != MIE;) {
+        MachineInstr &MI = *MII;
+        if (optimizeVectElement(MI, &VecInstElemTable)) {
+          // Add MI to the list of instructions to be removed given that it has
+          // been replaced.
+          RemoveMIs.push_back(&MI);
+          Changed = true;
+        }
+        ++MII;
       }
-      ++MII;
     }
+    for (MachineInstr *MI : RemoveMIs)
+      MI->eraseFromParent();
   }
 
-  for (MachineInstr *MI : RemoveMIs)
-    MI->eraseFromParent();
+  // Another simple check to exit the interleaved store sub-pass early for targets
+	// that do not need it.
+  if (!earlyExitVectElement(&MF, Interleave))
+  {
+    std::map<unsigned, bool> VecInstElemTable;
+    SmallVector<MachineInstr *, 8> RemoveMIs;
+    for (MachineBasicBlock &MBB : MF) {
+      for (MachineBasicBlock::iterator MII = MBB.begin(), MIE = MBB.end();
+           MII != MIE;) {
+        MachineInstr &MI = *MII;
+        if (optimizeLdStInterleave(MI, &VecInstElemTable)) {
+          // Add MI to the list of instructions to be removed given that it has
+          // been replaced.
+          RemoveMIs.push_back(&MI);
+          Changed = true;
+        }
+        ++MII;
+      }
+    }
+    for (MachineInstr *MI : RemoveMIs)
+      MI->eraseFromParent();
+  }
 
   return Changed;
 }
