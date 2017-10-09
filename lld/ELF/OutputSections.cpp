@@ -87,6 +87,7 @@ void OutputSection::addSection(InputSection *S) {
   Live = true;
   S->Parent = this;
   this->updateAlignment(S->Alignment);
+  S->OutSecPos = InputSectionCount++;
 
   // The actual offsets will be computed by assignAddresses. For now, use
   // crude approximation so that it is at least easy for other code to know the
@@ -427,7 +428,9 @@ static bool compareByFilePosition(InputSection *A, InputSection *B) {
   OutputSection *BOut = LB->getParent();
   if (AOut != BOut)
     return AOut->SectionIndex < BOut->SectionIndex;
-  return LA->OutSecOff < LB->OutSecOff;
+  assert(LA->OutSecPos && LB->OutSecPos &&
+         "Cannot compare late-inserted section positions.");
+  return LA->OutSecPos < LB->OutSecPos;
 }
 
 template <class ELFT>
