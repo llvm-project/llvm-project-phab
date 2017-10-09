@@ -51,20 +51,21 @@ legalized:       true
 regBankSelected: true
 
 # CHECK:      registers:
-# CHECK-NEXT:  - { id: 0, class: gpr32all, preferred-register: '' }
+# CHECK-NEXT:  - { id: 0, class: gpr32, preferred-register: '' }
 # CHECK-NEXT:  - { id: 1, class: gpr32all, preferred-register: '' }
 registers:
   - { id: 0, class: gpr }
   - { id: 1, class: gpr }
 
 # CHECK:  body:
-# CHECK:    %0 = COPY %w0
+# CHECK:    %2 = COPY %w0
 # CHECK:    %1 = COPY %0
 body:             |
   bb.0:
     liveins: %w0
 
-    %0(s8) = COPY %w0
+    %2:gpr(s32) = COPY %w0
+    %0(s8) = G_TRUNC %2
     %1(s32) = G_ANYEXT %0
     %w0 = COPY %1(s32)
 ...
@@ -110,13 +111,14 @@ registers:
   - { id: 1, class: gpr }
 
 # CHECK:  body:
-# CHECK:    %0 = COPY %w0
+# CHECK:    %2 = COPY %w0
 # CHECK:    %1 = UBFMWri %0, 0, 15
 body:             |
   bb.0:
     liveins: %w0
 
-    %0(s16) = COPY %w0
+    %2:gpr(s32) = COPY %w0
+    %0(s16) = G_TRUNC %2
     %1(s32) = G_ZEXT %0
     %w0 = COPY %1
 ...
@@ -135,13 +137,14 @@ registers:
   - { id: 1, class: gpr }
 
 # CHECK:  body:
-# CHECK:    %0 = COPY %w0
+# CHECK:    %2 = COPY %w0
 # CHECK:    %1 = UBFMWri %0, 0, 7
 body:             |
   bb.0:
     liveins: %w0
 
-    %0(s8) = COPY %w0
+    %2:gpr(s32) = COPY %w0
+    %0(s8) = G_TRUNC %2
     %1(s32) = G_ZEXT %0
     %w0 = COPY %1(s32)
 ...
@@ -160,15 +163,17 @@ registers:
   - { id: 1, class: gpr }
 
 # CHECK:  body:
-# CHECK:    %0 = COPY %w0
+# CHECK:    %2 = COPY %w0
 # CHECK:    %1 = UBFMWri %0, 0, 7
 body:             |
   bb.0:
     liveins: %w0
 
-    %0(s8) = COPY %w0
+    %2:gpr(s32) = COPY %w0
+    %0(s8) = G_TRUNC %2
     %1(s16) = G_ZEXT %0
-    %w0 = COPY %1(s16)
+    %3:gpr(s32) = G_ANYEXT %1
+    %w0 = COPY %3(s32)
 ...
 
 ---
@@ -212,13 +217,14 @@ registers:
   - { id: 1, class: gpr }
 
 # CHECK:  body:
-# CHECK:    %0 = COPY %w0
+# CHECK:    %2 = COPY %w0
 # CHECK:    %1 = SBFMWri %0, 0, 15
 body:             |
   bb.0:
     liveins: %w0
 
-    %0(s16) = COPY %w0
+    %2:gpr(s32) = COPY %w0
+    %0(s16) = G_TRUNC %2
     %1(s32) = G_SEXT %0
     %w0 = COPY %1
 ...
@@ -237,13 +243,14 @@ registers:
   - { id: 1, class: gpr }
 
 # CHECK:  body:
-# CHECK:    %0 = COPY %w0
+# CHECK:    %2 = COPY %w0
 # CHECK:    %1 = SBFMWri %0, 0, 7
 body:             |
   bb.0:
     liveins: %w0
 
-    %0(s8) = COPY %w0
+    %2:gpr(s32) = COPY %w0
+    %0(s8) = G_TRUNC %2
     %1(s32) = G_SEXT %0
     %w0 = COPY %1(s32)
 ...
@@ -262,13 +269,15 @@ registers:
   - { id: 1, class: gpr }
 
 # CHECK:  body:
-# CHECK:    %0 = COPY %w0
+# CHECK:    %2 = COPY %w0
 # CHECK:    %1 = SBFMWri %0, 0, 7
 body:             |
   bb.0:
     liveins: %w0
 
-    %0(s8) = COPY %w0
+    %2:gpr(s32) = COPY %w0
+    %0(s8) = G_TRUNC %2
     %1(s16) = G_SEXT %0
-    %w0 = COPY %1(s16)
+    %3:gpr(s32) = G_ANYEXT %1
+    %w0 = COPY %3(s32)
 ...

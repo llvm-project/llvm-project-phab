@@ -49,5 +49,5 @@ body:             |
     liveins: %w0, %w1
 
     %0(s64) = G_CONSTANT i64 1234
-    %w0 = COPY %0(s64)
+    %x0 = COPY %0(s64)
 ...

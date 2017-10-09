@@ -97,14 +97,15 @@ registers:
 
 # CHECK:  body:
 # CHECK: %0 = COPY %x0
-# CHECK: %1 = COPY %w1
+# CHECK: %2 = COPY %w1
 # CHECK: STRHHui %1, %0, 0 :: (store 2 into %ir.addr)
 body:             |
   bb.0:
     liveins: %x0, %w1
 
     %0(p0) = COPY %x0
-    %1(s16) = COPY %w1
+    %2:gpr(s32) = COPY %w1
+    %1(s16) = G_TRUNC %2
     G_STORE  %1, %0 :: (store 2 into %ir.addr)
 
 ...
@@ -124,14 +125,15 @@ registers:
 
 # CHECK:  body:
 # CHECK: %0 = COPY %x0
-# CHECK: %1 = COPY %w1
+# CHECK: %2 = COPY %w1
 # CHECK: STRBBui %1, %0, 0 :: (store 1 into %ir.addr)
 body:             |
   bb.0:
     liveins: %x0, %w1
 
     %0(p0) = COPY %x0
-    %1(s8) = COPY %w1
+    %2:gpr(s32) = COPY %w1
+    %1(s8) = G_TRUNC %2
     G_STORE  %1, %0 :: (store 1 into %ir.addr)
 
 ...
@@ -299,14 +301,15 @@ registers:
 
 # CHECK:  body:
 # CHECK: %0 = COPY %x0
-# CHECK: %1 = COPY %w1
+# CHECK: %4 = COPY %w1
 # CHECK: STRHHui %1, %0, 32 :: (store 2 into %ir.addr)
 body:             |
   bb.0:
     liveins: %x0, %w1
 
     %0(p0) = COPY %x0
-    %1(s16) = COPY %w1
+    %4:gpr(s32) = COPY %w1
+    %1(s16) = G_TRUNC %4
     %2(s64) = G_CONSTANT i64 64
     %3(p0) = G_GEP %0, %2
     G_STORE %1, %3 :: (store 2 into %ir.addr)
@@ -331,14 +334,15 @@ registers:
 
 # CHECK:  body:
 # CHECK: %0 = COPY %x0
-# CHECK: %1 = COPY %w1
+# CHECK: %4 = COPY %w1
 # CHECK: STRBBui %1, %0, 1 :: (store 1 into %ir.addr)
 body:             |
   bb.0:
     liveins: %x0, %w1
 
     %0(p0) = COPY %x0
-    %1(s8) = COPY %w1
+    %4:gpr(s32) = COPY %w1
+    %1(s8) = G_TRUNC %4
     %2(s64) = G_CONSTANT i64 1
     %3(p0) = G_GEP %0, %2
     G_STORE %1, %3 :: (store 1 into %ir.addr)

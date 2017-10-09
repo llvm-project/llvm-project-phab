@@ -53,7 +53,8 @@ body:             |
 
     %0(s64) = COPY %x0
     %1(s8) = G_TRUNC %0
-    %w0 = COPY %1(s8)
+    %2:gpr(s32) = G_ANYEXT %1
+    %w0 = COPY %2(s32)
 ...
 
 ---
@@ -77,5 +78,6 @@ body:             |
 
     %0(s32) = COPY %w0
     %1(s1) = G_TRUNC %0
-    %w0 = COPY %1(s1)
+    %2:gpr(s32) = G_ANYEXT %1
+    %w0 = COPY %2(s32)
 ...
