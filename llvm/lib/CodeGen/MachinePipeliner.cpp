@@ -1027,74 +1027,76 @@ static void getUnderlyingObjects(MachineInstr *MI,
 /// alias of the load on a subsequent iteration, i.e., a loop carried
 /// dependence. This code is very similar to the code in ScheduleDAGInstrs
 /// but that code doesn't create loop carried dependences.
+/// Modified this function to consider anti- and output dependences as well
 void SwingSchedulerDAG::addLoopCarriedDependences(AliasAnalysis *AA) {
-  MapVector<Value *, SmallVector<SUnit *, 4>> PendingLoads;
+  MapVector<Value *, SmallVector<SUnit *, 8>> PendingLoadsStores;
   for (auto &SU : SUnits) {
     MachineInstr &MI = *SU.getInstr();
     if (isDependenceBarrier(MI, AA))
-      PendingLoads.clear();
-    else if (MI.mayLoad()) {
-      SmallVector<Value *, 4> Objs;
-      getUnderlyingObjects(&MI, Objs, MF.getDataLayout());
-      for (auto V : Objs) {
-        SmallVector<SUnit *, 4> &SUs = PendingLoads[V];
-        SUs.push_back(&SU);
-      }
-    } else if (MI.mayStore()) {
-      SmallVector<Value *, 4> Objs;
-      getUnderlyingObjects(&MI, Objs, MF.getDataLayout());
-      for (auto V : Objs) {
-        MapVector<Value *, SmallVector<SUnit *, 4>>::iterator I =
-            PendingLoads.find(V);
-        if (I == PendingLoads.end())
-          continue;
-        for (auto Load : I->second) {
-          if (isSuccOrder(Load, &SU))
-            continue;
-          MachineInstr &LdMI = *Load->getInstr();
-          // First, perform the cheaper check that compares the base register.
-          // If they are the same and the load offset is less than the store
-          // offset, then mark the dependence as loop carried potentially.
-          unsigned BaseReg1, BaseReg2;
-          int64_t Offset1, Offset2;
-          if (!TII->getMemOpBaseRegImmOfs(LdMI, BaseReg1, Offset1, TRI) ||
-              !TII->getMemOpBaseRegImmOfs(MI, BaseReg2, Offset2, TRI)) {
-            SU.addPred(SDep(Load, SDep::Barrier));
-            continue;            
-          }
-          if (BaseReg1 == BaseReg2 && (int)Offset1 < (int)Offset2) {
-            assert(TII->areMemAccessesTriviallyDisjoint(LdMI, MI, AA) &&
-                   "What happened to the chain edge?");
-            SU.addPred(SDep(Load, SDep::Barrier));
-            continue;
-          }
-          // Second, the more expensive check that uses alias analysis on the
-          // base registers. If they alias, and the load offset is less than
-          // the store offset, the mark the dependence as loop carried.
-          if (!AA) {
-            SU.addPred(SDep(Load, SDep::Barrier));
-            continue;
-          }
-          MachineMemOperand *MMO1 = *LdMI.memoperands_begin();
-          MachineMemOperand *MMO2 = *MI.memoperands_begin();
-          if (!MMO1->getValue() || !MMO2->getValue()) {
-            SU.addPred(SDep(Load, SDep::Barrier));
-            continue;
-          }
-          if (MMO1->getValue() == MMO2->getValue() &&
-              MMO1->getOffset() <= MMO2->getOffset()) {
-            SU.addPred(SDep(Load, SDep::Barrier));
-            continue;
-          }
-          AliasResult AAResult = AA->alias(
-              MemoryLocation(MMO1->getValue(), MemoryLocation::UnknownSize,
-                             MMO1->getAAInfo()),
-              MemoryLocation(MMO2->getValue(), MemoryLocation::UnknownSize,
-                             MMO2->getAAInfo()));
+      PendingLoadsStores.clear();
+    else if (!MI.mayLoad() && !MI.mayStore())
+      continue;
 
-          if (AAResult != NoAlias)
-            SU.addPred(SDep(Load, SDep::Barrier));
+    SmallVector<Value *, 8> Objs;
+    getUnderlyingObjects(&MI, Objs, MF.getDataLayout());
+    for (auto V : Objs) {
+      SmallVector<SUnit *, 8> &SUs = PendingLoadsStores[V];
+      SUs.push_back(&SU);
+
+      MapVector<Value *, SmallVector<SUnit *, 8>>::iterator I =
+          PendingLoadsStores.find(V);
+      if (I == PendingLoadsStores.end())
+        continue;
+      for (auto Load : I->second) {
+        if (isSuccOrder(Load, &SU))
+          continue;
+
+        MachineInstr &LdMI = *Load->getInstr();
+        if ((LdMI.mayLoad() && MI.mayLoad()) || &LdMI == &MI)
+          continue;
+
+        // First, perform the cheaper check that compares the base register.
+        // If they are the same and the load offset is less than the store
+        // offset, then mark the dependence as loop carried potentially.
+        unsigned BaseReg1, BaseReg2;
+        int64_t Offset1, Offset2;
+        if (!TII->getMemOpBaseRegImmOfs(LdMI, BaseReg1, Offset1, TRI) ||
+            !TII->getMemOpBaseRegImmOfs(MI, BaseReg2, Offset2, TRI)) {
+          SU.addPred(SDep(Load, SDep::Barrier));
+          continue;
         }
+        if (BaseReg1 == BaseReg2 && (int)Offset1 < (int)Offset2) {
+          assert(TII->areMemAccessesTriviallyDisjoint(LdMI, MI, AA) &&
+                 "What happened to the chain edge?");
+          SU.addPred(SDep(Load, SDep::Barrier));
+          continue;
+        }
+        // Second, the more expensive check that uses alias analysis on the
+        // base registers. If they alias, and the load offset is less than
+        // the store offset, the mark the dependence as loop carried.
+        if (!AA) {
+          SU.addPred(SDep(Load, SDep::Barrier));
+          continue;
+        }
+        MachineMemOperand *MMO1 = *LdMI.memoperands_begin();
+        MachineMemOperand *MMO2 = *MI.memoperands_begin();
+        if (!MMO1->getValue() || !MMO2->getValue()) {
+          SU.addPred(SDep(Load, SDep::Barrier));
+          continue;
+        }
+        if (MMO1->getValue() == MMO2->getValue() &&
+            MMO1->getOffset() <= MMO2->getOffset()) {
+          SU.addPred(SDep(Load, SDep::Barrier));
+          continue;
+        }
+        AliasResult AAResult = AA->alias(
+            MemoryLocation(MMO1->getValue(), MemoryLocation::UnknownSize,
+                           MMO1->getAAInfo()),
+            MemoryLocation(MMO2->getValue(), MemoryLocation::UnknownSize,
+                           MMO2->getAAInfo()));
+
+        if (AAResult != NoAlias)
+          SU.addPred(SDep(Load, SDep::Barrier));
       }
     }
   }
