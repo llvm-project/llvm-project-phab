@@ -226,6 +226,29 @@ SourceLocation Expr::getExprLoc() const {
   llvm_unreachable("unknown expression kind");
 }
 
+bool Expr::isTypoCorrected() const {
+  if (const DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(this))
+    return DRE->isTypoCorrected();
+  if (const auto *ME = dyn_cast<MemberExpr>(this))
+    return ME->isTypoCorrected();
+  if (const auto *IVar = dyn_cast<ObjCIvarRefExpr>(this))
+    return IVar->isTypoCorrected();
+  if (const auto *PRef = dyn_cast<ObjCPropertyRefExpr>(this))
+    return PRef->isTypoCorrected();
+  return false;
+}
+
+void Expr::setIsTypoCorrected(bool V) {
+  if (auto *DRE = dyn_cast<DeclRefExpr>(this))
+    DRE->setIsTypoCorrected(V);
+  else if (auto *ME = dyn_cast<MemberExpr>(this))
+    ME->setIsTypoCorrected(V);
+  else if (auto *IVar = dyn_cast<ObjCIvarRefExpr>(this))
+    IVar->setIsTypoCorrected(V);
+  else if (auto *PRef = dyn_cast<ObjCPropertyRefExpr>(this))
+    PRef->setIsTypoCorrected(V);
+}
+
 //===----------------------------------------------------------------------===//
 // Primary Expressions.
 //===----------------------------------------------------------------------===//
@@ -369,6 +392,7 @@ DeclRefExpr::DeclRefExpr(const ASTContext &Ctx,
     = (TemplateArgs || TemplateKWLoc.isValid()) ? 1 : 0;
   DeclRefExprBits.RefersToEnclosingVariableOrCapture =
       RefersToEnclosingVariableOrCapture;
+  DeclRefExprBits.IsTypoCorrected = 0;
   if (TemplateArgs) {
     bool Dependent = false;
     bool InstantiationDependent = false;

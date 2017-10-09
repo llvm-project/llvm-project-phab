@@ -96,6 +96,9 @@ private:
   /// record entries.
   bool VisitDeclsOnly;
 
+  /// \brief Whether we should visit typo-corrected references.
+  bool VisitTypoCorrected = true;
+
   // FIXME: Eventually remove.  This part of a hack to support proper
   // iteration over all Decls contained lexically within an ObjC container.
   DeclContext::decl_iterator *DI_current;
@@ -186,6 +189,8 @@ public:
   bool shouldVisitIncludedEntities() const {
     return VisitIncludedEntities;
   }
+
+  void setVisitTypoCorrected(bool V = true) { VisitTypoCorrected = V; }
 
   template<typename InputIterator>
   bool visitPreprocessedEntities(InputIterator First, InputIterator Last,

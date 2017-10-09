@@ -177,6 +177,31 @@ protected:
     unsigned HasFoundDecl : 1;
     unsigned HadMultipleCandidates : 1;
     unsigned RefersToEnclosingVariableOrCapture : 1;
+    unsigned IsTypoCorrected : 1;
+  };
+
+  class MemberExprBitfields {
+    friend class MemberExpr;
+    friend class ASTStmtReader;
+    unsigned : NumExprBits;
+
+    unsigned IsTypoCorrected : 1;
+  };
+
+  class ObjCIvarRefExprBitfields {
+    friend class ObjCIvarRefExpr;
+    friend class ASTStmtReader;
+    unsigned : NumExprBits;
+
+    unsigned IsTypoCorrected : 1;
+  };
+
+  class ObjCPropertyRefExprBitfields {
+    friend class ObjCPropertyRefExpr;
+    friend class ASTStmtReader;
+    unsigned : NumExprBits;
+
+    unsigned IsTypoCorrected : 1;
   };
 
   class CastExprBitfields {
@@ -270,6 +295,9 @@ protected:
     FloatingLiteralBitfields FloatingLiteralBits;
     UnaryExprOrTypeTraitExprBitfields UnaryExprOrTypeTraitExprBits;
     DeclRefExprBitfields DeclRefExprBits;
+    MemberExprBitfields MemberExprBits;
+    ObjCIvarRefExprBitfields ObjCIvarRefExprBits;
+    ObjCPropertyRefExprBitfields ObjCPropertyRefExprBits;
     CastExprBitfields CastExprBits;
     CallExprBitfields CallExprBits;
     ExprWithCleanupsBitfields ExprWithCleanupsBits;

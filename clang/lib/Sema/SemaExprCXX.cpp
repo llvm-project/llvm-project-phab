@@ -7231,8 +7231,12 @@ static ExprResult attemptRecovery(Sema &SemaRef,
     }
   }
 
-  return SemaRef.BuildDeclarationNameExpr(NewSS, R, /*NeedsADL*/ false,
-                                          /*AcceptInvalidDecl*/ true);
+  ExprResult Result =
+      SemaRef.BuildDeclarationNameExpr(NewSS, R, /*NeedsADL*/ false,
+                                       /*AcceptInvalidDecl*/ true);
+  if (Result.isUsable())
+    Result.get()->setIsTypoCorrected();
+  return Result;
 }
 
 namespace {

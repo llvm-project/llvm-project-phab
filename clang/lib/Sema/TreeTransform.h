@@ -8895,8 +8895,11 @@ TreeTransform<Derived>::TransformDeclRefExpr(DeclRefExpr *E) {
       return ExprError();
   }
 
-  return getDerived().RebuildDeclRefExpr(QualifierLoc, ND, NameInfo,
-                                         TemplateArgs);
+  ExprResult Result =
+      getDerived().RebuildDeclRefExpr(QualifierLoc, ND, NameInfo, TemplateArgs);
+  if (E->isTypoCorrected() && Result.isUsable())
+    Result.getAs<DeclRefExpr>()->setIsTypoCorrected();
+  return Result;
 }
 
 template<typename Derived>
@@ -9324,16 +9327,14 @@ TreeTransform<Derived>::TransformMemberExpr(MemberExpr *E) {
       return ExprError();
   }
 
-  return getDerived().RebuildMemberExpr(Base.get(), FakeOperatorLoc,
-                                        E->isArrow(),
-                                        QualifierLoc,
-                                        TemplateKWLoc,
-                                        MemberNameInfo,
-                                        Member,
-                                        FoundDecl,
-                                        (E->hasExplicitTemplateArgs()
-                                           ? &TransArgs : nullptr),
-                                        FirstQualifierInScope);
+  ExprResult Result = getDerived().RebuildMemberExpr(
+      Base.get(), FakeOperatorLoc, E->isArrow(), QualifierLoc, TemplateKWLoc,
+      MemberNameInfo, Member, FoundDecl,
+      (E->hasExplicitTemplateArgs() ? &TransArgs : nullptr),
+      FirstQualifierInScope);
+  if (E->isTypoCorrected() && Result.isUsable())
+    E->setIsTypoCorrected();
+  return Result;
 }
 
 template<typename Derived>
@@ -11993,9 +11994,12 @@ TreeTransform<Derived>::TransformObjCIvarRefExpr(ObjCIvarRefExpr *E) {
       Base.get() == E->getBase())
     return E;
 
-  return getDerived().RebuildObjCIvarRefExpr(Base.get(), E->getDecl(),
-                                             E->getLocation(),
-                                             E->isArrow(), E->isFreeIvar());
+  ExprResult Result = getDerived().RebuildObjCIvarRefExpr(
+      Base.get(), E->getDecl(), E->getLocation(), E->isArrow(),
+      E->isFreeIvar());
+  if (E->isTypoCorrected() && Result.isUsable())
+    Result.getAs<ObjCIvarRefExpr>()->setIsTypoCorrected();
+  return Result;
 }
 
 template<typename Derived>
@@ -12018,16 +12022,18 @@ TreeTransform<Derived>::TransformObjCPropertyRefExpr(ObjCPropertyRefExpr *E) {
       Base.get() == E->getBase())
     return E;
 
+  ExprResult Result;
   if (E->isExplicitProperty())
-    return getDerived().RebuildObjCPropertyRefExpr(Base.get(),
-                                                   E->getExplicitProperty(),
-                                                   E->getLocation());
-
-  return getDerived().RebuildObjCPropertyRefExpr(Base.get(),
-                                                 SemaRef.Context.PseudoObjectTy,
-                                                 E->getImplicitPropertyGetter(),
-                                                 E->getImplicitPropertySetter(),
-                                                 E->getLocation());
+    Result = getDerived().RebuildObjCPropertyRefExpr(
+        Base.get(), E->getExplicitProperty(), E->getLocation());
+  else
+    Result = getDerived().RebuildObjCPropertyRefExpr(
+        Base.get(), SemaRef.Context.PseudoObjectTy,
+        E->getImplicitPropertyGetter(), E->getImplicitPropertySetter(),
+        E->getLocation());
+  if (E->isTypoCorrected() && Result.isUsable())
+    Result.getAs<ObjCPropertyRefExpr>()->setIsTypoCorrected();
+  return Result;
 }
 
 template<typename Derived>

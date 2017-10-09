@@ -887,6 +887,7 @@ Sema::ClassifyName(Scope *S, CXXScopeSpec &SS, IdentifierInfo *&Name,
 
   bool SecondTry = false;
   bool IsFilteredTemplateName = false;
+  bool IsTypoCorrected = false;
 
 Corrected:
   switch (Result.getResultKind()) {
@@ -983,9 +984,12 @@ Corrected:
         if (ObjCIvarDecl *Ivar = Result.getAsSingle<ObjCIvarDecl>()) {
           Result.clear();
           ExprResult E(LookupInObjCMethod(Result, S, Ivar->getIdentifier()));
+          if (E.isUsable())
+            E.get()->setIsTypoCorrected();
           return E;
         }
 
+        IsTypoCorrected = true;
         goto Corrected;
       }
     }
@@ -1144,12 +1148,19 @@ Corrected:
     return ParsedType::make(T);
   }
 
-  if (FirstDecl->isCXXClassMember())
-    return BuildPossibleImplicitMemberExpr(SS, SourceLocation(), Result,
-                                           nullptr, S);
+  if (FirstDecl->isCXXClassMember()) {
+    ExprResult ME = BuildPossibleImplicitMemberExpr(SS, SourceLocation(),
+                                                    Result, nullptr, S);
+    if (IsTypoCorrected && ME.isUsable())
+      ME.get()->setIsTypoCorrected();
+    return ME;
+  }
 
   bool ADL = UseArgumentDependentLookup(SS, Result, NextToken.is(tok::l_paren));
-  return BuildDeclarationNameExpr(SS, Result, ADL);
+  ExprResult DNE = BuildDeclarationNameExpr(SS, Result, ADL);
+  if (IsTypoCorrected && DNE.isUsable())
+    DNE.get()->setIsTypoCorrected();
+  return DNE;
 }
 
 Sema::TemplateNameKindForDiagnostics

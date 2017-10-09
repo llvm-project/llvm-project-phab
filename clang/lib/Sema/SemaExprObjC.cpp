@@ -1903,9 +1903,12 @@ HandleExprPropertyRefExpr(const ObjCObjectPointerType *OPT,
     } else {
       diagnoseTypo(Corrected, PDiag(diag::err_property_not_found_suggest)
                                 << MemberName << QualType(OPT, 0));
-      return HandleExprPropertyRefExpr(OPT, BaseExpr, OpLoc,
-                                       TypoResult, MemberLoc,
-                                       SuperLoc, SuperType, Super);
+      ExprResult CorrectPRE =
+          HandleExprPropertyRefExpr(OPT, BaseExpr, OpLoc, TypoResult, MemberLoc,
+                                    SuperLoc, SuperType, Super);
+      if (CorrectPRE.isUsable())
+        CorrectPRE.get()->setIsTypoCorrected();
+      return CorrectPRE;
     }
   }
   ObjCInterfaceDecl *ClassDeclared;

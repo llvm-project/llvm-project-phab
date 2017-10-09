@@ -2158,6 +2158,9 @@ class CXXCtorInitializer final {
   /// of this initializer in the original sources, counting from 0.
   unsigned SourceOrder : 13;
 
+  /// Whether this initializer was typo-corrected.
+  unsigned IsTypoCorrected : 1;
+
 public:
   /// \brief Creates a new base-class initializer.
   explicit
@@ -2312,6 +2315,11 @@ public:
 
   /// \brief Get the initializer.
   Expr *getInit() const { return static_cast<Expr*>(Init); }
+
+  /// True iff the initializer was constructed during typo-correction.
+  bool isTypoCorrected() const { return IsTypoCorrected; }
+
+  void setIsTypoCorrected(bool V = true) { IsTypoCorrected = V; }
 };
 
 /// Description of a constructor that was inherited from a base class.

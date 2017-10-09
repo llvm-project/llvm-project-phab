@@ -850,6 +850,11 @@ public:
     return skipRValueSubobjectAdjustments(CommaLHSs, Adjustments);
   }
 
+  /// True iff the expression was constructed during typo-correction.
+  bool isTypoCorrected() const;
+
+  void setIsTypoCorrected(bool V = true);
+
   static bool classof(const Stmt *T) {
     return T->getStmtClass() >= firstExprConstant &&
            T->getStmtClass() <= lastExprConstant;
@@ -1013,6 +1018,7 @@ public:
     DeclRefExprBits.HadMultipleCandidates = 0;
     DeclRefExprBits.RefersToEnclosingVariableOrCapture =
         RefersToEnclosingVariableOrCapture;
+    DeclRefExprBits.IsTypoCorrected = 0;
     computeDependence(D->getASTContext());
   }
 
@@ -1164,6 +1170,13 @@ public:
   /// variable?
   bool refersToEnclosingVariableOrCapture() const {
     return DeclRefExprBits.RefersToEnclosingVariableOrCapture;
+  }
+
+  /// True iff the expression was constructed during typo-correction.
+  bool isTypoCorrected() const { return DeclRefExprBits.IsTypoCorrected; }
+
+  void setIsTypoCorrected(bool V = true) {
+    DeclRefExprBits.IsTypoCorrected = V;
   }
 
   static bool classof(const Stmt *T) {
@@ -2447,6 +2460,7 @@ public:
         IsArrow(isarrow), HasQualifierOrFoundDecl(false),
         HasTemplateKWAndArgsInfo(false), HadMultipleCandidates(false) {
     assert(memberdecl->getDeclName() == NameInfo.getName());
+    MemberExprBits.IsTypoCorrected = 0;
   }
 
   // NOTE: this constructor should be used only when it is known that
@@ -2462,7 +2476,9 @@ public:
         Base(base), MemberDecl(memberdecl), MemberDNLoc(), MemberLoc(l),
         OperatorLoc(operatorloc), IsArrow(isarrow),
         HasQualifierOrFoundDecl(false), HasTemplateKWAndArgsInfo(false),
-        HadMultipleCandidates(false) {}
+        HadMultipleCandidates(false) {
+    MemberExprBits.IsTypoCorrected = 0;
+  }
 
   static MemberExpr *Create(const ASTContext &C, Expr *base, bool isarrow,
                             SourceLocation OperatorLoc,
@@ -2616,6 +2632,11 @@ public:
   bool performsVirtualDispatch(const LangOptions &LO) const {
     return LO.AppleKext || !hasQualifier();
   }
+
+  /// True iff the expression was constructed during typo-correction.
+  bool isTypoCorrected() const { return MemberExprBits.IsTypoCorrected; }
+
+  void setIsTypoCorrected(bool V = true) { MemberExprBits.IsTypoCorrected = V; }
 
   static bool classof(const Stmt *T) {
     return T->getStmtClass() == MemberExprClass;

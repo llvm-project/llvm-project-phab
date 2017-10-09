@@ -11694,6 +11694,8 @@ BuildRecoveryCallExpr(Sema &SemaRef, Scope *S, Expr *Fn,
 
   if (NewFn.isInvalid())
     return ExprError();
+  if (AllowTypoCorrection)
+    NewFn.get()->setIsTypoCorrected();
 
   // This shouldn't cause an infinite loop because we're giving it
   // an expression with viable lookup results, which should never

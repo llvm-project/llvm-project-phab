@@ -720,9 +720,12 @@ static bool LookupMemberExprInRecord(Sema &SemaRef, LookupResult &R,
         for (NamedDecl *ND : TC)
           R.addDecl(ND);
         R.resolveKind();
-        return SemaRef.BuildMemberReferenceExpr(
+        ExprResult CorrectedME = SemaRef.BuildMemberReferenceExpr(
             BaseExpr, BaseExpr->getType(), OpLoc, IsArrow, SS, SourceLocation(),
             nullptr, R, nullptr, nullptr);
+        if (CorrectedME.isUsable())
+          CorrectedME.get()->setIsTypoCorrected();
+        return CorrectedME;
       },
       Sema::CTK_ErrorRecovery, DC);
 
@@ -1364,6 +1367,7 @@ static ExprResult LookupMemberExpr(Sema &S, LookupResult &R,
     ObjCInterfaceDecl *ClassDeclared = nullptr;
     ObjCIvarDecl *IV = IDecl->lookupInstanceVariable(Member, ClassDeclared);
 
+    bool IsTypoCorrected = false;
     if (!IV) {
       // Attempt to correct for typos in ivar names.
       auto Validator = llvm::make_unique<DeclFilterCCC<ObjCIvarDecl>>();
@@ -1376,6 +1380,7 @@ static ExprResult LookupMemberExpr(Sema &S, LookupResult &R,
             Corrected,
             S.PDiag(diag::err_typecheck_member_reference_ivar_suggest)
                 << IDecl->getDeclName() << MemberName);
+        IsTypoCorrected = true;
 
         // Figure out the class that declares the ivar.
         assert(!ClassDeclared);
@@ -1481,6 +1486,8 @@ static ExprResult LookupMemberExpr(Sema &S, LookupResult &R,
       if (!S.Diags.isIgnored(diag::warn_arc_repeated_use_of_weak, MemberLoc))
         S.recordUseOfEvaluatedWeak(Result);
     }
+    if (IsTypoCorrected)
+      Result->setIsTypoCorrected();
 
     return Result;
   }

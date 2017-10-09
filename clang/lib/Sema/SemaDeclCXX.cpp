@@ -3810,7 +3810,10 @@ Sema::BuildMemInitializer(Decl *ConstructorD,
           diagnoseTypo(Corr,
                        PDiag(diag::err_mem_init_not_member_or_class_suggest)
                          << MemberOrBase << true);
-          return BuildMemberInitializer(Member, Init, IdLoc);
+          MemInitResult MI = BuildMemberInitializer(Member, Init, IdLoc);
+          if (MI.isUsable())
+            MI.get()->setIsTypoCorrected();
+          return MI;
         } else if (TypeDecl *Type = Corr.getCorrectionDeclAs<TypeDecl>()) {
           const CXXBaseSpecifier *DirectBaseSpec;
           const CXXBaseSpecifier *VirtualBaseSpec;

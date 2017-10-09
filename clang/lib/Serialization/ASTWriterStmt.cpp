@@ -402,6 +402,7 @@ void ASTStmtWriter::VisitDeclRefExpr(DeclRefExpr *E) {
   Record.push_back(E->hasTemplateKWAndArgsInfo());
   Record.push_back(E->hadMultipleCandidates());
   Record.push_back(E->refersToEnclosingVariableOrCapture());
+  Record.push_back(E->isTypoCorrected());
 
   if (E->hasTemplateKWAndArgsInfo()) {
     unsigned NumTemplateArgs = E->getNumTemplateArgs();
@@ -593,6 +594,7 @@ void ASTStmtWriter::VisitCallExpr(CallExpr *E) {
 void ASTStmtWriter::VisitMemberExpr(MemberExpr *E) {
   // Don't call VisitExpr, we'll write everything here.
 
+  Record.push_back(E->isTypoCorrected());
   Record.push_back(E->hasQualifier());
   if (E->hasQualifier())
     Record.AddNestedNameSpecifierLoc(E->getQualifierLoc());
@@ -1030,12 +1032,14 @@ void ASTStmtWriter::VisitObjCIvarRefExpr(ObjCIvarRefExpr *E) {
   Record.AddStmt(E->getBase());
   Record.push_back(E->isArrow());
   Record.push_back(E->isFreeIvar());
+  Record.push_back(E->isTypoCorrected());
   Code = serialization::EXPR_OBJC_IVAR_REF_EXPR;
 }
 
 void ASTStmtWriter::VisitObjCPropertyRefExpr(ObjCPropertyRefExpr *E) {
   VisitExpr(E);
   Record.push_back(E->SetterAndMethodRefFlags.getInt());
+  Record.push_back(E->isTypoCorrected());
   Record.push_back(E->isImplicitProperty());
   if (E->isImplicitProperty()) {
     Record.AddDeclRef(E->getImplicitPropertyGetter());

@@ -5882,6 +5882,7 @@ EmitCXXCtorInitializers(ASTWriter &W,
     Writer.push_back(Init->isWritten());
     if (Init->isWritten())
       Writer.push_back(Init->getSourceOrder());
+    Writer.push_back(Init->isTypoCorrected());
   }
 
   return Writer.Emit(serialization::DECL_CXX_CTOR_INITIALIZERS);

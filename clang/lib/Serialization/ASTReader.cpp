@@ -8714,6 +8714,8 @@ ASTReader::ReadCXXCtorInitializers(ModuleFile &F, const RecordData &Record,
       unsigned SourceOrder = Record[Idx++];
       BOMInit->setSourceOrder(SourceOrder);
     }
+    if (/*IsTypoCorrected*/ Record[Idx++])
+      Init->setIsTypoCorrected();
 
     CtorInitializers[i] = BOMInit;
   }

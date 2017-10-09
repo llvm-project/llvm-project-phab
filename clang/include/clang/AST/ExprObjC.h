@@ -487,20 +487,23 @@ class ObjCIvarRefExpr : public Expr {
   bool IsFreeIvar:1;   // True if ivar reference has no base (self assumed).
 
 public:
-  ObjCIvarRefExpr(ObjCIvarDecl *d, QualType t,
-                  SourceLocation l, SourceLocation oploc,
-                  Expr *base,
-                  bool arrow = false, bool freeIvar = false) :
-    Expr(ObjCIvarRefExprClass, t, VK_LValue,
-         d->isBitField() ? OK_BitField : OK_Ordinary,
-         /*TypeDependent=*/false, base->isValueDependent(), 
-         base->isInstantiationDependent(),
-         base->containsUnexpandedParameterPack()), 
-    D(d), Base(base), Loc(l), OpLoc(oploc),
-    IsArrow(arrow), IsFreeIvar(freeIvar) {}
+  ObjCIvarRefExpr(ObjCIvarDecl *d, QualType t, SourceLocation l,
+                  SourceLocation oploc, Expr *base, bool arrow = false,
+                  bool freeIvar = false)
+      : Expr(ObjCIvarRefExprClass, t, VK_LValue,
+             d->isBitField() ? OK_BitField : OK_Ordinary,
+             /*TypeDependent=*/false, base->isValueDependent(),
+             base->isInstantiationDependent(),
+             base->containsUnexpandedParameterPack()),
+        D(d), Base(base), Loc(l), OpLoc(oploc), IsArrow(arrow),
+        IsFreeIvar(freeIvar) {
+    ObjCIvarRefExprBits.IsTypoCorrected = 0;
+  }
 
   explicit ObjCIvarRefExpr(EmptyShell Empty)
-    : Expr(ObjCIvarRefExprClass, Empty) {}
+      : Expr(ObjCIvarRefExprClass, Empty) {
+    ObjCIvarRefExprBits.IsTypoCorrected = 0;
+  }
 
   ObjCIvarDecl *getDecl() { return D; }
   const ObjCIvarDecl *getDecl() const { return D; }
@@ -525,6 +528,13 @@ public:
   
   SourceLocation getOpLoc() const { return OpLoc; }
   void setOpLoc(SourceLocation L) { OpLoc = L; }
+
+  /// True iff the expression was constructed during typo-correction.
+  bool isTypoCorrected() const { return ObjCIvarRefExprBits.IsTypoCorrected; }
+
+  void setIsTypoCorrected(bool V = true) {
+    ObjCIvarRefExprBits.IsTypoCorrected = V;
+  }
 
   static bool classof(const Stmt *T) {
     return T->getStmtClass() == ObjCIvarRefExprClass;
@@ -580,6 +590,7 @@ public:
       PropertyOrGetter(PD, false), SetterAndMethodRefFlags(),
       IdLoc(l), ReceiverLoc(), Receiver(base) {
     assert(t->isSpecificPlaceholderType(BuiltinType::PseudoObject));
+    ObjCPropertyRefExprBits.IsTypoCorrected = 0;
   }
   
   ObjCPropertyRefExpr(ObjCPropertyDecl *PD, QualType t,
@@ -591,6 +602,7 @@ public:
       PropertyOrGetter(PD, false), SetterAndMethodRefFlags(),
       IdLoc(l), ReceiverLoc(sl), Receiver(st.getTypePtr()) {
     assert(t->isSpecificPlaceholderType(BuiltinType::PseudoObject));
+    ObjCPropertyRefExprBits.IsTypoCorrected = 0;
   }
 
   ObjCPropertyRefExpr(ObjCMethodDecl *Getter, ObjCMethodDecl *Setter,
@@ -602,6 +614,7 @@ public:
       PropertyOrGetter(Getter, true), SetterAndMethodRefFlags(Setter, 0),
       IdLoc(IdLoc), ReceiverLoc(), Receiver(Base) {
     assert(T->isSpecificPlaceholderType(BuiltinType::PseudoObject));
+    ObjCPropertyRefExprBits.IsTypoCorrected = 0;
   }
 
   ObjCPropertyRefExpr(ObjCMethodDecl *Getter, ObjCMethodDecl *Setter,
@@ -612,6 +625,7 @@ public:
       PropertyOrGetter(Getter, true), SetterAndMethodRefFlags(Setter, 0),
       IdLoc(IdLoc), ReceiverLoc(SuperLoc), Receiver(SuperTy.getTypePtr()) {
     assert(T->isSpecificPlaceholderType(BuiltinType::PseudoObject));
+    ObjCPropertyRefExprBits.IsTypoCorrected = 0;
   }
 
   ObjCPropertyRefExpr(ObjCMethodDecl *Getter, ObjCMethodDecl *Setter,
@@ -622,10 +636,13 @@ public:
       PropertyOrGetter(Getter, true), SetterAndMethodRefFlags(Setter, 0),
       IdLoc(IdLoc), ReceiverLoc(ReceiverLoc), Receiver(Receiver) {
     assert(T->isSpecificPlaceholderType(BuiltinType::PseudoObject));
+    ObjCPropertyRefExprBits.IsTypoCorrected = 0;
   }
 
   explicit ObjCPropertyRefExpr(EmptyShell Empty)
-    : Expr(ObjCPropertyRefExprClass, Empty) {}
+      : Expr(ObjCPropertyRefExprClass, Empty) {
+    ObjCPropertyRefExprBits.IsTypoCorrected = 0;
+  }
 
   bool isImplicitProperty() const { return PropertyOrGetter.getInt(); }
   bool isExplicitProperty() const { return !PropertyOrGetter.getInt(); }
@@ -707,6 +724,15 @@ public:
     return isObjectReceiver() ? getBase()->getLocStart() :getReceiverLocation();
   }
   SourceLocation getLocEnd() const LLVM_READONLY { return IdLoc; }
+
+  /// True iff the expression was constructed during typo-correction.
+  bool isTypoCorrected() const {
+    return ObjCPropertyRefExprBits.IsTypoCorrected;
+  }
+
+  void setIsTypoCorrected(bool V = true) {
+    ObjCPropertyRefExprBits.IsTypoCorrected = V;
+  }
 
   static bool classof(const Stmt *T) {
     return T->getStmtClass() == ObjCPropertyRefExprClass;

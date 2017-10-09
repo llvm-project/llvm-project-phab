@@ -4594,6 +4594,8 @@ Sema::InstantiateMemInitializers(CXXConstructorDecl *New,
       AnyErrors = true;
       New->setInvalidDecl();
     } else {
+      if (Init->isTypoCorrected())
+        NewInit.get()->setIsTypoCorrected();
       NewInits.push_back(NewInit.get());
     }
   }

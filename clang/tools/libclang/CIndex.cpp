@@ -847,13 +847,15 @@ bool CursorVisitor::VisitFunctionDecl(FunctionDecl *ND) {
       // Visit the initializers in source order
       for (unsigned I = 0, N = WrittenInits.size(); I != N; ++I) {
         CXXCtorInitializer *Init = WrittenInits[I];
-        if (Init->isAnyMemberInitializer()) {
-          if (Visit(MakeCursorMemberRef(Init->getAnyMember(),
-                                        Init->getMemberLocation(), TU)))
-            return true;
-        } else if (TypeSourceInfo *TInfo = Init->getTypeSourceInfo()) {
-          if (Visit(TInfo->getTypeLoc()))
-            return true;
+        if (VisitTypoCorrected | !Init->isTypoCorrected()) {
+          if (Init->isAnyMemberInitializer()) {
+            if (Visit(MakeCursorMemberRef(Init->getAnyMember(),
+                                          Init->getMemberLocation(), TU)))
+              return true;
+          } else if (TypeSourceInfo *TInfo = Init->getTypeSourceInfo()) {
+            if (Visit(TInfo->getTypeLoc()))
+              return true;
+          }
         }
         
         // Visit the initializer value.
@@ -6483,17 +6485,18 @@ class AnnotateTokensWorker {
 public:
   AnnotateTokensWorker(CXToken *tokens, CXCursor *cursors, unsigned numTokens,
                        CXTranslationUnit TU, SourceRange RegionOfInterest)
-    : Tokens(tokens), Cursors(cursors),
-      NumTokens(numTokens), TokIdx(0), PreprocessingTokIdx(0),
-      AnnotateVis(TU,
-                  AnnotateTokensVisitor, this,
-                  /*VisitPreprocessorLast=*/true,
-                  /*VisitIncludedEntities=*/false,
-                  RegionOfInterest,
-                  /*VisitDeclsOnly=*/false,
-                  AnnotateTokensPostChildrenVisitor),
-      SrcMgr(cxtu::getASTUnit(TU)->getSourceManager()),
-      HasContextSensitiveKeywords(false) { }
+      : Tokens(tokens), Cursors(cursors), NumTokens(numTokens), TokIdx(0),
+        PreprocessingTokIdx(0),
+        AnnotateVis(TU, AnnotateTokensVisitor, this,
+                    /*VisitPreprocessorLast=*/true,
+                    /*VisitIncludedEntities=*/false, RegionOfInterest,
+                    /*VisitDeclsOnly=*/false,
+                    AnnotateTokensPostChildrenVisitor),
+        SrcMgr(cxtu::getASTUnit(TU)->getSourceManager()),
+        HasContextSensitiveKeywords(false) {
+    // Don't annotate typo-corrected references.
+    AnnotateVis.setVisitTypoCorrected(false);
+  }
 
   void VisitChildren(CXCursor C) { AnnotateVis.VisitChildren(C); }
   enum CXChildVisitResult Visit(CXCursor cursor, CXCursor parent);
@@ -6720,6 +6723,9 @@ AnnotateTokensWorker::Visit(CXCursor cursor, CXCursor parent) {
   //  MyCXXClass foo; // Make sure we don't annotate 'foo' as a CallExpr cursor.
   if (clang_isExpression(cursorK) && MoreTokens()) {
     const Expr *E = getCursorExpr(cursor);
+    // Avoid annotating typo-corrected references.
+    if (E->isTypoCorrected())
+      return CXChildVisit_Continue;
     if (const Decl *D = getCursorParentDecl(cursor)) {
       const unsigned I = NextToken();
       if (E->getLocStart().isValid() && D->getLocation().isValid() &&

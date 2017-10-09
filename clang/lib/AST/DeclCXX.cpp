@@ -1946,43 +1946,33 @@ CXXCtorInitializer::CXXCtorInitializer(ASTContext &Context,
                                        SourceLocation L, Expr *Init,
                                        SourceLocation R,
                                        SourceLocation EllipsisLoc)
-  : Initializee(TInfo), MemberOrEllipsisLocation(EllipsisLoc), Init(Init), 
-    LParenLoc(L), RParenLoc(R), IsDelegating(false), IsVirtual(IsVirtual), 
-    IsWritten(false), SourceOrder(0)
-{
-}
+    : Initializee(TInfo), MemberOrEllipsisLocation(EllipsisLoc), Init(Init),
+      LParenLoc(L), RParenLoc(R), IsDelegating(false), IsVirtual(IsVirtual),
+      IsWritten(false), SourceOrder(0), IsTypoCorrected(false) {}
 
-CXXCtorInitializer::CXXCtorInitializer(ASTContext &Context,
-                                       FieldDecl *Member,
+CXXCtorInitializer::CXXCtorInitializer(ASTContext &Context, FieldDecl *Member,
                                        SourceLocation MemberLoc,
                                        SourceLocation L, Expr *Init,
                                        SourceLocation R)
-  : Initializee(Member), MemberOrEllipsisLocation(MemberLoc), Init(Init),
-    LParenLoc(L), RParenLoc(R), IsDelegating(false), IsVirtual(false),
-    IsWritten(false), SourceOrder(0)
-{
-}
+    : Initializee(Member), MemberOrEllipsisLocation(MemberLoc), Init(Init),
+      LParenLoc(L), RParenLoc(R), IsDelegating(false), IsVirtual(false),
+      IsWritten(false), SourceOrder(0), IsTypoCorrected(false) {}
 
 CXXCtorInitializer::CXXCtorInitializer(ASTContext &Context,
                                        IndirectFieldDecl *Member,
                                        SourceLocation MemberLoc,
                                        SourceLocation L, Expr *Init,
                                        SourceLocation R)
-  : Initializee(Member), MemberOrEllipsisLocation(MemberLoc), Init(Init),
-    LParenLoc(L), RParenLoc(R), IsDelegating(false), IsVirtual(false),
-    IsWritten(false), SourceOrder(0)
-{
-}
+    : Initializee(Member), MemberOrEllipsisLocation(MemberLoc), Init(Init),
+      LParenLoc(L), RParenLoc(R), IsDelegating(false), IsVirtual(false),
+      IsWritten(false), SourceOrder(0), IsTypoCorrected(false) {}
 
 CXXCtorInitializer::CXXCtorInitializer(ASTContext &Context,
-                                       TypeSourceInfo *TInfo,
-                                       SourceLocation L, Expr *Init, 
-                                       SourceLocation R)
-  : Initializee(TInfo), MemberOrEllipsisLocation(), Init(Init),
-    LParenLoc(L), RParenLoc(R), IsDelegating(true), IsVirtual(false),
-    IsWritten(false), SourceOrder(0)
-{
-}
+                                       TypeSourceInfo *TInfo, SourceLocation L,
+                                       Expr *Init, SourceLocation R)
+    : Initializee(TInfo), MemberOrEllipsisLocation(), Init(Init), LParenLoc(L),
+      RParenLoc(R), IsDelegating(true), IsVirtual(false), IsWritten(false),
+      SourceOrder(0), IsTypoCorrected(false) {}
 
 TypeLoc CXXCtorInitializer::getBaseClassLoc() const {
   if (isBaseInitializer())

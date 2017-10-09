@@ -462,6 +462,7 @@ void ASTStmtReader::VisitDeclRefExpr(DeclRefExpr *E) {
   E->DeclRefExprBits.HasTemplateKWAndArgsInfo = Record.readInt();
   E->DeclRefExprBits.HadMultipleCandidates = Record.readInt();
   E->DeclRefExprBits.RefersToEnclosingVariableOrCapture = Record.readInt();
+  E->DeclRefExprBits.IsTypoCorrected = Record.readInt();
   unsigned NumTemplateArgs = 0;
   if (E->hasTemplateKWAndArgsInfo())
     NumTemplateArgs = Record.readInt();
@@ -1040,11 +1041,13 @@ void ASTStmtReader::VisitObjCIvarRefExpr(ObjCIvarRefExpr *E) {
   E->setBase(Record.readSubExpr());
   E->setIsArrow(Record.readInt());
   E->setIsFreeIvar(Record.readInt());
+  E->setIsTypoCorrected(Record.readInt());
 }
 
 void ASTStmtReader::VisitObjCPropertyRefExpr(ObjCPropertyRefExpr *E) {
   VisitExpr(E);
   unsigned MethodRefFlags = Record.readInt();
+  E->setIsTypoCorrected(Record.readInt());
   bool Implicit = Record.readInt() != 0;
   if (Implicit) {
     ObjCMethodDecl *Getter = ReadDeclAs<ObjCMethodDecl>();
@@ -3232,6 +3235,7 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
 
       assert(Record.getIdx() == 0);
       NestedNameSpecifierLoc QualifierLoc;
+      bool IsTypoCorrected = Record.readInt();
       if (Record.readInt()) { // HasQualifier.
         QualifierLoc = Record.readNestedNameSpecifierLoc();
       }
@@ -3268,6 +3272,8 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
                              TemplateKWLoc, MemberD, FoundDecl, MemberNameInfo,
                              HasTemplateKWAndArgsInfo ? &ArgInfo : nullptr, T,
                              VK, OK);
+      if (IsTypoCorrected)
+        cast<MemberExpr>(S)->setIsTypoCorrected();
       Record.readDeclarationNameLoc(cast<MemberExpr>(S)->MemberDNLoc,
                                     MemberD->getDeclName());
       if (HadMultipleCandidates)

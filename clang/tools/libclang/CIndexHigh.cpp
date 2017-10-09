@@ -169,7 +169,9 @@ static enum CXChildVisitResult findFileIdRefVisit(CXCursor cursor,
     if (clang_isExpression(cursor.kind)) {
       if (cursor.kind == CXCursor_DeclRefExpr ||
           cursor.kind == CXCursor_MemberRefExpr) {
-        // continue..
+        // Avoid visiting typo-corrected references.
+        if (cxcursor::getCursorExpr(cursor)->isTypoCorrected())
+          return CXChildVisit_Continue;
 
       } else if (cursor.kind == CXCursor_ObjCMessageExpr &&
                  cxcursor::getSelectorIdentifierIndex(cursor) != -1) {
@@ -228,8 +230,11 @@ static bool findIdRefsInFile(CXTranslationUnit TU, CXCursor declCursor,
                               Visitor);
 
   if (const DeclContext *DC = Dcl->getParentFunctionOrMethod()) {
-    return clang_visitChildren(cxcursor::MakeCXCursor(cast<Decl>(DC), TU),
-                               findFileIdRefVisit, &data);
+    CursorVisitor CursorVis(TU, findFileIdRefVisit, &data,
+                            /*VisitPreprocessorLast=*/false);
+    // Don't include the typo-corrected references.
+    CursorVis.setVisitTypoCorrected(false);
+    return CursorVis.VisitChildren(cxcursor::MakeCXCursor(cast<Decl>(DC), TU));
   }
 
   SourceRange Range(SM.getLocForStartOfFile(FID), SM.getLocForEndOfFile(FID));
@@ -239,6 +244,8 @@ static bool findIdRefsInFile(CXTranslationUnit TU, CXCursor declCursor,
                                   /*VisitIncludedEntities=*/false,
                                   Range,
                                   /*VisitDeclsOnly=*/true);
+  // Don't include the typo-corrected references.
+  FindIdRefsVisitor.setVisitTypoCorrected(false);
   return FindIdRefsVisitor.visitFileRegion();
 }
 

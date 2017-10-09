@@ -59,17 +59,22 @@ namespace {
       if (refExpr->isClassReceiver() || refExpr->isSuperReceiver())
         return refExpr;
 
+      ObjCPropertyRefExpr *Result;
       if (refExpr->isExplicitProperty()) {
-        return new (S.Context) ObjCPropertyRefExpr(
+        Result = new (S.Context) ObjCPropertyRefExpr(
             refExpr->getExplicitProperty(), refExpr->getType(),
             refExpr->getValueKind(), refExpr->getObjectKind(),
             refExpr->getLocation(), SpecificCallback(refExpr->getBase(), 0));
+      } else {
+        Result = new (S.Context) ObjCPropertyRefExpr(
+            refExpr->getImplicitPropertyGetter(),
+            refExpr->getImplicitPropertySetter(), refExpr->getType(),
+            refExpr->getValueKind(), refExpr->getObjectKind(),
+            refExpr->getLocation(), SpecificCallback(refExpr->getBase(), 0));
       }
-      return new (S.Context) ObjCPropertyRefExpr(
-          refExpr->getImplicitPropertyGetter(),
-          refExpr->getImplicitPropertySetter(), refExpr->getType(),
-          refExpr->getValueKind(), refExpr->getObjectKind(),
-          refExpr->getLocation(), SpecificCallback(refExpr->getBase(), 0));
+      if (refExpr->isTypoCorrected())
+        Result->setIsTypoCorrected();
+      return Result;
     }
     Expr *rebuildObjCSubscriptRefExpr(ObjCSubscriptRefExpr *refExpr) {
       assert(refExpr->getBaseExpr());
