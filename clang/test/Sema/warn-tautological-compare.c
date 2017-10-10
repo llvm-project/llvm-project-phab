@@ -93,3 +93,11 @@ void test_conditional_operator() {
   x = array ? 1 : 0; // expected-warning {{address of array}}
   x = &x ? 1 : 0;    // expected-warning {{address of 'x'}}
 }
+
+void test_parentesens(short arg) {
+  if (0 ==
+      (&arg)) { // expected-warning {{comparison of address of 'arg' equal to a null pointer is always false}}
+  } else if (0 ==
+	     &arg) { // expected-warning {{comparison of address of 'arg' equal to a null pointer is always false}}
+  }
+}

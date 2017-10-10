@@ -9933,7 +9933,7 @@ void Sema::DiagnoseAlwaysNonNullPointer(Expr *E,
         IsInAnyMacroBody(SM, Range.getBegin()))
       return;
   }
-  E = E->IgnoreImpCasts();
+  E = E->IgnoreParenImpCasts();
 
   const bool IsCompare = NullKind != Expr::NPCK_NotNull;
 
