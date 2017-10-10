@@ -7,6 +7,7 @@ add_llvm_library(LLVMAVRDesc
   AVRMCExpr.cpp
   AVRMCTargetDesc.cpp
   AVRTargetStreamer.cpp
+  AVRMCELFStreamer.cpp
 )
 
 add_dependencies(LLVMAVRDesc AVRCommonTableGen)
