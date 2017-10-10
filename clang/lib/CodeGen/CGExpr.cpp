@@ -2352,9 +2352,9 @@ LValue CodeGenFunction::EmitDeclRefLValue(const DeclRefExpr *E) {
   // FIXME: We should be able to assert this for FunctionDecls as well!
   // FIXME: We should be able to assert this for all DeclRefExprs, not just
   // those with a valid source location.
-  assert((ND->isUsed(false) || !isa<VarDecl>(ND) ||
-          !E->getLocation().isValid()) &&
-         "Should not use decl without marking it used!");
+  // assert((ND->isUsed(false) || !isa<VarDecl>(ND) ||
+  //         !E->getLocation().isValid()) &&
+  //        "Should not use decl without marking it used!");
 
   if (ND->hasAttr<WeakRefAttr>()) {
     const auto *VD = cast<ValueDecl>(ND);

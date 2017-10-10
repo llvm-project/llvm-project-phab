@@ -3362,7 +3362,10 @@ ExprResult Sema::CheckConditionVariable(VarDecl *ConditionVar,
       /*enclosing*/ false, ConditionVar->getLocation(),
       ConditionVar->getType().getNonReferenceType(), VK_LValue);
 
-  MarkDeclRefReferenced(cast<DeclRefExpr>(Condition.get()));
+  // Check whether this declaration is a definition.
+  // If yes, dont mark it as used/referenced
+  if (!ConditionVar->isLocalVarDecl())
+    MarkDeclRefReferenced(cast<DeclRefExpr>(Condition.get()));
 
   switch (CK) {
   case ConditionKind::Boolean:
