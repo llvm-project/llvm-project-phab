@@ -79,9 +79,9 @@ void foo() {
   (test0 ? (test0 ? adr2 : adr2) : nonconst_int); // expected-warning {{pointer type mismatch}} expected-warning {{expression result unused}}
 }
 
-int Postgresql() {
-  char x;
-  return ((((&x) != ((void *) 0)) ? (*(&x) = ((char) 1)) : (void) ((void *) 0)), (unsigned long) ((void *) 0)); // expected-warning {{C99 forbids conditional expressions with only one void side}}
+int Postgresql(char *x) {
+  //char x;
+  return (((x != ((void *) 0)) ? (*x = ((char) 1)) : (void) ((void *) 0)), (unsigned long) ((void *) 0)); // expected-warning {{C99 forbids conditional expressions with only one void side}}
 }
 
 #define nil ((void*) 0)
