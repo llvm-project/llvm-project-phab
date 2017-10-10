@@ -62,13 +62,14 @@ PassManager<LazyCallGraph::SCC, CGSCCAnalysisManager, LazyCallGraph &,
   // The SCC may be refined while we are running passes over it, so set up
   // a pointer that we can update.
   LazyCallGraph::SCC *C = &InitialC;
+  Module &M = *(C->begin()->getFunction().getParent());
 
   for (auto &Pass : Passes) {
     if (DebugLogging)
       dbgs() << "Running pass: " << Pass->name() << " on " << *C << "\n";
 
     PreservedAnalyses PassPA = Pass->run(*C, AM, G, UR);
-
+    
     // Update the SCC if necessary.
     C = UR.UpdatedC ? UR.UpdatedC : C;
 

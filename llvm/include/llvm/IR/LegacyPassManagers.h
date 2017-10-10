@@ -403,6 +403,14 @@ public:
       InheritedAnalysis[Index++] = (*I)->getAvailableAnalysis();
   }
 
+  /// Return the total number of IR instructions in \p M.
+  int getModuleInstrCount(Module &M);
+
+  /// \brief Emit a remark signifying that the number of IR instructions in the
+  /// module changed.
+  void emitIRSizeChangedRemark(Pass *P, Module &M, const int &OriginalCount,
+                               const int &FinalCount);
+
 protected:
   // Top level manager.
   PMTopLevelManager *TPM;
