@@ -109,6 +109,10 @@ private:
   std::vector<uint8_t> ZDebugHeader;
   llvm::SmallVector<char, 1> CompressedData;
 
+  // The number of input sections assigned to this section excluding
+  // late-inserted sections, such as thunk sections.
+  size_t InputSectionCount = 0;
+
   uint32_t getFiller();
 };
 
