@@ -53,7 +53,9 @@ public:
                                 JSONOutput &Out) = 0;
   virtual void onSwitchSourceHeader(TextDocumentIdentifier Params, StringRef ID,
                                     JSONOutput &Out) = 0;
-  virtual void onFileEvent(const DidChangeWatchedFilesParams &Params) = 0;
+  virtual void onFileEvent(const DidChangeWatchedFilesParams &Params)  = 0;
+  virtual void onDocumentHighlight(TextDocumentPositionParams Params, StringRef ID,
+                            JSONOutput &Out) = 0;
 };
 
 void registerCallbackHandlers(JSONRPCDispatcher &Dispatcher, JSONOutput &Out,

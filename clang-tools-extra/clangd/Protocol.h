@@ -522,6 +522,41 @@ struct SignatureHelp {
   static std::string unparse(const SignatureHelp &);
 };
 
+enum class DocumentHighlightKind {
+  Text = 1,
+  Read = 2,
+  Write = 3
+};
+
+/**
+ * A document highlight is a range inside a text document which deserves
+ * special attention. Usually a document highlight is visualized by changing
+ * the background color of its range.
+ *
+ */
+struct DocumentHighlight{
+  /**
+	 * The range this highlight applies to.
+	 */
+  Range range;
+
+  /**
+	 * The highlight kind, default is DocumentHighlightKind.Text.
+	 */
+   DocumentHighlightKind kind = DocumentHighlightKind::Text;
+
+   friend bool operator<(const DocumentHighlight &LHS, const DocumentHighlight &RHS) {
+    return std::tie(LHS.range) < std::tie(RHS.range);
+   }
+
+   friend bool operator==(const DocumentHighlight &LHS, const DocumentHighlight &RHS) {
+    return LHS.kind == RHS.kind && LHS.range == RHS.range;
+  }
+
+  static std::string unparse(const DocumentHighlight &DH);
+};
+
+
 } // namespace clangd
 } // namespace clang
 

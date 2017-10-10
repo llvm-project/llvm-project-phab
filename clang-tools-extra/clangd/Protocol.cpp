@@ -968,3 +968,10 @@ std::string SignatureHelp::unparse(const SignatureHelp &SH) {
   Result.push_back('}');
   return Result;
 }
+
+std::string DocumentHighlight::unparse(const DocumentHighlight &DH) {
+    std::string Result;
+    llvm::raw_string_ostream(Result) << llvm::format(
+        R"({"range": %s, "kind": %d})", Range::unparse(DH.range).c_str(), DH.kind);
+    return Result;
+  }

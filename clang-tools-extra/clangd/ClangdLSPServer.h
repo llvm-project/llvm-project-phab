@@ -70,10 +70,12 @@ private:
   void onSignatureHelp(TextDocumentPositionParams Params, StringRef ID,
                        JSONOutput &Out) override;
   void onGoToDefinition(TextDocumentPositionParams Params, StringRef ID,
-                        JSONOutput &Out) override;
+                                JSONOutput &Out) override;
   void onSwitchSourceHeader(TextDocumentIdentifier Params, StringRef ID,
-                            JSONOutput &Out) override;
+                                    JSONOutput &Out) override;
   void onFileEvent(const DidChangeWatchedFilesParams &Params) override;
+  void onDocumentHighlight(TextDocumentPositionParams Params, StringRef ID,
+                            JSONOutput &Out) override;
 
   std::vector<clang::tooling::Replacement>
   getFixIts(StringRef File, const clangd::Diagnostic &D);

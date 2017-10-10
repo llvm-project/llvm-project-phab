@@ -38,7 +38,8 @@ replacementsToEdits(StringRef Code,
 } // namespace
 
 void ClangdLSPServer::onInitialize(StringRef ID, InitializeParams IP,
-                                   JSONOutput &Out) {
+    JSONOutput &Out) {
+
   Out.writeMessage(
       R"({"jsonrpc":"2.0","id":)" + ID +
       R"(,"result":{"capabilities":{
@@ -49,13 +50,17 @@ void ClangdLSPServer::onInitialize(StringRef ID, InitializeParams IP,
           "codeActionProvider": true,
           "completionProvider": {"resolveProvider": false, "triggerCharacters": [".",">",":"]},
           "signatureHelpProvider": {"triggerCharacters": ["(",","]},
-          "definitionProvider": true
+          "definitionProvider": true,
+          "documentHighlightProvider": true
         }}})");
   if (IP.rootUri && !IP.rootUri->file.empty())
     Server.setRootPath(IP.rootUri->file);
   else if (IP.rootPath && !IP.rootPath->empty())
     Server.setRootPath(*IP.rootPath);
+
 }
+
+
 
 void ClangdLSPServer::onShutdown(JSONOutput &Out) { IsDone = true; }
 
@@ -200,6 +205,7 @@ void ClangdLSPServer::onGoToDefinition(TextDocumentPositionParams Params,
       R"(,"result":[)" + Locations + R"(]})");
 }
 
+
 void ClangdLSPServer::onSwitchSourceHeader(TextDocumentIdentifier Params,
                                            StringRef ID, JSONOutput &Out) {
   llvm::Optional<Path> Result = Server.switchSourceHeader(Params.uri.file);
@@ -212,6 +218,27 @@ void ClangdLSPServer::onSwitchSourceHeader(TextDocumentIdentifier Params,
   Out.writeMessage(
       R"({"jsonrpc":"2.0","id":)" + ID.str() +
       R"(,"result":)" + ResultUri + R"(})");
+}
+
+void ClangdLSPServer::onDocumentHighlight(
+    TextDocumentPositionParams Params, StringRef ID, JSONOutput &Out) {
+
+  auto Items = Server.findDocumentHighlights(Params.textDocument.uri.file,
+                                           Position{Params.position.line,
+                                                    Params.position.character})
+                   .Value;
+
+  std::string Highlights;
+
+  for (const auto &Item : Items) {
+    Highlights += DocumentHighlight::unparse(Item);
+    Highlights += ",";
+  }
+  if (!Highlights.empty())
+    Highlights.pop_back();
+  Out.writeMessage(
+      R"({"jsonrpc":"2.0","id":)" + ID.str() +
+      R"(,"result":[)" + Highlights + R"(]})");
 }
 
 ClangdLSPServer::ClangdLSPServer(JSONOutput &Out, unsigned AsyncThreadsCount,
