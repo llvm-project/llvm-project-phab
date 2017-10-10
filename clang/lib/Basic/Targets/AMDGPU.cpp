@@ -340,6 +340,10 @@ AMDGPUTargetInfo::AMDGPUTargetInfo(const llvm::Triple &Triple,
 void AMDGPUTargetInfo::adjust(LangOptions &Opts) {
   TargetInfo::adjust(Opts);
   setAddressSpaceMap(Opts.OpenCL || !isAMDGCN(getTriple()));
+
+  // TODO: Add option to force hardware maximum.
+  if (Opts.OpenCL)
+    MaxWorkGroupSize = 256;
 }
 
 ArrayRef<Builtin::Info> AMDGPUTargetInfo::getTargetBuiltins() const {

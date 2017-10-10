@@ -70,6 +70,10 @@ class LLVM_LIBRARY_VISIBILITY AMDGPUTargetInfo final : public TargetInfo {
   bool hasLDEXPF : 1;
   const AddrSpace AS;
 
+  // The hardware limit is really 1024 or 2048, but the runtime currently only
+  // supports 256.
+  unsigned MaxWorkGroupSize = 1024;
+
   static bool hasFullSpeedFMAF32(StringRef GPUName) {
     return parseAMDGCNName(GPUName) >= GK_GFX9;
   }
@@ -277,6 +281,10 @@ public:
     default:
       return TargetInfo::getOpenCLTypeAddrSpace(T);
     }
+  }
+
+  unsigned getOpenCLMaxWorkGroupSize(unsigned Dim) const override {
+    return MaxWorkGroupSize;
   }
 
   llvm::Optional<unsigned> getConstantAddressSpace() const override {

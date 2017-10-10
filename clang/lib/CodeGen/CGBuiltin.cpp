@@ -9115,22 +9115,28 @@ Value *CodeGenFunction::EmitAMDGPUBuiltinExpr(unsigned BuiltinID,
 
   // amdgcn workitem
   case AMDGPU::BI__builtin_amdgcn_workitem_id_x:
-    return emitRangedBuiltin(*this, Intrinsic::amdgcn_workitem_id_x, 0, 1024);
+    return emitRangedBuiltin(*this, Intrinsic::amdgcn_workitem_id_x, 0,
+      getContext().getTargetInfo().getOpenCLMaxWorkGroupSize(0));
   case AMDGPU::BI__builtin_amdgcn_workitem_id_y:
-    return emitRangedBuiltin(*this, Intrinsic::amdgcn_workitem_id_y, 0, 1024);
+    return emitRangedBuiltin(*this, Intrinsic::amdgcn_workitem_id_y, 0,
+      getContext().getTargetInfo().getOpenCLMaxWorkGroupSize(1));
   case AMDGPU::BI__builtin_amdgcn_workitem_id_z:
-    return emitRangedBuiltin(*this, Intrinsic::amdgcn_workitem_id_z, 0, 1024);
+    return emitRangedBuiltin(*this, Intrinsic::amdgcn_workitem_id_z, 0,
+      getContext().getTargetInfo().getOpenCLMaxWorkGroupSize(2));
 
   // r600 intrinsics
   case AMDGPU::BI__builtin_r600_recipsqrt_ieee:
   case AMDGPU::BI__builtin_r600_recipsqrt_ieeef:
     return emitUnaryBuiltin(*this, E, Intrinsic::r600_recipsqrt_ieee);
   case AMDGPU::BI__builtin_r600_read_tidig_x:
-    return emitRangedBuiltin(*this, Intrinsic::r600_read_tidig_x, 0, 1024);
+    return emitRangedBuiltin(*this, Intrinsic::r600_read_tidig_x, 0,
+      getContext().getTargetInfo().getOpenCLMaxWorkGroupSize(0));
   case AMDGPU::BI__builtin_r600_read_tidig_y:
-    return emitRangedBuiltin(*this, Intrinsic::r600_read_tidig_y, 0, 1024);
+    return emitRangedBuiltin(*this, Intrinsic::r600_read_tidig_y, 0,
+      getContext().getTargetInfo().getOpenCLMaxWorkGroupSize(1));
   case AMDGPU::BI__builtin_r600_read_tidig_z:
-    return emitRangedBuiltin(*this, Intrinsic::r600_read_tidig_z, 0, 1024);
+    return emitRangedBuiltin(*this, Intrinsic::r600_read_tidig_z, 0,
+      getContext().getTargetInfo().getOpenCLMaxWorkGroupSize(2));
   default:
     return nullptr;
   }
