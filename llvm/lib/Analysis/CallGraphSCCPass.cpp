@@ -120,7 +120,7 @@ bool CGPassManager::RunPassOnSCC(Pass *P, CallGraphSCC &CurSCC,
                                  bool &DevirtualizedCall) {
   bool Changed = false;
   PMDataManager *PM = P->getAsPMDataManager();
-
+  Module &M = CG.getModule();
   if (!PM) {
     CallGraphSCCPass *CGSP = (CallGraphSCCPass*)P;
     if (!CallGraphUpToDate) {
@@ -130,7 +130,10 @@ bool CGPassManager::RunPassOnSCC(Pass *P, CallGraphSCC &CurSCC,
 
     {
       TimeRegion PassTimer(getPassTimer(CGSP));
+      int OriginalCount = getModuleInstrCount(M);
       Changed = CGSP->runOnSCC(CurSCC);
+      int FinalCount = getModuleInstrCount(M);
+      emitIRSizeChangedRemark(P, M, OriginalCount, FinalCount);
     }
     
     // After the CGSCCPass is done, when assertions are enabled, use
@@ -153,7 +156,10 @@ bool CGPassManager::RunPassOnSCC(Pass *P, CallGraphSCC &CurSCC,
       dumpPassInfo(P, EXECUTION_MSG, ON_FUNCTION_MSG, F->getName());
       {
         TimeRegion PassTimer(getPassTimer(FPP));
+        int OriginalCount = getModuleInstrCount(M);
         Changed |= FPP->runOnFunction(*F);
+        int FinalCount = getModuleInstrCount(M);
+        emitIRSizeChangedRemark(P, M, OriginalCount, FinalCount);
       }
       F->getContext().yield();
     }
