@@ -98,6 +98,7 @@ extern "C" void LLVMInitializePowerPCTarget() {
   initializePPCBoolRetToIntPass(PR);
   initializePPCExpandISELPass(PR);
   initializePPCTLSDynamicCallPass(PR);
+  initializePPCMIPeepholePass(PR);
 }
 
 /// Return the datalayout string of a subtarget.

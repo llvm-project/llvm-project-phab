@@ -1,0 +1,247 @@
+# RUN: llc -run-pass ppc-mi-peepholes -o - %s | FileCheck %s
+
+--- |
+  ; ModuleID = 't.ll'
+  source_filename = "t.c"
+  target datalayout = "e-m:e-i64:64-n32:64"
+  target triple = "powerpc64le-unknown-linux-gnu"
+  
+  ; Function Attrs: norecurse nounwind readnone
+  define i64 @test(i64 %a, i32 signext %b) local_unnamed_addr #0 {
+  entry:
+    %conv = sext i32 %b to i64
+    %cmp = icmp ult i64 %conv, %a
+    %conv2 = select i1 %cmp, i64 778, i64 223
+    ret i64 %conv2
+  }
+  
+  ; Function Attrs: norecurse nounwind readnone
+  define zeroext i32 @test2(i32 zeroext %a, i32 signext %b) local_unnamed_addr #0 {
+  entry:
+    %cmp = icmp ugt i32 %a, %b
+    %cond = select i1 %cmp, i32 778, i32 223
+    ret i32 %cond
+  }
+  
+  ; Function Attrs: norecurse nounwind readnone
+  define i64 @test3(i64 %a, i32 signext %b) local_unnamed_addr #0 {
+  entry:
+    %conv = sext i32 %b to i64
+    %cmp = icmp slt i64 %conv, %a
+    %conv2 = select i1 %cmp, i64 778, i64 223
+    ret i64 %conv2
+  }
+  
+  ; Function Attrs: norecurse nounwind readnone
+  define signext i32 @test4(i32 signext %a, i32 signext %b) local_unnamed_addr #0 {
+  entry:
+    %cmp = icmp sgt i32 %a, %b
+    %cond = select i1 %cmp, i32 778, i32 223
+    ret i32 %cond
+  }
+  
+  attributes #0 = { norecurse nounwind readnone "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="ppc64le" "target-features"="+altivec,+bpermd,+crypto,+direct-move,+extdiv,+htm,+power8-vector,+vsx,-power9-vector,-qpx" "unsafe-fp-math"="false" "use-soft-float"="false" }
+  
+  !llvm.module.flags = !{!0}
+  !llvm.ident = !{!1}
+  
+  !0 = !{i32 1, !"PIC Level", i32 2}
+  !1 = !{!"clang version 5.0.0 (git@github.ibm.com:llvm/clang.git 5e5be8ed354acb606e083cee2ff9c9e096099ff2) (llvm/llvm.git c5a7ad098a8772950f4005869a14354e7f233ab3)"}
+
+...
+---
+name:            test
+alignment:       4
+exposesReturnsTwice: false
+legalized:       false
+regBankSelected: false
+selected:        false
+tracksRegLiveness: true
+registers:       
+  - { id: 0, class: g8rc }
+  - { id: 1, class: g8rc }
+  - { id: 2, class: crrc }
+  - { id: 3, class: g8rc_and_g8rc_nox0 }
+  - { id: 4, class: g8rc_and_g8rc_nox0 }
+  - { id: 5, class: g8rc }
+liveins:         
+  - { reg: '%x3', virtual-reg: '%0' }
+  - { reg: '%x4', virtual-reg: '%1' }
+frameInfo:       
+  isFrameAddressTaken: false
+  isReturnAddressTaken: false
+  hasStackMap:     false
+  hasPatchPoint:   false
+  stackSize:       0
+  offsetAdjustment: 0
+  maxAlignment:    0
+  adjustsStack:    false
+  hasCalls:        false
+  maxCallFrameSize: 0
+  hasOpaqueSPAdjustment: false
+  hasVAStart:      false
+  hasMustTailInVarArgFunc: false
+body:             |
+  bb.0.entry:
+    liveins: %x3, %x4
+  
+    %1 = COPY %x4
+    %0 = LI8 433
+    %2 = CMPLD %1, %0
+    ; CHECK: %2 = CMPLDI %1, 433
+    %3 = LI8 223
+    %4 = LI8 778
+    %5 = ISEL8 %4, %3, %2.sub_lt
+    %x3 = COPY %5
+    BLR8 implicit %lr8, implicit %rm, implicit %x3
+
+...
+---
+name:            test2
+alignment:       4
+exposesReturnsTwice: false
+legalized:       false
+regBankSelected: false
+selected:        false
+tracksRegLiveness: true
+registers:       
+  - { id: 0, class: g8rc }
+  - { id: 1, class: g8rc }
+  - { id: 2, class: gprc }
+  - { id: 3, class: gprc }
+  - { id: 4, class: crrc }
+  - { id: 5, class: g8rc_and_g8rc_nox0 }
+  - { id: 6, class: g8rc_and_g8rc_nox0 }
+  - { id: 7, class: g8rc }
+liveins:         
+  - { reg: '%x3', virtual-reg: '%0' }
+  - { reg: '%x4', virtual-reg: '%1' }
+frameInfo:       
+  isFrameAddressTaken: false
+  isReturnAddressTaken: false
+  hasStackMap:     false
+  hasPatchPoint:   false
+  stackSize:       0
+  offsetAdjustment: 0
+  maxAlignment:    0
+  adjustsStack:    false
+  hasCalls:        false
+  maxCallFrameSize: 0
+  hasOpaqueSPAdjustment: false
+  hasVAStart:      false
+  hasMustTailInVarArgFunc: false
+body:             |
+  bb.0.entry:
+    liveins: %x3, %x4
+  
+    %1 = COPY %x4
+    %0 = COPY %x3
+    %2 = COPY %1.sub_32
+    %3 = LI 332
+    %4 = CMPLW killed %2, killed %3
+    ; CHECK: %4 = CMPLWI killed %2, 332
+    %5 = LI8 223
+    %6 = LI8 778
+    %7 = ISEL8 %6, %5, %4.sub_gt
+    %x3 = COPY %7
+    BLR8 implicit %lr8, implicit %rm, implicit %x3
+
+...
+---
+name:            test3
+alignment:       4
+exposesReturnsTwice: false
+legalized:       false
+regBankSelected: false
+selected:        false
+tracksRegLiveness: true
+registers:       
+  - { id: 0, class: g8rc }
+  - { id: 1, class: g8rc }
+  - { id: 2, class: crrc }
+  - { id: 3, class: g8rc_and_g8rc_nox0 }
+  - { id: 4, class: g8rc_and_g8rc_nox0 }
+  - { id: 5, class: g8rc }
+liveins:         
+  - { reg: '%x3', virtual-reg: '%0' }
+  - { reg: '%x4', virtual-reg: '%1' }
+frameInfo:       
+  isFrameAddressTaken: false
+  isReturnAddressTaken: false
+  hasStackMap:     false
+  hasPatchPoint:   false
+  stackSize:       0
+  offsetAdjustment: 0
+  maxAlignment:    0
+  adjustsStack:    false
+  hasCalls:        false
+  maxCallFrameSize: 0
+  hasOpaqueSPAdjustment: false
+  hasVAStart:      false
+  hasMustTailInVarArgFunc: false
+body:             |
+  bb.0.entry:
+    liveins: %x3, %x4
+  
+    %1 = COPY %x4
+    %0 = LI8 443
+    %2 = CMPD %1, %0
+    ; CHECK: %2 = CMPDI %1, 443
+    %3 = LI8 223
+    %4 = LI8 778
+    %5 = ISEL8 %4, %3, %2.sub_lt
+    %x3 = COPY %5
+    BLR8 implicit %lr8, implicit %rm, implicit %x3
+
+...
+---
+name:            test4
+alignment:       4
+exposesReturnsTwice: false
+legalized:       false
+regBankSelected: false
+selected:        false
+tracksRegLiveness: true
+registers:       
+  - { id: 0, class: g8rc }
+  - { id: 1, class: g8rc }
+  - { id: 2, class: gprc }
+  - { id: 3, class: gprc }
+  - { id: 4, class: crrc }
+  - { id: 5, class: g8rc_and_g8rc_nox0 }
+  - { id: 6, class: g8rc_and_g8rc_nox0 }
+  - { id: 7, class: g8rc }
+liveins:         
+  - { reg: '%x3', virtual-reg: '%0' }
+  - { reg: '%x4', virtual-reg: '%1' }
+frameInfo:       
+  isFrameAddressTaken: false
+  isReturnAddressTaken: false
+  hasStackMap:     false
+  hasPatchPoint:   false
+  stackSize:       0
+  offsetAdjustment: 0
+  maxAlignment:    0
+  adjustsStack:    false
+  hasCalls:        false
+  maxCallFrameSize: 0
+  hasOpaqueSPAdjustment: false
+  hasVAStart:      false
+  hasMustTailInVarArgFunc: false
+body:             |
+  bb.0.entry:
+    liveins: %x3, %x4
+  
+    %1 = COPY %x4
+    %0 = COPY %x3
+    %2 = COPY %1.sub_32
+    %3 = LI 332
+    %4 = CMPW killed %2, killed %3
+    ; CHECK: %4 = CMPWI killed %2, 332
+    %5 = LI8 223
+    %6 = LI8 778
+    %7 = ISEL8 %6, %5, %4.sub_gt
+    %x3 = COPY %7
+    BLR8 implicit %lr8, implicit %rm, implicit %x3
+
+...

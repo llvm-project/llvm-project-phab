@@ -1,0 +1,70 @@
+# RUN: llc -run-pass ppc-mi-peepholes -o - %s | FileCheck %s
+
+--- |
+  ; ModuleID = 't.ll'
+  source_filename = "t.c"
+  target datalayout = "e-m:e-i64:64-n32:64"
+  target triple = "powerpc64le-unknown-linux-gnu"
+  
+  ; Function Attrs: norecurse nounwind readnone
+  define i64 @test(i64 %a, i32 signext %b) local_unnamed_addr #0 {
+  entry:
+    %cmp = icmp ugt i64 %a, 13
+    %conv1 = zext i1 %cmp to i64
+    ret i64 %conv1
+  }
+  
+  attributes #0 = { norecurse nounwind readnone "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="ppc64le" "target-features"="+altivec,+bpermd,+crypto,+direct-move,+extdiv,+htm,+power8-vector,+vsx,-power9-vector,-qpx" "unsafe-fp-math"="false" "use-soft-float"="false" }
+  
+  !llvm.module.flags = !{!0}
+  !llvm.ident = !{!1}
+  
+  !0 = !{i32 1, !"PIC Level", i32 2}
+  !1 = !{!"clang version 5.0.0 (git@github.ibm.com:llvm/clang.git 5e5be8ed354acb606e083cee2ff9c9e096099ff2) (llvm/llvm.git c5a7ad098a8772950f4005869a14354e7f233ab3)"}
+
+...
+---
+name:            test
+alignment:       4
+exposesReturnsTwice: false
+legalized:       false
+regBankSelected: false
+selected:        false
+tracksRegLiveness: true
+registers:       
+  - { id: 0, class: g8rc }
+  - { id: 1, class: g8rc }
+  - { id: 2, class: g8rc }
+  - { id: 3, class: g8rc }
+  - { id: 4, class: g8rc }
+  - { id: 5, class: g8rc }
+liveins:         
+  - { reg: '%x3', virtual-reg: '%0' }
+frameInfo:       
+  isFrameAddressTaken: false
+  isReturnAddressTaken: false
+  hasStackMap:     false
+  hasPatchPoint:   false
+  stackSize:       0
+  offsetAdjustment: 0
+  maxAlignment:    0
+  adjustsStack:    false
+  hasCalls:        false
+  maxCallFrameSize: 0
+  hasOpaqueSPAdjustment: false
+  hasVAStart:      false
+  hasMustTailInVarArgFunc: false
+body:             |
+  bb.0.entry:
+    liveins: %x3
+  
+    %0 = COPY %x3
+    %2 = LI8 13
+    %3 = SUBFC8 %0, %2, implicit-def %carry
+    ; CHECK: %3 = SUBFIC8 %0, 13, implicit-def %carry
+    %4 = SUBFE8 %2, %2, implicit-def dead %carry, implicit %carry
+    %5 = NEG8 killed %4
+    %x3 = COPY %5
+    BLR8 implicit %lr8, implicit %rm, implicit %x3
+
+...

@@ -59,6 +59,7 @@ namespace llvm {
   void initializePPCBoolRetToIntPass(PassRegistry&);
   void initializePPCExpandISELPass(PassRegistry &);
   void initializePPCTLSDynamicCallPass(PassRegistry &);
+  void initializePPCMIPeepholePass(PassRegistry&);
   extern char &PPCVSXFMAMutateID;
 
   namespace PPCII {

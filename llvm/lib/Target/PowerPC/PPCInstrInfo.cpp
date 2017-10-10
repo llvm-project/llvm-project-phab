@@ -51,6 +51,10 @@ STATISTIC(NumStoreSPILLVSRRCAsVec,
 STATISTIC(NumStoreSPILLVSRRCAsGpr,
           "Number of spillvsrrc spilled to stack as gpr");
 STATISTIC(NumGPRtoVSRSpill, "Number of gpr spills to spillvsrrc");
+STATISTIC(CmpIselsConverted,
+          "Number of ISELs that depend on comparison of constants converted");
+STATISTIC(MissedConvertibleImmediateInstrs,
+          "Number of compare-immediate instructions fed by constants");
 
 static cl::
 opt<bool> DisableCTRLoopAnal("disable-ppc-ctrloop-analysis", cl::Hidden,
@@ -2093,6 +2097,411 @@ bool PPCInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   return false;
 }
 
+unsigned PPCInstrInfo::lookThruCopyLike(unsigned SrcReg,
+                                        const MachineRegisterInfo *MRI) {
+  while (true) {
+    MachineInstr *MI = MRI->getVRegDef(SrcReg);
+    if (!MI->isCopyLike())
+      return SrcReg;
+
+    unsigned CopySrcReg;
+    if (MI->isCopy())
+      CopySrcReg = MI->getOperand(1).getReg();
+    else {
+      assert(MI->isSubregToReg() && "Bad opcode for lookThruCopyLike");
+      CopySrcReg = MI->getOperand(2).getReg();
+    }
+
+    if (!TargetRegisterInfo::isVirtualRegister(CopySrcReg))
+      return CopySrcReg;
+
+    SrcReg = CopySrcReg;
+  }
+}
+
+// Essentially a compile-time implementation of a compare->isel sequence.
+// It takes two constants to compare, along with the true/false registers
+// and the comparison type (as a subreg to a CR field) and returns one
+// of the true/false registers, depending on the comparison results.
+static unsigned selectReg(int64_t Imm1, int64_t Imm2, unsigned CompareOpc,
+                          unsigned TrueReg, unsigned FalseReg,
+                          unsigned CRSubReg) {
+  // Signed comparisons. The immediates are assumed to be sign-extended.
+  if (CompareOpc == PPC::CMPWI || CompareOpc == PPC::CMPDI) {
+    switch (CRSubReg) {
+    default: llvm_unreachable("Unknown integer comparison type.");
+    case PPC::sub_lt:
+      return Imm1 < Imm2 ? TrueReg : FalseReg;
+    case PPC::sub_gt:
+      return Imm1 > Imm2 ? TrueReg : FalseReg;
+    case PPC::sub_eq:
+      return Imm1 == Imm2 ? TrueReg : FalseReg;
+    }
+  }
+  // Unsigned comparisons.
+  else if (CompareOpc == PPC::CMPLWI || CompareOpc == PPC::CMPLDI) {
+    switch (CRSubReg) {
+    default: llvm_unreachable("Unknown integer comparison type.");
+    case PPC::sub_lt:
+      return (uint64_t)Imm1 < (uint64_t)Imm2 ? TrueReg : FalseReg;
+    case PPC::sub_gt:
+      return (uint64_t)Imm1 > (uint64_t)Imm2 ? TrueReg : FalseReg;
+    case PPC::sub_eq:
+      return Imm1 == Imm2 ? TrueReg : FalseReg;
+    }
+  }
+  return 0;
+}
+
+// If this instruction has an immediate form and one of its operands is a
+// result of a load-immediate, convert it to the immediate form if the constant
+// is in range.
+bool PPCInstrInfo::convertToImmediateForm(MachineInstr &MI) const {
+  MachineFunction *MF = MI.getParent()->getParent();
+  MachineRegisterInfo *MRI = &MF->getRegInfo();
+  MachineInstr *DefMI = nullptr;
+  unsigned ConstantOperand = ~0U;
+  for (int i = 1, e = MI.getNumOperands(); i < e; i++) {
+    if (!MI.getOperand(i).isReg())
+      continue;
+    unsigned Reg = MI.getOperand(i).getReg();
+    if (!TargetRegisterInfo::isVirtualRegister(Reg))
+      continue;
+    unsigned TrueReg = lookThruCopyLike(Reg, MRI);
+    if (TargetRegisterInfo::isVirtualRegister(TrueReg)) {
+      DefMI = MRI->getVRegDef(TrueReg);
+      if (DefMI->getOpcode() == PPC::LI || DefMI->getOpcode() == PPC::LI8) {
+        ConstantOperand = i;
+        break;
+      }
+    }
+  }
+  if (ConstantOperand == ~0U || !DefMI->getOperand(1).isImm())
+    return false;
+
+  int64_t Immediate = DefMI->getOperand(1).getImm();
+  // Sign-extend to 64-bits.
+  int64_t SExtImm = ((uint64_t)Immediate & ~0x7FFFuLL) != 0 ?
+    (Immediate | 0xFFFFFFFFFFFF0000) : Immediate;
+
+  bool ReplaceWithLI = false;
+  bool Is64BitLI = false;
+  int64_t NewImm = 0;
+  bool SetCR = false;
+  unsigned Opc = MI.getOpcode();
+  switch (Opc) {
+  default: return false;
+
+  // FIXME: Any branches conditional on such a comparison can be made
+  // unconditional. At this time, this happens too infrequently to be worth
+  // the implementation effort, but if that ever changes, we could convert
+  // such a pattern here.
+  case PPC::CMPWI:
+  case PPC::CMPLWI:
+  case PPC::CMPDI:
+  case PPC::CMPLDI: {
+    // If a compare-immediate is fed by an immediate and is itself an input of
+    // an ISEL (the most common case) into a COPY of the correct register.
+    unsigned DefReg = MI.getOperand(0).getReg();
+    int64_t Comparand = MI.getOperand(2).getImm();
+    int64_t SExtComparand = ((uint64_t)Comparand & ~0x7FFFuLL) != 0 ?
+      (Comparand | 0xFFFFFFFFFFFF0000) : Comparand;
+
+    for (auto &CompareUseMI : MRI->use_instructions(DefReg)) {
+      unsigned UseOpc = CompareUseMI.getOpcode();
+      if (UseOpc != PPC::ISEL && UseOpc != PPC::ISEL8)
+        continue;
+      unsigned CRSubReg = CompareUseMI.getOperand(3).getSubReg();
+      unsigned TrueReg = CompareUseMI.getOperand(1).getReg();
+      unsigned FalseReg = CompareUseMI.getOperand(2).getReg();
+      unsigned RegToCopy = selectReg(SExtImm, SExtComparand, Opc, TrueReg,
+                                     FalseReg, CRSubReg);
+      // Convert to copy and remove unneeded operands.
+      if (RegToCopy == TrueReg) {
+        DEBUG(dbgs() << "Found LI -> CMPI -> ISEL, replacing with a copy.\n");
+        DEBUG(DefMI->dump(); MI.dump(); CompareUseMI.dump());
+        DEBUG(dbgs() << "Is converted to:\n");
+        CompareUseMI.setDesc(get(PPC::COPY));
+        CompareUseMI.RemoveOperand(3);
+        CompareUseMI.RemoveOperand(2);
+        DEBUG(CompareUseMI.dump());
+        CmpIselsConverted++;
+        return true;
+      }
+      else if (RegToCopy == FalseReg) {
+        DEBUG(dbgs() << "Found LI -> CMPI -> ISEL, replacing with a copy.\n");
+        DEBUG(DefMI->dump(); MI.dump(); CompareUseMI.dump());
+        DEBUG(dbgs() << "Is converted to:\n");
+        CompareUseMI.setDesc(get(PPC::COPY));
+        CompareUseMI.RemoveOperand(3);
+        CompareUseMI.RemoveOperand(1);
+        DEBUG(CompareUseMI.dump());
+        CmpIselsConverted++;
+        return true;
+      }
+    }
+    // This may end up incremented multiple times since this function is called
+    // during a fixed-point transformation, but it is only meant to indicate the
+    // presence of this opportunity.
+    MissedConvertibleImmediateInstrs++;
+    return false;
+  }
+
+  // Immediate forms - may simply be convertable to an LI.
+  case PPC::ADDI:
+  case PPC::ADDI8: {
+    // Does the sum fit in a 16-bit signed field?
+    int64_t Addend = MI.getOperand(2).getImm();
+    if (isInt<16>(Addend + SExtImm)) {
+      ReplaceWithLI = true;
+      Is64BitLI = Opc == PPC::ADDI8;
+      NewImm = Addend + SExtImm;
+      break;
+    }
+  }
+  case PPC::RLDICL:
+  case PPC::RLDICLo:
+  case PPC::RLDICL_32:
+  case PPC::RLDICL_32_64: {
+    // Use APInt's rotate function.
+    int64_t SH = MI.getOperand(2).getImm();
+    int64_t MB = MI.getOperand(3).getImm();
+    APInt InVal(Opc == PPC::RLDICL ? 64 : 32, SExtImm, true);
+    InVal = InVal.rotl(SH);
+    uint64_t Mask = (1LU << (63 - MB + 1)) - 1;
+    InVal &= Mask;
+    // Can't replace negative values with an LI as that will sign-extend
+    // and not clear the left bits.
+    if (isUInt<16>(InVal.getSExtValue())) {
+      ReplaceWithLI = true;
+      Is64BitLI = Opc != PPC::RLDICL_32;
+      NewImm = InVal.getSExtValue();
+      SetCR = Opc == PPC::RLDICLo;
+      break;
+    }
+    return false;
+  }
+  case PPC::ORI:
+  case PPC::ORI8:
+  case PPC::XORI:
+  case PPC::XORI8: {
+    int64_t LogicalImm = MI.getOperand(2).getImm();
+    int64_t Result = 0;
+    if (Opc == PPC::ORI || Opc == PPC::ORI8)
+      Result = LogicalImm | SExtImm;
+    else
+      Result = LogicalImm ^ SExtImm;
+    if (isInt<16>(Result)) {
+      ReplaceWithLI = true;
+      Is64BitLI = Opc == PPC::ORI8 || Opc == PPC::XORI8;
+      NewImm = Result;
+      break;
+    }
+    return false;
+  }
+
+  // Additions - commutable.
+  case PPC::ADD4:
+  case PPC::ADD8: {
+    DEBUG(dbgs() << "Converted reg/reg instruction:\n");
+    DEBUG(MI.dump());
+    MachineOperand Op1 = MI.getOperand(1);
+    MachineOperand Op2 = MI.getOperand(2);
+    MI.setDesc(get(Opc == PPC::ADD4 ? PPC::ADDI : PPC::ADDI8));
+    MI.RemoveOperand(2);
+    MI.RemoveOperand(1);
+    MachineInstrBuilder(*MI.getParent()->getParent(), MI)
+        .add(ConstantOperand == 1 ? Op2 : Op1)
+        .addImm(Immediate);
+    MRI->setRegClass(MI.getOperand(1).getReg(),
+                     Opc == PPC::ADD4 ? &PPC::GPRC_and_GPRC_NOR0RegClass :
+                     &PPC::G8RC_and_G8RC_NOX0RegClass);
+    DEBUG(dbgs() << "To reg/imm instruction:\n");
+    DEBUG(MI.dump());
+    return true;
+  }
+  // Subtraction, compares - non-commutable.
+  case PPC::SUBFC:
+  case PPC::SUBFC8: {
+    if (ConstantOperand != 2)
+      return false;
+    unsigned NewOpc = Opc == PPC::SUBFC ? PPC::SUBFIC : PPC::SUBFIC8;
+    DEBUG(dbgs() << "Converted:\n");
+    DEBUG(MI.dump());
+    DEBUG(dbgs() << "Fed by:\n");
+    DEBUG(DefMI->dump());
+    MI.RemoveOperand(2);
+    MI.setDesc(get(NewOpc));
+    MachineInstrBuilder(*MI.getParent()->getParent(), MI)
+        .addImm(Immediate);
+    DEBUG(dbgs() << "To:\n");
+    DEBUG(MI.dump());
+    return true;
+  }
+  case PPC::CMPLW:
+  case PPC::CMPLD:
+    if (!isUInt<16>(SExtImm))
+      return false;
+    LLVM_FALLTHROUGH;
+  case PPC::CMPW:
+  case PPC::CMPD: {
+    if (ConstantOperand != 2)
+      return false;
+    unsigned NewOpc = Opc == PPC::CMPLW ? PPC::CMPLWI :
+                      Opc == PPC::CMPLD ? PPC::CMPLDI :
+                      Opc == PPC::CMPW  ? PPC::CMPWI  : PPC::CMPDI;
+    DEBUG(dbgs() << "Converted:\n");
+    DEBUG(MI.dump());
+    DEBUG(dbgs() << "Fed by:\n");
+    DEBUG(DefMI->dump());
+    MI.RemoveOperand(2);
+    MI.setDesc(get(NewOpc));
+    MachineInstrBuilder(*MI.getParent()->getParent(), MI)
+        .addImm(Immediate);
+    DEBUG(dbgs() << "To:\n");
+    DEBUG(MI.dump());
+    return true;
+  }
+
+  case PPC::SLD:
+  case PPC::SLDo: {
+    if (ConstantOperand == 2) {
+      DEBUG(dbgs() << "Converted:\n");
+      DEBUG(MI.dump());
+      DEBUG(dbgs() << "Fed by:\n");
+      DEBUG(DefMI->dump());
+      MI.RemoveOperand(2);
+      uint64_t SH = Immediate & 0x3F;
+      uint64_t ME = 63 - SH;
+
+      // According to the ISA, shifting by 64-127 is zero. It is important to
+      // keep in mind that only bits 57-63 are considered. So the result is zero
+      // if bit 57 is set in the shift register.
+      if (SExtImm & 0x40) {
+        ReplaceWithLI = true;
+        Is64BitLI = true;
+        NewImm = 0;
+        SetCR = Opc == PPC::SLDo;
+        break;
+      }
+      // Shifting by zero is redundant (but still needed if it sets CR0).
+      if (SH == 0 && Opc == PPC::SLD)
+        MI.setDesc(get(PPC::COPY));
+      else {
+        MI.setDesc(get(Opc == PPC::SLD ? PPC::RLDICR : PPC::RLDICRo));
+        MachineInstrBuilder(*MI.getParent()->getParent(), MI)
+            .addImm(SH).addImm(ME);
+      }
+      DEBUG(dbgs() << "To:\n");
+      DEBUG(MI.dump());
+      return true;
+    }
+    break;
+  }
+  case PPC::SRD:
+  case PPC::SRDo:
+    if (ConstantOperand == 2) {
+      DEBUG(dbgs() << "Converted:\n");
+      DEBUG(MI.dump());
+      DEBUG(dbgs() << "Fed by:\n");
+      DEBUG(DefMI->dump());
+      MI.RemoveOperand(2);
+      uint64_t MB = Immediate & 0x3F;
+      uint64_t SH = 64 - MB;
+
+      // According to the ISA, shifting by 64-127 is zero. It is important to
+      // keep in mind that only bits 57-63 are considered. So the result is zero
+      // if bit 57 is set in the shift register.
+      if (SExtImm & 0x40) {
+        ReplaceWithLI = true;
+        Is64BitLI = true;
+        NewImm = 0;
+        SetCR = Opc == PPC::SRDo;
+        break;
+      }
+      // Shifting by zero is redundant (but still needed if it sets CR0).
+      if (SH == 64 && Opc == PPC::SRD)
+        MI.setDesc(get(PPC::COPY));
+      else {
+        MI.setDesc(get(Opc == PPC::SRD ? PPC::RLDICL : PPC::RLDICLo));
+        MachineInstrBuilder(*MI.getParent()->getParent(), MI)
+            .addImm(SH).addImm(MB);
+      }
+      DEBUG(dbgs() << "To:\n");
+      DEBUG(MI.dump());
+      return true;
+    }
+    break;
+  case PPC::ANDo:
+  case PPC::AND8o:
+  case PPC::OR:
+  case PPC::OR8:
+  case PPC::XOR:
+  case PPC::XOR8: {
+    unsigned ImmOpc = 0;
+    switch (Opc) {
+    case PPC::ANDo:
+      ImmOpc = PPC::ANDIo;
+      break;
+    case PPC::AND8o:
+      ImmOpc = PPC::ANDIo8;
+      break;
+    case PPC::OR:
+      ImmOpc = PPC::ORI;
+      break;
+    case PPC::OR8:
+      ImmOpc = PPC::ORI8;
+      break;
+    case PPC::XOR:
+      ImmOpc = PPC::XORI;
+      break;
+    case PPC::XOR8:
+      ImmOpc = PPC::XORI8;
+      break;
+    }
+    if (((uint64_t)Immediate & ~0x7FFFuLL) == 0) {
+      DEBUG(dbgs() << "Converted reg/reg instruction:\n");
+      DEBUG(MI.dump());
+      MachineOperand Op1 = MI.getOperand(1);
+      MachineOperand Op2 = MI.getOperand(2);
+      MI.setDesc(get(ImmOpc));
+      MI.RemoveOperand(2);
+      MI.RemoveOperand(1);
+      MachineInstrBuilder(*MI.getParent()->getParent(), MI)
+          .add(ConstantOperand == 1 ? Op2 : Op1)
+          .addImm(Immediate);
+      DEBUG(dbgs() << "To reg/imm instruction:\n");
+      DEBUG(MI.dump());
+      return true;
+    }
+  }
+  }
+
+  if (ReplaceWithLI) {
+    DEBUG(dbgs() << "Replacing instruction:\n");
+    DEBUG(MI.dump());
+    DEBUG(dbgs() << "Fed by:\n");
+    DEBUG(DefMI->dump());
+    // Remove existing operands.
+    int OperandToKeep = SetCR ? 1 : 0;
+    for (int i = MI.getNumOperands() - 1; i > OperandToKeep; i--)
+      MI.RemoveOperand(i);
+
+    // Replace the instruction.
+    if (SetCR)
+      MI.setDesc(get(Is64BitLI ? PPC::ANDIo8 : PPC::ANDIo));
+    else
+      MI.setDesc(get(Is64BitLI ? PPC::LI8 : PPC::LI));
+
+    // Set the immediate.
+    MachineInstrBuilder(*MI.getParent()->getParent(), MI)
+        .addImm(NewImm);
+    DEBUG(dbgs() << "With:\n");
+    DEBUG(MI.dump());
+    return true;
+  }
+  return false;
+}
 const TargetRegisterClass *
 PPCInstrInfo::updatedRC(const TargetRegisterClass *RC) const {
   if (Subtarget.hasVSX() && RC == &PPC::VRRCRegClass)

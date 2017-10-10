@@ -36,11 +36,18 @@ using namespace llvm;
 #define DEBUG_TYPE "ppc-mi-peepholes"
 
 STATISTIC(NumOptADDLIs, "Number of optimized ADD instruction fed by LI");
+STATISTIC(NumConvertedToImmediateForm,
+          "Number of instructions converted to their immediate form");
+STATISTIC(NumFunctionsEnteredInMIPeephole,
+          "Number of functions entered in PPC MI Peepholes");
+STATISTIC(NumFixedPointIterations,
+          "Number of fixed-point iterations converting reg-reg instructions "
+          "to reg-imm ones");
 
-namespace llvm {
-  void initializePPCMIPeepholePass(PassRegistry&);
-}
-
+static cl::opt<bool>
+FixedPointRegToImm("ppc-reg-to-imm-fixed-point", cl::Hidden, cl::init(true),
+                   cl::desc("Iterate to a fixed point when attempting to "
+                            "convert reg-reg instructions to reg-imm"));
 namespace {
 
 struct PPCMIPeephole : public MachineFunctionPass {
@@ -65,10 +72,6 @@ private:
 
   // Perform peepholes.
   bool eliminateRedundantCompare(void);
-
-  // Find the "true" register represented by SrcReg (following chains
-  // of copies and subreg_to_reg operations).
-  unsigned lookThruCopyLike(unsigned SrcReg);
 
 public:
 
@@ -115,6 +118,33 @@ bool PPCMIPeephole::simplifyCode(void) {
   bool Simplified = false;
   MachineInstr* ToErase = nullptr;
 
+  NumFunctionsEnteredInMIPeephole++;
+  // Fixed-point conversion of reg/reg instructions fed by load-immediate
+  // into reg/imm instructions. FIXME: This is expensive, control it with
+  // an option.
+  bool SomethingChanged = false;
+  do {
+    NumFixedPointIterations++;
+    SomethingChanged = false;
+    for (MachineBasicBlock &MBB : *MF) {
+      for (MachineInstr &MI : MBB) {
+        if (MI.isDebugValue())
+          continue;
+
+        if (TII->convertToImmediateForm(MI)) {
+          // We don't erase anything in case the def has other uses. Let DCE
+          // remove it if it can be removed.
+          DEBUG(dbgs() << "Converted instruction to imm form: ");
+          DEBUG(MI.dump());
+          NumConvertedToImmediateForm++;
+          SomethingChanged = true;
+          Simplified = true;
+          continue;
+        }
+      }
+    }
+  } while (SomethingChanged && FixedPointRegToImm);
+
   for (MachineBasicBlock &MBB : *MF) {
     for (MachineInstr &MI : MBB) {
 
@@ -149,8 +179,10 @@ bool PPCMIPeephole::simplifyCode(void) {
           //   XXPERMDI t, SUBREG_TO_REG(s), SUBREG_TO_REG(s), immed.
           // We have to look through chains of COPY and SUBREG_TO_REG
           // to find the real source values for comparison.
-          unsigned TrueReg1 = lookThruCopyLike(MI.getOperand(1).getReg());
-          unsigned TrueReg2 = lookThruCopyLike(MI.getOperand(2).getReg());
+          unsigned TrueReg1 =
+            TII->lookThruCopyLike(MI.getOperand(1).getReg(), MRI);
+          unsigned TrueReg2 =
+            TII->lookThruCopyLike(MI.getOperand(2).getReg(), MRI);
 
           if (TrueReg1 == TrueReg2
               && TargetRegisterInfo::isVirtualRegister(TrueReg1)) {
@@ -164,7 +196,8 @@ bool PPCMIPeephole::simplifyCode(void) {
             auto isConversionOfLoadAndSplat = [=]() -> bool {
               if (DefOpc != PPC::XVCVDPSXDS && DefOpc != PPC::XVCVDPUXDS)
                 return false;
-              unsigned DefReg = lookThruCopyLike(DefMI->getOperand(1).getReg());
+              unsigned DefReg =
+                TII->lookThruCopyLike(DefMI->getOperand(1).getReg(), MRI);
               if (TargetRegisterInfo::isVirtualRegister(DefReg)) {
                 MachineInstr *LoadMI = MRI->getVRegDef(DefReg);
                 if (LoadMI && LoadMI->getOpcode() == PPC::LXVDSX)
@@ -190,10 +223,10 @@ bool PPCMIPeephole::simplifyCode(void) {
             // can replace it with a copy.
             if (DefOpc == PPC::XXPERMDI) {
               unsigned FeedImmed = DefMI->getOperand(3).getImm();
-              unsigned FeedReg1
-                = lookThruCopyLike(DefMI->getOperand(1).getReg());
-              unsigned FeedReg2
-                = lookThruCopyLike(DefMI->getOperand(2).getReg());
+              unsigned FeedReg1 =
+                TII->lookThruCopyLike(DefMI->getOperand(1).getReg(), MRI);
+              unsigned FeedReg2 =
+                TII->lookThruCopyLike(DefMI->getOperand(2).getReg(), MRI);
 
               if ((FeedImmed == 0 || FeedImmed == 3) && FeedReg1 == FeedReg2) {
                 DEBUG(dbgs()
@@ -251,7 +284,8 @@ bool PPCMIPeephole::simplifyCode(void) {
       case PPC::XXSPLTW: {
         unsigned MyOpcode = MI.getOpcode();
         unsigned OpNo = MyOpcode == PPC::XXSPLTW ? 1 : 2;
-        unsigned TrueReg = lookThruCopyLike(MI.getOperand(OpNo).getReg());
+        unsigned TrueReg =
+          TII->lookThruCopyLike(MI.getOperand(OpNo).getReg(), MRI);
         if (!TargetRegisterInfo::isVirtualRegister(TrueReg))
           break;
         MachineInstr *DefMI = MRI->getVRegDef(TrueReg);
@@ -313,7 +347,8 @@ bool PPCMIPeephole::simplifyCode(void) {
       }
       case PPC::XVCVDPSP: {
         // If this is a DP->SP conversion fed by an FRSP, the FRSP is redundant.
-        unsigned TrueReg = lookThruCopyLike(MI.getOperand(1).getReg());
+        unsigned TrueReg =
+          TII->lookThruCopyLike(MI.getOperand(1).getReg(), MRI);
         if (!TargetRegisterInfo::isVirtualRegister(TrueReg))
           break;
         MachineInstr *DefMI = MRI->getVRegDef(TrueReg);
@@ -321,8 +356,10 @@ bool PPCMIPeephole::simplifyCode(void) {
         // This can occur when building a vector of single precision or integer
         // values.
         if (DefMI && DefMI->getOpcode() == PPC::XXPERMDI) {
-          unsigned DefsReg1 = lookThruCopyLike(DefMI->getOperand(1).getReg());
-          unsigned DefsReg2 = lookThruCopyLike(DefMI->getOperand(2).getReg());
+          unsigned DefsReg1 =
+            TII->lookThruCopyLike(DefMI->getOperand(1).getReg(), MRI);
+          unsigned DefsReg2 =
+            TII->lookThruCopyLike(DefMI->getOperand(2).getReg(), MRI);
           if (!TargetRegisterInfo::isVirtualRegister(DefsReg1) ||
               !TargetRegisterInfo::isVirtualRegister(DefsReg2))
             break;
@@ -928,36 +965,6 @@ bool PPCMIPeephole::eliminateRedundantCompare(void) {
   }
 
   return Simplified;
-}
-
-// This is used to find the "true" source register for an
-// XXPERMDI instruction, since MachineCSE does not handle the
-// "copy-like" operations (Copy and SubregToReg).  Returns
-// the original SrcReg unless it is the target of a copy-like
-// operation, in which case we chain backwards through all
-// such operations to the ultimate source register.  If a
-// physical register is encountered, we stop the search.
-unsigned PPCMIPeephole::lookThruCopyLike(unsigned SrcReg) {
-
-  while (true) {
-
-    MachineInstr *MI = MRI->getVRegDef(SrcReg);
-    if (!MI->isCopyLike())
-      return SrcReg;
-
-    unsigned CopySrcReg;
-    if (MI->isCopy())
-      CopySrcReg = MI->getOperand(1).getReg();
-    else {
-      assert(MI->isSubregToReg() && "bad opcode for lookThruCopyLike");
-      CopySrcReg = MI->getOperand(2).getReg();
-    }
-
-    if (!TargetRegisterInfo::isVirtualRegister(CopySrcReg))
-      return CopySrcReg;
-
-    SrcReg = CopySrcReg;
-  }
 }
 
 } // end default namespace

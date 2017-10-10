@@ -293,6 +293,16 @@ public:
   }
   const TargetRegisterClass *updatedRC(const TargetRegisterClass *RC) const;
   static int getRecordFormOpcode(unsigned Opcode);
+
+  bool convertToImmediateForm(MachineInstr &MI) const;
+
+  // This is used to find the "true" source register for n
+  // Machine instruction. Returns the original SrcReg unless it is the target
+  // of a copy-like operation, in which case we chain backwards through all
+  // such operations to the ultimate source register.  If a
+  // physical register is encountered, we stop the search.
+  static unsigned lookThruCopyLike(unsigned SrcReg,
+                                   const MachineRegisterInfo *MRI);
 };
 
 }

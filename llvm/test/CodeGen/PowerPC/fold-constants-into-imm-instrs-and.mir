@@ -1,0 +1,137 @@
+# RUN: llc -run-pass ppc-mi-peepholes -o - %s | FileCheck %s
+
+--- |
+  ; ModuleID = 't.ll'
+  source_filename = "t.c"
+  target datalayout = "e-m:e-i64:64-n32:64"
+  target triple = "powerpc64le-unknown-linux-gnu"
+  
+  ; Function Attrs: norecurse nounwind readnone
+  define i64 @test(i64 %a, i64 %b) local_unnamed_addr #0 {
+  entry:
+    %and = and i64 %b, %a
+    %tobool = icmp ne i64 %and, 0
+    %conv = select i1 %tobool, i64 778, i64 223
+    ret i64 %conv
+  }
+  
+  ; Function Attrs: norecurse nounwind readnone
+  define zeroext i32 @test3(i32 zeroext %a, i32 zeroext %b) local_unnamed_addr #0 {
+  entry:
+    %and = and i32 %b, %a
+    %tobool = icmp ne i32 %and, 0
+    %cond = select i1 %tobool, i32 778, i32 223
+    ret i32 %cond
+  }
+  
+  attributes #0 = { norecurse nounwind readnone "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="ppc64le" "target-features"="+altivec,+bpermd,+crypto,+direct-move,+extdiv,+htm,+power8-vector,+vsx,-power9-vector,-qpx" "unsafe-fp-math"="false" "use-soft-float"="false" }
+  
+  !llvm.module.flags = !{!0}
+  !llvm.ident = !{!1}
+  
+  !0 = !{i32 1, !"PIC Level", i32 2}
+  !1 = !{!"clang version 5.0.0 (git@github.ibm.com:llvm/clang.git 5e5be8ed354acb606e083cee2ff9c9e096099ff2) (llvm/llvm.git c5a7ad098a8772950f4005869a14354e7f233ab3)"}
+
+...
+---
+name:            test
+alignment:       4
+exposesReturnsTwice: false
+legalized:       false
+regBankSelected: false
+selected:        false
+tracksRegLiveness: true
+registers:       
+  - { id: 0, class: g8rc }
+  - { id: 1, class: g8rc }
+  - { id: 2, class: g8rc }
+  - { id: 3, class: crrc }
+  - { id: 4, class: g8rc_and_g8rc_nox0 }
+  - { id: 5, class: g8rc_and_g8rc_nox0 }
+  - { id: 6, class: g8rc }
+liveins:         
+  - { reg: '%x3', virtual-reg: '%0' }
+  - { reg: '%x4', virtual-reg: '%1' }
+frameInfo:       
+  isFrameAddressTaken: false
+  isReturnAddressTaken: false
+  hasStackMap:     false
+  hasPatchPoint:   false
+  stackSize:       0
+  offsetAdjustment: 0
+  maxAlignment:    0
+  adjustsStack:    false
+  hasCalls:        false
+  maxCallFrameSize: 0
+  hasOpaqueSPAdjustment: false
+  hasVAStart:      false
+  hasMustTailInVarArgFunc: false
+body:             |
+  bb.0.entry:
+    liveins: %x3, %x4
+  
+    %1 = LI8 263
+    %0 = COPY %x3
+    %2 = AND8o %1, %0, implicit-def %cr0
+    ; CHECK: %2 = ANDIo8 %0, 263, implicit-def %cr0
+    %3 = COPY killed %cr0
+    %4 = LI8 223
+    %5 = LI8 778
+    %6 = ISEL8 %4, %5, %3.sub_eq
+    %x3 = COPY %6
+    BLR8 implicit %lr8, implicit %rm, implicit %x3
+
+...
+---
+name:            test3
+alignment:       4
+exposesReturnsTwice: false
+legalized:       false
+regBankSelected: false
+selected:        false
+tracksRegLiveness: true
+registers:       
+  - { id: 0, class: g8rc }
+  - { id: 1, class: g8rc }
+  - { id: 2, class: gprc }
+  - { id: 3, class: gprc }
+  - { id: 4, class: gprc }
+  - { id: 5, class: crrc }
+  - { id: 6, class: g8rc_and_g8rc_nox0 }
+  - { id: 7, class: g8rc_and_g8rc_nox0 }
+  - { id: 8, class: g8rc }
+liveins:         
+  - { reg: '%x3', virtual-reg: '%0' }
+  - { reg: '%x4', virtual-reg: '%1' }
+frameInfo:       
+  isFrameAddressTaken: false
+  isReturnAddressTaken: false
+  hasStackMap:     false
+  hasPatchPoint:   false
+  stackSize:       0
+  offsetAdjustment: 0
+  maxAlignment:    0
+  adjustsStack:    false
+  hasCalls:        false
+  maxCallFrameSize: 0
+  hasOpaqueSPAdjustment: false
+  hasVAStart:      false
+  hasMustTailInVarArgFunc: false
+body:             |
+  bb.0.entry:
+    liveins: %x3, %x4
+  
+    %1 = LI8 511
+    %0 = COPY %x3
+    %2 = COPY %1.sub_32
+    %3 = COPY %0.sub_32
+    %4 = ANDo %2, %3, implicit-def %cr0
+    ; CHECK: %4 = ANDIo %3, 511, implicit-def %cr0
+    %5 = COPY killed %cr0
+    %6 = LI8 223
+    %7 = LI8 778
+    %8 = ISEL8 %6, %7, %5.sub_eq
+    %x3 = COPY %8
+    BLR8 implicit %lr8, implicit %rm, implicit %x3
+
+...

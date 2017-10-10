@@ -70,8 +70,7 @@ entry:
 ; CHECK-LABEL: @getf
 ; CHECK-P7-LABEL: @getf
 ; CHECK-BE-LABEL: @getf
-; CHECK: li [[IMMREG:[0-9]+]], 3
-; CHECK: xor [[TRUNCREG:[0-9]+]], [[IMMREG]], 5
+; CHECK: xori [[TRUNCREG:[0-9]+]], 5, 3
 ; CHECK: lvsl [[SHMSKREG:[0-9]+]], 0, [[TRUNCREG]]
 ; CHECK: vperm {{[0-9]+}}, 2, 2, [[SHMSKREG]]
 ; CHECK: xscvspdpn 1,
