@@ -1038,6 +1038,11 @@ template <class ELFT> void LinkerDriver::link(opt::InputArgList &Args) {
   for (StringRef Sym : Script->ReferencedSymbols)
     Symtab->addUndefined<ELFT>(Sym);
 
+  // We want to define symbols assigned by linker script early enough,
+  // so we can version them and change attributes before normal
+  // script commands proccessing where their values are finalized.
+  Script->defineSymbols();
+
   // Handle the `--undefined <sym>` options.
   for (StringRef S : Config->Undefined)
     Symtab->fetchIfLazy<ELFT>(S);

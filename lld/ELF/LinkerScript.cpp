@@ -114,17 +114,26 @@ void LinkerScript::setDot(Expr E, const Twine &Loc, bool InSec) {
     Ctx->OutSec->Size = Dot - Ctx->OutSec->Addr;
 }
 
-// This function is called from processSectionCommands,
-// while we are fixing the output section layout.
-void LinkerScript::addSymbol(SymbolAssignment *Cmd) {
+// We call this function from:
+// 1) defineSymbols() to define linker script symbols early so that
+//    we can access their attributes before normal linker script proccessing.
+// 2) processSectionCommands() while we are fixing the output section layout to
+//    finalize symbols values which are known at that point.
+SymbolBody *LinkerScript::addSymbol(SymbolAssignment *Cmd) {
   if (Cmd->Name == ".")
-    return;
+    return nullptr;
 
-  // If a symbol was in PROVIDE(), we need to define it only when
-  // it is a referenced undefined symbol.
   SymbolBody *B = Symtab->find(Cmd->Name);
+
+  // Context is unavailable when we call this method to early define symbols.
+  // There is nothing to do here if symbol already exist.
+  if (!Ctx && B)
+    return B;
+
+  // If a symbol was in PROVIDE(), we need to define it only
+  // when it is a referenced undefined symbol.
   if (Cmd->Provide && (!B || B->isDefined()))
-    return;
+    return B;
 
   // Define a symbol.
   Symbol *Sym;
@@ -132,6 +141,14 @@ void LinkerScript::addSymbol(SymbolAssignment *Cmd) {
   std::tie(Sym, std::ignore) = Symtab->insert(Cmd->Name, /*Type*/ 0, Visibility,
                                               /*CanOmitFromDynSym*/ false,
                                               /*File*/ nullptr);
+  // When we call this method to define symbol early, its final value
+  // is not yet known, so we just fill it with dummy value.
+  if (!Ctx) {
+    replaceBody<DefinedRegular>(Sym, nullptr, Cmd->Name, /*IsLocal=*/false,
+                                Visibility, STT_NOTYPE, 0, 0, nullptr);
+    return Sym->body();
+  }
+
   Sym->Binding = STB_GLOBAL;
   ExprValue Value = Cmd->Expression();
   SectionBase *Sec = Value.isAbsolute() ? nullptr : Value.Sec;
@@ -152,6 +169,18 @@ void LinkerScript::addSymbol(SymbolAssignment *Cmd) {
   replaceBody<DefinedRegular>(Sym, nullptr, Cmd->Name, /*IsLocal=*/false,
                               Visibility, STT_NOTYPE, SymValue, 0, Sec);
   Cmd->Sym = cast<DefinedRegular>(Sym->body());
+  return Sym->body();
+}
+
+// All symbols defined in script should not be inlined by LTO,
+// here we scan over symbol assignment commands, create symbols
+// if needed and and set appropriate flag.
+void LinkerScript::defineSymbols() {
+  assert(!Ctx);
+  for (BaseCommand *Base : SectionCommands)
+    if (SymbolAssignment *Cmd = dyn_cast<SymbolAssignment>(Base))
+      if (SymbolBody *Sym = addSymbol(Cmd))
+        Sym->symbol()->CanInline = false;
 }
 
 // This function is called from assignAddresses, while we are
