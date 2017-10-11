@@ -71,6 +71,7 @@
 #include "llvm/Analysis/LoopAccessAnalysis.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/LoopPass.h"
+#include "llvm/Analysis/OptimizationRemarkEmitter.h"
 #include "llvm/Analysis/ScalarEvolution.h"
 #include "llvm/Analysis/ScalarEvolutionExpander.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
@@ -206,9 +207,9 @@ private:
   unsigned InvariantCounter;    // Counter to track num of invariant
   bool IsReadOnlyLoop;          // Read only loop marker.
 
-  bool isLegalForVersioning();
+  bool isLegalForVersioning(OptimizationRemarkEmitter *ORE);
   bool legalLoopStructure();
-  bool legalLoopInstructions();
+  bool legalLoopInstructions(OptimizationRemarkEmitter *ORE);
   bool legalLoopMemoryAccesses();
   bool isLoopAlreadyVisited();
   void setNoAliasToLoop(Loop *);
@@ -379,11 +380,13 @@ bool LoopVersioningLICM::instructionSafeForVersioning(Instruction *I) {
 
 /// \brief Check loop instructions and confirms it's good for
 /// LoopVersioningLICM.
-bool LoopVersioningLICM::legalLoopInstructions() {
+bool LoopVersioningLICM::legalLoopInstructions(OptimizationRemarkEmitter *ORE) {
   // Resetting counters.
   LoadAndStoreCounter = 0;
   InvariantCounter = 0;
   IsReadOnlyLoop = true;
+  using namespace ore;
+
   // Iterate over loop blocks and instructions of each block and check
   // instruction safety.
   for (auto *Block : CurLoop->getBlocks())
@@ -403,6 +406,14 @@ bool LoopVersioningLICM::legalLoopInstructions() {
   if (LAI->getNumRuntimePointerChecks() >
       VectorizerParams::RuntimeMemoryCheckThreshold) {
     DEBUG(dbgs() << "    LAA: Runtime checks are more than threshold !!\n");
+    ORE->emit([&]() {
+        return OptimizationRemarkMissed(DEBUG_TYPE, "RuntimeCheck",
+                                 CurLoop->getStartLoc(), CurLoop->getHeader())
+        << "Runtime checks " << NV("RuntimeChecks",
+                                  LAI->getNumRuntimePointerChecks())
+        << " are more than threshold " 
+        << NV("Threshold", VectorizerParams::RuntimeMemoryCheckThreshold);
+    });
     return false;
   }
   // Loop should have at least one invariant load or store instruction.
@@ -424,6 +435,14 @@ bool LoopVersioningLICM::legalLoopInstructions() {
                  << ((InvariantCounter * 100) / LoadAndStoreCounter) << "%\n");
     DEBUG(dbgs() << "    Invariant loads & store threshold: "
                  << InvariantThreshold << "%\n");
+    ORE->emit([&]() {
+        return OptimizationRemarkMissed(DEBUG_TYPE, "InvariantThreshold",
+                                 CurLoop->getStartLoc(), CurLoop->getHeader())
+        << "Invariant load & store "
+        << NV("LoadAndStoreCounter", ((InvariantCounter * 100)/LoadAndStoreCounter))
+        << " are less then defined threshold "
+        << NV("Threshold", static_cast<int>(InvariantThreshold));
+    });
     return false;
   }
   return true;
@@ -444,7 +463,7 @@ bool LoopVersioningLICM::isLoopAlreadyVisited() {
 /// a) loop structure legality   b) loop instruction legality
 /// c) loop memory access legality.
 /// Return true if legal else returns false.
-bool LoopVersioningLICM::isLegalForVersioning() {
+bool LoopVersioningLICM::isLegalForVersioning(OptimizationRemarkEmitter *ORE) {
   DEBUG(dbgs() << "Loop: " << *CurLoop);
   // Make sure not re-visiting same loop again.
   if (isLoopAlreadyVisited()) {
@@ -456,22 +475,42 @@ bool LoopVersioningLICM::isLegalForVersioning() {
   if (!legalLoopStructure()) {
     DEBUG(
         dbgs() << "    Loop structure not suitable for LoopVersioningLICM\n\n");
+    ORE->emit([&]() {
+        return OptimizationRemarkMissed(DEBUG_TYPE, "IllegalLoopStruct",
+                                 CurLoop->getStartLoc(), CurLoop->getHeader())
+        << "Illegal Loop structure\n";
+    });
     return false;
   }
   // Check loop instruction leagality.
-  if (!legalLoopInstructions()) {
+  if (!legalLoopInstructions(ORE)) {
     DEBUG(dbgs()
           << "    Loop instructions not suitable for LoopVersioningLICM\n\n");
+    ORE->emit([&]() {
+        return OptimizationRemarkMissed(DEBUG_TYPE, "IllegalLoopInst",
+                                 CurLoop->getStartLoc(), CurLoop->getHeader())
+        << "Illegal Loop Instruction\n";
+    });
     return false;
   }
   // Check loop memory access leagality.
   if (!legalLoopMemoryAccesses()) {
     DEBUG(dbgs()
           << "    Loop memory access not suitable for LoopVersioningLICM\n\n");
+    ORE->emit([&]() {
+        return OptimizationRemarkMissed(DEBUG_TYPE, "IllegalLoopMemoryAccess",
+                                 CurLoop->getStartLoc(), CurLoop->getHeader())
+        << "Illegal Loop memory access\n";
+    });
     return false;
   }
   // Loop versioning is feasible, return true.
   DEBUG(dbgs() << "    Loop Versioning found to be beneficial\n\n");
+  ORE->emit([&]() {
+      return OptimizationRemark(DEBUG_TYPE, "IsLegalForVersioning",
+                               CurLoop->getStartLoc(), CurLoop->getHeader())
+      << "Loop Versioning LICM can be applied\n";
+  });
   return true;
 }
 
@@ -536,11 +575,12 @@ bool LoopVersioningLICM::runOnLoop(Loop *L, LPPassManager &LPM) {
   }
 
   bool Changed = false;
+  OptimizationRemarkEmitter ORE(CurLoop->getHeader()->getParent());
 
   // Check feasiblity of LoopVersioningLICM.
   // If versioning found to be feasible and beneficial then proceed
   // else simply return, by cleaning up memory.
-  if (isLegalForVersioning()) {
+  if (isLegalForVersioning(&ORE)) {
     // Do loop versioning.
     // Create memcheck for memory accessed inside loop.
     // Clone original loop, and set blocks properly.
