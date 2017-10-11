@@ -1375,6 +1375,8 @@ private:
   /// Provide the special handling we need to analyze PHI SCEVs.
   const SCEV *createNodeForPHI(PHINode *PN);
 
+  const SCEV *evaluateForICmp(ICmpInst *IC);
+
   /// Helper function called from createNodeForPHI.
   const SCEV *createAddRecFromPHI(PHINode *PN);
 
