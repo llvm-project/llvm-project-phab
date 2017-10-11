@@ -100,7 +100,7 @@ void File::Swap(File &rhs)
     std::swap(m_supports_colors, rhs.m_supports_colors);
 }
 
-#if defined(__linux)
+#if defined(__linux__)
 
 struct context {
   void *cookie;
