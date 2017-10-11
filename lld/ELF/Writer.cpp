@@ -10,6 +10,7 @@
 #include "Writer.h"
 #include "Config.h"
 #include "Filesystem.h"
+#include "ICF.h"
 #include "LinkerScript.h"
 #include "MapFile.h"
 #include "Memory.h"
@@ -155,6 +156,9 @@ template <class ELFT> void Writer<ELFT>::run() {
 
   if (!Config->Relocatable)
     combineEhFrameSections<ELFT>();
+
+  if (Config->ICF)
+    doIcf<ELFT>();
 
   // We need to create some reserved symbols such as _end. Create them.
   if (!Config->Relocatable)
