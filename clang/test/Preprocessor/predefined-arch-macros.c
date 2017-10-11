@@ -427,11 +427,14 @@
 // CHECK_COREI7_AVX_M32: #define __SSSE3__ 1
 // CHECK_COREI7_AVX_M32: #define __XSAVEOPT__ 1
 // CHECK_COREI7_AVX_M32: #define __XSAVE__ 1
-// CHECK_COREI7_AVX_M32: #define __corei7 1
-// CHECK_COREI7_AVX_M32: #define __corei7__ 1
+// CHECK_COREI7_AVX_M32: #define __corei7_avx 1
+// CHECK_COREI7_AVX_M32: #define __corei7_avx__ 1
 // CHECK_COREI7_AVX_M32: #define __i386 1
 // CHECK_COREI7_AVX_M32: #define __i386__ 1
-// CHECK_COREI7_AVX_M32: #define __tune_corei7__ 1
+// CHECK_COREI7_AVX_M32: #define __sandybridge 1
+// CHECK_COREI7_AVX_M32: #define __sandybridge__ 1
+// CHECK_COREI7_AVX_M32: #define __tune_corei7_avx__ 1
+// CHECK_COREI7_AVX_M32: #define __tune_sandybridge__ 1
 // CHECK_COREI7_AVX_M32: #define i386 1
 // RUN: %clang -march=corei7-avx -m64 -E -dM %s -o - 2>&1 \
 // RUN:     -target i386-unknown-linux \
@@ -454,9 +457,12 @@
 // CHECK_COREI7_AVX_M64: #define __XSAVE__ 1
 // CHECK_COREI7_AVX_M64: #define __amd64 1
 // CHECK_COREI7_AVX_M64: #define __amd64__ 1
-// CHECK_COREI7_AVX_M64: #define __corei7 1
-// CHECK_COREI7_AVX_M64: #define __corei7__ 1
-// CHECK_COREI7_AVX_M64: #define __tune_corei7__ 1
+// CHECK_COREI7_AVX_M64: #define __corei7_avx 1
+// CHECK_COREI7_AVX_M64: #define __corei7_avx__ 1
+// CHECK_COREI7_AVX_M64: #define __sandybridge 1
+// CHECK_COREI7_AVX_M64: #define __sandybridge__ 1
+// CHECK_COREI7_AVX_M64: #define __tune_corei7_avx__ 1
+// CHECK_COREI7_AVX_M64: #define __tune_sandybridge__ 1
 // CHECK_COREI7_AVX_M64: #define __x86_64 1
 // CHECK_COREI7_AVX_M64: #define __x86_64__ 1
 //
@@ -477,11 +483,14 @@
 // CHECK_CORE_AVX_I_M32: #define __SSSE3__ 1
 // CHECK_CORE_AVX_I_M32: #define __XSAVEOPT__ 1
 // CHECK_CORE_AVX_I_M32: #define __XSAVE__ 1
-// CHECK_CORE_AVX_I_M32: #define __corei7 1
-// CHECK_CORE_AVX_I_M32: #define __corei7__ 1
+// CHECK_CORE_AVX_I_M32: #define __corei7_avx 1
+// CHECK_CORE_AVX_I_M32: #define __corei7_avx__ 1
 // CHECK_CORE_AVX_I_M32: #define __i386 1
 // CHECK_CORE_AVX_I_M32: #define __i386__ 1
-// CHECK_CORE_AVX_I_M32: #define __tune_corei7__ 1
+// CHECK_CORE_AVX_I_M32: #define __sandybridge 1
+// CHECK_CORE_AVX_I_M32: #define __sandybridge__ 1
+// CHECK_CORE_AVX_I_M32: #define __tune_corei7_avx__ 1
+// CHECK_CORE_AVX_I_M32: #define __tune_sandybridge__ 1
 // CHECK_CORE_AVX_I_M32: #define i386 1
 // RUN: %clang -march=core-avx-i -m64 -E -dM %s -o - 2>&1 \
 // RUN:     -target i386-unknown-linux \
@@ -504,9 +513,12 @@
 // CHECK_CORE_AVX_I_M64: #define __XSAVE__ 1
 // CHECK_CORE_AVX_I_M64: #define __amd64 1
 // CHECK_CORE_AVX_I_M64: #define __amd64__ 1
-// CHECK_CORE_AVX_I_M64: #define __corei7 1
-// CHECK_CORE_AVX_I_M64: #define __corei7__ 1
-// CHECK_CORE_AVX_I_M64: #define __tune_corei7__ 1
+// CHECK_CORE_AVX_I_M64: #define __corei7_avx 1
+// CHECK_CORE_AVX_I_M64: #define __corei7_avx__ 1
+// CHECK_CORE_AVX_I_M64: #define __sandybridge 1
+// CHECK_CORE_AVX_I_M64: #define __sandybridge__ 1
+// CHECK_CORE_AVX_I_M64: #define __tune_corei7_avx__ 1
+// CHECK_CORE_AVX_I_M64: #define __tune_sandybridge__ 1
 // CHECK_CORE_AVX_I_M64: #define __x86_64 1
 // CHECK_CORE_AVX_I_M64: #define __x86_64__ 1
 //
@@ -533,11 +545,14 @@
 // CHECK_CORE_AVX2_M32: #define __SSSE3__ 1
 // CHECK_CORE_AVX2_M32: #define __XSAVEOPT__ 1
 // CHECK_CORE_AVX2_M32: #define __XSAVE__ 1
-// CHECK_CORE_AVX2_M32: #define __corei7 1
-// CHECK_CORE_AVX2_M32: #define __corei7__ 1
+// CHECK_CORE_AVX2_M32: #define __core_avx2 1
+// CHECK_CORE_AVX2_M32: #define __core_avx2__ 1
+// CHECK_CORE_AVX2_M32: #define __haswell 1
+// CHECK_CORE_AVX2_M32: #define __haswell__ 1
 // CHECK_CORE_AVX2_M32: #define __i386 1
 // CHECK_CORE_AVX2_M32: #define __i386__ 1
-// CHECK_CORE_AVX2_M32: #define __tune_corei7__ 1
+// CHECK_CORE_AVX2_M32: #define __tune_core_avx2__ 1
+// CHECK_CORE_AVX2_M32: #define __tune_haswell__ 1
 // CHECK_CORE_AVX2_M32: #define i386 1
 // RUN: %clang -march=core-avx2 -m64 -E -dM %s -o - 2>&1 \
 // RUN:     -target i386-unknown-linux \
@@ -566,9 +581,12 @@
 // CHECK_CORE_AVX2_M64: #define __XSAVE__ 1
 // CHECK_CORE_AVX2_M64: #define __amd64 1
 // CHECK_CORE_AVX2_M64: #define __amd64__ 1
-// CHECK_CORE_AVX2_M64: #define __corei7 1
-// CHECK_CORE_AVX2_M64: #define __corei7__ 1
-// CHECK_CORE_AVX2_M64: #define __tune_corei7__ 1
+// CHECK_CORE_AVX2_M64: #define __core_avx2 1
+// CHECK_CORE_AVX2_M64: #define __core_avx2__ 1
+// CHECK_CORE_AVX2_M64: #define __haswell 1
+// CHECK_CORE_AVX2_M64: #define __haswell__ 1
+// CHECK_CORE_AVX2_M64: #define __tune_core_avx2__ 1
+// CHECK_CORE_AVX2_M64: #define __tune_haswell__ 1
 // CHECK_CORE_AVX2_M64: #define __x86_64 1
 // CHECK_CORE_AVX2_M64: #define __x86_64__ 1
 //
@@ -597,12 +615,14 @@
 // CHECK_BROADWELL_M32: #define __SSSE3__ 1
 // CHECK_BROADWELL_M32: #define __XSAVEOPT__ 1
 // CHECK_BROADWELL_M32: #define __XSAVE__ 1
-// CHECK_BROADWELL_M32: #define __corei7 1
-// CHECK_BROADWELL_M32: #define __corei7__ 1
+// CHECK_BROADWELL_M32: #define __core_avx2 1
+// CHECK_BROADWELL_M32: #define __core_avx2__ 1
+// CHECK_BROADWELL_M32: #define __haswell 1
+// CHECK_BROADWELL_M32: #define __haswell__ 1
 // CHECK_BROADWELL_M32: #define __i386 1
 // CHECK_BROADWELL_M32: #define __i386__ 1
-// CHECK_BROADWELL_M32: #define __tune_corei7__ 1
-// CHECK_BROADWELL_M32: #define i386 1
+// CHECK_BROADWELL_M32: #define __tune_core_avx2__ 1
+// CHECK_BROADWELL_M32: #define __tune_haswell__ 1
 // RUN: %clang -march=broadwell -m64 -E -dM %s -o - 2>&1 \
 // RUN:     -target i386-unknown-linux \
 // RUN:   | FileCheck -match-full-lines %s -check-prefix=CHECK_BROADWELL_M64
@@ -632,9 +652,12 @@
 // CHECK_BROADWELL_M64: #define __XSAVE__ 1
 // CHECK_BROADWELL_M64: #define __amd64 1
 // CHECK_BROADWELL_M64: #define __amd64__ 1
-// CHECK_BROADWELL_M64: #define __corei7 1
-// CHECK_BROADWELL_M64: #define __corei7__ 1
-// CHECK_BROADWELL_M64: #define __tune_corei7__ 1
+// CHECK_BROADWELL_M64: #define __core_avx2 1
+// CHECK_BROADWELL_M64: #define __core_avx2__ 1
+// CHECK_BROADWELL_M64: #define __haswell 1
+// CHECK_BROADWELL_M64: #define __haswell__ 1
+// CHECK_BROADWELL_M64: #define __tune_core_avx2__ 1
+// CHECK_BROADWELL_M64: #define __tune_haswell__ 1
 // CHECK_BROADWELL_M64: #define __x86_64 1
 // CHECK_BROADWELL_M64: #define __x86_64__ 1
 //
@@ -669,7 +692,14 @@
 // CHECK_SKL_M32: #define __XSAVEOPT__ 1
 // CHECK_SKL_M32: #define __XSAVES__ 1
 // CHECK_SKL_M32: #define __XSAVE__ 1
-// CHECK_SKL_M32: #define i386 1
+// CHECK_SKL_M32: #define __core_avx2 1
+// CHECK_SKL_M32: #define __core_avx2__ 1
+// CHECK_SKL_M32: #define __haswell 1
+// CHECK_SKL_M32: #define __haswell__ 1
+// CHECK_SKL_M32: #define __i386 1
+// CHECK_SKL_M32: #define __i386__ 1
+// CHECK_SKL_M32: #define __tune_core_avx2__ 1
+// CHECK_SKL_M32: #define __tune_haswell__ 1
 
 // RUN: %clang -march=skylake -m64 -E -dM %s -o - 2>&1 \
 // RUN:     -target i386-unknown-linux \
@@ -706,6 +736,12 @@
 // CHECK_SKL_M64: #define __XSAVE__ 1
 // CHECK_SKL_M64: #define __amd64 1
 // CHECK_SKL_M64: #define __amd64__ 1
+// CHECK_SKL_M64: #define __core_avx2 1
+// CHECK_SKL_M64: #define __core_avx2__ 1
+// CHECK_SKL_M64: #define __haswell 1
+// CHECK_SKL_M64: #define __haswell__ 1
+// CHECK_SKL_M64: #define __tune_core_avx2__ 1
+// CHECK_SKL_M64: #define __tune_haswell__ 1
 // CHECK_SKL_M64: #define __x86_64 1
 // CHECK_SKL_M64: #define __x86_64__ 1
 
@@ -823,7 +859,10 @@
 // CHECK_SKX_M32: #define __i386__ 1
 // CHECK_SKX_M32: #define __skx 1
 // CHECK_SKX_M32: #define __skx__ 1
+// CHECK_SKX_M32: #define __skylake_avx512 1
+// CHECK_SKX_M32: #define __skylake_avx512__ 1
 // CHECK_SKX_M32: #define __tune_skx__ 1
+// CHECK_SKX_M32: #define __tune_skylake_avx512__ 1
 // CHECK_SKX_M32: #define i386 1
 
 // RUN: %clang -march=skylake-avx512 -m64 -E -dM %s -o - 2>&1 \
@@ -867,7 +906,10 @@
 // CHECK_SKX_M64: #define __amd64__ 1
 // CHECK_SKX_M64: #define __skx 1
 // CHECK_SKX_M64: #define __skx__ 1
+// CHECK_SKX_M64: #define __skylake_avx512 1
+// CHECK_SKX_M64: #define __skylake_avx512__ 1
 // CHECK_SKX_M64: #define __tune_skx__ 1
+// CHECK_SKX_M64: #define __tune_skylake_avx512__ 1
 // CHECK_SKX_M64: #define __x86_64 1
 // CHECK_SKX_M64: #define __x86_64__ 1
 //
@@ -908,8 +950,14 @@
 // CHECK_CNL_M32: #define __XSAVEOPT__ 1
 // CHECK_CNL_M32: #define __XSAVES__ 1
 // CHECK_CNL_M32: #define __XSAVE__ 1
+// CHECK_CNL_M32: #define __core_avx2 1
+// CHECK_CNL_M32: #define __core_avx2__ 1
+// CHECK_CNL_M32: #define __haswell 1
+// CHECK_CNL_M32: #define __haswell__ 1
 // CHECK_CNL_M32: #define __i386 1
 // CHECK_CNL_M32: #define __i386__ 1
+// CHECK_CNL_M32: #define __tune_core_avx2__ 1
+// CHECK_CNL_M32: #define __tune_haswell__ 1
 // CHECK_CNL_M32: #define i386 1
 //
 // RUN: %clang -march=cannonlake -m64 -E -dM %s -o - 2>&1 \
@@ -951,6 +999,12 @@
 // CHECK_CNL_M64: #define __XSAVE__ 1
 // CHECK_CNL_M64: #define __amd64 1
 // CHECK_CNL_M64: #define __amd64__ 1
+// CHECK_CNL_M64: #define __core_avx2 1
+// CHECK_CNL_M64: #define __core_avx2__ 1
+// CHECK_CNL_M64: #define __haswell 1
+// CHECK_CNL_M64: #define __haswell__ 1
+// CHECK_CNL_M64: #define __tune_core_avx2__ 1
+// CHECK_CNL_M64: #define __tune_haswell__ 1
 // CHECK_CNL_M64: #define __x86_64 1
 // CHECK_CNL_M64: #define __x86_64__ 1
 
@@ -1011,20 +1065,12 @@
 // CHECK_GLM_M32: #define __XSAVEOPT__ 1
 // CHECK_GLM_M32: #define __XSAVES__ 1
 // CHECK_GLM_M32: #define __XSAVE__ 1
-// CHECK_GLM_M32: #define __clang__ 1
 // CHECK_GLM_M32: #define __goldmont 1
 // CHECK_GLM_M32: #define __goldmont__ 1
 // CHECK_GLM_M32: #define __i386 1
 // CHECK_GLM_M32: #define __i386__ 1
-// CHECK_GLM_M32: #define __linux 1
-// CHECK_GLM_M32: #define __linux__ 1
-// CHECK_GLM_M32: #define __llvm__ 1
 // CHECK_GLM_M32: #define __tune_goldmont__ 1
-// CHECK_GLM_M32: #define __unix 1
-// CHECK_GLM_M32: #define __unix__ 1
 // CHECK_GLM_M32: #define i386 1
-// CHECK_GLM_M32: #define linux 1
-// CHECK_GLM_M32: #define unix 1
 //
 // RUN: %clang -march=goldmont -m64 -E -dM %s -o - 2>&1 \
 // RUN:     -target i386-unknown-linux \
@@ -1049,19 +1095,11 @@
 // CHECK_GLM_M64: #define __XSAVEOPT__ 1
 // CHECK_GLM_M64: #define __XSAVES__ 1
 // CHECK_GLM_M64: #define __XSAVE__ 1
-// CHECK_GLM_M64: #define __gnu_linux__ 1
 // CHECK_GLM_M64: #define __goldmont 1
 // CHECK_GLM_M64: #define __goldmont__ 1
-// CHECK_GLM_M64: #define __linux 1
-// CHECK_GLM_M64: #define __linux__ 1
-// CHECK_GLM_M64: #define __llvm__ 1
 // CHECK_GLM_M64: #define __tune_goldmont__ 1
-// CHECK_GLM_M64: #define __unix 1
-// CHECK_GLM_M64: #define __unix__ 1
 // CHECK_GLM_M64: #define __x86_64 1
 // CHECK_GLM_M64: #define __x86_64__ 1
-// CHECK_GLM_M64: #define linux 1
-// CHECK_GLM_M64: #define unix 1
 //
 // RUN: %clang -march=slm -m32 -E -dM %s -o - 2>&1 \
 // RUN:     -target i386-unknown-linux \

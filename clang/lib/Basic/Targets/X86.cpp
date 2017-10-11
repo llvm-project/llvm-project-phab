@@ -829,26 +829,31 @@ void X86TargetInfo::getTargetDefines(const LangOptions &Opts,
     break;
   case CK_Silvermont:
     defineCPUMacros(Builder, "slm");
+    defineCPUMacros(Builder, "silvermont");
     break;
   case CK_Goldmont:
     defineCPUMacros(Builder, "goldmont");
     break;
   case CK_Nehalem:
   case CK_Westmere:
+    defineCPUMacros(Builder, "corei7");
+    defineCPUMacros(Builder, "nehalem");
+    break;
   case CK_SandyBridge:
   case CK_IvyBridge:
+    defineCPUMacros(Builder, "corei7_avx");
+    defineCPUMacros(Builder, "sandybridge");
+    break;
   case CK_Haswell:
   case CK_Broadwell:
   case CK_SkylakeClient:
-    // FIXME: Historically, we defined this legacy name, it would be nice to
-    // remove it at some point. We've never exposed fine-grained names for
-    // recent primary x86 CPUs, and we should keep it that way.
-    defineCPUMacros(Builder, "corei7");
+  case CK_Cannonlake:
+    defineCPUMacros(Builder, "core_avx2");
+    defineCPUMacros(Builder, "haswell");
     break;
   case CK_SkylakeServer:
-    defineCPUMacros(Builder, "skx");
-    break;
-  case CK_Cannonlake:
+    defineCPUMacros(Builder, "skylake_avx512");
+    defineCPUMacros(Builder, "skx"); // FIXME: gcc doesn't define this
     break;
   case CK_KNL:
     defineCPUMacros(Builder, "knl");
