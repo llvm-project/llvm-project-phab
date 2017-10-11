@@ -1984,9 +1984,7 @@ bool MipsAsmParser::processInstruction(MCInst &Inst, SMLoc IDLoc,
   case Mips::DDIV:
   case Mips::DDIVU:
   case Mips::DIVU_MMR6:
-  case Mips::DDIVU_MM64R6:
   case Mips::DIV_MMR6:
-  case Mips::DDIV_MM64R6:
     if (Inst.getOperand(SecondOp).getReg() == Mips::ZERO ||
         Inst.getOperand(SecondOp).getReg() == Mips::ZERO_64) {
       if (Inst.getOperand(FirstOp).getReg() == Mips::ZERO ||
@@ -4893,8 +4891,6 @@ MipsAsmParser::checkEarlyTargetMatchPredicate(MCInst &Inst,
     return Match_Success;
   case Mips::DATI:
   case Mips::DAHI:
-  case Mips::DATI_MM64R6:
-  case Mips::DAHI_MM64R6:
     if (static_cast<MipsOperand &>(*Operands[1])
             .isValidForTie(static_cast<MipsOperand &>(*Operands[2])))
       return Match_Success;
@@ -4907,7 +4903,6 @@ unsigned MipsAsmParser::checkTargetMatchPredicate(MCInst &Inst) {
   // As described by the MIPSR6 spec, daui must not use the zero operand for
   // its source operand.
   case Mips::DAUI:
-  case Mips::DAUI_MM64R6:
     if (Inst.getOperand(1).getReg() == Mips::ZERO ||
         Inst.getOperand(1).getReg() == Mips::ZERO_64)
       return Match_RequiresNoZeroRegister;
@@ -4980,8 +4975,7 @@ unsigned MipsAsmParser::checkTargetMatchPredicate(MCInst &Inst) {
     if (Inst.getOperand(0).getReg() == Inst.getOperand(1).getReg())
       return Match_RequiresDifferentOperands;
     return Match_Success;
-  case Mips::DINS:
-  case Mips::DINS_MM64R6: {
+  case Mips::DINS: {
     assert(Inst.getOperand(2).isImm() && Inst.getOperand(3).isImm() &&
            "Operands must be immediates for dins!");
     const signed Pos = Inst.getOperand(2).getImm();
@@ -4991,9 +4985,7 @@ unsigned MipsAsmParser::checkTargetMatchPredicate(MCInst &Inst) {
     return Match_Success;
   }
   case Mips::DINSM:
-  case Mips::DINSM_MM64R6:
-  case Mips::DINSU:
-  case Mips::DINSU_MM64R6: {
+  case Mips::DINSU: {
     assert(Inst.getOperand(2).isImm() && Inst.getOperand(3).isImm() &&
            "Operands must be immediates for dinsm/dinsu!");
     const signed Pos = Inst.getOperand(2).getImm();
@@ -5002,8 +4994,7 @@ unsigned MipsAsmParser::checkTargetMatchPredicate(MCInst &Inst) {
       return Match_RequiresPosSizeRange33_64;
     return Match_Success;
   }
-  case Mips::DEXT:
-  case Mips::DEXT_MM64R6: {
+  case Mips::DEXT: {
     assert(Inst.getOperand(2).isImm() && Inst.getOperand(3).isImm() &&
            "Operands must be immediates for DEXTM!");
     const signed Pos = Inst.getOperand(2).getImm();
@@ -5013,9 +5004,7 @@ unsigned MipsAsmParser::checkTargetMatchPredicate(MCInst &Inst) {
     return Match_Success;
   }
   case Mips::DEXTM:
-  case Mips::DEXTU:
-  case Mips::DEXTM_MM64R6:
-  case Mips::DEXTU_MM64R6: {
+  case Mips::DEXTU: {
     assert(Inst.getOperand(2).isImm() && Inst.getOperand(3).isImm() &&
            "Operands must be immediates for dextm/dextu!");
     const signed Pos = Inst.getOperand(2).getImm();
