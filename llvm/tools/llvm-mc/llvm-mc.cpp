@@ -192,6 +192,8 @@ static const Target *GetTarget(const char *ProgName) {
     return nullptr;
   }
 
+  TheTriple = TheTriple.getABIVariant(ABIName);
+
   // Update the triple name and return the found target.
   TripleName = TheTriple.getTriple();
   return TheTarget;

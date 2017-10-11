@@ -744,6 +744,11 @@ public:
   /// string then the triple's arch name is used.
   StringRef getARMCPUForArch(StringRef Arch = StringRef()) const;
 
+  /// Form a triple variant with provided ABI.
+  ///
+  /// \param ABIName the name of ABI (e.g., "o32", "n32" etc).
+  llvm::Triple getABIVariant(StringRef ABIName) const;
+
   /// Tests whether the target triple is little endian.
   ///
   /// \returns true if the triple is little endian, false otherwise.

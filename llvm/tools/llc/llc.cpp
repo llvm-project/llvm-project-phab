@@ -429,6 +429,8 @@ static int compileModule(char **argv, LLVMContext &Context) {
     return 1;
   }
 
+  TheTriple = TheTriple.getABIVariant(ABIName);
+
   std::string CPUStr = getCPUStr(), FeaturesStr = getFeaturesStr();
 
   CodeGenOpt::Level OLvl = CodeGenOpt::Default;

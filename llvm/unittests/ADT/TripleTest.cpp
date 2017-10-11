@@ -1220,4 +1220,55 @@ TEST(TripleTest, ParseMipsABI) {
   EXPECT_EQ(Triple::GNU, T.getEnvironment());
   EXPECT_EQ(Triple::N64, T.getMipsABI());
 }
+
+TEST(TripleTest, ABIVariant) {
+  Triple T = Triple("mips-img-linux").getABIVariant("");;
+  EXPECT_EQ(Triple::mips, T.getArch());
+  EXPECT_EQ(Triple::ImaginationTechnologies, T.getVendor());
+  EXPECT_EQ(Triple::Linux, T.getOS());
+  EXPECT_EQ(Triple::UnknownEnvironment, T.getEnvironment());
+  EXPECT_EQ(Triple::O32, T.getMipsABI());
+
+  T = Triple("mips-img-linux").getABIVariant("o32");
+  EXPECT_EQ(Triple::mips, T.getArch());
+  EXPECT_EQ(Triple::ImaginationTechnologies, T.getVendor());
+  EXPECT_EQ(Triple::Linux, T.getOS());
+  EXPECT_EQ(Triple::UnknownEnvironment, T.getEnvironment());
+  EXPECT_EQ(Triple::O32, T.getMipsABI());
+
+  T = Triple("mips-img-linux").getABIVariant("n32");
+  EXPECT_EQ(Triple::mips64, T.getArch());
+  EXPECT_EQ(Triple::ImaginationTechnologies, T.getVendor());
+  EXPECT_EQ(Triple::Linux, T.getOS());
+  EXPECT_EQ(Triple::UnknownEnvironment, T.getEnvironment());
+  EXPECT_EQ(Triple::N32, T.getMipsABI());
+
+  T = Triple("mips-img-linux").getABIVariant("n64");
+  EXPECT_EQ(Triple::mips64, T.getArch());
+  EXPECT_EQ(Triple::ImaginationTechnologies, T.getVendor());
+  EXPECT_EQ(Triple::Linux, T.getOS());
+  EXPECT_EQ(Triple::UnknownEnvironment, T.getEnvironment());
+  EXPECT_EQ(Triple::N64, T.getMipsABI());
+
+  T = Triple("mips64-img-linux").getABIVariant("o32");
+  EXPECT_EQ(Triple::mips, T.getArch());
+  EXPECT_EQ(Triple::ImaginationTechnologies, T.getVendor());
+  EXPECT_EQ(Triple::Linux, T.getOS());
+  EXPECT_EQ(Triple::UnknownEnvironment, T.getEnvironment());
+  EXPECT_EQ(Triple::O32, T.getMipsABI());
+
+  T = Triple("mips64-img-linux-gnuabin32").getABIVariant("o32");
+  EXPECT_EQ(Triple::mips, T.getArch());
+  EXPECT_EQ(Triple::ImaginationTechnologies, T.getVendor());
+  EXPECT_EQ(Triple::Linux, T.getOS());
+  EXPECT_EQ(Triple::GNU, T.getEnvironment());
+  EXPECT_EQ(Triple::O32, T.getMipsABI());
+
+  T = Triple("mips64-img-linux-gnuabin32").getABIVariant("n64");
+  EXPECT_EQ(Triple::mips64, T.getArch());
+  EXPECT_EQ(Triple::ImaginationTechnologies, T.getVendor());
+  EXPECT_EQ(Triple::Linux, T.getOS());
+  EXPECT_EQ(Triple::GNU, T.getEnvironment());
+  EXPECT_EQ(Triple::N64, T.getMipsABI());
+}
 } // end anonymous namespace

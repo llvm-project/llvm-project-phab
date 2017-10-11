@@ -1601,6 +1601,37 @@ StringRef Triple::getARMCPUForArch(StringRef MArch) const {
   llvm_unreachable("invalid arch name");
 }
 
+llvm::Triple Triple::getABIVariant(StringRef ABIName) const {
+  if (ABIName.empty())
+    return *this;
+
+  switch (getArch()) {
+  default:
+    return *this;
+  case mips:
+  case mipsel:
+  case mips64:
+  case mips64el: {
+    Triple T;
+    StringRef EnvironmentTypeName = getEnvironmentTypeName(getEnvironment());
+    if (ABIName == "o32") {
+      T = get32BitArchVariant();
+      T.setEnvironmentName(EnvironmentTypeName);
+    } else if (ABIName == "n32") {
+      T = get64BitArchVariant();
+      T.setEnvironmentName((EnvironmentTypeName + "abin32").str());
+    } else if (ABIName == "n64") {
+      T = get64BitArchVariant();
+      T.setEnvironmentName((EnvironmentTypeName + "abi64").str());
+    } else {
+      T = *this;
+      T.setEnvironment(UnknownEnvironment);
+    }
+    return T;
+  }
+  }
+}
+
 Triple::MipsABI Triple::getMipsABI() const {
   if (getEnvironmentName().endswith("abin32"))
     return N32;
