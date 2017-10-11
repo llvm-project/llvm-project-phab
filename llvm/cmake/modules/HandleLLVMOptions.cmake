@@ -11,10 +11,17 @@ include(HandleLLVMStdlib)
 include(CheckCCompilerFlag)
 include(CheckCXXCompilerFlag)
 
-if(CMAKE_LINKER MATCHES "lld-link.exe" OR (WIN32 AND LLVM_USE_LINKER STREQUAL "lld"))
+get_filename_component(LINKER_FILENAME "${CMAKE_LINKER}" NAME)
+
+if(LINKER_FILENAME STREQUAL "lld-link.exe" OR (WIN32 AND LLVM_USE_LINKER STREQUAL "lld"))
   set(LINKER_IS_LLD_LINK TRUE)
 else()
   set(LINKER_IS_LLD_LINK FALSE)
+endif()
+if(LINKER_FILENAME STREQUAL "link.exe" OR (WIN32 AND LLVM_USE_LINKER STREQUAL "link"))
+  set(LINKER_IS_MSVC_LINK TRUE)
+else()
+  set(LINKER_IS_MSVC_LINK FALSE)
 endif()
 
 set(LLVM_ENABLE_LTO OFF CACHE STRING "Build LLVM with LTO. May be specified as Thin or Full to use a particular kind of LTO")
@@ -760,10 +767,45 @@ append_if(LLVM_BUILD_INSTRUMENTED_COVERAGE "-fprofile-instr-generate='${LLVM_PRO
   CMAKE_EXE_LINKER_FLAGS
   CMAKE_SHARED_LINKER_FLAGS)
 
-if(LLVM_ENABLE_LTO AND LLVM_ON_WIN32 AND NOT LINKER_IS_LLD_LINK)
-  message(FATAL_ERROR "When compiling for Windows, LLVM_ENABLE_LTO requires using lld as the linker (point CMAKE_LINKER at lld-link.exe)")
-endif()
-if(uppercase_LLVM_ENABLE_LTO STREQUAL "THIN")
+function(decide_lto_style style)
+  set(${style} NONE PARENT_SCOPE)
+
+  if (uppercase_LLVM_ENABLE_LTO STREQUAL "OFF")
+    return()
+  endif()
+
+  if (LLVM_ON_WIN32)
+    # Compiler/linker must be clang-cl+lld-link, or cl+link
+    if (CLANG_CL AND LINKER_IS_LLD_LINK)
+      # If we have clang-cl + lld-link, we can use Thin or Full
+      set(${style} ${LLVM_ENABLE_LTO} PARENT_SCOPE)
+      return()
+    endif()
+
+    if(MSVC AND LINKER_IS_MSVC_LINK)
+      # If we have cl + link, we can use only Full.  Thin is unsupported.
+      if (uppercase_LLVM_ENABLE_LTO STREQUAL "THIN")
+        message(FATAL_ERROR
+                "LLVM_ENABLE_LTO=Thin on Windows requires both clang-cl and lld."
+                "Point CMAKE_LINKER at lld-link.exe and CMAKE_C(XX)_COMPILER at clang-cl.exe")
+      elseif(uppercase_LLVM_ENABLE_LTO STREQUAL "FULL" OR uppercase_LLVM_ENABLE_LTO STREQUAL "ON")
+        set(${style} MSVC PARENT_SCOPE)
+      endif()
+      return()
+    endif()
+
+    message(FATAL_ERROR "LTO on Windows requires either clang-cl+lld-link, or cl+link.")
+    return()
+  else()
+    # On non-Windows, just pass the option through.
+    set(${style} ${LLVM_ENABLE_LTO} PARENT_SCOPE)
+  endif()
+endfunction()
+
+
+decide_lto_style(LTO_STYLE)
+
+if(LTO_STYLE STREQUAL "THIN")
   append("-flto=thin" CMAKE_CXX_FLAGS CMAKE_C_FLAGS)
   if(NOT LINKER_IS_LLD_LINK)
     append("-flto=thin" CMAKE_EXE_LINKER_FLAGS CMAKE_SHARED_LINKER_FLAGS)
@@ -774,20 +816,23 @@ if(uppercase_LLVM_ENABLE_LTO STREQUAL "THIN")
   # FIXME: We should move all this logic into the clang driver.
   if(APPLE)
     append("-Wl,-cache_path_lto,${PROJECT_BINARY_DIR}/lto.cache"
-           CMAKE_EXE_LINKER_FLAGS CMAKE_SHARED_LINKER_FLAGS)
+            CMAKE_EXE_LINKER_FLAGS CMAKE_SHARED_LINKER_FLAGS)
   elseif(UNIX AND LLVM_USE_LINKER STREQUAL "lld")
     append("-Wl,--thinlto-cache-dir=${PROJECT_BINARY_DIR}/lto.cache"
-           CMAKE_EXE_LINKER_FLAGS CMAKE_SHARED_LINKER_FLAGS)
+            CMAKE_EXE_LINKER_FLAGS CMAKE_SHARED_LINKER_FLAGS)
   elseif(LLVM_USE_LINKER STREQUAL "gold")
     append("-Wl,--plugin-opt,cache-dir=${PROJECT_BINARY_DIR}/lto.cache"
-           CMAKE_EXE_LINKER_FLAGS CMAKE_SHARED_LINKER_FLAGS)
+            CMAKE_EXE_LINKER_FLAGS CMAKE_SHARED_LINKER_FLAGS)
   endif()
-elseif(uppercase_LLVM_ENABLE_LTO STREQUAL "FULL")
+elseif(LTO_STYLE STREQUAL "FULL")
   append("-flto=full" CMAKE_CXX_FLAGS CMAKE_C_FLAGS)
   if(NOT LINKER_IS_LLD_LINK)
     append("-flto=full" CMAKE_EXE_LINKER_FLAGS CMAKE_SHARED_LINKER_FLAGS)
   endif()
-elseif(LLVM_ENABLE_LTO)
+elseif(LTO_STYLE STREQUAL "MSVC")
+  append("/GL" CMAKE_CXX_FLAGS CMAKE_C_FLAGS)
+  append("/LTCG" CMAKE_EXE_LINKER_FLAGS CMAKE_SHARED_LINKER_FLAGS CMAKE_STATIC_LINKER_FLAGS)
+elseif(LTO_STYLE)
   append("-flto" CMAKE_CXX_FLAGS CMAKE_C_FLAGS)
   if(NOT LINKER_IS_LLD_LINK)
     append("-flto" CMAKE_EXE_LINKER_FLAGS CMAKE_SHARED_LINKER_FLAGS)
