@@ -843,6 +843,8 @@ static void scanRelocs(InputSectionBase &Sec, ArrayRef<RelTy> Rels) {
     SymbolBody &Body = Sec.getFile<ELFT>()->getRelocTargetSym(Rel);
     uint32_t Type = Rel.getType(Config->IsMips64EL);
 
+    Body.IsUsedInReloc = true;
+
     if (Config->MipsN32Abi) {
       uint32_t Processed;
       std::tie(Type, Processed) =

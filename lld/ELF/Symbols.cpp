@@ -123,8 +123,8 @@ SymbolBody::SymbolBody(Kind K, StringRefZ Name, bool IsLocal, uint8_t StOther,
                        uint8_t Type)
     : SymbolKind(K), NeedsPltAddr(false), IsLocal(IsLocal),
       IsInGlobalMipsGot(false), Is32BitMipsGot(false), IsInIplt(false),
-      IsInIgot(false), IsPreemptible(false), Type(Type), StOther(StOther),
-      Name(Name) {}
+      IsInIgot(false), IsPreemptible(false), IsUsedInReloc(false), Type(Type),
+      StOther(StOther), Name(Name) {}
 
 bool SymbolBody::isUndefWeak() const {
   if (isLocal())

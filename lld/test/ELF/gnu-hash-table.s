@@ -1,7 +1,6 @@
 # REQUIRES: x86,ppc
 
-# RUN: echo ".globl foo" > %te.s
-# RUN: llvm-mc -filetype=obj -triple=i386-pc-linux      %te.s -o %te-i386.o
+# RUN: llvm-mc -filetype=obj -triple=i386-pc-linux %S/Inputs/gnu-hash-table.s -o %te-i386.o
 # RUN: llvm-mc -filetype=obj -triple=i386-pc-linux      %s    -o %t-i386.o
 # RUN: llvm-mc -filetype=obj -triple=x86_64-pc-linux    %s    -o %t-x86_64.o
 # RUN: llvm-mc -filetype=obj -triple=powerpc64-pc-linux %s    -o %t-ppc64.o
@@ -193,3 +192,5 @@
 .globl foo,bar,baz
 foo:
 bar:
+.data
+	.dc.a	baz

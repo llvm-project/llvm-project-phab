@@ -1,7 +1,6 @@
 ; REQUIRES: x86
 ; RUN: llvm-as %s -o %t.o
-; RUN: echo .global __progname > %t2.s
-; RUN: llvm-mc -filetype=obj -triple=x86_64-unknown-linux %t2.s -o %t2.o
+; RUN: llvm-mc -filetype=obj -triple=x86_64-unknown-linux %S/Inputs/shlib-undefined.s -o %t2.o
 ; RUN: ld.lld -shared %t2.o -o %t2.so
 ; RUN: ld.lld -o %t %t.o %t2.so
 ; RUN: llvm-readobj -dyn-symbols %t | FileCheck %s
