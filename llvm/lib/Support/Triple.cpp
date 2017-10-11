@@ -217,8 +217,6 @@ StringRef Triple::getEnvironmentTypeName(EnvironmentType Kind) {
   switch (Kind) {
   case UnknownEnvironment: return "unknown";
   case GNU: return "gnu";
-  case GNUABIN32: return "gnuabin32";
-  case GNUABI64: return "gnuabi64";
   case GNUEABIHF: return "gnueabihf";
   case GNUEABI: return "gnueabi";
   case GNUX32: return "gnux32";
@@ -508,8 +506,6 @@ static Triple::EnvironmentType parseEnvironment(StringRef EnvironmentName) {
   return StringSwitch<Triple::EnvironmentType>(EnvironmentName)
     .StartsWith("eabihf", Triple::EABIHF)
     .StartsWith("eabi", Triple::EABI)
-    .StartsWith("gnuabin32", Triple::GNUABIN32)
-    .StartsWith("gnuabi64", Triple::GNUABI64)
     .StartsWith("gnueabihf", Triple::GNUEABIHF)
     .StartsWith("gnueabi", Triple::GNUEABI)
     .StartsWith("gnux32", Triple::GNUX32)
@@ -1603,4 +1599,21 @@ StringRef Triple::getARMCPUForArch(StringRef MArch) const {
   }
 
   llvm_unreachable("invalid arch name");
+}
+
+Triple::MipsABI Triple::getMipsABI() const {
+  if (getEnvironmentName().endswith("abin32"))
+    return N32;
+  if (getEnvironmentName().endswith("abi64"))
+    return N64;
+  switch (getArch()) {
+  case mips:
+  case mipsel:
+    return O32;
+  case mips64:
+  case mips64el:
+    return N64;
+  default:
+    llvm_unreachable("non-MIPS arch name");
+  }
 }

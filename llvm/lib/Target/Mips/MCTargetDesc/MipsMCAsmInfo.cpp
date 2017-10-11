@@ -53,16 +53,7 @@ MipsMCAsmInfo::MipsMCAsmInfo(const Triple &TheTriple) {
   DwarfRegNumForCFI = true;
   HasMipsExpressions = true;
 
-  // Enable IAS by default for O32.
-  if (TheTriple.getArch() == Triple::mips ||
-      TheTriple.getArch() == Triple::mipsel)
-    UseIntegratedAssembler = true;
-
-  // Enable IAS by default for Debian mips64/mips64el.
-  if (TheTriple.getEnvironment() == Triple::GNUABI64)
-    UseIntegratedAssembler = true;
-
-  // Enable IAS by default for Android mips64el that uses N64 ABI.
-  if (TheTriple.getArch() == Triple::mips64el && TheTriple.isAndroid())
-    UseIntegratedAssembler = true;
+  // Enable IAS by default for O32 and N64 ABI.
+  UseIntegratedAssembler = TheTriple.getMipsABI() == Triple::O32 ||
+                           TheTriple.getMipsABI() == Triple::N64;
 }

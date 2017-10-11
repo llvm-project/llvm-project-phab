@@ -186,8 +186,6 @@ public:
     UnknownEnvironment,
 
     GNU,
-    GNUABIN32,
-    GNUABI64,
     GNUEABI,
     GNUEABIHF,
     GNUX32,
@@ -214,6 +212,11 @@ public:
     ELF,
     MachO,
     Wasm,
+  };
+  enum MipsABI {
+    O32,
+    N32,
+    N64,
   };
 
 private:
@@ -345,6 +348,9 @@ public:
   /// should only be called with WatchOS or generic triples.
   void getWatchOSVersion(unsigned &Major, unsigned &Minor,
                          unsigned &Micro) const;
+
+  /// getMipsABI - Parse environment component to retrieve MIPS ABI name.
+  MipsABI getMipsABI() const;
 
   /// @}
   /// @name Direct Component Access
@@ -498,8 +504,7 @@ public:
 
   bool isGNUEnvironment() const {
     EnvironmentType Env = getEnvironment();
-    return Env == Triple::GNU || Env == Triple::GNUABIN32 ||
-           Env == Triple::GNUABI64 || Env == Triple::GNUEABI ||
+    return Env == Triple::GNU || Env == Triple::GNUEABI ||
            Env == Triple::GNUEABIHF || Env == Triple::GNUX32;
   }
 
