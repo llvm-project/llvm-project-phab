@@ -6746,7 +6746,8 @@ NamedDecl *Sema::ActOnVariableDeclarator(
       case SC_Register:
         // Local Named register
         if (!Context.getTargetInfo().isValidGCCRegisterName(Label) &&
-            DeclAttrsMatchCUDAMode(getLangOpts(), getCurFunctionDecl()))
+            DeclAttrsMatchOffloadMode(getLangOpts(), getCurFunctionDecl(),
+                                      IsInOpenMPDeclareTargetContext))
           Diag(E->getExprLoc(), diag::err_asm_unknown_register_name) << Label;
         break;
       case SC_Static:
@@ -6756,7 +6757,8 @@ NamedDecl *Sema::ActOnVariableDeclarator(
       }
     } else if (SC == SC_Register) {
       // Global Named register
-      if (DeclAttrsMatchCUDAMode(getLangOpts(), NewVD)) {
+      if (DeclAttrsMatchOffloadMode(getLangOpts(), NewVD,
+                                    IsInOpenMPDeclareTargetContext)) {
         const auto &TI = Context.getTargetInfo();
         bool HasSizeMismatch;
 
@@ -12655,6 +12657,11 @@ Decl *Sema::ActOnFinishFunctionBody(Decl *dcl, Stmt *Body,
   if (getDiagnostics().hasErrorOccurred()) {
     DiscardCleanupsInEvaluationContext();
   }
+
+  // In case of OpenMPImplicitDeclareTarget, semantically parsed function body
+  // is visited to mark inner callexpr with OMPDeclareTargetDeclAttr attribute.
+  if (getLangOpts().OpenMP && getLangOpts().OpenMPImplicitDeclareTarget)
+    checkDeclImplicitlyUsedOpenMPTargetContext(dcl);
 
   return dcl;
 }

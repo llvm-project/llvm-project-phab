@@ -8658,6 +8658,9 @@ public:
   bool isInOpenMPDeclareTargetContext() const {
     return IsInOpenMPDeclareTargetContext;
   }
+  /// Check and mark declarations that are implicitly used inside OpenMP target
+  /// regions.
+  void checkDeclImplicitlyUsedOpenMPTargetContext(Decl *D);
 
   /// Return the number of captured regions created for an OpenMP directive.
   static int getOpenMPCaptureLevels(OpenMPDirectiveKind Kind);
