@@ -3221,28 +3221,34 @@ bool Sema::MergeFunctionDecl(FunctionDecl *New, NamedDecl *&OldD,
           return true;
         }
 
-        // C++ [class.mem]p1:
-        //   [...] A member shall not be declared twice in the
-        //   member-specification, except that a nested class or member
-        //   class template can be declared and then later defined.
-        if (!inTemplateInstantiation()) {
-          unsigned NewDiag;
-          if (isa<CXXConstructorDecl>(OldMethod))
-            NewDiag = diag::err_constructor_redeclared;
-          else if (isa<CXXDestructorDecl>(NewMethod))
-            NewDiag = diag::err_destructor_redeclared;
-          else if (isa<CXXConversionDecl>(NewMethod))
-            NewDiag = diag::err_conv_function_redeclared;
-          else
-            NewDiag = diag::err_member_redeclared;
+        if (New->getMultiVersionKind() !=
+            FunctionDecl::MultiVersionKind::MultiVersion) {
+          // Multiversioning allows multiple decls.
 
-          Diag(New->getLocation(), NewDiag);
-        } else {
-          Diag(New->getLocation(), diag::err_member_redeclared_in_instantiation)
-            << New << New->getType();
+          // C++ [class.mem]p1:
+          //   [...] A member shall not be declared twice in the
+          //   member-specification, except that a nested class or member
+          //   class template can be declared and then later defined.
+          if (!inTemplateInstantiation()) {
+            unsigned NewDiag;
+            if (isa<CXXConstructorDecl>(OldMethod))
+              NewDiag = diag::err_constructor_redeclared;
+            else if (isa<CXXDestructorDecl>(NewMethod))
+              NewDiag = diag::err_destructor_redeclared;
+            else if (isa<CXXConversionDecl>(NewMethod))
+              NewDiag = diag::err_conv_function_redeclared;
+            else
+              NewDiag = diag::err_member_redeclared;
+
+            Diag(New->getLocation(), NewDiag);
+          } else {
+            Diag(New->getLocation(),
+                 diag::err_member_redeclared_in_instantiation)
+                << New << New->getType();
+          }
+          Diag(OldLocation, PrevDiag) << Old << Old->getType();
+          return true;
         }
-        Diag(OldLocation, PrevDiag) << Old << Old->getType();
-        return true;
 
       // Complain if this is an explicit declaration of a special
       // member that was initially declared implicitly.
@@ -9224,6 +9230,173 @@ bool Sema::shouldLinkDependentDeclWithPrevious(Decl *D, Decl *PrevDecl) {
            D->getFriendObjectKind() != Decl::FOK_None);
 }
 
+static void setMultiVersionKind(FunctionDecl *OldFD, FunctionDecl *NewFD,
+                                FunctionDecl::MultiVersionKind Kind) {
+  for (FunctionDecl *F : OldFD->redecls())
+    F->setMultiVersionKind(Kind);
+  NewFD->setMultiVersionKind(Kind);
+}
+
+bool Sema::CheckMultiVersionOption(const FunctionDecl *FD) {
+  const auto *TA = FD->getAttr<TargetAttr>();
+
+  if (TA->getFeaturesStr() == "default")
+    return true;
+  TargetAttr::ParsedTargetAttr ParseInfo = TA->parse();
+
+  enum BadOption { BOFeature = 0, BOArch = 1 };
+
+  if (const auto *CMD = dyn_cast<CXXMethodDecl>(FD))
+    if (CMD->isVirtual()) {
+      Diag(CMD->getLocation(), diag::err_multiversion_virtual);
+      return false;
+    }
+
+  // isValidCPU was checked when adding the 'target', so only validating
+  // that the string is valid for the CpuIs check.
+  if (!ParseInfo.Architecture.empty() &&
+      !Context.getTargetInfo().validateMultiversionCpu(
+          ParseInfo.Architecture)) {
+    Diag(TA->getLocation(), diag::err_bad_multiversion_option)
+        << BOArch << ParseInfo.Architecture;
+    return false;
+  }
+
+  for (const auto &Feature : ParseInfo.Features) {
+    auto BareFeat = StringRef{Feature}.substr(1);
+    // Negative options never allowed.
+    if (Feature[0] == '-') {
+      Diag(TA->getLocation(), diag::err_bad_multiversion_option)
+          << BOFeature << ("no-" + BareFeat).str();
+      return false;
+    }
+    if (!Context.getTargetInfo().validateCpuSupports(BareFeat) ||
+        !Context.getTargetInfo().isValidFeatureName(BareFeat)) {
+      Diag(TA->getLocation(), diag::err_bad_multiversion_option)
+          << BOFeature << BareFeat;
+      return false;
+    }
+  }
+  return true;
+}
+
+bool Sema::CheckMultiVersionOptions(const FunctionDecl *OldFD,
+                                    const FunctionDecl *NewFD) {
+  // FIXME: Implement for more than X86.  Requires CPUIs and CPUSupports
+  // for each new architecture.
+  if (!Context.getTargetInfo().supportsFuncMultiversioning()) {
+    Diag(NewFD->getLocation(), diag::err_target_unimplemented_arch);
+    return false;
+  }
+
+  bool Result = true;
+  for (const auto *FD : OldFD->redecls())
+    Result = CheckMultiVersionOption(FD) && Result;
+
+  return CheckMultiVersionOption(NewFD) && Result;
+}
+
+bool Sema::TestAndSetDeclForMultiVersion(FunctionDecl *NewFD,
+                                         FunctionDecl *OldFD) {
+  const auto *TA = NewFD->getAttr<TargetAttr>();
+  // The first Decl is easy, it is either the 'All' case or 'None'.
+  if (!OldFD) {
+    NewFD->setMultiVersionKind(TA ? FunctionDecl::MultiVersionKind::All
+                                  : FunctionDecl::MultiVersionKind::None);
+    return true;
+  }
+
+  switch (OldFD->getMultiVersionKind()) {
+  case FunctionDecl::MultiVersionKind::Error:
+    // An error case stays an error, mark the new Decl as well.
+    NewFD->setMultiVersionKind(FunctionDecl::MultiVersionKind::Error);
+    return false;
+  case FunctionDecl::MultiVersionKind::None:
+    // A previously unmarked function can convert to the "Partial" (hint-only)
+    // case if this one is marked.
+    if (!TA) {
+      // No change to the Previous Decls, set current to correct value.
+      NewFD->setMultiVersionKind(FunctionDecl::MultiVersionKind::None);
+      return true;
+    }
+    setMultiVersionKind(OldFD, NewFD, FunctionDecl::MultiVersionKind::Partial);
+    return true;
+  case FunctionDecl::MultiVersionKind::All:
+    // If all previous Decls have a target attribute, but none are different
+    // this can become a 'partial' if there is no attribute on this Decl, or it
+    // can become a multiversion if this is different.
+    if (!TA) {
+      setMultiVersionKind(OldFD, NewFD,
+                          FunctionDecl::MultiVersionKind::Partial);
+      return true;
+    }
+    // Could potentially convert to a 'MultiVersion' state, check this
+    // case.  Only have to check the last one, since it is the same as the
+    // previous ones.
+    if (TA->parse() != OldFD->getAttr<TargetAttr>()->parse()) {
+      if (!CheckMultiVersionOptions(OldFD, NewFD)) {
+        setMultiVersionKind(OldFD, NewFD,
+                            FunctionDecl::MultiVersionKind::Error);
+        return false;
+      }
+      setMultiVersionKind(OldFD, NewFD,
+                          FunctionDecl::MultiVersionKind::MultiVersion);
+      return true;
+    }
+    // If this doesn't convert it to a multi-version, this is clearly an 'all'
+    // case.
+    NewFD->setMultiVersionKind(FunctionDecl::MultiVersionKind::All);
+    return true;
+  case FunctionDecl::MultiVersionKind::MultiVersion:
+    // If the existing Decls are already in a MultiVersion case, a 'target'
+    // attribute is required on this one. Validate that it is legal on this one.
+    if (!TA) {
+      Diag(NewFD->getLocation(), diag::err_target_required_in_redecl);
+      Diag(OldFD->getFirstDecl()->getLocation(),
+           diag::note_previous_declaration);
+      setMultiVersionKind(OldFD, NewFD, FunctionDecl::MultiVersionKind::Error);
+      return false;
+    } else if (!CheckMultiVersionOption(NewFD)) {
+      setMultiVersionKind(OldFD, NewFD, FunctionDecl::MultiVersionKind::Error);
+      return false;
+    }
+
+    // Otherwise, just continue the multiversion situation.
+    NewFD->setMultiVersionKind(FunctionDecl::MultiVersionKind::MultiVersion);
+    return true;
+  case FunctionDecl::MultiVersionKind::Partial:
+    // A partial not adding a Target attribute is fine, everything stays as
+    // partial.
+    if (!TA) {
+      NewFD->setMultiVersionKind(FunctionDecl::MultiVersionKind::Partial);
+      return true;
+    }
+    // A partial situation is not allowed to convert to a MultiVersion, so
+    // ensure that this target doesn't cause that situation.
+    FunctionDecl *LastFeaturesStr = OldFD;
+    // Note: Null check shouldn't be necessary.
+    while (LastFeaturesStr && !LastFeaturesStr->hasAttr<TargetAttr>())
+      LastFeaturesStr = LastFeaturesStr->getPreviousDecl();
+
+    assert(LastFeaturesStr &&
+           "How can we be 'partial' without an existing target attribute?");
+    if (TA->parse() != LastFeaturesStr->getAttr<TargetAttr>()->parse()) {
+      Diag(NewFD->getLocation(),
+           diag::err_target_causes_illegal_multiversioning);
+      // Note on all previous decls that lack a target attr.
+      for (const auto *Cur : OldFD->redecls())
+        if (!Cur->hasAttr<TargetAttr>() ||
+            Cur->getAttr<TargetAttr>()->isInherited())
+          Diag(Cur->getLocation(), diag::note_previous_declaration);
+      setMultiVersionKind(OldFD, NewFD, FunctionDecl::MultiVersionKind::Error);
+      return false;
+    }
+    NewFD->setMultiVersionKind(FunctionDecl::MultiVersionKind::Partial);
+    return true;
+  }
+  llvm_unreachable("Invalid option for MultiVersionKind");
+}
+
 /// \brief Perform semantic checking of a new function declaration.
 ///
 /// Performs semantic analysis of the new function declaration
@@ -9348,6 +9521,12 @@ bool Sema::CheckFunctionDeclaration(Scope *S, FunctionDecl *NewFD,
       }
     }
   }
+
+  // Attribute target requires all declarations to have the 'target'
+  // attribute.
+  if (!TestAndSetDeclForMultiVersion(NewFD,
+                                     dyn_cast_or_null<FunctionDecl>(OldDecl)))
+    NewFD->setInvalidDecl();
 
   if (Redeclaration) {
     // NewFD and OldDecl represent declarations that need to be
@@ -11997,6 +12176,28 @@ static bool ShouldWarnAboutMissingPrototype(const FunctionDecl *FD,
   return MissingPrototype;
 }
 
+// Check to see if this 'redefinition' should be allowed in order to support
+// attribute 'target' redefinition.
+static bool isValidMultiVersion(FunctionDecl *NewFD,
+                                const FunctionDecl *ExistingFD) {
+  if (NewFD->getMultiVersionKind() !=
+      FunctionDecl::MultiVersionKind::MultiVersion)
+    return false;
+
+  const auto *NewTA = NewFD->getAttr<TargetAttr>();
+  const TargetAttr::ParsedTargetAttr NewTAParsed = NewTA->parse();
+  // Prohibit duplicate definitions.
+  for (const auto *FD : ExistingFD->redecls()) {
+    if (FD->isThisDeclarationADefinition()) {
+      const auto *TA = FD->getAttr<TargetAttr>();
+      if (TA && !TA->isInherited() &&
+          TA->parse() == NewTAParsed)
+        return false;
+    }
+  }
+  return true;
+}
+
 void
 Sema::CheckForFunctionRedefinition(FunctionDecl *FD,
                                    const FunctionDecl *EffectiveDefinition,
@@ -12007,6 +12208,9 @@ Sema::CheckForFunctionRedefinition(FunctionDecl *FD,
       return;
 
   if (canRedefineFunction(Definition, getLangOpts()))
+    return;
+
+  if (isValidMultiVersion(FD, Definition))
     return;
 
   // Don't emit an error when this is redefinition of a typo-corrected

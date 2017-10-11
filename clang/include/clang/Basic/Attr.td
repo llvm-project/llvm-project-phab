@@ -1826,12 +1826,39 @@ def Target : InheritableAttr {
       std::vector<std::string> Features;
       StringRef Architecture;
       bool DuplicateArchitecture = false;
+
+      template <typename Comparer>
+      StringRef getHighestPriority(Comparer &Cmp) const {
+        // Default case.
+        if (Features.empty() && Architecture.empty())
+          return {};
+        StringRef Highest;
+        for (const auto &Feat : Features) {
+          if (Feat[0] == '+' &&
+              (Highest.empty() || Cmp(StringRef{Feat}.substr(1), Highest)))
+            Highest = StringRef{Feat}.substr(1);
+        }
+
+        if (Highest.empty() || Cmp(Architecture, Highest))
+          return Architecture;
+        return Highest;
+      }
+
+      bool operator==(const ParsedTargetAttr &Other) const {
+        return std::tie(Features, Architecture) ==
+               std::tie(Other.Features, Other.Architecture);
+      }
+
+      bool operator!=(const ParsedTargetAttr &Other) const {
+        return !(*this == Other);
+      }
     };
     ParsedTargetAttr parse() const {
       return parse(getFeaturesStr());
     }
     static ParsedTargetAttr parse(StringRef Features) {
       ParsedTargetAttr Ret;
+      if (Features == "default") return Ret;
       SmallVector<StringRef, 1> AttrFeatures;
       Features.split(AttrFeatures, ",");
 
@@ -1861,6 +1888,27 @@ def Target : InheritableAttr {
           Ret.Features.push_back("+" + Feature.str());
       }
       return Ret;
+    }
+    std::string multiVersionMangleAddition() const {
+      // Simply 'default' is empty.
+      if (getFeaturesStr() == "default")
+        return "";
+      SmallString<64> Buffer;
+      llvm::raw_svector_ostream OS(Buffer);
+      ParsedTargetAttr Info = parse();
+
+      // arch= becomes arch_, ',' separator becomes '.'.
+      // Arch goes first, everything else is alphabetical.
+      if (!Info.Architecture.empty())
+        OS << "arch_" << Info.Architecture;
+
+      std::sort(Info.Features.begin(), Info.Features.end());
+      for (auto &&Feat : Info.Features) {
+        if (!Buffer.empty())
+          OS << '_';
+        OS << StringRef{Feat}.substr(1);
+      }
+      return Buffer.str();
     }
   }];
 }

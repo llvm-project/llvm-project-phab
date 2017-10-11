@@ -360,9 +360,21 @@ public:
 
   ArrayRef<TargetInfo::AddlRegName> getGCCAddlRegNames() const override;
 
+  bool supportsFuncMultiversioning()  const  override { return true; }
+  bool validateMultiversionCpu(StringRef Name) const override {
+    // 'amdfam10' is a special case where 'march' supports it, but CpuIs
+    // does not officially (though the Emit function actually does) support
+    // it, it only supports 'amdfam10h'.
+    if (Name == "amdfam10")
+      return true;
+
+    return validateCpuIs(Name);
+  }
   bool validateCpuSupports(StringRef Name) const override;
 
   bool validateCpuIs(StringRef Name) const override;
+
+  bool compareCpusAndFeatures(StringRef LHS, StringRef RHS) const override;
 
   bool validateAsmConstraint(const char *&Name,
                              TargetInfo::ConstraintInfo &info) const override;
