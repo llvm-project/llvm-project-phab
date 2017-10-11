@@ -1275,6 +1275,7 @@ const char *ARMTargetLowering::getTargetNodeName(unsigned Opcode) const {
 
   case ARMISD::VMOVRRD:       return "ARMISD::VMOVRRD";
   case ARMISD::VMOVDRR:       return "ARMISD::VMOVDRR";
+  case ARMISD::VMOVSR:        return "ARMISD::VMOVSR";
 
   case ARMISD::EH_SJLJ_SETJMP: return "ARMISD::EH_SJLJ_SETJMP";
   case ARMISD::EH_SJLJ_LONGJMP: return "ARMISD::EH_SJLJ_LONGJMP";
@@ -4369,9 +4370,10 @@ SDValue ARMTargetLowering::LowerSELECT_CC(SDValue Op, SelectionDAG &DAG) const {
   bool InvalidOnQNaN;
   FPCCToARMCC(CC, CondCode, CondCode2, InvalidOnQNaN);
 
-  // Try to generate VMAXNM/VMINNM on ARMv8.
-  if (Subtarget->hasFPARMv8() && (TrueVal.getValueType() == MVT::f32 ||
-                                  TrueVal.getValueType() == MVT::f64)) {
+  // Try to generate VMAXNM/VMINNM on ARMv8. Except if we compare to a zero.
+  // This ensures we use CMPFPw0 instead of CMPFP in such case.
+  if (Subtarget->hasFPARMv8() && !isFloatingPointZero(RHS) &&
+    (TrueVal.getValueType() == MVT::f32 || TrueVal.getValueType() == MVT::f64)) {
     bool swpCmpOps = false;
     bool swpVselOps = false;
     checkVSELConstraints(CC, CondCode, swpCmpOps, swpVselOps);
@@ -5660,7 +5662,8 @@ static SDValue isNEONModifiedImm(uint64_t SplatBits, uint64_t SplatUndef,
 
 SDValue ARMTargetLowering::LowerConstantFP(SDValue Op, SelectionDAG &DAG,
                                            const ARMSubtarget *ST) const {
-  bool IsDouble = Op.getValueType() == MVT::f64;
+  EVT VT = Op.getValueType();
+  bool IsDouble = (VT == MVT::f64);
   ConstantFPSDNode *CFP = cast<ConstantFPSDNode>(Op);
   const APFloat &FPVal = CFP->getValueAPF();
 
@@ -5676,7 +5679,13 @@ SDValue ARMTargetLowering::LowerConstantFP(SDValue Op, SelectionDAG &DAG,
         std::swap(Lo, Hi);
       return DAG.getNode(ARMISD::VMOVDRR, DL, MVT::f64, Lo, Hi);
     } else {
-      return DAG.getConstant(INTVal, DL, MVT::i32);
+      assert(VT == MVT::f32);
+      // leave the constant if target can address it as an immediate.
+      // Otherwise, use an integer constant that is moved into fp-reg.
+      if (isFPImmLegal(FPVal, VT))
+        return Op;
+      return DAG.getNode(ARMISD::VMOVSR, DL, VT,
+          DAG.getConstant(INTVal, DL, MVT::i32));
     }
   }
 
