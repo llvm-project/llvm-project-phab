@@ -3801,8 +3801,9 @@ static void emitCXXConstructor(CodeGenModule &CGM,
 static void emitCXXDestructor(CodeGenModule &CGM, const CXXDestructorDecl *dtor,
                               StructorType dtorType) {
   // The complete destructor is equivalent to the base destructor for
-  // classes with no virtual bases, so try to emit it as an alias.
-  if (!dtor->getParent()->getNumVBases() &&
+  // classes with no virtual bases, or classes that have dllimport attribute,
+  // so try to emit it as an alias.
+  if ((!dtor->getParent()->getNumVBases() || dtor->hasAttr<DLLImportAttr>()) &&
       (dtorType == StructorType::Complete || dtorType == StructorType::Base)) {
     bool ProducedAlias = !CGM.TryEmitDefinitionAsAlias(
         GlobalDecl(dtor, Dtor_Complete), GlobalDecl(dtor, Dtor_Base), true);

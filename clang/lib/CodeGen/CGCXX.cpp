@@ -136,7 +136,12 @@ bool CodeGenModule::TryEmitDefinitionAsAlias(GlobalDecl AliasDecl,
 
   // available_externally definitions aren't real definitions, so we cannot
   // create an alias to one.
-  if (TargetLinkage == llvm::GlobalValue::AvailableExternallyLinkage)
+  // Declarations with dllimport attribute have their linkage set to
+  // availableExternallyLinkage. In the MS ABI these represent real
+  // definitions, so an alias can be created.
+  if (TargetLinkage == llvm::GlobalValue::AvailableExternallyLinkage &&
+      !Context.getTargetInfo().getCXXABI().isMicrosoft() &&
+      !AliasDecl.getDecl()->hasAttr<DLLImportAttr>())
     return true;
 
   // Check if we have it already.
