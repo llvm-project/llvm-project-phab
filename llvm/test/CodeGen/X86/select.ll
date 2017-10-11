@@ -45,7 +45,7 @@ define i32 @test2() nounwind {
 ; GENERIC-NEXT:    callq _return_false
 ; GENERIC-NEXT:    xorl %ecx, %ecx
 ; GENERIC-NEXT:    testb $1, %al
-; GENERIC-NEXT:    movl $-480, %eax
+; GENERIC-NEXT:    movl $536870432, %eax ## imm = 0x1FFFFE20
 ; GENERIC-NEXT:    cmovnel %ecx, %eax
 ; GENERIC-NEXT:    shll $3, %eax
 ; GENERIC-NEXT:    cmpl $32768, %eax ## imm = 0x8000
@@ -55,14 +55,13 @@ define i32 @test2() nounwind {
 ; GENERIC-NEXT:    popq %rcx
 ; GENERIC-NEXT:    retq
 ; GENERIC-NEXT:  LBB1_1: ## %bb90
-; GENERIC-NEXT:    ## -- End function
 ;
 ; ATOM-LABEL: test2:
 ; ATOM:       ## BB#0: ## %entry
 ; ATOM-NEXT:    pushq %rax
 ; ATOM-NEXT:    callq _return_false
 ; ATOM-NEXT:    xorl %ecx, %ecx
-; ATOM-NEXT:    movl $-480, %edx
+; ATOM-NEXT:    movl $536870432, %edx ## imm = 0x1FFFFE20
 ; ATOM-NEXT:    testb $1, %al
 ; ATOM-NEXT:    cmovnel %ecx, %edx
 ; ATOM-NEXT:    shll $3, %edx
@@ -73,17 +72,16 @@ define i32 @test2() nounwind {
 ; ATOM-NEXT:    popq %rcx
 ; ATOM-NEXT:    retq
 ; ATOM-NEXT:  LBB1_1: ## %bb90
-; ATOM-NEXT:    ## -- End function
 ;
 ; MCU-LABEL: test2:
 ; MCU:       # BB#0: # %entry
 ; MCU-NEXT:    calll return_false
-; MCU-NEXT:    xorl    %ecx, %ecx
+; MCU-NEXT:    xorl %ecx, %ecx
 ; MCU-NEXT:    testb $1, %al
 ; MCU-NEXT:    jne .LBB1_2
 ; MCU-NEXT:  # BB#1: # %entry
-; MCU-NEXT:    movl $-480, %ecx # imm = 0xFE20
-; MCU-NEXT:  .LBB1_2:
+; MCU-NEXT:    movl $536870432, %ecx # imm = 0x1FFFFE20
+; MCU-NEXT:  .LBB1_2: # %entry
 ; MCU-NEXT:    shll $3, %ecx
 ; MCU-NEXT:    cmpl $32768, %ecx # imm = 0x8000
 ; MCU-NEXT:    jge .LBB1_3

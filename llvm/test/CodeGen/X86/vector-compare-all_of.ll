@@ -619,22 +619,20 @@ define i16 @test_v8i16_sext(<8 x i16> %a0, <8 x i16> %a1) {
 ; SSE-LABEL: test_v8i16_sext:
 ; SSE:       # BB#0:
 ; SSE-NEXT:    pcmpgtw %xmm1, %xmm0
-; SSE-NEXT:    pmovmskb %xmm0, %eax
-; SSE-NEXT:    xorl %ecx, %ecx
-; SSE-NEXT:    cmpl $65535, %eax # imm = 0xFFFF
-; SSE-NEXT:    movl $-1, %eax
-; SSE-NEXT:    cmovnel %ecx, %eax
+; SSE-NEXT:    pmovmskb %xmm0, %ecx
+; SSE-NEXT:    xorl %eax, %eax
+; SSE-NEXT:    cmpl $65535, %ecx # imm = 0xFFFF
+; SSE-NEXT:    cmovel %ecx, %eax
 ; SSE-NEXT:    # kill: %AX<def> %AX<kill> %EAX<kill>
 ; SSE-NEXT:    retq
 ;
 ; AVX-LABEL: test_v8i16_sext:
 ; AVX:       # BB#0:
 ; AVX-NEXT:    vpcmpgtw %xmm1, %xmm0, %xmm0
-; AVX-NEXT:    vpmovmskb %xmm0, %eax
-; AVX-NEXT:    xorl %ecx, %ecx
-; AVX-NEXT:    cmpl $65535, %eax # imm = 0xFFFF
-; AVX-NEXT:    movl $-1, %eax
-; AVX-NEXT:    cmovnel %ecx, %eax
+; AVX-NEXT:    vpmovmskb %xmm0, %ecx
+; AVX-NEXT:    xorl %eax, %eax
+; AVX-NEXT:    cmpl $65535, %ecx # imm = 0xFFFF
+; AVX-NEXT:    cmovel %ecx, %eax
 ; AVX-NEXT:    # kill: %AX<def> %AX<kill> %EAX<kill>
 ; AVX-NEXT:    retq
 ;
@@ -669,11 +667,10 @@ define i16 @test_v16i16_sext(<16 x i16> %a0, <16 x i16> %a1) {
 ; SSE-NEXT:    pcmpgtw %xmm3, %xmm1
 ; SSE-NEXT:    pcmpgtw %xmm2, %xmm0
 ; SSE-NEXT:    pand %xmm1, %xmm0
-; SSE-NEXT:    pmovmskb %xmm0, %eax
-; SSE-NEXT:    xorl %ecx, %ecx
-; SSE-NEXT:    cmpl $65535, %eax # imm = 0xFFFF
-; SSE-NEXT:    movl $-1, %eax
-; SSE-NEXT:    cmovnel %ecx, %eax
+; SSE-NEXT:    pmovmskb %xmm0, %ecx
+; SSE-NEXT:    xorl %eax, %eax
+; SSE-NEXT:    cmpl $65535, %ecx # imm = 0xFFFF
+; SSE-NEXT:    cmovel %ecx, %eax
 ; SSE-NEXT:    # kill: %AX<def> %AX<kill> %EAX<kill>
 ; SSE-NEXT:    retq
 ;
@@ -743,11 +740,10 @@ define i16 @test_v16i16_legal_sext(<16 x i16> %a0, <16 x i16> %a1) {
 ; SSE-NEXT:    pcmpgtw %xmm3, %xmm1
 ; SSE-NEXT:    pcmpgtw %xmm2, %xmm0
 ; SSE-NEXT:    packsswb %xmm1, %xmm0
-; SSE-NEXT:    pmovmskb %xmm0, %eax
-; SSE-NEXT:    xorl %ecx, %ecx
-; SSE-NEXT:    cmpl $65535, %eax # imm = 0xFFFF
-; SSE-NEXT:    movl $-1, %eax
-; SSE-NEXT:    cmovnel %ecx, %eax
+; SSE-NEXT:    pmovmskb %xmm0, %ecx
+; SSE-NEXT:    xorl %eax, %eax
+; SSE-NEXT:    cmpl $65535, %ecx # imm = 0xFFFF
+; SSE-NEXT:    cmovel %ecx, %eax
 ; SSE-NEXT:    # kill: %AX<def> %AX<kill> %EAX<kill>
 ; SSE-NEXT:    retq
 ;
@@ -758,11 +754,10 @@ define i16 @test_v16i16_legal_sext(<16 x i16> %a0, <16 x i16> %a1) {
 ; AVX1-NEXT:    vpcmpgtw %xmm2, %xmm3, %xmm2
 ; AVX1-NEXT:    vpcmpgtw %xmm1, %xmm0, %xmm0
 ; AVX1-NEXT:    vpacksswb %xmm2, %xmm0, %xmm0
-; AVX1-NEXT:    vpmovmskb %xmm0, %eax
-; AVX1-NEXT:    xorl %ecx, %ecx
-; AVX1-NEXT:    cmpl $65535, %eax # imm = 0xFFFF
-; AVX1-NEXT:    movl $-1, %eax
-; AVX1-NEXT:    cmovnel %ecx, %eax
+; AVX1-NEXT:    vpmovmskb %xmm0, %ecx
+; AVX1-NEXT:    xorl %eax, %eax
+; AVX1-NEXT:    cmpl $65535, %ecx # imm = 0xFFFF
+; AVX1-NEXT:    cmovel %ecx, %eax
 ; AVX1-NEXT:    # kill: %AX<def> %AX<kill> %EAX<kill>
 ; AVX1-NEXT:    vzeroupper
 ; AVX1-NEXT:    retq
@@ -772,11 +767,10 @@ define i16 @test_v16i16_legal_sext(<16 x i16> %a0, <16 x i16> %a1) {
 ; AVX2-NEXT:    vpcmpgtw %ymm1, %ymm0, %ymm0
 ; AVX2-NEXT:    vextracti128 $1, %ymm0, %xmm1
 ; AVX2-NEXT:    vpacksswb %xmm1, %xmm0, %xmm0
-; AVX2-NEXT:    vpmovmskb %xmm0, %eax
-; AVX2-NEXT:    xorl %ecx, %ecx
-; AVX2-NEXT:    cmpl $65535, %eax # imm = 0xFFFF
-; AVX2-NEXT:    movl $-1, %eax
-; AVX2-NEXT:    cmovnel %ecx, %eax
+; AVX2-NEXT:    vpmovmskb %xmm0, %ecx
+; AVX2-NEXT:    xorl %eax, %eax
+; AVX2-NEXT:    cmpl $65535, %ecx # imm = 0xFFFF
+; AVX2-NEXT:    cmovel %ecx, %eax
 ; AVX2-NEXT:    # kill: %AX<def> %AX<kill> %EAX<kill>
 ; AVX2-NEXT:    vzeroupper
 ; AVX2-NEXT:    retq
@@ -820,7 +814,7 @@ define i8 @test_v16i8_sext(<16 x i8> %a0, <16 x i8> %a1) {
 ; SSE-NEXT:    pmovmskb %xmm0, %eax
 ; SSE-NEXT:    xorl %ecx, %ecx
 ; SSE-NEXT:    cmpl $65535, %eax # imm = 0xFFFF
-; SSE-NEXT:    movl $-1, %eax
+; SSE-NEXT:    movl $255, %eax
 ; SSE-NEXT:    cmovnel %ecx, %eax
 ; SSE-NEXT:    # kill: %AL<def> %AL<kill> %EAX<kill>
 ; SSE-NEXT:    retq
@@ -831,7 +825,7 @@ define i8 @test_v16i8_sext(<16 x i8> %a0, <16 x i8> %a1) {
 ; AVX-NEXT:    vpmovmskb %xmm0, %eax
 ; AVX-NEXT:    xorl %ecx, %ecx
 ; AVX-NEXT:    cmpl $65535, %eax # imm = 0xFFFF
-; AVX-NEXT:    movl $-1, %eax
+; AVX-NEXT:    movl $255, %eax
 ; AVX-NEXT:    cmovnel %ecx, %eax
 ; AVX-NEXT:    # kill: %AL<def> %AL<kill> %EAX<kill>
 ; AVX-NEXT:    retq
@@ -874,7 +868,7 @@ define i8 @test_v32i8_sext(<32 x i8> %a0, <32 x i8> %a1) {
 ; SSE-NEXT:    pmovmskb %xmm0, %eax
 ; SSE-NEXT:    xorl %ecx, %ecx
 ; SSE-NEXT:    cmpl $65535, %eax # imm = 0xFFFF
-; SSE-NEXT:    movl $-1, %eax
+; SSE-NEXT:    movl $255, %eax
 ; SSE-NEXT:    cmovnel %ecx, %eax
 ; SSE-NEXT:    # kill: %AL<def> %AL<kill> %EAX<kill>
 ; SSE-NEXT:    retq

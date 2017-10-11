@@ -479,7 +479,7 @@ TargetLowering::SimplifyDemandedBits(SDNode *User, unsigned OpIdx,
   return true;
 }
 
-bool TargetLowering::SimplifyDemandedBits(SDValue Op, APInt &DemandedMask,
+bool TargetLowering::SimplifyDemandedBits(SDValue Op, const APInt &DemandedMask,
                                           DAGCombinerInfo &DCI) const {
 
   SelectionDAG &DAG = DCI.DAG;
@@ -1272,6 +1272,14 @@ bool TargetLowering::SimplifyDemandedBits(SDValue Op,
     LLVM_FALLTHROUGH;
   }
   default:
+    if (Op.getOpcode() >= ISD::BUILTIN_OP_END) {
+      if (SimplifyDemandedBitsForTargetNode(Op, NewMask, Known, TLO, Depth))
+        return true;
+
+      // Expect Known handled by above.
+      break;
+    }
+
     // Just use computeKnownBits to compute output bits.
     TLO.DAG.computeKnownBits(Op, Known, Depth);
     break;
@@ -1325,6 +1333,23 @@ unsigned TargetLowering::ComputeNumSignBitsForTargetNode(SDValue Op,
          "Should use ComputeNumSignBits if you don't know whether Op"
          " is a target node!");
   return 1;
+}
+
+bool
+TargetLowering::SimplifyDemandedBitsForTargetNode(SDValue Op,
+                                                  const APInt &DemandedMask,
+                                                  KnownBits &Known,
+                                                  TargetLoweringOpt &TLO,
+                                                  unsigned Depth) const {
+  assert(Op.getOpcode() >= ISD::BUILTIN_OP_END &&
+         "Should use SimplifyDemandedBits if you don't know whether Op"
+         " is a target node!");
+  EVT VT = Op.getValueType();
+  APInt DemandedElts = VT.isVector()
+                             ? APInt::getAllOnesValue(VT.getVectorNumElements())
+                             : APInt(1, 1);
+  computeKnownBitsForTargetNode(Op, Known, DemandedElts, TLO.DAG, Depth);
+  return false;
 }
 
 // FIXME: Ideally, this would use ISD::isConstantSplatVector(), but that must

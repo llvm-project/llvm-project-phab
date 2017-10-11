@@ -27250,6 +27250,78 @@ unsigned X86TargetLowering::ComputeNumSignBitsForTargetNode(
   return 1;
 }
 
+bool
+X86TargetLowering::SimplifyDemandedBitsForTargetNode(SDValue Op,
+                                                     const APInt &DemandedMask,
+                                                     KnownBits &Known,
+                                                     TargetLoweringOpt &TLO,
+                                                     unsigned Depth) const {
+  unsigned Opc = Op.getOpcode();
+  assert((Opc >= ISD::BUILTIN_OP_END ||
+          Opc == ISD::INTRINSIC_WO_CHAIN ||
+          Opc == ISD::INTRINSIC_W_CHAIN ||
+          Opc == ISD::INTRINSIC_VOID) &&
+         "Should use MaskedValueIsZero if you don't know whether Op"
+         " is a target node!");
+
+  switch (Opc) {
+  case X86ISD::CMOV: {
+    if (SimplifyDemandedBits(Op.getOperand(1), DemandedMask, Known, TLO,
+                             Depth+1))
+      return true;
+    KnownBits Known2;
+    if (SimplifyDemandedBits(Op.getOperand(0), DemandedMask, Known2, TLO,
+                             Depth+1))
+      return true;
+    assert(!Known.hasConflict() && "Bits known to be one AND zero?");
+    assert(!Known2.hasConflict() && "Bits known to be one AND zero?");
+
+    if (auto *Op0C = dyn_cast<ConstantSDNode>(Op.getOperand(0))) {
+      const APInt &C = Op0C->getAPIntValue();
+      if (!C.isSubsetOf(DemandedMask)) {
+        SDLoc DL(Op);
+        EVT VT = Op.getValueType();
+        // Make sure we don't mess with 64-bit constants unless they fit
+        // a sign extended 32-bit value.
+        APInt NC = DemandedMask & C;
+        if (C.getMinSignedBits() > 32 || NC.getMinSignedBits() <= 32) {
+          SDValue NewC = TLO.DAG.getConstant(NC, DL, VT);
+          SDValue NewOp = TLO.DAG.getNode(Op.getOpcode(), DL, VT, NewC,
+                                          Op.getOperand(1), Op.getOperand(2),
+                                          Op.getOperand(3));
+          return TLO.CombineTo(Op, NewOp);
+      }
+      }
+    }
+
+    if (auto *Op1C = dyn_cast<ConstantSDNode>(Op.getOperand(1))) {
+      const APInt &C = Op1C->getAPIntValue();
+      if (!C.isSubsetOf(DemandedMask)) {
+        SDLoc DL(Op);
+        EVT VT = Op.getValueType();
+        // Make sure we don't mess with 64-bit constants unless they fit
+        // a sign extended 32-bit value.
+        APInt NC = DemandedMask & C;
+        if (C.getMinSignedBits() > 32 || NC.getMinSignedBits() <= 32) {
+          SDValue NewC = TLO.DAG.getConstant(NC, DL, VT);
+          SDValue NewOp = TLO.DAG.getNode(Op.getOpcode(), DL, VT,
+                                          Op.getOperand(0), NewC,
+                                          Op.getOperand(2), Op.getOperand(3));
+          return TLO.CombineTo(Op, NewOp);
+        }
+      }
+    }
+
+    Known.One &= Known2.One;
+    Known.Zero &= Known2.Zero;
+    return false;
+  }
+  }
+
+  return TargetLowering::SimplifyDemandedBitsForTargetNode(Op, DemandedMask,
+                                                           Known, TLO, Depth);
+}
+
 SDValue X86TargetLowering::unwrapAddress(SDValue N) const {
   if (N->getOpcode() == X86ISD::Wrapper || N->getOpcode() == X86ISD::WrapperRIP)
     return N->getOperand(0);

@@ -2654,7 +2654,7 @@ public:
                             bool AssumeSingleUse = false) const;
 
   /// Helper wrapper around SimplifyDemandedBits
-  bool SimplifyDemandedBits(SDValue Op, APInt &DemandedMask,
+  bool SimplifyDemandedBits(SDValue Op, const APInt &DemandedMask,
                             DAGCombinerInfo &DCI) const;
 
   /// Determine which of the bits specified in Mask are known to be either zero
@@ -2675,6 +2675,16 @@ public:
                                                    const APInt &DemandedElts,
                                                    const SelectionDAG &DAG,
                                                    unsigned Depth = 0) const;
+
+  /// This method can be implemented by targets that want to perform demanded
+  /// bits simplifications on and across target nodes. If target implements
+  /// this they must always compute Known or defer back to the default
+  /// implementation.
+  virtual bool SimplifyDemandedBitsForTargetNode(SDValue Op,
+                                                 const APInt &DemandedMask,
+                                                 KnownBits &Known,
+                                                 TargetLoweringOpt &TLO,
+                                                 unsigned Depth) const;
 
   struct DAGCombinerInfo {
     void *DC;  // The DAG Combiner object.
