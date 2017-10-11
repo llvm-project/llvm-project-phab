@@ -434,6 +434,23 @@ MCSymbol *AsmPrinter::getSymbol(const GlobalValue *GV) const {
   return TM.getSymbol(GV);
 }
 
+MCSection *AsmPrinter::getSectionForCPI(unsigned CPID) const {
+  const MachineConstantPool *MCP = MF->getConstantPool();
+  const MachineConstantPoolEntry &CPE = MCP->getConstants()[CPID];
+
+  // TODO(sjc): refactor this with redundant code in EmitConstantPool()
+  unsigned Align = CPE.getAlignment();
+
+  SectionKind Kind = CPE.getSectionKind(&getDataLayout());
+
+  const Constant *C = nullptr;
+  if (!CPE.isMachineConstantPoolEntry())
+    C = CPE.Val.ConstVal;
+
+  return getObjFileLowering().getSectionForConstant(getDataLayout(),
+                                                    Kind, C, Align);
+}
+
 /// EmitGlobalVariable - Emit the specified global variable to the .s file.
 void AsmPrinter::EmitGlobalVariable(const GlobalVariable *GV) {
   bool IsEmuTLSVar = TM.Options.EmulatedTLS && GV->isThreadLocal();
@@ -1284,6 +1301,10 @@ bool AsmPrinter::doFinalization(Module &M) {
   // Emit remaining GOT equivalent globals.
   emitGlobalGOTEquivs();
 
+  // Emit POT (page offset table) if Pagerando is enabled.
+  if (TM.isPagerando())
+    EmitPOT();
+
   // Emit visibility info for declarations
   for (const Function &F : M) {
     if (!F.isDeclarationForLinker())
@@ -1477,15 +1498,7 @@ void AsmPrinter::EmitConstantPool() {
   for (unsigned i = 0, e = CP.size(); i != e; ++i) {
     const MachineConstantPoolEntry &CPE = CP[i];
     unsigned Align = CPE.getAlignment();
-
-    SectionKind Kind = CPE.getSectionKind(&getDataLayout());
-
-    const Constant *C = nullptr;
-    if (!CPE.isMachineConstantPoolEntry())
-      C = CPE.Val.ConstVal;
-
-    MCSection *S = getObjFileLowering().getSectionForConstant(getDataLayout(),
-                                                              Kind, C, Align);
+    MCSection *S = getSectionForCPI(i);
 
     // The number of sections are small, just do a linear search from the
     // last section to the first.
@@ -1716,6 +1729,36 @@ bool AsmPrinter::EmitSpecialLLVMGlobal(const GlobalVariable *GV) {
   }
 
   report_fatal_error("unknown special variable");
+}
+
+void AsmPrinter::EmitPOT() {
+  assert(TM.getTargetTriple().isOSBinFormatELF() &&
+         "Pagerando is only supported on ELF");
+  unsigned Alignment = getDataLayout().getPointerPrefAlignment(0);
+  unsigned PtrSize = getDataLayout().getPointerSize(0);
+
+  auto *Section = OutContext.getELFSection(".pot", ELF::SHT_PROGBITS,
+                                           ELF::SHF_ALLOC | ELF::SHF_WRITE);
+  OutStreamer->SwitchSection(Section);
+
+  // Emit POT start label
+  auto *POTSym = OutContext.getOrCreateSymbol("_PAGE_OFFSET_TABLE_");
+  OutStreamer->EmitValueToAlignment(Alignment);
+  OutStreamer->EmitLabel(POTSym);
+
+  // Entry 0 is GOT reference
+  auto *GOTSym = OutContext.getOrCreateSymbol("_GLOBAL_OFFSET_TABLE_");
+  EmitLabelReference(GOTSym, PtrSize);
+
+  // Emit Bin references
+  for (auto *Bin : POT)
+    EmitLabelReference(Bin->getBeginSymbol(), PtrSize);
+
+  // Emit POT end label
+  auto *POTEndSym = OutContext.getOrCreateSymbol("_PAGE_OFFSET_TABLE_END_");
+  OutStreamer->EmitLabel(POTEndSym);
+
+  OutStreamer->AddBlankLine();
 }
 
 /// EmitLLVMUsedList - For targets that define a MAI::UsedDirective, mark each
@@ -2549,6 +2592,34 @@ MCSymbol *AsmPrinter::GetExternalSymbolSymbol(StringRef Sym) const {
   SmallString<60> NameStr;
   Mangler::getNameWithPrefix(NameStr, Sym, getDataLayout());
   return OutContext.getOrCreateSymbol(NameStr);
+}
+
+MCSymbol *AsmPrinter::GetSectionSymbol(const GlobalObject *GO) const {
+  MCSection *Sec = getObjFileLowering().SectionForGlobal(GO, TM);
+  return Sec->getBeginSymbol();
+}
+
+MCSymbol *AsmPrinter::GetSectionSymbol(unsigned CPID) const {
+  MCSection *Sec = getSectionForCPI(CPID);
+  return Sec->getBeginSymbol();
+}
+
+unsigned AsmPrinter::GetPOTIndex(const GlobalObject *GO) {
+  const MCSection *Sec = getObjFileLowering().SectionForGlobal(GO, TM);
+  return GetPOTIndex(Sec);
+}
+
+unsigned AsmPrinter::GetPOTIndex(unsigned CPID) {
+  const MCSection *Sec = getSectionForCPI(CPID);
+  return GetPOTIndex(Sec);
+}
+
+unsigned AsmPrinter::GetPOTIndex(const MCSection *Sec) {
+  auto I = std::find(POT.begin(), POT.end(), Sec);
+  auto Index = static_cast<unsigned>(I - POT.begin());
+  if (I == POT.end())
+    POT.push_back(Sec);
+  return Index + 1;  // Index 0 denotes the default bin #0
 }
 
 /// PrintParentLoopComment - Print comments about parent loops of this one.
