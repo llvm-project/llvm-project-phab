@@ -1298,6 +1298,9 @@ template <class ELFT> void Writer<ELFT>::finalizeSections() {
   if (ErrorCount)
     return;
 
+  if (In<ELFT>::MipsGot)
+    In<ELFT>::MipsGot->template build<ELFT>();
+
   addPredefinedSections();
   removeUnusedSyntheticSections();
 
