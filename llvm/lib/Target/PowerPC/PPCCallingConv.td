@@ -59,8 +59,17 @@ def RetCC_PPC : CallingConv<[
 
   // Floating point types returned as "direct" go into F1 .. F8; note that
   // only the ELFv2 ABI fully utilizes all these registers.
-  CCIfType<[f32], CCAssignToReg<[F1, F2, F3, F4, F5, F6, F7, F8]>>,
-  CCIfType<[f64], CCAssignToReg<[F1, F2, F3, F4, F5, F6, F7, F8]>>,
+  CCIfNotSubtarget<"hasSPE()",
+       CCIfType<[f32], CCAssignToReg<[F1, F2, F3, F4, F5, F6, F7, F8]>>>,
+  CCIfNotSubtarget<"hasSPE()",
+       CCIfType<[f64], CCAssignToReg<[F1, F2, F3, F4, F5, F6, F7, F8]>>>,
+  CCIfSubtarget<"hasSPE()",
+       CCIfType<[f32], CCAssignToReg<[R3, R4, R5, R6, R7, R8, R9, R10]>>>,
+  CCIfSubtarget<"hasSPE()",
+       CCIfType<[f64], CCAssignToReg<[S3, S4, S5, S6, S7, S8, S9, S10]>>>,
+  CCIfSubtarget<"hasSPE()",
+       CCIfType<[v2i32,v2f32],
+                CCAssignToReg<[S3, S4, S5, S6, S7, S8, S9, S10]>>>,
 
   // QPX vectors are returned in QF1 and QF2. 
   CCIfType<[v4f64, v4f32, v4i1],
@@ -156,7 +165,18 @@ def CC_PPC32_SVR4_Common : CallingConv<[
   CCIfType<[f64], CCIfSplit<CCCustom<"CC_PPC32_SVR4_Custom_AlignFPArgRegs">>>,
   
   // FP values are passed in F1 - F8.
-  CCIfType<[f32, f64], CCAssignToReg<[F1, F2, F3, F4, F5, F6, F7, F8]>>,
+  CCIfType<[f32, f64],
+           CCIfNotSubtarget<"hasSPE()",
+                            CCAssignToReg<[F1, F2, F3, F4, F5, F6, F7, F8]>>>,
+  CCIfType<[f64],
+           CCIfSubtarget<"hasSPE()",
+                         CCAssignToReg<[S3, S4, S5, S6, S7, S8, S9, S10]>>>,
+  CCIfType<[f32],
+           CCIfSubtarget<"hasSPE()",
+                         CCAssignToReg<[R3, R4, R5, R6, R7, R8, R9, R10]>>>,
+  CCIfType<[v2i32,v2f32],
+           CCIfSubtarget<"hasSPE()",
+                         CCAssignToReg<[S3, S4, S5, S6, S7, S8, S9, S10]>>>,
 
   // Split arguments have an alignment of 8 bytes on the stack.
   CCIfType<[i32], CCIfSplit<CCAssignToStack<4, 8>>>,
@@ -165,7 +185,10 @@ def CC_PPC32_SVR4_Common : CallingConv<[
   
   // Floats are stored in double precision format, thus they have the same
   // alignment and size as doubles.
-  CCIfType<[f32,f64], CCAssignToStack<8, 8>>,  
+  CCIfType<[f32,f64], CCIfNotSubtarget<"hasSPE()", CCAssignToStack<8, 8>>>,  
+  CCIfType<[f32], CCIfSubtarget<"hasSPE()", CCAssignToStack<4, 4>>>,  
+  CCIfType<[f64, v2i32, v2i64],
+           CCIfSubtarget<"hasSPE()", CCAssignToStack<8, 8>>>,  
 
   // QPX vectors that are stored in double precision need 32-byte alignment.
   CCIfType<[v4f64, v4i1], CCAssignToStack<32, 32>>,
