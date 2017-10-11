@@ -665,6 +665,7 @@ public:
 
   bool isROPI() const;
   bool isRWPI() const;
+  bool isPIP() const;
 
   bool useMachineScheduler() const { return UseMISched; }
   bool disablePostRAScheduler() const { return DisablePostRAScheduler; }
