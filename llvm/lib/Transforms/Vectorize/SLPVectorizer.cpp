@@ -684,6 +684,13 @@ private:
   void reorderInputsAccordingToOpcode(unsigned Opcode, ArrayRef<Value *> VL,
                                       SmallVectorImpl<Value *> &Left,
                                       SmallVectorImpl<Value *> &Right);
+
+  /// Kind of the tree entry.
+  enum TreeEntryKind {
+    TEK_Vectorize, /// Entry must be vectorized.
+    TEK_Gather,    /// Entry is the set of gather scalars.
+    TEK_EEShuffle, /// Entry is the shuffle of the ExtractElementInstructions.
+  };
   struct TreeEntry {
     TreeEntry(std::vector<TreeEntry> &Container) : Container(Container) {}
 
@@ -699,8 +706,9 @@ private:
     /// The Scalars are vectorized into this value. It is initialized to Null.
     Value *VectorizedValue = nullptr;
 
-    /// Do we need to gather this sequence ?
-    bool NeedToGather = false;
+    /// What should be done with the tree entry: vectorization, gathering or
+    /// shuffling of ExtractElement|InsertElements.
+    TreeEntryKind VectorizationKind = TEK_Vectorize;
 
     /// Points back to the VectorizableTree.
     ///
@@ -716,19 +724,19 @@ private:
   };
 
   /// Create a new VectorizableTree entry.
-  TreeEntry *newTreeEntry(ArrayRef<Value *> VL, bool Vectorized,
+  TreeEntry *newTreeEntry(ArrayRef<Value *> VL, TreeEntryKind Kind,
                           int &UserTreeIdx) {
     VectorizableTree.emplace_back(VectorizableTree);
     int idx = VectorizableTree.size() - 1;
     TreeEntry *Last = &VectorizableTree[idx];
     Last->Scalars.insert(Last->Scalars.begin(), VL.begin(), VL.end());
-    Last->NeedToGather = !Vectorized;
-    if (Vectorized) {
+    Last->VectorizationKind = Kind;
+    if (Kind == TEK_Vectorize) {
       for (int i = 0, e = VL.size(); i != e; ++i) {
         assert(!getTreeEntry(VL[i]) && "Scalar already in tree!");
         ScalarToTreeEntry[VL[i]] = idx;
       }
-    } else {
+    } else if (Kind == TEK_Gather) {
       MustGather.insert(VL.begin(), VL.end());
     }
 
@@ -1295,7 +1303,7 @@ template <> struct DOTGraphTraits<BoUpSLP *> : public DefaultDOTGraphTraits {
 
   static std::string getNodeAttributes(const TreeEntry *Entry,
                                        const BoUpSLP *) {
-    if (Entry->NeedToGather)
+    if (Entry->VectorizationKind != BoUpSLP::TEK_Vectorize)
       return "color=red";
     return "";
   }
@@ -1323,7 +1331,7 @@ void BoUpSLP::buildTree(ArrayRef<Value *> Roots,
     TreeEntry *Entry = &EIdx;
 
     // No need to handle users of gathered values.
-    if (Entry->NeedToGather)
+    if (Entry->VectorizationKind != TEK_Vectorize)
       continue;
 
     // For each lane:
@@ -1355,7 +1363,7 @@ void BoUpSLP::buildTree(ArrayRef<Value *> Roots,
               !InTreeUserNeedToExtract(Scalar, UserInst, TLI)) {
             DEBUG(dbgs() << "SLP: \tInternal user will be removed:" << *U
                          << ".\n");
-            assert(!UseEntry->NeedToGather && "Bad state");
+            assert(UseEntry->VectorizationKind == TEK_Vectorize && "Bad state");
             continue;
           }
         }
@@ -1379,28 +1387,28 @@ void BoUpSLP::buildTree_rec(ArrayRef<Value *> VL, unsigned Depth,
   InstructionsState S = getSameOpcode(VL);
   if (Depth == RecursionMaxDepth) {
     DEBUG(dbgs() << "SLP: Gathering due to max recursion depth.\n");
-    newTreeEntry(VL, false, UserTreeIdx);
+    newTreeEntry(VL, TEK_Gather, UserTreeIdx);
     return;
   }
 
   // Don't handle vectors.
   if (S.OpValue->getType()->isVectorTy()) {
     DEBUG(dbgs() << "SLP: Gathering due to vector type.\n");
-    newTreeEntry(VL, false, UserTreeIdx);
+    newTreeEntry(VL, TEK_Gather, UserTreeIdx);
     return;
   }
 
   if (StoreInst *SI = dyn_cast<StoreInst>(S.OpValue))
     if (SI->getValueOperand()->getType()->isVectorTy()) {
       DEBUG(dbgs() << "SLP: Gathering due to store vector type.\n");
-      newTreeEntry(VL, false, UserTreeIdx);
+      newTreeEntry(VL, TEK_Gather, UserTreeIdx);
       return;
     }
 
   // If all of the operands are identical or constant we have a simple solution.
   if (allConstant(VL) || isSplat(VL) || !allSameBlock(VL) || !S.Opcode) {
     DEBUG(dbgs() << "SLP: Gathering due to C,S,B,O. \n");
-    newTreeEntry(VL, false, UserTreeIdx);
+    newTreeEntry(VL, TEK_Gather, UserTreeIdx);
     return;
   }
 
@@ -1412,7 +1420,7 @@ void BoUpSLP::buildTree_rec(ArrayRef<Value *> VL, unsigned Depth,
     if (EphValues.count(VL[i])) {
       DEBUG(dbgs() << "SLP: The instruction (" << *VL[i] <<
             ") is ephemeral.\n");
-      newTreeEntry(VL, false, UserTreeIdx);
+      newTreeEntry(VL, TEK_Gather, UserTreeIdx);
       return;
     }
   }
@@ -1423,7 +1431,7 @@ void BoUpSLP::buildTree_rec(ArrayRef<Value *> VL, unsigned Depth,
       DEBUG(dbgs() << "SLP: \tChecking bundle: " << *VL[i] << ".\n");
       if (E->Scalars[i] != VL[i]) {
         DEBUG(dbgs() << "SLP: Gathering due to partial overlap.\n");
-        newTreeEntry(VL, false, UserTreeIdx);
+        newTreeEntry(VL, TEK_Gather, UserTreeIdx);
         return;
       }
     }
@@ -1442,7 +1450,7 @@ void BoUpSLP::buildTree_rec(ArrayRef<Value *> VL, unsigned Depth,
     if (getTreeEntry(I)) {
       DEBUG(dbgs() << "SLP: The instruction (" << *VL[i] <<
             ") is already in tree.\n");
-      newTreeEntry(VL, false, UserTreeIdx);
+      newTreeEntry(VL, TEK_Gather, UserTreeIdx);
       return;
     }
   }
@@ -1452,7 +1460,7 @@ void BoUpSLP::buildTree_rec(ArrayRef<Value *> VL, unsigned Depth,
   for (unsigned i = 0, e = VL.size(); i != e; ++i) {
     if (MustGather.count(VL[i])) {
       DEBUG(dbgs() << "SLP: Gathering due to gathered scalar.\n");
-      newTreeEntry(VL, false, UserTreeIdx);
+      newTreeEntry(VL, TEK_Gather, UserTreeIdx);
       return;
     }
   }
@@ -1466,7 +1474,7 @@ void BoUpSLP::buildTree_rec(ArrayRef<Value *> VL, unsigned Depth,
     // Don't go into unreachable blocks. They may contain instructions with
     // dependency cycles which confuse the final scheduling.
     DEBUG(dbgs() << "SLP: bundle in unreachable block.\n");
-    newTreeEntry(VL, false, UserTreeIdx);
+    newTreeEntry(VL, TEK_Gather, UserTreeIdx);
     return;
   }
 
@@ -1475,7 +1483,7 @@ void BoUpSLP::buildTree_rec(ArrayRef<Value *> VL, unsigned Depth,
     for (unsigned j = i + 1; j < e; ++j)
       if (VL[i] == VL[j]) {
         DEBUG(dbgs() << "SLP: Scalar used twice in bundle.\n");
-        newTreeEntry(VL, false, UserTreeIdx);
+        newTreeEntry(VL, TEK_Gather, UserTreeIdx);
         return;
       }
 
@@ -1490,7 +1498,7 @@ void BoUpSLP::buildTree_rec(ArrayRef<Value *> VL, unsigned Depth,
     assert((!BS.getScheduleData(VL0) ||
             !BS.getScheduleData(VL0)->isPartOfBundle()) &&
            "tryScheduleBundle should cancelScheduling on failure");
-    newTreeEntry(VL, false, UserTreeIdx);
+    newTreeEntry(VL, TEK_Gather, UserTreeIdx);
     return;
   }
   DEBUG(dbgs() << "SLP: We are able to schedule this bundle.\n");
@@ -1509,12 +1517,12 @@ void BoUpSLP::buildTree_rec(ArrayRef<Value *> VL, unsigned Depth,
           if (Term) {
             DEBUG(dbgs() << "SLP: Need to swizzle PHINodes (TerminatorInst use).\n");
             BS.cancelScheduling(VL, VL0);
-            newTreeEntry(VL, false, UserTreeIdx);
+            newTreeEntry(VL, TEK_Gather, UserTreeIdx);
             return;
           }
         }
 
-      newTreeEntry(VL, true, UserTreeIdx);
+      newTreeEntry(VL, TEK_Vectorize, UserTreeIdx);
       DEBUG(dbgs() << "SLP: added a vector of PHINodes.\n");
 
       for (unsigned i = 0, e = PH->getNumIncomingValues(); i < e; ++i) {
@@ -1530,13 +1538,17 @@ void BoUpSLP::buildTree_rec(ArrayRef<Value *> VL, unsigned Depth,
     }
     case Instruction::ExtractValue:
     case Instruction::ExtractElement: {
-      bool Reuse = canReuseExtract(VL, VL0);
-      if (Reuse) {
+      TreeEntryKind Kind = TEK_Gather;
+      if (canReuseExtract(VL, VL0)) {
         DEBUG(dbgs() << "SLP: Reusing extract sequence.\n");
+        Kind = TEK_Vectorize;
       } else {
+        if (ShuffleOrOp == Instruction::ExtractElement &&
+            isShuffle(VL).hasValue())
+          Kind = TEK_EEShuffle;
         BS.cancelScheduling(VL, VL0);
       }
-      newTreeEntry(VL, Reuse, UserTreeIdx);
+      newTreeEntry(VL, Kind, UserTreeIdx);
       return;
     }
     case Instruction::Load: {
@@ -1551,7 +1563,7 @@ void BoUpSLP::buildTree_rec(ArrayRef<Value *> VL, unsigned Depth,
       if (DL->getTypeSizeInBits(ScalarTy) !=
           DL->getTypeAllocSizeInBits(ScalarTy)) {
         BS.cancelScheduling(VL, VL0);
-        newTreeEntry(VL, false, UserTreeIdx);
+        newTreeEntry(VL, TEK_Gather, UserTreeIdx);
         DEBUG(dbgs() << "SLP: Gathering loads of non-packed type.\n");
         return;
       }
@@ -1562,7 +1574,7 @@ void BoUpSLP::buildTree_rec(ArrayRef<Value *> VL, unsigned Depth,
         LoadInst *L = cast<LoadInst>(VL[i]);
         if (!L->isSimple()) {
           BS.cancelScheduling(VL, VL0);
-          newTreeEntry(VL, false, UserTreeIdx);
+          newTreeEntry(VL, TEK_Gather, UserTreeIdx);
           DEBUG(dbgs() << "SLP: Gathering non-simple loads.\n");
           return;
         }
@@ -1584,7 +1596,7 @@ void BoUpSLP::buildTree_rec(ArrayRef<Value *> VL, unsigned Depth,
 
       if (Consecutive) {
         ++NumLoadsWantToKeepOrder;
-        newTreeEntry(VL, true, UserTreeIdx);
+        newTreeEntry(VL, TEK_Vectorize, UserTreeIdx);
         DEBUG(dbgs() << "SLP: added a vector of loads.\n");
         return;
       }
@@ -1599,7 +1611,7 @@ void BoUpSLP::buildTree_rec(ArrayRef<Value *> VL, unsigned Depth,
           }
 
       BS.cancelScheduling(VL, VL0);
-      newTreeEntry(VL, false, UserTreeIdx);
+      newTreeEntry(VL, TEK_Gather, UserTreeIdx);
 
       if (ReverseConsecutive) {
         ++NumLoadsWantToChangeOrder;
@@ -1626,12 +1638,12 @@ void BoUpSLP::buildTree_rec(ArrayRef<Value *> VL, unsigned Depth,
         Type *Ty = cast<Instruction>(VL[i])->getOperand(0)->getType();
         if (Ty != SrcTy || !isValidElementType(Ty)) {
           BS.cancelScheduling(VL, VL0);
-          newTreeEntry(VL, false, UserTreeIdx);
+          newTreeEntry(VL, TEK_Gather, UserTreeIdx);
           DEBUG(dbgs() << "SLP: Gathering casts with different src types.\n");
           return;
         }
       }
-      newTreeEntry(VL, true, UserTreeIdx);
+      newTreeEntry(VL, TEK_Vectorize, UserTreeIdx);
       DEBUG(dbgs() << "SLP: added a vector of casts.\n");
 
       for (unsigned i = 0, e = VL0->getNumOperands(); i < e; ++i) {
@@ -1654,13 +1666,13 @@ void BoUpSLP::buildTree_rec(ArrayRef<Value *> VL, unsigned Depth,
         if (Cmp->getPredicate() != P0 ||
             Cmp->getOperand(0)->getType() != ComparedTy) {
           BS.cancelScheduling(VL, VL0);
-          newTreeEntry(VL, false, UserTreeIdx);
+          newTreeEntry(VL, TEK_Gather, UserTreeIdx);
           DEBUG(dbgs() << "SLP: Gathering cmp with different predicate.\n");
           return;
         }
       }
 
-      newTreeEntry(VL, true, UserTreeIdx);
+      newTreeEntry(VL, TEK_Vectorize, UserTreeIdx);
       DEBUG(dbgs() << "SLP: added a vector of compares.\n");
 
       for (unsigned i = 0, e = VL0->getNumOperands(); i < e; ++i) {
@@ -1692,7 +1704,7 @@ void BoUpSLP::buildTree_rec(ArrayRef<Value *> VL, unsigned Depth,
     case Instruction::And:
     case Instruction::Or:
     case Instruction::Xor:
-      newTreeEntry(VL, true, UserTreeIdx);
+      newTreeEntry(VL, TEK_Vectorize, UserTreeIdx);
       DEBUG(dbgs() << "SLP: added a vector of bin op.\n");
 
       // Sort operands of the instructions so that each side is more likely to
@@ -1721,7 +1733,7 @@ void BoUpSLP::buildTree_rec(ArrayRef<Value *> VL, unsigned Depth,
         if (cast<Instruction>(VL[j])->getNumOperands() != 2) {
           DEBUG(dbgs() << "SLP: not-vectorizable GEP (nested indexes).\n");
           BS.cancelScheduling(VL, VL0);
-          newTreeEntry(VL, false, UserTreeIdx);
+          newTreeEntry(VL, TEK_Gather, UserTreeIdx);
           return;
         }
       }
@@ -1734,7 +1746,7 @@ void BoUpSLP::buildTree_rec(ArrayRef<Value *> VL, unsigned Depth,
         if (Ty0 != CurTy) {
           DEBUG(dbgs() << "SLP: not-vectorizable GEP (different types).\n");
           BS.cancelScheduling(VL, VL0);
-          newTreeEntry(VL, false, UserTreeIdx);
+          newTreeEntry(VL, TEK_Gather, UserTreeIdx);
           return;
         }
       }
@@ -1746,12 +1758,12 @@ void BoUpSLP::buildTree_rec(ArrayRef<Value *> VL, unsigned Depth,
           DEBUG(
               dbgs() << "SLP: not-vectorizable GEP (non-constant indexes).\n");
           BS.cancelScheduling(VL, VL0);
-          newTreeEntry(VL, false, UserTreeIdx);
+          newTreeEntry(VL, TEK_Gather, UserTreeIdx);
           return;
         }
       }
 
-      newTreeEntry(VL, true, UserTreeIdx);
+      newTreeEntry(VL, TEK_Vectorize, UserTreeIdx);
       DEBUG(dbgs() << "SLP: added a vector of GEPs.\n");
       for (unsigned i = 0, e = 2; i < e; ++i) {
         ValueList Operands;
@@ -1768,12 +1780,12 @@ void BoUpSLP::buildTree_rec(ArrayRef<Value *> VL, unsigned Depth,
       for (unsigned i = 0, e = VL.size() - 1; i < e; ++i)
         if (!isConsecutiveAccess(VL[i], VL[i + 1], *DL, *SE)) {
           BS.cancelScheduling(VL, VL0);
-          newTreeEntry(VL, false, UserTreeIdx);
+          newTreeEntry(VL, TEK_Gather, UserTreeIdx);
           DEBUG(dbgs() << "SLP: Non-consecutive store.\n");
           return;
         }
 
-      newTreeEntry(VL, true, UserTreeIdx);
+      newTreeEntry(VL, TEK_Vectorize, UserTreeIdx);
       DEBUG(dbgs() << "SLP: added a vector of stores.\n");
 
       ValueList Operands;
@@ -1791,7 +1803,7 @@ void BoUpSLP::buildTree_rec(ArrayRef<Value *> VL, unsigned Depth,
       Intrinsic::ID ID = getVectorIntrinsicIDForCall(CI, TLI);
       if (!isTriviallyVectorizable(ID)) {
         BS.cancelScheduling(VL, VL0);
-        newTreeEntry(VL, false, UserTreeIdx);
+        newTreeEntry(VL, TEK_Gather, UserTreeIdx);
         DEBUG(dbgs() << "SLP: Non-vectorizable call.\n");
         return;
       }
@@ -1805,7 +1817,7 @@ void BoUpSLP::buildTree_rec(ArrayRef<Value *> VL, unsigned Depth,
             getVectorIntrinsicIDForCall(CI2, TLI) != ID ||
             !CI->hasIdenticalOperandBundleSchema(*CI2)) {
           BS.cancelScheduling(VL, VL0);
-          newTreeEntry(VL, false, UserTreeIdx);
+          newTreeEntry(VL, TEK_Gather, UserTreeIdx);
           DEBUG(dbgs() << "SLP: mismatched calls:" << *CI << "!=" << *VL[i]
                        << "\n");
           return;
@@ -1816,7 +1828,7 @@ void BoUpSLP::buildTree_rec(ArrayRef<Value *> VL, unsigned Depth,
           Value *A1J = CI2->getArgOperand(1);
           if (A1I != A1J) {
             BS.cancelScheduling(VL, VL0);
-            newTreeEntry(VL, false, UserTreeIdx);
+            newTreeEntry(VL, TEK_Gather, UserTreeIdx);
             DEBUG(dbgs() << "SLP: mismatched arguments in call:" << *CI
                          << " argument "<< A1I<<"!=" << A1J
                          << "\n");
@@ -1829,14 +1841,14 @@ void BoUpSLP::buildTree_rec(ArrayRef<Value *> VL, unsigned Depth,
                         CI->op_begin() + CI->getBundleOperandsEndIndex(),
                         CI2->op_begin() + CI2->getBundleOperandsStartIndex())) {
           BS.cancelScheduling(VL, VL0);
-          newTreeEntry(VL, false, UserTreeIdx);
+          newTreeEntry(VL, TEK_Gather, UserTreeIdx);
           DEBUG(dbgs() << "SLP: mismatched bundle operands in calls:" << *CI << "!="
                        << *VL[i] << '\n');
           return;
         }
       }
 
-      newTreeEntry(VL, true, UserTreeIdx);
+      newTreeEntry(VL, TEK_Vectorize, UserTreeIdx);
       for (unsigned i = 0, e = CI->getNumArgOperands(); i != e; ++i) {
         ValueList Operands;
         // Prepare the operand vector.
@@ -1853,11 +1865,11 @@ void BoUpSLP::buildTree_rec(ArrayRef<Value *> VL, unsigned Depth,
       // then do not vectorize this instruction.
       if (!S.IsAltShuffle) {
         BS.cancelScheduling(VL, VL0);
-        newTreeEntry(VL, false, UserTreeIdx);
+        newTreeEntry(VL, TEK_Gather, UserTreeIdx);
         DEBUG(dbgs() << "SLP: ShuffleVector are not vectorized.\n");
         return;
       }
-      newTreeEntry(VL, true, UserTreeIdx);
+      newTreeEntry(VL, TEK_Vectorize, UserTreeIdx);
       DEBUG(dbgs() << "SLP: added a ShuffleVector op.\n");
 
       // Reorder operands if reordering would enable vectorization.
@@ -1881,7 +1893,7 @@ void BoUpSLP::buildTree_rec(ArrayRef<Value *> VL, unsigned Depth,
 
     default:
       BS.cancelScheduling(VL, VL0);
-      newTreeEntry(VL, false, UserTreeIdx);
+      newTreeEntry(VL, TEK_Gather, UserTreeIdx);
       DEBUG(dbgs() << "SLP: Gathering unknown instruction.\n");
       return;
   }
@@ -1974,21 +1986,38 @@ int BoUpSLP::getEntryCost(TreeEntry *E) {
     VecTy = VectorType::get(
         IntegerType::get(F->getContext(), MinBWs[VL[0]].first), VL.size());
 
-  if (E->NeedToGather) {
+  if (E->VectorizationKind == TEK_Gather) {
     if (allConstant(VL))
       return 0;
     if (isSplat(VL)) {
       return TTI->getShuffleCost(TargetTransformInfo::SK_Broadcast, VecTy, 0);
     }
-    if (getSameOpcode(VL).Opcode == Instruction::ExtractElement) {
-      Optional<TargetTransformInfo::ShuffleKind> ShuffleKind = isShuffle(VL);
-      if (ShuffleKind.hasValue()) {
+    return getGatherCost(E->Scalars);
+  }
+  InstructionsState S = getSameOpcode(VL);
+  assert(S.Opcode && allSameType(VL) && allSameBlock(VL) && "Invalid VL");
+  assert((E->VectorizationKind == TEK_Vectorize ||
+          (E->VectorizationKind == TEK_EEShuffle &&
+           S.Opcode == Instruction::ExtractElement)) &&
+         "Must be vectorization entry or ExtractElementInst shuffle.");
+  Instruction *VL0 = cast<Instruction>(S.OpValue);
+  unsigned ShuffleOrOp = S.IsAltShuffle ?
+               (unsigned) Instruction::ShuffleVector : S.Opcode;
+  switch (ShuffleOrOp) {
+    case Instruction::PHI:
+      return 0;
+
+    case Instruction::ExtractValue:
+    case Instruction::ExtractElement:
+      if (E->VectorizationKind == TEK_EEShuffle) {
+        Optional<TargetTransformInfo::ShuffleKind> ShuffleKind = isShuffle(VL);
+        assert(ShuffleKind.hasValue() && "Must be shuffle of extractelements");
         int Cost = TTI->getShuffleCost(ShuffleKind.getValue(), VecTy);
         for (auto *V : VL) {
           // If all users of instruction are going to be vectorized and this
           // instruction itself is not going to be vectorized, consider this
-          // instruction as dead and remove its cost from the final cost of the
-          // vectorized tree.
+          // instruction as dead and remove its cost from the final cost of
+          // the vectorized tree.
           if (areAllUsersVectorized(cast<Instruction>(V)) &&
               !ScalarToTreeEntry.count(V)) {
             auto *IO = cast<ConstantInt>(
@@ -1999,20 +2028,6 @@ int BoUpSLP::getEntryCost(TreeEntry *E) {
         }
         return Cost;
       }
-    }
-    return getGatherCost(E->Scalars);
-  }
-  InstructionsState S = getSameOpcode(VL);
-  assert(S.Opcode && allSameType(VL) && allSameBlock(VL) && "Invalid VL");
-  Instruction *VL0 = cast<Instruction>(S.OpValue);
-  unsigned ShuffleOrOp = S.IsAltShuffle ?
-               (unsigned) Instruction::ShuffleVector : S.Opcode;
-  switch (ShuffleOrOp) {
-    case Instruction::PHI:
-      return 0;
-
-    case Instruction::ExtractValue:
-    case Instruction::ExtractElement:
       if (canReuseExtract(VL, S.OpValue)) {
         int DeadCost = 0;
         for (unsigned i = 0, e = VL.size(); i < e; ++i) {
@@ -2219,20 +2234,22 @@ bool BoUpSLP::isFullyVectorizableTinyTree() {
         VectorizableTree.size() << " is fully vectorizable .\n");
 
   // We only handle trees of heights 1 and 2.
-  if (VectorizableTree.size() == 1 && !VectorizableTree[0].NeedToGather)
+  if (VectorizableTree.size() == 1 &&
+      VectorizableTree[0].VectorizationKind == TEK_Vectorize)
     return true;
 
   if (VectorizableTree.size() != 2)
     return false;
 
   // Handle splat and all-constants stores.
-  if (!VectorizableTree[0].NeedToGather &&
+  if (VectorizableTree[0].VectorizationKind == TEK_Vectorize &&
       (allConstant(VectorizableTree[1].Scalars) ||
        isSplat(VectorizableTree[1].Scalars)))
     return true;
 
   // Gathering cost would be too much for tiny trees.
-  if (VectorizableTree[0].NeedToGather || VectorizableTree[1].NeedToGather)
+  if (VectorizableTree[0].VectorizationKind != TEK_Vectorize ||
+      VectorizableTree[1].VectorizationKind != TEK_Vectorize)
     return false;
 
   return true;
@@ -2751,12 +2768,16 @@ Value *BoUpSLP::vectorizeTree(TreeEntry *E) {
     ScalarTy = SI->getValueOperand()->getType();
   VectorType *VecTy = VectorType::get(ScalarTy, E->Scalars.size());
 
-  if (E->NeedToGather) {
+  if (E->VectorizationKind == TEK_Gather) {
     setInsertPointAfterBundle(E->Scalars, VL0);
     auto *V = Gather(E->Scalars, VecTy);
     E->VectorizedValue = V;
     return V;
   }
+  assert((E->VectorizationKind == TEK_Vectorize ||
+          (E->VectorizationKind == TEK_EEShuffle &&
+           S.Opcode == Instruction::ExtractElement)) &&
+         "Must be vectorization entry or ExtractElementInst shuffle.");
 
   unsigned ShuffleOrOp = S.IsAltShuffle ?
            (unsigned) Instruction::ShuffleVector : S.Opcode;
@@ -2797,30 +2818,29 @@ Value *BoUpSLP::vectorizeTree(TreeEntry *E) {
     }
 
     case Instruction::ExtractElement: {
-      if (canReuseExtract(E->Scalars, VL0)) {
-        Value *V = VL0->getOperand(0);
+      if (E->VectorizationKind == TEK_EEShuffle) {
+        setInsertPointAfterBundle(E->Scalars, VL0);
+        auto *V = Gather(E->Scalars, VecTy);
         E->VectorizedValue = V;
         return V;
       }
-      setInsertPointAfterBundle(E->Scalars, VL0);
-      auto *V = Gather(E->Scalars, VecTy);
+      assert(canReuseExtract(E->Scalars, VL0) &&
+             "Unable to reuse extractelements");
+      Value *V = VL0->getOperand(0);
       E->VectorizedValue = V;
       return V;
     }
     case Instruction::ExtractValue: {
-      if (canReuseExtract(E->Scalars, VL0)) {
-        LoadInst *LI = cast<LoadInst>(VL0->getOperand(0));
-        Builder.SetInsertPoint(LI);
-        PointerType *PtrTy = PointerType::get(VecTy, LI->getPointerAddressSpace());
-        Value *Ptr = Builder.CreateBitCast(LI->getOperand(0), PtrTy);
-        LoadInst *V = Builder.CreateAlignedLoad(Ptr, LI->getAlignment());
-        E->VectorizedValue = V;
-        return propagateMetadata(V, E->Scalars);
-      }
-      setInsertPointAfterBundle(E->Scalars, VL0);
-      auto *V = Gather(E->Scalars, VecTy);
+      assert(canReuseExtract(E->Scalars, VL0) &&
+             "Unable to reuse extractvalues");
+      LoadInst *LI = cast<LoadInst>(VL0->getOperand(0));
+      Builder.SetInsertPoint(LI);
+      PointerType *PtrTy =
+          PointerType::get(VecTy, LI->getPointerAddressSpace());
+      Value *Ptr = Builder.CreateBitCast(LI->getOperand(0), PtrTy);
+      LoadInst *V = Builder.CreateAlignedLoad(Ptr, LI->getAlignment());
       E->VectorizedValue = V;
-      return V;
+      return propagateMetadata(V, E->Scalars);
     }
     case Instruction::ZExt:
     case Instruction::SExt:
@@ -3195,7 +3215,8 @@ BoUpSLP::vectorizeTree(ExtraValueToDebugLocsMap &ExternallyUsedValues) {
       continue;
     TreeEntry *E = getTreeEntry(Scalar);
     assert(E && "Invalid scalar");
-    assert(!E->NeedToGather && "Extracting from a gather list");
+    assert(E->VectorizationKind == TEK_Vectorize &&
+           "Extracting from a gather list");
 
     Value *Vec = E->VectorizedValue;
     assert(Vec && "Can't find vectorizable value");
@@ -3266,7 +3287,7 @@ BoUpSLP::vectorizeTree(ExtraValueToDebugLocsMap &ExternallyUsedValues) {
     TreeEntry *Entry = &EIdx;
 
     // No need to handle users of gathered values.
-    if (Entry->NeedToGather)
+    if (Entry->VectorizationKind != TEK_Vectorize)
       continue;
 
     assert(Entry->VectorizedValue && "Can't find vectorizable value");
