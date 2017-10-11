@@ -93,6 +93,12 @@ int TargetTransformInfo::getGEPCost(const GEPOperator *GEP,
   return TTIImpl->getGEPCost(GEP, Operands);
 }
 
+int TargetTransformInfo::getGEPCost(const GEPOperator *GEP,
+                                    ArrayRef<const Value *> Operands,
+                                    ArrayRef<const User *> Users) const {
+  return TTIImpl->getGEPCost(GEP, Operands, Users);
+}
+
 int TargetTransformInfo::getExtCost(const Instruction *I,
                                     const Value *Src) const {
   return TTIImpl->getExtCost(I, Src);
@@ -110,10 +116,10 @@ TargetTransformInfo::getEstimatedNumberOfCaseClusters(const SwitchInst &SI,
                                                       unsigned &JTSize) const {
   return TTIImpl->getEstimatedNumberOfCaseClusters(SI, JTSize);
 }
-
 int TargetTransformInfo::getUserCost(const User *U,
-    ArrayRef<const Value *> Operands) const {
-  int Cost = TTIImpl->getUserCost(U, Operands);
+                                     ArrayRef<const Value *> Operands,
+                                     ArrayRef<const User *> Users) const {
+  int Cost = TTIImpl->getUserCost(U, Operands, Users);
   assert(Cost >= 0 && "TTI should not produce negative costs!");
   return Cost;
 }

@@ -196,9 +196,16 @@ public:
   /// \brief Estimate the cost of a GEP operation when lowered.
   ///
   /// This user-based overload adds the ability to check if the GEP can be
-  /// folded into its users.
+  /// folded into all of its users.
   int getGEPCost(const GEPOperator *GEP,
                  ArrayRef<const Value *> Operands) const;
+
+  /// \brief Estimate the cost of a GEP operation when lowered.
+  ///
+  /// This user-based overload adds the ability to check if the GEP can be
+  /// folded into its users in \p Users.
+  int getGEPCost(const GEPOperator *GEP, ArrayRef<const Value *> Operands,
+                 ArrayRef<const User *> Users) const;
 
   /// \brief Estimate the cost of a EXT operation when lowered.
   ///
@@ -274,9 +281,28 @@ public:
   /// list must be the same as the order of the current operands the IR user
   /// has.
   ///
+  /// \p Users is a list of Users which use \p U in the IR. Currently, only GEPs
+  /// consider the list of Users in the cost calculation.
+  ///
   /// The returned cost is defined in terms of \c TargetCostConstants, see its
   /// comments for a detailed explanation of the cost values.
-  int getUserCost(const User *U, ArrayRef<const Value *> Operands) const;
+  int getUserCost(const User *U, ArrayRef<const Value *> Operands,
+                  ArrayRef<const User *> Users) const;
+
+  /// \brief This is a helper function which passes \p Operands to the
+  /// three-argument getUserCost with the list of all Users which use \p U.
+  int getUserCost(const User *U, ArrayRef<const Value *> Operands) const {
+    SmallVector<const User *, 8> Users(U->user_begin(), U->user_end());
+    return getUserCost(U, Operands, Users);
+  }
+
+  /// \brief This is a helper function which passes \p Users to the
+  /// three-argument getUserCost with the operands \p U has.
+  int getUserCost(const User *U, ArrayRef<const User *> Users) const {
+    SmallVector<const Value *, 4> Operands(U->value_op_begin(),
+                                           U->value_op_end());
+    return getUserCost(U, Operands, Users);
+  }
 
   /// \brief This is a helper function which calls the two-argument getUserCost
   /// with \p Operands which are the current operands U has.
@@ -941,6 +967,9 @@ public:
                          ArrayRef<const Value *> Operands) = 0;
   virtual int getGEPCost(const GEPOperator *GEP,
                          ArrayRef<const Value *> Operands) = 0;
+  virtual int getGEPCost(const GEPOperator *GEP,
+                         ArrayRef<const Value *> Operands,
+                         ArrayRef<const User *> Users) = 0;
   virtual int getExtCost(const Instruction *I, const Value *Src) = 0;
   virtual int getCallCost(FunctionType *FTy, int NumArgs) = 0;
   virtual int getCallCost(const Function *F, int NumArgs) = 0;
@@ -953,8 +982,8 @@ public:
                                ArrayRef<const Value *> Arguments) = 0;
   virtual unsigned getEstimatedNumberOfCaseClusters(const SwitchInst &SI,
                                                     unsigned &JTSize) = 0;
-  virtual int
-  getUserCost(const User *U, ArrayRef<const Value *> Operands) = 0;
+  virtual int getUserCost(const User *U, ArrayRef<const Value *> Operands,
+                          ArrayRef<const User *> Users) = 0;
   virtual bool hasBranchDivergence() = 0;
   virtual bool isSourceOfDivergence(const Value *V) = 0;
   virtual bool isAlwaysUniform(const Value *V) = 0;
@@ -1126,6 +1155,10 @@ public:
                  ArrayRef<const Value *> Operands) override {
     return Impl.getGEPCost(GEP, Operands);
   }
+  int getGEPCost(const GEPOperator *GEP, ArrayRef<const Value *> Operands,
+                 ArrayRef<const User *> Users) override {
+    return Impl.getGEPCost(GEP, Operands, Users);
+  }
   int getExtCost(const Instruction *I, const Value *Src) override {
     return Impl.getExtCost(I, Src);
   }
@@ -1150,8 +1183,9 @@ public:
                        ArrayRef<const Value *> Arguments) override {
     return Impl.getIntrinsicCost(IID, RetTy, Arguments);
   }
-  int getUserCost(const User *U, ArrayRef<const Value *> Operands) override {
-    return Impl.getUserCost(U, Operands);
+  int getUserCost(const User *U, ArrayRef<const Value *> Operands,
+                  ArrayRef<const User *> Users) override {
+    return Impl.getUserCost(U, Operands, Users);
   }
   bool hasBranchDivergence() override { return Impl.hasBranchDivergence(); }
   bool isSourceOfDivergence(const Value *V) override {

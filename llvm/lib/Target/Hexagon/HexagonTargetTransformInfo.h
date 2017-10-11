@@ -70,7 +70,8 @@ public:
 
   /// @}
 
-  int getUserCost(const User *U, ArrayRef<const Value *> Operands);
+  int getUserCost(const User *U, ArrayRef<const Value *> Operands,
+                  ArrayRef<const User *> Users);
 
   // Hexagon specific decision to generate a lookup table.
   bool shouldBuildLookupTables() const;

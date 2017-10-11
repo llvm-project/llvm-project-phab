@@ -611,7 +611,9 @@ void ARMTTIImpl::getUnrollingPreferences(Loop *L, ScalarEvolution &SE,
     }
     SmallVector<const Value*, 4> Operands(I.value_op_begin(),
                                           I.value_op_end());
-    Cost += getUserCost(&I, Operands);
+    SmallVector<const User*, 4> Users(I.user_begin(),
+                                      I.user_end());
+    Cost += getUserCost(&I, Operands, Users);
   }
 
   UP.Partial = true;

@@ -727,6 +727,12 @@ public:
   }
 
   int getGEPCost(const GEPOperator *GEP, ArrayRef<const Value *> Operands) {
+    SmallVector<const User *, 8> Users(GEP->user_begin(), GEP->user_end());
+    return getGEPCost(GEP, Operands, Users);
+  }
+
+  int getGEPCost(const GEPOperator *GEP, ArrayRef<const Value *> Operands,
+                 ArrayRef<const User *> Users) {
     if (!isa<Instruction>(GEP))
       return TTI::TCC_Basic;
 
@@ -741,7 +747,7 @@ public:
       // load/store instructions together with other instructions (e.g., other
       // GEPs). Handling all such cases must be expensive to be performed
       // in this function, so we stay conservative for now.
-      for (const User *U : GEP->users()) {
+      for (const User *U : Users) {
         const Operator *UOP = cast<Operator>(U);
         const Value *PointerOperand = nullptr;
         if (auto *LI = dyn_cast<LoadInst>(UOP))
@@ -772,7 +778,8 @@ public:
     return static_cast<T *>(this)->getIntrinsicCost(IID, RetTy, ParamTys);
   }
 
-  unsigned getUserCost(const User *U, ArrayRef<const Value *> Operands) {
+  unsigned getUserCost(const User *U, ArrayRef<const Value *> Operands,
+                       ArrayRef<const User *> Users) {
     if (isa<PHINode>(U))
       return TTI::TCC_Free; // Model all PHI nodes as free.
 
@@ -782,8 +789,8 @@ public:
         return TTI::TCC_Free;
 
     if (const GEPOperator *GEP = dyn_cast<GEPOperator>(U))
-      return static_cast<T *>(this)->getGEPCost(GEP,
-                                                Operands.drop_front());
+      return static_cast<T *>(this)->getGEPCost(GEP, Operands.drop_front(),
+                                                Users);
 
     if (auto CS = ImmutableCallSite(U)) {
       const Function *F = CS.getCalledFunction();
@@ -816,7 +823,9 @@ public:
   int getInstructionLatency(const Instruction *I) {
     SmallVector<const Value *, 4> Operands(I->value_op_begin(),
                                            I->value_op_end());
-    if (getUserCost(I, Operands) == TTI::TCC_Free)
+    SmallVector<const User *, 4> Users(I->user_begin(),
+                                       I->user_end());
+    if (getUserCost(I, Operands, Users) == TTI::TCC_Free)
       return 0;
 
     if (isa<LoadInst>(I))
