@@ -397,6 +397,15 @@ EncompassingIntegerType(ArrayRef<struct WidthAndSignedness> Types) {
   return {Width, Signed};
 }
 
+// Check if the target supports checked multiplication with 128-bit operands.
+static bool has128BitMulOverflowSupport(const llvm::Triple &Triple) {
+  if (!Triple.isArch64Bit())
+    return false;
+  return StringSwitch<bool>(llvm::Triple::getArchTypePrefix(Triple.getArch()))
+      .Cases("x86", "wasm", "mips", true)
+      .Default(false);
+}
+
 Value *CodeGenFunction::EmitVAStartEnd(Value *ArgValue, bool IsStart) {
   llvm::Type *DestType = Int8PtrTy;
   if (ArgValue->getType() != DestType)
@@ -2248,10 +2257,20 @@ RValue CodeGenFunction::EmitBuiltinExpr(const FunctionDecl *FD,
     WidthAndSignedness EncompassingInfo =
         EncompassingIntegerType({LeftInfo, RightInfo, ResultInfo});
 
+    llvm::Type *ResultLLVMTy = CGM.getTypes().ConvertType(ResultQTy);
+
+    if (BuiltinID == Builtin::BI__builtin_mul_overflow) {
+      if ((EncompassingInfo.Width > 64 &&
+           !has128BitMulOverflowSupport(getTarget().getTriple())) ||
+          (EncompassingInfo.Width > 128)) {
+        CGM.ErrorUnsupported(E,
+                             "__builtin_mul_overflow with mixed-sign operands");
+        return RValue::get(llvm::UndefValue::get(ResultLLVMTy));
+      }
+    }
+
     llvm::Type *EncompassingLLVMTy =
         llvm::IntegerType::get(CGM.getLLVMContext(), EncompassingInfo.Width);
-
-    llvm::Type *ResultLLVMTy = CGM.getTypes().ConvertType(ResultQTy);
 
     llvm::Intrinsic::ID IntrinsicId;
     switch (BuiltinID) {
