@@ -1,0 +1,101 @@
+# RUN: llc -o - %s -mtriple=s390x-linux-gnu -run-pass=machine-scheduler \
+# RUN:   -debug-only=machine-scheduler 2>&1 | FileCheck %s
+
+# Test that an extra COPY due to poor pre-RA scheduling is avoided. This
+#  would happen if the '%7 = ADJDYNALLOC ...' is scheduled above the three
+#  ADJDYNALLOCs using %1 (%r3d dependency).
+
+--- |
+
+  declare i64 @bar(i8*, i8*, i8*, i8*, i8*, i64, i64)
+  
+  define i64 @f1(i64 %length, i64 %index) {
+    %a = alloca i8, i64 %length
+    %b = getelementptr i8, i8* %a, i64 1
+    %cindex = add i64 %index, 3919
+    %c = getelementptr i8, i8* %a, i64 %cindex
+    %dindex = add i64 %index, 3920
+    %d = getelementptr i8, i8* %a, i64 %dindex
+    %eindex = add i64 %index, 4095
+    %e = getelementptr i8, i8* %a, i64 %eindex
+    %count = call i64 @bar(i8* %a, i8* %b, i8* %c, i8* %d, i8* %e, i64 0, i64 0)
+    %res = add i64 %count, 1
+    ret i64 %res
+  }
+
+...
+
+# CHECK: ********** MI Scheduling **********
+# CHECK: f1:BB#0 
+# CHECK:   From: %vreg7<def> = ADJDYNALLOC %vreg5, 1, %noreg; GR64Bit:%vreg7 ADDR64Bit:%vreg5
+# CHECK:     To: CallBRASL 
+# CHECK: *** Final schedule for BB#0 ***
+# CHECK: SU(1):   %vreg8<def> = ADJDYNALLOC %vreg5, 3919, %vreg1; GR64Bit:%vreg8 ADDR64Bit:%vreg5,%vreg1
+# CHECK: SU(2):   %vreg9<def> = ADJDYNALLOC %vreg5, 3920, %vreg1; GR64Bit:%vreg9 ADDR64Bit:%vreg5,%vreg1
+# CHECK: SU(3):   %vreg10<def> = ADJDYNALLOC %vreg5, 4095, %vreg1; GR64Bit:%vreg10 ADDR64Bit:%vreg5,%vreg1
+# CHECK: SU(0):   %vreg7<def> = ADJDYNALLOC %vreg5, 1, %noreg; GR64Bit:%vreg7 ADDR64Bit:%vreg5
+#
+# CHECK: ********** MI Scheduling **********
+# CHECK: f1:BB#0 
+# CHECK:   From: %vreg1<def> = COPY %R3D; ADDR64Bit:%vreg1
+# CHECK:     To: %R15D<def> = COPY %vreg5; ADDR64Bit:%vreg5
+
+---
+name:            f1
+alignment:       2
+tracksRegLiveness: true
+registers:       
+  - { id: 0, class: addr64bit }
+  - { id: 1, class: addr64bit }
+  - { id: 2, class: gr64bit }
+  - { id: 3, class: gr64bit }
+  - { id: 4, class: gr64bit }
+  - { id: 5, class: addr64bit }
+  - { id: 6, class: gr64bit }
+  - { id: 7, class: gr64bit }
+  - { id: 8, class: gr64bit }
+  - { id: 9, class: gr64bit }
+  - { id: 10, class: gr64bit }
+  - { id: 11, class: addr64bit }
+  - { id: 12, class: addr64bit }
+  - { id: 13, class: gr64bit }
+liveins:         
+  - { reg: '%r2d', virtual-reg: '%0' }
+  - { reg: '%r3d', virtual-reg: '%1' }
+frameInfo:       
+  maxAlignment:    8
+  hasCalls:        true
+stack:           
+  - { id: 0, name: a, type: variable-sized, alignment: 1, stack-id: 0 }
+body:             |
+  bb.0 (%ir-block.0):
+    liveins: %r2d, %r3d
+  
+    %1 = COPY %r3d
+    %0 = COPY %r2d
+    %3 = LA %0, 7, _
+    %3 = NILL64 %3, 65528, implicit-def dead %cc
+    %5 = COPY %r15d
+    %5 = SGR %5, %3, implicit-def dead %cc
+    %6 = ADJDYNALLOC %5, 0, _
+    %r15d = COPY %5
+    %7 = ADJDYNALLOC %5, 1, _
+    %8 = ADJDYNALLOC %5, 3919, %1
+    %9 = ADJDYNALLOC %5, 3920, %1
+    %10 = ADJDYNALLOC %5, 4095, %1
+    ADJCALLSTACKDOWN 16, 0
+    MVGHI %r15d, 168, 0 :: (store 8)
+    MVGHI %r15d, 160, 0 :: (store 8)
+    %r2d = COPY %6
+    %r3d = COPY %7
+    %r4d = COPY %8
+    %r5d = COPY %9
+    %r6d = COPY %10
+    CallBRASL @bar, %r2d, %r3d, killed %r4d, killed %r5d, killed %r6d, csr_systemz, implicit-def dead %r14d, implicit-def dead %cc, implicit-def %r2d
+    ADJCALLSTACKUP 16, 0
+    %12 = COPY %r2d
+    %13 = LA %12, 1, _
+    %r2d = COPY %13
+    Return implicit %r2d
+
+...

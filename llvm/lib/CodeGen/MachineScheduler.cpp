@@ -2834,6 +2834,78 @@ static int biasPhysRegCopy(const SUnit *SU, bool isTop) {
   return 0;
 }
 
+// Check if MI (which is expected to be a COPY) has as one of its operands a
+// physical register that could be allocated to the other operands virtual
+// register.
+static bool isCoalescablePRegCopy(MachineInstr *CopyMI,
+                                  const TargetRegisterInfo &TRI,
+                                  const MachineRegisterInfo &MRI) {
+  assert (CopyMI->isCopy() && "Expected a COPY");
+
+  MachineOperand *PRegMO = nullptr, *VRegMO = nullptr;
+  if (TargetRegisterInfo::isPhysicalRegister(CopyMI->getOperand(0).getReg())) {
+    PRegMO = &CopyMI->getOperand(0);
+    VRegMO = &CopyMI->getOperand(1);
+  } else {
+    PRegMO = &CopyMI->getOperand(1);
+    VRegMO = &CopyMI->getOperand(0);
+  }
+  if (!TargetRegisterInfo::isPhysicalRegister(PRegMO->getReg()) ||
+      !TargetRegisterInfo::isVirtualRegister(VRegMO->getReg()))
+    return false;
+
+  MCPhysReg PhysReg = PRegMO->getReg();
+  unsigned VirtReg = VRegMO->getReg();
+  unsigned VSub    = VRegMO->getSubReg();
+
+  const TargetRegisterClass *VirtRC = MRI.getRegClass(VirtReg);
+  return (!MRI.isReserved(PhysReg) &&
+          (VirtRC->contains(PhysReg) ||
+           (VSub && TRI.getMatchingSuperReg(PhysReg, VSub, VirtRC))));
+}
+
+/// Minimize the (virtual) live ranges of copies involving phys-regs. In
+/// regions with both incoming and outgoing arguments, this will reduce the
+/// risk of overlapping live ranges that will hinder coalescing. In contrast
+/// to biasPhysRegCopy(), this does not typically handle COPYs, but rather
+/// instructions connected to a COPY involving a phys-reg.
+static int copiedPhysRegsUses(const SUnit *SU, bool isTop) {
+  const MachineInstr *MI = SU->getInstr();
+  const MachineFunction *MF = MI->getParent()->getParent();
+  const MachineRegisterInfo *MRI = &MF->getRegInfo();
+  const TargetRegisterInfo *TRI = MF->getSubtarget().getRegisterInfo();
+  unsigned NumCopiedPhysRegUses = 0;
+  // Putting OP closer to the COPY minimizes the chance of %0 interfering
+  // with physregX:
+  // %0 = COPY %physregX
+  // ...
+  // %1 = OP %0
+  for (const MachineOperand &MO : MI->uses()) {
+    if (!MO.isReg())
+      continue;
+    MachineInstr *DefMI = MRI->getUniqueVRegDef(MO.getReg());
+    if (DefMI != nullptr && DefMI->isCopy() &&
+        isCoalescablePRegCopy(DefMI, *TRI, *MRI))
+      NumCopiedPhysRegUses++;
+  }
+
+  // Inverse case:
+  // %1 = OP %0
+  // ...
+  // %physregX = COPY %1
+  if (MI->getNumOperands()) {
+    const MachineOperand &DefMO = MI->getOperand(0);
+    unsigned DefReg = ((DefMO.isReg() && DefMO.isDef()) ? DefMO.getReg() : 0);
+    if (DefReg && TRI->isVirtualRegister(DefReg) && MRI->hasOneUse(DefReg)) {
+      MachineInstr *UseMI = &*MRI->use_instr_begin(DefReg);
+      if (UseMI->isCopy() && isCoalescablePRegCopy(UseMI, *TRI, *MRI))
+        NumCopiedPhysRegUses--;
+    }
+  }
+
+  return isTop ? NumCopiedPhysRegUses : -NumCopiedPhysRegUses;
+}
+
 void GenericScheduler::initCandidate(SchedCandidate &Cand, SUnit *SU,
                                      bool AtTop,
                                      const RegPressureTracker &RPTracker,
@@ -2974,6 +3046,12 @@ void GenericScheduler::tryCandidate(SchedCandidate &Cand,
     // For acyclic path limited loops, latency was already checked above.
     if (!RegionPolicy.DisableLatencyHeuristic && TryCand.Policy.ReduceLatency &&
         !Rem.IsAcyclicLatencyLimited && tryLatency(TryCand, Cand, *Zone))
+      return;
+
+    // Try to minimize live ranges of copied physregs.
+    if (tryGreater(copiedPhysRegsUses(TryCand.SU, TryCand.AtTop),
+                   copiedPhysRegsUses(Cand.SU, Cand.AtTop),
+                   TryCand, Cand, PhysRegCopy))
       return;
 
     // Fall through to original instruction order.
