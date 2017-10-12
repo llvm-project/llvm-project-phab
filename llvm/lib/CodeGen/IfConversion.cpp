@@ -722,40 +722,6 @@ bool IfConverter::RescanInstructions(
   return true;
 }
 
-#ifndef NDEBUG
-static void verifySameBranchInstructions(
-    MachineBasicBlock *MBB1,
-    MachineBasicBlock *MBB2) {
-  const MachineBasicBlock::reverse_iterator B1 = MBB1->rend();
-  const MachineBasicBlock::reverse_iterator B2 = MBB2->rend();
-  MachineBasicBlock::reverse_iterator E1 = MBB1->rbegin();
-  MachineBasicBlock::reverse_iterator E2 = MBB2->rbegin();
-  while (E1 != B1 && E2 != B2) {
-    skipDebugInstructionsForward(E1, B1);
-    skipDebugInstructionsForward(E2, B2);
-    if (E1 == B1 && E2 == B2)
-      break;
-
-    if (E1 == B1) {
-      assert(!E2->isBranch() && "Branch mis-match, one block is empty.");
-      break;
-    }
-    if (E2 == B2) {
-      assert(!E1->isBranch() && "Branch mis-match, one block is empty.");
-      break;
-    }
-
-    if (E1->isBranch() || E2->isBranch())
-      assert(E1->isIdenticalTo(*E2) &&
-             "Branch mis-match, branch instructions don't match.");
-    else
-      break;
-    ++E1;
-    ++E2;
-  }
-}
-#endif
-
 /// ValidForkedDiamond - Returns true if the 'true' and 'false' blocks (along
 /// with their common predecessor) form a diamond if a common tail block is
 /// extracted.
@@ -1742,14 +1708,25 @@ bool IfConverter::IfConvertDiamondCommon(
   BBI.BB->splice(BBI.BB->end(), &MBB1, MBB1.begin(), DI1);
   MBB2.erase(MBB2.begin(), DI2);
 
-  // The branches have been checked to match, so it is safe to remove the branch
-  // in BB1 and rely on the copy in BB2
-#ifndef NDEBUG
-  // Unanalyzable branches must match exactly. Check that now.
-  if (!BBI1->IsBrAnalyzable)
-    verifySameBranchInstructions(&MBB1, &MBB2);
-#endif
-  BBI1->NonPredSize -= TII->removeBranch(*BBI1->BB);
+  // When analyzable, the branches have been checked to match, so it is safe to
+  // remove the branch in BB1 and rely on the copy in BB2
+  // For non-analyzable, remove branch only if they are identical
+  if(BBI1->IsBrAnalyzable)
+     BBI1->NonPredSize -= TII->removeBranch(*BBI1->BB);
+  else {
+     DI1 = BBI1->BB->end();
+     DI2 = BBI2->BB->end();
+     do {
+         --DI1;
+     }while(!DI1->isBranch() && DI1 != BBI1->BB->begin());
+     do {
+         --DI2;
+     }while(!DI2->isBranch() && DI2 != BBI2->BB->begin());
+  
+     if(DI1->isIdenticalTo(*DI2))
+		DI1->eraseFromParent();
+  }
+
   // Remove duplicated instructions.
   DI1 = MBB1.end();
   for (unsigned i = 0; i != NumDups2; ) {
@@ -1830,21 +1807,8 @@ bool IfConverter::IfConvertDiamondCommon(
   // Predicate the 'true' block.
   PredicateBlock(*BBI1, MBB1.end(), *Cond1, &RedefsByFalse);
 
-  // After predicating BBI1, if there is a predicated terminator in BBI1 and
-  // a non-predicated in BBI2, then we don't want to predicate the one from
-  // BBI2. The reason is that if we merged these blocks, we would end up with
-  // two predicated terminators in the same block.
-  if (!MBB2.empty() && (DI2 == MBB2.end())) {
-    MachineBasicBlock::iterator BBI1T = MBB1.getFirstTerminator();
-    MachineBasicBlock::iterator BBI2T = MBB2.getFirstTerminator();
-    if (BBI1T != MBB1.end() && TII->isPredicated(*BBI1T) &&
-        BBI2T != MBB2.end() && !TII->isPredicated(*BBI2T))
-      --DI2;
-  }
-
   // Predicate the 'false' block.
   PredicateBlock(*BBI2, DI2, *Cond2);
-
   // Merge the true block into the entry of the diamond.
   MergeBlocks(BBI, *BBI1, MergeAddEdges);
   MergeBlocks(BBI, *BBI2, MergeAddEdges);
