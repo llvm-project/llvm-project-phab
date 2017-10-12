@@ -2248,10 +2248,22 @@ RValue CodeGenFunction::EmitBuiltinExpr(const FunctionDecl *FD,
     WidthAndSignedness EncompassingInfo =
         EncompassingIntegerType({LeftInfo, RightInfo, ResultInfo});
 
+    llvm::Type *ResultLLVMTy = CGM.getTypes().ConvertType(ResultQTy);
+
+    const auto &Triple = getTarget().getTriple();
+    if (BuiltinID == Builtin::BI__builtin_mul_overflow) {
+      if ((EncompassingInfo.Width > 64 &&
+           Triple.getArch() == llvm::Triple::ArchType::x86) ||
+          (EncompassingInfo.Width > 128 &&
+           Triple.getArch() == llvm::Triple::ArchType::x86_64)) {
+        CGM.ErrorUnsupported(E,
+                             "__builtin_mul_overflow with mixed-sign operands");
+        return RValue::get(llvm::UndefValue::get(ResultLLVMTy));
+      }
+    }
+
     llvm::Type *EncompassingLLVMTy =
         llvm::IntegerType::get(CGM.getLLVMContext(), EncompassingInfo.Width);
-
-    llvm::Type *ResultLLVMTy = CGM.getTypes().ConvertType(ResultQTy);
 
     llvm::Intrinsic::ID IntrinsicId;
     switch (BuiltinID) {

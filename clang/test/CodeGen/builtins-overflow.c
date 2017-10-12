@@ -2,7 +2,7 @@
 // rdar://13421498
 
 // RUN: %clang_cc1 -triple "i686-unknown-unknown"   -emit-llvm -x c %s -o - | FileCheck %s
-// RUN: %clang_cc1 -triple "x86_64-unknown-unknown" -emit-llvm -x c %s -o - | FileCheck %s
+// RUN: %clang_cc1 -triple "x86_64-unknown-unknown" -emit-llvm -x c %s -o - | FileCheck %s --check-prefixes=CHECK,M64
 // RUN: %clang_cc1 -triple "x86_64-mingw32"         -emit-llvm -x c %s -o - | FileCheck %s
 
 extern unsigned UnsignedErrorCode;
@@ -338,3 +338,20 @@ long long test_smulll_overflow(long long x, long long y) {
     return LongLongErrorCode;
   return result;
 }
+
+#if defined(__LP64__)
+signed long long test_mixed_sign_mul_i64(signed long long a, unsigned long long b) {
+  // M64-LABEL: define i64 @test_mixed_sign_mul_i64
+  // M64: sext i64 {{.*}} to i65
+  // M64-NEXT: zext i64 {{.*}} to i65
+  // M64-NEXT: call { i65, i1 } @llvm.smul.with.overflow.i65
+  // M64-NEXT: [[OFLOW_1:%.*]] = extractvalue { i65, i1 } {{.*}}, 1
+  // M64-NEXT: [[RES:%.*]] = extractvalue { i65, i1 } {{.*}}, 0
+  // M64-NEXT: [[RES_TRUNC:%.*]] = trunc i65 {{.*}} to i64
+  // M64-NEXT: [[RES_EXT:%.*]] = zext i64 {{.*}} to i65
+  // M64-NEXT: [[OFLOW_2:%.*]] = icmp ne i65 [[RES]], [[RES_EXT]]
+  // M64-NEXT: or i1 [[OFLOW_1]], [[OFLOW_2]]
+  // M64-NEXT: store i64 [[RES_TRUNC]]
+  return __builtin_mul_overflow(a, b, &b);
+}
+#endif
