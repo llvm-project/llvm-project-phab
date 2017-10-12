@@ -973,3 +973,13 @@ std::string SignatureHelp::unparse(const SignatureHelp &SH) {
   Result.push_back('}');
   return Result;
 }
+
+std::string DocumentHighlight::unparse(const DocumentHighlight &DH) {
+  std::string Result;
+  std::string ref = Range::unparse(DH.range);
+
+  llvm::raw_string_ostream(Result)
+      << llvm::formatv("{\"range\": {0}", ref) << ","
+      << llvm::format(R"( "kind": %d)", DH.kind) << "}";
+  return Result;
+}

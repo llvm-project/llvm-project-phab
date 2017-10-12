@@ -31,7 +31,6 @@ class ProtocolCallbacks {
 public:
   using Ctx = RequestContext;
   virtual ~ProtocolCallbacks() = default;
-
   virtual void onInitialize(Ctx C, InitializeParams &Params) = 0;
   virtual void onShutdown(Ctx C, ShutdownParams &Params) = 0;
   virtual void onDocumentDidOpen(Ctx C, DidOpenTextDocumentParams &Params) = 0;
@@ -51,6 +50,8 @@ public:
   virtual void onGoToDefinition(Ctx C, TextDocumentPositionParams &Params) = 0;
   virtual void onSwitchSourceHeader(Ctx C, TextDocumentIdentifier &Params) = 0;
   virtual void onFileEvent(Ctx C, DidChangeWatchedFilesParams &Params) = 0;
+  virtual void onDocumentHighlight(Ctx C,
+                                   TextDocumentPositionParams &Params) = 0;
 };
 
 void registerCallbackHandlers(JSONRPCDispatcher &Dispatcher, JSONOutput &Out,

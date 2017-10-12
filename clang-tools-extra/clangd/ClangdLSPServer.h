@@ -66,9 +66,11 @@ private:
   void onGoToDefinition(Ctx C, TextDocumentPositionParams &Params) override;
   void onSwitchSourceHeader(Ctx C, TextDocumentIdentifier &Params) override;
   void onFileEvent(Ctx C, DidChangeWatchedFilesParams &Params) override;
+  void onDocumentHighlight(Ctx C, TextDocumentPositionParams &Params) override;
 
   std::vector<clang::tooling::Replacement>
-  getFixIts(StringRef File, const clangd::Diagnostic &D);
+      getFixIts(StringRef File, const clangd::Diagnostic &D);
+
 
   /// Function that will be called on a separate thread when diagnostics are
   /// ready. Sends the Dianostics to LSP client via Out.writeMessage and caches

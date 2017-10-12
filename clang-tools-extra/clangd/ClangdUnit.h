@@ -271,6 +271,9 @@ SignatureHelp signatureHelp(PathRef FileName, tooling::CompileCommand Command,
 std::vector<Location> findDefinitions(ParsedAST &AST, Position Pos,
                                       clangd::Logger &Logger);
 
+std::vector<DocumentHighlight>
+findDocumentHighlights(ParsedAST &AST, Position Pos, clangd::Logger &Logger);
+
 /// For testing/debugging purposes. Note that this method deserializes all
 /// unserialized Decls, so use with care.
 void dumpAST(ParsedAST &AST, llvm::raw_ostream &OS);
