@@ -300,6 +300,7 @@ private:
     unsigned BlobLen = (unsigned) Blob.size();
     unsigned AbbrevNo = Abbrev-bitc::FIRST_APPLICATION_ABBREV;
     assert(AbbrevNo < CurAbbrevs.size() && "Invalid abbrev #!");
+    assert(Abbrev < (1U << CurCodeSize) && "Block code length is too small");
     const BitCodeAbbrev *Abbv = CurAbbrevs[AbbrevNo].get();
 
     EmitCode(Abbrev);

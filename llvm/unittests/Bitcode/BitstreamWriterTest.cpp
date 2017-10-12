@@ -56,4 +56,33 @@ TEST(BitstreamWriterTest, emitBlob4ByteAligned) {
   EXPECT_EQ(StringRef("str0"), Buffer);
 }
 
+#ifndef NDEBUG
+TEST(BitstreamWriterTest, trapOnSmallAbbrev) {
+  SmallString<64> Buffer;
+  BitstreamWriter W(Buffer);
+  W.EnterSubblock(bitc::FIRST_APPLICATION_BLOCKID, /*CodeLen*/2);
+  auto Abbrev = std::make_shared<BitCodeAbbrev>();
+  Abbrev->Add(BitCodeAbbrevOp(42U));
+  unsigned AbbrevCode = W.EmitAbbrev(std::move(Abbrev));
+  EXPECT_DEATH({ W.EmitRecordWithAbbrev(AbbrevCode, makeArrayRef(42U)); },
+               "Block code length is too small");
+  W.ExitBlock();
+}
+
+TEST(BitstreamWriterTest, trapOnSmallAbbrevUsingBlockInfo) {
+  SmallString<64> Buffer;
+  BitstreamWriter W(Buffer);
+  W.EnterBlockInfoBlock();
+  auto Abbrev = std::make_shared<BitCodeAbbrev>();
+  Abbrev->Add(BitCodeAbbrevOp(42U));
+  unsigned AbbrevCode = W.EmitBlockInfoAbbrev(bitc::FIRST_APPLICATION_BLOCKID,
+                                              std::move(Abbrev));
+  W.ExitBlock();
+  W.EnterSubblock(bitc::FIRST_APPLICATION_BLOCKID, /*CodeLen*/2);
+  EXPECT_DEATH({ W.EmitRecordWithAbbrev(AbbrevCode, makeArrayRef(42U)); },
+               "Block code length is too small");
+  W.ExitBlock();
+}
+#endif
+
 } // end namespace
