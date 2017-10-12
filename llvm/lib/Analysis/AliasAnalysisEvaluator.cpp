@@ -245,19 +245,23 @@ void AAEvaluator::runInternal(Function &F, AAResults &AA) {
 
       switch (AA.getModRefInfo(C, Pointer, Size)) {
       case MRI_NoModRef:
+      case MRI_Must:
         PrintModRefResults("NoModRef", PrintNoModRef, I, Pointer,
                            F.getParent());
         ++NoModRefCount;
         break;
       case MRI_Mod:
+      case MRI_MustMod:
         PrintModRefResults("Just Mod", PrintMod, I, Pointer, F.getParent());
         ++ModCount;
         break;
       case MRI_Ref:
+      case MRI_MustRef:
         PrintModRefResults("Just Ref", PrintRef, I, Pointer, F.getParent());
         ++RefCount;
         break;
       case MRI_ModRef:
+      case MRI_MustModRef:
         PrintModRefResults("Both ModRef", PrintModRef, I, Pointer,
                            F.getParent());
         ++ModRefCount;
@@ -273,18 +277,22 @@ void AAEvaluator::runInternal(Function &F, AAResults &AA) {
         continue;
       switch (AA.getModRefInfo(*C, *D)) {
       case MRI_NoModRef:
+      case MRI_Must:
         PrintModRefResults("NoModRef", PrintNoModRef, *C, *D, F.getParent());
         ++NoModRefCount;
         break;
       case MRI_Mod:
+      case MRI_MustMod:
         PrintModRefResults("Just Mod", PrintMod, *C, *D, F.getParent());
         ++ModCount;
         break;
       case MRI_Ref:
+      case MRI_MustRef:
         PrintModRefResults("Just Ref", PrintRef, *C, *D, F.getParent());
         ++RefCount;
         break;
       case MRI_ModRef:
+      case MRI_MustModRef:
         PrintModRefResults("Both ModRef", PrintModRef, *C, *D, F.getParent());
         ++ModRefCount;
         break;

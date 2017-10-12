@@ -262,7 +262,7 @@ static bool instructionClobbersQuery(MemoryDef *MD,
 
   if (UseCS) {
     ModRefInfo I = AA.getModRefInfo(DefInst, UseCS);
-    return I != MRI_NoModRef;
+    return I & MRI_ModRef;
   }
 
   if (auto *DefLoad = dyn_cast<LoadInst>(DefInst)) {
