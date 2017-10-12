@@ -1215,32 +1215,23 @@ let AddedComplexity = 400 in { // Prefer VSX patterns over non-VSX patterns.
   let mayLoad = 1, mayStore = 0 in {
     let CodeSize = 3 in
     def LXSSPX : XX1Form<31, 524, (outs vssrc:$XT), (ins memrr:$src),
-                         "lxsspx $XT, $src", IIC_LdStLFD,
-                         [(set f32:$XT, (load xoaddr:$src))]>;
+                         "lxsspx $XT, $src", IIC_LdStLFD, []>;
     def LXSIWAX : XX1Form<31, 76, (outs vsfrc:$XT), (ins memrr:$src),
-                          "lxsiwax $XT, $src", IIC_LdStLFD,
-                          [(set f64:$XT, (PPClfiwax xoaddr:$src))]>;
+                          "lxsiwax $XT, $src", IIC_LdStLFD, []>;
     def LXSIWZX : XX1Form<31, 12, (outs vsfrc:$XT), (ins memrr:$src),
-                          "lxsiwzx $XT, $src", IIC_LdStLFD,
-                          [(set f64:$XT, (PPClfiwzx xoaddr:$src))]>;
+                          "lxsiwzx $XT, $src", IIC_LdStLFD, []>;
   } // mayLoad
 
   // VSX scalar stores introduced in ISA 2.07
   let mayStore = 1, mayLoad = 0 in {
     let CodeSize = 3 in
     def STXSSPX : XX1Form<31, 652, (outs), (ins vssrc:$XT, memrr:$dst),
-                          "stxsspx $XT, $dst", IIC_LdStSTFD,
-                          [(store f32:$XT, xoaddr:$dst)]>;
+                          "stxsspx $XT, $dst", IIC_LdStSTFD, []>;
     def STXSIWX : XX1Form<31, 140, (outs), (ins vsfrc:$XT, memrr:$dst),
-                          "stxsiwx $XT, $dst", IIC_LdStSTFD,
-                          [(PPCstfiwx f64:$XT, xoaddr:$dst)]>;
+                          "stxsiwx $XT, $dst", IIC_LdStSTFD, []>;
   } // mayStore
   } // UseVSXReg = 1
 
-  def : Pat<(f64 (extloadf32 xoaddr:$src)),
-            (COPY_TO_REGCLASS (LXSSPX xoaddr:$src), VSFRC)>;
-  def : Pat<(f32 (fpround (extloadf32 xoaddr:$src))),
-            (f32 (LXSSPX xoaddr:$src))>;
   def : Pat<(f64 (fpextend f32:$src)),
             (COPY_TO_REGCLASS $src, VSFRC)>;
 
@@ -2870,6 +2861,39 @@ let AddedComplexity = 400, Predicates = [HasP9Vector] in {
             (f32 (DFLOADf32 ixaddr:$src))>;
 } // end HasP9Vector, AddedComplexity
 
+let AddedComplexity = 400, Predicates = [HasP8Vector] in {
+  let isPseudo = 1 in {
+    def XFLOADf32  : Pseudo<(outs vssrc:$XT), (ins memrr:$src),
+                            "#XFLOADf32",
+                            [(set f32:$XT, (load xoaddr:$src))]>;
+    def XFSTOREf32 : Pseudo<(outs), (ins vssrc:$XT, memrr:$dst),
+                            "#XFSTOREf32",
+                            [(store f32:$XT, xoaddr:$dst)]>;
+    def XFLOADf64  : Pseudo<(outs vsfrc:$XT), (ins memrr:$src),
+                            "#XFLOADf64",
+                            [(set f64:$XT, (load xoaddr:$src))]>;
+    def XFSTOREf64 : Pseudo<(outs), (ins vsfrc:$XT, memrr:$dst),
+                            "#XFSTOREf64",
+                            [(store f64:$XT, xoaddr:$dst)]>;
+
+    // Load VSX/Floating as Integer Word Algebraic/Zero Indexed
+    def LIWAX : Pseudo<(outs vsfrc:$XT), (ins memrr:$src),
+                       "#LIWAX",
+                       [(set f64:$XT, (PPClfiwax xoaddr:$src))]>;
+    def LIWZX : Pseudo<(outs vsfrc:$XT), (ins memrr:$src),
+                       "#LIWZX",
+                       [(set f64:$XT, (PPClfiwzx xoaddr:$src))]>;
+    def STIWX : Pseudo<(outs), (ins vsfrc:$XT, memrr:$dst),
+                        "#STIWX",
+                        [(PPCstfiwx f64:$XT, xoaddr:$dst)]>;
+  } // end isPseudo
+
+  def : Pat<(f64 (extloadf32 xoaddr:$src)),
+            (COPY_TO_REGCLASS (XFLOADf32 xoaddr:$src), VSFRC)>;
+  def : Pat<(f32 (fpround (extloadf32 xoaddr:$src))),
+            (f32 (XFLOADf32 xoaddr:$src))>;
+} // end HasP8Vector, AddedComplexity
+
 let Predicates = [HasP9Vector] in {
   let isPseudo = 1 in {
     let mayStore = 1 in {
@@ -3040,10 +3064,10 @@ let AddedComplexity = 400 in {
                                (COPY_TO_REGCLASS (XSCVDPUXDS $A), VSRC), 0))>;
     def : Pat<(v4i32 (scalar_to_vector FltToIntLoad.A)),
               (v4i32 (XXSPLTW (COPY_TO_REGCLASS
-                                (XSCVDPSXWSs (LXSSPX xoaddr:$A)), VSRC), 1))>;
+                                (XSCVDPSXWSs (XFLOADf32 xoaddr:$A)), VSRC), 1))>;
     def : Pat<(v4i32 (scalar_to_vector FltToUIntLoad.A)),
               (v4i32 (XXSPLTW (COPY_TO_REGCLASS
-                                (XSCVDPUXWSs (LXSSPX xoaddr:$A)), VSRC), 1))>;
+                                (XSCVDPUXWSs (XFLOADf32 xoaddr:$A)), VSRC), 1))>;
     def : Pat<(v4f32 (build_vector f32:$A, f32:$A, f32:$A, f32:$A)),
               (v4f32 (XXSPLTW (v4f32 (XSCVDPSPN $A)), 0))>;
 
@@ -3061,19 +3085,19 @@ let AddedComplexity = 400 in {
   }
 
   let Predicates = [HasVSX, NoP9Vector] in {
-    // Load-and-splat with fp-to-int conversion (using X-Form VSX loads).
+    // Load-and-splat with fp-to-int conversion (using X-Form VSX/FP loads).
     def : Pat<(v4i32 (scalar_to_vector DblToIntLoad.A)),
               (v4i32 (XXSPLTW (COPY_TO_REGCLASS
-                                (XSCVDPSXWS (LXSDX xoaddr:$A)), VSRC), 1))>;
+                                (XSCVDPSXWS (XFLOADf64 xoaddr:$A)), VSRC), 1))>;
     def : Pat<(v4i32 (scalar_to_vector DblToUIntLoad.A)),
               (v4i32 (XXSPLTW (COPY_TO_REGCLASS
-                                (XSCVDPUXWS (LXSDX xoaddr:$A)), VSRC), 1))>;
+                                (XSCVDPUXWS (XFLOADf64 xoaddr:$A)), VSRC), 1))>;
     def : Pat<(v2i64 (scalar_to_vector FltToLongLoad.A)),
               (v2i64 (XXPERMDIs (XSCVDPSXDS (COPY_TO_REGCLASS
-                                              (LXSSPX xoaddr:$A), VSFRC)), 0))>;
+                                              (XFLOADf32 xoaddr:$A), VSFRC)), 0))>;
     def : Pat<(v2i64 (scalar_to_vector FltToULongLoad.A)),
               (v2i64 (XXPERMDIs (XSCVDPUXDS (COPY_TO_REGCLASS
-                                              (LXSSPX xoaddr:$A), VSFRC)), 0))>;
+                                              (XFLOADf32 xoaddr:$A), VSFRC)), 0))>;
   }
 
   // Big endian, available on all targets with VSX

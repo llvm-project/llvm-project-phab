@@ -1994,7 +1994,7 @@ def STWBRX: XForm_8<31, 662, (outs), (ins gprc:$rS, memrr:$dst),
 def STFIWX: XForm_28<31, 983, (outs), (ins f8rc:$frS, memrr:$dst),
                      "stfiwx $frS, $dst", IIC_LdStSTFD,
                      [(PPCstfiwx f64:$frS, xoaddr:$dst)]>;
-                     
+
 def STFSX : XForm_28<31, 663, (outs), (ins f4rc:$frS, memrr:$dst),
                      "stfsx $frS, $dst", IIC_LdStSTFD,
                      [(store f32:$frS, xaddr:$dst)]>;

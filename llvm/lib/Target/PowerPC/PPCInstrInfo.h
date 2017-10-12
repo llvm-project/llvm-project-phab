@@ -282,6 +282,9 @@ public:
   ArrayRef<std::pair<unsigned, const char *>>
   getSerializableBitmaskMachineOperandTargetFlags() const override;
 
+  // Heuristic to choose between a VSX instruction and a FP instruction.
+  bool targetInstrHeuristic(MachineInstr &MI) const;
+
   // Lower pseudo instructions after register allocation.
   bool expandPostRAPseudo(MachineInstr &MI) const override;
 
