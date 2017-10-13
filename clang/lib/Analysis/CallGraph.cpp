@@ -33,10 +33,12 @@ class CGBuilder : public StmtVisitor<CGBuilder> {
   CallGraphNode *CallerNode;
 
 public:
-  CGBuilder(CallGraph *g, CallGraphNode *N)
-    : G(g), CallerNode(N) {}
+  CGBuilder(CallGraph *g, CallGraphNode *N) : G(g), CallerNode(N) {}
 
-  void VisitStmt(Stmt *S) { VisitChildren(S); }
+  void VisitStmt(Stmt *S) {
+    markModifiedVars(S);
+    VisitChildren(S);
+  }
 
   Decl *getDeclFromCall(CallExpr *CE) {
     if (FunctionDecl *CalleeDecl = CE->getDirectCallee())
@@ -63,13 +65,14 @@ public:
     if (Decl *D = getDeclFromCall(CE))
       addCalledDecl(D);
     VisitChildren(CE);
+    markModifiedVars(CE);
   }
 
   // Adds may-call edges for the ObjC message sends.
   void VisitObjCMessageExpr(ObjCMessageExpr *ME) {
     if (ObjCInterfaceDecl *IDecl = ME->getReceiverInterface()) {
       Selector Sel = ME->getSelector();
-      
+
       // Find the callee definition within the same translation unit.
       Decl *D = nullptr;
       if (ME->isInstanceMessage())
@@ -87,6 +90,53 @@ public:
     for (Stmt *SubStmt : S->children())
       if (SubStmt)
         this->Visit(SubStmt);
+  }
+
+  void modifyVar(Expr *E) {
+    auto *D = dyn_cast<DeclRefExpr>(E->IgnoreParenCasts());
+    if (!D)
+      return;
+    VarDecl *VD = dyn_cast<VarDecl>(D->getDecl());
+    if (VD)
+      VD->setModified();
+  }
+
+  void markModifiedVars(Stmt *S) {
+    // Increment/Decrement, taking address of variable
+    if (UnaryOperator *U = dyn_cast<UnaryOperator>(S)) {
+      const UnaryOperatorKind K = U->getOpcode();
+      if (K == UO_AddrOf || K == UO_PostDec || K == UO_PostInc ||
+          K == UO_PreDec || K == UO_PreInc)
+        modifyVar(U->getSubExpr());
+      return;
+    }
+
+    // Assignments
+    if (BinaryOperator *B = dyn_cast<BinaryOperator>(S)) {
+      if (!B->isAssignmentOp())
+        return;
+      modifyVar(B->getLHS());
+      if (B->getLHS()->getType()->isReferenceType())
+        modifyVar(B->getRHS());
+      return;
+    }
+
+    // Handle reference arguments
+    if (auto *CE = dyn_cast<CallExpr>(S)) {
+      const Decl *D = CE->getCalleeDecl();
+      if (!D)
+        return;
+      const FunctionDecl *FD = dyn_cast<FunctionDecl>(D);
+      if (!FD)
+        return;
+      unsigned N = 0;
+      for (const auto Arg : FD->parameters()) {
+        if (Arg->getType()->isReferenceType() &&
+            !Arg->getType().isConstQualified() && N < CE->getNumArgs())
+          modifyVar(CE->getArg(N));
+        N++;
+      }
+    }
   }
 };
 

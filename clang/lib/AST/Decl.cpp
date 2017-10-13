@@ -1840,10 +1840,12 @@ VarDecl::VarDecl(Kind DK, ASTContext &C, DeclContext *DC,
   // Everything else is implicitly initialized to false.
 }
 
-VarDecl *VarDecl::Create(ASTContext &C, DeclContext *DC,
-                         SourceLocation StartL, SourceLocation IdL,
-                         IdentifierInfo *Id, QualType T, TypeSourceInfo *TInfo,
-                         StorageClass S) {
+void VarDecl::setModified() { VarDeclBits.Modified = true; }
+bool VarDecl::isModified() const { return VarDeclBits.Modified; }
+
+VarDecl *VarDecl::Create(ASTContext &C, DeclContext *DC, SourceLocation StartL,
+                         SourceLocation IdL, IdentifierInfo *Id, QualType T,
+                         TypeSourceInfo *TInfo, StorageClass S) {
   return new (C, DC) VarDecl(Var, C, DC, StartL, IdL, Id, T, TInfo, S);
 }
 

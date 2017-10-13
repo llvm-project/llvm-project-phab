@@ -103,8 +103,71 @@ ExprEngine::~ExprEngine() {
 // Utility methods.
 //===----------------------------------------------------------------------===//
 
+/** Get initial state for global static variable */
+ProgramStateRef ExprEngine::getInitialStateForGlobalStaticVar(
+    const LocationContext *LCtx, ProgramStateRef State, const VarDecl *VD) {
+  // Is variable changed anywhere in TU?
+  if (VD->isModified())
+    return State;
+
+  // What is the initialized value?
+  llvm::APSInt InitVal;
+  if (const Expr *I = VD->getInit()) {
+    if (!I->EvaluateAsInt(InitVal, getContext()))
+      return State;
+  } else {
+    InitVal = 0;
+  }
+
+  const MemRegion *R = State->getRegion(VD, LCtx);
+  if (!R)
+    return State;
+  SVal V = State->getSVal(loc::MemRegionVal(R));
+  SVal Constraint_untested =
+      evalBinOp(State, BO_EQ, V, svalBuilder.makeIntVal(InitVal),
+                svalBuilder.getConditionType());
+  Optional<DefinedOrUnknownSVal> Constraint =
+      Constraint_untested.getAs<DefinedOrUnknownSVal>();
+  if (!Constraint)
+    return State;
+  return State->assume(*Constraint, true);
+}
+
+static void getGlobalStaticVars(const Stmt *FuncBody,
+                                llvm::SmallSet<const VarDecl *, 4> *Vars) {
+  std::stack<const Stmt *> Children;
+  Children.push(FuncBody);
+  while (!Children.empty()) {
+    const Stmt *Child = Children.top();
+    Children.pop();
+    if (!Child)
+      continue;
+    for (const Stmt *C : Child->children()) {
+      Children.push(C);
+    }
+    if (const DeclRefExpr *D = dyn_cast<DeclRefExpr>(Child)) {
+      const VarDecl *VD = dyn_cast<VarDecl>(D->getDecl());
+      if (VD && VD->isDefinedOutsideFunctionOrMethod() &&
+          VD->getType()->isIntegerType() &&
+          VD->getStorageClass() == SC_Static &&
+          !VD->getType()->isPointerType()) {
+        Vars->insert(VD);
+      }
+    }
+  }
+}
+
 ProgramStateRef ExprEngine::getInitialState(const LocationContext *InitLoc) {
   ProgramStateRef state = StateMgr.getInitialState(InitLoc);
+  // Get initial states for static global variables.
+  if (const auto *FD = dyn_cast<FunctionDecl>(InitLoc->getDecl())) {
+    llvm::SmallSet<const VarDecl *, 4> Vars;
+    getGlobalStaticVars(FD->getBody(), &Vars);
+    for (const VarDecl *VD : Vars) {
+      state = getInitialStateForGlobalStaticVar(InitLoc, state, VD);
+    }
+  }
+
   const Decl *D = InitLoc->getDecl();
 
   // Preconditions.

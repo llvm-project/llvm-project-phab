@@ -790,6 +790,9 @@ public:
     TLS_Dynamic ///< TLS with a dynamic initializer.
   };
 
+  void setModified();
+  bool isModified() const;
+
 protected:
   // A pointer union of Stmt * and EvaluatedStmt *. When an EvaluatedStmt, we
   // have allocated the auxiliary struct of information there.
@@ -812,8 +815,9 @@ private:
     unsigned SClass : 3;
     unsigned TSCSpec : 2;
     unsigned InitStyle : 2;
+    unsigned Modified : 1;
   };
-  enum { NumVarDeclBits = 7 };
+  enum { NumVarDeclBits = 8 };
 
   friend class ASTDeclReader;
   friend class StmtIteratorBase;
