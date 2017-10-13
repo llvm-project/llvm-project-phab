@@ -4233,6 +4233,11 @@ bool InstCombiner::transformConstExprCastCall(CallSite CS) {
       ValueHandleBase::ValueIsDeleted(Caller);
   }
 
+  // Drop references from bitcast constant expression to the callee.
+  if (auto *Op = dyn_cast<User>(Caller->getOperand(0)))
+    if (Op->hasOneUse())
+      Op->dropAllReferences();
+      
   eraseInstFromFunction(*Caller);
   return true;
 }
