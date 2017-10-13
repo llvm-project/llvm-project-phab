@@ -1,0 +1,8 @@
+# Test that profiler works with applications running multiple processes.
+RUN: rm -rf %t.d
+RUN: mkdir -p %t.d
+RUN: %clang_profgen -O0 %S/Inputs/instrprof-multi-process-parent.c -o %t.d/parent
+RUN: %clang_profgen -O0 %S/Inputs/instrprof-multi-process-child.c -o %t.d/child
+RUN: %t.d/parent
+
+RUN: llvm-profdata merge -o %t.profdata parent.*.profraw child.*.profraw

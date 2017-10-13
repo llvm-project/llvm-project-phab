@@ -278,7 +278,16 @@ static void truncateCurrentFile(void) {
   fclose(File);
 }
 
-static const char *DefaultProfileName = "default.profraw";
+const char *getFilenamePatDefault(void) {
+  const char* procname = getprogname();
+  const pid_t pid = getpid();
+  char* name;
+  asprintf(&name, "%s.%d.profraw", procname, pid);
+  return name;
+}
+
+
+static const char *DefaultProfileName; // = getFilenamePatDefault(); //"default.profraw";
 static void resetFilenameToDefault(void) {
   if (lprofCurFilename.FilenamePat && lprofCurFilename.OwnsFilenamePat) {
     free((void *)lprofCurFilename.FilenamePat);
@@ -515,6 +524,8 @@ void __llvm_profile_initialize_file(void) {
   const char *EnvFilenamePat;
   const char *SelectedPat = NULL;
   ProfileNameSpecifier PNS = PNS_unknown;
+  if (!DefaultProfileName)
+    DefaultProfileName = getFilenamePatDefault();
   int hasCommandLineOverrider = (INSTR_PROF_PROFILE_NAME_VAR[0] != 0);
 
   EnvFilenamePat = getFilenamePatFromEnv();
