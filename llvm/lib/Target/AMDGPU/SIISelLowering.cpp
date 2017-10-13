@@ -201,6 +201,9 @@ SITargetLowering::SITargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::INTRINSIC_WO_CHAIN, MVT::v4f32, Custom);
   setOperationAction(ISD::INTRINSIC_WO_CHAIN, MVT::v2f16, Custom);
 
+  if (!Subtarget->hasVOP3PInsts()) // So v2f16 is not legal.
+    setOperationAction(ISD::INTRINSIC_W_CHAIN, MVT::v2f16, Custom);
+  setOperationAction(ISD::INTRINSIC_W_CHAIN, MVT::v4f16, Custom);
   setOperationAction(ISD::INTRINSIC_W_CHAIN, MVT::Other, Custom);
 
   setOperationAction(ISD::INTRINSIC_VOID, MVT::Other, Custom);
@@ -3243,6 +3246,68 @@ void SITargetLowering::ReplaceNodeResults(SDNode *N,
       Results.push_back(DAG.getNode(ISD::BITCAST, SL, MVT::v2f16, Cvt));
       return;
     }
+    break;
+  }
+  case ISD::INTRINSIC_W_CHAIN: {
+    SDValue Op = SDValue(N, 0);
+    EVT ResultT = Op.getValueType();
+    // Should we do assert here?
+    if (ResultT != MVT::v2f16 && ResultT != MVT::v4f16)
+      return;
+    // Get the i32 element size equivalent type which is legal.
+    EVT EquivResultT = getEquivalentMemType(*DAG.getContext(), ResultT);
+    // Change from v4f16/v2f16 to EquivResultT.
+    SDVTList VTList = DAG.getVTList(EquivResultT, MVT::Other);
+
+    SDLoc DL(Op);
+    SDValue Res;
+    MachineFunction &MF = DAG.getMachineFunction();
+    unsigned IID = cast<ConstantSDNode>(Op.getOperand(1))->getZExtValue();
+    if (IID == Intrinsic::amdgcn_tbuffer_load) {
+      SDValue Ops[] = {
+        Op.getOperand(0),  // Chain
+        Op.getOperand(2),  // rsrc
+        Op.getOperand(3),  // vindex
+        Op.getOperand(4),  // voffset
+        Op.getOperand(5),  // soffset
+        Op.getOperand(6),  // offset
+        Op.getOperand(7),  // dfmt
+        Op.getOperand(8),  // nfmt
+        Op.getOperand(9),  // glc
+        Op.getOperand(10)  // slc
+      };
+      EVT VT = Op.getOperand(2).getValueType();
+      MachineMemOperand *MMO = MF.getMachineMemOperand(
+                                   MachinePointerInfo(),
+                                   MachineMemOperand::MOLoad,
+                                   VT.getStoreSize(), VT.getStoreSize());
+
+      Res = DAG.getMemIntrinsicNode(AMDGPUISD::TBUFFER_LOAD_FORMAT_D16, DL,
+                                   VTList, Ops, VT, MMO);
+    } else if (IID == Intrinsic::amdgcn_buffer_load_format) {
+      SDValue Ops[] = {
+        Op.getOperand(0), // Chain
+        Op.getOperand(2), // rsrc
+        Op.getOperand(3), // vindex
+        Op.getOperand(4), // offset
+        Op.getOperand(5), // glc
+        Op.getOperand(6)  // slc
+      };
+      SIMachineFunctionInfo *MFI = MF.getInfo<SIMachineFunctionInfo>();
+      EVT VT = ResultT;
+      EVT IntVT = VT.changeTypeToInteger();
+      MachineMemOperand *MMO = MF.getMachineMemOperand(
+                                  MachinePointerInfo(MFI->getBufferPSV()),
+                                  MachineMemOperand::MOLoad,
+                                  VT.getStoreSize(), VT.getStoreSize());
+
+      Res = DAG.getMemIntrinsicNode(AMDGPUISD::BUFFER_LOAD_FORMAT_D16,
+                                          DL, VTList, Ops, IntVT, MMO);
+    } else return; // Should we assert here?
+
+    // Cast back yo the original result type, and pu in "Results" list.
+    Results.push_back(DAG.getNode(ISD::BITCAST, DL, ResultT, Res));
+    Results.push_back(Res.getOperand(0)); // Chain
     break;
   }
   case ISD::SELECT: {
