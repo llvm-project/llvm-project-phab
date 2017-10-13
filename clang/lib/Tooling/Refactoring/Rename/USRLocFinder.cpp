@@ -194,6 +194,12 @@ public:
 
   bool VisitDeclRefExpr(const DeclRefExpr *Expr) {
     const NamedDecl *Decl = Expr->getFoundDecl();
+    // Get the underlying declaration of the shadow declaration introduced by a
+    // using declaration.
+    if (auto* UsingShadow = llvm::dyn_cast<UsingShadowDecl>(Decl)) {
+      Decl = UsingShadow->getTargetDecl();
+    }
+
     if (isInUSRSet(Decl)) {
       RenameInfo Info = {Expr->getSourceRange().getBegin(),
                          Expr->getSourceRange().getEnd(),
@@ -445,14 +451,11 @@ createRenameAtomicChanges(llvm::ArrayRef<std::string> USRs,
         ReplacedName = NewName.substr(LastColonPos + 1);
     } else {
       if (RenameInfo.FromDecl && RenameInfo.Context) {
-        if (!llvm::isa<clang::TranslationUnitDecl>(
-                RenameInfo.Context->getDeclContext())) {
-          ReplacedName = tooling::replaceNestedName(
-              RenameInfo.Specifier, RenameInfo.Context->getDeclContext(),
-              RenameInfo.FromDecl,
-              NewName.startswith("::") ? NewName.str()
-                                       : ("::" + NewName).str());
-        }
+        ReplacedName = tooling::replaceNestedName(
+            RenameInfo.Specifier, RenameInfo.Context->getDeclContext(),
+            RenameInfo.FromDecl,
+            NewName.startswith("::") ? NewName.str()
+                                     : ("::" + NewName).str());
       }
       // If the NewName contains leading "::", add it back.
       if (NewName.startswith("::") && NewName.substr(2) == ReplacedName)

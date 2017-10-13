@@ -51,6 +51,7 @@ INSTANTIATE_TEST_CASE_P(
     testing::ValuesIn(std::vector<Case>({
         // basic classes
         {"a::Foo f;", "b::Bar f;", "", ""},
+        {"::a::Foo f;", "::b::Bar f;", "", ""},
         {"void f(a::Foo f) {}", "void f(b::Bar f) {}", "", ""},
         {"void f(a::Foo *f) {}", "void f(b::Bar *f) {}", "", ""},
         {"a::Foo f() { return a::Foo(); }", "b::Bar f() { return b::Bar(); }",
@@ -69,7 +70,7 @@ INSTANTIATE_TEST_CASE_P(
          "a::Foo::Nested2"},
 
         // use namespace and typedefs
-        {"using a::Foo; Foo gA;", "using b::Bar; b::Bar gA;", "", ""},
+        {"using a::Foo; Foo gA;", "using b::Bar; Bar gA;", "", ""},
         {"using a::Foo; void f(Foo gA) {}", "using b::Bar; void f(Bar gA) {}",
          "", ""},
         {"using a::Foo; namespace x { Foo gA; }",
@@ -165,7 +166,7 @@ INSTANTIATE_TEST_CASE_P(
         // Pointer to member functions
         {"auto gA = &a::Foo::func;", "auto gA = &b::Bar::func;", "", ""},
         {"using a::Foo; auto gA = &Foo::func;",
-         "using b::Bar; auto gA = &b::Bar::func;", "", ""},
+         "using b::Bar; auto gA = &Bar::func;", "", ""},
         {"using a::Foo; namespace x { auto gA = &Foo::func; }",
          "using b::Bar; namespace x { auto gA = &Bar::func; }", "", ""},
         {"typedef a::Foo T; auto gA = &T::func;",
