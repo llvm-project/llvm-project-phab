@@ -235,7 +235,6 @@ public:
   void fabricateDefaultCommands();
   void addOrphanSections(OutputSectionFactory &Factory);
   void removeEmptyCommands();
-  void adjustSectionsBeforeSorting();
   void adjustSectionsAfterSorting();
 
   std::vector<PhdrEntry *> createPhdrs();
