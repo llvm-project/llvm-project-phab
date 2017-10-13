@@ -828,34 +828,34 @@ void X86TargetInfo::getTargetDefines(const LangOptions &Opts,
     break;
   case CK_Bonnell:
     defineCPUMacros(Builder, "atom");
+    // gcc also defines 'bonnell', but we never have. See comment below.
     break;
   case CK_Silvermont:
     defineCPUMacros(Builder, "slm");
+    // gcc also defineds 'silvermont', but we never have. See comment below.
     break;
   case CK_Goldmont:
     defineCPUMacros(Builder, "goldmont");
     break;
   case CK_Nehalem:
   case CK_Westmere:
+    defineCPUMacros(Builder, "corei7");
+    // gcc also defines 'nehalem', but we never have. See comment below.
+    break;
   case CK_SandyBridge:
   case CK_IvyBridge:
   case CK_Haswell:
   case CK_Broadwell:
   case CK_SkylakeClient:
-    // FIXME: Historically, we defined this legacy name, it would be nice to
-    // remove it at some point. We've never exposed fine-grained names for
-    // recent primary x86 CPUs, and we should keep it that way.
-    defineCPUMacros(Builder, "corei7");
-    break;
   case CK_SkylakeServer:
-    defineCPUMacros(Builder, "skx");
-    break;
   case CK_Cannonlake:
+  case CK_KNM:
+    // We don't want to define fine-grained macros for new CPUs going forward.
+    // While at the same time maintaining compatibility with gcc for the ones
+    // we have historically defined.
     break;
   case CK_KNL:
     defineCPUMacros(Builder, "knl");
-    break;
-  case CK_KNM:
     break;
   case CK_Lakemont:
     Builder.defineMacro("__tune_lakemont__");
