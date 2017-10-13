@@ -247,6 +247,8 @@ public:
   void allocateHeaders(std::vector<PhdrEntry *> &Phdrs);
   void processSectionCommands(OutputSectionFactory &Factory);
 
+  void defineSymbols();
+
   // SECTIONS command list.
   std::vector<BaseCommand *> SectionCommands;
 

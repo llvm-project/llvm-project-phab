@@ -154,6 +154,37 @@ void LinkerScript::addSymbol(SymbolAssignment *Cmd) {
   Cmd->Sym = cast<DefinedRegular>(Sym->body());
 }
 
+// Symbols defined in script should not be inlined by LTO. At the same time
+// we don't know their final values until late stages of link. Here we scan
+// over symbol assignment commands, create dummy symbols if needed and and set
+// appropriate flag.
+void LinkerScript::defineSymbols() {
+  assert(!Ctx);
+  for (BaseCommand *Base : SectionCommands) {
+    SymbolAssignment *Cmd = dyn_cast<SymbolAssignment>(Base);
+    if (!Cmd || Cmd->Name == ".")
+      continue;
+
+    // Symbol already defined is a simple case, we only want to set the flag.
+    if (SymbolBody *B = Symtab->find(Cmd->Name)) {
+      B->symbol()->CanInline = false;
+      continue;
+    }
+
+    // It is not an undefined symbol, so it will not be defined by PROVIDE.
+    if (Cmd->Provide)
+      continue;
+
+    // Define dummy symbol.
+    Symbol *Sym;
+    std::tie(Sym, std::ignore) =
+        Symtab->insert(Cmd->Name, 0, STV_DEFAULT, false, nullptr);
+    replaceBody<DefinedRegular>(Sym, nullptr, Cmd->Name, /*IsLocal=*/false,
+                                STV_DEFAULT, STT_NOTYPE, 0, 0, nullptr);
+    Sym->CanInline = false;
+  }
+}
+
 // This function is called from assignAddresses, while we are
 // fixing the output section addresses. This function is supposed
 // to set the final value for a given symbol assignment.
