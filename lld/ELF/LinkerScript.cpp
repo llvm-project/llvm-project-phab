@@ -339,6 +339,35 @@ LinkerScript::createInputSectionList(OutputSection &OutCmd) {
   return Ret;
 }
 
+// If the output section contains only symbol assignments, we create a
+// corresponding output section. The issue is what to do with linker script
+// like ".foo : { symbol = 42; }". One option would be to convert it to
+// "symbol = 42;". That is, move the symbol out of the empty section
+// description. That seems to be what bfd does for this simple case. The
+// problem is that this is not completely general. bfd will give up and
+// create a dummy section too if there is a ". = . + 1" inside the section
+// for example.
+// Given that we want to create the section, we have to worry what impact
+// it will have on the link. For example, if we just create a section with
+// 0 for flags, it would change which PT_LOADs are created.
+// We could remember that that particular section is dummy and ignore it in
+// other parts of the linker, but unfortunately there are quite a few places
+// that would need to change:
+//   * The program header creation.
+//   * The orphan section placement.
+//   * The address assignment.
+// The other option is to pick flags that minimize the impact the section
+// will have on the rest of the linker. That is why we copy the flags from
+// the previous sections. Only a few flags are needed to keep the impact low.
+static void keepSection(OutputSection *Sec, Optional<uint64_t> Flags) {
+  if (Sec->Live)
+    return;
+  Sec->Live = true;
+  Sec->Flags = SHF_ALLOC;
+  if (Flags)
+    Sec->Flags |= (*Flags & (SHF_WRITE | SHF_EXECINSTR));
+}
+
 void LinkerScript::processSectionCommands(OutputSectionFactory &Factory) {
   // A symbol can be assigned before any section is mentioned in the linker
   // script. In an DSO, the symbol values are addresses, so the only important
@@ -360,6 +389,7 @@ void LinkerScript::processSectionCommands(OutputSectionFactory &Factory) {
   Ctx->OutSec = Aether;
 
   // Add input sections to output sections.
+  Optional<uint64_t> PrevFlags;
   for (size_t I = 0; I < SectionCommands.size(); ++I) {
     // Handle symbol assignments outside of any output section.
     if (auto *Cmd = dyn_cast<SymbolAssignment>(SectionCommands[I])) {
@@ -392,12 +422,6 @@ void LinkerScript::processSectionCommands(OutputSectionFactory &Factory) {
         continue;
       }
 
-      // A directive may contain symbol definitions like this:
-      // ".foo : { ...; bar = .; }". Handle them.
-      for (BaseCommand *Base : Sec->SectionCommands)
-        if (auto *OutCmd = dyn_cast<SymbolAssignment>(Base))
-          addSymbol(OutCmd);
-
       // Handle subalign (e.g. ".foo : SUBALIGN(32) { ... }"). If subalign
       // is given, input sections are aligned to that value, whether the
       // given value is larger or smaller than the original section alignment.
@@ -410,6 +434,20 @@ void LinkerScript::processSectionCommands(OutputSectionFactory &Factory) {
       // Add input sections to an output section.
       for (InputSection *S : V)
         Sec->addSection(S);
+
+      // We are doing next things here:
+      // 1) Handle symbol definitions if directive contains them, e.g:
+      //    .foo : { ...; bar = .; }
+      // 2) Keep some output sections in even if them have no input
+      //    sections inside. See comment for reviveSection.
+      for (BaseCommand *Base : Sec->SectionCommands) {
+        if (auto *OutCmd = dyn_cast<SymbolAssignment>(Base))
+          addSymbol(OutCmd);
+        if (!isa<InputSectionDescription>(*Base))
+          keepSection(Sec, PrevFlags);
+      }
+      if (Sec->Live)
+        PrevFlags = Sec->Flags;
     }
   }
   Ctx = nullptr;
@@ -646,53 +684,6 @@ void LinkerScript::removeEmptyCommands() {
       return !Sec->Live;
     return false;
   });
-}
-
-static bool isAllSectionDescription(const OutputSection &Cmd) {
-  for (BaseCommand *Base : Cmd.SectionCommands)
-    if (!isa<InputSectionDescription>(*Base))
-      return false;
-  return true;
-}
-
-void LinkerScript::adjustSectionsBeforeSorting() {
-  // If the output section contains only symbol assignments, create a
-  // corresponding output section. The issue is what to do with linker script
-  // like ".foo : { symbol = 42; }". One option would be to convert it to
-  // "symbol = 42;". That is, move the symbol out of the empty section
-  // description. That seems to be what bfd does for this simple case. The
-  // problem is that this is not completely general. bfd will give up and
-  // create a dummy section too if there is a ". = . + 1" inside the section
-  // for example.
-  // Given that we want to create the section, we have to worry what impact
-  // it will have on the link. For example, if we just create a section with
-  // 0 for flags, it would change which PT_LOADs are created.
-  // We could remember that that particular section is dummy and ignore it in
-  // other parts of the linker, but unfortunately there are quite a few places
-  // that would need to change:
-  //   * The program header creation.
-  //   * The orphan section placement.
-  //   * The address assignment.
-  // The other option is to pick flags that minimize the impact the section
-  // will have on the rest of the linker. That is why we copy the flags from
-  // the previous sections. Only a few flags are needed to keep the impact low.
-  uint64_t Flags = SHF_ALLOC;
-
-  for (BaseCommand *Cmd : SectionCommands) {
-    auto *Sec = dyn_cast<OutputSection>(Cmd);
-    if (!Sec)
-      continue;
-    if (Sec->Live) {
-      Flags = Sec->Flags & (SHF_ALLOC | SHF_WRITE | SHF_EXECINSTR);
-      continue;
-    }
-
-    if (isAllSectionDescription(*Sec))
-      continue;
-
-    Sec->Live = true;
-    Sec->Flags = Flags;
-  }
 }
 
 void LinkerScript::adjustSectionsAfterSorting() {
