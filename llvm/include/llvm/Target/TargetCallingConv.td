@@ -32,6 +32,12 @@ class CCIfType<list<ValueType> vts, CCAction A> : CCPredicateAction<A> {
   list<ValueType> VTs = vts;
 }
 
+/// CCIfSplitFrom - If the current argument is splited from one of the specified
+/// types, apply Action A.
+class CCIfSplitFrom<list<ValueType> vts, CCAction A> : CCPredicateAction<A> {
+  list<ValueType> VTs = vts;
+}
+
 /// CCIf - If the predicate matches, apply A.
 class CCIf<string predicate, CCAction A> : CCPredicateAction<A> {
   string Predicate = predicate;
@@ -147,6 +153,12 @@ class CCBitConvertToType<ValueType destTy> : CCAction {
 /// CCPassIndirect - If applied, this stores the value to stack and passes the pointer
 /// as normal argument.
 class CCPassIndirect<ValueType destTy> : CCAction {
+  ValueType DestTy = destTy;
+}
+
+/// CCPassIndirectBySamePointer - Just like CCPassIndirect except pass by the
+/// same pointer.
+class CCPassIndirectBySamePointer<ValueType destTy> : CCAction {
   ValueType DestTy = destTy;
 }
 
