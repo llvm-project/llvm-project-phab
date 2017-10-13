@@ -87,6 +87,90 @@ DEFINE_LIBUNWIND_FUNCTION(unw_getcontext)
   xorl  %eax, %eax    # return UNW_ESUCCESS
   ret
 
+#elif defined(__mips__) && defined(_ABIO32) && defined(__mips_soft_float)
+
+#
+# extern int unw_getcontext(unw_context_t* thread_state)
+#
+# On entry:
+#  thread_state pointer is in a0 ($4)
+#
+# Only save registers preserved across calls.
+#
+DEFINE_LIBUNWIND_FUNCTION(unw_getcontext)
+  .set push
+  .set noat
+  .set noreorder
+  .set nomacro
+  # hi and lo
+  mfhi  $8
+  sw    $8,  (4 * 33)($4)
+  mflo  $8
+  sw    $8,  (4 * 34)($4)
+  # s0 - s7
+  sw    $16, (4 * 16)($4)
+  sw    $17, (4 * 17)($4)
+  sw    $18, (4 * 18)($4)
+  sw    $19, (4 * 19)($4)
+  sw    $20, (4 * 20)($4)
+  sw    $21, (4 * 21)($4)
+  sw    $22, (4 * 22)($4)
+  sw    $23, (4 * 23)($4)
+  # gp
+  sw    $28, (4 * 28)($4)
+  # sp
+  sw    $29, (4 * 29)($4)
+  # fp
+  sw    $30, (4 * 30)($4)
+  # Store return address to pc
+  sw    $31, (4 * 32)($4)
+  jr	$31
+  # return UNW_ESUCCESS
+  or    $2, $0, $0
+  .set pop
+
+#elif defined(__mips__) && defined(_ABI64) && defined(__mips_soft_float)
+
+#
+# extern int unw_getcontext(unw_context_t* thread_state)
+#
+# On entry:
+#  thread_state pointer is in a0 ($4)
+#
+# Only save registers preserved across calls.
+#
+DEFINE_LIBUNWIND_FUNCTION(unw_getcontext)
+  .set push
+  .set noat
+  .set noreorder
+  .set nomacro
+  # hi and lo
+  mfhi  $8
+  sd    $8,  (8 * 33)($4)
+  mflo  $8
+  sd    $8,  (8 * 34)($4)
+  # s0 - s7
+  sd    $16, (8 * 16)($4)
+  sd    $17, (8 * 17)($4)
+  sd    $18, (8 * 18)($4)
+  sd    $19, (8 * 19)($4)
+  sd    $20, (8 * 20)($4)
+  sd    $21, (8 * 21)($4)
+  sd    $22, (8 * 22)($4)
+  sd    $23, (8 * 23)($4)
+  # gp
+  sd    $28, (8 * 28)($4)
+  # sp
+  sd    $29, (8 * 29)($4)
+  # fp
+  sd    $30, (8 * 30)($4)
+  # Store return address to pc
+  sd    $31, (8 * 32)($4)
+  jr	$31
+  # return UNW_ESUCCESS
+  or    $2, $0, $0
+  .set pop
+
 # elif defined(__mips__)
 
 #
