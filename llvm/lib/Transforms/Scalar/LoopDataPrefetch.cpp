@@ -315,7 +315,25 @@ bool LoopDataPrefetch::runOnLoop(Loop *L) {
       SCEVExpander SCEVE(*SE, I.getModule()->getDataLayout(), "prefaddr");
       Value *PrefPtrValue = SCEVE.expandCodeFor(NextLSCEV, I8Ptr, MemI);
 
-      IRBuilder<> Builder(MemI);
+      // Try to avoid placing prefetches between a load and a single local
+      // user, which would likely disrupt the folding of the load into that
+      // user. This may in particular happen with consecutive vector element
+      // loads.
+      Instruction *InsPt = MemI;
+      for (BasicBlock::iterator I(InsPt); I != BB->begin();) {
+        I--;
+        bool LoadSingleLocalUse = false;
+        if (isa<LoadInst>(&*I) && I->hasOneUse()) {
+          if (Instruction *UserI = dyn_cast<Instruction> (I->use_begin()->getUser()))
+            if (UserI->getParent() == BB)
+              LoadSingleLocalUse = true;
+        }
+        if (!LoadSingleLocalUse)
+          break;
+        InsPt = &*I;
+      }
+
+      IRBuilder<> Builder(InsPt);
       Module *M = BB->getParent()->getParent();
       Type *I32 = Type::getInt32Ty(BB->getContext());
       Value *PrefetchFunc = Intrinsic::getDeclaration(M, Intrinsic::prefetch);
