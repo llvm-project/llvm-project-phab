@@ -6116,6 +6116,21 @@ const SCEV *ScalarEvolution::createSCEV(Value *V) {
   case Instruction::PHI:
     return createNodeForPHI(cast<PHINode>(U));
 
+  case Instruction::ICmp:
+    if(ICmpInst* ICI = dyn_cast<ICmpInst>(U))
+    {
+      Value *LHS = ICI->getOperand(0);
+      Value *RHS = ICI->getOperand(1);
+
+      if(isa<Constant>(LHS)) std::swap(LHS, RHS);
+
+      // Only evoluate if loop condition cannot be resolved as AddRec.
+      if(Instruction* I = dyn_cast<Instruction>(ICI->getOperand(0)))
+        if(isa<Constant>(RHS) && isa<SCEVUnknown>(getSCEV(I)))
+          return evaluateForICmp(ICI);
+    }
+    break;
+
   case Instruction::Select:
     // U can also be a select constant expr, which let fall through.  Since
     // createNodeForSelect only works for a condition that is an `ICmpInst`, and
@@ -6134,6 +6149,27 @@ const SCEV *ScalarEvolution::createSCEV(Value *V) {
   }
 
   return getUnknown(V);
+}
+const SCEV *ScalarEvolution::evaluateForICmp(ICmpInst *IC)
+{
+  BasicBlock *Latch = nullptr;
+  const Loop *L = LI.getLoopFor(IC->getParent());
+
+  // If compare instruction is same or inverse of the compare in the
+  // branch of the loop latch, then return a constant evolution
+  // node. This shall facilitate computations of loop exit counts
+  // in cases where compare appears in the evolution chain of induction
+  // variables.
+  if (L && (Latch = L->getLoopLatch())) {
+    BranchInst *BI = dyn_cast<BranchInst>(Latch->getTerminator());
+    if (BI && BI->isConditional() && BI->getCondition() == IC) {
+      if (BI->getSuccessor(0) != L->getHeader())
+        return getConstant(Type::getInt1Ty(getContext()), 0, false);
+      else
+        return getConstant(Type::getInt1Ty(getContext()), 1, false);
+    }
+  }
+  return getUnknown(IC);
 }
 
 //===----------------------------------------------------------------------===//
