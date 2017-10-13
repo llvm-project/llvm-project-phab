@@ -141,6 +141,9 @@ public:
   // Provide fast operand accessors.
   DECLARE_TRANSPARENT_OPERAND_ACCESSORS(Value);
 
+  /// Returns the number of IR instructions contained in the \p Function.
+  int getFunctionInstrCount();
+
   /// Returns the FunctionType for me.
   FunctionType *getFunctionType() const {
     return cast<FunctionType>(getValueType());

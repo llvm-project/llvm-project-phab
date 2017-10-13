@@ -323,6 +323,13 @@ NamedMDNode *Module::getOrInsertModuleFlagsMetadata() {
   return getOrInsertNamedMetadata("llvm.module.flags");
 }
 
+int Module::getModuleInstrCount() {
+  int IRCount = 0;
+  for (Function &F : FunctionList)
+      IRCount += F.getFunctionInstrCount();
+  return IRCount;
+}
+
 /// addModuleFlag - Add a module-level flag to the module-level flags
 /// metadata. It will create the module-level flags named metadata if it doesn't
 /// already exist.

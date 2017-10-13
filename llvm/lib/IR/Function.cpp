@@ -195,6 +195,13 @@ LLVMContext &Function::getContext() const {
   return getType()->getContext();
 }
 
+int Function::getFunctionInstrCount() {
+  int IRCount = 0;
+  for (BasicBlock &BB : BasicBlocks)
+    IRCount += BB.size();
+  return IRCount;
+}
+
 void Function::removeFromParent() {
   getParent()->getFunctionList().remove(getIterator());
 }

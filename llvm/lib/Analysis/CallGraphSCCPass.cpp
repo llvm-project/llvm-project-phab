@@ -120,7 +120,7 @@ bool CGPassManager::RunPassOnSCC(Pass *P, CallGraphSCC &CurSCC,
                                  bool &DevirtualizedCall) {
   bool Changed = false;
   PMDataManager *PM = P->getAsPMDataManager();
-
+  Module &M = CG.getModule();
   if (!PM) {
     CallGraphSCCPass *CGSP = (CallGraphSCCPass*)P;
     if (!CallGraphUpToDate) {
@@ -130,7 +130,13 @@ bool CGPassManager::RunPassOnSCC(Pass *P, CallGraphSCC &CurSCC,
 
     {
       TimeRegion PassTimer(getPassTimer(CGSP));
+
+      // Remember the number of instructions in the module before the pass.
+      int OriginalCount = M.getModuleInstrCount();
       Changed = CGSP->runOnSCC(CurSCC);
+      // If the pass modified the size of the module, emit a remark.
+      emitIRSizeChangedRemark(P, M, OriginalCount, M.getModuleInstrCount());
+        
     }
     
     // After the CGSCCPass is done, when assertions are enabled, use
@@ -147,13 +153,26 @@ bool CGPassManager::RunPassOnSCC(Pass *P, CallGraphSCC &CurSCC,
          "Invalid CGPassManager member");
   FPPassManager *FPP = (FPPassManager*)P;
   
+  // Keep track of the original module size.
+  int ModuleCount = M.getModuleInstrCount();
+
   // Run pass P on all functions in the current SCC.
   for (CallGraphNode *CGN : CurSCC) {
     if (Function *F = CGN->getFunction()) {
       dumpPassInfo(P, EXECUTION_MSG, ON_FUNCTION_MSG, F->getName());
       {
         TimeRegion PassTimer(getPassTimer(FPP));
-        Changed |= FPP->runOnFunction(*F);
+        int OrigFnCount = F->getFunctionInstrCount();
+
+        // Run FPP on F and check if it changed anything.
+        if (FPP->runOnFunction(*F)) {
+          // It changed something. Keep track of it and also emit a remark if
+          // it changed the size of the module.
+          Changed = true;
+          int InstrDiff = F->getFunctionInstrCount() - OrigFnCount;
+          emitIRSizeChangedRemark(P, M, ModuleCount, ModuleCount + InstrDiff);
+          ModuleCount += InstrDiff;
+        }
       }
       F->getContext().yield();
     }

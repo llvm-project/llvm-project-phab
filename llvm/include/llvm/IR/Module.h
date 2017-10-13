@@ -207,6 +207,9 @@ public:
   /// @returns the module identifier as a string
   const std::string &getModuleIdentifier() const { return ModuleID; }
 
+  /// Return the number of IR instructions contained in the module.
+  int getModuleInstrCount();
+
   /// Get the module's original source file name. When compiling from
   /// bitcode, this is taken from a bitcode record where it was recorded.
   /// For other compiles it is the same as the ModuleID, which would
