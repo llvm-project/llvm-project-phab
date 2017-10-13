@@ -6116,6 +6116,56 @@ const SCEV *ScalarEvolution::createSCEV(Value *V) {
   case Instruction::PHI:
     return createNodeForPHI(cast<PHINode>(U));
 
+  case Instruction::ICmp:
+    if (ICmpInst* ICI = dyn_cast<ICmpInst>(U))
+    {
+      Value *LHS = ICI->getOperand(0);
+      Value *RHS = ICI->getOperand(1);
+
+      // We are swapping LHS and RHS if LHS is constant.
+      // because we are not analyzing constant. analyize PHI node.
+      if (isa<Constant>(LHS)) std::swap(LHS, RHS);
+
+      // Only evoluate if loop condition cannot be resolved as AddRec.
+      if (Instruction *I = dyn_cast<Instruction>(ICI->getOperand(0)))
+        if (isa<Constant>(RHS) && isa<SCEVUnknown>(getSCEV(I))) {
+          // Okay, now we can sure it cannot be evoluted from SCEVs.
+          // We have to get AddExpr from loop that have this 
+
+          Loop *L = LI.getLoopFor(ICI->getParent());
+          PHINode *PHI = dyn_cast<PHINode>(LHS);
+
+          // If we cannot get PHI node or parent loop. we are out.
+          // Only computes that in loop.
+          if (!(L && PHI))
+            break;
+
+          // Get incoming value to get AddExpr.
+          for (unsigned int i = 0; i < PHI->getNumIncomingValues(); ++i) {
+            Instruction* AddExpr = dyn_cast<Instruction>(PHI->getIncomingValue(i));
+
+            // We are finding that we AddExpr on that condition.
+            // if operand of AddExpr is same to condition. we can assume that loop variant is constant 1.
+            if (!AddExpr)
+              continue;
+
+            if (BranchInst* LBR = dyn_cast<BranchInst>(L->getLoopLatch()->getTerminator()))
+            {
+              ICmpInst* CondBR = dyn_cast<ICmpInst>(LBR->getCondition());
+
+              if (CondBR && CondBR->getOperand(0) == AddExpr->getOperand(0))
+              {
+                // Now we can assume that are increasing condition that we can break the loop!
+                return getConstant(Type::getInt1Ty(getContext()), 1, false);
+              }
+            }
+          }
+          // We cannot compute this ICmp loop.
+          return getUnknown(V);
+        }
+    }
+    break;
+
   case Instruction::Select:
     // U can also be a select constant expr, which let fall through.  Since
     // createNodeForSelect only works for a condition that is an `ICmpInst`, and
