@@ -10091,7 +10091,8 @@ QualType Sema::deduceVarTypeFromInitializer(VarDecl *VDecl,
   assert(Deduced && "deduceVarTypeFromInitializer for non-deduced type");
 
   // C++11 [dcl.spec.auto]p3
-  if (!Init) {
+  // Except for class argument deduction.
+  if (!Init && !isa<DeducedTemplateSpecializationType>(Deduced)) {
     assert(VDecl && "no init for init capture deduction?");
     Diag(VDecl->getLocation(), diag::err_auto_var_requires_init)
       << VDecl->getDeclName() << Type;
@@ -10110,7 +10111,10 @@ QualType Sema::deduceVarTypeFromInitializer(VarDecl *VDecl,
     InitializationKind Kind = InitializationKind::CreateForInit(
         VDecl->getLocation(), DirectInit, Init);
     // FIXME: Initialization should not be taking a mutable list of inits. 
-    SmallVector<Expr*, 8> InitsCopy(DeduceInits.begin(), DeduceInits.end());
+    SmallVector<Expr*, 8> InitsCopy;
+    if (Init)
+      InitsCopy = {DeduceInits.begin(), DeduceInits.end()};
+
     return DeduceTemplateSpecializationFromInitializer(TSI, Entity, Kind,
                                                        InitsCopy);
   }
