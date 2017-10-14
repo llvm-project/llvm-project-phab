@@ -1713,6 +1713,13 @@ ARMConstantIslands::fixupConditionalBr(ImmBranch &Br) {
   unsigned MaxDisp = getUnconditionalBrDisp(Br.UncondBr);
   ImmBranches.push_back(ImmBranch(&MBB->back(), MaxDisp, false, Br.UncondBr));
 
+  if (NeedSplit) {
+    // When we split the MBB we transferred all its successors to the newly
+    // created block so the DestBB is no longer marked as a predecessor. Add
+    // it back here.
+    MBB->addSuccessor(DestBB);
+  }
+
   // Remove the old conditional branch.  It may or may not still be in MBB.
   BBInfo[MI->getParent()->getNumber()].Size -= TII->getInstSizeInBytes(*MI);
   MI->eraseFromParent();
