@@ -764,6 +764,30 @@ private:
   Value *Descale(Value *Val, APInt Scale, bool &NoSignedWrap);
 };
 
+/// Contains instruction pattern combiner logic.
+/// This class provides both the logic to combine instruction patterns and
+/// combine them. It differs from InstCombiner class in that it runs only once,
+/// which allows pattern optimization to have higher complexity than the O(1)
+/// required by the instruction combiner.
+class PatternInstCombiner {
+  TargetLibraryInfo &TLI;
+  const DataLayout &DL;
+  AssumptionCache *AC;
+  const DominatorTree *DT;
+
+public:
+  PatternInstCombiner(TargetLibraryInfo &TLI, const DataLayout &DL,
+                      AssumptionCache *AC, const DominatorTree *DT)
+      : TLI(TLI), DL(DL), AC(AC), DT(DT) {}
+  ~PatternInstCombiner() {}
+
+  /// Run all instruction pattern optimizations on the given /p F function.
+  ///
+  /// \param F function to optimize.
+  /// \returns true if the IR is changed.
+  bool run(Function &F);
+};
+
 } // end namespace llvm.
 
 #undef DEBUG_TYPE
