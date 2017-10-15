@@ -48,6 +48,7 @@ namespace ISD {
     unsigned IsCopyElisionCandidate : 1; ///< Argument copy elision candidate
 
     unsigned ByValSize; ///< Byval struct size
+    EVT OrigVt; ///< Original value type before split
 
   public:
     ArgFlagsTy()
@@ -57,7 +58,8 @@ namespace ISD {
           IsSecArgPass(0), ByValAlign(0), OrigAlign(0),
           IsInConsecutiveRegsLast(0), IsInConsecutiveRegs(0),
           IsCopyElisionCandidate(0), ByValSize(0) {
-      static_assert(sizeof(*this) == 2 * sizeof(unsigned), "flags are too big");
+      static_assert(sizeof(*this) == 2 * sizeof(unsigned) + sizeof(EVT),
+                    "flags are too big");
     }
 
     bool isZExt() const { return IsZExt; }
@@ -128,6 +130,9 @@ namespace ISD {
 
     unsigned getByValSize() const { return ByValSize; }
     void setByValSize(unsigned S) { ByValSize = S; }
+
+    EVT getOrigVt() const { return OrigVt; }
+    void setOrigVt(EVT Vt) { OrigVt = Vt; }
   };
 
   /// InputArg - This struct carries flags and type information about a

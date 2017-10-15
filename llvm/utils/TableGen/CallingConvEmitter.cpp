@@ -92,7 +92,13 @@ void CallingConvEmitter::EmitAction(Record *Action,
         if (i != 0) O << " ||\n    " << IndentStr;
         O << "LocVT == " << getEnumName(getValueType(VT));
       }
-
+    } else if (Action->isSubClassOf("CCIfSplitFrom")) {
+      ListInit *VTs = Action->getValueAsListInit("VTs");
+      for (unsigned i = 0, e = VTs->size(); i != e; ++i) {
+        Record *VT = VTs->getElementAsRecord(i);
+        if (i != 0) O << " ||\n    " << IndentStr;
+        O << "ArgFlags.getOrigVt() == " << getEnumName(getValueType(VT));
+      }
     } else if (Action->isSubClassOf("CCIf")) {
       O << Action->getValueAsString("Predicate");
     } else {
@@ -251,6 +257,14 @@ void CallingConvEmitter::EmitAction(Record *Action,
       Record *DestTy = Action->getValueAsDef("DestTy");
       O << IndentStr << "LocVT = " << getEnumName(getValueType(DestTy)) <<";\n";
       O << IndentStr << "LocInfo = CCValAssign::BCvt;\n";
+    } else if (Action->isSubClassOf("CCPassIndirectBySamePointer")) {
+      Record *DestTy = Action->getValueAsDef("DestTy");
+      O << IndentStr << "LocVT = " << getEnumName(getValueType(DestTy)) <<";\n";
+      O << IndentStr << "LocInfo = CCValAssign::Indirect;\n";
+      O << IndentStr << "if (!ArgFlags.isSplit()) {\n"
+        << IndentStr << IndentStr << "State.addLoc(State.lastLoc());\n"
+        << IndentStr << IndentStr << "return false;\n"
+        << IndentStr << "}\n";
     } else if (Action->isSubClassOf("CCPassIndirect")) {
       Record *DestTy = Action->getValueAsDef("DestTy");
       O << IndentStr << "LocVT = " << getEnumName(getValueType(DestTy)) <<";\n";
