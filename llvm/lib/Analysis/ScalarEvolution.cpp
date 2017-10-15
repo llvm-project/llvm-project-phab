@@ -4809,7 +4809,50 @@ const SCEV *ScalarEvolution::createAddRecFromPHI(PHINode *PN) {
         return PHISCEV;
       }
     }
-  } else {
+    // Okay, now we are going to check that Loop's condition operand is increasing.
+  } else if (isa<SCEVUnknown>(BEValue) || isa<SCEVZeroExtendExpr>(BEValue))
+    if (BranchInst *BR = dyn_cast<BranchInst>(L->getLoopLatch()->getTerminator()))
+      if (ICmpInst *ICI = dyn_cast<ICmpInst>(BR->getCondition()))
+      {
+
+        // Now we are checking that BEValueV is increasing ICI's operand.
+        Instruction *AddExpr = dyn_cast<Instruction>(BEValueV);
+        Value *LHS = ICI->getOperand(0);
+        Value *RHS = ICI->getOperand(1);
+
+        // We are not finding a constant. we are finding expression that we increasing.
+        if (isa<Constant>(RHS))
+          std::swap(LHS, RHS);
+
+        // It can be select instruction.
+        // that selected condition should same so we can analyze.
+        if (SelectInst* SI = dyn_cast<SelectInst>(AddExpr)) {
+          if (AddExpr->getOperand(0) != ICI)
+            return nullptr;
+
+          AddExpr = dyn_cast<Instruction>(AddExpr->getOperand(1));
+        }
+
+        // Check that we are increasing is ICI's operand.
+        // AddExpr's first operand is target.
+        if (AddExpr && AddExpr->getOperand(0) == RHS) {
+          // Yes its increasing ICI's operand. now we can assume that this loop can exit.
+          const SCEV* SCEVStart = getSCEV(StartValueV);
+          const SCEV* SCEVStep;
+
+          // AddExpr's operand can be constant. it means it probably not increasing constant 1
+          // so we are going to just evolute constant variable.
+          if (Constant* ST = dyn_cast<Constant>(AddExpr->getOperand(1))) {
+            SCEVStep = getSCEV(ST);
+          } else {
+            SCEVStep = getOne(AddExpr->getType());
+          }
+          return getAddRecExpr(SCEVStart, SCEVStep, L, SCEV::NoWrapFlags::FlagAnyWrap);
+        }
+        return nullptr;
+      } 
+
+    else {
     // Otherwise, this could be a loop like this:
     //     i = 0;  for (j = 1; ..; ++j) { ....  i = j; }
     // In this case, j = {1,+,1}  and BEValue is j.
