@@ -121,8 +121,7 @@ static uint64_t getSymVA(const SymbolBody &Body, int64_t &Addend) {
 
 SymbolBody::SymbolBody(Kind K, StringRefZ Name, bool IsLocal, uint8_t StOther,
                        uint8_t Type)
-    : SymbolKind(K), IsLocal(IsLocal), NeedsPltAddr(false),
-      IsInGlobalMipsGot(false), Is32BitMipsGot(false), IsInIplt(false),
+    : SymbolKind(K), IsLocal(IsLocal), NeedsPltAddr(false), IsInIplt(false),
       IsInIgot(false), IsPreemptible(false), Type(Type), StOther(StOther),
       Name(Name) {}
 

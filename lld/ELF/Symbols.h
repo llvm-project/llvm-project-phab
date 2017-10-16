@@ -115,11 +115,6 @@ public:
   // True the symbol should point to its PLT entry.
   // For SharedSymbol only.
   unsigned NeedsPltAddr : 1;
-  // True if this symbol has an entry in the global part of MIPS GOT.
-  unsigned IsInGlobalMipsGot : 1;
-
-  // True if this symbol is referenced by 32-bit GOT relocations.
-  unsigned Is32BitMipsGot : 1;
 
   // True if this symbol is in the Iplt sub-section of the Plt.
   unsigned IsInIplt : 1;
