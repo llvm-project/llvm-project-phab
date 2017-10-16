@@ -15,3 +15,7 @@ void f() {
   // CHECK-CC1: N
   // CHECK-CC1: short
   // CHECK-CC1: T
+
+  // RUN: c-index-test -code-completion-at=%s:10:11 %s -o - | FileCheck -check-prefix=CHECK-CC2 %s
+  // CHECK-CC2: ClassDecl:{TypedText T} (50) (source location: 1:7)
+  // CHECK-CC2: NotImplemented:{TypedText |} (40) (source location: 0:0)

@@ -2144,13 +2144,20 @@ static void print_completion_string(CXCompletionString completion_string,
 }
 
 static void print_completion_result(CXCompletionResult *completion_result,
-                                    FILE *file) {
+                                    FILE *file,
+                                    CXCodeCompleteResults *all_results,
+                                    int index_in_results) {
   CXString ks = clang_getCursorKindSpelling(completion_result->CursorKind);
   unsigned annotationCount;
   enum CXCursorKind ParentKind;
   CXString ParentName;
   CXString BriefComment;
   CXString Annotation;
+  CXCursor SourceCursor;
+  CXSourceLocation SourceLocation;
+  uint SourceLine = 0;
+  uint SourceColumn = 0;
+  CXFile SourceFile;
   const char *BriefCommentCString;
   
   fprintf(file, "%s:", clang_getCString(ks));
@@ -2212,7 +2219,12 @@ static void print_completion_result(CXCompletionResult *completion_result,
     fprintf(file, "(brief comment: %s)", BriefCommentCString);
   }
   clang_disposeString(BriefComment);
-  
+
+  SourceCursor = clang_getCompletionCursor(completion_result);
+  SourceLocation = clang_getCursorLocation(SourceCursor);
+  clang_getFileLocation(SourceLocation, &SourceFile, &SourceLine, &SourceColumn, 0);
+  fprintf(file, " (source location: %i:%i)", SourceLine, SourceColumn);
+
   fprintf(file, "\n");
 }
 
@@ -2369,7 +2381,7 @@ int perform_code_completion(int argc, const char **argv, int timing_only) {
       clang_sortCodeCompletionResults(results->Results, results->NumResults);
 
       for (i = 0; i != n; ++i)
-        print_completion_result(results->Results + i, stdout);
+        print_completion_result(results->Results + i, stdout, results, i);
     }
     n = clang_codeCompleteGetNumDiagnostics(results);
     for (i = 0; i != n; ++i) {

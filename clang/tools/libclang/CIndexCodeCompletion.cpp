@@ -531,14 +531,35 @@ namespace {
                                     unsigned NumResults) override {
       StoredResults.reserve(StoredResults.size() + NumResults);
       for (unsigned I = 0; I != NumResults; ++I) {
-        CodeCompletionString *StoredCompletion        
-          = Results[I].CreateCodeCompletionString(S, Context, getAllocator(),
+        auto& Result = Results[I];
+        CodeCompletionString *StoredCompletion
+          = Result.CreateCodeCompletionString(S, Context, getAllocator(),
                                                   getCodeCompletionTUInfo(),
                                                   includeBriefComments());
-        
+
+        CXCursor cursor = clang_getNullCursor();
+        switch (Result.Kind) {
+        case CodeCompletionResult::RK_Pattern:
+        case CodeCompletionResult::RK_Declaration:
+            if (auto Declaration = Result.Declaration) {
+              if ( !Declaration->isImplicit() )
+                cursor = cxcursor::MakeCXCursor(Declaration, *TU);
+            }
+            break;
+        case CodeCompletionResult::RK_Macro:
+            // TODO: build the CXCursor that represents the Resul.Macro
+            //       I have no idea how to get the MacroDefinitionRecord
+            //       corresponding to the IdentifierInfo
+            break;
+        case CodeCompletionResult::RK_Keyword:
+            // not representable by a cursor
+            break;
+        }
+
         CXCompletionResult R;
-        R.CursorKind = Results[I].CursorKind;
+        R.CursorKind = Result.CursorKind;
         R.CompletionString = StoredCompletion;
+        R.Cursor = cursor;
         StoredResults.push_back(R);
       }
       
@@ -607,14 +628,19 @@ namespace {
                                    unsigned NumCandidates) override {
       StoredResults.reserve(StoredResults.size() + NumCandidates);
       for (unsigned I = 0; I != NumCandidates; ++I) {
+        const auto& Candidate = Candidates[I];
         CodeCompletionString *StoredCompletion
-          = Candidates[I].CreateSignatureString(CurrentArg, S, getAllocator(),
+          = Candidate.CreateSignatureString(CurrentArg, S, getAllocator(),
                                                 getCodeCompletionTUInfo(),
                                                 includeBriefComments());
         
+        auto FunctionDecl = Candidate.getFunction();
+        CXCursor cursor = FunctionDecl ? cxcursor::MakeCXCursor(FunctionDecl, *TU) : clang_getNullCursor();
+
         CXCompletionResult R;
         R.CursorKind = CXCursor_OverloadCandidate;
         R.CompletionString = StoredCompletion;
+        R.Cursor = cursor;
         StoredResults.push_back(R);
       }
     }
@@ -975,6 +1001,14 @@ namespace {
       return result < 0;
     }
   };
+}
+
+CXCursor clang_getCompletionCursor(CXCompletionResult *Result)
+{
+  if (!Result)
+    return clang_getNullCursor();
+
+  return Result->Cursor;
 }
 
 void clang_sortCodeCompletionResults(CXCompletionResult *Results,

@@ -4729,11 +4729,13 @@ typedef struct {
    * The cursor kind will be a macro, keyword, or a declaration (one of the
    * *Decl cursor kinds), describing the entity that the completion is
    * referring to.
-   *
-   * \todo In the future, we would like to provide a full cursor, to allow
-   * the client to extract additional information from declaration.
    */
   enum CXCursorKind CursorKind;
+
+  /**
+   * \brief The cursor (of kind CursorKind) for this result.
+   */
+  CXCursor Cursor;
 
   /**
    * \brief The code-completion string that describes how to insert this
@@ -5072,6 +5074,18 @@ typedef struct {
    */
   unsigned NumResults;
 } CXCodeCompleteResults;
+
+/**
+ * \brief Retrieve a cursor corresponding to the completion result at the given index.
+ *
+ * \param result The result for which the cursor should be obtained.
+ *
+ * \returns The cursor that represents the completion result at the given index,
+ *          or a null cursor when the result does not represent a cursor. This
+ *          will happen e.g. for language keywords.
+ */
+CINDEX_LINKAGE CXCursor
+clang_getCompletionCursor(CXCompletionResult *Result);
 
 /**
  * \brief Flags that can be passed to \c clang_codeCompleteAt() to

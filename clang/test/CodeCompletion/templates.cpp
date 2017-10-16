@@ -24,5 +24,8 @@ void f() {
   // CHECK-CC2: foo
   // CHECK-CC2: in_base
   // CHECK-CC2: stop
-  
+  // RUN: c-index-test -code-completion-at=%s:18:8 %s -o - | FileCheck -check-prefix=CHECK-CC3 %s
+  // CHECK-CC3: ClassTemplate:{TypedText allocator}{LeftAngle <}{Placeholder typename T}{RightAngle >} (50) (source location: 3:9)
+  // CHECK-CC3-NEXT: ClassTemplate:{TypedText vector}{LeftAngle <}{Placeholder typename T}{Optional {Comma , }{Placeholder typename Alloc}}{RightAngle >} (50) (source location: 9:9)
+
 
