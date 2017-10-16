@@ -135,6 +135,9 @@ private:
       const MachineFunction &MF,
       const SIProgramInfo &ProgramInfo) const;
 
+  void useTargetStreamer(
+      function_ref<void(AMDGPUTargetStreamer *TargetStreamer)> Func);
+
   /// \brief Emit register usage information so that the GPU driver
   /// can correctly setup the GPU state.
   void EmitProgramInfoR600(const MachineFunction &MF);
@@ -154,8 +157,6 @@ public:
   StringRef getPassName() const override;
 
   const MCSubtargetInfo* getSTI() const;
-
-  AMDGPUTargetStreamer* getTargetStreamer() const;
 
   bool doFinalization(Module &M) override;
   bool runOnMachineFunction(MachineFunction &MF) override;

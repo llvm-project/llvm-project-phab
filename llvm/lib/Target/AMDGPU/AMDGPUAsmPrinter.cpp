@@ -107,12 +107,6 @@ const MCSubtargetInfo* AMDGPUAsmPrinter::getSTI() const {
   return TM.getMCSubtargetInfo();
 }
 
-AMDGPUTargetStreamer* AMDGPUAsmPrinter::getTargetStreamer() const {
-  if (!OutStreamer)
-    return nullptr;
-  return static_cast<AMDGPUTargetStreamer*>(OutStreamer->getTargetStreamer());
-}
-
 void AMDGPUAsmPrinter::EmitStartOfAsmFile(Module &M) {
   if (TM.getTargetTriple().getArch() != Triple::amdgcn)
     return;
@@ -132,33 +126,46 @@ void AMDGPUAsmPrinter::EmitStartOfAsmFile(Module &M) {
     return;
 
   // HSA emits NT_AMDGPU_HSA_CODE_OBJECT_VERSION for code objects v2.
-  if (TM.getTargetTriple().getOS() == Triple::AMDHSA)
-    getTargetStreamer()->EmitDirectiveHSACodeObjectVersion(2, 1);
+  if (TM.getTargetTriple().getOS() == Triple::AMDHSA) {
+    useTargetStreamer(
+        [&](AMDGPUTargetStreamer *TargetStreamer) {
+          TargetStreamer->EmitDirectiveHSACodeObjectVersion(2, 1);
+        }
+    );
+  }
 
   // HSA and PAL emit NT_AMDGPU_HSA_ISA for code objects v2.
   IsaInfo::IsaVersion ISA = IsaInfo::getIsaVersion(getSTI()->getFeatureBits());
-  getTargetStreamer()->EmitDirectiveHSACodeObjectISA(
-      ISA.Major, ISA.Minor, ISA.Stepping, "AMD", "AMDGPU");
+  useTargetStreamer(
+      [&](AMDGPUTargetStreamer *TargetStreamer) {
+        TargetStreamer->EmitDirectiveHSACodeObjectISA(
+            ISA.Major, ISA.Minor, ISA.Stepping, "AMD", "AMDGPU");
+      }
+  );
 }
 
 void AMDGPUAsmPrinter::EmitEndOfAsmFile(Module &M) {
   if (TM.getTargetTriple().getArch() != Triple::amdgcn)
     return;
 
-  // Following code requires TargetStreamer to be present.
-  if (!getTargetStreamer())
-    return;
-
   // Emit ISA Version (NT_AMD_AMDGPU_ISA).
   std::string ISAVersionString;
   raw_string_ostream ISAVersionStream(ISAVersionString);
   IsaInfo::streamIsaVersion(getSTI(), ISAVersionStream);
-  getTargetStreamer()->EmitISAVersion(ISAVersionStream.str());
+  useTargetStreamer(
+      [&](AMDGPUTargetStreamer *TargetStreamer) {
+        TargetStreamer->EmitISAVersion(ISAVersionStream.str());
+      }
+  );
 
   // Emit HSA Metadata (NT_AMD_AMDGPU_HSA_METADATA).
   if (TM.getTargetTriple().getOS() == Triple::AMDHSA) {
     HSAMetadataStream.end();
-    getTargetStreamer()->EmitHSAMetadata(HSAMetadataStream.getHSAMetadata());
+    useTargetStreamer(
+        [&](AMDGPUTargetStreamer *TargetStreamer) {
+          TargetStreamer->EmitHSAMetadata(HSAMetadataStream.getHSAMetadata());
+        }
+    );
   }
 
   // Emit PAL Metadata (NT_AMD_AMDGPU_PAL_METADATA).
@@ -170,7 +177,11 @@ void AMDGPUAsmPrinter::EmitEndOfAsmFile(Module &M) {
       PALMetadataVector.push_back(i.first);
       PALMetadataVector.push_back(i.second);
     }
-    getTargetStreamer()->EmitPALMetadata(PALMetadataVector);
+    useTargetStreamer(
+        [&](AMDGPUTargetStreamer *TargetStreamer) {
+          TargetStreamer->EmitPALMetadata(PALMetadataVector);
+        }
+    );
   }
 }
 
@@ -199,7 +210,11 @@ void AMDGPUAsmPrinter::EmitFunctionBodyStart() {
     getAmdKernelCode(KernelCode, CurrentProgramInfo, *MF);
 
     OutStreamer->SwitchSection(getObjFileLowering().getTextSection());
-    getTargetStreamer()->EmitAMDKernelCodeT(KernelCode);
+    useTargetStreamer(
+        [&](AMDGPUTargetStreamer *TargetStreamer) {
+          TargetStreamer->EmitAMDKernelCodeT(KernelCode);
+        }
+    );
   }
 
   if (TM.getTargetTriple().getOS() != Triple::AMDHSA)
@@ -215,9 +230,13 @@ void AMDGPUAsmPrinter::EmitFunctionEntryLabel() {
   const AMDGPUSubtarget &STM = MF->getSubtarget<AMDGPUSubtarget>();
   if (MFI->isEntryFunction() && STM.isAmdCodeObjectV2(*MF)) {
     SmallString<128> SymbolName;
-    getNameWithPrefix(SymbolName, MF->getFunction()),
-    getTargetStreamer()->EmitAMDGPUSymbolType(
-        SymbolName, ELF::STT_AMDGPU_HSA_KERNEL);
+    getNameWithPrefix(SymbolName, MF->getFunction());
+    useTargetStreamer(
+        [&](AMDGPUTargetStreamer *TargetStreamer) {
+          TargetStreamer->EmitAMDGPUSymbolType(
+              SymbolName, ELF::STT_AMDGPU_HSA_KERNEL);
+        }
+    );
   }
 
   AsmPrinter::EmitFunctionEntryLabel();
@@ -1208,6 +1227,19 @@ AMDGPU::HSAMD::Kernel::DebugProps::Metadata AMDGPUAsmPrinter::getHSADebugProps(
   }
 
   return HSADebugProps;
+}
+
+void AMDGPUAsmPrinter::useTargetStreamer(
+    function_ref<void(AMDGPUTargetStreamer *TargetStreamer)> Func) {
+  if (!OutStreamer)
+    return;
+
+  AMDGPUTargetStreamer *TargetStreamer =
+      static_cast<AMDGPUTargetStreamer*>(OutStreamer->getTargetStreamer());
+  if (!TargetStreamer)
+    return;
+
+  Func(TargetStreamer);
 }
 
 bool AMDGPUAsmPrinter::PrintAsmOperand(const MachineInstr *MI, unsigned OpNo,
