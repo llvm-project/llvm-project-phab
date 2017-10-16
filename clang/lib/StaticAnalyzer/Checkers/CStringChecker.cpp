@@ -305,6 +305,9 @@ ProgramStateRef CStringChecker::CheckLocation(CheckerContext &C,
   ProgramStateRef StInBound = state->assumeInBound(Idx, Size, true);
   ProgramStateRef StOutBound = state->assumeInBound(Idx, Size, false);
   if (StOutBound && !StInBound) {
+    if (!Filter.CheckCStringOutOfBounds)
+      return state;
+
     ExplodedNode *N = C.generateErrorNode(StOutBound);
     if (!N)
       return nullptr;

@@ -26,14 +26,13 @@ using namespace ento;
 
 namespace {
 
-class BlockInCriticalSectionChecker : public Checker<check::PostCall,
-                                                     check::PreCall> {
+class BlockInCriticalSectionChecker : public Checker<check::PostCall> {
 
   CallDescription LockFn, UnlockFn, SleepFn, GetcFn, FgetsFn, ReadFn, RecvFn,
                   PthreadLockFn, PthreadTryLockFn, PthreadUnlockFn,
                   MtxLock, MtxTimedLock, MtxTryLock, MtxUnlock;
 
-  std::unique_ptr<BugType> BlockInCritSectionBugType;
+  mutable std::unique_ptr<BugType> BlockInCritSectionBugType;
 
   void reportBlockInCritSection(SymbolRef FileDescSym,
                                 const CallEvent &call,
@@ -45,8 +44,6 @@ public:
   bool isBlockingFunction(const CallEvent &Call) const;
   bool isLockFunction(const CallEvent &Call) const;
   bool isUnlockFunction(const CallEvent &Call) const;
-
-  void checkPreCall(const CallEvent &Call, CheckerContext &C) const;
 
   /// Process unlock.
   /// Process lock.
@@ -64,16 +61,9 @@ BlockInCriticalSectionChecker::BlockInCriticalSectionChecker()
       FgetsFn("fgets"), ReadFn("read"), RecvFn("recv"),
       PthreadLockFn("pthread_mutex_lock"),
       PthreadTryLockFn("pthread_mutex_trylock"),
-      PthreadUnlockFn("pthread_mutex_unlock"),
-      MtxLock("mtx_lock"),
-      MtxTimedLock("mtx_timedlock"),
-      MtxTryLock("mtx_trylock"),
-      MtxUnlock("mtx_unlock") {
-  // Initialize the bug type.
-  BlockInCritSectionBugType.reset(
-      new BugType(this, "Call to blocking function in critical section",
-                        "Blocking Error"));
-}
+      PthreadUnlockFn("pthread_mutex_unlock"), MtxLock("mtx_lock"),
+      MtxTimedLock("mtx_timedlock"), MtxTryLock("mtx_trylock"),
+      MtxUnlock("mtx_unlock") {}
 
 bool BlockInCriticalSectionChecker::isBlockingFunction(const CallEvent &Call) const {
   if (Call.isCalled(SleepFn)
@@ -107,10 +97,6 @@ bool BlockInCriticalSectionChecker::isUnlockFunction(const CallEvent &Call) cons
   return false;
 }
 
-void BlockInCriticalSectionChecker::checkPreCall(const CallEvent &Call,
-                                                 CheckerContext &C) const {
-}
-
 void BlockInCriticalSectionChecker::checkPostCall(const CallEvent &Call,
                                                   CheckerContext &C) const {
   if (!isBlockingFunction(Call)
@@ -142,7 +128,13 @@ void BlockInCriticalSectionChecker::reportBlockInCritSection(
   llvm::raw_string_ostream os(msg);
   os << "Call to blocking function '" << Call.getCalleeIdentifier()->getName()
      << "' inside of critical section";
-  auto R = llvm::make_unique<BugReport>(*BlockInCritSectionBugType, os.str(), ErrNode);
+  if (!BlockInCritSectionBugType) {
+    BlockInCritSectionBugType.reset(
+        new BugType(this, "Call to blocking function in critical section",
+                    "Blocking Error"));
+  }
+  auto R = llvm::make_unique<BugReport>(*BlockInCritSectionBugType, os.str(),
+                                        ErrNode);
   R->addRange(Call.getSourceRange());
   R->markInteresting(BlockDescSym);
   C.emitReport(std::move(R));

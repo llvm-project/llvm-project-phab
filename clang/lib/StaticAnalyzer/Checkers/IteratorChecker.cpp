@@ -171,7 +171,7 @@ class IteratorChecker
                      check::DeadSymbols,
                      eval::Assume> {
 
-  std::unique_ptr<BugType> OutOfRangeBugType;
+  mutable std::unique_ptr<BugType> OutOfRangeBugType;
 
   void handleComparison(CheckerContext &C, const SVal &RetVal, const SVal &LVal,
                         const SVal &RVal, OverloadedOperatorKind Op) const;
@@ -184,8 +184,6 @@ class IteratorChecker
                            CheckerContext &C, ExplodedNode *ErrNode) const;
 
 public:
-  IteratorChecker();
-
   enum CheckKind {
     CK_IteratorRangeChecker,
     CK_NumCheckKinds
@@ -256,12 +254,6 @@ ProgramStateRef setContainerData(ProgramStateRef State, const MemRegion *Cont,
                                  const ContainerData &CData);
 bool isOutOfRange(ProgramStateRef State, const IteratorPosition &Pos);
 } // namespace
-
-IteratorChecker::IteratorChecker() {
-  OutOfRangeBugType.reset(
-      new BugType(this, "Iterator out of range", "Misuse of STL APIs"));
-  OutOfRangeBugType->setSuppressOnSink(true);
-}
 
 void IteratorChecker::checkPreCall(const CallEvent &Call,
                                    CheckerContext &C) const {
@@ -522,6 +514,12 @@ void IteratorChecker::assignToContainer(CheckerContext &C, const Expr *CE,
 void IteratorChecker::reportOutOfRangeBug(const StringRef &Message,
                                           const SVal &Val, CheckerContext &C,
                                           ExplodedNode *ErrNode) const {
+
+  if (!OutOfRangeBugType) {
+    OutOfRangeBugType.reset(
+        new BugType(this, "Iterator out of range", "Misuse of STL APIs"));
+    OutOfRangeBugType->setSuppressOnSink(true);
+  }
   auto R = llvm::make_unique<BugReport>(*OutOfRangeBugType, Message, ErrNode);
   R->markInteresting(Val);
   C.emitReport(std::move(R));

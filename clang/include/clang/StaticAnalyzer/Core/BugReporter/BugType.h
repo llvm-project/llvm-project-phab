@@ -32,15 +32,19 @@ private:
   const CheckName Check;
   const std::string Name;
   const std::string Category;
-  bool SuppressonSink;
+  bool SuppressOnSink;
 
   virtual void anchor();
 public:
-  BugType(class CheckName check, StringRef name, StringRef cat)
-      : Check(check), Name(name), Category(cat), SuppressonSink(false) {}
-  BugType(const CheckerBase *checker, StringRef name, StringRef cat)
-      : Check(checker->getCheckName()), Name(name), Category(cat),
-        SuppressonSink(false) {}
+  BugType(class CheckName Check, StringRef Name, StringRef Cat)
+      : Check(Check), Name(Name), Category(Cat), SuppressOnSink(false) {
+    assert(!getCheckName().empty() && "Check name is not set properly.");
+  }
+  BugType(const CheckerBase *Checker, StringRef Name, StringRef Cat)
+      : Check(Checker->getCheckName()), Name(Name), Category(Cat),
+        SuppressOnSink(false) {
+    assert(!getCheckName().empty() && "Check name is not set properly.");
+  }
   virtual ~BugType() {}
 
   // FIXME: Should these be made strings as well?
@@ -51,8 +55,8 @@ public:
   /// isSuppressOnSink - Returns true if bug reports associated with this bug
   ///  type should be suppressed if the end node of the report is post-dominated
   ///  by a sink node.
-  bool isSuppressOnSink() const { return SuppressonSink; }
-  void setSuppressOnSink(bool x) { SuppressonSink = x; }
+  bool isSuppressOnSink() const { return SuppressOnSink; }
+  void setSuppressOnSink(bool x) { SuppressOnSink = x; }
 
   virtual void FlushReports(BugReporter& BR);
 };
@@ -74,7 +78,7 @@ public:
   StringRef getDescription() const { return desc; }
 };
 
-} // end GR namespace
+} // end ento namespace
 
 } // end clang namespace
 #endif

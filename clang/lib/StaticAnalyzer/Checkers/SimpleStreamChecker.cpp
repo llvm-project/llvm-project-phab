@@ -54,8 +54,8 @@ class SimpleStreamChecker : public Checker<check::PostCall,
                                            check::PointerEscape> {
   CallDescription OpenFn, CloseFn;
 
-  std::unique_ptr<BugType> DoubleCloseBugType;
-  std::unique_ptr<BugType> LeakBugType;
+  mutable std::unique_ptr<BugType> DoubleCloseBugType;
+  mutable std::unique_ptr<BugType> LeakBugType;
 
   void reportDoubleClose(SymbolRef FileDescSym,
                          const CallEvent &Call,
@@ -104,16 +104,7 @@ public:
 } // end anonymous namespace
 
 SimpleStreamChecker::SimpleStreamChecker()
-    : OpenFn("fopen"), CloseFn("fclose", 1) {
-  // Initialize the bug types.
-  DoubleCloseBugType.reset(
-      new BugType(this, "Double fclose", "Unix Stream API Error"));
-
-  LeakBugType.reset(
-      new BugType(this, "Resource Leak", "Unix Stream API Error"));
-  // Sinks are higher importance bugs as well as calls to assert() or exit(0).
-  LeakBugType->setSuppressOnSink(true);
-}
+    : OpenFn("fopen"), CloseFn("fclose", 1) {}
 
 void SimpleStreamChecker::checkPostCall(const CallEvent &Call,
                                         CheckerContext &C) const {
@@ -206,6 +197,10 @@ void SimpleStreamChecker::reportDoubleClose(SymbolRef FileDescSym,
   if (!ErrNode)
     return;
 
+  if (!DoubleCloseBugType)
+    DoubleCloseBugType.reset(
+        new BugType(this, "Double fclose", "Unix Stream API Error"));
+
   // Generate the report.
   auto R = llvm::make_unique<BugReport>(*DoubleCloseBugType,
       "Closing a previously closed file stream", ErrNode);
@@ -217,6 +212,13 @@ void SimpleStreamChecker::reportDoubleClose(SymbolRef FileDescSym,
 void SimpleStreamChecker::reportLeaks(ArrayRef<SymbolRef> LeakedStreams,
                                       CheckerContext &C,
                                       ExplodedNode *ErrNode) const {
+
+  if (!LeakBugType) {
+    LeakBugType.reset(
+        new BugType(this, "Resource Leak", "Unix Stream API Error"));
+    // Sinks are higher importance bugs as well as calls to assert() or exit(0).
+    LeakBugType->setSuppressOnSink(true);
+  }
   // Attach bug reports to the leak node.
   // TODO: Identify the leaked file descriptor.
   for (SymbolRef LeakedStream : LeakedStreams) {
