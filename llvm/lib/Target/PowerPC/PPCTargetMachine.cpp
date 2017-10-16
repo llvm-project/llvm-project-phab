@@ -98,6 +98,7 @@ extern "C" void LLVMInitializePowerPCTarget() {
   initializePPCBoolRetToIntPass(PR);
   initializePPCExpandISELPass(PR);
   initializePPCTLSDynamicCallPass(PR);
+  initializePPCLowerMemIntrinsicsPass(PR);
 }
 
 /// Return the datalayout string of a subtarget.
@@ -332,6 +333,10 @@ void PPCPassConfig::addIRPasses() {
     UsePrefetching = EnablePrefetch;
   if (UsePrefetching)
     addPass(createLoopDataPrefetchPass());
+
+
+  if (TM->getOptLevel() != CodeGenOpt::None)
+    addPass(createPPCLowerMemIntrinsicsPass());
 
   if (TM->getOptLevel() >= CodeGenOpt::Default && EnableGEPOpt) {
     // Call SeparateConstOffsetFromGEP pass to extract constants within indices
