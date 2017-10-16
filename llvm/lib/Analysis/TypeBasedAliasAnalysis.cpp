@@ -309,9 +309,26 @@ static bool isStructPathTBAA(const MDNode *MD) {
   return isa<MDNode>(MD->getOperand(0)) && MD->getNumOperands() >= 3;
 }
 
+// When using the TypeSanitizer, don't use TBAA information for alias analysis.
+// This might cause us to remove memory accesses that we need to verify at
+// runtime.
+static bool usingSanitizeType(const Value *V) {
+  const Function *F;
+
+  if (auto *I = dyn_cast<Instruction>(V))
+    F = I->getParent()->getParent();
+  else if (auto *A = dyn_cast<Argument>(V))
+    F = A->getParent();
+  else
+    return false;
+
+  return F->hasFnAttribute(Attribute::SanitizeType);
+}
+
 AliasResult TypeBasedAAResult::alias(const MemoryLocation &LocA,
                                      const MemoryLocation &LocB) {
-  if (!EnableTBAA)
+  if (!EnableTBAA ||
+      usingSanitizeType(LocA.Ptr) || usingSanitizeType(LocB.Ptr))
     return AAResultBase::alias(LocA, LocB);
 
   // Get the attached MDNodes. If either value lacks a tbaa MDNode, we must
@@ -351,7 +368,7 @@ bool TypeBasedAAResult::pointsToConstantMemory(const MemoryLocation &Loc,
 
 FunctionModRefBehavior
 TypeBasedAAResult::getModRefBehavior(ImmutableCallSite CS) {
-  if (!EnableTBAA)
+  if (!EnableTBAA || usingSanitizeType(CS.getInstruction()))
     return AAResultBase::getModRefBehavior(CS);
 
   FunctionModRefBehavior Min = FMRB_UnknownModRefBehavior;
@@ -373,7 +390,7 @@ FunctionModRefBehavior TypeBasedAAResult::getModRefBehavior(const Function *F) {
 
 ModRefInfo TypeBasedAAResult::getModRefInfo(ImmutableCallSite CS,
                                             const MemoryLocation &Loc) {
-  if (!EnableTBAA)
+  if (!EnableTBAA || usingSanitizeType(CS.getInstruction()))
     return AAResultBase::getModRefInfo(CS, Loc);
 
   if (const MDNode *L = Loc.AATags.TBAA)
@@ -387,7 +404,7 @@ ModRefInfo TypeBasedAAResult::getModRefInfo(ImmutableCallSite CS,
 
 ModRefInfo TypeBasedAAResult::getModRefInfo(ImmutableCallSite CS1,
                                             ImmutableCallSite CS2) {
-  if (!EnableTBAA)
+  if (!EnableTBAA || usingSanitizeType(CS1.getInstruction()))
     return AAResultBase::getModRefInfo(CS1, CS2);
 
   if (const MDNode *M1 =
