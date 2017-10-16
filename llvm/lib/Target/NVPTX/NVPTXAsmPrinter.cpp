@@ -92,6 +92,7 @@
 using namespace llvm;
 
 #define DEPOTNAME "__local_depot"
+#define SHARED_DEPOTNAME "__shared_depot"
 
 static cl::opt<bool>
 EmitLineNumbers("nvptx-emit-line-numbers", cl::Hidden,
@@ -1721,6 +1722,7 @@ void NVPTXAsmPrinter::setAndEmitFunctionVirtualRegisters(
   // virtual register number starting from 1 with that class.
   const TargetRegisterInfo *TRI = MF.getSubtarget().getRegisterInfo();
   //unsigned numRegClasses = TRI->getNumRegClasses();
+  bool IsKernelFunction = isKernelFunction(*MF.getFunction());
 
   // Emit the Fake Stack Object
   const MachineFrameInfo &MFI = MF.getFrameInfo();
@@ -1728,12 +1730,24 @@ void NVPTXAsmPrinter::setAndEmitFunctionVirtualRegisters(
   if (NumBytes) {
     O << "\t.local .align " << MFI.getMaxAlignment() << " .b8 \t" << DEPOTNAME
       << getFunctionNumber() << "[" << NumBytes << "];\n";
+    if (IsKernelFunction) {
+      O << "\t.shared .align " << MFI.getMaxAlignment() << " .b8 \t" << SHARED_DEPOTNAME
+        << getFunctionNumber() << "[" << NumBytes << "];\n";
+    }
     if (static_cast<const NVPTXTargetMachine &>(MF.getTarget()).is64Bit()) {
       O << "\t.reg .b64 \t%SP;\n";
       O << "\t.reg .b64 \t%SPL;\n";
+      if (IsKernelFunction){
+        O << "\t.reg .b64 \t%SHSP;\n";
+        O << "\t.reg .b64 \t%SHSPL;\n";
+      }
     } else {
       O << "\t.reg .b32 \t%SP;\n";
       O << "\t.reg .b32 \t%SPL;\n";
+      if (IsKernelFunction){
+        O << "\t.reg .b32 \t%SHSP;\n";
+        O << "\t.reg .b32 \t%SHSPL;\n";
+      }
     }
   }
 
@@ -2362,6 +2376,8 @@ void NVPTXAsmPrinter::printOperand(const MachineInstr *MI, int opNum,
     if (TargetRegisterInfo::isPhysicalRegister(MO.getReg())) {
       if (MO.getReg() == NVPTX::VRDepot)
         O << DEPOTNAME << getFunctionNumber();
+      else if (MO.getReg() == NVPTX::VRSharedDepot)
+        O << SHARED_DEPOTNAME << getFunctionNumber();
       else
         O << NVPTXInstPrinter::getRegisterName(MO.getReg());
     } else {

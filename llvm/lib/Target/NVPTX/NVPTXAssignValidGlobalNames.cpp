@@ -37,6 +37,8 @@ public:
 
   /// \brief Clean up the name to remove symbols invalid in PTX.
   std::string cleanUpName(StringRef Name);
+  /// Set a clean name, ensuring collisions are avoided.
+  void generateCleanName(Value &V);
 };
 }
 
@@ -50,18 +52,29 @@ INITIALIZE_PASS(NVPTXAssignValidGlobalNames, "nvptx-assign-valid-global-names",
                 "Assign valid PTX names to globals", false, false)
 
 bool NVPTXAssignValidGlobalNames::runOnModule(Module &M) {
-  for (GlobalVariable &GV : M.globals()) {
-    // We are only allowed to rename local symbols.
-    if (GV.hasLocalLinkage()) {
-      // setName doesn't do extra work if the name does not change.
-      // Note: this does not create collisions - if setName is asked to set the
-      // name to something that already exists, it adds a proper postfix to
-      // avoid collisions.
-      GV.setName(cleanUpName(GV.getName()));
-    }
-  }
+  // We are only allowed to rename local symbols.
+  for (GlobalVariable &GV : M.globals())
+    if (GV.hasLocalLinkage())
+      generateCleanName(GV);
+
+  // Clean function symbols.
+  for (auto &FN : M.functions())
+    if (FN.hasLocalLinkage())
+      generateCleanName(FN);
 
   return true;
+}
+
+void NVPTXAssignValidGlobalNames::generateCleanName(Value &V) {
+  std::string ValidName;
+  do {
+    ValidName = cleanUpName(V.getName());
+    // setName doesn't do extra work if the name does not change.
+    // Collisions are avoided by adding a suffix (which may yet be unclean in
+    // PTX).
+    V.setName(ValidName);
+    // If there are no collisions return, otherwise clean up the new name.
+  } while (!V.getName().equals(ValidName));
 }
 
 std::string NVPTXAssignValidGlobalNames::cleanUpName(StringRef Name) {

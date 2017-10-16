@@ -54,6 +54,7 @@ void initializeNVPTXAssignValidGlobalNamesPass(PassRegistry&);
 void initializeNVPTXLowerAggrCopiesPass(PassRegistry &);
 void initializeNVPTXLowerArgsPass(PassRegistry &);
 void initializeNVPTXLowerAllocaPass(PassRegistry &);
+void initializeNVPTXFunctionDataSharingPass(PassRegistry &);
 
 } // end namespace llvm
 
@@ -72,6 +73,7 @@ extern "C" void LLVMInitializeNVPTXTarget() {
   initializeNVPTXAssignValidGlobalNamesPass(PR);
   initializeNVPTXLowerArgsPass(PR);
   initializeNVPTXLowerAllocaPass(PR);
+  initializeNVPTXFunctionDataSharingPass(PR);
   initializeNVPTXLowerAggrCopiesPass(PR);
 }
 
@@ -148,6 +150,7 @@ public:
   bool addInstSelector() override;
   void addPostRegAlloc() override;
   void addMachineSSAOptimization() override;
+  void addMachineSSALowering() override;
 
   FunctionPass *createTargetRegisterAllocator(bool) override;
   void addFastRegAlloc(FunctionPass *RegAllocPass) override;
@@ -248,10 +251,15 @@ void NVPTXPassConfig::addIRPasses() {
   // before the address space inference passes.
   addPass(createNVPTXLowerArgsPass(&getNVPTXTargetMachine()));
   if (getOptLevel() != CodeGenOpt::None) {
+    // Add address space inference passes
     addAddressSpaceInferencePasses();
     if (!DisableLoadStoreVectorizer)
       addPass(createLoadStoreVectorizerPass());
     addStraightLineScalarOptimizationPasses();
+  } else {
+    // Even when no optimizations are used, we need to lower certain
+    // alloca instructions to the appropriate memory type for correctness.
+    addPass(createNVPTXFunctionDataSharingPass(&getNVPTXTargetMachine()));
   }
 
   // === LSR and other generic IR passes ===
@@ -329,6 +337,11 @@ void NVPTXPassConfig::addOptimizedRegAlloc(FunctionPass *RegAllocPass) {
   printAndVerify("After StackSlotColoring");
 }
 
+void NVPTXPassConfig::addMachineSSALowering() {
+  // Lower shared frame indices.
+  addPass(createNVPTXLowerSharedFrameIndicesPass(), false);
+}
+
 void NVPTXPassConfig::addMachineSSAOptimization() {
   // Pre-ra tail duplication.
   if (addPass(&EarlyTailDuplicateID))
@@ -337,6 +350,11 @@ void NVPTXPassConfig::addMachineSSAOptimization() {
   // Optimize PHIs before DCE: removing dead PHI cycles may make more
   // instructions dead.
   addPass(&OptimizePHIsID);
+
+  // To avoid SSA optimizations on the local frame indices from treating
+  // shared and local frame indices the same, we will lower shared frame
+  // before the optimizations are applied.
+  addMachineSSALowering();
 
   // This pass merges large allocas. StackSlotColoring is a different pass
   // which merges spill slots.

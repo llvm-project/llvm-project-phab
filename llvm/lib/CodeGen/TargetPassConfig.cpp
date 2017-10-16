@@ -809,6 +809,11 @@ void TargetPassConfig::addMachinePasses() {
   if (getOptLevel() != CodeGenOpt::None) {
     addMachineSSAOptimization();
   } else {
+    // Ensure lowering to the appropriate memroy type occurs even when no
+    // optimizations are enabled. This type of lowering is required for
+    // correctness by the NVPTX backend.
+    addMachineSSALowering();
+
     // If the target requests it, assign local variables to stack slots relative
     // to one another and simplify frame index references where possible.
     addPass(&LocalStackSlotAllocationID, false);

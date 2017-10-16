@@ -48,10 +48,12 @@ ModulePass *createGenericToNVVMPass();
 FunctionPass *createNVVMIntrRangePass(unsigned int SmVersion);
 FunctionPass *createNVVMReflectPass();
 MachineFunctionPass *createNVPTXPrologEpilogPass();
+MachineFunctionPass *createNVPTXLowerSharedFrameIndicesPass();
 MachineFunctionPass *createNVPTXReplaceImageHandlesPass();
 FunctionPass *createNVPTXImageOptimizerPass();
 FunctionPass *createNVPTXLowerArgsPass(const NVPTXTargetMachine *TM);
 BasicBlockPass *createNVPTXLowerAllocaPass();
+FunctionPass *createNVPTXFunctionDataSharingPass(const NVPTXTargetMachine *TM);
 MachineFunctionPass *createNVPTXPeephole();
 
 Target &getTheNVPTXTarget32();

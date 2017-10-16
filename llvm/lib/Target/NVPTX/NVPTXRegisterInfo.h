@@ -45,6 +45,8 @@ public:
 
   unsigned getFrameRegister(const MachineFunction &MF) const override;
 
+  unsigned getSharedFrameRegister(const MachineFunction &MF) const;
+
   ManagedStringPool *getStrPool() const {
     return const_cast<ManagedStringPool *>(&ManagedStrPool);
   }

@@ -130,3 +130,7 @@ void NVPTXRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
 unsigned NVPTXRegisterInfo::getFrameRegister(const MachineFunction &MF) const {
   return NVPTX::VRFrame;
 }
+
+unsigned NVPTXRegisterInfo::getSharedFrameRegister(const MachineFunction &MF) const {
+  return NVPTX::VRShared;
+}
