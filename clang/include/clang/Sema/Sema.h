@@ -3726,11 +3726,9 @@ public:
                          Stmt *InitStmt,
                          ConditionResult Cond, Stmt *ThenVal,
                          SourceLocation ElseLoc, Stmt *ElseVal);
-  StmtResult ActOnStartOfSwitchStmt(SourceLocation SwitchLoc,
-                                    Stmt *InitStmt,
-                                    ConditionResult Cond);
-  StmtResult ActOnFinishSwitchStmt(SourceLocation SwitchLoc,
-                                           Stmt *Switch, Stmt *Body);
+  void ActOnStartOfSwitchStmt(SourceLocation SwitchLoc, Stmt *InitStmt,
+                              ConditionResult Cond);
+  StmtResult ActOnFinishSwitchStmt(SourceLocation SwitchLoc, Stmt *Body);
   StmtResult ActOnWhileStmt(SourceLocation WhileLoc, ConditionResult Cond,
                             Stmt *Body);
   StmtResult ActOnDoStmt(SourceLocation DoLoc, Stmt *Body,

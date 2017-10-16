@@ -1256,18 +1256,17 @@ public:
   ///
   /// By default, performs semantic analysis to build the new statement.
   /// Subclasses may override this routine to provide different behavior.
-  StmtResult RebuildSwitchStmtStart(SourceLocation SwitchLoc, Stmt *Init,
-                                    Sema::ConditionResult Cond) {
-    return getSema().ActOnStartOfSwitchStmt(SwitchLoc, Init, Cond);
+  void RebuildSwitchStmtStart(SourceLocation SwitchLoc, Stmt *Init,
+                              Sema::ConditionResult Cond) {
+    getSema().ActOnStartOfSwitchStmt(SwitchLoc, Init, Cond);
   }
 
   /// \brief Attach the body to the switch statement.
   ///
   /// By default, performs semantic analysis to build the new statement.
   /// Subclasses may override this routine to provide different behavior.
-  StmtResult RebuildSwitchStmtBody(SourceLocation SwitchLoc,
-                                   Stmt *Switch, Stmt *Body) {
-    return getSema().ActOnFinishSwitchStmt(SwitchLoc, Switch, Body);
+  StmtResult RebuildSwitchStmtBody(SourceLocation SwitchLoc, Stmt *Body) {
+    return getSema().ActOnFinishSwitchStmt(SwitchLoc, Body);
   }
 
   /// \brief Build a new while statement.
@@ -6657,10 +6656,7 @@ TreeTransform<Derived>::TransformSwitchStmt(SwitchStmt *S) {
     return StmtError();
 
   // Rebuild the switch statement.
-  StmtResult Switch
-    = getDerived().RebuildSwitchStmtStart(S->getSwitchLoc(), Init.get(), Cond);
-  if (Switch.isInvalid())
-    return StmtError();
+  getDerived().RebuildSwitchStmtStart(S->getSwitchLoc(), Init.get(), Cond);
 
   // Transform the body of the switch statement.
   StmtResult Body = getDerived().TransformStmt(S->getBody());
@@ -6668,8 +6664,7 @@ TreeTransform<Derived>::TransformSwitchStmt(SwitchStmt *S) {
     return StmtError();
 
   // Complete the switch statement.
-  return getDerived().RebuildSwitchStmtBody(S->getSwitchLoc(), Switch.get(),
-                                            Body.get());
+  return getDerived().RebuildSwitchStmtBody(S->getSwitchLoc(), Body.get());
 }
 
 template<typename Derived>

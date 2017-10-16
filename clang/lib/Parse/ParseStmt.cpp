@@ -788,6 +788,9 @@ StmtResult Parser::ParseCaseStatement(bool MissingCase, ExprResult Expr) {
     if (SubStmt.isInvalid())
       SubStmt = Actions.ActOnNullStmt(SourceLocation());
     Actions.ActOnCaseStmtBody(DeepestParsedCaseStmt, SubStmt.get());
+  } else {
+    // The case statement is invalid, recover by returning the statement body.
+    return SubStmt;
   }
 
   // Return the top level parsed statement tree.
@@ -1306,21 +1309,7 @@ StmtResult Parser::ParseSwitchStatement(SourceLocation *TrailingElseLoc) {
                                 Sema::ConditionKind::Switch))
     return StmtError();
 
-  StmtResult Switch =
-      Actions.ActOnStartOfSwitchStmt(SwitchLoc, InitStmt.get(), Cond);
-
-  if (Switch.isInvalid()) {
-    // Skip the switch body.
-    // FIXME: This is not optimal recovery, but parsing the body is more
-    // dangerous due to the presence of case and default statements, which
-    // will have no place to connect back with the switch.
-    if (Tok.is(tok::l_brace)) {
-      ConsumeBrace();
-      SkipUntil(tok::r_brace);
-    } else
-      SkipUntil(tok::semi);
-    return Switch;
-  }
+  Actions.ActOnStartOfSwitchStmt(SwitchLoc, InitStmt.get(), Cond);
 
   // C99 6.8.4p3 - In C99, the body of the switch statement is a scope, even if
   // there is no compound stmt.  C90 does not have this clause.  We only do this
@@ -1348,7 +1337,7 @@ StmtResult Parser::ParseSwitchStatement(SourceLocation *TrailingElseLoc) {
   InnerScope.Exit();
   SwitchScope.Exit();
 
-  return Actions.ActOnFinishSwitchStmt(SwitchLoc, Switch.get(), Body.get());
+  return Actions.ActOnFinishSwitchStmt(SwitchLoc, Body.get());
 }
 
 /// ParseWhileStatement

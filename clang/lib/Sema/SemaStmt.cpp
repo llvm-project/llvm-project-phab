@@ -669,17 +669,21 @@ ExprResult Sema::CheckSwitchCondition(SourceLocation SwitchLoc, Expr *Cond) {
   return UsualUnaryConversions(CondResult.get());
 }
 
-StmtResult Sema::ActOnStartOfSwitchStmt(SourceLocation SwitchLoc,
-                                        Stmt *InitStmt, ConditionResult Cond) {
+void Sema::ActOnStartOfSwitchStmt(SourceLocation SwitchLoc, Stmt *InitStmt,
+                                  ConditionResult Cond) {
   if (Cond.isInvalid())
-    return StmtError();
+    Cond = ConditionResult(
+        *this, nullptr,
+        MakeFullExpr(new (Context) OpaqueValueExpr(SourceLocation(),
+                                                   Context.IntTy, VK_RValue),
+                     SwitchLoc),
+        false);
 
   getCurFunction()->setHasBranchIntoScope();
 
   SwitchStmt *SS = new (Context)
       SwitchStmt(Context, InitStmt, Cond.get().first, Cond.get().second);
   getCurFunction()->SwitchStack.push_back(SS);
-  return SS;
 }
 
 static void AdjustAPSInt(llvm::APSInt &Val, unsigned BitWidth, bool IsSigned) {
@@ -769,12 +773,11 @@ static void checkEnumTypesInSwitchStmt(Sema &S, const Expr *Cond,
       << Case->getSourceRange();
 }
 
-StmtResult
-Sema::ActOnFinishSwitchStmt(SourceLocation SwitchLoc, Stmt *Switch,
-                            Stmt *BodyStmt) {
-  SwitchStmt *SS = cast<SwitchStmt>(Switch);
-  assert(SS == getCurFunction()->SwitchStack.back() &&
-         "switch stack missing push/pop!");
+StmtResult Sema::ActOnFinishSwitchStmt(SourceLocation SwitchLoc,
+                                       Stmt *BodyStmt) {
+
+  SwitchStmt *SS = getCurFunction()->SwitchStack.back();
+  assert(SS && "switch stack missing push/pop!");
 
   getCurFunction()->SwitchStack.pop_back();
 
@@ -802,7 +805,7 @@ Sema::ActOnFinishSwitchStmt(SourceLocation SwitchLoc, Stmt *Switch,
     // type, when we started the switch statement. If we don't have an
     // appropriate type now, just return an error.
     if (!CondType->isIntegralOrEnumerationType())
-      return StmtError();
+      return SS;
 
     if (CondExpr->isKnownToHaveBooleanValue()) {
       // switch(bool_expr) {...} is often a programmer error, e.g.
@@ -815,17 +818,20 @@ Sema::ActOnFinishSwitchStmt(SourceLocation SwitchLoc, Stmt *Switch,
 
   // Get the bitwidth of the switched-on value after promotions. We must
   // convert the integer case values to this width before comparison.
-  bool HasDependentValue
-    = CondExpr->isTypeDependent() || CondExpr->isValueDependent();
-  unsigned CondWidth = HasDependentValue ? 0 : Context.getIntWidth(CondType);
+  bool HasDependentValueOrError = CondExpr->isTypeDependent() ||
+                                  CondExpr->isValueDependent() ||
+                                  isa<OpaqueValueExpr>(CondExpr);
+  unsigned CondWidth =
+      HasDependentValueOrError ? 0 : Context.getIntWidth(CondType);
   bool CondIsSigned = CondType->isSignedIntegerOrEnumerationType();
 
   // Get the width and signedness that the condition might actually have, for
   // warning purposes.
   // FIXME: Grab an IntRange for the condition rather than using the unpromoted
   // type.
-  unsigned CondWidthBeforePromotion
-    = HasDependentValue ? 0 : Context.getIntWidth(CondTypeBeforePromotion);
+  unsigned CondWidthBeforePromotion =
+      HasDependentValueOrError ? 0
+                               : Context.getIntWidth(CondTypeBeforePromotion);
   bool CondIsSignedBeforePromotion
     = CondTypeBeforePromotion->isSignedIntegerOrEnumerationType();
 
@@ -843,8 +849,8 @@ Sema::ActOnFinishSwitchStmt(SourceLocation SwitchLoc, Stmt *Switch,
 
   bool CaseListIsErroneous = false;
 
-  for (SwitchCase *SC = SS->getSwitchCaseList(); SC && !HasDependentValue;
-       SC = SC->getNextSwitchCase()) {
+  for (SwitchCase *SC = SS->getSwitchCaseList();
+       SC && !HasDependentValueOrError; SC = SC->getNextSwitchCase()) {
 
     if (DefaultStmt *DS = dyn_cast<DefaultStmt>(SC)) {
       if (TheDefaultStmt) {
@@ -865,7 +871,7 @@ Sema::ActOnFinishSwitchStmt(SourceLocation SwitchLoc, Stmt *Switch,
       Expr *Lo = CS->getLHS();
 
       if (Lo->isTypeDependent() || Lo->isValueDependent()) {
-        HasDependentValue = true;
+        HasDependentValueOrError = true;
         break;
       }
 
@@ -908,7 +914,7 @@ Sema::ActOnFinishSwitchStmt(SourceLocation SwitchLoc, Stmt *Switch,
       if (CS->getRHS()) {
         if (CS->getRHS()->isTypeDependent() ||
             CS->getRHS()->isValueDependent()) {
-          HasDependentValue = true;
+          HasDependentValueOrError = true;
           break;
         }
         CaseRanges.push_back(std::make_pair(LoVal, CS));
@@ -917,12 +923,12 @@ Sema::ActOnFinishSwitchStmt(SourceLocation SwitchLoc, Stmt *Switch,
     }
   }
 
-  if (!HasDependentValue) {
+  if (!HasDependentValueOrError) {
     // If we don't have a default statement, check whether the
     // condition is constant.
     llvm::APSInt ConstantCondValue;
     bool HasConstantCond = false;
-    if (!HasDependentValue && !TheDefaultStmt) {
+    if (!HasDependentValueOrError && !TheDefaultStmt) {
       HasConstantCond = CondExpr->EvaluateAsInt(ConstantCondValue, Context,
                                                 Expr::SE_AllowSideEffects);
       assert(!HasConstantCond ||
@@ -1206,11 +1212,6 @@ Sema::ActOnFinishSwitchStmt(SourceLocation SwitchLoc, Stmt *Switch,
   if (BodyStmt)
     DiagnoseEmptyStmtBody(CondExpr->getLocEnd(), BodyStmt,
                           diag::warn_empty_switch_body);
-
-  // FIXME: If the case list was broken is some way, we don't have a good system
-  // to patch it up.  Instead, just return the whole substmt as broken.
-  if (CaseListIsErroneous)
-    return StmtError();
 
   return SS;
 }

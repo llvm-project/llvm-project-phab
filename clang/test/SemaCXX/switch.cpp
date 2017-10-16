@@ -130,3 +130,20 @@ void test(Opaque o, OpaqueClass oc, Defined d) {
 }
 
 }
+
+namespace InvalidCondition {
+enum class color { red,
+                   blue,
+                   green };
+void test() {
+  // When the condition is invalid, there should be no errors or warnings
+  switch (invalidCode) { // expected-error {{use of undeclared identifier}}
+  case 0:
+  case -(1ll << 62) - 1:
+  case (1ll << 62) + 1:
+  case color::red:
+  default:
+    break;
+  }
+}
+} // namespace InvalidCondition
