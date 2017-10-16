@@ -336,6 +336,10 @@ llvm::Function *CodeGenModule::CreateGlobalInitOrDestructFunction(
       !isInSanitizerBlacklist(SanitizerKind::SafeStack, Fn, Loc))
     Fn->addFnAttr(llvm::Attribute::SafeStack);
 
+  if (getLangOpts().Sanitize.has(SanitizerKind::Type) &&
+      !isInSanitizerBlacklist(SanitizerKind::Type, Fn, Loc))
+    Fn->addFnAttr(llvm::Attribute::SanitizeType);
+
   return Fn;
 }
 

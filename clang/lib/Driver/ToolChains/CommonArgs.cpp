@@ -630,6 +630,8 @@ collectSanitizerRuntimes(const ToolChain &TC, const ArgList &Args,
   }
   if (SanArgs.needsEsanRt())
     StaticRuntimes.push_back("esan");
+  if (SanArgs.needsTysanRt())
+    StaticRuntimes.push_back("tysan");
 }
 
 // Should be called before we add system libraries (C++ ABI, libstdc++/libc++,

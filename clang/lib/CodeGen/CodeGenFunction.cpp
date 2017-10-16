@@ -850,6 +850,8 @@ void CodeGenFunction::StartFunction(GlobalDecl GD,
     Fn->addFnAttr(llvm::Attribute::SanitizeMemory);
   if (SanOpts.has(SanitizerKind::SafeStack))
     Fn->addFnAttr(llvm::Attribute::SafeStack);
+  if (SanOpts.has(SanitizerKind::Type))
+    Fn->addFnAttr(llvm::Attribute::SanitizeType);
 
   // Ignore TSan memory acesses from within ObjC/ObjC++ dealloc, initialize,
   // .cxx_destruct, __destroy_helper_block_ and all of their calees at run time.

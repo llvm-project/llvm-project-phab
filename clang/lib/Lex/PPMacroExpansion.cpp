@@ -1138,6 +1138,7 @@ static bool HasFeature(const Preprocessor &PP, StringRef Feature) {
       .Case("dataflow_sanitizer", LangOpts.Sanitize.has(SanitizerKind::DataFlow))
       .Case("efficiency_sanitizer",
             LangOpts.Sanitize.hasOneOf(SanitizerKind::Efficiency))
+      .Case("type_sanitizer", LangOpts.Sanitize.has(SanitizerKind::Type))
       // Objective-C features
       .Case("objc_arr", LangOpts.ObjCAutoRefCount) // FIXME: REMOVE?
       .Case("objc_arc", LangOpts.ObjCAutoRefCount)
