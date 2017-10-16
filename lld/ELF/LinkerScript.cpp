@@ -114,16 +114,21 @@ void LinkerScript::setDot(Expr E, const Twine &Loc, bool InSec) {
     Ctx->OutSec->Size = Dot - Ctx->OutSec->Addr;
 }
 
+static bool shouldProvide(SymbolAssignment *Cmd) {
+  assert(Cmd->Provide);
+  // If a symbol was in PROVIDE(), we need to define it only when
+  // it is a referenced undefined symbol.
+  SymbolBody *B = Symtab->find(Cmd->Name);
+  return B && B->isUndefined();
+}
+
 // This function is called from processSectionCommands,
 // while we are fixing the output section layout.
 void LinkerScript::addSymbol(SymbolAssignment *Cmd) {
   if (Cmd->Name == ".")
     return;
 
-  // If a symbol was in PROVIDE(), we need to define it only when
-  // it is a referenced undefined symbol.
-  SymbolBody *B = Symtab->find(Cmd->Name);
-  if (Cmd->Provide && (!B || B->isDefined()))
+  if (Cmd->Provide && !shouldProvide(Cmd))
     return;
 
   // Define a symbol.
@@ -152,6 +157,36 @@ void LinkerScript::addSymbol(SymbolAssignment *Cmd) {
   replaceBody<DefinedRegular>(Sym, nullptr, Cmd->Name, /*IsLocal=*/false,
                               Visibility, STT_NOTYPE, SymValue, 0, Sec);
   Cmd->Sym = cast<DefinedRegular>(Sym->body());
+}
+
+// Symbols defined in script should not be inlined by LTO. At the same time
+// we don't know their final values until late stages of link. Here we scan
+// over symbol assignment commands, create dummy symbols if needed and and set
+// appropriate flag.
+void LinkerScript::defineSymbols() {
+  assert(!Ctx);
+  for (BaseCommand *Base : SectionCommands) {
+    SymbolAssignment *Cmd = dyn_cast<SymbolAssignment>(Base);
+    if (!Cmd || Cmd->Name == ".")
+      continue;
+
+    // We don't define symbol that should not be provided. Otherwise we provide
+    // it below right here and drop the flag what allows addSymbol() to properly
+    // update symbol value later.
+    if (Cmd->Provide) {
+      if (!shouldProvide(Cmd))
+        continue;
+      Cmd->Provide = false;
+    }
+
+    // Define dummy symbol.
+    Symbol *Sym;
+    std::tie(Sym, std::ignore) =
+        Symtab->insert(Cmd->Name, 0, STV_DEFAULT, false, nullptr);
+    replaceBody<DefinedRegular>(Sym, nullptr, Cmd->Name, /*IsLocal=*/false,
+                                STV_DEFAULT, STT_NOTYPE, 0, 0, nullptr);
+    Sym->CanInline = false;
+  }
 }
 
 // This function is called from assignAddresses, while we are
