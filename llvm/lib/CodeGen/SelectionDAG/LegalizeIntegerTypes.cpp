@@ -773,7 +773,18 @@ SDValue DAGTypeLegalizer::PromoteIntRes_UADDSUBO(SDNode *N, unsigned ResNo) {
 SDValue DAGTypeLegalizer::PromoteIntRes_ADDSUBCARRY(SDNode *N, unsigned ResNo) {
   if (ResNo == 1)
     return PromoteIntRes_Overflow(N);
-  llvm_unreachable("Not implemented");
+
+  SDValue LHS = GetPromotedInteger(N->getOperand(0));
+  SDValue RHS = GetPromotedInteger(N->getOperand(1));
+
+  EVT ValueVTs[] = { LHS.getValueType(), N->getValueType(1) };
+
+  SDValue Res = DAG.getNode(N->getOpcode(), SDLoc(N),
+                     DAG.getVTList(ValueVTs), LHS, RHS, N->getOperand(2));
+
+  ReplaceValueWith(SDValue(N, 1), Res.getValue(1));
+
+  return SDValue(Res.getNode(), 0);
 }
 
 SDValue DAGTypeLegalizer::PromoteIntRes_XMULO(SDNode *N, unsigned ResNo) {
