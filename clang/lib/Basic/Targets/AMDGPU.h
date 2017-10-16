@@ -70,6 +70,10 @@ class LLVM_LIBRARY_VISIBILITY AMDGPUTargetInfo final : public TargetInfo {
   bool hasLDEXPF : 1;
   const AddrSpace AS;
 
+  // The maximum supported group size is 1024, but some runtimes currently only
+  // support 256.
+  unsigned MaxWorkGroupSize = 1024;
+
   static bool hasFullSpeedFMAF32(StringRef GPUName) {
     return parseAMDGCNName(GPUName) >= GK_GFX9;
   }
@@ -281,6 +285,10 @@ public:
 
   llvm::Optional<LangAS> getConstantAddressSpace() const override {
     return getLangASFromTargetAS(AS.Constant);
+  }
+
+  unsigned getOpenCLMaxWorkGroupSize(unsigned Dim) const override {
+    return MaxWorkGroupSize;
   }
 
   /// \returns Target specific vtbl ptr address space.

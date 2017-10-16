@@ -52,4 +52,4 @@ void test_get_local_id(int d, global int *out)
 	}
 }
 
-// CHECK-DAG: [[WI_RANGE]] = !{i32 0, i32 1024}
+// CHECK-DAG: [[WI_RANGE]] = !{i32 0, i32 256}

@@ -344,7 +344,7 @@ AMDGPUTargetInfo::AMDGPUTargetInfo(const llvm::Triple &Triple,
 void AMDGPUTargetInfo::adjust(LangOptions &Opts) {
   TargetInfo::adjust(Opts);
   setAddressSpaceMap(Opts.OpenCL || !isAMDGCN(getTriple()));
-}
+
 
 ArrayRef<Builtin::Info> AMDGPUTargetInfo::getTargetBuiltins() const {
   return llvm::makeArrayRef(BuiltinInfo, clang::AMDGPU::LastTSBuiltin -

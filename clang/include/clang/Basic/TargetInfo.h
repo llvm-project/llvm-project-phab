@@ -1056,6 +1056,11 @@ public:
   /// \brief Get address space for OpenCL type.
   virtual LangAS getOpenCLTypeAddrSpace(const Type *T) const;
 
+  /// \returns Maximum device supported OpenCL workgroup size.
+  virtual unsigned getOpenCLMaxWorkGroupSize(unsigned Dim) const {
+    return 0;
+  }
+
   /// \returns Target specific vtbl ptr address space.
   virtual unsigned getVtblPtrAddressSpace() const {
     return 0;
