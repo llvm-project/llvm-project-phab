@@ -4809,6 +4809,52 @@ const SCEV *ScalarEvolution::createAddRecFromPHI(PHINode *PN) {
         return PHISCEV;
       }
     }
+  } else if (isa<SCEVUnknown>(BEValue) || isa<SCEVZeroExtendExpr>(BEValue)) {
+    // Okay, now we are going to check that Loop's condition operand is increasing.
+    BranchInst *BR = dyn_cast<BranchInst>(L->getLoopLatch()->getTerminator());
+
+    // If it has conditional branch.
+    if (BR && BR->isConditional()) {
+      ICmpInst *ICI = dyn_cast<ICmpInst>(BR->getCondition());
+
+      // Now we are checking that BEValueV is increasing ICI's operand.
+      Instruction *AddExpr = dyn_cast<Instruction>(BEValueV);
+      Value *LHS = ICI->getOperand(0);
+      Value *RHS = ICI->getOperand(1);
+
+      // We are not finding a constant. we are finding expression that we increasing.
+      if (isa<Constant>(RHS))
+        std::swap(LHS, RHS);
+
+      // It can be select instruction.
+      // that selected condition should same so we can analyze.
+      if (isa<SelectInst>(AddExpr))
+        if (AddExpr->getOperand(0) == ICI)
+          AddExpr = dyn_cast<Instruction>(AddExpr->getOperand(1));
+
+
+      // Check that we are increasing is ICI's operand.
+      // AddExpr's first operand is target.
+      if (AddExpr && AddExpr->getOperand(0) == RHS) {
+        // Yes its increasing ICI's operand. now we can assume that this loop can exit.
+        const SCEV* SCEVStart = getSCEV(StartValueV);
+        const SCEV* SCEVStep;
+        const SCEV* NewAddExpr;
+
+        // AddExpr's operand can be constant. it means it probably not increasing constant 1
+        // so we are going to just evolute constant variable.
+        if (Constant* ST = dyn_cast<Constant>(AddExpr->getOperand(1)))
+          SCEVStep = getSCEV(ST);
+        else
+          SCEVStep = getOne(AddExpr->getType());
+        NewAddExpr = getAddRecExpr(SCEVStart, SCEVStep, L, SCEV::FlagAnyWrap);
+
+        forgetSymbolicName(PN, SymbolicName);
+        ValueExprMap[SCEVCallbackVH(PN, this)] = NewAddExpr;
+
+        return NewAddExpr;
+      }
+    }
   } else {
     // Otherwise, this could be a loop like this:
     //     i = 0;  for (j = 1; ..; ++j) { ....  i = j; }
