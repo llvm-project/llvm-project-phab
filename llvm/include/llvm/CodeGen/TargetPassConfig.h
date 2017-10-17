@@ -355,6 +355,10 @@ protected:
   /// instructions in SSA form.
   virtual void addMachineSSAOptimization();
 
+  /// Add passes that lower variables to a
+  /// particular memory type.
+  virtual void addMachineSSALowering() {}
+
   /// Add passes that optimize instruction level parallelism for out-of-order
   /// targets. These passes are run while the machine code is still in SSA
   /// form, so they can use MachineTraceMetrics to control their heuristics.

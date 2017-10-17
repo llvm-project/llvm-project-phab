@@ -28,6 +28,8 @@
 
 namespace llvm {
 
+#define DEBUG_TYPE "nvptx-utilities"
+
 namespace {
 typedef std::map<std::string, std::vector<unsigned> > key_val_pair_t;
 typedef std::map<const GlobalValue *, key_val_pair_t> global_val_annot_t;
@@ -311,6 +313,52 @@ bool getAlign(const CallInst &I, unsigned index, unsigned &align) {
       }
     }
   }
+  return false;
+}
+
+/// Returns true if there are any instructions storing
+/// the address of this pointer.
+bool ptrIsStored(Value *Ptr) {
+  SmallVector<const Value*, 16> PointerAliases;
+  PointerAliases.push_back(Ptr);
+
+  SmallVector<const User*, 16> Users;
+  for (const Use &U : Ptr->uses())
+    Users.push_back(U.getUser());
+
+  for (unsigned I = 0; I < Users.size(); ++I) {
+    // Get pointer usage
+    const User *FU = Users[I];
+
+    // Check if Ptr or an alias to it is the destination of the store
+    auto SI = dyn_cast<StoreInst>(FU);
+    if (SI) {
+      for (auto Alias: PointerAliases)
+        if (SI->getValueOperand() == Alias)
+          return true;
+      continue;
+    }
+
+    // TODO: Can loads lead to address being taken?
+    // TODO: Can GEPs lead to address being taken?
+
+    // Bitcasts increase aliases of the pointer
+    auto BI = dyn_cast<BitCastInst>(FU);
+    if (BI) {
+      for (const Use &U : BI->uses())
+        Users.push_back(U.getUser());
+      PointerAliases.push_back(BI);
+      continue;
+    }
+
+    // TODO:
+    // There may be other instructions which increase the number
+    // of alias values ex. operations on the address of the alloca.
+    // The whole alloca'ed memory region needs to be shared if at
+    // least one of the values needs to be shared.
+  }
+
+  // Address of the pointer has been stored
   return false;
 }
 

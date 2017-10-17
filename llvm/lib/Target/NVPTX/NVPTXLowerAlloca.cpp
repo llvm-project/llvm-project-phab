@@ -71,13 +71,34 @@ bool NVPTXLowerAlloca::runOnBasicBlock(BasicBlock &BB) {
       Changed = true;
       auto PTy = dyn_cast<PointerType>(allocaInst->getType());
       auto ETy = PTy->getElementType();
-      auto LocalAddrTy = PointerType::get(ETy, ADDRESS_SPACE_LOCAL);
-      auto NewASCToLocal = new AddrSpaceCastInst(allocaInst, LocalAddrTy, "");
-      auto GenericAddrTy = PointerType::get(ETy, ADDRESS_SPACE_GENERIC);
+
+      // In the CUDA case, this is always a local address.
+      // In offloading to a device using OpenMP this may be an
+      // address allocated in the shared memory of the device.
+      auto *AddrTy = PointerType::get(ETy, ADDRESS_SPACE_LOCAL);
+      bool PtrIsStored = ptrIsStored(allocaInst);
+
+      // Handle shared args: currently shared args are declared as
+      // an alloca in LLVM-IR code generation and lowered to
+      // shared memory.
+      if (PtrIsStored)
+       AddrTy = PointerType::get(ETy, ADDRESS_SPACE_SHARED);
+
+      auto NewASCToLocal = new AddrSpaceCastInst(allocaInst, AddrTy, "");
+      auto *GenericAddrTy = PointerType::get(ETy, ADDRESS_SPACE_GENERIC);
       auto NewASCToGeneric = new AddrSpaceCastInst(NewASCToLocal,
                                                     GenericAddrTy, "");
       NewASCToLocal->insertAfter(allocaInst);
       NewASCToGeneric->insertAfter(NewASCToLocal);
+
+      // If a value is shared then the additional conversions are required for
+      // correctness.
+      if (PtrIsStored){
+        allocaInst->replaceAllUsesWith(NewASCToGeneric);
+        NewASCToLocal->setOperand(0, allocaInst);
+        continue;
+      }
+
       for (Value::use_iterator UI = allocaInst->use_begin(),
                                 UE = allocaInst->use_end();
             UI != UE; ) {
@@ -93,9 +114,15 @@ bool NVPTXLowerAlloca::runOnBasicBlock(BasicBlock &BB) {
           continue;
         }
         auto SI = dyn_cast<StoreInst>(AllocaUse.getUser());
-        if (SI && SI->getPointerOperand() == allocaInst && !SI->isVolatile()) {
-          SI->setOperand(SI->getPointerOperandIndex(), NewASCToGeneric);
-          continue;
+        if (SI && !SI->isVolatile()){
+          unsigned Idx;
+          if (SI->getPointerOperand() == allocaInst)
+            Idx = SI->getPointerOperandIndex();
+          else if (SI->getValueOperand() == allocaInst)
+            Idx = 0;
+          else
+            continue;
+          SI->setOperand(Idx, NewASCToGeneric);
         }
         auto GI = dyn_cast<GetElementPtrInst>(AllocaUse.getUser());
         if (GI && GI->getPointerOperand() == allocaInst) {

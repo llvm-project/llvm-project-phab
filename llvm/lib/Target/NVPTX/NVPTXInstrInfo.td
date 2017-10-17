@@ -1583,6 +1583,10 @@ let hasSideEffects = 0 in {
                                      "mov.u32 \t$d, __local_depot$num;", []>;
   def MOV_DEPOT_ADDR_64 : NVPTXInst<(outs Int64Regs:$d), (ins i32imm:$num),
                                     "mov.u64 \t$d, __local_depot$num;", []>;
+  def MOV_SHARED_DEPOT_ADDR :    NVPTXInst<(outs Int32Regs:$d), (ins i32imm:$num),
+                                           "mov.u32 \t$d, __shared_depot$num;", []>;
+  def MOV_SHARED_DEPOT_ADDR_64 : NVPTXInst<(outs Int64Regs:$d), (ins i32imm:$num),
+                                           "mov.u64 \t$d, __shared_depot$num;", []>;
 }
 
 

@@ -25,9 +25,12 @@ class NVPTXRegClass<list<ValueType> regTypes, int alignment, dag regList>
 // Special Registers used as stack pointer
 def VRFrame         : NVPTXReg<"%SP">;
 def VRFrameLocal    : NVPTXReg<"%SPL">;
+def VRShared        : NVPTXReg<"%SHSP">;
+def VRFrameShared   : NVPTXReg<"%SHSPL">;
 
 // Special Registers used as the stack
 def VRDepot  : NVPTXReg<"%Depot">;
+def VRSharedDepot  : NVPTXReg<"%SharedDepot">;
 
 // We use virtual registers, but define a few physical registers here to keep
 // SDAG and the MachineInstr layers happy.
@@ -69,5 +72,5 @@ def Float32ArgRegs : NVPTXRegClass<[f32], 32, (add (sequence "fa%u", 0, 4))>;
 def Float64ArgRegs : NVPTXRegClass<[f64], 64, (add (sequence "da%u", 0, 4))>;
 
 // Read NVPTXRegisterInfo.cpp to see how VRFrame and VRDepot are used.
-def SpecialRegs : NVPTXRegClass<[i32], 32, (add VRFrame, VRFrameLocal, VRDepot,
+def SpecialRegs : NVPTXRegClass<[i32], 32, (add VRFrame, VRFrameLocal, VRDepot, VRShared, VRFrameShared, VRSharedDepot,
                                             (sequence "ENVREG%u", 0, 31))>;

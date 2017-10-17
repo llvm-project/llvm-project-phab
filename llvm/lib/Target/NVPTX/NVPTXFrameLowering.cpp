@@ -16,6 +16,7 @@
 #include "NVPTXRegisterInfo.h"
 #include "NVPTXSubtarget.h"
 #include "NVPTXTargetMachine.h"
+#include "NVPTXUtilities.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
@@ -61,6 +62,27 @@ void NVPTXFrameLowering::emitPrologue(MachineFunction &MF,
     BuildMI(MBB, MI, dl, MF.getSubtarget().getInstrInfo()->get(MovDepotOpcode),
             NVPTX::VRFrameLocal)
         .addImm(MF.getFunctionNumber());
+
+    // Only emit a shared depot for the main kernel function.
+    // The other device functions need to get a handle on this shared depot
+    // by interacting with the runtime.
+    if (isKernelFunction(*MF.getFunction())){
+      // Emits
+      //   mov %SHSPL, %shared_depot;
+      //   cvta.shared %SHSP, %SHSPL;
+      // For the time being just emit it even if it's not used.
+      unsigned CvtaSharedOpcode =
+          Is64Bit ? NVPTX::cvta_shared_yes_64 : NVPTX::cvta_shared_yes;
+      unsigned MovSharedDepotOpcode =
+          Is64Bit ? NVPTX::MOV_SHARED_DEPOT_ADDR_64 : NVPTX::MOV_SHARED_DEPOT_ADDR;
+      MI = BuildMI(MBB, MI, dl,
+                   MF.getSubtarget().getInstrInfo()->get(CvtaSharedOpcode),
+                   NVPTX::VRShared)
+               .addReg(NVPTX::VRFrameShared);
+      BuildMI(MBB, MI, dl, MF.getSubtarget().getInstrInfo()->get(MovSharedDepotOpcode),
+              NVPTX::VRFrameShared)
+          .addImm(MF.getFunctionNumber());
+    }
   }
 }
 

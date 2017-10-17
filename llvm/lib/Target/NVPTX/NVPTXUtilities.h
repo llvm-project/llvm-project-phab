@@ -14,6 +14,8 @@
 #ifndef LLVM_LIB_TARGET_NVPTX_NVPTXUTILITIES_H
 #define LLVM_LIB_TARGET_NVPTX_NVPTXUTILITIES_H
 
+#include "NVPTXTargetMachine.h"
+#include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/IntrinsicInst.h"
@@ -59,6 +61,8 @@ bool isKernelFunction(const Function &);
 
 bool getAlign(const Function &, unsigned index, unsigned &);
 bool getAlign(const CallInst &, unsigned index, unsigned &);
+
+bool ptrIsStored(Value *Ptr);
 
 }
 

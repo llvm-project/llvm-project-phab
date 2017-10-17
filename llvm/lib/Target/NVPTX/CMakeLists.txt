@@ -24,11 +24,13 @@ set(NVPTXCodeGen_sources
   NVPTXPeephole.cpp
   NVPTXMCExpr.cpp
   NVPTXPrologEpilogPass.cpp
+  NVPTXLowerSharedFrameIndicesPass.cpp
   NVPTXRegisterInfo.cpp
   NVPTXReplaceImageHandles.cpp
   NVPTXSubtarget.cpp
   NVPTXTargetMachine.cpp
   NVPTXTargetTransformInfo.cpp
+  NVPTXFunctionDataSharing.cpp
   NVPTXUtilities.cpp
   NVVMIntrRange.cpp
   NVVMReflect.cpp
