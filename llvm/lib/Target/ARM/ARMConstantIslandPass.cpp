@@ -1659,6 +1659,9 @@ ARMConstantIslands::fixupConditionalBr(ImmBranch &Br) {
   MachineInstr *BMI = &MBB->back();
   bool NeedSplit = (BMI != MI) || !BBHasFallthrough(MBB);
 
+  // Pointer to the block split from MBB if needed.
+  MachineBasicBlock *SplitBlock = nullptr;
+
   ++NumCBrFixed;
   if (BMI != MI) {
     if (std::next(MachineBasicBlock::iterator(MI)) == std::prev(MBB->end()) &&
@@ -1683,7 +1686,7 @@ ARMConstantIslands::fixupConditionalBr(ImmBranch &Br) {
   }
 
   if (NeedSplit) {
-    splitBlockBeforeInstr(MI);
+    SplitBlock = splitBlockBeforeInstr(MI);
     // No need for the branch to the next block. We're adding an unconditional
     // branch to the destination.
     int delta = TII->getInstSizeInBytes(MBB->back());
@@ -1713,9 +1716,21 @@ ARMConstantIslands::fixupConditionalBr(ImmBranch &Br) {
   unsigned MaxDisp = getUnconditionalBrDisp(Br.UncondBr);
   ImmBranches.push_back(ImmBranch(&MBB->back(), MaxDisp, false, Br.UncondBr));
 
+  if (NeedSplit) {
+    // When we split the MBB we transferred all its successors to the newly
+    // created block so the DestBB is no longer marked as a successor. Add
+    // it back here.
+    MBB->addSuccessor(DestBB);
+  }
+
   // Remove the old conditional branch.  It may or may not still be in MBB.
   BBInfo[MI->getParent()->getNumber()].Size -= TII->getInstSizeInBytes(*MI);
   MI->eraseFromParent();
+  // If we split the Block MI belongs to the new one. After deleting MI
+  // DestBB is no longer a successor.
+  if (SplitBlock)
+    SplitBlock->removeSuccessor(DestBB);
+
   adjustBBOffsetsAfter(MBB);
   return true;
 }
