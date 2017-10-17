@@ -1,4 +1,5 @@
-; RUN: llc -verify-machineinstrs -mtriple=powerpc64-bgq-linux -enable-misched < %s | FileCheck %s
+; RUN: llc -ppc-ignore-percent-prefix -verify-machineinstrs \
+; RUN:   -mtriple=powerpc64-bgq-linux -enable-misched < %s | FileCheck %s
 ;
 ; PR14315: misched should not move the physreg copy of %t below the calls.
 

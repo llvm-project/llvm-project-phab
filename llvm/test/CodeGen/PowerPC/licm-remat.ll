@@ -1,4 +1,5 @@
-; RUN: llc -verify-machineinstrs -mtriple=powerpc64le-unknown-linux-gnu < %s | FileCheck %s
+; RUN: llc -verify-machineinstrs -mtriple=powerpc64le-unknown-linux-gnu \
+; RUN:   -ppc-ignore-percent-prefix < %s | FileCheck %s
 
 ; Test case is reduced from the snappy benchmark.
 ; Verify MachineLICM will always hoist trivially rematerializable instructions even when register pressure is high.

@@ -1,5 +1,7 @@
-; RUN: llc -verify-machineinstrs < %s | FileCheck --check-prefix=P8 --check-prefix=CHECK %s
-; RUN: llc -mcpu=pwr9 -verify-machineinstrs < %s | FileCheck --check-prefix=P9 --check-prefix=CHECK %s
+; RUN: llc -ppc-ignore-percent-prefix -verify-machineinstrs < %s \
+; RUN:   | FileCheck --check-prefix=P8 --check-prefix=CHECK %s
+; RUN: llc -ppc-ignore-percent-prefix -mcpu=pwr9 -verify-machineinstrs < %s \
+; RUN:   | FileCheck --check-prefix=P9 --check-prefix=CHECK %s
 target datalayout = "e-m:e-i64:64-n32:64"
 target triple = "powerpc64le-unknown-linux-gnu"
 

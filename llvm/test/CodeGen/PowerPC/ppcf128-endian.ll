@@ -1,4 +1,5 @@
-; RUN: llc -verify-machineinstrs -mcpu=pwr7 -mattr=+altivec -mattr=-vsx < %s | FileCheck %s
+; RUN: llc -verify-machineinstrs -mcpu=pwr7 -mattr=+altivec \
+; RUN:   -mattr=-vsx < %s -ppc-ignore-percent-prefix | FileCheck %s
 
 target datalayout = "e-m:e-i64:64-n32:64"
 target triple = "powerpc64le-unknown-linux-gnu"

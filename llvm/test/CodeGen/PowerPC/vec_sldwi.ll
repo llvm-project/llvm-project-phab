@@ -1,6 +1,8 @@
-; RUN: llc -verify-machineinstrs -mtriple=powerpc64le-unknown-linux-gnu -mcpu=pwr8 < %s | \
+; RUN: llc -ppc-ignore-percent-prefix -verify-machineinstrs \
+; RUN:   -mtriple=powerpc64le-unknown-linux-gnu -mcpu=pwr8 < %s | \
 ; RUN:   FileCheck %s  -check-prefix=CHECK-LE
-; RUN: llc -verify-machineinstrs -mtriple=powerpc64-unknown-linux-gnu -mcpu=pwr8 < %s | \
+; RUN: llc -ppc-ignore-percent-prefix -verify-machineinstrs \
+; RUN:   -mtriple=powerpc64-unknown-linux-gnu -mcpu=pwr8 < %s | \
 ; RUN:   FileCheck %s -check-prefix=CHECK-BE
 
 ; Possible LE ShuffleVector masks (Case 1):

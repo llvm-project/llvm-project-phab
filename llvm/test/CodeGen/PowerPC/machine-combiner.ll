@@ -1,5 +1,9 @@
-; RUN: llc -verify-machineinstrs -O3 -mcpu=pwr7 -enable-unsafe-fp-math < %s | FileCheck %s -check-prefix=CHECK -check-prefix=CHECK-PWR
-; RUN: llc -verify-machineinstrs -O3 -mcpu=a2q -enable-unsafe-fp-math < %s | FileCheck %s -check-prefix=CHECK -check-prefix=CHECK-QPX
+; RUN: llc -verify-machineinstrs -ppc-ignore-percent-prefix -O3 \
+; RUN:   -mcpu=pwr7 -enable-unsafe-fp-math < %s \
+; RUN:   | FileCheck %s -check-prefix=CHECK -check-prefix=CHECK-PWR
+; RUN: llc -verify-machineinstrs -ppc-ignore-percent-prefix -O3 -mcpu=a2q \
+; RUN:   -enable-unsafe-fp-math < %s | FileCheck %s -check-prefix=CHECK \
+; RUN:   -check-prefix=CHECK-QPX
 target datalayout = "E-m:e-i64:64-n32:64"
 target triple = "powerpc64-unknown-linux-gnu"
 

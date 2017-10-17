@@ -1,7 +1,11 @@
 ; Note the formula for negative number alignment calculation should be y = x & ~(n-1) rather than y = (x + (n-1)) & ~(n-1).
 ; after patch https://reviews.llvm.org/D34337, we could save 16 bytes in the best case.
-; RUN: llc -verify-machineinstrs -mtriple=powerpc64-unknown-linux-gnu -mcpu=pwr8 < %s | FileCheck %s -check-prefix=CHECK-BE
-; RUN: llc -verify-machineinstrs -mtriple=powerpc64le-unknown-linux-gnu -mcpu=pwr8 < %s | FileCheck %s -check-prefix=CHECK-LE
+; RUN: llc -verify-machineinstrs -ppc-ignore-percent-prefix \
+; RUN:   -mtriple=powerpc64-unknown-linux-gnu -mcpu=pwr8 < %s \
+; RUN:   | FileCheck %s -check-prefix=CHECK-BE
+; RUN: llc -verify-machineinstrs -ppc-ignore-percent-prefix \
+; RUN:   -mtriple=powerpc64le-unknown-linux-gnu -mcpu=pwr8 < %s \
+; RUN:   | FileCheck %s -check-prefix=CHECK-LE
 
 define signext i32 @bar(i32 signext %ii) {
 entry:

@@ -1,4 +1,5 @@
-; RUN: llc < %s -mtriple=powerpc-unknown-linux-gnu -relocation-model=pic | FileCheck -check-prefix=LARGE-BSS %s
+; RUN: llc < %s -mtriple=powerpc-unknown-linux-gnu -ppc-ignore-percent-prefix \
+; RUN:   -relocation-model=pic | FileCheck -check-prefix=LARGE-BSS %s
 @bar = common global i32 0, align 4
 
 declare i32 @call_foo(i32, ...)

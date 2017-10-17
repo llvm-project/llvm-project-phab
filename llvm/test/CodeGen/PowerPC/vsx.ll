@@ -1,8 +1,19 @@
-; RUN: llc -relocation-model=static -verify-machineinstrs -mcpu=pwr7 -mtriple=powerpc64-unknown-linux-gnu -mattr=+vsx < %s | FileCheck %s
-; RUN: llc -relocation-model=static -verify-machineinstrs -mcpu=pwr7 -mtriple=powerpc64-unknown-linux-gnu -mattr=+vsx < %s | FileCheck -check-prefix=CHECK-REG %s
-; RUN: llc -relocation-model=static -verify-machineinstrs -mcpu=pwr7 -mtriple=powerpc64-unknown-linux-gnu -mattr=+vsx -fast-isel -O0 < %s | FileCheck %s
-; RUN: llc -relocation-model=static -verify-machineinstrs -mcpu=pwr7 -mtriple=powerpc64-unknown-linux-gnu -mattr=+vsx -fast-isel -O0 < %s | FileCheck -check-prefix=CHECK-FISL %s
-; RUN: llc -relocation-model=static -verify-machineinstrs -mcpu=pwr8 -mtriple=powerpc64le-unknown-linux-gnu -mattr=+vsx < %s | FileCheck -check-prefix=CHECK-LE %s
+; RUN: llc -ppc-ignore-percent-prefix -relocation-model=static \
+; RUN:   -verify-machineinstrs -mcpu=pwr7 \
+; RUN:   -mtriple=powerpc64-unknown-linux-gnu -mattr=+vsx < %s | FileCheck %s
+; RUN: llc -ppc-ignore-percent-prefix -relocation-model=static \
+; RUN:   -verify-machineinstrs -mcpu=pwr7 \
+; RUN:   -mtriple=powerpc64-unknown-linux-gnu -mattr=+vsx < %s | FileCheck -check-prefix=CHECK-REG %s
+; RUN: llc -ppc-ignore-percent-prefix -relocation-model=static \
+; RUN:   -verify-machineinstrs -mcpu=pwr7 -mtriple=powerpc64-unknown-linux-gnu \
+; RUN:   -mattr=+vsx -fast-isel -O0 < %s | FileCheck %s
+; RUN: llc -ppc-ignore-percent-prefix -relocation-model=static \
+; RUN:   -verify-machineinstrs -mcpu=pwr7 -mtriple=powerpc64-unknown-linux-gnu \
+; RUN:   -mattr=+vsx -fast-isel -O0 < %s | FileCheck -check-prefix=CHECK-FISL %s
+; RUN: llc -ppc-ignore-percent-prefix -relocation-model=static \
+; RUN:   -verify-machineinstrs -mcpu=pwr8 \
+; RUN:   -mtriple=powerpc64le-unknown-linux-gnu -mattr=+vsx < %s \
+; RUN:   | FileCheck -check-prefix=CHECK-LE %s
 
 define double @test1(double %a, double %b) {
 entry:

@@ -1,4 +1,5 @@
-; RUN: llc -verify-machineinstrs -mcpu=pwr7 < %s | FileCheck %s
+; RUN: llc -ppc-ignore-percent-prefix -verify-machineinstrs -mcpu=pwr7 \
+; RUN:   < %s | FileCheck %s
 target datalayout = "E-m:e-p:32:32-i64:64-n32"
 target triple = "powerpc-unknown-linux-gnu"
 

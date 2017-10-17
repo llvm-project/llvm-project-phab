@@ -1,7 +1,8 @@
 ; RUN: llc -mcpu=pwr9 -mtriple=powerpc64le-unknown-linux-gnu \
-; RUN:   -verify-machineinstrs < %s | FileCheck %s
+; RUN:   -verify-machineinstrs -ppc-ignore-percent-prefix < %s | FileCheck %s
 ; RUN: llc -mcpu=pwr9 -mtriple=powerpc64-unknown-linux-gnu \
-; RUN:   -verify-machineinstrs < %s | FileCheck %s --check-prefix=CHECK-BE
+; RUN:   -verify-machineinstrs -ppc-ignore-percent-prefix < %s | FileCheck %s \
+; RUN:   --check-prefix=CHECK-BE
 
 define <4 x float> @_Z7testInsILj0ELj0EDv4_fET1_S1_S1_(<4 x float> %a, <4 x float> %b) {
 entry:

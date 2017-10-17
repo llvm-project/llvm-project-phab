@@ -1,5 +1,11 @@
-; RUN: llc -relocation-model=static -verify-machineinstrs < %s -mtriple=powerpc64-unknown-linux-gnu -code-model=medium| FileCheck --check-prefix=CHECK --check-prefix=MEDIUM %s
-; RUN: llc -relocation-model=static -verify-machineinstrs < %s -mtriple=powerpc64-unknown-linux-gnu -code-model=large | FileCheck --check-prefix=CHECK --check-prefix=LARGE %s
+; RUN: llc -ppc-ignore-percent-prefix -relocation-model=static \
+; RUN:   -verify-machineinstrs < %s -mtriple=powerpc64-unknown-linux-gnu \
+; RUN:   -code-model=medium| FileCheck --check-prefix=CHECK \
+; RUN:   --check-prefix=MEDIUM %s
+; RUN: llc -ppc-ignore-percent-prefix -relocation-model=static \
+; RUN:   -verify-machineinstrs < %s -mtriple=powerpc64-unknown-linux-gnu \
+; RUN:   -code-model=large | FileCheck --check-prefix=CHECK \
+; RUN:   --check-prefix=LARGE %s
 
 @foo = global i32 42
 @fooa = alias i32, i32* @foo

@@ -1,7 +1,16 @@
-; RUN: llc -mtriple=powerpc64le-unknown-linux-gnu -verify-machineinstrs -enable-ppc-branch-coalesce < %s | FileCheck %s
-; RUN: llc -mcpu=pwr8 -mtriple=powerpc64-unknown-linux-gnu -verify-machineinstrs -enable-ppc-branch-coalesce < %s | FileCheck %s
-; RUN: llc -mtriple=powerpc64le-unknown-linux-gnu -verify-machineinstrs < %s | FileCheck --check-prefix=CHECK-NOCOALESCE %s
-; RUN: llc -mcpu=pwr8 -mtriple=powerpc64-unknown-linux-gnu -verify-machineinstrs < %s | FileCheck --check-prefix=CHECK-NOCOALESCE %s
+; RUN: llc -ppc-ignore-percent-prefix -mtriple=powerpc64le-unknown-linux-gnu \
+; RUN:   -verify-machineinstrs -enable-ppc-branch-coalesce < %s | FileCheck %s
+; RUN: llc -ppc-ignore-percent-prefix -mcpu=pwr8 \
+; RUN:   -mtriple=powerpc64-unknown-linux-gnu -verify-machineinstrs \
+; RUN:   -enable-ppc-branch-coalesce < %s | FileCheck %s
+; RUN: llc -ppc-ignore-percent-prefix \
+; RUN:   -mtriple=powerpc64le-unknown-linux-gnu \
+; RUN:   -verify-machineinstrs < %s \
+; RUN:   | FileCheck --check-prefix=CHECK-NOCOALESCE %s
+; RUN: llc -ppc-ignore-percent-prefix -mcpu=pwr8 \
+; RUN:   -mtriple=powerpc64-unknown-linux-gnu \
+; RUN:   -verify-machineinstrs < %s \
+; RUN:   | FileCheck --check-prefix=CHECK-NOCOALESCE %s
 
 ; Function Attrs: nounwind
 define double @testBranchCoal(double %a, double %b, double %c, i32 %x) {

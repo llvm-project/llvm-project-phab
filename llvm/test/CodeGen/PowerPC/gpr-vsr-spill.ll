@@ -1,4 +1,6 @@
-; RUN: llc -verify-machineinstrs -mcpu=pwr9 -mtriple=powerpc64le-unknown-linux-gnu -ppc-enable-gpr-to-vsr-spills  < %s | FileCheck %s
+; RUN: llc -ppc-ignore-percent-prefix -verify-machineinstrs -mcpu=pwr9 \
+; RUN:   -mtriple=powerpc64le-unknown-linux-gnu -ppc-enable-gpr-to-vsr-spills  \
+; RUN:   < %s | FileCheck %s
 define signext i32 @foo(i32 signext %a, i32 signext %b) {
 entry:
   %cmp = icmp slt i32 %a, %b

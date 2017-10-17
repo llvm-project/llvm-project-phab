@@ -1,4 +1,5 @@
-; RUN: llc -filetype=asm -o - -mtriple=powerpc64le-unknown-linux-gnu < %s | FileCheck %s
+; RUN: llc -ppc-ignore-percent-prefix -filetype=asm -o - \
+; RUN:   -mtriple=powerpc64le-unknown-linux-gnu < %s | FileCheck %s
 
 define i32 @callee() nounwind noinline uwtable "function-instrument"="xray-always" {
 ; CHECK-LABEL: .Ltmp0:

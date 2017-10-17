@@ -1,7 +1,11 @@
-; RUN: llc -verify-machineinstrs -mcpu=pwr8 < %s | FileCheck %s
-; RUN: llc -verify-machineinstrs -mcpu=pwr8 -O0 < %s | FileCheck %s
-; RUN: llc -verify-machineinstrs < %s | FileCheck %s
-; RUN: llc -verify-machineinstrs -O0 < %s | FileCheck %s
+; RUN: llc -verify-machineinstrs -ppc-ignore-percent-prefix \
+; RUN:   -mcpu=pwr8 < %s | FileCheck %s
+; RUN: llc -verify-machineinstrs -ppc-ignore-percent-prefix \
+; RUN:   -mcpu=pwr8 -O0 < %s | FileCheck %s
+; RUN: llc -verify-machineinstrs -ppc-ignore-percent-prefix \
+; RUN:   < %s | FileCheck %s
+; RUN: llc -verify-machineinstrs -ppc-ignore-percent-prefix \
+; RUN:   -O0 < %s | FileCheck %s
 
 ; The second run of the test case is to ensure the behaviour is the same
 ; without specifying -mcpu=pwr8 as that is now the baseline for ppc64le.

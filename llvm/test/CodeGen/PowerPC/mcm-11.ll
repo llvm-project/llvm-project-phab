@@ -1,4 +1,6 @@
-; RUN: llc -relocation-model=static -verify-machineinstrs -mcpu=pwr7 -O1 -code-model=medium <%s | FileCheck %s
+; RUN: llc -ppc-ignore-percent-prefix -relocation-model=static \
+; RUN:   -verify-machineinstrs -mcpu=pwr7 -O1 -code-model=medium <%s \
+; RUN:   | FileCheck %s
 
 ; Test peephole optimization for medium code model (32-bit TOC offsets)
 ; for loading and storing a file-scope static variable.

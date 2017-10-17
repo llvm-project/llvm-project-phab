@@ -2,7 +2,9 @@
 ; registers and with -fast-isel-abort=1 turned on the test case will then fail.
 ; When fastisel better supports VSX fix up this test case.
 ;
-; RUN: llc < %s -O0 -verify-machineinstrs -fast-isel-abort=1 -mtriple=powerpc64-unknown-linux-gnu -mcpu=pwr7 -mattr=-vsx | FileCheck %s --check-prefix=ELF64
+; RUN: llc < %s -O0 -ppc-ignore-percent-prefix -verify-machineinstrs \
+; RUN:   -fast-isel-abort=1 -mtriple=powerpc64-unknown-linux-gnu \
+; RUN:   -mcpu=pwr7 -mattr=-vsx | FileCheck %s --check-prefix=ELF64
 define void @t1a(float %a) nounwind {
 entry:
 ; ELF64: t1a

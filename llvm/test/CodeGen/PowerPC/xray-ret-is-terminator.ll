@@ -1,4 +1,5 @@
-; RUN: llc -o - -mtriple=powerpc64le-unknown-linux-gnu < %s | FileCheck %s
+; RUN: llc -ppc-ignore-percent-prefix -o - \
+; RUN:   -mtriple=powerpc64le-unknown-linux-gnu < %s | FileCheck %s
 
 define void @ILLBeBack() #0 {
 ; CHECK-LABEL @ILLBeBack

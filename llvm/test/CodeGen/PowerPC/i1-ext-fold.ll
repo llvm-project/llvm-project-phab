@@ -1,5 +1,8 @@
-; RUN: llc -verify-machineinstrs -mcpu=pwr7 < %s | FileCheck %s
-; RUN: llc -verify-machineinstrs -mcpu=pwr7 -ppc-gen-isel=false < %s | FileCheck --check-prefix=CHECK-NO-ISEL %s
+; RUN: llc -ppc-ignore-percent-prefix -verify-machineinstrs \
+; RUN:   -mcpu=pwr7 < %s | FileCheck %s
+; RUN: llc -ppc-ignore-percent-prefix -verify-machineinstrs \
+; RUN:   -mcpu=pwr7 -ppc-gen-isel=false < %s | FileCheck \
+; RUN:   --check-prefix=CHECK-NO-ISEL %s
 target datalayout = "E-m:e-i64:64-n32:64"
 target triple = "powerpc64-unknown-linux-gnu"
 

@@ -1,4 +1,4 @@
-; RUN: llc -O2 < %s | FileCheck %s
+; RUN: llc -ppc-ignore-percent-prefix -O2 < %s | FileCheck %s
 ; ModuleID = 'bugpoint-reduced-simplified.bc'
 target datalayout = "e-m:e-i64:64-n32:64"
 target triple = "powerpc64le-grtev4-linux-gnu"

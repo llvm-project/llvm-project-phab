@@ -1,5 +1,7 @@
-; RUN: llc -relocation-model=static -verify-machineinstrs -mtriple powerpc64-linux < %s | FileCheck %s
-; RUN: llc -relocation-model=static -verify-machineinstrs -O0 -mtriple powerpc64-linux < %s | FileCheck %s
+; RUN: llc -ppc-ignore-percent-prefix -relocation-model=static \
+; RUN:   -verify-machineinstrs -mtriple powerpc64-linux < %s | FileCheck %s
+; RUN: llc -ppc-ignore-percent-prefix -relocation-model=static \
+; RUN:   -verify-machineinstrs -O0 -mtriple powerpc64-linux < %s | FileCheck %s
 
 define void @foo()  {
   ret void

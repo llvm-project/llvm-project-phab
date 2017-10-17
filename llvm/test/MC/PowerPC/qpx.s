@@ -1,4 +1,5 @@
-# RUN: llvm-mc -triple powerpc64-bgq-linux --show-encoding %s | FileCheck %s
+# RUN: llvm-mc -ppc-ignore-percent-prefix -triple powerpc64-bgq-linux \
+# RUN:   --show-encoding %s | FileCheck %s
 
 # CHECK: qvfabs 3, 5                     # encoding: [0x10,0x60,0x2a,0x10]
          qvfabs %q3, %q5

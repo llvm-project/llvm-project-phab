@@ -1,4 +1,5 @@
-; RUN: llc -verify-machineinstrs -mcpu=pwr6 -mattr=+altivec < %s | FileCheck %s
+; RUN: llc -ppc-ignore-percent-prefix -verify-machineinstrs -mcpu=pwr6 \
+; RUN:   -mattr=+altivec < %s | FileCheck %s
 
 ; Check vector comparisons using altivec. For non-native types, just basic
 ; comparison instruction check is done. For altivec supported type (16i8,

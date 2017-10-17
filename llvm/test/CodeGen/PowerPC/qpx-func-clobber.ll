@@ -1,4 +1,5 @@
-; RUN: llc -verify-machineinstrs < %s -mcpu=a2q | FileCheck %s
+; RUN: llc -verify-machineinstrs < %s -ppc-ignore-percent-prefix -mcpu=a2q \
+; RUN:   | FileCheck %s
 target triple = "powerpc64-bgq-linux"
 
 declare <4 x double> @foo(<4 x double> %p)

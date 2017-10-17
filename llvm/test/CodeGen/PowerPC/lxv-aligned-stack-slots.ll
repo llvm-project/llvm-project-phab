@@ -1,4 +1,4 @@
-; RUN: llc -O3 -o - %s | FileCheck %s
+; RUN: llc -O3 -o - %s -ppc-ignore-percent-prefix | FileCheck %s
 target datalayout = "e-m:e-i64:64-n32:64"
 target triple = "powerpc64le-unknown-linux-gnu"
 

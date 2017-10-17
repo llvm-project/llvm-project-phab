@@ -1,8 +1,11 @@
-; RUN: llc -verify-machineinstrs -mcpu=pwr7 -O1 -code-model=medium \
+; RUN: llc -verify-machineinstrs -ppc-ignore-percent-prefix -mcpu=pwr7 \
+; RUN:   -O1 -code-model=medium \
 ; RUN:   -mattr=-vsx < %s | FileCheck %s
-; RUN: llc -verify-machineinstrs -mcpu=pwr7 -O1 -code-model=medium \
+; RUN: llc -verify-machineinstrs -ppc-ignore-percent-prefix -mcpu=pwr7 \
+; RUN:   -O1 -code-model=medium \
 ; RUN:   -mattr=+vsx < %s | FileCheck -check-prefix=CHECK-VSX %s
-; RUN: llc -verify-machineinstrs -mcpu=pwr9 -O1 -code-model=medium < %s | \
+; RUN: llc -verify-machineinstrs -ppc-ignore-percent-prefix -mcpu=pwr9 \
+; RUN:   -O1 -code-model=medium < %s | \
 ; RUN:   FileCheck -check-prefix=CHECK-P9 %s
 
 ; Test peephole optimization for medium code model (32-bit TOC offsets)

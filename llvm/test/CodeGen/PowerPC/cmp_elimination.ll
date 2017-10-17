@@ -1,5 +1,7 @@
-; RUN: llc -verify-machineinstrs < %s -mtriple=powerpc64-unknown-linux-gnu | FileCheck %s
-; RUN: llc -verify-machineinstrs < %s -mtriple=powerpc64le-unknown-linux-gnu | FileCheck %s
+; RUN: llc -ppc-ignore-percent-prefix -verify-machineinstrs < %s \
+; RUN:   -mtriple=powerpc64-unknown-linux-gnu | FileCheck %s
+; RUN: llc -ppc-ignore-percent-prefix -verify-machineinstrs < %s \
+; RUN:   -mtriple=powerpc64le-unknown-linux-gnu | FileCheck %s
 
 ; Test cases for compare elimination in PPCMIPeephole pass
 

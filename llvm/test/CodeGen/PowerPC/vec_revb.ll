@@ -1,5 +1,7 @@
-; RUN: llc -verify-machineinstrs -mtriple=powerpc64-unknown-linux-gnu -mcpu=pwr9 < %s | FileCheck %s
-; RUN: llc -verify-machineinstrs -mtriple=powerpc64le-unknown-linux-gnu -mcpu=pwr9 < %s | FileCheck %s
+; RUN: llc -ppc-ignore-percent-prefix -verify-machineinstrs \
+; RUN:   -mtriple=powerpc64-unknown-linux-gnu -mcpu=pwr9 < %s | FileCheck %s
+; RUN: llc -ppc-ignore-percent-prefix -verify-machineinstrs \
+; RUN:   -mtriple=powerpc64le-unknown-linux-gnu -mcpu=pwr9 < %s | FileCheck %s
 
 define <8 x i16> @testXXBRH(<8 x i16> %a) {
 ; CHECK-LABEL: testXXBRH:

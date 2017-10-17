@@ -1,5 +1,8 @@
-; RUN: llc -verify-machineinstrs -mtriple=powerpc64le-unknown-linux-gnu -mcpu=pwr8 < %s | FileCheck %s
-; RUN: llc -verify-machineinstrs -mtriple=powerpc64le-unknown-linux-gnu -mcpu=pwr9 < %s | FileCheck -check-prefix=CHECK-PWR9 %s
+; RUN: llc -verify-machineinstrs -ppc-ignore-percent-prefix  \
+; RUN:   -mtriple=powerpc64le-unknown-linux-gnu -mcpu=pwr8 < %s | FileCheck %s
+; RUN: llc -verify-machineinstrs -ppc-ignore-percent-prefix  \
+; RUN:   -mtriple=powerpc64le-unknown-linux-gnu -mcpu=pwr9 < %s  \
+; RUN:   | FileCheck -check-prefix=CHECK-PWR9 %s
 
 define <4 x i32> @testSpill(<4 x i32> %a, <4 x i32> %b) {
 

@@ -1,10 +1,13 @@
-; RUN: llc -verify-machineinstrs -mcpu=pwr8 -mattr=+vsx \
+; RUN: llc -ppc-ignore-percent-prefix -verify-machineinstrs -mcpu=pwr8 \
+; RUN:   -mattr=+vsx \
 ; RUN:   -mtriple=powerpc64le-unknown-linux-gnu < %s | FileCheck %s
 
-; RUN: llc -verify-machineinstrs -mcpu=pwr9 -mattr=-power9-vector \
+; RUN: llc -ppc-ignore-percent-prefix -verify-machineinstrs -mcpu=pwr9 \
+; RUN:   -mattr=-power9-vector \
 ; RUN:   -mtriple=powerpc64le-unknown-linux-gnu < %s | FileCheck %s
 
-; RUN: llc -verify-machineinstrs -mcpu=pwr9 -mattr=+vsx \
+; RUN: llc -ppc-ignore-percent-prefix -verify-machineinstrs -mcpu=pwr9 \
+; RUN:   -mattr=+vsx \
 ; RUN:   -mtriple=powerpc64le-unknown-linux-gnu < %s | FileCheck %s \
 ; RUN:   --check-prefix=CHECK-P9 --implicit-check-not xxswapd
 

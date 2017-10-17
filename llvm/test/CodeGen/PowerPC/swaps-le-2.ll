@@ -1,4 +1,6 @@
-; RUN: llc -verify-machineinstrs -O3 -mcpu=pwr8 -mtriple=powerpc64le-unknown-linux-gnu < %s | FileCheck %s
+; RUN: llc -ppc-ignore-percent-prefix -verify-machineinstrs \
+; RUN:   -O3 -mcpu=pwr8 -mtriple=powerpc64le-unknown-linux-gnu < %s \
+; RUN:   | FileCheck %s
 
 ; Test swap removal when a vector splat must be adjusted to make it legal.
 ;

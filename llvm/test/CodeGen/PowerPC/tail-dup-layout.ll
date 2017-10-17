@@ -1,5 +1,7 @@
-; RUN: llc -O2 -o - %s | FileCheck --check-prefix=CHECK --check-prefix=CHECK-O2 %s
-; RUN: llc -O3 -o - %s | FileCheck --check-prefix=CHECK --check-prefix=CHECK-O3 %s
+; RUN: llc -ppc-ignore-percent-prefix -O2 -o - %s \
+; RUN:   | FileCheck --check-prefix=CHECK --check-prefix=CHECK-O2 %s
+; RUN: llc -ppc-ignore-percent-prefix -O3 -o - %s \
+; RUN:   | FileCheck --check-prefix=CHECK --check-prefix=CHECK-O3 %s
 target datalayout = "e-m:e-i64:64-n32:64"
 target triple = "powerpc64le-grtev4-linux-gnu"
 

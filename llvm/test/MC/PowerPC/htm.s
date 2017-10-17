@@ -1,5 +1,8 @@
-# RUN: llvm-mc -triple powerpc64-unknown-linux-gnu --show-encoding %s | FileCheck -check-prefix=CHECK-BE %s
-# RUN: llvm-mc -triple powerpc64le-unknown-linux-gnu --show-encoding %s | FileCheck -check-prefix=CHECK-LE %s
+# RUN: llvm-mc -ppc-ignore-percent-prefix -triple powerpc64-unknown-linux-gnu \
+# RUN:   --show-encoding %s | FileCheck -check-prefix=CHECK-BE %s
+# RUN: llvm-mc -ppc-ignore-percent-prefix \
+# RUN:   -triple powerpc64le-unknown-linux-gnu \
+# RUN:   --show-encoding %s | FileCheck -check-prefix=CHECK-LE %s
 
 # CHECK-BE: tbegin. 0                      # encoding: [0x7c,0x00,0x05,0x1d]
 # CHECK-LE: tbegin. 0                      # encoding: [0x1d,0x05,0x00,0x7c]

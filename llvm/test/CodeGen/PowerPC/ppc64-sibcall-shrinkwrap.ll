@@ -1,7 +1,23 @@
-; RUN: llc -relocation-model=static -verify-machineinstrs < %s -mtriple=powerpc64-unknown-linux-gnu -disable-ppc-sco=false --enable-shrink-wrap=false | FileCheck %s -check-prefix=CHECK-SCO-ONLY
-; RUN: llc -relocation-model=static -verify-machineinstrs < %s -mtriple=powerpc64-unknown-linux-gnu -disable-ppc-sco=false --enable-shrink-wrap=true | FileCheck %s -check-prefix=CHECK-SCO-SHRK
-; RUN: llc -relocation-model=static -verify-machineinstrs < %s -mtriple=powerpc64le-unknown-linux-gnu -disable-ppc-sco=false --enable-shrink-wrap=false | FileCheck %s -check-prefix=CHECK-SCO-ONLY
-; RUN: llc -relocation-model=static -verify-machineinstrs < %s -mtriple=powerpc64le-unknown-linux-gnu -disable-ppc-sco=false --enable-shrink-wrap=true | FileCheck %s -check-prefix=CHECK-SCO-SHRK
+; RUN: llc -relocation-model=static -verify-machineinstrs \
+; RUN:   -ppc-ignore-percent-prefix < %s \
+; RUN:   -mtriple=powerpc64-unknown-linux-gnu \
+; RUN:   -disable-ppc-sco=false --enable-shrink-wrap=false \
+; RUN:   | FileCheck %s -check-prefix=CHECK-SCO-ONLY
+; RUN: llc -relocation-model=static -verify-machineinstrs \
+; RUN:   -ppc-ignore-percent-prefix < %s \
+; RUN:   -mtriple=powerpc64-unknown-linux-gnu \
+; RUN:   -disable-ppc-sco=false --enable-shrink-wrap=true \
+; RUN:   | FileCheck %s -check-prefix=CHECK-SCO-SHRK
+; RUN: llc -relocation-model=static -verify-machineinstrs \
+; RUN:   -ppc-ignore-percent-prefix < %s \
+; RUN:   -mtriple=powerpc64le-unknown-linux-gnu \
+; RUN:   -disable-ppc-sco=false --enable-shrink-wrap=false \
+; RUN:   | FileCheck %s -check-prefix=CHECK-SCO-ONLY
+; RUN: llc -relocation-model=static -verify-machineinstrs \
+; RUN:   -ppc-ignore-percent-prefix < %s \
+; RUN:   -mtriple=powerpc64le-unknown-linux-gnu \
+; RUN:   -disable-ppc-sco=false --enable-shrink-wrap=true \
+; RUN:   | FileCheck %s -check-prefix=CHECK-SCO-SHRK
 
 %"class.clang::NamedDecl" = type { i32 }
 declare void @__assert_fail();

@@ -39,6 +39,12 @@ static cl::opt<bool>
 ShowVSRNumsAsVR("ppc-vsr-nums-as-vr", cl::Hidden, cl::init(false),
              cl::desc("Prints full register names with vs{31-63} as v{0-31}"));
 
+// Useful for testing purposes. Removes percent check in tests.
+// Prefixes will be checked in full register name tests.
+static cl::opt<bool>
+IgnorePercentPrefix("ppc-ignore-percent-prefix", cl::Hidden, cl::init(false),
+             cl::desc("Prints register names without percent prefix"));
+
 #define PRINT_ALIAS_INSTR
 #include "PPCGenAsmWriter.inc"
 
@@ -446,10 +452,11 @@ void PPCInstPrinter::printTLSCall(const MCInst *MI, unsigned OpNo,
 }
 
 
-/// stripRegisterPrefix - This method strips the character prefix from a
-/// register name so that only the number is left.  Used by for linux asm.
-static const char *stripRegisterPrefix(const char *RegName, unsigned RegNum,
-                                       unsigned RegEncoding) {
+/// fixRegisterPrefix - In Linux, it adds a percent symbol in the register
+/// prefixes. In other OSs, it strips the character prefix from the
+/// register name so that only the number is left.
+static const char *fixRegisterPrefix(const char *RegName, unsigned RegNum,
+                                     unsigned RegEncoding, bool isLinux) {
   if (FullRegNames) {
     if (RegNum >= PPC::CR0EQ && RegNum <= PPC::CR7UN) {
       const char *CRBits[] =
@@ -464,18 +471,33 @@ static const char *stripRegisterPrefix(const char *RegName, unsigned RegNum,
       };
       return CRBits[RegEncoding];
     }
-    return RegName;
-  }
-
-  switch (RegName[0]) {
-  case 'r':
-  case 'f':
-  case 'q': // for QPX
-  case 'v':
-    if (RegName[1] == 's')
-      return RegName + 2;
-    return RegName + 1;
-  case 'c': if (RegName[1] == 'r') return RegName + 2;
+  } else {
+    if (isLinux and !IgnorePercentPrefix) {
+      switch (RegName[0]) {
+      case 'r':
+      case 'f':
+      case 'q': // for QPX
+      case 'v':
+      case 'c':
+        char *newRegName = new char[strlen(RegName) + 1];
+        strcpy(newRegName, "%");
+        strcat(newRegName, RegName);
+        return newRegName;
+      }
+    } else {
+      switch (RegName[0]) {
+      case 'r':
+      case 'f':
+      case 'q': // for QPX
+      case 'v':
+        if (RegName[1] == 's')
+          return RegName + 2;
+        return RegName + 1;
+      case 'c':
+        if (RegName[1] == 'r')
+          return RegName + 2;
+      }
+    }
   }
 
   return RegName;
@@ -503,9 +525,11 @@ void PPCInstPrinter::printOperand(const MCInst *MI, unsigned OpNo,
     }
 
     const char *RegName = getRegisterName(Reg);
-    // The linux and AIX assembler does not take register prefixes.
+
+    // Fix register prefixes for linux and AIX assemblers.
     if (!isDarwinSyntax())
-      RegName = stripRegisterPrefix(RegName, Reg, MRI.getEncodingValue(Reg));
+      RegName = fixRegisterPrefix(RegName, Reg, MRI.getEncodingValue(Reg),
+                                  isLinuxSyntax());
 
     O << RegName;
     return;

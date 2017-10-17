@@ -1,5 +1,7 @@
-; RUN: llc -verify-machineinstrs -mtriple=powerpc64-unknown-linux-gnu -mcpu=pwr8 < %s | FileCheck %s
-; RUN: llc -verify-machineinstrs -mtriple=powerpc64le-unknown-linux-gnu -mcpu=pwr8 < %s | FileCheck %s
+; RUN: llc -verify-machineinstrs -ppc-ignore-percent-prefix \
+; RUN:   -mtriple=powerpc64-unknown-linux-gnu -mcpu=pwr8 < %s | FileCheck %s
+; RUN: llc -verify-machineinstrs -ppc-ignore-percent-prefix \
+; RUN:   -mtriple=powerpc64le-unknown-linux-gnu -mcpu=pwr8 < %s | FileCheck %s
 
 define i64 @testOptimizeLiAddToAddi(i64 %a) {
 ; CHECK-LABEL: testOptimizeLiAddToAddi:

@@ -1,4 +1,5 @@
-; RUN: llc -verify-machineinstrs < %s -mtriple=powerpc64le-unknown-linux-gnu | FileCheck %s
+; RUN: llc -verify-machineinstrs < %s -ppc-ignore-percent-prefix \
+; RUN:   -mtriple=powerpc64le-unknown-linux-gnu | FileCheck %s
 
 ; PR30661 - https://llvm.org/bugs/show_bug.cgi?id=30661
 

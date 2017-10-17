@@ -1,4 +1,5 @@
-; RUN: llc -mcpu=pwr9 -mtriple=powerpc64le-unknown-linux-gnu \
+; RUN: llc -mcpu=pwr9 -ppc-ignore-percent-prefix \
+; RUN:   -mtriple=powerpc64le-unknown-linux-gnu \
 ; RUN:   -verify-machineinstrs < %s | FileCheck %s
 
 ; Function Attrs: nounwind readnone

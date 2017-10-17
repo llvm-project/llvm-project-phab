@@ -1,4 +1,5 @@
-; RUN: llc -verify-machineinstrs -mtriple=powerpc64le-unknown-linux-gnu < %s | FileCheck %s
+; RUN: llc -verify-machineinstrs -mtriple=powerpc64le-unknown-linux-gnu \
+; RUN:   -ppc-ignore-percent-prefix < %s | FileCheck %s
 
 ; The instructions ADDIStocHA/LDtocL are used to calculate the address of 
 ; globals. The ones that are in bb.3.if.end could not be hoisted by Machine 

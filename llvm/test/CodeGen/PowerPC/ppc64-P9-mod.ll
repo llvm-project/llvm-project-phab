@@ -1,6 +1,10 @@
-; RUN: llc < %s -mtriple=powerpc64le-unknown-linux-gnu -mcpu=pwr9 -verify-machineinstrs | FileCheck %s
-; RUN: llc < %s -mtriple=powerpc64-unknown-linux-gnu -mcpu=pwr9 -verify-machineinstrs | FileCheck %s
-; RUN: llc < %s -mtriple=powerpc64le-unknown-linux-gnu -mcpu=pwr8 | FileCheck %s -check-prefix=CHECK-PWR8 -implicit-check-not mod[us][wd]
+; RUN: llc < %s -mtriple=powerpc64le-unknown-linux-gnu -mcpu=pwr9 \
+; RUN:   -verify-machineinstrs -ppc-ignore-percent-prefix | FileCheck %s
+; RUN: llc < %s -mtriple=powerpc64-unknown-linux-gnu -mcpu=pwr9 \
+; RUN:   -verify-machineinstrs -ppc-ignore-percent-prefix | FileCheck %s
+; RUN: llc < %s -mtriple=powerpc64le-unknown-linux-gnu -mcpu=pwr8 \
+; RUN:   -ppc-ignore-percent-prefix \
+; RUN:   | FileCheck %s -check-prefix=CHECK-PWR8 -implicit-check-not mod[us][wd]
 
 @mod_resultsw = common local_unnamed_addr global i32 0, align 4
 @mod_resultud = common local_unnamed_addr global i64 0, align 8

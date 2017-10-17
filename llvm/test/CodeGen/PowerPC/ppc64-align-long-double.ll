@@ -1,6 +1,9 @@
-; RUN: llc -verify-machineinstrs -mcpu=pwr7 -O2 -fast-isel=false -mattr=-vsx < %s | FileCheck %s
-; RUN: llc -verify-machineinstrs -mcpu=pwr7 -O2 -fast-isel=false -mattr=+vsx < %s | FileCheck -check-prefix=CHECK-VSX %s
-; RUN: llc -verify-machineinstrs -mcpu=pwr9 -O2 -fast-isel=false -mattr=+vsx < %s | FileCheck -check-prefix=CHECK-P9 %s
+; RUN: llc -verify-machineinstrs -mcpu=pwr7 -O2 -fast-isel=false -mattr=-vsx \
+; RUN:   -ppc-ignore-percent-prefix < %s | FileCheck %s
+; RUN: llc -verify-machineinstrs -mcpu=pwr7 -O2 -fast-isel=false -mattr=+vsx \
+; RUN:   -ppc-ignore-percent-prefix < %s | FileCheck -check-prefix=CHECK-VSX %s
+; RUN: llc -verify-machineinstrs -mcpu=pwr9 -O2 -fast-isel=false -mattr=+vsx \
+; RUN:   -ppc-ignore-percent-prefix < %s | FileCheck -check-prefix=CHECK-P9 %s
 
 ; Verify internal alignment of long double in a struct.  The double
 ; argument comes in in GPR3; GPR4 is skipped; GPRs 5 and 6 contain

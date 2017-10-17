@@ -1,4 +1,5 @@
-; RUN: llc -verify-machineinstrs -mcpu=ppc32 -mtriple=powerpc-unknown-linux-gnu < %s | FileCheck %s
+; RUN: llc -ppc-ignore-percent-prefix -verify-machineinstrs -mcpu=ppc32 \
+; RUN:   -mtriple=powerpc-unknown-linux-gnu < %s | FileCheck %s
 define double @test(i1 %X) {
         %Y = uitofp i1 %X to double
         ret double %Y

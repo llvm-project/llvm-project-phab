@@ -1,5 +1,9 @@
-; RUN: llc -mtriple=powerpc64le-unknown-linux-gnu -mcpu=pwr8 %s -o - | FileCheck %s --check-prefix=CHECK --check-prefix=ENABLE
-; RUN: llc -mtriple=powerpc64le-unknown-linux-gnu %s -o - -enable-shrink-wrap=false |  FileCheck %s --check-prefix=CHECK --check-prefix=DISABLE
+; RUN: llc -mtriple=powerpc64le-unknown-linux-gnu \
+; RUN:   -ppc-ignore-percent-prefix -mcpu=pwr8 %s -o - \
+; RUN:   | FileCheck %s --check-prefix=CHECK --check-prefix=ENABLE
+; RUN: llc -mtriple=powerpc64le-unknown-linux-gnu \
+; RUN:   -ppc-ignore-percent-prefix %s -o - -enable-shrink-wrap=false \
+; RUN:   | FileCheck %s --check-prefix=CHECK --check-prefix=DISABLE
 ;
 ; Note: Lots of tests use inline asm instead of regular calls.
 ; This allows to have a better control on what the allocation will do.

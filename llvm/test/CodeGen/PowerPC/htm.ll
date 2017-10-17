@@ -1,4 +1,5 @@
-; RUN: llc -verify-machineinstrs -mcpu=pwr8 -mattr=+htm < %s | FileCheck %s
+; RUN: llc -ppc-ignore-percent-prefix -verify-machineinstrs \
+; RUN:   -mcpu=pwr8 -mattr=+htm < %s | FileCheck %s
 target datalayout = "E-m:e-i64:64-n32:64"
 target triple = "powerpc64-unknown-linux-gnu"
 

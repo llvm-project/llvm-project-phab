@@ -1,6 +1,12 @@
-; RUN: llc -relocation-model=static -verify-machineinstrs -O0 < %s -mcpu=ppc64 | FileCheck -check-prefix=OPT0 %s
-; RUN: llc -relocation-model=static -verify-machineinstrs -O1 < %s -mcpu=ppc64 | FileCheck -check-prefix=OPT1 %s
-; RUN: llc -verify-machineinstrs -O0 < %s -mtriple=ppc32-- -mcpu=ppc | FileCheck -check-prefix=OPT0-PPC32 %s
+; RUN: llc -ppc-ignore-percent-prefix -relocation-model=static \
+; RUN:   -verify-machineinstrs -O0 < %s -mcpu=ppc64 \
+; RUN:   | FileCheck -check-prefix=OPT0 %s
+; RUN: llc -ppc-ignore-percent-prefix -relocation-model=static \
+; RUN:   -verify-machineinstrs -O1 < %s -mcpu=ppc64 \
+; RUN:   | FileCheck -check-prefix=OPT1 %s
+; RUN: llc -ppc-ignore-percent-prefix -verify-machineinstrs \
+; RUN:   -O0 < %s -mtriple=ppc32-- -mcpu=ppc \
+; RUN:   | FileCheck -check-prefix=OPT0-PPC32 %s
 
 target triple = "powerpc64-unknown-linux-gnu"
 

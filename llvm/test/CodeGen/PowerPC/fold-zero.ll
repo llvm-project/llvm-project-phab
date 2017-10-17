@@ -1,6 +1,12 @@
-; RUN: llc -verify-machineinstrs < %s -mtriple=powerpc64-unknown-linux-gnu -mcpu=pwr7 -mattr=-crbits | FileCheck %s
-; RUN: llc -verify-machineinstrs < %s -mtriple=powerpc64-unknown-linux-gnu -mcpu=pwr7 | FileCheck --check-prefix=CHECK-CRB %s
-; RUN: llc -verify-machineinstrs -ppc-gen-isel=false < %s -mtriple=powerpc64-unknown-linux-gnu -mcpu=pwr7 | FileCheck --check-prefix=CHECK-NO-ISEL %s
+; RUN: llc -ppc-ignore-percent-prefix -verify-machineinstrs < %s \
+; RUN:   -mtriple=powerpc64-unknown-linux-gnu -mcpu=pwr7 -mattr=-crbits \
+; RUN:   | FileCheck %s
+; RUN: llc -ppc-ignore-percent-prefix -verify-machineinstrs < %s \
+; RUN:   -mtriple=powerpc64-unknown-linux-gnu -mcpu=pwr7 \
+; RUN:   | FileCheck --check-prefix=CHECK-CRB %s
+; RUN: llc -ppc-ignore-percent-prefix -verify-machineinstrs \
+; RUN:   -ppc-gen-isel=false < %s -mtriple=powerpc64-unknown-linux-gnu \
+; RUN:   -mcpu=pwr7 | FileCheck --check-prefix=CHECK-NO-ISEL %s
 target datalayout = "E-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-f128:128:128-v128:128:128-n32:64"
 target triple = "powerpc64-unknown-linux-gnu"
 

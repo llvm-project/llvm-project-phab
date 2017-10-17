@@ -1,22 +1,27 @@
 ; RUN: llc -verify-machineinstrs -mtriple=powerpc64le-unknown-linux-gnu \
-; RUN:   -mcpu=pwr8 < %s | FileCheck %s -check-prefix=CHECK-LE \
+; RUN:   -mcpu=pwr8 < %s -ppc-ignore-percent-prefix \
+; RUN:   | FileCheck %s -check-prefix=CHECK-LE \
 ; RUN:   --implicit-check-not xxswapd
 
 ; RUN: llc -verify-machineinstrs -mtriple=powerpc64-unknown-linux-gnu \
-; RUN:   -mcpu=pwr8 < %s | FileCheck %s -check-prefix=CHECK-BE
+; RUN:   -mcpu=pwr8 < %s -ppc-ignore-percent-prefix \
+; RUN:   | FileCheck %s -check-prefix=CHECK-BE
 
 ; RUN: llc -verify-machineinstrs -mtriple=powerpc64-unknown-linux-gnu \
-; RUN:   -mcpu=pwr8 -mattr=-vsx < %s | FileCheck %s -check-prefix=CHECK-NOVSX
+; RUN:   -mcpu=pwr8 -mattr=-vsx < %s -ppc-ignore-percent-prefix \
+; RUN:   | FileCheck %s -check-prefix=CHECK-NOVSX
 
 ; RUN: llc -verify-machineinstrs -mtriple=powerpc64le-unknown-linux-gnu \
-; RUN:   -mcpu=pwr8 -mattr=-vsx < %s | FileCheck %s -check-prefix=CHECK-NOVSX \
+; RUN:   -mcpu=pwr8 -mattr=-vsx < %s -ppc-ignore-percent-prefix \
+; RUN:   | FileCheck %s -check-prefix=CHECK-NOVSX \
 ; RUN:   --implicit-check-not xxswapd
 
 ; RUN: llc -verify-machineinstrs -mtriple=powerpc64-unknown-linux-gnu \
-; RUN:   -mcpu=pwr8 -mattr=-vsx < %s | FileCheck %s -check-prefix=CHECK-BE-NOVSX
+; RUN:   -mcpu=pwr8 -mattr=-vsx < %s -ppc-ignore-percent-prefix \
+; RUN:   | FileCheck %s -check-prefix=CHECK-BE-NOVSX
 
 ; RUN: llc -verify-machineinstrs -mtriple=powerpc64le-unknown-linux-gnu \
-; RUN:   -mcpu=pwr8 -mattr=-vsx < %s | \
+; RUN:   -mcpu=pwr8 -mattr=-vsx < %s -ppc-ignore-percent-prefix | \
 ; RUN:   FileCheck %s -check-prefix=CHECK-LE-NOVSX --implicit-check-not xxswapd
 
 ; RUN: llc -verify-machineinstrs -mtriple=powerpc64le-unknown-linux-gnu \
@@ -24,11 +29,13 @@
 ; RUN:   FileCheck %s -check-prefix=CHECK-P9 --implicit-check-not xxswapd
 
 ; RUN: llc -verify-machineinstrs -mtriple=powerpc64le-unknown-linux-gnu \
-; RUN:   -mcpu=pwr9 -mattr=-vsx < %s | FileCheck %s -check-prefix=CHECK-NOVSX \
+; RUN:   -mcpu=pwr9 -mattr=-vsx < %s -ppc-ignore-percent-prefix \
+; RUN:   | FileCheck %s -check-prefix=CHECK-NOVSX \
 ; RUN:   --implicit-check-not xxswapd
 
 ; RUN: llc -verify-machineinstrs -mtriple=powerpc64le-unknown-linux-gnu \
-; RUN:   -mcpu=pwr9 -mattr=-power9-vector -mattr=-direct-move < %s | \
+; RUN:   -mcpu=pwr9 -mattr=-power9-vector -mattr=-direct-move < %s \
+; RUN:   -ppc-ignore-percent-prefix | \
 ; RUN:   FileCheck %s -check-prefix=CHECK-LE --implicit-check-not xxswapd
 
 @x = common global <1 x i128> zeroinitializer, align 16

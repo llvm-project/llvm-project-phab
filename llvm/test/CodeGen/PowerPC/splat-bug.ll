@@ -1,4 +1,5 @@
-; RUN: llc -verify-machineinstrs -mcpu=ppc64 -O0 -fast-isel=false < %s | FileCheck %s
+; RUN: llc -ppc-ignore-percent-prefix -verify-machineinstrs -mcpu=ppc64 \
+; RUN:   -O0 -fast-isel=false < %s | FileCheck %s
 
 ; Checks for a previous bug where vspltisb/vaddubm were issued in place
 ; of vsplitsh/vadduhm.
