@@ -123,6 +123,7 @@ void __ubsan_handle_cfi_bad_type(CFICheckFailData *Data, ValueHandle Vtable,
     CheckKindStr = "cast to unrelated type";
     break;
   case CFITCK_ICall:
+  default:
     Die();
   }
 
