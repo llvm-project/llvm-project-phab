@@ -349,6 +349,7 @@ public:
   bool WriteSectionHeaders = true;
 
   Object(const llvm::object::ELFObjectFile<ELFT> &Obj);
+  const SectionBase *getSectionHeaderStrTab() const { return SectionNames; }
   void removeSections(std::function<bool(const SectionBase &)> ToRemove);
   virtual size_t totalSize() const = 0;
   virtual void finalize() = 0;
@@ -385,6 +386,26 @@ private:
 public:
   BinaryObject(const llvm::object::ELFObjectFile<ELFT> &Obj)
       : Object<ELFT>(Obj) {}
+  void finalize() override;
+  size_t totalSize() const override;
+  void write(llvm::FileOutputBuffer &Out) const override;
+};
+
+template <class ELFT> class SectionDump : public Object<ELFT> {
+private:
+  SectionBase *SectionToOutput = nullptr;
+
+public:
+  SectionDump(const llvm::object::ELFObjectFile<ELFT> &Obj,
+              llvm::StringRef SecName)
+      : Object<ELFT>(Obj) {
+    for (auto &Sec : this->Sections) {
+      if (Sec->Name == SecName) {
+        SectionToOutput = Sec.get();
+        return;
+      }
+    }
+  }
   void finalize() override;
   size_t totalSize() const override;
   void write(llvm::FileOutputBuffer &Out) const override;

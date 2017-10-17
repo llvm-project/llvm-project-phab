@@ -825,10 +825,30 @@ template <class ELFT> void BinaryObject<ELFT>::finalize() {
   TotalSize = Offset;
 }
 
+template <class ELFT> size_t SectionDump<ELFT>::totalSize() const {
+  if (SectionToOutput == nullptr)
+    return 0;
+  return SectionToOutput->Size;
+}
+
+template <class ELFT>
+void SectionDump<ELFT>::write(FileOutputBuffer &Out) const {
+  SectionToOutput->writeSection(Out);
+}
+
+template <class ELFT> void SectionDump<ELFT>::finalize() {
+  SectionToOutput->Offset = 0;
+}
+
 template class Object<ELF64LE>;
 template class Object<ELF64BE>;
 template class Object<ELF32LE>;
 template class Object<ELF32BE>;
+
+template class SectionDump<ELF64LE>;
+template class SectionDump<ELF64BE>;
+template class SectionDump<ELF32LE>;
+template class SectionDump<ELF32BE>;
 
 template class ELFObject<ELF64LE>;
 template class ELFObject<ELF64BE>;
