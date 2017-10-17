@@ -4756,6 +4756,48 @@ const SCEV *ScalarEvolution::createAddRecFromPHI(PHINode *PN) {
           Ops.push_back(Add->getOperand(i));
       const SCEV *Accum = getAddExpr(Ops);
 
+      if(!isLoopInvariant(Accum, L))
+        if (isa<SCEVUnknown>(Accum) || isa<SCEVZeroExtendExpr>(Accum)) {
+          // Okay, now we are going to check that Loop's condition operand is increasing.
+          BranchInst *BR = dyn_cast<BranchInst>(L->getLoopLatch()->getTerminator());
+
+          // If it has conditional branch.
+          if (BR && BR->isConditional()) {
+            ICmpInst *ICI = dyn_cast<ICmpInst>(BR->getCondition());
+
+            // Now we are checking that BEValueV is increasing ICI's operand.
+            Instruction *AddExpr = dyn_cast<Instruction>(BEValueV);
+            Value *LHS = ICI->getOperand(0);
+            Value *RHS = ICI->getOperand(1);
+
+            // We are not finding a constant. we are finding expression that we increasing.
+            if (isa<Constant>(RHS))
+              std::swap(LHS, RHS);
+
+            // It can be select instruction.
+            // that selected condition should same so we can analyze.
+            if (isa<SelectInst>(AddExpr)) {
+              if (AddExpr->getOperand(0) != ICI)
+                return nullptr;
+
+              AddExpr = dyn_cast<Instruction>(AddExpr->getOperand(1));
+            }
+
+            // Check that we are increasing is ICI's operand.
+            // AddExpr's first operand is target.
+            if (AddExpr && AddExpr->getOperand(0) == RHS) {
+              // Yes its increasing ICI's operand. now we can assume that this loop can exit.
+
+              // AddExpr's operand can be constant. it means it probably not increasing constant 1
+              // so we are going to just evolute constant variable.
+              if (Constant* ST = dyn_cast<Constant>(AddExpr->getOperand(1)))
+                Accum = getSCEV(ST);
+              else
+                Accum = getOne(AddExpr->getType());
+            }
+          }
+        }
+
       // This is not a valid addrec if the step amount is varying each
       // loop iteration, but is not itself an addrec in this loop.
       if (isLoopInvariant(Accum, L) ||
@@ -4809,6 +4851,7 @@ const SCEV *ScalarEvolution::createAddRecFromPHI(PHINode *PN) {
         return PHISCEV;
       }
     }
+    
   } else {
     // Otherwise, this could be a loop like this:
     //     i = 0;  for (j = 1; ..; ++j) { ....  i = j; }
