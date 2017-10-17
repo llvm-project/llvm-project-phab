@@ -1,0 +1,8 @@
+{
+	extern "C++" {
+		__xray::XRayPatchedCustomEvent;
+		__xray::XRayPatchedFunction;
+		__xray::XRayArgLogger;
+	};
+	XRayInitialized;
+};

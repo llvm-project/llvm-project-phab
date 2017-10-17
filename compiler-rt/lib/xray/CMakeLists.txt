@@ -86,6 +86,18 @@ foreach(arch ${XRAY_SUPPORTED_ARCH})
      DEFS ${XRAY_COMMON_DEFINITIONS}
      OBJECT_LIBS ${XRAY_COMMON_RUNTIME_OBJECT_LIBS}
      PARENT_TARGET xray)
+    set(syms ${COMPILER_RT_LIBRARY_OUTPUT_DIR}/libclang_rt.xray-${arch}.a.syms)
+    set(vers ${COMPILER_RT_LIBRARY_OUTPUT_DIR}/libclang_rt.xray-${arch}.a.vers)
+    add_custom_command(TARGET xray
+      COMMAND /bin/cp xray.syms ${syms}
+      WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+      VERBATIM)
+    add_custom_command(TARGET xray
+      COMMAND /bin/cp xray.vers ${vers}
+      WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+      VERBATIM)
+    install(FILES ${syms} ${vers}
+      DESTINATION ${COMPILER_RT_LIBRARY_INSTALL_DIR})
   endif()
 endforeach()
 

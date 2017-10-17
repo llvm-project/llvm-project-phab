@@ -1,0 +1,23 @@
+{
+global:
+	extern "C++" {
+		__xray::XRayPatchedCustomEvent;
+		__xray::XRayPatchedFunction;
+		__xray::XRayArgLogger;
+	};
+	XRayInitialized;
+local:
+	extern "C++" {
+		__xray::DSOContext;
+	};
+	__start_xray_instr_map;
+	__start_xray_fn_index;
+	__stop_xray_instr_map;
+	__stop_xray_fn_index;
+	__xray_ArgLoggerEntry;
+	__xray_FunctionEntry;
+	__xray_FunctionExit;
+	__xray_FunctionTailExit;
+	__xray_CustomEvent;
+	__xray_patch;
+};
