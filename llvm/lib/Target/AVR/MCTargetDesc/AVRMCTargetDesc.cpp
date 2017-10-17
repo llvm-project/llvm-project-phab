@@ -15,6 +15,7 @@
 #include "AVRELFStreamer.h"
 #include "AVRMCAsmInfo.h"
 #include "AVRTargetStreamer.h"
+#include "AVRMCELFStreamer.h"
 #include "InstPrinter/AVRInstPrinter.h"
 
 #include "llvm/MC/MCELFStreamer.h"
@@ -34,7 +35,7 @@
 
 using namespace llvm;
 
-static MCInstrInfo *createAVRMCInstrInfo() {
+MCInstrInfo *llvm::createAVRMCInstrInfo() {
   MCInstrInfo *X = new MCInstrInfo();
   InitAVRMCInstrInfo(X);
 
@@ -68,7 +69,7 @@ static MCInstPrinter *createAVRMCInstPrinter(const Triple &T,
 static MCStreamer *createMCStreamer(const Triple &T, MCContext &Context,
                                     MCAsmBackend &MAB, raw_pwrite_stream &OS,
                                     MCCodeEmitter *Emitter, bool RelaxAll) {
-  return createELFStreamer(Context, MAB, OS, Emitter, RelaxAll);
+  return createAVRELFStreamer(T, Context, MAB, OS, Emitter);
 }
 
 static MCTargetStreamer *
@@ -104,7 +105,7 @@ extern "C" void LLVMInitializeAVRTargetMC() {
   // Register the MC Code Emitter
   TargetRegistry::RegisterMCCodeEmitter(getTheAVRTarget(), createAVRMCCodeEmitter);
 
-  // Register the ELF streamer
+  // Register the obj streamer
   TargetRegistry::RegisterELFStreamer(getTheAVRTarget(), createMCStreamer);
 
   // Register the obj target streamer.
