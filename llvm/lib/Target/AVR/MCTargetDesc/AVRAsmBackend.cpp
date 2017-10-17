@@ -266,13 +266,17 @@ void AVRAsmBackend::adjustFixupValue(const MCFixup &Fixup,
     break;
   case AVR::fixup_lo8_ldi:
   case AVR::fixup_lo8_ldi_pm:
-    if (Kind == AVR::fixup_lo8_ldi_pm) adjust::pm(Value);
+  case AVR::fixup_lo8_ldi_gs:
+    if (Kind == AVR::fixup_lo8_ldi_pm || Kind == AVR::fixup_lo8_ldi_gs)
+      adjust::pm(Value);
 
     adjust::ldi::lo8(Size, Fixup, Value, Ctx);
     break;
   case AVR::fixup_hi8_ldi:
   case AVR::fixup_hi8_ldi_pm:
-    if (Kind == AVR::fixup_hi8_ldi_pm) adjust::pm(Value);
+  case AVR::fixup_hi8_ldi_gs:
+    if (Kind == AVR::fixup_hi8_ldi_pm || Kind == AVR::fixup_hi8_ldi_gs)
+      adjust::pm(Value);
 
     adjust::ldi::hi8(Size, Fixup, Value, Ctx);
     break;
@@ -340,7 +344,8 @@ void AVRAsmBackend::adjustFixupValue(const MCFixup &Fixup,
   }
 }
 
-MCObjectWriter *AVRAsmBackend::createObjectWriter(raw_pwrite_stream &OS) const {
+std::unique_ptr<MCObjectWriter>
+AVRAsmBackend::createObjectWriter(raw_pwrite_stream &OS) const {
   return createAVRELFObjectWriter(OS,
                                   MCELFObjectTargetWriter::getOSABI(OSType));
 }
@@ -421,8 +426,9 @@ MCFixupKindInfo const &AVRAsmBackend::getFixupKindInfo(MCFixupKind Kind) const {
       {"fixup_8_hi8", 0, 8, 0},
       {"fixup_8_hlo8", 0, 8, 0},
 
-      {"fixup_sym_diff", 0, 32, 0},
-      {"fixup_16_ldst", 0, 16, 0},
+      {"fixup_diff8", 0, 8, 0},
+      {"fixup_diff16", 0, 16, 0},
+      {"fixup_diff32", 0, 32, 0},
 
       {"fixup_lds_sts_16", 0, 16, 0},
 
