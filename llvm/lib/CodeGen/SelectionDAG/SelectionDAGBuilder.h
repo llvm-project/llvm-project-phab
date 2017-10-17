@@ -674,6 +674,10 @@ public:
   SDValue getValue(const Value *V);
   bool findValue(const Value *V) const;
 
+  // Returns DAG node of SDValue present in NodeMap for
+  // a given Value.
+  SDNode *getDAGNode(const Value *);
+
   SDValue getNonRegisterValue(const Value *V);
   SDValue getValueImpl(const Value *V);
 

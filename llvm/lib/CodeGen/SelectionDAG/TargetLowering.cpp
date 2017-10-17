@@ -2928,7 +2928,7 @@ static SDValue BuildExactSDIV(const TargetLowering &TLI, SDValue Op1, APInt d,
         DAG.getConstant(ShAmt, dl, TLI.getShiftAmountTy(Op1.getValueType(),
                                                         DAG.getDataLayout()));
     SDNodeFlags Flags;
-    Flags.setExact(true);
+    Flags.setExact(Op1.getNode()->getFlags().hasExact());
     Op1 = DAG.getNode(ISD::SRA, dl, Op1.getValueType(), Op1, Amt, Flags);
     Created.push_back(Op1.getNode());
     d.ashrInPlace(ShAmt);

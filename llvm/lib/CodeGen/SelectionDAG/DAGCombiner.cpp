@@ -8145,8 +8145,8 @@ SDValue DAGCombiner::ReduceLoadWidth(SDNode *N) {
   unsigned NewAlign = MinAlign(LN0->getAlignment(), PtrOff);
   SDLoc DL(LN0);
   // The original load itself didn't wrap, so an offset within it doesn't.
-  SDNodeFlags Flags;
-  Flags.setNoUnsignedWrap(true);
+  SDNodeFlags Flags = LN0->getFlags();
+
   SDValue NewPtr = DAG.getNode(ISD::ADD, DL,
                                PtrType, LN0->getBasePtr(),
                                DAG.getConstant(PtrOff, DL, PtrType),
@@ -9584,7 +9584,7 @@ SDValue DAGCombiner::visitFMULForFMADistributiveCombine(SDNode *N) {
   // Floating-point multiply-add without intermediate rounding.
   bool HasFMA =
       (Options.AllowFPOpFusion == FPOpFusion::Fast || Options.UnsafeFPMath) &&
-      TLI.isFMAFasterThanFMulAndFAdd(VT) &&
+       TLI.isFMAFasterThanFMulAndFAdd(VT) &&
       (!LegalOperations || TLI.isOperationLegalOrCustom(ISD::FMA, VT));
 
   // Floating-point multiply-add with intermediate rounding. This can result
@@ -9718,7 +9718,7 @@ SDValue DAGCombiner::visitFADD(SDNode *N) {
   }
 
   // If 'unsafe math' is enabled, fold lots of things.
-  if (Options.UnsafeFPMath) {
+  if (Options.UnsafeFPMath || Flags.hasUnsafeAlgebra()) {
     // No FP constant should be created after legalization as Instruction
     // Selection pass has a hard time dealing with FP constants.
     bool AllowNewConst = (Level < AfterLegalizeDAG);
@@ -9864,7 +9864,7 @@ SDValue DAGCombiner::visitFSUB(SDNode *N) {
   }
 
   // If 'unsafe math' is enabled, fold lots of things.
-  if (Options.UnsafeFPMath) {
+  if (Options.UnsafeFPMath || Flags.hasUnsafeAlgebra()) {
     // (fsub A, 0) -> A
     if (N1CFP && N1CFP->isZero())
       return N0;
@@ -9929,7 +9929,7 @@ SDValue DAGCombiner::visitFMUL(SDNode *N) {
   if (SDValue NewSel = foldBinOpIntoSelect(N))
     return NewSel;
 
-  if (Options.UnsafeFPMath) {
+  if (Options.UnsafeFPMath || Flags.hasUnsafeAlgebra()) {
     // fold (fmul A, 0) -> 0
     if (N1CFP && N1CFP->isZero())
       return N1;
@@ -10057,7 +10057,6 @@ SDValue DAGCombiner::visitFMA(SDNode *N) {
   EVT VT = N->getValueType(0);
   SDLoc DL(N);
   const TargetOptions &Options = DAG.getTarget().Options;
-
   // Constant fold FMA.
   if (isa<ConstantFPSDNode>(N0) &&
       isa<ConstantFPSDNode>(N1) &&
@@ -10065,7 +10064,9 @@ SDValue DAGCombiner::visitFMA(SDNode *N) {
     return DAG.getNode(ISD::FMA, DL, VT, N0, N1, N2);
   }
 
-  if (Options.UnsafeFPMath) {
+  SDNodeFlags Flags = N->getFlags();
+  bool UnsafeFPMath = Options.UnsafeFPMath || Flags.hasUnsafeAlgebra();
+  if (UnsafeFPMath) {
     if (N0CFP && N0CFP->isZero())
       return N2;
     if (N1CFP && N1CFP->isZero())
@@ -10082,12 +10083,7 @@ SDValue DAGCombiner::visitFMA(SDNode *N) {
      !isConstantFPBuildVectorOrConstantFP(N1))
     return DAG.getNode(ISD::FMA, SDLoc(N), VT, N1, N0, N2);
 
-  // TODO: FMA nodes should have flags that propagate to the created nodes.
-  // For now, create a Flags object for use with all unsafe math transforms.
-  SDNodeFlags Flags;
-  Flags.setUnsafeAlgebra(true);
-
-  if (Options.UnsafeFPMath) {
+  if (UnsafeFPMath) {
     // (fma x, c1, (fmul x, c2)) -> (fmul x, c1+c2)
     if (N2.getOpcode() == ISD::FMUL && N0 == N2.getOperand(0) &&
         isConstantFPBuildVectorOrConstantFP(N1) &&
@@ -10125,7 +10121,7 @@ SDValue DAGCombiner::visitFMA(SDNode *N) {
     }
   }
 
-  if (Options.UnsafeFPMath) {
+  if (UnsafeFPMath) {
     // (fma x, c, x) -> (fmul x, (c+1))
     if (N1CFP && N0 == N2) {
       return DAG.getNode(ISD::FMUL, DL, VT, N0,
@@ -10232,7 +10228,8 @@ SDValue DAGCombiner::visitFDIV(SDNode *N) {
   if (SDValue NewSel = foldBinOpIntoSelect(N))
     return NewSel;
 
-  if (Options.UnsafeFPMath) {
+  bool UnsafeFPMath = Options.UnsafeFPMath || Flags.hasUnsafeAlgebra();
+  if (UnsafeFPMath)  {
     // fold (fdiv X, c2) -> fmul X, 1/c2 if losing precision is acceptable.
     if (N1CFP) {
       // Compute the reciprocal 1.0 / c2.
@@ -10348,11 +10345,7 @@ SDValue DAGCombiner::visitFSQRT(SDNode *N) {
   if (TLI.isFsqrtCheap(N0, DAG))
     return SDValue();
 
-  // TODO: FSQRT nodes should have flags that propagate to the created nodes.
-  // For now, create a Flags object for use with all unsafe math transforms.
-  SDNodeFlags Flags;
-  Flags.setUnsafeAlgebra(true);
-  return buildSqrtEstimate(N0, Flags);
+  return buildSqrtEstimate(N0, N->getFlags());
 }
 
 /// copysign(x, fp_extend(y)) -> copysign(x, y)
@@ -14483,7 +14476,7 @@ SDValue DAGCombiner::createBuildVecShuffle(const SDLoc &DL, SDNode *N,
       Mask[i] = Vec2Offset + ExtIndex;
     }
   }
-
+  
   // The type the input vectors may have changed above.
   InVT1 = VecIn1.getValueType();
 
