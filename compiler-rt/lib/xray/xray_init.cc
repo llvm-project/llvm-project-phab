@@ -29,6 +29,10 @@ extern const XRayFunctionSledIndex __start_xray_fn_idx[] __attribute__((weak));
 extern const XRayFunctionSledIndex __stop_xray_fn_idx[] __attribute__((weak));
 }
 
+namespace __xray {
+XRayDSOContext *DSOContext;
+}
+
 using namespace __xray;
 
 // When set to 'true' this means the XRay runtime has been initialised. We use
@@ -41,8 +45,7 @@ using namespace __xray;
 __sanitizer::atomic_uint8_t XRayInitialized{0};
 
 // This should always be updated before XRayInitialized is updated.
-__sanitizer::SpinMutex XRayInstrMapMutex;
-XRaySledMap XRayInstrMap;
+XRayDSOContext MainBinaryContext;
 
 // Global flag to determine whether the flags have been initialized.
 __sanitizer::atomic_uint8_t XRayFlagsInitialized{0};
@@ -73,12 +76,14 @@ void __xray_init() XRAY_NEVER_INSTRUMENT {
   }
 
   {
-    __sanitizer::SpinMutexLock Guard(&XRayInstrMapMutex);
-    XRayInstrMap.Sleds = __start_xray_instr_map;
-    XRayInstrMap.Entries = __stop_xray_instr_map - __start_xray_instr_map;
-    XRayInstrMap.SledsIndex = __start_xray_fn_idx;
-    XRayInstrMap.Functions = __stop_xray_fn_idx - __start_xray_fn_idx;
+    __sanitizer::SpinMutexLock Guard(&MainBinaryContext.Lock);
+    XRaySledMap &Map = MainBinaryContext.Map;
+    Map.Sleds = __start_xray_instr_map;
+    Map.Entries = __stop_xray_instr_map - __start_xray_instr_map;
+    Map.SledsIndex = __start_xray_fn_idx;
+    Map.Functions = __stop_xray_fn_idx - __start_xray_fn_idx;
   }
+  DSOContext = &MainBinaryContext;
   __sanitizer::atomic_store(&XRayInitialized, true,
                             __sanitizer::memory_order_release);
 

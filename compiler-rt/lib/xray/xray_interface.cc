@@ -90,9 +90,7 @@ public:
 
 } // namespace __xray
 
-extern __sanitizer::SpinMutex XRayInstrMapMutex;
 extern __sanitizer::atomic_uint8_t XRayInitialized;
-extern __xray::XRaySledMap XRayInstrMap;
 
 int __xray_set_handler(void (*entry)(int32_t,
                                      XRayEntryType)) XRAY_NEVER_INSTRUMENT {
@@ -215,8 +213,8 @@ XRayPatchingStatus controlPatching(bool Enable) XRAY_NEVER_INSTRUMENT {
   // instrumentation map.
   XRaySledMap InstrMap;
   {
-    __sanitizer::SpinMutexLock Guard(&XRayInstrMapMutex);
-    InstrMap = XRayInstrMap;
+    __sanitizer::SpinMutexLock Guard(&__xray::DSOContext->Lock);
+    InstrMap = __xray::DSOContext->Map;
   }
   if (InstrMap.Entries == 0)
     return XRayPatchingStatus::NOT_INITIALIZED;
@@ -268,8 +266,8 @@ XRayPatchingStatus patchFunction(int32_t FuncId,
   // Next, we look for the function index.
   XRaySledMap InstrMap;
   {
-    __sanitizer::SpinMutexLock Guard(&XRayInstrMapMutex);
-    InstrMap = XRayInstrMap;
+    __sanitizer::SpinMutexLock Guard(&__xray::DSOContext->Lock);
+    InstrMap = __xray::DSOContext->Map;
   }
 
   // If we don't have an index, we can't patch individual functions.
@@ -328,10 +326,11 @@ int __xray_set_handler_arg1(void (*entry)(int32_t, XRayEntryType, uint64_t)) {
 int __xray_remove_handler_arg1() { return __xray_set_handler_arg1(nullptr); }
 
 uintptr_t __xray_function_address(int32_t FuncId) XRAY_NEVER_INSTRUMENT {
-  __sanitizer::SpinMutexLock Guard(&XRayInstrMapMutex);
-  if (FuncId <= 0 || static_cast<size_t>(FuncId) > XRayInstrMap.Functions)
+  __sanitizer::SpinMutexLock Guard(&__xray::DSOContext->Lock);
+  XRaySledMap &Map = __xray::DSOContext->Map;
+  if (FuncId <= 0 || static_cast<size_t>(FuncId) > Map.Functions)
     return 0;
-  return XRayInstrMap.SledsIndex[FuncId - 1].Begin->Function
+  return Map.SledsIndex[FuncId - 1].Begin->Function
 // On PPC, function entries are always aligned to 16 bytes. The beginning of a
 // sled might be a local entry, which is always +8 based on the global entry.
 // Always return the global entry.
@@ -342,6 +341,6 @@ uintptr_t __xray_function_address(int32_t FuncId) XRAY_NEVER_INSTRUMENT {
 }
 
 size_t __xray_max_function_id() XRAY_NEVER_INSTRUMENT {
-  __sanitizer::SpinMutexLock Guard(&XRayInstrMapMutex);
-  return XRayInstrMap.Functions;
+  __sanitizer::SpinMutexLock Guard(&__xray::DSOContext->Lock);
+  return __xray::DSOContext->Map.Functions;
 }

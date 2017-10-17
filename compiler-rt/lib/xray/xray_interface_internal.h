@@ -15,6 +15,7 @@
 #ifndef XRAY_INTERFACE_INTERNAL_H
 #define XRAY_INTERFACE_INTERNAL_H
 
+#include "sanitizer_common/sanitizer_mutex.h"
 #include "sanitizer_common/sanitizer_platform.h"
 #include "xray/xray_interface.h"
 #include <cstddef>
@@ -56,6 +57,13 @@ struct XRaySledMap {
   const XRayFunctionSledIndex *SledsIndex;
   size_t Functions;
 };
+
+struct XRayDSOContext {
+  __sanitizer::SpinMutex Lock;
+  XRaySledMap Map;
+};
+
+extern XRayDSOContext *DSOContext;
 
 bool patchFunctionEntry(bool Enable, uint32_t FuncId,
                         const XRaySledEntry &Sled, void (*Trampoline)());
