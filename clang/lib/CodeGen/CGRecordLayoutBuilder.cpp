@@ -408,15 +408,15 @@ CGRecordLowering::accumulateBitFields(RecordDecl::field_iterator Field,
   // has legal integer width, and its bitfield offset is naturally aligned, it
   // is better to make the bitfield a separate storage component so as it can be
   // accessed directly with lower cost.
-  auto IsBetterAsSingleFieldRun = [&](RecordDecl::field_iterator Field) {
+  auto IsBetterAsSingleFieldRun = [&](uint64_t OffsetInRecord,
+                                      uint64_t StartBitOffset) {
     if (!Types.getCodeGenOpts().FineGrainedBitfieldAccesses)
       return false;
-    unsigned Width = Field->getBitWidthValue(Context);
-    if (!DataLayout.isLegalInteger(Width))
+    if (!DataLayout.isLegalInteger(OffsetInRecord))
       return false;
     // Make sure Field is natually aligned if it is treated as an IType integer.
-    if (getFieldBitOffset(*Field) %
-            Context.toBits(getAlignment(getIntNType(Width))) !=
+    if (StartBitOffset %
+            Context.toBits(getAlignment(getIntNType(OffsetInRecord))) !=
         0)
       return false;
     return true;
@@ -435,7 +435,8 @@ CGRecordLowering::accumulateBitFields(RecordDecl::field_iterator Field,
         Run = Field;
         StartBitOffset = getFieldBitOffset(*Field);
         Tail = StartBitOffset + Field->getBitWidthValue(Context);
-        StartFieldAsSingleRun = IsBetterAsSingleFieldRun(Run);
+        StartFieldAsSingleRun = IsBetterAsSingleFieldRun(Tail - StartBitOffset,
+                                                         StartBitOffset);
       }
       ++Field;
       continue;
@@ -449,7 +450,7 @@ CGRecordLowering::accumulateBitFields(RecordDecl::field_iterator Field,
     // skip the block below and go ahead to emit the storage.
     // Otherwise, try to add bitfields to the run.
     if (!StartFieldAsSingleRun && Field != FieldEnd &&
-        !IsBetterAsSingleFieldRun(Field) &&
+        !IsBetterAsSingleFieldRun(Tail - StartBitOffset, StartBitOffset) &&
         Field->getBitWidthValue(Context) != 0 &&
         Tail == getFieldBitOffset(*Field)) {
       Tail += Field->getBitWidthValue(Context);
