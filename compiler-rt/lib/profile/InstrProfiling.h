@@ -156,6 +156,10 @@ int __llvm_profile_register_write_file_atexit(void);
 /*! \brief Initialize file handling. */
 void __llvm_profile_initialize_file(void);
 
+/*! \brief ??. */
+void __llvm_profile_initialize_handlers(void);
+
+
 /*!
  * \brief Return path prefix (excluding the base filename) of the profile data.
  * This is useful for users using \c -fprofile-generate=./path_prefix who do

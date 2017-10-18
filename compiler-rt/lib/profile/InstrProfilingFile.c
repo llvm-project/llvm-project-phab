@@ -11,6 +11,7 @@
 #include "InstrProfilingInternal.h"
 #include "InstrProfilingUtil.h"
 #include <errno.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -506,6 +507,18 @@ const char *__llvm_profile_get_path_prefix(void) {
   return Prefix;
 }
 
+static void child() {
+  // uint64_t *cnt;
+  // for (cnt = __llvm_profile_begin_counters(); cnt < __llvm_profile_end_counters(); ++cnt) {
+  //   *cnt = 0;
+  // }
+  __llvm_profile_reset_counters();
+  memset(&lprofCurFilename, 0, sizeof(lprofCurFilename));
+  __llvm_profile_register_write_file_atexit();
+  __llvm_profile_initialize_file();
+  printf("!!!!!!!\t\t\t\texecuted child!\n");
+}
+
 /* This method is invoked by the runtime initialization hook
  * InstrProfilingRuntime.o if it is linked in. Both user specified
  * profile path via -fprofile-instr-generate= and LLVM_PROFILE_FILE
@@ -518,6 +531,7 @@ void __llvm_profile_initialize_file(void) {
   int hasCommandLineOverrider = (INSTR_PROF_PROFILE_NAME_VAR[0] != 0);
 
   EnvFilenamePat = getFilenamePatFromEnv();
+  printf("!!!!!!!!!!!\t\tEnvFilenamePat: %s\n", EnvFilenamePat);
   if (EnvFilenamePat) {
     /* Pass CopyFilenamePat = 1, to ensure that the filename would be valid 
        at the  moment when __llvm_profile_write_file() gets executed. */
@@ -533,6 +547,13 @@ void __llvm_profile_initialize_file(void) {
 
   parseAndSetFilename(SelectedPat, PNS, 0);
 }
+
+COMPILER_RT_VISIBILITY
+void __llvm_profile_initialize_handlers(void) {
+  int res = pthread_atfork(NULL, NULL, &child);
+  printf("!!!!!!\t\t\tpthread_atfork: %d\n", res);
+}
+
 
 /* This API is directly called by the user application code. It has the
  * highest precedence compared with LLVM_PROFILE_FILE environment variable
