@@ -44,6 +44,6 @@ extern "C" void testit() {
 // CHECK:  call void @"\01??1ImportOverrideVDtor@@UEAA@XZ"(%struct.ImportOverrideVDtor* %{{.*}})
 // CHECK:  call void @"\01??1ImportIntroVDtor@@UEAA@XZ"(%struct.ImportIntroVDtor* %{{.*}})
 
-// CHECK-LABEL: define linkonce_odr void @"\01??_DImportVBaseOverrideVDtor@@QEAAXXZ"
+// CHECK-LABEL: declare dllimport void @"\01??_DImportVBaseOverrideVDtor@@QEAAXXZ"
 // CHECK-LABEL: declare dllimport void @"\01??1ImportOverrideVDtor@@UEAA@XZ"
 // CHECK-LABEL: declare dllimport void @"\01??1ImportIntroVDtor@@UEAA@XZ"
