@@ -445,11 +445,13 @@ public:
   /// SubclassID field of the VPRecipeBase objects. They are used for concrete
   /// type identification.
   typedef enum {
+    VPBlendSC,
     VPBranchOnMaskSC,
     VPInterleaveSC,
     VPPredInstPHISC,
     VPReplicateSC,
     VPWidenIntOrFpInductionSC,
+    VPWidenMemoryInstructionSC,
     VPWidenPHISC,
     VPWidenSC,
   } VPRecipeTy;
