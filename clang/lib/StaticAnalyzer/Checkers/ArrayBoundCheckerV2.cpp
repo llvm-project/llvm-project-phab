@@ -98,10 +98,6 @@ getSimplifiedOffsets(NonLoc offset, nonloc::ConcreteInt extent,
               nonloc::SymbolVal(SIE->getLHS()),
               svalBuilder.makeIntVal(extent.getValue() / constant),
               svalBuilder);
-      case BO_Add:
-        return getSimplifiedOffsets(
-            nonloc::SymbolVal(SIE->getLHS()),
-            svalBuilder.makeIntVal(extent.getValue() - constant), svalBuilder);
       default:
         break;
       }

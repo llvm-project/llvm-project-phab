@@ -136,6 +136,14 @@ void test3(int x) {
     buf[x] = 1; // expected-warning{{Out of bound memory access}}
 }
 
+void test3_simplified_offset(int x, unsigned long long y) {
+  int buf[100];
+  if (x < 0)
+    x = 0;
+  for (int i = y - x; i > 0 && i < 100; i++)
+    buf[i] = 0; // no-warning
+}
+
 void test4(int x) {
   int buf[100];
   if (x > 99)
