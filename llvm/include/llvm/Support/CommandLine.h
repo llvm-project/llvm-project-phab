@@ -333,10 +333,7 @@ public:
   //
   void addArgument();
 
-  /// Unregisters this option from the CommandLine system.
-  ///
-  /// This option must have been the last option registered.
-  /// For testing purposes only.
+  // Unregisters this option from the CommandLine system.
   void removeArgument();
 
   // Return the width of the option tag for printing...
