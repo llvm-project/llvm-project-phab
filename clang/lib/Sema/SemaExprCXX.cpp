@@ -20,6 +20,7 @@
 #include "clang/AST/CXXInheritance.h"
 #include "clang/AST/CharUnits.h"
 #include "clang/AST/DeclObjC.h"
+#include "clang/AST/EvaluatedExprVisitor.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/ExprObjC.h"
 #include "clang/AST/RecursiveASTVisitor.h"
@@ -7472,6 +7473,242 @@ Sema::CorrectDelayedTyposInExpr(Expr *E, VarDecl *InitDecl,
   return E;
 }
 
+static bool typeHasFloatingOrVectorComponent(QualType Ty) {
+  if (Ty.isNull())
+    return false;
+
+  while (const auto *AT = Ty->getAsArrayTypeUnsafe())
+    Ty = AT->getElementType();
+
+  if (Ty->isScalarType())
+    return Ty->hasFloatingRepresentation();
+
+  if (Ty->isVectorType())
+    return true;
+
+  const auto *StructTy = Ty.getCanonicalType()->getAsStructureType();
+  if (!StructTy)
+    return false;
+
+  // Be conservative in the face of broken code (e.g. potentially recursive
+  // types)
+  if (StructTy->getDecl()->isInvalidDecl())
+    return false;
+
+  // We treat any union with mixed FP/vector and non-FP/vector elements as a bag
+  // of bits.
+  if (Ty->isUnionType()) {
+    return llvm::all_of(StructTy->getDecl()->fields(), [](const FieldDecl *FD) {
+      return typeHasFloatingOrVectorComponent(FD->getType());
+    });
+  }
+
+  return llvm::any_of(StructTy->getDecl()->fields(), [](const FieldDecl *FD) {
+    return typeHasFloatingOrVectorComponent(FD->getType());
+  });
+}
+
+bool Sema::typeHasFloatingOrVectorComponent(QualType Ty) {
+  return ::typeHasFloatingOrVectorComponent(Ty.getCanonicalType());
+}
+
+namespace {
+// Diagnoses any uses of vector/floating-point values that we can't trivially
+// fold to a non-vector/non-floating constant in codegen.
+class NonGeneralOpDiagnoser
+    : public ConstEvaluatedExprVisitor<NonGeneralOpDiagnoser> {
+  using Super = ConstEvaluatedExprVisitor<NonGeneralOpDiagnoser>;
+
+  struct DiagnosticInfo {
+    SourceLocation Loc;
+    SourceRange Range;
+
+    // Default arguments are only diagnosed when they're used, but the error
+    // diagnostic points to the default argument itself. This contains the
+    // series of calls that brought us to that default arg.
+    llvm::TinyPtrVector<const CallExpr *> DefaultArgLocs;
+
+    // These should only exist in their fully-constructed form.
+    DiagnosticInfo() = delete;
+
+    DiagnosticInfo(const Expr *E)
+        : Loc(E->getLocStart()), Range(E->getSourceRange()) {}
+
+    DiagnosticInfo(const DiagnosticInfo &) = default;
+    DiagnosticInfo(DiagnosticInfo &&) = default;
+
+    DiagnosticInfo &operator=(const DiagnosticInfo &) = default;
+    DiagnosticInfo &operator=(DiagnosticInfo &&) = default;
+  };
+
+  Sema &S;
+  llvm::SmallVector<DiagnosticInfo, 8> DiagnosticsToEmit;
+
+  bool isGeneralType(const Expr *E) {
+    return !typeHasFloatingOrVectorComponent(E->getType().getCanonicalType());
+  }
+
+  void enqueueDiagnosticFor(const Expr *E) {
+    DiagnosticsToEmit.emplace_back(E);
+  }
+
+  bool isRValueOfIllegalType(const Expr *E) {
+    return E->getValueKind() != VK_LValue && !isGeneralType(E);
+  }
+
+  bool diagnoseIfNonGeneralRValue(const Expr *E) {
+    if (!isRValueOfIllegalType(E))
+      return false;
+
+    enqueueDiagnosticFor(E);
+    return true;
+  }
+
+  static const Expr *ignoreParenImpFloatCastsAndSplats(const Expr *E) {
+    const Expr *Cur = E->IgnoreParens();
+    if (const auto *Sub = dyn_cast<ImplicitCastExpr>(Cur))
+      if (Sub->getCastKind() == CK_IntegralToFloating ||
+          Sub->getCastKind() == CK_VectorSplat)
+        return Sub->getSubExpr()->IgnoreParens();
+    return Cur;
+  }
+
+  struct DiagnosticState {
+    unsigned InitialSize;
+  };
+
+  DiagnosticState saveDiagnosticState() const {
+    return {static_cast<unsigned>(DiagnosticsToEmit.size())};
+  }
+
+  MutableArrayRef<DiagnosticInfo>
+  diagnosticsIssuedSince(const DiagnosticState &S) {
+    assert(S.InitialSize <= DiagnosticsToEmit.size() &&
+           "DiagnosticsToEmit shouldn't shrink across saves!");
+    return {DiagnosticsToEmit.begin() + S.InitialSize, DiagnosticsToEmit.end()};
+  }
+
+  void resetDiagnosticState(const DiagnosticState &S) {
+    DiagnosticsToEmit.erase(DiagnosticsToEmit.begin() + S.InitialSize,
+                            DiagnosticsToEmit.end());
+  }
+
+  // Special case: Don't diagnose patterns that will ultimately turn into a
+  // memcpy in CodeGen. Returns true if we matched the pattern (and emitted
+  // diagnostics, if necessary). This is a small convenience to the user, so
+  // they don't have to write out memcpy() for simple cases. For that reason,
+  // it's very limited in what it will detect.
+  //
+  // N.B. this is C-specific, since C++ doesn't really deal in assignments of
+  // structs.
+  bool diagnoseTrivialRecordAssignmentExpr(const BinaryOperator *BO) {
+    if (BO->getOpcode() != BO_Assign || !BO->getType()->isRecordType())
+      return false;
+
+    const auto *RHS = dyn_cast<ImplicitCastExpr>(BO->getRHS()->IgnoreParens());
+    if (!RHS || RHS->getCastKind() != CK_LValueToRValue)
+      return false;
+
+    Visit(BO->getLHS());
+    Visit(RHS->getSubExpr());
+    return true;
+  }
+
+public:
+  NonGeneralOpDiagnoser(Sema &S) : Super(S.getASTContext()), S(S) {}
+
+  void VisitExpr(const Expr *E) {
+    if (!diagnoseIfNonGeneralRValue(E))
+      Super::VisitExpr(E);
+  }
+
+  void VisitCXXDefaultArgExpr(const CXXDefaultArgExpr *E) {
+    Visit(E->getExpr());
+  }
+
+  void VisitCallExpr(const CallExpr *E) {
+    diagnoseIfNonGeneralRValue(E);
+    Visit(E->getCallee());
+
+    for (const Expr *Arg : E->arguments()) {
+      DiagnosticState Saved = saveDiagnosticState();
+      Visit(Arg);
+      if (Arg->isDefaultArgument())
+        for (DiagnosticInfo &DI : diagnosticsIssuedSince(Saved))
+          DI.DefaultArgLocs.push_back(E);
+    }
+  }
+
+  void VisitCastExpr(const CastExpr *E) {
+    DiagnosticState InitialState = saveDiagnosticState();
+
+    Visit(E->getSubExpr());
+
+    bool IssuedDiagnostics = !diagnosticsIssuedSince(InitialState).empty();
+    // Ignore diagnostics for subexpressions that we can trivially fold to a
+    // constant in CodeGen.
+    if (IssuedDiagnostics && isRValueOfIllegalType(E->getSubExpr()) &&
+        !isRValueOfIllegalType(E) &&
+        E->isConstantInitializer(S.getASTContext(), /*ForRef=*/false)) {
+      resetDiagnosticState(InitialState);
+      return;
+    }
+
+    if (isRValueOfIllegalType(E) && !isRValueOfIllegalType(E->getSubExpr()))
+      enqueueDiagnosticFor(E);
+  }
+
+  void VisitParenExpr(const ParenExpr *E) { Visit(E->getSubExpr()); }
+  void VisitDeclRefExpr(const DeclRefExpr *E) { diagnoseIfNonGeneralRValue(E); }
+
+  void VisitBinaryOperator(const BinaryOperator *BO) {
+    if (isGeneralType(BO)) {
+      Visit(BO->getLHS());
+      Visit(BO->getRHS());
+      return;
+    }
+
+    if (diagnoseTrivialRecordAssignmentExpr(BO))
+      return;
+
+    DiagnosticState InitialState = saveDiagnosticState();
+    // Ignore implicit casts to illegal types so we minimize diagnostics for
+    // things like `1 + 2. + 3 + 4`.
+    Visit(ignoreParenImpFloatCastsAndSplats(BO->getLHS()));
+    Visit(ignoreParenImpFloatCastsAndSplats(BO->getRHS()));
+
+    // Since we don't diagnose LValues, this is somewhat common.
+    if (diagnosticsIssuedSince(InitialState).empty())
+      enqueueDiagnosticFor(BO);
+  }
+
+  void VisitExprWithCleanups(const ExprWithCleanups *E) {
+    Visit(E->getSubExpr());
+  }
+
+  static void diagnoseExpr(Sema &S, const Expr *E) {
+    NonGeneralOpDiagnoser Diagnoser(S);
+    Diagnoser.Visit(E);
+    for (const DiagnosticInfo &DI : Diagnoser.DiagnosticsToEmit) {
+      SourceLocation Loc = DI.Loc;
+      SourceRange Range = DI.Range;
+      // There are rare cases (e.g. `(struct Foo){}`, where Foo
+      // isNonGeneralType), where the expression we're trying to point to
+      // doesn't exist. Fall back to complaining about the full expr.
+      if (Loc.isInvalid()) {
+        Loc = E->getLocStart();
+        Range = E->getSourceRange();
+        assert(!Loc.isInvalid());
+      }
+      S.Diag(Loc, diag::err_non_general_ops_disabled) << Range;
+
+      for (const CallExpr *CE : DI.DefaultArgLocs)
+        S.Diag(CE->getRParenLoc(), diag::note_from_use_of_default_arg);
+    }
+  }
+};
+} // end anonymous namespace
+
 ExprResult Sema::ActOnFinishFullExpr(Expr *FE, SourceLocation CC,
                                      bool DiscardedValue,
                                      bool IsConstexpr,
@@ -7523,6 +7760,9 @@ ExprResult Sema::ActOnFinishFullExpr(Expr *FE, SourceLocation CC,
     return ExprError();
 
   CheckCompletedExpr(FullExpr.get(), CC, IsConstexpr);
+
+  if (getLangOpts().GeneralOpsOnly)
+    NonGeneralOpDiagnoser::diagnoseExpr(*this, FullExpr.get());
 
   // At the end of this full expression (which could be a deeply nested
   // lambda), if there is a potential capture within the nested lambda,

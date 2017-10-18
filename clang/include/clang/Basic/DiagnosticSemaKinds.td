@@ -6110,6 +6110,11 @@ def err_qualified_objc_access : Error<
 def ext_freestanding_complex : Extension<
   "complex numbers are an extension in a freestanding C99 implementation">;
 
+def err_non_general_ops_disabled : Error<
+  "use of floating-point or vector values is disabled by "
+  "'-mgeneral-regs-only'">;
+def note_from_use_of_default_arg : Note<"from use of default argument here">;
+
 // FIXME: Remove when we support imaginary.
 def err_imaginary_not_supported : Error<"imaginary types are not supported">;
 

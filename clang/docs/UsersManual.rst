@@ -1247,7 +1247,8 @@ are listed below.
    Generate code which only uses the general purpose registers.
 
    This option restricts the generated code to use general registers
-   only. This only applies to the AArch64 architecture.
+   only. This only applies to the AArch64 architecture. This restriction does
+   not apply to inline assembly.
 
 .. option:: -mcompact-branches=[values]
 

@@ -10219,6 +10219,13 @@ public:
                                                 unsigned ByteNo) const;
 
 private:
+  // Tests to see if the given type is or contains a float or vector, as defined
+  // by -mgeneral-regs-only.
+  //
+  // `Cache` can be used shared across runs to potentially speed up later
+  // queries.
+  static bool typeHasFloatingOrVectorComponent(QualType Ty);
+
   void CheckArrayAccess(const Expr *BaseExpr, const Expr *IndexExpr,
                         const ArraySubscriptExpr *ASE=nullptr,
                         bool AllowOnePastEnd=true, bool IndexNegated=false);

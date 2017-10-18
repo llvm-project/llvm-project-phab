@@ -8728,6 +8728,19 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
   // Finally, we know we have the right number of parameters, install them.
   NewFD->setParams(Params);
 
+  if (getLangOpts().GeneralOpsOnly &&
+      D.getFunctionDefinitionKind() == FDK_Definition) {
+    if (typeHasFloatingOrVectorComponent(NewFD->getReturnType())) {
+      SourceRange Range = NewFD->getReturnTypeSourceRange();
+      Diag(Range.getBegin(), diag::err_non_general_ops_disabled) << Range;
+    }
+
+    for (const ParmVarDecl *PVD : NewFD->parameters())
+      if (typeHasFloatingOrVectorComponent(PVD->getType()))
+        Diag(PVD->getLocStart(), diag::err_non_general_ops_disabled)
+          << PVD->getSourceRange();
+  }
+
   if (D.getDeclSpec().isNoreturnSpecified())
     NewFD->addAttr(
         ::new(Context) C11NoReturnAttr(D.getDeclSpec().getNoreturnSpecLoc(),
