@@ -696,19 +696,6 @@ void LinkerScript::adjustSectionsBeforeSorting() {
 }
 
 void LinkerScript::adjustSectionsAfterSorting() {
-  // Try and find an appropriate memory region to assign offsets in.
-  for (BaseCommand *Base : SectionCommands) {
-    if (auto *Sec = dyn_cast<OutputSection>(Base)) {
-      if (!Sec->Live)
-        continue;
-      Sec->MemRegion = findMemoryRegion(Sec);
-      // Handle align (e.g. ".foo : ALIGN(16) { ... }").
-      if (Sec->AlignExpr)
-        Sec->Alignment =
-            std::max<uint32_t>(Sec->Alignment, Sec->AlignExpr().getValue());
-    }
-  }
-
   // If output section command doesn't specify any segments,
   // and we haven't previously assigned any section to segment,
   // then we simply assign section to the very first load segment.
@@ -736,6 +723,19 @@ void LinkerScript::adjustSectionsAfterSorting() {
         Sec->Phdrs = DefPhdrs;
     } else {
       DefPhdrs = Sec->Phdrs;
+    }
+  }
+
+  removeEmptyCommands();
+
+  // Try and find an appropriate memory region to assign offsets in.
+  for (BaseCommand *Base : SectionCommands) {
+    if (auto *Sec = dyn_cast<OutputSection>(Base)) {
+      Sec->MemRegion = findMemoryRegion(Sec);
+      // Handle align (e.g. ".foo : ALIGN(16) { ... }").
+      if (Sec->AlignExpr)
+        Sec->Alignment =
+            std::max<uint32_t>(Sec->Alignment, Sec->AlignExpr().getValue());
     }
   }
 }

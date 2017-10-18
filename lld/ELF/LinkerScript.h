@@ -217,6 +217,8 @@ class LinkerScript final {
   uint64_t advance(uint64_t Size, unsigned Align);
   void output(InputSection *Sec);
 
+  void removeEmptyCommands();
+
   std::unique_ptr<AddressState> Ctx;
   OutputSection *Aether;
 
@@ -234,7 +236,6 @@ public:
 
   void fabricateDefaultCommands();
   void addOrphanSections(OutputSectionFactory &Factory);
-  void removeEmptyCommands();
   void adjustSectionsBeforeSorting();
   void adjustSectionsAfterSorting();
 
