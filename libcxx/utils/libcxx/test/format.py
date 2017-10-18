@@ -202,6 +202,9 @@ class LibcxxTestFormat(object):
                           for f in os.listdir(local_cwd) if f.endswith('.dat')]
             is_flaky = self._get_parser('FLAKY_TEST.', parsers).getValue()
             max_retry = 3 if is_flaky else 1
+            local_flaky = getattr(test.config, "test_retry_attempts", 0)
+            if local_flaky > 0:
+                max_retry = local_flaky
             for retry_count in range(max_retry):
                 cmd, out, err, rc = self.executor.run(exec_path, [exec_path],
                                                       local_cwd, data_files,
