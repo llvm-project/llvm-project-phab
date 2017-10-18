@@ -61,6 +61,7 @@ Using Clang as a Library
    HowToSetupToolingForLLVM
    JSONCompilationDatabase
    RefactoringEngine
+   RefactoringActionTutorial
 
 Using Clang Tools
 =================

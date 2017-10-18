@@ -18,7 +18,10 @@ We assume basic knowledge about the Clang AST. See the :doc:`Introduction
 to the Clang AST <IntroductionToTheClangAST>` if you want to learn more
 about how the AST is structured.
 
-..  FIXME: create new refactoring action tutorial and link to the tutorial
+You can also take a look a the
+:doc:`refactoring action tutorial <RefactoringActionTutorial>` to see how
+you can use the components that are described in this document to implement
+actual refactoring actions.
 
 Introduction
 ------------
