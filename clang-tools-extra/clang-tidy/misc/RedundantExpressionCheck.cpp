@@ -23,7 +23,6 @@
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
-#include <set>
 #include <string>
 #include <vector>
 
@@ -38,8 +37,8 @@ namespace {
 using llvm::APSInt;
 } // namespace
 
-static const char KnownBannedMacroNames[] =
-    "EAGAIN;EWOULDBLOCK;SIGCLD;SIGCHLD;";
+static const llvm::StringSet<> KnownBannedMacroNames = {"EAGAIN", "EWOULDBLOCK",
+                                                      "SIGCLD", "SIGCHLD"};
 
 static bool incrementWithoutOverflow(const APSInt &Value, APSInt &Result) {
   Result = Value;
@@ -87,6 +86,7 @@ static bool areEquivalentExpr(const Expr *Left, const Expr *Right) {
   case Stmt::CharacterLiteralClass:
     return cast<CharacterLiteral>(Left)->getValue() ==
            cast<CharacterLiteral>(Right)->getValue();
+
   case Stmt::IntegerLiteralClass: {
     llvm::APInt LeftLit = cast<IntegerLiteral>(Left)->getValue();
     llvm::APInt RightLit = cast<IntegerLiteral>(Right)->getValue();
@@ -96,6 +96,7 @@ static bool areEquivalentExpr(const Expr *Left, const Expr *Right) {
   case Stmt::FloatingLiteralClass:
     return cast<FloatingLiteral>(Left)->getValue().bitwiseIsEqual(
         cast<FloatingLiteral>(Right)->getValue());
+
   case Stmt::StringLiteralClass:
     return cast<StringLiteral>(Left)->getBytes() ==
            cast<StringLiteral>(Right)->getBytes();
@@ -107,6 +108,7 @@ static bool areEquivalentExpr(const Expr *Left, const Expr *Right) {
     return areEquivalentNameSpecifier(
         cast<DependentScopeDeclRefExpr>(Left)->getQualifier(),
         cast<DependentScopeDeclRefExpr>(Right)->getQualifier());
+
   case Stmt::DeclRefExprClass:
     return cast<DeclRefExpr>(Left)->getDecl() ==
            cast<DeclRefExpr>(Right)->getDecl();
@@ -114,9 +116,10 @@ static bool areEquivalentExpr(const Expr *Left, const Expr *Right) {
     return cast<MemberExpr>(Left)->getMemberDecl() ==
            cast<MemberExpr>(Right)->getMemberDecl();
 
+  case Stmt::CXXFunctionalCastExprClass:
   case Stmt::CStyleCastExprClass:
-    return cast<CStyleCastExpr>(Left)->getTypeAsWritten() ==
-           cast<CStyleCastExpr>(Right)->getTypeAsWritten();
+    return cast<ExplicitCastExpr>(Left)->getTypeAsWritten() ==
+           cast<ExplicitCastExpr>(Right)->getTypeAsWritten();
 
   case Stmt::CallExprClass:
   case Stmt::ImplicitCastExprClass:
@@ -128,6 +131,7 @@ static bool areEquivalentExpr(const Expr *Left, const Expr *Right) {
       return false;
     return cast<UnaryOperator>(Left)->getOpcode() ==
            cast<UnaryOperator>(Right)->getOpcode();
+
   case Stmt::BinaryOperatorClass:
     return cast<BinaryOperator>(Left)->getOpcode() ==
            cast<BinaryOperator>(Right)->getOpcode();
@@ -282,7 +286,8 @@ static bool rangeSubsumesRange(BinaryOperatorKind OpcodeLHS,
   }
 }
 
-static void canonicalNegateExpr(BinaryOperatorKind &Opcode, APSInt &Value) {
+static void transformSubToCanonicalAddExpr(BinaryOperatorKind &Opcode,
+                                           APSInt &Value) {
   if (Opcode == BO_Sub) {
     Opcode = BO_Add;
     Value = -Value;
@@ -293,146 +298,6 @@ AST_MATCHER(Expr, isIntegerConstantExpr) {
   if (Node.isInstantiationDependent())
     return false;
   return Node.isIntegerConstantExpr(Finder->getASTContext());
-}
-
-// Returns a matcher for integer constant expression.
-static ast_matchers::internal::Matcher<Expr>
-matchIntegerConstantExpr(StringRef Id) {
-  std::string CstId = (Id + "-const").str();
-  return expr(isIntegerConstantExpr()).bind(CstId);
-}
-
-// Retrieve the integer value matched by 'matchIntegerConstantExpr' with name
-// 'Id' and store it into 'Value'.
-static bool retrieveIntegerConstantExpr(const MatchFinder::MatchResult &Result,
-                                        StringRef Id, APSInt &Value) {
-  std::string CstId = (Id + "-const").str();
-  const auto *CstExpr = Result.Nodes.getNodeAs<Expr>(CstId);
-  return CstExpr && CstExpr->isIntegerConstantExpr(Value, *Result.Context);
-}
-
-// Returns a matcher for a symbolic expression (any expression except ingeter
-// constant expression).
-static ast_matchers::internal::Matcher<Expr> matchSymbolicExpr(StringRef Id) {
-  std::string SymId = (Id + "-sym").str();
-  return ignoringParenImpCasts(
-      expr(unless(isIntegerConstantExpr())).bind(SymId));
-}
-
-// Retrieve the expression matched by 'matchSymbolicExpr' with name 'Id' and
-// store it into 'SymExpr'.
-static bool retrieveSymbolicExpr(const MatchFinder::MatchResult &Result,
-                                 StringRef Id, const Expr *&SymExpr) {
-  std::string SymId = (Id + "-sym").str();
-  if (const auto *Node = Result.Nodes.getNodeAs<Expr>(SymId)) {
-    SymExpr = Node;
-    return true;
-  }
-  return false;
-}
-
-// Match a binary operator between a symbolic expression and an integer constant
-// expression.
-static ast_matchers::internal::Matcher<Expr>
-matchBinOpIntegerConstantExpr(StringRef Id) {
-  const auto BinOpCstExpr =
-      expr(
-          anyOf(binaryOperator(anyOf(hasOperatorName("+"), hasOperatorName("|"),
-                                     hasOperatorName("&")),
-                               hasEitherOperand(matchSymbolicExpr(Id)),
-                               hasEitherOperand(matchIntegerConstantExpr(Id))),
-                binaryOperator(hasOperatorName("-"),
-                               hasLHS(matchSymbolicExpr(Id)),
-                               hasRHS(matchIntegerConstantExpr(Id)))))
-          .bind(Id);
-  return ignoringParenImpCasts(BinOpCstExpr);
-}
-
-// Retrieve sub-expressions matched by 'matchBinOpIntegerConstantExpr' with
-// name 'Id'.
-static bool
-retrieveBinOpIntegerConstantExpr(const MatchFinder::MatchResult &Result,
-                                 StringRef Id, BinaryOperatorKind &Opcode,
-                                 const Expr *&Symbol, APSInt &Value) {
-  if (const auto *BinExpr = Result.Nodes.getNodeAs<BinaryOperator>(Id)) {
-    Opcode = BinExpr->getOpcode();
-    return retrieveSymbolicExpr(Result, Id, Symbol) &&
-           retrieveIntegerConstantExpr(Result, Id, Value);
-  }
-  return false;
-}
-
-// Matches relational expression: 'Expr <op> k' (i.e. x < 2, x != 3, 12 <= x).
-static ast_matchers::internal::Matcher<Expr>
-matchRelationalIntegerConstantExpr(StringRef Id) {
-  std::string CastId = (Id + "-cast").str();
-  std::string SwapId = (Id + "-swap").str();
-  std::string NegateId = (Id + "-negate").str();
-
-  const auto RelationalExpr = ignoringParenImpCasts(binaryOperator(
-      isComparisonOperator(), expr().bind(Id),
-      anyOf(allOf(hasLHS(matchSymbolicExpr(Id)),
-                  hasRHS(matchIntegerConstantExpr(Id))),
-            allOf(hasLHS(matchIntegerConstantExpr(Id)),
-                  hasRHS(matchSymbolicExpr(Id)), expr().bind(SwapId)))));
-
-  // A cast can be matched as a comparator to zero. (i.e. if (x) is equivalent
-  // to if (x != 0)).
-  const auto CastExpr =
-      implicitCastExpr(hasCastKind(CK_IntegralToBoolean),
-                       hasSourceExpression(matchSymbolicExpr(Id)))
-          .bind(CastId);
-
-  const auto NegateRelationalExpr =
-      unaryOperator(hasOperatorName("!"),
-                    hasUnaryOperand(anyOf(CastExpr, RelationalExpr)))
-          .bind(NegateId);
-
-  const auto NegateNegateRelationalExpr =
-      unaryOperator(hasOperatorName("!"),
-                    hasUnaryOperand(unaryOperator(
-                        hasOperatorName("!"),
-                        hasUnaryOperand(anyOf(CastExpr, RelationalExpr)))));
-
-  return anyOf(RelationalExpr, CastExpr, NegateRelationalExpr,
-               NegateNegateRelationalExpr);
-}
-
-// Retrieve sub-expressions matched by 'matchRelationalIntegerConstantExpr' with
-// name 'Id'.
-static bool
-retrieveRelationalIntegerConstantExpr(const MatchFinder::MatchResult &Result,
-                                      StringRef Id, const Expr *&OperandExpr,
-                                      BinaryOperatorKind &Opcode,
-                                      const Expr *&Symbol, APSInt &Value) {
-  std::string CastId = (Id + "-cast").str();
-  std::string SwapId = (Id + "-swap").str();
-  std::string NegateId = (Id + "-negate").str();
-
-  if (const auto *Bin = Result.Nodes.getNodeAs<BinaryOperator>(Id)) {
-    // Operand received with explicit comparator.
-    Opcode = Bin->getOpcode();
-    OperandExpr = Bin;
-    if (!retrieveIntegerConstantExpr(Result, Id, Value))
-      return false;
-  } else if (const auto *Cast = Result.Nodes.getNodeAs<CastExpr>(CastId)) {
-    // Operand received with implicit comparator (cast).
-    Opcode = BO_NE;
-    OperandExpr = Cast;
-    Value = APSInt(32, false);
-  } else {
-    return false;
-  }
-
-  if (!retrieveSymbolicExpr(Result, Id, Symbol))
-    return false;
-
-  if (Result.Nodes.getNodeAs<Expr>(SwapId))
-    Opcode = BinaryOperator::reverseComparisonOp(Opcode);
-  if (Result.Nodes.getNodeAs<Expr>(NegateId))
-    Opcode = BinaryOperator::negateComparisonOp(Opcode);
-
-  return true;
 }
 
 AST_MATCHER(BinaryOperator, operandsAreEquivalent) {
@@ -458,16 +323,328 @@ AST_MATCHER(ConditionalOperator, conditionalOperatorIsInMacro) {
 
 AST_MATCHER(Expr, isMacro) { return Node.getExprLoc().isMacroID(); }
 
-AST_MATCHER_P(Expr, expandedByMacro, std::set<std::string>, Names) {
+AST_MATCHER_P(Expr, expandedByMacro, llvm::StringSet<>, Names) {
   const SourceManager &SM = Finder->getASTContext().getSourceManager();
   const LangOptions &LO = Finder->getASTContext().getLangOpts();
   SourceLocation Loc = Node.getExprLoc();
   while (Loc.isMacroID()) {
     std::string MacroName = Lexer::getImmediateMacroName(Loc, SM, LO);
-    if (Names.find(MacroName) != Names.end())
+    if (Names.count(MacroName))
       return true;
     Loc = SM.getImmediateMacroCallerLoc(Loc);
   }
+  return false;
+}
+
+// Returns a matcher for integer constant expressions.
+static ast_matchers::internal::Matcher<Expr>
+matchIntegerConstantExpr(StringRef Id) {
+  std::string CstId = (Id + "-const").str();
+  return expr(isIntegerConstantExpr()).bind(CstId);
+}
+
+// Retrieves the integer expression matched by 'matchIntegerConstantExpr' with
+// name 'Id' and stores it into 'ConstExpr', the values of the expression is
+// stored into `Value`.
+static bool retrieveIntegerConstantExpr(const MatchFinder::MatchResult &Result,
+                                        StringRef Id, APSInt &Value,
+                                        const Expr *&ConstExpr) {
+  std::string CstId = (Id + "-const").str();
+  ConstExpr = Result.Nodes.getNodeAs<Expr>(CstId);
+
+  if (ConstExpr && ConstExpr->isIntegerConstantExpr(Value, *Result.Context))
+    return true;
+
+  return false;
+}
+
+// Overloaded `retrieveIntegerConstantExpr` for compatibility.
+static bool retrieveIntegerConstantExpr(const MatchFinder::MatchResult &Result,
+                                        StringRef Id, APSInt &Value) {
+  const Expr* ConstExpr = nullptr;;
+  return retrieveIntegerConstantExpr(Result, Id, Value, ConstExpr);
+}
+
+// Returns a matcher for symbolic expressions (matches every expression except
+// ingeter constant expressions).
+static ast_matchers::internal::Matcher<Expr> matchSymbolicExpr(StringRef Id) {
+  std::string SymId = (Id + "-sym").str();
+  return ignoringParenImpCasts(
+      expr(unless(isIntegerConstantExpr())).bind(SymId));
+}
+
+// Retrieves the expression matched by 'matchSymbolicExpr' with name 'Id' and
+// stores it into 'SymExpr'.
+static bool retrieveSymbolicExpr(const MatchFinder::MatchResult &Result,
+                                 StringRef Id, const Expr *&SymExpr) {
+  std::string SymId = (Id + "-sym").str();
+  if (const auto *Node = Result.Nodes.getNodeAs<Expr>(SymId)) {
+    SymExpr = Node;
+    return true;
+  }
+  return false;
+}
+
+// Matches binary operators that are between a symbolic expression and an
+// integer constant expression.
+static ast_matchers::internal::Matcher<Expr>
+matchBinOpIntegerConstantExpr(StringRef Id) {
+  const auto BinOpCstExpr =
+      expr(
+          anyOf(binaryOperator(anyOf(hasOperatorName("+"), hasOperatorName("|"),
+                                     hasOperatorName("&")),
+                               hasEitherOperand(matchSymbolicExpr(Id)),
+                               hasEitherOperand(matchIntegerConstantExpr(Id))),
+                binaryOperator(hasOperatorName("-"),
+                               hasLHS(matchSymbolicExpr(Id)),
+                               hasRHS(matchIntegerConstantExpr(Id)))))
+          .bind(Id);
+  return ignoringParenImpCasts(BinOpCstExpr);
+}
+
+// Retrieves sub-expressions matched by 'matchBinOpIntegerConstantExpr' with
+// name 'Id'.
+static bool
+retrieveBinOpIntegerConstantExpr(const MatchFinder::MatchResult &Result,
+                                 StringRef Id, BinaryOperatorKind &Opcode,
+                                 const Expr *&Symbol, APSInt &Value) {
+  if (const auto *BinExpr = Result.Nodes.getNodeAs<BinaryOperator>(Id)) {
+    Opcode = BinExpr->getOpcode();
+    return retrieveSymbolicExpr(Result, Id, Symbol) &&
+           retrieveIntegerConstantExpr(Result, Id, Value);
+  }
+  return false;
+}
+
+// Matches relational expressions: 'Expr <op> k' (i.e. x < 2, x != 3, 12 <= x).
+static ast_matchers::internal::Matcher<Expr>
+matchRelationalIntegerConstantExpr(StringRef Id) {
+  std::string CastId = (Id + "-cast").str();
+  std::string SwapId = (Id + "-swap").str();
+  std::string NegateId = (Id + "-negate").str();
+
+  const auto RelationalExpr = ignoringParenImpCasts(binaryOperator(
+      isComparisonOperator(), expr().bind(Id),
+      anyOf(allOf(hasLHS(matchSymbolicExpr(Id)),
+                  hasRHS(matchIntegerConstantExpr(Id))),
+            allOf(hasLHS(matchIntegerConstantExpr(Id)),
+                  hasRHS(matchSymbolicExpr(Id)), expr().bind(SwapId)))));
+
+  // A cast can be matched as a comparator to zero. (i.e. if (x) is equivalent
+  // to if (x != 0)).
+  const auto CastExpr =
+      implicitCastExpr(hasCastKind(CK_IntegralToBoolean),
+                       hasSourceExpression(matchSymbolicExpr(Id)))
+          .bind(CastId);
+
+  const auto NegateRelationalExpr =
+      unaryOperator(hasOperatorName("!"),
+                    hasUnaryOperand(anyOf(CastExpr, RelationalExpr)))
+          .bind(NegateId);
+
+  // Do not bind to double negation, it is uneffective.
+  const auto NegateNegateRelationalExpr =
+      unaryOperator(hasOperatorName("!"),
+                    hasUnaryOperand(unaryOperator(
+                        hasOperatorName("!"),
+                        hasUnaryOperand(anyOf(CastExpr, RelationalExpr)))));
+
+  return anyOf(RelationalExpr, CastExpr, NegateRelationalExpr,
+               NegateNegateRelationalExpr);
+}
+
+// Retrieves sub-expressions matched by 'matchRelationalIntegerConstantExpr' with
+// name 'Id'.
+static bool retrieveRelationalIntegerConstantExpr(
+    const MatchFinder::MatchResult &Result, StringRef Id,
+    const Expr *&OperandExpr, BinaryOperatorKind &Opcode, const Expr *&Symbol,
+    APSInt &Value, const Expr *&ConstExpr) {
+  std::string CastId = (Id + "-cast").str();
+  std::string SwapId = (Id + "-swap").str();
+  std::string NegateId = (Id + "-negate").str();
+
+  if (const auto *Bin = Result.Nodes.getNodeAs<BinaryOperator>(Id)) {
+    // Operand received with explicit comparator.
+    Opcode = Bin->getOpcode();
+    OperandExpr = Bin;
+
+    if (!retrieveIntegerConstantExpr(Result, Id, Value, ConstExpr))
+      return false;
+
+  } else if (const auto *Cast = Result.Nodes.getNodeAs<CastExpr>(CastId)) {
+    // Operand received with implicit comparator (cast).
+    Opcode = BO_NE;
+    OperandExpr = Cast;
+    Value = APSInt(32, false);
+  } else {
+    return false;
+  }
+
+  if (!retrieveSymbolicExpr(Result, Id, Symbol))
+    return false;
+
+  if (Result.Nodes.getNodeAs<Expr>(SwapId))
+    Opcode = BinaryOperator::reverseComparisonOp(Opcode);
+  if (Result.Nodes.getNodeAs<Expr>(NegateId))
+    Opcode = BinaryOperator::negateComparisonOp(Opcode);
+  return true;
+}
+
+// Checks for expressions like (X == 4) && (Y != 9)
+static bool areSidesBinaryConstExpressions(const BinaryOperator *&BinOp, const ASTContext *AstCtx) {
+  if (!isa<BinaryOperator>(BinOp->getLHS()) ||
+      !isa<BinaryOperator>(BinOp->getRHS()))
+    return false;
+
+  BinaryOperator* LhsBinOp = dyn_cast<BinaryOperator>(BinOp->getLHS());
+  BinaryOperator* RhsBinOp = dyn_cast<BinaryOperator>(BinOp->getRHS());
+
+  if ((LhsBinOp->getLHS()->isIntegerConstantExpr(*AstCtx) ||
+       LhsBinOp->getRHS()->isIntegerConstantExpr(*AstCtx)) &&
+      (RhsBinOp->getLHS()->isIntegerConstantExpr(*AstCtx) ||
+       RhsBinOp->getRHS()->isIntegerConstantExpr(*AstCtx)))
+    return true;
+  return false;
+}
+
+// Retrieves integer constant subexpressions from binary operator expressions
+// that have two equivalent sides
+// E.g.: from (X == 5) && (X == 5) retrieves 5 and 5.
+static bool retrieveConstExprFromBothSides(const BinaryOperator *&BinOp,
+                                           BinaryOperatorKind &MainOpcode,
+                                           BinaryOperatorKind &SideOpcode,
+                                           const Expr *&LhsConst,
+                                           const Expr *&RhsConst,
+                                           const ASTContext *AstCtx) {
+  assert(areSidesBinaryConstExpressions(BinOp, AstCtx) &&
+         "Both sides of binary operator must be constant expressions!");
+
+  MainOpcode = BinOp->getOpcode();
+
+  BinaryOperator *BinOpLhs = dyn_cast<BinaryOperator>(BinOp->getLHS());
+  BinaryOperator *BinOpRhs = dyn_cast<BinaryOperator>(BinOp->getRHS());
+
+  LhsConst = BinOpLhs->getLHS()->isIntegerConstantExpr(*AstCtx)
+                 ? BinOpLhs->getLHS()
+                 : BinOpLhs->getRHS();
+  RhsConst = BinOpRhs->getLHS()->isIntegerConstantExpr(*AstCtx)
+                 ? BinOpRhs->getLHS()
+                 : BinOpRhs->getRHS();
+
+  if (!LhsConst || !RhsConst)
+    return false;
+
+  assert((BinOpLhs->getOpcode() == BinOpRhs->getOpcode()) &&
+         "Sides of the binary operator must be equivalent expressions!");
+
+  SideOpcode = BinOpLhs->getOpcode();
+
+  return true;
+}
+
+static bool areExprsFromDifferentMacros(const Expr *LhsExpr,
+                                        const Expr *RhsExpr,
+                                        const ASTContext *AstCtx) {
+  if (!LhsExpr || !RhsExpr)
+    return false;
+
+  SourceLocation LhsLoc = LhsExpr->getExprLoc();
+  SourceLocation RhsLoc = RhsExpr->getExprLoc();
+
+  if (!LhsLoc.isMacroID() || !RhsLoc.isMacroID())
+    return false;
+
+  const SourceManager &SM = AstCtx->getSourceManager();
+  const LangOptions &LO = AstCtx->getLangOpts();
+
+  StringRef LhsMacroName = Lexer::getImmediateMacroName(LhsLoc, SM, LO);
+  StringRef RhsMacroName = Lexer::getImmediateMacroName(RhsLoc, SM, LO);
+
+  if (LhsMacroName == RhsMacroName)
+    return false;
+  return true;
+}
+
+static bool areExprsMacroAndNonMacro(const Expr *&LhsExpr, const Expr *&RhsExpr) {
+  if (!LhsExpr || !RhsExpr)
+    return false;
+
+  SourceLocation LhsLoc = LhsExpr->getExprLoc();
+  SourceLocation RhsLoc = RhsExpr->getExprLoc();
+
+  if ((LhsLoc.isMacroID() && !RhsLoc.isMacroID()) ||
+      (!LhsLoc.isMacroID() && RhsLoc.isMacroID()))
+    return true;
+  return false;
+}
+
+static bool isLessOperator(BinaryOperatorKind &Opcode) {
+  return Opcode == BO_LT || Opcode == BO_LE;
+}
+
+static bool isGreaterOperator(BinaryOperatorKind &Opcode) {
+  return Opcode == BO_GT || Opcode == BO_GE;
+}
+
+// Checks whether a set of operators are able to create a meaningful and
+// non-redundant expression.
+// The function is used by `isIntendedMacroExpression` to filter operator sets
+// like (<, &&, <=), that always introduce redundant expressions.
+static bool isOperatorSetMeaningful(BinaryOperatorKind &Opcode,
+                                    BinaryOperatorKind &LhsOpcode,
+                                    BinaryOperatorKind &RhsOpcode) {
+
+  if (!BinaryOperator::isLogicalOp(Opcode))
+    return false;
+
+  if ((isLessOperator(LhsOpcode) && isGreaterOperator(RhsOpcode)) ||
+      (isLessOperator(RhsOpcode) && isGreaterOperator(LhsOpcode)))
+    return true;
+
+  if (Opcode == BO_LAnd) {
+    if (LhsOpcode == BO_NE &&
+        (RhsOpcode == BO_NE || BinaryOperator::isRelationalOp(RhsOpcode)))
+      return true;
+    if (RhsOpcode == BO_NE && BinaryOperator::isRelationalOp(LhsOpcode))
+      return true;
+    return false;
+  }
+
+  if (Opcode == BO_LOr) {
+    if (LhsOpcode == BO_EQ &&
+        (RhsOpcode == BO_EQ || BinaryOperator::isRelationalOp(RhsOpcode)))
+      return true;
+    if (RhsOpcode == BO_EQ && BinaryOperator::isRelationalOp(LhsOpcode))
+      return true;
+    return false;
+  }
+
+  return false;
+}
+
+// Checks whether an expression containing one or two macros,
+// like: ((Expr <op> M1/K) <REL> (Expr <op> M2)), can be a meaningful one
+// based on the operators.
+// A macro expression is considered meaningful, if the macro or macros can hold
+// values, with which the expression cannot be simplified further.
+// The decison is independent from the actual values of the macros, since
+// they may vary across builds.
+// Examples:
+// The function discards  (X < M1 && X <= M2), because it can always be
+// simplified to X < M, where M is the smaller one of the two macro
+// values.
+// An expresion that can be considered meaningful and intended is:
+// (X < M1 && X > M2), even when the two ranges are exclusive.
+static bool isIntendedMacroExpression(BinaryOperatorKind &Opcode,
+                                      BinaryOperatorKind &LhsOpcode,
+                                      const Expr *&LhsExpr,
+                                      BinaryOperatorKind &RhsOpcode,
+                                      const Expr *&RhsExpr,
+                                      const ASTContext *AstCtx) {
+  if ((areExprsFromDifferentMacros(LhsExpr, RhsExpr, AstCtx) ||
+       areExprsMacroAndNonMacro(LhsExpr, RhsExpr)) &&
+      isOperatorSetMeaningful(Opcode, LhsOpcode, RhsOpcode))
+    return true;
   return false;
 }
 
@@ -475,12 +652,9 @@ void RedundantExpressionCheck::registerMatchers(MatchFinder *Finder) {
   const auto AnyLiteralExpr = ignoringParenImpCasts(
       anyOf(cxxBoolLiteral(), characterLiteral(), integerLiteral()));
 
-  std::vector<std::string> MacroNames =
-      utils::options::parseStringList(KnownBannedMacroNames);
-  std::set<std::string> Names(MacroNames.begin(), MacroNames.end());
+  const auto BannedIntegerLiteral = integerLiteral(expandedByMacro(KnownBannedMacroNames));
 
-  const auto BannedIntegerLiteral = integerLiteral(expandedByMacro(Names));
-
+  // Binary with equivalent operands, like (X != 2 && X != 2).
   Finder->addMatcher(
       binaryOperator(anyOf(hasOperatorName("-"), hasOperatorName("/"),
                            hasOperatorName("%"), hasOperatorName("|"),
@@ -499,15 +673,16 @@ void RedundantExpressionCheck::registerMatchers(MatchFinder *Finder) {
           .bind("binary"),
       this);
 
+  // Conditional (trenary) operator with equivalent operands, like (Y ? X : X).
   Finder->addMatcher(
       conditionalOperator(expressionsAreEquivalent(),
                           // Filter noisy false positives.
                           unless(conditionalOperatorIsInMacro()),
-                          unless(hasTrueExpression(AnyLiteralExpr)),
                           unless(isInTemplateInstantiation()))
           .bind("cond"),
       this);
 
+  // Overloaded operators with equivalent operands.
   Finder->addMatcher(
       cxxOperatorCallExpr(
           anyOf(
@@ -613,8 +788,8 @@ void RedundantExpressionCheck::checkArithmeticExpr(
         !areEquivalentExpr(LhsSymbol, RhsSymbol))
       return;
 
-    canonicalNegateExpr(LhsOpcode, LhsValue);
-    canonicalNegateExpr(RhsOpcode, RhsValue);
+    transformSubToCanonicalAddExpr(LhsOpcode, LhsValue);
+    transformSubToCanonicalAddExpr(RhsOpcode, RhsValue);
 
     // Check expressions: x + 1 == x + 2  or  x + 1 != x + 2.
     if (LhsOpcode == BO_Add && RhsOpcode == BO_Add) {
@@ -674,20 +849,23 @@ void RedundantExpressionCheck::checkRelationalExpr(
   if (const auto *ComparisonOperator = Result.Nodes.getNodeAs<BinaryOperator>(
           "comparisons-of-symbol-and-const")) {
     // Matched expressions are: (x <op> k1) <REL> (x <op> k2).
+    // E.g.: (X < 2) && (X > 4)
     BinaryOperatorKind Opcode = ComparisonOperator->getOpcode();
 
     const Expr *LhsExpr = nullptr, *RhsExpr = nullptr;
-    APSInt LhsValue, RhsValue;
     const Expr *LhsSymbol = nullptr, *RhsSymbol = nullptr;
+    const Expr *LhsConst = nullptr, *RhsConst = nullptr;
     BinaryOperatorKind LhsOpcode, RhsOpcode;
+    APSInt LhsValue, RhsValue;
+
     if (!retrieveRelationalIntegerConstantExpr(
-            Result, "lhs", LhsExpr, LhsOpcode, LhsSymbol, LhsValue) ||
+            Result, "lhs", LhsExpr, LhsOpcode, LhsSymbol, LhsValue, LhsConst) ||
         !retrieveRelationalIntegerConstantExpr(
-            Result, "rhs", RhsExpr, RhsOpcode, RhsSymbol, RhsValue) ||
+            Result, "rhs", RhsExpr, RhsOpcode, RhsSymbol, RhsValue, RhsConst) ||
         !areEquivalentExpr(LhsSymbol, RhsSymbol))
       return;
 
-    // Bring to a canonical form: smallest constant must be on the left side.
+    // Bring expr to a canonical form: smallest constant must be on the left.
     if (APSInt::compareValues(LhsValue, RhsValue) > 0) {
       std::swap(LhsExpr, RhsExpr);
       std::swap(LhsValue, RhsValue);
@@ -695,10 +873,14 @@ void RedundantExpressionCheck::checkRelationalExpr(
       std::swap(LhsOpcode, RhsOpcode);
     }
 
+    if (isIntendedMacroExpression(Opcode, LhsOpcode, LhsConst, RhsOpcode,
+                                  RhsConst, Result.Context))
+      return;
+
     if ((Opcode == BO_LAnd || Opcode == BO_LOr) &&
         areEquivalentRanges(LhsOpcode, LhsValue, RhsOpcode, RhsValue)) {
       diag(ComparisonOperator->getOperatorLoc(),
-           "equivalent expression on both side of logical operator");
+           "equivalent expression on both sides of logical operator");
       return;
     }
 
@@ -727,16 +909,63 @@ void RedundantExpressionCheck::checkRelationalExpr(
 }
 
 void RedundantExpressionCheck::check(const MatchFinder::MatchResult &Result) {
-  if (const auto *BinOp = Result.Nodes.getNodeAs<BinaryOperator>("binary"))
-    diag(BinOp->getOperatorLoc(), "both side of operator are equivalent");
-  if (const auto *CondOp = Result.Nodes.getNodeAs<ConditionalOperator>("cond"))
-    diag(CondOp->getColonLoc(), "'true' and 'false' expression are equivalent");
-  if (const auto *Call = Result.Nodes.getNodeAs<CXXOperatorCallExpr>("call"))
-    diag(Call->getOperatorLoc(),
-         "both side of overloaded operator are equivalent");
+  if (const auto *BinOp = Result.Nodes.getNodeAs<BinaryOperator>("binary")) {
 
+    // If the expression's constants are macros, check whether they are
+    // intentional.
+    if (areSidesBinaryConstExpressions(BinOp, Result.Context)) {
+
+      const Expr *LhsConst = nullptr, *RhsConst = nullptr;
+      BinaryOperatorKind MainOpcode, SideOpcode;
+
+      if(!retrieveConstExprFromBothSides(BinOp, MainOpcode, SideOpcode, LhsConst,
+                                     RhsConst, Result.Context))
+          return;
+
+      if (isIntendedMacroExpression(MainOpcode, SideOpcode, LhsConst,
+                                    SideOpcode, RhsConst, Result.Context))
+        return;
+    }
+
+    diag(BinOp->getOperatorLoc(), "both sides of operator are equivalent");
+  }
+  if (const auto *CondOp =
+          Result.Nodes.getNodeAs<ConditionalOperator>("cond")) {
+
+    const auto *TrueExpr = CondOp->getTrueExpr();
+    const auto *FalseExpr = CondOp->getFalseExpr();
+
+    if (areExprsFromDifferentMacros(TrueExpr, FalseExpr, Result.Context) ||
+        areExprsMacroAndNonMacro(TrueExpr, FalseExpr))
+      return;
+    diag(CondOp->getColonLoc(),
+         "'true' and 'false' expressions are equivalent");
+  }
+
+  if (const auto *Call = Result.Nodes.getNodeAs<CXXOperatorCallExpr>("call")) {
+    diag(Call->getOperatorLoc(),
+         "both sides of overloaded operator are equivalent");
+  }
+
+  // Check for the following binded expressions:
+  // - "binop-const-compare-to-sym",
+  // - "binop-const-compare-to-binop-const",
+  // Produced message:
+  // -> "logical expression is always false/true"
   checkArithmeticExpr(Result);
+
+  // Check for the following binded expression:
+  // - "binop-const-compare-to-const",
+  // Produced message:
+  // -> "logical expression is always false/true"
   checkBitwiseExpr(Result);
+
+  // Check for te following binded expression:
+  // - "comparisons-of-symbol-and-const",
+  // Produced messages:
+  // -> "equivalent expression on both sides of logical operator",
+  // -> "logical expression is always false/true"
+  // -> "expression is redundant"
   checkRelationalExpr(Result);
 }
 
