@@ -1200,7 +1200,11 @@ def executeShTest(test, litConfig, useExternalSh,
     if hasattr(test.config, 'test_retry_attempts'):
         attempts += test.config.test_retry_attempts
     for i in range(attempts):
+        if hasattr(litConfig, '_retry_rwlock'):
+            litConfig._retry_rwlock.acquire(i)
         res = _runShTest(test, litConfig, useExternalSh, script, tmpBase)
+        if hasattr(litConfig, '_retry_rwlock'):
+            litConfig._retry_rwlock.release(i)
         if res.code != Test.FAIL:
             break
     # If we had to run the test more than once, count it as a flaky pass. These

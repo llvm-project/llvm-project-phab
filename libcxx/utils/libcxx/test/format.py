@@ -203,9 +203,11 @@ class LibcxxTestFormat(object):
             is_flaky = self._get_parser('FLAKY_TEST.', parsers).getValue()
             max_retry = 3 if is_flaky else 1
             for retry_count in range(max_retry):
+                lit_config._retry_rwlock.acquire(retry_count)
                 cmd, out, err, rc = self.executor.run(exec_path, [exec_path],
                                                       local_cwd, data_files,
                                                       env)
+                lit_config._retry_rwlock.release(retry_count)
                 if rc == 0:
                     res = lit.Test.PASS if retry_count == 0 else lit.Test.FLAKYPASS
                     return res, ''

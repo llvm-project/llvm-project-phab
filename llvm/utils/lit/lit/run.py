@@ -15,6 +15,7 @@ except ImportError:
 
 import multiprocessing
 import lit.Test
+import lit.util
 
 def abort_now():
     """Abort the current process without doing any exception teardown"""
@@ -139,6 +140,9 @@ class Run(object):
         # Save the display object on the runner so that we can update it from
         # our task completion callback.
         self.display = display
+
+        # FIXME: It might be in wrong place.
+        self.lit_config._retry_rwlock = lit.util.RWLock()
 
         self.failure_count = 0
         self.hit_max_failures = False

@@ -1,6 +1,7 @@
 import errno
 import itertools
 import math
+import multiprocessing
 import numbers
 import os
 import platform
@@ -422,3 +423,55 @@ def killProcessAndChildren(pid):
         psutilProc.kill()
     except psutil.NoSuchProcess:
         pass
+
+class RWLock:
+    """
+    Provide RWLock
+    """
+    def __init__(self):
+        lock =  multiprocessing.RLock()
+        self._lock = lock
+        self._rcond = multiprocessing.Condition(lock)
+        self._wcond = multiprocessing.Condition(lock)
+        self._rval  = multiprocessing.Value('i', 0)
+        self._wval  = multiprocessing.Value('i', 0)
+
+    def read_acquire(self):
+        self._lock.acquire()
+        while self._wval.value != 0:
+            self._rcond.wait()
+        self._rval.value += 1
+        self._lock.release()
+
+    def write_acquire(self):
+        self._lock.acquire()
+        while self._rval.value > 0:
+            self._wcond.wait()
+        assert self._wval.value == 0
+        self._wval.value = 1
+
+    def read_release(self):
+        self._lock.acquire()
+        rval = self._rval.value - 1
+        self._rval.value = rval
+        if rval == 0:
+            self._wcond.notify()
+        self._lock.release()
+
+    def write_release(self):
+        self._wval.value = 0
+        self._wcond.notify()
+        self._rcond.notify_all()
+        self._lock.release()
+
+    def acquire(self, count, exclusive_since=1):
+        if count < exclusive_since:
+            self.read_acquire()
+        else:
+            self.write_acquire()
+
+    def release(self, count, exclusive_since=1):
+        if count < exclusive_since:
+            self.read_release()
+        else:
+            self.write_release()
