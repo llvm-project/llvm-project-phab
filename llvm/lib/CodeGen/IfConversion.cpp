@@ -1797,7 +1797,7 @@ bool IfConverter::IfConvertDiamondCommon(
     assert(DI1 != MBB1.begin());
     --DI1;
     // skip dbg_value instructions
-    if (!DI1->isDebugValue())
+    if (!DI1->isDebugValue() && !DI1->isBranch())
       ++i;
   }
   MBB1.erase(DI1, MBB1.end());
