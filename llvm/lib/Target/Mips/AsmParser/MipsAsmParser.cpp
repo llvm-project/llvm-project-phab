@@ -4784,8 +4784,11 @@ bool MipsAsmParser::expandLoadStoreDMacro(MCInst &Inst, SMLoc IDLoc,
 
   warnIfRegIndexIsAT(FirstReg, IDLoc);
 
-  assert(Inst.getOperand(2).isImm() &&
-         "Offset for load macro is not immediate!");
+  if (!Inst.getOperand(2).isImm()) {
+    const StringRef InstName = (IsLoad ? "ld" : "sd");
+    return Error(IDLoc,
+                 "offset for " + InstName + " macro is not an immediate");
+  }
 
   MCOperand &FirstOffset = Inst.getOperand(2);
   signed NextOffset = FirstOffset.getImm() + 4;
