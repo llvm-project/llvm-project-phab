@@ -973,3 +973,96 @@ std::string SignatureHelp::unparse(const SignatureHelp &SH) {
   Result.push_back('}');
   return Result;
 }
+
+std::string CommandArgument::unparse(const CommandArgument &Argument) {
+  switch (Argument.ArgumentKind) {
+  case SelectionRangeKind:
+    return std::string("{\"selection\":") +
+           Range::unparse(Argument.getSelectionRange()) + "}";
+  case TextDocumentIdentifierKind:
+    return std::string("{\"doc\":{\"uri\":") +
+           URI::unparse(Argument.getDocumentID().uri) + "}}";
+  }
+  llvm_unreachable("invalid kind");
+}
+
+llvm::Optional<CommandArgument>
+CommandArgument::parse(llvm::yaml::MappingNode *Params,
+                       clangd::Logger &Logger) {
+  CommandArgument Result;
+  for (auto &NextKeyValue : *Params) {
+    auto *KeyString = dyn_cast<llvm::yaml::ScalarNode>(NextKeyValue.getKey());
+    if (!KeyString)
+      return None;
+
+    llvm::SmallString<10> KeyStorage;
+    StringRef KeyValue = KeyString->getValue(KeyStorage);
+
+    if (KeyValue == "range") {
+      auto *Value =
+          dyn_cast_or_null<llvm::yaml::MappingNode>(NextKeyValue.getValue());
+      if (!Value)
+        return None;
+      Optional<Range> SelectionRange = Range::parse(Value, Logger);
+      if (!SelectionRange)
+        return None;
+      Result = makeSelectionRange(std::move(*SelectionRange));
+    } else if (KeyValue == "doc") {
+      auto *Value =
+          dyn_cast_or_null<llvm::yaml::MappingNode>(NextKeyValue.getValue());
+      if (!Value)
+        return None;
+      Optional<TextDocumentIdentifier> ID =
+          TextDocumentIdentifier::parse(Value, Logger);
+      if (!ID)
+        return None;
+      Result = makeDocumentID(std::move(*ID));
+    } else {
+      logIgnoredField(KeyValue, Logger);
+      return None;
+    }
+  }
+  return Result;
+}
+
+Optional<ExecuteCommandParams>
+ExecuteCommandParams::parse(llvm::yaml::MappingNode *Params, Logger &Logger) {
+  ExecuteCommandParams Result;
+  for (auto &NextKeyValue : *Params) {
+    auto *KeyString = dyn_cast<llvm::yaml::ScalarNode>(NextKeyValue.getKey());
+    if (!KeyString)
+      return llvm::None;
+
+    llvm::SmallString<10> KeyStorage;
+    StringRef KeyValue = KeyString->getValue(KeyStorage);
+
+    if (KeyValue == "command") {
+      auto *Value =
+          dyn_cast_or_null<llvm::yaml::ScalarNode>(NextKeyValue.getValue());
+      if (!Value)
+        return None;
+      llvm::SmallString<20> ValueStorage;
+      Result.command = Value->getValue(ValueStorage).str();
+    } else if (KeyValue == "arguments") {
+      auto *Seq =
+          dyn_cast_or_null<llvm::yaml::SequenceNode>(NextKeyValue.getValue());
+      if (!Seq)
+        return None;
+      std::vector<CommandArgument> Arguments;
+      for (auto &Item : *Seq) {
+        auto *Node = dyn_cast<llvm::yaml::MappingNode>(&Item);
+        if (!Node)
+          return None;
+        Optional<CommandArgument> Argument =
+            CommandArgument::parse(Node, Logger);
+        if (!Argument)
+          return None;
+        Arguments.push_back(std::move(*Argument));
+      }
+      Result.arguments = std::move(Arguments);
+    } else {
+      logIgnoredField(KeyValue, Logger);
+    }
+  }
+  return Result;
+}

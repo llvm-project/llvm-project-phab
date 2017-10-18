@@ -483,3 +483,48 @@ void ClangdServer::onFileEvent(const DidChangeWatchedFilesParams &Params) {
   // FIXME: Do nothing for now. This will be used for indexing and potentially
   // invalidating other caches.
 }
+
+std::vector<Command> ClangdServer::getCommands(PathRef File,
+                                               Range SelectionRange) {
+  auto FileContents = DraftMgr.getDraft(File);
+  assert(FileContents.Draft && "getCommands is called for non-added document");
+  std::shared_ptr<CppFile> Resources = Units.getFile(File);
+  assert(Resources && "Calling getCommands on non-added file");
+
+  std::vector<Command> Results;
+  Resources->getAST().get()->runUnderLock([SelectionRange, &Results,
+                                           this](ParsedAST *AST) {
+    if (!AST)
+      return;
+    if (!RefactoringClient)
+      RefactoringClient = llvm::make_unique<tooling::RefactoringEditorClient>();
+    Results = clangd::findAvailableRefactoringCommands(*RefactoringClient, *AST,
+                                                       SelectionRange, Logger);
+  });
+  return Results;
+}
+
+std::vector<tooling::Replacement>
+ClangdServer::executeCommand(StringRef CommandName, PathRef File,
+                             Range SelectionRange) {
+  auto FileContents = DraftMgr.getDraft(File);
+  assert(FileContents.Draft &&
+         "executeCommand is called for non-added document");
+  std::shared_ptr<CppFile> Resources = Units.getFile(File);
+  assert(Resources && "executeCommand getCommands on non-added file");
+
+  std::vector<tooling::Replacement> Results;
+  Resources->getAST().get()->runUnderLock([SelectionRange, CommandName,
+                                           &Results, this](ParsedAST *AST) {
+    if (!AST)
+      return;
+    assert(RefactoringClient && "no ref client?");
+    if (!RefactoringClient)
+      RefactoringClient = llvm::make_unique<tooling::RefactoringEditorClient>();
+    Results =
+        clangd::performRefactoringCommand(*RefactoringClient, CommandName, *AST,
+
+                                          SelectionRange, Logger);
+  });
+  return Results;
+}

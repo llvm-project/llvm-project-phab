@@ -127,6 +127,21 @@ void ClangdLSPServer::onCodeAction(Ctx C, CodeActionParams &Params) {
           R"(", [)" + Edits +
           R"(]]},)";
   }
+  std::vector<Command> EditorCommands =
+      Server.getCommands(Params.textDocument.uri.file, Params.range);
+  for (const auto &Command : EditorCommands) {
+    Commands +=
+        R"({"title":")" + Command.title + R"(", "command": "clangd.)" +
+        Command.command + R"(", "arguments": [)";
+    Commands += CommandArgument::unparse(
+        CommandArgument::makeDocumentID(Params.textDocument));
+    Commands += ",";
+    for (const auto &Arg : Command.arguments) {
+      Commands += CommandArgument::unparse(Arg);
+      Commands += ", ";
+    }
+    Commands += R"(]},)";
+  }
   if (!Commands.empty())
     Commands.pop_back();
   C.reply("[" + Commands + "]");
@@ -185,6 +200,29 @@ void ClangdLSPServer::onSwitchSourceHeader(Ctx C,
   llvm::Optional<Path> Result = Server.switchSourceHeader(Params.uri.file);
   std::string ResultUri;
   C.reply(Result ? URI::unparse(URI::fromFile(*Result)) : R"("")");
+}
+
+void ClangdLSPServer::onWorkspaceExecuteCommand(Ctx C,
+                                                ExecuteCommandParams &Params) {
+  Optional<Range> SelectionRange;
+  Optional<TextDocumentIdentifier> DocID;
+  for (const auto &Arg : Params.arguments) {
+    switch (Arg.ArgumentKind) {
+    case CommandArgument::SelectionRangeKind:
+      SelectionRange = Arg.getSelectionRange();
+      break;
+    case CommandArgument::TextDocumentIdentifierKind:
+      DocID = Arg.getDocumentID();
+      break;
+    }
+  }
+  if (!SelectionRange || !DocID)
+    return;
+  std::string Code = Server.getDocument(DocID->uri.file);
+  std::string Edits = replacementsToEdits(
+      Code,
+      Server.executeCommand(Params.command, DocID->uri.file, *SelectionRange));
+  C.reply("[" + Edits + "]");
 }
 
 ClangdLSPServer::ClangdLSPServer(JSONOutput &Out, unsigned AsyncThreadsCount,

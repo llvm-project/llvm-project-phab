@@ -23,6 +23,8 @@
 #include "clang/Sema/Sema.h"
 #include "clang/Serialization/ASTWriter.h"
 #include "clang/Tooling/CompilationDatabase.h"
+#include "clang/Tooling/Refactoring/EditorClient.h"
+#include "clang/Tooling/Refactoring/EditorCommands.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/CrashRecoveryContext.h"
@@ -1020,6 +1022,59 @@ std::vector<Location> clangd::findDefinitions(ParsedAST &AST, Position Pos,
                      DeclLocationsFinder, IndexOpts);
 
   return DeclLocationsFinder->takeLocations();
+}
+
+std::vector<Command> clangd::findAvailableRefactoringCommands(
+    tooling::RefactoringEditorClient &Client, ParsedAST &AST,
+    Range SelectionRange, clangd::Logger &Logger) {
+  const SourceManager &SourceMgr = AST.getASTContext().getSourceManager();
+  const FileEntry *FE = SourceMgr.getFileEntryForID(SourceMgr.getMainFileID());
+  if (!FE)
+    return {};
+  SourceLocation Begin =
+      getMacroArgExpandedLocation(SourceMgr, FE, SelectionRange.start);
+  SourceLocation End =
+      getMacroArgExpandedLocation(SourceMgr, FE, SelectionRange.end);
+  std::vector<const tooling::EditorCommand *> EditorCommands =
+      Client.getAvailableRefactorings(AST.getASTContext(),
+                                      SourceRange(Begin, End));
+  std::vector<Command> Results;
+  for (const tooling::EditorCommand *Cmd : EditorCommands) {
+    Command Result;
+    Result.title = Cmd->getTitle();
+    Result.command = (llvm::Twine("refactor.") + Cmd->getName()).str();
+    Result.arguments = {CommandArgument::makeSelectionRange(SelectionRange)};
+    Results.push_back(std::move(Result));
+  }
+  return Results;
+}
+
+std::vector<tooling::Replacement> clangd::performRefactoringCommand(
+    tooling::RefactoringEditorClient &Client, StringRef CommandName,
+    ParsedAST &AST, Range SelectionRange, clangd::Logger &Logger) {
+  const SourceManager &SourceMgr = AST.getASTContext().getSourceManager();
+  const FileEntry *FE = SourceMgr.getFileEntryForID(SourceMgr.getMainFileID());
+  if (!FE)
+    return {};
+  SourceLocation Begin =
+      getMacroArgExpandedLocation(SourceMgr, FE, SelectionRange.start);
+  SourceLocation End =
+      getMacroArgExpandedLocation(SourceMgr, FE, SelectionRange.end);
+  Expected<tooling::AtomicChanges> Changes = Client.performRefactoring(
+      AST.getASTContext(), CommandName.drop_front(strlen("clangd.refactor.")),
+      SourceRange(Begin, End));
+  if (!Changes) {
+    // FIXME: Propage the errors to the user.
+    llvm::consumeError(Changes.takeError());
+    return {};
+  }
+  std::vector<tooling::Replacement> Replacements;
+  for (const tooling::AtomicChange &Change : *Changes) {
+    tooling::Replacements ChangeReps = Change.getReplacements();
+    for (const auto &Rep : ChangeReps)
+      Replacements.push_back(Rep);
+  }
+  return Replacements;
 }
 
 void ParsedAST::ensurePreambleDeclsDeserialized() {

@@ -530,6 +530,72 @@ struct SignatureHelp {
   static std::string unparse(const SignatureHelp &);
 };
 
+/// Represents an editor command argument.
+struct CommandArgument {
+  union {
+    llvm::AlignedCharArrayUnion<Range> SelectionRange;
+    llvm::AlignedCharArrayUnion<TextDocumentIdentifier> DocumentID;
+  };
+  enum Kind { SelectionRangeKind, TextDocumentIdentifierKind };
+  Kind ArgumentKind;
+
+  CommandArgument() {}
+
+  static CommandArgument makeSelectionRange(Range R) {
+    CommandArgument Result;
+    *reinterpret_cast<Range *>(Result.SelectionRange.buffer) = R;
+    Result.ArgumentKind = SelectionRangeKind;
+    return Result;
+  }
+
+  const Range &getSelectionRange() const {
+    assert(ArgumentKind == SelectionRangeKind);
+    return *reinterpret_cast<const Range *>(SelectionRange.buffer);
+  }
+
+  static CommandArgument makeDocumentID(TextDocumentIdentifier ID) {
+    CommandArgument Result;
+    *reinterpret_cast<TextDocumentIdentifier *>(Result.DocumentID.buffer) = ID;
+    Result.ArgumentKind = TextDocumentIdentifierKind;
+    return Result;
+  }
+
+  const TextDocumentIdentifier &getDocumentID() const {
+    assert(ArgumentKind == TextDocumentIdentifierKind);
+    return *reinterpret_cast<const TextDocumentIdentifier *>(DocumentID.buffer);
+  }
+
+  static std::string unparse(const CommandArgument &);
+
+  static llvm::Optional<CommandArgument> parse(llvm::yaml::MappingNode *Params,
+                                               clangd::Logger &Logger);
+};
+
+/// Represents an editor command.
+struct Command {
+  /// The title of the command.
+  std::string title;
+
+  /// The identifier of the actual command handler.
+  std::string command;
+
+  /// The arguments that the command handler should be invoked with.
+  std::vector<CommandArgument> arguments;
+};
+
+/// Represents an editor command execution request.
+struct ExecuteCommandParams {
+  /// The identifier of the actual command handler.
+  std::string command;
+
+  /// Arguments that the command handler should be invoked with.
+  /// Not currently used by clangd.
+  std::vector<CommandArgument> arguments;
+
+  static llvm::Optional<ExecuteCommandParams>
+  parse(llvm::yaml::MappingNode *Params, clangd::Logger &Logger);
+};
+
 } // namespace clangd
 } // namespace clang
 

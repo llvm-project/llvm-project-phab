@@ -1,0 +1,28 @@
+# RUN: clangd -run-synchronously < %s | FileCheck %s
+# It is absolutely vital that this file has CRLF line endings.
+#
+Content-Length: 125
+
+{"jsonrpc":"2.0","id":0,"method":"initialize","params":{"processId":123,"rootPath":"clangd","capabilities":{},"trace":"off"}}
+#
+Content-Length: 181
+
+{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///foo.c","languageId":"c","version":1,"text":"int main(int i, char **a) { if (i == 2) {}}"}}}
+#
+# CHECK: {"jsonrpc":"2.0","method":"textDocument/publishDiagnostics","params":{"uri":"file:///foo.c","diagnostics":[]}}
+#
+Content-Length: 214
+
+{"jsonrpc":"2.0","id":2,"method":"textDocument/codeAction","params":{"textDocument":{"uri":"file:///foo.c"},"range":{"start":{"line":0,"character":32},"end":{"line":0,"character":38}},"context":{"diagnostics":[]}}}
+#
+# CHECK: {"jsonrpc":"2.0","id":2,"result":[{"title":"Extract Function", "command": "clangd.refactor.ExtractFunction", "arguments": [{"doc":{"uri":"file:///foo.c"}},{"selection":{"start": {"line": 0, "character": 32}, "end": {"line": 0, "character": 38}}}, ]}]}
+#
+Content-Length: 243
+
+{"jsonrpc":"2.0","id":2,"method":"workspace/executeCommand","params":{"command":"clangd.refactor.ExtractFunction","arguments": [{"doc":{"uri":"file:///foo.c"}}, {"range":{"start":{"line":0,"character":32},"end":{"line":0,"character":38}}}]}}
+#
+# CHECK: {"jsonrpc":"2.0","id":2,"result":[{"range": {"start": {"line": 0, "character": 0}, "end": {"line": 0, "character": 0}}, "newText": "static int extracted() {\nreturn i == 2;\n}\n\n"},{"range": {"start": {"line": 0, "character": 32}, "end": {"line": 0, "character": 38}}, "newText": "extracted()"}]}
+#
+Content-Length: 44
+
+{"jsonrpc":"2.0","id":3,"method":"shutdown"}

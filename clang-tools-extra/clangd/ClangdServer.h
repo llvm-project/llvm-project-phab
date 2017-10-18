@@ -15,6 +15,7 @@
 #include "GlobalCompilationDatabase.h"
 #include "clang/Tooling/CompilationDatabase.h"
 #include "clang/Tooling/Core/Replacement.h"
+#include "clang/Tooling/Refactoring/EditorClient.h"
 #include "llvm/ADT/IntrusiveRefCntPtr.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringRef.h"
@@ -33,6 +34,10 @@
 
 namespace clang {
 class PCHContainerOperations;
+
+namespace tooling {
+class RefactoringEditorClient;
+}
 
 namespace clangd {
 
@@ -291,6 +296,13 @@ public:
   /// Called when an event occurs for a watched file in the workspace.
   void onFileEvent(const DidChangeWatchedFilesParams &Params);
 
+  /// Returns the list of available commands that can be performed in a file.
+  std::vector<Command> getCommands(PathRef File, Range SelectionRange);
+
+  /// Execute an editor command in the specified file and the range.
+  std::vector<tooling::Replacement>
+  executeCommand(StringRef CommandName, PathRef File, Range SelectionRange);
+
 private:
   std::future<void>
   scheduleReparseAndDiags(PathRef File, VersionedDraft Contents,
@@ -320,6 +332,8 @@ private:
   // called before all other members to stop the worker thread that references
   // ClangdServer
   ClangdScheduler WorkScheduler;
+  /// The editor client that allows Clangd to use Clang's refactoring actions.
+  std::unique_ptr<tooling::RefactoringEditorClient> RefactoringClient;
 };
 
 } // namespace clangd

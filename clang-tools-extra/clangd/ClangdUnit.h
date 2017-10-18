@@ -18,6 +18,7 @@
 #include "clang/Serialization/ASTBitCodes.h"
 #include "clang/Tooling/CompilationDatabase.h"
 #include "clang/Tooling/Core/Replacement.h"
+#include "clang/Tooling/Refactoring/AtomicChange.h"
 #include <atomic>
 #include <future>
 #include <memory>
@@ -36,6 +37,7 @@ class FileSystem;
 
 namespace tooling {
 struct CompileCommand;
+class RefactoringEditorClient;
 }
 
 namespace clangd {
@@ -274,6 +276,19 @@ std::vector<Location> findDefinitions(ParsedAST &AST, Position Pos,
 /// For testing/debugging purposes. Note that this method deserializes all
 /// unserialized Decls, so use with care.
 void dumpAST(ParsedAST &AST, llvm::raw_ostream &OS);
+
+/// Get the list of available refactoring actions for the given range \p
+/// SelectionRange.
+std::vector<Command>
+findAvailableRefactoringCommands(tooling::RefactoringEditorClient &Client,
+                                 ParsedAST &AST, Range SelectionRange,
+                                 clangd::Logger &Logger);
+
+/// Performs the specified refactoring command and returns the source changes.
+std::vector<tooling::Replacement>
+performRefactoringCommand(tooling::RefactoringEditorClient &Client,
+                          StringRef CommandName, ParsedAST &AST,
+                          Range SelectionRange, clangd::Logger &Logger);
 
 } // namespace clangd
 } // namespace clang
