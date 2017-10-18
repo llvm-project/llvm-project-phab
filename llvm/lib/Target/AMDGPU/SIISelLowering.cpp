@@ -6428,13 +6428,14 @@ void SITargetLowering::adjustWritemask(MachineSDNode *&Node,
 
   // If we only got one lane, replace it with a copy
   // (if NewDmask has only one bit set...)
-  if (NewDmask && (NewDmask & (NewDmask-1)) == 0) {
-    SDValue RC = DAG.getTargetConstant(AMDGPU::VGPR_32RegClassID, SDLoc(),
-                                       MVT::i32);
-    SDNode *Copy = DAG.getMachineNode(TargetOpcode::COPY_TO_REGCLASS,
-                                      SDLoc(), Users[Lane]->getValueType(0),
-                                      SDValue(Node, 0), RC);
-    DAG.ReplaceAllUsesWith(Users[Lane], Copy);
+  if (NewDmask && (NewDmask & (NewDmask - 1)) == 0) {
+    const SIRegisterInfo *TRI = getSubtarget()->getRegisterInfo();
+    unsigned SubReg = TRI->getSubRegFromChannel(countTrailingZeros(NewDmask));
+    //SDValue Copy = DAG.getTargetExtractSubreg(AMDGPU::sub0, SDLoc(Node),
+    SDValue Copy = DAG.getTargetExtractSubreg(SubReg, SDLoc(Node),
+                                              Users[Lane]->getValueType(0),
+                                              SDValue(Node, 0));
+    DAG.ReplaceAllUsesWith(Users[Lane], Copy.getNode());
     return;
   }
 
