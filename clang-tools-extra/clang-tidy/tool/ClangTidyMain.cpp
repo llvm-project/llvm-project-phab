@@ -449,6 +449,10 @@ static int clangTidyMain(int argc, const char **argv) {
     return WErrorCount;
   }
 
+  if (FoundErrors) {
+      return 1;
+  }
+
   return 0;
 }
 
