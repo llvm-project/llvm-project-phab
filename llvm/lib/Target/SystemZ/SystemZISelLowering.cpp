@@ -3583,6 +3583,26 @@ SDValue SystemZTargetLowering::lowerSTACKRESTORE(SDValue Op,
   return Chain;
 }
 
+// Return true if Node is a load into a vector element whith a second chain
+// use which is a PREFETCH or a TokenFactor.
+static bool isLoadIntoVectorElement(const SDNode *Node) {
+  if (!isa<LoadSDNode>(Node) || Node->use_size() != 2)
+    return false;
+  unsigned Insert = 0, Chain = 0;
+  for (SDNode::use_iterator UI = Node->use_begin(),
+         E = Node->use_end(); UI != E; ++UI) {
+    unsigned Opcode = UI.getUse().getUser()->getOpcode();
+    if (Opcode == ISD::PREFETCH || Opcode == ISD::TokenFactor)
+      Chain++;
+    else if (Opcode == ISD::INSERT_VECTOR_ELT || Opcode == ISD::BUILD_VECTOR ||
+             Opcode == SystemZISD::REPLICATE)
+      Insert++;
+    else
+      return false;
+  }
+  return (Insert == 1 && Chain == 1);
+}
+
 SDValue SystemZTargetLowering::lowerPREFETCH(SDValue Op,
                                              SelectionDAG &DAG) const {
   bool IsData = cast<ConstantSDNode>(Op.getOperand(4))->getZExtValue();
@@ -3591,11 +3611,26 @@ SDValue SystemZTargetLowering::lowerPREFETCH(SDValue Op,
     return Op.getOperand(0);
 
   SDLoc DL(Op);
+  SDValue Chain = Op.getOperand(0);
+  // In the case of a sequence of loads into vector elements, the prefetches
+  // are placed before each load. This gives those loads chains and the
+  // pattern matching for VLE therefore fails. To remedy this, move the
+  // prefetch chain above the previous load.
+  if (isLoadIntoVectorElement(Chain.getNode()))
+    Chain = dyn_cast<LoadSDNode>(Chain)->getChain();
+  else if (Chain->getOpcode() == ISD::TokenFactor) {
+    for (const SDValue &Op : Chain->op_values())
+      if (isLoadIntoVectorElement(Op.getNode())) {
+        Chain = dyn_cast<LoadSDNode>(Op.getNode())->getChain();
+        break;
+      }
+  }
+
   bool IsWrite = cast<ConstantSDNode>(Op.getOperand(2))->getZExtValue();
   unsigned Code = IsWrite ? SystemZ::PFD_WRITE : SystemZ::PFD_READ;
   auto *Node = cast<MemIntrinsicSDNode>(Op.getNode());
   SDValue Ops[] = {
-    Op.getOperand(0),
+    Chain,
     DAG.getConstant(Code, DL, MVT::i32),
     Op.getOperand(1)
   };
