@@ -18,7 +18,7 @@ entry:
   %0 = load <4 x i8>, <4 x i8>* %v, align 8
   %v0  = sext <4 x i8> %0 to <4 x i32>
 ;CHECK: vmull
-  %v1 = mul <4 x i32>  %v0, <i32 3, i32 3, i32 3, i32 3>
+  %v1 = mul <4 x i32>  %v0, <i32 11, i32 11, i32 11, i32 11>
   store <4 x i32> %v1, <4 x i32>* undef, align 8
   ret void;
 }
@@ -31,7 +31,7 @@ entry:
   %0   = load <2 x i8>, <2 x i8>* %v, align 8
   %v0  = sext <2 x i8>  %0 to <2 x i64>
 ;CHECK: vmull
-  %v1  = mul <2 x i64>  %v0, <i64 3, i64 3>
+  %v1  = mul <2 x i64>  %v0, <i64 11, i64 11>
   store <2 x i64> %v1, <2 x i64>* undef, align 8
   ret void;
 }
@@ -44,7 +44,7 @@ entry:
   %0   = load <2 x i16>, <2 x i16>* %v, align 8
   %v0  = sext <2 x i16>  %0 to <2 x i64>
 ;CHECK: vmull
-  %v1  = mul <2 x i64>  %v0, <i64 3, i64 3>
+  %v1  = mul <2 x i64>  %v0, <i64 11, i64 11>
   store <2 x i64> %v1, <2 x i64>* undef, align 8
   ret void;
 }
