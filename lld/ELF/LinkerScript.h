@@ -227,6 +227,7 @@ class LinkerScript final {
 public:
   OutputSection *createOutputSection(StringRef Name, StringRef Location);
   OutputSection *getOrCreateOutputSection(StringRef Name);
+  OutputSection *getOutputSection(StringRef Name);
 
   bool hasPhdrsCommands() { return !PhdrsCommands.empty(); }
   uint64_t getDot() { return Dot; }

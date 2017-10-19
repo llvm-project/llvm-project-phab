@@ -78,7 +78,6 @@ private:
   void addStartEndSymbols();
   void addStartStopSymbols(OutputSection *Sec);
   uint64_t getEntryAddr();
-  OutputSection *findSection(StringRef Name);
 
   std::vector<PhdrEntry *> Phdrs;
 
@@ -870,10 +869,10 @@ template <class ELFT> void Writer<ELFT>::createSections() {
 
   Script->fabricateDefaultCommands();
   sortBySymbolsOrder();
-  sortInitFini(findSection(".init_array"));
-  sortInitFini(findSection(".fini_array"));
-  sortCtorsDtors(findSection(".ctors"));
-  sortCtorsDtors(findSection(".dtors"));
+  sortInitFini(Script->getOutputSection(".init_array"));
+  sortInitFini(Script->getOutputSection(".fini_array"));
+  sortCtorsDtors(Script->getOutputSection(".ctors"));
+  sortCtorsDtors(Script->getOutputSection(".dtors"));
 }
 
 // This function generates assignments for predefined symbols (e.g. _end or
@@ -930,7 +929,7 @@ template <class ELFT> void Writer<ELFT>::setReservedSymbolSections() {
   }
 
   if (ElfSym::Bss)
-    ElfSym::Bss->Section = findSection(".bss");
+    ElfSym::Bss->Section = Script->getOutputSection(".bss");
 
   // Setup MIPS _gp_disp/__gnu_local_gp symbols which should
   // be equal to the _gp symbol's value.
@@ -1220,10 +1219,10 @@ static bool computeIsPreemptible(const SymbolBody &B) {
 
 // Create output section objects and add them to OutputSections.
 template <class ELFT> void Writer<ELFT>::finalizeSections() {
-  Out::DebugInfo = findSection(".debug_info");
-  Out::PreinitArray = findSection(".preinit_array");
-  Out::InitArray = findSection(".init_array");
-  Out::FiniArray = findSection(".fini_array");
+  Out::DebugInfo = Script->getOutputSection(".debug_info");
+  Out::PreinitArray = Script->getOutputSection(".preinit_array");
+  Out::InitArray = Script->getOutputSection(".init_array");
+  Out::FiniArray = Script->getOutputSection(".fini_array");
 
   // The linker needs to define SECNAME_start, SECNAME_end and SECNAME_stop
   // symbols for sections, so that the runtime can get the start and end
@@ -1384,7 +1383,7 @@ template <class ELFT> void Writer<ELFT>::finalizeSections() {
 template <class ELFT> void Writer<ELFT>::addPredefinedSections() {
   // ARM ABI requires .ARM.exidx to be terminated by some piece of data.
   // We have the terminater synthetic section class. Add that at the end.
-  OutputSection *Cmd = findSection(".ARM.exidx");
+  OutputSection *Cmd = Script->getOutputSection(".ARM.exidx");
   if (!Cmd || !Cmd->Live || Config->Relocatable)
     return;
 
@@ -1413,7 +1412,7 @@ template <class ELFT> void Writer<ELFT>::addStartEndSymbols() {
   Define("__init_array_start", "__init_array_end", Out::InitArray);
   Define("__fini_array_start", "__fini_array_end", Out::FiniArray);
 
-  if (OutputSection *Sec = findSection(".ARM.exidx"))
+  if (OutputSection *Sec = Script->getOutputSection(".ARM.exidx"))
     Define("__exidx_start", "__exidx_end", Sec);
 }
 
@@ -1429,14 +1428,6 @@ void Writer<ELFT>::addStartStopSymbols(OutputSection *Sec) {
     return;
   addOptionalRegular<ELFT>(Saver.save("__start_" + S), Sec, 0, STV_DEFAULT);
   addOptionalRegular<ELFT>(Saver.save("__stop_" + S), Sec, -1, STV_DEFAULT);
-}
-
-template <class ELFT> OutputSection *Writer<ELFT>::findSection(StringRef Name) {
-  for (BaseCommand *Base : Script->SectionCommands)
-    if (auto *Sec = dyn_cast<OutputSection>(Base))
-      if (Sec->Name == Name)
-        return Sec;
-  return nullptr;
 }
 
 static bool needsPtLoad(OutputSection *Sec) {
@@ -1476,7 +1467,7 @@ template <class ELFT> std::vector<PhdrEntry *> Writer<ELFT>::createPhdrs() {
   AddHdr(PT_PHDR, PF_R)->add(Out::ProgramHeaders);
 
   // PT_INTERP must be the second entry if exists.
-  if (OutputSection *Cmd = findSection(".interp"))
+  if (OutputSection *Cmd = Script->getOutputSection(".interp"))
     AddHdr(PT_INTERP, Cmd->getPhdrFlags())->add(Cmd);
 
   // Add the first PT_LOAD segment for regular output sections.
@@ -1537,7 +1528,7 @@ template <class ELFT> std::vector<PhdrEntry *> Writer<ELFT>::createPhdrs() {
 
   // PT_OPENBSD_RANDOMIZE is an OpenBSD-specific feature. That makes
   // the dynamic linker fill the segment with random data.
-  if (OutputSection *Cmd = findSection(".openbsd.randomdata"))
+  if (OutputSection *Cmd = Script->getOutputSection(".openbsd.randomdata"))
     AddHdr(PT_OPENBSD_RANDOMIZE, Cmd->getPhdrFlags())->add(Cmd);
 
   // PT_GNU_STACK is a special section to tell the loader to make the
@@ -1739,7 +1730,7 @@ template <class ELFT> uint64_t Writer<ELFT>::getEntryAddr() {
     return Addr;
 
   // Case 4
-  if (OutputSection *Sec = findSection(".text")) {
+  if (OutputSection *Sec = Script->getOutputSection(".text")) {
     if (Config->WarnMissingEntry)
       warn("cannot find entry symbol " + Config->Entry + "; defaulting to 0x" +
            utohexstr(Sec->Addr));
@@ -1885,7 +1876,7 @@ template <class ELFT> void Writer<ELFT>::writeSections() {
 
   // PPC64 needs to process relocations in the .opd section
   // before processing relocations in code-containing sections.
-  if (auto *OpdCmd = findSection(".opd")) {
+  if (auto *OpdCmd = Script->getOutputSection(".opd")) {
     Out::Opd = OpdCmd;
     Out::OpdBuf = Buf + Out::Opd->Offset;
     OpdCmd->template writeTo<ELFT>(Buf + Out::Opd->Offset);

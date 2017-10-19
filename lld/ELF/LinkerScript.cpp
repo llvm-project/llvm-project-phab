@@ -102,6 +102,13 @@ OutputSection *LinkerScript::getOrCreateOutputSection(StringRef Name) {
   return CmdRef;
 }
 
+OutputSection *LinkerScript::getOutputSection(StringRef Name) {
+  OutputSection *Sec = NameToOutputSection.lookup(Name);
+  if (!Sec || Sec->Location.empty())
+    return nullptr;
+  return Sec;
+}
+
 void LinkerScript::setDot(Expr E, const Twine &Loc, bool InSec) {
   uint64_t Val = E().getValue();
   if (Val < Dot && InSec)
@@ -446,19 +453,9 @@ void LinkerScript::fabricateDefaultCommands() {
                          make<SymbolAssignment>(".", Expr, ""));
 }
 
-static OutputSection *findByName(ArrayRef<BaseCommand *> Vec,
-                                 StringRef Name) {
-  for (BaseCommand *Base : Vec)
-    if (auto *Sec = dyn_cast<OutputSection>(Base))
-      if (Sec->Name == Name)
-        return Sec;
-  return nullptr;
-}
-
 // Add sections that didn't match any sections command.
 void LinkerScript::addOrphanSections(OutputSectionFactory &Factory) {
-  unsigned End = SectionCommands.size();
-
+  std::vector<OutputSection *> V;
   for (InputSectionBase *S : InputSections) {
     if (!S->Live || S->Parent)
       continue;
@@ -466,16 +463,16 @@ void LinkerScript::addOrphanSections(OutputSectionFactory &Factory) {
     StringRef Name = getOutputSectionName(S->Name);
     log(toString(S) + " is being placed in '" + Name + "'");
 
-    if (OutputSection *Sec =
-            findByName(makeArrayRef(SectionCommands).slice(0, End), Name)) {
+    if (OutputSection *Sec = getOutputSection(Name)) {
       Sec->addSection(cast<InputSection>(S));
       continue;
     }
 
     if (OutputSection *OS = Factory.addInputSec(S, Name))
-      SectionCommands.push_back(OS);
+      V.push_back(OS);
     assert(S->getOutputSection()->SectionIndex == INT_MAX);
   }
+  SectionCommands.insert(SectionCommands.end(), V.begin(), V.end());
 }
 
 uint64_t LinkerScript::advance(uint64_t Size, unsigned Alignment) {
