@@ -27,8 +27,8 @@ using namespace clang;
 using namespace ento;
 
 namespace {
-class ArrayBoundCheckerV2 :
-    public Checker<check::Location> {
+class ArrayBoundCheckerV2
+    : public Checker<check::Location, check::PreStmt<DeclStmt>> {
   mutable std::unique_ptr<BuiltinBug> BT;
 
   enum OOB_Kind { OOB_Precedes, OOB_Excedes, OOB_Tainted };
@@ -37,7 +37,8 @@ class ArrayBoundCheckerV2 :
                  OOB_Kind kind) const;
 
 public:
-  void checkLocation(SVal l, bool isLoad, const Stmt*S,
+  void checkPreStmt(const DeclStmt *DS, CheckerContext &C) const;
+  void checkLocation(SVal l, bool isLoad, const Stmt *S,
                      CheckerContext &C) const;
 };
 
@@ -64,7 +65,10 @@ public:
   void dump() const;
   void dumpToStream(raw_ostream &os) const;
 };
-}
+} // namespace
+
+REGISTER_MAP_WITH_PROGRAMSTATE(VariableLengthArrayExtent,
+                               const VariableArrayType *, NonLoc);
 
 static SVal computeExtentBegin(SValBuilder &svalBuilder,
                                const MemRegion *region) {
@@ -111,8 +115,46 @@ getSimplifiedOffsets(NonLoc offset, nonloc::ConcreteInt extent,
   return std::pair<NonLoc, nonloc::ConcreteInt>(offset, extent);
 }
 
+void ArrayBoundCheckerV2::checkPreStmt(const DeclStmt *DS,
+                                       CheckerContext &checkerContext) const {
+  const VarDecl *VD = dyn_cast<VarDecl>(DS->getSingleDecl());
+  if (!VD)
+    return;
+
+  ASTContext &Ctx = checkerContext.getASTContext();
+  const VariableArrayType *VLA = Ctx.getAsVariableArrayType(VD->getType());
+  if (!VLA)
+    return;
+
+  SVal VLASize = checkerContext.getSVal(VLA->getSizeExpr());
+
+  Optional<NonLoc> Sz = VLASize.getAs<NonLoc>();
+  if (!Sz)
+    return;
+
+  ProgramStateRef state = checkerContext.getState();
+  checkerContext.addTransition(
+      state->set<VariableLengthArrayExtent>(VLA, Sz.getValue()));
+}
+
+static const VariableArrayType *getVLAFromExtent(DefinedOrUnknownSVal extentVal,
+                                                 ASTContext &Ctx) {
+  if (extentVal.getSubKind() != nonloc::SymbolValKind)
+    return nullptr;
+
+  SymbolRef SR = extentVal.castAs<nonloc::SymbolVal>().getSymbol();
+  const SymbolExtent *SE = dyn_cast<SymbolExtent>(SR);
+  const MemRegion *SEMR = SE->getRegion();
+  if (SEMR->getKind() != MemRegion::VarRegionKind)
+    return nullptr;
+
+  const VarRegion *VR = cast<VarRegion>(SEMR);
+  QualType T = VR->getDecl()->getType();
+  return Ctx.getAsVariableArrayType(T);
+}
+
 void ArrayBoundCheckerV2::checkLocation(SVal location, bool isLoad,
-                                        const Stmt* LoadS,
+                                        const Stmt *LoadS,
                                         CheckerContext &checkerContext) const {
 
   // NOTE: Instead of using ProgramState::assumeInBound(), we are prototyping
@@ -175,12 +217,20 @@ void ArrayBoundCheckerV2::checkLocation(SVal location, bool isLoad,
   }
 
   do {
+
     // CHECK UPPER BOUND: Is byteOffset >= extent(baseRegion)?  If so,
     // we are doing a load/store after the last valid offset.
     DefinedOrUnknownSVal extentVal =
-      rawOffset.getRegion()->getExtent(svalBuilder);
+        rawOffset.getRegion()->getExtent(svalBuilder);
     if (!extentVal.getAs<NonLoc>())
       break;
+
+    if (const VariableArrayType *VLA =
+            getVLAFromExtent(extentVal, checkerContext.getASTContext())) {
+      const NonLoc *V = state->get<VariableLengthArrayExtent>(VLA);
+      if (V)
+        extentVal = *V;
+    }
 
     if (extentVal.getAs<nonloc::ConcreteInt>()) {
       std::pair<NonLoc, nonloc::ConcreteInt> simplifiedOffsets =

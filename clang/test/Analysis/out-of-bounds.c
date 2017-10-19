@@ -174,3 +174,7 @@ void test_assume_after_access2(unsigned long x) {
   clang_analyzer_eval(x <= 99); // expected-warning{{TRUE}}
 }
 
+void vla(int X) {
+  char buf[X];
+  buf[X] = 0; // expected-warning {{Out of bound memory access (access exceeds upper limit of memory block)}}
+}
