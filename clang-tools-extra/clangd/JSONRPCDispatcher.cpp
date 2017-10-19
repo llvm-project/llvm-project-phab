@@ -17,17 +17,15 @@
 using namespace clang;
 using namespace clangd;
 
-void JSONOutput::writeMessage(const Twine &Message) {
-  llvm::SmallString<128> Storage;
-  StringRef M = Message.toStringRef(Storage);
-
+void JSONOutput::writeMessage(const JSON &Message) {
+  auto Data = Message.dump(/*indent=*/2);
   std::lock_guard<std::mutex> Guard(StreamMutex);
   // Log without headers.
-  Logs << "--> " << M << '\n';
+  Logs << "--> " << Data << '\n';
   Logs.flush();
 
   // Emit message with header.
-  Outs << "Content-Length: " << M.size() << "\r\n\r\n" << M;
+  Outs << "Content-Length: " << Data.size() << "\r\n\r\n" << Data;
   Outs.flush();
 }
 
@@ -45,22 +43,32 @@ void JSONOutput::mirrorInput(const Twine &Message) {
   InputMirror->flush();
 }
 
-void RequestContext::reply(const llvm::Twine &Result) {
+void RequestContext::replyRaw(const llvm::Twine &Result) {
+  reply(parseJSON(Result.str()));
+}
+
+void RequestContext::reply(const JSON &Result) {
   if (ID.empty()) {
     Out.log("Attempted to reply to a notification!\n");
     return;
   }
-  Out.writeMessage(llvm::Twine(R"({"jsonrpc":"2.0","id":)") + ID +
-                   R"(,"result":)" + Result + "}");
+  Out.writeMessage({
+      {"jsonrpc", "2.0"}, {"id", ID}, {"result", Result},  // XXX copy?
+  });
 }
 
-void RequestContext::replyError(int code, const llvm::StringRef &Message) {
-  Out.log("Error " + llvm::Twine(code) + ": " + Message + "\n");
+void RequestContext::replyError(int Code, const llvm::StringRef &Message) {
+  Out.log("Error " + llvm::Twine(Code) + ": " + Message + "\n");
   if (!ID.empty()) {
-    Out.writeMessage(llvm::Twine(R"({"jsonrpc":"2.0","id":)") + ID +
-                     R"(,"error":{"code":)" + llvm::Twine(code) +
-                     R"(,"message":")" + llvm::yaml::escape(Message) +
-                     R"("}})");
+    Out.writeMessage({
+        {"jsonrpc", "2.0"},
+        {"id", ID},
+        {"error",
+         {
+             {"code", Code},
+             {"message", Message},
+         }},
+    });
   }
 }
 
@@ -77,7 +85,8 @@ callHandler(const llvm::StringMap<JSONRPCDispatcher::Handler> &Handlers,
   llvm::SmallString<64> MethodStorage;
   auto I = Handlers.find(Method->getValue(MethodStorage));
   auto &Handler = I != Handlers.end() ? I->second : UnknownHandler;
-  Handler(RequestContext(Out, Id ? Id->getRawValue() : ""), Params);
+  Handler(RequestContext(Out, Id ? parseJSON(Id->getRawValue()) : JSON()),
+          Params);
 }
 
 bool JSONRPCDispatcher::call(StringRef Content, JSONOutput &Out) const {

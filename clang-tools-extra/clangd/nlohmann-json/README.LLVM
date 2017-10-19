@@ -1,0 +1,14 @@
+LLVM Notes
+----------
+
+This is the "JSON for Modern C++" library: https://github.com/nlohmann/json
+All elements have been removed apart from the source code and license, to
+minimize the addition to the LLVM distribution.
+
+We're using an unstable version to allow parsing without exceptions, this
+feature will be released in 3.0.
+
+ - Imported on 2017-10-09 from
+https://raw.githubusercontent.com/nlohmann/json/2e281ba64ba1f239e09e90719a94785762e5f21c/src/json.hpp
+ - Removed one default: case that triggers -Wcovered-switch-default
+ - License renamed from LICENSE.MIT -> LICENSE.TXT to match LLVM conventions.

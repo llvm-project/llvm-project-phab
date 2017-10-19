@@ -5,17 +5,38 @@
 Content-Length: 143
 
 {"jsonrpc":"2.0","id":0,"method":"initialize","params":{"processId":123,"rootUri":"file:///path/to/workspace","capabilities":{},"trace":"off"}}
-# CHECK: Content-Length: 535
-# CHECK: {"jsonrpc":"2.0","id":0,"result":{"capabilities":{
-# CHECK:   "textDocumentSync": 1,
-# CHECK:   "documentFormattingProvider": true,
-# CHECK:   "documentRangeFormattingProvider": true,
-# CHECK:   "documentOnTypeFormattingProvider": {"firstTriggerCharacter":"}","moreTriggerCharacter":[]},
-# CHECK:   "codeActionProvider": true,
-# CHECK:   "completionProvider": {"resolveProvider": false, "triggerCharacters": [".",">",":"]},
-# CHECK:   "signatureHelpProvider": {"triggerCharacters": ["(",","]},
-# CHECK:   "definitionProvider": true
-# CHECK: }}}
+# CHECK: Content-Length: 661
+#      CHECK: {
+# CHECK-NEXT:   "id": 0,
+# CHECK-NEXT:   "jsonrpc": "2.0",
+# CHECK-NEXT:   "result": {
+# CHECK-NEXT:     "capabilities": {
+# CHECK-NEXT:       "codeActionProvider": true,
+# CHECK-NEXT:       "completionProvider": {
+# CHECK-NEXT:         "resolveProvider": false,
+# CHECK-NEXT:         "triggerCharacters": [
+# CHECK-NEXT:           ".",
+# CHECK-NEXT:           ">",
+# CHECK-NEXT:           ":"
+# CHECK-NEXT:         ]
+# CHECK-NEXT:       },
+# CHECK-NEXT:       "definitionProvider": true,
+# CHECK-NEXT:       "documentFormattingProvider": true,
+# CHECK-NEXT:       "documentOnTypeFormattingProvider": {
+# CHECK-NEXT:         "firstTriggerCharacter": "}",
+# CHECK-NEXT:         "moreTriggerCharacter": {}
+# CHECK-NEXT:       },
+# CHECK-NEXT:       "documentRangeFormattingProvider": true,
+# CHECK-NEXT:       "signatureHelpProvider": {
+# CHECK-NEXT:         "triggerCharacters": [
+# CHECK-NEXT:           "(",
+# CHECK-NEXT:           ","
+# CHECK-NEXT:         ]
+# CHECK-NEXT:       },
+# CHECK-NEXT:       "textDocumentSync": 1
+# CHECK-NEXT:     }
+# CHECK-NEXT:   }
+# CHECK-NEXT: }
 #
 Content-Length: 44
 
