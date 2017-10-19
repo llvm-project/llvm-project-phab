@@ -22,9 +22,11 @@
 #include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/ADT/iterator_range.h"
+#include "llvm/Analysis/BlockFrequencyInfo.h"
 #include "llvm/Analysis/ConstantFolding.h"
 #include "llvm/Analysis/MemoryBuiltins.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
+#include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/BasicBlock.h"
@@ -55,6 +57,7 @@
 #include "llvm/Pass.h"
 #include "llvm/Support/AtomicOrdering.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/MathExtras.h"
@@ -88,6 +91,21 @@ STATISTIC(NumNestRemoved   , "Number of nest attributes removed");
 STATISTIC(NumAliasesResolved, "Number of global aliases resolved");
 STATISTIC(NumAliasesRemoved, "Number of global aliases eliminated");
 STATISTIC(NumCXXDtorsRemoved, "Number of global C++ destructors removed");
+STATISTIC(NumInternalFunc, "Number of internal functions");
+STATISTIC(NumColdCC, "Number of functions marked coldcc");
+
+static cl::opt<bool>
+    EnableColdCCStressTest("enable-coldcc-stress-test",
+                           cl::desc("Enable stress test of coldcc by adding "
+                                    "calling conv to all internal functions."),
+                           cl::init(false), cl::Hidden);
+
+static cl::opt<int> ColdCCRelFreq(
+    "coldcc-rel-freq", cl::Hidden, cl::init(10), cl::ZeroOrMore,
+    cl::desc(
+        "Maxmimum block frequency, expressed as a percentage of caller's "
+        "entry frequency, for a callsite to be considered cold for enabling"
+        "coldcc"));
 
 /// Is this global variable possibly used by a leak checker as a root?  If so,
 /// we might not really want to eliminate the stores to it.
@@ -2099,14 +2117,62 @@ static bool isProfitableToMakeFastCC(Function *F) {
   return CC == CallingConv::C || CC == CallingConv::X86_ThisCall;
 }
 
+/// Return true if the block containing the callsite has a BlockFrequency of
+/// less than ColdCCRelFreq% of the entry block.
+static bool IsColdCallSite(CallSite CS, BlockFrequencyInfo &CallerBFI) {
+  const BranchProbability ColdProb(ColdCCRelFreq, 100);
+  auto CallSiteBB = CS.getInstruction()->getParent();
+  auto CallSiteFreq = CallerBFI.getBlockFreq(CallSiteBB);
+  auto CallerEntryFreq =
+      CallerBFI.getBlockFreq(&(CS.getCaller()->getEntryBlock()));
+  return CallSiteFreq < CallerEntryFreq * ColdProb;
+}
+
+
+/// Return true if all blocks that contain callsites to function F are
+/// considered cold by IsColdCallSite.
+static bool
+AllCallSitesCold(Function &F,
+                 function_ref<BlockFrequencyInfo &(Function &)> GetBFI) {
+
+  if (F.user_empty())
+    return false;
+
+  for (User *U : F.users()) {
+    if (isa<BlockAddress>(U))
+      continue;
+
+    CallSite CS(cast<Instruction>(U));
+    Function *CallerFunc = CS.getInstruction()->getParent()->getParent();
+    BlockFrequencyInfo &CallerBFI = GetBFI(*CallerFunc);
+    if (!IsColdCallSite(CS, CallerBFI)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+static void ChangeCalleesToColdCall(Function *F) {
+  for (User *U : F->users()) {
+    if (isa<BlockAddress>(U))
+      continue;
+    CallSite CS(cast<Instruction>(U));
+    CS.setCallingConv(CallingConv::Cold);
+  }
+}
+
 static bool
 OptimizeFunctions(Module &M, TargetLibraryInfo *TLI,
+                  function_ref<TargetTransformInfo &(Function &)> GetTTI,
+                  function_ref<BlockFrequencyInfo &(Function &)> GetBFI,
                   function_ref<DominatorTree &(Function &)> LookupDomTree,
                   SmallSet<const Comdat *, 8> &NotDiscardableComdats) {
+
   bool Changed = false;
   // Optimize functions.
   for (Module::iterator FI = M.begin(), E = M.end(); FI != E; ) {
     Function *F = &*FI++;
+
     // Functions without names cannot be referenced outside this module.
     if (!F->hasName() && !F->isDeclaration() && !F->hasLocalLinkage())
       F->setLinkage(GlobalValue::InternalLinkage);
@@ -2138,6 +2204,24 @@ OptimizeFunctions(Module &M, TargetLibraryInfo *TLI,
 
     if (!F->hasLocalLinkage())
       continue;
+
+    // If the target enables coldcc, check for either stress testing
+    // or functions which are cold at all call sites and change the
+    // calling convention to coldcc.
+    TargetTransformInfo &TTI = GetTTI(*F);
+    if (TTI.enableColdCC()) {
+      if (F->getCallingConv() != CallingConv::Cold && !F->isVarArg() &&
+          !F->hasAddressTaken()) {
+        NumInternalFunc++;
+        if (EnableColdCCStressTest || AllCallSitesCold(*F, GetBFI)) {
+          F->setCallingConv(CallingConv::Cold);
+          ChangeCalleesToColdCall(F);
+          Changed = true;
+          NumColdCC++;
+        }
+      }
+    }
+
     if (isProfitableToMakeFastCC(F) && !F->isVarArg() &&
         !F->hasAddressTaken()) {
       // If this function has a calling convention worth changing, is not a
@@ -2615,6 +2699,8 @@ static bool OptimizeEmptyGlobalCXXDtors(Function *CXAAtExitFn) {
 
 static bool optimizeGlobalsInModule(
     Module &M, const DataLayout &DL, TargetLibraryInfo *TLI,
+    function_ref<TargetTransformInfo &(Function &)> GetTTI,
+    function_ref<BlockFrequencyInfo &(Function &)> GetBFI,
     function_ref<DominatorTree &(Function &)> LookupDomTree) {
   SmallSet<const Comdat *, 8> NotDiscardableComdats;
   bool Changed = false;
@@ -2637,8 +2723,8 @@ static bool optimizeGlobalsInModule(
           NotDiscardableComdats.insert(C);
 
     // Delete functions that are trivially dead, ccc -> fastcc
-    LocalChange |=
-        OptimizeFunctions(M, TLI, LookupDomTree, NotDiscardableComdats);
+    LocalChange |= OptimizeFunctions(M, TLI, GetTTI, GetBFI, LookupDomTree,
+                                     NotDiscardableComdats);
 
     // Optimize global_ctors list.
     LocalChange |= optimizeGlobalCtorsList(M, [&](Function *F) {
@@ -2675,7 +2761,15 @@ PreservedAnalyses GlobalOptPass::run(Module &M, ModuleAnalysisManager &AM) {
     auto LookupDomTree = [&FAM](Function &F) -> DominatorTree &{
       return FAM.getResult<DominatorTreeAnalysis>(F);
     };
-    if (!optimizeGlobalsInModule(M, DL, &TLI, LookupDomTree))
+    auto GetTTI = [&FAM](Function &F) -> TargetTransformInfo & {
+      return FAM.getResult<TargetIRAnalysis>(F);
+    };
+
+    auto GetBFI = [&FAM](Function &F) -> BlockFrequencyInfo & {
+      return FAM.getResult<BlockFrequencyAnalysis>(F);
+    };
+
+    if (!optimizeGlobalsInModule(M, DL, &TLI, GetTTI, GetBFI, LookupDomTree))
       return PreservedAnalyses::all();
     return PreservedAnalyses::none();
 }
@@ -2698,11 +2792,21 @@ struct GlobalOptLegacyPass : public ModulePass {
     auto LookupDomTree = [this](Function &F) -> DominatorTree & {
       return this->getAnalysis<DominatorTreeWrapperPass>(F).getDomTree();
     };
-    return optimizeGlobalsInModule(M, DL, TLI, LookupDomTree);
+    auto GetTTI = [this](Function &F) -> TargetTransformInfo & {
+      return this->getAnalysis<TargetTransformInfoWrapperPass>().getTTI(F);
+    };
+
+    auto GetBFI = [this](Function &F) -> BlockFrequencyInfo & {
+      return this->getAnalysis<BlockFrequencyInfoWrapperPass>(F).getBFI();
+    };
+
+    return optimizeGlobalsInModule(M, DL, TLI, GetTTI, GetBFI, LookupDomTree);
   }
 
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.addRequired<TargetLibraryInfoWrapperPass>();
+    AU.addRequired<TargetTransformInfoWrapperPass>();
+    AU.addRequired<BlockFrequencyInfoWrapperPass>();
     AU.addRequired<DominatorTreeWrapperPass>();
   }
 };
@@ -2714,6 +2818,8 @@ char GlobalOptLegacyPass::ID = 0;
 INITIALIZE_PASS_BEGIN(GlobalOptLegacyPass, "globalopt",
                       "Global Variable Optimizer", false, false)
 INITIALIZE_PASS_DEPENDENCY(TargetLibraryInfoWrapperPass)
+INITIALIZE_PASS_DEPENDENCY(TargetTransformInfoWrapperPass)
+INITIALIZE_PASS_DEPENDENCY(BlockFrequencyInfoWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(DominatorTreeWrapperPass)
 INITIALIZE_PASS_END(GlobalOptLegacyPass, "globalopt",
                     "Global Variable Optimizer", false, false)

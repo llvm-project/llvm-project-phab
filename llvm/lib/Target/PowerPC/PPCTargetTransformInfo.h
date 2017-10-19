@@ -59,7 +59,7 @@ public:
 
   /// \name Vector TTI Implementations
   /// @{
-
+  bool enableColdCC();
   bool enableAggressiveInterleaving(bool LoopHasReductions);
   bool enableMemCmpExpansion(unsigned &MaxLoadSize);
   bool enableInterleavedAccessVectorization();

@@ -281,6 +281,8 @@ public:
   bool shouldBuildLookupTables() { return true; }
   bool shouldBuildLookupTablesForConstant(Constant *C) { return true; }
 
+  bool enableColdCC() { return false; }
+
   unsigned getScalarizationOverhead(Type *Ty, bool Insert, bool Extract) {
     return 0;
   }
