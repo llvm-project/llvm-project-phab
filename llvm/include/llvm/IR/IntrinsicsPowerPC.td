@@ -1135,3 +1135,130 @@ def int_ppc_ttest : GCCBuiltin<"__builtin_ttest">,
 
 def int_ppc_cfence : Intrinsic<[], [llvm_anyint_ty], []>;
 }
+
+//===----------------------------------------------------------------------===//
+// PowerPC SPE Intrinsic Definitions.
+
+let TargetPrefix = "ppc" in {  // All intrinsics start with "llvm.ppc.".
+
+/// PowerPC_SPE_Intrinsic - Base class for all SPE intrinsics.
+class PowerPC_SPE_Intrinsic<string GCCIntSuffix, list<LLVMType> ret_types,
+                            list<LLVMType> param_types,
+                            list<IntrinsicProperty> properties>
+  : GCCBuiltin<!strconcat("__builtin_spe_", GCCIntSuffix)>,
+    Intrinsic<ret_types, param_types, properties>;
+
+/// Single argument
+class PowerPC_SPE_Vec_Intrinsic21<string GCCIntSuffix,
+                                  LLVMType rt, LLVMType vec_type>
+      : PowerPC_SPE_Intrinsic<GCCIntSuffix, [rt], [vec_type], [IntrNoMem]>;
+
+class PowerPC_SPE_Vec_Intrinsic1<string GCCIntSuffix, LLVMType vec_type>
+      : PowerPC_SPE_Intrinsic<GCCIntSuffix, [vec_type], [vec_type], [IntrNoMem]>;
+
+/// Two argument (vectors)
+class PowerPC_SPE_Vec_Intrinsic2<string GCCIntSuffix, LLVMType vec_type>
+      : PowerPC_SPE_Intrinsic<GCCIntSuffix, [vec_type],
+                              [vec_type, vec_type], [IntrNoMem]>;
+
+/// Single plus immediate
+class PowerPC_SPE_Vec_IntrinsicI<string GCCIntSuffix, LLVMType vec_type,
+                                 LLVMType imm>
+      : PowerPC_SPE_Intrinsic<GCCIntSuffix, [vec_type],
+                              [vec_type, imm], [IntrNoMem]>;
+
+class PowerPC_SPE_Vec_I1<string GCCIntSuffix>
+      : PowerPC_SPE_Vec_Intrinsic1<GCCIntSuffix, llvm_v2i32_ty>;
+
+class PowerPC_SPE_Vec_I2<string GCCIntSuffix>
+      : PowerPC_SPE_Vec_Intrinsic1<GCCIntSuffix, llvm_v2i32_ty>;
+
+class PowerPC_SPE_Vec_II<string GCCIntSuffix>
+      : PowerPC_SPE_Vec_IntrinsicI<GCCIntSuffix, llvm_v2i32_ty, llvm_i32_ty>;
+
+class PowerPC_SPE_Vec_F1<string GCCIntSuffix>
+      : PowerPC_SPE_Vec_Intrinsic1<GCCIntSuffix, llvm_v2f32_ty>;
+
+class PowerPC_SPE_Vec_F2<string GCCIntSuffix>
+      : PowerPC_SPE_Vec_Intrinsic1<GCCIntSuffix, llvm_v2f32_ty>;
+
+
+def int_ppc_spe_brinc :
+      PowerPC_SPE_Intrinsic<"brinc", [llvm_i32_ty], [llvm_i32_ty], [IntrNoMem]>;
+
+def int_ppc_spe_evabs : PowerPC_SPE_Vec_I1<"evabs">;
+def int_ppc_spe_evneg : PowerPC_SPE_Vec_I1<"evneg">;
+def int_ppc_spe_evaddiw : PowerPC_SPE_Vec_II<"evaddiw">;
+def int_ppc_spe_evaddw : PowerPC_SPE_Vec_I2<"evaddw">;
+def int_ppc_spe_evsubfiw : PowerPC_SPE_Vec_II<"evsubfiw">;
+def int_ppc_spe_evsubfw: PowerPC_SPE_Vec_I2<"evsubfw">;
+def int_ppc_spe_evand: PowerPC_SPE_Vec_I2<"evand">;
+def int_ppc_spe_evandc: PowerPC_SPE_Vec_I2<"evandc">;
+def int_ppc_spe_evnand: PowerPC_SPE_Vec_I2<"evnand">;
+def int_ppc_spe_evor: PowerPC_SPE_Vec_I2<"evor">;
+def int_ppc_spe_evorc: PowerPC_SPE_Vec_I2<"evorc">;
+def int_ppc_spe_evnor: PowerPC_SPE_Vec_I2<"evnor">;
+def int_ppc_spe_evextsb : PowerPC_SPE_Vec_I1<"evextsb">;
+def int_ppc_spe_evextsh : PowerPC_SPE_Vec_I1<"evextsh">;
+def int_ppc_spe_evrlw : PowerPC_SPE_Vec_I2<"evrlw">;
+def int_ppc_spe_evrlwi : PowerPC_SPE_Vec_II<"evrlwi">;
+def int_ppc_spe_evslw : PowerPC_SPE_Vec_I2<"evslw">;
+def int_ppc_spe_evslwi : PowerPC_SPE_Vec_II<"evslwi">;
+def int_ppc_spe_evsrws : PowerPC_SPE_Vec_I2<"evsrws">;
+def int_ppc_spe_evsrwis : PowerPC_SPE_Vec_I2<"evsrwis">;
+def int_ppc_spe_evsrwu : PowerPC_SPE_Vec_I2<"evsrwu">;
+def int_ppc_spe_evsrwiu : PowerPC_SPE_Vec_I2<"evsrwiu">;
+def int_ppc_spe_evcntlsw : PowerPC_SPE_Vec_I1<"evcntlsw">;
+def int_ppc_spe_evcntlzw : PowerPC_SPE_Vec_I1<"evcntlzw">;
+def int_ppc_spe_evrndw : PowerPC_SPE_Vec_I1<"evrndw">;
+def int_ppc_spe_evmergehi : PowerPC_SPE_Vec_I2<"evmergehi">;
+def int_ppc_spe_evmergelo : PowerPC_SPE_Vec_I2<"evmergelo">;
+def int_ppc_spe_evmergehilo : PowerPC_SPE_Vec_I2<"evmergehilo">;
+def int_ppc_spe_evmergelohi : PowerPC_SPE_Vec_I2<"evmergelohi">;
+def int_ppc_spe_evsplati : PowerPC_SPE_Intrinsic<"evsplati",
+                          [llvm_v2i32_ty], [llvm_i32_ty], [IntrNoMem]>;
+def int_ppc_spe_evsplatfi : PowerPC_SPE_Intrinsic<"evsplatfi",
+                          [llvm_v2i32_ty], [llvm_i32_ty], [IntrNoMem]>;
+def int_ppc_spe_divws : PowerPC_SPE_Vec_I2<"evdivws">;
+def int_ppc_spe_divwu : PowerPC_SPE_Vec_I2<"evdivwu">;
+def int_ppc_spe_mra : PowerPC_SPE_Vec_I1<"evmra">;
+
+def int_ppc_spe_evfsabs : PowerPC_SPE_Vec_F1<"evfsabs">;
+def int_ppc_spe_evfsnabs : PowerPC_SPE_Vec_F1<"evfsnabs">;
+def int_ppc_spe_evfsneg : PowerPC_SPE_Vec_F1<"evfsneg">;
+def int_ppc_spe_evfsadd : PowerPC_SPE_Vec_F2<"evfsadd">;
+def int_ppc_spe_evfssub : PowerPC_SPE_Vec_F2<"evfssub">;
+def int_ppc_spe_evfsmul : PowerPC_SPE_Vec_F2<"evfsmul">;
+def int_ppc_spe_evfsdiv : PowerPC_SPE_Vec_F2<"evfsdiv">;
+def int_ppc_spe_evfcfui : PowerPC_SPE_Vec_Intrinsic21<"evfscfui",
+                                                      llvm_v2f32_ty,
+                                                      llvm_v2i32_ty>;
+def int_ppc_spe_evfcfsi : PowerPC_SPE_Vec_Intrinsic21<"evfscfsi",
+                                                      llvm_v2f32_ty,
+                                                      llvm_v2i32_ty>;
+def int_ppc_spe_evfcfuf : PowerPC_SPE_Vec_Intrinsic21<"evfscfuf",
+                                                      llvm_v2f32_ty,
+                                                      llvm_v2i32_ty>;
+def int_ppc_spe_evfcfsf : PowerPC_SPE_Vec_Intrinsic21<"evfscfsf",
+                                                      llvm_v2f32_ty,
+                                                      llvm_v2i32_ty>;
+
+def int_ppc_spe_evfctui : PowerPC_SPE_Vec_Intrinsic21<"evfsctui",
+                                                      llvm_v2i32_ty,
+                                                      llvm_v2f32_ty>;
+def int_ppc_spe_evfctsi : PowerPC_SPE_Vec_Intrinsic21<"evfsctsi",
+                                                      llvm_v2i32_ty,
+                                                      llvm_v2f32_ty>;
+def int_ppc_spe_evfctuf : PowerPC_SPE_Vec_Intrinsic21<"evfsctuf",
+                                                      llvm_v2i32_ty,
+                                                      llvm_v2f32_ty>;
+def int_ppc_spe_evfctsf : PowerPC_SPE_Vec_Intrinsic21<"evfsctsf",
+                                                      llvm_v2i32_ty,
+                                                      llvm_v2f32_ty>;
+def int_ppc_spe_evfctuiz : PowerPC_SPE_Vec_Intrinsic21<"evfsctuiz",
+                                                      llvm_v2i32_ty,
+                                                      llvm_v2f32_ty>;
+def int_ppc_spe_evfctsiz : PowerPC_SPE_Vec_Intrinsic21<"evfsctsiz",
+                                                      llvm_v2i32_ty,
+                                                      llvm_v2f32_ty>;
+}

@@ -132,8 +132,15 @@ PPCTargetLowering::PPCTargetLowering(const PPCTargetMachine &TM,
   // Set up the register classes.
   addRegisterClass(MVT::i32, &PPC::GPRCRegClass);
   if (!useSoftFloat()) {
-    addRegisterClass(MVT::f32, &PPC::F4RCRegClass);
-    addRegisterClass(MVT::f64, &PPC::F8RCRegClass);
+    if (hasSPE()) {
+      addRegisterClass(MVT::f32, &PPC::SPE4RCRegClass);
+      addRegisterClass(MVT::f64, &PPC::SPERCRegClass);
+      addRegisterClass(MVT::v2i32, &PPC::SPERCRegClass);
+      addRegisterClass(MVT::v2f32, &PPC::SPERCRegClass);
+    } else {
+      addRegisterClass(MVT::f32, &PPC::F4RCRegClass);
+      addRegisterClass(MVT::f64, &PPC::F8RCRegClass);
+    }
   }
 
   // Match BITREVERSE to customized fast code sequence in the td file.
@@ -335,12 +342,19 @@ PPCTargetLowering::PPCTargetLowering(const PPCTargetMachine &TM,
 
   setOperationAction(ISD::BR_JT,  MVT::Other, Expand);
 
-  // PowerPC turns FP_TO_SINT into FCTIWZ and some load/stores.
-  setOperationAction(ISD::FP_TO_SINT, MVT::i32, Custom);
+  if (Subtarget.hasSPE()) {
+    // SPE has built-in conversions
+    setOperationAction(ISD::FP_TO_SINT, MVT::i32, Legal);
+    setOperationAction(ISD::SINT_TO_FP, MVT::i32, Legal);
+    setOperationAction(ISD::UINT_TO_FP, MVT::i32, Legal);
+  } else {
+    // PowerPC turns FP_TO_SINT into FCTIWZ and some load/stores.
+    setOperationAction(ISD::FP_TO_SINT, MVT::i32, Custom);
 
-  // PowerPC does not have [U|S]INT_TO_FP
-  setOperationAction(ISD::SINT_TO_FP, MVT::i32, Expand);
-  setOperationAction(ISD::UINT_TO_FP, MVT::i32, Expand);
+    // PowerPC does not have [U|S]INT_TO_FP
+    setOperationAction(ISD::SINT_TO_FP, MVT::i32, Expand);
+    setOperationAction(ISD::UINT_TO_FP, MVT::i32, Expand);
+  }
 
   if (Subtarget.hasDirectMove() && isPPC64) {
     setOperationAction(ISD::BITCAST, MVT::f32, Legal);
@@ -465,7 +479,10 @@ PPCTargetLowering::PPCTargetLowering(const PPCTargetMachine &TM,
       setOperationAction(ISD::SINT_TO_FP, MVT::i32, Custom);
   } else {
     // PowerPC does not have FP_TO_UINT on 32-bit implementations.
-    setOperationAction(ISD::FP_TO_UINT, MVT::i32, Expand);
+    if (Subtarget.hasSPE())
+      setOperationAction(ISD::FP_TO_UINT, MVT::i32, Legal);
+    else
+      setOperationAction(ISD::FP_TO_UINT, MVT::i32, Expand);
   }
 
   // With the instructions enabled under FPCVT, we can do everything.
@@ -499,6 +516,19 @@ PPCTargetLowering::PPCTargetLowering(const PPCTargetMachine &TM,
     setOperationAction(ISD::SRL_PARTS, MVT::i32, Custom);
   }
 
+  if (Subtarget.hasSPE()) {
+    setOperationAction(ISD::ADD, MVT::v2i32, Legal);
+    setOperationAction(ISD::ADD, MVT::v2f32, Legal);
+    setOperationAction(ISD::SUB, MVT::v2i32, Legal);
+    setOperationAction(ISD::SUB, MVT::v2f32, Legal);
+
+    setOperationAction(ISD::AND, MVT::v2i32, Legal);
+    setOperationAction(ISD::OR, MVT::v2i32, Legal);
+    setOperationAction(ISD::XOR, MVT::v2i32, Legal);
+
+    setOperationAction(ISD::SETCC, MVT::v2i32, Legal);
+    setOperationAction(ISD::SETCC, MVT::v2f32, Legal);
+  }
   if (Subtarget.hasAltivec()) {
     // First set operation action for all vector types to expand. Then we
     // will selectively turn on ones that can be effectively codegen'd.
@@ -1024,6 +1054,7 @@ PPCTargetLowering::PPCTargetLowering(const PPCTargetMachine &TM,
   default: break;
   case PPC::DIR_970:
   case PPC::DIR_A2:
+  case PPC::DIR_E500:
   case PPC::DIR_E500mc:
   case PPC::DIR_E5500:
   case PPC::DIR_PWR4:
@@ -1114,8 +1145,32 @@ unsigned PPCTargetLowering::getByValTypeAlignment(Type *Ty,
   return Align;
 }
 
+unsigned PPCTargetLowering::getNumRegistersForCallingConv(LLVMContext &Context,
+                                                          EVT VT) const {
+  if (Subtarget.hasSPE() && VT == MVT::f64)
+    return 2;
+  return PPCTargetLowering::getNumRegisters(Context, VT);
+}
+
+MVT PPCTargetLowering::getRegisterTypeForCallingConv(LLVMContext &Context,
+                                                     EVT VT) const {
+  if (Subtarget.hasSPE() && VT == MVT::f64)
+    return MVT::i32;
+  return PPCTargetLowering::getRegisterType(Context, VT);
+}
+
+MVT PPCTargetLowering::getRegisterTypeForCallingConv(MVT VT) const {
+  if (Subtarget.hasSPE() && VT == MVT::f64)
+    return MVT::i32;
+  return PPCTargetLowering::getRegisterType(VT);
+}
+
 bool PPCTargetLowering::useSoftFloat() const {
   return Subtarget.useSoftFloat();
+}
+
+bool PPCTargetLowering::hasSPE() const {
+  return Subtarget.hasSPE();
 }
 
 const char *PPCTargetLowering::getTargetNodeName(unsigned Opcode) const {
@@ -3271,7 +3326,7 @@ SDValue PPCTargetLowering::LowerFormalArguments_32SVR4(
   // Reserve space for the linkage area on the stack.
   unsigned LinkageSize = Subtarget.getFrameLowering()->getLinkageSize();
   CCInfo.AllocateStack(LinkageSize, PtrByteSize);
-  if (useSoftFloat())
+  if (useSoftFloat() || hasSPE())
     CCInfo.PreAnalyzeFormalArguments(Ins);
 
   CCInfo.AnalyzeFormalArguments(Ins, CC_PPC32_SVR4);
@@ -3295,12 +3350,16 @@ SDValue PPCTargetLowering::LowerFormalArguments_32SVR4(
         case MVT::f32:
           if (Subtarget.hasP8Vector())
             RC = &PPC::VSSRCRegClass;
+          else if (Subtarget.hasSPE())
+            RC = &PPC::SPE4RCRegClass;
           else
             RC = &PPC::F4RCRegClass;
           break;
         case MVT::f64:
           if (Subtarget.hasVSX())
             RC = &PPC::VSFRCRegClass;
+          else if (Subtarget.hasSPE())
+            RC = &PPC::SPERCRegClass;
           else
             RC = &PPC::F8RCRegClass;
           break;
@@ -3321,6 +3380,10 @@ SDValue PPCTargetLowering::LowerFormalArguments_32SVR4(
           break;
         case MVT::v4i1:
           RC = &PPC::QBRCRegClass;
+          break;
+        case MVT::v2i32:
+        case MVT::v2f32:
+          RC= &PPC::SPERCRegClass;
           break;
       }
 
@@ -3389,7 +3452,7 @@ SDValue PPCTargetLowering::LowerFormalArguments_32SVR4(
     };
     unsigned NumFPArgRegs = array_lengthof(FPArgRegs);
 
-    if (useSoftFloat())
+    if (useSoftFloat() || hasSPE())
        NumFPArgRegs = 0;
 
     FuncInfo->setVarArgsNumGPR(CCInfo.getFirstUnallocated(GPArgRegs));
@@ -8426,6 +8489,11 @@ SDValue PPCTargetLowering::LowerINTRINSIC_WO_CHAIN(SDValue Op,
     return DAG.getRegister(PPC::R2, MVT::i32);
   }
 
+  if (IntrinsicID == Intrinsic::ppc_spe_evabs) {
+    SDValue V = Op.getOperand(1);
+    return DAG.getNode(ISD::ABS, dl, V.getValueType(), V);
+  }
+
   // We are looking for absolute values here.
   // The idea is to try to fit one of two patterns:
   //  max (a, (0-a))  OR  max ((0-a), a)
@@ -9745,10 +9813,14 @@ PPCTargetLowering::EmitInstrWithCustomInserter(MachineInstr &MI,
              MI.getOpcode() == PPC::SELECT_CC_VSFRC ||
              MI.getOpcode() == PPC::SELECT_CC_VSSRC ||
              MI.getOpcode() == PPC::SELECT_CC_VSRC ||
+             MI.getOpcode() == PPC::SELECT_CC_SPE4 ||
+             MI.getOpcode() == PPC::SELECT_CC_SPE ||
              MI.getOpcode() == PPC::SELECT_I4 ||
              MI.getOpcode() == PPC::SELECT_I8 ||
              MI.getOpcode() == PPC::SELECT_F4 ||
              MI.getOpcode() == PPC::SELECT_F8 ||
+             MI.getOpcode() == PPC::SELECT_SPE4 ||
+             MI.getOpcode() == PPC::SELECT_SPE ||
              MI.getOpcode() == PPC::SELECT_QFRC ||
              MI.getOpcode() == PPC::SELECT_QSRC ||
              MI.getOpcode() == PPC::SELECT_QBRC ||
@@ -10336,6 +10408,7 @@ unsigned PPCTargetLowering::combineRepeatedFPDivisors() const {
     return 3;
   case PPC::DIR_440:
   case PPC::DIR_A2:
+  case PPC::DIR_E500:
   case PPC::DIR_E500mc:
   case PPC::DIR_E5500:
     return 2;
@@ -12731,14 +12804,21 @@ PPCTargetLowering::getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
     // really care overly much here so just give them all the same reg classes.
     case 'd':
     case 'f':
-      if (VT == MVT::f32 || VT == MVT::i32)
-        return std::make_pair(0U, &PPC::F4RCRegClass);
-      if (VT == MVT::f64 || VT == MVT::i64)
-        return std::make_pair(0U, &PPC::F8RCRegClass);
-      if (VT == MVT::v4f64 && Subtarget.hasQPX())
-        return std::make_pair(0U, &PPC::QFRCRegClass);
-      if (VT == MVT::v4f32 && Subtarget.hasQPX())
-        return std::make_pair(0U, &PPC::QSRCRegClass);
+      if (Subtarget.hasSPE()) {
+        if (VT == MVT::f32 || VT == MVT::i32)
+          return std::make_pair(0U, &PPC::SPE4RCRegClass);
+        if (VT == MVT::f64 || VT == MVT::i64)
+          return std::make_pair(0U, &PPC::SPERCRegClass);
+      } else {
+        if (VT == MVT::f32 || VT == MVT::i32)
+          return std::make_pair(0U, &PPC::F4RCRegClass);
+        if (VT == MVT::f64 || VT == MVT::i64)
+          return std::make_pair(0U, &PPC::F8RCRegClass);
+        if (VT == MVT::v4f64 && Subtarget.hasQPX())
+          return std::make_pair(0U, &PPC::QFRCRegClass);
+        if (VT == MVT::v4f32 && Subtarget.hasQPX())
+          return std::make_pair(0U, &PPC::QSRCRegClass);
+      }
       break;
     case 'v':
       if (VT == MVT::v4f64 && Subtarget.hasQPX())

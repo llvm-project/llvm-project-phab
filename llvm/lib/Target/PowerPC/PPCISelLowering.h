@@ -560,6 +560,8 @@ namespace llvm {
 
     bool useSoftFloat() const override;
 
+    bool hasSPE() const;
+
     MVT getScalarShiftAmountTy(const DataLayout &, EVT) const override {
       return MVT::i32;
     }
@@ -853,6 +855,13 @@ namespace llvm {
     const MCExpr *getPICJumpTableRelocBaseExpr(const MachineFunction *MF,
                                                unsigned JTI,
                                                MCContext &Ctx) const override;
+
+    unsigned getNumRegistersForCallingConv(LLVMContext &Context,
+                                           EVT VT) const override;
+
+    MVT getRegisterTypeForCallingConv(MVT VT) const override;
+    MVT getRegisterTypeForCallingConv(LLVMContext &Context,
+                                      EVT VT) const override;
 
   private:
     struct ReuseLoadInfo {
