@@ -559,6 +559,108 @@ SVal SimpleSValBuilder::evalBinOpNN(ProgramStateRef state,
       if (const llvm::APSInt *RHSValue = getKnownValue(state, rhs))
         return MakeSymIntVal(Sym, op, *RHSValue, resultTy);
 
+      // If comparing two symbolic expressions of the format S, S+n or S-n
+      // rearrange the comparison by moving symbols to the left side and the
+      // concrete integer to the right. This enables the range based constraint
+      // manager to handle these comparisons.
+      if (BinaryOperator::isComparisonOp(op) &&
+          rhs.getSubKind() == nonloc::SymbolValKind) {
+        SymbolRef rSym = rhs.castAs<nonloc::SymbolVal>().getSymbol();
+        if (Sym->getType()->isIntegerType() &&
+            rSym->getType()->isIntegerType()) {
+          const llvm::APSInt *lInt = nullptr, *rInt = nullptr;
+          BinaryOperator::Opcode lop, rop;
+
+          // Type of n in S+n or S-n is the same as the type of S+n or S-n.
+          // Since they are equal on both sides, no need to convert them.
+          if (const SymIntExpr *lSymIntExpr = dyn_cast<SymIntExpr>(Sym)) {
+            lop = lSymIntExpr->getOpcode();
+            if (BinaryOperator::isAdditiveOp(lop)) {
+              lInt = &lSymIntExpr->getRHS();
+              Sym = lSymIntExpr->getLHS();
+            }
+          }
+          if (const SymIntExpr *rSymIntExpr = dyn_cast<SymIntExpr>(rSym)) {
+            rop = rSymIntExpr->getOpcode();
+            if (BinaryOperator::isAdditiveOp(rop)) {
+              rInt = &rSymIntExpr->getRHS();
+              rSym = rSymIntExpr->getLHS();
+            }
+          }
+
+          auto origWidth =
+            std::max(BasicVals.getAPSIntType(Sym->getType()).getBitWidth(),
+                     BasicVals.getAPSIntType(rSym->getType()).getBitWidth());
+
+          if (origWidth < 128) {
+            auto newWidth = std::max(2 * origWidth, (uint32_t) 8);
+            auto newAPSIntType = APSIntType(newWidth, false);
+            bool reverse; // Avoid negative numbers in case of unsigned types
+            const llvm::APSInt *newRhs;
+            if (lInt && rInt) {
+              auto lIntExt = (Sym != rSym) ? newAPSIntType.convert(*lInt) :
+                                             (*lInt);
+              auto rIntExt = (Sym != rSym) ? newAPSIntType.convert(*rInt) :
+                                             (*rInt);
+              if (lop != rop) {
+                newRhs = &BasicVals.getValue(lIntExt + rIntExt);
+                reverse = (lop == BO_Add);
+              } else {
+                if (*lInt >= *rInt) {
+                  newRhs = &BasicVals.getValue(lIntExt - rIntExt);
+                  reverse = (lop == BO_Add);
+                } else {
+                  newRhs = &BasicVals.getValue(rIntExt - lIntExt);
+                  reverse = (lop == BO_Sub);
+                }
+              }
+            } else if (lInt) {
+              auto lIntExt = (Sym != rSym) ? newAPSIntType.convert(*lInt) :
+                                             (*lInt);
+              newRhs = &BasicVals.getValue(lIntExt);
+              reverse = (lop == BO_Add);
+            } else if (rInt) {
+              auto rIntExt = (Sym != rSym) ? newAPSIntType.convert(*rInt) :
+                                             (*rInt);
+              newRhs = &BasicVals.getValue(rIntExt);
+              reverse = (rop == BO_Sub);
+            } else {
+              newRhs = &BasicVals.getValue(llvm::APSInt(newWidth, false));
+              reverse = false;
+            }
+
+            if (*newRhs < 0) {
+              newRhs = &BasicVals.getValue(-*newRhs);
+              reverse = !reverse;
+            }
+
+            if (reverse) {
+              op = BinaryOperator::reverseComparisonOp(op);
+            }
+
+            if (Sym == rSym) {
+              return nonloc::ConcreteInt(*BasicVals.evalAPSInt(
+                        op, APSIntType(*newRhs).getZeroValue(), *newRhs));
+            }
+
+            auto &AC = state->getStateManager().getContext();
+            auto newType = AC.getIntTypeForBitwidth(newWidth, true);
+
+            const SymExpr *castedSym = SymMgr.getCastSymbol(Sym, Sym->getType(),
+                                                           newType);
+            const SymExpr *castedRSym = SymMgr.getCastSymbol(rSym,
+                                                             rSym->getType(),
+                                                             newType);
+
+            const SymExpr *newLhs =
+              reverse
+              ? SymMgr.getSymSymExpr(castedRSym, BO_Sub, castedSym, newType)
+              : SymMgr.getSymSymExpr(castedSym, BO_Sub, castedRSym, newType);
+            return makeNonLoc(newLhs, op, *newRhs, resultTy);
+          }
+        }
+      }
+
       // Give up -- this is not a symbolic expression we can handle.
       return makeSymExprValNN(state, op, InputLHS, InputRHS, resultTy);
     }
