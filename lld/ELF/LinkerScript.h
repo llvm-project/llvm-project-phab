@@ -212,6 +212,7 @@ class LinkerScript final {
   std::vector<size_t> getPhdrIndices(OutputSection *Sec);
 
   MemoryRegion *findMemoryRegion(OutputSection *Sec);
+  MemoryRegion *findMemoryRegion(StringRef Name);
 
   void switchTo(OutputSection *Sec);
   uint64_t advance(uint64_t Size, unsigned Align);

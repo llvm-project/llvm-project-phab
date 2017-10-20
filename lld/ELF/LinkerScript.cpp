@@ -539,9 +539,8 @@ MemoryRegion *LinkerScript::findMemoryRegion(OutputSection *Sec) {
   // If a memory region name was specified in the output section command,
   // then try to find that region first.
   if (!Sec->MemoryRegionName.empty()) {
-    auto It = MemoryRegions.find(Sec->MemoryRegionName);
-    if (It != MemoryRegions.end())
-      return It->second;
+    if (MemoryRegion *M = findMemoryRegion(Sec->MemoryRegionName))
+      return M;
     error("memory region '" + Sec->MemoryRegionName + "' not declared");
     return nullptr;
   }
@@ -565,6 +564,13 @@ MemoryRegion *LinkerScript::findMemoryRegion(OutputSection *Sec) {
   return nullptr;
 }
 
+MemoryRegion *LinkerScript::findMemoryRegion(StringRef Name) {
+  auto It = MemoryRegions.find(Name);
+  if (It != MemoryRegions.end())
+    return It->second;
+  return nullptr;
+}
+
 // This function assigns offsets to input sections and an output section
 // for a single sections command (e.g. ".text { *(.text); }").
 void LinkerScript::assignOffsets(OutputSection *Sec) {
@@ -581,6 +587,11 @@ void LinkerScript::assignOffsets(OutputSection *Sec) {
     uint64_t D = Dot;
     Ctx->LMAOffset = [=] { return Sec->LMAExpr().getValue() - D; };
   }
+
+  if (!Sec->LMARegionName.empty())
+    Ctx->LMAOffset = [=] {
+      return Ctx->MemRegionOffset[findMemoryRegion(Sec->LMARegionName)];
+    };
 
   switchTo(Sec);
 
