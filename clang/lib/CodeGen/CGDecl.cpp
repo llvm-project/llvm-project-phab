@@ -158,6 +158,13 @@ void CodeGenFunction::EmitVarDecl(const VarDecl &D) {
     // Don't emit it now, allow it to be emitted lazily on its first use.
     return;
 
+   // Samplers in constant address space are handled as a special case
+   // unlike other variables they are not generated as globals
+   // and their initialiser will be used everywhere it is being referenced.
+   if (D.getType().getAddressSpace() == LangAS::opencl_constant &&
+       D.getType().getTypePtr()->isSamplerT())
+     return;
+
   // Some function-scope variable does not have static storage but still
   // needs to be emitted like a static variable, e.g. a function-scope
   // variable in constant address space in OpenCL.

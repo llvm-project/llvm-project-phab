@@ -33,6 +33,10 @@ kernel void foo(sampler_t smp_par) {
   // CHECK: [[SAMP:%[0-9]+]] = call %opencl.sampler_t addrspace(2)* @__translate_sampler_initializer(i32 19)
   // CHECK: store %opencl.sampler_t addrspace(2)* [[SAMP]], %opencl.sampler_t addrspace(2)** [[smp_ptr]]
 
+  // Initialising constant AS sampler will be handled as global (we won't generate local alloca for it)
+  // CHECK-NOT: alloca %opencl.sampler_t addrspace(2)*
+  constant sampler_t smp_const_as = 11;
+
   // Case 1b
   fnc4smp(smp);
   // CHECK-NOT: call %opencl.sampler_t addrspace(2)* @__translate_sampler_initializer(i32 19)
@@ -57,5 +61,9 @@ kernel void foo(sampler_t smp_par) {
 
   fnc4smp(5);
   // CHECK: [[SAMP:%[0-9]+]] = call %opencl.sampler_t addrspace(2)* @__translate_sampler_initializer(i32 5)
+  // CHECK: call spir_func void @fnc4smp(%opencl.sampler_t addrspace(2)* [[SAMP]])
+
+  fnc4smp(smp_const_as);
+  // CHECK: [[SAMP:%[0-9]+]] = call %opencl.sampler_t addrspace(2)* @__translate_sampler_initializer(i32 11)
   // CHECK: call spir_func void @fnc4smp(%opencl.sampler_t addrspace(2)* [[SAMP]])
 }
