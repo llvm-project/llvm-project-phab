@@ -2373,7 +2373,7 @@ Parser::ParseParenExpression(ParenParseOption &ExprType, bool stopIfCastExpr,
 
     // Parse the type declarator.
     DeclSpec DS(AttrFactory);
-    ParseSpecifierQualifierList(DS);
+    ParseSpecifierQualifierList(DS, AS_none, DSC_type_specifier);
     Declarator DeclaratorInfo(DS, Declarator::TypeNameContext);
     ParseDeclarator(DeclaratorInfo);
     

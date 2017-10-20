@@ -424,7 +424,7 @@ const dr539( // expected-error {{requires a type specifier}}
   while (const n = 0) {} // expected-error {{requires a type specifier}}
   for (const n = 0; // expected-error {{requires a type specifier}}
        const m = 0; ) {} // expected-error {{requires a type specifier}}
-  sizeof(const); // expected-error {{requires a type specifier}}
+  sizeof(const); // expected-error {{expected a type}}
   struct S {
     const n; // expected-error {{requires a type specifier}}
     operator const(); // expected-error {{expected a type}}
