@@ -25,9 +25,9 @@
 ; RUN: llc < %s -march=mips64 -mcpu=mips64r6 | FileCheck %s \
 ; RUN:    -check-prefixes=ALL,GP64
 ; RUN: llc < %s -march=mips -mcpu=mips32r3 -mattr=+micromips | FileCheck %s \
-; RUN:    -check-prefixes=ALL,MM,MM32
+; RUN:    -check-prefixes=ALL,MM,MM32,MM32r3
 ; RUN: llc < %s -march=mips -mcpu=mips32r6 -mattr=+micromips | FileCheck %s \
-; RUN:    -check-prefixes=ALL,MM,MM32
+; RUN:    -check-prefixes=ALL,MM,MM32,MM32r6
 ; RUN: llc < %s -march=mips -mcpu=mips64r6 -target-abi n64 -mattr=+micromips | FileCheck %s \
 ; RUN:    -check-prefixes=ALL,MM,MM64
 
@@ -137,10 +137,13 @@ entry:
   ; GP64:         and     $2, $4, $6
   ; GP64:         and     $3, $5, $7
 
-  ; MM32:         lw      $[[T0:[0-9]+]], 20($sp)
-  ; MM32:         lw      $[[T1:[0-9]+]], 16($sp)
-  ; MM32:         and16   $[[T1]], $4
-  ; MM32:         and16   $[[T0]], $5
+  ; MM32r6:       lw      $[[T0:[0-9]+]], 20($sp)
+  ; MM32r6:       lw      $[[T1:[0-9]+]], 16($sp)
+  ; MM32r6:       and16   $[[T1]], $4
+  ; MM32r6:       and16   $[[T0]], $5
+  ; MM32r3:       lwp     $[[T1:[0-9]+]], 16($sp)
+  ; MM32r3:       and16   $[[T1]], $4
+  ; MM32r3:       and16   $[[T0:[0-9]+]], $5
   ; MM32:         lw      $[[T2:[0-9]+]], 24($sp)
   ; MM32:         and16   $[[T2]], $6
   ; MM32:         lw      $[[T3:[0-9]+]], 28($sp)
