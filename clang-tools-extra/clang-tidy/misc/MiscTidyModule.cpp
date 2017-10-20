@@ -25,6 +25,7 @@
 #include "MacroParenthesesCheck.h"
 #include "MacroRepeatedSideEffectsCheck.h"
 #include "MisplacedConstCheck.h"
+#include "MisplacedOperatorInStrlenInAllocCheck.h"
 #include "MisplacedWideningCastCheck.h"
 #include "MoveConstantArgumentCheck.h"
 #include "MoveConstructorInitCheck.h"
@@ -72,6 +73,8 @@ public:
     CheckFactories.registerCheck<LambdaFunctionNameCheck>(
         "misc-lambda-function-name");
     CheckFactories.registerCheck<MisplacedConstCheck>("misc-misplaced-const");
+    CheckFactories.registerCheck<MisplacedOperatorInStrlenInAllocCheck>(
+        "misc-misplaced-operator-in-strlen-in-alloc");
     CheckFactories.registerCheck<UnconventionalAssignOperatorCheck>(
         "misc-unconventional-assign-operator");
     CheckFactories.registerCheck<BoolPointerImplicitConversionCheck>(
