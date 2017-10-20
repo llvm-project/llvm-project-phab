@@ -17,7 +17,9 @@ else()
   set(LLVM_TOOL_POLLY_BUILD Off)
 endif()
 
-if(NOT LLVM_BUILD_LLVM_DYLIB )
+# Don't build the shlib if not requested,
+# always build on windows.
+if(NOT LLVM_BUILD_LLVM_DYLIB AND NOT LLVM_BUILD_LLVM_C_DYLIB)
   set(LLVM_TOOL_LLVM_SHLIB_BUILD Off)
 endif()
 
