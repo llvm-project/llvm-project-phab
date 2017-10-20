@@ -66,17 +66,28 @@ public:
 // one more method, completed, which is invoked when all children of a
 // node have been processed. It is intended to distinguish of back and
 // cross edges in the spanning tree but is not used in the common case.
-template <typename NodeRef, unsigned SmallSize=8>
-struct df_iterator_default_set : public SmallPtrSet<NodeRef, SmallSize> {
-  using BaseSet = SmallPtrSet<NodeRef, SmallSize>;
-  using iterator = typename BaseSet::iterator;
+// If completed exists in the set type, it is called.
+template <class NodeRef, unsigned SmallSize = 8>
+using df_iterator_default_set = SmallPtrSet<NodeRef, 8>;
 
-  std::pair<iterator,bool> insert(NodeRef N) { return BaseSet::insert(N); }
-  template <typename IterT>
-  void insert(IterT Begin, IterT End) { BaseSet::insert(Begin,End); }
+// This lets us detect if the set we've been handed has a completed method we
+// should be calling.  The int vs bool argument is to make it prefer one
+// overload over another in the case of ambiguity.  bool requires a conversion,
+// the int does not.
+template <typename T, typename NodeRef>
+auto call_completed_method_imp(T &t, NodeRef V, int)
+    -> decltype(t.completed(V), void()) {
+  return t.completed(V);
+}
+template <typename T, typename NodeRef>
+void call_completed_method_imp(T &t, NodeRef V, bool) {
+  return;
+}
 
-  void completed(NodeRef) {}
-};
+template <typename T, typename NodeRef>
+void call_completed_method(T &t, NodeRef V){
+  call_completed_method_imp(t, V, 0);
+}
 
 // Generic Depth First Iterator
 template <class GraphT,
@@ -137,7 +148,7 @@ private:
           return;
         }
       }
-      this->Visited.completed(Node);
+      call_completed_method(this->Visited, Node);
 
       // Oops, ran out of successors... go up a level on the stack.
       VisitStack.pop_back();
