@@ -12,7 +12,6 @@ def test_linkage():
     tu = get_tu("""
 void foo() { int no_linkage; }
 static int internal;
-namespace { extern int unique_external; }
 extern int external;
 """, lang = 'cpp')
 
@@ -21,9 +20,6 @@ extern int external;
 
     internal = get_cursor(tu.cursor, 'internal')
     assert internal.linkage == LinkageKind.INTERNAL
-
-    unique_external = get_cursor(tu.cursor, 'unique_external')
-    assert unique_external.linkage == LinkageKind.UNIQUE_EXTERNAL
 
     external = get_cursor(tu.cursor, 'external')
     assert external.linkage == LinkageKind.EXTERNAL
