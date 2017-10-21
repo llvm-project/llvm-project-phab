@@ -80,9 +80,11 @@ def main():
 
   has_check_fixes = input_text.find('CHECK-FIXES') >= 0
   has_check_messages = input_text.find('CHECK-MESSAGES') >= 0
+  has_check_notes = input_text.find('CHECK-NOTES') >= 0
 
-  if not has_check_fixes and not has_check_messages:
-    sys.exit('Neither CHECK-FIXES nor CHECK-MESSAGES found in the input')
+  if not has_check_fixes and not has_check_messages and not has_check_notes:
+    sys.exit('CHECK-FIXES, CHECK-MESSAGES, or CHECK-NOTES not found in the '
+             'input')
 
   # Remove the contents of the CHECK lines to avoid CHECKs matching on
   # themselves.  We need to keep the comments to preserve line numbers while
@@ -138,6 +140,19 @@ def main():
           ['FileCheck', '-input-file=' + messages_file, input_file_name,
            '-check-prefix=CHECK-MESSAGES',
            '-implicit-check-not={{warning|error}}:'],
+          stderr=subprocess.STDOUT)
+    except subprocess.CalledProcessError as e:
+      print('FileCheck failed:\n' + e.output.decode())
+      raise
+
+  if has_check_notes:
+    messages_file = temp_file_name + '.msg'
+    write_file(messages_file, clang_tidy_output)
+    try:
+      subprocess.check_output(
+          ['FileCheck', '-input-file=' + messages_file, input_file_name,
+           '-check-prefix=CHECK-NOTES',
+           '-implicit-check-not={{note|warning|error}}:'],
           stderr=subprocess.STDOUT)
     except subprocess.CalledProcessError as e:
       print('FileCheck failed:\n' + e.output.decode())
