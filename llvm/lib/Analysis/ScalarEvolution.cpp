@@ -4080,6 +4080,56 @@ private:
   bool Valid = true;
 };
 
+class SCEVICmpEvaluator : public SCEVRewriteVisitor<SCEVICmpEvaluator> {
+public:
+  SCEVICmpEvaluator(const Loop *L, ScalarEvolution &SE)
+      : SCEVRewriteVisitor(SE), L(L) {}
+
+  static const SCEV *rewrite(const SCEV *S, const Loop *L,
+                             ScalarEvolution &SE) {
+    SCEVICmpEvaluator Rewriter(L, SE);
+    const SCEV *Result = Rewriter.visit(S);
+    return Rewriter.isValid() ? Result : SE.getCouldNotCompute();
+  }
+
+  const SCEV *visitUnknown(const SCEVUnknown *Expr) {
+    bool InvariantF = SE.isLoopInvariant(Expr, L);
+
+    if (!InvariantF && Expr->getValue() && isa<Instruction>(Expr->getValue())) {
+      Instruction *I = dyn_cast<Instruction>(Expr->getValue());
+      switch (I->getOpcode()) {
+      case Instruction::Select: {
+        const SCEV *ICmpSE =
+            SE.evaluateForICmp(cast<ICmpInst>(I->getOperand(0)));
+        if (ICmpSE->getSCEVType() == scConstant) {
+          bool IsOne = dyn_cast<SCEVConstant>(ICmpSE)->getValue()->isOne();
+          Value *TrueVal = I->getOperand(1);
+          Value *FalseVal = I->getOperand(2);
+          return SE.getSCEV(IsOne ? TrueVal : FalseVal);
+        }
+      } break;
+      case Instruction::ICmp: {
+        const SCEV *ICmpSE = SE.evaluateForICmp(cast<ICmpInst>(I));
+        if (dyn_cast<SCEVConstant>(ICmpSE))
+          return ICmpSE;
+      } break;
+      default:
+        break;
+      }
+    }
+
+    if (!InvariantF)
+      Valid = false;
+    return Expr;
+  }
+
+  bool isValid() { return Valid; }
+
+private:
+  const Loop *L;
+  bool Valid = true;
+};
+
 class SCEVShiftRewriter : public SCEVRewriteVisitor<SCEVShiftRewriter> {
 public:
   SCEVShiftRewriter(const Loop *L, ScalarEvolution &SE)
@@ -4755,6 +4805,8 @@ const SCEV *ScalarEvolution::createAddRecFromPHI(PHINode *PN) {
         if (i != FoundIndex)
           Ops.push_back(Add->getOperand(i));
       const SCEV *Accum = getAddExpr(Ops);
+      const SCEV *ModifiAccum = SCEVICmpEvaluator::rewrite(Accum, L, *this);
+      Accum = (ModifiAccum != getCouldNotCompute()) ? ModifiAccum : Accum;
 
       // This is not a valid addrec if the step amount is varying each
       // loop iteration, but is not itself an addrec in this loop.
@@ -6442,6 +6494,30 @@ void ScalarEvolution::forgetLoop(const Loop *L) {
     LoopWorklist.append(CurrL->begin(), CurrL->end());
   }
 }
+
+
+const SCEV *ScalarEvolution::evaluateForICmp(ICmpInst *IC) {
+  BasicBlock *Latch = nullptr;
+  const Loop *L = LI.getLoopFor(IC->getParent());
+
+  // If compare instruction is same or inverse of the compare in the
+  // branch of the loop latch, then return a constant evolution
+  // node. This shall facilitate computations of loop exit counts
+  // in cases where compare appears in the evolution chain of induction
+  // variables.
+  if (L && (Latch = L->getLoopLatch())) {
+    BranchInst *BI = dyn_cast<BranchInst>(Latch->getTerminator());
+    if (BI && BI->isConditional() && BI->getCondition() == IC) {
+      if (BI->getSuccessor(0) != L->getHeader())
+        return getZero(Type::getInt1Ty(getContext()));
+      else
+        return getOne(Type::getInt1Ty(getContext()));
+    }
+  }
+
+  return getUnknown(IC);
+}
+
 
 void ScalarEvolution::forgetValue(Value *V) {
   Instruction *I = dyn_cast<Instruction>(V);
