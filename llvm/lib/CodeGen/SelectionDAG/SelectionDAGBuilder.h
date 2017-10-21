@@ -20,6 +20,7 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Analysis/AliasAnalysis.h"
+#include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/CodeGen/ISDOpcodes.h"
 #include "llvm/CodeGen/MachineValueType.h"
 #include "llvm/CodeGen/SelectionDAG.h"
@@ -580,6 +581,7 @@ public:
   const DataLayout *DL = nullptr;
   AliasAnalysis *AA = nullptr;
   const TargetLibraryInfo *LibInfo;
+  const TargetTransformInfo *TTI = nullptr;
 
   /// SwitchCases - Vector of CaseBlock structures used to communicate
   /// SwitchInst code generation information.
@@ -624,7 +626,8 @@ public:
       FuncInfo(funcinfo) {}
 
   void init(GCFunctionInfo *gfi, AliasAnalysis *AA,
-            const TargetLibraryInfo *li);
+            const TargetLibraryInfo *li,
+            const TargetTransformInfo *tti);
 
   /// Clear out the current SelectionDAG and the associated state and prepare
   /// this SelectionDAGBuilder object to be used for a new block. This doesn't

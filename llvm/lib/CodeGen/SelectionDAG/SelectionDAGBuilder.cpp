@@ -953,10 +953,12 @@ void RegsForValue::AddInlineAsmOperands(unsigned Code, bool HasMatching,
 }
 
 void SelectionDAGBuilder::init(GCFunctionInfo *gfi, AliasAnalysis *aa,
-                               const TargetLibraryInfo *li) {
+                               const TargetLibraryInfo *li,
+                               const TargetTransformInfo *tti) {
   AA = aa;
   GFI = gfi;
   LibInfo = li;
+  TTI = tti;
   DL = &DAG.getDataLayout();
   Context = DAG.getContext();
   LPadToCallSiteMap.clear();
@@ -5809,19 +5811,49 @@ SelectionDAGBuilder::visitIntrinsicCall(const CallInst &I, unsigned Intrinsic) {
   case Intrinsic::prefetch: {
     SDValue Ops[5];
     unsigned rw = cast<ConstantInt>(I.getArgOperand(1))->getZExtValue();
-    Ops[0] = getRoot();
+
+    // Normally, prefetches are kept in place in the loop by chaining after
+    // pending loads and becoming the new DAG root. Giving a load a chain
+    // user unfortunately disrupts the instruction selection of a vector
+    // element load. To remedy this, the prefetch is then instead chained
+    // after the current DAG root and the new DAG root will also include any
+    // pending loads (avoiding any deps between pending loads and the
+    // prefetch).
+
+    bool VectorElementLoad = false;
+    if ((rw==0/*read*/) && TTI->supportsEfficientVectorElementLoadStore()) {
+      // Since there is no DAG to inspect, look at the instructions in the
+      // basic block, which is good enough since a prefetch is always placed
+      // before its load.
+      BasicBlock::const_iterator Itr(I);
+      if (++Itr != I.getParent()->end() &&
+          Itr->getOpcode() == Instruction::Load && Itr->hasOneUse() && 
+          Itr->user_back()->getOpcode() == Instruction::InsertElement)
+        VectorElementLoad = true;
+    }
+
+    if (!VectorElementLoad)
+      Ops[0] = getRoot();
+    else
+      Ops[0] = DAG.getRoot();
     Ops[1] = getValue(I.getArgOperand(0));
     Ops[2] = getValue(I.getArgOperand(1));
     Ops[3] = getValue(I.getArgOperand(2));
     Ops[4] = getValue(I.getArgOperand(3));
-    DAG.setRoot(DAG.getMemIntrinsicNode(ISD::PREFETCH, sdl,
-                                        DAG.getVTList(MVT::Other), Ops,
-                                        EVT::getIntegerVT(*Context, 8),
-                                        MachinePointerInfo(I.getArgOperand(0)),
-                                        0, /* align */
-                                        false, /* volatile */
-                                        rw==0, /* read */
-                                        rw==1)); /* write */
+    SDValue Result = DAG.getMemIntrinsicNode(ISD::PREFETCH, sdl,
+                                             DAG.getVTList(MVT::Other), Ops,
+                                             EVT::getIntegerVT(*Context, 8),
+                                             MachinePointerInfo(I.getArgOperand(0)),
+                                             0, /* align */
+                                             false, /* volatile */
+                                             rw==0, /* read */
+                                             rw==1); /* write */
+    if (VectorElementLoad) {
+      PendingLoads.push_back(Result);
+      Result = getRoot();
+    }
+    DAG.setRoot(Result);
+
     return nullptr;
   }
   case Intrinsic::lifetime_start:
