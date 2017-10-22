@@ -1680,7 +1680,9 @@ private:
 
 protected:
   // Since a Deduction Guide [C++17] will never have a body, we can share the
-  // storage, and use a different name.
+  // storage, and use a different name.  Since WillHaveBody is not serialized we
+  // don't need to worry about collisions there.
+
   union {
     /// Indicates if the function declaration will have a body, once we're done
     /// parsing it.
@@ -2074,8 +2076,8 @@ public:
   void setHasSkippedBody(bool Skipped = true) { HasSkippedBody = Skipped; }
 
   /// True if this function will eventually have a body, once it's fully parsed.
-  bool willHaveBody() const { return WillHaveBody; }
-  void setWillHaveBody(bool V = true) { WillHaveBody = V; }
+  bool willHaveBody() const;
+  void setWillHaveBody(bool V = true);
 
   void setPreviousDeclaration(FunctionDecl * PrevDecl);
 
