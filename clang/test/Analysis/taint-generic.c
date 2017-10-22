@@ -4,7 +4,7 @@ int scanf(const char *restrict format, ...);
 int getchar(void);
 
 typedef struct _FILE FILE;
-extern FILE *stdin;
+extern struct _FILE *stdin;
 int fscanf(FILE *restrict stream, const char *restrict format, ...);
 int sprintf(char *str, const char *format, ...);
 void setproctitle(const char *fmt, ...);

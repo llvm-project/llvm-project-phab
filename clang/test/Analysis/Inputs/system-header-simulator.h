@@ -10,9 +10,9 @@
 #endif
 
 typedef struct _FILE FILE;
-extern FILE *stdin;
-extern FILE *stdout;
-extern FILE *stderr;
+extern struct _FILE *stdin;
+extern struct _FILE *stdout;
+extern struct _FILE *stderr;
 // Include a variant of standard streams that occur in the pre-processed file.
 extern FILE *__stdinp;
 extern FILE *__stdoutp;

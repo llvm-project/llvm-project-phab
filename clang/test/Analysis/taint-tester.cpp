@@ -3,7 +3,7 @@
 
 typedef struct _FILE FILE;
 typedef __typeof(sizeof(int)) size_t;
-extern FILE *stdin;
+extern struct _FILE *stdin;
 typedef long ssize_t;
 ssize_t getline(char ** __restrict, size_t * __restrict, FILE * __restrict);
 int printf(const char * __restrict, ...);
