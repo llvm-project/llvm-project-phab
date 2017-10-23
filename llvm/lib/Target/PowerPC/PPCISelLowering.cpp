@@ -4719,7 +4719,8 @@ PrepareCall(SelectionDAG &DAG, SDValue &Callee, SDValue &InFlag, SDValue &Chain,
   if (auto *G = dyn_cast<GlobalAddressSDNode>(Callee))
     GV = G->getGlobal();
   bool Local = TM.shouldAssumeDSOLocal(*Mod, GV);
-  bool UsePlt = !Local && Subtarget.isTargetELF() && !isPPC64;
+  bool UsePlt = !Local && Subtarget.isTargetELF() && !isPPC64 &&
+                DAG.getTarget().getRelocationModel() != Reloc::Static;
 
   if (isFunctionGlobalAddress(Callee)) {
     GlobalAddressSDNode *G = cast<GlobalAddressSDNode>(Callee);
