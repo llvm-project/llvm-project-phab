@@ -8421,6 +8421,7 @@ bool ARMAsmParser::processInstruction(MCInst &Inst,
       TmpInst.addOperand(Inst.getOperand(2)); // CondCode
       TmpInst.addOperand(Inst.getOperand(3));
       Inst = TmpInst;
+      return true;
     }
     break;
   case ARM::t2ADDri12:
@@ -8431,7 +8432,7 @@ bool ARMAsmParser::processInstruction(MCInst &Inst,
       break;
     Inst.setOpcode(ARM::t2ADDri);
     Inst.addOperand(MCOperand::createReg(0)); // cc_out
-    break;
+    return true;
   case ARM::t2SUBri12:
     // If the immediate fits for encoding T3 (t2SUBri) and the generic "sub"
     // mnemonic was used (not "subw"), encoding T3 is preferred.
@@ -8440,7 +8441,7 @@ bool ARMAsmParser::processInstruction(MCInst &Inst,
       break;
     Inst.setOpcode(ARM::t2SUBri);
     Inst.addOperand(MCOperand::createReg(0)); // cc_out
-    break;
+    return true;
   case ARM::tADDi8:
     // If the immediate is in the range 0-7, we want tADDi3 iff Rd was
     // explicitly specified. From the ARM ARM: "Encoding T1 is preferred
