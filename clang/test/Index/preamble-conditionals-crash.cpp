@@ -9,4 +9,4 @@ FOO
 // RUN: | FileCheck %s --implicit-check-not "libclang: crash detected" \
 // RUN:                --implicit-check-not "error:"
 // CHECK: macro expansion=FOO:3:9 Extent=[4:1 - 4:4]
-// CHECK: VarDecl=aba:4:1 (Definition) Extent=[4:1 - 4:4]
+// CHECK: VarDecl=aba:3:17 (Definition) Extent=[3:13 - 4:4]

@@ -8,7 +8,7 @@ int main() { }
 // CHECK: preamble_macro_template.h:4:13: ParmDecl=p:4:13 (Definition) Extent=[4:10 - 4:14]
 // CHECK: preamble_macro_template.h:4:16: CompoundStmt= Extent=[4:16 - 6:2]
 // CHECK: preamble_macro_template.h:5:3: CStyleCastExpr= Extent=[5:3 - 5:27]
-// CHECK: preamble_macro_template.h:5:9: CXXStaticCastExpr= Extent=[5:9 - 5:27]
+// CHECK: preamble_macro_template.h:1:21: CXXStaticCastExpr= Extent=[1:21 - 5:27]
 // CHECK: preamble_macro_template.h:5:25: UnexposedExpr= Extent=[5:25 - 5:26]
 // CHECK: preamble_macro_template.h:5:25: IntegerLiteral= Extent=[5:25 - 5:26]
 // CHECK: preamble_macro_template.cpp:3:5: FunctionDecl=main:3:5 (Definition) Extent=[3:1 - 3:15]

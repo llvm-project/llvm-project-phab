@@ -206,24 +206,24 @@ void test() {
 // CHECK-RANGE1: Identifier: "Foo" [52:11 - 52:14] VarDecl=Foo:52:11 (Definition)
 // CHECK-RANGE1: Punctuation: "," [52:14 - 52:15]
 // CHECK-RANGE1: Punctuation: "." [53:5 - 53:6] UnexposedExpr=
-// CHECK-RANGE1: Identifier: "x" [53:6 - 53:7] MemberRef=x:52:1
+// CHECK-RANGE1: Identifier: "x" [53:6 - 53:7] MemberRef=x:39:9
 // CHECK-RANGE1: Punctuation: "=" [53:8 - 53:9] UnexposedExpr=
 // CHECK-RANGE1: Literal: "0" [53:10 - 53:11] IntegerLiteral=
 // CHECK-RANGE1: Punctuation: "," [53:11 - 53:12] InitListExpr=
 // CHECK-RANGE1: Punctuation: "." [54:5 - 54:6] UnexposedExpr=
-// CHECK-RANGE1: Identifier: "y" [54:6 - 54:7] MemberRef=y:52:1
+// CHECK-RANGE1: Identifier: "y" [54:6 - 54:7] MemberRef=y:40:9
 // CHECK-RANGE1: Punctuation: "=" [54:8 - 54:9] UnexposedExpr=
 // CHECK-RANGE1: Literal: "1" [54:10 - 54:11] IntegerLiteral=
 // CHECK-RANGE1: Punctuation: "," [54:11 - 54:12] InitListExpr=
 
 // RUN: c-index-test -test-annotate-tokens=%s:54:1:70:1 %s | FileCheck %s -check-prefix=CHECK-RANGE2
 // CHECK-RANGE2: Punctuation: "." [54:5 - 54:6] UnexposedExpr=
-// CHECK-RANGE2: Identifier: "y" [54:6 - 54:7] MemberRef=y:52:1
+// CHECK-RANGE2: Identifier: "y" [54:6 - 54:7] MemberRef=y:40:9
 // CHECK-RANGE2: Punctuation: "=" [54:8 - 54:9] UnexposedExpr=
 // CHECK-RANGE2: Literal: "1" [54:10 - 54:11] IntegerLiteral=
 // CHECK-RANGE2: Punctuation: "," [54:11 - 54:12] InitListExpr=
 // CHECK-RANGE2: Punctuation: "." [55:5 - 55:6] UnexposedExpr=
-// CHECK-RANGE2: Identifier: "z" [55:6 - 55:7] MemberRef=z:52:1
+// CHECK-RANGE2: Identifier: "z" [55:6 - 55:7] MemberRef=z:41:9
 // CHECK-RANGE2: Punctuation: "=" [55:8 - 55:9] UnexposedExpr=
 // CHECK-RANGE2: Literal: "2" [55:10 - 55:11] IntegerLiteral=
 // CHECK-RANGE2: Punctuation: "," [55:11 - 55:12] InitListExpr=
