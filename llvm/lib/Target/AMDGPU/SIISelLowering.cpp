@@ -6374,7 +6374,7 @@ static unsigned SubIdx2Lane(unsigned Idx) {
 /// \brief Adjust the writemask of MIMG instructions
 void SITargetLowering::adjustWritemask(MachineSDNode *&Node,
                                        SelectionDAG &DAG) const {
-  SDNode *Users[4] = { };
+  SDNode *Users[4] = { nullptr };
   unsigned Lane = 0;
   unsigned DmaskIdx = (Node->getNumOperands() - Node->getNumValues() == 9) ? 2 : 3;
   unsigned OldDmask = Node->getConstantOperandVal(DmaskIdx);
@@ -6425,18 +6425,6 @@ void SITargetLowering::adjustWritemask(MachineSDNode *&Node,
   Ops.push_back(DAG.getTargetConstant(NewDmask, SDLoc(Node), MVT::i32));
   Ops.insert(Ops.end(), Node->op_begin() + DmaskIdx + 1, Node->op_end());
   Node = (MachineSDNode*)DAG.UpdateNodeOperands(Node, Ops);
-
-  // If we only got one lane, replace it with a copy
-  // (if NewDmask has only one bit set...)
-  if (NewDmask && (NewDmask & (NewDmask-1)) == 0) {
-    SDValue RC = DAG.getTargetConstant(AMDGPU::VGPR_32RegClassID, SDLoc(),
-                                       MVT::i32);
-    SDNode *Copy = DAG.getMachineNode(TargetOpcode::COPY_TO_REGCLASS,
-                                      SDLoc(), Users[Lane]->getValueType(0),
-                                      SDValue(Node, 0), RC);
-    DAG.ReplaceAllUsesWith(Users[Lane], Copy);
-    return;
-  }
 
   // Update the users of the node with the new indices
   for (unsigned i = 0, Idx = AMDGPU::sub0; i < 4; ++i) {
@@ -6606,18 +6594,41 @@ void SITargetLowering::AdjustInstrPostInstrSelection(MachineInstr &MI,
     unsigned DmaskIdx = MI.getNumOperands() == 12 ? 3 : 4;
     unsigned Writemask = MI.getOperand(DmaskIdx).getImm();
     unsigned BitsSet = 0;
-    for (unsigned i = 0; i < 4; ++i)
-      BitsSet += Writemask & (1 << i) ? 1 : 0;
+    unsigned SubRegIdx;
+      for (unsigned i = 0; i < 4; ++i)
+        BitsSet += Writemask & (1 << i) ? 1 : 0;
     switch (BitsSet) {
-    default: return;
-    case 1:  RC = &AMDGPU::VGPR_32RegClass; break;
-    case 2:  RC = &AMDGPU::VReg_64RegClass; break;
-    case 3:  RC = &AMDGPU::VReg_96RegClass; break;
+    default:
+      return;
+    case 1:
+      RC = &AMDGPU::VGPR_32RegClass;
+      SubRegIdx = AMDGPU::sub0;
+      break;
+    case 2:
+      RC = &AMDGPU::VReg_64RegClass;
+      SubRegIdx = AMDGPU::sub0_sub1;
+      break;
+    case 3:
+      RC = &AMDGPU::VReg_96RegClass;
+      SubRegIdx = AMDGPU::sub0_sub1_sub2;
+      break;
     }
+
+    auto InsPt = std::next(MI.getIterator());
+
+    unsigned TmpSuperReg = MRI.createVirtualRegister(&AMDGPU::VReg_128RegClass);
+    unsigned TmpReg = MRI.createVirtualRegister(RC);
 
     unsigned NewOpcode = TII->getMaskedMIMGOp(MI.getOpcode(), BitsSet);
     MI.setDesc(TII->get(NewOpcode));
-    MRI.setRegClass(VReg, RC);
+    MI.getOperand(0).setReg(TmpReg);
+
+    const DebugLoc &DL = MI.getDebugLoc();
+    BuildMI(*MI.getParent(), InsPt, DL, TII->get(AMDGPU::IMPLICIT_DEF), TmpSuperReg);
+    BuildMI(*MI.getParent(), InsPt, DL, TII->get(AMDGPU::INSERT_SUBREG), VReg)
+      .addReg(TmpSuperReg)
+      .addReg(TmpReg)
+      .addImm(SubRegIdx);
     return;
   }
 
