@@ -1399,6 +1399,8 @@ private:
   /// SCEV+Loop pair.
   const SCEV *computeSCEVAtScope(const SCEV *S, const Loop *L);
 
+  ConstantInt *computeICmpCondV(ICmpInst *ICI, const Loop* L);
+
   /// This looks up computed SCEV values for all instructions that depend on
   /// the given instruction and removes them from the ValueExprMap map if they
   /// reference SymName. This is used during PHI resolution.
