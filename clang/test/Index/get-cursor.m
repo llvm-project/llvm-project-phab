@@ -229,7 +229,7 @@ GEN_DECL("some_module")
 // CHECK-TRANSPARENT: 139:1 TypeRef=TestTransparent:133:17 (Transparent: enum TestTransparent) Extent=[139:1 - 139:16] Spelling=TestTransparent ([139:1 - 139:16])
 // CHECK-TRANSPARENT: 140:6 TypeRef=enum TestTransparent:133:17 Extent=[140:6 - 140:21] Spelling=enum TestTransparent ([140:6 - 140:21])
 // CHECK-TRANSPARENT: 141:1 TypeRef=NotTransparent:137:30 Extent=[141:1 - 141:15] Spelling=NotTransparent ([141:1 - 141:15])
-// CHECK-TRANSPARENT: 147:1 TypeRef=TokenPaste_t:144:9 Extent=[147:1 - 147:13] Spelling=TokenPaste_t ([147:1 - 147:13])
+// CHECK-TRANSPARENT: 147:1 TypeRef=TokenPaste_t:2:1 Extent=[147:1 - 147:13] Spelling=TokenPaste_t ([147:1 - 147:13])
 // CHECK-TRANSPARENT: 151:1 TypeRef=SomeT:150:17 (Transparent: struct SomeT) Extent=[151:1 - 151:6] Spelling=SomeT ([151:1 - 151:6])
 // CHECK-TRANSPARENT: 155:1 TypeRef=SomeT2:154:18 Extent=[155:1 - 155:7] Spelling=SomeT2 ([155:1 - 155:7])
 

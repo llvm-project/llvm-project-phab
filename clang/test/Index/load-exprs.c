@@ -52,7 +52,7 @@ void test_members(int aval, int bval) {
 // CHECK: load-exprs.c:7:23: DeclRefExpr=x:6:12 Extent=[7:23 - 7:24]
 // CHECK: load-exprs.c:10:5: FunctionDecl=test_blocks:10:5 (Definition) Extent=[10:1 - 21:2]
 // CHECK: load-exprs.c:10:21: ParmDecl=x:10:21 (Definition) Extent=[10:17 - 10:22]
-// CHECK: load-exprs.c:11:15: VarDecl=y:11:15 (Definition) Extent=[11:3 - 11:20]
+// CHECK: load-exprs.c:11:15: VarDecl=y:11:15 (Definition)
 // CHECK: load-exprs.c:11:19: DeclRefExpr=x:10:21 Extent=[11:19 - 11:20]
 // CHECK: load-exprs.c:12:3: CallExpr= Extent=[12:3 - 19:7]
 // CHECK: load-exprs.c:13:17: VarDecl=z:13:17 (Definition) Extent=[13:6 - 13:22]
