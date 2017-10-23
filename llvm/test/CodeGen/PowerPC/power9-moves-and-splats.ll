@@ -1,5 +1,7 @@
-; RUN: llc -mcpu=pwr9 -mtriple=powerpc64le-unknown-linux-gnu < %s | FileCheck %s
-; RUN: llc -mcpu=pwr9 -mtriple=powerpc64-unknown-linux-gnu < %s | FileCheck %s \
+; RUN: llc -mcpu=pwr9 -ppc-strip-register-prefix \
+; RUN:   -mtriple=powerpc64le-unknown-linux-gnu < %s | FileCheck %s
+; RUN: llc -mcpu=pwr9 -ppc-strip-register-prefix \
+; RUN:   -mtriple=powerpc64-unknown-linux-gnu < %s | FileCheck %s \
 ; RUN:   --check-prefix=CHECK-BE
 
 @Globi = external global i32, align 4

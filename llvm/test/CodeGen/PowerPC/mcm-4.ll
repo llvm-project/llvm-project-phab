@@ -1,15 +1,22 @@
-; RUN: llc -verify-machineinstrs -mcpu=pwr7 -O0 -code-model=medium \
+; RUN: llc -verify-machineinstrs -ppc-strip-register-prefix \
+; RUN:   -mcpu=pwr7 -O0 -code-model=medium \
 ; RUN:   -fast-isel=false -mattr=-vsx <%s | FileCheck -check-prefix=MEDIUM %s
-; RUN: llc -verify-machineinstrs -mcpu=pwr7 -O0 -code-model=medium \
+; RUN: llc -verify-machineinstrs -ppc-strip-register-prefix \
+; RUN:   -mcpu=pwr7 -O0 -code-model=medium \
 ; RUN:   -fast-isel=false -mattr=+vsx <%s | FileCheck -check-prefix=MEDIUM-VSX %s
-; RUN: llc -verify-machineinstrs -mcpu=pwr7 -O0 -code-model=large \
+; RUN: llc -verify-machineinstrs -ppc-strip-register-prefix \
+; RUN:   -mcpu=pwr7 -O0 -code-model=large \
 ; RUN:   -fast-isel=false -mattr=-vsx <%s | FileCheck -check-prefix=LARGE %s
-; RUN: llc -verify-machineinstrs -mcpu=pwr7 -O0 -code-model=large \
+; RUN: llc -verify-machineinstrs -ppc-strip-register-prefix \
+; RUN:   -mcpu=pwr7 -O0 -code-model=large \
 ; RUN:   -fast-isel=false -mattr=+vsx <%s | FileCheck -check-prefix=LARGE-VSX %s
-; RUN: llc -verify-machineinstrs -mcpu=pwr9 -O0 -code-model=medium \
+; RUN: llc -verify-machineinstrs -ppc-strip-register-prefix \
+; RUN:   -mcpu=pwr9 -O0 -code-model=medium \
 ; RUN:   -fast-isel=false -mattr=+vsx <%s | FileCheck -check-prefix=MEDIUM-P9 %s
-; RUN: llc -verify-machineinstrs -mcpu=pwr9 -O0 -code-model=large \
-; RUN:   -fast-isel=false -mattr=+vsx <%s | FileCheck -check-prefix=LARGE-P9 %s
+; RUN: llc -verify-machineinstrs -ppc-strip-register-prefix \
+; RUN:   -mcpu=pwr9 -O0 -code-model=large \
+; RUN:   -fast-isel=false -mattr=+vsx <%s \
+; RUN:   | FileCheck -check-prefix=LARGE-P9 %s
 
 ; Test correct code generation for medium and large code model
 ; for loading a value from the constant pool (TOC-relative).

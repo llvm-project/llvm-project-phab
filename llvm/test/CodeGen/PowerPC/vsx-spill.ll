@@ -1,13 +1,19 @@
-; RUN: llc -verify-machineinstrs -mcpu=pwr7 -mattr=+vsx < %s | FileCheck %s
-; RUN: llc -verify-machineinstrs -mcpu=pwr7 -mattr=+vsx < %s | FileCheck \
+; RUN: llc -ppc-strip-register-prefix -verify-machineinstrs -mcpu=pwr7 \
+; RUN:   -mattr=+vsx < %s | FileCheck %s
+; RUN: llc -ppc-strip-register-prefix -verify-machineinstrs -mcpu=pwr7 \
+; RUN:   -mattr=+vsx < %s | FileCheck \
 ; RUN:   -check-prefix=CHECK-REG %s
-; RUN: llc -verify-machineinstrs -mcpu=pwr7 -mattr=+vsx -fast-isel -O0 < %s | \
+; RUN: llc -ppc-strip-register-prefix -verify-machineinstrs -mcpu=pwr7 \
+; RUN:   -mattr=+vsx -fast-isel -O0 < %s | \
 ; RUN:   FileCheck %s
-; RUN: llc -verify-machineinstrs -mcpu=pwr7 -mattr=+vsx -fast-isel -O0 < %s | \
+; RUN: llc -ppc-strip-register-prefix -verify-machineinstrs -mcpu=pwr7 \
+; RUN:   -mattr=+vsx -fast-isel -O0 < %s | \
 ; RUN:   FileCheck -check-prefix=CHECK-FISL %s
-; RUN: llc -verify-machineinstrs -mcpu=pwr9 < %s | FileCheck \
+; RUN: llc -ppc-strip-register-prefix -verify-machineinstrs -mcpu=pwr9 < %s \
+; RUN:   | FileCheck \
 ; RUN:   -check-prefix=CHECK-P9-REG %s
-; RUN: llc -verify-machineinstrs -mcpu=pwr9 -fast-isel -O0 < %s | FileCheck \
+; RUN: llc -ppc-strip-register-prefix -verify-machineinstrs -mcpu=pwr9 \
+; RUN:   -fast-isel -O0 < %s | FileCheck \
 ; RUN:   -check-prefix=CHECK-P9-FISL %s
 target datalayout = "E-m:e-i64:64-n32:64"
 target triple = "powerpc64-unknown-linux-gnu"

@@ -1,4 +1,6 @@
-; RUN: llc < %s -O0 -verify-machineinstrs -fast-isel-abort=1 -mtriple=powerpc64-unknown-linux-gnu -mcpu=pwr7 | FileCheck %s --check-prefix=ELF64
+; RUN: llc < %s -O0 -ppc-strip-register-prefix -verify-machineinstrs \
+; RUN:   -fast-isel-abort=1 -mtriple=powerpc64-unknown-linux-gnu \
+; RUN:   -mcpu=pwr7 | FileCheck %s --check-prefix=ELF64
 
 %struct.A = type { i32, [2 x [2 x i32]], i8, [3 x [3 x [3 x i32]]] }
 %struct.B = type { i32, [2 x [2 x [2 x %struct.A]]] }

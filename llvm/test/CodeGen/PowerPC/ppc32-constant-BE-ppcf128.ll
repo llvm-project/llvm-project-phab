@@ -1,4 +1,5 @@
-; RUN: llc -verify-machineinstrs -O2 -mtriple=powerpc-unknown-linux-gnu < %s | FileCheck %s
+; RUN: llc -verify-machineinstrs -O2 -mtriple=powerpc-unknown-linux-gnu \
+; RUN:   -ppc-strip-register-prefix < %s | FileCheck %s
 
 target datalayout = "E-m:e-p:32:32-i64:64-n32"
 target triple = "powerpc-buildroot-linux-gnu"

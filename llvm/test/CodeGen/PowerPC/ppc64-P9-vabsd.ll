@@ -1,6 +1,10 @@
-; RUN: llc < %s -mtriple=powerpc64le-unknown-linux-gnu -mcpu=pwr9 -verify-machineinstrs | FileCheck %s
-; RUN: llc < %s -mtriple=powerpc64-unknown-linux-gnu -mcpu=pwr9 -verify-machineinstrs | FileCheck %s
-; RUN: llc < %s -mtriple=powerpc64le-unknown-linux-gnu -mcpu=pwr8 -verify-machineinstrs | FileCheck %s -check-prefix=CHECK-PWR8 -implicit-check-not vabsdu
+; RUN: llc < %s -mtriple=powerpc64le-unknown-linux-gnu -mcpu=pwr9 \
+; RUN:   -verify-machineinstrs -ppc-strip-register-prefix | FileCheck %s
+; RUN: llc < %s -mtriple=powerpc64-unknown-linux-gnu -mcpu=pwr9 \
+; RUN:   -verify-machineinstrs -ppc-strip-register-prefix | FileCheck %s
+; RUN: llc < %s -mtriple=powerpc64le-unknown-linux-gnu -mcpu=pwr8 \
+; RUN:   -verify-machineinstrs -ppc-strip-register-prefix \
+; RUN:   | FileCheck %s -check-prefix=CHECK-PWR8 -implicit-check-not vabsdu
 
 ; Function Attrs: nounwind readnone
 define <4 x i32> @simple_absv_32(<4 x i32> %a) local_unnamed_addr {

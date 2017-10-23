@@ -1,7 +1,10 @@
 ; Check VMX 64-bit integer operations
 ;
-; RUN: llc -verify-machineinstrs -mtriple=powerpc64-unknown-linux-gnu -mcpu=pwr8 < %s | FileCheck %s
-; RUN: llc -verify-machineinstrs -mtriple=powerpc64-unknown-linux-gnu -mcpu=pwr8 -mattr=-vsx < %s | FileCheck %s
+; RUN: llc -ppc-strip-register-prefix -verify-machineinstrs \
+; RUN:   -mtriple=powerpc64-unknown-linux-gnu -mcpu=pwr8 < %s | FileCheck %s
+; RUN: llc -ppc-strip-register-prefix -verify-machineinstrs \
+; RUN:   -mtriple=powerpc64-unknown-linux-gnu -mcpu=pwr8 -mattr=-vsx < %s \
+; RUN:   | FileCheck %s
 
 define <2 x i64> @test_add(<2 x i64> %x, <2 x i64> %y) nounwind {
        %result = add <2 x i64> %x, %y

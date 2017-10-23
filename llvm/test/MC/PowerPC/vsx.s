@@ -1,5 +1,8 @@
-# RUN: llvm-mc -triple powerpc64-unknown-linux-gnu --show-encoding %s | FileCheck -check-prefix=CHECK-BE %s
-# RUN: llvm-mc -triple powerpc64le-unknown-linux-gnu --show-encoding %s | FileCheck -check-prefix=CHECK-LE %s
+# RUN: llvm-mc -ppc-strip-register-prefix -triple powerpc64-unknown-linux-gnu \
+# RUN:   --show-encoding %s | FileCheck -check-prefix=CHECK-BE %s
+# RUN: llvm-mc -ppc-strip-register-prefix \
+# RUN:   -triple powerpc64le-unknown-linux-gnu --show-encoding %s \
+# RUN:   | FileCheck -check-prefix=CHECK-LE %s
 
 # CHECK-BE: xxswapd 7, 63                      # encoding: [0xf0,0xff,0xfa,0x56]
 # CHECK-LE: xxswapd 7, 63                      # encoding: [0x56,0xfa,0xff,0xf0]

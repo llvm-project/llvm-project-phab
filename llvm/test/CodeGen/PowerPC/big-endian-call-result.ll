@@ -1,6 +1,8 @@
-; RUN: llc -verify-machineinstrs < %s -mtriple=powerpc-unknown-linux-gnu | \
+; RUN: llc -ppc-strip-register-prefix -verify-machineinstrs \
+; RUN:   < %s -mtriple=powerpc-unknown-linux-gnu | \
 ; RUN:   grep "addic 4, 4, 1"
-; RUN: llc -verify-machineinstrs < %s -mtriple=powerpc-unknown-linux-gnu | \
+; RUN: llc -ppc-strip-register-prefix -verify-machineinstrs \
+; RUN:   < %s -mtriple=powerpc-unknown-linux-gnu | \
 ; RUN:   grep "addze 3, 3"
 
 declare i64 @foo()

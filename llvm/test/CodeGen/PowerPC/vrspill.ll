@@ -1,6 +1,13 @@
-; RUN: llc -O0 -mtriple=powerpc-unknown-linux-gnu -mattr=+altivec -mattr=-vsx -verify-machineinstrs < %s | FileCheck %s
-; RUN: llc -O0 -mtriple=powerpc64-unknown-linux-gnu -mattr=+altivec -mattr=-vsx -verify-machineinstrs -fast-isel=false -mcpu=pwr7 < %s | FileCheck %s
-; RUN: llc -O0 -mtriple=powerpc64-unknown-linux-gnu -mattr=+altivec -mattr=+vsx -verify-machineinstrs -fast-isel=false -mcpu=pwr7 < %s | FileCheck -check-prefix=CHECK-VSX %s
+; RUN: llc -O0 -ppc-strip-register-prefix \
+; RUN:   -mtriple=powerpc-unknown-linux-gnu -mattr=+altivec -mattr=-vsx \
+; RUN:   -verify-machineinstrs < %s | FileCheck %s
+; RUN: llc -O0 -ppc-strip-register-prefix \
+; RUN:   -mtriple=powerpc64-unknown-linux-gnu -mattr=+altivec -mattr=-vsx \
+; RUN:   -verify-machineinstrs -fast-isel=false -mcpu=pwr7 < %s | FileCheck %s
+; RUN: llc -O0 -ppc-strip-register-prefix \
+; RUN:   -mtriple=powerpc64-unknown-linux-gnu -mattr=+altivec -mattr=+vsx \
+; RUN:   -verify-machineinstrs -fast-isel=false -mcpu=pwr7 < %s \
+; RUN:   | FileCheck -check-prefix=CHECK-VSX %s
 
 ; This verifies that we generate correct spill/reload code for vector regs.
 

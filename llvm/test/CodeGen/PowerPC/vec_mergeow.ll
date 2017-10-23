@@ -1,6 +1,8 @@
-; RUN: llc -verify-machineinstrs -mtriple=powerpc64le-unknown-linux-gnu -mcpu=pwr8 < %s | \
+; RUN: llc -ppc-strip-register-prefix -verify-machineinstrs \
+; RUN:   -mtriple=powerpc64le-unknown-linux-gnu -mcpu=pwr8 < %s | \
 ; RUN:   FileCheck %s  -check-prefix=CHECK-LE
-; RUN: llc -verify-machineinstrs -mtriple=powerpc64-unknown-linux-gnu -mcpu=pwr8 < %s | \
+; RUN: llc -ppc-strip-register-prefix -verify-machineinstrs \
+; RUN:   -mtriple=powerpc64-unknown-linux-gnu -mcpu=pwr8 < %s | \
 ; RUN:   FileCheck %s -check-prefix=CHECK-BE
 
 ; Check for a vector merge instruction using two inputs

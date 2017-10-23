@@ -1,6 +1,12 @@
-; RUN: llc -verify-machineinstrs -O0 -mcpu=ppc64 -mtriple=powerpc64-unknown-linux-gnu -fast-isel=false < %s | FileCheck %s
-; RUN: llc -verify-machineinstrs -O0 -mcpu=g4 -mtriple=powerpc-apple-darwin8 < %s | FileCheck -check-prefix=DARWIN32 %s
-; RUN: llc -verify-machineinstrs -O0 -mcpu=970 -mtriple=powerpc64-apple-darwin8 < %s | FileCheck -check-prefix=DARWIN64 %s
+; RUN: llc -ppc-strip-register-prefix -verify-machineinstrs \
+; RUN:   -O0 -mcpu=ppc64 -mtriple=powerpc64-unknown-linux-gnu \
+; RUN:   -fast-isel=false < %s | FileCheck %s
+; RUN: llc -verify-machineinstrs -O0 \
+; RUN:   -mcpu=g4 -mtriple=powerpc-apple-darwin8 < %s \
+; RUN:   | FileCheck -check-prefix=DARWIN32 %s
+; RUN: llc -verify-machineinstrs \
+; RUN:   -O0 -mcpu=970 -mtriple=powerpc64-apple-darwin8 < %s \
+; RUN:   | FileCheck -check-prefix=DARWIN64 %s
 
 ; Test case for PR 14779: anonymous aggregates are not handled correctly.
 ; Darwin bug report PR 15821 is similar.

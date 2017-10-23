@@ -1,5 +1,7 @@
-; RUN: llc -verify-machineinstrs -mcpu=pwr9 -mtriple=powerpc64-unknown-linux-gnu  < %s | FileCheck %s
-; RUN: llc -verify-machineinstrs -mcpu=pwr9 -mtriple=powerpc64le-unknown-linux-gnu < %s | FileCheck %s
+; RUN: llc -ppc-strip-register-prefix -verify-machineinstrs -mcpu=pwr9 \
+; RUN:   -mtriple=powerpc64-unknown-linux-gnu  < %s | FileCheck %s
+; RUN: llc -ppc-strip-register-prefix -verify-machineinstrs -mcpu=pwr9 \
+; RUN:   -mtriple=powerpc64le-unknown-linux-gnu < %s | FileCheck %s
 
 ; Check the vabsd* instructions that were added in PowerISA V3.0
 

@@ -1,4 +1,5 @@
-; RUN: llc -verify-machineinstrs -mattr=+altivec < %s | FileCheck %s
+; RUN: llc -ppc-strip-register-prefix -verify-machineinstrs \
+; RUN:   -mattr=+altivec < %s | FileCheck %s
 
 ; Check vector float/int conversion using altivec.
 

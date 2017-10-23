@@ -1,7 +1,12 @@
-; RUN: llc -verify-machineinstrs -mtriple=powerpc-apple-darwin8 < %s | FileCheck -check-prefix=DARWIN32 %s
-; RUN: llc -verify-machineinstrs -mtriple=powerpc64-apple-darwin < %s | FileCheck -check-prefix=DARWIN64 %s
-; RUN: llc -verify-machineinstrs -mtriple=ppc32-unknown-linux < %s | FileCheck -check-prefix=LINUX32 %s
-; RUN: llc -verify-machineinstrs -mtriple=powerpc64le-unknown-linux < %s | FileCheck -check-prefix=LINUX64 %s
+; RUN: llc -verify-machineinstrs -mtriple=powerpc-apple-darwin8 < %s \
+; RUN:   | FileCheck -check-prefix=DARWIN32 %s
+; RUN: llc -verify-machineinstrs -mtriple=powerpc64-apple-darwin < %s \
+; RUN:   | FileCheck -check-prefix=DARWIN64 %s
+; RUN: llc -ppc-strip-register-prefix -verify-machineinstrs \
+; RUN:   -mtriple=ppc32-unknown-linux < %s | FileCheck -check-prefix=LINUX32 %s
+; RUN: llc -ppc-strip-register-prefix -verify-machineinstrs \
+; RUN:   -mtriple=powerpc64le-unknown-linux < %s \
+; RUN:   | FileCheck -check-prefix=LINUX64 %s
 
 ; DARWIN32: __stack_chk_guard
 ; DARWIN64: __stack_chk_guard

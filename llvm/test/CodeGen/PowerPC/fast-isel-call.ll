@@ -2,7 +2,9 @@
 ; registers and with -fast-isel-abort=1 turned on the test case will then fail.
 ; When fastisel better supports VSX fix up this test case.
 ;
-; RUN: llc < %s -O0 -verify-machineinstrs -mattr=-vsx -fast-isel-abort=1 -mtriple=powerpc64-unknown-linux-gnu -mcpu=pwr7 | FileCheck %s --check-prefix=ELF64
+; RUN: llc < %s -O0 -ppc-strip-register-prefix -verify-machineinstrs \
+; RUN:   -mattr=-vsx -fast-isel-abort=1 -mtriple=powerpc64-unknown-linux-gnu \
+; RUN:   -mcpu=pwr7 | FileCheck %s --check-prefix=ELF64
 
 define i32 @t1(i8 signext %a) nounwind {
   %1 = sext i8 %a to i32

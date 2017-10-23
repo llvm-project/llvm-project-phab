@@ -1,4 +1,4 @@
-; RUN: llc -O2 -o - %s | FileCheck %s
+; RUN: llc -ppc-strip-register-prefix -O2 -o - %s | FileCheck %s
 target datalayout = "e-m:e-i64:64-n32:64"
 target triple = "powerpc64le-grtev4-linux-gnu"
 

@@ -1,7 +1,15 @@
-; RUN: llc < %s -mtriple=powerpc64le-unknown-linux-gnu -mcpu=pwr9 -verify-machineinstrs | FileCheck %s
-; RUN: llc < %s -mtriple=powerpc64-unknown-linux-gnu -mcpu=pwr9 -verify-machineinstrs | FileCheck %s
-; RUN: llc < %s -mtriple=powerpc64le-unknown-linux-gnu -mcpu=pwr8 -verify-machineinstrs | FileCheck %s
-; RUN: llc < %s -mtriple=powerpc64-unknown-linux-gnu -mcpu=pwr8 -verify-machineinstrs | FileCheck %s
+; RUN: llc < %s -ppc-strip-register-prefix \
+; RUN:   -mtriple=powerpc64le-unknown-linux-gnu -mcpu=pwr9 \
+; RUN:   -verify-machineinstrs | FileCheck %s
+; RUN: llc < %s -ppc-strip-register-prefix \
+; RUN:   -mtriple=powerpc64-unknown-linux-gnu -mcpu=pwr9 \
+; RUN:   -verify-machineinstrs | FileCheck %s
+; RUN: llc < %s -ppc-strip-register-prefix \
+; RUN:   -mtriple=powerpc64le-unknown-linux-gnu -mcpu=pwr8 \
+; RUN:   -verify-machineinstrs | FileCheck %s
+; RUN: llc < %s -ppc-strip-register-prefix \
+; RUN:   -mtriple=powerpc64-unknown-linux-gnu \
+; RUN:   -mcpu=pwr8 -verify-machineinstrs | FileCheck %s
 
 @perm = common local_unnamed_addr global [100 x i64] zeroinitializer, align 8
 

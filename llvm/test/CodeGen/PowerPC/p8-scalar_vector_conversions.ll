@@ -1,5 +1,7 @@
-; RUN: llc < %s -mtriple=powerpc64-unknown-linux-gnu -mcpu=pwr8 | FileCheck %s
-; RUN: llc < %s -mtriple=powerpc64le-unknown-linux-gnu -mcpu=pwr8 | FileCheck %s -check-prefix=CHECK-LE
+; RUN: llc < %s -mtriple=powerpc64-unknown-linux-gnu -mcpu=pwr8 \
+; RUN:   -ppc-strip-register-prefix | FileCheck %s
+; RUN: llc < %s -mtriple=powerpc64le-unknown-linux-gnu -mcpu=pwr8 \
+; RUN:   -ppc-strip-register-prefix | FileCheck %s -check-prefix=CHECK-LE
 
 ; The build[csilf] functions simply test the scalar_to_vector handling with
 ; direct moves. This corresponds to the "insertelement" instruction. Subsequent

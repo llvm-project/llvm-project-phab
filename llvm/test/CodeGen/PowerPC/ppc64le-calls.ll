@@ -1,5 +1,7 @@
-; RUN: llc -verify-machineinstrs -mcpu=pwr8 < %s | FileCheck %s
-; RUN: llc -verify-machineinstrs < %s | FileCheck %s
+; RUN: llc -verify-machineinstrs -mcpu=pwr8 < %s -ppc-strip-register-prefix \
+; RUN:   | FileCheck %s
+; RUN: llc -verify-machineinstrs < %s -ppc-strip-register-prefix \
+; RUN:   | FileCheck %s
 
 ; The second run of the test case is to ensure the behaviour is the same
 ; without specifying -mcpu=pwr8 as that is now the baseline for ppc64le.

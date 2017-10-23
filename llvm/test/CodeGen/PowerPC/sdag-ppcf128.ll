@@ -1,4 +1,5 @@
-; RUN: llc -verify-machineinstrs -mtriple=powerpc64-unknown-linux-gnu -mattr=-crbits < %s | FileCheck %s
+; RUN: llc -ppc-strip-register-prefix -verify-machineinstrs \
+; RUN:   -mtriple=powerpc64-unknown-linux-gnu -mattr=-crbits < %s | FileCheck %s
 ;
 ; PR14751: Unsupported type in SelectionDAG::getConstantFP()
 

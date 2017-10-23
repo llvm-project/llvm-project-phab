@@ -1,4 +1,5 @@
-; RUN: llc -verify-machineinstrs < %s -mtriple=powerpc-unknown-linux-gnu | FileCheck %s
+; RUN: llc -ppc-strip-register-prefix -verify-machineinstrs < %s \
+; RUN:   -mtriple=powerpc-unknown-linux-gnu | FileCheck %s
 
 declare void @bar(i64 %x, i64 %y)
 

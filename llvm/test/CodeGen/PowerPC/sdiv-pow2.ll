@@ -1,5 +1,8 @@
-; RUN: llc -verify-machineinstrs -mcpu=ppc64 < %s | FileCheck %s
-; RUN: llc -verify-machineinstrs -mtriple=powerpc-unknown-linux-gnu -mcpu=ppc < %s | FileCheck -check-prefix=CHECK-32 %s
+; RUN: llc -ppc-strip-register-prefix -verify-machineinstrs \
+; RUN:   -mcpu=ppc64 < %s | FileCheck %s
+; RUN: llc -ppc-strip-register-prefix -verify-machineinstrs \
+; RUN:   -mtriple=powerpc-unknown-linux-gnu -mcpu=ppc < %s \
+; RUN:   | FileCheck -check-prefix=CHECK-32 %s
 target datalayout = "E-m:e-i64:64-n32:64"
 target triple = "powerpc64-unknown-linux-gnu"
 

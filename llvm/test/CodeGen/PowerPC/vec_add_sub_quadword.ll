@@ -1,7 +1,10 @@
 ; Check VMX 128-bit integer operations
 ;
-; RUN: llc -verify-machineinstrs -mtriple=powerpc64-unknown-linux-gnu -mcpu=pwr8 < %s | FileCheck %s
-; RUN: llc -verify-machineinstrs -mtriple=powerpc64-unknown-linux-gnu -mcpu=pwr8 -mattr=-vsx < %s | FileCheck %s
+; RUN: llc -ppc-strip-register-prefix -verify-machineinstrs \
+; RUN:   -mtriple=powerpc64-unknown-linux-gnu -mcpu=pwr8 < %s | FileCheck %s
+; RUN: llc -ppc-strip-register-prefix -verify-machineinstrs \
+; RUN:   -mtriple=powerpc64-unknown-linux-gnu -mcpu=pwr8 -mattr=-vsx < %s \
+; RUN:   | FileCheck %s
 
 define <1 x i128> @out_of_bounds_insertelement(<1 x i128> %x, i128 %val) nounwind {
        %tmpvec = insertelement <1 x i128> <i128 0>, i128 %val, i32 1

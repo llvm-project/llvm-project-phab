@@ -1,5 +1,7 @@
-; RUN: llc -verify-machineinstrs < %s | FileCheck %s
-; RUN: llc -verify-machineinstrs -mtriple=powerpc64-bgq-linux < %s | FileCheck %s -check-prefix=CHECK -check-prefix=CHECK-BGQ
+; RUN: llc -verify-machineinstrs < %s -ppc-strip-register-prefix | FileCheck %s
+; RUN: llc -verify-machineinstrs -mtriple=powerpc64-bgq-linux < %s \
+; RUN:   -ppc-strip-register-prefix | FileCheck %s -check-prefix=CHECK \
+; RUN:   -check-prefix=CHECK-BGQ
 target datalayout = "E-m:e-i64:64-n32:64"
 target triple = "powerpc64-unknown-linux-gnu"
 

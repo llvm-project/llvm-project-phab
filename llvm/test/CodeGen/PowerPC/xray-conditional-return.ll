@@ -1,4 +1,5 @@
-; RUN: llc -filetype=asm -o - -mtriple=powerpc64le-unknown-linux-gnu < %s | FileCheck %s
+; RUN: llc -ppc-strip-register-prefix -filetype=asm -o - \
+; RUN:   -mtriple=powerpc64le-unknown-linux-gnu < %s | FileCheck %s
 
 define void @Foo(i32 signext %a, i32 signext %b) #0 {
 ; CHECK-LABEL: @Foo

@@ -1,4 +1,5 @@
-# RUN: llvm-mc --disassemble %s -triple powerpc64-unknown-linux-gnu -mcpu=pwr7 | FileCheck %s
+# RUN: llvm-mc -ppc-strip-register-prefix --disassemble %s \
+; RUN:   -triple powerpc64-unknown-linux-gnu -mcpu=pwr7 | FileCheck %s
 
 # CHECK: lxsdx 7, 5, 31
 0x7c 0xe5 0xfc 0x98

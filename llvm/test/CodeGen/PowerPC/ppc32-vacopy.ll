@@ -1,4 +1,5 @@
-; RUN: llc -verify-machineinstrs -mtriple="powerpc-unknown-linux-gnu" -mcpu=ppc64 < %s | FileCheck %s
+; RUN: llc -verify-machineinstrs -ppc-strip-register-prefix \
+; RUN:   -mtriple="powerpc-unknown-linux-gnu" -mcpu=ppc64 < %s | FileCheck %s
 ; PR15286
 
 %va_list = type {i8, i8, i16, i8*, i8*}

@@ -1,7 +1,8 @@
 ; RUN: llc -mcpu=pwr8 -mtriple=powerpc64le-unknown-linux-gnu \
-; RUN:   -verify-machineinstrs < %s | FileCheck %s
+; RUN:   -verify-machineinstrs < %s -ppc-strip-register-prefix | FileCheck %s
 ; RUN: llc -mcpu=pwr8 -mtriple=powerpc64-unknown-linux-gnu \
-; RUN:   -verify-machineinstrs < %s | FileCheck %s --check-prefix=CHECK-BE
+; RUN:   -verify-machineinstrs < %s -ppc-strip-register-prefix \
+; RUN:   | FileCheck %s --check-prefix=CHECK-BE
 define double @test1(<2 x i64> %a) {
 entry:
 ; CHECK-LABEL: test1

@@ -1,7 +1,12 @@
-; RUN: llc                             < %s | FileCheck %s -check-prefix=CHECK -check-prefix=CHECK-BE
-; RUN: llc -fast-isel -fast-isel-abort=1 < %s | FileCheck %s -check-prefix=CHECK -check-prefix=CHECK-BE
-; RUN: llc -mtriple=powerpc64le-unknown-linux-gnu                             < %s | FileCheck %s -check-prefix=CHECK -check-prefix=CHECK-LE
-; RUN: llc -mtriple=powerpc64le-unknown-linux-gnu -fast-isel -fast-isel-abort=1 < %s | FileCheck %s -check-prefix=CHECK -check-prefix=CHECK-LE
+; RUN: llc                             < %s -ppc-strip-register-prefix \
+; RUN:   | FileCheck %s -check-prefix=CHECK -check-prefix=CHECK-BE
+; RUN: llc -fast-isel -fast-isel-abort=1 < %s -ppc-strip-register-prefix \
+; RUN:   | FileCheck %s -check-prefix=CHECK -check-prefix=CHECK-BE
+; RUN: llc -ppc-strip-register-prefix -mtriple=powerpc64le-unknown-linux-gnu \
+; RUN:   < %s | FileCheck %s -check-prefix=CHECK -check-prefix=CHECK-LE
+; RUN: llc -ppc-strip-register-prefix -mtriple=powerpc64le-unknown-linux-gnu \
+; RUN:   -fast-isel -fast-isel-abort=1 < %s | FileCheck %s \
+; RUN:   -check-prefix=CHECK -check-prefix=CHECK-LE
 
 target triple = "powerpc64-unknown-linux-gnu"
 

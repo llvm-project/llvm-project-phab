@@ -1,5 +1,7 @@
-; RUN: llc -verify-machineinstrs < %s -mcpu=ppc32 | FileCheck %s
-; RUN: llc -verify-machineinstrs < %s -mcpu=ppc32 -mtriple=powerpc-darwin9 | FileCheck %s -check-prefix=CHECK-D
+; RUN: llc -verify-machineinstrs < %s -mcpu=ppc32 -ppc-strip-register-prefix \
+; RUN:   | FileCheck %s
+; RUN: llc -verify-machineinstrs < %s -mcpu=ppc32 -mtriple=powerpc-darwin9 \
+; RUN:   | FileCheck %s -check-prefix=CHECK-D
 target triple = "powerpc-unknown-linux-gnu"
 
 declare void @printf(i8*, ...)

@@ -1,11 +1,13 @@
-; RUN: llc -verify-machineinstrs -mcpu=pwr8 \
+; RUN: llc -ppc-strip-register-prefix -verify-machineinstrs -mcpu=pwr8 \
 ; RUN:   -mtriple=powerpc64le-unknown-linux-gnu -O3 < %s | FileCheck %s
 
-; RUN: llc -mcpu=pwr9 -mtriple=powerpc64le-unknown-linux-gnu -O3 \
+; RUN: llc -ppc-strip-register-prefix -mcpu=pwr9 \
+; RUN:   -mtriple=powerpc64le-unknown-linux-gnu -O3 \
 ; RUN:   -verify-machineinstrs < %s | FileCheck %s --check-prefix=CHECK-P9 \
 ; RUN:   --implicit-check-not xxswapd
 
-; RUN: llc -mcpu=pwr9 -mtriple=powerpc64le-unknown-linux-gnu -O3 \
+; RUN: llc -ppc-strip-register-prefix -mcpu=pwr9 \
+; RUN:   -mtriple=powerpc64le-unknown-linux-gnu -O3 \
 ; RUN:   -verify-machineinstrs -mattr=-power9-vector < %s | FileCheck %s
 
 ; These tests verify that VSX swap optimization works when loading a scalar

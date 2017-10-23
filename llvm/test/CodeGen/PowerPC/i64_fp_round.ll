@@ -1,5 +1,8 @@
-; RUN: llc -verify-machineinstrs -mcpu=pwr7 -mattr=-fpcvt < %s | FileCheck %s
-; RUN: llc -verify-machineinstrs -mcpu=pwr7 -mattr=-fpcvt -ppc-gen-isel=false < %s | FileCheck %s --check-prefix=CHECK-NO-ISEL
+; RUN: llc -ppc-strip-register-prefix -verify-machineinstrs -mcpu=pwr7 \
+; RUN:   -mattr=-fpcvt < %s | FileCheck %s
+; RUN: llc -ppc-strip-register-prefix -verify-machineinstrs -mcpu=pwr7 \
+; RUN:   -mattr=-fpcvt -ppc-gen-isel=false < %s | FileCheck %s \
+; RUN:   --check-prefix=CHECK-NO-ISEL
 target datalayout = "E-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v128:128:128-n32:64"
 target triple = "powerpc64-unknown-linux-gnu"
 

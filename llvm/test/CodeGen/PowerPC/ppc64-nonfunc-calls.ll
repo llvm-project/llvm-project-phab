@@ -1,4 +1,5 @@
-; RUN: llc -relocation-model=static -verify-machineinstrs -mcpu=pwr7 < %s | FileCheck %s
+; RUN: llc -relocation-model=static -verify-machineinstrs -mcpu=pwr7 < %s \
+; RUN:   -ppc-strip-register-prefix | FileCheck %s
 target datalayout = "E-m:e-i64:64-n32:64"
 target triple = "powerpc64-unknown-linux-gnu"
 

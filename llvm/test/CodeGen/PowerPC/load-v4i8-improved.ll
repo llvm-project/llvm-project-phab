@@ -1,6 +1,8 @@
-; RUN: llc -verify-machineinstrs -mcpu=pwr8 -mtriple=powerpc64le-unknown-linux-gnu < %s | FileCheck \
+; RUN: llc -verify-machineinstrs -ppc-strip-register-prefix -mcpu=pwr8 \
+; RUN:   -mtriple=powerpc64le-unknown-linux-gnu < %s | FileCheck \
 ; RUN:   -implicit-check-not vmrg -implicit-check-not=vperm %s
-; RUN: llc -verify-machineinstrs -mcpu=pwr8 -mtriple=powerpc64-unknown-linux-gnu < %s | FileCheck \
+; RUN: llc -verify-machineinstrs -ppc-strip-register-prefix -mcpu=pwr8 \
+; RUN:   -mtriple=powerpc64-unknown-linux-gnu < %s | FileCheck \
 ; RUN:   -implicit-check-not vmrg -implicit-check-not=vperm %s
 
 define <16 x i8> @test(i32* %s, i32* %t) {

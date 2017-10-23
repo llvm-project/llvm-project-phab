@@ -2,9 +2,15 @@
 ; registers and with -fast-isel-abort=1 turned on the test case will then fail.
 ; When fastisel better supports VSX fix up this test case.
 ;
-; RUN: llc < %s -O0 -verify-machineinstrs -fast-isel-abort=1 -mtriple=powerpc64-unknown-linux-gnu -mcpu=pwr7 -mattr=-vsx | FileCheck %s
-; RUN: llc < %s -O0 -verify-machineinstrs -fast-isel-abort=1 -mtriple=powerpc64le-unknown-linux-gnu -mcpu=pwr8 -mattr=-vsx | FileCheck %s
-; RUN: llc < %s -O0 -verify-machineinstrs -mtriple=powerpc64-unknown-linux-gnu -mcpu=970 -mattr=-vsx | FileCheck %s --check-prefix=PPC970
+; RUN: llc < %s -O0 -verify-machineinstrs -ppc-strip-register-prefix \
+; RUN:   -fast-isel-abort=1 -mtriple=powerpc64-unknown-linux-gnu \
+; RUN:   -mcpu=pwr7 -mattr=-vsx | FileCheck %s
+; RUN: llc < %s -O0 -verify-machineinstrs -ppc-strip-register-prefix \
+; RUN:   -fast-isel-abort=1 -mtriple=powerpc64le-unknown-linux-gnu \
+; RUN:   -mcpu=pwr8 -mattr=-vsx | FileCheck %s
+; RUN: llc < %s -O0 -verify-machineinstrs -ppc-strip-register-prefix \
+; RUN:   -mtriple=powerpc64-unknown-linux-gnu -mcpu=970 -mattr=-vsx \
+; RUN:   | FileCheck %s --check-prefix=PPC970
 
 ;; Tests for 970 don't use -fast-isel-abort=1 because we intentionally punt
 ;; to SelectionDAG in some cases.

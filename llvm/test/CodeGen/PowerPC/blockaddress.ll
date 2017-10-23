@@ -1,9 +1,21 @@
-; RUN: llc -verify-machineinstrs < %s -code-model=small -mtriple=powerpc64-unknown-linux-gnu | FileCheck %s -check-prefix=SMALL
-; RUN: llc -verify-machineinstrs < %s -code-model=medium -mtriple=powerpc64-unknown-linux-gnu | FileCheck %s -check-prefix=MEDIUM
-; RUN: llc -verify-machineinstrs < %s -code-model=large -mtriple=powerpc64-unknown-linux-gnu | FileCheck %s -check-prefix=MEDIUM
-; RUN: llc -verify-machineinstrs < %s -code-model=small -mtriple=powerpc64le-unknown-linux-gnu | FileCheck %s -check-prefix=SMALL
-; RUN: llc -verify-machineinstrs < %s -code-model=medium -mtriple=powerpc64le-unknown-linux-gnu | FileCheck %s -check-prefix=MEDIUM
-; RUN: llc -verify-machineinstrs < %s -code-model=large -mtriple=powerpc64le-unknown-linux-gnu | FileCheck %s -check-prefix=MEDIUM
+; RUN: llc -ppc-strip-register-prefix -verify-machineinstrs < %s \
+; RUN:   -code-model=small -mtriple=powerpc64-unknown-linux-gnu \
+; RUN:   | FileCheck %s -check-prefix=SMALL
+; RUN: llc -ppc-strip-register-prefix -verify-machineinstrs < %s \
+; RUN:   -code-model=medium -mtriple=powerpc64-unknown-linux-gnu \
+; RUN:   | FileCheck %s -check-prefix=MEDIUM
+; RUN: llc -ppc-strip-register-prefix -verify-machineinstrs < %s \
+; RUN:   -code-model=large -mtriple=powerpc64-unknown-linux-gnu \
+; RUN:   | FileCheck %s -check-prefix=MEDIUM
+; RUN: llc -ppc-strip-register-prefix -verify-machineinstrs < %s \
+; RUN:   -code-model=small -mtriple=powerpc64le-unknown-linux-gnu \
+; RUN:   | FileCheck %s -check-prefix=SMALL
+; RUN: llc -ppc-strip-register-prefix -verify-machineinstrs < %s \
+; RUN:   -code-model=medium -mtriple=powerpc64le-unknown-linux-gnu \
+; RUN:   | FileCheck %s -check-prefix=MEDIUM
+; RUN: llc -ppc-strip-register-prefix -verify-machineinstrs < %s \
+; RUN:   -code-model=large -mtriple=powerpc64le-unknown-linux-gnu \
+; RUN:   | FileCheck %s -check-prefix=MEDIUM
 
 define i8* @test() {
 entry:

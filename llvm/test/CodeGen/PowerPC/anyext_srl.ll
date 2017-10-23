@@ -1,4 +1,5 @@
-; RUN: llc -verify-machineinstrs -mtriple=powerpc64le-unknown-linux-gnu \
+; RUN: llc -ppc-strip-register-prefix -verify-machineinstrs \
+; RUN:   -mtriple=powerpc64le-unknown-linux-gnu \
 ; RUN:     -mcpu=pwr8 < %s | FileCheck %s
 
 %class.PB2 = type { [1 x i32], %class.PB1* }

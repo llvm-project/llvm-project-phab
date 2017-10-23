@@ -1,8 +1,11 @@
-; RUN: llc -verify-machineinstrs < %s -mtriple=powerpc64-unknown-linux-gnu \
+; RUN: llc -ppc-strip-register-prefix -verify-machineinstrs < %s \
+; RUN:   -mtriple=powerpc64-unknown-linux-gnu \
 ; RUN:   -mcpu=pwr8 -mattr=-direct-move | FileCheck %s
-; RUN: llc -verify-machineinstrs < %s -mtriple=powerpc64le-unknown-linux-gnu \
+; RUN: llc -ppc-strip-register-prefix -verify-machineinstrs < %s \
+; RUN:   -mtriple=powerpc64le-unknown-linux-gnu \
 ; RUN:   -mcpu=pwr8 -mattr=-direct-move | FileCheck %s
-; RUN: llc -verify-machineinstrs < %s -mtriple=powerpc64le-unknown-linux-gnu \
+; RUN: llc -ppc-strip-register-prefix -verify-machineinstrs < %s \
+; RUN:   -mtriple=powerpc64le-unknown-linux-gnu \
 ; RUN:   -mcpu=pwr9 -mattr=-direct-move | FileCheck %s -check-prefix=CHECK-P9
 
 @d = common global double 0.000000e+00, align 8

@@ -1,6 +1,8 @@
-; RUN: llc -mtriple=powerpc64le-unknown-linux-gnu -mattr=+vsx -mcpu=pwr8 < %s |  \
+; RUN: llc -mtriple=powerpc64le-unknown-linux-gnu -ppc-strip-register-prefix \
+; RUN:   -mattr=+vsx -mcpu=pwr8 < %s |  \
 ; RUN:   FileCheck %s --implicit-check-not lxvd2x --implicit-check-not lfs
-; RUN: llc -mtriple=powerpc64le-unknown-linux-gnu -mattr=-altivec -mcpu=pwr8 -mattr=-vsx < %s | \
+; RUN: llc -mtriple=powerpc64le-unknown-linux-gnu -ppc-strip-register-prefix \
+; RUN:   -mattr=-altivec -mcpu=pwr8 -mattr=-vsx < %s | \
 ; RUN:   FileCheck %s --check-prefix=CHECK-NVSXALT --implicit-check-not xxlxor \
 ; RUN:                                             --implicit-check-not vxor
 

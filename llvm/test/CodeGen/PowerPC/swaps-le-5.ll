@@ -1,4 +1,5 @@
-; RUN: llc -verify-machineinstrs -mcpu=pwr8 -mtriple=powerpc64le-unknown-linux-gnu -O3 < %s | FileCheck %s
+; RUN: llc -ppc-strip-register-prefix -verify-machineinstrs -mcpu=pwr8 \
+; RUN:   -mtriple=powerpc64le-unknown-linux-gnu -O3 < %s | FileCheck %s
 
 ; These tests verify that VSX swap optimization works for various
 ; manipulations of <2 x double> vectors.

@@ -1,6 +1,8 @@
-; RUN: llc -mcpu=pwr8 -mtriple=powerpc64le-unknown-linux-gnu \
+; RUN: llc -ppc-strip-register-prefix -mcpu=pwr8 \
+; RUN:   -mtriple=powerpc64le-unknown-linux-gnu \
 ; RUN:   -verify-machineinstrs < %s | FileCheck %s
-; RUN: llc -mcpu=pwr8 -mtriple=powerpc64-unknown-linux-gnu \
+; RUN: llc -ppc-strip-register-prefix -mcpu=pwr8 \
+; RUN:   -mtriple=powerpc64-unknown-linux-gnu \
 ; RUN:   -verify-machineinstrs < %s | FileCheck %s
 define <4 x i32> @test1(<4 x i32> %a) {
 entry:

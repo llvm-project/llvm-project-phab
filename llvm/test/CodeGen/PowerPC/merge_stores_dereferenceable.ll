@@ -1,4 +1,5 @@
-; RUN: llc -verify-machineinstrs -mcpu=pwr8 -mtriple=powerpc64le-unknown-linux-gnu < %s | FileCheck %s
+; RUN: llc -verify-machineinstrs -ppc-strip-register-prefix \
+; RUN:   -mcpu=pwr8 -mtriple=powerpc64le-unknown-linux-gnu < %s | FileCheck %s
 
 ; This code causes an assertion failure if dereferenceable flag is not properly set when in merging consecutive stores
 ; CHECK-LABEL: func:

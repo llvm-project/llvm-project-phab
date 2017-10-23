@@ -1,5 +1,7 @@
-; RUN: llc -verify-machineinstrs < %s | FileCheck %s
-; RUN: llc -verify-machineinstrs -ppc-gen-isel=false < %s | FileCheck --check-prefix=CHECK-NO-ISEL %s
+; RUN: llc -ppc-strip-register-prefix -verify-machineinstrs < %s \
+; RUN:   | FileCheck %s
+; RUN: llc -ppc-strip-register-prefix -verify-machineinstrs \
+; RUN:   -ppc-gen-isel=false < %s | FileCheck --check-prefix=CHECK-NO-ISEL %s
 target datalayout = "E-m:e-i64:64-n32:64"
 target triple = "powerpc64-unknown-linux-gnu"
 

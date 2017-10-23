@@ -1,4 +1,5 @@
-# RUN: llvm-mc --disassemble %s -triple powerpc64-bgq-linux -mcpu=a2q | FileCheck %s
+# RUN: llvm-mc -ppc-strip-register-prefix --disassemble %s \
+; RUN:   -triple powerpc64-bgq-linux -mcpu=a2q | FileCheck %s
 
 # CHECK: qvfabs 3, 5
 0x10 0x60 0x2a 0x10

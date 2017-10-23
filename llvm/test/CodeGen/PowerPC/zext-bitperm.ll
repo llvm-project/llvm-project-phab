@@ -1,6 +1,9 @@
-; RUN: llc -verify-machineinstrs < %s -mtriple=powerpc-unknown-linux-gnu | FileCheck %s
-; RUN: llc -verify-machineinstrs < %s -mtriple=powerpc64-unknown-linux-gnu | FileCheck %s
-; RUN: llc -verify-machineinstrs < %s -mtriple=powerpc64le-unknown-linux-gnu | FileCheck %s
+; RUN: llc -ppc-strip-register-prefix -verify-machineinstrs < %s \
+; RUN:   -mtriple=powerpc-unknown-linux-gnu | FileCheck %s
+; RUN: llc -ppc-strip-register-prefix -verify-machineinstrs < %s \
+; RUN:   -mtriple=powerpc64-unknown-linux-gnu | FileCheck %s
+; RUN: llc -ppc-strip-register-prefix -verify-machineinstrs < %s \
+; RUN:   -mtriple=powerpc64le-unknown-linux-gnu | FileCheck %s
 
 ; Test case for PPCTargetLowering::extendSubTreeForBitPermutation.
 ; We expect mask and rotate are folded into a rlwinm instruction.

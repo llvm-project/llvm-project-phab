@@ -1,5 +1,8 @@
-; RUN: llc -verify-machineinstrs -mcpu=pwr7 -O0 -code-model=medium <%s | FileCheck -check-prefix=MEDIUM %s
-; RUN: llc -verify-machineinstrs -mcpu=pwr7 -O0 -code-model=large <%s | FileCheck -check-prefix=LARGE %s
+; RUN: llc -ppc-strip-register-prefix -verify-machineinstrs \
+; RUN:   -mcpu=pwr7 -O0 -code-model=medium <%s \
+; RUN:   | FileCheck -check-prefix=MEDIUM %s
+; RUN: llc -ppc-strip-register-prefix -verify-machineinstrs -mcpu=pwr7 \
+; RUN:   -O0 -code-model=large <%s | FileCheck -check-prefix=LARGE %s
 
 ; Test correct code generation for medium and large code model
 ; for loading and storing a static variable scoped to a function.

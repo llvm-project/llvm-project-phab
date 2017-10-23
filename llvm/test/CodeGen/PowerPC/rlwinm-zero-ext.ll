@@ -1,4 +1,5 @@
-; RUN: llc -verify-machineinstrs -O2 < %s | FileCheck %s
+; RUN: llc -ppc-strip-register-prefix -verify-machineinstrs -O2 < %s \
+; RUN:   | FileCheck %s
 target datalayout = "e-m:e-i64:64-n32:64"
 target triple = "powerpc64le-unknown-linux-gnu"
 

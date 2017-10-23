@@ -1,4 +1,5 @@
-; RUN: llc -O2  -mtriple=powerpc64-linux-gnu -mcpu=pwr8 < %s | FileCheck %s
+; RUN: llc -O2 -mtriple=powerpc64-linux-gnu -mcpu=pwr8 < %s \
+; RUN:   -ppc-strip-register-prefix | FileCheck %s
 
 define i64 @foo() {
 entry:

@@ -39,6 +39,11 @@ static cl::opt<bool>
 ShowVSRNumsAsVR("ppc-vsr-nums-as-vr", cl::Hidden, cl::init(false),
              cl::desc("Prints full register names with vs{31-63} as v{0-31}"));
 
+// Strips register prefixes.
+static cl::opt<bool>
+StripRegisterPrefix("ppc-strip-register-prefix", cl::Hidden, cl::init(false),
+                    cl::desc("Prints register names without prefixes"));
+
 #define PRINT_ALIAS_INSTR
 #include "PPCGenAsmWriter.inc"
 
@@ -445,9 +450,8 @@ void PPCInstPrinter::printTLSCall(const MCInst *MI, unsigned OpNo,
     O << '@' << MCSymbolRefExpr::getVariantKindName(refExp.getKind());
 }
 
-
 /// stripRegisterPrefix - This method strips the character prefix from a
-/// register name so that only the number is left.  Used by for linux asm.
+/// register name so that only the number is left.
 static const char *stripRegisterPrefix(const char *RegName, unsigned RegNum,
                                        unsigned RegEncoding) {
   if (FullRegNames) {
@@ -481,6 +485,23 @@ static const char *stripRegisterPrefix(const char *RegName, unsigned RegNum,
   return RegName;
 }
 
+/// insertPercentInRegisterPrefix - Adds a percent symbol in the register
+/// prefixes.
+void insertPercentInRegisterPrefix(char *NewRegName, const char *RegName) {
+  switch (RegName[0]) {
+  case 'r':
+  case 'f':
+  case 'q':
+  case 'v':
+  case 'c':
+    strcpy(NewRegName, "%");
+    strcat(NewRegName, RegName);
+    break;
+  default:
+    strcpy(NewRegName, RegName);
+  }
+}
+
 void PPCInstPrinter::printOperand(const MCInst *MI, unsigned OpNo,
                                   raw_ostream &O) {
   const MCOperand &Op = MI->getOperand(OpNo);
@@ -503,9 +524,23 @@ void PPCInstPrinter::printOperand(const MCInst *MI, unsigned OpNo,
     }
 
     const char *RegName = getRegisterName(Reg);
-    // The linux and AIX assembler does not take register prefixes.
-    if (!isDarwinSyntax())
-      RegName = stripRegisterPrefix(RegName, Reg, MRI.getEncodingValue(Reg));
+
+    // Check if we need to change the register prefix.
+    if (!TripleInfo.isOSDarwin() || StripRegisterPrefix) {
+      // Linux only accepts register prefixes with percent symbol.
+      if (TripleInfo.isOSLinux() and !(StripRegisterPrefix or FullRegNames)) {
+        char *NewRegName = new char[strlen(RegName) + 1];
+        insertPercentInRegisterPrefix(NewRegName, RegName);
+        O << NewRegName;
+        free(NewRegName);
+        return;
+      } else {
+        // AIX assembler does not take register prefixes.
+        // The assembly syntax without the register prefixes is also accepted by
+        // Linux and FreeBSD.
+        RegName = stripRegisterPrefix(RegName, Reg, MRI.getEncodingValue(Reg));
+      }
+    }
 
     O << RegName;
     return;
