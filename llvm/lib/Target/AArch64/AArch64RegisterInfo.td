@@ -140,10 +140,12 @@ def GPR64common : RegisterClass<"AArch64", [i64], 64,
 def GPR32 : RegisterClass<"AArch64", [i32], 32, (add GPR32common, WZR)> {
   let AltOrders = [(rotl GPR32, 8)];
   let AltOrderSelect = [{ return 1; }];
+  let GIZeroRegister = WZR;
 }
 def GPR64 : RegisterClass<"AArch64", [i64], 64, (add GPR64common, XZR)> {
   let AltOrders = [(rotl GPR64, 8)];
   let AltOrderSelect = [{ return 1; }];
+  let GIZeroRegister = XZR;
 }
 
 // GPR register classes which include SP/WSP.
@@ -169,19 +171,14 @@ def GPR64sp0 : RegisterOperand<GPR64sp> {
   let ParserMatchClass = GPR64spPlus0Operand;
 }
 
-// GPR32/GPR64 but with zero-register substitution enabled.
-// TODO: Roll this out to GPR32/GPR64/GPR32all/GPR64all.
-def GPR32z : RegisterOperand<GPR32> {
-  let GIZeroRegister = WZR;
-}
-def GPR64z : RegisterOperand<GPR64> {
-  let GIZeroRegister = XZR;
-}
-
 // GPR register classes which include WZR/XZR AND SP/WSP. This is not a
 // constraint used by any instructions, it is used as a common super-class.
-def GPR32all : RegisterClass<"AArch64", [i32], 32, (add GPR32common, WZR, WSP)>;
-def GPR64all : RegisterClass<"AArch64", [i64], 64, (add GPR64common, XZR, SP)>;
+def GPR32all : RegisterClass<"AArch64", [i32], 32, (add GPR32common, WZR, WSP)> {
+  let GIZeroRegister = WZR;
+}
+def GPR64all : RegisterClass<"AArch64", [i64], 64, (add GPR64common, XZR, SP)> {
+  let GIZeroRegister = XZR;
+}
 
 // For tail calls, we can't use callee-saved registers, as they are restored
 // to the saved value before the tail call, which would clobber a call address.

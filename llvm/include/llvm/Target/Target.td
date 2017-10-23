@@ -284,6 +284,12 @@ class RegisterClass<string namespace, list<ValueType> regTypes, int alignment,
   // the assembly matcher will provide a function to map from diagnostic types
   // to message strings.
   string DiagnosticString = "";
+
+  // When referenced in the result of a CodeGen pattern, GlobalISel will
+  // normally copy the matched operand to the result. When this is set, it will
+  // emit a special copy that will replace zero-immediates with the specified
+  // zero-register.
+  Register GIZeroRegister = ?;
 }
 
 // The memberList in a RegisterClass is a dag of set operations. TableGen

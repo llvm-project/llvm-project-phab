@@ -2597,16 +2597,18 @@ Error GlobalISelEmitter::importExplicitUseRenderer(
       return Error::success();
     }
 
+    if ((ChildRec->isSubClassOf("RegisterClass") ||
+         ChildRec->isSubClassOf("RegisterOperand")) &&
+        !ChildRec->isValueUnset("GIZeroRegister")) {
+      DstMIBuilder.addRenderer<CopyOrAddZeroRegRenderer>(
+          0, InsnMatcher, DstChild->getName(),
+          ChildRec->getValueAsDef("GIZeroRegister"));
+      return Error::success();
+    }
+
     if (ChildRec->isSubClassOf("RegisterClass") ||
         ChildRec->isSubClassOf("RegisterOperand") ||
         ChildRec->isSubClassOf("ValueType")) {
-      if (ChildRec->isSubClassOf("RegisterOperand") &&
-          !ChildRec->isValueUnset("GIZeroRegister")) {
-        DstMIBuilder.addRenderer<CopyOrAddZeroRegRenderer>(
-            0, InsnMatcher, DstChild->getName(),
-            ChildRec->getValueAsDef("GIZeroRegister"));
-        return Error::success();
-      }
 
       DstMIBuilder.addRenderer<CopyRenderer>(0, InsnMatcher,
                                              DstChild->getName());
