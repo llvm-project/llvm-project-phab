@@ -1,16 +1,14 @@
 // REQUIRES: x86
 // RUN: llvm-mc -filetype=obj -triple=x86_64-pc-linux %s -o %t.o
-// RUN: ld.lld %t.o -o %t.so -shared -O3
+// RUN: ld.lld %t.o -o %t.so -shared -O2
 // RUN: llvm-readobj -r -s %t.so | FileCheck %s
 
+.section foo,"aMS",@progbits,1
+.asciz "foobarbaz"
+.asciz "barbaz"
 
-        .section        foo,"aMS",@progbits,1
-        .asciz "bar"
-        .asciz "ar"
-
-        .data
-        .quad foo + 4
-
+.data
+.quad foo + 11
 
 // CHECK:      Name: foo
 // CHECK-NEXT: Type: SHT_PROGBITS
@@ -23,6 +21,6 @@
 
 // CHECK:      Relocations [
 // CHECK-NEXT:   Section ({{.*}}) .rela.dyn {
-// CHECK-NEXT:     0x{{.*}} R_X86_64_RELATIVE - 0x1C9
+// CHECK-NEXT:     0x{{.*}} R_X86_64_RELATIVE - 0x1CC
 // CHECK-NEXT:   }
 // CHECK-NEXT: ]

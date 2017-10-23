@@ -215,13 +215,14 @@ private:
 // be found by looking at the next one) and put the hash in a side table.
 struct SectionPiece {
   SectionPiece(size_t Off, uint32_t Hash, bool Live)
-      : InputOff(Off), Hash(Hash), OutputOff(-1),
-        Live(Live || !Config->GcSections) {}
+      : InputOff(Off), Hash(Hash), Live(Live || !Config->GcSections),
+        TailHash(0), OutputOff(-1) {}
 
   uint32_t InputOff;
   uint32_t Hash;
-  uint64_t OutputOff : 63;
   uint64_t Live : 1;
+  uint64_t TailHash : 10;
+  uint64_t OutputOff : 53;
 };
 
 static_assert(sizeof(SectionPiece) == 16, "SectionPiece is too big");

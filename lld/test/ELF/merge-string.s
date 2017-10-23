@@ -8,12 +8,12 @@
 // RUN: llvm-readobj -s -section-data -t %t.so | FileCheck --check-prefix=NOMERGE %s
 
         .section	.rodata1,"aMS",@progbits,1
-	.asciz	"abc"
+	.asciz	"abcdef"
 foo:
-	.ascii	"a"
+	.ascii	"abcd"
 bar:
-        .asciz  "bc"
-        .asciz  "bc"
+        .asciz  "ef"
+        .asciz  "cdef"
 
         .section        .rodata2,"aMS",@progbits,2
         .align  2
@@ -30,13 +30,13 @@ zed:
 // CHECK-NEXT: ]
 // CHECK-NEXT: Address:         0x1C8
 // CHECK-NEXT: Offset:  0x1C8
-// CHECK-NEXT: Size:    4
+// CHECK-NEXT: Size:
 // CHECK-NEXT: Link: 0
 // CHECK-NEXT: Info: 0
 // CHECK-NEXT: AddressAlignment: 1
 // CHECK-NEXT: EntrySize: 0
 // CHECK-NEXT: SectionData (
-// CHECK-NEXT:   0000: 61626300                             |abc.|
+// CHECK-NEXT:   |abcdef.|
 // CHECK-NEXT: )
 
 // NOTAIL:      Name:    .rodata1
@@ -48,13 +48,13 @@ zed:
 // NOTAIL-NEXT: ]
 // NOTAIL-NEXT: Address:         0x1C8
 // NOTAIL-NEXT: Offset:  0x1C8
-// NOTAIL-NEXT: Size:    7
+// NOTAIL-NEXT: Size:
 // NOTAIL-NEXT: Link: 0
 // NOTAIL-NEXT: Info: 0
 // NOTAIL-NEXT: AddressAlignment: 1
 // NOTAIL-NEXT: EntrySize: 0
 // NOTAIL-NEXT: SectionData (
-// NOTAIL-NEXT:   0000: 62630061 626300                     |bc.abc.|
+// NOTAIL-NEXT:   |cdef.abcdef.|
 // NOTAIL-NEXT: )
 
 // NOMERGE:      Name:    .rodata1
@@ -66,13 +66,14 @@ zed:
 // NOMERGE-NEXT: ]
 // NOMERGE-NEXT: Address:         0x1C8
 // NOMERGE-NEXT: Offset:  0x1C8
-// NOMERGE-NEXT: Size:    11
+// NOMERGE-NEXT: Size:
 // NOMERGE-NEXT: Link: 0
 // NOMERGE-NEXT: Info: 0
 // NOMERGE-NEXT: AddressAlignment: 1
 // NOMERGE-NEXT: EntrySize: 1
 // NOMERGE-NEXT: SectionData (
-// NOMERGE-NEXT:   0000: 61626300 61626300 626300 |abc.abc.bc.|
+// NOMERGE-NEXT:   |abcdef.abcdef.cd|
+// NOMERGE-NEXT:   |ef.|
 // NOMERGE-NEXT: )
 
 // CHECK:      Name: .rodata2
@@ -82,24 +83,24 @@ zed:
 // CHECK-NEXT:   SHF_MERGE
 // CHECK-NEXT:   SHF_STRINGS
 // CHECK-NEXT: ]
-// CHECK-NEXT: Address: 0x1CC
-// CHECK-NEXT: Offset: 0x1CC
-// CHECK-NEXT: Size: 4
+// CHECK-NEXT: Address: 0x1D0
+// CHECK-NEXT: Offset: 0x1D0
+// CHECK-NEXT: Size:
 // CHECK-NEXT: Link: 0
 // CHECK-NEXT: Info: 0
 // CHECK-NEXT: AddressAlignment: 2
 // CHECK-NEXT: EntrySize: 0
 // CHECK-NEXT: SectionData (
-// CHECK-NEXT:   0000: 14000000                             |....|
+// CHECK-NEXT:   |....|
 // CHECK-NEXT: )
 
 
 // CHECK:      Name:    bar
-// CHECK-NEXT: Value:   0x1C9
+// CHECK-NEXT: Value:   0x1CC
 
 // CHECK:      Name:    foo
 // CHECK-NEXT: Value:   0x1C8
 
 // CHECK:      Name: zed
-// CHECK-NEXT: Value: 0x1CC
+// CHECK-NEXT: Value: 0x1D0
 // CHECK-NEXT: Size: 0

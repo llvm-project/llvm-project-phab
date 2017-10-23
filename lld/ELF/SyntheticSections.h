@@ -662,26 +662,33 @@ public:
 class MergeSyntheticSection : public SyntheticSection {
 public:
   void addSection(MergeInputSection *MS);
+  size_t getSize() const override { return Size; }
+  void writeTo(uint8_t *Buf) override;
 
 protected:
   MergeSyntheticSection(StringRef Name, uint32_t Type, uint64_t Flags,
-                        uint32_t Alignment)
-      : SyntheticSection(Flags, Type, Alignment, Name) {}
+                        uint32_t Alignment);
 
   std::vector<MergeInputSection *> Sections;
+
+  // Section size
+  size_t Size;
+
+  // Concurrency level.
+  size_t Concurrency;
+
+  // String table contents
+  constexpr static size_t NumShards = 32;
+  std::vector<llvm::StringTableBuilder> Shards;
+  size_t ShardOffsets[NumShards];
 };
 
 class MergeTailSection final : public MergeSyntheticSection {
 public:
   MergeTailSection(StringRef Name, uint32_t Type, uint64_t Flags,
-                   uint32_t Alignment);
-
-  size_t getSize() const override;
-  void writeTo(uint8_t *Buf) override;
+                   uint32_t Alignment)
+      : MergeSyntheticSection(Name, Type, Flags, Alignment) {}
   void finalizeContents() override;
-
-private:
-  llvm::StringTableBuilder Builder;
 };
 
 class MergeNoTailSection final : public MergeSyntheticSection {
@@ -689,9 +696,6 @@ public:
   MergeNoTailSection(StringRef Name, uint32_t Type, uint64_t Flags,
                      uint32_t Alignment)
       : MergeSyntheticSection(Name, Type, Flags, Alignment) {}
-
-  size_t getSize() const override { return Size; }
-  void writeTo(uint8_t *Buf) override;
   void finalizeContents() override;
 
 private:
@@ -703,14 +707,6 @@ private:
   size_t getShardId(uint32_t Hash) {
     return Hash >> (32 - llvm::countTrailingZeros(NumShards));
   }
-
-  // Section size
-  size_t Size;
-
-  // String table contents
-  constexpr static size_t NumShards = 32;
-  std::vector<llvm::StringTableBuilder> Shards;
-  size_t ShardOffsets[NumShards];
 };
 
 // .MIPS.abiflags section.
