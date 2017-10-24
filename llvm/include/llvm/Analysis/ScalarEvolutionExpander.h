@@ -30,6 +30,15 @@ namespace llvm {
   /// all materialized values are safe to speculate.
   bool isSafeToExpand(const SCEV *S, ScalarEvolution &SE);
 
+  // Return true if the given expression is safe to expand at the specified
+  // insertion point. Basically it implies two things:
+  // 1) It is OK to expand the given expression in sense of isSafeToExpand;
+  // 2) All expressions included to S are available at the insertion point.
+  //    For example, if some AddRecs are included into S, it checks that the
+  //    insertion point is dominated by its loop's header.
+  bool isSafeToExpandAt(const SCEV *S, const Instruction *InsertionPoint,
+                        ScalarEvolution &SE);
+
   /// This class uses information about analyze scalars to rewrite expressions
   /// in canonical form.
   ///
