@@ -535,13 +535,19 @@ unsigned WebAssemblyFastISel::signExtend(unsigned Reg, const Value *V,
 unsigned WebAssemblyFastISel::getRegForUnsignedValue(const Value *V) {
   MVT::SimpleValueType From = getSimpleType(V->getType());
   MVT::SimpleValueType To = getLegalType(From);
-  return zeroExtend(getRegForValue(V), V, From, To);
+  unsigned VReg = getRegForValue(V);
+  if (VReg == 0)
+    return 0;
+  return zeroExtend(VReg, V, From, To);
 }
 
 unsigned WebAssemblyFastISel::getRegForSignedValue(const Value *V) {
   MVT::SimpleValueType From = getSimpleType(V->getType());
   MVT::SimpleValueType To = getLegalType(From);
-  return zeroExtend(getRegForValue(V), V, From, To);
+  unsigned VReg = getRegForValue(V);
+  if (VReg == 0)
+    return 0;
+  return signExtend(VReg, V, From, To);
 }
 
 unsigned WebAssemblyFastISel::getRegForPromotedValue(const Value *V,
