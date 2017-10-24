@@ -39,6 +39,12 @@ static cl::opt<bool>
 ShowVSRNumsAsVR("ppc-vsr-nums-as-vr", cl::Hidden, cl::init(false),
              cl::desc("Prints full register names with vs{31-63} as v{0-31}"));
 
+// Strips register prefixes.
+static cl::opt<bool>
+FullRegNamesWithPercent("print-reg-with-percent-prefix",
+                         cl::Hidden, cl::init(false),
+                         cl::desc("Prints full register names with percent"));
+
 #define PRINT_ALIAS_INSTR
 #include "PPCGenAsmWriter.inc"
 
@@ -445,7 +451,6 @@ void PPCInstPrinter::printTLSCall(const MCInst *MI, unsigned OpNo,
     O << '@' << MCSymbolRefExpr::getVariantKindName(refExp.getKind());
 }
 
-
 /// stripRegisterPrefix - This method strips the character prefix from a
 /// register name so that only the number is left.  Used by for linux asm.
 static const char *stripRegisterPrefix(const char *RegName, unsigned RegNum,
@@ -481,6 +486,20 @@ static const char *stripRegisterPrefix(const char *RegName, unsigned RegNum,
   return RegName;
 }
 
+/// printRegisterWithPercentPrefix - Print register with percent and prefixes.
+void printRegisterWithPercentPrefix(const char *RegName, raw_ostream &O) {
+  switch (RegName[0]) {
+  case 'r':
+  case 'f':
+  case 'q':
+  case 'v':
+  case 'c':
+    O << "%";
+  }
+
+  O << RegName;
+}
+
 void PPCInstPrinter::printOperand(const MCInst *MI, unsigned OpNo,
                                   raw_ostream &O) {
   const MCOperand &Op = MI->getOperand(OpNo);
@@ -503,9 +522,19 @@ void PPCInstPrinter::printOperand(const MCInst *MI, unsigned OpNo,
     }
 
     const char *RegName = getRegisterName(Reg);
-    // The linux and AIX assembler does not take register prefixes.
-    if (!isDarwinSyntax())
-      RegName = stripRegisterPrefix(RegName, Reg, MRI.getEncodingValue(Reg));
+
+    // AIX assembler does not take register prefixes.
+    // Darwin assembler take full register prefixes.
+    if (!TripleInfo.isOSDarwin() && TripleInfo.getOS() != Triple::AIX) {
+      if (FullRegNamesWithPercent) {
+        // Print register with percent and prefixes.
+        printRegisterWithPercentPrefix(RegName, O);
+        return;
+      } else {
+        // Print register without prefixes.
+        RegName = stripRegisterPrefix(RegName, Reg, MRI.getEncodingValue(Reg));
+      }
+    }
 
     O << RegName;
     return;
