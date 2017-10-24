@@ -576,7 +576,7 @@ static bool isIIFE(const UnwrappedLine &Line,
 
 static bool ShouldBreakBeforeBrace(const FormatStyle &Style,
                                    const FormatToken &InitialToken) {
-  if (InitialToken.is(tok::kw_namespace))
+  if (InitialToken.isOneOf(tok::kw_namespace, TT_NamespaceMacro))
     return Style.BraceWrapping.AfterNamespace;
   if (InitialToken.is(tok::kw_class))
     return Style.BraceWrapping.AfterClass;
@@ -1100,6 +1100,10 @@ void UnwrappedLineParser::parseStructuralElement() {
       if (FormatTok->is(tok::semi))
         nextToken();
       addUnwrappedLine();
+      return;
+    }
+    if (Style.isCpp() && FormatTok->is(TT_NamespaceMacro)) {
+      parseNamespace();
       return;
     }
     // In all other cases, parse the declaration.
@@ -1738,12 +1742,17 @@ void UnwrappedLineParser::parseTryCatch() {
 }
 
 void UnwrappedLineParser::parseNamespace() {
-  assert(FormatTok->Tok.is(tok::kw_namespace) && "'namespace' expected");
+  assert(FormatTok->isOneOf(tok::kw_namespace, TT_NamespaceMacro) &&
+         "'namespace' expected");
 
   const FormatToken &InitialToken = *FormatTok;
   nextToken();
-  while (FormatTok->isOneOf(tok::identifier, tok::coloncolon))
-    nextToken();
+  if (InitialToken.is(TT_NamespaceMacro)) {
+    parseParens();
+  } else {
+    while (FormatTok->isOneOf(tok::identifier, tok::coloncolon))
+      nextToken();
+  }
   if (FormatTok->Tok.is(tok::l_brace)) {
     if (ShouldBreakBeforeBrace(Style, InitialToken))
       addUnwrappedLine();
