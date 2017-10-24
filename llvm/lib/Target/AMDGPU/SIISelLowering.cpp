@@ -201,6 +201,8 @@ SITargetLowering::SITargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::INTRINSIC_WO_CHAIN, MVT::v4f32, Custom);
   setOperationAction(ISD::INTRINSIC_WO_CHAIN, MVT::v2f16, Custom);
 
+  setOperationAction(ISD::INTRINSIC_W_CHAIN, MVT::v2f16, Custom);
+  setOperationAction(ISD::INTRINSIC_W_CHAIN, MVT::v4f16, Custom);
   setOperationAction(ISD::INTRINSIC_W_CHAIN, MVT::Other, Custom);
 
   setOperationAction(ISD::INTRINSIC_VOID, MVT::Other, Custom);
@@ -557,6 +559,29 @@ bool SITargetLowering::getTgtMemIntrinsic(IntrinsicInfo &Info,
     Info.vol = !Vol || !Vol->isZero();
     Info.readMem = true;
     Info.writeMem = true;
+    return true;
+  }
+  case Intrinsic::amdgcn_buffer_load:
+  case Intrinsic::amdgcn_buffer_load_format: {
+    Info.opc = ISD::INTRINSIC_W_CHAIN;
+    Info.memVT = MVT::getVT(CI.getType());
+    Info.ptrVal = nullptr;
+    Info.align = 0;
+
+    Info.vol = false;
+    Info.readMem = true;
+    Info.writeMem = false;
+    return true;
+  }
+  case Intrinsic::amdgcn_tbuffer_load: {
+    Info.opc = ISD::INTRINSIC_W_CHAIN;
+    Info.memVT = MVT::getVT(CI.getOperand(0)->getType());
+    Info.ptrVal = nullptr;
+    Info.align = 0;
+
+    Info.vol = false;
+    Info.readMem = true;
+    Info.writeMem = false;
     return true;
   }
   default:
@@ -3218,6 +3243,44 @@ SDValue SITargetLowering::LowerOperation(SDValue Op, SelectionDAG &DAG) const {
   return SDValue();
 }
 
+static SDValue ChangeResultType(SDValue Op, EVT EquivResultT, SelectionDAG &DAG) {
+  // Change from v4f16/v2f16 to EquivResultT.
+  SDVTList VTList = DAG.getVTList(EquivResultT, MVT::Other);
+  SDLoc DL(Op);
+  MemSDNode *M = cast<MemSDNode>(Op);
+  unsigned IID = cast<ConstantSDNode>(Op.getOperand(1))->getZExtValue();
+  if (IID == Intrinsic::amdgcn_tbuffer_load) {
+    SDValue Ops[] = {
+        Op.getOperand(0),  // Chain
+        Op.getOperand(2),  // rsrc
+        Op.getOperand(3),  // vindex
+        Op.getOperand(4),  // voffset
+        Op.getOperand(5),  // soffset
+        Op.getOperand(6),  // offset
+        Op.getOperand(7),  // dfmt
+        Op.getOperand(8),  // nfmt
+        Op.getOperand(9),  // glc
+        Op.getOperand(10)  // slc
+      };
+      EVT MemVT = Op.getOperand(2).getValueType();
+      return DAG.getMemIntrinsicNode(AMDGPUISD::TBUFFER_LOAD_FORMAT_D16, DL,
+                                     VTList, Ops, MemVT, M->getMemOperand());
+    } else if (IID == Intrinsic::amdgcn_buffer_load_format) {
+      SDValue Ops[] = {
+        Op.getOperand(0), // Chain
+        Op.getOperand(2), // rsrc
+        Op.getOperand(3), // vindex
+        Op.getOperand(4), // offset
+        Op.getOperand(5), // glc
+        Op.getOperand(6)  // slc
+      };
+      EVT IntMemVT = Op.getValueType().changeTypeToInteger();
+      return DAG.getMemIntrinsicNode(AMDGPUISD::BUFFER_LOAD_FORMAT_D16,
+                                       DL, VTList, Ops, IntMemVT, M->getMemOperand());
+   }
+   return SDValue();
+}
+
 void SITargetLowering::ReplaceNodeResults(SDNode *N,
                                           SmallVectorImpl<SDValue> &Results,
                                           SelectionDAG &DAG) const {
@@ -3242,6 +3305,21 @@ void SITargetLowering::ReplaceNodeResults(SDNode *N,
                                 Src0, Src1);
       Results.push_back(DAG.getNode(ISD::BITCAST, SL, MVT::v2f16, Cvt));
       return;
+    }
+    break;
+  }
+  case ISD::INTRINSIC_W_CHAIN: {
+    SDValue Op = SDValue(N, 0);
+    EVT ResultT = Op.getValueType();
+    // TODO: handle v3f16.
+    if (ResultT != MVT::v2f16 && ResultT != MVT::v4f16)
+      return;
+
+    EVT EquivResultT = getEquivalentMemType(*DAG.getContext(), ResultT);
+    if (SDValue Res = ChangeResultType(Op, EquivResultT, DAG)) {
+      // Cast back to the original result type, and put in the "Results" list.
+      Results.push_back(DAG.getNode(ISD::BITCAST, SDLoc(Op), ResultT, Res));
+      Results.push_back(Res.getOperand(0)); // Chain
     }
     break;
   }
@@ -4166,14 +4244,13 @@ SDValue SITargetLowering::LowerINTRINSIC_WO_CHAIN(SDValue Op,
 
 SDValue SITargetLowering::LowerINTRINSIC_W_CHAIN(SDValue Op,
                                                  SelectionDAG &DAG) const {
-  unsigned IntrID = cast<ConstantSDNode>(Op.getOperand(1))->getZExtValue();
   SDLoc DL(Op);
-  MachineFunction &MF = DAG.getMachineFunction();
+  MemSDNode *M = cast<MemSDNode>(Op);
 
+  unsigned IntrID = cast<ConstantSDNode>(Op.getOperand(1))->getZExtValue();
   switch (IntrID) {
   case Intrinsic::amdgcn_atomic_inc:
   case Intrinsic::amdgcn_atomic_dec: {
-    MemSDNode *M = cast<MemSDNode>(Op);
     unsigned Opc = (IntrID == Intrinsic::amdgcn_atomic_inc) ?
       AMDGPUISD::ATOMIC_INC : AMDGPUISD::ATOMIC_DEC;
     SDValue Ops[] = {
@@ -4185,6 +4262,7 @@ SDValue SITargetLowering::LowerINTRINSIC_W_CHAIN(SDValue Op,
     return DAG.getMemIntrinsicNode(Opc, SDLoc(Op), M->getVTList(), Ops,
                                    M->getMemoryVT(), M->getMemOperand());
   }
+
   case Intrinsic::amdgcn_buffer_load:
   case Intrinsic::amdgcn_buffer_load_format: {
     SDValue Ops[] = {
@@ -4195,19 +4273,12 @@ SDValue SITargetLowering::LowerINTRINSIC_W_CHAIN(SDValue Op,
       Op.getOperand(5), // glc
       Op.getOperand(6)  // slc
     };
-    SIMachineFunctionInfo *MFI = MF.getInfo<SIMachineFunctionInfo>();
 
     unsigned Opc = (IntrID == Intrinsic::amdgcn_buffer_load) ?
         AMDGPUISD::BUFFER_LOAD : AMDGPUISD::BUFFER_LOAD_FORMAT;
-    EVT VT = Op.getValueType();
-    EVT IntVT = VT.changeTypeToInteger();
-
-    MachineMemOperand *MMO = MF.getMachineMemOperand(
-      MachinePointerInfo(MFI->getBufferPSV()),
-      MachineMemOperand::MOLoad,
-      VT.getStoreSize(), VT.getStoreSize());
-
-    return DAG.getMemIntrinsicNode(Opc, DL, Op->getVTList(), Ops, IntVT, MMO);
+    EVT IntMemVT = Op.getValueType().changeTypeToInteger();
+    return DAG.getMemIntrinsicNode(Opc, DL, Op->getVTList(), Ops,
+                                   IntMemVT, M->getMemOperand());
   }
   case Intrinsic::amdgcn_tbuffer_load: {
     SDValue Ops[] = {
@@ -4220,17 +4291,12 @@ SDValue SITargetLowering::LowerINTRINSIC_W_CHAIN(SDValue Op,
       Op.getOperand(7),  // dfmt
       Op.getOperand(8),  // nfmt
       Op.getOperand(9),  // glc
-      Op.getOperand(10)   // slc
+      Op.getOperand(10)  // slc
     };
 
-    EVT VT = Op.getOperand(2).getValueType();
-
-    MachineMemOperand *MMO = MF.getMachineMemOperand(
-      MachinePointerInfo(),
-      MachineMemOperand::MOLoad,
-      VT.getStoreSize(), VT.getStoreSize());
+    EVT MemVT = Op.getOperand(2).getValueType();
     return DAG.getMemIntrinsicNode(AMDGPUISD::TBUFFER_LOAD_FORMAT, DL,
-                                   Op->getVTList(), Ops, VT, MMO);
+                                   Op->getVTList(), Ops, MemVT, M->getMemOperand());
   }
   // Basic sample.
   case Intrinsic::amdgcn_image_sample:
