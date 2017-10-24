@@ -33,6 +33,12 @@ RelExpr PPC::getRelExpr(RelType Type, const SymbolBody &S,
   switch (Type) {
   case R_PPC_REL24:
   case R_PPC_REL32:
+  // This allows lld to resolve local symbols when performing static linkage
+  // after LLVM started to use PLT relocations by default (see D38554).
+  // This is what bfd and gold are doing too.
+  // Non-local symbols will need a full PLT implementation, and once it lands
+  // local symbols should still avoid PLT table with static relocation model.
+  case R_PPC_PLTREL24:
     return R_PC;
   default:
     return R_ABS;
@@ -54,6 +60,7 @@ void PPC::relocateOne(uint8_t *Loc, RelType Type, uint64_t Val) const {
   case R_PPC_REL32:
     write32be(Loc, Val);
     break;
+  case R_PPC_PLTREL24:
   case R_PPC_REL24:
     write32be(Loc, read32be(Loc) | (Val & 0x3FFFFFC));
     break;
