@@ -1093,6 +1093,15 @@ void UnwrappedLineParser::parseStructuralElement() {
         return;
       }
     }
+    if (Style.isCpp() && FormatTok->is(TT_StatementMacro)) {
+      nextToken();
+      if (FormatTok->is(tok::l_paren))
+        parseParens();
+      if (FormatTok->is(tok::semi))
+        nextToken();
+      addUnwrappedLine();
+      return;
+    }
     // In all other cases, parse the declaration.
     break;
   default:
@@ -1238,6 +1247,16 @@ void UnwrappedLineParser::parseStructuralElement() {
           }
         }
         parseRecord();
+        addUnwrappedLine();
+        return;
+      }
+
+      if (Style.isCpp() && FormatTok->is(TT_StatementMacro)) {
+        nextToken();
+        if (FormatTok->is(tok::l_paren))
+          parseParens();
+        if (FormatTok->is(tok::semi))
+          nextToken();
         addUnwrappedLine();
         return;
       }
