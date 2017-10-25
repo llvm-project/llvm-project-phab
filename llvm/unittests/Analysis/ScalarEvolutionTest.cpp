@@ -1184,5 +1184,147 @@ TEST_F(ScalarEvolutionsTest, SCEVExpanderIsSafeToExpandAt) {
   EXPECT_TRUE(isSafeToExpandAt(AR, Post->getTerminator(), SE));
 }
 
+
+// Test correctness of isDivisorOf method.
+TEST_F(ScalarEvolutionsTest, SCEVIsDivisorOf) {
+  /*
+   * Create the following code:
+   * func(i64 addrspace(10)* %arg)
+   * top:
+   *  br label %L.ph
+   * L.ph:
+   *  br label %L
+   * L:
+   *  %phi = phi i64 [i64 0, %L.ph], [ %add, %L2 ]
+   *  %add = add i64 %phi2, 1
+   *  %cond = icmp slt i64 %add, 1000; then becomes 2000.
+   *  br i1 %cond, label %post, label %L2
+   * post:
+   *  ret void
+   *
+   */
+
+  // Create a module with non-integral pointers in it's datalayout
+  Module NIM("nonintegral", Context);
+  std::string DataLayout = M.getDataLayoutStr();
+  if (!DataLayout.empty())
+    DataLayout += "-";
+  DataLayout += "ni:10";
+  NIM.setDataLayout(DataLayout);
+
+  Type *T_int64 = Type::getInt64Ty(Context);
+  Type *T_pint64 = T_int64->getPointerTo(10);
+
+  FunctionType *FTy =
+      FunctionType::get(Type::getVoidTy(Context), {T_pint64}, false);
+  Function *F = cast<Function>(NIM.getOrInsertFunction("foo", FTy));
+
+  BasicBlock *Top = BasicBlock::Create(Context, "top", F);
+  BasicBlock *LPh = BasicBlock::Create(Context, "L.ph", F);
+  BasicBlock *L = BasicBlock::Create(Context, "L", F);
+  BasicBlock *Post = BasicBlock::Create(Context, "post", F);
+
+  IRBuilder<> Builder(Top);
+  Builder.CreateBr(LPh);
+
+  Builder.SetInsertPoint(LPh);
+  Builder.CreateBr(L);
+
+  Builder.SetInsertPoint(L);
+  PHINode *Phi = Builder.CreatePHI(T_int64, 2);
+  auto *Add = cast<Instruction>(
+      Builder.CreateAdd(Phi, ConstantInt::get(T_int64, 1), "add"));
+  auto *Limit = ConstantInt::get(T_int64, 1000);
+  auto *Cond = cast<Instruction>(
+      Builder.CreateICmp(ICmpInst::ICMP_SLT, Add, Limit, "cond"));
+  Builder.CreateCondBr(Cond, L, Post);
+  Phi->addIncoming(ConstantInt::get(T_int64, 0), LPh);
+  Phi->addIncoming(Add, L);
+
+  Builder.SetInsertPoint(Post);
+  Builder.CreateRetVoid();
+
+  ScalarEvolution SE = buildSE(*F);
+
+  const SCEV *Zero = SE.getConstant(T_int64, 0);
+  const SCEV *One = SE.getConstant(T_int64, 1);
+  const SCEV *Two = SE.getConstant(T_int64, 2);
+  const SCEV *Three = SE.getConstant(T_int64, 3);
+  const SCEV *Four = SE.getConstant(T_int64, 4);
+  const SCEV *Five = SE.getConstant(T_int64, 5);
+  const SCEV *Six = SE.getConstant(T_int64, 6);
+  const SCEV *MinusSix = SE.getMinusSCEV(Zero, Six);
+  const SCEV *AR = dyn_cast<SCEVAddRecExpr>(SE.getSCEV(Phi));
+  const SCEV *AR2 = dyn_cast<SCEVAddRecExpr>(SE.getAddExpr(AR, One));
+
+  EXPECT_NE(nullptr, AR);
+  EXPECT_NE(nullptr, AR2);
+  EXPECT_FALSE(SE.isKnownNonZero(AR));
+  EXPECT_TRUE(SE.isKnownPositive(AR2));
+  EXPECT_TRUE(SE.isKnownNegative(MinusSix));
+
+  // Check that nothing divides by zero.
+  EXPECT_FALSE(SE.isDivisorOf(Zero, Zero));
+  EXPECT_FALSE(SE.isDivisorOf(One, Zero));
+  EXPECT_FALSE(SE.isDivisorOf(Two, Zero));
+  EXPECT_FALSE(SE.isDivisorOf(Three, Zero));
+  EXPECT_FALSE(SE.isDivisorOf(Four, Zero));
+  EXPECT_FALSE(SE.isDivisorOf(Five, Zero));
+  EXPECT_FALSE(SE.isDivisorOf(Six, Zero));
+  EXPECT_FALSE(SE.isDivisorOf(MinusSix, Zero));
+  EXPECT_FALSE(SE.isDivisorOf(AR, Zero));
+  EXPECT_FALSE(SE.isDivisorOf(AR2, Zero));
+
+  // Check that everything that is guaranteed to be non-zero divides by itself.
+  // AR may be zero, so it does not divide by itself.
+  EXPECT_TRUE(SE.isDivisorOf(One, One));
+  EXPECT_TRUE(SE.isDivisorOf(Two, Two));
+  EXPECT_TRUE(SE.isDivisorOf(Three, Three));
+  EXPECT_TRUE(SE.isDivisorOf(Four, Four));
+  EXPECT_TRUE(SE.isDivisorOf(Five, Five));
+  EXPECT_TRUE(SE.isDivisorOf(Six, Six));
+  EXPECT_TRUE(SE.isDivisorOf(MinusSix, MinusSix));
+  EXPECT_FALSE(SE.isDivisorOf(AR, AR));
+  EXPECT_TRUE(SE.isDivisorOf(AR2, AR2));
+
+  // Check that everyone divides by one.
+  EXPECT_TRUE(SE.isDivisorOf(Zero, One));
+  EXPECT_TRUE(SE.isDivisorOf(One, One));
+  EXPECT_TRUE(SE.isDivisorOf(Two, One));
+  EXPECT_TRUE(SE.isDivisorOf(Three, One));
+  EXPECT_TRUE(SE.isDivisorOf(Four, One));
+  EXPECT_TRUE(SE.isDivisorOf(Five, One));
+  EXPECT_TRUE(SE.isDivisorOf(Six, One));
+  EXPECT_TRUE(SE.isDivisorOf(MinusSix, One));
+  EXPECT_TRUE(SE.isDivisorOf(AR, One));
+  EXPECT_TRUE(SE.isDivisorOf(AR2, One));
+
+  // Check divisibility by two.
+  EXPECT_TRUE(SE.isDivisorOf(Zero, Two));
+  EXPECT_FALSE(SE.isDivisorOf(One, Two));
+  EXPECT_TRUE(SE.isDivisorOf(Two, Two));
+  EXPECT_FALSE(SE.isDivisorOf(Three, Two));
+  EXPECT_TRUE(SE.isDivisorOf(Four, Two));
+  EXPECT_FALSE(SE.isDivisorOf(Five, Two));
+  EXPECT_TRUE(SE.isDivisorOf(Six, Two));
+  // TODO: This can be true if we support negative.
+  EXPECT_FALSE(SE.isDivisorOf(MinusSix, Two));
+  EXPECT_FALSE(SE.isDivisorOf(AR, Two));
+  EXPECT_FALSE(SE.isDivisorOf(AR2, Two));
+
+  // Check divisibility by three.
+  EXPECT_TRUE(SE.isDivisorOf(Zero, Three));
+  EXPECT_FALSE(SE.isDivisorOf(One, Three));
+  EXPECT_FALSE(SE.isDivisorOf(Two, Three));
+  EXPECT_TRUE(SE.isDivisorOf(Three, Three));
+  EXPECT_FALSE(SE.isDivisorOf(Four, Three));
+  EXPECT_FALSE(SE.isDivisorOf(Five, Three));
+  EXPECT_TRUE(SE.isDivisorOf(Six, Three));
+  // TODO: This can be true if we support negative.
+  EXPECT_FALSE(SE.isDivisorOf(MinusSix, Three));
+  EXPECT_FALSE(SE.isDivisorOf(AR, Three));
+  EXPECT_FALSE(SE.isDivisorOf(AR2, Three));
+}
+
 }  // end anonymous namespace
 }  // end namespace llvm

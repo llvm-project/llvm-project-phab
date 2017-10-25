@@ -8960,6 +8960,28 @@ ScalarEvolution::isLoopEntryGuardedByCond(const Loop *L,
   return false;
 }
 
+bool ScalarEvolution::isDivisorOf(const SCEV *S, const SCEV *Divisor) {
+  assert(getEffectiveSCEVType(S->getType()) ==
+             getEffectiveSCEVType(Divisor->getType()) &&
+         "Can only divide values of the same type!");
+  // Nothing can be divided by zero.
+  if (!isKnownNonZero(Divisor))
+    return false;
+
+  // Fast path: zero divides by any non-zero value. Any value divides by itself
+  // and by one.
+  if (S == Divisor || S->isZero() || Divisor->isOne())
+    return true;
+
+  // Otherwise we want to deal with positive values only. We may support
+  // negative values if we ever need them.
+  if (!isKnownPositive(S) || !isKnownPositive(Divisor))
+    return false;
+
+  // Return true iff S urem Divisor is zero.
+  return getURemExpr(S, Divisor)->isZero();
+}
+
 bool ScalarEvolution::isImpliedCond(ICmpInst::Predicate Pred,
                                     const SCEV *LHS, const SCEV *RHS,
                                     Value *FoundCondValue,
