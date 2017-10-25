@@ -878,6 +878,8 @@ static void scanRelocs(InputSectionBase &Sec, ArrayRef<RelTy> Rels) {
     SymbolBody &Body = Sec.getFile<ELFT>()->getRelocTargetSym(Rel);
     RelType Type = Rel.getType(Config->IsMips64EL);
 
+    Body.IsUsedInReloc = true;
+
     // Deal with MIPS oddity.
     if (Config->MipsN32Abi)
       Type = getMipsN32RelType(I, End);

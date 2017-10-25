@@ -1279,6 +1279,11 @@ template <class ELFT> void Writer<ELFT>::finalizeSections() {
       InX::SymTab->addSymbol(Body);
 
     if (InX::DynSymTab && S->includeInDynsym()) {
+      if (Body->isUndefined() && !Body->IsUsedInReloc)
+        // This symbol was most probably used in a section, which was collected
+        // in the GC phase. We don't need such symbols in the dynamic symbols
+        // table because they solely introduce useless dependencies.
+        continue;
       InX::DynSymTab->addSymbol(Body);
       if (auto *SS = dyn_cast<SharedSymbol>(Body))
         if (cast<SharedFile<ELFT>>(S->File)->isNeeded())

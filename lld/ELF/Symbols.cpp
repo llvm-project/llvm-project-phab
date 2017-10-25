@@ -123,8 +123,8 @@ SymbolBody::SymbolBody(Kind K, StringRefZ Name, bool IsLocal, uint8_t StOther,
                        uint8_t Type)
     : SymbolKind(K), IsLocal(IsLocal), NeedsPltAddr(false),
       IsInGlobalMipsGot(false), Is32BitMipsGot(false), IsInIplt(false),
-      IsInIgot(false), IsPreemptible(false), Type(Type), StOther(StOther),
-      Name(Name) {}
+      IsInIgot(false), IsPreemptible(false), IsUsedInReloc(false), Type(Type),
+      StOther(StOther), Name(Name) {}
 
 // Returns true if this is a weak undefined symbol.
 bool SymbolBody::isUndefWeak() const {
