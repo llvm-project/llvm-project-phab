@@ -2001,7 +2001,7 @@ public:
   }
 
   /// Return true if the context permits a C++17 decomposition declarator.
-  bool mayHaveDecompositionDeclarator() const {
+  bool mayHaveDecompositionDeclarator(const LangOptions &Lang) const {
     switch (Context) {
     case FileContext:
       // FIXME: It's not clear that the proposal meant to allow file-scope
@@ -2012,6 +2012,7 @@ public:
       return true;
 
     case ConditionContext:
+      return Lang.CPlusPlus2a;
     case MemberContext:
     case PrototypeContext:
     case TemplateParamContext:
