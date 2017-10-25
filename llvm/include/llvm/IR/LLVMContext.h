@@ -101,6 +101,7 @@ public:
     MD_absolute_symbol = 21,          // "absolute_symbol"
     MD_associated = 22,               // "associated"
     MD_callees = 23,                  // "callees"
+    MD_speculation_marker = 24,        // "speculation.marker"
   };
 
   /// Known operand bundle tag IDs, which always have the same value.  All

@@ -81,6 +81,7 @@
 #include "llvm/IR/User.h"
 #include "llvm/IR/Value.h"
 #include "llvm/IR/ValueHandle.h"
+#include "llvm/IR/MDBuilder.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/CBindingWrapping.h"
 #include "llvm/Support/Casting.h"
@@ -1497,6 +1498,28 @@ Value *InstCombiner::SimplifyVectorOp(BinaryOperator &Inst) {
 
 Instruction *InstCombiner::visitGetElementPtrInst(GetElementPtrInst &GEP) {
   SmallVector<Value*, 8> Ops(GEP.op_begin(), GEP.op_end());
+
+  // Here we have to avoid any GEPs with vector types or with
+  // number of operands that is not equal to two or GEPs
+  // in a loop, except it's origin is in the same basic block.
+  if (!dyn_cast<VectorType>(Ops[0]->getType()) && GEP.getNumOperands() == 2 &&
+      LI != nullptr) {
+    bool ValidGEP = (LI->getLoopDepth(GEP.getParent()) == 0);
+    Value *Ptr = cast<Value>(&GEP);
+    if (!ValidGEP)
+      if (Instruction *PtrInst = dyn_cast<Instruction>(Ptr))
+        ValidGEP = PtrInst->getParent() == GEP.getParent();
+    ConstantInt *C = dyn_cast<ConstantInt>(GEP.getOperand(1));
+    if (ValidGEP && C != nullptr) {
+      Value *BasePtr = GEP.getOperand(0);
+      Ptrs[Ptr].first = BasePtr;
+      Ptrs[Ptr].second = C->getZExtValue();
+      if (Ptrs.find(BasePtr) == Ptrs.end()) {
+        Ptrs[BasePtr].first = BasePtr;
+        Ptrs[BasePtr].second = 0;
+      }
+    }
+  }
 
   if (Value *V = SimplifyGEPInst(GEP.getSourceElementType(), Ops,
                                  SQ.getWithInstruction(&GEP)))
@@ -2933,6 +2956,16 @@ bool InstCombiner::run() {
     // Check to see if we can DCE the instruction.
     if (isInstructionTriviallyDead(I, &TLI)) {
       DEBUG(dbgs() << "IC: DCE: " << *I << '\n');
+      if (InsertElementInst *Insert = dyn_cast<InsertElementInst>(I)) {
+        LoadInst *Load = dyn_cast<LoadInst>(Insert->getOperand(1));
+        if (Load != nullptr) {
+          Value *Ptr = Load->getOperand(0);
+          if (Ptrs.find(Ptr) != Ptrs.end()) {
+            Value *BasePtr = Ptrs[Ptr].first;
+            Bases[BasePtr].insert(Ptrs[Ptr].second);
+          }
+        }
+      }
       eraseInstFromFunction(*I);
       ++NumDeadInst;
       MadeIRChange = true;
@@ -3091,7 +3124,9 @@ bool InstCombiner::run() {
 static bool AddReachableCodeToWorklist(BasicBlock *BB, const DataLayout &DL,
                                        SmallPtrSetImpl<BasicBlock *> &Visited,
                                        InstCombineWorklist &ICWorklist,
-                                       const TargetLibraryInfo *TLI) {
+                                       const TargetLibraryInfo *TLI,
+                                       BasePtrInfoTy &Bases,
+                                       PtrInfoTy &Ptrs) {
   bool MadeIRChange = false;
   SmallVector<BasicBlock*, 256> Worklist;
   Worklist.push_back(BB);
@@ -3113,6 +3148,16 @@ static bool AddReachableCodeToWorklist(BasicBlock *BB, const DataLayout &DL,
       if (isInstructionTriviallyDead(Inst, TLI)) {
         ++NumDeadInst;
         DEBUG(dbgs() << "IC: DCE: " << *Inst << '\n');
+        if (InsertElementInst *Insert = dyn_cast<InsertElementInst>(Inst)) {
+          LoadInst *Load = dyn_cast<LoadInst>(Insert->getOperand(1));
+          if (Load != nullptr) {
+            Value *Ptr = Load->getOperand(0);
+            if (Ptrs.find(Ptr) != Ptrs.end()) {
+              Value *BasePtr = Ptrs[Ptr].first;
+              Bases[BasePtr].insert(Ptrs[Ptr].second);
+            }
+          }
+        }
         Inst->eraseFromParent();
         MadeIRChange = true;
         continue;
@@ -3197,7 +3242,9 @@ static bool AddReachableCodeToWorklist(BasicBlock *BB, const DataLayout &DL,
 /// the combiner itself run much faster.
 static bool prepareICWorklistFromFunction(Function &F, const DataLayout &DL,
                                           TargetLibraryInfo *TLI,
-                                          InstCombineWorklist &ICWorklist) {
+                                          InstCombineWorklist &ICWorklist,
+                                          BasePtrInfoTy &Bases,
+                                          PtrInfoTy &Ptrs) {
   bool MadeIRChange = false;
 
   // Do a depth-first traversal of the function, populate the worklist with
@@ -3205,7 +3252,8 @@ static bool prepareICWorklistFromFunction(Function &F, const DataLayout &DL,
   // track of which blocks we visit.
   SmallPtrSet<BasicBlock *, 32> Visited;
   MadeIRChange |=
-      AddReachableCodeToWorklist(&F.front(), DL, Visited, ICWorklist, TLI);
+      AddReachableCodeToWorklist(&F.front(), DL, Visited, ICWorklist, TLI,
+                                 Bases, Ptrs);
 
   // Do a quick scan over the function.  If we find any blocks that are
   // unreachable, remove any instructions inside of them.  This prevents
@@ -3240,6 +3288,9 @@ static bool combineInstructionsOverFunction(
           AC.registerAssumption(cast<CallInst>(I));
       }));
 
+  BasePtrInfoTy Bases;
+  PtrInfoTy Ptrs;
+
   // Lower dbg.declare intrinsics otherwise their value may be clobbered
   // by instcombiner.
   bool MadeIRChange = false;
@@ -3253,15 +3304,51 @@ static bool combineInstructionsOverFunction(
     DEBUG(dbgs() << "\n\nINSTCOMBINE ITERATION #" << Iteration << " on "
                  << F.getName() << "\n");
 
-    MadeIRChange |= prepareICWorklistFromFunction(F, DL, &TLI, Worklist);
+    MadeIRChange |= prepareICWorklistFromFunction(F, DL, &TLI, Worklist, Bases,
+                                                  Ptrs);
 
     InstCombiner IC(Worklist, Builder, F.optForMinSize(), ExpensiveCombines, AA,
-                    AC, TLI, DT, ORE, DL, LI);
+                    AC, TLI, DT, ORE, DL, LI, Bases, Ptrs);
     IC.MaxArraySizeForCombine = MaxArraySize;
 
     if (!IC.run())
       break;
   }
+
+  bool SpeculativeLoad = false;
+  for (auto x : Bases)
+    if (!x.second.empty())
+      SpeculativeLoad = true;
+
+  if (SpeculativeLoad)
+    for (Function::iterator BB = F.begin(), E = F.end(); BB != E; ++BB)
+      for (BasicBlock::iterator I = BB->begin(), E = BB->end(); I != E; I++)
+        if (LoadInst *Load = dyn_cast<LoadInst>(*&I)) {
+          Value *Ptr = Load->getOperand(0);
+          if (Ptrs.find(Ptr) != Ptrs.end()) {
+            SmallVector<Metadata *, 2> Vals;
+            SmallDenseSet<uint64_t> &Set = Bases[Ptrs[Ptr].first];
+            int64_t LoadOffset = Ptrs[Ptr].second;
+            MDBuilder MDB(Load->getContext());
+            MDNode *MD = Load->getMetadata(LLVMContext::MD_speculation_marker);
+            if (MD != nullptr)
+              for (int i = 0, e = MD->getNumOperands(); i < e; i++) {
+                ConstantInt *C =
+                    mdconst::dyn_extract<ConstantInt>(MD->getOperand(i));
+                int64_t Diff = LoadOffset + (int64_t)C->getSExtValue();
+                if (Set.count(Diff) == 0)
+                  Set.insert(Diff);
+              }
+            for (auto Off : Set) {
+              int64_t Offset = (int64_t)Off;
+              Constant *C = ConstantInt::get(Load->getContext(),
+                                             APInt(64, Offset - LoadOffset));
+              Vals.push_back(MDB.createConstant(C));
+            }
+            Load->setMetadata(LLVMContext::MD_speculation_marker,
+                              MDNode::get(Load->getContext(), Vals));
+          }
+        }
 
   return MadeIRChange || Iteration > 1;
 }

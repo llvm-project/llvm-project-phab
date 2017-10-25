@@ -60,6 +60,7 @@ LLVMContext::LLVMContext() : pImpl(new LLVMContextImpl(*this)) {
     {MD_absolute_symbol, "absolute_symbol"},
     {MD_associated, "associated"},
     {MD_callees, "callees"},
+    {MD_speculation_marker, "speculation.marker"},
   };
 
   for (auto &MDKind : MDKinds) {
