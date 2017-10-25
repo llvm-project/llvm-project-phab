@@ -11,6 +11,7 @@
 #include "../ClangTidyModule.h"
 #include "../ClangTidyModuleRegistry.h"
 #include "IntegerDivisionCheck.h"
+#include "MisplacedOperatorInStrlenInAllocCheck.h"
 #include "SuspiciousMemsetUsageCheck.h"
 #include "UndefinedMemoryManipulationCheck.h"
 
@@ -23,6 +24,8 @@ public:
   void addCheckFactories(ClangTidyCheckFactories &CheckFactories) override {
     CheckFactories.registerCheck<IntegerDivisionCheck>(
         "bugprone-integer-division");
+    CheckFactories.registerCheck<MisplacedOperatorInStrlenInAllocCheck>(
+        "bugprone-misplaced-operator-in-strlen-in-alloc");
     CheckFactories.registerCheck<SuspiciousMemsetUsageCheck>(
         "bugprone-suspicious-memset-usage");
     CheckFactories.registerCheck<UndefinedMemoryManipulationCheck>(
