@@ -112,6 +112,9 @@ private:
   /// collected in GEPs.
   bool vectorizeGEPIndices(BasicBlock *BB, slpvectorizer::BoUpSLP &R);
 
+  /// \brief Restore inserts out of speculation.marker metadata.
+  InsertElementInst * restoreInserts(LoadInst *LInstr);
+
   /// Try to find horizontal reduction or otherwise vectorize a chain of binary
   /// operators.
   bool vectorizeRootInstruction(PHINode *P, Value *V, BasicBlock *BB,
@@ -148,6 +151,7 @@ private:
 
   /// The getelementptr instructions in a basic block organized by base pointer.
   WeakTrackingVHListMap GEPs;
+
 };
 
 } // end namespace llvm

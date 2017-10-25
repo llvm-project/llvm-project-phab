@@ -5657,12 +5657,185 @@ bool SLPVectorizerPass::vectorizeInsertValueInst(InsertValueInst *IVI,
   return tryToVectorizeList(BuildVectorOpds, R, BuildVector, false);
 }
 
+InsertElementInst *SLPVectorizerPass::restoreInserts(LoadInst *LInstr) {
+  ShuffleVectorInst *Use = nullptr;
+  Value *Ptr = nullptr;
+  SmallDenseSet<uint64_t> Offsets;
+  int64_t OffsetOfLoad;
+  DenseMap<uint64_t, LoadInst *> Loads;
+  DenseMap<uint64_t, InsertElementInst *> Inserts;
+  DenseMap<uint64_t, GetElementPtrInst *> GEPs;
+  BasicBlock *BB = LInstr->getParent();
+  VectorType *VecType = nullptr;
+  unsigned MaxOffset = 0;
+
+  if (Instruction *Instr = dyn_cast<Instruction>(LInstr->getOperand(0))) {
+    GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(Instr);
+    if (GEP == nullptr)
+      return nullptr;
+    ConstantInt *C = dyn_cast<ConstantInt>(GEP->getOperand(1));
+    if (C == nullptr)
+      return nullptr;
+    OffsetOfLoad = C->getSExtValue();
+    Ptr = GEP->getOperand(0);
+    GEPs[OffsetOfLoad] = GEP;
+    Loads[OffsetOfLoad] = LInstr;
+  } else {
+    OffsetOfLoad = 0;
+    Ptr = LInstr->getOperand(0);
+    Loads[0] = LInstr;
+  }
+
+  MDNode *MD = LInstr->getMetadata(LLVMContext::MD_speculation_marker);
+  assert(MD != nullptr && "Load should contain speculation.marker metadata");
+  for (int i = 0, e = MD->getNumOperands(); i < e; i++) {
+    ConstantInt *C = mdconst::dyn_extract<ConstantInt>(MD->getOperand(i));
+    Offsets.insert(OffsetOfLoad + C->getSExtValue());
+  }
+
+  for (BasicBlock::iterator it = BB->begin(), e = BB->end(); it != e; it++) {
+    if (InsertElementInst *Insert = dyn_cast<InsertElementInst>(it)) {
+      ConstantInt *C = dyn_cast<ConstantInt>(Insert->getOperand(2));
+      LoadInst *Load = dyn_cast<LoadInst>(Insert->getOperand(1));
+      if (!C || !Load)
+        continue;
+      GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(Load->getOperand(0));
+      Value *Base = (GEP == nullptr) ? Load->getOperand(0) : GEP->getOperand(0);
+      if (Base == Ptr) {
+        if (!VecType)
+          VecType = Insert->getType();
+        else if (Insert->getType() != VecType)
+          return nullptr;
+        uint64_t Offset = C->getZExtValue();
+        Inserts[Offset] = Insert;
+        Loads[Offset] = Load;
+        // GEP instruction might be missing for 0 offset.
+        if (GEP)
+          GEPs[Offset] = GEP;
+        if (!Insert->use_empty() && Use == nullptr)
+          if (ShuffleVectorInst *Shuffle =
+                  dyn_cast<ShuffleVectorInst>(Insert->user_back()))
+            Use = Shuffle;
+        continue;
+      }
+    }
+    if (GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(it))
+      // Examining the chain of GEP, Load, Insert.
+      if (Ptr == GEP->getOperand(0)) {
+        ConstantInt *C = dyn_cast<ConstantInt>(GEP->getOperand(1));
+        if (!C || GEP->use_empty() || !GEP->hasOneUse())
+          return nullptr;
+        uint64_t Off = C->getZExtValue();
+        if (GEPs[Off] == GEP)
+          continue;
+        LoadInst *Load = dyn_cast<LoadInst>(GEP->user_back());
+        if (!Load)
+          return nullptr;
+        if (Load->getMetadata(LLVMContext::MD_speculation_marker) == nullptr) {
+          InsertElementInst *Insert =
+              dyn_cast<InsertElementInst>(Load->user_back());
+          if (!Insert)
+            return nullptr;
+          if (!VecType)
+            VecType = Insert->getType();
+          else if (Insert->getType() != VecType)
+            return nullptr;
+          ConstantInt *C1 = cast<ConstantInt>(Insert->getOperand(2));
+          uint64_t Off_Ins = C1->getZExtValue();
+          // Offset from GEP must be equal to offset from
+          // Insert otherwise we have to ignore.
+          if (Off != Off_Ins)
+            return nullptr;
+          if (!Insert->use_empty() && Use == nullptr)
+            if (ShuffleVectorInst *Shuffle =
+                    dyn_cast<ShuffleVectorInst>(Insert->user_back()))
+              Use = Shuffle;
+          Inserts[Off] = Insert;
+        } else
+          // Strip off speculation.marker for other loads
+          // in the chain.
+          Load->setMetadata(LLVMContext::MD_speculation_marker, nullptr);
+        Loads[Off] = Load;
+        GEPs[Off] = GEP;
+      }
+  }
+  MaxOffset = VecType->getVectorNumElements();
+  if (!Use || Use->getParent() != BB)
+    return nullptr;
+
+  unsigned PrevOff = 0;
+  for (auto Off : Offsets) {
+    if (Off > MaxOffset - 1)
+      return nullptr;
+    if ((Off != 0 && GEPs[Off]) || Loads[Off] || Inserts[Off])
+      return nullptr;
+    for (unsigned i = PrevOff + 1; i < Off; i++)
+      if ((i != 0 && !GEPs[i]) || !Loads[i] || !Inserts[i])
+        return nullptr;
+    PrevOff = Off;
+  }
+
+  IRBuilder<> Builder(LInstr->getParent(), ++BasicBlock::iterator(LInstr));
+  if (!Inserts[0]) {
+    Builder.SetInsertPoint(LInstr->getPrevNode());
+    LoadInst *NewLoad = Builder.CreateLoad(Ptr);
+    NewLoad->setAlignment(LInstr->getAlignment());
+    Loads[0] = NewLoad;
+    Value *NewInsert = Builder.CreateInsertElement(
+        UndefValue::get(VecType), NewLoad, Builder.getInt32(0));
+    Inserts[0] = cast<InsertElementInst>(NewInsert);
+  }
+  for (unsigned i = 1, e = MaxOffset; i < e; i++) {
+    // Building GEP, Load, Insert for
+    // this Offset.
+    GetElementPtrInst *PrevGEP = GEPs[i - 1];
+    if (!Inserts[i]) {
+      assert(Loads[i - 1] != nullptr &&
+             "Couldn't find previous load in the chain.");
+      if (PrevGEP == nullptr)
+        Builder.SetInsertPoint(BB, ++Loads[i - 1]->getIterator());
+      else
+        Builder.SetInsertPoint(BB, ++PrevGEP->getIterator());
+      Value *NewGEP =
+          Builder.CreateGEP(LInstr->getType(), Ptr, Builder.getInt64(i));
+      GEPs[i] = cast<GetElementPtrInst>(NewGEP);
+      Builder.SetInsertPoint(BB, ++Loads[i - 1]->getIterator());
+      Builder.SetCurrentDebugLocation(LInstr->getDebugLoc());
+      LoadInst *NewLoad = Builder.CreateLoad(NewGEP);
+      NewLoad->setAlignment(LInstr->getAlignment());
+      Loads[i] = NewLoad;
+      // InsertElement must be inserted after
+      // previous InsertElement.
+      InsertElementInst *PrevIns = Inserts[i - 1];
+      Builder.SetInsertPoint(BB, ++PrevIns->getIterator());
+      Value *NewInsert =
+          Builder.CreateInsertElement(PrevIns, NewLoad, Builder.getInt32(i));
+      Inserts[i] = cast<InsertElementInst>(NewInsert);
+    }
+    Inserts[i]->setOperand(0, Inserts[i - 1]);
+  }
+
+  // Update ShuffleVector with restored insert elements.
+  Use->setOperand(0, Inserts[MaxOffset - 1]);
+  return cast<InsertElementInst>(Inserts[MaxOffset - 1]);
+}
+
 bool SLPVectorizerPass::vectorizeInsertElementInst(InsertElementInst *IEI,
                                                    BasicBlock *BB, BoUpSLP &R) {
   SmallVector<Value *, 16> BuildVector;
   SmallVector<Value *, 16> BuildVectorOpds;
   if (!findBuildVector(IEI, BuildVector, BuildVectorOpds))
     return false;
+
+  if (LoadInst *LInstr = dyn_cast<LoadInst>(IEI->getOperand(1))) {
+    if (LInstr->getMetadata(LLVMContext::MD_speculation_marker) != nullptr)
+    if (InsertElementInst *Insert = restoreInserts(LInstr)) {
+      BuildVector.clear();
+      BuildVectorOpds.clear();
+      if (!findBuildVector(Insert, BuildVector, BuildVectorOpds))
+        return false;
+    }
+  }
 
   // Vectorize starting with the build vector operands ignoring the BuildVector
   // instructions for the purpose of scheduling and user extraction.
