@@ -1336,7 +1336,8 @@ static QualType getBaseMessageSendResultType(Sema &S,
   return transferNullability(ReceiverType);
 }
 
-QualType Sema::getMessageSendResultType(QualType ReceiverType,
+QualType Sema::getMessageSendResultType(const Expr *Receiver,
+                                        QualType ReceiverType,
                                         ObjCMethodDecl *Method,
                                         bool isClassMessage,
                                         bool isSuperMessage) {
@@ -1347,8 +1348,34 @@ QualType Sema::getMessageSendResultType(QualType ReceiverType,
                                                      isSuperMessage);
 
   // If this is a class message, ignore the nullability of the receiver.
-  if (isClassMessage)
+  if (isClassMessage) {
+    // Messages to 'self' that return 'instancetype' in class methods return
+    // pointer to the parent interface of the method when ARC is enabled (
+    // because self can't be reassigned when ARC is on).
+    if (Receiver &&
+        (ReceiverType->isObjCClassOrClassKindOfType() ||
+         ReceiverType->isObjCQualifiedClassType()) &&
+        Receiver->isObjCSelfExpr() && getLangOpts().ObjCAutoRefCount) {
+      assert(ReceiverType->isObjCClassType() && "expected a Class self");
+      QualType T = Method->getSendResultType(ReceiverType);
+      AttributedType::stripOuterNullability(T);
+      if (T == Context.getObjCInstanceType()) {
+        const ObjCMethodDecl *MD = cast<ObjCMethodDecl>(
+            cast<ImplicitParamDecl>(
+                cast<DeclRefExpr>(Receiver->IgnoreParenImpCasts())->getDecl())
+                ->getDeclContext());
+        assert(MD->isClassMethod() && "expected a class method");
+        QualType NewResultType = Context.getObjCObjectPointerType(
+            Context.getObjCInterfaceType(MD->getClassInterface()));
+        if (auto Nullability = resultType->getNullability(Context))
+          NewResultType = Context.getAttributedType(
+              AttributedType::getNullabilityAttrKind(*Nullability),
+              NewResultType, NewResultType);
+        return NewResultType;
+      }
+    }
     return resultType;
+  }
 
   // Map the nullability of the result into a table index.
   unsigned receiverNullabilityIdx = 0;
@@ -1490,15 +1517,12 @@ void Sema::EmitRelatedResultTypeNote(const Expr *E) {
     << MsgSend->getType();
 }
 
-bool Sema::CheckMessageArgumentTypes(QualType ReceiverType,
-                                     MultiExprArg Args,
-                                     Selector Sel,
-                                     ArrayRef<SourceLocation> SelectorLocs,
-                                     ObjCMethodDecl *Method,
-                                     bool isClassMessage, bool isSuperMessage,
-                                     SourceLocation lbrac, SourceLocation rbrac,
-                                     SourceRange RecRange,
-                                     QualType &ReturnType, ExprValueKind &VK) {
+bool Sema::CheckMessageArgumentTypes(
+    const Expr *Receiver, QualType ReceiverType, MultiExprArg Args,
+    Selector Sel, ArrayRef<SourceLocation> SelectorLocs, ObjCMethodDecl *Method,
+    bool isClassMessage, bool isSuperMessage, SourceLocation lbrac,
+    SourceLocation rbrac, SourceRange RecRange, QualType &ReturnType,
+    ExprValueKind &VK) {
   SourceLocation SelLoc;
   if (!SelectorLocs.empty() && SelectorLocs.front().isValid())
     SelLoc = SelectorLocs.front();
@@ -1575,8 +1599,8 @@ bool Sema::CheckMessageArgumentTypes(QualType ReceiverType,
     return false;
   }
 
-  ReturnType = getMessageSendResultType(ReceiverType, Method, isClassMessage, 
-                                        isSuperMessage);
+  ReturnType = getMessageSendResultType(Receiver, ReceiverType, Method,
+                                        isClassMessage, isSuperMessage);
   VK = Expr::getValueKindForType(Method->getReturnType());
 
   unsigned NumNamedArgs = Sel.getNumArgs();
@@ -2460,12 +2484,10 @@ ExprResult Sema::BuildClassMessage(TypeSourceInfo *ReceiverTypeInfo,
 
   unsigned NumArgs = ArgsIn.size();
   Expr **Args = ArgsIn.data();
-  if (CheckMessageArgumentTypes(ReceiverType, MultiExprArg(Args, NumArgs),
-                                Sel, SelectorLocs,
-                                Method, true,
-                                SuperLoc.isValid(), LBracLoc, RBracLoc,
-                                SourceRange(),
-                                ReturnType, VK))
+  if (CheckMessageArgumentTypes(/*Receiver=*/nullptr, ReceiverType,
+                                MultiExprArg(Args, NumArgs), Sel, SelectorLocs,
+                                Method, true, SuperLoc.isValid(), LBracLoc,
+                                RBracLoc, SourceRange(), ReturnType, VK))
     return ExprError();
 
   if (Method && !Method->getReturnType()->isVoidType() &&
@@ -2954,9 +2976,9 @@ ExprResult Sema::BuildInstanceMessage(Expr *Receiver,
   ExprValueKind VK = VK_RValue;
   bool ClassMessage = (ReceiverType->isObjCClassType() ||
                        ReceiverType->isObjCQualifiedClassType());
-  if (CheckMessageArgumentTypes(ReceiverType, MultiExprArg(Args, NumArgs),
-                                Sel, SelectorLocs, Method,
-                                ClassMessage, SuperLoc.isValid(), 
+  if (CheckMessageArgumentTypes(Receiver, ReceiverType,
+                                MultiExprArg(Args, NumArgs), Sel, SelectorLocs,
+                                Method, ClassMessage, SuperLoc.isValid(),
                                 LBracLoc, RBracLoc, RecRange, ReturnType, VK))
     return ExprError();
 
