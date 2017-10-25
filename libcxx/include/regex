@@ -765,6 +765,8 @@ typedef regex_token_iterator<wstring::const_iterator> wsregex_token_iterator;
 #include <vector>
 #include <deque>
 
+#include <__debug>
+
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #pragma GCC system_header
 #endif
@@ -1404,15 +1406,7 @@ public:
     _LIBCPP_INLINE_VISIBILITY
     explicit __owns_one_state(__node<_CharT>* __s)
         : base(__s) {}
-
-    virtual ~__owns_one_state();
 };
-
-template <class _CharT>
-__owns_one_state<_CharT>::~__owns_one_state()
-{
-    delete this->first();
-}
 
 // __empty_state
 
@@ -1507,19 +1501,11 @@ public:
     explicit __owns_two_states(__node<_CharT>* __s1, base* __s2)
         : base(__s1), __second_(__s2) {}
 
-    virtual ~__owns_two_states();
-
     _LIBCPP_INLINE_VISIBILITY
     base*  second() const {return __second_;}
     _LIBCPP_INLINE_VISIBILITY
     base*& second()       {return __second_;}
 };
-
-template <class _CharT>
-__owns_two_states<_CharT>::~__owns_two_states()
-{
-    delete __second_;
-}
 
 // __loop
 
@@ -2493,16 +2479,49 @@ public:
     typedef typename _Traits::locale_type       locale_type;
 
 private:
+    typedef _VSTD::__state<_CharT> __state;
+    typedef _VSTD::__node<_CharT> __node;
+
+    // Shared, append-only storage for regexes.
+    class __storage
+    {
+      // invariant: __v_ is never nullptr.
+      shared_ptr<vector<unique_ptr<__node>>> __v_;
+
+    public:
+      __storage() : __v_(make_shared<vector<unique_ptr<__node>>>()) {}
+      __storage(const __storage&) = default;
+      __storage(__storage&& __rhs) : __v_(std::move(__rhs.__v_))
+      { __rhs.__clear(); }
+
+      __storage& operator=(const __storage&) = default;
+      __storage& operator=(__storage&& __rhs)
+      {
+        __v_ = std::move(__rhs.__v_);
+        __rhs.__clear();
+        return *this;
+      }
+
+      void __push(__node* __n)
+      {
+        _LIBCPP_ASSERT(__v_.use_count() == 1,
+                       "__push should be called only "
+                       "when the storage is not shared");
+        __v_->emplace_back(__n);
+      }
+
+      void __clear()
+      { __v_ = make_shared<vector<unique_ptr<__node>>>(); }
+    };
+
     _Traits   __traits_;
     flag_type __flags_;
     unsigned __marked_count_;
     unsigned __loop_count_;
     int __open_count_;
-    shared_ptr<__empty_state<_CharT> > __start_;
+    __storage __storage_;
+    __empty_state<_CharT>* __start_;
     __owns_one_state<_CharT>* __end_;
-
-    typedef _VSTD::__state<_CharT> __state;
-    typedef _VSTD::__node<_CharT> __node;
 
 public:
     // constants:
@@ -2521,17 +2540,17 @@ public:
     _LIBCPP_INLINE_VISIBILITY
     basic_regex()
         : __flags_(), __marked_count_(0), __loop_count_(0), __open_count_(0),
-          __end_(0)
+          __start_(0), __end_(0)
         {}
     _LIBCPP_INLINE_VISIBILITY
     explicit basic_regex(const value_type* __p, flag_type __f = regex_constants::ECMAScript)
         : __flags_(__f), __marked_count_(0), __loop_count_(0), __open_count_(0),
-          __end_(0)
+          __start_(0), __end_(0)
         {__parse(__p, __p + __traits_.length(__p));}
     _LIBCPP_INLINE_VISIBILITY
     basic_regex(const value_type* __p, size_t __len, flag_type __f = regex_constants::ECMAScript)
         : __flags_(__f), __marked_count_(0), __loop_count_(0), __open_count_(0),
-          __end_(0)
+          __start_(0), __end_(0)
         {__parse(__p, __p + __len);}
 //     basic_regex(const basic_regex&) = default;
 //     basic_regex(basic_regex&&) = default;
@@ -2540,21 +2559,21 @@ public:
         explicit basic_regex(const basic_string<value_type, _ST, _SA>& __p,
                              flag_type __f = regex_constants::ECMAScript)
         : __flags_(__f), __marked_count_(0), __loop_count_(0), __open_count_(0),
-          __end_(0)
+          __start_(0), __end_(0)
         {__parse(__p.begin(), __p.end());}
     template <class _ForwardIterator>
         _LIBCPP_INLINE_VISIBILITY
         basic_regex(_ForwardIterator __first, _ForwardIterator __last,
                     flag_type __f = regex_constants::ECMAScript)
         : __flags_(__f), __marked_count_(0), __loop_count_(0), __open_count_(0),
-          __end_(0)
+          __start_(0), __end_(0)
         {__parse(__first, __last);}
 #ifndef _LIBCPP_CXX03_LANG
     _LIBCPP_INLINE_VISIBILITY
     basic_regex(initializer_list<value_type> __il,
                 flag_type __f = regex_constants::ECMAScript)
         : __flags_(__f), __marked_count_(0), __loop_count_(0), __open_count_(0),
-          __end_(0)
+          __start_(0), __end_(0)
         {__parse(__il.begin(), __il.end());}
 #endif  // _LIBCPP_CXX03_LANG
 
@@ -2656,7 +2675,8 @@ public:
     locale_type imbue(locale_type __loc)
     {
         __member_init(ECMAScript);
-        __start_.reset();
+        __storage_.__clear();
+        __start_ = nullptr;
         return __traits_.imbue(__loc);
     }
     _LIBCPP_INLINE_VISIBILITY
@@ -2809,6 +2829,9 @@ private:
         __parse_awk_escape(_ForwardIterator __first, _ForwardIterator __last,
                           basic_string<_CharT>* __str = nullptr);
 
+    template <class _NodeType, class... _Args>
+        _NodeType* __push(_Args&&... __args);
+
     _LIBCPP_INLINE_VISIBILITY
     void __push_l_anchor();
     void __push_r_anchor();
@@ -2953,6 +2976,7 @@ basic_regex<_CharT, _Traits>::swap(basic_regex& __r)
     swap(__marked_count_, __r.__marked_count_);
     swap(__loop_count_, __r.__loop_count_);
     swap(__open_count_, __r.__open_count_);
+    swap(__storage_, __r.__storage_);
     swap(__start_, __r.__start_);
     swap(__end_, __r.__end_);
 }
@@ -3023,10 +3047,9 @@ basic_regex<_CharT, _Traits>::__parse(_ForwardIterator __first,
                                       _ForwardIterator __last)
 {
     {
-        unique_ptr<__node> __h(new __end_state<_CharT>);
-        __start_.reset(new __empty_state<_CharT>(__h.get()));
-        __h.release();
-        __end_ = __start_.get();
+        __storage_.__clear();
+        __start_ = __push<__empty_state<_CharT>>(__push<__end_state<_CharT>>());
+        __end_ = __start_;
     }
     switch (__flags_ & 0x1F0)
     {
@@ -4613,21 +4636,29 @@ basic_regex<_CharT, _Traits>::__parse_egrep(_ForwardIterator __first,
 }
 
 template <class _CharT, class _Traits>
+template <class _NodeType, class... _Args>
+_NodeType* basic_regex<_CharT, _Traits>::__push(_Args&&... __args)
+{
+  auto __ret = new _NodeType(std::forward<_Args>(__args)...);
+  __storage_.__push(__ret);
+  return __ret;
+}
+
+template <class _CharT, class _Traits>
 void
 basic_regex<_CharT, _Traits>::__push_loop(size_t __min, size_t __max,
         __owns_one_state<_CharT>* __s, size_t __mexp_begin, size_t __mexp_end,
         bool __greedy)
 {
-    unique_ptr<__empty_state<_CharT> > __e1(new __empty_state<_CharT>(__end_->first()));
+    __empty_state<_CharT>* __e1(__push<__empty_state<_CharT>>(__end_->first()));
     __end_->first() = nullptr;
-    unique_ptr<__loop<_CharT> > __e2(new __loop<_CharT>(__loop_count_,
-                __s->first(), __e1.get(), __mexp_begin, __mexp_end, __greedy,
+    __loop<_CharT>* __e2(__push<__loop<_CharT>>(__loop_count_,
+                __s->first(), __e1, __mexp_begin, __mexp_end, __greedy,
                 __min, __max));
     __s->first() = nullptr;
-    __e1.release();
-    __end_->first() = new __repeat_one_loop<_CharT>(__e2.get());
+    __end_->first() = __push<__repeat_one_loop<_CharT>>(__e2);
     __end_ = __e2->second();
-    __s->first() = __e2.release();
+    __s->first() = __e2;
     ++__loop_count_;
 }
 
@@ -4636,13 +4667,13 @@ void
 basic_regex<_CharT, _Traits>::__push_char(value_type __c)
 {
     if (flags() & icase)
-        __end_->first() = new __match_char_icase<_CharT, _Traits>
+        __end_->first() = __push<__match_char_icase<_CharT, _Traits>>
                                               (__traits_, __c, __end_->first());
     else if (flags() & collate)
-        __end_->first() = new __match_char_collate<_CharT, _Traits>
+        __end_->first() = __push<__match_char_collate<_CharT, _Traits>>
                                               (__traits_, __c, __end_->first());
     else
-        __end_->first() = new __match_char<_CharT>(__c, __end_->first());
+        __end_->first() = __push<__match_char<_CharT>>(__c, __end_->first());
     __end_ = static_cast<__owns_one_state<_CharT>*>(__end_->first());
 }
 
@@ -4652,9 +4683,8 @@ basic_regex<_CharT, _Traits>::__push_begin_marked_subexpression()
 {
     if (!(__flags_ & nosubs))
     {
-        __end_->first() =
-                new __begin_marked_subexpression<_CharT>(++__marked_count_,
-                                                         __end_->first());
+        __end_->first() = __push<__begin_marked_subexpression<_CharT>>(
+                ++__marked_count_, __end_->first());
         __end_ = static_cast<__owns_one_state<_CharT>*>(__end_->first());
     }
 }
@@ -4665,8 +4695,8 @@ basic_regex<_CharT, _Traits>::__push_end_marked_subexpression(unsigned __sub)
 {
     if (!(__flags_ & nosubs))
     {
-        __end_->first() =
-                new __end_marked_subexpression<_CharT>(__sub, __end_->first());
+        __end_->first() = __push<__end_marked_subexpression<_CharT>>(
+                __sub, __end_->first());
         __end_ = static_cast<__owns_one_state<_CharT>*>(__end_->first());
     }
 }
@@ -4675,7 +4705,7 @@ template <class _CharT, class _Traits>
 void
 basic_regex<_CharT, _Traits>::__push_l_anchor()
 {
-    __end_->first() = new __l_anchor<_CharT>(__end_->first());
+    __end_->first() = __push<__l_anchor<_CharT>>(__end_->first());
     __end_ = static_cast<__owns_one_state<_CharT>*>(__end_->first());
 }
 
@@ -4683,7 +4713,7 @@ template <class _CharT, class _Traits>
 void
 basic_regex<_CharT, _Traits>::__push_r_anchor()
 {
-    __end_->first() = new __r_anchor<_CharT>(__end_->first());
+    __end_->first() = __push<__r_anchor<_CharT>>(__end_->first());
     __end_ = static_cast<__owns_one_state<_CharT>*>(__end_->first());
 }
 
@@ -4691,7 +4721,7 @@ template <class _CharT, class _Traits>
 void
 basic_regex<_CharT, _Traits>::__push_match_any()
 {
-    __end_->first() = new __match_any<_CharT>(__end_->first());
+    __end_->first() = __push<__match_any<_CharT>>(__end_->first());
     __end_ = static_cast<__owns_one_state<_CharT>*>(__end_->first());
 }
 
@@ -4699,7 +4729,7 @@ template <class _CharT, class _Traits>
 void
 basic_regex<_CharT, _Traits>::__push_match_any_but_newline()
 {
-    __end_->first() = new __match_any_but_newline<_CharT>(__end_->first());
+    __end_->first() = __push<__match_any_but_newline<_CharT>>(__end_->first());
     __end_ = static_cast<__owns_one_state<_CharT>*>(__end_->first());
 }
 
@@ -4707,7 +4737,7 @@ template <class _CharT, class _Traits>
 void
 basic_regex<_CharT, _Traits>::__push_empty()
 {
-    __end_->first() = new __empty_state<_CharT>(__end_->first());
+    __end_->first() = __push<__empty_state<_CharT>>(__end_->first());
     __end_ = static_cast<__owns_one_state<_CharT>*>(__end_->first());
 }
 
@@ -4715,8 +4745,8 @@ template <class _CharT, class _Traits>
 void
 basic_regex<_CharT, _Traits>::__push_word_boundary(bool __invert)
 {
-    __end_->first() = new __word_boundary<_CharT, _Traits>(__traits_, __invert,
-                                                           __end_->first());
+    __end_->first() = __push<__word_boundary<_CharT, _Traits>>(
+            __traits_, __invert, __end_->first());
     __end_ = static_cast<__owns_one_state<_CharT>*>(__end_->first());
 }
 
@@ -4725,13 +4755,13 @@ void
 basic_regex<_CharT, _Traits>::__push_back_ref(int __i)
 {
     if (flags() & icase)
-        __end_->first() = new __back_ref_icase<_CharT, _Traits>
+        __end_->first() = __push<__back_ref_icase<_CharT, _Traits>>
                                               (__traits_, __i, __end_->first());
     else if (flags() & collate)
-        __end_->first() = new __back_ref_collate<_CharT, _Traits>
+        __end_->first() = __push<__back_ref_collate<_CharT, _Traits>>
                                               (__traits_, __i, __end_->first());
     else
-        __end_->first() = new __back_ref<_CharT>(__i, __end_->first());
+        __end_->first() = __push<__back_ref<_CharT>>(__i, __end_->first());
     __end_ = static_cast<__owns_one_state<_CharT>*>(__end_->first());
 }
 
@@ -4740,13 +4770,13 @@ void
 basic_regex<_CharT, _Traits>::__push_alternation(__owns_one_state<_CharT>* __sa,
                                                  __owns_one_state<_CharT>* __ea)
 {
-    __sa->first() = new __alternate<_CharT>(
+    __sa->first() = __push<__alternate<_CharT>>(
                          static_cast<__owns_one_state<_CharT>*>(__sa->first()),
                          static_cast<__owns_one_state<_CharT>*>(__ea->first()));
     __ea->first() = nullptr;
-    __ea->first() = new __empty_state<_CharT>(__end_->first());
+    __ea->first() = __push<__empty_state<_CharT>>(__end_->first());
     __end_->first() = nullptr;
-    __end_->first() = new __empty_non_own_state<_CharT>(__ea->first());
+    __end_->first() = __push<__empty_non_own_state<_CharT>>(__ea->first());
     __end_ = static_cast<__owns_one_state<_CharT>*>(__ea->first());
 }
 
@@ -4755,9 +4785,9 @@ __bracket_expression<_CharT, _Traits>*
 basic_regex<_CharT, _Traits>::__start_matching_list(bool __negate)
 {
     __bracket_expression<_CharT, _Traits>* __r =
-        new __bracket_expression<_CharT, _Traits>(__traits_, __end_->first(),
-                                                  __negate, __flags_ & icase,
-                                                  __flags_ & collate);
+        __push<__bracket_expression<_CharT, _Traits>>(
+            __traits_, __end_->first(), __negate, __flags_ & icase,
+            __flags_ & collate);
     __end_->first() = __r;
     __end_ = __r;
     return __r;
@@ -4769,8 +4799,8 @@ basic_regex<_CharT, _Traits>::__push_lookahead(const basic_regex& __exp,
                                                bool __invert,
                                                unsigned __mexp)
 {
-    __end_->first() = new __lookahead<_CharT, _Traits>(__exp, __invert,
-                                                           __end_->first(), __mexp);
+    __end_->first() = __push<__lookahead<_CharT, _Traits>>(
+            __exp, __invert, __end_->first(), __mexp);
     __end_ = static_cast<__owns_one_state<_CharT>*>(__end_->first());
 }
 
@@ -5550,7 +5580,7 @@ basic_regex<_CharT, _Traits>::__match_at_start_ecma(
         regex_constants::match_flag_type __flags, bool __at_first) const
 {
     vector<__state> __states;
-    __node* __st = __start_.get();
+    __node* __st = __start_;
     if (__st)
     {
         sub_match<const _CharT*> __unmatched;
@@ -5636,7 +5666,7 @@ basic_regex<_CharT, _Traits>::__match_at_start_posix_nosubs(
     deque<__state> __states;
     ptrdiff_t __highest_j = 0;
     ptrdiff_t _Np = _VSTD::distance(__first, __last);
-    __node* __st = __start_.get();
+    __node* __st = __start_;
     if (__st)
     {
         __states.push_back(__state());
@@ -5732,7 +5762,7 @@ basic_regex<_CharT, _Traits>::__match_at_start_posix_subs(
     ptrdiff_t __j = 0;
     ptrdiff_t __highest_j = 0;
     ptrdiff_t _Np = _VSTD::distance(__first, __last);
-    __node* __st = __start_.get();
+    __node* __st = __start_;
     if (__st)
     {
         sub_match<const _CharT*> __unmatched;
