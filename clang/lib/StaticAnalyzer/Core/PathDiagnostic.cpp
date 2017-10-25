@@ -690,6 +690,8 @@ PathDiagnosticLocation::create(const ProgramPoint& P,
     return getLocationForCaller(CEE->getCalleeContext(),
                                 CEE->getLocationContext(),
                                 SMng);
+  } else if (Optional<BlockEntrance> BE = P.getAs<BlockEntrance>()) {
+    S = BE->getBlock()->getTerminatorCondition();
   } else {
     llvm_unreachable("Unexpected ProgramPoint");
   }
