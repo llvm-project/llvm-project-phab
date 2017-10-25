@@ -32,6 +32,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/iterator.h"
 #include "llvm/ADT/iterator_range.h"
+#include "llvm/Config/abi-breaking.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/ErrorHandling.h"
 
@@ -771,6 +772,9 @@ inline void array_pod_sort(IteratorTy Start, IteratorTy End) {
   // behavior with an empty sequence.
   auto NElts = End - Start;
   if (NElts <= 1) return;
+#if LLVM_ENABLE_SHUFFLE_BEFORE_SORT
+  std::random_shuffle(Start, End);
+#endif
   qsort(&*Start, NElts, sizeof(*Start), get_array_pod_sort_comparator(*Start));
 }
 
@@ -784,8 +788,45 @@ inline void array_pod_sort(
   // behavior with an empty sequence.
   auto NElts = End - Start;
   if (NElts <= 1) return;
+#if LLVM_ENABLE_SHUFFLE_BEFORE_SORT
+  std::random_shuffle(Start, End);
+#endif
   qsort(&*Start, NElts, sizeof(*Start),
         reinterpret_cast<int (*)(const void *, const void *)>(Compare));
+}
+
+// Provide wrappers to std::sort which shuffle the elements before sorting.
+template <typename IteratorTy>
+void sort(IteratorTy Start, IteratorTy End) {
+#if LLVM_ENABLE_SHUFFLE_BEFORE_SORT
+  std::random_shuffle(Start, End);
+#endif
+  std::sort(Start, End);
+}
+
+template <typename ExecutionPolicy, typename IteratorTy>
+void sort(ExecutionPolicy &&Policy, IteratorTy Start, IteratorTy End) {
+#if LLVM_ENABLE_SHUFFLE_BEFORE_SORT
+  std::random_shuffle(Start, End);
+#endif
+  std::sort(Policy, Start, End);
+}
+
+template <typename IteratorTy, typename Compare>
+void sort(IteratorTy Start, IteratorTy End, Compare Comp) {
+#if LLVM_ENABLE_SHUFFLE_BEFORE_SORT
+  std::random_shuffle(Start, End);
+#endif
+  std::sort(Start, End, Comp);
+}
+
+template <typename ExecutionPolicy, typename IteratorTy, typename Compare>
+void sort(ExecutionPolicy &&Policy, IteratorTy Start,
+          IteratorTy End, Compare Comp) {
+#if LLVM_ENABLE_SHUFFLE_BEFORE_SORT
+  std::random_shuffle(Start, End);
+#endif
+  std::sort(Policy, Start, End, Comp);
 }
 
 //===----------------------------------------------------------------------===//
