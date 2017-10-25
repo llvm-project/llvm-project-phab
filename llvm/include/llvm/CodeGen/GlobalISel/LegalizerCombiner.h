@@ -13,6 +13,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/CodeGen/GlobalISel/Legalizer.h"
+#include "llvm/CodeGen/GlobalISel/LegalizerInfo.h"
 #include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
 #include "llvm/CodeGen/GlobalISel/Utils.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
@@ -24,10 +25,12 @@ namespace llvm {
 class LegalizerCombiner {
   MachineIRBuilder &Builder;
   MachineRegisterInfo &MRI;
+  const LegalizerInfo &LI;
 
 public:
-  LegalizerCombiner(MachineIRBuilder &B, MachineRegisterInfo &MRI)
-      : Builder(B), MRI(MRI) {}
+  LegalizerCombiner(MachineIRBuilder &B, MachineRegisterInfo &MRI,
+                    const LegalizerInfo &LI)
+      : Builder(B), MRI(MRI), LI(LI) {}
 
   bool tryCombineAnyExt(MachineInstr &MI,
                         SmallVectorImpl<MachineInstr *> &DeadInsts) {
@@ -79,10 +82,18 @@ public:
       return false;
     MachineInstr *DefMI = MRI.getVRegDef(MI.getOperand(1).getReg());
     if (DefMI->getOpcode() == TargetOpcode::G_TRUNC) {
-      DEBUG(dbgs() << ".. Combine MI: " << MI;);
-      Builder.setInstr(MI);
       unsigned DstReg = MI.getOperand(0).getReg();
       LLT DstTy = MRI.getType(DstReg);
+      auto SHLAction = LI.getAction({TargetOpcode::G_SHL, 0, DstTy});
+      if (SHLAction.first == LegalizerInfo::LegalizeAction::Unsupported ||
+          SHLAction.first == LegalizerInfo::LegalizeAction::NotFound)
+        return false;
+      auto ASHRAction = LI.getAction({TargetOpcode::G_ASHR, 0, DstTy});
+      if (ASHRAction.first == LegalizerInfo::LegalizeAction::Unsupported ||
+          ASHRAction.first == LegalizerInfo::LegalizeAction::NotFound)
+        return false;
+      DEBUG(dbgs() << ".. Combine MI: " << MI;);
+      Builder.setInstr(MI);
       unsigned SExtSrc = MI.getOperand(1).getReg();
       LLT SExtSrcTy = MRI.getType(SExtSrc);
       unsigned SizeDiff = DstTy.getSizeInBits() - SExtSrcTy.getSizeInBits();
