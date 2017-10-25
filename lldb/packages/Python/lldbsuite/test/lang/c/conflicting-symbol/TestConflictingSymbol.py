@@ -87,4 +87,4 @@ class TestConflictingSymbols(TestBase):
             "An error should be printed when symbols can't be ordered",
             error=True,
             substrs=[
-                "Multiple internal symbols"])
+                "use of undeclared identifier"])
