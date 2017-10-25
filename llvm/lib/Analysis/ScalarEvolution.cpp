@@ -4080,6 +4080,55 @@ private:
   bool Valid = true;
 };
 
+class SCEVCmpEvaluator : public SCEVRewriteVisitor<SCEVCmpEvaluator> {
+public:
+  SCEVCmpEvaluator(const Loop *L, ScalarEvolution &SE)
+      : SCEVRewriteVisitor(SE), L(L) {}
+
+  static const SCEV *rewrite(const SCEV *S, const Loop *L,
+                             ScalarEvolution &SE) {
+    SCEVCmpEvaluator Rewriter(L, SE);
+    const SCEV *Result = Rewriter.visit(S);
+    return Rewriter.isModified() ? Result : SE.getCouldNotCompute();
+  }
+
+  const SCEV *visitUnknown(const SCEVUnknown *Expr) {
+    const SCEV * Result = Expr;
+    bool InvariantF = SE.isLoopInvariant(Expr, L);
+
+    if (!InvariantF && Expr->getValue() && isa<Instruction>(Expr->getValue())) {
+      Instruction *I = dyn_cast<Instruction>(Expr->getValue());
+      switch (I->getOpcode()) {
+      case Instruction::Select: {
+        const SCEV *ICmpSE =
+            SE.evaluateCompare(cast<ICmpInst>(I->getOperand(0)));
+        if (ICmpSE->getSCEVType() == scConstant) {
+          bool IsOne = dyn_cast<SCEVConstant>(ICmpSE)->getValue()->isOne();
+          Value *TrueVal = I->getOperand(1);
+          Value *FalseVal = I->getOperand(2);
+          Result = SE.getSCEV(IsOne ? TrueVal : FalseVal);
+        }
+      } break;
+      case Instruction::ICmp: {
+        const SCEV *ICmpSE = SE.evaluateCompare(cast<ICmpInst>(I));
+        if (dyn_cast<SCEVConstant>(ICmpSE))
+          Result = ICmpSE;
+      } break;
+      default:
+        break;
+      }
+    }
+    Modified |= Result != Expr ? true : false;
+    return Result;
+  }
+
+  bool isModified() { return Modified; }
+
+private:
+  const Loop *L;
+  bool  Modified = false;
+};
+
 class SCEVShiftRewriter : public SCEVRewriteVisitor<SCEVShiftRewriter> {
 public:
   SCEVShiftRewriter(const Loop *L, ScalarEvolution &SE)
@@ -4738,6 +4787,18 @@ const SCEV *ScalarEvolution::createAddRecFromPHI(PHINode *PN) {
   // If the value coming around the backedge is an add with the symbolic
   // value we just inserted, then we found a simple induction variable!
   if (const SCEVAddExpr *Add = dyn_cast<SCEVAddExpr>(BEValue)) {
+
+    // Recompute BEValue as it may have conditional operations
+    // in evolution chain.
+    const SCEV *Accum = nullptr;
+    const SCEV *ModifiAdd = SCEVCmpEvaluator::rewrite(Add, L, *this);
+    if (ModifiAdd != getCouldNotCompute()) {
+       if (isa<SCEVAddExpr>(ModifiAdd))
+          Add = dyn_cast<SCEVAddExpr>(ModifiAdd);
+       else
+          Accum = ModifiAdd;
+    }
+
     // If there is a single occurrence of the symbolic value, replace it
     // with a recurrence.
     unsigned FoundIndex = Add->getNumOperands();
@@ -4754,60 +4815,60 @@ const SCEV *ScalarEvolution::createAddRecFromPHI(PHINode *PN) {
       for (unsigned i = 0, e = Add->getNumOperands(); i != e; ++i)
         if (i != FoundIndex)
           Ops.push_back(Add->getOperand(i));
-      const SCEV *Accum = getAddExpr(Ops);
+      Accum = getAddExpr(Ops);
+    }
 
-      // This is not a valid addrec if the step amount is varying each
-      // loop iteration, but is not itself an addrec in this loop.
-      if (isLoopInvariant(Accum, L) ||
-          (isa<SCEVAddRecExpr>(Accum) &&
-           cast<SCEVAddRecExpr>(Accum)->getLoop() == L)) {
-        SCEV::NoWrapFlags Flags = SCEV::FlagAnyWrap;
+    // This is not a valid addrec if the step amount is varying each
+    // loop iteration, but is not itself an addrec in this loop.
+    if (Accum && (isLoopInvariant(Accum, L) ||
+        (isa<SCEVAddRecExpr>(Accum) &&
+         cast<SCEVAddRecExpr>(Accum)->getLoop() == L))) {
+      SCEV::NoWrapFlags Flags = SCEV::FlagAnyWrap;
 
-        if (auto BO = MatchBinaryOp(BEValueV, DT)) {
-          if (BO->Opcode == Instruction::Add && BO->LHS == PN) {
-            if (BO->IsNUW)
-              Flags = setFlags(Flags, SCEV::FlagNUW);
-            if (BO->IsNSW)
-              Flags = setFlags(Flags, SCEV::FlagNSW);
-          }
-        } else if (GEPOperator *GEP = dyn_cast<GEPOperator>(BEValueV)) {
-          // If the increment is an inbounds GEP, then we know the address
-          // space cannot be wrapped around. We cannot make any guarantee
-          // about signed or unsigned overflow because pointers are
-          // unsigned but we may have a negative index from the base
-          // pointer. We can guarantee that no unsigned wrap occurs if the
-          // indices form a positive value.
-          if (GEP->isInBounds() && GEP->getOperand(0) == PN) {
-            Flags = setFlags(Flags, SCEV::FlagNW);
+      if (auto BO = MatchBinaryOp(BEValueV, DT)) {
+        if (BO->Opcode == Instruction::Add && BO->LHS == PN) {
+          if (BO->IsNUW)
+            Flags = setFlags(Flags, SCEV::FlagNUW);
+          if (BO->IsNSW)
+            Flags = setFlags(Flags, SCEV::FlagNSW);
+        }
+      } else if (GEPOperator *GEP = dyn_cast<GEPOperator>(BEValueV)) {
+        // If the increment is an inbounds GEP, then we know the address
+        // space cannot be wrapped around. We cannot make any guarantee
+        // about signed or unsigned overflow because pointers are
+        // unsigned but we may have a negative index from the base
+        // pointer. We can guarantee that no unsigned wrap occurs if the
+        // indices form a positive value.
+        if (GEP->isInBounds() && GEP->getOperand(0) == PN) {
+          Flags = setFlags(Flags, SCEV::FlagNW);
 
-            const SCEV *Ptr = getSCEV(GEP->getPointerOperand());
-            if (isKnownPositive(getMinusSCEV(getSCEV(GEP), Ptr)))
-              Flags = setFlags(Flags, SCEV::FlagNUW);
-          }
-
-          // We cannot transfer nuw and nsw flags from subtraction
-          // operations -- sub nuw X, Y is not the same as add nuw X, -Y
-          // for instance.
+          const SCEV *Ptr = getSCEV(GEP->getPointerOperand());
+          if (isKnownPositive(getMinusSCEV(getSCEV(GEP), Ptr)))
+            Flags = setFlags(Flags, SCEV::FlagNUW);
         }
 
-        const SCEV *StartVal = getSCEV(StartValueV);
-        const SCEV *PHISCEV = getAddRecExpr(StartVal, Accum, L, Flags);
-
-        // Okay, for the entire analysis of this edge we assumed the PHI
-        // to be symbolic.  We now need to go back and purge all of the
-        // entries for the scalars that use the symbolic expression.
-        forgetSymbolicName(PN, SymbolicName);
-        ValueExprMap[SCEVCallbackVH(PN, this)] = PHISCEV;
-
-        // We can add Flags to the post-inc expression only if we
-        // know that it is *undefined behavior* for BEValueV to
-        // overflow.
-        if (auto *BEInst = dyn_cast<Instruction>(BEValueV))
-          if (isLoopInvariant(Accum, L) && isAddRecNeverPoison(BEInst, L))
-            (void)getAddRecExpr(getAddExpr(StartVal, Accum), Accum, L, Flags);
-
-        return PHISCEV;
+        // We cannot transfer nuw and nsw flags from subtraction
+        // operations -- sub nuw X, Y is not the same as add nuw X, -Y
+        // for instance.
       }
+
+      const SCEV *StartVal = getSCEV(StartValueV);
+      const SCEV *PHISCEV = getAddRecExpr(StartVal, Accum, L, Flags);
+
+      // Okay, for the entire analysis of this edge we assumed the PHI
+      // to be symbolic.  We now need to go back and purge all of the
+      // entries for the scalars that use the symbolic expression.
+      forgetSymbolicName(PN, SymbolicName);
+      ValueExprMap[SCEVCallbackVH(PN, this)] = PHISCEV;
+
+      // We can add Flags to the post-inc expression only if we
+      // know that it is *undefined behavior* for BEValueV to
+      // overflow.
+      if (auto *BEInst = dyn_cast<Instruction>(BEValueV))
+        if (isLoopInvariant(Accum, L) && isAddRecNeverPoison(BEInst, L))
+          (void)getAddRecExpr(getAddExpr(StartVal, Accum), Accum, L, Flags);
+
+      return PHISCEV;
     }
   } else {
     // Otherwise, this could be a loop like this:
@@ -6442,6 +6503,30 @@ void ScalarEvolution::forgetLoop(const Loop *L) {
     LoopWorklist.append(CurrL->begin(), CurrL->end());
   }
 }
+
+
+const SCEV *ScalarEvolution::evaluateCompare(ICmpInst *IC) {
+  BasicBlock *Latch = nullptr;
+  const Loop *L = LI.getLoopFor(IC->getParent());
+
+  // If compare instruction is same or inverse of the compare in the
+  // branch of the loop latch, then return a constant evolution
+  // node. This shall facilitate computations of loop exit counts
+  // in cases where compare appears in the evolution chain of induction
+  // variables.
+  if (L && (Latch = L->getLoopLatch())) {
+    BranchInst *BI = dyn_cast<BranchInst>(Latch->getTerminator());
+    if (BI && BI->isConditional() && BI->getCondition() == IC) {
+      if (BI->getSuccessor(0) != L->getHeader())
+        return getZero(Type::getInt1Ty(getContext()));
+      else
+        return getOne(Type::getInt1Ty(getContext()));
+    }
+  }
+
+  return getUnknown(IC);
+}
+
 
 void ScalarEvolution::forgetValue(Value *V) {
   Instruction *I = dyn_cast<Instruction>(V);

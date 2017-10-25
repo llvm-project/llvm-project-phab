@@ -754,6 +754,9 @@ public:
   /// getMaxBackedgeTakenCount or zero.
   bool isBackedgeTakenCountMaxOrZero(const Loop *L);
 
+  /// Evaluate compare to a constant node for special patterns.
+  const SCEV *evaluateCompare(ICmpInst *IC);
+
   /// Return true if the specified loop has an analyzable loop-invariant
   /// backedge-taken count.
   bool hasLoopInvariantBackedgeTakenCount(const Loop *L);
@@ -1377,6 +1380,7 @@ private:
 
   /// Helper function called from createNodeForPHI.
   const SCEV *createAddRecFromPHI(PHINode *PN);
+
 
   /// A helper function for createAddRecFromPHI to handle simple cases.
   const SCEV *createSimpleAffineAddRec(PHINode *PN, Value *BEValueV,
