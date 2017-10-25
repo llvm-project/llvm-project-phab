@@ -809,7 +809,8 @@ Error LTO::runRegularLTO(AddStreamFn AddStream) {
         continue;
       GV->setUnnamedAddr(R.second.UnnamedAddr ? GlobalValue::UnnamedAddr::Global
                                               : GlobalValue::UnnamedAddr::None);
-      if (R.second.Partition == 0)
+      if (R.second.Partition == 0 &&
+          GV->getDLLStorageClass() != GlobalValue::DLLExportStorageClass)
         GV->setLinkage(GlobalValue::InternalLinkage);
     }
 
