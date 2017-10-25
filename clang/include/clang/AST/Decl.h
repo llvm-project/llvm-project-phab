@@ -1639,6 +1639,17 @@ public:
     TK_FunctionTemplateSpecialization,
     TK_DependentFunctionTemplateSpecialization
   };
+  enum class MultiVersionKind {
+    None = 0, // No Decl of this function has a 'target' attribute.
+    All, // All Decls of this function have a 'target' attribute.  None differ
+         // in contents, so this is the 'hint' case.
+    MultiVersion, // All Decls of this function have a 'target' attribute, some
+                  // with different strings.  This causes a multi-version case.
+    Partial,      // This is NOT a MV case.  All Decls with a 'target' attribute
+                  // match, so this is simply the 'hint' case.
+    Error         // A previous decl caused an invalid MultiVersion, so reject
+                  // all further attempts at multiversioning/target.
+  };
 
 private:
   /// ParamInfo - new[]'d array of pointers to VarDecls for the formal
@@ -1690,6 +1701,9 @@ protected:
     unsigned IsCopyDeductionCandidate : 1;
   };
 private:
+  /// Contains the MultiVersionKind of this FunctionDecl.
+  unsigned MultiVersion : 3;
+
   /// \brief End part of this FunctionDecl's source range.
   ///
   /// We could compute the full range in getSourceRange(). However, when we're
@@ -1774,6 +1788,7 @@ protected:
         IsLateTemplateParsed(false), IsConstexpr(isConstexprSpecified),
         InstantiationIsPending(false),
         UsesSEHTry(false), HasSkippedBody(false), WillHaveBody(false),
+        MultiVersion(static_cast<unsigned>(MultiVersionKind::None)),
         EndRangeLoc(NameInfo.getEndLoc()), TemplateOrSpecialization(),
         DNLoc(NameInfo.getInfo()) {}
 
@@ -2220,6 +2235,14 @@ public:
 
   /// \brief What kind of templated function this is.
   TemplatedKind getTemplatedKind() const;
+
+  /// \brief The multiversion state of this function.
+  MultiVersionKind getMultiVersionKind() const {
+    return static_cast<MultiVersionKind>(MultiVersion);
+  }
+  void setMultiVersionKind(MultiVersionKind MV) {
+    MultiVersion = static_cast<unsigned>(MV);
+  }
 
   /// \brief If this function is an instantiation of a member function of a
   /// class template specialization, retrieves the member specialization
