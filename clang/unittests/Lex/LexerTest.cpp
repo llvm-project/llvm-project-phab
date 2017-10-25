@@ -37,7 +37,7 @@ protected:
       DiagID(new DiagnosticIDs()),
       Diags(DiagID, new DiagnosticOptions, new IgnoringDiagConsumer()),
       SourceMgr(Diags, FileMgr),
-      TargetOpts(new TargetOptions) 
+      TargetOpts(new TargetOptions)
   {
     TargetOpts->Triple = "x86_64-apple-darwin11.1.0";
     Target = TargetInfo::CreateTargetInfo(Diags, TargetOpts);
@@ -476,6 +476,20 @@ TEST_F(LexerTest, GetBeginningOfTokenWithEscapedNewLine) {
 TEST_F(LexerTest, AvoidPastEndOfStringDereference) {
   std::vector<Token> LexedTokens = Lex("  //  \\\n");
   EXPECT_TRUE(LexedTokens.empty());
+}
+
+TEST_F(LexerTest, StringizingRasString) {
+  std::string String1 = R"(foo
+    {"bar":[]}
+    baz)";
+  SmallString<128> String2;
+  String2 += String1.c_str();
+
+  String1 = Lexer::Stringify(StringRef(String1));
+  Lexer::Stringify(String2);
+
+  EXPECT_EQ(String1, R"(foo\n    {\"bar\":[]}\n    baz)");
+  EXPECT_EQ(String2, R"(foo\n    {\"bar\":[]}\n    baz)");
 }
 
 } // anonymous namespace
