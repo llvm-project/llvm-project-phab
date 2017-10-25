@@ -4688,6 +4688,31 @@ const SCEV *ScalarEvolution::createSimpleAffineAddRec(PHINode *PN,
   return PHISCEV;
 }
 
+ConstantInt *ScalarEvolution::computeICmpCondV(ICmpInst *IC, const Loop* L)
+{
+  BasicBlock *Latch = nullptr;
+
+  if (!L)
+    L = LI.getLoopFor(IC->getParent());
+
+  // If compare instruction is same or inverse of the compare in the
+  // branch of the loop latch, then return a constant evolution
+  // node. This shall facilitate computations of loop exit counts
+  // in cases where compare appears in the evolution chain of induction
+  // variables.
+  if (L && (Latch = L->getLoopLatch())) {
+    BranchInst *BI = dyn_cast<BranchInst>(Latch->getTerminator());
+    if (BI && BI->isConditional() && BI->getCondition() == IC) {
+      if (BI->getSuccessor(0) != L->getHeader())
+        return ConstantInt::get(Type::getInt1Ty(getContext()), 0);
+      else
+        return ConstantInt::get(Type::getInt1Ty(getContext()), 1);
+    }
+  }
+
+  return nullptr;
+}
+
 const SCEV *ScalarEvolution::createAddRecFromPHI(PHINode *PN) {
   const Loop *L = LI.getLoopFor(PN->getParent());
   if (!L || L->getHeader() != PN->getParent())
@@ -4756,6 +4781,17 @@ const SCEV *ScalarEvolution::createAddRecFromPHI(PHINode *PN) {
           Ops.push_back(Add->getOperand(i));
       const SCEV *Accum = getAddExpr(Ops);
 
+      // The Accum still can be varaiant.
+      // we should try re evolute Accum with under else if chain.
+      if (!isLoopInvariant(Accum, L)) 
+        if (isa<SCEVUnknown>(Accum) || isa<SCEVZeroExtendExpr>(Accum))
+        {
+          eraseValueFromMap(PN);
+          ValueExprMap[SCEVCallbackVH(BEValueV, this)] = Accum;
+
+          return createAddRecFromPHI(PN);
+        }
+
       // This is not a valid addrec if the step amount is varying each
       // loop iteration, but is not itself an addrec in this loop.
       if (isLoopInvariant(Accum, L) ||
@@ -4809,6 +4845,68 @@ const SCEV *ScalarEvolution::createAddRecFromPHI(PHINode *PN) {
         return PHISCEV;
       }
     }
+  } else if (isa<SCEVUnknown>(BEValue) || isa<SCEVZeroExtendExpr>(BEValue)) {
+    // Okay, now we are going to check that Loop's condition operand is increasing.
+    BranchInst *BR = dyn_cast<BranchInst>(L->getLoopLatch()->getTerminator());
+
+    // If it has conditional branch.
+    if (BR && BR->isConditional()) {
+      ICmpInst *ICI = dyn_cast<ICmpInst>(BR->getCondition());
+
+      if (ConstantInt* CondV = computeICmpCondV(ICI, L)) {
+        bool isaTrueCond = CondV->isOne();
+
+        // Now we are checking that BEValueV is increasing ICI's operand.
+        Instruction *AddExpr = dyn_cast<Instruction>(BEValueV);
+        Value *LHS = ICI->getOperand(0);
+        Value *RHS = ICI->getOperand(1);
+
+        // We are not finding a constant. we are finding expression that we increasing.
+        if (isa<Constant>(RHS))
+          std::swap(LHS, RHS);
+
+        // It can be select instruction.
+        // that selected condition should same so we can analyze.
+        if (SelectInst *SI = dyn_cast<SelectInst>(AddExpr))
+          if (ICI == SI->getCondition()) {
+            if (isaTrueCond)
+              AddExpr = dyn_cast<Instruction>(SI->getTrueValue());
+            else
+              AddExpr = dyn_cast<Instruction>(SI->getFalseValue());
+          }
+
+        // Check that we are increasing is ICI's operand.
+        // AddExpr's first operand is target.
+        if (AddExpr && AddExpr->getOperand(0) == RHS) {
+          // Yes its increasing ICI's operand. now we can assume that this loop can exit.
+          const SCEV* SCEVStart = getSCEV(StartValueV);
+          const SCEV* SCEVStep;
+          const SCEV* NewAddExpr;
+
+          // AddExpr's operand can be constant. it means it probably not increasing constant 1
+          // so we are going to just evolute constant variable.
+          if (Constant* ST = dyn_cast<Constant>(AddExpr->getOperand(1)))
+            SCEVStep = getSCEV(ST);
+          else if (SelectInst *SI = dyn_cast<SelectInst>(AddExpr->getOperand(1)))
+            SCEVStep = createNodeForSelectOrPHI(SI, CondV, SI->getTrueValue(), SI->getFalseValue());
+          else
+            SCEVStep = getConstant(AddExpr->getType(), isaTrueCond);
+
+          // Check that SCEVStep is evoluted as constant.
+          if (isa<SCEVConstant>(SCEVStep)) {
+            NewAddExpr = getAddRecExpr(SCEVStart, SCEVStep, L, SCEV::FlagAnyWrap);
+
+            forgetSymbolicName(PN, SymbolicName);
+            ValueExprMap[SCEVCallbackVH(PN, this)] = NewAddExpr;
+
+            return NewAddExpr;
+          }
+
+          // We need to wait for other passes to make this loop simpler.
+          // Or not, this cannot be evoluted.
+        }
+      }
+    }
   } else {
     // Otherwise, this could be a loop like this:
     //     i = 0;  for (j = 1; ..; ++j) { ....  i = j; }
@@ -4822,7 +4920,7 @@ const SCEV *ScalarEvolution::createAddRecFromPHI(PHINode *PN) {
     const SCEV *Shifted = SCEVShiftRewriter::rewrite(BEValue, L, *this);
     const SCEV *Start = SCEVInitRewriter::rewrite(Shifted, L, *this);
     if (Shifted != getCouldNotCompute() &&
-        Start != getCouldNotCompute()) {
+      Start != getCouldNotCompute()) {
       const SCEV *StartVal = getSCEV(StartValueV);
       if (Start == StartVal) {
         // Okay, for the entire analysis of this edge we assumed the PHI
@@ -5021,6 +5119,9 @@ const SCEV *ScalarEvolution::createNodeForSelectOrPHI(Instruction *I,
   auto *ICI = dyn_cast<ICmpInst>(Cond);
   if (!ICI)
     return getUnknown(I);
+
+  if (ConstantInt* ValueV = computeICmpCondV(ICI, nullptr))
+    return getSCEV(ValueV->isOne() ? TrueVal : FalseVal);
 
   Value *LHS = ICI->getOperand(0);
   Value *RHS = ICI->getOperand(1);
