@@ -3220,6 +3220,10 @@ static bool combineInstructionsOverFunction(
   if (ShouldLowerDbgDeclare)
     MadeIRChange = LowerDbgDeclare(F);
 
+  // Run instruction pattern combiner.
+  PatternInstCombiner PIC(TLI, DL, &AC, &DT);
+  MadeIRChange |= PIC.run(F);
+
   // Iterate while there is work to do.
   int Iteration = 0;
   for (;;) {
