@@ -4887,6 +4887,23 @@ For example, in the code below, the call instruction may only target the
     ...
     !0 = !{i64 (i64, i64)* @add, i64 (i64, i64)* @sub}
 
+'``speculation.marker``' Metadata
+^^^^^^^^^^^^^^^^^^^^^^
+
+``speculation.marker`` metadata must be attached to a load. It consist of
+set of ``i64`` type offsets indicating that the memory from load pointer address
+is accessable for read operation with provided offsets. The intent of this
+metadata is keep notion of certain memory as dereferanceable after load
+operations to that memory were deleted, but it might be beneficially to keep
+this notion for some optimizations.
+
+.. code-block:: llvm
+
+    %ld1 = load double, double* %arrayidx1, align 8, !speculation.marker !0
+
+    ...
+    !0 = !{i64 -1, i64 2}
+
 '``unpredictable``' Metadata
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
