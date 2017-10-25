@@ -201,6 +201,12 @@ public:
       return tryCombineSExt(MI, DeadInsts);
     case TargetOpcode::G_UNMERGE_VALUES:
       return tryCombineMerges(MI, DeadInsts);
+    case TargetOpcode::G_TRUNC: {
+      bool Changed = false;
+      for (auto &Use : MRI.use_instructions(MI.getOperand(0).getReg()))
+        Changed |= tryCombineInstruction(Use, DeadInsts);
+      return Changed;
+    }
     }
   }
 

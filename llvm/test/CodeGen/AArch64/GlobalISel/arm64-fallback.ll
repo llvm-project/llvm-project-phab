@@ -63,19 +63,21 @@ false:
 }
 
   ; General legalizer inability to handle types whose size wasn't a power of 2.
-; FALLBACK-WITH-REPORT-ERR: remark: <unknown>:0:0: unable to legalize instruction: %vreg1<def>(s42) = G_LOAD %vreg0; mem:LD6[%addr](align=8) (in function: odd_type)
+; FALLBACK-WITH-REPORT-ERR: remark: <unknown>:0:0: unable to legalize instruction: G_STORE %vreg1, %vreg0; mem:ST6[%addr](align=8) (in function: odd_type)
 ; FALLBACK-WITH-REPORT-ERR: warning: Instruction selection used fallback path for odd_type
 ; FALLBACK-WITH-REPORT-OUT-LABEL: odd_type:
 define void @odd_type(i42* %addr) {
   %val42 = load i42, i42* %addr
+  store i42 %val42, i42* %addr
   ret void
 }
 
-; FALLBACK-WITH-REPORT-ERR: remark: <unknown>:0:0: unable to legalize instruction: %vreg1<def>(<7 x s32>) = G_LOAD %vreg0; mem:LD28[%addr](align=32) (in function: odd_vector)
+; FALLBACK-WITH-REPORT-ERR: remark: <unknown>:0:0: unable to legalize instruction: G_STORE %vreg1, %vreg0; mem:ST28[%addr](align=32) (in function: odd_vector)
 ; FALLBACK-WITH-REPORT-ERR: warning: Instruction selection used fallback path for odd_vector
 ; FALLBACK-WITH-REPORT-OUT-LABEL: odd_vector:
 define void @odd_vector(<7 x i32>* %addr) {
   %vec = load <7 x i32>, <7 x i32>* %addr
+  store <7 x i32> %vec, <7 x i32>* %addr
   ret void
 }
 
@@ -146,6 +148,7 @@ define void @vector_of_pointers_extractelement() {
 
 block:
   %dummy = extractelement <2 x i16*> %vec, i32 0
+  store i16* %dummy, i16** undef
   ret void
 
 end:
@@ -153,7 +156,7 @@ end:
   br label %block
 }
 
-; FALLBACK-WITH-REPORT-ERR: remark: <unknown>:0:0: unable to legalize instruction: %vreg0<def>(<2 x p0>) = G_INSERT_VECTOR_ELT %vreg1, %vreg2, %vreg3; (in function: vector_of_pointers_insertelement
+; FALLBACK-WITH-REPORT-ERR: remark: <unknown>:0:0: unable to legalize instruction: G_STORE %vreg0, %vreg4; mem:ST16[undef] (in function: vector_of_pointers_insertelement)
 ; FALLBACK-WITH-REPORT-ERR: warning: Instruction selection used fallback path for vector_of_pointers_insertelement
 ; FALLBACK-WITH-REPORT-OUT-LABEL: vector_of_pointers_insertelement:
 define void @vector_of_pointers_insertelement() {
@@ -161,6 +164,7 @@ define void @vector_of_pointers_insertelement() {
 
 block:
   %dummy = insertelement <2 x i16*> %vec, i16* null, i32 0
+  store <2 x i16*> %dummy, <2 x i16*>* undef
   ret void
 
 end:

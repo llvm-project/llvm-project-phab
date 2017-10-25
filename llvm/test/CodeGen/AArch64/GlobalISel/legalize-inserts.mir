@@ -121,6 +121,8 @@ body: |
     %2:_(s64) = COPY %x2
     %3:_(s128) = G_MERGE_VALUES %0, %1
     %4:_(s128) = G_INSERT %3, %2, 32
+    %5:_(s64) = G_TRUNC %4
+    %x0 = COPY %5
     RET_ReallyLR
 ...
 
@@ -139,5 +141,7 @@ body: |
     %2:_(s32) = COPY %w2
     %3:_(s128) = G_MERGE_VALUES %0, %1
     %4:_(s128) = G_INSERT %3, %2, 32
+    %5:_(s64) = G_TRUNC %4
+    %x0 = COPY %5
     RET_ReallyLR
 ...
