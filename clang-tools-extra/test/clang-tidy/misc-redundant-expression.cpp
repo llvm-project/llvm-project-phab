@@ -268,6 +268,42 @@ int TestArithmetic(int X, int Y) {
 }
 
 int TestBitwise(int X, int Y) {
+  if(0 & X) return 1;
+  // CHECK-MESSAGES: :[[@LINE-1]]:8: warning: expression always evaluates to 0
+  if(~0 | X) return 1;
+  // CHECK-MESSAGES: :[[@LINE-1]]:9: warning: expression always evaluates to ~0
+
+  if(X & 0) return 1;
+  // CHECK-MESSAGES: :[[@LINE-1]]:8: warning: expression always evaluates to 0
+  if(X | ~0) return 1;
+  // CHECK-MESSAGES: :[[@LINE-1]]:8: warning: expression always evaluates to ~0
+  if(X | 0xffffffff) return 1;
+  // CHECK-MESSAGES: :[[@LINE-1]]:8: warning: expression always evaluates to 0xffffffff
+
+  if(~0 & X) return 1;
+  // CHECK-MESSAGES: :[[@LINE-1]]:9: warning: expression always evaluates to 'X'
+  if(0 | X) return 1;
+  // CHECK-MESSAGES: :[[@LINE-1]]:8: warning: expression always evaluates to 'X'
+
+  if(X & ~0) return 1;
+  // CHECK-MESSAGES: :[[@LINE-1]]:8: warning: expression always evaluates to 'X'
+  if(X | 0) return 1;
+  // CHECK-MESSAGES: :[[@LINE-1]]:8: warning: expression always evaluates to 'X'
+
+  X &= ~0;
+  // CHECK-MESSAGES: :[[@LINE-1]]:5: warning: expression always evaluates to 'X'
+  X |= 0;
+  // CHECK-MESSAGES: :[[@LINE-1]]:5: warning: expression always evaluates to 'X'
+
+  X &= 0;
+  // CHECK-MESSAGES: :[[@LINE-1]]:5: warning: expression always evaluates to 0
+  X |= ~0;
+  // CHECK-MESSAGES: :[[@LINE-1]]:5: warning: expression always evaluates to ~0
+  X |= 0xffffffff;
+  // CHECK-MESSAGES: :[[@LINE-1]]:5: warning: expression always evaluates to 0xffffffff
+  X |= -1;
+  // CHECK-MESSAGES: :[[@LINE-1]]:5: warning: expression always evaluates to -1
+
   if ((X & 0xFF) == 0xF00) return 1;
   // CHECK-MESSAGES: :[[@LINE-1]]:18: warning: logical expression is always false
   if ((X & 0xFF) != 0xF00) return 1;
