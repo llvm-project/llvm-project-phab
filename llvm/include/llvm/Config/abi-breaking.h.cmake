@@ -18,6 +18,9 @@
 /* Define to enable reverse iteration of unordered llvm containers */
 #cmakedefine01 LLVM_ENABLE_REVERSE_ITERATION
 
+/* Define to enable shuffling of elements before sorting */
+#cmakedefine01 LLVM_ENABLE_SHUFFLE_BEFORE_SORT
+
 /* Allow selectively disabling link-time mismatch checking so that header-only
    ADT content from LLVM can be used without linking libSupport. */
 #if !LLVM_DISABLE_ABI_BREAKING_CHECKS_ENFORCING
