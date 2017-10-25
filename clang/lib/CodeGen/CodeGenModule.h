@@ -499,6 +499,9 @@ private:
   /// MDNodes.
   llvm::DenseMap<QualType, llvm::Metadata *> MetadataIdMap;
 
+  /// Mapping from SourceLocation to PresumedLoc FileName
+  llvm::DenseMap<unsigned, const char *> SourceLocToFileNameMap;
+
 public:
   CodeGenModule(ASTContext &C, const HeaderSearchOptions &headersearchopts,
                 const PreprocessorOptions &ppopts,
@@ -1222,6 +1225,11 @@ public:
   /// \param T is the LLVM type of the null pointer.
   /// \param QT is the clang QualType of the null pointer.
   llvm::Constant *getNullPointer(llvm::PointerType *T, QualType QT);
+
+  /// Get SourceLoc to FileName map cache
+  llvm::DenseMap<unsigned, const char *> &GetSourceLocToFileNameMap() {
+    return SourceLocToFileNameMap;
+  }
 
 private:
   llvm::Constant *GetOrCreateLLVMFunction(

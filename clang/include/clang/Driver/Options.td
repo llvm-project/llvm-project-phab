@@ -1023,8 +1023,17 @@ def fexperimental_new_pass_manager : Flag<["-"], "fexperimental-new-pass-manager
   HelpText<"Enables an experimental new pass manager in LLVM.">;
 def finput_charset_EQ : Joined<["-"], "finput-charset=">, Group<f_Group>;
 def fexec_charset_EQ : Joined<["-"], "fexec-charset=">, Group<f_Group>;
+
+def finstrument_functions_exclude_function_list : CommaJoined<["-"],
+  "finstrument-functions-exclude-function-list=">, Group<f_Group>, Flags<[CC1Option]>,
+  HelpText<"Exclude given (demangled, if C++) functions from function instrumentation.">;
+def finstrument_functions_exclude_file_list : CommaJoined<["-"],
+  "finstrument-functions-exclude-file-list=">, Group<f_Group>, Flags<[CC1Option]>,
+  HelpText<"Exclude given path segments from function instrumentation.">;
 def finstrument_functions : Flag<["-"], "finstrument-functions">, Group<f_Group>, Flags<[CC1Option]>,
   HelpText<"Generate calls to instrument function entry and exit">;
+def fno_instrument_functions : Flag<["-"], "fno-instrument-functions">, Group<f_Group>,
+  HelpText<"Don't generate calls to instrument function entry and exit">;
 
 def fxray_instrument : Flag<["-"], "fxray-instrument">, Group<f_Group>,
   Flags<[CC1Option]>,
