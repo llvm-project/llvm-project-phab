@@ -68,6 +68,7 @@ inline_ref_2 (int &value)
 void
 caller_trivial_1 ()
 {
+    inline_value += 1;  // At first increment in caller_trivial_1.
     caller_trivial_2(); // In caller_trivial_1.
     inline_value += 1; 
 }
@@ -75,8 +76,9 @@ caller_trivial_1 ()
 void
 caller_trivial_2 ()
 {
+    inline_value += 1;  // At first increment in caller_trivial_2.
     inline_trivial_1 (); // In caller_trivial_2.
-    inline_value += 1;  // At increment in caller_trivial_2.
+    inline_value += 1;  // At second increment in caller_trivial_2.
 }
 
 void
@@ -88,8 +90,9 @@ called_by_inline_trivial ()
 void
 inline_trivial_1 ()
 {
+    inline_value += 1;  // At first increment in inline_trivial_1.
     inline_trivial_2(); // In inline_trivial_1.
-    inline_value += 1;  // At increment in inline_trivial_1.
+    inline_value += 1;  // At second increment in inline_trivial_1.
 }
 
 void

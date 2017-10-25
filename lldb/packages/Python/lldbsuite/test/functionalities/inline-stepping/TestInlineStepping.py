@@ -183,9 +183,12 @@ class TestInlineStepping(TestBase):
 
         # Now step from caller_ref_1 all the way into called_by_inline_trivial
 
-        step_sequence = [["// In caller_trivial_1.", "into"],
-                         ["// In caller_trivial_2.", "into"],
-                         ["// In inline_trivial_1.", "into"],
+        step_sequence = [["// At first increment in caller_trivial_1.", "into"],
+                         ["// In caller_trivial_1.", "over"],
+                         ["// At first increment in caller_trivial_2.", "into"],
+                         ["// In caller_trivial_2.", "over"],
+                         ["// At first increment in inline_trivial_1.", "into"],
+                         ["// In inline_trivial_1.", "over"],
                          ["// In inline_trivial_2.", "into"],
                          ["// At caller_by_inline_trivial in inline_trivial_2.", "over"],
                          ["// In called_by_inline_trivial.", "into"]]
@@ -205,9 +208,12 @@ class TestInlineStepping(TestBase):
             "Successfully ran to call site of second caller_trivial_1 call.")
         self.thread = threads[0]
 
-        step_sequence = [["// In caller_trivial_1.", "into"],
-                         ["// In caller_trivial_2.", "into"],
-                         ["// In inline_trivial_1.", "into"]]
+        step_sequence = [["// At first increment in caller_trivial_1.", "into"],
+                         ["// In caller_trivial_1.", "over"],
+                         ["// At first increment in caller_trivial_2.", "into"],
+                         ["// In caller_trivial_2.", "over"],
+                         ["// At first increment in inline_trivial_1.", "into"],
+                         ["// In inline_trivial_1.", "over"]]
         self.run_step_sequence(step_sequence)
 
         # Then call some trivial function, and make sure we end up back where
@@ -225,8 +231,8 @@ class TestInlineStepping(TestBase):
         # Now make sure stepping OVER in the middle of the stack works, and
         # then check finish from the inlined frame:
 
-        step_sequence = [["// At increment in inline_trivial_1.", "over"],
-                         ["// At increment in caller_trivial_2.", "out"]]
+        step_sequence = [["// At second increment in inline_trivial_1.", "over"],
+                         ["// At second increment in caller_trivial_2.", "out"]]
         self.run_step_sequence(step_sequence)
 
         # Now run to the place in main just before the first call to
