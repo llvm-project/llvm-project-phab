@@ -1101,6 +1101,11 @@ template <class ELFT> void LinkerDriver::link(opt::InputArgList &Args) {
   markLive<ELFT>();
   decompressSections();
   mergeSections();
+  // Create linker-synthesized sections such as .got or .plt.
+  // Such sections are of type input section.
+  createSyntheticSections<ELFT>();
+  if (!Config->Relocatable)
+    combineEhFrameSections<ELFT>();
   if (Config->ICF)
     doIcf<ELFT>();
 

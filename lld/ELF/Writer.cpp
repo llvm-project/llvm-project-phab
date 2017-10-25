@@ -10,6 +10,7 @@
 #include "Writer.h"
 #include "Config.h"
 #include "Filesystem.h"
+#include "ICF.h"
 #include "LinkerScript.h"
 #include "MapFile.h"
 #include "Memory.h"
@@ -45,7 +46,6 @@ public:
   void run();
 
 private:
-  void createSyntheticSections();
   void copyLocalSymbols();
   void addSectionSymbols();
   void addReservedSymbols();
@@ -115,11 +115,6 @@ StringRef elf::getOutputSectionName(StringRef Name) {
   return Name;
 }
 
-static bool needsInterpSection() {
-  return !SharedFiles.empty() && !Config->DynamicLinker.empty() &&
-         Script->needsInterpSection();
-}
-
 template <class ELFT> void elf::writeResult() { Writer<ELFT>().run(); }
 
 template <class ELFT> void Writer<ELFT>::removeEmptyPTLoad() {
@@ -133,29 +128,8 @@ template <class ELFT> void Writer<ELFT>::removeEmptyPTLoad() {
   });
 }
 
-template <class ELFT> static void combineEhFrameSections() {
-  for (InputSectionBase *&S : InputSections) {
-    EhInputSection *ES = dyn_cast<EhInputSection>(S);
-    if (!ES || !ES->Live)
-      continue;
-
-    In<ELFT>::EhFrame->addSection(ES);
-    S = nullptr;
-  }
-
-  std::vector<InputSectionBase *> &V = InputSections;
-  V.erase(std::remove(V.begin(), V.end(), nullptr), V.end());
-}
-
 // The main function of the writer.
 template <class ELFT> void Writer<ELFT>::run() {
-  // Create linker-synthesized sections such as .got or .plt.
-  // Such sections are of type input section.
-  createSyntheticSections();
-
-  if (!Config->Relocatable)
-    combineEhFrameSections<ELFT>();
-
   // We need to create some reserved symbols such as _end. Create them.
   if (!Config->Relocatable)
     addReservedSymbols();
@@ -246,145 +220,6 @@ template <class ELFT> void Writer<ELFT>::run() {
 
   if (auto EC = Buffer->commit())
     error("failed to write to the output file: " + EC.message());
-}
-
-// Initialize Out members.
-template <class ELFT> void Writer<ELFT>::createSyntheticSections() {
-  // Initialize all pointers with NULL. This is needed because
-  // you can call lld::elf::main more than once as a library.
-  memset(&Out::First, 0, sizeof(Out));
-
-  auto Add = [](InputSectionBase *Sec) { InputSections.push_back(Sec); };
-
-  InX::DynStrTab = make<StringTableSection>(".dynstr", true);
-  InX::Dynamic = make<DynamicSection<ELFT>>();
-  In<ELFT>::RelaDyn = make<RelocationSection<ELFT>>(
-      Config->IsRela ? ".rela.dyn" : ".rel.dyn", Config->ZCombreloc);
-  InX::ShStrTab = make<StringTableSection>(".shstrtab", false);
-
-  Out::ElfHeader = make<OutputSection>("", 0, SHF_ALLOC);
-  Out::ElfHeader->Size = sizeof(Elf_Ehdr);
-  Out::ProgramHeaders = make<OutputSection>("", 0, SHF_ALLOC);
-  Out::ProgramHeaders->Alignment = Config->Wordsize;
-
-  if (needsInterpSection()) {
-    InX::Interp = createInterpSection();
-    Add(InX::Interp);
-  } else {
-    InX::Interp = nullptr;
-  }
-
-  if (Config->Strip != StripPolicy::All) {
-    InX::StrTab = make<StringTableSection>(".strtab", false);
-    InX::SymTab = make<SymbolTableSection<ELFT>>(*InX::StrTab);
-  }
-
-  if (Config->BuildId != BuildIdKind::None) {
-    InX::BuildId = make<BuildIdSection>();
-    Add(InX::BuildId);
-  }
-
-  InX::Bss = make<BssSection>(".bss", 0, 1);
-  Add(InX::Bss);
-  InX::BssRelRo = make<BssSection>(".bss.rel.ro", 0, 1);
-  Add(InX::BssRelRo);
-
-  // Add MIPS-specific sections.
-  if (Config->EMachine == EM_MIPS) {
-    if (!Config->Shared && Config->HasDynSymTab) {
-      InX::MipsRldMap = make<MipsRldMapSection>();
-      Add(InX::MipsRldMap);
-    }
-    if (auto *Sec = MipsAbiFlagsSection<ELFT>::create())
-      Add(Sec);
-    if (auto *Sec = MipsOptionsSection<ELFT>::create())
-      Add(Sec);
-    if (auto *Sec = MipsReginfoSection<ELFT>::create())
-      Add(Sec);
-  }
-
-  if (Config->HasDynSymTab) {
-    InX::DynSymTab = make<SymbolTableSection<ELFT>>(*InX::DynStrTab);
-    Add(InX::DynSymTab);
-
-    In<ELFT>::VerSym = make<VersionTableSection<ELFT>>();
-    Add(In<ELFT>::VerSym);
-
-    if (!Config->VersionDefinitions.empty()) {
-      In<ELFT>::VerDef = make<VersionDefinitionSection<ELFT>>();
-      Add(In<ELFT>::VerDef);
-    }
-
-    In<ELFT>::VerNeed = make<VersionNeedSection<ELFT>>();
-    Add(In<ELFT>::VerNeed);
-
-    if (Config->GnuHash) {
-      InX::GnuHashTab = make<GnuHashTableSection>();
-      Add(InX::GnuHashTab);
-    }
-
-    if (Config->SysvHash) {
-      InX::HashTab = make<HashTableSection>();
-      Add(InX::HashTab);
-    }
-
-    Add(InX::Dynamic);
-    Add(InX::DynStrTab);
-    Add(In<ELFT>::RelaDyn);
-  }
-
-  // Add .got. MIPS' .got is so different from the other archs,
-  // it has its own class.
-  if (Config->EMachine == EM_MIPS) {
-    InX::MipsGot = make<MipsGotSection>();
-    Add(InX::MipsGot);
-  } else {
-    InX::Got = make<GotSection>();
-    Add(InX::Got);
-  }
-
-  InX::GotPlt = make<GotPltSection>();
-  Add(InX::GotPlt);
-  InX::IgotPlt = make<IgotPltSection>();
-  Add(InX::IgotPlt);
-
-  if (Config->GdbIndex) {
-    InX::GdbIndex = createGdbIndex<ELFT>();
-    Add(InX::GdbIndex);
-  }
-
-  // We always need to add rel[a].plt to output if it has entries.
-  // Even for static linking it can contain R_[*]_IRELATIVE relocations.
-  In<ELFT>::RelaPlt = make<RelocationSection<ELFT>>(
-      Config->IsRela ? ".rela.plt" : ".rel.plt", false /*Sort*/);
-  Add(In<ELFT>::RelaPlt);
-
-  // The RelaIplt immediately follows .rel.plt (.rel.dyn for ARM) to ensure
-  // that the IRelative relocations are processed last by the dynamic loader
-  In<ELFT>::RelaIplt = make<RelocationSection<ELFT>>(
-      (Config->EMachine == EM_ARM) ? ".rel.dyn" : In<ELFT>::RelaPlt->Name,
-      false /*Sort*/);
-  Add(In<ELFT>::RelaIplt);
-
-  InX::Plt = make<PltSection>(Target->PltHeaderSize);
-  Add(InX::Plt);
-  InX::Iplt = make<PltSection>(0);
-  Add(InX::Iplt);
-
-  if (!Config->Relocatable) {
-    if (Config->EhFrameHdr) {
-      In<ELFT>::EhFrameHdr = make<EhFrameHeader<ELFT>>();
-      Add(In<ELFT>::EhFrameHdr);
-    }
-    In<ELFT>::EhFrame = make<EhFrameSection<ELFT>>();
-    Add(In<ELFT>::EhFrame);
-  }
-
-  if (InX::SymTab)
-    Add(InX::SymTab);
-  Add(InX::ShStrTab);
-  if (InX::StrTab)
-    Add(InX::StrTab);
 }
 
 static bool shouldKeepInSymtab(SectionBase *Sec, StringRef SymName,

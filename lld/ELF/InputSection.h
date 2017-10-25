@@ -284,6 +284,9 @@ struct EhSectionPiece {
   InputSectionBase *Sec;
   uint32_t Size;
   unsigned FirstRelocation;
+
+  // Keeps section where function associated with FDE resides.
+  InputSection* FdeTargetSec = nullptr;
 };
 
 // This corresponds to a .eh_frame section of an input file.
@@ -334,6 +337,8 @@ public:
 
   // Used by ICF.
   uint32_t Class[2] = {0, 0};
+
+  std::vector<EhSectionPiece *> Fdes;
 
   // Called by ICF to merge two input sections.
   void replace(InputSection *Other);

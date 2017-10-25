@@ -80,6 +80,166 @@ template <class ELFT> void elf::createCommonSections() {
   }
 }
 
+template <class ELFT> void elf::combineEhFrameSections() {
+  for (InputSectionBase *&S : InputSections) {
+    EhInputSection *ES = dyn_cast<EhInputSection>(S);
+    if (!ES || !ES->Live)
+      continue;
+
+    In<ELFT>::EhFrame->addSection(ES);
+    S = nullptr;
+  }
+
+  std::vector<InputSectionBase *> &V = InputSections;
+  V.erase(std::remove(V.begin(), V.end(), nullptr), V.end());
+}
+
+static bool needsInterpSection() {
+  return !SharedFiles.empty() && !Config->DynamicLinker.empty() &&
+         Script->needsInterpSection();
+}
+
+// Initialize Out members.
+template <class ELFT> void elf::createSyntheticSections() {
+  using Elf_Ehdr = typename ELFFile<ELFT>::Elf_Ehdr;
+
+  // Initialize all pointers with NULL. This is needed because
+  // you can call lld::elf::main more than once as a library.
+  memset(&Out::First, 0, sizeof(Out));
+
+  auto Add = [](InputSectionBase *Sec) { InputSections.push_back(Sec); };
+
+  InX::DynStrTab = make<StringTableSection>(".dynstr", true);
+  InX::Dynamic = make<DynamicSection<ELFT>>();
+  In<ELFT>::RelaDyn = make<RelocationSection<ELFT>>(
+      Config->IsRela ? ".rela.dyn" : ".rel.dyn", Config->ZCombreloc);
+  InX::ShStrTab = make<StringTableSection>(".shstrtab", false);
+
+  Out::ElfHeader = make<OutputSection>("", 0, SHF_ALLOC);
+  Out::ElfHeader->Size = sizeof(Elf_Ehdr);
+  Out::ProgramHeaders = make<OutputSection>("", 0, SHF_ALLOC);
+  Out::ProgramHeaders->Alignment = Config->Wordsize;
+
+  if (needsInterpSection()) {
+    InX::Interp = createInterpSection();
+    Add(InX::Interp);
+  } else {
+    InX::Interp = nullptr;
+  }
+
+  if (Config->Strip != StripPolicy::All) {
+    InX::StrTab = make<StringTableSection>(".strtab", false);
+    InX::SymTab = make<SymbolTableSection<ELFT>>(*InX::StrTab);
+  }
+
+  if (Config->BuildId != BuildIdKind::None) {
+    InX::BuildId = make<BuildIdSection>();
+    Add(InX::BuildId);
+  }
+
+  InX::Bss = make<BssSection>(".bss", 0, 1);
+  Add(InX::Bss);
+  InX::BssRelRo = make<BssSection>(".bss.rel.ro", 0, 1);
+  Add(InX::BssRelRo);
+
+  // Add MIPS-specific sections.
+  if (Config->EMachine == EM_MIPS) {
+    if (!Config->Shared && Config->HasDynSymTab) {
+      InX::MipsRldMap = make<MipsRldMapSection>();
+      Add(InX::MipsRldMap);
+    }
+    if (auto *Sec = MipsAbiFlagsSection<ELFT>::create())
+      Add(Sec);
+    if (auto *Sec = MipsOptionsSection<ELFT>::create())
+      Add(Sec);
+    if (auto *Sec = MipsReginfoSection<ELFT>::create())
+      Add(Sec);
+  }
+
+  if (Config->HasDynSymTab) {
+    InX::DynSymTab = make<SymbolTableSection<ELFT>>(*InX::DynStrTab);
+    Add(InX::DynSymTab);
+
+    In<ELFT>::VerSym = make<VersionTableSection<ELFT>>();
+    Add(In<ELFT>::VerSym);
+
+    if (!Config->VersionDefinitions.empty()) {
+      In<ELFT>::VerDef = make<VersionDefinitionSection<ELFT>>();
+      Add(In<ELFT>::VerDef);
+    }
+
+    In<ELFT>::VerNeed = make<VersionNeedSection<ELFT>>();
+    Add(In<ELFT>::VerNeed);
+
+    if (Config->GnuHash) {
+      InX::GnuHashTab = make<GnuHashTableSection>();
+      Add(InX::GnuHashTab);
+    }
+
+    if (Config->SysvHash) {
+      InX::HashTab = make<HashTableSection>();
+      Add(InX::HashTab);
+    }
+
+    Add(InX::Dynamic);
+    Add(InX::DynStrTab);
+    Add(In<ELFT>::RelaDyn);
+  }
+
+  // Add .got. MIPS' .got is so different from the other archs,
+  // it has its own class.
+  if (Config->EMachine == EM_MIPS) {
+    InX::MipsGot = make<MipsGotSection>();
+    Add(InX::MipsGot);
+  } else {
+    InX::Got = make<GotSection>();
+    Add(InX::Got);
+  }
+
+  InX::GotPlt = make<GotPltSection>();
+  Add(InX::GotPlt);
+  InX::IgotPlt = make<IgotPltSection>();
+  Add(InX::IgotPlt);
+
+  if (Config->GdbIndex) {
+    InX::GdbIndex = createGdbIndex<ELFT>();
+    Add(InX::GdbIndex);
+  }
+
+  // We always need to add rel[a].plt to output if it has entries.
+  // Even for static linking it can contain R_[*]_IRELATIVE relocations.
+  In<ELFT>::RelaPlt = make<RelocationSection<ELFT>>(
+      Config->IsRela ? ".rela.plt" : ".rel.plt", false /*Sort*/);
+  Add(In<ELFT>::RelaPlt);
+
+  // The RelaIplt immediately follows .rel.plt (.rel.dyn for ARM) to ensure
+  // that the IRelative relocations are processed last by the dynamic loader
+  In<ELFT>::RelaIplt = make<RelocationSection<ELFT>>(
+      (Config->EMachine == EM_ARM) ? ".rel.dyn" : In<ELFT>::RelaPlt->Name,
+      false /*Sort*/);
+  Add(In<ELFT>::RelaIplt);
+
+  InX::Plt = make<PltSection>(Target->PltHeaderSize);
+  Add(InX::Plt);
+  InX::Iplt = make<PltSection>(0);
+  Add(InX::Iplt);
+
+  if (!Config->Relocatable) {
+    if (Config->EhFrameHdr) {
+      In<ELFT>::EhFrameHdr = make<EhFrameHeader<ELFT>>();
+      Add(In<ELFT>::EhFrameHdr);
+    }
+    In<ELFT>::EhFrame = make<EhFrameSection<ELFT>>();
+    Add(In<ELFT>::EhFrame);
+  }
+
+  if (InX::SymTab)
+    Add(InX::SymTab);
+  Add(InX::ShStrTab);
+  if (InX::StrTab)
+    Add(InX::StrTab);
+}
+
 // Returns an LLD version string.
 static ArrayRef<uint8_t> getVersion() {
   // Check LLD_VERSION first for ease of testing.
@@ -430,12 +590,10 @@ CieRecord *EhFrameSection<ELFT>::addCie(EhSectionPiece &Cie,
   return Rec;
 }
 
-// There is one FDE per function. Returns true if a given FDE
-// points to a live function.
-template <class ELFT>
-template <class RelTy>
-bool EhFrameSection<ELFT>::isFdeLive(EhSectionPiece &Fde,
-                                     ArrayRef<RelTy> Rels) {
+// There is one FDE per function. Returns section where function lives.
+template <class ELFT, class RelTy>
+static InputSection *getFdeTargetSection(EhSectionPiece &Fde,
+                                         ArrayRef<RelTy> Rels) {
   auto *Sec = cast<EhInputSection>(Fde.Sec);
   unsigned FirstRelI = Fde.FirstRelocation;
 
@@ -445,14 +603,19 @@ bool EhFrameSection<ELFT>::isFdeLive(EhSectionPiece &Fde,
   // corresponding FDEs, which results in creating bad .eh_frame sections.
   // To deal with that, we ignore such FDEs.
   if (FirstRelI == (unsigned)-1)
-    return false;
+    return nullptr;
 
   const RelTy &Rel = Rels[FirstRelI];
   SymbolBody &B = Sec->template getFile<ELFT>()->getRelocTargetSym(Rel);
-  if (auto *D = dyn_cast<DefinedRegular>(&B))
-    if (D->Section)
-      return cast<InputSectionBase>(D->Section)->Repl->Live;
-  return false;
+  if (DefinedRegular *DR = dyn_cast<DefinedRegular>(&B))
+      return cast_or_null<InputSection>(DR->Section);
+  return nullptr;
+}
+
+// There is one FDE per function. Returns true if a given FDE
+// points to a live function.
+static bool isFdeLive(EhSectionPiece &Fde) {
+  return Fde.FdeTargetSec && Fde.FdeTargetSec->Repl->Live;
 }
 
 // .eh_frame is a sequence of CIE or FDE records. In general, there
@@ -483,10 +646,11 @@ void EhFrameSection<ELFT>::addSectionAux(EhInputSection *Sec,
     if (!Rec)
       fatal(toString(Sec) + ": invalid CIE reference");
 
-    if (!isFdeLive(Piece, Rels))
-      continue;
+    Piece.FdeTargetSec = getFdeTargetSection<ELFT>(Piece, Rels);
+    if (Piece.FdeTargetSec)
+      Piece.FdeTargetSec->Fdes.push_back(&Piece);
+
     Rec->Fdes.push_back(&Piece);
-    NumFdes++;
   }
 }
 
@@ -540,8 +704,11 @@ template <class ELFT> void EhFrameSection<ELFT>::finalizeContents() {
     Off += alignTo(Rec->Cie->Size, Config->Wordsize);
 
     for (EhSectionPiece *Fde : Rec->Fdes) {
+      if (!isFdeLive(*Fde))
+        continue;
       Fde->OutputOff = Off;
       Off += alignTo(Fde->Size, Config->Wordsize);
+      ++NumFdes;
     }
   }
 
@@ -596,6 +763,9 @@ template <class ELFT> void EhFrameSection<ELFT>::writeTo(uint8_t *Buf) {
     writeCieFde<ELFT>(Buf + CieOffset, Rec->Cie->data());
 
     for (EhSectionPiece *Fde : Rec->Fdes) {
+      if (!isFdeLive(*Fde))
+        continue;
+
       size_t Off = Fde->OutputOff;
       writeCieFde<ELFT>(Buf + Off, Fde->data());
 
@@ -618,6 +788,8 @@ template <class ELFT> void EhFrameSection<ELFT>::writeTo(uint8_t *Buf) {
     for (CieRecord *Rec : CieRecords) {
       uint8_t Enc = getFdeEncoding<ELFT>(Rec->Cie);
       for (EhSectionPiece *Fde : Rec->Fdes) {
+        if (!isFdeLive(*Fde))
+          continue;
         uint64_t Pc = getFdePc(Buf, Fde->OutputOff, Enc);
         uint64_t FdeVA = getParent()->Addr + Fde->OutputOff;
         In<ELFT>::EhFrameHdr->addFde(Pc, FdeVA);
@@ -2462,6 +2634,16 @@ template void elf::createCommonSections<ELF32LE>();
 template void elf::createCommonSections<ELF32BE>();
 template void elf::createCommonSections<ELF64LE>();
 template void elf::createCommonSections<ELF64BE>();
+
+template void elf::combineEhFrameSections<ELF32LE>();
+template void elf::combineEhFrameSections<ELF32BE>();
+template void elf::combineEhFrameSections<ELF64LE>();
+template void elf::combineEhFrameSections<ELF64BE>();
+
+template void elf::createSyntheticSections<ELF32LE>();
+template void elf::createSyntheticSections<ELF32BE>();
+template void elf::createSyntheticSections<ELF64LE>();
+template void elf::createSyntheticSections<ELF64BE>();
 
 template MergeInputSection *elf::createCommentSection<ELF32LE>();
 template MergeInputSection *elf::createCommentSection<ELF32BE>();

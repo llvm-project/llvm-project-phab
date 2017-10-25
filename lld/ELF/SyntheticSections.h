@@ -88,9 +88,6 @@ private:
   template <class RelTy>
   CieRecord *addCie(EhSectionPiece &Piece, ArrayRef<RelTy> Rels);
 
-  template <class RelTy>
-  bool isFdeLive(EhSectionPiece &Piece, ArrayRef<RelTy> Rels);
-
   uint64_t getFdePc(uint8_t *Buf, size_t Off, uint8_t Enc);
 
   std::vector<CieRecord *> CieRecords;
@@ -807,6 +804,8 @@ InputSection *createInterpSection();
 template <class ELFT> MergeInputSection *createCommentSection();
 void decompressSections();
 void mergeSections();
+template <class ELFT> void combineEhFrameSections();
+template <class ELFT> void createSyntheticSections();
 
 SymbolBody *addSyntheticLocal(StringRef Name, uint8_t Type, uint64_t Value,
                               uint64_t Size, InputSectionBase *Section);
