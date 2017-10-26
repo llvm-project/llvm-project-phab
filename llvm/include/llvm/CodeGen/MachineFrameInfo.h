@@ -290,6 +290,9 @@ class MachineFrameInfo {
   /// stack objects like arguments so we can't treat them as immutable.
   bool HasTailCall = false;
 
+  /// True if this function contains an indirect call.
+  bool HasIndirectCall = false;
+
   /// Not null, if shrink-wrapping found a better place for the prologue.
   MachineBasicBlock *Save = nullptr;
   /// Not null, if shrink-wrapping found a better place for the epilogue.
@@ -543,6 +546,10 @@ public:
   /// Returns true if the function contains a tail call.
   bool hasTailCall() const { return HasTailCall; }
   void setHasTailCall() { HasTailCall = true; }
+
+  /// Returns true if the function contains an indirect call.
+  bool hasIndirectCall() const { return HasIndirectCall; }
+  void setHasIndirectCall() { HasIndirectCall = true; }
 
   /// Computes the maximum size of a callframe and the AdjustsStack property.
   /// This only works for targets defining

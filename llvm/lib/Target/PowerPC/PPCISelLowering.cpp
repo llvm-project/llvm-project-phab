@@ -111,6 +111,7 @@ cl::desc("disable unaligned load/store generation on PPC"), cl::Hidden);
 static cl::opt<bool> DisableSCO("disable-ppc-sco",
 cl::desc("disable sibling call optimization on ppc"), cl::Hidden);
 
+STATISTIC(NumSetHasIndirectCall, "Number of indirect calls");
 STATISTIC(NumTailCalls, "Number of tail calls");
 STATISTIC(NumSiblingCalls, "Number of sibling calls");
 
@@ -4990,6 +4991,8 @@ SDValue PPCTargetLowering::FinishCall(
   if (!isTailCall && Subtarget.isSVR4ABI()&& Subtarget.isPPC64() &&
       !isPatchPoint) {
     if (CallOpc == PPCISD::BCTRL) {
+      DAG.getMachineFunction().getFrameInfo().setHasIndirectCall();
+      NumSetHasIndirectCall++;
       // This is a call through a function pointer.
       // Restore the caller TOC from the save area into R2.
       // See PrepareCall() for more information about calls through function
@@ -5953,14 +5956,20 @@ SDValue PPCTargetLowering::LowerCall_64SVR4(
       !isa<ExternalSymbolSDNode>(Callee)) {
     // Load r2 into a virtual register and store it to the TOC save area.
     setUsesTOCBasePtr(DAG);
-    SDValue Val = DAG.getCopyFromReg(Chain, dl, PPC::X2, MVT::i64);
-    // TOC save area offset.
-    unsigned TOCSaveOffset = Subtarget.getFrameLowering()->getTOCSaveOffset();
-    SDValue PtrOff = DAG.getIntPtrConstant(TOCSaveOffset, dl);
-    SDValue AddPtr = DAG.getNode(ISD::ADD, dl, PtrVT, StackPtr, PtrOff);
-    Chain = DAG.getStore(
-        Val.getValue(1), dl, Val, AddPtr,
-        MachinePointerInfo::getStack(DAG.getMachineFunction(), TOCSaveOffset));
+    // Don't emit a store of TOC before indirect call if using option
+    // -msave-toc-direct and the function doesn't have dynamic allocations
+    // on the stack.
+    const MachineFrameInfo &MFI = MF.getFrameInfo();
+    if (!(Subtarget.hasSaveTOCIndirect() && !MFI.hasVarSizedObjects())) {
+      SDValue Val = DAG.getCopyFromReg(Chain, dl, PPC::X2, MVT::i64);
+      // TOC save area offset.
+      unsigned TOCSaveOffset = Subtarget.getFrameLowering()->getTOCSaveOffset();
+      SDValue PtrOff = DAG.getIntPtrConstant(TOCSaveOffset, dl);
+      SDValue AddPtr = DAG.getNode(ISD::ADD, dl, PtrVT, StackPtr, PtrOff);
+      Chain = DAG.getStore(
+          Val.getValue(1), dl, Val, AddPtr,
+          MachinePointerInfo::getStack(DAG.getMachineFunction(), TOCSaveOffset));
+    }
     // In the ELFv2 ABI, R12 must contain the address of an indirect callee.
     // This does not mean the MTCTR instruction must use R12; it's easier
     // to model this as an extra parameter, so do that.

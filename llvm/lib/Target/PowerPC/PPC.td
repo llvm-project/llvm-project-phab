@@ -145,6 +145,11 @@ def FeatureDirectMove :
 def FeaturePartwordAtomic : SubtargetFeature<"partword-atomics",
                                              "HasPartwordAtomics", "true",
                                              "Enable l[bh]arx and st[bh]cx.">;
+def FeatureSaveTOCIndirect :
+  SubtargetFeature<"save-toc-indirect",
+                   "HasSaveTOCIndirect", "true",
+                   "TOC reg is saved in prologue when there are indirect calls">;
+
 def FeatureInvariantFunctionDescriptors :
   SubtargetFeature<"invariant-function-descriptors",
                    "HasInvariantFunctionDescriptors", "true",

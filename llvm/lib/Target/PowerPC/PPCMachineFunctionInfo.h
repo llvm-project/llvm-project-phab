@@ -45,6 +45,11 @@ class PPCFunctionInfo : public MachineFunctionInfo {
   /// PEI.
   bool MustSaveLR;
 
+  /// MustSaveTOC - Indicates whether TOC should be saved in prologue for option
+  /// -msave-toc-indirect. This is only valid after the initial scan of the
+  /// function by PEI.
+  bool MustSaveTOC;
+
   /// Does this function have any stack spills.
   bool HasSpills = false;
 
@@ -146,6 +151,13 @@ public:
   /// referenced by builtin_return_address.
   void setMustSaveLR(bool U) { MustSaveLR = U; }
   bool mustSaveLR() const    { return MustSaveLR; }
+
+  /// MustSaveTOC - This is set when a function contains indirect calls and
+  /// no dynamic stack allocations. If using option -msave-toc-indirect,
+  /// the TOC will be saved once in the prologue rather than before each
+  /// indirect function call.
+  void setMustSaveTOC(bool U) { MustSaveTOC = U; }
+  bool mustSaveTOC() const    { return MustSaveTOC; }
 
   void setHasSpills()      { HasSpills = true; }
   bool hasSpills() const   { return HasSpills; }

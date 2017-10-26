@@ -126,6 +126,7 @@ protected:
   bool IsLittleEndian;
   bool HasICBT;
   bool HasInvariantFunctionDescriptors;
+  bool HasSaveTOCIndirect;
   bool HasPartwordAtomics;
   bool HasDirectMove;
   bool HasHTM;
@@ -261,6 +262,9 @@ public:
   bool hasICBT() const { return HasICBT; }
   bool hasInvariantFunctionDescriptors() const {
     return HasInvariantFunctionDescriptors;
+  }
+  bool hasSaveTOCIndirect() const {
+    return HasSaveTOCIndirect;
   }
   bool hasPartwordAtomics() const { return HasPartwordAtomics; }
   bool hasDirectMove() const { return HasDirectMove; }
