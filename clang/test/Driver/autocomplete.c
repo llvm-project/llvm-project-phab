@@ -4,7 +4,6 @@
 
 // Some corner cases.
 // RUN: %clang --autocomplete= | FileCheck %s -check-prefix=ALL_FLAGS
-// RUN: %clang --autocomplete=# | FileCheck %s -check-prefix=ALL_FLAGS
 // Let's pick some example flags that are hopefully unlikely to change.
 // ALL_FLAGS: -fast
 // ALL_FLAGS: -fastcp
@@ -93,10 +92,6 @@
 // MRELOCMODELALL-NEXT: ropi-rwpi
 // MRELOCMODELALL-NEXT: rwpi
 // MRELOCMODELALL-NEXT: static
-// RUN: %clang --autocomplete=-mrelocation-mode | FileCheck %s -check-prefix=MRELOCMODEL_CLANG
-// MRELOCMODEL_CLANG-NOT: -mrelocation-model
-// RUN: %clang --autocomplete=#-mrelocation-mode | FileCheck %s -check-prefix=MRELOCMODEL_CC1
-// MRELOCMODEL_CC1: -mrelocation-model
 // RUN: %clang --autocomplete=-Wma | FileCheck %s -check-prefix=WARNING
 // WARNING: -Wmacro-redefined
 // WARNING-NEXT: -Wmain
@@ -110,3 +105,16 @@
 // ANALYZER: unix.Malloc
 // RUN: %clang --autocomplete=-std=, | FileCheck %s -check-prefix=STDVAL
 // STDVAL: c99
+//
+// Clang shouldn't autocomplete CC1 options unless -cc1 or -Xclang were provided
+// RUN: %clang --autocomplete=-mrelocation-mode | FileCheck %s -check-prefix=MRELOCMODEL_CLANG
+// MRELOCMODEL_CLANG-NOT: -mrelocation-model
+// RUN: %clang --autocomplete=-Xclang:-mrelocation-mode | FileCheck %s -check-prefix=MRELOCMODEL_CC1
+// RUN: %clang --autocomplete=-cc1:-mrelocation-mode | FileCheck %s -check-prefix=MRELOCMODEL_CC1
+// MRELOCMODEL_CC1: -mrelocation-model
+// Make sure it ignores passed flags unlesss they are -Xclang or -cc1
+// RUN: %clang --autocomplete=foo:bar::-fsyn | FileCheck %s -check-prefix=FSYN-CORON
+// FSYN-CORON: -fsyntax-only
+// Check if they can autocomplete values with coron
+// RUN: %clang --autocomplete=foo::bar::::-fno-sanitize-coverage=,f | FileCheck %s -check-prefix=FNOSANICOVER-CORON
+// FNOSANICOVER-CORON: func

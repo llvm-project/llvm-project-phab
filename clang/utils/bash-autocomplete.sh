@@ -25,11 +25,11 @@ _clang()
     w2="${COMP_WORDS[$cword - 2]}"
   fi
 
-  # Clang want to know if -cc1 or -Xclang option is specified or not, because we don't want to show
-  # cc1 options otherwise.
-  if [[ "${COMP_WORDS[1]}" == "-cc1" || "$w1" == "-Xclang" ]]; then
-    arg="#"
-  fi
+  # Pass all the current command-line flags to clang, so that clang can handle
+  # these internally.
+  for i in `seq 1 $(($cword-1))`; do
+    arg="$arg${COMP_WORDS[$i]}:"
+  done
 
   # bash always separates '=' as a token even if there's no space before/after '='.
   # On the other hand, '=' is just a regular character for clang options that

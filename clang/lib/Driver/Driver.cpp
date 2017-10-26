@@ -1164,26 +1164,30 @@ void Driver::handleAutocompletions(StringRef PassedFlags) const {
 
   unsigned short DisableFlags =
       options::NoDriverOption | options::Unsupported | options::Ignored;
-  // We want to show cc1-only options only when clang is invoked as "clang
-  // -cc1". When clang is invoked as "clang -cc1", we add "#" to the beginning
-  // of an --autocomplete  option so that the clang driver can distinguish
-  // whether it is requested to show cc1-only options or not.
-  if (PassedFlags.size() > 0 && PassedFlags[0] == '#') {
-    DisableFlags &= ~options::NoDriverOption;
-    PassedFlags = PassedFlags.substr(1);
+
+  // Parse PassedFlags by ":" as all the command-line flags are passed to this
+  // function separated by ":"
+  StringRef TargetFlag = PassedFlags;
+  for (; TargetFlag.find(':') != StringRef::npos;) {
+    StringRef CurFlag;
+    std::tie(CurFlag, TargetFlag) = TargetFlag.split(":");
+    // We want to show cc1-only options only when clang is invoked with -cc1 or
+    // -Xclang.
+    if (CurFlag == "-Xclang" || CurFlag == "-cc1")
+      DisableFlags &= ~options::NoDriverOption;
   }
 
-  if (PassedFlags.find(',') == StringRef::npos) {
+  if (TargetFlag.find(',') == StringRef::npos) {
     // If the flag is in the form of "--autocomplete=-foo",
     // we were requested to print out all option names that start with "-foo".
     // For example, "--autocomplete=-fsyn" is expanded to "-fsyntax-only".
-    SuggestedCompletions = Opts->findByPrefix(PassedFlags, DisableFlags);
+    SuggestedCompletions = Opts->findByPrefix(TargetFlag, DisableFlags);
 
     // We have to query the -W flags manually as they're not in the OptTable.
     // TODO: Find a good way to add them to OptTable instead and them remove
     // this code.
     for (StringRef S : DiagnosticIDs::getDiagnosticFlags())
-      if (S.startswith(PassedFlags))
+      if (S.startswith(TargetFlag))
         SuggestedCompletions.push_back(S);
   } else {
     // If the flag is in the form of "--autocomplete=foo,bar", we were
@@ -1191,7 +1195,7 @@ void Driver::handleAutocompletions(StringRef PassedFlags) const {
     // "bar". For example,
     // "--autocomplete=-stdlib=,l" is expanded to "libc++" and "libstdc++".
     StringRef Option, Arg;
-    std::tie(Option, Arg) = PassedFlags.split(',');
+    std::tie(Option, Arg) = TargetFlag.split(',');
     SuggestedCompletions = Opts->suggestValueCompletions(Option, Arg);
   }
 
