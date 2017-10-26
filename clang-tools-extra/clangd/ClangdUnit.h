@@ -22,6 +22,7 @@
 #include <future>
 #include <memory>
 #include <mutex>
+#include <unordered_map>
 
 namespace llvm {
 class raw_ostream;
@@ -128,11 +129,17 @@ private:
 struct PreambleData {
   PreambleData(PrecompiledPreamble Preamble,
                std::vector<serialization::DeclID> TopLevelDeclIDs,
-               std::vector<DiagWithFixIts> Diags);
+               std::vector<DiagWithFixIts> Diags,
+               std::unordered_map<Range, Path, RangeHash> IncludeMap,
+               std::vector<std::pair<SourceRange, std::string>> DataVector,
+               std::vector<Range> RangeVector);
 
   PrecompiledPreamble Preamble;
   std::vector<serialization::DeclID> TopLevelDeclIDs;
   std::vector<DiagWithFixIts> Diags;
+  std::unordered_map<Range, Path, RangeHash> IncludeMap;
+  std::vector<std::pair<SourceRange, std::string>> DataVector;
+  std::vector<Range> RangeVector;
 };
 
 /// Manages resources, required by clangd. Allows to rebuild file with new
@@ -304,8 +311,11 @@ SignatureHelp signatureHelp(PathRef FileName, tooling::CompileCommand Command,
                             clangd::Logger &Logger);
 
 /// Get definition of symbol at a specified \p Pos.
-std::vector<Location> findDefinitions(ParsedAST &AST, Position Pos,
-                                      clangd::Logger &Logger);
+std::vector<Location>
+findDefinitions(ParsedAST &AST, Position Pos, clangd::Logger &Logger,
+                std::unordered_map<Range, Path, RangeHash> IncludeLocationMap,
+                std::vector<std::pair<SourceRange, std::string>> DataVector,
+                std::vector<Range> RangeVector);
 
 /// For testing/debugging purposes. Note that this method deserializes all
 /// unserialized Decls, so use with care.

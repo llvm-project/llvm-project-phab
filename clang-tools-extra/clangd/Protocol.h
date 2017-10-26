@@ -96,11 +96,20 @@ struct Range {
   friend bool operator<(const Range &LHS, const Range &RHS) {
     return std::tie(LHS.start, LHS.end) < std::tie(RHS.start, RHS.end);
   }
-
   static llvm::Optional<Range> parse(llvm::yaml::MappingNode *Params,
                                      clangd::Logger &Logger);
   static std::string unparse(const Range &P);
+
 };
+
+class RangeHash {
+public:
+  std::size_t operator()(const Range &R) const
+  {
+    return ((R.start.line & 0x18) << 3) | ((R.start.character & 0x18) << 1) | ((R.end.line & 0x18) >> 1) | ((R.end.character & 0x18) >> 3);
+  }
+};
+
 
 struct Location {
   /// The text document's URI.
