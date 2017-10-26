@@ -1581,10 +1581,15 @@ public:
   /// to be vectorized.
   bool blockNeedsPredication(BasicBlock *BB);
 
+  /// Collect strides of pointers that are used in loads/store instructions.
+  void collectPtrStrides();
+
   /// Check if this pointer is consecutive when vectorizing. This happens
   /// when the last index of the GEP is the induction variable, or that the
   /// pointer itself is an induction variable.
   /// This check allows us to vectorize A[idx] into a wide load/store.
+  /// Requirements: pointer strides must have been collected before by
+  /// collectPtrStrides.
   /// Returns:
   /// 0 - Stride is unknown or non-consecutive.
   /// 1 - Address is consecutive.
@@ -1785,6 +1790,10 @@ private:
   /// Holds instructions that need to sink past other instructions to handle
   /// first-order recurrences.
   DenseMap<Instruction *, Instruction *> SinkAfter;
+
+  /// Holds the stride of pointers that are used in load/store instructions.
+  /// It is populated by collectPtrStrides.
+  DenseMap<Value *, int> PtrStrides;
 
   /// Holds the widest induction type encountered.
   Type *WidestIndTy = nullptr;
@@ -2780,11 +2789,30 @@ void InnerLoopVectorizer::buildScalarSteps(Value *ScalarIV, Value *Step,
   }
 }
 
-int LoopVectorizationLegality::isConsecutivePtr(Value *Ptr) {
-  const ValueToValueMap &Strides = getSymbolicStrides() ? *getSymbolicStrides() :
-    ValueToValueMap();
+void LoopVectorizationLegality::collectPtrStrides() {
+  if (!PtrStrides.empty())
+    PtrStrides.clear();
 
-  int Stride = getPtrStride(PSE, Ptr, TheLoop, Strides, true, false);
+  for (auto *BB : TheLoop->blocks())
+    for (auto &I : *BB) {
+      // If there's no pointer operand or it was visited before, there's
+      // nothing to do.
+      auto *Ptr = dyn_cast_or_null<Instruction>(getPointerOperand(&I));
+      if (!Ptr || PtrStrides.count(Ptr))
+        continue;
+
+      const ValueToValueMap &Strides =
+          getSymbolicStrides() ? *getSymbolicStrides() : ValueToValueMap();
+
+      PtrStrides[Ptr] = getPtrStride(PSE, Ptr, TheLoop, Strides, true, false);
+    }
+}
+
+int LoopVectorizationLegality::isConsecutivePtr(Value *Ptr) {
+  assert(!PtrStrides.empty() && "Pointer strides have not been collected yet.");
+  assert(PtrStrides.count(Ptr) && "Missing pointer stride.");
+
+  int Stride = PtrStrides[Ptr];
   if (Stride == 1 || Stride == -1)
     return Stride;
   return 0;
@@ -5119,6 +5147,10 @@ bool LoopVectorizationLegality::canVectorize() {
   DEBUG(dbgs() << "LV: Found a loop: " << TheLoop->getHeader()->getName()
                << '\n');
 
+  // Collect strides of pointers used by memory instructions. To be used by
+  // subsequent canVectorize* functions.
+  collectPtrStrides();
+
   // Check if we can if-convert non-single-bb loops.
   unsigned NumBlocks = TheLoop->getNumBlocks();
   if (NumBlocks != 1 && !canVectorizeWithIfConvert()) {
@@ -5853,6 +5885,9 @@ bool LoopVectorizationLegality::canVectorizeMemory() {
 
   Requirements->addRuntimePointerChecks(LAI->getNumRuntimePointerChecks());
   PSE.addPredicate(LAI->getPSE().getUnionPredicate());
+  // Runtime checks introduced in PSE may allow to compute more accurate pointer
+  // strides so we re-collect them to reflect this new information.
+  collectPtrStrides();
 
   return true;
 }
