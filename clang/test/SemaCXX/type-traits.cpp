@@ -2523,7 +2523,6 @@ static_assert(!has_unique_object_representations<int &>::value, "No references!"
 static_assert(!has_unique_object_representations<const int &>::value, "No references!");
 static_assert(!has_unique_object_representations<volatile int &>::value, "No references!");
 static_assert(!has_unique_object_representations<const volatile int &>::value, "No references!");
-
 static_assert(!has_unique_object_representations<Empty>::value, "No empty types!");
 
 class Compressed : Empty {
@@ -2556,6 +2555,16 @@ static_assert(!has_unique_object_representations<double[42]>::value, "So no arra
 static_assert(!has_unique_object_representations<double[]>::value, "So no array of doubles!");
 static_assert(!has_unique_object_representations<double[][42]>::value, "So no array of doubles!");
 
+struct __attribute__((aligned(16))) WeirdAlignment {
+  int i;
+};
+union __attribute__((aligned(16))) WeirdAlignmentUnion {
+  int i;
+};
+static_assert(!has_unique_object_representations<WeirdAlignment>::value, "Alignment causes padding");
+static_assert(!has_unique_object_representations<WeirdAlignmentUnion>::value, "Alignment causes padding");
+static_assert(!has_unique_object_representations<WeirdAlignment[42]>::value, "Also no arrays that have padding");
+
 static_assert(!has_unique_object_representations<int(int)>::value, "Functions are not unique");
 static_assert(!has_unique_object_representations<int(int) const>::value, "Functions are not unique");
 static_assert(!has_unique_object_representations<int(int) volatile>::value, "Functions are not unique");
@@ -2582,6 +2591,11 @@ static_assert(!has_unique_object_representations<int(int, ...) const &&>::value,
 static_assert(!has_unique_object_representations<int(int, ...) volatile &&>::value, "Functions are not unique");
 static_assert(!has_unique_object_representations<int(int, ...) const volatile &&>::value, "Functions are not unique");
 
-static auto lambda = []() {};
-static_assert(!has_unique_object_representations<decltype(lambda)>::value, "Lambdas are not unique");
+void foo(){
+  static auto lambda = []() {};
+  static_assert(!has_unique_object_representations<decltype(lambda)>::value, "Lambdas follow struct rules");
+  int i;
+  static auto lambda2 = [i]() {};
+  static_assert(has_unique_object_representations<decltype(lambda2)>::value, "Lambdas follow struct rues");
+}
 

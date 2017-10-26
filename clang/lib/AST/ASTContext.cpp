@@ -2110,6 +2110,146 @@ void ASTContext::CollectInheritedProtocols(const Decl *CDecl,
   }
 }
 
+static bool unionHasUniqueObjectRepresentations(const ASTContext &Context,
+                                                const RecordDecl *RD) {
+  assert(RD->isUnion() && "Must be union type");
+  CharUnits UnionSize = Context.getTypeSizeInChars(RD->getTypeForDecl());
+
+  for (const auto *Field : RD->fields()) {
+    if (!Context.hasUniqueObjectRepresentations(Field->getType()))
+      return false;
+    CharUnits FieldSize = Context.getTypeSizeInChars(Field->getType());
+    if (FieldSize != UnionSize)
+      return false;
+  }
+  return true;
+}
+
+bool isStructEmpty(QualType Ty) {
+  assert(Ty.getTypePtr()->isStructureOrClassType() &&
+         "Must be struct or class");
+  const RecordDecl *RD = Ty.getTypePtr()->getAs<RecordType>()->getDecl();
+
+  if (!RD->field_empty())
+    return false;
+
+  if (const CXXRecordDecl *ClassDecl = dyn_cast<CXXRecordDecl>(RD)) {
+    return ClassDecl->isEmpty();
+  }
+
+  return true;
+}
+
+static bool structHasUniqueObjectRepresentations(const ASTContext &Context,
+                                                 const RecordDecl *RD) {
+  assert((RD->isStruct() || RD->isClass()) && "Must be struct/class type");
+  const auto &Layout = Context.getASTRecordLayout(RD);
+
+  CharUnits CurOffset{};
+  if (const auto *ClassDecl = dyn_cast<CXXRecordDecl>(RD)) {
+    if (ClassDecl->isDynamicClass() || ClassDecl->getNumVBases() != 0)
+      return false;
+
+    SmallVector<QualType, 4> Bases;
+    for (const auto Base : ClassDecl->bases()) {
+      // Empty types can be inherited from, as long as they are handled
+      // by EBO.  This will be checked in the next loop.
+      if (!isStructEmpty(Base.getType()) &&
+          !Context.hasUniqueObjectRepresentations(Base.getType()))
+        return false;
+      Bases.push_back(Base.getType());
+    }
+
+    std::sort(Bases.begin(), Bases.end(),
+              [&](const QualType &L, const QualType &R) {
+                return Layout.getBaseClassOffset(L->getAsCXXRecordDecl()) <
+                       Layout.getBaseClassOffset(R->getAsCXXRecordDecl());
+              });
+
+    for (const auto Base : Bases) {
+      CharUnits BaseOffset =
+          Layout.getBaseClassOffset(Base->getAsCXXRecordDecl());
+      CharUnits BaseSize = Context.getTypeSizeInChars(Base);
+      if (BaseOffset != CurOffset)
+        return false;
+      // Empty bases are only allowed in EBO.
+      if (!isStructEmpty(Base))
+        CurOffset = BaseOffset + BaseSize;
+    }
+  }
+
+  int FieldIndex = 0;
+  for (const auto *Field : RD->fields()) {
+    if (!Context.hasUniqueObjectRepresentations(Field->getType()))
+      return false;
+    CharUnits FieldSize = Context.getTypeSizeInChars(Field->getType());
+    CharUnits FieldOffset =
+        Context.toCharUnitsFromBits(Layout.getFieldOffset(FieldIndex));
+
+    if (FieldOffset != CurOffset)
+      return false;
+
+    CurOffset = FieldSize + FieldOffset;
+
+    ++FieldIndex;
+  }
+
+  // Handles tail-padding.  >= comparision takes care of EBO cases.
+  return CurOffset == Layout.getSize();
+}
+
+bool ASTContext::hasUniqueObjectRepresentations(QualType Ty) const {
+  // C++17 [meta.unary.prop]:
+  //   The predicate condition for a template specialization
+  //   has_unique_object_representations<T> shall be
+  //   satisfied if and only if:
+  //     (9.1) - T is trivially copyable, and
+  //     (9.2) - any two objects of type T with the same value have the same
+  //     object representation, where two objects
+  //   of array or non-union class type are considered to have the same value
+  //   if their respective sequences of
+  //   direct subobjects have the same values, and two objects of union type
+  //   are considered to have the same
+  //   value if they have the same active member and the corresponding members
+  //   have the same value.
+  //   The set of scalar types for which this condition holds is
+  //   implementation-defined. [ Note: If a type has padding
+  //   bits, the condition does not hold; otherwise, the condition holds true
+  //   for unsigned integral types. -- end note ]
+  if (Ty.isNull())
+    return false;
+
+  // Arrays are unique only if their element type is unique.
+  if (Ty->isArrayType())
+    return hasUniqueObjectRepresentations(getBaseElementType(Ty));
+
+  // (9.1) - T is trivially copyable...
+  if (!Ty.isTriviallyCopyableType(*this))
+    return false;
+
+  // Functions are not unique.
+  if (Ty->isFunctionType())
+    return false;
+
+  // All integrals and enums are unique.
+  if (Ty->isIntegralOrEnumerationType())
+    return true;
+
+  // All other pointers are unique.
+  if (Ty->isPointerType() || Ty->isMemberPointerType())
+    return true;
+
+  if (Ty->isRecordType()) {
+    const RecordDecl *Record = Ty->getAs<RecordType>()->getDecl();
+
+    if (Record->isUnion())
+      return unionHasUniqueObjectRepresentations(*this, Record);
+    return structHasUniqueObjectRepresentations(*this, Record);
+  }
+
+  return false;
+}
+
 unsigned ASTContext::CountNonClassIvars(const ObjCInterfaceDecl *OI) const {
   unsigned count = 0;  
   // Count ivars declared in class extension.
