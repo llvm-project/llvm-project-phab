@@ -349,6 +349,8 @@ struct ElfSym {
   static DefinedRegular *MipsGp;
   static DefinedRegular *MipsGpDisp;
   static DefinedRegular *MipsLocalGp;
+
+  static DefinedRegular *RISCVGlobalPointer;
 };
 
 // A real symbol object, SymbolBody, is usually stored within a Symbol. There's

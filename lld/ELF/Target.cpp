@@ -77,6 +77,19 @@ TargetInfo *elf::getTarget() {
     return getPPCTargetInfo();
   case EM_PPC64:
     return getPPC64TargetInfo();
+  case EM_RISCV:
+    switch (Config->EKind) {
+    case ELF32LEKind:
+      return getRISCVTargetInfo<ELF32LE>();
+    case ELF32BEKind:
+      return getRISCVTargetInfo<ELF32BE>();
+    case ELF64LEKind:
+      return getRISCVTargetInfo<ELF64LE>();
+    case ELF64BEKind:
+      return getRISCVTargetInfo<ELF64BE>();
+    default:
+      fatal("unsupported RISC-V target");
+    }
   case EM_SPARCV9:
     return getSPARCV9TargetInfo();
   case EM_X86_64:
