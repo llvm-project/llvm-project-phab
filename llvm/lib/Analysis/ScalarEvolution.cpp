@@ -8960,6 +8960,42 @@ ScalarEvolution::isLoopEntryGuardedByCond(const Loop *L,
   return false;
 }
 
+bool ScalarEvolution::isSignedDivisorOf(const SCEV *S, const SCEV *Divisor) {
+  assert(getEffectiveSCEVType(S->getType()) ==
+             getEffectiveSCEVType(Divisor->getType()) &&
+         "Can only divide values of the same type!");
+  // Nothing can be divided by zero.
+  if (!isKnownNonZero(Divisor))
+    return false;
+
+  // For dealing with negative values, turn them into positive. This will not
+  // impact their divisibility.
+  if (isKnownNonPositive(S))
+    S = getNegativeSCEV(S);
+  if (isKnownNegative(Divisor))
+    Divisor = getNegativeSCEV(Divisor);
+
+  // Fast path: zero divides by any non-zero value. Any value divides by itself
+  // and by one.
+  if (S == Divisor || S->isZero() || Divisor->isOne())
+    return true;
+
+  // If S can be represented as {A,+,B}<nsw> and both A and B divide by Divisor,
+  // then S also divides dy divisor on any iteration.
+  if (auto *SAR = dyn_cast<SCEVAddRecExpr>(S))
+    if (SAR->isAffine() && SAR->hasNoSignedWrap())
+      return isSignedDivisorOf(SAR->getStart(), Divisor) &&
+             isSignedDivisorOf(SAR->getStepRecurrence(*this), Divisor);
+
+  // Otherwise we want to deal with non-negative S and positive Divisor.
+  // We have already processed the case of potentially zero Divisor.
+  if (!isKnownNonNegative(S) || !isKnownPositive(Divisor))
+    return false;
+
+  // Return true iff S urem Divisor is zero.
+  return getURemExpr(S, Divisor)->isZero();
+}
+
 bool ScalarEvolution::isImpliedCond(ICmpInst::Predicate Pred,
                                     const SCEV *LHS, const SCEV *RHS,
                                     Value *FoundCondValue,

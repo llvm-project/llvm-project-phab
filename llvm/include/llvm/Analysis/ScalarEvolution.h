@@ -682,6 +682,10 @@ public:
   bool isLoopBackedgeGuardedByCond(const Loop *L, ICmpInst::Predicate Pred,
                                    const SCEV *LHS, const SCEV *RHS);
 
+  // Returns true of S provably divides by Divisor without remainder. The answer
+  // is conservative: if we fail to prove the divisibility, the answer is false.
+  bool isSignedDivisorOf(const SCEV *S, const SCEV *Divisor);
+
   /// Returns the maximum trip count of the loop if it is a single-exit
   /// loop and we can compute a small maximum for that loop.
   ///

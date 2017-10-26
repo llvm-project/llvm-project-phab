@@ -1113,5 +1113,185 @@ TEST_F(ScalarEvolutionsTest, SCEVFoldSumOfTruncs) {
   EXPECT_EQ(Expr, ZeroConst);
 }
 
+
+// Test correctness of isSignedDivisorOf method.
+TEST_F(ScalarEvolutionsTest, SCEVIsDivisorOf) {
+  /*
+   * Create the following code:
+   * func(i64 addrspace(10)* %arg)
+   * top:
+   *  br label %L.ph
+   * L.ph:
+   *  br label %L
+   * L:
+   *  %phi = phi i64 [i64 0, %L.ph], [ %add, %L2 ]   ; {0,+,1}
+   *  %phi3 = phi i64 [i64 -12, %L.ph], [%add3, L2]  ; {-12,+,6}<nsw>
+   *  %add = add i64 %phi2, 1
+   *  %add3 = add nsw i64 phi3, 6
+   *  %cond = icmp slt i64 %add, 1000; then becomes 2000.
+   *  br i1 %cond, label %post, label %L2
+   * post:
+   *  ret void
+   *
+   */
+
+  // Create a module with non-integral pointers in it's datalayout
+  Module NIM("nonintegral", Context);
+  std::string DataLayout = M.getDataLayoutStr();
+  if (!DataLayout.empty())
+    DataLayout += "-";
+  DataLayout += "ni:10";
+  NIM.setDataLayout(DataLayout);
+
+  Type *T_int64 = Type::getInt64Ty(Context);
+  Type *T_pint64 = T_int64->getPointerTo(10);
+
+  FunctionType *FTy =
+      FunctionType::get(Type::getVoidTy(Context), {T_pint64}, false);
+  Function *F = cast<Function>(NIM.getOrInsertFunction("foo", FTy));
+
+  BasicBlock *Top = BasicBlock::Create(Context, "top", F);
+  BasicBlock *LPh = BasicBlock::Create(Context, "L.ph", F);
+  BasicBlock *L = BasicBlock::Create(Context, "L", F);
+  BasicBlock *Post = BasicBlock::Create(Context, "post", F);
+
+  IRBuilder<> Builder(Top);
+  Builder.CreateBr(LPh);
+
+  Builder.SetInsertPoint(LPh);
+  Builder.CreateBr(L);
+
+  Builder.SetInsertPoint(L);
+  PHINode *Phi = Builder.CreatePHI(T_int64, 2);
+  PHINode *Phi3 = Builder.CreatePHI(T_int64, 2);
+  auto *Add = cast<Instruction>(
+      Builder.CreateAdd(Phi, ConstantInt::get(T_int64, 1), "add"));
+  auto *Add3 = cast<Instruction>(
+      Builder.CreateAdd(Phi3, ConstantInt::get(T_int64, 6), "add3",
+                        /* HasNUW */ false, /* HasNSW */ true));
+  auto *Limit = ConstantInt::get(T_int64, 1000);
+  auto *Cond = cast<Instruction>(
+      Builder.CreateICmp(ICmpInst::ICMP_SLT, Add, Limit, "cond"));
+  Builder.CreateCondBr(Cond, L, Post);
+  Phi->addIncoming(ConstantInt::get(T_int64, 0), LPh);
+  Phi->addIncoming(Add, L);
+  Phi3->addIncoming(ConstantInt::get(T_int64, -12), LPh);
+  Phi3->addIncoming(Add3, L);
+
+  Builder.SetInsertPoint(Post);
+  Builder.CreateRetVoid();
+
+  ScalarEvolution SE = buildSE(*F);
+
+  const SCEV *Zero = SE.getConstant(T_int64, 0);
+  const SCEV *One = SE.getConstant(T_int64, 1);
+  const SCEV *MinusOne = SE.getNegativeSCEV(One);
+  const SCEV *Two = SE.getConstant(T_int64, 2);
+  const SCEV *MinusTwo = SE.getNegativeSCEV(Two);
+  const SCEV *Three = SE.getConstant(T_int64, 3);
+  const SCEV *MinusThree = SE.getNegativeSCEV(Three);
+  const SCEV *Four = SE.getConstant(T_int64, 4);
+  const SCEV *Five = SE.getConstant(T_int64, 5);
+  const SCEV *Six = SE.getConstant(T_int64, 6);
+  const SCEV *MinusSix = SE.getNegativeSCEV(Six);
+  const SCEVAddRecExpr *AR = dyn_cast<SCEVAddRecExpr>(SE.getSCEV(Phi));
+  const SCEVAddRecExpr *AR2 = dyn_cast<SCEVAddRecExpr>(SE.getAddExpr(AR, One));
+  const SCEVAddRecExpr *AR3 = dyn_cast<SCEVAddRecExpr>(SE.getSCEV(Phi3));
+
+  EXPECT_NE(nullptr, AR);
+  EXPECT_NE(nullptr, AR2);
+  EXPECT_NE(nullptr, AR3);
+  EXPECT_FALSE(SE.isKnownNonZero(AR));
+  EXPECT_TRUE(SE.isKnownPositive(AR2));
+  EXPECT_TRUE(SE.isKnownNegative(MinusSix));
+  EXPECT_TRUE(AR3->hasNoSignedWrap());
+
+  // Check that nothing divides by zero.
+  EXPECT_FALSE(SE.isSignedDivisorOf(Zero, Zero));
+  EXPECT_FALSE(SE.isSignedDivisorOf(One, Zero));
+  EXPECT_FALSE(SE.isSignedDivisorOf(MinusOne, Zero));
+  EXPECT_FALSE(SE.isSignedDivisorOf(Two, Zero));
+  EXPECT_FALSE(SE.isSignedDivisorOf(MinusTwo, Zero));
+  EXPECT_FALSE(SE.isSignedDivisorOf(Three, Zero));
+  EXPECT_FALSE(SE.isSignedDivisorOf(MinusThree, Zero));
+  EXPECT_FALSE(SE.isSignedDivisorOf(Four, Zero));
+  EXPECT_FALSE(SE.isSignedDivisorOf(Five, Zero));
+  EXPECT_FALSE(SE.isSignedDivisorOf(Six, Zero));
+  EXPECT_FALSE(SE.isSignedDivisorOf(MinusSix, Zero));
+  EXPECT_FALSE(SE.isSignedDivisorOf(AR, Zero));
+  EXPECT_FALSE(SE.isSignedDivisorOf(AR2, Zero));
+  EXPECT_FALSE(SE.isSignedDivisorOf(AR3, Zero));
+
+  // Check that everything that is guaranteed to be non-zero divides by itself.
+  // AR and AR3 may be zero, so it does not divide by itself.
+  EXPECT_TRUE(SE.isSignedDivisorOf(One, One));
+  EXPECT_TRUE(SE.isSignedDivisorOf(MinusOne, MinusOne));
+  EXPECT_TRUE(SE.isSignedDivisorOf(Two, Two));
+  EXPECT_TRUE(SE.isSignedDivisorOf(MinusTwo, MinusTwo));
+  EXPECT_TRUE(SE.isSignedDivisorOf(Three, Three));
+  EXPECT_TRUE(SE.isSignedDivisorOf(MinusThree, MinusThree));
+  EXPECT_TRUE(SE.isSignedDivisorOf(Four, Four));
+  EXPECT_TRUE(SE.isSignedDivisorOf(Five, Five));
+  EXPECT_TRUE(SE.isSignedDivisorOf(Six, Six));
+  EXPECT_TRUE(SE.isSignedDivisorOf(MinusSix, MinusSix));
+  EXPECT_FALSE(SE.isSignedDivisorOf(AR, AR));
+  EXPECT_TRUE(SE.isSignedDivisorOf(AR2, AR2));
+  EXPECT_FALSE(SE.isSignedDivisorOf(AR3, AR3));
+
+  // Check divisivility by one.
+  EXPECT_TRUE(SE.isSignedDivisorOf(Zero, One));
+  EXPECT_TRUE(SE.isSignedDivisorOf(One, One));
+  EXPECT_TRUE(SE.isSignedDivisorOf(MinusOne, One));
+  EXPECT_TRUE(SE.isSignedDivisorOf(Two, One));
+  EXPECT_TRUE(SE.isSignedDivisorOf(MinusTwo, One));
+  EXPECT_TRUE(SE.isSignedDivisorOf(Three, One));
+  EXPECT_TRUE(SE.isSignedDivisorOf(MinusThree, One));
+  EXPECT_TRUE(SE.isSignedDivisorOf(Four, One));
+  EXPECT_TRUE(SE.isSignedDivisorOf(Five, One));
+  EXPECT_TRUE(SE.isSignedDivisorOf(Six, One));
+  EXPECT_TRUE(SE.isSignedDivisorOf(MinusSix, One));
+  EXPECT_TRUE(SE.isSignedDivisorOf(AR, One));
+  EXPECT_TRUE(SE.isSignedDivisorOf(AR2, One));
+  EXPECT_TRUE(SE.isSignedDivisorOf(AR3, One));
+
+  // Check divisibility by two.
+  EXPECT_TRUE(SE.isSignedDivisorOf(Zero, Two));
+  EXPECT_FALSE(SE.isSignedDivisorOf(One, Two));
+  EXPECT_FALSE(SE.isSignedDivisorOf(MinusOne, Two));
+  EXPECT_TRUE(SE.isSignedDivisorOf(Two, Two));
+  EXPECT_TRUE(SE.isSignedDivisorOf(MinusTwo, Two));
+  EXPECT_FALSE(SE.isSignedDivisorOf(Three, Two));
+  EXPECT_FALSE(SE.isSignedDivisorOf(MinusThree, Two));
+  EXPECT_TRUE(SE.isSignedDivisorOf(Four, Two));
+  EXPECT_FALSE(SE.isSignedDivisorOf(Five, Two));
+  EXPECT_TRUE(SE.isSignedDivisorOf(Six, Two));
+  EXPECT_TRUE(SE.isSignedDivisorOf(MinusSix, Two));
+  EXPECT_FALSE(SE.isSignedDivisorOf(AR, Two));
+  EXPECT_FALSE(SE.isSignedDivisorOf(AR2, Two));
+  EXPECT_TRUE(SE.isSignedDivisorOf(AR3, Two));
+
+  // Check divisibility by three.
+  EXPECT_TRUE(SE.isSignedDivisorOf(Zero, Three));
+  EXPECT_FALSE(SE.isSignedDivisorOf(One, Three));
+  EXPECT_FALSE(SE.isSignedDivisorOf(MinusOne, Three));
+  EXPECT_FALSE(SE.isSignedDivisorOf(Two, Three));
+  EXPECT_FALSE(SE.isSignedDivisorOf(Two, Three));
+  EXPECT_TRUE(SE.isSignedDivisorOf(Three, Three));
+  EXPECT_TRUE(SE.isSignedDivisorOf(MinusThree, Three));
+  EXPECT_FALSE(SE.isSignedDivisorOf(Four, Three));
+  EXPECT_FALSE(SE.isSignedDivisorOf(Five, Three));
+  EXPECT_TRUE(SE.isSignedDivisorOf(Six, Three));
+  EXPECT_TRUE(SE.isSignedDivisorOf(MinusSix, Three));
+  EXPECT_FALSE(SE.isSignedDivisorOf(AR, Three));
+  EXPECT_FALSE(SE.isSignedDivisorOf(AR2, Three));
+  EXPECT_TRUE(SE.isSignedDivisorOf(AR3, Three));
+
+  // We know that AR3 divides by 2 and 3, make sure it divides by 6 and doesn't
+  // divide by 4 and 5.
+  EXPECT_FALSE(SE.isSignedDivisorOf(AR3, Four));
+  EXPECT_FALSE(SE.isSignedDivisorOf(AR3, Five));
+  EXPECT_TRUE(SE.isSignedDivisorOf(AR3, Six));
+}
+
 }  // end anonymous namespace
 }  // end namespace llvm
