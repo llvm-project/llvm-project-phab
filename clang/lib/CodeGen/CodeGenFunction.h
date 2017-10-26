@@ -1773,17 +1773,20 @@ public:
   void EnterDtorCleanups(const CXXDestructorDecl *Dtor, CXXDtorType Type);
 
   /// ShouldInstrumentFunction - Return true if the current function should be
-  /// instrumented with __cyg_profile_func_* calls
-  bool ShouldInstrumentFunction();
+  /// instrumented with __cyg_profile_func_* calls. If true, sets CygProfileExit
+  /// and CygProfileArgs to indicate whether function exit should be
+  /// instrumented and whether the __cyg_profile calls take arguments,
+  /// respectively.
+  bool ShouldInstrumentFunction(bool *CygProfileExit, bool *CygProfileArgs);
 
   /// ShouldXRayInstrument - Return true if the current function should be
   /// instrumented with XRay nop sleds.
   bool ShouldXRayInstrumentFunction() const;
 
   /// EmitFunctionInstrumentation - Emit LLVM code to call the specified
-  /// instrumentation function with the current function and the call site, if
-  /// function instrumentation is enabled.
-  void EmitFunctionInstrumentation(const char *Fn);
+  /// instrumentation function with the current function and the call site.
+  /// If CygProfileArgs is false, don't pass any arguments to the function.
+  void EmitFunctionInstrumentation(const char *Fn, bool CygProfileArgs);
 
   /// EmitMCountInstrumentation - Emit call to .mcount.
   void EmitMCountInstrumentation();

@@ -76,7 +76,11 @@ CODEGENOPT(ForbidGuardVariables , 1, 0) ///< Issue errors if C++ guard variables
 CODEGENOPT(FunctionSections  , 1, 0) ///< Set when -ffunction-sections is enabled.
 CODEGENOPT(InstrumentFunctions , 1, 0) ///< Set when -finstrument-functions is
                                        ///< enabled.
-
+CODEGENOPT(CygProfileExit , 1, 1)      ///< Whether to instrument function exits
+                                       ///< when using InstrumentFunctions.
+CODEGENOPT(CygProfileArgs , 1, 1)      ///< Whether to pass arguments to the
+                                       ///< __cyg_profile* functions when using
+                                       ///< InstrumentFunctions.
 CODEGENOPT(XRayInstrumentFunctions , 1, 0) ///< Set when -fxray-instrument is
                                            ///< enabled.
 

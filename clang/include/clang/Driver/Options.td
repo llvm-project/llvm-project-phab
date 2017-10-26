@@ -1025,6 +1025,10 @@ def finput_charset_EQ : Joined<["-"], "finput-charset=">, Group<f_Group>;
 def fexec_charset_EQ : Joined<["-"], "fexec-charset=">, Group<f_Group>;
 def finstrument_functions : Flag<["-"], "finstrument-functions">, Group<f_Group>, Flags<[CC1Option]>,
   HelpText<"Generate calls to instrument function entry and exit">;
+def fno_cygprofile_exit : Flag<["-"], "fno-cygprofile-exit">, Group<f_Group>, Flags<[CC1Option]>,
+  HelpText<"When using -finstrument-functions, don't instrument function exit">;
+def fno_cygprofile_args : Flag<["-"], "fno-cygprofile-args">, Group<f_Group>, Flags<[CC1Option]>,
+  HelpText<"When using -finstrument-functions, don't pass any arguments to the __cyg_profile* functions">;
 
 def fxray_instrument : Flag<["-"], "fxray-instrument">, Group<f_Group>,
   Flags<[CC1Option]>,

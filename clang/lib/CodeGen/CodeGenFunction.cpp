@@ -352,8 +352,9 @@ void CodeGenFunction::FinishFunction(SourceLocation EndLoc) {
   // Emit function epilog (to return).
   llvm::DebugLoc Loc = EmitReturnBlock();
 
-  if (ShouldInstrumentFunction())
-    EmitFunctionInstrumentation("__cyg_profile_func_exit");
+  bool CygProfileExit, CygProfileArgs;
+  if (ShouldInstrumentFunction(&CygProfileExit, &CygProfileArgs) && CygProfileExit)
+    EmitFunctionInstrumentation("__cyg_profile_func_exit", CygProfileArgs);
 
   // Emit debug descriptor for function end.
   if (CGDebugInfo *DI = getDebugInfo())
@@ -423,11 +424,16 @@ void CodeGenFunction::FinishFunction(SourceLocation EndLoc) {
 
 /// ShouldInstrumentFunction - Return true if the current function should be
 /// instrumented with __cyg_profile_func_* calls
-bool CodeGenFunction::ShouldInstrumentFunction() {
+bool CodeGenFunction::ShouldInstrumentFunction(bool *CygProfileExit,
+                                               bool *CygProfileArgs) {
   if (!CGM.getCodeGenOpts().InstrumentFunctions)
     return false;
   if (!CurFuncDecl || CurFuncDecl->hasAttr<NoInstrumentFunctionAttr>())
     return false;
+
+  *CygProfileExit = CGM.getCodeGenOpts().CygProfileExit;
+  *CygProfileArgs = CGM.getCodeGenOpts().CygProfileArgs;
+
   return true;
 }
 
@@ -477,8 +483,18 @@ CodeGenFunction::DecodeAddrUsedInPrologue(llvm::Value *F,
 /// EmitFunctionInstrumentation - Emit LLVM code to call the specified
 /// instrumentation function with the current function and the call site, if
 /// function instrumentation is enabled.
-void CodeGenFunction::EmitFunctionInstrumentation(const char *Fn) {
+void CodeGenFunction::EmitFunctionInstrumentation(const char *Fn,
+                                                  bool CygProfileArgs) {
   auto NL = ApplyDebugLocation::CreateArtificial(*this);
+
+  if (!CygProfileArgs) {
+    // Call the function without passing any arguments.
+    llvm::FunctionType *FunctionTy = llvm::FunctionType::get(VoidTy, false);
+    llvm::Constant *F = CGM.CreateRuntimeFunction(FunctionTy, Fn);
+    EmitNounwindRuntimeCall(F);
+    return;
+  }
+
   // void __cyg_profile_func_{enter,exit} (void *this_fn, void *call_site);
   llvm::PointerType *PointerTy = Int8PtrTy;
   llvm::Type *ProfileFuncArgs[] = { PointerTy, PointerTy };
@@ -987,8 +1003,9 @@ void CodeGenFunction::StartFunction(GlobalDecl GD,
     DI->EmitFunctionStart(GD, Loc, StartLoc, FnType, CurFn, Builder);
   }
 
-  if (ShouldInstrumentFunction())
-    EmitFunctionInstrumentation("__cyg_profile_func_enter");
+  bool CygProfileExit, CygProfileArgs;
+  if (ShouldInstrumentFunction(&CygProfileExit, &CygProfileArgs))
+    EmitFunctionInstrumentation("__cyg_profile_func_enter", CygProfileArgs);
 
   // Since emitting the mcount call here impacts optimizations such as function
   // inlining, we just add an attribute to insert a mcount call in backend.
