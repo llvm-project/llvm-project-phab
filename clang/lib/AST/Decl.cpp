@@ -3168,6 +3168,12 @@ FunctionDecl::TemplatedKind FunctionDecl::getTemplatedKind() const {
   llvm_unreachable("Did we miss a TemplateOrSpecialization type?");
 }
 
+bool FunctionDecl::isMultiVersionFunction() const {
+  if (const auto *Attr = getAttr<TargetAttr>())
+    return Attr->MVKind == TargetAttr::MVK_MultiVersion;
+  return false;
+}
+
 FunctionDecl *FunctionDecl::getInstantiatedFromMemberFunction() const {
   if (MemberSpecializationInfo *Info = getMemberSpecializationInfo())
     return cast<FunctionDecl>(Info->getInstantiatedFrom());
