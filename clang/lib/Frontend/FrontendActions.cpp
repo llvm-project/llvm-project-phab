@@ -18,16 +18,39 @@
 #include "clang/Lex/HeaderSearch.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Lex/PreprocessorOptions.h"
+#include "clang/Sema/TemplateInstCallback.h"
 #include "clang/Serialization/ASTReader.h"
 #include "clang/Serialization/ASTWriter.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/YAMLTraits.h"
+#include <iostream>
 #include <memory>
 #include <system_error>
 
 using namespace clang;
+
+namespace
+{
+  CodeCompleteConsumer* GetCodeCompletionConsumer(CompilerInstance& CI)
+  {
+    return CI.hasCodeCompletionConsumer() ?
+           &CI.getCodeCompletionConsumer() : nullptr;
+  }
+
+  void EnsureSemaIsCreated(CompilerInstance& CI, FrontendAction& Action)
+  {
+    if (Action.hasCodeCompletionSupport() &&
+        !CI.getFrontendOpts().CodeCompletionAt.FileName.empty())
+      CI.createCodeCompletionConsumer();
+
+    if (!CI.hasSema())
+      CI.createSema(Action.getTranslationUnitKind(),
+                    GetCodeCompletionConsumer(CI));
+  }
+}
 
 //===----------------------------------------------------------------------===//
 // Custom Actions
@@ -253,6 +276,141 @@ void VerifyPCHAction::ExecuteAction() {
                            : serialization::MK_PCH,
                   SourceLocation(),
                   ASTReader::ARR_ConfigurationMismatch);
+}
+
+namespace {
+  struct TemplightEntry
+  {
+    std::string Name;
+    std::string Kind;
+    std::string Event;
+    std::string PointOfInstantiation;
+  };
+}
+
+namespace llvm {
+namespace yaml {
+  template <>
+  struct MappingTraits<TemplightEntry> {
+    static void mapping(IO &io,
+      TemplightEntry &fields) {
+      io.mapRequired("name", fields.Name);
+      io.mapRequired("kind", fields.Kind);
+      io.mapRequired("event", fields.Event);
+      io.mapRequired("poi", fields.PointOfInstantiation);
+    }
+  };
+}
+}
+
+namespace {
+  class DefaultTemplateInstCallback : public TemplateInstantiationCallback {
+  using CodeSynthesisContext = Sema::CodeSynthesisContext;
+  public:
+    virtual void initialize(const Sema &) {}
+
+    virtual void finalize(const Sema &) {}
+
+    virtual void atTemplateBegin(const Sema &TheSema,
+      const CodeSynthesisContext &Inst) override
+    {
+      DisplayTemplightEntry<true>(std::cout, TheSema, Inst);
+    }
+
+    virtual void atTemplateEnd(const Sema &TheSema,
+      const CodeSynthesisContext &Inst) override
+    {
+      DisplayTemplightEntry<false>(std::cout, TheSema, Inst);
+    }
+  private:
+    static std::string ToString(
+      CodeSynthesisContext::SynthesisKind Kind) {
+      switch (Kind) {
+      case CodeSynthesisContext::TemplateInstantiation:
+        return "TemplateInstantiation";
+      case CodeSynthesisContext::DefaultTemplateArgumentInstantiation:
+        return "DefaultTemplateArgumentInstantiation";
+      case CodeSynthesisContext::DefaultFunctionArgumentInstantiation:
+        return "DefaultFunctionArgumentInstantiation";
+      case CodeSynthesisContext::ExplicitTemplateArgumentSubstitution:
+        return "ExplicitTemplateArgumentSubstitution";
+      case CodeSynthesisContext::DeducedTemplateArgumentSubstitution:
+        return "DeducedTemplateArgumentSubstitution";
+      case CodeSynthesisContext::PriorTemplateArgumentSubstitution:
+        return "PriorTemplateArgumentSubstitution";
+      case CodeSynthesisContext::DefaultTemplateArgumentChecking:
+        return "DefaultTemplateArgumentChecking";
+      case CodeSynthesisContext::ExceptionSpecInstantiation:
+        return "ExceptionSpecInstantiation";
+      case CodeSynthesisContext::DeclaringSpecialMember:
+        return "DeclaringSpecialMember";
+      case CodeSynthesisContext::DefiningSynthesizedFunction:
+        return "DefiningSynthesizedFunction";
+      case CodeSynthesisContext::Memoization:
+        return "Memoization";
+      }
+      return "";
+    }
+
+    template <bool BeginInstantiation>
+    static void DisplayTemplightEntry(std::ostream &Out, const Sema &TheSema,
+      const CodeSynthesisContext &Inst)
+    {
+      std::string YAML;
+      {
+        llvm::raw_string_ostream OS(YAML);
+        llvm::yaml::Output YO(OS);
+        TemplightEntry Entry =
+          GetTemplightEntry<BeginInstantiation>(TheSema, Inst);
+        llvm::yaml::EmptyContext Context;
+        llvm::yaml::yamlize(YO, Entry, true, Context);
+      }
+      Out << "---" << YAML << "\n";
+    }
+
+    template <bool BeginInstantiation>
+    static TemplightEntry GetTemplightEntry(const Sema &TheSema,
+      const CodeSynthesisContext &Inst)
+    {
+      TemplightEntry Entry;
+      Entry.Kind = ToString(Inst.Kind);
+      Entry.Event = BeginInstantiation ? "Begin" : "End";
+      if (NamedDecl* NamedTemplate = dyn_cast_or_null<NamedDecl>(Inst.Entity))
+      {
+        llvm::raw_string_ostream OS(Entry.Name);
+        NamedTemplate->getNameForDiagnostic(OS, TheSema.getLangOpts(), true);
+      }
+      const PresumedLoc Loc =
+        TheSema.getSourceManager().getPresumedLoc(Inst.PointOfInstantiation);
+      if (!Loc.isInvalid())
+      {
+        Entry.PointOfInstantiation =
+          std::string(Loc.getFilename())
+          + ":" + std::to_string(Loc.getLine())
+          + ":" + std::to_string(Loc.getColumn());
+      }
+      return Entry;
+    }
+  };
+}
+
+std::unique_ptr<ASTConsumer>
+TemplightDumpAction::CreateASTConsumer(CompilerInstance &CI, StringRef InFile) {
+  return llvm::make_unique<ASTConsumer>();
+}
+
+void TemplightDumpAction::ExecuteAction() {
+  CompilerInstance &CI = getCompilerInstance();
+
+  // This part is normally done by ASTFrontEndAction, but needs to happen
+  // before Templight observers can be created
+  // FIXME: Move the truncation aspect of this into Sema, we delayed this till
+  // here so the source manager would be initialized.
+  EnsureSemaIsCreated(CI, *this);
+
+  CI.getSema().TemplateInstCallbacks.push_back(
+    llvm::make_unique<DefaultTemplateInstCallback>());
+  ASTFrontendAction::ExecuteAction();
 }
 
 namespace {
