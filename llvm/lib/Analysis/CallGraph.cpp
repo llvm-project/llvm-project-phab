@@ -54,6 +54,8 @@ CallGraph::~CallGraph() {
 #ifndef NDEBUG
   for (auto &I : FunctionMap)
     I.second->allReferencesDropped();
+  for (auto &I : DummyNodeMap)
+    I.second->allReferencesDropped();
 #endif
 }
 
@@ -75,13 +77,34 @@ void CallGraph::addToCallGraph(Function *F) {
     for (Instruction &I : BB) {
       if (auto CS = CallSite(&I)) {
         const Function *Callee = CS.getCalledFunction();
-        if (!Callee || !Intrinsic::isLeaf(Callee->getIntrinsicID()))
+        MDNode *CalleesMDNode = I.getMetadata(LLVMContext::MD_callees);
+        if (!Callee && CalleesMDNode) {
+          // If an indirect call site has !callees metadata, we add an edge
+          // from the call site to a dummy node. When constructing the dummy
+          // node, we add edges from it to the functions indicated by the
+          // metadata.
+          bool InitCallees = !DummyNodeMap.count(CalleesMDNode);
+          CallGraphNode *Dummy = getOrInsertDummyNode(CalleesMDNode);
+          Node->addCalledFunction(CS, Dummy);
+          if (!InitCallees)
+            continue;
+          for (const MDOperand &Op : CalleesMDNode->operands()) {
+            auto *MDConstant = mdconst::extract_or_null<Constant>(Op);
+            if (!MDConstant)
+              continue;
+            auto *PossibleCallee = cast<Function>(MDConstant->stripPointerCasts());
+            if (PossibleCallee && !PossibleCallee->isIntrinsic())
+              Dummy->addCalledFunction(CallSite(),
+                                       getOrInsertFunction(PossibleCallee));
+          }
+        } else if (!Callee || !Intrinsic::isLeaf(Callee->getIntrinsicID())) {
           // Indirect calls of intrinsics are not allowed so no need to check.
           // We can be more precise here by using TargetArg returned by
           // Intrinsic::isLeaf.
           Node->addCalledFunction(CS, CallsExternalNode.get());
-        else if (!Callee->isIntrinsic())
+        } else if (!Callee->isIntrinsic()) {
           Node->addCalledFunction(CS, getOrInsertFunction(Callee));
+        }
       }
     }
 }
@@ -107,6 +130,12 @@ void CallGraph::print(raw_ostream &OS) const {
 
   for (CallGraphNode *CN : Nodes)
     CN->print(OS);
+
+  // The iteration order of the DummyNodeMap is deterministic (it's a
+  // MapVector), so we don't need to sort the nodes. Just print them in the
+  // order they were created.
+  for (auto &Entry : DummyNodeMap)
+    Entry.second->print(OS);
 }
 
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
@@ -122,6 +151,12 @@ LLVM_DUMP_METHOD void CallGraph::dump() const { print(dbgs()); }
 Function *CallGraph::removeFunctionFromModule(CallGraphNode *CGN) {
   assert(CGN->empty() && "Cannot remove function from call "
          "graph if it references other functions!");
+
+  // If any dummy node references the node for the given function, we first
+  // need to remove those edges.
+  for (auto &Entry : DummyNodeMap)
+    Entry.second->removeAnyCallEdgeTo(CGN);
+
   Function *F = CGN->getFunction(); // Get the function for the call graph node
   FunctionMap.erase(F);             // Remove the call graph node from the map
 
@@ -156,6 +191,14 @@ CallGraphNode *CallGraph::getOrInsertFunction(const Function *F) {
   return CGN.get();
 }
 
+CallGraphNode *CallGraph::getOrInsertDummyNode(const void *P) {
+  auto &CGN = DummyNodeMap[P];
+  if (CGN)
+    return CGN.get();
+  CGN = llvm::make_unique<CallGraphNode>(nullptr);
+  return CGN.get();
+}
+
 //===----------------------------------------------------------------------===//
 // Implementations of the CallGraphNode class methods.
 //
@@ -173,7 +216,7 @@ void CallGraphNode::print(raw_ostream &OS) const {
     if (Function *FI = I.second->getFunction())
       OS << "function '" << FI->getName() <<"'\n";
     else
-      OS << "external node\n";
+      OS << "<<null function>><<" << I.second << ">>\n";
   }
   OS << '\n';
 }
