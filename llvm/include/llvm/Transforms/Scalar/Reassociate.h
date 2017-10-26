@@ -72,6 +72,13 @@ class ReassociatePass : public PassInfoMixin<ReassociatePass> {
   DenseMap<BasicBlock *, unsigned> RankMap;
   DenseMap<AssertingVH<Value>, unsigned> ValueRankMap;
   SetVector<AssertingVH<Instruction>> RedoInsts;
+
+  unsigned Pass;
+  static const unsigned NumBinaryOps =
+      Instruction::BinaryOpsEnd - Instruction::BinaryOpsBegin;
+  DenseMap<std::pair<Value *, Value *>, unsigned> PairMap[NumBinaryOps];
+  DenseMap<Instruction *, SmallVector<Value *, 8>> InstrOpMap;
+
   bool MadeChange;
 
 public:

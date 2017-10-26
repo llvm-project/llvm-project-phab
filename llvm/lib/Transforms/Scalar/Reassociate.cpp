@@ -1870,6 +1870,8 @@ void ReassociatePass::RecursivelyEraseDeadInsts(
   ValueRankMap.erase(I);
   Insts.remove(I);
   RedoInsts.remove(I);
+  if (Pass == 0)
+    InstrOpMap.erase(I);
   I->eraseFromParent();
   for (auto Op : Ops)
     if (Instruction *OpInst = dyn_cast<Instruction>(Op))
@@ -1886,6 +1888,8 @@ void ReassociatePass::EraseInst(Instruction *I) {
   // Erase the dead instruction.
   ValueRankMap.erase(I);
   RedoInsts.remove(I);
+  if (Pass == 0)
+    InstrOpMap.erase(I);
   I->eraseFromParent();
   // Optimize its operands.
   SmallPtrSet<Instruction *, 8> Visited; // Detect self-referential nodes.
@@ -2189,6 +2193,44 @@ void ReassociatePass::ReassociateExpression(BinaryOperator *I) {
     return;
   }
 
+  if (Pass == 0) {
+    auto res = InstrOpMap.insert({I, SmallVector<Value *, 8>()});
+    for (auto Op : Ops)
+      res.first->second.push_back(Op.Op);
+  } else if (Ops.size() > 2) {
+    unsigned Max = 1;
+    unsigned BestRank = 0;
+    std::pair<unsigned, unsigned> BestPair;
+    unsigned Idx = I->getOpcode() - Instruction::BinaryOpsBegin;
+    for (unsigned i = 0; i < Ops.size() - 1; ++i)
+      for (unsigned j = i + 1; j < Ops.size(); ++j) {
+        unsigned Score = 0;
+        auto it = PairMap[Idx].find({Ops[i].Op, Ops[j].Op});
+        if (it != PairMap[Idx].end())
+          Score += it->second;
+        if (Ops[i].Op != Ops[j].Op) {
+          auto it2 = PairMap[Idx].find({Ops[j].Op, Ops[i].Op});
+          if (it2 != PairMap[Idx].end())
+            Score += it2->second;
+        }
+
+        unsigned MaxRank = std::max(Ops[i].Rank, Ops[j].Rank);
+        if (Score > Max || (Score == Max && MaxRank < BestRank)) {
+          BestPair = {i, j};
+          Max = Score;
+          BestRank = MaxRank;
+          // fprintf(stderr,"%d\n", BestRank);
+        }
+      }
+    if (Max > 1) {
+      auto Op0 = Ops[BestPair.first];
+      auto Op1 = Ops[BestPair.second];
+      Ops.erase(&Ops[BestPair.second]);
+      Ops.erase(&Ops[BestPair.first]);
+      Ops.push_back(Op0);
+      Ops.push_back(Op1);
+    }
+  }
   // Now that we ordered and optimized the expressions, splat them back into
   // the expression tree, removing any unneeded nodes.
   RewriteExprTree(I, Ops);
@@ -2206,47 +2248,82 @@ PreservedAnalyses ReassociatePass::run(Function &F, FunctionAnalysisManager &) {
 
   MadeChange = false;
   // Traverse the same blocks that was analysed by BuildRankMap.
-  for (BasicBlock *BI : RPOT) {
-    assert(RankMap.count(&*BI) && "BB should be ranked.");
-    // Optimize every instruction in the basic block.
-    for (BasicBlock::iterator II = BI->begin(), IE = BI->end(); II != IE;)
-      if (isInstructionTriviallyDead(&*II)) {
-        EraseInst(&*II++);
-      } else {
-        OptimizeInst(&*II);
-        assert(II->getParent() == &*BI && "Moved to a different block!");
-        ++II;
-      }
+  for (int q = 0; q < 2; ++q) {
+    for (Pass = 0; Pass < 2; ++Pass) {
+      for (BasicBlock *BI : RPOT) {
+        assert(RankMap.count(&*BI) && "BB should be ranked.");
+        // Optimize every instruction in the basic block.
+        for (BasicBlock::iterator II = BI->begin(), IE = BI->end(); II != IE;)
+          if (isInstructionTriviallyDead(&*II)) {
+            EraseInst(&*II++);
+          } else {
+            OptimizeInst(&*II);
+            assert(II->getParent() == &*BI && "Moved to a different block!");
+            ++II;
+          }
 
-    // Make a copy of all the instructions to be redone so we can remove dead
-    // instructions.
-    SetVector<AssertingVH<Instruction>> ToRedo(RedoInsts);
-    // Iterate over all instructions to be reevaluated and remove trivially dead
-    // instructions. If any operand of the trivially dead instruction becomes
-    // dead mark it for deletion as well. Continue this process until all
-    // trivially dead instructions have been removed.
-    while (!ToRedo.empty()) {
-      Instruction *I = ToRedo.pop_back_val();
-      if (isInstructionTriviallyDead(I)) {
-        RecursivelyEraseDeadInsts(I, ToRedo);
-        MadeChange = true;
-      }
-    }
+        // Make a copy of all the instructions to be redone so we can remove
+        // dead instructions.
+        SetVector<AssertingVH<Instruction>> ToRedo(RedoInsts);
+        // Iterate over all instructions to be reevaluated and remove trivially
+        // dead instructions. If any operand of the trivially dead instruction
+        // becomes dead mark it for deletion as well. Continue this process
+        // until all trivially dead instructions have been removed.
+        while (!ToRedo.empty()) {
+          Instruction *I = ToRedo.pop_back_val();
+          if (isInstructionTriviallyDead(I)) {
+            RecursivelyEraseDeadInsts(I, ToRedo);
+            MadeChange = true;
+          }
+        }
 
-    // Now that we have removed dead instructions, we can reoptimize the
-    // remaining instructions.
-    while (!RedoInsts.empty()) {
-      Instruction *I = RedoInsts.pop_back_val();
-      if (isInstructionTriviallyDead(I))
-        EraseInst(I);
-      else
-        OptimizeInst(I);
+        // Now that we have removed dead instructions, we can reoptimize the
+        // remaining instructions.
+        while (!RedoInsts.empty()) {
+          Instruction *I = RedoInsts.pop_back_val();
+          if (isInstructionTriviallyDead(I))
+            EraseInst(I);
+          else
+            OptimizeInst(I);
+        }
+      }
+      if (Pass == 1)
+        break;
+
+      for (BasicBlock *BI : RPOT) {
+        for (Instruction &I : *BI) {
+          if (!isa<BinaryOperator>(&I))
+            continue;
+
+          unsigned BinaryIdx = I.getOpcode() - Instruction::BinaryOpsBegin;
+          auto it = InstrOpMap.find(&I);
+          if (it != InstrOpMap.end()) {
+            for (unsigned i = 0; i < it->second.size(); ++i)
+              for (unsigned j = i + 1; j < it->second.size(); ++j) {
+                auto res = PairMap[BinaryIdx].insert(
+                    {{it->second[i], it->second[j]}, 1});
+                if (!res.second)
+                  ++res.first->second;
+              }
+          } else {
+            auto res = PairMap[BinaryIdx].insert(
+                {{I.getOperand(0), I.getOperand(1)}, 1});
+            if (!res.second)
+              ++res.first->second;
+          }
+        }
+      }
+      InstrOpMap.clear();
     }
+    for (auto &Entry : PairMap)
+      Entry.clear();
   }
 
   // We are done with the rank map.
   RankMap.clear();
   ValueRankMap.clear();
+  for (auto &Entry : PairMap)
+    Entry.clear();
 
   if (MadeChange) {
     PreservedAnalyses PA;
