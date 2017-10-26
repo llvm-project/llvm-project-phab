@@ -13,6 +13,7 @@
 
 #include "clang/Parse/Parser.h"
 #include "clang/AST/DeclTemplate.h"
+#include "clang/AST/InlineDeclMembers.h"
 #include "clang/Parse/ParseDiagnostic.h"
 #include "clang/Parse/RAIIObjectsForParser.h"
 #include "clang/Sema/DeclSpec.h"

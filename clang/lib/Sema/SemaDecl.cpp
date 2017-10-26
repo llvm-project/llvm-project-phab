@@ -12175,7 +12175,8 @@ Decl *Sema::ActOnStartOfFunctionDef(Scope *FnBodyScope, Decl *D,
 
   // See if this is a redefinition. If 'will have body' is already set, then
   // these checks were already performed when it was set.
-  if (!FD->willHaveBody() && !FD->isLateTemplateParsed()) {
+  if (!isa<CXXDeductionGuideDecl>(FD) && !FD->willHaveBody() &&
+      !FD->isLateTemplateParsed()) {
     CheckForFunctionRedefinition(FD, nullptr, SkipBody);
 
     // If we're skipping the body, we're done. Don't enter the scope.
@@ -12186,7 +12187,8 @@ Decl *Sema::ActOnStartOfFunctionDef(Scope *FnBodyScope, Decl *D,
   // Mark this function as "will have a body eventually".  This lets users to
   // call e.g. isInlineDefinitionExternallyVisible while we're still parsing
   // this function.
-  FD->setWillHaveBody();
+  if (!isa<CXXDeductionGuideDecl>(FD))
+    FD->setWillHaveBody();
 
   // If we are instantiating a generic lambda call operator, push
   // a LambdaScopeInfo onto the function stack.  But use the information
@@ -12373,7 +12375,8 @@ Decl *Sema::ActOnFinishFunctionBody(Decl *dcl, Stmt *Body,
 
   if (FD) {
     FD->setBody(Body);
-    FD->setWillHaveBody(false);
+    if (!isa<CXXDeductionGuideDecl>(FD))
+      FD->setWillHaveBody(false);
 
     if (getLangOpts().CPlusPlus14) {
       if (!FD->isInvalidDecl() && Body && !FD->isDependentContext() &&
