@@ -127,6 +127,11 @@ static cl::opt<unsigned> MaxSpeculationDepth(
     cl::desc("Limit maximum recursion depth when calculating costs of "
              "speculatively executed instructions"));
 
+static cl::opt<int> DependenceChainLatency(
+    "dependence-chain-latency", cl::Hidden, cl::init(8),
+    cl::desc("Limit the maximum latency of dependence chain containing cmp "
+             "for if conversion"));
+
 STATISTIC(NumBitMaps, "Number of switch instructions turned into bitmaps");
 STATISTIC(NumLinearMaps,
           "Number of switch instructions turned into linear mapping");
@@ -393,6 +398,142 @@ static bool DominatesMergePoint(Value *V, BasicBlock *BB,
   // Okay, it's safe to do this!  Remember this instruction.
   AggressiveInsts->insert(I);
   return true;
+}
+
+/// Estimate the code size of the specified BB.
+static int CountBBCodeSize(BasicBlock *BB, const TargetTransformInfo &TTI) {
+  int size = 0;
+  for (auto II = BB->begin(); !isa<TerminatorInst>(II); ++II)
+    size += TTI.getInstructionCost(&(*II), TargetTransformInfo::TCK_CodeSize);
+  return size;
+}
+
+/// Find out the latency of the longest dependence chain in the BB or the
+/// dependence chain containing the compare instruction.
+static int FindDependenceChainLatency(BasicBlock *BB,
+                            std::map<Instruction *, int> &instructions,
+                            const TargetTransformInfo &TTI,
+                            bool LongestChain) {
+  int max_latency = 0;
+
+  BasicBlock::iterator II;
+  for (II = BB->begin(); !isa<TerminatorInst>(II); ++II) {
+    int latency = 0;
+    for (unsigned O = 0, E = II->getNumOperands(); O != E; ++O) {
+      Instruction *op = dyn_cast<Instruction>(II->getOperand(O));
+      if (op && instructions.count(op)) {
+        auto op_latency = instructions[op];
+        if (op_latency > latency)
+          latency = op_latency;
+      }
+    }
+    latency += TTI.getInstructionCost(&(*II), TargetTransformInfo::TCK_Latency);
+    instructions[&(*II)] = latency;
+
+    if (latency > max_latency)
+      max_latency = latency;
+  }
+
+  if (LongestChain)
+    return max_latency;
+
+  BranchInst* br = dyn_cast<BranchInst>(II);
+  return instructions[dyn_cast<Instruction>(br->getCondition())];
+}
+
+/// Instructions in BB2 may depend on instructions in BB1, and instructions
+/// in BB1 may have users in BB2. If the last (in terms of latency) such kind
+/// of instruction in BB1 is I, then the instructions after I can be executed
+/// in parallel with instructions in BB2.
+/// This function returns the latency of I.
+static int LatencyAdjustment(BasicBlock *BB1, BasicBlock *BB2,
+                             BasicBlock *IfBlock1, BasicBlock *IfBlock2,
+                             std::map<Instruction *, int> &BB1_instructions) {
+  int LastLatency = 0;
+  SmallVector<Instruction *, 16> Worklist;
+  BasicBlock::iterator II;
+  for (II = BB2->begin(); !isa<TerminatorInst>(II); ++II) {
+    PHINode *PN = dyn_cast<PHINode>(II);
+    if (PN) {
+      // Look for users in BB2.
+      bool InBBUser = false;
+      for (User *U : PN->users()) {
+        if (cast<Instruction>(U)->getParent() == BB2) {
+          InBBUser = true;
+          break;
+        }
+      }
+      // No such user, we don't care about this instruction and its operands.
+      if (!InBBUser)
+        break;
+    }
+    Worklist.push_back(&(*II));
+  }
+
+  while (!Worklist.empty()) {
+    Instruction *I = Worklist.pop_back_val();
+    for (unsigned O = 0, E = I->getNumOperands(); O != E; ++O) {
+      Instruction *op = dyn_cast<Instruction>(I->getOperand(O));
+      if (op) {
+        if (op->getParent() == IfBlock1 || op->getParent() == IfBlock2)
+          Worklist.push_back(op);
+        else if (op->getParent() == BB1 && BB1_instructions.count(op)) {
+          if (BB1_instructions[op] > LastLatency)
+            LastLatency = BB1_instructions[op];
+        }
+      }
+    }
+  }
+
+  return LastLatency;
+}
+
+/// If after if conversion, most of the instructions in new BB construct a
+/// long and slow dependence chain, it may be slower than cmp/branch, even
+/// if the branch has a high miss rate, because the data dependence is changed
+/// into control dependence, and the long dependence chain is split into two,
+/// the two parts can be executed in parallel on modern OOO processor.
+static bool FindLongDependenceChain(BasicBlock *BB1, BasicBlock *BB2,
+                             BasicBlock *IfBlock1, BasicBlock *IfBlock2,
+                             int speculation_size,
+                             const TargetTransformInfo &TTI) {
+  // Accumulated latency of each instruction in their BBs.
+  std::map<Instruction *, int> BB1_instructions;
+  std::map<Instruction *, int> BB2_instructions;
+
+  if (!TTI.isOutOfOrder())
+    return false;
+
+  int new_BB_size = CountBBCodeSize(BB1, TTI) + CountBBCodeSize(BB2, TTI)
+                    + speculation_size;
+
+  // We check small BB only since it is more difficult to find unrelated
+  // instructions to fill functional units in small BB.
+  if (new_BB_size > 40)
+    return false;
+
+  auto BB1_chain =
+         FindDependenceChainLatency(BB1, BB1_instructions, TTI, false);
+  auto BB2_chain =
+         FindDependenceChainLatency(BB2, BB2_instructions, TTI, true);
+
+  // If we have a good ILP (IPC>=2) in new BB, then we don't care about the
+  // latency of the dependence chain.
+  if ((BB1_chain + BB2_chain) * 2 <= new_BB_size)
+    return false;
+
+  // We only care about part of the dependence chain in BB1 that can be
+  // executed in parallel with BB2, so adjust the latency.
+  BB1_chain -=
+      LatencyAdjustment(BB1, BB2, IfBlock1, IfBlock2, BB1_instructions);
+
+  // Correctly predicted branch instruction can skip the dependence chain in
+  // BB1, but misprediction has a penalty, so only when the dependence chain is
+  // longer than DependenceChainLatency, then branch is better than select.
+  if (BB1_chain >= DependenceChainLatency)
+    return true;
+
+  return false;
 }
 
 /// Extract ConstantInt from value, looking through IntToPtr
@@ -2023,6 +2164,11 @@ static bool SpeculativelyExecuteBB(BranchInst *BI, BasicBlock *ThenBB,
   if (!HaveRewritablePHIs && !(HoistCondStores && SpeculatedStoreValue))
     return false;
 
+  // Don't do if conversion for long dependence chain.
+  if (FindLongDependenceChain(BB, EndBB, ThenBB, nullptr,
+                              CountBBCodeSize(ThenBB, TTI), TTI))
+    return false;
+
   // If we get here, we can hoist the instruction and if-convert.
   DEBUG(dbgs() << "SPECULATIVELY EXECUTING BB" << *ThenBB << "\n";);
 
@@ -2323,6 +2469,10 @@ static bool FoldTwoEntryPHINode(PHINode *PN, const TargetTransformInfo &TTI,
         return false;
       }
   }
+
+  if (FindLongDependenceChain(DomBlock, BB, IfBlock1, IfBlock2,
+                              AggressiveInsts.size(), TTI))
+    return false;
 
   DEBUG(dbgs() << "FOUND IF CONDITION!  " << *IfCond << "  T: "
                << IfTrue->getName() << "  F: " << IfFalse->getName() << "\n");
