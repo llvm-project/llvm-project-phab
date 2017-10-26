@@ -648,6 +648,16 @@ Symtab *ObjectFilePECOFF::GetSymtab() {
                                            sizeof(uint32_t) * name_ordinal;
           uint32_t function_rva = symtab_data.GetU32(&function_offset);
 
+          ArchSpec header_arch;
+          GetArchitecture(header_arch);
+          if (header_arch.GetMachine() == llvm::Triple::arm) {
+            if (function_rva & 1) {
+              // For Thumb we need the last bit to be 0 so that the address
+              // points to the right beginning of the symbol.
+              function_rva ^= 1;
+            }
+          }
+
           Address symbol_addr(m_coff_header_opt.image_base + function_rva,
                               sect_list);
           symbols[i].GetMangled().SetValue(ConstString(symbol_name.c_str()));
