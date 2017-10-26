@@ -9,6 +9,8 @@ target triple = "x86_64-unknown-linux-gnu"
 ; CHECK-NOT:   irce: in function test_01: constrained Loop
 ; CHECK-NOT:   irce: in function test_02: constrained Loop
 ; CHECK-LABEL: irce: in function test_03: constrained Loop
+; CHECK-NOT:   irce: in function test_04: constrained Loop
+; CHECK-NOT:   irce: in function test_05: constrained Loop
 
 define void @test_01() {
 
@@ -136,5 +138,70 @@ guarded:
   br i1 %tmp7, label %loop, label %exit
 }
 
+define void @test_04(i64* %p1, i64* %p2, i1 %maybe_exit) {
+
+; CHECK-LABEL: test_04
+; CHECK-NOT:   preloop
+; CHECK-NOT:   postloop
+; CHECK-NOT:   br i1 false
+; CHECK-NOT:   br i1 true
+
+entry:
+  %num = load i64, i64* %p1, align 4, !range !2
+  %denom = load i64, i64* %p2, align 4, !range !2
+  br label %loop
+
+exit:                                       ; preds = %guarded, %loop
+  ret void
+
+loop:                                      ; preds = %guarded, %entry
+  %iv = phi i64 [ 0, %entry ], [ %iv.next, %guarded ]
+  %iv.next = add nuw nsw i64 %iv, 1
+  br i1 %maybe_exit, label %range_check, label %exit
+
+range_check:
+  %rem_result = srem i64 %num, %denom
+  %rc = icmp slt i64 %iv.next, %rem_result
+  br i1 %rc, label %guarded, label %exit
+
+guarded:
+  %gep = getelementptr i64, i64* %p1, i64 %iv.next
+  %loaded = load i64, i64* %gep, align 4
+  %tmp7 = icmp slt i64 %iv.next, 1000
+  br i1 %tmp7, label %loop, label %exit
+}
+
+define void @test_05(i64* %p1, i1 %maybe_exit) {
+
+; CHECK-LABEL: test_05
+; CHECK-NOT:   preloop
+; CHECK-NOT:   postloop
+; CHECK-NOT:   br i1 false
+; CHECK-NOT:   br i1 true
+
+entry:
+  br label %loop
+
+exit:                                       ; preds = %guarded, %loop
+  ret void
+
+loop:                                      ; preds = %guarded, %entry
+  %iv = phi i64 [ 0, %entry ], [ %iv.next, %guarded ]
+  %iv.next = add nuw nsw i64 %iv, 1
+  br i1 %maybe_exit, label %range_check, label %exit
+
+range_check:
+  %load_result = load i64, i64* %p1, align 4, !range !1
+  %rc = icmp slt i64 %iv.next, %load_result
+  br i1 %rc, label %guarded, label %exit
+
+guarded:
+  %gep = getelementptr i64, i64* %p1, i64 %iv.next
+  %loaded = load i64, i64* %gep, align 4
+  %tmp7 = icmp slt i64 %iv.next, 1000
+  br i1 %tmp7, label %loop, label %exit
+}
+
 !0 = !{i64 0, i64 100}
 !1 = !{i64 1, i64 100}
+!2 = !{i64 -100, i64 100}
