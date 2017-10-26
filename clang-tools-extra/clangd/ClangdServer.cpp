@@ -18,6 +18,7 @@
 #include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
 #include <future>
+#include <unordered_map>
 
 using namespace clang;
 using namespace clang::clangd;
@@ -364,11 +365,26 @@ ClangdServer::findDefinitions(PathRef File, Position Pos) {
         llvm::errc::invalid_argument);
 
   std::vector<Location> Result;
-  Resources->getAST().get()->runUnderLock([Pos, &Result, this](ParsedAST *AST) {
-    if (!AST)
-      return;
-    Result = clangd::findDefinitions(*AST, Pos, Logger);
-  });
+  std::unordered_map<Range, Path, RangeHash> IncludeLocationMap;
+  std::vector<std::pair<SourceRange, std::string>> DataVector;
+  std::vector<Range> RangeVector;
+
+  std::shared_future<std::shared_ptr<const PreambleData>> Preamble =
+      Resources->getPreamble();
+  if (Preamble.get()) {
+    IncludeLocationMap = Preamble.get()->IncludeMap;
+    DataVector = Preamble.get()->DataVector;
+    RangeVector = Preamble.get()->RangeVector;
+  }
+  Resources->getAST().get()->runUnderLock(
+      [Pos, &Result, Preamble, this](ParsedAST *AST) {
+        if (!AST)
+          return;
+
+        Result = clangd::findDefinitions(
+            *AST, Pos, Logger, Preamble.get()->IncludeMap,
+            Preamble.get()->DataVector, Preamble.get()->RangeVector);
+      });
   return make_tagged(std::move(Result), TaggedFS.Tag);
 }
 

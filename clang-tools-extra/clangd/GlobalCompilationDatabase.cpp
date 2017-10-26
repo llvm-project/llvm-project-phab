@@ -9,6 +9,7 @@
 
 #include "GlobalCompilationDatabase.h"
 #include "Logger.h"
+#include "ProtocolHandlers.h"
 #include "clang/Tooling/CompilationDatabase.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
@@ -29,6 +30,8 @@ static void addExtraFlags(tooling::CompileCommand &Command,
   --It;
   Command.CommandLine.insert(It, ExtraFlags.begin(), ExtraFlags.end());
 }
+
+
 
 tooling::CompileCommand getDefaultCompileCommand(PathRef File) {
   std::vector<std::string> CommandLine{"clang", "-fsyntax-only", File.str()};

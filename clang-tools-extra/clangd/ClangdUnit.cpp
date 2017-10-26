@@ -30,9 +30,29 @@
 
 #include <algorithm>
 #include <chrono>
+#include <iostream>
 
 using namespace clang::clangd;
 using namespace clang;
+
+class DelegatingPPCallbacks : public PPCallbacks {
+
+public:
+  DelegatingPPCallbacks(PPCallbacks &PPCallbacks) : Callbacks(PPCallbacks) {}
+
+  void InclusionDirective(SourceLocation HashLoc, const Token &IncludeTok,
+                          StringRef FileName, bool IsAngled,
+                          CharSourceRange FilenameRange, const FileEntry *File,
+                          StringRef SearchPath, StringRef RelativePath,
+                          const Module *Imported) override {
+    Callbacks.InclusionDirective(HashLoc, IncludeTok, FileName, IsAngled,
+                                 FilenameRange, File, SearchPath, RelativePath,
+                                 Imported);
+  }
+
+private:
+  PPCallbacks &Callbacks;
+};
 
 namespace {
 
@@ -72,11 +92,109 @@ private:
   std::vector<const Decl *> TopLevelDecls;
 };
 
-class CppFilePreambleCallbacks : public PreambleCallbacks {
+std::vector<Range>
+fillRangeVector(const SourceManager &SM,
+                std::vector<std::pair<SourceRange, std::string>> DataVector,
+                std::vector<Range> RangeVector) {
+  if (RangeVector.empty()) {
+    for (unsigned I = 0; I < DataVector.size(); I++) {
+      Position Begin;
+      Begin.line = SM.getSpellingLineNumber(DataVector[I].first.getBegin());
+      Begin.character =
+          SM.getSpellingColumnNumber(DataVector[I].first.getBegin());
+      Position End;
+      End.line = SM.getSpellingLineNumber(DataVector[I].first.getEnd());
+      End.character = SM.getSpellingColumnNumber(DataVector[I].first.getEnd());
+      Range R = {Begin, End};
+      RangeVector.push_back(R);
+    }
+  }
+  return RangeVector;
+}
+
+void findPreambleIncludes(
+    const SourceManager &SM, const LangOptions &LangOpts,
+    std::unordered_map<Range, Path, RangeHash> &IncludeLocationMap,
+    std::vector<std::pair<SourceRange, std::string>> DataVector,
+    std::vector<Range> RangeVector) {
+
+  for (unsigned I = 0; I < DataVector.size(); I++) {
+    if (SM.isInMainFile(DataVector[I].first.getBegin()))
+      IncludeLocationMap.insert({RangeVector[I], DataVector[I].second});
+  }
+}
+
+std::unordered_map<Range, Path, RangeHash> findIncludesOutsidePreamble(
+    const SourceManager &SM, const LangOptions &LangOpts,
+    std::unordered_map<Range, Path, RangeHash> IncludeLocationMap) {
+
+  unsigned NumSlocs = SM.local_sloc_entry_size();
+  SmallVector<SourceLocation, 10> InclusionStack;
+
+  for (unsigned I = 0; I < NumSlocs; ++I) {
+    bool Invalid = false;
+    const SrcMgr::SLocEntry &SL = SM.getLocalSLocEntry(I, &Invalid);
+    if (!SL.isFile() || Invalid)
+      continue;
+    const SrcMgr::FileInfo &FI = SL.getFile();
+
+    SourceLocation L = FI.getIncludeLoc();
+    InclusionStack.clear();
+
+    SourceLocation LocationToInsert;
+
+    while (L.isValid()) {
+      PresumedLoc PLoc = SM.getPresumedLoc(L);
+      InclusionStack.push_back(L);
+      L = PLoc.isValid() ? PLoc.getIncludeLoc() : SourceLocation();
+    }
+    if (InclusionStack.size() == 0) {
+      // Skip main file
+      continue;
+    }
+
+    if (InclusionStack.size() > 1) {
+      // Don't care about includes of includes
+      continue;
+    }
+
+    StringRef FilePath = FI.getContentCache()->OrigEntry->tryGetRealPathName();
+    if (FilePath.empty()) {
+      continue;
+    }
+
+    Position Begin;
+    Begin.line = SM.getSpellingLineNumber(InclusionStack.front());
+    Begin.character = SM.getSpellingColumnNumber(InclusionStack.front());
+
+    SourceLocation LocEnd =
+        Lexer::getLocForEndOfToken(InclusionStack.front(), 0, SM, LangOpts);
+
+    Position End;
+    End.line = SM.getSpellingLineNumber(LocEnd);
+    End.character = SM.getSpellingColumnNumber(LocEnd);
+    Range R = {Begin, End};
+    IncludeLocationMap.insert({R, FilePath.str()});
+  }
+
+  return IncludeLocationMap;
+}
+
+class CppFilePreambleCallbacks : public PreambleCallbacks, public PPCallbacks {
 public:
   std::vector<serialization::DeclID> takeTopLevelDeclIDs() {
     return std::move(TopLevelDeclIDs);
   }
+
+  std::unordered_map<Range, Path, RangeHash> takeIncludeLocationMap() {
+    return std::move(IncludeLocationMap);
+  }
+
+  std::vector<std::pair<SourceRange, std::string>> takeDataVector() {
+    return std::move(DataVector);
+  }
+
+  std::vector<Range> takeRangeVector() { return std::move(RangeVector); }
 
   void AfterPCHEmitted(ASTWriter &Writer) override {
     TopLevelDeclIDs.reserve(TopLevelDecls.size());
@@ -96,9 +214,29 @@ public:
     }
   }
 
+  void AfterExecute(CompilerInstance &CI) override {
+    RangeVector =
+        fillRangeVector(CI.getSourceManager(), DataVector, RangeVector);
+    findPreambleIncludes(CI.getSourceManager(), CI.getLangOpts(),
+                         IncludeLocationMap, DataVector, RangeVector);
+  }
+
+  void InclusionDirective(SourceLocation HashLoc, const Token &IncludeTok,
+                          StringRef FileName, bool IsAngled,
+                          CharSourceRange FilenameRange, const FileEntry *File,
+                          StringRef SearchPath, StringRef RelativePath,
+                          const Module *Imported) override {
+    if (File && !File->tryGetRealPathName().empty())
+      DataVector.push_back(std::pair<SourceRange, std::string>(
+          FilenameRange.getAsRange(), File->tryGetRealPathName()));
+  }
+
 private:
   std::vector<Decl *> TopLevelDecls;
   std::vector<serialization::DeclID> TopLevelDeclIDs;
+  std::vector<std::pair<SourceRange, std::string>> DataVector;
+  std::vector<Range> RangeVector;
+  std::unordered_map<Range, Path, RangeHash> IncludeLocationMap;
 };
 
 /// Convert from clang diagnostic level to LSP severity.
@@ -915,12 +1053,20 @@ class DeclarationLocationsFinder : public index::IndexDataConsumer {
   const SourceLocation &SearchedLocation;
   const ASTContext &AST;
   Preprocessor &PP;
+  std::unordered_map<Range, Path, RangeHash> IncludeLocationMap;
+  std::vector<std::pair<SourceRange, std::string>> DataVector;
+  std::vector<Range> RangeVector;
 
 public:
-  DeclarationLocationsFinder(raw_ostream &OS,
-                             const SourceLocation &SearchedLocation,
-                             ASTContext &AST, Preprocessor &PP)
-      : SearchedLocation(SearchedLocation), AST(AST), PP(PP) {}
+  DeclarationLocationsFinder(
+      raw_ostream &OS, const SourceLocation &SearchedLocation, ASTContext &AST,
+      Preprocessor &PP,
+      std::unordered_map<Range, Path, RangeHash> IncludeLocationMap,
+      std::vector<std::pair<SourceRange, std::string>> DataVector,
+      std::vector<Range> RangeVector)
+      : SearchedLocation(SearchedLocation), AST(AST), PP(PP),
+        IncludeLocationMap(IncludeLocationMap), DataVector(DataVector),
+        RangeVector(RangeVector) {}
 
   std::vector<Location> takeLocations() {
     // Don't keep the same location multiple times.
@@ -950,6 +1096,11 @@ private:
            SourceMgr.getFileID(SearchedLocation) == FID;
   }
 
+  bool isSameLine(unsigned Line) const {
+    const SourceManager &SourceMgr = AST.getSourceManager();
+    return Line == SourceMgr.getSpellingLineNumber(SearchedLocation);
+  }
+
   void addDeclarationLocation(const SourceRange &ValSourceRange) {
     const SourceManager &SourceMgr = AST.getSourceManager();
     const LangOptions &LangOpts = AST.getLangOpts();
@@ -963,14 +1114,32 @@ private:
     End.line = SourceMgr.getSpellingLineNumber(LocEnd) - 1;
     End.character = SourceMgr.getSpellingColumnNumber(LocEnd) - 1;
     Range R = {Begin, End};
+    addLocation(URI::fromFile(
+                    SourceMgr.getFilename(SourceMgr.getSpellingLoc(LocStart))),
+                R);
+  }
+
+  void addLocation(URI Uri, Range R) {
+
     Location L;
-    L.uri = URI::fromFile(
-        SourceMgr.getFilename(SourceMgr.getSpellingLoc(LocStart)));
+    L.uri = Uri;
     L.range = R;
     DeclarationLocations.push_back(L);
   }
 
   void finish() override {
+
+    IncludeLocationMap = ::findIncludesOutsidePreamble(
+        AST.getSourceManager(), AST.getLangOpts(), IncludeLocationMap);
+
+    for (auto It = IncludeLocationMap.begin(); It != IncludeLocationMap.end();
+         ++It) {
+      Range R = It->first;
+      Path P = It->second;
+      if (isSameLine(R.start.line))
+        addLocation(URI::fromFile(P), R);
+    }
+
     // Also handle possible macro at the searched location.
     Token Result;
     if (!Lexer::getRawToken(SearchedLocation, Result, AST.getSourceManager(),
@@ -1040,8 +1209,11 @@ SourceLocation getBeginningOfIdentifier(ParsedAST &Unit, const Position &Pos,
 }
 } // namespace
 
-std::vector<Location> clangd::findDefinitions(ParsedAST &AST, Position Pos,
-                                              clangd::Logger &Logger) {
+std::vector<Location> clangd::findDefinitions(
+    ParsedAST &AST, Position Pos, clangd::Logger &Logger,
+    std::unordered_map<Range, Path, RangeHash> IncludeLocationMap,
+    std::vector<std::pair<SourceRange, std::string>> DataVector,
+    std::vector<Range> RangeVector) {
   const SourceManager &SourceMgr = AST.getASTContext().getSourceManager();
   const FileEntry *FE = SourceMgr.getFileEntryForID(SourceMgr.getMainFileID());
   if (!FE)
@@ -1051,7 +1223,7 @@ std::vector<Location> clangd::findDefinitions(ParsedAST &AST, Position Pos,
 
   auto DeclLocationsFinder = std::make_shared<DeclarationLocationsFinder>(
       llvm::errs(), SourceLocationBeg, AST.getASTContext(),
-      AST.getPreprocessor());
+      AST.getPreprocessor(), IncludeLocationMap, DataVector, RangeVector);
   index::IndexingOptions IndexOpts;
   IndexOpts.SystemSymbolFilter =
       index::IndexingOptions::SystemSymbolFilterKind::All;
@@ -1133,11 +1305,17 @@ ParsedASTWrapper::ParsedASTWrapper(ParsedASTWrapper &&Wrapper)
 ParsedASTWrapper::ParsedASTWrapper(llvm::Optional<ParsedAST> AST)
     : AST(std::move(AST)) {}
 
-PreambleData::PreambleData(PrecompiledPreamble Preamble,
-                           std::vector<serialization::DeclID> TopLevelDeclIDs,
-                           std::vector<DiagWithFixIts> Diags)
+PreambleData::PreambleData(
+    PrecompiledPreamble Preamble,
+    std::vector<serialization::DeclID> TopLevelDeclIDs,
+    std::vector<DiagWithFixIts> Diags,
+    std::unordered_map<Range, Path, RangeHash> IncludeMap,
+    std::vector<std::pair<SourceRange, std::string>> DataVector,
+    std::vector<Range> RangeVector)
     : Preamble(std::move(Preamble)),
-      TopLevelDeclIDs(std::move(TopLevelDeclIDs)), Diags(std::move(Diags)) {}
+      TopLevelDeclIDs(std::move(TopLevelDeclIDs)), Diags(std::move(Diags)),
+      IncludeMap(std::move(IncludeMap)), DataVector(std::move(DataVector)),
+      RangeVector(std::move(RangeVector)) {}
 
 std::shared_ptr<CppFile>
 CppFile::Create(PathRef FileName, tooling::CompileCommand Command,
@@ -1291,15 +1469,20 @@ CppFile::deferRebuild(StringRef NewContents,
           CompilerInstance::createDiagnostics(
               &CI->getDiagnosticOpts(), &PreambleDiagnosticsConsumer, false);
       CppFilePreambleCallbacks SerializedDeclsCollector;
+      std::unique_ptr<DelegatingPPCallbacks> DelegatedPPCallbacks =
+          llvm::make_unique<DelegatingPPCallbacks>(SerializedDeclsCollector);
       auto BuiltPreamble = PrecompiledPreamble::Build(
           *CI, ContentsBuffer.get(), Bounds, *PreambleDiagsEngine, VFS, PCHs,
-          SerializedDeclsCollector);
+          SerializedDeclsCollector, std::move(DelegatedPPCallbacks));
 
       if (BuiltPreamble) {
         return std::make_shared<PreambleData>(
             std::move(*BuiltPreamble),
             SerializedDeclsCollector.takeTopLevelDeclIDs(),
-            std::move(PreambleDiags));
+            std::move(PreambleDiags),
+            SerializedDeclsCollector.takeIncludeLocationMap(),
+            SerializedDeclsCollector.takeDataVector(),
+            SerializedDeclsCollector.takeRangeVector());
       } else {
         return nullptr;
       }
