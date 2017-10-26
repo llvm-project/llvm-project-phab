@@ -749,7 +749,7 @@ bool X86TargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
     return false;
   }
 
-  SimdDefaultAlign =
+  SuitableAlign = SimdDefaultAlign =
       hasFeature("avx512f") ? 512 : hasFeature("avx") ? 256 : 128;
   return true;
 }
