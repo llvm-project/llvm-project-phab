@@ -576,7 +576,7 @@ static uint64_t getRelocTargetVA(RelType Type, int64_t A, uint64_t P,
     for (const Relocation& HiRel: IS->Relocations) {
       const uint64_t HiOffset = IS->getOffset(HiRel.Offset);
       const uint64_t HiAddrLoc = IS->getOutputSection()->Addr + HiOffset;
-      if (Label == HiAddrLoc && isRelExprOneOf<R_PC>(HiRel.Expr)) {
+      if (Label == HiAddrLoc && isRelExprOneOf<R_PC, R_PLT_PC, R_GOT_PC>(HiRel.Expr)) {
         return getRelocTargetVA(
           HiRel.Type, HiRel.Addend, HiAddrLoc, *HiRel.Sym, HiRel.Expr);
       }
