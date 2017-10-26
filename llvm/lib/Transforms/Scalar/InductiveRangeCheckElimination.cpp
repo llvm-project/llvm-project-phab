@@ -1465,6 +1465,7 @@ bool LoopConstrainer::run() {
   Value *ExitMainLoopAt = nullptr;
   const SCEVConstant *MinusOneS =
       cast<SCEVConstant>(SE.getConstant(IVTy, -1, true /* isSigned */));
+  const Loop *L = LI.getLoopFor(MainLoopStructure.Header);
 
   if (NeedsPreLoop) {
     const SCEV *ExitPreLoopAtSCEV = nullptr;
@@ -1481,7 +1482,8 @@ bool LoopConstrainer::run() {
       ExitPreLoopAtSCEV = SE.getAddExpr(*SR.HighLimit, MinusOneS);
     }
 
-    if (!isSafeToExpandAt(ExitPreLoopAtSCEV, InsertPt, SE)) {
+    if (!isSafeToExpandAt(ExitPreLoopAtSCEV, InsertPt, SE) ||
+        !SE.isAvailableAtLoopEntry(ExitPreLoopAtSCEV, L)) {
       DEBUG(dbgs() << "irce: could not prove that it is safe to expand the"
                    << " preloop exit limit " << *ExitPreLoopAtSCEV
                    << " at block " << InsertPt->getParent()->getName() << "\n");
@@ -1507,7 +1509,8 @@ bool LoopConstrainer::run() {
       ExitMainLoopAtSCEV = SE.getAddExpr(*SR.LowLimit, MinusOneS);
     }
 
-    if (!isSafeToExpandAt(ExitMainLoopAtSCEV, InsertPt, SE)) {
+    if (!isSafeToExpandAt(ExitMainLoopAtSCEV, InsertPt, SE) ||
+        !SE.isAvailableAtLoopEntry(ExitMainLoopAtSCEV, L)) {
       DEBUG(dbgs() << "irce: could not prove that it is safe to expand the"
                    << " main loop exit limit " << *ExitMainLoopAtSCEV
                    << " at block " << InsertPt->getParent()->getName() << "\n");
