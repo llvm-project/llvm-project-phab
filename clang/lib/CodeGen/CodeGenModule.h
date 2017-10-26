@@ -323,6 +323,7 @@ private:
   /// List of alias we have emitted. Used to make sure that what they point to
   /// is defined once we get to the end of the of the translation unit.
   std::vector<GlobalDecl> Aliases;
+  std::vector<GlobalDecl> MultiVersionFuncs;
 
   typedef llvm::StringMap<llvm::TrackingVH<llvm::Constant> > ReplacementsTy;
   ReplacementsTy Replacements;
@@ -752,6 +753,7 @@ public:
                                      llvm::Type *Ty = nullptr,
                                      ForDefinition_t IsForDefinition
                                        = NotForDefinition);
+  std::string MakeMultiVersionName(StringRef MangledName, const Decl *D);
 
   /// Return the address of the given function. If Ty is non-null, then this
   /// function will use the specified type if it has to create it.
@@ -1229,6 +1231,11 @@ private:
       bool DontDefer = false, bool IsThunk = false,
       llvm::AttributeList ExtraAttrs = llvm::AttributeList(),
       ForDefinition_t IsForDefinition = NotForDefinition);
+  llvm::Constant *GetOrCreateLLVMFunctionOrMultiVersion(
+      StringRef MangledName, llvm::Type *Ty, GlobalDecl D, bool ForVTable,
+      bool DontDefer = false, bool IsThunk = false,
+      llvm::AttributeList ExtraAttrs = llvm::AttributeList(),
+      ForDefinition_t IsForDefinition = NotForDefinition);
 
   llvm::Constant *GetOrCreateLLVMGlobal(StringRef MangledName,
                                         llvm::PointerType *PTy,
@@ -1244,8 +1251,14 @@ private:
                              ForDefinition_t IsForDefinition);
 
   void EmitGlobalDefinition(GlobalDecl D, llvm::GlobalValue *GV = nullptr);
+  void EmitMultiVersionResolver(StringRef ResolverName, const FunctionDecl *FD);
 
   void EmitGlobalFunctionDefinition(GlobalDecl GD, llvm::GlobalValue *GV);
+  llvm::GlobalValue *GetOrCreateMultiVersionIFunc(GlobalDecl GD,
+                                                  llvm::Type *DeclTy,
+                                                  StringRef MangledName,
+                                                  const FunctionDecl *FD,
+                                                  llvm::GlobalValue *GV);
   void EmitGlobalVarDefinition(const VarDecl *D, bool IsTentative = false);
   void EmitAliasDefinition(GlobalDecl GD);
   void emitIFuncDefinition(GlobalDecl GD);
@@ -1301,6 +1314,7 @@ private:
   void applyGlobalValReplacements();
 
   void checkAliases();
+  void checkMultiversions();
 
   /// Emit any vtables which we deferred and still have a use for.
   void EmitDeferredVTables();

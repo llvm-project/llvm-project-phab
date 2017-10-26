@@ -912,6 +912,17 @@ public:
     return false;
   }
 
+  // \brief Identify whether this target supports multiversioning of functions,
+  // which requires support for a cpu_supports and cpu_is functionality.
+  virtual bool supportsFuncMultiversioning() const { return false; }
+
+  // \brief Validate the architecture for function multiversioning.  Some
+  // will wish to override this, since there might be different rules for
+  // __builtin_cpu_is vs multiversioning strings.
+  virtual bool validateMultiversionCpu(StringRef Name) const {
+    return validateCpuIs(Name);
+  }
+
   // \brief Validate the contents of the __builtin_cpu_supports(const char*)
   // argument.
   virtual bool validateCpuSupports(StringRef Name) const { return false; }
@@ -919,6 +930,12 @@ public:
   // \brief Validate the contents of the __builtin_cpu_is(const char*)
   // argument.
   virtual bool validateCpuIs(StringRef Name) const { return false; }
+
+  // \brief Provide ordering for the CPU Features and Names such that it can
+  // used for dispatchers.
+  virtual bool compareCpusAndFeatures(StringRef Lhs, StringRef Rhs) const {
+    return false;
+  }
 
   // \brief Returns maximal number of args passed in registers.
   unsigned getRegParmMax() const {
