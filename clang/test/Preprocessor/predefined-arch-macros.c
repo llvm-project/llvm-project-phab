@@ -427,11 +427,8 @@
 // CHECK_COREI7_AVX_M32: #define __SSSE3__ 1
 // CHECK_COREI7_AVX_M32: #define __XSAVEOPT__ 1
 // CHECK_COREI7_AVX_M32: #define __XSAVE__ 1
-// CHECK_COREI7_AVX_M32: #define __corei7 1
-// CHECK_COREI7_AVX_M32: #define __corei7__ 1
 // CHECK_COREI7_AVX_M32: #define __i386 1
 // CHECK_COREI7_AVX_M32: #define __i386__ 1
-// CHECK_COREI7_AVX_M32: #define __tune_corei7__ 1
 // CHECK_COREI7_AVX_M32: #define i386 1
 // RUN: %clang -march=corei7-avx -m64 -E -dM %s -o - 2>&1 \
 // RUN:     -target i386-unknown-linux \
@@ -454,9 +451,6 @@
 // CHECK_COREI7_AVX_M64: #define __XSAVE__ 1
 // CHECK_COREI7_AVX_M64: #define __amd64 1
 // CHECK_COREI7_AVX_M64: #define __amd64__ 1
-// CHECK_COREI7_AVX_M64: #define __corei7 1
-// CHECK_COREI7_AVX_M64: #define __corei7__ 1
-// CHECK_COREI7_AVX_M64: #define __tune_corei7__ 1
 // CHECK_COREI7_AVX_M64: #define __x86_64 1
 // CHECK_COREI7_AVX_M64: #define __x86_64__ 1
 //
@@ -477,11 +471,8 @@
 // CHECK_CORE_AVX_I_M32: #define __SSSE3__ 1
 // CHECK_CORE_AVX_I_M32: #define __XSAVEOPT__ 1
 // CHECK_CORE_AVX_I_M32: #define __XSAVE__ 1
-// CHECK_CORE_AVX_I_M32: #define __corei7 1
-// CHECK_CORE_AVX_I_M32: #define __corei7__ 1
 // CHECK_CORE_AVX_I_M32: #define __i386 1
 // CHECK_CORE_AVX_I_M32: #define __i386__ 1
-// CHECK_CORE_AVX_I_M32: #define __tune_corei7__ 1
 // CHECK_CORE_AVX_I_M32: #define i386 1
 // RUN: %clang -march=core-avx-i -m64 -E -dM %s -o - 2>&1 \
 // RUN:     -target i386-unknown-linux \
@@ -504,9 +495,6 @@
 // CHECK_CORE_AVX_I_M64: #define __XSAVE__ 1
 // CHECK_CORE_AVX_I_M64: #define __amd64 1
 // CHECK_CORE_AVX_I_M64: #define __amd64__ 1
-// CHECK_CORE_AVX_I_M64: #define __corei7 1
-// CHECK_CORE_AVX_I_M64: #define __corei7__ 1
-// CHECK_CORE_AVX_I_M64: #define __tune_corei7__ 1
 // CHECK_CORE_AVX_I_M64: #define __x86_64 1
 // CHECK_CORE_AVX_I_M64: #define __x86_64__ 1
 //
@@ -533,11 +521,8 @@
 // CHECK_CORE_AVX2_M32: #define __SSSE3__ 1
 // CHECK_CORE_AVX2_M32: #define __XSAVEOPT__ 1
 // CHECK_CORE_AVX2_M32: #define __XSAVE__ 1
-// CHECK_CORE_AVX2_M32: #define __corei7 1
-// CHECK_CORE_AVX2_M32: #define __corei7__ 1
 // CHECK_CORE_AVX2_M32: #define __i386 1
 // CHECK_CORE_AVX2_M32: #define __i386__ 1
-// CHECK_CORE_AVX2_M32: #define __tune_corei7__ 1
 // CHECK_CORE_AVX2_M32: #define i386 1
 // RUN: %clang -march=core-avx2 -m64 -E -dM %s -o - 2>&1 \
 // RUN:     -target i386-unknown-linux \
@@ -566,9 +551,6 @@
 // CHECK_CORE_AVX2_M64: #define __XSAVE__ 1
 // CHECK_CORE_AVX2_M64: #define __amd64 1
 // CHECK_CORE_AVX2_M64: #define __amd64__ 1
-// CHECK_CORE_AVX2_M64: #define __corei7 1
-// CHECK_CORE_AVX2_M64: #define __corei7__ 1
-// CHECK_CORE_AVX2_M64: #define __tune_corei7__ 1
 // CHECK_CORE_AVX2_M64: #define __x86_64 1
 // CHECK_CORE_AVX2_M64: #define __x86_64__ 1
 //
@@ -597,11 +579,8 @@
 // CHECK_BROADWELL_M32: #define __SSSE3__ 1
 // CHECK_BROADWELL_M32: #define __XSAVEOPT__ 1
 // CHECK_BROADWELL_M32: #define __XSAVE__ 1
-// CHECK_BROADWELL_M32: #define __corei7 1
-// CHECK_BROADWELL_M32: #define __corei7__ 1
 // CHECK_BROADWELL_M32: #define __i386 1
 // CHECK_BROADWELL_M32: #define __i386__ 1
-// CHECK_BROADWELL_M32: #define __tune_corei7__ 1
 // CHECK_BROADWELL_M32: #define i386 1
 // RUN: %clang -march=broadwell -m64 -E -dM %s -o - 2>&1 \
 // RUN:     -target i386-unknown-linux \
@@ -632,9 +611,6 @@
 // CHECK_BROADWELL_M64: #define __XSAVE__ 1
 // CHECK_BROADWELL_M64: #define __amd64 1
 // CHECK_BROADWELL_M64: #define __amd64__ 1
-// CHECK_BROADWELL_M64: #define __corei7 1
-// CHECK_BROADWELL_M64: #define __corei7__ 1
-// CHECK_BROADWELL_M64: #define __tune_corei7__ 1
 // CHECK_BROADWELL_M64: #define __x86_64 1
 // CHECK_BROADWELL_M64: #define __x86_64__ 1
 //
@@ -892,9 +868,6 @@
 // CHECK_SKX_M32: #define __XSAVE__ 1
 // CHECK_SKX_M32: #define __i386 1
 // CHECK_SKX_M32: #define __i386__ 1
-// CHECK_SKX_M32: #define __skx 1
-// CHECK_SKX_M32: #define __skx__ 1
-// CHECK_SKX_M32: #define __tune_skx__ 1
 // CHECK_SKX_M32: #define i386 1
 
 // RUN: %clang -march=skylake-avx512 -m64 -E -dM %s -o - 2>&1 \
@@ -936,9 +909,6 @@
 // CHECK_SKX_M64: #define __XSAVE__ 1
 // CHECK_SKX_M64: #define __amd64 1
 // CHECK_SKX_M64: #define __amd64__ 1
-// CHECK_SKX_M64: #define __skx 1
-// CHECK_SKX_M64: #define __skx__ 1
-// CHECK_SKX_M64: #define __tune_skx__ 1
 // CHECK_SKX_M64: #define __x86_64 1
 // CHECK_SKX_M64: #define __x86_64__ 1
 //
