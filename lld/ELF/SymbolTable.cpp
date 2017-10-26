@@ -141,6 +141,14 @@ DefinedRegular *SymbolTable::addAbsolute(StringRef Name, uint8_t Visibility,
   return cast<DefinedRegular>(Sym->body());
 }
 
+void SymbolTable::addAbsoluteOptional(StringRef Name, uint64_t Value) {
+  outs() << Name << "=" << Value << "\n";
+  SymbolBody *B = find(Name);
+  if (B->isUndefined())
+    replaceBody<DefinedRegular>(B->symbol(), nullptr, Name, false, 0,
+                                STT_NOTYPE, Value, 0, nullptr);
+}
+
 // Set a flag for --trace-symbol so that we can print out a log message
 // if a new symbol with the same name is inserted into the symbol table.
 void SymbolTable::trace(StringRef Name) {

@@ -59,6 +59,10 @@ extern llvm::TarWriter *Tar;
 // Opens a given file.
 llvm::Optional<MemoryBufferRef> readFile(StringRef Path);
 
+// For --just-symbol.
+template <class ELFT>
+std::vector<std::pair<StringRef, uint64_t>> readSymbols(MemoryBufferRef);
+
 // The root class of input files.
 class InputFile {
 public:

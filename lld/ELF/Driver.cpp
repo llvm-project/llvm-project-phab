@@ -1062,6 +1062,19 @@ template <class ELFT> void LinkerDriver::link(opt::InputArgList &Args) {
   if (errorCount())
     return;
 
+  // Handle a rarely-used, -just-symbols option.
+  //
+  // This option allows you to link your output against other existing
+  // programs, so that if you load both other program and your output
+  // to memory, your output can call other program's symbols.
+  //
+  // What we are doing here is to read defined symbols from given ELF
+  // files and add them as absolute symbols.
+  for (auto *Arg : Args.filtered(OPT_just_symbols))
+    if (Optional<MemoryBufferRef> MB = readFile(Arg->getValue()))
+      for (std::pair<StringRef, uint64_t> P : readSymbols<ELFT>(*MB))
+        Symtab->addAbsoluteOptional(P.first, P.second);
+
   // Handle undefined symbols in DSOs.
   Symtab->scanShlibUndefined<ELFT>();
 

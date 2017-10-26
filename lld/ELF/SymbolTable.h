@@ -48,6 +48,8 @@ public:
                               uint8_t Visibility = llvm::ELF::STV_HIDDEN,
                               uint8_t Binding = llvm::ELF::STB_GLOBAL);
 
+  void addAbsoluteOptional(StringRef Name, uint64_t Value);
+
   template <class ELFT> Symbol *addUndefined(StringRef Name);
   template <class ELFT>
   Symbol *addUndefined(StringRef Name, bool IsLocal, uint8_t Binding,

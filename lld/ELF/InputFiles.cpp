@@ -1049,6 +1049,38 @@ std::vector<StringRef> LazyObjFile::getSymbolNames() {
   }
 }
 
+// Reads defined symbols from a given ELF file, and returns their
+// names and values. This is used for -just-symbols.
+template <class ELFT>
+std::vector<std::pair<StringRef, uint64_t>>
+elf::readSymbols(MemoryBufferRef MB) {
+  typedef typename ELFT::Shdr Elf_Shdr;
+  typedef typename ELFT::Sym Elf_Sym;
+  typedef typename ELFT::SymRange Elf_Sym_Range;
+
+  StringRef ObjName = MB.getBufferIdentifier();
+  ELFFile<ELFT> Obj = check(ELFFile<ELFT>::create(MB.getBuffer()));
+  ArrayRef<Elf_Shdr> Sections = check(Obj.sections(), ObjName);
+
+  for (const Elf_Shdr &Sec : Sections) {
+    if (Sec.sh_type != SHT_SYMTAB)
+      continue;
+
+    Elf_Sym_Range Syms = check(Obj.symbols(&Sec), ObjName);
+    uint32_t FirstNonLocal = Sec.sh_info;
+    StringRef StringTable =
+        check(Obj.getStringTableForSymtab(Sec, Sections), ObjName);
+
+    std::vector<std::pair<StringRef, uint64_t>> Ret;
+    for (const Elf_Sym &Sym : Syms.slice(FirstNonLocal))
+      if (Sym.st_shndx != SHN_UNDEF)
+        Ret.emplace_back(check(Sym.getName(StringTable), ObjName),
+                         Sym.st_value);
+    return Ret;
+  }
+  return {};
+}
+
 template void ArchiveFile::parse<ELF32LE>();
 template void ArchiveFile::parse<ELF32BE>();
 template void ArchiveFile::parse<ELF64LE>();
@@ -1083,3 +1115,12 @@ template void BinaryFile::parse<ELF32LE>();
 template void BinaryFile::parse<ELF32BE>();
 template void BinaryFile::parse<ELF64LE>();
 template void BinaryFile::parse<ELF64BE>();
+
+template std::vector<std::pair<StringRef, uint64_t>>
+    elf::readSymbols<ELF32LE>(MemoryBufferRef);
+template std::vector<std::pair<StringRef, uint64_t>>
+    elf::readSymbols<ELF32BE>(MemoryBufferRef);
+template std::vector<std::pair<StringRef, uint64_t>>
+    elf::readSymbols<ELF64LE>(MemoryBufferRef);
+template std::vector<std::pair<StringRef, uint64_t>>
+    elf::readSymbols<ELF64BE>(MemoryBufferRef);
