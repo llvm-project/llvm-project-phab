@@ -582,10 +582,8 @@ static RelExpr adjustExpr(SymbolBody &Body, RelExpr Expr, RelType Type,
 
   // If the relocation is to a weak undef, give up on it and produce a
   // non preemptible 0.
-  if (Body.isUndefWeak()) {
-    Body.IsPreemptible = false;
+  if (Body.isUndefWeak())
     return Expr;
-  }
 
   // We can hack around it if we are producing an executable and
   // the refered symbol can be preemepted to refer to the executable.
