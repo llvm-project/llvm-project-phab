@@ -1322,6 +1322,93 @@ bool X86TargetInfo::validateCpuIs(StringRef FeatureStr) const {
       .Default(false);
 }
 
+bool X86TargetInfo::compareCpusAndFeatures(StringRef Lhs, StringRef Rhs) const {
+  // The following are in order from new to old.  These are required for the
+  // ordering of the GCC Target attribute.  The list has to match the
+  // implementation in in GCC 7.x in gcc/config/i386/i386.c
+  // ::get_builtin_code_for_version. This list is simplified from that source.
+  const auto TargetArray = {"avx512vpopcntdq",
+                            "knm",
+                            "avx5124fmaps",
+                            "avx5124vnniw",
+                            "avx512ifma",
+                            "avx512vbmi",
+                            "avx512pf",
+                            "avx512er",
+                            "avx512cd",
+                            "avx512dq",
+                            "avx512bw",
+                            "avx512vl",
+                            "knl",
+                            "avx512f",
+                            "znver1",
+                            "skylake-avx512",
+                            "skylake",
+                            "haswell",
+                            "broadwell",
+                            "bdver4",
+                            "avx2",
+                            "bmi2",
+                            "bdver3",
+                            "bdver2",
+                            "fma",
+                            "bdver1",
+                            "amdfam15h",
+                            "amdfam15",
+                            "xop",
+                            "fma4",
+                            "btver2",
+                            "bmi",
+                            "sandybridge",
+                            "ivybridge",
+                            "avx",
+                            "westmere",
+                            "pclmul",
+                            "aes",
+                            "popcnt",
+                            "slm",
+                            "silvermont",
+                            "nehalem",
+                            "corei7",
+                            "sse4.2",
+                            "sse4.1",
+                            "btver1",
+                            "istanbul",
+                            "shanghai",
+                            "barcelona",
+                            "amdfam10h",
+                            "amdfam10",
+                            "sse4a",
+                            "core2",
+                            "bonnell",
+                            "atom",
+                            "ssse3",
+                            "sse3",
+                            "sse2",
+                            "sse",
+                            "mmx",
+                            "cmov",
+                            "intel",
+                            "amd"};
+
+  if (Lhs == Rhs)
+    return false;
+  // Default location doesn't matter except that sort should be repeatable, but
+  // move default to the end.
+  if (Lhs.empty())
+    return false;
+  if (Rhs.empty())
+    return true;
+
+  for (const auto &Str : TargetArray) {
+    if (Lhs == Str)
+      return true;
+    else if (Rhs == Str)
+      return false;
+  }
+  assert(false && "Invalid item passed to compareCpusAndFeatures");
+}
+
 bool X86TargetInfo::validateAsmConstraint(
     const char *&Name, TargetInfo::ConstraintInfo &Info) const {
   switch (*Name) {
