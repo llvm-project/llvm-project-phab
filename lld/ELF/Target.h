@@ -128,6 +128,7 @@ TargetInfo *getX32TargetInfo();
 TargetInfo *getX86TargetInfo();
 TargetInfo *getX86_64TargetInfo();
 template <class ELFT> TargetInfo *getMipsTargetInfo();
+template <class ELFT> TargetInfo *getRISCVTargetInfo();
 
 std::string getErrorLocation(const uint8_t *Loc);
 
