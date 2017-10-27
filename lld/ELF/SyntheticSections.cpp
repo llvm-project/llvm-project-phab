@@ -81,6 +81,63 @@ template <class ELFT> void elf::createCommonSections() {
   }
 }
 
+template <class T> static void reverseCopy(uint8_t *To, ArrayRef<T> From) {
+  T *Buf = (T *)To;
+  for (const T &Data : llvm::reverse(From))
+    *Buf++ = Data;
+}
+
+// Returns an .{init,fini}_array section name for a given .ctors/.dtors
+// section name. For example, it return ".init_array" for ".ctor" and
+// ".init_array.10000" for ".ctors.55535".
+//
+// Section names may include priorities, e.g. .ctors.30 or .init_array.101.
+// .ctors.65535 is the highest priority while .init_array.0 is the highest.
+// So we need to translate the number.
+static StringRef toInitFiniName(StringRef S) {
+  if (S == ".ctors")
+    return ".init_array";
+  if (S == ".dtors")
+    return ".fini_array";
+
+  if (S.startswith(".ctors.")) {
+    int N = 0;
+    to_integer(S.substr(7), N, 10);
+    return Saver.save(".init_array." + Twine(65535 - N));
+  }
+
+  if (S.startswith(".dtors.")) {
+    int N = 0;
+    to_integer(S.substr(7), N, 10);
+    return Saver.save(".fini_array." + Twine(65535 - N));
+  }
+
+  llvm_unreachable("unexpected section name");
+}
+
+// Create an .{init,fini}_array section from a given .ctors/.dtors section.
+//
+// Both types of sections are to call constructors or destructors of
+// global objects. .{init,fini}_array are newer, and in most systems,
+// they are used exclusively. However, there are still old object files
+// out there that contain .ctors/.dtors, so we want to handle them by
+// converting them to .init/fini.
+InputSection *elf::createInitFiniSection(InputSection *Sec) {
+  auto *Contents = make<std::vector<uint8_t>>(Sec->Data.size());
+  if (Config->Is64)
+    reverseCopy(Contents->data(), Sec->getDataAs<uint64_t>());
+  else
+    reverseCopy(Contents->data(), Sec->getDataAs<uint32_t>());
+
+  uint32_t Type =
+      Sec->Name.startswith(".ctors") ? SHT_INIT_ARRAY : SHT_FINI_ARRAY;
+
+  auto *Ret = make<InputSection>(SHF_ALLOC, Type, Config->Wordsize, *Contents,
+                                 toInitFiniName(Sec->Name));
+  Ret->Live = true;
+  return Ret;
+}
+
 // Returns an LLD version string.
 static ArrayRef<uint8_t> getVersion() {
   // Check LLD_VERSION first for ease of testing.

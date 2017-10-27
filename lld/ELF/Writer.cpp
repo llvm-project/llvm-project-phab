@@ -147,6 +147,15 @@ template <class ELFT> static void combineEhFrameSections() {
   V.erase(std::remove(V.begin(), V.end(), nullptr), V.end());
 }
 
+static void createInitFiniSections() {
+  for (size_t I = 0; I < InputSections.size(); ++I)
+    if (InputSection *Sec = dyn_cast<InputSection>(InputSections[I]))
+      if (Sec->Live)
+        if (Sec->Name == ".ctors" || Sec->Name.startswith(".ctors.") ||
+            Sec->Name == ".dtors" || Sec->Name.startswith(".dtors."))
+          InputSections[I] = createInitFiniSection(Sec);
+}
+
 // The main function of the writer.
 template <class ELFT> void Writer<ELFT>::run() {
   // Create linker-synthesized sections such as .got or .plt.
@@ -155,6 +164,9 @@ template <class ELFT> void Writer<ELFT>::run() {
 
   if (!Config->Relocatable)
     combineEhFrameSections<ELFT>();
+
+  // Convert .ctors/.dtors sections to .{init,fini}_array sections, if exists.
+  createInitFiniSections();
 
   // We need to create some reserved symbols such as _end. Create them.
   if (!Config->Relocatable)
@@ -825,12 +837,6 @@ static void sortInitFini(OutputSection *Cmd) {
     Cmd->sortInitFini();
 }
 
-// Sort input sections by the special rule for .ctors and .dtors.
-static void sortCtorsDtors(OutputSection *Cmd) {
-  if (Cmd)
-    Cmd->sortCtorsDtors();
-}
-
 // Sort input sections using the list provided by --symbol-ordering-file.
 static void sortBySymbolsOrder() {
   if (Config->SymbolOrderingFile.empty())
@@ -872,8 +878,6 @@ template <class ELFT> void Writer<ELFT>::createSections() {
   sortBySymbolsOrder();
   sortInitFini(findSection(".init_array"));
   sortInitFini(findSection(".fini_array"));
-  sortCtorsDtors(findSection(".ctors"));
-  sortCtorsDtors(findSection(".dtors"));
 }
 
 // This function generates assignments for predefined symbols (e.g. _end or

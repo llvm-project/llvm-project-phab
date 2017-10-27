@@ -103,7 +103,6 @@ public:
 
   void sort(std::function<int(InputSectionBase *S)> Order);
   void sortInitFini();
-  void sortCtorsDtors();
 
 private:
   // Used for implementation of --compress-debug-sections option.

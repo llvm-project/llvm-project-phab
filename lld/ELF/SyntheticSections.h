@@ -803,6 +803,7 @@ private:
 };
 
 template <class ELFT> void createCommonSections();
+InputSection *createInitFiniSection(InputSection *Sec);
 InputSection *createInterpSection();
 template <class ELFT> MergeInputSection *createCommentSection();
 void decompressSections();
