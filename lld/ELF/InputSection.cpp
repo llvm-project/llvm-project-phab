@@ -576,7 +576,7 @@ static uint64_t getRelocTargetVA(RelType Type, int64_t A, uint64_t P,
       uint64_t HiOffset = IS->getOffset(HiRel.Offset);
       uint64_t HiAddrLoc = IS->getOutputSection()->Addr + HiOffset;
       if (Label == HiAddrLoc &&
-          isRelExprOneOf<R_PC, R_PLT_PC, R_GOT_PC>(HiRel.Expr)) {
+          isRelExprOneOf<R_PC, R_PLT_PC, R_GOT_PC, R_TLSGD_PC>(HiRel.Expr)) {
         return getRelocTargetVA(HiRel.Type, HiRel.Addend, HiAddrLoc, *HiRel.Sym,
                                 HiRel.Expr);
       }
@@ -640,7 +640,8 @@ static uint64_t getRelocTargetVA(RelType Type, int64_t A, uint64_t P,
     // statically to zero.
     if (Body.isTls() && Body.isUndefWeak())
       return 0;
-    if (Target->TcbSize)
+    // RISC-V uses variant I but tp points to the end of TCB.
+    if (Target->TcbSize || Config->EMachine == EM_RISCV)
       return Body.getVA(A) + alignTo(Target->TcbSize, Out::TlsPhdr->p_align);
     return Body.getVA(A) - Out::TlsPhdr->p_memsz;
   case R_RELAX_TLS_GD_TO_LE_NEG:

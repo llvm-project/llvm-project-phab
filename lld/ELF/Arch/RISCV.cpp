@@ -36,6 +36,8 @@ using namespace llvm::ELF;
 using namespace lld;
 using namespace lld::elf;
 
+constexpr uint64_t TLS_DTV_OFFSET = 0x800;
+
 namespace {
 
 template <class ELFT> class RISCV final : public TargetInfo {
@@ -81,6 +83,15 @@ template <class ELFT> RISCV<ELFT>::RISCV() {
   PltEntrySize = 16;
   PltHeaderSize = 32;
   GotPltHeaderEntriesNum = 2;
+  if (ELFT::Is64Bits) {
+    TlsGotRel = R_RISCV_TLS_TPREL64;
+    TlsModuleIndexRel = R_RISCV_TLS_DTPMOD64;
+    TlsOffsetRel = R_RISCV_TLS_DTPREL64;
+  } else {
+    TlsGotRel = R_RISCV_TLS_TPREL32;
+    TlsModuleIndexRel = R_RISCV_TLS_DTPMOD32;
+    TlsOffsetRel = R_RISCV_TLS_DTPREL32;
+  }
 }
 
 template <class ELFT>
@@ -172,9 +183,17 @@ RelExpr RISCV<ELFT>::getRelExpr(const RelType Type, const SymbolBody &S,
   case R_RISCV_PCREL_LO12_S:
     return R_RISCV_PC_INDIRECT;
   case R_RISCV_GOT_HI20:
+  case R_RISCV_TLS_GOT_HI20:
     return R_GOT_PC;
+  case R_RISCV_TPREL_HI20:
+  case R_RISCV_TPREL_LO12_I:
+  case R_RISCV_TPREL_LO12_S:
+    return R_TLS;
+  case R_RISCV_TLS_GD_HI20:
+    return R_TLSGD_PC;
   case R_RISCV_ALIGN:
   case R_RISCV_RELAX:
+  case R_RISCV_TPREL_ADD:
     return R_HINT;
   default:
     return R_ABS;
@@ -286,7 +305,10 @@ void RISCV<ELFT>::relocateOne(uint8_t *Loc, const uint32_t Type,
   }
 
   case R_RISCV_PCREL_HI20:
+  case R_RISCV_TPREL_HI20:
   case R_RISCV_GOT_HI20:
+  case R_RISCV_TLS_GOT_HI20:
+  case R_RISCV_TLS_GD_HI20:
   case R_RISCV_HI20: {
     checkInt<32>(Loc, Val, Type);
     uint32_t Hi = Val + 0x800;
@@ -294,6 +316,7 @@ void RISCV<ELFT>::relocateOne(uint8_t *Loc, const uint32_t Type,
     return;
   }
   case R_RISCV_PCREL_LO12_I:
+  case R_RISCV_TPREL_LO12_I:
   case R_RISCV_LO12_I: {
     checkInt<32>(Loc, Val, Type);
     uint32_t Hi = Val + 0x800;
@@ -302,6 +325,7 @@ void RISCV<ELFT>::relocateOne(uint8_t *Loc, const uint32_t Type,
     return;
   }
   case R_RISCV_PCREL_LO12_S:
+  case R_RISCV_TPREL_LO12_S:
   case R_RISCV_LO12_S: {
     checkInt<32>(Loc, Val, Type);
     uint32_t Hi = Val + 0x800;
@@ -311,6 +335,27 @@ void RISCV<ELFT>::relocateOne(uint8_t *Loc, const uint32_t Type,
     writeInsn32<E>(Loc, (readInsn32<E>(Loc) & 0x1FFF07F) | Imm11_5 | Imm4_0);
     return;
   }
+
+  case R_RISCV_TLS_DTPMOD32:
+    write32<E>(Loc, 1);
+    return;
+  case R_RISCV_TLS_DTPMOD64:
+    write64<E>(Loc, 1);
+    return;
+  case R_RISCV_TLS_DTPREL32:
+    write32<E>(Loc, Val - TLS_DTV_OFFSET);
+    return;
+  case R_RISCV_TLS_DTPREL64:
+    write64<E>(Loc, Val - TLS_DTV_OFFSET);
+    return;
+  case R_RISCV_TLS_TPREL32:
+    write32<E>(Loc, Val);
+    return;
+  case R_RISCV_TLS_TPREL64:
+    write64<E>(Loc, Val);
+    return;
+  case R_RISCV_TPREL_ADD:
+    return; // Do nothing
 
   case R_RISCV_ADD8:
     *Loc += Val;
