@@ -749,6 +749,13 @@ bool X86TargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
     return false;
   }
 
+  if (hasFeature("avx512f"))
+      SuitableAlign = std::max(SuitableAlign, (unsigned short)512);
+  else if (hasFeature("avx"))
+      SuitableAlign = std::max(SuitableAlign, (unsigned short)256);
+  else if (hasFeature("sse"))
+      SuitableAlign = std::max(SuitableAlign, (unsigned short)128);
+
   SimdDefaultAlign =
       hasFeature("avx512f") ? 512 : hasFeature("avx") ? 256 : 128;
   return true;
