@@ -3,6 +3,7 @@ set(LLVM_LINK_COMPONENTS support)
 add_clang_library(clangTidyBugproneModule
   BugproneTidyModule.cpp
   IntegerDivisionCheck.cpp
+  MisplacedOperatorInStrlenInAllocCheck.cpp
   SuspiciousMemsetUsageCheck.cpp
   UndefinedMemoryManipulationCheck.cpp
 
