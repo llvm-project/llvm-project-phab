@@ -112,19 +112,9 @@ template <class ELFT> MergeInputSection *elf::createCommentSection() {
 }
 
 // .MIPS.abiflags section.
-template <class ELFT>
-MipsAbiFlagsSection<ELFT>::MipsAbiFlagsSection(Elf_Mips_ABIFlags Flags)
-    : SyntheticSection(SHF_ALLOC, SHT_MIPS_ABIFLAGS, 8, ".MIPS.abiflags"),
-      Flags(Flags) {
-  this->Entsize = sizeof(Elf_Mips_ABIFlags);
-}
+template <class ELFT> InputSection *elf::createMipsAbiFlagsSection() {
+  typedef llvm::object::Elf_Mips_ABIFlags<ELFT> Elf_Mips_ABIFlags;
 
-template <class ELFT> void MipsAbiFlagsSection<ELFT>::writeTo(uint8_t *Buf) {
-  memcpy(Buf, &Flags, sizeof(Flags));
-}
-
-template <class ELFT>
-MipsAbiFlagsSection<ELFT> *MipsAbiFlagsSection<ELFT>::create() {
   Elf_Mips_ABIFlags Flags = {};
   bool Create = false;
 
@@ -165,9 +155,17 @@ MipsAbiFlagsSection<ELFT> *MipsAbiFlagsSection<ELFT>::create() {
     Flags.fp_abi = elf::getMipsFpAbiFlag(Flags.fp_abi, S->fp_abi, Filename);
   };
 
-  if (Create)
-    return make<MipsAbiFlagsSection<ELFT>>(Flags);
-  return nullptr;
+  if (!Create)
+    return nullptr;
+
+  auto *Buf = make<std::vector<uint8_t>>(sizeof(Flags));
+  memcpy(Buf->data(), &Flags, sizeof(Flags));
+
+  auto *Ret = make<InputSection>(SHF_ALLOC, SHT_MIPS_ABIFLAGS, 8, *Buf,
+                                 ".MIPS.abiflags");
+  Ret->Entsize = sizeof(Flags);
+  Ret->Live = true;
+  return Ret;
 }
 
 // .MIPS.options section.
@@ -2441,10 +2439,10 @@ template MergeInputSection *elf::createCommentSection<ELF32BE>();
 template MergeInputSection *elf::createCommentSection<ELF64LE>();
 template MergeInputSection *elf::createCommentSection<ELF64BE>();
 
-template class elf::MipsAbiFlagsSection<ELF32LE>;
-template class elf::MipsAbiFlagsSection<ELF32BE>;
-template class elf::MipsAbiFlagsSection<ELF64LE>;
-template class elf::MipsAbiFlagsSection<ELF64BE>;
+template InputSection *elf::createMipsAbiFlagsSection<ELF32LE>();
+template InputSection *elf::createMipsAbiFlagsSection<ELF32BE>();
+template InputSection *elf::createMipsAbiFlagsSection<ELF64LE>();
+template InputSection *elf::createMipsAbiFlagsSection<ELF64BE>();
 
 template class elf::MipsOptionsSection<ELF32LE>;
 template class elf::MipsOptionsSection<ELF32BE>;

@@ -295,7 +295,7 @@ template <class ELFT> void Writer<ELFT>::createSyntheticSections() {
       InX::MipsRldMap = make<MipsRldMapSection>();
       Add(InX::MipsRldMap);
     }
-    if (auto *Sec = MipsAbiFlagsSection<ELFT>::create())
+    if (auto *Sec = createMipsAbiFlagsSection<ELFT>())
       Add(Sec);
     if (auto *Sec = MipsOptionsSection<ELFT>::create())
       Add(Sec);

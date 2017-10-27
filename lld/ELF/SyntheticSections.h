@@ -707,22 +707,6 @@ private:
   size_t ShardOffsets[NumShards];
 };
 
-// .MIPS.abiflags section.
-template <class ELFT>
-class MipsAbiFlagsSection final : public SyntheticSection {
-  typedef llvm::object::Elf_Mips_ABIFlags<ELFT> Elf_Mips_ABIFlags;
-
-public:
-  static MipsAbiFlagsSection *create();
-
-  MipsAbiFlagsSection(Elf_Mips_ABIFlags Flags);
-  size_t getSize() const override { return sizeof(Elf_Mips_ABIFlags); }
-  void writeTo(uint8_t *Buf) override;
-
-private:
-  Elf_Mips_ABIFlags Flags;
-};
-
 // .MIPS.options section.
 template <class ELFT> class MipsOptionsSection final : public SyntheticSection {
   typedef llvm::object::Elf_Mips_Options<ELFT> Elf_Mips_Options;
@@ -799,6 +783,7 @@ private:
 template <class ELFT> void createCommonSections();
 InputSection *createInterpSection();
 template <class ELFT> MergeInputSection *createCommentSection();
+template <class ELFT> InputSection *createMipsAbiFlagsSection();
 void decompressSections();
 void mergeSections();
 
