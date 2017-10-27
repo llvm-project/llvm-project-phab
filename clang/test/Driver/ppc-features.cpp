@@ -134,6 +134,9 @@
 // RUN: %clang -target powerpc64-unknown-linux-gnu %s -mno-vsx -mvsx -### -o %t.o 2>&1 | FileCheck -check-prefix=CHECK-VSX %s
 // CHECK-VSX: "-target-feature" "+vsx"
 
+// RUN: %clang -target powerpc64-unknown-linux-gnu %s -msave-toc-indirect -### -o %t.o 2>&1 | FileCheck -check-prefix=CHECK-TOC %s
+// CHECK-TOC: "-target-feature" "+save-toc-indirect"
+
 // RUN: %clang -target powerpc64-unknown-linux-gnu %s -mno-htm -### -o %t.o 2>&1 | FileCheck -check-prefix=CHECK-NOHTM %s
 // CHECK-NOHTM: "-target-feature" "-htm"
 
