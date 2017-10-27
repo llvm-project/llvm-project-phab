@@ -1,11 +1,10 @@
-// RUN: clang-tidy %s -checks='-*,llvm-namespace-comment,clang-diagnostic*' \
-// RUN:   -- -Wunused-variable 2>&1 \
+// RUN: clang-tidy %s -checks='-*,llvm-namespace-comment,clang-diagnostic-unused-variable' -- 2>&1 \
 // RUN:   | FileCheck %s --check-prefix=CHECK-WARN -implicit-check-not='{{warning|error}}:'
-// RUN: not clang-tidy %s -checks='-*,llvm-namespace-comment,clang-diagnostic*' \
-// RUN:   -warnings-as-errors='clang-diagnostic*' -- -Wunused-variable 2>&1 \
+// RUN: not clang-tidy %s -checks='-*,llvm-namespace-comment,clang-diagnostic-unused-variable' \
+// RUN:   -warnings-as-errors='clang-diagnostic*' -- 2>&1 \
 // RUN:   | FileCheck %s --check-prefix=CHECK-WERR -implicit-check-not='{{warning|error}}:'
-// RUN: not clang-tidy %s -checks='-*,llvm-namespace-comment,clang-diagnostic*' \
-// RUN:   -warnings-as-errors='clang-diagnostic*' -quiet -- -Wunused-variable 2>&1 \
+// RUN: not clang-tidy %s -checks='-*,llvm-namespace-comment,clang-diagnostic-unused-variable' \
+// RUN:   -warnings-as-errors='clang-diagnostic*' -quiet -- 2>&1 \
 // RUN:   | FileCheck %s --check-prefix=CHECK-WERR-QUIET -implicit-check-not='{{warning|error}}:'
 
 void f() { int i; }

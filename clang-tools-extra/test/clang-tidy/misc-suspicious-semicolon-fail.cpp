@@ -1,8 +1,8 @@
 // RUN: clang-tidy %s -checks="-*,misc-suspicious-semicolon" -- -DERROR 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=CHECK-ERROR \
 // RUN:       -implicit-check-not="{{warning|error}}:"
-// RUN: clang-tidy %s -checks="-*,misc-suspicious-semicolon,clang-diagnostic*" \
-// RUN:    -- -DWERROR -Wno-everything -Werror=unused-variable 2>&1 \
+// RUN: not clang-tidy %s -checks="-*,misc-suspicious-semicolon,clang-diagnostic-unused-variable" \
+// RUN:   -warnings-as-errors=clang-diagnostic-unused-variable -- -DWERROR 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=CHECK-WERROR \
 // RUN:       -implicit-check-not="{{warning|error}}:"
 
@@ -19,7 +19,7 @@ void f() {
   // CHECK-ERROR: :[[@LINE-1]]:8: error: expected ';' at end of declaration [clang-diagnostic-error]
 #elif WERROR
   int a;
-  // CHECK-WERROR: :[[@LINE-1]]:7: error: unused variable 'a' [clang-diagnostic-unused-variable]
+  // CHECK-WERROR: :[[@LINE-1]]:7: error: unused variable 'a' [clang-diagnostic-unused-variable,-warnings-as-errors]
 #else
 #error "One of ERROR or WERROR should be defined.
 #endif

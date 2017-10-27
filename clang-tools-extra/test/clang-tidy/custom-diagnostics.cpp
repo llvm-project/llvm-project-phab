@@ -1,4 +1,9 @@
-// RUN: clang-tidy -checks='-*,modernize-use-override,clang-diagnostic-shadow,clang-diagnostic-float-conversion' %s -- | count 0
+// RUN: clang-tidy -checks='-*,modernize-use-override' %s -- | count 0
+//
+// Clang-diagnostic checks completely override extra args:
+// RUN: clang-tidy -checks='-*,modernize-use-override,clang-diagnostic-shadow,clang-diagnostic-float-conversion' \
+// RUN:   -config='{ExtraArgs: ["-Wno-shadow","-Wno-float-conversion","-Wunused-variable"], ExtraArgsBefore: ["-Wno-shadow","-Wno-float-conversion","-Wunused-variable"]}' %s -- \
+// RUN:   | FileCheck -implicit-check-not='{{warning:|error:}}' %s
 //
 // Enable warnings using -config:
 // RUN: clang-tidy -checks='-*,modernize-use-override,clang-diagnostic-shadow,clang-diagnostic-float-conversion' \

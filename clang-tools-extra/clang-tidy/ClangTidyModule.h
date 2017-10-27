@@ -11,6 +11,7 @@
 #define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_CLANGTIDYMODULE_H
 
 #include "ClangTidy.h"
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/StringRef.h"
 #include <functional>
 #include <map>
@@ -88,6 +89,11 @@ public:
   /// \brief Implement this function in order to register all \c CheckFactories
   /// belonging to this module.
   virtual void addCheckFactories(ClangTidyCheckFactories &CheckFactories) = 0;
+
+  /// \brief Implement this function in order to register all warning-check
+  /// aliases belonging to this module.
+  virtual void addWarningCheckAliases(
+      llvm::DenseMap<llvm::StringRef, llvm::StringRef> &WarningCheckAliases) {}
 
   /// \brief Gets default options for checks defined in this module.
   virtual ClangTidyOptions getModuleOptions();

@@ -73,6 +73,12 @@ public:
     // MSC
     CheckFactories.registerCheck<LimitedRandomnessCheck>("cert-msc30-c");
   }
+
+  void addWarningCheckAliases(llvm::DenseMap<llvm::StringRef, llvm::StringRef>
+                                  &WarningCheckAliases) override {
+    WarningCheckAliases.try_emplace("exceptions", "cert-err54-cpp");
+    WarningCheckAliases.try_emplace("invalid-offsetof", "cert-exp59-cpp");
+  }
 };
 
 } // namespace cert

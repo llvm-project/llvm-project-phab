@@ -22,6 +22,7 @@
 #include "clang/Basic/DiagnosticOptions.h"
 #include "clang/Frontend/DiagnosticRenderer.h"
 #include "llvm/ADT/SmallString.h"
+#include <algorithm>
 #include <tuple>
 #include <vector>
 using namespace clang;
@@ -257,6 +258,22 @@ StringRef ClangTidyContext::getCheckName(unsigned DiagnosticID) const {
   return "";
 }
 
+std::vector<std::string> ClangTidyContext::getEnabledClangDiagnostics() {
+  llvm::SmallVector<unsigned, 5000> Diags;
+  DiagnosticIDs::getAllDiagnostics(diag::Flavor::WarningOrError, Diags);
+  std::vector<std::string> EnabledClangDiagnostics;
+  for (unsigned DiagID : Diags) {
+    auto Flag = DiagnosticIDs::getWarningOptionForDiag(DiagID).str();
+    if (!Flag.empty() && isCheckEnabled("clang-diagnostic-" + Flag))
+      EnabledClangDiagnostics.push_back(Flag);
+  }
+  std::sort(EnabledClangDiagnostics.begin(), EnabledClangDiagnostics.end());
+  EnabledClangDiagnostics.erase(std::unique(EnabledClangDiagnostics.begin(),
+                                            EnabledClangDiagnostics.end()),
+                                EnabledClangDiagnostics.end());
+  return EnabledClangDiagnostics;
+}
+
 ClangTidyDiagnosticConsumer::ClangTidyDiagnosticConsumer(
     ClangTidyContext &Ctx, bool RemoveIncompatibleErrors)
     : Context(Ctx), RemoveIncompatibleErrors(RemoveIncompatibleErrors),
@@ -374,9 +391,15 @@ void ClangTidyDiagnosticConsumer::HandleDiagnostic(
     StringRef WarningOption =
         Context.DiagEngine->getDiagnosticIDs()->getWarningOptionForDiag(
             Info.getID());
-    std::string CheckName = !WarningOption.empty()
-                                ? ("clang-diagnostic-" + WarningOption).str()
-                                : Context.getCheckName(Info.getID()).str();
+    auto Alias = Context.WarningCheckAliases.find(WarningOption);
+    std::string CheckName;
+    if (Alias != Context.WarningCheckAliases.end() &&
+        Context.isCheckEnabled(Alias->second))
+      CheckName = Alias->second;
+    else
+      CheckName = !WarningOption.empty()
+                      ? ("clang-diagnostic-" + WarningOption).str()
+                      : Context.getCheckName(Info.getID()).str();
 
     if (CheckName.empty()) {
       // This is a compiler diagnostic without a warning option. Assign check
