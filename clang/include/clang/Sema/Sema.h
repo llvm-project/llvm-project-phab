@@ -1939,6 +1939,15 @@ public:
                           SmallVectorImpl<CXXMethodDecl*> &OverloadedMethods);
   void NoteHiddenVirtualMethods(CXXMethodDecl *MD,
                           SmallVectorImpl<CXXMethodDecl*> &OverloadedMethods);
+
+  // Checks to see if attribute 'target' results in a valid situation.
+  bool TestAndSetDeclForMultiVersion(FunctionDecl *NewFD, FunctionDecl *OldFD);
+  // Helper function for CheckMultiVersionDecl to ensure that a declaration
+  // causing a Multi-version case doesn't cause invalid options.
+  bool CheckMultiVersionOptions(const FunctionDecl *NewFD,
+                                const FunctionDecl *OldFD);
+  bool CheckMultiVersionOption(const FunctionDecl *FD);
+
   // Returns true if the function declaration is a redeclaration
   bool CheckFunctionDeclaration(Scope *S,
                                 FunctionDecl *NewFD, LookupResult &Previous,

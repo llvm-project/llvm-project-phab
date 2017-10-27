@@ -2221,6 +2221,9 @@ public:
   /// \brief What kind of templated function this is.
   TemplatedKind getTemplatedKind() const;
 
+  /// \brief Whether this is a special multiversioned function.
+  bool isMultiVersionFunction() const;
+
   /// \brief If this function is an instantiation of a member function of a
   /// class template specialization, retrieves the member specialization
   /// information.
