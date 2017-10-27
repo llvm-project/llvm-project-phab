@@ -57,6 +57,15 @@ The improvements are...
 Improvements to clang-tidy
 --------------------------
 
+- New `bugprone-misplaced-operator-in-strlen-in-alloc
+  <http://clang.llvm.org/extra/clang-tidy/checks/bugprone-misplaced-operator-in-strlen-in-alloc.html>`_ check
+
+  Finds cases where ``1`` is added to or subtracted from the string in the
+  parameter of ``strlen()``, ``strnlen()``, ``strnlen_s()``, ``wcslen()``,
+  ``wcsnlen()`` and ``wcsnlen_s()`` functions instead of to the result and use
+  its return value as an argument of a memory allocation function (``malloc()``,
+  ``calloc()``, ``realloc()``, ``alloca()``).
+
 - Renamed checks to use correct term "implicit conversion" instead of "implicit
   cast" and modified messages and option names accordingly:
 
