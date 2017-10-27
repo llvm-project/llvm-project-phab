@@ -57,6 +57,16 @@
 #  define _LIBUNWIND_CONTEXT_SIZE 16
 #  define _LIBUNWIND_CURSOR_SIZE 28
 #  define _LIBUNWIND_HIGHEST_DWARF_REGISTER 31
+# elif defined(__mips__) && defined(_ABIO32) && defined(__mips_soft_float)
+#  define _LIBUNWIND_TARGET_MIPS_O32 1
+#  define _LIBUNWIND_CONTEXT_SIZE 18
+#  define _LIBUNWIND_CURSOR_SIZE 29
+#  define _LIBUNWIND_HIGHEST_DWARF_REGISTER 65
+# elif defined(__mips__) && defined(_ABI64) && defined(__mips_soft_float)
+#  define _LIBUNWIND_TARGET_MIPS_N64 1
+#  define _LIBUNWIND_CONTEXT_SIZE 35
+#  define _LIBUNWIND_CURSOR_SIZE 47
+#  define _LIBUNWIND_HIGHEST_DWARF_REGISTER 65
 # else
 #  error "Unsupported architecture."
 # endif
@@ -67,6 +77,8 @@
 # define _LIBUNWIND_TARGET_AARCH64 1
 # define _LIBUNWIND_TARGET_ARM 1
 # define _LIBUNWIND_TARGET_OR1K 1
+# define _LIBUNWIND_TARGET_MIPS_O32 1
+# define _LIBUNWIND_TARGET_MIPS_N64 1
 # define _LIBUNWIND_CONTEXT_SIZE 128
 # define _LIBUNWIND_CURSOR_SIZE 140
 # define _LIBUNWIND_HIGHEST_DWARF_REGISTER 119
