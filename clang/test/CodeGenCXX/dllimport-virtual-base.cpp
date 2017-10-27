@@ -63,5 +63,6 @@ int main() {
 // CHECK-LABEL: declare dllimport x86_thiscallcc %"struct.test1::Concrete"* @"\01??0Concrete@test1@@QAE@XZ"
 // CHECK-LABEL: declare dllimport x86_thiscallcc %"class.test2::VirtualClass"* @"\01??0VirtualClass@test2@@QAE@XZ"
 // CHECK-LABEL: declare dllimport x86_thiscallcc %"class.test3::ConcreteClass"* @"\01??0ConcreteClass@test3@@QAE@H@Z"
-// CHECK-NOT: ??_DVirtualClass@@QEAAXXZ
-// CHECK-NOT: ??_DConcreteClass@@QEAAXXZ
+// CHECK-NOT: ??_DConcrete@test1@@QEAAXXZ
+// CHECK-NOT: ??_DVirtualClass@test2@@QEAAXXZ
+// CHECK-NOT: ??_DConcreteClass@test3@@QEAAXXZ

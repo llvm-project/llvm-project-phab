@@ -3800,11 +3800,11 @@ static void emitCXXConstructor(CodeGenModule &CGM,
 
 static void emitCXXDestructor(CodeGenModule &CGM, const CXXDestructorDecl *dtor,
                               StructorType dtorType) {
-  // If the class has dllimport attribute and has a virual base, the destructor
+  // If the class has dllimport attribute and has a virtual base, the destructor
   // is equivalent to the virtual base destrutor.
   if (dtor->getParent()->getNumVBases() && dtor->hasAttr<DLLImportAttr>() &&
-      (dtorType == StructorType::Complete || dtorType == StructorType::Base) &&
-      CGM.TryEmitBaseDestructorAsAlias(dtor))
+      CGM.getTriple().isWindowsMSVCEnvironment() &&
+      (dtorType == StructorType::Complete || dtorType == StructorType::Base))
     return;
   // The complete destructor is equivalent to the base destructor for
   // classes with no virtual bases, so try to emit it as an alias.
