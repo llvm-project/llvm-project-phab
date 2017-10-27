@@ -7,6 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "Bits.h"
 #include "InputFiles.h"
 #include "InputSection.h"
 #include "Memory.h"
@@ -39,9 +40,21 @@ namespace {
 
 template <class ELFT> class RISCV final : public TargetInfo {
 public:
+  RISCV();
   RelExpr getRelExpr(RelType Type, const SymbolBody &S,
                      const uint8_t *Loc) const override;
   void relocateOne(uint8_t *Loc, uint32_t Type, uint64_t Val) const override;
+
+  virtual void writeGotPltHeader(uint8_t *Buf) const override;
+  virtual void writeGotPlt(uint8_t *Buf, const SymbolBody &S) const override;
+
+  virtual void writePltHeader(uint8_t *Buf) const override;
+
+  virtual void writePlt(uint8_t *Buf, uint64_t GotEntryAddr,
+                        uint64_t PltEntryAddr, int32_t Index,
+                        unsigned RelOff) const override;
+
+  virtual bool usesOnlyLowPageBits(uint32_t Type) const override;
 };
 
 } // end anonymous namespace
@@ -58,6 +71,89 @@ template <endianness E> static uint32_t readInsn32(const uint8_t *const Buf) {
   return read16<E>(Buf) | static_cast<uint32_t>(read16<E>(Buf + 2)) << 16;
 }
 
+template <class ELFT> RISCV<ELFT>::RISCV() {
+  CopyRel = R_RISCV_COPY;
+  RelativeRel = R_RISCV_RELATIVE;
+  GotRel = ELFT::Is64Bits ? R_RISCV_64 : R_RISCV_32;
+  PltRel = R_RISCV_JUMP_SLOT;
+  GotEntrySize = Config->Wordsize;
+  GotPltEntrySize = Config->Wordsize;
+  PltEntrySize = 16;
+  PltHeaderSize = 32;
+  GotPltHeaderEntriesNum = 2;
+}
+
+template <class ELFT>
+bool RISCV<ELFT>::usesOnlyLowPageBits(uint32_t Type) const {
+  return Type == R_RISCV_LO12_I || Type == R_RISCV_PCREL_LO12_I ||
+         Type == R_RISCV_LO12_S || Type == R_RISCV_PCREL_LO12_S ||
+         // These are used in a pair to calculate relative address in debug
+         // sections, so they aren't really absolute. We list those here as a
+         // hack so the linker doesn't try to create dynamic relocations.
+         Type == R_RISCV_ADD8 || Type == R_RISCV_ADD16 ||
+         Type == R_RISCV_ADD32 || Type == R_RISCV_ADD64 ||
+         Type == R_RISCV_SUB8 || Type == R_RISCV_SUB16 ||
+         Type == R_RISCV_SUB32 || Type == R_RISCV_SUB64 ||
+         Type == R_RISCV_SUB6 ||
+         Type == R_RISCV_SET6 || Type == R_RISCV_SET8 ||
+         Type == R_RISCV_SET16 || Type == R_RISCV_SET32;
+}
+
+template <class ELFT> void RISCV<ELFT>::writeGotPltHeader(uint8_t *Buf) const {
+  writeUint(Buf, -1);
+  writeUint(Buf + GotPltEntrySize, 0);
+}
+
+template <class ELFT>
+void RISCV<ELFT>::writeGotPlt(uint8_t *Buf, const SymbolBody &S) const {
+  writeUint(Buf, InX::Plt->getVA());
+}
+
+template <class ELFT> void RISCV<ELFT>::writePltHeader(uint8_t *Buf) const {
+  constexpr endianness E = ELFT::TargetEndianness;
+  const uint64_t PcRelGotPlt = InX::GotPlt->getVA() - InX::Plt->getVA();
+
+  writeInsn32<E>(Buf + 0, 0x00000397);    // 1: auipc  t2, %pcrel_hi(.got.plt)
+  relocateOne(Buf + 0, R_RISCV_PCREL_HI20, PcRelGotPlt);
+  writeInsn32<E>(Buf + 4, 0x41c30333);    // sub    t1, t1, t3
+  if (ELFT::Is64Bits) {
+    writeInsn32<E>(Buf + 8, 0x0003be03);  // ld     t3, %pcrel_lo(1b)(t2)
+  } else {
+    writeInsn32<E>(Buf + 8, 0x0003ae03);  // lw     t3, %pcrel_lo(1b)(t2)
+  }
+  relocateOne(Buf + 8, R_RISCV_PCREL_LO12_I, PcRelGotPlt);
+  writeInsn32<E>(Buf + 12, 0xfd430313);   // addi   t1, t1, -44
+  writeInsn32<E>(Buf + 16, 0x00038293);   // addi   t0, t2, %pcrel_lo(1b)
+  relocateOne(Buf + 16, R_RISCV_PCREL_LO12_I, PcRelGotPlt);
+  if (ELFT::Is64Bits) {
+    writeInsn32<E>(Buf + 20, 0x00135313); // srli   t1, t1, 1
+    writeInsn32<E>(Buf + 24, 0x0082b283); // ld     t0, 8(t0)
+  } else {
+    writeInsn32<E>(Buf + 20, 0x00235313); // srli   t1, t1, 2
+    writeInsn32<E>(Buf + 24, 0x0042a283); // lw     t0, 4(t0)
+  }
+  writeInsn32<E>(Buf + 28, 0x000e0067);   // jr     t3
+}
+
+template <class ELFT>
+void RISCV<ELFT>::writePlt(uint8_t *Buf, uint64_t GotEntryAddr,
+                           uint64_t PltEntryAddr, int32_t Index,
+                           unsigned RelOff) const {
+  constexpr endianness E = ELFT::TargetEndianness;
+
+  writeInsn32<E>(Buf +  0, 0x00000e17);   // auipc   t3, %pcrel_hi(f@.got.plt)
+  if (ELFT::Is64Bits) {
+    writeInsn32<E>(Buf +  4, 0x000e3e03); // ld      t3, %pcrel_lo(-4)(t3)
+  } else {
+    writeInsn32<E>(Buf +  4, 0x000e2e03); // lw      t3, %pcrel_lo(-4)(t3)
+  }
+  writeInsn32<E>(Buf +  8, 0x000e0367);   // jalr    t1, t3
+  writeInsn32<E>(Buf + 12, 0x00000013);   // nop
+
+  relocateOne(Buf + 0, R_RISCV_PCREL_HI20, GotEntryAddr - PltEntryAddr);
+  relocateOne(Buf + 4, R_RISCV_PCREL_LO12_I, GotEntryAddr - PltEntryAddr);
+}
+
 template <class ELFT>
 RelExpr RISCV<ELFT>::getRelExpr(const RelType Type, const SymbolBody &S,
                                 const uint8_t *Loc) const {
@@ -70,11 +166,15 @@ RelExpr RISCV<ELFT>::getRelExpr(const RelType Type, const SymbolBody &S,
   case R_RISCV_RVC_JUMP:
   case R_RISCV_32_PCREL:
     return R_PC;
+  case R_RISCV_CALL_PLT:
+    return R_PLT_PC;
   case R_RISCV_PCREL_LO12_I:
   case R_RISCV_PCREL_LO12_S:
     return R_RISCV_PC_INDIRECT;
-  case R_RISCV_RELAX:
+  case R_RISCV_GOT_HI20:
+    return R_GOT_PC;
   case R_RISCV_ALIGN:
+  case R_RISCV_RELAX:
     return R_HINT;
   default:
     return R_ABS;
@@ -174,6 +274,7 @@ void RISCV<ELFT>::relocateOne(uint8_t *Loc, const uint32_t Type,
     return;
   }
   // auipc + jalr pair
+  case R_RISCV_CALL_PLT:
   case R_RISCV_CALL: {
     checkInt<32>(Loc, Val, Type);
     uint32_t Hi = Val + 0x800;
@@ -185,6 +286,7 @@ void RISCV<ELFT>::relocateOne(uint8_t *Loc, const uint32_t Type,
   }
 
   case R_RISCV_PCREL_HI20:
+  case R_RISCV_GOT_HI20:
   case R_RISCV_HI20: {
     checkInt<32>(Loc, Val, Type);
     uint32_t Hi = Val + 0x800;
