@@ -545,15 +545,16 @@ DEFINE_LIBUNWIND_PRIVATE_FUNCTION(_ZN9libunwind18Registers_mips_o326jumptoEv)
   lw    $4, (4 * 4)($4)
   .set pop
 
-#elif defined(__mips__) && defined(_ABI64) && defined(__mips_soft_float)
+#elif defined(__mips__) && (defined(_ABI64) || defined(_ABIN32)) &&            \
+    defined(__mips_soft_float)
 
 //
-// void libunwind::Registers_mips_n64::jumpto()
+// void libunwind::Registers_mips_newabi::jumpto()
 //
 // On entry:
 //  thread state pointer is in a0 ($4)
 //
-DEFINE_LIBUNWIND_PRIVATE_FUNCTION(_ZN9libunwind18Registers_mips_n646jumptoEv)
+DEFINE_LIBUNWIND_PRIVATE_FUNCTION(_ZN9libunwind21Registers_mips_newabi6jumptoEv)
   .set push
   .set noat
   .set noreorder

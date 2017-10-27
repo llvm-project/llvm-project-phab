@@ -143,7 +143,8 @@ DEFINE_LIBUNWIND_FUNCTION(unw_getcontext)
   or    $2, $0, $0
   .set pop
 
-#elif defined(__mips__) && defined(_ABI64) && defined(__mips_soft_float)
+#elif defined(__mips__) && (defined(_ABI64) || defined(_ABIN32)) &&            \
+    defined(__mips_soft_float)
 
 #
 # extern int unw_getcontext(unw_context_t* thread_state)
