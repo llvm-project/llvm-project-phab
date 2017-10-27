@@ -337,11 +337,63 @@ uint8_t Symbol::computeBinding() const {
   return Binding;
 }
 
+// Returns true if this symbol should be added to .dynsym.
 bool Symbol::includeInDynsym() const {
   if (!Config->HasDynSymTab)
     return false;
   if (computeBinding() == STB_LOCAL)
     return false;
+
+  // Undefined exported weak symbols are not representable unless they are
+  // resolved through GOT. We simply export weak symbols only when -shared
+  // or -pie were given.
+  //
+  // As a result, if an weak undefined symbol cannot be resolved within the
+  // current output file, and if no -shared nor -pie were given, the symbol
+  // is resolved to zero at link-time. If you want to give it a second
+  // chance to be resolved at load-time, you need to pass -shared or -pie.
+  //
+  // So, why they are not representable? To understand that, assume the
+  // following code:
+  //
+  //   __attribute__((weak)) int foo();
+  //   void bar() { if (foo) foo(); }
+  //
+  // If this code is compiled without -fPIC, function pointer foo in the
+  // "if" is compiled to a direct reference to a function. The linker would
+  // create a PLT entry for foo and use its address as a function pointer
+  // value for foo. It would usually work, because when you jump to foo's
+  // PLT, it in turn jumps to foo's real function definition.
+  //
+  // However, that mechanism can result in a bad combination of pointer
+  // values if the symbol is weak. Symbol foo's function pointer value is
+  // always non-zero because it is resolved to linker-synthesized foo's PLT
+  // entry (that means the "if" condition is always true). But, if the
+  // loader cannot resolve foo at load-time, it leaves foo's PLT entry zero.
+  // That means when you jump there, it then jumps to an unexpected address,
+  // and the program crashes. As a result, if foo cannot be resolved at
+  // load-time, the program crashes. This is apparently what users would
+  // expect.
+  //
+  // If all references to symbol foo go through GOT, weak undefined symbols
+  // are representable. If the loader cannot resolve foo, it leaves foo's
+  // GOT entry zero, and the "if" condition simply ;becomes false.
+  //
+  // So, we want to export weak undefined symbols only when we know they are
+  // referenced through GOT.
+  //
+  // (The decision we are making here is not perfect; even if -shared or
+  // -pie are given to the linker, input object files may have direct
+  // references to weak undefined symbols. We'll report them as errors in
+  // scanRelocations. Likewise, even if -shared nor -pie were not given, all
+  // relocations to weak undefined symbols could go through GOT. Even so, we
+  // won't export them, because it is hard to detect it ahead of time. It is
+  // also generally better to let users explicitly control the linker's
+  // behavior through command line options rather than changing the behavior
+  // implicitly depending on existence or absense of some relocations.)
+  if (!Config->Pic && body()->isUndefWeak())
+    return false;
+
   if (!body()->isInCurrentDSO())
     return true;
   return ExportDynamic;
