@@ -81,6 +81,10 @@ static void spillCalleeSavedRegs(MachineFunction &MF, RegScavenger *RS,
                                  unsigned &MaxCXFrameIndex,
                                  const MBBVector &SaveBlocks,
                                  const MBBVector &RestoreBlocks);
+STATISTIC(NumLeafFuncWithSpills,
+          "Number of leaf functions which have CSRs to spill in prologue");
+STATISTIC(NumFuncSeen,
+          "Number of functions seen in PEI");
 
 namespace {
 
@@ -176,6 +180,7 @@ using StackObjSet = SmallSetVector<int, 8>;
 /// runOnMachineFunction - Insert prolog/epilog code and replace abstract
 /// frame indexes with appropriate references.
 bool PEI::runOnMachineFunction(MachineFunction &Fn) {
+  NumFuncSeen++;
   const Function* F = Fn.getFunction();
   const TargetRegisterInfo *TRI = Fn.getSubtarget().getRegisterInfo();
   const TargetFrameLowering *TFI = Fn.getSubtarget().getFrameLowering();
@@ -537,6 +542,9 @@ static void spillCalleeSavedRegs(MachineFunction &Fn, RegScavenger *RS,
 
     std::vector<CalleeSavedInfo> &CSI = MFI.getCalleeSavedInfo();
     if (!CSI.empty()) {
+      if (!MFI.hasCalls())
+        NumLeafFuncWithSpills++;
+
       for (MachineBasicBlock *SaveBlock : SaveBlocks) {
         insertCSRSaves(*SaveBlock, CSI);
         // Update the live-in information of all the blocks up to the save

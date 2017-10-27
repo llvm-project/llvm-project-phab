@@ -17,6 +17,7 @@
 #include "PPCMachineFunctionInfo.h"
 #include "PPCSubtarget.h"
 #include "PPCTargetMachine.h"
+#include "llvm/ADT/Statistic.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
@@ -28,8 +29,24 @@
 
 using namespace llvm;
 
+#define DEBUG_TYPE "framelowering"
+STATISTIC(NumNoNeedForFrame, "Number of functions without frames");
+STATISTIC(NumPESpillVSR, "Number of spills to vector in prologue");
+STATISTIC(NumPEReloadVSR, "Number of reloads from vector in epilogue");
+
+static cl::opt<bool> EnablePEVectorSpills(
+      "ppc-enable-pe-vector-spills",
+          cl::desc("Enable spills in prologue to vector registers."),
+              cl::init(false), cl::Hidden);
 /// VRRegNo - Map from a numbered VR register to its enum value.
 ///
+static const MCPhysReg VolatileVFRegNo[] = {
+    PPC::F0,   PPC::F1,   PPC::F2,   PPC::F3,   PPC::F4,   PPC::F5,   PPC::F6,
+    PPC::F7,   PPC::F8,   PPC::F9,   PPC::F10,  PPC::F11,  PPC::F12,  PPC::F13,
+    PPC::VF0,  PPC::VF1,  PPC::VF2,  PPC::VF3,  PPC::VF4,  PPC::VF5,  PPC::VF6,
+    PPC::VF7,  PPC::VF8,  PPC::VF9,  PPC::VF10, PPC::VF11, PPC::VF12, PPC::VF13,
+    PPC::VF14, PPC::VF15, PPC::VF16, PPC::VF17, PPC::VF18, PPC::VF19};
+
 static const MCPhysReg VRRegNo[] = {
  PPC::V0 , PPC::V1 , PPC::V2 , PPC::V3 , PPC::V4 , PPC::V5 , PPC::V6 , PPC::V7 ,
  PPC::V8 , PPC::V9 , PPC::V10, PPC::V11, PPC::V12, PPC::V13, PPC::V14, PPC::V15,
@@ -446,6 +463,7 @@ unsigned PPCFrameLowering::determineFrameLayout(MachineFunction &MF,
 
   // Check whether we can skip adjusting the stack pointer (by using red zone)
   if (!DisableRedZone && CanUseRedZone && FitsInRedZone) {
+    NumNoNeedForFrame++;
     // No need for frame
     if (UpdateMF)
       MFI.setStackSize(0);
@@ -1198,7 +1216,7 @@ void PPCFrameLowering::emitPrologue(MachineFunction &MF,
           nullptr, MRI->getDwarfRegNum(Reg, true), Offset));
       BuildMI(MBB, MBBI, dl, TII.get(TargetOpcode::CFI_INSTRUCTION))
           .addCFIIndex(CFIIndex);
-    }
+      }
   }
 }
 
@@ -1798,17 +1816,19 @@ void PPCFrameLowering::processFunctionBeforeFrameFinalized(MachineFunction &MF,
     // Move general register save area spill slots down, taking into account
     // the size of the Floating-point register save area.
     for (unsigned i = 0, e = GPRegs.size(); i != e; ++i) {
-      int FI = GPRegs[i].getFrameIdx();
-
-      MFI.setObjectOffset(FI, LowerBound + MFI.getObjectOffset(FI));
+      if (!GPRegs[i].isSpilledToReg()) {
+        int FI = GPRegs[i].getFrameIdx();
+        MFI.setObjectOffset(FI, LowerBound + MFI.getObjectOffset(FI));
+      }
     }
 
     // Move general register save area spill slots down, taking into account
     // the size of the Floating-point register save area.
     for (unsigned i = 0, e = G8Regs.size(); i != e; ++i) {
-      int FI = G8Regs[i].getFrameIdx();
-
-      MFI.setObjectOffset(FI, LowerBound + MFI.getObjectOffset(FI));
+      if (!G8Regs[i].isSpilledToReg()) {
+        int FI = G8Regs[i].getFrameIdx();
+        MFI.setObjectOffset(FI, LowerBound + MFI.getObjectOffset(FI));
+      }
     }
 
     unsigned MinReg =
@@ -1921,6 +1941,94 @@ PPCFrameLowering::addScavengingSpillSlot(MachineFunction &MF,
   }
 }
 
+// This function checks if a callee saved gpr can be spilled to a volatile
+// vector register. This occurs for leaf functions that do not need CFI and
+// when option ppc-enable-pe-vector-spills is enabled. If a free volatile
+// vector register is not found, assign a FrameIdx to spill to stack.
+bool PPCFrameLowering::assignCalleeSavedSpillSlots(
+    MachineFunction &MF, const TargetRegisterInfo *TRI,
+    std::vector<CalleeSavedInfo> &CSI) const {
+
+  if (CSI.empty())
+    return true; // Early exit if no callee saved registers are modified!
+
+  MachineModuleInfo &MMI = MF.getMMI();
+  bool needsCFI = MMI.hasDebugInfo() ||
+    MF.getFunction()->needsUnwindTableEntry();
+
+  // Early exit if cannot spill gprs to volatile vector registers.
+  MachineFrameInfo &MFI = MF.getFrameInfo();
+  if (!EnablePEVectorSpills || MFI.hasCalls() || needsCFI ||
+      !Subtarget.hasP9Vector())
+    return false;
+
+  unsigned NumFixedSpillSlots;
+  const PPCFrameLowering::SpillSlot *FixedSpillSlots =
+      getCalleeSavedSpillSlots(NumFixedSpillSlots);
+
+  const MachineRegisterInfo &MRI = MF.getRegInfo();
+
+  unsigned VolatileVFRegNoIdx = 0;
+  for (auto &CS : CSI) {
+    unsigned Reg = CS.getReg();
+    const TargetRegisterClass *RC = TRI->getMinimalPhysRegClass(Reg);
+
+    // Check if this CSR can be spilled to a volatile vector register
+    if (PPC::G8RCRegClass.contains(Reg) || PPC::GPRCRegClass.contains(Reg)) {
+      for (unsigned i = VolatileVFRegNoIdx; i < 34; ++i) {
+        if (!MRI.isPhysRegUsed(VolatileVFRegNo[i])) {
+          VolatileVFRegNoIdx = i + 1;
+          CS.setSpilledToReg(true);
+          CS.setDstReg(VolatileVFRegNo[i]);
+          for (MachineFunction::iterator I = MF.begin(), E = MF.end();
+               I != E; ++I) {
+            MachineBasicBlock *BB = &*I;
+            BB->addLiveIn(VolatileVFRegNo[i]);
+          }
+          break;
+        }
+      }
+    }
+
+    // If CSR not spilled to volatile vector register, assign a frame index.
+    if (!CS.isSpilledToReg()) {
+      int FrameIdx;
+      if (TRI->hasReservedSpillSlot(MF, Reg, FrameIdx)) {
+        CS.setFrameIdx(FrameIdx);
+        continue;
+      }
+
+      // Check to see if this physreg must be spilled to a particular stack
+      // slot.
+      const PPCFrameLowering::SpillSlot *FixedSlot = FixedSpillSlots;
+      while (FixedSlot != FixedSpillSlots + NumFixedSpillSlots &&
+             FixedSlot->Reg != Reg)
+        ++FixedSlot;
+
+      unsigned Size = TRI->getSpillSize(*RC);
+      if (FixedSlot == FixedSpillSlots + NumFixedSpillSlots) {
+        // Nope, just spill it anywhere convenient.
+        unsigned Align = TRI->getSpillAlignment(*RC);
+        unsigned StackAlign = getStackAlignment();
+
+        // We may not be able to satisfy the desired alignment specification of
+        // the TargetRegisterClass if the stack alignment is smaller. Use the
+        // min.
+        Align = std::min(Align, StackAlign);
+        FrameIdx = MFI.CreateStackObject(Size, Align, true);
+      } else {
+        // Spill it to the stack where we must.
+        FrameIdx = MFI.CreateFixedSpillStackObject(Size, FixedSlot->Offset);
+      }
+
+      CS.setFrameIdx(FrameIdx);
+    }
+  }
+
+  return true;
+}
+
+
 bool
 PPCFrameLowering::spillCalleeSavedRegisters(MachineBasicBlock &MBB,
                                      MachineBasicBlock::iterator MI,
@@ -1979,9 +2087,15 @@ PPCFrameLowering::spillCalleeSavedRegisters(MachineBasicBlock &MBB,
                                          CSI[i].getFrameIdx()));
       }
     } else {
-      const TargetRegisterClass *RC = TRI->getMinimalPhysRegClass(Reg);
-      TII.storeRegToStackSlot(MBB, MI, Reg, true,
-                              CSI[i].getFrameIdx(), RC, TRI);
+      if (CSI[i].isSpilledToReg()) {
+        NumPESpillVSR++;
+        BuildMI(MBB, MI, DL, TII.get(PPC::MTVSRD), CSI[i].getDstReg())
+            .addReg(Reg, getKillRegState(true));
+      } else {
+        const TargetRegisterClass *RC = TRI->getMinimalPhysRegClass(Reg);
+        TII.storeRegToStackSlot(MBB, MI, Reg, true, CSI[i].getFrameIdx(), RC,
+                                TRI);
+      }
     }
   }
   return true;
@@ -2090,7 +2204,6 @@ PPCFrameLowering::restoreCalleeSavedRegisters(MachineBasicBlock &MBB,
 
   for (unsigned i = 0, e = CSI.size(); i != e; ++i) {
     unsigned Reg = CSI[i].getReg();
-
     // Only Darwin actually uses the VRSAVE register, but it can still appear
     // here if, for example, @llvm.eh.unwind.init() is used.  If we're not on
     // Darwin, ignore it.
@@ -2121,13 +2234,20 @@ PPCFrameLowering::restoreCalleeSavedRegisters(MachineBasicBlock &MBB,
         CR2Spilled = CR3Spilled = CR4Spilled = false;
       }
 
-      // Default behavior for non-CR saves.
-      const TargetRegisterClass *RC = TRI->getMinimalPhysRegClass(Reg);
-      TII.loadRegFromStackSlot(MBB, I, Reg, CSI[i].getFrameIdx(),
-                               RC, TRI);
-      assert(I != MBB.begin() &&
-             "loadRegFromStackSlot didn't insert any code!");
+      if (CSI[i].isSpilledToReg()) {
+        DebugLoc DL;
+        NumPEReloadVSR++;
+        BuildMI(MBB, I, DL, TII.get(PPC::MFVSRD), Reg)
+            .addReg(CSI[i].getDstReg(), getKillRegState(true));
+      } else {
+
+       // Default behavior for non-CR saves.
+        const TargetRegisterClass *RC = TRI->getMinimalPhysRegClass(Reg);
+        TII.loadRegFromStackSlot(MBB, I, Reg, CSI[i].getFrameIdx(), RC, TRI);
+        assert(I != MBB.begin() &&
+               "loadRegFromStackSlot didn't insert any code!");
       }
+    }
 
     // Insert in reverse order.
     if (AtStart)
