@@ -203,7 +203,7 @@ llvm::ErrorOr<PrecompiledPreamble> PrecompiledPreamble::Build(
     const llvm::MemoryBuffer *MainFileBuffer, PreambleBounds Bounds,
     DiagnosticsEngine &Diagnostics, IntrusiveRefCntPtr<vfs::FileSystem> VFS,
     std::shared_ptr<PCHContainerOperations> PCHContainerOps,
-    PreambleCallbacks &Callbacks) {
+    PreambleCallbacks &Callbacks, std::unique_ptr<PPCallbacks> PPCallbacks) {
   assert(VFS && "VFS is null");
 
   if (!Bounds.Size)
@@ -307,6 +307,7 @@ llvm::ErrorOr<PrecompiledPreamble> PrecompiledPreamble::Build(
   if (!Act->BeginSourceFile(*Clang.get(), Clang->getFrontendOpts().Inputs[0]))
     return BuildPreambleError::BeginSourceFileFailed;
 
+  Clang->getPreprocessor().addPPCallbacks(std::move(PPCallbacks));
   Act->Execute();
 
   // Run the callbacks.

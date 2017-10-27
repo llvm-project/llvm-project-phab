@@ -77,7 +77,7 @@ public:
         const llvm::MemoryBuffer *MainFileBuffer, PreambleBounds Bounds,
         DiagnosticsEngine &Diagnostics, IntrusiveRefCntPtr<vfs::FileSystem> VFS,
         std::shared_ptr<PCHContainerOperations> PCHContainerOps,
-        PreambleCallbacks &Callbacks);
+        PreambleCallbacks &Callbacks, std::unique_ptr<PPCallbacks> PPCallbacks);
 
   PrecompiledPreamble(PrecompiledPreamble &&) = default;
   PrecompiledPreamble &operator=(PrecompiledPreamble &&) = default;
