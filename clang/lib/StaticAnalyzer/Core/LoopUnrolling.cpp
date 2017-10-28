@@ -58,6 +58,14 @@ public:
   }
 };
 
+namespace clang {
+namespace ast_matchers {
+AST_MATCHER(BinaryOperator, isAssignmentOperator) {
+  return Node.isAssignmentOp();
+}
+}
+}
+
 // The tracked stack of loops. The stack indicates that which loops the
 // simulated element contained by. The loops are marked depending if we decided
 // to unroll them.
@@ -97,9 +105,7 @@ changeIntBoundNode(internal::Matcher<Decl> VarNodeMatcher) {
       unaryOperator(anyOf(hasOperatorName("--"), hasOperatorName("++")),
                     hasUnaryOperand(ignoringParenImpCasts(
                         declRefExpr(to(varDecl(VarNodeMatcher)))))),
-      binaryOperator(anyOf(hasOperatorName("="), hasOperatorName("+="),
-                           hasOperatorName("/="), hasOperatorName("*="),
-                           hasOperatorName("-=")),
+      binaryOperator(isAssignmentOperator(),
                      hasLHS(ignoringParenImpCasts(
                          declRefExpr(to(varDecl(VarNodeMatcher)))))));
 }
