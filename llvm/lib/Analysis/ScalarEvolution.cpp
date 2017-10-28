@@ -4080,6 +4080,78 @@ private:
   bool Valid = true;
 };
 
+/// This class evaluates the compare condition by matching it against the
+/// condition of loop latch. If there is a match we assume a true value
+/// for the condition while building SCEV nodes.
+class SCEVBackedgeConditionFolder
+    : public SCEVRewriteVisitor<SCEVBackedgeConditionFolder> {
+public:
+  SCEVBackedgeConditionFolder(const Loop *L, ScalarEvolution &SE)
+      : SCEVRewriteVisitor(SE), L(L) {
+    BasicBlock *Latch = nullptr;
+    if (L && (Latch = L->getLoopLatch())) {
+      BranchInst *BI = dyn_cast<BranchInst>(Latch->getTerminator());
+      if (BI && BI->isConditional()) {
+        BackedgeCond = BI->getCondition();
+        LoopBackOnPosCond = BI->getSuccessor(0) == L->getHeader();
+      }
+    }
+  }
+
+  static const SCEV *rewrite(const SCEV *S, const Loop *L,
+                             ScalarEvolution &SE) {
+    SCEVBackedgeConditionFolder Rewriter(L, SE);
+    return Rewriter.visit(S);
+  }
+
+  const SCEV *visitUnknown(const SCEVUnknown *Expr) {
+    const SCEV *Result = Expr;
+    bool InvariantF = SE.isLoopInvariant(Expr, L);
+
+    if (!InvariantF) {
+      Instruction *I = cast<Instruction>(Expr->getValue());
+      switch (I->getOpcode()) {
+      case Instruction::Select: {
+        const SCEV *CondSE = visit(SE.getSCEV(I->getOperand(0)));
+        if (isa<SCEVConstant>(CondSE)) {
+          bool IsOne = cast<SCEVConstant>(CondSE)->getValue()->isOne();
+          Value *TrueVal = I->getOperand(1);
+          Value *FalseVal = I->getOperand(2);
+          Result = SE.getSCEV(IsOne ? TrueVal : FalseVal);
+        }
+      } break;
+      default: {
+        const SCEV *ICmpSE = compareWithBackedgeCondition(I);
+        if (isa<SCEVConstant>(ICmpSE))
+          Result = ICmpSE;
+      } break;
+      }
+    }
+    return Result;
+  }
+
+private:
+  const Loop *L;
+  Value *BackedgeCond = nullptr;
+  // Set to true if loop back is on positive branch condition.
+  bool LoopBackOnPosCond;
+
+  const SCEV *compareWithBackedgeCondition(Value *IC);
+};
+
+const SCEV *
+SCEVBackedgeConditionFolder::compareWithBackedgeCondition(Value *IC) {
+
+  // If value matches the backedge condition for loop latch,
+  // then return a constant evolution node based on loopback
+  // branch taken.
+  if (BackedgeCond == IC)
+    return LoopBackOnPosCond ? SE.getOne(Type::getInt1Ty(SE.getContext()))
+                             : SE.getZero(Type::getInt1Ty(SE.getContext()));
+
+  return SE.getUnknown(IC);
+}
+
 class SCEVShiftRewriter : public SCEVRewriteVisitor<SCEVShiftRewriter> {
 public:
   SCEVShiftRewriter(const Loop *L, ScalarEvolution &SE)
@@ -4753,7 +4825,8 @@ const SCEV *ScalarEvolution::createAddRecFromPHI(PHINode *PN) {
       SmallVector<const SCEV *, 8> Ops;
       for (unsigned i = 0, e = Add->getNumOperands(); i != e; ++i)
         if (i != FoundIndex)
-          Ops.push_back(Add->getOperand(i));
+          Ops.push_back(SCEVBackedgeConditionFolder::rewrite(Add->getOperand(i),
+                                                             L, *this));
       const SCEV *Accum = getAddExpr(Ops);
 
       // This is not a valid addrec if the step amount is varying each
@@ -4779,33 +4852,33 @@ const SCEV *ScalarEvolution::createAddRecFromPHI(PHINode *PN) {
           // indices form a positive value.
           if (GEP->isInBounds() && GEP->getOperand(0) == PN) {
             Flags = setFlags(Flags, SCEV::FlagNW);
-
+  
             const SCEV *Ptr = getSCEV(GEP->getPointerOperand());
             if (isKnownPositive(getMinusSCEV(getSCEV(GEP), Ptr)))
               Flags = setFlags(Flags, SCEV::FlagNUW);
           }
-
+  
           // We cannot transfer nuw and nsw flags from subtraction
           // operations -- sub nuw X, Y is not the same as add nuw X, -Y
           // for instance.
         }
-
+  
         const SCEV *StartVal = getSCEV(StartValueV);
         const SCEV *PHISCEV = getAddRecExpr(StartVal, Accum, L, Flags);
-
+  
         // Okay, for the entire analysis of this edge we assumed the PHI
         // to be symbolic.  We now need to go back and purge all of the
         // entries for the scalars that use the symbolic expression.
         forgetSymbolicName(PN, SymbolicName);
         ValueExprMap[SCEVCallbackVH(PN, this)] = PHISCEV;
-
+  
         // We can add Flags to the post-inc expression only if we
         // know that it is *undefined behavior* for BEValueV to
         // overflow.
         if (auto *BEInst = dyn_cast<Instruction>(BEValueV))
           if (isLoopInvariant(Accum, L) && isAddRecNeverPoison(BEInst, L))
             (void)getAddRecExpr(getAddExpr(StartVal, Accum), Accum, L, Flags);
-
+  
         return PHISCEV;
       }
     }
@@ -6442,6 +6515,8 @@ void ScalarEvolution::forgetLoop(const Loop *L) {
     LoopWorklist.append(CurrL->begin(), CurrL->end());
   }
 }
+
+
 
 void ScalarEvolution::forgetValue(Value *V) {
   Instruction *I = dyn_cast<Instruction>(V);

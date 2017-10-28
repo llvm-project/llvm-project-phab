@@ -1378,6 +1378,7 @@ private:
   /// Helper function called from createNodeForPHI.
   const SCEV *createAddRecFromPHI(PHINode *PN);
 
+
   /// A helper function for createAddRecFromPHI to handle simple cases.
   const SCEV *createSimpleAffineAddRec(PHINode *PN, Value *BEValueV,
                                             Value *StartValueV);
