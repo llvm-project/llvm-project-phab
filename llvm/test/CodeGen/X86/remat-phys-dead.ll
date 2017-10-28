@@ -9,7 +9,7 @@
 define i8 @test_remat() {
   ret i8 0
 ; CHECK: REGISTER COALESCING
-; CHECK: Remat: %EAX<def,dead> = MOV32r0 %EFLAGS<imp-def,dead>, %AL<imp-def>
+; CHECK: Remat: %EAX<def,dead,norename> = MOV32r0 %EFLAGS<imp-def,dead,norename>, %AL<imp-def,norename>
 }
 
 ; On the other hand, if it's already the correct width, we really shouldn't be
@@ -18,6 +18,6 @@ define i8 @test_remat() {
 define i32 @test_remat32() {
   ret i32 0
 ; CHECK: REGISTER COALESCING
-; CHECK: Remat: %EAX<def> = MOV32r0 %EFLAGS<imp-def,dead>
+; CHECK: Remat: %EAX<def,norename> = MOV32r0 %EFLAGS<imp-def,dead,norename>
 }
 

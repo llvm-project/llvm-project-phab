@@ -85,8 +85,8 @@ private:
   /// before MachineInstr::tieOperands().
   unsigned char TiedTo : 4;
 
-  /// IsDef/IsImp/IsKill/IsDead flags - These are only valid for MO_Register
-  /// operands.
+  /// IsDef/IsImp/IsDeadOrKill/IsRenamable flags - These are
+  /// only valid for MO_Register opderands.
 
   /// IsDef - True if this is a def, false if this is a use of the register.
   ///
@@ -96,13 +96,18 @@ private:
   ///
   bool IsImp : 1;
 
-  /// IsKill - True if this instruction is the last use of the register on this
-  /// path through the function.  This is only valid on uses of registers.
-  bool IsKill : 1;
+  /// IsDeadOrKill
+  /// For uses: IsKill - True if this instruction is the last use of the
+  /// register on this path through the function.
+  /// For defs: IsDead - True if this register is never used by a subsequent
+  /// instruction.  This is only valid on definitions of registers.
+  bool IsDeadOrKill : 1;
 
-  /// IsDead - True if this register is never used by a subsequent instruction.
-  /// This is only valid on definitions of registers.
-  bool IsDead : 1;
+  /// IsRenamable - True if this register may be safely renamed,
+  /// i.e. that it does not generate a value that is somehow read in a way that
+  /// is not represented by the Machine IR (e.g. to meet an ABI or ISA
+  /// requirement).
+  bool IsRenamable : 1;
 
   /// IsUndef - True if this register operand reads an "undef" value, i.e. the
   /// read value doesn't matter.  This flag can be set on both use and def
@@ -303,17 +308,22 @@ public:
 
   bool isDead() const {
     assert(isReg() && "Wrong MachineOperand accessor");
-    return IsDead;
+    return IsDeadOrKill & IsDef;
   }
 
   bool isKill() const {
     assert(isReg() && "Wrong MachineOperand accessor");
-    return IsKill;
+    return IsDeadOrKill & !IsDef;
   }
 
   bool isUndef() const {
     assert(isReg() && "Wrong MachineOperand accessor");
     return IsUndef;
+  }
+
+  bool isRenamable() const {
+    assert(isReg() && "Wrong MachineOperand accessor");
+    return IsRenamable;
   }
 
   bool isInternalRead() const {
@@ -355,6 +365,11 @@ public:
   /// Change the register this operand corresponds to.
   ///
   void setReg(unsigned Reg);
+  /// Same as setReg() above, but preserves the current value of isRenamable().
+  /// This allows e.g. the register allocators to create physical register
+  /// operands that are marked as being renamable if they were virtual registers
+  /// before allocation.
+  void setRegKeepRenamable(unsigned Reg);
 
   void setSubReg(unsigned subReg) {
     assert(isReg() && "Wrong MachineOperand mutator");
@@ -387,17 +402,22 @@ public:
   void setIsKill(bool Val = true) {
     assert(isReg() && !IsDef && "Wrong MachineOperand mutator");
     assert((!Val || !isDebug()) && "Marking a debug operation as kill");
-    IsKill = Val;
+    IsDeadOrKill = Val;
   }
 
   void setIsDead(bool Val = true) {
     assert(isReg() && IsDef && "Wrong MachineOperand mutator");
-    IsDead = Val;
+    IsDeadOrKill = Val;
   }
 
   void setIsUndef(bool Val = true) {
     assert(isReg() && "Wrong MachineOperand mutator");
     IsUndef = Val;
+  }
+
+  void setIsRenamable(bool Val = true) {
+    assert(isReg() && "Wrong MachineOperand mutator");
+    IsRenamable = Val;
   }
 
   void setIsInternalRead(bool Val = true) {
@@ -643,25 +663,7 @@ public:
                                   bool isEarlyClobber = false,
                                   unsigned SubReg = 0,
                                   bool isDebug = false,
-                                  bool isInternalRead = false) {
-    assert(!(isDead && !isDef) && "Dead flag on non-def");
-    assert(!(isKill && isDef) && "Kill flag on def");
-    MachineOperand Op(MachineOperand::MO_Register);
-    Op.IsDef = isDef;
-    Op.IsImp = isImp;
-    Op.IsKill = isKill;
-    Op.IsDead = isDead;
-    Op.IsUndef = isUndef;
-    Op.IsInternalRead = isInternalRead;
-    Op.IsEarlyClobber = isEarlyClobber;
-    Op.TiedTo = 0;
-    Op.IsDebug = isDebug;
-    Op.SmallContents.RegNo = Reg;
-    Op.Contents.Reg.Prev = nullptr;
-    Op.Contents.Reg.Next = nullptr;
-    Op.setSubReg(SubReg);
-    return Op;
-  }
+                                  bool isInternalRead = false);
   static MachineOperand CreateMBB(MachineBasicBlock *MBB,
                                   unsigned char TargetFlags = 0) {
     MachineOperand Op(MachineOperand::MO_MachineBasicBlock);

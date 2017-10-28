@@ -9,8 +9,8 @@
 ; MUL_HiLo PhysReg def copies should be just below the mul.
 ;
 ; CHECK: *** Final schedule for BB#1 ***
-; CHECK:      %EAX<def> = COPY
-; CHECK-NEXT: MUL32r %vreg{{[0-9]+}}, %EAX<imp-def>, %EDX<imp-def>, %EFLAGS<imp-def,dead>, %EAX<imp-use>;
+; CHECK:      %EAX<def,norename> = COPY
+; CHECK-NEXT: MUL32r %vreg{{[0-9]+}}, %EAX<imp-def,norename>, %EDX<imp-def,norename>, %EFLAGS<imp-def,dead,norename>, %EAX<imp-use,norename>;
 ; CHECK-NEXT: COPY %E{{[AD]}}X
 ; CHECK-NEXT: COPY %E{{[AD]}}X
 ; CHECK:      DIVSSrm

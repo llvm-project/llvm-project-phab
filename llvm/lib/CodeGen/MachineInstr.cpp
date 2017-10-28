@@ -87,6 +87,8 @@ static cl::opt<int> PrintRegMaskNumRegs(
 void MachineOperand::setReg(unsigned Reg) {
   if (getReg() == Reg) return; // No change.
 
+  IsRenamable = !TargetRegisterInfo::isPhysicalRegister(Reg);
+
   // Otherwise, we have to change the register.  If this operand is embedded
   // into a machine function, we need to update the old and new register's
   // use/def lists.
@@ -102,6 +104,12 @@ void MachineOperand::setReg(unsigned Reg) {
 
   // Otherwise, just change the register, no problem.  :)
   SmallContents.RegNo = Reg;
+}
+
+void MachineOperand::setRegKeepRenamable(unsigned Reg) {
+  bool SaveIsRenamable = IsRenamable;
+  setReg(Reg);
+  IsRenamable = SaveIsRenamable;
 }
 
 void MachineOperand::substVirtReg(unsigned Reg, unsigned SubIdx,
@@ -133,6 +141,8 @@ void MachineOperand::setIsDef(bool Val) {
   assert((!Val || !isDebug()) && "Marking a debug operation as def");
   if (IsDef == Val)
     return;
+  assert(!IsDeadOrKill && "Changing operand from def to use or vice-versa "
+                          "destroys IsDead/IsKill setting");
   // MRI may keep uses and defs in different list positions.
   if (MachineInstr *MI = getParent())
     if (MachineBasicBlock *MBB = MI->getParent())
@@ -244,13 +254,15 @@ void MachineOperand::ChangeToRegister(unsigned Reg, bool isDef, bool isImp,
     RegInfo->removeRegOperandFromUseList(this);
 
   // Change this to a register and set the reg#.
+  assert(!(isDead && !isDef) && "Dead flag on non-def");
+  assert(!(isKill && isDef) && "Kill flag on def");
   OpKind = MO_Register;
   SmallContents.RegNo = Reg;
   SubReg_TargetFlags = 0;
   IsDef = isDef;
   IsImp = isImp;
-  IsKill = isKill;
-  IsDead = isDead;
+  IsDeadOrKill = isKill | isDead;
+  IsRenamable = !TargetRegisterInfo::isPhysicalRegister(Reg);
   IsUndef = isUndef;
   IsInternalRead = false;
   IsEarlyClobber = false;
@@ -265,6 +277,29 @@ void MachineOperand::ChangeToRegister(unsigned Reg, bool isDef, bool isImp,
   // register's use/def list.
   if (RegInfo)
     RegInfo->addRegOperandToUseList(this);
+}
+
+MachineOperand MachineOperand::CreateReg(unsigned Reg, bool isDef, bool isImp,
+                                         bool isKill, bool isDead, bool isUndef,
+                                         bool isEarlyClobber, unsigned SubReg,
+                                         bool isDebug, bool isInternalRead) {
+  assert(!(isDead && !isDef) && "Dead flag on non-def");
+  assert(!(isKill && isDef) && "Kill flag on def");
+  MachineOperand Op(MachineOperand::MO_Register);
+  Op.IsDef = isDef;
+  Op.IsImp = isImp;
+  Op.IsDeadOrKill = isKill | isDead;
+  Op.IsRenamable = !TargetRegisterInfo::isPhysicalRegister(Reg);
+  Op.IsUndef = isUndef;
+  Op.IsInternalRead = isInternalRead;
+  Op.IsEarlyClobber = isEarlyClobber;
+  Op.TiedTo = 0;
+  Op.IsDebug = isDebug;
+  Op.SmallContents.RegNo = Reg;
+  Op.Contents.Reg.Prev = nullptr;
+  Op.Contents.Reg.Next = nullptr;
+  Op.setSubReg(SubReg);
+  return Op;
 }
 
 /// isIdenticalTo - Return true if this operand is identical to the specified
@@ -394,7 +429,7 @@ void MachineOperand::print(raw_ostream &OS, ModuleSlotTracker &MST,
     OS << PrintReg(getReg(), TRI, getSubReg());
 
     if (isDef() || isKill() || isDead() || isImplicit() || isUndef() ||
-        isInternalRead() || isEarlyClobber() || isTied()) {
+        isInternalRead() || isEarlyClobber() || isTied() || !isRenamable()) {
       OS << '<';
       bool NeedComma = false;
       if (isDef()) {
@@ -422,6 +457,11 @@ void MachineOperand::print(raw_ostream &OS, ModuleSlotTracker &MST,
       if (isDead()) {
         if (NeedComma) OS << ',';
         OS << "dead";
+        NeedComma = true;
+      }
+      if (!isRenamable()) {
+        if (NeedComma) OS << ',';
+        OS << "norename";
         NeedComma = true;
       }
       if (isUndef() && isUse()) {

@@ -9,5 +9,5 @@ entry:
   ret void
 }
 
-; CHECK: tBL pred:14, pred:%noreg, <es:__chkstk>, %LR<imp-def>, %SP<imp-use>, %R4<imp-use,kill>, %R4<imp-def>, %R12<imp-def,dead>, %CPSR<imp-def,dead>
+; CHECK: tBL pred:14, pred:%noreg, <es:__chkstk>, %LR<imp-def,norename>, %SP<imp-use,norename>, %R4<imp-use,kill,norename>, %R4<imp-def,norename>, %R12<imp-def,dead,norename>, %CPSR<imp-def,dead,norename>
 

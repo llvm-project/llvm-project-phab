@@ -417,6 +417,16 @@ MIRParserImpl::initializeMachineFunction(const yaml::MachineFunction &YamlMF,
 
   computeFunctionProperties(MF);
 
+  // Fix up physical registers to be marked as norename if we are reading a
+  // MIR file with NoVRegs not set (i.e. from before register allocation).
+  if (!MF.getProperties().hasProperty(
+          MachineFunctionProperties::Property::NoVRegs))
+    for (auto &MBB : MF)
+      for (auto &MI : MBB.instrs())
+        for (auto &MO : MI.operands())
+          if (MO.isReg() && TargetRegisterInfo::isPhysicalRegister(MO.getReg()))
+            MO.setIsRenamable(false);
+
   MF.verify();
   return false;
 }

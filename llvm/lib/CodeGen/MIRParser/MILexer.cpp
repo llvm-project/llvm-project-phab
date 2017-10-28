@@ -204,6 +204,7 @@ static MIToken::TokenKind getIdentifierKind(StringRef Identifier) {
       .Case("def", MIToken::kw_def)
       .Case("dead", MIToken::kw_dead)
       .Case("killed", MIToken::kw_killed)
+      .Case("norename", MIToken::kw_norename)
       .Case("undef", MIToken::kw_undef)
       .Case("internal", MIToken::kw_internal)
       .Case("early-clobber", MIToken::kw_early_clobber)

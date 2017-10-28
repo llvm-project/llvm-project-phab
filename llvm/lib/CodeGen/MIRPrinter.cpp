@@ -112,9 +112,10 @@ class MIRPrinter {
   /// Maps from stack object indices to operand indices which will be used when
   /// printing frame index machine operands.
   DenseMap<int, FrameIndexOperand> StackObjectOperandMapping;
+  bool ShouldPrintIsRenamable;
 
 public:
-  MIRPrinter(raw_ostream &OS) : OS(OS) {}
+  MIRPrinter(raw_ostream &OS) : OS(OS), ShouldPrintIsRenamable(false) {}
 
   void print(const MachineFunction &MF);
 
@@ -142,6 +143,7 @@ class MIPrinter {
   const DenseMap<int, FrameIndexOperand> &StackObjectOperandMapping;
   /// Synchronization scope names registered with LLVMContext.
   SmallVector<StringRef, 8> SSNs;
+  bool ShouldPrintIsRenamable;
 
   bool canPredictBranchProbabilities(const MachineBasicBlock &MBB) const;
   bool canPredictSuccessors(const MachineBasicBlock &MBB) const;
@@ -149,9 +151,11 @@ class MIPrinter {
 public:
   MIPrinter(raw_ostream &OS, ModuleSlotTracker &MST,
             const DenseMap<const uint32_t *, unsigned> &RegisterMaskIds,
-            const DenseMap<int, FrameIndexOperand> &StackObjectOperandMapping)
+            const DenseMap<int, FrameIndexOperand> &StackObjectOperandMapping,
+            bool ShouldPrintIsRenamable)
       : OS(OS), MST(MST), RegisterMaskIds(RegisterMaskIds),
-        StackObjectOperandMapping(StackObjectOperandMapping) {}
+        StackObjectOperandMapping(StackObjectOperandMapping),
+        ShouldPrintIsRenamable(ShouldPrintIsRenamable) {}
 
   void print(const MachineBasicBlock &MBB);
 
@@ -225,6 +229,8 @@ void MIRPrinter::print(const MachineFunction &MF) {
       MachineFunctionProperties::Property::RegBankSelected);
   YamlMF.Selected = MF.getProperties().hasProperty(
       MachineFunctionProperties::Property::Selected);
+  ShouldPrintIsRenamable = MF.getProperties().hasProperty(
+      MachineFunctionProperties::Property::NoVRegs);
 
   convert(YamlMF, MF.getRegInfo(), MF.getSubtarget().getRegisterInfo());
   ModuleSlotTracker MST(MF.getFunction()->getParent());
@@ -240,7 +246,8 @@ void MIRPrinter::print(const MachineFunction &MF) {
   for (const auto &MBB : MF) {
     if (IsNewlineNeeded)
       StrOS << "\n";
-    MIPrinter(StrOS, MST, RegisterMaskIds, StackObjectOperandMapping)
+    MIPrinter(StrOS, MST, RegisterMaskIds, StackObjectOperandMapping,
+              ShouldPrintIsRenamable)
         .print(MBB);
     IsNewlineNeeded = true;
   }
@@ -350,12 +357,14 @@ void MIRPrinter::convert(ModuleSlotTracker &MST,
   YamlMFI.HasMustTailInVarArgFunc = MFI.hasMustTailInVarArgFunc();
   if (MFI.getSavePoint()) {
     raw_string_ostream StrOS(YamlMFI.SavePoint.Value);
-    MIPrinter(StrOS, MST, RegisterMaskIds, StackObjectOperandMapping)
+    MIPrinter(StrOS, MST, RegisterMaskIds, StackObjectOperandMapping,
+              ShouldPrintIsRenamable)
         .printMBBReference(*MFI.getSavePoint());
   }
   if (MFI.getRestorePoint()) {
     raw_string_ostream StrOS(YamlMFI.RestorePoint.Value);
-    MIPrinter(StrOS, MST, RegisterMaskIds, StackObjectOperandMapping)
+    MIPrinter(StrOS, MST, RegisterMaskIds, StackObjectOperandMapping,
+              ShouldPrintIsRenamable)
         .printMBBReference(*MFI.getRestorePoint());
   }
 }
@@ -444,7 +453,8 @@ void MIRPrinter::convertStackObjects(yaml::MachineFunction &YMF,
   // converting the stack objects.
   if (MFI.hasStackProtectorIndex()) {
     raw_string_ostream StrOS(YMF.FrameInfo.StackProtector.Value);
-    MIPrinter(StrOS, MST, RegisterMaskIds, StackObjectOperandMapping)
+    MIPrinter(StrOS, MST, RegisterMaskIds, StackObjectOperandMapping,
+              ShouldPrintIsRenamable)
         .printStackObjectReference(MFI.getStackProtectorIndex());
   }
 
@@ -505,7 +515,8 @@ void MIRPrinter::convert(ModuleSlotTracker &MST,
     Entry.ID = ID++;
     for (const auto *MBB : Table.MBBs) {
       raw_string_ostream StrOS(Str);
-      MIPrinter(StrOS, MST, RegisterMaskIds, StackObjectOperandMapping)
+      MIPrinter(StrOS, MST, RegisterMaskIds, StackObjectOperandMapping,
+                ShouldPrintIsRenamable)
           .printMBBReference(*MBB);
       Entry.Blocks.push_back(StrOS.str());
       Str.clear();
@@ -941,6 +952,8 @@ void MIPrinter::print(const MachineOperand &Op, const TargetRegisterInfo *TRI,
       OS << "dead ";
     if (Op.isKill())
       OS << "killed ";
+    if (ShouldPrintIsRenamable && !Op.isRenamable())
+      OS << "norename ";
     if (Op.isUndef())
       OS << "undef ";
     if (Op.isEarlyClobber())
