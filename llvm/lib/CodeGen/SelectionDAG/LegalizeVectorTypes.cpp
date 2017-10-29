@@ -1123,6 +1123,11 @@ void DAGTypeLegalizer::SplitVecRes_LOAD(LoadSDNode *LD, SDValue &Lo,
   MachineMemOperand::Flags MMOFlags = LD->getMemOperand()->getFlags();
   AAMDNodes AAInfo = LD->getAAInfo();
 
+  // The object itself can't wrap around the address space, so it shouldn't be
+  // possible for the adds of the offsets to the split parts to overflow.
+  SDNodeFlags FlagsNUW;
+  FlagsNUW.setNoUnsignedWrap(true);
+
   EVT LoMemVT, HiMemVT;
   std::tie(LoMemVT, HiMemVT) = DAG.GetSplitDestVTs(MemoryVT);
 
@@ -1131,7 +1136,8 @@ void DAGTypeLegalizer::SplitVecRes_LOAD(LoadSDNode *LD, SDValue &Lo,
 
   unsigned IncrementSize = LoMemVT.getSizeInBits()/8;
   Ptr = DAG.getNode(ISD::ADD, dl, Ptr.getValueType(), Ptr,
-                    DAG.getConstant(IncrementSize, dl, Ptr.getValueType()));
+                    DAG.getConstant(IncrementSize, dl, Ptr.getValueType()),
+                    FlagsNUW);
   Hi = DAG.getLoad(ISD::UNINDEXED, ExtType, HiVT, dl, Ch, Ptr, Offset,
                    LD->getPointerInfo().getWithOffset(IncrementSize), HiMemVT,
                    Alignment, MMOFlags, AAInfo);
@@ -3808,11 +3814,17 @@ SDValue DAGTypeLegalizer::GenWidenVectorLoads(SmallVectorImpl<SDValue> &LdChain,
   LdWidth -= NewVTWidth;
   unsigned Offset = 0;
 
+  // The object itself can't wrap around the address space, so it shouldn't be
+  // possible for the adds of the offsets to the split parts to overflow.
+  SDNodeFlags FlagsNUW;
+  FlagsNUW.setNoUnsignedWrap(true);
+
   while (LdWidth > 0) {
     unsigned Increment = NewVTWidth / 8;
     Offset += Increment;
     BasePtr = DAG.getNode(ISD::ADD, dl, BasePtr.getValueType(), BasePtr,
-                          DAG.getConstant(Increment, dl, BasePtr.getValueType()));
+                          DAG.getConstant(Increment, dl, BasePtr.getValueType()),
+                          FlagsNUW);
 
     SDValue L;
     if (LdWidth < NewVTWidth) {
@@ -3924,6 +3936,11 @@ DAGTypeLegalizer::GenWidenVectorExtLoads(SmallVectorImpl<SDValue> &LdChain,
   EVT LdEltVT = LdVT.getVectorElementType();
   unsigned NumElts = LdVT.getVectorNumElements();
 
+  // The object itself can't wrap around the address space, so it shouldn't be
+  // possible for the adds of the offsets to the split parts to overflow.
+  SDNodeFlags FlagsNUW;
+  FlagsNUW.setNoUnsignedWrap(true);
+
   // Load each element and widen.
   unsigned WidenNumElts = WidenVT.getVectorNumElements();
   SmallVector<SDValue, 16> Ops(WidenNumElts);
@@ -3937,7 +3954,8 @@ DAGTypeLegalizer::GenWidenVectorExtLoads(SmallVectorImpl<SDValue> &LdChain,
     SDValue NewBasePtr = DAG.getNode(ISD::ADD, dl, BasePtr.getValueType(),
                                      BasePtr,
                                      DAG.getConstant(Offset, dl,
-                                                     BasePtr.getValueType()));
+                                                     BasePtr.getValueType()),
+                                     FlagsNUW);
     Ops[i] = DAG.getExtLoad(ExtType, dl, EltVT, Chain, NewBasePtr,
                             LD->getPointerInfo().getWithOffset(Offset), LdEltVT,
                             Align, MMOFlags, AAInfo);
@@ -3973,6 +3991,11 @@ void DAGTypeLegalizer::GenWidenVectorStores(SmallVectorImpl<SDValue> &StChain,
   unsigned ValEltWidth = ValEltVT.getSizeInBits();
   assert(StVT.getVectorElementType() == ValEltVT);
 
+  // The object itself can't wrap around the address space, so it shouldn't be
+  // possible for the adds of the offsets to the split parts to overflow.
+  SDNodeFlags FlagsNUW;
+  FlagsNUW.setNoUnsignedWrap(true);
+
   int Idx = 0;          // current index to store
   unsigned Offset = 0;  // offset from base to store
   while (StWidth != 0) {
@@ -3994,7 +4017,8 @@ void DAGTypeLegalizer::GenWidenVectorStores(SmallVectorImpl<SDValue> &StChain,
         Idx += NumVTElts;
         BasePtr = DAG.getNode(ISD::ADD, dl, BasePtr.getValueType(), BasePtr,
                               DAG.getConstant(Increment, dl,
-                                              BasePtr.getValueType()));
+                                              BasePtr.getValueType()),
+                              FlagsNUW);
       } while (StWidth != 0 && StWidth >= NewVTWidth);
     } else {
       // Cast the vector to the scalar type we can store.
@@ -4015,7 +4039,7 @@ void DAGTypeLegalizer::GenWidenVectorStores(SmallVectorImpl<SDValue> &StChain,
         Offset += Increment;
         BasePtr = DAG.getNode(ISD::ADD, dl, BasePtr.getValueType(), BasePtr,
                               DAG.getConstant(Increment, dl,
-                                              BasePtr.getValueType()));
+                                              BasePtr.getValueType()), FlagsNUW);
       } while (StWidth != 0 && StWidth >= NewVTWidth);
       // Restore index back to be relative to the original widen element type.
       Idx = Idx * NewVTWidth / ValEltWidth;
@@ -4035,6 +4059,11 @@ DAGTypeLegalizer::GenWidenVectorTruncStores(SmallVectorImpl<SDValue> &StChain,
   AAMDNodes AAInfo = ST->getAAInfo();
   SDValue ValOp = GetWidenedVector(ST->getValue());
   SDLoc dl(ST);
+
+  // The object itself can't wrap around the address space, so it shouldn't be
+  // possible for the adds of the offsets to the split parts to overflow.
+  SDNodeFlags FlagsNUW;
+  FlagsNUW.setNoUnsignedWrap(true);
 
   EVT StVT = ST->getMemoryVT();
   EVT ValVT = ValOp.getValueType();
@@ -4061,7 +4090,8 @@ DAGTypeLegalizer::GenWidenVectorTruncStores(SmallVectorImpl<SDValue> &StChain,
     SDValue NewBasePtr = DAG.getNode(ISD::ADD, dl, BasePtr.getValueType(),
                                      BasePtr,
                                      DAG.getConstant(Offset, dl,
-                                                     BasePtr.getValueType()));
+                                                     BasePtr.getValueType()),
+                                     FlagsNUW);
     SDValue EOp = DAG.getNode(
         ISD::EXTRACT_VECTOR_ELT, dl, ValEltVT, ValOp,
         DAG.getConstant(0, dl, TLI.getVectorIdxTy(DAG.getDataLayout())));

@@ -3426,6 +3426,11 @@ SDValue TargetLowering::scalarizeVectorStore(StoreSDNode *ST,
   EVT IdxVT = getVectorIdxTy(DAG.getDataLayout());
   unsigned NumElem = StVT.getVectorNumElements();
 
+  // The object itself can't wrap around the address space, so it shouldn't be
+  // possible for the adds of the offsets to the split parts to overflow.
+  SDNodeFlags FlagsNUW;
+  FlagsNUW.setNoUnsignedWrap(true);
+
   // Extract each of the elements from the original vector and save them into
   // memory individually.
   SmallVector<SDValue, 8> Stores;
@@ -3434,7 +3439,8 @@ SDValue TargetLowering::scalarizeVectorStore(StoreSDNode *ST,
                               DAG.getConstant(Idx, SL, IdxVT));
 
     SDValue Ptr = DAG.getNode(ISD::ADD, SL, PtrVT, BasePtr,
-                              DAG.getConstant(Idx * Stride, SL, PtrVT));
+                              DAG.getConstant(Idx * Stride, SL, PtrVT),
+                              FlagsNUW);
 
     // This scalar TruncStore may be illegal, but we legalize it later.
     SDValue Store = DAG.getTruncStore(
@@ -3458,6 +3464,12 @@ TargetLowering::expandUnalignedLoad(LoadSDNode *LD, SelectionDAG &DAG) const {
   EVT LoadedVT = LD->getMemoryVT();
   SDLoc dl(LD);
   auto &MF = DAG.getMachineFunction();
+
+  // The object itself can't wrap around the address space, so it shouldn't be
+  // possible for the adds of the offsets to the split parts to overflow.
+  SDNodeFlags FlagsNUW;
+  FlagsNUW.setNoUnsignedWrap(true);
+
   if (VT.isFloatingPoint() || VT.isVector()) {
     EVT intVT = EVT::getIntegerVT(*DAG.getContext(), LoadedVT.getSizeInBits());
     if (isTypeLegal(intVT) && isTypeLegal(LoadedVT)) {
@@ -3512,9 +3524,9 @@ TargetLowering::expandUnalignedLoad(LoadSDNode *LD, SelectionDAG &DAG) const {
           MachinePointerInfo::getFixedStack(MF, FrameIndex, Offset)));
       // Increment the pointers.
       Offset += RegBytes;
-      Ptr = DAG.getNode(ISD::ADD, dl, PtrVT, Ptr, PtrIncrement);
+      Ptr = DAG.getNode(ISD::ADD, dl, PtrVT, Ptr, PtrIncrement, FlagsNUW);
       StackPtr = DAG.getNode(ISD::ADD, dl, StackPtrVT, StackPtr,
-                             StackPtrIncrement);
+                             StackPtrIncrement, FlagsNUW);
     }
 
     // The last copy may be partial.  Do an extending load.
@@ -3569,7 +3581,8 @@ TargetLowering::expandUnalignedLoad(LoadSDNode *LD, SelectionDAG &DAG) const {
                         NewLoadedVT, Alignment, LD->getMemOperand()->getFlags(),
                         LD->getAAInfo());
     Ptr = DAG.getNode(ISD::ADD, dl, Ptr.getValueType(), Ptr,
-                      DAG.getConstant(IncrementSize, dl, Ptr.getValueType()));
+                      DAG.getConstant(IncrementSize, dl, Ptr.getValueType()),
+                      FlagsNUW);
     Hi = DAG.getExtLoad(HiExtType, dl, VT, Chain, Ptr,
                         LD->getPointerInfo().getWithOffset(IncrementSize),
                         NewLoadedVT, MinAlign(Alignment, IncrementSize),
@@ -3579,7 +3592,8 @@ TargetLowering::expandUnalignedLoad(LoadSDNode *LD, SelectionDAG &DAG) const {
                         NewLoadedVT, Alignment, LD->getMemOperand()->getFlags(),
                         LD->getAAInfo());
     Ptr = DAG.getNode(ISD::ADD, dl, Ptr.getValueType(), Ptr,
-                      DAG.getConstant(IncrementSize, dl, Ptr.getValueType()));
+                      DAG.getConstant(IncrementSize, dl, Ptr.getValueType()),
+                      FlagsNUW);
     Lo = DAG.getExtLoad(ISD::ZEXTLOAD, dl, VT, Chain, Ptr,
                         LD->getPointerInfo().getWithOffset(IncrementSize),
                         NewLoadedVT, MinAlign(Alignment, IncrementSize),
@@ -3609,6 +3623,11 @@ SDValue TargetLowering::expandUnalignedStore(StoreSDNode *ST,
   EVT VT = Val.getValueType();
   int Alignment = ST->getAlignment();
   auto &MF = DAG.getMachineFunction();
+
+  // The object itself can't wrap around the address space, so it shouldn't be
+  // possible for the adds of the offsets to the split parts to overflow.
+  SDNodeFlags FlagsNUW;
+  FlagsNUW.setNoUnsignedWrap(true);
 
   SDLoc dl(ST);
   if (ST->getMemoryVT().isFloatingPoint() ||
@@ -3671,8 +3690,8 @@ SDValue TargetLowering::expandUnalignedStore(StoreSDNode *ST,
       // Increment the pointers.
       Offset += RegBytes;
       StackPtr = DAG.getNode(ISD::ADD, dl, StackPtrVT,
-                             StackPtr, StackPtrIncrement);
-      Ptr = DAG.getNode(ISD::ADD, dl, PtrVT, Ptr, PtrIncrement);
+                             StackPtr, StackPtrIncrement, FlagsNUW);
+      Ptr = DAG.getNode(ISD::ADD, dl, PtrVT, Ptr, PtrIncrement, FlagsNUW);
     }
 
     // The last store may be partial.  Do a truncating store.  On big-endian
@@ -3720,7 +3739,7 @@ SDValue TargetLowering::expandUnalignedStore(StoreSDNode *ST,
 
   EVT PtrVT = Ptr.getValueType();
   Ptr = DAG.getNode(ISD::ADD, dl, PtrVT, Ptr,
-                    DAG.getConstant(IncrementSize, dl, PtrVT));
+                    DAG.getConstant(IncrementSize, dl, PtrVT), FlagsNUW);
   Alignment = MinAlign(Alignment, IncrementSize);
   Store2 = DAG.getTruncStore(
       Chain, dl, DAG.getDataLayout().isLittleEndian() ? Hi : Lo, Ptr,

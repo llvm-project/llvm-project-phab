@@ -555,6 +555,11 @@ SDValue VectorLegalizer::ExpandLoad(SDValue Op) {
     unsigned RemainingBytes = SrcVT.getStoreSize();
     SmallVector<SDValue, 8> LoadVals;
 
+    // The object itself can't wrap around the address space, so it shouldn't be
+    // possible for the adds of the offsets to the split parts to overflow.
+    SDNodeFlags FlagsNUW;
+    FlagsNUW.setNoUnsignedWrap(true);
+
     while (RemainingBytes > 0) {
       SDValue ScalarLoad;
       unsigned LoadBytes = WideBytes;
@@ -582,7 +587,7 @@ SDValue VectorLegalizer::ExpandLoad(SDValue Op) {
       Offset += LoadBytes;
       BasePTR = DAG.getNode(ISD::ADD, dl, BasePTR.getValueType(), BasePTR,
                             DAG.getConstant(LoadBytes, dl,
-                                            BasePTR.getValueType()));
+                                            BasePTR.getValueType()), FlagsNUW);
 
       LoadVals.push_back(ScalarLoad.getValue(0));
       LoadChains.push_back(ScalarLoad.getValue(1));
