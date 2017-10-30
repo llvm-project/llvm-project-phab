@@ -16,9 +16,9 @@ namespace clang {
 namespace tidy {
 namespace bugprone {
 
-/// Finds cases where ``1`` is added to the string in the argument to a function
-/// in the ``strlen()`` family instead of the result and value is used as an
-/// argument to a memory allocation function.
+/// Finds cases where ``1`` is added to the string in the parameter of a
+/// function in the ``strlen()`` family instead of to the result and use its
+/// return value as an argument of a memory allocation function.
 ///
 /// For the user-facing documentation see:
 /// http://clang.llvm.org/extra/clang-tidy/checks/bugprone-misplaced-operator-in-strlen-in-alloc.html

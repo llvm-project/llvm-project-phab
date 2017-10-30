@@ -60,11 +60,11 @@ Improvements to clang-tidy
 - New `bugprone-misplaced-operator-in-strlen-in-alloc
   <http://clang.llvm.org/extra/clang-tidy/checks/bugprone-misplaced-operator-in-strlen-in-alloc.html>`_ check
 
-  Finds cases where ``1`` is added to the string in the argument to
-  ``strlen()``, ``strnlen()``, ``strnlen_s()``, ``wcslen()``, ``wcsnlen()``, and
-  ``wcsnlen_s()`` instead of the result and the value is used as an argument to
-  a memory allocation function (``malloc()``, ``calloc()``, ``realloc()``,
-  ``alloca()``).
+  Finds cases where ``1`` is added to the string in the parameter of
+  ``strlen()``, ``strnlen()``, ``strnlen_s()``, ``wcslen()``, ``wcsnlen()`` and
+  ``wcsnlen_s()`` functions instead of to the result and use its return value as
+  an argument of a memory allocation function (``malloc()``, ``calloc()``,
+  ``realloc()``, ``alloca()``) or the ``new[]`` operator in `C++`.
 
 - Renamed checks to use correct term "implicit conversion" instead of "implicit
   cast" and modified messages and option names accordingly:

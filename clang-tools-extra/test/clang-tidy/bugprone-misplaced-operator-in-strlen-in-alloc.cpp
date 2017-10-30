@@ -29,3 +29,29 @@ void ignore_std_malloc_non_std_strlen(char *name) {
   char *new_name = (char*) std::malloc(non_std::strlen(name + 1));
   // Ignore functions of the strlen family in custom namespaces
 }
+
+void bad_new_strlen(char *name) {
+  char *new_name = new char[std::strlen(name + 1)];
+  // CHECK-MESSAGES: :[[@LINE-1]]:20: warning: Addition operator is applied to the argument of strlen
+  // CHECK-FIXES: {{^  char \*new_name = new char\[}}std::strlen(name) + 1{{\];$}}
+}
+
+void good_new_strlen(char *name) {
+  char *new_name = new char[std::strlen(name) + 1];
+  // CHECK-MESSAGES-NOT: :[[@LINE-1]]:20: warning: Addition operator is applied to the argument of strlen
+}
+
+class C {
+  char c;
+public:
+  static void *operator new[](std::size_t count) {
+    return ::operator new(count);
+  }
+};
+
+void bad_custom_new_strlen(char *name) {
+  C *new_name = new C[std::strlen(name + 1)];
+  // CHECK-MESSAGES: :[[@LINE-1]]:17: warning: Addition operator is applied to the argument of strlen
+  // CHECK-FIXES: {{^  C \*new_name = new C\[}}std::strlen(name) + 1{{\];$}}
+}
+
