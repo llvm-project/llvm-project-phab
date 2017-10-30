@@ -35,6 +35,10 @@
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/ErrorHandling.h"
 
+#ifndef NDEBUG
+#include <random> // for std::mt19937
+#endif
+
 namespace llvm {
 
 // Only used by compiler if both template types are the same.  Useful when
@@ -771,6 +775,10 @@ inline void array_pod_sort(IteratorTy Start, IteratorTy End) {
   // behavior with an empty sequence.
   auto NElts = End - Start;
   if (NElts <= 1) return;
+#ifndef NDEBUG
+  std::mt19937 Generator(std::random_device{}());
+  std::shuffle(Start, End, Generator);
+#endif
   qsort(&*Start, NElts, sizeof(*Start), get_array_pod_sort_comparator(*Start));
 }
 
@@ -784,8 +792,31 @@ inline void array_pod_sort(
   // behavior with an empty sequence.
   auto NElts = End - Start;
   if (NElts <= 1) return;
+#ifndef NDEBUG
+  std::mt19937 Generator(std::random_device{}());
+  std::shuffle(Start, End, Generator);
+#endif
   qsort(&*Start, NElts, sizeof(*Start),
         reinterpret_cast<int (*)(const void *, const void *)>(Compare));
+}
+
+// Provide wrappers to std::sort which shuffle the elements before sorting.
+template <typename IteratorTy>
+inline void sort(IteratorTy Start, IteratorTy End) {
+#ifndef NDEBUG
+  std::mt19937 Generator(std::random_device{}());
+  std::shuffle(Start, End, Generator);
+#endif
+  std::sort(Start, End);
+}
+
+template <typename IteratorTy, typename Compare>
+inline void sort(IteratorTy Start, IteratorTy End, Compare Comp) {
+#ifndef NDEBUG
+  std::mt19937 Generator(std::random_device{}());
+  std::shuffle(Start, End, Generator);
+#endif
+  std::sort(Start, End, Comp);
 }
 
 //===----------------------------------------------------------------------===//
