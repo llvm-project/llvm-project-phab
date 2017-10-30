@@ -280,6 +280,7 @@ public:
   X86TargetInfo(const llvm::Triple &Triple, const TargetOptions &)
       : TargetInfo(Triple) {
     LongDoubleFormat = &llvm::APFloat::x87DoubleExtended();
+    SuitableAlign = 128;
   }
   
   unsigned getFloatEvalMethod() const override {
@@ -455,7 +456,6 @@ public:
     DoubleAlign = LongLongAlign = 32;
     LongDoubleWidth = 96;
     LongDoubleAlign = 32;
-    SuitableAlign = 128;
     resetDataLayout("e-m:e-p:32:32-f64:32:64-f80:32-n8:16:32-S128");
     SizeType = UnsignedInt;
     PtrDiffType = SignedInt;
@@ -544,7 +544,6 @@ public:
       : DarwinTargetInfo<X86_32TargetInfo>(Triple, Opts) {
     LongDoubleWidth = 128;
     LongDoubleAlign = 128;
-    SuitableAlign = 128;
     MaxVectorAlign = 256;
     // The watchOS simulator uses the builtin bool type for Objective-C.
     llvm::Triple T = llvm::Triple(Triple);
@@ -723,7 +722,6 @@ public:
     LongDoubleAlign = 128;
     LargeArrayMinWidth = 128;
     LargeArrayAlign = 128;
-    SuitableAlign = 128;
     SizeType = IsX32 ? UnsignedInt : UnsignedLong;
     PtrDiffType = IsX32 ? SignedInt : SignedLong;
     IntPtrType = IsX32 ? SignedInt : SignedLong;
@@ -974,7 +972,6 @@ class LLVM_LIBRARY_VISIBILITY AndroidX86_32TargetInfo
 public:
   AndroidX86_32TargetInfo(const llvm::Triple &Triple, const TargetOptions &Opts)
       : LinuxTargetInfo<X86_32TargetInfo>(Triple, Opts) {
-    SuitableAlign = 32;
     LongDoubleWidth = 64;
     LongDoubleFormat = &llvm::APFloat::IEEEdouble();
   }
