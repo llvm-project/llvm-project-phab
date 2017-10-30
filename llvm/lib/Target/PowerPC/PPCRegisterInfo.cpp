@@ -100,6 +100,12 @@ PPCRegisterInfo::PPCRegisterInfo(const PPCTargetMachine &TM)
   ImmToIdxMap[PPC::STXV] = PPC::STXVX;
   ImmToIdxMap[PPC::STXSD] = PPC::STXSDX;
   ImmToIdxMap[PPC::STXSSP] = PPC::STXSSPX;
+
+  // SPE
+  ImmToIdxMap[PPC::EVLDD] = PPC::EVLDDX;
+  ImmToIdxMap[PPC::EVSTDD] = PPC::EVSTDDX;
+  ImmToIdxMap[PPC::SPESTW] = PPC::SPESTWX;
+  ImmToIdxMap[PPC::SPELWZ] = PPC::SPELWZX;
 }
 
 /// getPointerRegClass - Return the register class to use to hold pointers.
@@ -307,6 +313,8 @@ unsigned PPCRegisterInfo::getRegPressureLimit(const TargetRegisterClass *RC,
     return 0;
   case PPC::G8RC_NOX0RegClassID:
   case PPC::GPRC_NOR0RegClassID:
+  case PPC::SPERCRegClassID:
+  case PPC::SPE4RCRegClassID:
   case PPC::G8RCRegClassID:
   case PPC::GPRCRegClassID: {
     unsigned FP = TFI->hasFP(MF) ? 1 : 0;

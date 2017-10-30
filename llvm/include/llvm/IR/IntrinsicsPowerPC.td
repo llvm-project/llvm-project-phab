@@ -1135,3 +1135,348 @@ def int_ppc_ttest : GCCBuiltin<"__builtin_ttest">,
 
 def int_ppc_cfence : Intrinsic<[], [llvm_anyint_ty], []>;
 }
+
+//===----------------------------------------------------------------------===//
+// PowerPC SPE Intrinsic Definitions.
+
+let TargetPrefix = "ppc" in {  // All intrinsics start with "llvm.ppc.".
+
+/// PowerPC_SPE_Intrinsic - Base class for all SPE intrinsics.
+class PowerPC_SPE_Intrinsic<string GCCIntSuffix, list<LLVMType> ret_types,
+                            list<LLVMType> param_types,
+                            list<IntrinsicProperty> properties>
+  : GCCBuiltin<!strconcat("__builtin_spe_", GCCIntSuffix)>,
+    Intrinsic<ret_types, param_types, properties>;
+
+/// Single argument
+class PowerPC_SPE_Vec_Intrinsic21<string GCCIntSuffix,
+                                  LLVMType rt, LLVMType vec_type>
+      : PowerPC_SPE_Intrinsic<GCCIntSuffix, [rt], [vec_type], [IntrNoMem]>;
+
+class PowerPC_SPE_Vec_Intrinsic1<string GCCIntSuffix, LLVMType vec_type>
+      : PowerPC_SPE_Intrinsic<GCCIntSuffix, [vec_type], [vec_type], [IntrNoMem]>;
+
+/// Two argument (vectors)
+class PowerPC_SPE_Vec_Intrinsic2<string GCCIntSuffix, LLVMType vec_type>
+      : PowerPC_SPE_Intrinsic<GCCIntSuffix, [vec_type],
+                              [vec_type, vec_type], [IntrNoMem]>;
+
+/// Single plus immediate
+class PowerPC_SPE_Vec_IntrinsicI<string GCCIntSuffix, LLVMType vec_type,
+                                 LLVMType imm>
+      : PowerPC_SPE_Intrinsic<GCCIntSuffix, [vec_type],
+                              [vec_type, imm], [IntrNoMem]>;
+
+class PowerPC_SPE_Vec_I1<string GCCIntSuffix>
+      : PowerPC_SPE_Vec_Intrinsic1<GCCIntSuffix, llvm_v2i32_ty>;
+
+class PowerPC_SPE_Vec_I2<string GCCIntSuffix>
+      : PowerPC_SPE_Vec_Intrinsic2<GCCIntSuffix, llvm_v2i32_ty>;
+
+class PowerPC_SPE_Vec_II<string GCCIntSuffix>
+      : PowerPC_SPE_Vec_IntrinsicI<GCCIntSuffix, llvm_v2i32_ty, llvm_i32_ty>;
+
+class PowerPC_SPE_Vec_F1<string GCCIntSuffix>
+      : PowerPC_SPE_Vec_Intrinsic1<GCCIntSuffix, llvm_v2f32_ty>;
+
+class PowerPC_SPE_Vec_F2<string GCCIntSuffix>
+      : PowerPC_SPE_Vec_Intrinsic2<GCCIntSuffix, llvm_v2f32_ty>;
+
+
+def int_ppc_spe_brinc :
+      PowerPC_SPE_Intrinsic<"brinc", [llvm_i32_ty],
+                            [llvm_i32_ty, llvm_i32_ty], [IntrNoMem]>;
+
+def int_ppc_spe_evabs : PowerPC_SPE_Vec_I1<"evabs">;
+def int_ppc_spe_evneg : PowerPC_SPE_Vec_I1<"evneg">;
+def int_ppc_spe_evaddiw : PowerPC_SPE_Vec_II<"evaddiw">;
+def int_ppc_spe_evaddw : PowerPC_SPE_Vec_I2<"evaddw">;
+def int_ppc_spe_evsubifw : 
+      PowerPC_SPE_Intrinsic<"evsubifw", [llvm_v2i32_ty],
+                            [llvm_i32_ty, llvm_v2i32_ty], [IntrNoMem]>;
+
+def int_ppc_spe_evsubfw: PowerPC_SPE_Vec_I2<"evsubfw">;
+def int_ppc_spe_evand: PowerPC_SPE_Vec_I2<"evand">;
+def int_ppc_spe_evandc: PowerPC_SPE_Vec_I2<"evandc">;
+def int_ppc_spe_evnand: PowerPC_SPE_Vec_I2<"evnand">;
+def int_ppc_spe_evor: PowerPC_SPE_Vec_I2<"evor">;
+def int_ppc_spe_evorc: PowerPC_SPE_Vec_I2<"evorc">;
+def int_ppc_spe_evnor: PowerPC_SPE_Vec_I2<"evnor">;
+def int_ppc_spe_evextsb : PowerPC_SPE_Vec_I1<"evextsb">;
+def int_ppc_spe_evextsh : PowerPC_SPE_Vec_I1<"evextsh">;
+def int_ppc_spe_evrlw : PowerPC_SPE_Vec_I2<"evrlw">;
+def int_ppc_spe_evrlwi : PowerPC_SPE_Vec_II<"evrlwi">;
+def int_ppc_spe_evslw : PowerPC_SPE_Vec_I2<"evslw">;
+def int_ppc_spe_evslwi : PowerPC_SPE_Vec_II<"evslwi">;
+def int_ppc_spe_evsrws : PowerPC_SPE_Vec_I2<"evsrws">;
+def int_ppc_spe_evsrwis : PowerPC_SPE_Vec_II<"evsrwis">;
+def int_ppc_spe_evsrwu : PowerPC_SPE_Vec_I2<"evsrwu">;
+def int_ppc_spe_evsrwiu : PowerPC_SPE_Vec_II<"evsrwiu">;
+def int_ppc_spe_evcntlsw : PowerPC_SPE_Vec_I1<"evcntlsw">;
+def int_ppc_spe_evcntlzw : PowerPC_SPE_Vec_I1<"evcntlzw">;
+def int_ppc_spe_evrndw : PowerPC_SPE_Vec_I1<"evrndw">;
+def int_ppc_spe_evmergehi : PowerPC_SPE_Vec_I2<"evmergehi">;
+def int_ppc_spe_evmergelo : PowerPC_SPE_Vec_I2<"evmergelo">;
+def int_ppc_spe_evmergehilo : PowerPC_SPE_Vec_I2<"evmergehilo">;
+def int_ppc_spe_evmergelohi : PowerPC_SPE_Vec_I2<"evmergelohi">;
+def int_ppc_spe_evsplati : PowerPC_SPE_Intrinsic<"evsplati",
+                          [llvm_v2i32_ty], [llvm_i32_ty], [IntrNoMem]>;
+def int_ppc_spe_evsplatfi : PowerPC_SPE_Intrinsic<"evsplatfi",
+                          [llvm_v2i32_ty], [llvm_i32_ty], [IntrNoMem]>;
+def int_ppc_spe_evdivws : PowerPC_SPE_Vec_I2<"evdivws">;
+def int_ppc_spe_evdivwu : PowerPC_SPE_Vec_I2<"evdivwu">;
+
+def int_ppc_spe_evfsabs : PowerPC_SPE_Vec_F1<"evfsabs">;
+def int_ppc_spe_evfsnabs : PowerPC_SPE_Vec_F1<"evfsnabs">;
+def int_ppc_spe_evfsneg : PowerPC_SPE_Vec_F1<"evfsneg">;
+def int_ppc_spe_evfsadd : PowerPC_SPE_Vec_F2<"evfsadd">;
+def int_ppc_spe_evfssub : PowerPC_SPE_Vec_F2<"evfssub">;
+def int_ppc_spe_evfsmul : PowerPC_SPE_Vec_F2<"evfsmul">;
+def int_ppc_spe_evfsdiv : PowerPC_SPE_Vec_F2<"evfsdiv">;
+def int_ppc_spe_evfscfui : PowerPC_SPE_Vec_Intrinsic21<"evfscfui",
+                                                      llvm_v2f32_ty,
+                                                      llvm_v2i32_ty>;
+def int_ppc_spe_evfscfsi : PowerPC_SPE_Vec_Intrinsic21<"evfscfsi",
+                                                      llvm_v2f32_ty,
+                                                      llvm_v2i32_ty>;
+def int_ppc_spe_evfscfuf : PowerPC_SPE_Vec_Intrinsic21<"evfscfuf",
+                                                      llvm_v2f32_ty,
+                                                      llvm_v2i32_ty>;
+def int_ppc_spe_evfscfsf : PowerPC_SPE_Vec_Intrinsic21<"evfscfsf",
+                                                      llvm_v2f32_ty,
+                                                      llvm_v2i32_ty>;
+
+def int_ppc_spe_evfsctui : PowerPC_SPE_Vec_Intrinsic21<"evfsctui",
+                                                      llvm_v2i32_ty,
+                                                      llvm_v2f32_ty>;
+def int_ppc_spe_evfsctsi : PowerPC_SPE_Vec_Intrinsic21<"evfsctsi",
+                                                      llvm_v2i32_ty,
+                                                      llvm_v2f32_ty>;
+def int_ppc_spe_evfsctuf : PowerPC_SPE_Vec_Intrinsic21<"evfsctuf",
+                                                      llvm_v2i32_ty,
+                                                      llvm_v2f32_ty>;
+def int_ppc_spe_evfsctsf : PowerPC_SPE_Vec_Intrinsic21<"evfsctsf",
+                                                      llvm_v2i32_ty,
+                                                      llvm_v2f32_ty>;
+def int_ppc_spe_evfsctuiz : PowerPC_SPE_Vec_Intrinsic21<"evfsctuiz",
+                                                        llvm_v2i32_ty,
+                                                        llvm_v2f32_ty>;
+def int_ppc_spe_evfsctsiz : PowerPC_SPE_Vec_Intrinsic21<"evfsctsiz",
+                                                        llvm_v2i32_ty,
+                                                        llvm_v2f32_ty>;
+
+// Load/store
+def int_ppc_spe_evlddx : PowerPC_SPE_Intrinsic<"evlddx",
+                        [llvm_double_ty], [llvm_i32_ty, llvm_i32_ty],
+                        [IntrArgMemOnly]>;
+def int_ppc_spe_evldwx : PowerPC_SPE_Intrinsic<"evldwx",
+                        [llvm_v2i32_ty], [llvm_i32_ty, llvm_i32_ty],
+                        [IntrArgMemOnly]>;
+def int_ppc_spe_evldhx : PowerPC_SPE_Intrinsic<"evldhx",
+                        [llvm_v4i16_ty], [llvm_i32_ty, llvm_i32_ty],
+                        [IntrArgMemOnly]>;
+def int_ppc_spe_evlwhex : PowerPC_SPE_Intrinsic<"evlwhex",
+                        [llvm_v4i16_ty], [llvm_i32_ty, llvm_i32_ty],
+                        [IntrArgMemOnly]>;
+def int_ppc_spe_evlwhoux : PowerPC_SPE_Intrinsic<"evlwhoux",
+                        [llvm_v4i16_ty], [llvm_i32_ty, llvm_i32_ty],
+                        [IntrArgMemOnly]>;
+def int_ppc_spe_evlwhosx : PowerPC_SPE_Intrinsic<"evlwhosx",
+                        [llvm_v4i16_ty], [llvm_i32_ty, llvm_i32_ty],
+                        [IntrArgMemOnly]>;
+def int_ppc_spe_evlwwsplatx : PowerPC_SPE_Intrinsic<"evlwwsplatx",
+                              [llvm_v2i32_ty], [llvm_i32_ty, llvm_i32_ty],
+                              [IntrArgMemOnly]>;
+def int_ppc_spe_evlwhsplatx : PowerPC_SPE_Intrinsic<"evlwhsplatx",
+                                [llvm_v4i16_ty], [llvm_i32_ty, llvm_i32_ty],
+                                [IntrArgMemOnly]>;
+def int_ppc_spe_evlhhesplatx : PowerPC_SPE_Intrinsic<"evlhhesplatx",
+                        [llvm_v4i16_ty], [llvm_i16_ty, llvm_i32_ty],
+                        [IntrArgMemOnly]>;
+def int_ppc_spe_evlhhousplatx : PowerPC_SPE_Intrinsic<"evlhhousplatx",
+                                  [llvm_v4i16_ty], [llvm_i16_ty, llvm_i32_ty],
+                                  [IntrArgMemOnly]>;
+def int_ppc_spe_evlhhossplatx : PowerPC_SPE_Intrinsic<"evlhhossplatx",
+                                  [llvm_v4i16_ty], [llvm_i16_ty, llvm_i32_ty],
+                                  [IntrArgMemOnly]>;
+def int_ppc_spe_evldd : PowerPC_SPE_Intrinsic<"evldd",
+                        [llvm_double_ty], [llvm_i32_ty, llvm_i32_ty],
+                        [IntrArgMemOnly]>;
+def int_ppc_spe_evldw : PowerPC_SPE_Intrinsic<"evldw",
+                        [llvm_v2i32_ty], [llvm_i32_ty, llvm_i32_ty],
+                        [IntrArgMemOnly]>;
+def int_ppc_spe_evldh : PowerPC_SPE_Intrinsic<"evldh",
+                        [llvm_v4i16_ty], [llvm_i32_ty, llvm_i32_ty],
+                        [IntrArgMemOnly]>;
+def int_ppc_spe_evlwhe : PowerPC_SPE_Intrinsic<"evlwhe",
+                        [llvm_v4i16_ty], [llvm_i32_ty, llvm_i32_ty],
+                        [IntrArgMemOnly]>;
+def int_ppc_spe_evlwhou : PowerPC_SPE_Intrinsic<"evlwhou",
+                        [llvm_v4i16_ty], [llvm_i32_ty, llvm_i32_ty],
+                        [IntrArgMemOnly]>;
+def int_ppc_spe_evlwhos : PowerPC_SPE_Intrinsic<"evlwhos",
+                        [llvm_v4i16_ty], [llvm_i32_ty, llvm_i32_ty],
+                        [IntrArgMemOnly]>;
+def int_ppc_spe_evlwwsplat : PowerPC_SPE_Intrinsic<"evlwwsplat",
+                              [llvm_v2i32_ty], [llvm_i32_ty, llvm_i32_ty],
+                              [IntrArgMemOnly]>;
+def int_ppc_spe_evlwhsplat : PowerPC_SPE_Intrinsic<"evlwhsplat",
+                                [llvm_v4i16_ty], [llvm_i32_ty, llvm_i32_ty],
+                                [IntrArgMemOnly]>;
+def int_ppc_spe_evlhhesplat : PowerPC_SPE_Intrinsic<"evlhhesplat",
+                        [llvm_v4i16_ty], [llvm_i16_ty, llvm_i32_ty],
+                        [IntrArgMemOnly]>;
+def int_ppc_spe_evlhhousplat : PowerPC_SPE_Intrinsic<"evlhhousplat",
+                                  [llvm_v4i16_ty], [llvm_i16_ty, llvm_i32_ty],
+                                  [IntrArgMemOnly]>;
+def int_ppc_spe_evlhhossplat : PowerPC_SPE_Intrinsic<"evlhhossplat",
+                                  [llvm_v4i16_ty], [llvm_i16_ty, llvm_i32_ty],
+                                  [IntrArgMemOnly]>;
+
+def int_ppc_spe_evstddx : PowerPC_SPE_Intrinsic<"evstddx",
+                            [],
+                            [llvm_double_ty, llvm_i32_ty, llvm_i32_ty],
+                            [IntrWriteMem]>;
+def int_ppc_spe_evstdwx : PowerPC_SPE_Intrinsic<"evstdwx",
+                            [],
+                            [llvm_v2i32_ty, llvm_i32_ty, llvm_i32_ty],
+                            [IntrWriteMem]>;
+def int_ppc_spe_evstdhx : PowerPC_SPE_Intrinsic<"evstdhx",
+                            [],
+                            [llvm_v4i16_ty, llvm_i32_ty, llvm_i32_ty],
+                            [IntrWriteMem]>;
+def int_ppc_spe_evstwwex : PowerPC_SPE_Intrinsic<"evstwwex",
+                            [],
+                            [llvm_v2i32_ty, llvm_i32_ty, llvm_i32_ty],
+                            [IntrWriteMem]>;
+def int_ppc_spe_evstwwox : PowerPC_SPE_Intrinsic<"evstwwox",
+                            [],
+                            [llvm_v2i32_ty, llvm_i32_ty, llvm_i32_ty],
+                            [IntrWriteMem]>;
+def int_ppc_spe_evstwhex : PowerPC_SPE_Intrinsic<"evstwhex",
+                            [],
+                            [llvm_v4i16_ty, llvm_i32_ty, llvm_i32_ty],
+                            [IntrWriteMem]>;
+def int_ppc_spe_evstwhox : PowerPC_SPE_Intrinsic<"evstwhox",
+                            [],
+                            [llvm_v4i16_ty, llvm_i32_ty, llvm_i32_ty],
+                            [IntrWriteMem]>;
+
+def int_ppc_spe_evstdd : PowerPC_SPE_Intrinsic<"evstdd",
+                            [],
+                            [llvm_double_ty, llvm_i32_ty, llvm_i32_ty],
+                            [IntrWriteMem]>;
+def int_ppc_spe_evstdw : PowerPC_SPE_Intrinsic<"evstdw",
+                            [],
+                            [llvm_v2i32_ty, llvm_i32_ty, llvm_i32_ty],
+                            [IntrWriteMem]>;
+def int_ppc_spe_evstdh : PowerPC_SPE_Intrinsic<"evstdh",
+                            [],
+                            [llvm_v4i16_ty, llvm_i32_ty, llvm_i32_ty],
+                            [IntrWriteMem]>;
+def int_ppc_spe_evstwwe : PowerPC_SPE_Intrinsic<"evstwwe",
+                            [],
+                            [llvm_v2i32_ty, llvm_i32_ty, llvm_i32_ty],
+                            [IntrWriteMem]>;
+def int_ppc_spe_evstwwo : PowerPC_SPE_Intrinsic<"evstwwo",
+                            [],
+                            [llvm_v2i32_ty, llvm_i32_ty, llvm_i32_ty],
+                            [IntrWriteMem]>;
+def int_ppc_spe_evstwhe : PowerPC_SPE_Intrinsic<"evstwhe",
+                            [],
+                            [llvm_v4i16_ty, llvm_i32_ty, llvm_i32_ty],
+                            [IntrWriteMem]>;
+def int_ppc_spe_evstwho : PowerPC_SPE_Intrinsic<"evstwho",
+                            [],
+                            [llvm_v4i16_ty, llvm_i32_ty, llvm_i32_ty],
+                            [IntrWriteMem]>;
+
+// Vector accumulate instructions
+def int_ppc_spe_evmhegsmfaa     : PowerPC_SPE_Vec_I2<"evmhegsmfaa">;
+def int_ppc_spe_evmhegsmfan     : PowerPC_SPE_Vec_I2<"evmhegsmfan">;
+def int_ppc_spe_evmhegsmiaa     : PowerPC_SPE_Vec_I2<"evmhegsmiaa">;
+def int_ppc_spe_evmhegsmian     : PowerPC_SPE_Vec_I2<"evmhegsmian">;
+def int_ppc_spe_evmhegumiaa     : PowerPC_SPE_Vec_I2<"evmhegumiaa">;
+def int_ppc_spe_evmhegumian     : PowerPC_SPE_Vec_I2<"evmhegumian">;
+def int_ppc_spe_evmhesmf        : PowerPC_SPE_Vec_I2<"evmhesmf">;
+def int_ppc_spe_evmhesmfa       : PowerPC_SPE_Vec_I2<"evmhesmfa">;
+def int_ppc_spe_evmhesmfaaw     : PowerPC_SPE_Vec_I2<"evmhesmfaaw">;
+def int_ppc_spe_evmhesmfanw     : PowerPC_SPE_Vec_I2<"evmhesmfanw">;
+def int_ppc_spe_evmhesmi        : PowerPC_SPE_Vec_I2<"evmhesmi">;
+def int_ppc_spe_evmhesmia       : PowerPC_SPE_Vec_I2<"evmhesmia">;
+def int_ppc_spe_evmhesmiaaw     : PowerPC_SPE_Vec_I2<"evmhesmiaaw">;
+def int_ppc_spe_evmhesmianw     : PowerPC_SPE_Vec_I2<"evmhesmianw">;
+def int_ppc_spe_evmhessf        : PowerPC_SPE_Vec_I2<"evmhessf">;
+def int_ppc_spe_evmhessfa       : PowerPC_SPE_Vec_I2<"evmhessfa">;
+def int_ppc_spe_evmhessfaaw     : PowerPC_SPE_Vec_I2<"evmhessfaaw">;
+def int_ppc_spe_evmhessfanw     : PowerPC_SPE_Vec_I2<"evmhessfanw">;
+def int_ppc_spe_evmhessiaaw     : PowerPC_SPE_Vec_I2<"evmhessiaaw">;
+def int_ppc_spe_evmhessianw     : PowerPC_SPE_Vec_I2<"evmhessianw">;
+def int_ppc_spe_evmheumi        : PowerPC_SPE_Vec_I2<"evmheumi">;
+def int_ppc_spe_evmheumia       : PowerPC_SPE_Vec_I2<"evmheumia">;
+def int_ppc_spe_evmheumiaaw     : PowerPC_SPE_Vec_I2<"evmheumiaaw">;
+def int_ppc_spe_evmheumianw     : PowerPC_SPE_Vec_I2<"evmheumianw">;
+def int_ppc_spe_evmheusiaaw     : PowerPC_SPE_Vec_I2<"evmheusiaaw">;
+def int_ppc_spe_evmheusianw     : PowerPC_SPE_Vec_I2<"evmheusianw">;
+def int_ppc_spe_evmhogsmfaa     : PowerPC_SPE_Vec_I2<"evmhogsmfaa">;
+def int_ppc_spe_evmhogsmfan     : PowerPC_SPE_Vec_I2<"evmhogsmfan">;
+def int_ppc_spe_evmhogsmiaa     : PowerPC_SPE_Vec_I2<"evmhogsmiaa">;
+def int_ppc_spe_evmhogsmian     : PowerPC_SPE_Vec_I2<"evmhogsmian">;
+def int_ppc_spe_evmhogumiaa     : PowerPC_SPE_Vec_I2<"evmhogumiaa">;
+def int_ppc_spe_evmhogumian     : PowerPC_SPE_Vec_I2<"evmhogumian">;
+def int_ppc_spe_evmhosmf        : PowerPC_SPE_Vec_I2<"evmhosmf">;
+def int_ppc_spe_evmhosmfa       : PowerPC_SPE_Vec_I2<"evmhosmfa">;
+def int_ppc_spe_evmhosmfaaw     : PowerPC_SPE_Vec_I2<"evmhosmfaaw">;
+def int_ppc_spe_evmhosmfanw     : PowerPC_SPE_Vec_I2<"evmhosmfanw">;
+def int_ppc_spe_evmhosmi        : PowerPC_SPE_Vec_I2<"evmhosmi">;
+def int_ppc_spe_evmhosmia       : PowerPC_SPE_Vec_I2<"evmhosmia">;
+def int_ppc_spe_evmhosmiaaw     : PowerPC_SPE_Vec_I2<"evmhosmiaaw">;
+def int_ppc_spe_evmhosmianw     : PowerPC_SPE_Vec_I2<"evmhosmianw">;
+def int_ppc_spe_evmhossf        : PowerPC_SPE_Vec_I2<"evmhossf">;
+def int_ppc_spe_evmhossfa       : PowerPC_SPE_Vec_I2<"evmhossfa">;
+def int_ppc_spe_evmhossfaaw     : PowerPC_SPE_Vec_I2<"evmhossfaaw">;
+def int_ppc_spe_evmhossfanw     : PowerPC_SPE_Vec_I2<"evmhossfanw">;
+def int_ppc_spe_evmhossiaaw     : PowerPC_SPE_Vec_I2<"evmhossiaaw">;
+def int_ppc_spe_evmhossianw     : PowerPC_SPE_Vec_I2<"evmhossianw">;
+def int_ppc_spe_evmhoumi        : PowerPC_SPE_Vec_I2<"evmhoumi">;
+def int_ppc_spe_evmhoumia       : PowerPC_SPE_Vec_I2<"evmhoumia">;
+def int_ppc_spe_evmhoumiaaw     : PowerPC_SPE_Vec_I2<"evmhoumiaaw">;
+def int_ppc_spe_evmhoumianw     : PowerPC_SPE_Vec_I2<"evmhoumianw">;
+def int_ppc_spe_evmhousiaaw     : PowerPC_SPE_Vec_I2<"evmhousiaaw">;
+def int_ppc_spe_evmhousianw     : PowerPC_SPE_Vec_I2<"evmhousianw">;
+def int_ppc_spe_evmra           : PowerPC_SPE_Vec_I1<"evmra">;
+def int_ppc_spe_evmwhsmf        : PowerPC_SPE_Vec_I2<"evmwhsmf">;
+def int_ppc_spe_evmwhsmfa       : PowerPC_SPE_Vec_I2<"evmwhsmfa">;
+def int_ppc_spe_evmwhsmi        : PowerPC_SPE_Vec_I2<"evmwhsmi">;
+def int_ppc_spe_evmwhsmia       : PowerPC_SPE_Vec_I2<"evmwhsmia">;
+def int_ppc_spe_evmwhssf        : PowerPC_SPE_Vec_I2<"evmwhssf">;
+def int_ppc_spe_evmwhssfa       : PowerPC_SPE_Vec_I2<"evmwhssfa">;
+def int_ppc_spe_evmwhumi        : PowerPC_SPE_Vec_I2<"evmwhumi">;
+def int_ppc_spe_evmwhumia       : PowerPC_SPE_Vec_I2<"evmwhumia">;
+def int_ppc_spe_evmwlsmiaaw     : PowerPC_SPE_Vec_I2<"evmwlsmiaaw">;
+def int_ppc_spe_evmwlsmianw     : PowerPC_SPE_Vec_I2<"evmwlsmianw">;
+def int_ppc_spe_evmwlssiaaw     : PowerPC_SPE_Vec_I2<"evmwlssiaaw">;
+def int_ppc_spe_evmwlssianw     : PowerPC_SPE_Vec_I2<"evmwlssianw">;
+def int_ppc_spe_evmwlumi        : PowerPC_SPE_Vec_I2<"evmwlumi">;
+def int_ppc_spe_evmwlumia       : PowerPC_SPE_Vec_I2<"evmwlumia">;
+def int_ppc_spe_evmwlumiaaw     : PowerPC_SPE_Vec_I2<"evmwlumiaaw">;
+def int_ppc_spe_evmwlumianw     : PowerPC_SPE_Vec_I2<"evmwlumianw">;
+def int_ppc_spe_evmwlusiaaw     : PowerPC_SPE_Vec_I2<"evmwlusiaaw">;
+def int_ppc_spe_evmwlusianw     : PowerPC_SPE_Vec_I2<"evmwlusianw">;
+def int_ppc_spe_evmwsmf         : PowerPC_SPE_Vec_I2<"evmwsmf">;
+def int_ppc_spe_evmwsmfa        : PowerPC_SPE_Vec_I2<"evmwsmfa">;
+def int_ppc_spe_evmwsmfaa       : PowerPC_SPE_Vec_I2<"evmwsmfaa">;
+def int_ppc_spe_evmwsmfan       : PowerPC_SPE_Vec_I2<"evmwsmfan">;
+def int_ppc_spe_evmwsmi         : PowerPC_SPE_Vec_I2<"evmwsmi">;
+def int_ppc_spe_evmwsmia        : PowerPC_SPE_Vec_I2<"evmwsmia">;
+def int_ppc_spe_evmwsmiaa       : PowerPC_SPE_Vec_I2<"evmwsmiaa">;
+def int_ppc_spe_evmwsmian       : PowerPC_SPE_Vec_I2<"evmwsmian">;
+def int_ppc_spe_evmwssf         : PowerPC_SPE_Vec_I2<"evmwssf">;
+def int_ppc_spe_evmwssfa        : PowerPC_SPE_Vec_I2<"evmwssfa">;
+def int_ppc_spe_evmwssfaa       : PowerPC_SPE_Vec_I2<"evmwssfaa">;
+def int_ppc_spe_evmwssfan       : PowerPC_SPE_Vec_I2<"evmwssfan">;
+def int_ppc_spe_evmwumi         : PowerPC_SPE_Vec_I2<"evmwumi">;
+def int_ppc_spe_evmwumia        : PowerPC_SPE_Vec_I2<"evmwumia">;
+def int_ppc_spe_evmwumiaa       : PowerPC_SPE_Vec_I2<"evmwumiaa">;
+def int_ppc_spe_evmwumian       : PowerPC_SPE_Vec_I2<"evmwumian">;
+}

@@ -2146,10 +2146,60 @@ SDValue PPCDAGToDAGISel::SelectCC(SDValue LHS, SDValue RHS, ISD::CondCode CC,
       Opc = PPC::CMPD;
     }
   } else if (LHS.getValueType() == MVT::f32) {
-    Opc = PPC::FCMPUS;
+    if (PPCSubTarget->hasSPE()) {
+      switch (CC) {
+        default:
+        case ISD::SETEQ:
+        case ISD::SETNE:
+          Opc = PPC::EFSCMPEQ;
+          break;
+        case ISD::SETLT:
+        case ISD::SETGE:
+        case ISD::SETOLT:
+        case ISD::SETOGE:
+        case ISD::SETULT:
+        case ISD::SETUGE:
+          Opc = PPC::EFSCMPLT;
+          break;
+        case ISD::SETGT:
+        case ISD::SETLE:
+        case ISD::SETOGT:
+        case ISD::SETOLE:
+        case ISD::SETUGT:
+        case ISD::SETULE:
+          Opc = PPC::EFSCMPGT;
+          break;
+      }
+    } else
+      Opc = PPC::FCMPUS;
   } else {
     assert(LHS.getValueType() == MVT::f64 && "Unknown vt!");
-    Opc = PPCSubTarget->hasVSX() ? PPC::XSCMPUDP : PPC::FCMPUD;
+    if (PPCSubTarget->hasSPE()) {
+      switch (CC) {
+        default:
+        case ISD::SETEQ:
+        case ISD::SETNE:
+          Opc = PPC::EFDCMPEQ;
+          break;
+        case ISD::SETLT:
+        case ISD::SETGE:
+        case ISD::SETOLT:
+        case ISD::SETOGE:
+        case ISD::SETULT:
+        case ISD::SETUGE:
+          Opc = PPC::EFDCMPLT;
+          break;
+        case ISD::SETGT:
+        case ISD::SETLE:
+        case ISD::SETOGT:
+        case ISD::SETOLE:
+        case ISD::SETUGT:
+        case ISD::SETULE:
+          Opc = PPC::EFDCMPGT;
+          break;
+      }
+    } else
+      Opc = PPCSubTarget->hasVSX() ? PPC::XSCMPUDP : PPC::FCMPUD;
   }
   return SDValue(CurDAG->getMachineNode(Opc, dl, MVT::i32, LHS, RHS), 0);
 }
@@ -2422,7 +2472,7 @@ bool PPCDAGToDAGISel::trySETCC(SDNode *N) {
 
   // Altivec Vector compare instructions do not set any CR register by default and
   // vector compare operations return the same type as the operands.
-  if (LHS.getValueType().isVector()) {
+  if (LHS.getValueType().isVector() && PPCSubTarget->hasAltivec()) {
     if (PPCSubTarget->hasQPX())
       return false;
 
@@ -2452,6 +2502,12 @@ bool PPCDAGToDAGISel::trySETCC(SDNode *N) {
   unsigned Idx = getCRIdxForSetCC(CC, Inv);
   SDValue CCReg = SelectCC(LHS, RHS, CC, dl);
   SDValue IntCR;
+
+  // SPE e*cmp* instructions only set the 'gt' bit, so hard-code that
+  // The correct compare instruction is already set by SelectCC()
+  if (PPCSubTarget->hasSPE() && (LHS.getValueType().isFloatingPoint())) {
+    Idx = 1;
+  }
 
   // Force the ccreg into CR7.
   SDValue CR7Reg = CurDAG->getRegister(PPC::CR7, MVT::i32);
@@ -2995,11 +3051,15 @@ void PPCDAGToDAGISel::Select(SDNode *N) {
     else if (N->getValueType(0) == MVT::f32)
       if (PPCSubTarget->hasP8Vector())
         SelectCCOp = PPC::SELECT_CC_VSSRC;
+      else if (PPCSubTarget->hasSPE())
+        SelectCCOp = PPC::SELECT_CC_SPE4;
       else
         SelectCCOp = PPC::SELECT_CC_F4;
     else if (N->getValueType(0) == MVT::f64)
       if (PPCSubTarget->hasVSX())
         SelectCCOp = PPC::SELECT_CC_VSFRC;
+      else if (PPCSubTarget->hasSPE())
+        SelectCCOp = PPC::SELECT_CC_SPE;
       else
         SelectCCOp = PPC::SELECT_CC_F8;
     else if (PPCSubTarget->hasQPX() && N->getValueType(0) == MVT::v4f64)

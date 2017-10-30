@@ -936,7 +936,18 @@ void PPCInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
     BuildMI(MBB, I, DL, get(PPC::MFVSRD), DestReg).addReg(SrcReg);
     getKillRegState(KillSrc);
     return;
+  } else if (PPC::SPERCRegClass.contains(SrcReg) &&
+             PPC::SPE4RCRegClass.contains(DestReg)) {
+    BuildMI(MBB, I, DL, get(PPC::EFSCFD), DestReg).addReg(SrcReg);
+    getKillRegState(KillSrc);
+    return;
+  } else if (PPC::SPE4RCRegClass.contains(SrcReg) &&
+             PPC::SPERCRegClass.contains(DestReg)) {
+    BuildMI(MBB, I, DL, get(PPC::EFDCFS), DestReg).addReg(SrcReg);
+    getKillRegState(KillSrc);
+    return;
   }
+
 
   unsigned Opc;
   if (PPC::GPRCRegClass.contains(DestReg, SrcReg))
@@ -970,6 +981,10 @@ void PPCInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
     Opc = PPC::QVFMRb;
   else if (PPC::CRBITRCRegClass.contains(DestReg, SrcReg))
     Opc = PPC::CROR;
+  else if (PPC::SPERCRegClass.contains(DestReg, SrcReg))
+    Opc = PPC::EVOR;
+  else if (PPC::SPE4RCRegClass.contains(DestReg, SrcReg))
+    Opc = PPC::OR;
   else
     llvm_unreachable("Impossible reg-to-reg copy");
 
@@ -1012,6 +1027,16 @@ PPCInstrInfo::StoreRegToStackSlot(MachineFunction &MF,
                                        FrameIdx));
   } else if (PPC::F4RCRegClass.hasSubClassEq(RC)) {
     NewMIs.push_back(addFrameReference(BuildMI(MF, DL, get(PPC::STFS))
+                                       .addReg(SrcReg,
+                                               getKillRegState(isKill)),
+                                       FrameIdx));
+  } else if (PPC::SPERCRegClass.hasSubClassEq(RC)) {
+    NewMIs.push_back(addFrameReference(BuildMI(MF, DL, get(PPC::EVSTDD))
+                                       .addReg(SrcReg,
+                                               getKillRegState(isKill)),
+                                       FrameIdx));
+  } else if (PPC::SPE4RCRegClass.hasSubClassEq(RC)) {
+    NewMIs.push_back(addFrameReference(BuildMI(MF, DL, get(PPC::SPESTW))
                                        .addReg(SrcReg,
                                                getKillRegState(isKill)),
                                        FrameIdx));
@@ -1156,6 +1181,12 @@ bool PPCInstrInfo::LoadRegFromStackSlot(MachineFunction &MF, const DebugLoc &DL,
                                        FrameIdx));
   } else if (PPC::F4RCRegClass.hasSubClassEq(RC)) {
     NewMIs.push_back(addFrameReference(BuildMI(MF, DL, get(PPC::LFS), DestReg),
+                                       FrameIdx));
+  } else if (PPC::SPERCRegClass.hasSubClassEq(RC)) {
+    NewMIs.push_back(addFrameReference(BuildMI(MF, DL, get(PPC::EVLDD), DestReg),
+                                       FrameIdx));
+  } else if (PPC::SPE4RCRegClass.hasSubClassEq(RC)) {
+    NewMIs.push_back(addFrameReference(BuildMI(MF, DL, get(PPC::SPELWZ), DestReg),
                                        FrameIdx));
   } else if (PPC::CRRCRegClass.hasSubClassEq(RC)) {
     NewMIs.push_back(addFrameReference(BuildMI(MF, DL,
