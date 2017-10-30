@@ -129,11 +129,6 @@ void BitcodeCompiler::add(BitcodeFile &F) {
   std::vector<SymbolBody *> Syms = F.getSymbols();
   std::vector<lto::SymbolResolution> Resols(Syms.size());
 
-  DenseSet<StringRef> ScriptSymbols;
-  for (BaseCommand *Base : Script->SectionCommands)
-    if (auto *Cmd = dyn_cast<SymbolAssignment>(Base))
-      ScriptSymbols.insert(Cmd->Name);
-
   // Provide a resolution to the LTO API for each symbol.
   for (const lto::InputFile::Symbol &ObjSym : Obj.symbols()) {
     SymbolBody *B = Syms[SymNum];
@@ -165,7 +160,7 @@ void BitcodeCompiler::add(BitcodeFile &F) {
     // still not final:
     // 1) Aliased (with --defsym) or wrapped (with --wrap) symbols.
     // 2) Symbols redefined in linker script.
-    R.LinkerRedefined = !Sym->CanInline || ScriptSymbols.count(B->getName());
+    R.LinkerRedefined = !Sym->CanInline;
   }
   checkError(LTOObj->add(std::move(F.Obj), Resols));
 }

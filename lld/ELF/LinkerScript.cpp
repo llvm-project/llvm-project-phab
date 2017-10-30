@@ -116,7 +116,7 @@ void LinkerScript::setDot(Expr E, const Twine &Loc, bool InSec) {
 
 // This function is called from processSectionCommands,
 // while we are fixing the output section layout.
-void LinkerScript::addSymbol(SymbolAssignment *Cmd) {
+void LinkerScript::addSymbol(SymbolAssignment *Cmd, const ExprValue &Value) {
   if (Cmd->Name == ".")
     return;
 
@@ -125,6 +125,10 @@ void LinkerScript::addSymbol(SymbolAssignment *Cmd) {
   SymbolBody *B = Symtab->find(Cmd->Name);
   if (Cmd->Provide && (!B || B->isDefined()))
     return;
+  // If we reach here and symbol uses PROVIDE() that means symbol satisfies
+  // providing conditions. Since we are calling addSymbol() multiple times and
+  // will define symbol below, we want to disable futher checks.
+  Cmd->Provide = false;
 
   // Define a symbol.
   Symbol *Sym;
@@ -133,7 +137,6 @@ void LinkerScript::addSymbol(SymbolAssignment *Cmd) {
                                               /*CanOmitFromDynSym*/ false,
                                               /*File*/ nullptr);
   Sym->Binding = STB_GLOBAL;
-  ExprValue Value = Cmd->Expression();
   SectionBase *Sec = Value.isAbsolute() ? nullptr : Value.Sec;
 
   // When this function is called, section addresses have not been
@@ -152,6 +155,22 @@ void LinkerScript::addSymbol(SymbolAssignment *Cmd) {
   replaceBody<DefinedRegular>(Sym, nullptr, Cmd->Name, /*IsLocal=*/false,
                               Visibility, STT_NOTYPE, SymValue, 0, Sec);
   Cmd->Sym = cast<DefinedRegular>(Sym->body());
+}
+
+// Symbols defined in script should not be inlined by LTO. At the same time
+// we don't know their final values until late stages of link. Here we scan
+// over symbol assignment commands, create dummy symbols if needed and and set
+// appropriate flag.
+void LinkerScript::defineSymbols() {
+  assert(!Ctx);
+  for (BaseCommand *Base : SectionCommands) {
+    if (auto *Cmd = dyn_cast<SymbolAssignment>(Base)) {
+      // Define symbol with dummy value and set flag.
+      addSymbol(Cmd, ExprValue(0));
+      if (Cmd->Sym)
+        Cmd->Sym->symbol()->CanInline = false;
+    }
+  }
 }
 
 // This function is called from assignAddresses, while we are
@@ -362,7 +381,7 @@ void LinkerScript::processSectionCommands() {
   for (size_t I = 0; I < SectionCommands.size(); ++I) {
     // Handle symbol assignments outside of any output section.
     if (auto *Cmd = dyn_cast<SymbolAssignment>(SectionCommands[I])) {
-      addSymbol(Cmd);
+      addSymbol(Cmd, Cmd->Expression());
       continue;
     }
 
@@ -395,7 +414,7 @@ void LinkerScript::processSectionCommands() {
       // ".foo : { ...; bar = .; }". Handle them.
       for (BaseCommand *Base : Sec->SectionCommands)
         if (auto *OutCmd = dyn_cast<SymbolAssignment>(Base))
-          addSymbol(OutCmd);
+          addSymbol(OutCmd, OutCmd->Expression());
 
       // Handle subalign (e.g. ".foo : SUBALIGN(32) { ... }"). If subalign
       // is given, input sections are aligned to that value, whether the
