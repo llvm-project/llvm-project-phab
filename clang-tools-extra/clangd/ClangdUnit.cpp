@@ -911,7 +911,7 @@ SourceLocation getMacroArgExpandedLocation(const SourceManager &Mgr,
 
 /// Finds declarations locations that a given source location refers to.
 class DeclarationLocationsFinder : public index::IndexDataConsumer {
-  std::vector<Location> DeclarationLocations;
+  std::vector<std::pair<Location, const Decl *>> DeclarationLocations;
   const SourceLocation &SearchedLocation;
   const ASTContext &AST;
   Preprocessor &PP;
@@ -922,7 +922,7 @@ public:
                              ASTContext &AST, Preprocessor &PP)
       : SearchedLocation(SearchedLocation), AST(AST), PP(PP) {}
 
-  std::vector<Location> takeLocations() {
+  std::vector<std::pair<Location, const Decl *>> takeLocations() {
     // Don't keep the same location multiple times.
     // This can happen when nodes in the AST are visited twice.
     std::sort(DeclarationLocations.begin(), DeclarationLocations.end());
@@ -937,20 +937,65 @@ public:
                       ArrayRef<index::SymbolRelation> Relations, FileID FID,
                       unsigned Offset,
                       index::IndexDataConsumer::ASTNodeInfo ASTNode) override {
+
+    // Keep default value.
+    SourceRange SR = D->getSourceRange();
+
+    if (auto FuncDecl = dyn_cast<FunctionDecl>(D)) {
+      if (FuncDecl->isThisDeclarationADefinition())
+      {
+        if (FuncDecl->hasBody())
+        {
+          SR = SourceRange(D->getSourceRange().getBegin(),
+                         FuncDecl->getBody()->getLocStart());
+        }
+      }
+    } else if (auto ClassDecl = dyn_cast<TagDecl>(D)) {
+      if (ClassDecl->isStruct()) {
+        SR = SourceRange(D->getSourceRange().getBegin(),
+                         ClassDecl->getBraceRange().getBegin());
+      } else if (ClassDecl->isClass()) {
+        if (ClassDecl->isThisDeclarationADefinition())
+          SR = SourceRange(D->getSourceRange().getBegin(),
+                           ClassDecl->getBraceRange().getBegin());
+      } else if (ClassDecl->isEnum()) {
+        if (ClassDecl->isThisDeclarationADefinition())
+          SR = SourceRange(D->getSourceRange().getBegin(),
+                           ClassDecl->getBraceRange().getBegin());
+      }
+    } else if (auto NameDecl = dyn_cast<NamespaceDecl>(D)) {
+      SourceLocation BeforeLBraceLoc = Lexer::getLocForEndOfToken(
+          D->getLocation(), 0, AST.getSourceManager(), AST.getLangOpts());
+      if (BeforeLBraceLoc.isValid())
+        SR = SourceRange(NameDecl->getLocStart(), BeforeLBraceLoc);
+      else
+        SR = D->getSourceRange();
+    } else if (dyn_cast<TypedefDecl>(D)) {
+      SR = D->getSourceRange();
+    }
+    // for everything else in ValueDecl, so lvalues of variables, function
+    // designations and enum constants
+    else if (dyn_cast<ValueDecl>(D)) {
+      SR = D->getSourceRange();
+    }
+
     if (isSearchedLocation(FID, Offset)) {
-      addDeclarationLocation(D->getSourceRange());
+        DeclarationLocations.push_back(
+            {getDeclarationLocation(D->getSourceRange()), D});
+
     }
     return true;
   }
 
 private:
+
   bool isSearchedLocation(FileID FID, unsigned Offset) const {
     const SourceManager &SourceMgr = AST.getSourceManager();
     return SourceMgr.getFileOffset(SearchedLocation) == Offset &&
            SourceMgr.getFileID(SearchedLocation) == FID;
   }
 
-  void addDeclarationLocation(const SourceRange &ValSourceRange) {
+  Location getDeclarationLocation(const SourceRange &ValSourceRange) {
     const SourceManager &SourceMgr = AST.getSourceManager();
     const LangOptions &LangOpts = AST.getLangOpts();
     SourceLocation LocStart = ValSourceRange.getBegin();
@@ -967,7 +1012,7 @@ private:
     L.uri = URI::fromFile(
         SourceMgr.getFilename(SourceMgr.getSpellingLoc(LocStart)));
     L.range = R;
-    DeclarationLocations.push_back(L);
+    return L;
   }
 
   void finish() override {
@@ -992,8 +1037,10 @@ private:
             PP.getMacroDefinitionAtLoc(IdentifierInfo, BeforeSearchedLocation);
         MacroInfo *MacroInf = MacroDef.getMacroInfo();
         if (MacroInf) {
-          addDeclarationLocation(SourceRange(MacroInf->getDefinitionLoc(),
-                                             MacroInf->getDefinitionEndLoc()));
+          DeclarationLocations.push_back({getDeclarationLocation(SourceRange(
+                                              MacroInf->getDefinitionLoc(),
+                                              MacroInf->getDefinitionEndLoc())),
+                                          nullptr});
         }
       }
     }
@@ -1040,8 +1087,8 @@ SourceLocation getBeginningOfIdentifier(ParsedAST &Unit, const Position &Pos,
 }
 } // namespace
 
-std::vector<Location> clangd::findDefinitions(ParsedAST &AST, Position Pos,
-                                              clangd::Logger &Logger) {
+std::vector<std::pair<Location, const Decl *>>
+clangd::findDefinitions(ParsedAST &AST, Position Pos, clangd::Logger &Logger) {
   const SourceManager &SourceMgr = AST.getASTContext().getSourceManager();
   const FileEntry *FE = SourceMgr.getFileEntryForID(SourceMgr.getMainFileID());
   if (!FE)
@@ -1061,6 +1108,116 @@ std::vector<Location> clangd::findDefinitions(ParsedAST &AST, Position Pos,
                      DeclLocationsFinder, IndexOpts);
 
   return DeclLocationsFinder->takeLocations();
+}
+
+Hover clangd::getHover(ParsedAST &AST,
+                       std::pair<Location, const Decl *> LocationDecl) {
+  Location L = LocationDecl.first;
+  std::vector<MarkedString> Contents;
+  unsigned Start;
+  unsigned End;
+
+  const SourceManager &SourceMgr = AST.getASTContext().getSourceManager();
+  Range R;
+  const FileEntry *FE = SourceMgr.getFileManager().getFile(L.uri.file);
+  FileID id = SourceMgr.translateFile(FE);
+  StringRef Ref = SourceMgr.getBufferData(id);
+  Start = SourceMgr.getFileOffset(SourceMgr.translateFileLineCol(
+      FE, L.range.start.line + 1, L.range.start.character + 1));
+  End = SourceMgr.getFileOffset(SourceMgr.translateFileLineCol(
+      FE, L.range.end.line + 1, L.range.end.character + 1));
+  Ref = Ref.slice(Start, End);
+
+  if (LocationDecl.second) {
+    if (const NamedDecl *NamedD = dyn_cast<NamedDecl>(LocationDecl.second)) {
+      // Get the full qualified name, the non-qualified name and then diff them.
+      // If there's something left, use that as the scope in the hover, trimming
+      // the extra "::"
+      PrintingPolicy WithScopePP(AST.getASTContext().getLangOpts());
+      std::string WithScopeBuf;
+      llvm::raw_string_ostream WithScopeOS(WithScopeBuf);
+      NamedD->printQualifiedName(WithScopeOS, WithScopePP);
+
+      // Get all contexts for current NamedDecl
+      const DeclContext *Ctx = NamedD->getDeclContext();
+
+      // For ObjC methods, look through categories and use the interface as
+      // context.
+      if (auto *MD = dyn_cast<ObjCMethodDecl>(NamedD))
+        if (auto *ID = MD->getClassInterface())
+          Ctx = ID;
+
+      typedef SmallVector<const DeclContext *, 8> ContextsTy;
+      ContextsTy Contexts;
+
+      // Collect contexts.
+      while (Ctx && isa<NamedDecl>(Ctx)) {
+        Contexts.push_back(Ctx);
+        Ctx = Ctx->getParent();
+      }
+
+      std::string ResWithScope = WithScopeOS.str();
+      if (!ResWithScope.empty()) {
+        // Get non-qualified name
+        std::string PrintedNameBuf;
+        llvm::raw_string_ostream PrintedNameOS(PrintedNameBuf);
+        NamedD->printName(PrintedNameOS);
+        auto Last = ResWithScope.rfind(PrintedNameOS.str());
+        if (Last != std::string::npos) {
+          std::string Res = ResWithScope.substr(0, Last);
+          if (Res.length() > 2 &&
+              Res.substr(Res.length() - 2, Res.length()) == "::")
+            Res = Res.substr(0, Res.length() - 2);
+
+          if (!Res.empty()) {
+            if (!Contexts.empty()) {
+              if (Contexts[0]->isNamespace()) {
+                const NamespaceDecl *ND = cast<NamespaceDecl>(Contexts[0]);
+                const IdentifierInfo *II = ND->getIdentifier();
+
+                if (!II)
+                  Res = "anonymous namespace";
+                else if (Contexts[0]->isStdNamespace())
+                  Res = "std namespace";
+                else
+                  Res = "namespace named " + Res;
+              } else if (isa<TagDecl>(Contexts[0])) {
+                std::string s = Contexts[0]->getDeclKindName();
+                if (s == "CXXRecord") // doesnt work right currently
+                {
+                  Res = "class named " + Res;
+                } else if (s == "Enum") {
+                  Res = "Enum " + Res;
+                }
+              } else if (isa<FunctionDecl>(Contexts[0])) {
+              }
+            }
+            MarkedString Info("In " + Res);
+            Contents.push_back(Info);
+          } else {
+            if (isa<FunctionDecl>(NamedD)) {
+              MarkedString Info("global function");
+              Contents.push_back(Info);
+            }
+          }
+        }
+      }
+    }
+  } else {
+    // If Decl is nullptr, then this was obtained form a Macro type such as
+    // #define, #ifdef and so on.
+    // TODO: support statements other than #define
+    // TODO: find a way to distinguish with null Decls
+
+    MarkedString MS("#define statement");
+    Contents.push_back(MS);
+  }
+
+  MarkedString MS("C++", Ref);
+  Contents.push_back(MS);
+  R = L.range;
+  Hover H(Contents, R);
+  return H;
 }
 
 void ParsedAST::ensurePreambleDeclsDeserialized() {

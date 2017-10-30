@@ -1,0 +1,52 @@
+# RUN: clangd -run-synchronously < %s | FileCheck %s
+# It is absolutely vital that this file has CRLF line endings.
+#
+Content-Length: 125
+
+{"jsonrpc":"2.0","id":0,"method":"initialize","params":{"processId":123,"rootPath":"clangd","capabilities":{},"trace":"off"}}
+
+Content-Length: 407
+
+{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///main.cpp","languageId":"cpp","version":1,"text":"#define MACRO 1\nnamespace ns1 {\nint test = 5;\nstruct MyClass {\nint xasd;\nvoid anotherOperation() {\n}\nstatic int foo(MyClass*) {\nreturn 0;\n}\n\n};}\nint main() {\nint a;\na;\nint b = ns1::test;\nns1::MyClass* Params;\nParams->anotherOperation();\nMACRO;}\n"}}}
+
+Content-Length: 144
+
+{"jsonrpc":"2.0","id":1,"method":"textDocument/hover","params":{"textDocument":{"uri":"file:///main.cpp"},"position":{"line":0,"character":12}}}
+# Go to local variable
+# CHECK: {"jsonrpc":"2.0","id":1,"result":{"contents": ["#define statement",{"language": "C++", "value": "MACRO 1"}], "range": {"start": {"line": 0, "character": 8}, "end": {"line": 0, "character": 15}}}}
+
+Content-Length: 144
+
+{"jsonrpc":"2.0","id":1,"method":"textDocument/hover","params":{"textDocument":{"uri":"file:///main.cpp"},"position":{"line":14,"character":1}}}
+# Go to local variable
+# CHECK: {"jsonrpc":"2.0","id":1,"result":{"contents": [{"language": "C++", "value": "int a"}], "range": {"start": {"line": 13, "character": 0}, "end": {"line": 13, "character": 5}}}}
+
+Content-Length: 145
+
+{"jsonrpc":"2.0","id":1,"method":"textDocument/hover","params":{"textDocument":{"uri":"file:///main.cpp"},"position":{"line":15,"character":15}}}
+# Go to local variable
+# CHECK: {"jsonrpc":"2.0","id":1,"result":{"contents": ["In namespace named ns1",{"language": "C++", "value": "int test = 5"}], "range": {"start": {"line": 2, "character": 0}, "end": {"line": 2, "character": 12}}}}
+
+Content-Length: 145
+
+{"jsonrpc":"2.0","id":1,"method":"textDocument/hover","params":{"textDocument":{"uri":"file:///main.cpp"},"position":{"line":16,"character":10}}}
+# Go to local variable
+# CHECK: {"jsonrpc":"2.0","id":1,"result":{"contents": ["In namespace named ns1",{"language": "C++", "value": "struct MyClass {\nint xasd;\nvoid anotherOperation() {\n}\nstatic int foo(MyClass*) {\nreturn 0;\n}\n\n}"}], "range": {"start": {"line": 3, "character": 0}, "end": {"line": 11, "character": 1}}}}
+
+Content-Length: 145
+
+{"jsonrpc":"2.0","id":1,"method":"textDocument/hover","params":{"textDocument":{"uri":"file:///main.cpp"},"position":{"line":17,"character":13}}}
+# Go to local variable
+# CHECK: {"jsonrpc":"2.0","id":1,"result":{"contents": ["In class named ns1::MyClass",{"language": "C++", "value": "void anotherOperation() {\n}"}], "range": {"start": {"line": 5, "character": 0}, "end": {"line": 6, "character": 1}}}}
+
+Content-Length: 145
+
+{"jsonrpc":"2.0","id":1,"method":"textDocument/hover","params":{"textDocument":{"uri":"file:///main.cpp"},"position":{"line":18,"character":1}}}
+# Go to local variable
+# CHECK: {"jsonrpc":"2.0","id":1,"result":{"contents": ["#define statement",{"language": "C++", "value": "MACRO 1"}], "range": {"start": {"line": 0, "character": 8}, "end": {"line": 0, "character": 15}}}}
+
+Content-Length: 44
+
+{"jsonrpc":"2.0","id":3,"method":"shutdown"}
+
+
