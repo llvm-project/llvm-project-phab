@@ -98,6 +98,7 @@ void fuchsia::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   Args.AddAllArgs(CmdArgs, options::OPT_L);
   Args.AddAllArgs(CmdArgs, options::OPT_u);
 
+  AddLibraryPaths(ToolChain, Args, CmdArgs);
   ToolChain.AddFilePathLibArgs(Args, CmdArgs);
 
   addSanitizerRuntimes(ToolChain, Args, CmdArgs);

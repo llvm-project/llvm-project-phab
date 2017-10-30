@@ -165,6 +165,7 @@ void tools::Myriad::Linker::ConstructJob(Compilation &C, const JobAction &JA,
                             options::OPT_e, options::OPT_s, options::OPT_t,
                             options::OPT_Z_Flag, options::OPT_r});
 
+  AddLibraryPaths(TC, Args, CmdArgs);
   TC.AddFilePathLibArgs(Args, CmdArgs);
 
   bool NeedsSanitizerDeps = addSanitizerRuntimes(TC, Args, CmdArgs);

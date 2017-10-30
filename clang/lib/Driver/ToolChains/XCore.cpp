@@ -79,6 +79,7 @@ void tools::XCore::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("-fexceptions");
 
   AddLinkerInputs(getToolChain(), Inputs, Args, CmdArgs, JA);
+  AddLibraryPaths(getToolChain(), Args, CmdArgs);
 
   const char *Exec = Args.MakeArgString(getToolChain().GetProgramPath("xcc"));
   C.addCommand(llvm::make_unique<Command>(JA, *this, Exec, CmdArgs, Inputs));

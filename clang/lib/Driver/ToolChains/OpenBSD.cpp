@@ -165,6 +165,8 @@ void openbsd::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     }
   }
 
+  AddLibraryPaths(getToolChain(), Args, CmdArgs);
+
   std::string Triple = getToolChain().getTripleString();
   if (Triple.substr(0, 6) == "x86_64")
     Triple.replace(0, 6, "amd64");

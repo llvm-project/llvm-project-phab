@@ -223,6 +223,7 @@ void freebsd::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   }
 
   Args.AddAllArgs(CmdArgs, options::OPT_L);
+  AddLibraryPaths(ToolChain, Args, CmdArgs);
   ToolChain.AddFilePathLibArgs(Args, CmdArgs);
   Args.AddAllArgs(CmdArgs, options::OPT_T_Group);
   Args.AddAllArgs(CmdArgs, options::OPT_e);

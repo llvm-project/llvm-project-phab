@@ -134,6 +134,13 @@ void tools::addDirectoryList(const ArgList &Args, ArgStringList &CmdArgs,
   }
 }
 
+void tools::AddLibraryPaths(const ToolChain &TC, const ArgList &Args,
+                            ArgStringList &CmdArgs) {
+  // Only supported on native toolchains.
+  if (!TC.isCrossCompiling())
+    addDirectoryList(Args, CmdArgs, "-L", "LIBRARY_PATH");
+}
+
 void tools::AddLinkerInputs(const ToolChain &TC, const InputInfoList &Inputs,
                             const ArgList &Args, ArgStringList &CmdArgs,
                             const JobAction &JA) {
@@ -177,12 +184,6 @@ void tools::AddLinkerInputs(const ToolChain &TC, const InputInfoList &Inputs,
     } else {
       A.renderAsInput(Args, CmdArgs);
     }
-  }
-
-  // LIBRARY_PATH - included following the user specified library paths.
-  //                and only supported on native toolchains.
-  if (!TC.isCrossCompiling()) {
-    addDirectoryList(Args, CmdArgs, "-L", "LIBRARY_PATH");
   }
 }
 

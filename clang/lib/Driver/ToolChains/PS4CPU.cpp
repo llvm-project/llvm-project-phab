@@ -25,6 +25,7 @@ using namespace clang;
 using namespace llvm::opt;
 
 using clang::driver::tools::AddLinkerInputs;
+using clang::driver::tools::AddLibraryPaths;
 
 void tools::PS4cpu::addProfileRTArgs(const ToolChain &TC, const ArgList &Args,
                                      ArgStringList &CmdArgs) {
@@ -125,6 +126,7 @@ static void ConstructPS4LinkJob(const Tool &T, Compilation &C,
     CmdArgs.push_back("--no-demangle");
 
   AddLinkerInputs(ToolChain, Inputs, Args, CmdArgs, JA);
+  AddLibraryPaths(ToolChain, Args, CmdArgs);
 
   if (Args.hasArg(options::OPT_pthread)) {
     CmdArgs.push_back("-lpthread");
@@ -210,6 +212,7 @@ static void ConstructGoldLinkJob(const Tool &T, Compilation &C,
   }
 
   Args.AddAllArgs(CmdArgs, options::OPT_L);
+  AddLibraryPaths(ToolChain, Args, CmdArgs);
   ToolChain.AddFilePathLibArgs(Args, CmdArgs);
   Args.AddAllArgs(CmdArgs, options::OPT_T_Group);
   Args.AddAllArgs(CmdArgs, options::OPT_e);

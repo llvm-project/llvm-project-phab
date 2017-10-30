@@ -162,6 +162,7 @@ void tools::CrossWindows::Linker::ConstructJob(
   }
 
   Args.AddAllArgs(CmdArgs, options::OPT_L);
+  AddLibraryPaths(TC, Args, CmdArgs);
   TC.AddFilePathLibArgs(Args, CmdArgs);
   AddLinkerInputs(TC, Inputs, Args, CmdArgs, JA);
 

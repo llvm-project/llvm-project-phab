@@ -324,6 +324,8 @@ constructHexagonLinkArgs(Compilation &C, const JobAction &JA,
   //----------------------------------------------------------------------------
   // Library Search Paths
   //----------------------------------------------------------------------------
+  AddLibraryPaths(HTC, Args, CmdArgs);
+
   const ToolChain::path_list &LibPaths = HTC.getFilePaths();
   for (const auto &LibPath : LibPaths)
     CmdArgs.push_back(Args.MakeArgString(StringRef("-L") + LibPath));

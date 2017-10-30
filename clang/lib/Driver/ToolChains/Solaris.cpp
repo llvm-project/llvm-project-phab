@@ -92,6 +92,7 @@ void solaris::Linker::ConstructJob(Compilation &C, const JobAction &JA,
         Args.MakeArgString(getToolChain().GetFilePath("crtbegin.o")));
   }
 
+  AddLibraryPaths(getToolChain(), Args, CmdArgs);
   getToolChain().AddFilePathLibArgs(Args, CmdArgs);
 
   Args.AddAllArgs(CmdArgs, {options::OPT_L, options::OPT_T_Group,

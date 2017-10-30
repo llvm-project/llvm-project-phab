@@ -500,6 +500,7 @@ void darwin::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   Args.AddAllArgs(CmdArgs, options::OPT_L);
 
   AddLinkerInputs(getToolChain(), Inputs, Args, CmdArgs, JA);
+  AddLibraryPaths(getToolChain(), Args, CmdArgs);
   // Build the input file for -filelist (list of linker input files) in case we
   // need it later
   for (const auto &II : Inputs) {

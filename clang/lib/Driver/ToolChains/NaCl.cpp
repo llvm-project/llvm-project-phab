@@ -124,6 +124,7 @@ void nacltools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   Args.AddAllArgs(CmdArgs, options::OPT_L);
   Args.AddAllArgs(CmdArgs, options::OPT_u);
 
+  AddLibraryPaths(ToolChain, Args, CmdArgs);
   ToolChain.AddFilePathLibArgs(Args, CmdArgs);
 
   if (Args.hasArg(options::OPT_Z_Xlinker__no_demangle))

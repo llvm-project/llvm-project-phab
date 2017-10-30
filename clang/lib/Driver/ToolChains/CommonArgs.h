@@ -23,6 +23,9 @@ namespace tools {
 void addPathIfExists(const Driver &D, const Twine &Path,
                      ToolChain::path_list &Paths);
 
+void AddLibraryPaths(const ToolChain &TC, const llvm::opt::ArgList &Args,
+                     llvm::opt::ArgStringList &CmdArgs);
+
 void AddLinkerInputs(const ToolChain &TC, const InputInfoList &Inputs,
                      const llvm::opt::ArgList &Args,
                      llvm::opt::ArgStringList &CmdArgs, const JobAction &JA);

@@ -67,6 +67,7 @@ void tools::minix::Linker::ConstructJob(Compilation &C, const JobAction &JA,
                   {options::OPT_L, options::OPT_T_Group, options::OPT_e});
 
   AddLinkerInputs(getToolChain(), Inputs, Args, CmdArgs, JA);
+  AddLibraryPaths(getToolChain(), Args, CmdArgs);
 
   getToolChain().addProfileRTLibs(Args, CmdArgs);
 

@@ -175,6 +175,7 @@ void baremetal::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   auto &TC = static_cast<const toolchains::BareMetal&>(getToolChain());
 
   AddLinkerInputs(TC, Inputs, Args, CmdArgs, JA);
+  AddLibraryPaths(TC, Args, CmdArgs);
 
   CmdArgs.push_back("-Bstatic");
 

@@ -193,6 +193,7 @@ void tools::MinGW::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   }
 
   Args.AddAllArgs(CmdArgs, options::OPT_L);
+  AddLibraryPaths(TC, Args, CmdArgs);
   TC.AddFilePathLibArgs(Args, CmdArgs);
   AddLinkerInputs(TC, Inputs, Args, CmdArgs, JA);
 
