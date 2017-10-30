@@ -250,7 +250,9 @@ void PassManagerBuilder::populateFunctionPassManager(
 
   addInitialAliasAnalysisPasses(FPM);
 
-  FPM.add(createCFGSimplificationPass());
+  // Do not sink common instructions and form selects before early-cse has had
+  // a chance to eliminate redundant operations.
+  FPM.add(createCFGSimplificationPass(1, false, false, true, false));
   FPM.add(createSROAPass());
   FPM.add(createEarlyCSEPass());
   FPM.add(createLowerExpectIntrinsicPass());

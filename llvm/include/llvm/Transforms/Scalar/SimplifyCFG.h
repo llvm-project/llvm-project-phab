@@ -34,12 +34,15 @@ public:
   /// The default constructor sets the pass options to create canonical IR,
   /// rather than optimal IR. That is, by default we bypass transformations that
   /// are likely to improve performance but make analysis for other passes more
-  /// difficult.
+  /// difficult. Sinking common instructions is an exception to this rule - we
+  /// enable that transform by default because it should help in general, but we
+  /// disable it if even more basic transforms like early-cse have not run yet.
   SimplifyCFGPass()
       : SimplifyCFGPass(SimplifyCFGOptions()
                             .forwardSwitchCondToPhi(false)
                             .convertSwitchToLookupTable(false)
-                            .needCanonicalLoops(true)) {}
+                            .needCanonicalLoops(true)
+                            .sinkCommonInsts(true)) {}
 
 
   /// Construct a pass with optional optimizations.

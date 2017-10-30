@@ -544,7 +544,10 @@ PassBuilder::buildModuleSimplificationPipeline(OptimizationLevel Level,
   // Create an early function pass manager to cleanup the output of the
   // frontend.
   FunctionPassManager EarlyFPM(DebugLogging);
-  EarlyFPM.addPass(SimplifyCFGPass());
+  // Do not sink common instructions and form selects before early-cse has had
+  // a chance to eliminate redundant operations.
+  EarlyFPM.addPass(SimplifyCFGPass(SimplifyCFGOptions().
+                                       sinkCommonInsts(false)));
   EarlyFPM.addPass(SROA());
   EarlyFPM.addPass(EarlyCSEPass());
   EarlyFPM.addPass(LowerExpectIntrinsicPass());
