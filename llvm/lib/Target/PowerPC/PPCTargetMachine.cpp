@@ -97,7 +97,9 @@ extern "C" void LLVMInitializePowerPCTarget() {
   PassRegistry &PR = *PassRegistry::getPassRegistry();
   initializePPCBoolRetToIntPass(PR);
   initializePPCExpandISELPass(PR);
+  initializePPCPreEmitPeepholePass(PR);
   initializePPCTLSDynamicCallPass(PR);
+  initializePPCMIPeepholePass(PR);
 }
 
 /// Return the datalayout string of a subtarget.
@@ -433,6 +435,7 @@ void PPCPassConfig::addPreSched2() {
 }
 
 void PPCPassConfig::addPreEmitPass() {
+  addPass(createPPCPreEmitPeepholePass());
   addPass(createPPCExpandISELPass());
 
   if (getOptLevel() != CodeGenOpt::None)
