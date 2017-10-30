@@ -2226,6 +2226,65 @@ Instruction *InstCombiner::visitOr(BinaryOperator &I) {
     }
   }
 
+  // ((V<<C3)&C1) | ((V<<C4)&C2) --> ((V&C5)<<C3) | ((V&C5)<<C4)
+  // if C5 = C1>>C3 == C2>>C4, for both logical shifts
+  {
+    auto MatchAndOfShift = [](Value *V, Value *&Source,
+                              Instruction::BinaryOps &ShiftOpcode,
+                              ConstantInt *&ShiftBy, ConstantInt *&PreShiftMask,
+                              ConstantInt *&PostShiftMask,
+                              BinaryOperator *&IntermediateInstr) -> bool {
+      if (!match(V, m_And(m_BinOp(IntermediateInstr),
+                          m_ConstantInt(PostShiftMask))) ||
+          !match(IntermediateInstr,
+                 m_LogicalShift(m_Value(Source), m_ConstantInt(ShiftBy))))
+        return false;
+      ShiftOpcode = IntermediateInstr->getOpcode();
+      Instruction::BinaryOps InverseOpcode =
+          IntermediateInstr->getOpcode() == Instruction::Shl ? Instruction::LShr
+                                                             : Instruction::Shl;
+      PreShiftMask = cast<ConstantInt>(
+          ConstantExpr::get(InverseOpcode, PostShiftMask, ShiftBy));
+      return true;
+    };
+    Value *Source0, *Source1;
+    Instruction::BinaryOps ShiftOpcode0, ShiftOpcode1;
+    ConstantInt *ShiftBy0, *ShiftBy1, *PreShiftMask0, *PreShiftMask1,
+        *PostShiftMask0, *PostShiftMask1;
+    BinaryOperator *IntermediateInstr0, *IntermediateInstr1;
+    if (MatchAndOfShift(Op0, Source0, ShiftOpcode0, ShiftBy0, PreShiftMask0,
+                        PostShiftMask0, IntermediateInstr0) &&
+        MatchAndOfShift(Op1, Source1, ShiftOpcode1, ShiftBy1, PreShiftMask1,
+                        PostShiftMask1, IntermediateInstr1) &&
+        Source0 == Source1) {
+      if (ShiftBy0 == ShiftBy1 && ShiftOpcode0 == ShiftOpcode1) {
+        // ((V<<C3)&C1) | ((V<<C3)&C2) --> (V<<C3)&(C1|C2)
+        unsigned SavedInstructions = Op0->hasOneUse() + Op1->hasOneUse() +
+                                     IntermediateInstr0->hasOneUse() +
+                                     IntermediateInstr1->hasOneUse();
+        if (SavedInstructions >= 2) {
+          Value *Sh = Builder.CreateBinOp(ShiftOpcode0, Source0, ShiftBy0);
+          Constant *Mask = ConstantExpr::get(Instruction::Or, PostShiftMask0,
+                                             PostShiftMask1);
+          return BinaryOperator::CreateAnd(Sh, Mask);
+        }
+      }
+      Value *CommonOperand;
+      if (PreShiftMask0 == PreShiftMask1 &&
+          match(Op0, m_BinOp(m_Value(CommonOperand), m_Value())) &&
+          !match(Op1, m_BinOp(m_Specific(CommonOperand), m_Value())) &&
+          (IntermediateInstr0->hasOneUse() ||
+           IntermediateInstr1->hasOneUse())) {
+        Value *MaskedSource = Builder.CreateAnd(Source0, PreShiftMask0);
+        Value *NewOp0 =
+            Builder.CreateBinOp(ShiftOpcode0, MaskedSource, ShiftBy0);
+        Value *NewOp1 =
+            Builder.CreateBinOp(ShiftOpcode1, MaskedSource, ShiftBy1);
+        return BinaryOperator::CreateOr(NewOp0, NewOp1);
+      }
+    }
+  }
+
   return Changed ? &I : nullptr;
 }
 
