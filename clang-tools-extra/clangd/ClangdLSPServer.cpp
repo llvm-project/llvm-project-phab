@@ -9,6 +9,7 @@
 
 #include "ClangdLSPServer.h"
 #include "JSONRPCDispatcher.h"
+#include <llvm/Support/Error.h>
 
 using namespace clang::clangd;
 using namespace clang;
@@ -89,30 +90,40 @@ void ClangdLSPServer::onDocumentDidClose(Ctx C,
   Server.removeDocument(Params.textDocument.uri.file);
 }
 
+void ClangdLSPServer::replyWithTextEditsOrError(
+    Ctx C, std::string Code,
+    llvm::Expected<std::vector<clang::tooling::Replacement>>
+        ReplacementsOrError,
+    llvm::StringRef MessageInCaseError) const {
+  if (!ReplacementsOrError) {
+    C.replyError(/*UnknownErrorCode*/ -32001, MessageInCaseError);
+  } else {
+    C.reply("[" + replacementsToEdits(Code, ReplacementsOrError.get()) + "]");
+  }
+}
+
 void ClangdLSPServer::onDocumentOnTypeFormatting(
     Ctx C, DocumentOnTypeFormattingParams &Params) {
-  auto File = Params.textDocument.uri.file;
-  std::string Code = Server.getDocument(File);
-  std::string Edits =
-      replacementsToEdits(Code, Server.formatOnType(File, Params.position));
-  C.reply("[" + Edits + "]");
+  const auto File = Params.textDocument.uri.file;
+  replyWithTextEditsOrError(std::move(C), Server.getDocument(File),
+                            Server.formatOnType(File, Params.position),
+                            "Could not find .clang-format file!");
 }
 
 void ClangdLSPServer::onDocumentRangeFormatting(
     Ctx C, DocumentRangeFormattingParams &Params) {
-  auto File = Params.textDocument.uri.file;
-  std::string Code = Server.getDocument(File);
-  std::string Edits =
-      replacementsToEdits(Code, Server.formatRange(File, Params.range));
-  C.reply("[" + Edits + "]");
+  const auto File = Params.textDocument.uri.file;
+  replyWithTextEditsOrError(std::move(C), Server.getDocument(File),
+                            Server.formatRange(File, Params.range),
+                            "Could not find .clang-format file!");
 }
 
 void ClangdLSPServer::onDocumentFormatting(Ctx C,
                                            DocumentFormattingParams &Params) {
-  auto File = Params.textDocument.uri.file;
-  std::string Code = Server.getDocument(File);
-  std::string Edits = replacementsToEdits(Code, Server.formatFile(File));
-  C.reply("[" + Edits + "]");
+  const auto File = Params.textDocument.uri.file;
+  replyWithTextEditsOrError(std::move(C), Server.getDocument(File),
+                            Server.formatFile(File),
+                            "Could not find .clang-format file!");
 }
 
 void ClangdLSPServer::onCodeAction(Ctx C, CodeActionParams &Params) {

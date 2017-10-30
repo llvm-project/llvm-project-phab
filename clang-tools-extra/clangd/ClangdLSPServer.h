@@ -73,6 +73,12 @@ private:
   std::vector<clang::tooling::Replacement>
   getFixIts(StringRef File, const clangd::Diagnostic &D);
 
+  void replyWithTextEditsOrError(
+      Ctx C, std::string Code,
+      llvm::Expected<std::vector<clang::tooling::Replacement>>
+          ReplacementsOrError,
+      llvm::StringRef MessageInCaseError) const;
+
   JSONOutput &Out;
   /// Used to indicate that the 'shutdown' request was received from the
   /// Language Server client.
