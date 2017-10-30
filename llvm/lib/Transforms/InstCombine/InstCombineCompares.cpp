@@ -17,6 +17,7 @@
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/ConstantFolding.h"
 #include "llvm/Analysis/InstructionSimplify.h"
+#include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/MemoryBuiltins.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/VectorUtils.h"
@@ -1051,9 +1052,21 @@ Instruction *InstCombiner::foldAllocaCmp(ICmpInst &ICI,
       if (SI->getValueOperand() == U->get())
         return nullptr;
       continue;
-    } else if (isa<ICmpInst>(V)) {
+    } else if (const auto *ICI = dyn_cast<ICmpInst>(V)) {
       if (NumCmps++)
         return nullptr; // Found more than one cmp.
+      // Check whether this comparison is done only once in this function.
+      const BasicBlock *ICIBB = ICI->getParent();
+      if (LI) {
+        if (LI->getLoopFor(ICIBB) != nullptr) {
+          // This comparison is in a loop.
+          return nullptr;
+        }
+      } else {
+        // Be conservative.
+        if (Alloca->getParent() != ICIBB)
+          return nullptr;
+      }
       continue;
     } else if (const auto *Intrin = dyn_cast<IntrinsicInst>(V)) {
       switch (Intrin->getIntrinsicID()) {
