@@ -58,6 +58,10 @@ cl::opt<std::string>
                                "\n\tbinary"));
 cl::list<std::string> ToRemove("remove-section",
                                cl::desc("Remove a specific section"));
+cl::list<std::string>
+    OnlySection("only-section", cl::desc("Remove all but a specific section"));
+cl::alias OnlySectionA("j", cl::desc("Alias for only-section"),
+                       cl::aliasopt(OnlySection));
 cl::alias ToRemoveA("R", cl::desc("Alias for remove-section"),
                     cl::aliasopt(ToRemove));
 cl::opt<bool> StripSections("strip-sections",
@@ -70,10 +74,20 @@ void CopyBinary(const ELFObjectFile<ELF64LE> &ObjFile) {
   std::unique_ptr<Object<ELF64LE>> Obj;
   if (!OutputFormat.empty() && OutputFormat != "binary")
     error("invalid output format '" + OutputFormat + "'");
-  if (!OutputFormat.empty() && OutputFormat == "binary")
-    Obj = llvm::make_unique<BinaryObject<ELF64LE>>(ObjFile);
-  else
+  if (!OutputFormat.empty() && OutputFormat == "binary") {
+    // When the user uses -O binary and -j together they're likely meaning to
+    // dump the section contents of that section. This is a fairly common
+    // pattern in GNU objcopy so we should support it.
+    if (!OnlySection.empty()) {
+      if (OnlySection.size() != 1)
+        error("-O binary and -j can only be used together with a single -j");
+      Obj = llvm::make_unique<SectionDump<ELF64LE>>(ObjFile, OnlySection[0]);
+    } else {
+      Obj = llvm::make_unique<BinaryObject<ELF64LE>>(ObjFile);
+    }
+  } else {
     Obj = llvm::make_unique<ELFObject<ELF64LE>>(ObjFile);
+  }
 
   SectionPred RemovePred = [](const SectionBase &) { return false; };
 
@@ -81,6 +95,21 @@ void CopyBinary(const ELFObjectFile<ELF64LE> &ObjFile) {
     RemovePred = [&](const SectionBase &Sec) {
       return std::find(std::begin(ToRemove), std::end(ToRemove), Sec.Name) !=
              std::end(ToRemove);
+    };
+  }
+
+  if (!OnlySection.empty()) {
+    RemovePred = [RemovePred, &Obj](const SectionBase &Sec) {
+      if (RemovePred(Sec))
+        return true;
+      if (&Sec == Obj->getSectionHeaderStrTab())
+        return false;
+      if (&Sec == Obj->getSymTab() || &Sec == Obj->getSymTab()->getStrTab())
+        return false;
+      if (Sec.Type == SHT_SYMTAB)
+        return false;
+      return std::find(std::begin(OnlySection), std::end(OnlySection),
+                       Sec.Name) == std::end(OnlySection);
     };
   }
 

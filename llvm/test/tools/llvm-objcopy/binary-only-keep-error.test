@@ -1,0 +1,11 @@
+# RUN: yaml2obj %s > %t
+# RUN: not llvm-objcopy -O binary -j .foo -j .bar %t %t2 2>&1 >/dev/null | FileCheck %s
+
+!ELF
+FileHeader:
+  Class:           ELFCLASS64
+  Data:            ELFDATA2LSB
+  Type:            ET_REL
+  Machine:         EM_X86_64
+
+# CHECK: -O binary and -j can only be used together with a single -j

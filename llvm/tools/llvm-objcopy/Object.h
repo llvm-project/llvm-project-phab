@@ -179,6 +179,7 @@ protected:
 
 public:
   void setStrTab(StringTableSection *StrTab) { SymbolNames = StrTab; }
+  const StringTableSection *getStrTab() const { return SymbolNames; }
   void addSymbol(llvm::StringRef Name, uint8_t Bind, uint8_t Type,
                  SectionBase *DefinedIn, uint64_t Value, uint16_t Shndx,
                  uint64_t Sz);
@@ -349,6 +350,10 @@ public:
   bool WriteSectionHeaders = true;
 
   Object(const llvm::object::ELFObjectFile<ELFT> &Obj);
+  const StringTableSection *getSectionHeaderStrTab() const {
+    return SectionNames;
+  }
+  const SymbolTableSection *getSymTab() const { return SymbolTable; }
   void removeSections(std::function<bool(const SectionBase &)> ToRemove);
   virtual size_t totalSize() const = 0;
   virtual void finalize() = 0;
@@ -385,6 +390,26 @@ private:
 public:
   BinaryObject(const llvm::object::ELFObjectFile<ELFT> &Obj)
       : Object<ELFT>(Obj) {}
+  void finalize() override;
+  size_t totalSize() const override;
+  void write(llvm::FileOutputBuffer &Out) const override;
+};
+
+template <class ELFT> class SectionDump : public Object<ELFT> {
+private:
+  SectionBase *SectionToOutput = nullptr;
+
+public:
+  SectionDump(const llvm::object::ELFObjectFile<ELFT> &Obj,
+              llvm::StringRef SecName)
+      : Object<ELFT>(Obj) {
+    for (auto &Sec : this->Sections) {
+      if (Sec->Name == SecName) {
+        SectionToOutput = Sec.get();
+        return;
+      }
+    }
+  }
   void finalize() override;
   size_t totalSize() const override;
   void write(llvm::FileOutputBuffer &Out) const override;
