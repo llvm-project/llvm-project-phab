@@ -323,16 +323,36 @@ void LinkerScript::discard(ArrayRef<InputSection *> V) {
   }
 }
 
-std::vector<InputSection *> LinkerScript::createInputSectionList(
+// Method is used to build properly sorted input sections list for given output
+// section command. Returns the list constructed or None in case if sections are
+// discarded with /DISCARD/ or does not satisfy ONLY_IF_R[O|W] constraints.
+Optional<std::vector<InputSection *>> LinkerScript::createInputSectionList(
     OutputSection &OutCmd, const DenseMap<SectionBase *, int> &Order) {
+  // Create a list of input sections matching sections descriptions.
   std::vector<InputSection *> Ret;
-
   for (BaseCommand *Base : OutCmd.SectionCommands) {
     if (auto *Cmd = dyn_cast<InputSectionDescription>(Base)) {
       Cmd->Sections = computeInputSections(Cmd, Order);
       Ret.insert(Ret.end(), Cmd->Sections.begin(), Cmd->Sections.end());
     }
   }
+
+  // The output section name `/DISCARD/' is special.
+  // Any input section assigned to it is discarded.
+  if (OutCmd.Name == "/DISCARD/") {
+    discard(Ret);
+    return None;
+  }
+
+  // This is for ONLY_IF_RO and ONLY_IF_RW. An output section directive
+  // ".foo : ONLY_IF_R[OW] { ... }" is handled only if all member input
+  // sections satisfy a given constraint.
+  if (!matchConstraints(Ret, OutCmd.Constraint)) {
+    for (InputSectionBase *S : Ret)
+      S->Assigned = false;
+    return None;
+  }
+
   return Ret;
 }
 
@@ -367,25 +387,13 @@ void LinkerScript::processSectionCommands() {
     }
 
     if (auto *Sec = dyn_cast<OutputSection>(SectionCommands[I])) {
-      std::vector<InputSection *> V = createInputSectionList(*Sec, Order);
-
-      // The output section name `/DISCARD/' is special.
-      // Any input section assigned to it is discarded.
-      if (Sec->Name == "/DISCARD/") {
-        discard(V);
-        continue;
-      }
-
-      // This is for ONLY_IF_RO and ONLY_IF_RW. An output section directive
-      // ".foo : ONLY_IF_R[OW] { ... }" is handled only if all member input
-      // sections satisfy a given constraint. If not, a directive is handled
-      // as if it wasn't present from the beginning.
-      //
-      // Because we'll iterate over SectionCommands many more times, the easiest
-      // way to "make it as if it wasn't present" is to just remove it.
-      if (!matchConstraints(V, Sec->Constraint)) {
-        for (InputSectionBase *S : V)
-          S->Assigned = false;
+      // We want to build a list of input sections to work with. If list is
+      // absent that means all sections are either discarded or does not satisfy
+      // given output command constraints. In that case we want to ban such
+      // command because will iterate over SectionCommands many more times. The
+      // easiest way to "make it as if it wasn't present" is to just remove it.
+      Optional<std::vector<InputSection *>> V = createInputSectionList(*Sec, Order);
+      if (!V) {
         SectionCommands.erase(SectionCommands.begin() + I);
         --I;
         continue;
@@ -402,12 +410,12 @@ void LinkerScript::processSectionCommands() {
       // given value is larger or smaller than the original section alignment.
       if (Sec->SubalignExpr) {
         uint32_t Subalign = Sec->SubalignExpr().getValue();
-        for (InputSectionBase *S : V)
+        for (InputSectionBase *S : *V)
           S->Alignment = Subalign;
       }
 
       // Add input sections to an output section.
-      for (InputSection *S : V)
+      for (InputSection *S : *V)
         Sec->addSection(S);
     }
   }

@@ -214,7 +214,7 @@ class LinkerScript final {
   computeInputSections(const InputSectionDescription *,
                        const llvm::DenseMap<SectionBase *, int> &Order);
 
-  std::vector<InputSection *>
+  llvm::Optional<std::vector<InputSection *>>
   createInputSectionList(OutputSection &Cmd,
                          const llvm::DenseMap<SectionBase *, int> &Order);
 
