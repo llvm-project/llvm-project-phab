@@ -281,6 +281,7 @@ void initializePHIEliminationPass(PassRegistry&);
 void initializePartialInlinerLegacyPassPass(PassRegistry&);
 void initializePartiallyInlineLibCallsLegacyPassPass(PassRegistry&);
 void initializePatchableFunctionPass(PassRegistry&);
+void initializeAggressiveInstCombinerPass(PassRegistry&);
 void initializePeepholeOptimizerPass(PassRegistry&);
 void initializePhysicalRegisterUsageInfoPass(PassRegistry&);
 void initializePlaceBackedgeSafepointsImplPass(PassRegistry&);
