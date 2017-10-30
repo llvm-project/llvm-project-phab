@@ -692,8 +692,9 @@ Sema::ActOnDecompositionDeclarator(Scope *S, Declarator &D,
   assert(D.isDecompositionDeclarator());
   const DecompositionDeclarator &Decomp = D.getDecompositionDeclarator();
 
-  // The syntax only allows a decomposition declarator as a simple-declaration
-  // or a for-range-declaration, but we parse it in more cases than that.
+  // The syntax only allows a decomposition declarator as a simple-declaration,
+  // a for-range-declaration, or a condition in Clang, but we parse it in more
+  // cases than that.
   if (!D.mayHaveDecompositionDeclarator()) {
     Diag(Decomp.getLSquareLoc(), diag::err_decomp_decl_context)
       << Decomp.getSourceRange();
@@ -708,10 +709,15 @@ Sema::ActOnDecompositionDeclarator(Scope *S, Declarator &D,
     return nullptr;
   }
 
-  Diag(Decomp.getLSquareLoc(), getLangOpts().CPlusPlus1z
-                                   ? diag::warn_cxx14_compat_decomp_decl
-                                   : diag::ext_decomp_decl)
-      << Decomp.getSourceRange();
+  Diag(Decomp.getLSquareLoc(), [&, this] {
+    if (getLangOpts().CPlusPlus1z) {
+      if (D.getContext() == Declarator::ConditionContext)
+        return diag::ext_decomp_decl_cond;
+      else
+        return diag::warn_cxx14_compat_decomp_decl;
+    } else
+      return diag::ext_decomp_decl;
+  }()) << Decomp.getSourceRange();
 
   // The semantic context is always just the current context.
   DeclContext *const DC = CurContext;

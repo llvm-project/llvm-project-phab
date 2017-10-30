@@ -32,13 +32,8 @@ namespace OtherDecl {
   void f(auto [a, b, c]); // expected-error {{'auto' not allowed in function prototype}} expected-error {{'a'}}
 
   void g() {
-    // A condition is not a simple-declaration.
-    for (; auto [a, b, c] = S(); ) {} // expected-error {{not permitted in this context}}
-    if (auto [a, b, c] = S()) {} // expected-error {{not permitted in this context}}
-    if (int n; auto [a, b, c] = S()) {} // expected-error {{not permitted in this context}}
-    switch (auto [a, b, c] = S()) {} // expected-error {{not permitted in this context}}
-    switch (int n; auto [a, b, c] = S()) {} // expected-error {{not permitted in this context}}
-    while (auto [a, b, c] = S()) {} // expected-error {{not permitted in this context}}
+    // A condition is allowed as a Clang extension.
+    // See commentary in test/Parser/decomposed-condition.cpp
 
     // An exception-declaration is not a simple-declaration.
     try {}
