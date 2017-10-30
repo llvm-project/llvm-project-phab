@@ -10993,6 +10993,121 @@ static SDValue PerformVECTOR_SHUFFLECombine(SDNode *N, SelectionDAG &DAG) {
                               DAG.getUNDEF(VT), NewMask);
 }
 
+static bool isUpdatingVLDorVST(SDNode *Inst) {
+  switch(Inst->getOpcode()) {
+  case ARMISD::VLD1_UPD:
+  case ARMISD::VST1_UPD:
+    return true;
+  default:
+    return false;
+  }
+}
+
+static ConstantSDNode *tryGetConstOperand(SDNode *Inst, unsigned NOp) {
+   return dyn_cast<ConstantSDNode>(Inst->getOperand(NOp).getNode());
+}  
+
+static SDValue getIncrementWithOffset(SelectionDAG &DAG, SDValue C,
+                                     unsigned Offset, SDLoc DL) {
+  // If Offset is zero then C may or may not be constant.
+  if (!Offset)
+    return C;
+
+  // We should always have constant value C, if offset is not zero.
+  unsigned NewVal =
+      cast<ConstantSDNode>(C.getNode())->getZExtValue() - Offset;
+
+  return DAG.getConstant(NewVal, DL, C.getValueType());
+}
+
+static std::pair<SDValue, unsigned> checkedGetIncrement(SDValue Addr,
+                                                        SDNode *Inst,
+                                                        unsigned AccessSize,
+                                                        unsigned Offset) {
+  // If the increment is a constant, it must match the memory ref size.
+  SDValue Inc = Inst->getOperand(Inst->getOperand(0) == Addr ? 1 : 0);
+  auto *CInc = dyn_cast<ConstantSDNode>(Inc.getNode());
+
+  // Don't select non-constant increment if we have to subtract a
+  // constant from it. This may result in additional register pressure
+  if (!CInc && Offset)
+    return {SDValue(), 0};
+
+  unsigned CIncSize = CInc ? CInc->getZExtValue() : 0;
+  if (AccessSize >= 3 * 16 && CIncSize != AccessSize) {
+    // VLD3/4 and VST3/4 for 128-bit vectors are implemented with two
+    // separate instructions that make it harder to use a non-constant update.
+    return {SDValue(), 0};
+  }
+
+  // If increment is not greater than offset introduced by VLD/VST upper in the
+  // call chain we'll be unable to fold such.
+  if (CInc && CIncSize <= Offset)
+    return {SDValue(), 0};
+
+  return {Inc, CIncSize};
+}
+
+// Find address updating instruction, which we can fold with load/store,
+// creating VLD{X}_UPD or VST{X}_UPD.
+static std::pair<SDNode *, SDValue>
+findAddressUpdateToFold(SelectionDAG &DAG, SDNode *N, SDValue Addr,
+                        unsigned AccessSize) {
+  unsigned Offset = 0;
+  SDLoc DL(N);
+  struct Match {
+    SDNode *UInst;    // Address update instruction
+    SDValue Inc;      // Address increment
+    unsigned Off;     // Offset introduced by cascade vld/vst
+  } M = {};
+
+  while (true) {
+    for (SDNode::use_iterator UI = Addr.getNode()->use_begin(),
+           UE = Addr.getNode()->use_end(); UI != UE; ++UI) {
+      SDNode *User = *UI;
+      if (User->getOpcode() != ISD::ADD ||
+          UI.getUse().getResNo() != Addr.getResNo())
+        continue;
+
+      // Check that the add is independent of the load/store.  Otherwise,
+      // folding it would create a cycle.
+      if (User->isPredecessorOf(N) || N->isPredecessorOf(User))
+        continue;
+     
+      // We can fold following types of address increment:
+      // 1. Non-constant and Offset == 0
+      // 2. Constant and Inc.second >= Offset
+      auto Inc = checkedGetIncrement(Addr, User, AccessSize, Offset);
+      if (Inc.first.getNode())
+        M = {User, Inc.first, Offset};
+
+      if (Inc.second == AccessSize + Offset)
+        // We've found best match possible.
+        return {M.UInst, getIncrementWithOffset(DAG, Inc.first, Offset, DL)};       
+    }
+
+    // If 'Addr' points to VLD{X}_UPD or VST{X}_UPD with fixed post-increment
+    // then we examine parent address operand as well, keeping track of 
+    // post-increment value
+    if (!isUpdatingVLDorVST(Addr.getNode()))
+      break;
+
+    // Get post-increment value from VST{X}_UPD or VLD{X}_UPD. If it is not
+    // constant don't bother. Otherwise we'll introduce extra register
+    // operation, because we'll need to subtract constant value from register
+    // increment.
+    auto *CInc = tryGetConstOperand(Addr.getNode(), 2);
+    if (!CInc)
+      break;
+
+    // Update offset with a size of post-increment of command upper in the
+    // chain. 
+    Offset += CInc->getZExtValue();
+    Addr = Addr.getOperand(1);
+  }
+  return {M.UInst, getIncrementWithOffset(DAG, M.Inc, M.Off, DL)}; 
+}
+
 /// CombineBaseUpdate - Target-specific DAG combine function for VLDDUP,
 /// NEON load/store intrinsics, and generic vector load/stores, to merge
 /// base address updates.
@@ -11009,195 +11124,175 @@ static SDValue CombineBaseUpdate(SDNode *N,
   MemSDNode *MemN = cast<MemSDNode>(N);
   SDLoc dl(N);
 
-  // Search for a use of the address operand that is an increment.
-  for (SDNode::use_iterator UI = Addr.getNode()->use_begin(),
-         UE = Addr.getNode()->use_end(); UI != UE; ++UI) {
-    SDNode *User = *UI;
-    if (User->getOpcode() != ISD::ADD ||
-        UI.getUse().getResNo() != Addr.getResNo())
-      continue;
-
-    // Check that the add is independent of the load/store.  Otherwise, folding
-    // it would create a cycle.
-    if (User->isPredecessorOf(N) || N->isPredecessorOf(User))
-      continue;
-
-    // Find the new opcode for the updating load/store.
-    bool isLoadOp = true;
-    bool isLaneOp = false;
-    unsigned NewOpc = 0;
-    unsigned NumVecs = 0;
-    if (isIntrinsic) {
-      unsigned IntNo = cast<ConstantSDNode>(N->getOperand(1))->getZExtValue();
-      switch (IntNo) {
-      default: llvm_unreachable("unexpected intrinsic for Neon base update");
-      case Intrinsic::arm_neon_vld1:     NewOpc = ARMISD::VLD1_UPD;
-        NumVecs = 1; break;
-      case Intrinsic::arm_neon_vld2:     NewOpc = ARMISD::VLD2_UPD;
-        NumVecs = 2; break;
-      case Intrinsic::arm_neon_vld3:     NewOpc = ARMISD::VLD3_UPD;
-        NumVecs = 3; break;
-      case Intrinsic::arm_neon_vld4:     NewOpc = ARMISD::VLD4_UPD;
-        NumVecs = 4; break;
-      case Intrinsic::arm_neon_vld2lane: NewOpc = ARMISD::VLD2LN_UPD;
-        NumVecs = 2; isLaneOp = true; break;
-      case Intrinsic::arm_neon_vld3lane: NewOpc = ARMISD::VLD3LN_UPD;
-        NumVecs = 3; isLaneOp = true; break;
-      case Intrinsic::arm_neon_vld4lane: NewOpc = ARMISD::VLD4LN_UPD;
-        NumVecs = 4; isLaneOp = true; break;
-      case Intrinsic::arm_neon_vst1:     NewOpc = ARMISD::VST1_UPD;
-        NumVecs = 1; isLoadOp = false; break;
-      case Intrinsic::arm_neon_vst2:     NewOpc = ARMISD::VST2_UPD;
-        NumVecs = 2; isLoadOp = false; break;
-      case Intrinsic::arm_neon_vst3:     NewOpc = ARMISD::VST3_UPD;
-        NumVecs = 3; isLoadOp = false; break;
-      case Intrinsic::arm_neon_vst4:     NewOpc = ARMISD::VST4_UPD;
-        NumVecs = 4; isLoadOp = false; break;
-      case Intrinsic::arm_neon_vst2lane: NewOpc = ARMISD::VST2LN_UPD;
-        NumVecs = 2; isLoadOp = false; isLaneOp = true; break;
-      case Intrinsic::arm_neon_vst3lane: NewOpc = ARMISD::VST3LN_UPD;
-        NumVecs = 3; isLoadOp = false; isLaneOp = true; break;
-      case Intrinsic::arm_neon_vst4lane: NewOpc = ARMISD::VST4LN_UPD;
-        NumVecs = 4; isLoadOp = false; isLaneOp = true; break;
-      }
-    } else {
-      isLaneOp = true;
-      switch (N->getOpcode()) {
-      default: llvm_unreachable("unexpected opcode for Neon base update");
-      case ARMISD::VLD1DUP: NewOpc = ARMISD::VLD1DUP_UPD; NumVecs = 1; break;
-      case ARMISD::VLD2DUP: NewOpc = ARMISD::VLD2DUP_UPD; NumVecs = 2; break;
-      case ARMISD::VLD3DUP: NewOpc = ARMISD::VLD3DUP_UPD; NumVecs = 3; break;
-      case ARMISD::VLD4DUP: NewOpc = ARMISD::VLD4DUP_UPD; NumVecs = 4; break;
-      case ISD::LOAD:       NewOpc = ARMISD::VLD1_UPD;
-        NumVecs = 1; isLaneOp = false; break;
-      case ISD::STORE:      NewOpc = ARMISD::VST1_UPD;
-        NumVecs = 1; isLaneOp = false; isLoadOp = false; break;
-      }
+  // Find the new opcode for the updating load/store.
+  bool isLoadOp = true;
+  bool isLaneOp = false;
+  unsigned NewOpc = 0;
+  unsigned NumVecs = 0;
+  if (isIntrinsic) {
+    unsigned IntNo = cast<ConstantSDNode>(N->getOperand(1))->getZExtValue();
+    switch (IntNo) {
+    default: llvm_unreachable("unexpected intrinsic for Neon base update");
+    case Intrinsic::arm_neon_vld1:     NewOpc = ARMISD::VLD1_UPD;
+      NumVecs = 1; break;
+    case Intrinsic::arm_neon_vld2:     NewOpc = ARMISD::VLD2_UPD;
+      NumVecs = 2; break;
+    case Intrinsic::arm_neon_vld3:     NewOpc = ARMISD::VLD3_UPD;
+      NumVecs = 3; break;
+    case Intrinsic::arm_neon_vld4:     NewOpc = ARMISD::VLD4_UPD;
+      NumVecs = 4; break;
+    case Intrinsic::arm_neon_vld2lane: NewOpc = ARMISD::VLD2LN_UPD;
+      NumVecs = 2; isLaneOp = true; break;
+    case Intrinsic::arm_neon_vld3lane: NewOpc = ARMISD::VLD3LN_UPD;
+      NumVecs = 3; isLaneOp = true; break;
+    case Intrinsic::arm_neon_vld4lane: NewOpc = ARMISD::VLD4LN_UPD;
+      NumVecs = 4; isLaneOp = true; break;
+    case Intrinsic::arm_neon_vst1:     NewOpc = ARMISD::VST1_UPD;
+      NumVecs = 1; isLoadOp = false; break;
+    case Intrinsic::arm_neon_vst2:     NewOpc = ARMISD::VST2_UPD;
+      NumVecs = 2; isLoadOp = false; break;
+    case Intrinsic::arm_neon_vst3:     NewOpc = ARMISD::VST3_UPD;
+      NumVecs = 3; isLoadOp = false; break;
+    case Intrinsic::arm_neon_vst4:     NewOpc = ARMISD::VST4_UPD;
+      NumVecs = 4; isLoadOp = false; break;
+    case Intrinsic::arm_neon_vst2lane: NewOpc = ARMISD::VST2LN_UPD;
+      NumVecs = 2; isLoadOp = false; isLaneOp = true; break;
+    case Intrinsic::arm_neon_vst3lane: NewOpc = ARMISD::VST3LN_UPD;
+      NumVecs = 3; isLoadOp = false; isLaneOp = true; break;
+    case Intrinsic::arm_neon_vst4lane: NewOpc = ARMISD::VST4LN_UPD;
+      NumVecs = 4; isLoadOp = false; isLaneOp = true; break;
     }
-
-    // Find the size of memory referenced by the load/store.
-    EVT VecTy;
-    if (isLoadOp) {
-      VecTy = N->getValueType(0);
-    } else if (isIntrinsic) {
-      VecTy = N->getOperand(AddrOpIdx+1).getValueType();
-    } else {
-      assert(isStore && "Node has to be a load, a store, or an intrinsic!");
-      VecTy = N->getOperand(1).getValueType();
+  } else {
+    isLaneOp = true;
+    switch (N->getOpcode()) {
+    default: llvm_unreachable("unexpected opcode for Neon base update");
+    case ARMISD::VLD1DUP: NewOpc = ARMISD::VLD1DUP_UPD; NumVecs = 1; break;
+    case ARMISD::VLD2DUP: NewOpc = ARMISD::VLD2DUP_UPD; NumVecs = 2; break;
+    case ARMISD::VLD3DUP: NewOpc = ARMISD::VLD3DUP_UPD; NumVecs = 3; break;
+    case ARMISD::VLD4DUP: NewOpc = ARMISD::VLD4DUP_UPD; NumVecs = 4; break;
+    case ISD::LOAD:       NewOpc = ARMISD::VLD1_UPD;
+      NumVecs = 1; isLaneOp = false; break;
+    case ISD::STORE:      NewOpc = ARMISD::VST1_UPD;
+      NumVecs = 1; isLaneOp = false; isLoadOp = false; break;
     }
-
-    unsigned NumBytes = NumVecs * VecTy.getSizeInBits() / 8;
-    if (isLaneOp)
-      NumBytes /= VecTy.getVectorNumElements();
-
-    // If the increment is a constant, it must match the memory ref size.
-    SDValue Inc = User->getOperand(User->getOperand(0) == Addr ? 1 : 0);
-    ConstantSDNode *CInc = dyn_cast<ConstantSDNode>(Inc.getNode());
-    if (NumBytes >= 3 * 16 && (!CInc || CInc->getZExtValue() != NumBytes)) {
-      // VLD3/4 and VST3/4 for 128-bit vectors are implemented with two
-      // separate instructions that make it harder to use a non-constant update.
-      continue;
-    }
-
-    // OK, we found an ADD we can fold into the base update.
-    // Now, create a _UPD node, taking care of not breaking alignment.
-
-    EVT AlignedVecTy = VecTy;
-    unsigned Alignment = MemN->getAlignment();
-
-    // If this is a less-than-standard-aligned load/store, change the type to
-    // match the standard alignment.
-    // The alignment is overlooked when selecting _UPD variants; and it's
-    // easier to introduce bitcasts here than fix that.
-    // There are 3 ways to get to this base-update combine:
-    // - intrinsics: they are assumed to be properly aligned (to the standard
-    //   alignment of the memory type), so we don't need to do anything.
-    // - ARMISD::VLDx nodes: they are only generated from the aforementioned
-    //   intrinsics, so, likewise, there's nothing to do.
-    // - generic load/store instructions: the alignment is specified as an
-    //   explicit operand, rather than implicitly as the standard alignment
-    //   of the memory type (like the intrisics).  We need to change the
-    //   memory type to match the explicit alignment.  That way, we don't
-    //   generate non-standard-aligned ARMISD::VLDx nodes.
-    if (isa<LSBaseSDNode>(N)) {
-      if (Alignment == 0)
-        Alignment = 1;
-      if (Alignment < VecTy.getScalarSizeInBits() / 8) {
-        MVT EltTy = MVT::getIntegerVT(Alignment * 8);
-        assert(NumVecs == 1 && "Unexpected multi-element generic load/store.");
-        assert(!isLaneOp && "Unexpected generic load/store lane.");
-        unsigned NumElts = NumBytes / (EltTy.getSizeInBits() / 8);
-        AlignedVecTy = MVT::getVectorVT(EltTy, NumElts);
-      }
-      // Don't set an explicit alignment on regular load/stores that we want
-      // to transform to VLD/VST 1_UPD nodes.
-      // This matches the behavior of regular load/stores, which only get an
-      // explicit alignment if the MMO alignment is larger than the standard
-      // alignment of the memory type.
-      // Intrinsics, however, always get an explicit alignment, set to the
-      // alignment of the MMO.
-      Alignment = 1;
-    }
-
-    // Create the new updating load/store node.
-    // First, create an SDVTList for the new updating node's results.
-    EVT Tys[6];
-    unsigned NumResultVecs = (isLoadOp ? NumVecs : 0);
-    unsigned n;
-    for (n = 0; n < NumResultVecs; ++n)
-      Tys[n] = AlignedVecTy;
-    Tys[n++] = MVT::i32;
-    Tys[n] = MVT::Other;
-    SDVTList SDTys = DAG.getVTList(makeArrayRef(Tys, NumResultVecs+2));
-
-    // Then, gather the new node's operands.
-    SmallVector<SDValue, 8> Ops;
-    Ops.push_back(N->getOperand(0)); // incoming chain
-    Ops.push_back(N->getOperand(AddrOpIdx));
-    Ops.push_back(Inc);
-
-    if (StoreSDNode *StN = dyn_cast<StoreSDNode>(N)) {
-      // Try to match the intrinsic's signature
-      Ops.push_back(StN->getValue());
-    } else {
-      // Loads (and of course intrinsics) match the intrinsics' signature,
-      // so just add all but the alignment operand.
-      for (unsigned i = AddrOpIdx + 1; i < N->getNumOperands() - 1; ++i)
-        Ops.push_back(N->getOperand(i));
-    }
-
-    // For all node types, the alignment operand is always the last one.
-    Ops.push_back(DAG.getConstant(Alignment, dl, MVT::i32));
-
-    // If this is a non-standard-aligned STORE, the penultimate operand is the
-    // stored value.  Bitcast it to the aligned type.
-    if (AlignedVecTy != VecTy && N->getOpcode() == ISD::STORE) {
-      SDValue &StVal = Ops[Ops.size()-2];
-      StVal = DAG.getNode(ISD::BITCAST, dl, AlignedVecTy, StVal);
-    }
-
-    EVT LoadVT = isLaneOp ? VecTy.getVectorElementType() : AlignedVecTy;
-    SDValue UpdN = DAG.getMemIntrinsicNode(NewOpc, dl, SDTys, Ops, LoadVT,
-                                           MemN->getMemOperand());
-
-    // Update the uses.
-    SmallVector<SDValue, 5> NewResults;
-    for (unsigned i = 0; i < NumResultVecs; ++i)
-      NewResults.push_back(SDValue(UpdN.getNode(), i));
-
-    // If this is an non-standard-aligned LOAD, the first result is the loaded
-    // value.  Bitcast it to the expected result type.
-    if (AlignedVecTy != VecTy && N->getOpcode() == ISD::LOAD) {
-      SDValue &LdVal = NewResults[0];
-      LdVal = DAG.getNode(ISD::BITCAST, dl, VecTy, LdVal);
-    }
-
-    NewResults.push_back(SDValue(UpdN.getNode(), NumResultVecs+1)); // chain
-    DCI.CombineTo(N, NewResults);
-    DCI.CombineTo(User, SDValue(UpdN.getNode(), NumResultVecs));
-
-    break;
   }
+
+  // Find the size of memory referenced by the load/store.
+  EVT VecTy;
+  if (isLoadOp) {
+    VecTy = N->getValueType(0);
+  } else if (isIntrinsic) {
+    VecTy = N->getOperand(AddrOpIdx+1).getValueType();
+  } else {
+    assert(isStore && "Node has to be a load, a store, or an intrinsic!");
+    VecTy = N->getOperand(1).getValueType();
+  }
+
+  unsigned NumBytes = NumVecs * VecTy.getSizeInBits() / 8;
+  if (isLaneOp)
+    NumBytes /= VecTy.getVectorNumElements();
+
+  auto AU = findAddressUpdateToFold(DAG, N, Addr, NumBytes);
+  if (!AU.first)
+    return SDValue();
+
+  // OK, we found an ADD we can fold into the base update.
+  // Now, create a _UPD node, taking care of not breaking alignment.
+
+  EVT AlignedVecTy = VecTy;
+  unsigned Alignment = MemN->getAlignment();
+
+  // If this is a less-than-standard-aligned load/store, change the type to
+  // match the standard alignment.
+  // The alignment is overlooked when selecting _UPD variants; and it's
+  // easier to introduce bitcasts here than fix that.
+  // There are 3 ways to get to this base-update combine:
+  // - intrinsics: they are assumed to be properly aligned (to the standard
+  //   alignment of the memory type), so we don't need to do anything.
+  // - ARMISD::VLDx nodes: they are only generated from the aforementioned
+  //   intrinsics, so, likewise, there's nothing to do.
+  // - generic load/store instructions: the alignment is specified as an
+  //   explicit operand, rather than implicitly as the standard alignment
+  //   of the memory type (like the intrisics).  We need to change the
+  //   memory type to match the explicit alignment.  That way, we don't
+  //   generate non-standard-aligned ARMISD::VLDx nodes.
+  if (isa<LSBaseSDNode>(N)) {
+    if (Alignment == 0)
+      Alignment = 1;
+    if (Alignment < VecTy.getScalarSizeInBits() / 8) {
+      MVT EltTy = MVT::getIntegerVT(Alignment * 8);
+      assert(NumVecs == 1 && "Unexpected multi-element generic load/store.");
+      assert(!isLaneOp && "Unexpected generic load/store lane.");
+      unsigned NumElts = NumBytes / (EltTy.getSizeInBits() / 8);
+      AlignedVecTy = MVT::getVectorVT(EltTy, NumElts);
+    }
+    // Don't set an explicit alignment on regular load/stores that we want
+    // to transform to VLD/VST 1_UPD nodes.
+    // This matches the behavior of regular load/stores, which only get an
+    // explicit alignment if the MMO alignment is larger than the standard
+    // alignment of the memory type.
+    // Intrinsics, however, always get an explicit alignment, set to the
+    // alignment of the MMO.
+    Alignment = 1;
+  }
+
+  // Create the new updating load/store node.
+  // First, create an SDVTList for the new updating node's results.
+  EVT Tys[6];
+  unsigned NumResultVecs = (isLoadOp ? NumVecs : 0);
+  unsigned n;
+  for (n = 0; n < NumResultVecs; ++n)
+    Tys[n] = AlignedVecTy;
+  Tys[n++] = MVT::i32;
+  Tys[n] = MVT::Other;
+  SDVTList SDTys = DAG.getVTList(makeArrayRef(Tys, NumResultVecs+2));
+
+  // Then, gather the new node's operands.
+  SmallVector<SDValue, 8> Ops;
+  Ops.push_back(N->getOperand(0)); // incoming chain
+  Ops.push_back(N->getOperand(AddrOpIdx));
+  Ops.push_back(AU.second);
+
+  if (StoreSDNode *StN = dyn_cast<StoreSDNode>(N)) {
+    // Try to match the intrinsic's signature
+    Ops.push_back(StN->getValue());
+  } else {
+    // Loads (and of course intrinsics) match the intrinsics' signature,
+    // so just add all but the alignment operand.
+    for (unsigned i = AddrOpIdx + 1; i < N->getNumOperands() - 1; ++i)
+      Ops.push_back(N->getOperand(i));
+  }
+
+  // For all node types, the alignment operand is always the last one.
+  Ops.push_back(DAG.getConstant(Alignment, dl, MVT::i32));
+
+  // If this is a non-standard-aligned STORE, the penultimate operand is the
+  // stored value.  Bitcast it to the aligned type.
+  if (AlignedVecTy != VecTy && N->getOpcode() == ISD::STORE) {
+    SDValue &StVal = Ops[Ops.size()-2];
+    StVal = DAG.getNode(ISD::BITCAST, dl, AlignedVecTy, StVal);
+  }
+
+  EVT LoadVT = isLaneOp ? VecTy.getVectorElementType() : AlignedVecTy;
+  SDValue UpdN = DAG.getMemIntrinsicNode(NewOpc, dl, SDTys, Ops, LoadVT,
+                                         MemN->getMemOperand());
+
+  // Update the uses.
+  SmallVector<SDValue, 5> NewResults;
+  for (unsigned i = 0; i < NumResultVecs; ++i)
+    NewResults.push_back(SDValue(UpdN.getNode(), i));
+
+  // If this is an non-standard-aligned LOAD, the first result is the loaded
+  // value.  Bitcast it to the expected result type.
+  if (AlignedVecTy != VecTy && N->getOpcode() == ISD::LOAD) {
+    SDValue &LdVal = NewResults[0];
+    LdVal = DAG.getNode(ISD::BITCAST, dl, VecTy, LdVal);
+  }
+
+  NewResults.push_back(SDValue(UpdN.getNode(), NumResultVecs+1)); // chain
+  DCI.CombineTo(N, NewResults);
+  DCI.CombineTo(AU.first, SDValue(UpdN.getNode(), NumResultVecs));
+
   return SDValue();
 }
 

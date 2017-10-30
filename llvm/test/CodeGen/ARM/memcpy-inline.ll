@@ -44,15 +44,14 @@ entry:
 define void @t2(i8* nocapture %C) nounwind {
 entry:
 ; CHECK-LABEL: t2:
-; CHECK: vld1.8 {d{{[0-9]+}}, d{{[0-9]+}}}, [r1]!
-; CHECK: movs [[INC:r[0-9]+]], #32
-; CHECK: add.w   r3, r0, #16
-; CHECK: vst1.8 {d{{[0-9]+}}, d{{[0-9]+}}}, [r0], [[INC]]
-; CHECK: movw [[REG2:r[0-9]+]], #16716
-; CHECK: movt [[REG2:r[0-9]+]], #72
-; CHECK: str [[REG2]], [r0]
-; CHECK: vld1.64 {d{{[0-9]+}}, d{{[0-9]+}}}, [r1]
-; CHECK: vst1.8 {d{{[0-9]+}}, d{{[0-9]+}}}, [r3]
+; CHECK:   vld1.8  {d{{[0-9]+}}, d{{[0-9]+}}}, [r1]!
+; CHECK:   vst1.8  {d{{[0-9]+}}, d{{[0-9]+}}}, [r0]!
+; CHECK:   vld1.64 {d{{[0-9]+}}, d{{[0-9]+}}}, [r1]
+; CHECK:   vst1.8  {d{{[0-9]+}}, d{{[0-9]+}}}, [r0]!
+; CHECK:   movw  r1, #16716
+; CHECK:   movt  r1, #72
+; CHECK:   str r1, [r0]
+; CHECK:   bx  lr
 ; CHECK-T1-LABEL: t2:
 ; CHECK-T1: bl _memcpy
   tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %C, i8* getelementptr inbounds ([36 x i8], [36 x i8]* @.str2, i64 0, i64 0), i64 36, i32 1, i1 false)

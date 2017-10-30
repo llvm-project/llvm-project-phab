@@ -216,21 +216,18 @@ define <4 x i16> @test_undef(<8 x i16>* %A, <8 x i16>* %B) nounwind {
 define <4 x i16> @test_multisource(<32 x i16>* %B) nounwind {
 ; CHECK-LABEL: test_multisource:
 ; CHECK:       @ BB#0:
-; CHECK-NEXT:    mov r1, r0
-; CHECK-NEXT:    add r2, r0, #48
-; CHECK-NEXT:    add r0, r0, #32
-; CHECK-NEXT:    vld1.16 {d16, d17}, [r1:128]!
-; CHECK-NEXT:    vld1.64 {d20, d21}, [r0:128]
-; CHECK-NEXT:    vorr d24, d20, d20
-; CHECK-NEXT:    vld1.64 {d18, d19}, [r2:128]
-; CHECK-NEXT:    vld1.64 {d22, d23}, [r1:128]
-; CHECK-NEXT:    vzip.16 d24, d18
-; CHECK-NEXT:    vtrn.16 q8, q11
-; CHECK-NEXT:    vext.16 d18, d20, d24, #2
-; CHECK-NEXT:    vext.16 d16, d18, d16, #2
-; CHECK-NEXT:    vext.16 d16, d16, d16, #2
-; CHECK-NEXT:    vmov r0, r1, d16
-; CHECK-NEXT:    mov pc, lr
+; CHECK-NEXT:  vld1.16 {d16, d17}, [r0:128]!
+; CHECK-NEXT:  vld1.16 {d18, d19}, [r0:128]!
+; CHECK-NEXT:  vld1.16 {d20, d21}, [r0:128]!
+; CHECK-NEXT:  vorr  d24, d20, d20
+; CHECK-NEXT:  vld1.64 {d22, d23}, [r0:128]
+; CHECK-NEXT:  vzip.16 d24, d22
+; CHECK-NEXT:  vtrn.16 q8, q9
+; CHECK-NEXT:  vext.16 d18, d20, d24, #2
+; CHECK-NEXT:  vext.16 d16, d18, d16, #2
+; CHECK-NEXT:  vext.16 d16, d16, d16, #2
+; CHECK-NEXT:  vmov  r0, r1, d16
+; CHECK-NEXT:  mov pc, lr
         %tmp1 = load <32 x i16>, <32 x i16>* %B
         %tmp2 = shufflevector <32 x i16> %tmp1, <32 x i16> undef, <4 x i32> <i32 0, i32 8, i32 16, i32 24>
         ret <4 x i16> %tmp2
