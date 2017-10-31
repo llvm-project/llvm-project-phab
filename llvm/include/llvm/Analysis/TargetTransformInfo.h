@@ -628,6 +628,30 @@ public:
   /// \brief Additional properties of an operand's values.
   enum OperandValueProperties { OP_None = 0, OP_PowerOf2 = 1 };
 
+  /// \brief Targets defined in the vector function ABI.
+  enum TargetProcessor {
+    Pentium4,      // ISA extension = SSE2,     ISA class = XMM
+    Pentium4SSE3,  // ISA extension = SSE3,     ISA class = XMM
+    Core2DuoSSSE3, // ISA extension = SSSE3,    ISA class = XMM
+    Core2DuoSSE41, // ISA extension = SSE4_1,   ISA class = XMM
+    CoreI7SSE42,   // ISA extension = SSE4_2,   ISA class = XMM
+    Core2ndGenAVX, // ISA extension = AVX,      ISA class = YMM1
+    Core3rdGenAVX, // ISA extension = AVX,      ISA class = YMM1
+    Core4thGenAVX, // ISA extension = AVX2,     ISA class = YMM2
+    Mic,           // ISA extension = Xeon Phi, ISA class = MIC(ZMM)
+    FutureCpu22,   // ISA extension = AVX512,   ISA class = ZMM
+    FutureCpu23,   // ISA extension = AVX512,   ISA class = ZMM
+  };
+
+  /// ISA classes defined in the vector function ABI.
+  enum ISAClass {
+    XMM,  // (SSE2)
+    YMM1, // (AVX1)
+    YMM2, // (AVX2)
+    ZMM,  // (MIC)
+    ISAClassesNum
+  };
+
   /// \return The number of scalar or vector registers that the target has.
   /// If 'Vectors' is true, it returns the number of vector registers. If it is
   /// set to false, it returns the number of scalar registers.
@@ -887,6 +911,21 @@ public:
                                 unsigned ChainSizeInBytes,
                                 VectorType *VecTy) const;
 
+  /// \returns The maximum vector register width based on ISAClass \p Class,
+  /// as defined in the vector function ABI.
+  unsigned maximumSizeofISAClassVectorRegister(ISAClass Class, Type *Ty) const;
+
+  /// \returns The encoded ISA class for the mangled vector variant name based
+  /// on \p IsaClass.
+  char encodeISAClass(ISAClass IsaClass) const;
+
+  /// \returns The ISAClass from the character encoded \p IsaClass of the
+  /// mangled vector variant function name.
+  ISAClass decodeISAClass(char IsaClass) const;
+
+  /// \returns The target legalized type of \P Ty based on ISAClass \p IsaClass.
+  Type* promoteToSupportedType(Type *Ty, ISAClass IsaClass) const;
+
   /// Flags describing the kind of vector reduction.
   struct ReductionFlags {
     ReductionFlags() : IsMaxOp(false), IsSigned(false), NoNaN(false) {}
@@ -1088,6 +1127,11 @@ public:
   virtual unsigned getStoreVectorFactor(unsigned VF, unsigned StoreSize,
                                         unsigned ChainSizeInBytes,
                                         VectorType *VecTy) const = 0;
+  virtual unsigned maximumSizeofISAClassVectorRegister(ISAClass Class,
+                                                       Type *Ty) const = 0;
+  virtual char encodeISAClass(ISAClass IsaClass) const = 0;
+  virtual ISAClass decodeISAClass(char IsaClass) const = 0;
+  virtual Type* promoteToSupportedType(Type *Ty, ISAClass IsaClass) const = 0;
   virtual bool useReductionIntrinsic(unsigned Opcode, Type *Ty,
                                      ReductionFlags) const = 0;
   virtual bool shouldExpandReduction(const IntrinsicInst *II) const = 0;
@@ -1449,6 +1493,19 @@ public:
                                 unsigned ChainSizeInBytes,
                                 VectorType *VecTy) const override {
     return Impl.getStoreVectorFactor(VF, StoreSize, ChainSizeInBytes, VecTy);
+  }
+  unsigned maximumSizeofISAClassVectorRegister(ISAClass Class,
+                                               Type *Ty) const override {
+    return Impl.maximumSizeofISAClassVectorRegister(Class, Ty);
+  }
+  char encodeISAClass(ISAClass IsaClass) const override {
+    return Impl.encodeISAClass(IsaClass);
+  }
+  ISAClass decodeISAClass(char IsaClass) const override {
+    return Impl.decodeISAClass(IsaClass);
+  }
+  Type* promoteToSupportedType(Type *Ty, ISAClass IsaClass) const override {
+    return Impl.promoteToSupportedType(Ty, IsaClass);
   }
   bool useReductionIntrinsic(unsigned Opcode, Type *Ty,
                              ReductionFlags Flags) const override {

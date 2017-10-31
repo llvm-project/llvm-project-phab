@@ -40,6 +40,7 @@
 #include "llvm/Transforms/Scalar/GVN.h"
 #include "llvm/Transforms/Scalar/SimpleLoopUnswitch.h"
 #include "llvm/Transforms/Vectorize.h"
+#include "llvm/Transforms/Utils/VecClone.h"
 
 using namespace llvm;
 
@@ -93,6 +94,9 @@ static cl::opt<CFLAAType>
 static cl::opt<bool> EnableLoopInterchange(
     "enable-loopinterchange", cl::init(false), cl::Hidden,
     cl::desc("Enable the new, experimental LoopInterchange Pass"));
+
+static cl::opt<bool> RunVecClone("enable-vec-clone", cl::init(false), cl::Hidden,
+                                 cl::desc("Run Vector Function Cloning"));
 
 static cl::opt<bool>
     EnablePrepareForThinLTO("prepare-for-thinlto", cl::init(false), cl::Hidden,
@@ -426,6 +430,10 @@ void PassManagerBuilder::populateModulePassManager(
     // new unnamed globals.
     if (PrepareForThinLTO)
       MPM.add(createNameAnonGlobalPass());
+
+    if (RunVecClone)
+      MPM.add(createVecClonePass());
+
     return;
   }
 
@@ -587,6 +595,9 @@ void PassManagerBuilder::populateModulePassManager(
   // currently only performed for loops marked with the metadata
   // llvm.loop.distribute=true or when -enable-loop-distribute is specified.
   MPM.add(createLoopDistributePass());
+
+  if (RunVecClone)
+    MPM.add(createVecClonePass());
 
   MPM.add(createLoopVectorizePass(DisableUnrollLoops, LoopVectorize));
 

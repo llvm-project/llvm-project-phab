@@ -529,6 +529,23 @@ public:
     return VF;
   }
 
+  unsigned maximumSizeofISAClassVectorRegister(
+    TTI::ISAClass I, Type *Ty) const {
+    return 0;
+  }
+
+  char encodeISAClass(TTI::ISAClass IsaClass) const {
+    return '?';
+  }
+
+  TTI::ISAClass decodeISAClass(char IsaClass) const {
+    return TTI::ISAClassesNum;
+  }
+
+  Type* promoteToSupportedType(Type *Ty, TTI::ISAClass IsaClass) const {
+    return Ty;
+  }
+
   bool useReductionIntrinsic(unsigned Opcode, Type *Ty,
                              TTI::ReductionFlags Flags) const {
     return false;
