@@ -18,6 +18,7 @@
 // Other libraries and framework includes
 // Project includes
 #include "lldb/Utility/ConstString.h"
+#include "lldb/Utility/RegularExpression.h"
 
 #include "llvm/ADT/StringRef.h" // for StringRef
 #include "llvm/Support/FileSystem.h"
@@ -91,6 +92,8 @@ public:
 
   explicit FileSpec(llvm::StringRef path, bool resolve_path,
                     const llvm::Triple &Triple);
+
+  explicit FileSpec(llvm::StringRef regex);
 
   //------------------------------------------------------------------
   /// Copy constructor
@@ -583,6 +586,7 @@ protected:
   mutable bool m_is_resolved = false; ///< True if this path has been resolved.
   PathSyntax
       m_syntax; ///< The syntax that this path uses (e.g. Windows / Posix)
+  RegularExpression m_regex;          ///< Regular expression in "regex:" prefix passed.
 };
 
 //----------------------------------------------------------------------

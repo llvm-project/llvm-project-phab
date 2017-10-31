@@ -180,12 +180,19 @@ FileSpec::FileSpec(llvm::StringRef path, bool resolve_path,
     : FileSpec{path, resolve_path,
                Triple.isOSWindows() ? ePathSyntaxWindows : ePathSyntaxPosix} {}
 
+FileSpec::FileSpec(llvm::StringRef regex) {
+  m_syntax = ePathSyntaxHostNative;
+  m_filename.SetString(regex);
+  m_regex.Compile(regex);
+}
+
 //------------------------------------------------------------------
 // Copy constructor
 //------------------------------------------------------------------
 FileSpec::FileSpec(const FileSpec &rhs)
     : m_directory(rhs.m_directory), m_filename(rhs.m_filename),
-      m_is_resolved(rhs.m_is_resolved), m_syntax(rhs.m_syntax) {}
+      m_is_resolved(rhs.m_is_resolved), m_syntax(rhs.m_syntax),
+      m_regex(rhs.m_regex) {}
 
 //------------------------------------------------------------------
 // Copy constructor
@@ -209,6 +216,7 @@ const FileSpec &FileSpec::operator=(const FileSpec &rhs) {
     m_filename = rhs.m_filename;
     m_is_resolved = rhs.m_is_resolved;
     m_syntax = rhs.m_syntax;
+    m_regex = rhs.m_regex;
   }
   return *this;
 }
@@ -301,6 +309,9 @@ bool FileSpec::FileEquals(const FileSpec &rhs) const {
 // Equal to operator
 //------------------------------------------------------------------
 bool FileSpec::operator==(const FileSpec &rhs) const {
+  if (m_regex.IsValid())
+    return m_regex.Execute(rhs.GetPath());
+
   if (!FileEquals(rhs))
     return false;
   if (DirectoryEquals(rhs))
@@ -411,6 +422,9 @@ int FileSpec::Compare(const FileSpec &a, const FileSpec &b, bool full) {
 
 bool FileSpec::Equal(const FileSpec &a, const FileSpec &b, bool full,
                      bool remove_backups) {
+  if (a.m_regex.IsValid())
+    return a.m_regex.Execute(b.GetPath());
+
   static ConstString g_dot_string(".");
   static ConstString g_dot_dot_string("..");
 
