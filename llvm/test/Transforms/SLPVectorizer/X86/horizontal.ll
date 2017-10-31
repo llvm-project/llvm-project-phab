@@ -818,12 +818,6 @@ define void @i32_red_call(i32 %val) {
 ; CHECK-LABEL: @i32_red_call(
 ; CHECK-NEXT:  entry:
 ; CHECK-NEXT:    [[TMP0:%.*]] = load <8 x i32>, <8 x i32>* bitcast ([32 x i32]* @arr_i32 to <8 x i32>*), align 16
-; CHECK-NEXT:    [[ADD:%.*]] = add nsw i32 undef, undef
-; CHECK-NEXT:    [[ADD_1:%.*]] = add nsw i32 undef, [[ADD]]
-; CHECK-NEXT:    [[ADD_2:%.*]] = add nsw i32 undef, [[ADD_1]]
-; CHECK-NEXT:    [[ADD_3:%.*]] = add nsw i32 undef, [[ADD_2]]
-; CHECK-NEXT:    [[ADD_4:%.*]] = add nsw i32 undef, [[ADD_3]]
-; CHECK-NEXT:    [[ADD_5:%.*]] = add nsw i32 undef, [[ADD_4]]
 ; CHECK-NEXT:    [[RDX_SHUF:%.*]] = shufflevector <8 x i32> [[TMP0]], <8 x i32> undef, <8 x i32> <i32 4, i32 5, i32 6, i32 7, i32 undef, i32 undef, i32 undef, i32 undef>
 ; CHECK-NEXT:    [[BIN_RDX:%.*]] = add nsw <8 x i32> [[TMP0]], [[RDX_SHUF]]
 ; CHECK-NEXT:    [[RDX_SHUF1:%.*]] = shufflevector <8 x i32> [[BIN_RDX]], <8 x i32> undef, <8 x i32> <i32 2, i32 3, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef>
@@ -831,7 +825,6 @@ define void @i32_red_call(i32 %val) {
 ; CHECK-NEXT:    [[RDX_SHUF3:%.*]] = shufflevector <8 x i32> [[BIN_RDX2]], <8 x i32> undef, <8 x i32> <i32 1, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef>
 ; CHECK-NEXT:    [[BIN_RDX4:%.*]] = add nsw <8 x i32> [[BIN_RDX2]], [[RDX_SHUF3]]
 ; CHECK-NEXT:    [[TMP1:%.*]] = extractelement <8 x i32> [[BIN_RDX4]], i32 0
-; CHECK-NEXT:    [[ADD_6:%.*]] = add nsw i32 undef, [[ADD_5]]
 ; CHECK-NEXT:    [[RES:%.*]] = call i32 @foobar(i32 [[TMP1]])
 ; CHECK-NEXT:    ret void
 ;
@@ -859,12 +852,6 @@ define void @i32_red_invoke(i32 %val) personality i32 (...)* @__gxx_personality_
 ; CHECK-LABEL: @i32_red_invoke(
 ; CHECK-NEXT:  entry:
 ; CHECK-NEXT:    [[TMP0:%.*]] = load <8 x i32>, <8 x i32>* bitcast ([32 x i32]* @arr_i32 to <8 x i32>*), align 16
-; CHECK-NEXT:    [[ADD:%.*]] = add nsw i32 undef, undef
-; CHECK-NEXT:    [[ADD_1:%.*]] = add nsw i32 undef, [[ADD]]
-; CHECK-NEXT:    [[ADD_2:%.*]] = add nsw i32 undef, [[ADD_1]]
-; CHECK-NEXT:    [[ADD_3:%.*]] = add nsw i32 undef, [[ADD_2]]
-; CHECK-NEXT:    [[ADD_4:%.*]] = add nsw i32 undef, [[ADD_3]]
-; CHECK-NEXT:    [[ADD_5:%.*]] = add nsw i32 undef, [[ADD_4]]
 ; CHECK-NEXT:    [[RDX_SHUF:%.*]] = shufflevector <8 x i32> [[TMP0]], <8 x i32> undef, <8 x i32> <i32 4, i32 5, i32 6, i32 7, i32 undef, i32 undef, i32 undef, i32 undef>
 ; CHECK-NEXT:    [[BIN_RDX:%.*]] = add nsw <8 x i32> [[TMP0]], [[RDX_SHUF]]
 ; CHECK-NEXT:    [[RDX_SHUF1:%.*]] = shufflevector <8 x i32> [[BIN_RDX]], <8 x i32> undef, <8 x i32> <i32 2, i32 3, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef>
@@ -872,7 +859,6 @@ define void @i32_red_invoke(i32 %val) personality i32 (...)* @__gxx_personality_
 ; CHECK-NEXT:    [[RDX_SHUF3:%.*]] = shufflevector <8 x i32> [[BIN_RDX2]], <8 x i32> undef, <8 x i32> <i32 1, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef>
 ; CHECK-NEXT:    [[BIN_RDX4:%.*]] = add nsw <8 x i32> [[BIN_RDX2]], [[RDX_SHUF3]]
 ; CHECK-NEXT:    [[TMP1:%.*]] = extractelement <8 x i32> [[BIN_RDX4]], i32 0
-; CHECK-NEXT:    [[ADD_6:%.*]] = add nsw i32 undef, [[ADD_5]]
 ; CHECK-NEXT:    [[RES:%.*]] = invoke i32 @foobar(i32 [[TMP1]])
 ; CHECK-NEXT:    to label [[NORMAL:%.*]] unwind label [[EXCEPTION:%.*]]
 ; CHECK:       exception:
