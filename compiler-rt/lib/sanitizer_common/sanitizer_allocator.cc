@@ -181,8 +181,9 @@ void InternalFree(void *addr, InternalAllocatorCache *cache) {
 static LowLevelAllocateCallback low_level_alloc_callback;
 
 void *LowLevelAllocator::Allocate(uptr size) {
-  // Align allocation size.
-  size = RoundUpTo(size, 8);
+  // Align allocation size.  Must be aligned to maximum supported
+  // shadow granularity.
+  size = RoundUpTo(size, 32);
   if (allocated_end_ - allocated_current_ < (sptr)size) {
     uptr size_to_allocate = Max(size, GetPageSizeCached());
     allocated_current_ =
