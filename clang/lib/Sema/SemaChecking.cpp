@@ -8159,6 +8159,11 @@ struct IntRange {
     : Width(Width), NonNegative(NonNegative)
   {}
 
+  /// Indicate whether the specified integer ranges are identical.
+  friend bool operator==(const IntRange &LHS, const IntRange &RHS) {
+    return LHS.Width == RHS.Width && LHS.NonNegative == RHS.NonNegative;
+  }
+
   /// Returns the range of the bool type.
   static IntRange forBoolType() {
     return IntRange(1, true);
@@ -8588,11 +8593,41 @@ bool isNonBooleanUnsignedValue(Expr *E) {
 }
 
 enum class LimitType {
-  Max = 1U << 0U,  // e.g. 32767 for short
-  Min = 1U << 1U,  // e.g. -32768 for short
-  Both = Max | Min // When the value is both the Min and the Max limit at the
-                   // same time; e.g. in C++, A::a in enum A { a = 0 };
+  None = 0,         // Just a zero-initalizer
+  Max = 1U << 0U,   // e.g. 32767 for short
+  Min = 1U << 1U,   // e.g. -32768 for short
+  Both = Max | Min, // When the value is both the Min and the Max limit at the
+                    // same time; e.g. in C++, A::a in enum A { a = 0 };
+  DataModelDependent = 1U << 2U, // is this limit is always the limit, or only
+                                 // for the current data model
 };
+
+/// LimitType is a bitset, thus a few helpers are needed
+LimitType operator|(LimitType LHS, LimitType RHS) {
+  return static_cast<LimitType>(
+      static_cast<std::underlying_type<LimitType>::type>(LHS) |
+      static_cast<std::underlying_type<LimitType>::type>(RHS));
+}
+LimitType operator&(LimitType LHS, LimitType RHS) {
+  return static_cast<LimitType>(
+             static_cast<std::underlying_type<LimitType>::type>(LHS) &
+             static_cast<std::underlying_type<LimitType>::type>(RHS));
+}
+bool IsSet(llvm::Optional<LimitType> LHS, LimitType RHS) {
+  return LHS && ((*LHS) & RHS) == RHS;
+}
+
+bool HasEnumType(Expr *E) {
+  // Strip off implicit integral promotions.
+  while (ImplicitCastExpr *ICE = dyn_cast<ImplicitCastExpr>(E)) {
+    if (ICE->getCastKind() != CK_IntegralCast &&
+        ICE->getCastKind() != CK_NoOp)
+      break;
+    E = ICE->getSubExpr();
+  }
+
+  return E->getType()->isEnumeralType();
+}
 
 /// Checks whether Expr 'Constant' may be the
 /// std::numeric_limits<>::max() or std::numeric_limits<>::min()
@@ -8608,41 +8643,34 @@ llvm::Optional<LimitType> IsTypeLimit(Sema &S, Expr *Constant, Expr *Other,
 
   // TODO: Investigate using GetExprRange() to get tighter bounds
   // on the bit ranges.
-  QualType OtherT = Other->IgnoreParenImpCasts()->getType();
-  if (const auto *AT = OtherT->getAs<AtomicType>())
-    OtherT = AT->getValueType();
-
+  QualType ConstT =
+      Constant->IgnoreParenImpCasts()->getType()->getCanonicalTypeInternal();
+  QualType OtherT =
+      Other->IgnoreParenImpCasts()->getType()->getCanonicalTypeInternal();
+  IntRange ConstRange = IntRange::forValueOfType(S.Context, ConstT);
   IntRange OtherRange = IntRange::forValueOfType(S.Context, OtherT);
 
   // Special-case for C++ for enum with one enumerator with value of 0.
   if (OtherRange.Width == 0)
     return Value == 0 ? LimitType::Both : llvm::Optional<LimitType>();
 
+  LimitType LT = LimitType::None;
+  if(ConstRange == OtherRange && ConstT != OtherT && !HasEnumType(Other))
+    LT = LimitType::DataModelDependent;
+
   if (llvm::APSInt::isSameValue(
           llvm::APSInt::getMaxValue(OtherRange.Width,
                                     OtherT->isUnsignedIntegerType()),
           Value))
-    return LimitType::Max;
+    return LimitType::Max | LT;
 
   if (llvm::APSInt::isSameValue(
           llvm::APSInt::getMinValue(OtherRange.Width,
                                     OtherT->isUnsignedIntegerType()),
           Value))
-    return LimitType::Min;
+    return LimitType::Min | LT;
 
   return llvm::None;
-}
-
-bool HasEnumType(Expr *E) {
-  // Strip off implicit integral promotions.
-  while (ImplicitCastExpr *ICE = dyn_cast<ImplicitCastExpr>(E)) {
-    if (ICE->getCastKind() != CK_IntegralCast &&
-        ICE->getCastKind() != CK_NoOp)
-      break;
-    E = ICE->getSubExpr();
-  }
-
-  return E->getType()->isEnumeralType();
 }
 
 bool CheckTautologicalComparison(Sema &S, BinaryOperator *E, Expr *Constant,
@@ -8665,9 +8693,9 @@ bool CheckTautologicalComparison(Sema &S, BinaryOperator *E, Expr *Constant,
 
   bool ConstIsLowerBound = (Op == BO_LT || Op == BO_LE) ^ RhsConstant;
   bool ResultWhenConstEqualsOther = (Op == BO_LE || Op == BO_GE);
-  if (ValueType != LimitType::Both) {
+  if (!IsSet(ValueType, LimitType::Both)) {
     bool ResultWhenConstNeOther =
-        ConstIsLowerBound ^ (ValueType == LimitType::Max);
+        ConstIsLowerBound ^ IsSet(ValueType, LimitType::Max);
     if (ResultWhenConstEqualsOther != ResultWhenConstNeOther)
       return false; // The comparison is not tautological.
   } else if (ResultWhenConstEqualsOther == ConstIsLowerBound)
@@ -8679,7 +8707,9 @@ bool CheckTautologicalComparison(Sema &S, BinaryOperator *E, Expr *Constant,
                       ? (HasEnumType(Other)
                              ? diag::warn_unsigned_enum_always_true_comparison
                              : diag::warn_unsigned_always_true_comparison)
-                      : diag::warn_tautological_constant_compare;
+                      : IsSet(ValueType, LimitType::DataModelDependent)
+                            ? diag::warn_maybe_tautological_constant_compare
+                            : diag::warn_tautological_constant_compare;
 
   // Should be enough for uint128 (39 decimal digits)
   SmallString<64> PrettySourceValue;
