@@ -18,6 +18,7 @@
 #include "clang/StaticAnalyzer/Core/BugReporter/BugType.h"
 #include "clang/StaticAnalyzer/Core/Checker.h"
 #include "clang/StaticAnalyzer/Core/CheckerManager.h"
+#include "clang/StaticAnalyzer/Core/PathSensitive/CallEvent.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/CheckerContext.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/ProgramState.h"
 #include "llvm/ADT/SmallString.h"
@@ -26,15 +27,19 @@ using namespace clang;
 using namespace ento;
 
 namespace {
-class StackAddrEscapeChecker : public Checker< check::PreStmt<ReturnStmt>,
+class StackAddrEscapeChecker : public Checker< check::PreCall,
+                                               check::PreStmt<ReturnStmt>,
                                                check::EndFunction > {
   mutable std::unique_ptr<BuiltinBug> BT_stackleak;
   mutable std::unique_ptr<BuiltinBug> BT_returnstack;
+  mutable std::unique_ptr<BuiltinBug> BT_capturestackleak;
 
 public:
+  void checkPreCall(const CallEvent &Call, CheckerContext &C) const;
   void checkPreStmt(const ReturnStmt *RS, CheckerContext &C) const;
   void checkEndFunction(CheckerContext &Ctx) const;
 private:
+  void checkBlockCaptures(const BlockDataRegion &B, CheckerContext &C) const;
   void EmitStackError(CheckerContext &C, const MemRegion *R,
                       const Expr *RetE) const;
   static SourceRange genName(raw_ostream &os, const MemRegion *R,
@@ -84,17 +89,17 @@ SourceRange StackAddrEscapeChecker::genName(raw_ostream &os, const MemRegion *R,
     Ty.print(os, Ctx.getPrintingPolicy());
     os << "'";
     range = TOR->getExpr()->getSourceRange();
-  }
-  else {
+  } else {
     llvm_unreachable("Invalid region in ReturnStackAddressChecker.");
   }
 
   return range;
 }
 
-void StackAddrEscapeChecker::EmitStackError(CheckerContext &C, const MemRegion *R,
-                                          const Expr *RetE) const {
-  ExplodedNode *N = C.generateErrorNode();
+void StackAddrEscapeChecker::EmitStackError(CheckerContext &C,
+                                            const MemRegion *R,
+                                            const Expr *RetE) const {
+  ExplodedNode *N = C.generateNonFatalErrorNode();
 
   if (!N)
     return;
@@ -116,6 +121,48 @@ void StackAddrEscapeChecker::EmitStackError(CheckerContext &C, const MemRegion *
   C.emitReport(std::move(report));
 }
 
+void StackAddrEscapeChecker::checkBlockCaptures(const BlockDataRegion &B,
+                                                CheckerContext &C) const {
+  BlockDataRegion::referenced_vars_iterator I = B.referenced_vars_begin();
+  BlockDataRegion::referenced_vars_iterator E = B.referenced_vars_end();
+  for (; I != E; ++I) {
+    SVal Val = C.getState()->getSVal(I.getCapturedRegion());
+    const MemRegion *Region = Val.getAsRegion();
+    if (!Region)
+      continue;
+    if (dyn_cast<StackSpaceRegion>(Region->getMemorySpace())) {
+      ExplodedNode *N = C.generateNonFatalErrorNode();
+      if (!N)
+        continue;
+      if (!BT_capturestackleak)
+        BT_capturestackleak = llvm::make_unique<BuiltinBug>(
+            this, "Address of stack-allocated memory");
+      SmallString<512> Buf;
+      llvm::raw_svector_ostream Out(Buf);
+      SourceRange Range = genName(Out, Region, C.getASTContext());
+      Out << " might leak via the block capture";
+      auto Report =
+          llvm::make_unique<BugReport>(*BT_capturestackleak, Out.str(), N);
+      if (Range.isValid())
+        Report->addRange(Range);
+      C.emitReport(std::move(Report));
+    }
+  }
+}
+
+void StackAddrEscapeChecker::checkPreCall(const CallEvent &Call,
+                                          CheckerContext &C) const {
+  if (!Call.isGlobalCFunction("dispatch_after") &&
+      !Call.isGlobalCFunction("dispatch_async"))
+    return;
+
+  for (unsigned Idx = 0, NumArgs = Call.getNumArgs(); Idx < NumArgs; ++Idx) {
+    if (const BlockDataRegion *B = dyn_cast_or_null<BlockDataRegion>(
+            Call.getArgSVal(Idx).getAsRegion()))
+      checkBlockCaptures(*B, C);
+  }
+}
+
 void StackAddrEscapeChecker::checkPreStmt(const ReturnStmt *RS,
                                           CheckerContext &C) const {
 
@@ -131,8 +178,11 @@ void StackAddrEscapeChecker::checkPreStmt(const ReturnStmt *RS,
   if (!R)
     return;
 
+  if (const BlockDataRegion *B = dyn_cast<BlockDataRegion>(R))
+    checkBlockCaptures(*B, C); 
+
   const StackSpaceRegion *SS =
-    dyn_cast_or_null<StackSpaceRegion>(R->getMemorySpace());
+      dyn_cast<StackSpaceRegion>(R->getMemorySpace());
 
   if (!SS)
     return;
