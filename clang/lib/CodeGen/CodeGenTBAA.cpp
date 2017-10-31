@@ -72,6 +72,10 @@ llvm::MDNode *CodeGenTBAA::getChar() {
   return Char;
 }
 
+llvm::MDNode *CodeGenTBAA::getUnionMemberType() {
+  return createTBAAScalarType("union member", getChar());
+}
+
 static bool TypeHasMayAlias(QualType QTy) {
   // Tagged types have declarations, and therefore may have attributes.
   if (const TagType *TTy = dyn_cast<TagType>(QTy))
@@ -99,9 +103,8 @@ static bool isValidBaseType(QualType QTy) {
       return false;
     if (RD->hasFlexibleArrayMember())
       return false;
-    // RD can be struct, union, class, interface or enum.
-    // For now, we only handle struct and class.
-    if (RD->isStruct() || RD->isClass())
+    // For now, we do not allow interface classes to be base access types.
+    if (RD->isStruct() || RD->isClass() || RD->isUnion())
       return true;
   }
   return false;
@@ -269,19 +272,26 @@ llvm::MDNode *CodeGenTBAA::getBaseTypeInfo(QualType QTy) {
 
   if (const RecordType *TTy = QTy->getAs<RecordType>()) {
     const RecordDecl *RD = TTy->getDecl()->getDefinition();
-
     const ASTRecordLayout &Layout = Context.getASTRecordLayout(RD);
     SmallVector <std::pair<llvm::MDNode*, uint64_t>, 4> Fields;
-    unsigned idx = 0;
-    for (RecordDecl::field_iterator i = RD->field_begin(),
-         e = RD->field_end(); i != e; ++i, ++idx) {
-      QualType FieldQTy = i->getType();
-      llvm::MDNode *FieldNode = isValidBaseType(FieldQTy) ?
-          getBaseTypeInfo(FieldQTy) : getTypeInfo(FieldQTy);
-      if (!FieldNode)
-        return BaseTypeMetadataCache[Ty] = nullptr;
-      Fields.push_back(std::make_pair(
-          FieldNode, Layout.getFieldOffset(idx) / Context.getCharWidth()));
+
+    if (RD->isUnion()) {
+      // Unions are represented as structures with a single member that has a
+      // special type and occupies the whole object.
+      llvm::MDNode *FieldType = getUnionMemberType();
+      Fields.push_back(std::make_pair(FieldType, /* Offset= */ 0));
+    } else {
+      for (RecordDecl::field_iterator i = RD->field_begin(),
+           e = RD->field_end(); i != e; ++i) {
+        QualType FieldQTy = i->getType();
+        llvm::MDNode *FieldType = isValidBaseType(FieldQTy) ?
+            getBaseTypeInfo(FieldQTy) : getTypeInfo(FieldQTy);
+        if (!FieldType)
+          return BaseTypeMetadataCache[Ty] = nullptr;
+        unsigned Offset = Layout.getFieldOffset(i->getFieldIndex()) /
+                              Context.getCharWidth();
+        Fields.push_back(std::make_pair(FieldType, Offset));
+      }
     }
 
     SmallString<256> OutName;
@@ -303,6 +313,8 @@ llvm::MDNode *CodeGenTBAA::getBaseTypeInfo(QualType QTy) {
 llvm::MDNode *CodeGenTBAA::getAccessTagInfo(TBAAAccessInfo Info) {
   if (Info.isMayAlias())
     Info = TBAAAccessInfo(getChar());
+  else if (Info.isUnionMember())
+    Info.AccessType = getUnionMemberType();
 
   if (!Info.AccessType)
     return nullptr;
