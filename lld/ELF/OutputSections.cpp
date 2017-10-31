@@ -115,13 +115,7 @@ void OutputSection::addSection(InputSection *IS) {
   IS->Parent = this;
   Flags |= IS->Flags;
   Alignment = std::max(Alignment, IS->Alignment);
-
-  // The actual offsets will be computed by assignAddresses. For now, use
-  // crude approximation so that it is at least easy for other code to know the
-  // section order. It is also used to calculate the output section size early
-  // for compressed debug sections.
-  IS->OutSecOff = alignTo(Size, IS->Alignment);
-  this->Size = IS->OutSecOff + IS->getSize();
+  IS->OutSecPos = InputSectionCount++;
 
   // If this section contains a table of fixed-size entries, sh_entsize
   // holds the element size. Consequently, if this contains two or more
@@ -320,6 +314,14 @@ template <class ELFT> void OutputSection::maybeCompress() {
       !Name.startswith(".debug_"))
     return;
 
+  // Calculate the section offsets and size pre-compression.
+  for (BaseCommand * Cmd : SectionCommands)
+    if (auto *ISD = dyn_cast<InputSectionDescription>(Cmd))
+      for (InputSection *IS : ISD->Sections) {
+         IS->OutSecOff = alignTo(Size, IS->Alignment);
+         this->Size = IS->OutSecOff + IS->getSize();
+      }
+
   // Create a section header.
   ZDebugHeader.resize(sizeof(Elf_Chdr));
   auto *Hdr = reinterpret_cast<Elf_Chdr *>(ZDebugHeader.data());
@@ -412,7 +414,9 @@ static bool compareByFilePosition(InputSection *A, InputSection *B) {
   OutputSection *BOut = LB->getParent();
   if (AOut != BOut)
     return AOut->SectionIndex < BOut->SectionIndex;
-  return LA->OutSecOff < LB->OutSecOff;
+  assert(LA->OutSecPos && LB->OutSecPos &&
+         "Cannot compare late-inserted section positions.");
+  return LA->OutSecPos < LB->OutSecPos;
 }
 
 template <class ELFT>

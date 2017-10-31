@@ -319,6 +319,11 @@ public:
   // to. The writer sets a value.
   uint64_t OutSecOff = 0;
 
+  // The order in which the section was added to its output section. This is
+  // used when ordering SHF_LINK_ORDER sections. It is not set for sections
+  // inserted late, such as thunk sections.
+  llvm::Optional<size_t> OutSecPos;
+
   static bool classof(const SectionBase *S);
 
   InputSectionBase *getRelocatedSection();

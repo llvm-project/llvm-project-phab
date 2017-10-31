@@ -170,7 +170,6 @@ public:
   void writeTo(uint8_t *Buf) override;
   size_t getSize() const override { return Size; }
   bool updateAllocSize() override;
-  void finalizeContents() override;
   bool empty() const override;
   void addEntry(SymbolBody &Sym, int64_t Addend, RelExpr Expr);
   bool addDynTlsEntry(SymbolBody &Sym);
