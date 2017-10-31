@@ -687,6 +687,18 @@ void RedundantExpressionCheck::registerMatchers(MatchFinder *Finder) {
           .bind("call"),
       this);
 
+  const auto IneffBitwiseConst = matchIntegerConstantExpr("ineff-bitwise");
+  const auto IneffBitwiseSymExpr = matchSymbolicExpr("ineff-bitwise");
+
+  // Match ineffective bitwise operator expressions like: x & 0 or x |= ~0.
+  Finder->addMatcher(
+      binaryOperator(anyOf(hasOperatorName("|"), hasOperatorName("&"),
+                           hasOperatorName("|="), hasOperatorName("&=")),
+                     hasEitherOperand(IneffBitwiseConst),
+                     hasEitherOperand(IneffBitwiseSymExpr))
+          .bind("ineffective-bitwise"),
+      this);
+
   // Match common expressions and apply more checks to find redundant
   // sub-expressions.
   //   a) Expr <op> K1 == K2
@@ -795,6 +807,23 @@ void RedundantExpressionCheck::checkArithmeticExpr(
   }
 }
 
+static bool exprEvaluatesToZero(BinaryOperatorKind Opcode, APSInt Value){
+ return ((Opcode == BO_And || Opcode == BO_AndAssign) && Value == 0);
+}
+
+static bool exprEvaluatesToBitwiseNegatedZero(BinaryOperatorKind Opcode, APSInt Value){
+ return ((Opcode == BO_Or || Opcode == BO_OrAssign) && ~Value == 0);
+}
+
+static bool exprEvaluatesToSymbolic(BinaryOperatorKind Opcode, APSInt Value){
+  if ((Opcode == BO_Or || Opcode == BO_OrAssign) && Value == 0)
+    return true;
+  if ((Opcode == BO_And || Opcode == BO_AndAssign) && ~Value == 0)
+    return true;
+
+  return false;
+}
+
 void RedundantExpressionCheck::checkBitwiseExpr(
     const MatchFinder::MatchResult &Result) {
   if (const auto *ComparisonOperator = Result.Nodes.getNodeAs<BinaryOperator>(
@@ -827,6 +856,45 @@ void RedundantExpressionCheck::checkBitwiseExpr(
         diag(Loc, "logical expression is always false");
       else if (Opcode == BO_NE)
         diag(Loc, "logical expression is always true");
+    }
+  } else if (const auto *IneffectiveOperator =
+                 Result.Nodes.getNodeAs<BinaryOperator>(
+                     "ineffective-bitwise")) {
+    APSInt Value;
+    const Expr *Sym = nullptr, *ConstExpr = nullptr;
+    BinaryOperatorKind Opcode = IneffectiveOperator->getOpcode();
+
+    if (!retrieveSymbolicExpr(Result, "ineff-bitwise", Sym) ||
+        !retrieveIntegerConstantExpr(Result, "ineff-bitwise", Value, ConstExpr))
+      return;
+
+    if((Value != 0 && ~Value != 0) || Sym->getExprLoc().isMacroID())
+        return;
+
+    SourceLocation Loc = IneffectiveOperator->getOperatorLoc();
+
+    if (exprEvaluatesToZero(Opcode, Value)) {
+      diag(Loc, "expression always evaluates to 0");
+    } else if (exprEvaluatesToBitwiseNegatedZero(Opcode, Value)) {
+      SourceRange ConstExprRange(ConstExpr->getLocStart(),
+                                 ConstExpr->getLocEnd());
+      StringRef ConstExprText = Lexer::getSourceText(
+          CharSourceRange::getTokenRange(ConstExprRange), *Result.SourceManager,
+          Result.Context->getLangOpts());
+
+      std::string message =
+          ("expression always evaluates to '" + ConstExprText + "'").str();
+      diag(Loc, message);
+    } else if (exprEvaluatesToSymbolic(Opcode, Value)) {
+      SourceRange SymExprRange(Sym->getLocStart(), Sym->getLocEnd());
+
+      StringRef ExprText = Lexer::getSourceText(
+          CharSourceRange::getTokenRange(SymExprRange), *Result.SourceManager,
+          Result.Context->getLangOpts());
+
+      std::string message =
+          ("expression always evaluates to '" + ExprText + "'").str();
+      diag(Loc, message);
     }
   }
 }

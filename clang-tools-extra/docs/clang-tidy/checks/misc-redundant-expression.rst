@@ -13,7 +13,9 @@ Depending on the operator expressions may be
 
 - always ``false``,
 
-- always a constant (zero or one).
+- always a constant (zero or one),
+
+- ineffective, the operation does not change the expression.
 
 Examples:
 
@@ -23,3 +25,4 @@ Examples:
   (p->x == p->x)              // always true
   (p->x < p->x)               // always false
   (speed - speed + 1 == 12)   // speed - speed is always zero
+  x |& 0                      // operation is ineffective
