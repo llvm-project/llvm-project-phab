@@ -146,10 +146,12 @@ namespace PODUninitialized {
     NonPOD(const NonPOD &Other)
       : x(Other.x), y(Other.y) // expected-warning {{undefined}}
     {
+      int z = 1;
     }
     NonPOD(NonPOD &&Other)
     : x(Other.x), y(Other.y) // expected-warning {{undefined}}
     {
+      int z = 1;
     }
 
     NonPOD &operator=(const NonPOD &Other)
@@ -176,10 +178,12 @@ namespace PODUninitialized {
       Inner(const Inner &Other)
         : x(Other.x), y(Other.y) // expected-warning {{undefined}}
       {
+        int z = 1;
       }
       Inner(Inner &&Other)
       : x(Other.x), y(Other.y) // expected-warning {{undefined}}
       {
+        int z = 1;
       }
 
       Inner &operator=(const Inner &Other)
@@ -197,6 +201,19 @@ namespace PODUninitialized {
     };
 
     Inner p;
+  };
+
+  class AlmostPOD {
+  public:
+    int x, y;
+
+    AlmostPOD() {}
+    AlmostPOD(const AlmostPOD &Other)
+      : x(Other.x), y(Other.y) // no-warning
+    {}
+    AlmostPOD(AlmostPOD &&Other)
+    : x(Other.x), y(Other.y) // no-warning
+    {}
   };
 
   void testPOD(const POD &pp) {
@@ -252,6 +269,31 @@ namespace PODUninitialized {
     NonPODWrapper w;
     w.p.y = 1;
     NonPODWrapper w2 = move(w);
+  }
+
+  void testAlmostPOD() {
+    AlmostPOD p;
+    p.x = 1;
+    AlmostPOD p2 = p; // no-warning
+    clang_analyzer_eval(p2.x == 1); // expected-warning{{TRUE}}
+  }
+
+  void testAlmostPODMove() {
+    AlmostPOD p;
+    p.x = 1;
+    AlmostPOD p2 = move(p); // no-warning
+    clang_analyzer_eval(p2.x == 1); // expected-warning{{TRUE}}
+  }
+
+  // FIXME: These copies are now handled with a single per-structure bind,
+  // and the undefined assignment checker fails to realize that
+  // all contents of the structure that's being copied are undefined.
+  // Perhaps we could teach the checker to warn here.
+  void testCompletelyUndefined() {
+    POD p;
+    POD p2 = p; // no-warning
+    AlmostPOD ap;
+    AlmostPOD ap2 = ap; // no-warning
   }
 
   // Not strictly about constructors, but trivial assignment operators should
