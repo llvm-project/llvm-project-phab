@@ -205,7 +205,9 @@ handleTlsRelocation(RelType Type, SymbolBody &Body, InputSectionBase &C,
   if (!Body.isTls())
     return 0;
 
-  if (Config->EMachine == EM_ARM)
+  // TODO: RISC-V currently doesn't implement TLS relaxation yet, so we reuse
+  // the same logic for ARM tls relocation.
+  if (Config->EMachine == EM_ARM || Config->EMachine == EM_RISCV)
     return handleARMTlsRelocation<ELFT>(Type, Body, C, Offset, Addend, Expr);
   if (Config->EMachine == EM_MIPS)
     return handleMipsTlsRelocation<ELFT>(Type, Body, C, Offset, Addend, Expr);
