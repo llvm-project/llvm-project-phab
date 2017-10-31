@@ -89,7 +89,11 @@ using namespace llvm;
 
 #define DEBUG_TYPE "asan"
 
+#if defined(OVERRIDE_SHADOW_SCALE)
+static const uint64_t kDefaultShadowScale = OVERRIDE_SHADOW_SCALE;
+#else
 static const uint64_t kDefaultShadowScale = 3;
+#endif
 static const uint64_t kDefaultShadowOffset32 = 1ULL << 29;
 static const uint64_t kDefaultShadowOffset64 = 1ULL << 44;
 static const uint64_t kDynamicShadowSentinel =
@@ -97,7 +101,8 @@ static const uint64_t kDynamicShadowSentinel =
 static const uint64_t kIOSShadowOffset32 = 1ULL << 30;
 static const uint64_t kIOSSimShadowOffset32 = 1ULL << 30;
 static const uint64_t kIOSSimShadowOffset64 = kDefaultShadowOffset64;
-static const uint64_t kSmallX86_64ShadowOffset = 0x7FFF8000;  // < 2G.
+static const uint64_t kSmallX86_64ShadowOffset =
+    0x7FFFFFFF & ~((1 << (12 + kDefaultShadowScale)) - 1);  // < 2G.
 static const uint64_t kLinuxKasan_ShadowOffset64 = 0xdffffc0000000000;
 static const uint64_t kPPC64_ShadowOffset64 = 1ULL << 41;
 static const uint64_t kSystemZ_ShadowOffset64 = 1ULL << 52;
@@ -1952,6 +1957,8 @@ void AddressSanitizerModule::InstrumentGlobalsWithMetadataArray(
   auto AllGlobals = new GlobalVariable(
       M, ArrayOfGlobalStructTy, false, GlobalVariable::InternalLinkage,
       ConstantArray::get(ArrayOfGlobalStructTy, MetadataInitializers), "");
+  if (Mapping.Scale > 3)
+    AllGlobals->setAlignment(1ULL << Mapping.Scale);
 
   IRB.CreateCall(AsanRegisterGlobals,
                  {IRB.CreatePointerCast(AllGlobals, IntptrTy),
@@ -2760,9 +2767,10 @@ void FunctionStackPoisoner::processStaticAllocas() {
 
   // Minimal header size (left redzone) is 4 pointers,
   // i.e. 32 bytes on 64-bit platforms and 16 bytes in 32-bit platforms.
-  size_t MinHeaderSize = ASan.LongSize / 2;
+  size_t Granularity = 1ULL << Mapping.Scale;
+  size_t MinHeaderSize = std::max((size_t)ASan.LongSize / 2, Granularity);
   const ASanStackFrameLayout &L =
-      ComputeASanStackFrameLayout(SVD, 1ULL << Mapping.Scale, MinHeaderSize);
+      ComputeASanStackFrameLayout(SVD, Granularity, MinHeaderSize);
 
   // Build AllocaToSVDMap for ASanStackVariableDescription lookup.
   DenseMap<const AllocaInst *, ASanStackVariableDescription *> AllocaToSVDMap;

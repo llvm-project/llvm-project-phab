@@ -296,6 +296,12 @@ ErrorGeneric::ErrorGeneric(u32 tid, uptr pc_, uptr bp_, uptr sp_, uptr addr,
       if (*shadow_addr == 0 && access_size > SHADOW_GRANULARITY) shadow_addr++;
       // If we are in the partial right redzone, look at the next shadow byte.
       if (*shadow_addr > 0 && *shadow_addr < 128) shadow_addr++;
+      // For large shadow granularity, skip pass all partial right redzones.
+      if (SHADOW_GRANULARITY >= 32) {
+        while (AddrIsInShadow((uptr)shadow_addr) && *shadow_addr > 0 &&
+               *shadow_addr < 128)
+          shadow_addr++;
+      }
       bool far_from_bounds = false;
       shadow_val = *shadow_addr;
       int bug_type_score = 0;

@@ -81,6 +81,9 @@ ComputeASanStackFrameLayout(SmallVectorImpl<ASanStackVariableDescription> &Vars,
     size_t NextAlignment = IsLast ? Granularity
                    : std::max(Granularity, Vars[i + 1].Alignment);
     size_t SizeWithRedzone = VarAndRedzoneSize(Size, NextAlignment);
+    // Add a sentinel to end of stack.
+    if (IsLast && SizeWithRedzone == Granularity)
+      SizeWithRedzone += Granularity;
     Vars[i].Offset = Offset;
     Offset += SizeWithRedzone;
   }
