@@ -59,6 +59,9 @@
 /* Define to 1 if you have the <errno.h> header file. */
 #cmakedefine HAVE_ERRNO_H ${HAVE_ERRNO_H}
 
+/* Define to 1 if you have the `fallocate' function. */
+#cmakedefine HAVE_FALLOCATE ${HAVE_FALLOCATE}
+
 /* Define to 1 if you have the <fcntl.h> header file. */
 #cmakedefine HAVE_FCNTL_H ${HAVE_FCNTL_H}
 

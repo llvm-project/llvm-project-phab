@@ -391,6 +391,14 @@ std::error_code copy_file(const Twine &From, const Twine &To);
 ///          platform-specific error_code.
 std::error_code resize_file(int FD, uint64_t Size);
 
+/// @brief Preallocate disk blocks to a given file.
+///
+/// @param FD Input file descriptor.
+/// @param Size Size to resize to.
+/// @returns errc::success if \a path has been resized to \a size, otherwise a
+///          platform-specific error_code.
+std::error_code allocate_file(int FD, uint64_t Size);
+
 /// @brief Compute an MD5 hash of a file's contents.
 ///
 /// @param FD Input file descriptor.

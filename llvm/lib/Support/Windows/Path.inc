@@ -509,6 +509,8 @@ std::error_code resize_file(int FD, uint64_t Size) {
   return std::error_code(error, std::generic_category());
 }
 
+std::error_code allocate_file(int FD, uint64_t Size) { resize_file(FD, Size); }
+
 std::error_code access(const Twine &Path, AccessMode Mode) {
   SmallVector<wchar_t, 128> PathUtf16;
 
