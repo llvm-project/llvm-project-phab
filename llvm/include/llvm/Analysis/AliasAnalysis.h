@@ -95,17 +95,37 @@ enum AliasResult {
 ///
 /// This is no access at all, a modification, a reference, or both
 /// a modification and a reference. These are specifically structured such that
-/// they form a two bit matrix and bit-tests for 'mod' or 'ref' work with any
-/// of the possible values.
+/// they form a three bit matrix and bit-tests for 'mod' or 'ref' or 'must'
+/// work with any of the possible values.
 enum ModRefInfo {
   /// The access neither references nor modifies the value stored in memory.
   MRI_NoModRef = 0,
-  /// The access references the value stored in memory.
+  /// The access may reference the value stored in memory.
   MRI_Ref = 1,
-  /// The access modifies the value stored in memory.
+  /// The access may modify the value stored in memory.
   MRI_Mod = 2,
-  /// The access both references and modifies the value stored in memory.
-  MRI_ModRef = MRI_Ref | MRI_Mod
+  /// The access may reference and may modify the value stored in memory.
+  MRI_ModRef = MRI_Ref | MRI_Mod,
+  /// The access must alias the value stored in memory.
+  /// [ About MRI_Must: MRI_Must is set in a conservative best effort manner,
+  /// and only if MustAlias is found for all memory accesses.
+  /// For calls MRI_Must means all operands must alias.
+  /// MRI_Must may not be set for RAR acceses, result will be MRI_NoModRef,
+  /// even if the two location must alias. The reason is that getModRef's
+  /// focus is to obtain mod/ref, and two read accesses translate to an early
+  /// return of MRI_NoModRef. Adding an additional alias check to set the must
+  /// flag in this case may be expensive, and the intention is to not increase
+  /// the cost of getModRef, but mearly add a piece of "free" information when
+  /// this is available. getArgModRefInfo never sets MRI_Must.
+  /// Checks with early return may also not set MRI_Must (e.g.
+  /// AAResults::callCapturesBefore).]
+  MRI_Must = 4,
+  /// The access must reference the value stored in memory.
+  MRI_MustRef = MRI_Ref | MRI_Must,
+  /// The access must modify the value stored in memory.
+  MRI_MustMod = MRI_Mod | MRI_Must,
+  /// The access must reference and must modify the value stored in memory.
+  MRI_MustModRef = MRI_ModRef | MRI_Must
 };
 
 /// The locations at which a function might access memory.
@@ -117,11 +137,11 @@ enum FunctionModRefLocation {
   /// Base case is no access to memory.
   FMRL_Nowhere = 0,
   /// Access to memory via argument pointers.
-  FMRL_ArgumentPointees = 4,
+  FMRL_ArgumentPointees = 8,
   /// Memory that is inaccessible via LLVM IR.
-  FMRL_InaccessibleMem = 8,
+  FMRL_InaccessibleMem = 16,
   /// Access to any memory.
-  FMRL_Anywhere = 16 | FMRL_InaccessibleMem | FMRL_ArgumentPointees
+  FMRL_Anywhere = 32 | FMRL_InaccessibleMem | FMRL_ArgumentPointees
 };
 
 /// Summary of how a function affects memory in the program.
