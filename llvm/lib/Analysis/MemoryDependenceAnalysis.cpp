@@ -212,7 +212,7 @@ MemDepResult MemoryDependenceResults::getCallSiteDependencyFrom(
     ModRefInfo MR = GetLocation(Inst, Loc, TLI);
     if (Loc.Ptr) {
       // A simple instruction.
-      if (AA.getModRefInfo(CS, Loc) != MRI_NoModRef)
+      if (AA.getModRefInfo(CS, Loc) & MRI_ModRef)
         return MemDepResult::getClobber(Inst);
       continue;
     }
@@ -221,6 +221,7 @@ MemDepResult MemoryDependenceResults::getCallSiteDependencyFrom(
       // If these two calls do not interfere, look past it.
       switch (AA.getModRefInfo(CS, InstCS)) {
       case MRI_NoModRef:
+      case MRI_Must:
         // If the two calls are the same, return InstCS as a Def, so that
         // CS can be found redundant and eliminated.
         if (isReadOnlyCall && !(MR & MRI_Mod) &&
@@ -237,7 +238,7 @@ MemDepResult MemoryDependenceResults::getCallSiteDependencyFrom(
 
     // If we could not obtain a pointer for the instruction and the instruction
     // touches memory then assume that this is a dependency.
-    if (MR != MRI_NoModRef)
+    if (MR & MRI_ModRef)
       return MemDepResult::getClobber(Inst);
   }
 
@@ -642,11 +643,12 @@ MemDepResult MemoryDependenceResults::getSimplePointerDependencyFrom(
       // If alias analysis can tell that this store is guaranteed to not modify
       // the query pointer, ignore it.  Use getModRefInfo to handle cases where
       // the query pointer points to constant memory etc.
-      if (AA.getModRefInfo(SI, MemLoc) == MRI_NoModRef)
+      if ((AA.getModRefInfo(SI, MemLoc) & MRI_ModRef) == MRI_NoModRef)
         continue;
 
       // Ok, this store might clobber the query pointer.  Check to see if it is
       // a must alias: in this case, we want to return this as a def.
+      // FIXME: Use MRI_Must bit from getModRefInfo call above.
       MemoryLocation StoreLoc = MemoryLocation::get(SI);
 
       // If we found a pointer, check if it could be the same as our pointer.
@@ -688,15 +690,19 @@ MemDepResult MemoryDependenceResults::getSimplePointerDependencyFrom(
     // See if this instruction (e.g. a call or vaarg) mod/ref's the pointer.
     ModRefInfo MR = AA.getModRefInfo(Inst, MemLoc);
     // If necessary, perform additional analysis.
-    if (MR == MRI_ModRef)
-      MR = AA.callCapturesBefore(Inst, MemLoc, &DT, &OBB);
+    if ((MR & MRI_ModRef) == MRI_ModRef)
+      MR = ModRefInfo(AA.callCapturesBefore(Inst, MemLoc, &DT, &OBB) |
+                      (MR & MRI_Must));
     switch (MR) {
     case MRI_NoModRef:
+    case MRI_Must:
       // If the call has no effect on the queried pointer, just ignore it.
       continue;
     case MRI_Mod:
+    case MRI_MustMod:
       return MemDepResult::getClobber(Inst);
     case MRI_Ref:
+    case MRI_MustRef:
       // If the call is known to never store to the pointer, and if this is a
       // load query, we can safely ignore it (scan past it).
       if (isLoad)

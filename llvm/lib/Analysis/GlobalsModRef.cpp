@@ -84,6 +84,9 @@ class GlobalsAAResult::FunctionInfo {
 
   /// The bit that flags that this function may read any global. This is
   /// chosen to mix together with ModRefInfo bits.
+  /// FIXME: Overlaps with MRI_Must bit!
+  /// FunctionInfo.getModRefInfo() masks out everything except MRI_ModRef so
+  /// this remains correct, but the MRI_Must info is lost.
   enum { MayReadAnyGlobal = 4 };
 
   /// Checks to document the invariants of the bit packing here.
@@ -230,7 +233,7 @@ FunctionModRefBehavior GlobalsAAResult::getModRefBehavior(const Function *F) {
   FunctionModRefBehavior Min = FMRB_UnknownModRefBehavior;
 
   if (FunctionInfo *FI = getFunctionInfo(F)) {
-    if (FI->getModRefInfo() == MRI_NoModRef)
+    if ((FI->getModRefInfo() & MRI_ModRef) == MRI_NoModRef)
       Min = FMRB_DoesNotAccessMemory;
     else if ((FI->getModRefInfo() & MRI_Mod) == 0)
       Min = FMRB_OnlyReadsMemory;
@@ -246,7 +249,7 @@ GlobalsAAResult::getModRefBehavior(ImmutableCallSite CS) {
   if (!CS.hasOperandBundles())
     if (const Function *F = CS.getCalledFunction())
       if (FunctionInfo *FI = getFunctionInfo(F)) {
-        if (FI->getModRefInfo() == MRI_NoModRef)
+        if ((FI->getModRefInfo() & MRI_ModRef) == MRI_NoModRef)
           Min = FMRB_DoesNotAccessMemory;
         else if ((FI->getModRefInfo() & MRI_Mod) == 0)
           Min = FMRB_OnlyReadsMemory;
@@ -586,7 +589,7 @@ void GlobalsAAResult::AnalyzeCallGraph(CallGraph &CG, Module &M) {
 
     if ((FI.getModRefInfo() & MRI_Mod) == 0)
       ++NumReadMemFunctions;
-    if (FI.getModRefInfo() == MRI_NoModRef)
+    if ((FI.getModRefInfo() & MRI_ModRef) == MRI_NoModRef)
       ++NumNoMemFunctions;
 
     // Finally, now that we know the full effect on this SCC, clone the
@@ -907,7 +910,7 @@ ModRefInfo GlobalsAAResult::getModRefInfo(ImmutableCallSite CS,
             Known = FI->getModRefInfoForGlobal(*GV) |
               getModRefInfoForArgument(CS, GV);
 
-  if (Known == MRI_NoModRef)
+  if ((Known & MRI_ModRef) == MRI_NoModRef)
     return MRI_NoModRef; // No need to query other mod/ref analyses
   return ModRefInfo(Known & AAResultBase::getModRefInfo(CS, Loc));
 }

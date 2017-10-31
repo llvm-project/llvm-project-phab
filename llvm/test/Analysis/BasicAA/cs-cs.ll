@@ -32,12 +32,12 @@ define void @test2a(i8* noalias %P, i8* noalias %Q) nounwind ssp {
 ; CHECK-LABEL: Function: test2a:
 
 ; CHECK: NoAlias:      i8* %P, i8* %Q
-; CHECK: Just Mod:  Ptr: i8* %P        <->  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false)
-; CHECK: Just Ref:  Ptr: i8* %Q        <->  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false)
-; CHECK: Just Mod:  Ptr: i8* %P        <->  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false)
-; CHECK: Just Ref:  Ptr: i8* %Q        <->  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false)
-; CHECK: Just Mod:   tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false) <->   tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false)
-; CHECK: Just Mod:   tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false) <->   tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false)
+; CHECK: Just Mod (MustAlias):  Ptr: i8* %P        <->  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false)
+; CHECK: Just Ref (MustAlias):  Ptr: i8* %Q        <->  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false)
+; CHECK: Just Mod (MustAlias):  Ptr: i8* %P        <->  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false)
+; CHECK: Just Ref (MustAlias):  Ptr: i8* %Q        <->  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false)
+; CHECK: Just Mod (MustAlias):   tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false) <->   tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false)
+; CHECK: Just Mod (MustAlias):   tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false) <->   tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false)
 }
 
 define void @test2b(i8* noalias %P, i8* noalias %Q) nounwind ssp {
@@ -51,12 +51,12 @@ define void @test2b(i8* noalias %P, i8* noalias %Q) nounwind ssp {
 ; CHECK: NoAlias:      i8* %P, i8* %Q
 ; CHECK: NoAlias:      i8* %P, i8* %R
 ; CHECK: NoAlias:      i8* %Q, i8* %R
-; CHECK: Just Mod:  Ptr: i8* %P        <->  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false)
-; CHECK: Just Ref:  Ptr: i8* %Q        <->  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false)
+; CHECK: Just Mod (MustAlias):  Ptr: i8* %P        <->  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false)
+; CHECK: Just Ref (MustAlias):  Ptr: i8* %Q        <->  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false)
 ; CHECK: NoModRef:  Ptr: i8* %R        <->  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false)
 ; CHECK: NoModRef:  Ptr: i8* %P        <->  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %R, i8* %Q, i64 12, i32 1, i1 false)
-; CHECK: Just Ref:  Ptr: i8* %Q        <->  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %R, i8* %Q, i64 12, i32 1, i1 false)
-; CHECK: Just Mod:  Ptr: i8* %R        <->  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %R, i8* %Q, i64 12, i32 1, i1 false)
+; CHECK: Just Ref (MustAlias):  Ptr: i8* %Q        <->  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %R, i8* %Q, i64 12, i32 1, i1 false)
+; CHECK: Just Mod (MustAlias):  Ptr: i8* %R        <->  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %R, i8* %Q, i64 12, i32 1, i1 false)
 ; CHECK: NoModRef:   tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false) <->   tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %R, i8* %Q, i64 12, i32 1, i1 false)
 ; CHECK: NoModRef:   tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %R, i8* %Q, i64 12, i32 1, i1 false) <->   tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false)
 }
@@ -72,12 +72,12 @@ define void @test2c(i8* noalias %P, i8* noalias %Q) nounwind ssp {
 ; CHECK: NoAlias:      i8* %P, i8* %Q
 ; CHECK: NoAlias:      i8* %P, i8* %R
 ; CHECK: NoAlias:      i8* %Q, i8* %R
-; CHECK: Just Mod:  Ptr: i8* %P        <->  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false)
-; CHECK: Just Ref:  Ptr: i8* %Q        <->  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false)
+; CHECK: Just Mod (MustAlias):  Ptr: i8* %P        <->  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false)
+; CHECK: Just Ref (MustAlias):  Ptr: i8* %Q        <->  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false)
 ; CHECK: Just Mod:  Ptr: i8* %R        <->  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false)
 ; CHECK: NoModRef:  Ptr: i8* %P        <->  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %R, i8* %Q, i64 12, i32 1, i1 false)
-; CHECK: Just Ref:  Ptr: i8* %Q        <->  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %R, i8* %Q, i64 12, i32 1, i1 false)
-; CHECK: Just Mod:  Ptr: i8* %R        <->  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %R, i8* %Q, i64 12, i32 1, i1 false)
+; CHECK: Just Ref (MustAlias):  Ptr: i8* %Q        <->  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %R, i8* %Q, i64 12, i32 1, i1 false)
+; CHECK: Just Mod (MustAlias):  Ptr: i8* %R        <->  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %R, i8* %Q, i64 12, i32 1, i1 false)
 ; CHECK: Just Mod:   tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false) <->   tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %R, i8* %Q, i64 12, i32 1, i1 false)
 ; CHECK: Just Mod:   tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %R, i8* %Q, i64 12, i32 1, i1 false) <->   tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false)
 }
@@ -93,12 +93,12 @@ define void @test2d(i8* noalias %P, i8* noalias %Q) nounwind ssp {
 ; CHECK: NoAlias:      i8* %P, i8* %Q
 ; CHECK: NoAlias:      i8* %P, i8* %R
 ; CHECK: NoAlias:      i8* %Q, i8* %R
-; CHECK: Just Mod:  Ptr: i8* %P        <->  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false)
-; CHECK: Just Ref:  Ptr: i8* %Q        <->  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false)
+; CHECK: Just Mod (MustAlias):  Ptr: i8* %P        <->  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false)
+; CHECK: Just Ref (MustAlias):  Ptr: i8* %Q        <->  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false)
 ; CHECK: NoModRef:  Ptr: i8* %R        <->  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false)
 ; CHECK: NoModRef:  Ptr: i8* %P        <->  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %R, i8* %Q, i64 12, i32 1, i1 false)
-; CHECK: Just Ref:  Ptr: i8* %Q        <->  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %R, i8* %Q, i64 12, i32 1, i1 false)
-; CHECK: Just Mod:  Ptr: i8* %R        <->  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %R, i8* %Q, i64 12, i32 1, i1 false)
+; CHECK: Just Ref (MustAlias):  Ptr: i8* %Q        <->  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %R, i8* %Q, i64 12, i32 1, i1 false)
+; CHECK: Just Mod (MustAlias):  Ptr: i8* %R        <->  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %R, i8* %Q, i64 12, i32 1, i1 false)
 ; CHECK: NoModRef:   tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false) <->   tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %R, i8* %Q, i64 12, i32 1, i1 false)
 ; CHECK: NoModRef:   tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %R, i8* %Q, i64 12, i32 1, i1 false) <->   tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false)
 }
@@ -114,12 +114,12 @@ define void @test2e(i8* noalias %P, i8* noalias %Q) nounwind ssp {
 ; CHECK: NoAlias:      i8* %P, i8* %Q
 ; CHECK: NoAlias:      i8* %P, i8* %R
 ; CHECK: NoAlias:      i8* %Q, i8* %R
-; CHECK: Just Mod:  Ptr: i8* %P        <->  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false)
-; CHECK: Just Ref:  Ptr: i8* %Q        <->  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false)
+; CHECK: Just Mod (MustAlias):  Ptr: i8* %P        <->  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false)
+; CHECK: Just Ref (MustAlias):  Ptr: i8* %Q        <->  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false)
 ; CHECK: NoModRef:  Ptr: i8* %R        <->  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false)
 ; CHECK: Just Mod:  Ptr: i8* %P        <->  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %R, i8* %Q, i64 12, i32 1, i1 false)
-; CHECK: Just Ref:  Ptr: i8* %Q        <->  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %R, i8* %Q, i64 12, i32 1, i1 false)
-; CHECK: Just Mod:  Ptr: i8* %R        <->  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %R, i8* %Q, i64 12, i32 1, i1 false)
+; CHECK: Just Ref (MustAlias):  Ptr: i8* %Q        <->  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %R, i8* %Q, i64 12, i32 1, i1 false)
+; CHECK: Just Mod (MustAlias):  Ptr: i8* %R        <->  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %R, i8* %Q, i64 12, i32 1, i1 false)
 ; CHECK: Just Mod:   tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false) <->   tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %R, i8* %Q, i64 12, i32 1, i1 false)
 ; CHECK: Just Mod:   tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %R, i8* %Q, i64 12, i32 1, i1 false) <->   tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false)
 }
@@ -148,12 +148,12 @@ define void @test3a(i8* noalias %P, i8* noalias %Q) nounwind ssp {
 ; CHECK-LABEL: Function: test3a:
 
 ; CHECK: NoAlias:      i8* %P, i8* %Q
-; CHECK: Just Mod:  Ptr: i8* %P        <->  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 8, i32 1, i1 false)
-; CHECK: Just Ref:  Ptr: i8* %Q        <->  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 8, i32 1, i1 false)
-; CHECK: Just Mod:  Ptr: i8* %P        <->  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false)
-; CHECK: Just Ref:  Ptr: i8* %Q        <->  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false)
-; CHECK: Just Mod:   tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 8, i32 1, i1 false) <->   tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false)
-; CHECK: Just Mod:   tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false) <->   tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 8, i32 1, i1 false)
+; CHECK: Just Mod (MustAlias):  Ptr: i8* %P        <->  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 8, i32 1, i1 false)
+; CHECK: Just Ref (MustAlias):  Ptr: i8* %Q        <->  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 8, i32 1, i1 false)
+; CHECK: Just Mod (MustAlias):  Ptr: i8* %P        <->  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false)
+; CHECK: Just Ref (MustAlias):  Ptr: i8* %Q        <->  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false)
+; CHECK: Just Mod (MustAlias):   tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 8, i32 1, i1 false) <->   tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false)
+; CHECK: Just Mod (MustAlias):   tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false) <->   tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 8, i32 1, i1 false)
 }
 
 define void @test4(i8* %P, i8* noalias %Q) nounwind ssp {
@@ -164,12 +164,12 @@ define void @test4(i8* %P, i8* noalias %Q) nounwind ssp {
 ; CHECK-LABEL: Function: test4:
 
 ; CHECK: NoAlias:      i8* %P, i8* %Q
-; CHECK: Just Mod:  Ptr: i8* %P        <->  tail call void @llvm.memset.p0i8.i64(i8* %P, i8 42, i64 8, i32 1, i1 false)
+; CHECK: Just Mod (MustAlias):  Ptr: i8* %P        <->  tail call void @llvm.memset.p0i8.i64(i8* %P, i8 42, i64 8, i32 1, i1 false)
 ; CHECK: NoModRef:  Ptr: i8* %Q        <->  tail call void @llvm.memset.p0i8.i64(i8* %P, i8 42, i64 8, i32 1, i1 false)
-; CHECK: Just Mod:  Ptr: i8* %P        <->  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false)
-; CHECK: Just Ref:  Ptr: i8* %Q        <->  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false)
-; CHECK: Just Mod:   tail call void @llvm.memset.p0i8.i64(i8* %P, i8 42, i64 8, i32 1, i1 false) <->   tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false)
-; CHECK: Just Mod:   tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false) <->   tail call void @llvm.memset.p0i8.i64(i8* %P, i8 42, i64 8, i32 1, i1 false)
+; CHECK: Just Mod (MustAlias):  Ptr: i8* %P        <->  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false)
+; CHECK: Just Ref (MustAlias):  Ptr: i8* %Q        <->  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false)
+; CHECK: Just Mod (MustAlias):   tail call void @llvm.memset.p0i8.i64(i8* %P, i8 42, i64 8, i32 1, i1 false) <->   tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false)
+; CHECK: Just Mod (MustAlias):   tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false) <->   tail call void @llvm.memset.p0i8.i64(i8* %P, i8 42, i64 8, i32 1, i1 false)
 }
 
 define void @test5(i8* %P, i8* %Q, i8* %R) nounwind ssp {
@@ -192,6 +192,26 @@ define void @test5(i8* %P, i8* %Q, i8* %R) nounwind ssp {
 ; CHECK: Just Mod:   tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %R, i64 12, i32 1, i1 false) <->   tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false)
 }
 
+define void @test5a(i8* noalias %P, i8* noalias %Q, i8* noalias %R) nounwind ssp {
+  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false)
+  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %R, i64 12, i32 1, i1 false)
+  ret void
+
+; CHECK-LABEL: Function: test5a:
+
+; CHECK: NoAlias:     i8* %P, i8* %Q
+; CHECK: NoAlias:     i8* %P, i8* %R
+; CHECK: NoAlias:     i8* %Q, i8* %R
+; CHECK: Just Mod (MustAlias):  Ptr: i8* %P     <->  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false)
+; CHECK: Just Ref (MustAlias):  Ptr: i8* %Q     <->  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false)
+; CHECK: NoModRef:  Ptr: i8* %R     <->  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false)
+; CHECK: Just Mod (MustAlias):  Ptr: i8* %P     <->  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %R, i64 12, i32 1, i1 false)
+; CHECK: NoModRef:  Ptr: i8* %Q     <->  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %R, i64 12, i32 1, i1 false)
+; CHECK: Just Ref (MustAlias):  Ptr: i8* %R     <->  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %R, i64 12, i32 1, i1 false)
+; CHECK: Just Mod (MustAlias):   tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false) <->   tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %R, i64 12, i32 1, i1 false)
+; CHECK: Just Mod (MustAlias):   tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %R, i64 12, i32 1, i1 false) <->   tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* %P, i8* %Q, i64 12, i32 1, i1 false)
+}
+
 define void @test6(i8* %P) nounwind ssp {
   call void @llvm.memset.p0i8.i64(i8* %P, i8 -51, i64 32, i32 8, i1 false)
   call void @a_readonly_func(i8* %P)
@@ -199,7 +219,7 @@ define void @test6(i8* %P) nounwind ssp {
 
 ; CHECK-LABEL: Function: test6:
 
-; CHECK: Just Mod:  Ptr: i8* %P        <->  call void @llvm.memset.p0i8.i64(i8* %P, i8 -51, i64 32, i32 8, i1 false)
+; CHECK: Just Mod (MustAlias):  Ptr: i8* %P        <->  call void @llvm.memset.p0i8.i64(i8* %P, i8 -51, i64 32, i32 8, i1 false)
 ; CHECK: Just Ref:  Ptr: i8* %P        <->  call void @a_readonly_func(i8* %P)
 ; CHECK: Just Mod:   call void @llvm.memset.p0i8.i64(i8* %P, i8 -51, i64 32, i32 8, i1 false) <->   call void @a_readonly_func(i8* %P)
 ; CHECK: Just Ref:   call void @a_readonly_func(i8* %P) <->   call void @llvm.memset.p0i8.i64(i8* %P, i8 -51, i64 32, i32 8, i1 false)
@@ -234,12 +254,16 @@ entry:
   ret void
 
 ; CHECK-LABEL: Function: test8
+; CHECK: Just Ref:  Ptr: i8* %p <->  call void @a_readonly_func(i8* %p)
+; CHECK: Just Ref:  Ptr: i8* %q <->  call void @a_readonly_func(i8* %p)
 ; CHECK: NoModRef:  Ptr: i8* %p <->  call void @an_inaccessiblememonly_func()
 ; CHECK: NoModRef:  Ptr: i8* %q <->  call void @an_inaccessiblememonly_func()
+; CHECK: Just Mod:  Ptr: i8* %p <->  call void @a_writeonly_func(i8* %q)
+; CHECK: Just Mod:  Ptr: i8* %q <->  call void @a_writeonly_func(i8* %q)
 ; CHECK: NoModRef:  Ptr: i8* %p <->  call void @an_inaccessibleorargmemonly_func(i8* %q)
-; CHECK: Both ModRef:  Ptr: i8* %q <->  call void @an_inaccessibleorargmemonly_func(i8* %q)
+; CHECK: Both ModRef (MustAlias):  Ptr: i8* %q <->  call void @an_inaccessibleorargmemonly_func(i8* %q)
 ; CHECK: NoModRef:  Ptr: i8* %p <->  call void @an_argmemonly_func(i8* %q)
-; CHECK: Both ModRef:  Ptr: i8* %q <->  call void @an_argmemonly_func(i8* %q)
+; CHECK: Both ModRef (MustAlias):  Ptr: i8* %q <->  call void @an_argmemonly_func(i8* %q)
 ; CHECK: Just Ref: call void @a_readonly_func(i8* %p) <-> call void @an_inaccessiblememonly_func()
 ; CHECK: Just Ref: call void @a_readonly_func(i8* %p) <-> call void @an_inaccessibleorargmemonly_func(i8* %q)
 ; CHECK: Just Ref: call void @a_readonly_func(i8* %p) <-> call void @an_argmemonly_func(i8* %q)
@@ -254,9 +278,9 @@ entry:
 ; CHECK: Both ModRef: call void @an_inaccessibleorargmemonly_func(i8* %q) <-> call void @a_readonly_func(i8* %p)
 ; CHECK: Both ModRef: call void @an_inaccessibleorargmemonly_func(i8* %q) <-> call void @a_writeonly_func(i8* %q)
 ; CHECK: Both ModRef: call void @an_inaccessibleorargmemonly_func(i8* %q) <-> call void @an_inaccessiblememonly_func()
-; CHECK: Both ModRef: call void @an_inaccessibleorargmemonly_func(i8* %q) <-> call void @an_argmemonly_func(i8* %q)
+; CHECK: Both ModRef (MustAlias): call void @an_inaccessibleorargmemonly_func(i8* %q) <-> call void @an_argmemonly_func(i8* %q)
 ; CHECK: Both ModRef: call void @an_argmemonly_func(i8* %q) <-> call void @a_readonly_func(i8* %p)
 ; CHECK: Both ModRef: call void @an_argmemonly_func(i8* %q) <-> call void @a_writeonly_func(i8* %q)
 ; CHECK: NoModRef: call void @an_argmemonly_func(i8* %q) <-> call void @an_inaccessiblememonly_func()
-; CHECK: Both ModRef: call void @an_argmemonly_func(i8* %q) <-> call void @an_inaccessibleorargmemonly_func(i8* %q)
+; CHECK: Both ModRef (MustAlias): call void @an_argmemonly_func(i8* %q) <-> call void @an_inaccessibleorargmemonly_func(i8* %q)
 }
