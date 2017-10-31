@@ -70,6 +70,8 @@ void InitializeFlags() {
   }
   Flags *f = flags();
   f->SetDefaults();
+  if (f->redzone < (int)SHADOW_GRANULARITY)
+    f->redzone = SHADOW_GRANULARITY;
 
   FlagParser asan_parser;
   RegisterAsanFlags(&asan_parser, f);
