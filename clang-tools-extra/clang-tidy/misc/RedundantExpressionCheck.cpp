@@ -25,6 +25,7 @@
 #include <cstdint>
 #include <string>
 #include <vector>
+#include <math.h>
 
 using namespace clang::ast_matchers;
 using namespace clang::tidy::matchers;
@@ -198,7 +199,7 @@ static bool areExclusiveRanges(BinaryOperatorKind OpcodeLHS,
 }
 
 // Returns whether the ranges covered by the union of both relational
-// expressions covers the whole domain (i.e. x < 10  and  x > 0).
+// expressions cover the whole domain (i.e. x < 10  and  x > 0).
 static bool rangesFullyCoverDomain(BinaryOperatorKind OpcodeLHS,
                                    const APSInt &ValueLHS,
                                    BinaryOperatorKind OpcodeRHS,
@@ -571,7 +572,7 @@ static bool areSidesBinaryConstExpressions(const BinaryOperator *&BinOp, const A
 }
 
 // Retrieves integer constant subexpressions from binary operator expressions
-// that have two equivalent sides
+// that have two equivalent sides.
 // E.g.: from (X == 5) && (X == 5) retrieves 5 and 5.
 static bool retrieveConstExprFromBothSides(const BinaryOperator *&BinOp,
                                            BinaryOperatorKind &MainOpcode,
@@ -690,13 +691,40 @@ void RedundantExpressionCheck::registerMatchers(MatchFinder *Finder) {
   const auto IneffBitwiseConst = matchIntegerConstantExpr("ineff-bitwise");
   const auto IneffBitwiseSymExpr = matchSymbolicExpr("ineff-bitwise");
 
-  // Match ineffective bitwise operator expressions like: x & 0 or x |= ~0.
+  // Match ineffective or redundant bitwise operator expressions like: x & 0 or x |= ~0.
   Finder->addMatcher(
       binaryOperator(anyOf(hasOperatorName("|"), hasOperatorName("&"),
                            hasOperatorName("|="), hasOperatorName("&=")),
                      hasEitherOperand(IneffBitwiseConst),
                      hasEitherOperand(IneffBitwiseSymExpr))
           .bind("ineffective-bitwise"),
+      this);
+
+  // Match expressions like: !(1 | 2 | 3)
+  Finder->addMatcher(
+      implicitCastExpr(
+          hasImplicitDestinationType(isInteger()),
+          has(unaryOperator(
+                  hasOperatorName("!"),
+                  hasUnaryOperand(ignoringParenImpCasts(binaryOperator(
+                      anyOf(hasOperatorName("|"), hasOperatorName("&")),
+                      hasLHS(anyOf(binaryOperator(anyOf(hasOperatorName("|"),
+                                                        hasOperatorName("&"))),
+                                   integerLiteral())),
+                      hasRHS(integerLiteral())))))
+                  .bind("logical-bitwise-confusion"))),
+      this);
+
+  // Match expressions like: (X << 8) & 0xFF
+  Finder->addMatcher(
+      binaryOperator(
+          hasOperatorName("&"),
+          hasEitherOperand(ignoringParenImpCasts(
+              binaryOperator(hasOperatorName("<<"),
+                             hasRHS(integerLiteral().bind("shift-const")))
+                  .bind("shift-operator"))),
+          hasEitherOperand(integerLiteral().bind("and-const")))
+          .bind("left-right-shift-confusion"),
       this);
 
   // Match common expressions and apply more checks to find redundant
@@ -1014,6 +1042,47 @@ void RedundantExpressionCheck::check(const MatchFinder::MatchResult &Result) {
          "both sides of overloaded operator are equivalent");
   }
 
+  if(const auto *NegateOperator = Result.Nodes.getNodeAs<UnaryOperator>("logical-bitwise-confusion")){
+    SourceLocation OperatorLoc = NegateOperator->getOperatorLoc();
+
+    auto Diag =
+        diag(OperatorLoc, " logical negation operator might be confused with "
+                          "bitwise negation operator");
+    Diag << FixItHint::CreateReplacement(
+        CharSourceRange::getCharRange(OperatorLoc, OperatorLoc.getLocWithOffset(1)),
+        "~");
+  }
+
+  if (const auto *BinaryAndExpr = Result.Nodes.getNodeAs<BinaryOperator>(
+          "left-right-shift-confusion")) {
+    const auto *ShiftOperator =
+        Result.Nodes.getNodeAs<BinaryOperator>("shift-operator");
+    const auto *ShiftingConst = Result.Nodes.getNodeAs<Expr>("shift-const");
+    const auto *AndConst = Result.Nodes.getNodeAs<Expr>("and-const");
+
+    assert(ShiftOperator && "Expr* 'ShiftOperator' is nullptr!");
+    assert(ShiftingConst && "Expr* 'ShiftingConst' is nullptr!");
+    assert(AndConst && "Expr* 'AndCont' is nullptr!");
+
+    APSInt ShiftingValue;
+    if (!ShiftingConst->isIntegerConstantExpr(ShiftingValue, *Result.Context))
+      return;
+
+    APSInt AndValue;
+    if (!AndConst->isIntegerConstantExpr(AndValue, *Result.Context))
+      return;
+
+    // If ShiftingConst is shifted left with more bits than the position of the
+    // leftmost 1 in the bit representation of AndValue, AndConstant is
+    // ineffective.
+    if (floor(log2(AndValue.getExtValue())) >= ShiftingValue)
+      return;
+
+    auto Diag = diag(BinaryAndExpr->getOperatorLoc(),
+                     " ineffective bitwise and operation. Did you intend "
+                     "'>>' instead of '<<'?");
+  }
+
   // Check for the following bound expressions:
   // - "binop-const-compare-to-sym",
   // - "binop-const-compare-to-binop-const",
@@ -1023,8 +1092,10 @@ void RedundantExpressionCheck::check(const MatchFinder::MatchResult &Result) {
 
   // Check for the following bound expression:
   // - "binop-const-compare-to-const",
+  // - "ineffective-bitwise"
   // Produced message:
   // -> "logical expression is always false/true"
+  // -> "expression always evaluates to ..."
   checkBitwiseExpr(Result);
 
   // Check for te following bound expression:
