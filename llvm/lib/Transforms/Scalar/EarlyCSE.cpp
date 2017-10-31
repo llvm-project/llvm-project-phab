@@ -834,6 +834,62 @@ bool EarlyCSE::processNode(DomTreeNode *Node) {
           continue;
         }
       }
+      // Special replace for a load with selected address:
+      //   a = select p, a1, a2
+      //   b = load a
+      //
+      // if there are existing loads from (or store to) "a1" and "a2":
+      //   b1 = load a1 (store b1 to a1)
+      //   b2 = load a2 (store b2 to a2)
+      //
+      // The load "b = load a" could be replaced with just:
+      //   b = select p, b1, b2
+
+      Value *IP = MemInst.getPointerOperand();
+      if (GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(IP)) {
+        if (SelectInst *IS = dyn_cast<SelectInst>(GEP->getOperand(0))) {
+          Instruction *IP1 = GEP->clone();
+          Instruction *IP2 = GEP->clone();
+          IP1->setOperand(0, IS->getOperand(1));
+          IP2->setOperand(0, IS->getOperand(2));
+          Value *VPP1 = AvailableValues.lookup(IP1);
+          Value *VPP2 = AvailableValues.lookup(IP2);
+          IP1->deleteValue();
+          IP2->deleteValue();
+          if (VPP1 && VPP2 && IS->hasOneUse()) {
+            LoadValue InVal1 = AvailableLoads.lookup(VPP1);
+            LoadValue InVal2 = AvailableLoads.lookup(VPP2);
+            if (InVal1.DefInst && InVal2.DefInst &&
+                InVal1.MatchingId == MemInst.getMatchingId() &&
+                InVal2.MatchingId == MemInst.getMatchingId() &&
+                !MemInst.isVolatile() && MemInst.isUnordered() &&
+                InVal1.IsAtomic >= MemInst.isAtomic() &&
+                InVal2.IsAtomic >= MemInst.isAtomic() &&
+                ((InVal1.IsInvariant && InVal2.IsInvariant) ||
+                 MemInst.isInvariantLoad() ||
+                 (isSameMemGeneration(InVal1.Generation, CurrentGeneration,
+                                      InVal1.DefInst, Inst) &&
+                  isSameMemGeneration(InVal2.Generation, CurrentGeneration,
+                                      InVal2.DefInst, Inst)))) {
+              Value *Op1 = getOrCreateResult(InVal1.DefInst, Inst->getType());
+              Value *Op2 = getOrCreateResult(InVal2.DefInst, Inst->getType());
+              if (Op1 && Op2) {
+                Value *VV = SelectInst::Create(IS->getOperand(0),
+                                               Op1, Op2, "", Inst);
+                DEBUG(dbgs() << "EarlyCSE CSE LOAD: " << *Inst
+                             << "  to: " << *VV << '\n');
+                if (!Inst->use_empty())
+                  Inst->replaceAllUsesWith(VV);
+                removeMSSA(Inst);
+                Inst->eraseFromParent();
+                Changed = true;
+                ++NumCSELoad;
+                continue;
+              }
+            }
+          }
+        }
+      }
 
       // Otherwise, remember that we have this instruction.
       AvailableLoads.insert(
