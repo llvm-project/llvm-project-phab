@@ -2009,9 +2009,9 @@ public:
     case BlockContext:
     case ForContext:
     case InitStmtContext:
+    case ConditionContext:
       return true;
 
-    case ConditionContext:
     case MemberContext:
     case PrototypeContext:
     case TemplateParamContext:
