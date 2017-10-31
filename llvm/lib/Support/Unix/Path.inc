@@ -438,6 +438,23 @@ std::error_code resize_file(int FD, uint64_t Size) {
   return std::error_code();
 }
 
+std::error_code resize_file(int FD, uint64_t Size) {
+#ifdef HAVE_FALLOCATE
+  if (fallocate(FD, 0, 0, Size) == -1)
+    return std::error_code(errno, std::generic_category());
+  return std::error_code();
+#endif HAVE_FALLOCATE
+
+#ifdef __APPLE__
+  fstore_t Store = {F_ALLOCATEALL, F_PEOFPOSMODE, 0, Size};
+  if (fcntl(fd, F_PREALLOCATE, &Store) == -1)
+    return std::error_code(errno, std::generic_category());
+  return std::error_code();
+#endif
+
+  return make_error_code(errc::function_not_supported);
+}
+
 static int convertAccessMode(AccessMode Mode) {
   switch (Mode) {
   case AccessMode::Exist:
