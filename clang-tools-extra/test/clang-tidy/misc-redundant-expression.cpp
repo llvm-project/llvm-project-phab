@@ -154,6 +154,8 @@ bool TestOverloadedOperator(MyStruct& S) {
   // CHECK-MESSAGES: :[[@LINE-1]]:9: warning: both sides of overloaded operator are equivalent
   if (S >= S) return true;
   // CHECK-MESSAGES: :[[@LINE-1]]:9: warning: both sides of overloaded operator are equivalent
+
+  return true;
 }
 
 #define LT(x, y) (void)((x) < (y))
@@ -696,3 +698,46 @@ int TestWithMinMaxInt(int X) {
 
   return 0;
 }
+
+#define FLAG1 1
+#define FLAG2 2
+#define FLAG3 4
+#define FLAGS (FLAG1 | FLAG2 | FLAG3)
+int operatorConfusion(int X, int Y)
+{
+  // Uneffective & expressions.
+  Y = (Y << 8) & 0xff;
+  // CHECK-MESSAGES: :[[@LINE-1]]:16: warning: ineffective bitwise and operation. Did you intend '>>' instead of '<<'?
+  Y = (Y << 12) & 0xfff;
+  // CHECK-MESSAGES: :[[@LINE-1]]:17: warning: ineffective bitwise and
+  Y = (Y << 12) & 0xff;
+  // CHECK-MESSAGES: :[[@LINE-1]]:17: warning: ineffective bitwise and
+  Y = (Y << 8) & 0x77;
+  // CHECK-MESSAGES: :[[@LINE-1]]:16: warning: ineffective bitwise and
+  Y = (Y << 5) & 0x11;
+  // CHECK-MESSAGES: :[[@LINE-1]]:16: warning: ineffective bitwise and
+
+  // Effective expressions. Do not check.
+  Y = (Y << 4) & 0x15;
+  Y = (Y << 3) & 0x250;
+  Y = (Y << 9) & 0xF33;
+
+  int K = !(1 | 2 | 4);
+  // CHECK-MESSAGES: :[[@LINE-1]]:11: warning: logical negation operator might be confused with bitwise negation operator
+  // CHECK-FIXES: {{^}}  int K = ~(1 | 2 | 4);{{$}}
+  K = !(FLAG1 & FLAG2 & FLAG3);
+  // CHECK-MESSAGES: :[[@LINE-1]]:7: warning: logical negation operator might be confused with bitwise negation operator
+  // CHECK-FIXES: {{^}}  K = ~(FLAG1 & FLAG2 & FLAG3);{{$}}
+  K = !(3 | 4);
+  // CHECK-MESSAGES: :[[@LINE-1]]:7: warning: logical negation operator might be confused with bitwise negation operator
+  // CHECK-FIXES: {{^}}  K = ~(3 | 4);{{$}}
+  int NotFlags = !FLAGS;
+  // CHECK-MESSAGES: :[[@LINE-1]]:18: warning: logical negation operator might be confused with bitwise negation operator
+  // CHECK-FIXES: {{^}}  int NotFlags = ~FLAGS;{{$}}
+  return !(1 | 2 | 4);
+  // CHECK-MESSAGES: :[[@LINE-1]]:10: warning: logical negation operator might be confused with bitwise negation operator
+  // CHECK-FIXES: {{^}}  return ~(1 | 2 | 4);{{$}}
+}
+#undef FLAG1
+#undef FLAG2
+#undef FLAG3
