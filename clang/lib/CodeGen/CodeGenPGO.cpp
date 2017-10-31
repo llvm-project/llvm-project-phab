@@ -47,6 +47,15 @@ void CodeGenPGO::setFuncName(llvm::Function *Fn) {
   llvm::createPGOFuncNameMetadata(*Fn, FuncName);
 }
 
+/// The version of the PGO hash algorithm.
+enum PGOHashVersion : unsigned {
+  PGO_HASH_V1,
+  PGO_HASH_V2,
+
+  // Keep this set to the latest hash version.
+  PGO_HASH_LATEST = PGO_HASH_V2
+};
+
 namespace {
 /// \brief Stable hasher for PGO region counters.
 ///
@@ -61,6 +70,7 @@ namespace {
 class PGOHash {
   uint64_t Working;
   unsigned Count;
+  PGOHashVersion HashVersion;
   llvm::MD5 MD5;
 
   static const int NumBitsPerType = 6;
@@ -93,21 +103,38 @@ public:
     BinaryOperatorLAnd,
     BinaryOperatorLOr,
     BinaryConditionalOperator,
+    // The preceding values are available with PGO_HASH_V1.
+
+    GotoStmt,
+    IndirectGotoStmt,
+    BreakStmt,
+    ContinueStmt,
+    ReturnStmt,
+    IfElseStmt,
+    // The preceding values are available with PGO_HASH_V2.
 
     // Keep this last.  It's for the static assert that follows.
     LastHashType
   };
   static_assert(LastHashType <= TooBig, "Too many types in HashType");
 
-  // TODO: When this format changes, take in a version number here, and use the
-  // old hash calculation for file formats that used the old hash.
-  PGOHash() : Working(0), Count(0) {}
+  PGOHash(PGOHashVersion HashVersion)
+      : Working(0), Count(0), HashVersion(HashVersion), MD5() {}
   void combine(HashType Type);
   uint64_t finalize();
+  PGOHashVersion getHashVersion() const { return HashVersion; }
 };
 const int PGOHash::NumBitsPerType;
 const unsigned PGOHash::NumTypesPerWord;
 const unsigned PGOHash::TooBig;
+
+/// Get the PGO hash version used in the given indexed profile.
+static PGOHashVersion getPGOHashVersion(llvm::IndexedInstrProfReader *PGOReader,
+                                        CodeGenModule &CGM) {
+  if (PGOReader->getVersion() <= 4)
+    return PGO_HASH_V1;
+  return PGO_HASH_V2;
+}
 
 /// A RecursiveASTVisitor that fills a map of statements to PGO counters.
 struct MapRegionCounters : public RecursiveASTVisitor<MapRegionCounters> {
@@ -118,8 +145,9 @@ struct MapRegionCounters : public RecursiveASTVisitor<MapRegionCounters> {
   /// The map of statements to counters.
   llvm::DenseMap<const Stmt *, unsigned> &CounterMap;
 
-  MapRegionCounters(llvm::DenseMap<const Stmt *, unsigned> &CounterMap)
-      : NextCounter(0), CounterMap(CounterMap) {}
+  MapRegionCounters(PGOHashVersion HashVersion,
+                    llvm::DenseMap<const Stmt *, unsigned> &CounterMap)
+      : NextCounter(0), Hash(HashVersion), CounterMap(CounterMap) {}
 
   // Blocks and lambdas are handled as separate functions, so we need not
   // traverse them in the parent context.
@@ -146,15 +174,23 @@ struct MapRegionCounters : public RecursiveASTVisitor<MapRegionCounters> {
   }
 
   bool VisitStmt(const Stmt *S) {
-    auto Type = getHashType(S);
+    // Use V1 of the hash to determine counter mappings.
+    auto Type = getHashType(PGO_HASH_V1, S);
     if (Type == PGOHash::None)
       return true;
 
     CounterMap[S] = NextCounter++;
+
+    // If available, use a newer hash algorithm for the source hash.
+    if (Hash.getHashVersion() != PGO_HASH_V1)
+      Type = getHashType(Hash.getHashVersion(), S);
+
     Hash.combine(Type);
     return true;
   }
-  PGOHash::HashType getHashType(const Stmt *S) {
+
+  /// Get version \p HashVersion of the PGO hash for \p S.
+  PGOHash::HashType getHashType(PGOHashVersion HashVersion, const Stmt *S) {
     switch (S->getStmtClass()) {
     default:
       break;
@@ -176,8 +212,14 @@ struct MapRegionCounters : public RecursiveASTVisitor<MapRegionCounters> {
       return PGOHash::CaseStmt;
     case Stmt::DefaultStmtClass:
       return PGOHash::DefaultStmt;
-    case Stmt::IfStmtClass:
+    case Stmt::IfStmtClass: {
+      if (HashVersion == PGO_HASH_V2) {
+        auto *If = cast<IfStmt>(S);
+        if (If->getElse())
+          return PGOHash::IfElseStmt;
+      }
       return PGOHash::IfStmt;
+    }
     case Stmt::CXXTryStmtClass:
       return PGOHash::CXXTryStmt;
     case Stmt::CXXCatchStmtClass:
@@ -195,6 +237,24 @@ struct MapRegionCounters : public RecursiveASTVisitor<MapRegionCounters> {
       break;
     }
     }
+
+    if (HashVersion == PGO_HASH_V2) {
+      switch (S->getStmtClass()) {
+      default:
+        break;
+      case Stmt::GotoStmtClass:
+        return PGOHash::GotoStmt;
+      case Stmt::IndirectGotoStmtClass:
+        return PGOHash::IndirectGotoStmt;
+      case Stmt::BreakStmtClass:
+        return PGOHash::BreakStmt;
+      case Stmt::ContinueStmtClass:
+        return PGOHash::ContinueStmt;
+      case Stmt::ReturnStmtClass:
+        return PGOHash::ReturnStmt;
+      }
+    }
+
     return PGOHash::None;
   }
 };
@@ -653,8 +713,14 @@ void CodeGenPGO::assignRegionCounters(GlobalDecl GD, llvm::Function *Fn) {
 }
 
 void CodeGenPGO::mapRegionCounters(const Decl *D) {
+  // Use the latest hash version when inserting instrumentation, but use the
+  // version in the indexed profile if we're reading PGO data.
+  PGOHashVersion HashVersion = PGO_HASH_LATEST;
+  if (auto *PGOReader = CGM.getPGOReader())
+    HashVersion = getPGOHashVersion(PGOReader, CGM);
+
   RegionCounterMap.reset(new llvm::DenseMap<const Stmt *, unsigned>);
-  MapRegionCounters Walker(*RegionCounterMap);
+  MapRegionCounters Walker(HashVersion, *RegionCounterMap);
   if (const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(D))
     Walker.TraverseDecl(const_cast<FunctionDecl *>(FD));
   else if (const ObjCMethodDecl *MD = dyn_cast_or_null<ObjCMethodDecl>(D))
