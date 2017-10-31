@@ -5972,6 +5972,10 @@ def warn_tautological_constant_compare : Warning<
   "comparison %select{%3|%1}0 %2 "
   "%select{%1|%3}0 is always %select{false|true}4">,
   InGroup<TautologicalConstantCompare>;
+def warn_maybe_tautological_constant_compare : Warning<
+  "with current data model, comparison %select{%3|%1}0 %2 "
+  "%select{%1|%3}0 is always %select{false|true}4">,
+  InGroup<MaybeTautologicalConstantCompare>, DefaultIgnore;
 
 def warn_mixed_sign_comparison : Warning<
   "comparison of integers of different signs: %0 and %1">,
