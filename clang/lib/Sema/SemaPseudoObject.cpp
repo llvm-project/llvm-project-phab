@@ -434,7 +434,7 @@ PseudoOpBuilder::buildAssignmentOperation(Scope *Sc, SourceLocation opcLoc,
   // no clients rely that closely on matching up expressions in the
   // semantic expression with expressions from the syntactic form.
   Expr *semanticRHS = capturedRHS;
-  if (RHS->hasPlaceholderType() || isa<InitListExpr>(RHS)) {
+  if (RHS->hasPlaceholderType() || isa<InitListExpr>(RHS) || RHS->isRValue()) {
     semanticRHS = RHS;
     Semantics.pop_back();
   }

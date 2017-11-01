@@ -73,7 +73,7 @@ int main() {
 // rdar://8379892
 // CHECK-LABEL: define void @_Z1fP1A
 // CHECK: call void @_ZN1XC1Ev(%struct.X* [[LVTEMP:%[a-zA-Z0-9\.]+]])
-// CHECK: call void @_ZN1XC1ERKS_(%struct.X* [[AGGTMP:%[a-zA-Z0-9\.]+]], %struct.X* dereferenceable({{[0-9]+}}) [[LVTEMP]])
+// CHECK-NOT: call void @_ZN1XC1ERKS_(%struct.X* [[AGGTMP:%[a-zA-Z0-9\.]+]], %struct.X* dereferenceable({{[0-9]+}}) [[LVTEMP]])
 // CHECK: call void bitcast (i8* (i8*, i8*, ...)* @objc_msgSend to void (i8*, i8*, %struct.X*)*)({{.*}} %struct.X* [[AGGTMP]])
 struct X {
   X();
