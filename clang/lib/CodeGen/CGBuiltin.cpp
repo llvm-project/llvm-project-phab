@@ -7500,79 +7500,6 @@ Value *CodeGenFunction::EmitX86CpuIs(const CallExpr *E) {
 }
 
 Value *CodeGenFunction::EmitX86CpuIs(StringRef CPUStr) {
-
-  // This enum contains the vendor, type, and subtype enums from the
-  // runtime library concatenated together. The _START labels mark
-  // the start and are used to adjust the value into the correct
-  // encoding space.
-  enum X86CPUs {
-    INTEL = 1,
-    AMD,
-    CPU_TYPE_START,
-    INTEL_BONNELL,
-    INTEL_CORE2,
-    INTEL_COREI7,
-    AMDFAM10H,
-    AMDFAM15H,
-    INTEL_SILVERMONT,
-    INTEL_KNL,
-    AMD_BTVER1,
-    AMD_BTVER2,
-    AMDFAM17H,
-    CPU_SUBTYPE_START,
-    INTEL_COREI7_NEHALEM,
-    INTEL_COREI7_WESTMERE,
-    INTEL_COREI7_SANDYBRIDGE,
-    AMDFAM10H_BARCELONA,
-    AMDFAM10H_SHANGHAI,
-    AMDFAM10H_ISTANBUL,
-    AMDFAM15H_BDVER1,
-    AMDFAM15H_BDVER2,
-    AMDFAM15H_BDVER3,
-    AMDFAM15H_BDVER4,
-    AMDFAM17H_ZNVER1,
-    INTEL_COREI7_IVYBRIDGE,
-    INTEL_COREI7_HASWELL,
-    INTEL_COREI7_BROADWELL,
-    INTEL_COREI7_SKYLAKE,
-    INTEL_COREI7_SKYLAKE_AVX512,
-  };
-
-  X86CPUs CPU =
-    StringSwitch<X86CPUs>(CPUStr)
-      .Case("amd", AMD)
-      .Case("amdfam10h", AMDFAM10H)
-      .Case("amdfam10", AMDFAM10H)
-      .Case("amdfam15h", AMDFAM15H)
-      .Case("amdfam15", AMDFAM15H)
-      .Case("amdfam17h", AMDFAM17H)
-      .Case("atom", INTEL_BONNELL)
-      .Case("barcelona", AMDFAM10H_BARCELONA)
-      .Case("bdver1", AMDFAM15H_BDVER1)
-      .Case("bdver2", AMDFAM15H_BDVER2)
-      .Case("bdver3", AMDFAM15H_BDVER3)
-      .Case("bdver4", AMDFAM15H_BDVER4)
-      .Case("bonnell", INTEL_BONNELL)
-      .Case("broadwell", INTEL_COREI7_BROADWELL)
-      .Case("btver1", AMD_BTVER1)
-      .Case("btver2", AMD_BTVER2)
-      .Case("core2", INTEL_CORE2)
-      .Case("corei7", INTEL_COREI7)
-      .Case("haswell", INTEL_COREI7_HASWELL)
-      .Case("intel", INTEL)
-      .Case("istanbul", AMDFAM10H_ISTANBUL)
-      .Case("ivybridge", INTEL_COREI7_IVYBRIDGE)
-      .Case("knl", INTEL_KNL)
-      .Case("nehalem", INTEL_COREI7_NEHALEM)
-      .Case("sandybridge", INTEL_COREI7_SANDYBRIDGE)
-      .Case("shanghai", AMDFAM10H_SHANGHAI)
-      .Case("silvermont", INTEL_SILVERMONT)
-      .Case("skylake", INTEL_COREI7_SKYLAKE)
-      .Case("skylake-avx512", INTEL_COREI7_SKYLAKE_AVX512)
-      .Case("slm", INTEL_SILVERMONT)
-      .Case("westmere", INTEL_COREI7_WESTMERE)
-      .Case("znver1", AMDFAM17H_ZNVER1);
-
   llvm::Type *Int32Ty = Builder.getInt32Ty();
 
   // Matching the struct layout from the compiler-rt/libgcc structure that is
@@ -7591,16 +7518,8 @@ Value *CodeGenFunction::EmitX86CpuIs(StringRef CPUStr) {
   // range. Also adjust the expected value.
   unsigned Index;
   unsigned Value;
-  if (CPU > CPU_SUBTYPE_START) {
-    Index = 2;
-    Value = CPU - CPU_SUBTYPE_START;
-  } else if (CPU > CPU_TYPE_START) {
-    Index = 1;
-    Value = CPU - CPU_TYPE_START;
-  } else {
-    Index = 0;
-    Value = CPU;
-  }
+  std::tie(Index, Value) = getTarget().getCpuIsCode(CPUStr);
+  assert(Value != 0 && "Invalid Cpu String given to EmitX86CpuIs");
 
   // Grab the appropriate field from __cpu_model.
   llvm::Value *Idxs[] = {

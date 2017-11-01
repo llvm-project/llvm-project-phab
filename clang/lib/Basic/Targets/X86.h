@@ -95,183 +95,39 @@ class LLVM_LIBRARY_VISIBILITY X86TargetInfo : public TargetInfo {
   /// loosely correspond to the options passed to '-march' or '-mtune' flags.
   enum CPUKind {
     CK_Generic,
-
-    /// \name i386
-    /// i386-generation processors.
-    //@{
-    CK_i386,
-    //@}
-
-    /// \name i486
-    /// i486-generation processors.
-    //@{
-    CK_i486,
-    CK_WinChipC6,
-    CK_WinChip2,
-    CK_C3,
-    //@}
-
-    /// \name i586
-    /// i586-generation processors, P5 microarchitecture based.
-    //@{
-    CK_i586,
-    CK_Pentium,
-    CK_PentiumMMX,
-    //@}
-
-    /// \name i686
-    /// i686-generation processors, P6 / Pentium M microarchitecture based.
-    //@{
-    CK_PentiumPro,
-    CK_Pentium2,
-    CK_Pentium3,
-    CK_PentiumM,
-    CK_C3_2,
-
-    /// This enumerator is a bit odd, as GCC no longer accepts -march=yonah.
-    /// Clang however has some logic to support this.
-    // FIXME: Warn, deprecate, and potentially remove this.
-    CK_Yonah,
-    //@}
-
-    /// \name Netburst
-    /// Netburst microarchitecture based processors.
-    //@{
-    CK_Pentium4,
-    CK_Prescott,
-    CK_Nocona,
-    //@}
-
-    /// \name Core
-    /// Core microarchitecture based processors.
-    //@{
-    CK_Core2,
-
-    /// This enumerator, like \see CK_Yonah, is a bit odd. It is another
-    /// codename which GCC no longer accepts as an option to -march, but Clang
-    /// has some logic for recognizing it.
-    // FIXME: Warn, deprecate, and potentially remove this.
-    CK_Penryn,
-    //@}
-
-    /// \name Atom
-    /// Atom processors
-    //@{
-    CK_Bonnell,
-    CK_Silvermont,
-    CK_Goldmont,
-    //@}
-
-    /// \name Nehalem
-    /// Nehalem microarchitecture based processors.
-    CK_Nehalem,
-
-    /// \name Westmere
-    /// Westmere microarchitecture based processors.
-    CK_Westmere,
-
-    /// \name Sandy Bridge
-    /// Sandy Bridge microarchitecture based processors.
-    CK_SandyBridge,
-
-    /// \name Ivy Bridge
-    /// Ivy Bridge microarchitecture based processors.
-    CK_IvyBridge,
-
-    /// \name Haswell
-    /// Haswell microarchitecture based processors.
-    CK_Haswell,
-
-    /// \name Broadwell
-    /// Broadwell microarchitecture based processors.
-    CK_Broadwell,
-
-    /// \name Skylake Client
-    /// Skylake client microarchitecture based processors.
-    CK_SkylakeClient,
-
-    /// \name Skylake Server
-    /// Skylake server microarchitecture based processors.
-    CK_SkylakeServer,
-
-    /// \name Cannonlake Client
-    /// Cannonlake client microarchitecture based processors.
-    CK_Cannonlake,
-
-    /// \name Knights Landing
-    /// Knights Landing processor.
-    CK_KNL,
-
-    /// \name Knights Mill
-    /// Knights Mill processor.
-    CK_KNM,
-
-    /// \name Lakemont
-    /// Lakemont microarchitecture based processors.
-    CK_Lakemont,
-
-    /// \name K6
-    /// K6 architecture processors.
-    //@{
-    CK_K6,
-    CK_K6_2,
-    CK_K6_3,
-    //@}
-
-    /// \name K7
-    /// K7 architecture processors.
-    //@{
-    CK_Athlon,
-    CK_AthlonXP,
-    //@}
-
-    /// \name K8
-    /// K8 architecture processors.
-    //@{
-    CK_K8,
-    CK_K8SSE3,
-    CK_AMDFAM10,
-    //@}
-
-    /// \name Bobcat
-    /// Bobcat architecture processors.
-    //@{
-    CK_BTVER1,
-    CK_BTVER2,
-    //@}
-
-    /// \name Bulldozer
-    /// Bulldozer architecture processors.
-    //@{
-    CK_BDVER1,
-    CK_BDVER2,
-    CK_BDVER3,
-    CK_BDVER4,
-    //@}
-
-    /// \name zen
-    /// Zen architecture processors.
-    //@{
-    CK_ZNVER1,
-    //@}
-
-    /// This specification is deprecated and will be removed in the future.
-    /// Users should prefer \see CK_K8.
-    // FIXME: Warn on this when the CPU is set to it.
-    //@{
-    CK_x86_64,
-    //@}
-
-    /// \name Geode
-    /// Geode processors.
-    //@{
-    CK_Geode
-    //@}
+#define IGNORE_ALIASES
+#define PROC_VENDOR(Name, String, CpuId)
+#define PROC_FAMILY(Name, String, Is64Bit, CpuId) CK_##Name,
+#define PROC(Name, String, Is64Bit, CpuId) CK_##Name,
+#include "clang/Basic/X86Target.def"
+#undef PROC_FAMILY
+#undef PROC
+#undef PROC_VENDOR
+#undef IGNORE_ALIASES
   } CPU = CK_Generic;
 
   bool checkCPUKind(CPUKind Kind) const;
 
   CPUKind getCPUKind(StringRef CPU) const;
+
+  // \brief Returns a pair of unsigned integers that contain the __cpu_model
+  // information required to identify the specified Processor Family/Processor.
+  // A valid Processor Family will return a 1 in the first value, and the 'type'
+  // identifier for the family in the second.  A valid Processor will return a 2
+  // in the first value, and the 'subtype' identifier for the processor in the
+  // second. If the value provided is not valid for cpu_is identification, will
+  // return a 0 in the second value.
+  std::tuple<unsigned, unsigned> IsValidCpuIsProc(CPUKind Kind) const;
+
+  // \brief Returns a pair of unsigned integers that contains the __cpu_model
+  // information required to identify the specified vendor.  If the vendor
+  // string is invalid, or not identifiable in a __cpu_model struct, returns the
+  // pair {0,0}.
+  std::tuple<unsigned, unsigned> CpuIsVendor(StringRef Str) const;
+
+  // \brief Converts a CPUKind to a string. This has the advantage of
+  // de-aliasing the CPUKind when combined with getCPUKind.
+  std::string getCpuKindName(CPUKind Kind) const;
 
   enum FPMathKind { FP_Default, FP_SSE, FP_387 } FPMath = FP_Default;
 
@@ -295,6 +151,10 @@ public:
   ArrayRef<TargetInfo::AddlRegName> getGCCAddlRegNames() const override;
 
   bool validateCpuSupports(StringRef Name) const override;
+
+  std::tuple<unsigned, unsigned> getCpuIsCode(StringRef Name) const override;
+
+  std::string normalizeCpuName(StringRef Name) const override;
 
   bool validateCpuIs(StringRef Name) const override;
 

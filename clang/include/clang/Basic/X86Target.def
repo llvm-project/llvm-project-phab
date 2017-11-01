@@ -1,0 +1,217 @@
+//===--- X86.def - X86 Feature/Processor Database ------ --------*- C++ -*-===//
+//
+//                     The LLVM Compiler Infrastructure
+//
+// This file is distributed under the University of Illinois Open Source
+// License. See LICENSE.TXT for details.
+//
+//===----------------------------------------------------------------------===//
+//
+// This file defines the X86-specific Features and Processors, as used by
+// the X86 Targets.
+//
+//===----------------------------------------------------------------------===//
+
+// IGNORE_ALIASES: Define this value to force this document to not emit
+// processor family and processor aliases.
+
+// PROC_VENDOR(Name, Spelling, Cpuid)
+//   Specifies a processor vendor, as detectible by the __builtin_cpu_is. This
+//   will be used as by the __builtin_cpu_is field to detect the vendor of the
+//   executing processor.
+// Name: An identifer unique to other 'Name' fields in this
+// document that can be used to identify this vendor internally.
+// Spelling: A string that the programmer can use to identify this vendor.
+// Cpuid: A numeric value that matches the __cpu_vendor value of __cpu_model, or
+//   0 if it is not supported.
+
+// PROC_FAMILY(Name, Spelling, ProcKind, Cpuid)
+//   Specifies a family of processors, as detectible by the __builtin_cpu_is.
+//   This will be used both as a configurable -march value as well as for
+//   anything that uses the __builtin_cpu_is functionality, such as attribute
+//   'target'.
+// Name: An identifer unique to other 'Name' fields in this
+//   document that can be used to identify this family internally.
+// Spelling: A string that the programmer can use to identify this family. Note
+//   that this must also be unique among processors as well as families.
+// ProcKind: Either PROC_64_BIT or PROC_32_BIT, indentifying whether this is a
+//   64 or 32 bit processor family, respectively.
+// Cpuid: A numeric value that matches the __cpu_type value of __cpu_model, or 0
+//   if it is not supported.
+
+// PROC(Name, Spelling, ProcKind, Cpuid)
+//   Specifies a processor, as detectible by the __builtin_cpu_is.
+//   This will be used both as a configurable -march value as well as for
+//   anything that uses the __builtin_cpu_is functionality, such as attribute
+//   'target'. Note that the difference between this and a PROC_FAMILY is that
+//   this checks against a separate section of the __cpu_model struct.
+// Name: An identifer unique to other 'Name' fields in this
+//   document that can be used to identify this processor internally.
+// Spelling: A string that the programmer can use to identify this processor.
+//   Note that this must also be unique among processors as well as families.
+// ProcKind: Either PROC_64_BIT or PROC_32_BIT, indentifying whether this is a
+//   64 or 32 bit processor, respectively.
+// Cpuid: A numeric value that matches the __cpu_subtype value of __cpu_model,
+//   or 0 if it is not supported.
+
+// PROC_FAMILY_ALIAS(Name, Spelling)
+//   Provides an alternate spelling for a processor family.
+// Name: The identifier used for the Name field in the original PROC_FAMILY
+//   macro.
+// Spelling: A string containing the new alternative spelling of this processor
+//   family.
+
+// PROC_ALIAS(Name, Spelling)
+//   Provides an alternate spelling for a processor.
+// Name: The identifier used for the Name field in the original PROC macro.
+// Spelling: A string containing the new alternative spelling of this processor.
+
+#ifdef IGNORE_ALIASES
+#define PROC_FAMILY_ALIAS(Name, Spelling)
+#define PROC_ALIAS(Name, Spelling)
+#endif
+
+#ifndef PROC_64_BIT
+#define PROC_64_BIT true
+#define PROC_32_BIT false
+#define DEFINED_PROC_BIT_CONSTANTS
+#endif
+
+PROC_VENDOR(Intel, "intel", 1)
+PROC_VENDOR(AMD, "amd", 2)
+
+
+PROC_FAMILY(Bonnell, "bonnell", PROC_64_BIT, 1)
+PROC_FAMILY_ALIAS(Bonnell, "atom")
+
+PROC_FAMILY(Core2, "core2", PROC_64_BIT, 2)
+
+PROC_FAMILY(CoreI7, "corei7", PROC_64_BIT, 3)
+PROC(Nehalem, "nehalem", PROC_64_BIT, 1)
+PROC(Westmere, "westmere", PROC_64_BIT, 2)
+PROC(SandyBridge, "sandybridge", PROC_64_BIT, 3)
+PROC_ALIAS(SandyBridge, "corei7-avx")
+PROC(IvyBridge, "ivybridge", PROC_64_BIT, 12)
+PROC_ALIAS(IvyBridge, "core-avx-i")
+PROC(Haswell, "haswell", PROC_64_BIT, 13)
+PROC_ALIAS(Haswell, "core-avx2")
+PROC(Broadwell, "broadwell", PROC_64_BIT, 14)
+PROC(SkylakeClient, "skylake", PROC_64_BIT, 15)
+PROC(SkylakeServer, "skylake-avx512", PROC_64_BIT, 16)
+PROC_ALIAS(SkylakeServer, "skx")
+
+PROC_FAMILY(AMDFAM10, "amdfam10", PROC_64_BIT, 4)
+PROC_FAMILY_ALIAS(AMDFAM10, "amdfam10h")
+PROC(Barcelona, "barcelona", PROC_64_BIT, 4)
+PROC(Shanghai, "shanghai", PROC_64_BIT, 5)
+PROC(Istanbul, "istanbul", PROC_64_BIT, 6)
+
+PROC_FAMILY(AMDFAM15, "amdfam15", PROC_64_BIT, 5)
+PROC_FAMILY_ALIAS(AMDFAM15, "amdfam15h")
+PROC(BDVER1, "bdver1", PROC_64_BIT, 7)
+PROC(BDVER2, "bdver2", PROC_64_BIT, 8)
+PROC(BDVER3, "bdver3", PROC_64_BIT, 9)
+PROC(BDVER4, "bdver4", PROC_64_BIT, 10)
+
+PROC_FAMILY(Silvermont, "silvermont", PROC_64_BIT, 6)
+PROC_FAMILY_ALIAS(Silvermont, "slm")
+
+PROC_FAMILY(KNL, "knl", PROC_64_BIT, 7)
+
+PROC_FAMILY(BTVER1, "btver1", PROC_64_BIT, 8)
+
+PROC_FAMILY(BTVER2, "btver2", PROC_64_BIT, 9)
+
+PROC_FAMILY(AMDFAM17, "amdfam17", PROC_64_BIT, 10)
+PROC_FAMILY_ALIAS(AMDFAM17, "amdfam17h")
+PROC(ZNVER1, "znver1", PROC_64_BIT, 11)
+
+
+// Processors that are not a CPUIs Type, unassociated with others.
+/// \name i386
+/// i386-generation processors.
+PROC(i386, "i386", PROC_32_BIT, 0)
+/// \name i486
+/// i486-generation processors.
+PROC(i486, "i486", PROC_32_BIT, 0)
+/// \name i486
+/// i486-generation processors.
+PROC(WinChipC6, "winchip-c6", PROC_32_BIT, 0)
+PROC(WinChip2, "winchip2", PROC_32_BIT, 0)
+PROC(C3, "c3", PROC_32_BIT, 0)
+/// \name i586
+/// i586-generation processors, P5 microarchitecture based.
+PROC(i586, "i586", PROC_32_BIT, 0)
+PROC(Pentium, "pentium", PROC_32_BIT, 0)
+PROC(PentiumMMX, "pentium-mmx", PROC_32_BIT, 0)
+PROC(PentiumPro, "pentiumpro", PROC_32_BIT, 0)
+PROC_ALIAS(PentiumPro, "i686")
+PROC(Pentium2, "pentium2", PROC_32_BIT, 0)
+PROC(Pentium3, "pentium3", PROC_32_BIT, 0)
+PROC_ALIAS(Pentium3, "pentium3m")
+PROC(PentiumM, "pentium-m", PROC_32_BIT, 0)
+PROC(C3_2, "c3-2", PROC_32_BIT, 0)
+/// This enumerator is a bit odd, as GCC no longer accepts -march=yonah.
+/// Clang however has some logic to support this.
+// FIXME: Warn, deprecate, and potentially remove this.
+PROC(Yonah, "yonah", PROC_32_BIT, 0)
+/// \name Netburst
+/// Netburst microarchitecture based processors.
+PROC(Pentium4, "pentium4", PROC_32_BIT, 0)
+PROC_ALIAS(Pentium4, "pentium4m")
+PROC(Prescott, "prescott", PROC_32_BIT, 0)
+PROC(Nocona, "nocona", PROC_64_BIT, 0)
+/// \name Core
+/// Core microarchitecture based processors.
+PROC(Penryn, "penryn", PROC_64_BIT, 0)
+/// \name Atom
+/// Atom processors
+PROC(Goldmont, "goldmont", PROC_64_BIT, 0)
+/// \name Cannonlake Client
+/// Cannonlake client microarchitecture based processors.
+PROC(Cannonlake, "cannonlake", PROC_64_BIT, 0)
+/// \name Knights Mill
+/// Knights Mill processor.
+PROC(KNM, "knm", PROC_64_BIT, 0)
+/// \name Lakemont
+/// Lakemont microarchitecture based processors.
+PROC(Lakemont, "lakemont", PROC_32_BIT, 0)
+/// \name K6
+/// K6 architecture processors.
+PROC(K6, "k6", PROC_32_BIT, 0)
+PROC(K6_2, "k6-2", PROC_32_BIT, 0)
+PROC(K6_3, "k6-3", PROC_32_BIT, 0)
+/// \name K7
+/// K7 architecture processors.
+PROC(Athlon, "athlon", PROC_32_BIT, 0)
+PROC_ALIAS(Athlon, "athlon-tbird")
+PROC(AthlonXP, "athlon-xp", PROC_32_BIT, 0)
+PROC_ALIAS(AthlonXP, "athlon-mp")
+PROC_ALIAS(AthlonXP, "athlon-4")
+/// \name K8
+/// K8 architecture processors.
+PROC(K8, "k8", PROC_64_BIT, 0)
+PROC_ALIAS(K8, "athlon64")
+PROC_ALIAS(K8, "athlon-fx")
+PROC_ALIAS(K8, "opteron")
+PROC(K8SSE3, "k8-sse3", PROC_64_BIT, 0)
+PROC_ALIAS(K8SSE3, "athlon64-sse3")
+PROC_ALIAS(K8SSE3, "opteron-sse3")
+/// This specification is deprecated and will be removed in the future.
+/// Users should prefer \see CK_K8.
+// FIXME: Warn on this when the CPU is set to it.
+PROC(x86_64, "x86-64", PROC_64_BIT, 0)
+/// \name Geode
+/// Geode processors.
+PROC(Geode, "geode", PROC_32_BIT, 0)
+
+#ifdef DEFINED_PROC_BIT_CONSTANTS
+#undef PROC_64_BIT
+#undef PROC_32_BIT
+#undef DEFINED_PROC_BIT_CONSTANTS
+#endif
+
+#ifdef IGNORE_ALIASES
+#undef PROC_FAMILY_ALIAS
+#undef PROC_ALIAS
+#endif

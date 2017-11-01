@@ -920,6 +920,18 @@ public:
   // argument.
   virtual bool validateCpuIs(StringRef Name) const { return false; }
 
+  // \brief Return the code of the CPU that is used  for __builtin_cpu_is(const
+  // char*).
+  virtual std::tuple<unsigned, unsigned> getCpuIsCode(StringRef Name) const {
+    return {};
+  }
+
+  // \brief Normalizes the CPU name to be passed to the back end.  This can
+  // handle aliases and other necessary translations.
+  virtual std::string normalizeCpuName(StringRef Name) const {
+    return Name;
+  }
+
   // \brief Returns maximal number of args passed in registers.
   unsigned getRegParmMax() const {
     assert(RegParmMax < 7 && "RegParmMax value is larger than AST can handle");

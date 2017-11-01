@@ -1889,7 +1889,8 @@ void CodeGenModule::ConstructAttributeList(
           getTarget().isValidCPUName(ParsedAttr.Architecture))
         TargetCPU = ParsedAttr.Architecture;
       if (TargetCPU != "")
-         FuncAttrs.addAttribute("target-cpu", TargetCPU);
+        FuncAttrs.addAttribute("target-cpu",
+                               getTarget().normalizeCpuName(TargetCPU));
       if (!Features.empty()) {
         std::sort(Features.begin(), Features.end());
         FuncAttrs.addAttribute(
@@ -1901,7 +1902,8 @@ void CodeGenModule::ConstructAttributeList(
       // function.
       std::vector<std::string> &Features = getTarget().getTargetOpts().Features;
       if (TargetCPU != "")
-        FuncAttrs.addAttribute("target-cpu", TargetCPU);
+        FuncAttrs.addAttribute("target-cpu",
+                               getTarget().normalizeCpuName(TargetCPU));
       if (!Features.empty()) {
         std::sort(Features.begin(), Features.end());
         FuncAttrs.addAttribute(
