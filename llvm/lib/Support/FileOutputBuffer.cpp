@@ -38,9 +38,6 @@ public:
                std::unique_ptr<fs::mapped_file_region> Buf)
       : FileOutputBuffer(Path), Buffer(std::move(Buf)), TempPath(TempPath) {}
 
-  static ErrorOr<std::unique_ptr<OnDiskBuffer>>
-  create(StringRef Path, size_t Size, unsigned Mode);
-
   uint8_t *getBufferStart() const override { return (uint8_t *)Buffer->data(); }
 
   uint8_t *getBufferEnd() const override {
@@ -78,16 +75,6 @@ public:
   InMemoryBuffer(StringRef Path, MemoryBlock Buf, unsigned Mode)
       : FileOutputBuffer(Path), Buffer(Buf), Mode(Mode) {}
 
-  static ErrorOr<std::unique_ptr<InMemoryBuffer>>
-  create(StringRef Path, size_t Size, unsigned Mode) {
-    std::error_code EC;
-    MemoryBlock MB = Memory::allocateMappedMemory(
-        Size, nullptr, sys::Memory::MF_READ | sys::Memory::MF_WRITE, EC);
-    if (EC)
-      return EC;
-    return llvm::make_unique<InMemoryBuffer>(Path, MB, Mode);
-  }
-
   uint8_t *getBufferStart() const override { return (uint8_t *)Buffer.base(); }
 
   uint8_t *getBufferEnd() const override {
@@ -111,34 +98,14 @@ private:
   unsigned Mode;
 };
 
-ErrorOr<std::unique_ptr<OnDiskBuffer>>
-OnDiskBuffer::create(StringRef Path, size_t Size, unsigned Mode) {
-  // Create new file in same directory but with random name.
-  SmallString<128> TempPath;
-  int FD;
-  if (auto EC = fs::createUniqueFile(Path + ".tmp%%%%%%%", FD, TempPath, Mode))
-    return EC;
-
-  sys::RemoveFileOnSignal(TempPath);
-
-#ifndef LLVM_ON_WIN32
-  // On Windows, CreateFileMapping (the mmap function on Windows)
-  // automatically extends the underlying file. We don't need to
-  // extend the file beforehand. _chsize (ftruncate on Windows) is
-  // pretty slow just like it writes specified amount of bytes,
-  // so we should avoid calling that function.
-  if (auto EC = fs::resize_file(FD, Size))
-    return EC;
-#endif
-
-  // Mmap it.
+static ErrorOr<std::unique_ptr<FileOutputBuffer>>
+createInMemoryBuffer(StringRef Path, size_t Size, unsigned Mode) {
   std::error_code EC;
-  auto MappedFile = llvm::make_unique<fs::mapped_file_region>(
-      FD, fs::mapped_file_region::readwrite, Size, 0, EC);
-  close(FD);
+  MemoryBlock MB = Memory::allocateMappedMemory(
+      Size, nullptr, sys::Memory::MF_READ | sys::Memory::MF_WRITE, EC);
   if (EC)
     return EC;
-  return llvm::make_unique<OnDiskBuffer>(Path, TempPath, std::move(MappedFile));
+  return llvm::make_unique<InMemoryBuffer>(Path, MB, Mode);
 }
 
 // Create an instance of FileOutputBuffer.
@@ -164,9 +131,48 @@ FileOutputBuffer::create(StringRef Path, size_t Size, unsigned Flags) {
     return errc::is_a_directory;
   case fs::file_type::regular_file:
   case fs::file_type::file_not_found:
-  case fs::file_type::status_error:
-    return OnDiskBuffer::create(Path, Size, Mode);
+  case fs::file_type::status_error: {
+    // Create new file in same directory but with random name.
+    SmallString<128> TempPath;
+    int FD;
+    if (auto EC = fs::createUniqueFile(Path + ".tmp%%%%%%%", FD, TempPath, Mode))
+      return EC;
+
+    sys::RemoveFileOnSignal(TempPath);
+
+#ifndef LLVM_ON_WIN32
+    // If you mmap a sparse file for writing and the disk becomes full
+    // when writing to an unallocated block of the file, you'll receive
+    // a signal (which is usually SIGBUS). There's no reliable and
+    // portable way to gracefully handle such disk full situation. So,
+    // in order to avoid it, we preallocate all disk blocks by calling
+    // fallocate(2) or equivalent.
+    //
+    // If an operating system or a filesystem don't support fallocate,
+    // we use in-memory buffer so that we can catch disk full error on
+    // commit().
+    //
+    // On Windows, CreateFileMapping (the mmap function on Windows)
+    // automatically extends the underlying file. We don't need to
+    // extend the file beforehand, and calling _chsize (which is slow)
+    // beforehand is just a waste of time.
+    if (auto EC = fs::allocate_file(FD, Size)) {
+      if (EC == errc::function_not_supported)
+        return createInMemoryBuffer(Path, Size, Mode);
+      return EC;
+    }
+#endif
+
+    // Mmap it.
+    std::error_code EC;
+    auto MappedFile = llvm::make_unique<fs::mapped_file_region>(
+        FD, fs::mapped_file_region::readwrite, Size, 0, EC);
+    close(FD);
+    if (EC)
+      return EC;
+    return llvm::make_unique<OnDiskBuffer>(Path, TempPath, std::move(MappedFile));
+  }
   default:
-    return InMemoryBuffer::create(Path, Size, Mode);
+    return createInMemoryBuffer(Path, Size, Mode);
   }
 }
