@@ -286,6 +286,10 @@ std::string NativeRawSymbol::getUndecoratedName() const {
   return {};
 }
 
+std::string NativeRawSymbol::getUndecoratedNameEx(uint32_t Options) const {
+  return {};
+}
+
 uint32_t NativeRawSymbol::getUnmodifiedTypeId() const {
   return 0;
 }

@@ -24,6 +24,7 @@ namespace pdb {
 class IPDBDataStream;
 class IPDBLineNumber;
 class IPDBSourceFile;
+class IPDBTable;
 class PDBSymDumper;
 class PDBSymbol;
 class PDBSymbolExe;
@@ -62,6 +63,7 @@ using IPDBEnumSymbols = IPDBEnumChildren<PDBSymbol>;
 using IPDBEnumSourceFiles = IPDBEnumChildren<IPDBSourceFile>;
 using IPDBEnumDataStreams = IPDBEnumChildren<IPDBDataStream>;
 using IPDBEnumLineNumbers = IPDBEnumChildren<IPDBLineNumber>;
+using IPDBEnumTables = IPDBEnumChildren<IPDBTable>;
 
 /// Specifies which PDB reader implementation is to be used.  Only a value
 /// of PDB_ReaderType::DIA is currently supported, but Native is in the works.
@@ -72,13 +74,16 @@ enum class PDB_ReaderType {
 
 /// An enumeration indicating the type of data contained in this table.
 enum class PDB_TableType {
+  TableInvalid,
   Symbols,
   SourceFiles,
   LineNumbers,
   SectionContribs,
   Segments,
   InjectedSources,
-  FrameData
+  FrameData,
+  InputAssemblyFiles,
+  Dbg
 };
 
 /// Defines flags used for enumerating child symbols.  This corresponds to the
@@ -240,6 +245,28 @@ enum class PDB_BuiltinType {
   BSTR = 30,
   HResult = 31
 };
+
+// https://msdn.microsoft.com/en-us/library/kszfk0fs.aspx
+#define UND_COMPLETE                0x0
+#define UND_NO_LEADING_UNDERSCORES  0x1
+#define UND_NO_MS_KEYWORDS          0x2
+#define UND_NO_FUNC_RETURN          0x4
+#define UND_NO_ALLOC_MODEL          0x8
+#define UND_NO_ALLOC_LANG           0x10
+#define UND_RES1                    0x20
+#define UND_RES2                    0x40
+#define UND_NO_THISTYPE             0x60
+#define UND_NO_ACCESS_SPEC          0x80
+#define UND_NO_THROW_SIG            0x100
+#define UND_NO_MEMBER_TYPE          0x200
+#define UND_NO_RETURN_UDT           0x400
+#define UND_32_BIT_DECODE           0x800
+#define UND_NAME_ONLY               0x1000
+#define UND_TYPE_ONLY               0x2000
+#define UND_HAVE_PARAM              0x4000
+#define UND_NO_ESCU                 0x8000
+#define UND_NO_INDENT_CHAR_CHECK    0x10000
+#define UND_NO_PTR64                0x20000
 
 enum class PDB_MemberAccess { Private = 1, Protected = 2, Public = 3 };
 

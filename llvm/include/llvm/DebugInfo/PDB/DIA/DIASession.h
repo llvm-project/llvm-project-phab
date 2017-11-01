@@ -64,6 +64,7 @@ public:
 
   std::unique_ptr<IPDBEnumDataStreams> getDebugStreams() const override;
 
+  std::unique_ptr<IPDBEnumTables> getTables() const override;
 private:
   CComPtr<IDiaSession> Session;
 };

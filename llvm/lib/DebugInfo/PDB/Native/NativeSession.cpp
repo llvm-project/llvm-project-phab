@@ -245,3 +245,7 @@ NativeSession::getSourceFileById(uint32_t FileId) const {
 std::unique_ptr<IPDBEnumDataStreams> NativeSession::getDebugStreams() const {
   return nullptr;
 }
+
+std::unique_ptr<IPDBEnumTables> NativeSession::getTables() const {
+  return nullptr;
+}
