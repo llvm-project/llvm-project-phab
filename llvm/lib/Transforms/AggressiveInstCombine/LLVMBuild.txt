@@ -1,4 +1,4 @@
-;===- ./lib/LTO/LLVMBuild.txt ----------------------------------*- Conf -*--===;
+;===- ./lib/Transforms/AggressiveInstCombine/LLVMBuild.txt -----*- Conf -*--===;
 ;
 ;                     The LLVM Compiler Infrastructure
 ;
@@ -17,23 +17,6 @@
 
 [component_0]
 type = Library
-name = LTO
-parent = Libraries
-required_libraries =
- Analysis
- BitReader
- BitWriter
- CodeGen
- Core
- IPO
- InstCombine
- AggressiveInstCombine
- Linker
- MC
- ObjCARC
- Object
- Passes
- Scalar
- Support
- Target
- TransformUtils
+name = AggressiveInstCombine
+parent = Transforms
+required_libraries = Analysis Core Support TransformUtils
