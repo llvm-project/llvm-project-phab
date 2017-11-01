@@ -52,6 +52,10 @@ public:
   uint64_t getLMA() const { return Addr + LMAOffset; }
   template <typename ELFT> void writeHeaderTo(typename ELFT::Shdr *SHdr);
 
+  // Linker script might create forward declarations for output sections.
+  // This method returns true if section known to have definition.
+  bool isDefined() { return !Location.empty(); }
+
   unsigned SectionIndex;
   unsigned SortRank;
 

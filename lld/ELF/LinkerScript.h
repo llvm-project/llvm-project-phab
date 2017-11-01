@@ -204,7 +204,7 @@ class LinkerScript final {
     std::function<uint64_t()> LMAOffset;
   };
 
-  llvm::DenseMap<StringRef, OutputSection *> NameToOutputSection;
+  llvm::DenseMap<StringRef, std::vector<OutputSection *>> NameToOutputSection;
 
   void addSymbol(SymbolAssignment *Cmd);
   void assignSymbol(SymbolAssignment *Cmd, bool InSec);
@@ -241,8 +241,9 @@ class LinkerScript final {
   uint64_t Dot;
 
 public:
-  OutputSection *createOutputSection(StringRef Name, StringRef Location);
-  OutputSection *getOrCreateOutputSection(StringRef Name);
+  void declareOutputSection(StringRef Name);
+  OutputSection *defineOutputSection(StringRef Name, StringRef Location);
+  OutputSection *getOutputSection(StringRef Name);
 
   bool hasPhdrsCommands() { return !PhdrsCommands.empty(); }
   uint64_t getDot() { return Dot; }

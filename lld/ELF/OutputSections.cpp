@@ -214,7 +214,7 @@ void elf::sortByOrder(MutableArrayRef<InputSection *> In,
 }
 
 static OutputSection *createSection(InputSectionBase *IS, StringRef OutsecName) {
-  OutputSection *Sec = Script->createOutputSection(OutsecName, "<internal>");
+  OutputSection *Sec = Script->defineOutputSection(OutsecName, "<internal>");
   Sec->addSection(cast<InputSection>(IS));
   return Sec;
 }

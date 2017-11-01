@@ -655,7 +655,7 @@ static Expr checkAlignment(Expr E, std::string &Loc) {
 
 OutputSection *ScriptParser::readOutputSectionDescription(StringRef OutSec) {
   OutputSection *Cmd =
-      Script->createOutputSection(OutSec, getCurrentLocation());
+      Script->defineOutputSection(OutSec, getCurrentLocation());
 
   if (peek() != ":")
     readSectionAddressType(Cmd);
@@ -962,8 +962,9 @@ Expr ScriptParser::readPrimary() {
   }
   if (Tok == "ADDR") {
     StringRef Name = readParenLiteral();
-    OutputSection *Sec = Script->getOrCreateOutputSection(Name);
+    Script->declareOutputSection(Name);
     return [=]() -> ExprValue {
+      OutputSection *Sec = Script->getOutputSection(Name);
       checkIfExists(Sec, Location);
       return {Sec, false, 0, Location};
     };
@@ -986,10 +987,11 @@ Expr ScriptParser::readPrimary() {
   }
   if (Tok == "ALIGNOF") {
     StringRef Name = readParenLiteral();
-    OutputSection *Cmd = Script->getOrCreateOutputSection(Name);
+    Script->declareOutputSection(Name);
     return [=] {
-      checkIfExists(Cmd, Location);
-      return Cmd->Alignment;
+      OutputSection *Sec = Script->getOutputSection(Name);
+      checkIfExists(Sec, Location);
+      return Sec->Alignment;
     };
   }
   if (Tok == "ASSERT")
@@ -1036,10 +1038,11 @@ Expr ScriptParser::readPrimary() {
   }
   if (Tok == "LOADADDR") {
     StringRef Name = readParenLiteral();
-    OutputSection *Cmd = Script->getOrCreateOutputSection(Name);
+    Script->declareOutputSection(Name);
     return [=] {
-      checkIfExists(Cmd, Location);
-      return Cmd->getLMA();
+      OutputSection *Sec = Script->getOutputSection(Name);
+      checkIfExists(Sec, Location);
+      return Sec->getLMA();
     };
   }
   if (Tok == "ORIGIN") {
@@ -1058,11 +1061,14 @@ Expr ScriptParser::readPrimary() {
   }
   if (Tok == "SIZEOF") {
     StringRef Name = readParenLiteral();
-    OutputSection *Cmd = Script->getOrCreateOutputSection(Name);
+    Script->declareOutputSection(Name);
     // Linker script does not create an output section if its content is empty.
     // We want to allow SIZEOF(.foo) where .foo is a section which happened to
     // be empty.
-    return [=] { return Cmd->Size; };
+    return [=] {
+      OutputSection *Sec = Script->getOutputSection(Name);
+      return Sec->Size;
+    };
   }
   if (Tok == "SIZEOF_HEADERS")
     return [=] { return elf::getHeaderSize(); };

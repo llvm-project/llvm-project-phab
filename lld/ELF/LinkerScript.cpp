@@ -79,27 +79,45 @@ uint64_t ExprValue::getSectionOffset() const {
   return getValue() - getSecAddr();
 }
 
-OutputSection *LinkerScript::createOutputSection(StringRef Name,
+OutputSection *LinkerScript::defineOutputSection(StringRef Name,
                                                  StringRef Location) {
-  OutputSection *&SecRef = NameToOutputSection[Name];
-  OutputSection *Sec;
-  if (SecRef && SecRef->Location.empty()) {
-    // There was a forward reference.
-    Sec = SecRef;
-  } else {
-    Sec = make<OutputSection>(Name, SHT_PROGBITS, 0);
-    if (!SecRef)
-      SecRef = Sec;
+  std::vector<OutputSection *> &V = NameToOutputSection[Name];
+  // If we have no output sections with Name or all sections are already defined,
+  // we should create new section definition. This is used to handle
+  // multiple output section definitions when constraints are used, for example:
+  // bar : ONLY_IF_RO { *(...) }
+  // bar : ONLY_IF_RW { *(...) }
+  if (V.empty() || V.back()->isDefined()) {
+    OutputSection *Sec = make<OutputSection>(Name, SHT_PROGBITS, 0);
+    Sec->Location = Location;
+    V.push_back(Sec);
+    return Sec;
   }
+
+  // When we have forward declaration we should define it and return.
+  OutputSection *Sec = V.back();
   Sec->Location = Location;
   return Sec;
 }
 
-OutputSection *LinkerScript::getOrCreateOutputSection(StringRef Name) {
-  OutputSection *&CmdRef = NameToOutputSection[Name];
-  if (!CmdRef)
-    CmdRef = make<OutputSection>(Name, SHT_PROGBITS, 0);
-  return CmdRef;
+// Returns first live section by Name. Normally only one section should be live.
+// Otherwise commands like SIZEOF(section) will use first alive output section
+// for calculation. Ideally we would like to report an error then, but GNU
+// linkers allow that and we just follow for simplicity.
+OutputSection *LinkerScript::getOutputSection(StringRef Name) {
+  std::vector<OutputSection *> &V = NameToOutputSection[Name];
+  for (OutputSection *Sec : V)
+    if (Sec->Live)
+      return Sec;
+  return V.front();
+}
+
+// Used for creating forward references to output section.
+void LinkerScript::declareOutputSection(StringRef Name) {
+  std::vector<OutputSection *> &V = NameToOutputSection[Name];
+  if (!V.empty())
+    return;
+  V.push_back(make<OutputSection>(Name, SHT_PROGBITS, 0));
 }
 
 void LinkerScript::setDot(Expr E, const Twine &Loc, bool InSec) {
