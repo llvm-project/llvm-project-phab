@@ -133,6 +133,12 @@ Improvements to clang-tidy
   Ensures that all exception will be instances of ``std::exception`` and classes 
   that are derived from it.
 
+- New `hicpp-multiway-paths-covered
+  <http://clang.llvm.org/extra/clang-tidy/checks/hicpp-multiway-paths-covered.html>`_ check
+
+  Checks on various possible constellations where ``switch`` and ``if-else if`` statements
+  do not cover all possible codepaths.
+
 - New `hicpp-signed-bitwise
   <http://clang.llvm.org/extra/clang-tidy/checks/hicpp-signed-bitwise.html>`_ check
 
