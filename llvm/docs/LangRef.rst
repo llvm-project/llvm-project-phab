@@ -2579,30 +2579,36 @@ Vector Type
 A vector type is a simple derived type that represents a vector of
 elements. Vector types are used when multiple primitive data are
 operated in parallel using a single instruction (SIMD). A vector type
-requires a size (number of elements) and an underlying primitive data
-type. Vector types are considered :ref:`first class <t_firstclass>`.
+requires a size (number of elements), an underlying primitive data type,
+and a scalable property to represent vectors where the exact hardware
+vector length is unknown at compile time. Vector types are considered
+:ref:`first class <t_firstclass>`.
 
 :Syntax:
 
 ::
 
-      < <# elements> x <elementtype> >
+      < <# elements> x <elementtype> >          ; Fixed-length vector
+      < scalable <# elements> x <elementtype> > ; Scalable vector
 
 The number of elements is a constant integer value larger than 0;
 elementtype may be any integer, floating point or pointer type. Vectors
-of size zero are not allowed.
+of size zero are not allowed. For scalable vectors, the number of
+elements is an unknown integer multiple of the number of elements.
 
 :Examples:
 
-+-------------------+--------------------------------------------------+
-| ``<4 x i32>``     | Vector of 4 32-bit integer values.               |
-+-------------------+--------------------------------------------------+
-| ``<8 x float>``   | Vector of 8 32-bit floating-point values.        |
-+-------------------+--------------------------------------------------+
-| ``<2 x i64>``     | Vector of 2 64-bit integer values.               |
-+-------------------+--------------------------------------------------+
-| ``<4 x i64*>``    | Vector of 4 pointers to 64-bit integer values.   |
-+-------------------+--------------------------------------------------+
++------------------------+----------------------------------------------------+
+| ``<4 x i32>``          | Vector of 4 32-bit integer values.                 |
++------------------------+----------------------------------------------------+
+| ``<8 x float>``        | Vector of 8 32-bit floating-point values.          |
++------------------------+----------------------------------------------------+
+| ``<2 x i64>``          | Vector of 2 64-bit integer values.                 |
++------------------------+----------------------------------------------------+
+| ``<4 x i64*>``         | Vector of 4 pointers to 64-bit integer values.     |
++------------------------+----------------------------------------------------+
+| ``<scalable 4 x i32>`` | Vector with a multiple of 4 32-bit integer values. |
++------------------------+----------------------------------------------------+
 
 .. _t_label:
 
