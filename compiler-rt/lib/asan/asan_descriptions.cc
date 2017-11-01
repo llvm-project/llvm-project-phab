@@ -335,6 +335,23 @@ void GlobalAddressDescription::Print(const char *bug_type) const {
   }
 }
 
+bool GlobalAddressDescription::PointsInsideTheSameVariable(
+    const GlobalAddressDescription &other) const {
+  if (size == 0 || other.size == 0) return false;
+
+  for (uptr i = 0; i < size; i++)
+    for (uptr j = 0; j < other.size; j++) {
+      if (globals[i].beg == other.globals[j].beg && globals[i].beg <= addr &&
+          other.globals[j].beg <= other.addr &&
+          (addr + access_size) < (globals[i].beg + globals[i].size) &&
+          ((other.addr + other.access_size) <
+           (other.globals[j].beg + other.globals[j].size)))
+        return true;
+    }
+
+  return false;
+}
+
 void StackAddressDescription::Print() const {
   Decorator d;
   char tname[128];
