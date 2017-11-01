@@ -847,9 +847,17 @@ CodeGenModule::getFunctionLinkage(GlobalDecl GD) {
       getCXXABI().useThunkForDtorVariant(cast<CXXDestructorDecl>(D),
                                          GD.getDtorType())) {
     // Destructor variants in the Microsoft C++ ABI are always internal or
-    // linkonce_odr thunks emitted on an as-needed basis.
-    return Linkage == GVA_Internal ? llvm::GlobalValue::InternalLinkage
-                                   : llvm::GlobalValue::LinkOnceODRLinkage;
+    // linkonce_odr thunks emitted on an as-needed basis. Except destructors
+    // that have a virtual base and dllimport attributes. Those will
+    // be marked with an external linkage.
+    if (cast<CXXDestructorDecl>(D)->getParent()->getNumVBases() &&
+        (GD.getDtorType() == CXXDtorType::Dtor_Complete ||
+         GD.getDtorType() == CXXDtorType::Dtor_Base) &&
+        D->hasAttr<DLLImportAttr>())
+      return llvm::Function::AvailableExternallyLinkage;
+    else
+      return Linkage == GVA_Internal ? llvm::GlobalValue::InternalLinkage
+                                     : llvm::GlobalValue::LinkOnceODRLinkage;
   }
 
   if (isa<CXXConstructorDecl>(D) &&
