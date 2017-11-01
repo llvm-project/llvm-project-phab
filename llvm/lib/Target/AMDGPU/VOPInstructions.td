@@ -80,6 +80,7 @@ class VOP3_Pseudo <string opName, VOPProfile P, list<dag> pattern = [],
   let isCodeGenOnly = 1;
   let UseNamedOperandTable = 1;
   let VOP3_OPSEL = isVop3OpSel;
+  let IsPacked = P.IsPacked;
 
   string Mnemonic = opName;
   string AsmOperands = !if(isVop3OpSel,
