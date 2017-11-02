@@ -53,6 +53,7 @@ BufferQueue::ErrorCode BufferQueue::getBuffer(Buffer &Buf) {
   auto &T = *Next;
   auto &B = T.Buff;
   Buf = B;
+  T.Used = true;
   ++LiveBuffers;
 
   if (++Next == (Buffers + BufferCount)) Next = Buffers;
