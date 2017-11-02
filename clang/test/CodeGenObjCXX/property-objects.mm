@@ -125,8 +125,6 @@ void testB1(B *b) {
 // CHECK-NEXT: [[T1:%.*]] = sext i32 [[T0]] to i64
 // CHECK-NEXT: store i64 [[T1]], i64* [[X]], align 8
 // CHECK-NOT:  call
-// CHECK:      call void @llvm.memcpy
-// CHECK-NOT:  call
 // CHECK:      call void bitcast {{.*}} @objc_msgSend
 // CHECK-NOT:  call
 // CHECK:      ret void
@@ -147,8 +145,6 @@ void testB1(B *b) {
 // CHECK-NOT:  call
 // CHECK:      store i64 [[T0]],
 // CHECK-NOT:  call
-// CHECK:      call void @llvm.memcpy
-// CHECK-NOT:  call
 // CHECK:      call void bitcast {{.*}} @objc_msgSend
 // CHECK-NOT:  call
 // CHECK:      ret void
@@ -167,8 +163,6 @@ void testB2(B *b) {
 // CHECK-NEXT: [[T0:%.*]] = call i64 @_ZN2B3cv2B1Ev(
 // CHECK-NOT:  call
 // CHECK:      store i64 [[T0]],
-// CHECK-NOT:  call
-// CHECK:      call void @llvm.memcpy
 // CHECK-NOT:  call
 // CHECK:      call void bitcast {{.*}} @objc_msgSend
 // CHECK-NOT:  call
@@ -215,8 +209,6 @@ void testC1(C *c) {
 // CHECK:      [[T0:%.*]] = call i32 @_Zpl2C1RFvvE({{.*}} @_Z8c_helperv
 // CHECK-NOT:  call
 // CHECK:      store i32 [[T0]],
-// CHECK-NOT:  call
-// CHECK:      call void @llvm.memcpy
 // CHECK-NOT:  call
 // CHECK:      call void bitcast {{.*}} @objc_msgSend
 // CHECK-NOT:  call

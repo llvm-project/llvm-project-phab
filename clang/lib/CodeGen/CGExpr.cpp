@@ -192,8 +192,12 @@ RValue CodeGenFunction::EmitAnyExpr(const Expr *E,
 RValue CodeGenFunction::EmitAnyExprToTemp(const Expr *E) {
   AggValueSlot AggSlot = AggValueSlot::ignored();
 
-  if (hasAggregateEvaluationKind(E->getType()))
+  if (hasAggregateEvaluationKind(E->getType())) {
+    if (const auto *OVE = dyn_cast<OpaqueValueExpr>(E))
+      return getOpaqueLValueMapping(OVE).asAggregateRValue();
     AggSlot = CreateAggTemp(E->getType(), "agg.tmp");
+  }
+
   return EmitAnyExpr(E, AggSlot);
 }
 
