@@ -75,3 +75,33 @@ class BreakpointAPITestCase(TestBase):
         self.assertTrue(self.dbg.DeleteTarget(target))
         self.assertFalse(breakpoint.IsValid())
         self.assertFalse(location.IsValid())
+
+    @add_test_categories(['pyapi'])
+    def test_target_regex(self):
+        """Make sure that if an SBTarget gets deleted the associated
+        Breakpoint's IsValid returns false."""
+
+        self.build()
+        exe = os.path.join(os.getcwd(), "a.out")
+
+        # Create a target by the debugger.
+        target = self.dbg.CreateTarget(exe)
+        self.assertTrue(target, VALID_TARGET)
+
+        file_list = lldb.SBFileSpecList();
+        file_list.Append(lldb.SBFileSpec(".*[m]ain.*\.[c]p*", False, True))
+        module_list = lldb.SBFileSpecList();
+        module_list.Append(lldb.SBFileSpec(".*a\..*t", False, True))
+
+        # Now create a breakpoint on main.c by name 'AFunction'.
+        breakpoint = target.BreakpointCreateByName('AFunction', lldb.eFunctionNameTypeAuto, module_list, file_list)
+        #print("breakpoint:", breakpoint)
+        self.assertTrue(breakpoint and
+                        breakpoint.GetNumLocations() == 1,
+                        VALID_BREAKPOINT)
+        location = breakpoint.GetLocationAtIndex(0)
+        self.assertTrue(location.IsValid())
+
+        self.assertTrue(self.dbg.DeleteTarget(target))
+        self.assertFalse(breakpoint.IsValid())
+        self.assertFalse(location.IsValid())

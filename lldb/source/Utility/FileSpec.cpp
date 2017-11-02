@@ -48,7 +48,8 @@ static constexpr FileSpec::PathSyntax GetNativeSyntax() {
 bool PathSyntaxIsPosix(FileSpec::PathSyntax syntax) {
   return (syntax == FileSpec::ePathSyntaxPosix ||
           (syntax == FileSpec::ePathSyntaxHostNative &&
-           GetNativeSyntax() == FileSpec::ePathSyntaxPosix));
+           GetNativeSyntax() == FileSpec::ePathSyntaxPosix) ||
+          syntax == FileSpec::ePathSyntaxRegex);
 }
 
 const char *GetPathSeparators(FileSpec::PathSyntax syntax) {

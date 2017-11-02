@@ -25,6 +25,8 @@ public:
 
   SBFileSpec(const char *path, bool resolve);
 
+  SBFileSpec(const char *path, bool resolve, bool regex);
+
   ~SBFileSpec();
 
   const SBFileSpec &operator=(const lldb::SBFileSpec &rhs);

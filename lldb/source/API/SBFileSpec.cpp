@@ -37,6 +37,11 @@ SBFileSpec::SBFileSpec(const char *path)
 SBFileSpec::SBFileSpec(const char *path, bool resolve)
     : m_opaque_ap(new FileSpec(path, resolve)) {}
 
+SBFileSpec::SBFileSpec(const char *path, bool resolve, bool regex)
+    : m_opaque_ap(new FileSpec(path, resolve,
+                               regex ? FileSpec::ePathSyntaxRegex
+                                     : FileSpec::ePathSyntaxHostNative)) {}
+
 SBFileSpec::~SBFileSpec() {}
 
 const SBFileSpec &SBFileSpec::operator=(const SBFileSpec &rhs) {

@@ -41,6 +41,8 @@ public:
 
     SBFileSpec (const char *path, bool resolve);
 
+    SBFileSpec (const char *path, bool resolve, bool regex);
+
     ~SBFileSpec ();
 
     bool

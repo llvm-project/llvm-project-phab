@@ -64,7 +64,8 @@ public:
   enum PathSyntax {
     ePathSyntaxPosix,
     ePathSyntaxWindows,
-    ePathSyntaxHostNative
+    ePathSyntaxHostNative,
+    ePathSyntaxRegex  /// Used for regex and behaves like ePatchSyntaxPosix.
   };
 
   FileSpec();

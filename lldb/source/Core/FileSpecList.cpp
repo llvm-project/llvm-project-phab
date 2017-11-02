@@ -10,6 +10,7 @@
 #include "lldb/Core/FileSpecList.h"
 
 #include "lldb/Utility/ConstString.h" // for ConstString
+#include "lldb/Utility/RegularExpression.h"
 #include "lldb/Utility/Stream.h"
 
 #include <utility> // for find
@@ -90,6 +91,12 @@ size_t FileSpecList::FindFileIndex(size_t start_idx, const FileSpec &file_spec,
   bool compare_filename_only = file_spec.GetDirectory().IsEmpty();
 
   for (size_t idx = start_idx; idx < num_files; ++idx) {
+    if (m_files[idx].GetPathSyntax() == FileSpec::ePathSyntaxRegex) {
+      RegularExpression regex(m_files[idx].GetPath(false));
+      if (regex.Execute(file_spec.GetPath()))
+        return idx;
+      continue;
+    }
     if (compare_filename_only) {
       if (ConstString::Equals(
               m_files[idx].GetFilename(), file_spec.GetFilename(),
