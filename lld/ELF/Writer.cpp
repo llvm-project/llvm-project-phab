@@ -59,6 +59,9 @@ private:
   std::vector<PhdrEntry *> createPhdrs();
   void removeEmptyPTLoad();
   void addPtArmExid(std::vector<PhdrEntry *> &Phdrs);
+  DefinedRegular *addOptionalRegular(StringRef Name, SectionBase *Sec,
+                                     uint64_t Val, uint8_t StOther = STV_HIDDEN,
+                                     uint8_t Binding = STB_GLOBAL);
   void assignFileOffsets();
   void assignFileOffsetsBinary();
   void setPhdrs();
@@ -81,6 +84,7 @@ private:
   OutputSection *findSection(StringRef Name);
 
   std::vector<PhdrEntry *> Phdrs;
+  std::vector<std::pair<DefinedRegular *, OutputSection *>> SectionStartSymbols;
 
   uint64_t FileSize;
   uint64_t SectionHeaderOff;
@@ -737,16 +741,23 @@ void PhdrEntry::add(OutputSection *Sec) {
 }
 
 template <class ELFT>
-static DefinedRegular *
-addOptionalRegular(StringRef Name, SectionBase *Sec, uint64_t Val,
-                   uint8_t StOther = STV_HIDDEN, uint8_t Binding = STB_GLOBAL) {
+DefinedRegular *
+Writer<ELFT>::addOptionalRegular(StringRef Name, SectionBase *Sec, uint64_t Val,
+                                 uint8_t StOther, uint8_t Binding) {
   SymbolBody *S = Symtab->find(Name);
   if (!S || S->isInCurrentOutput())
     return nullptr;
-  SymbolBody *Sym = Symtab->addRegular<ELFT>(Name, StOther, STT_NOTYPE, Val,
-                                             /*Size=*/0, Binding, Sec,
-                                             /*File=*/nullptr);
-  return cast<DefinedRegular>(Sym);
+  DefinedRegular *Sym = cast<DefinedRegular>(
+      Symtab->addRegular<ELFT>(Name, StOther, STT_NOTYPE, Val,
+                               /*Size=*/0, Binding, Sec,
+                               /*File=*/nullptr));
+  // If the value is zero this is a section start symbol. We should set the
+  // size of that symbol to be the size of the section but we don't know the
+  // size yet. Therefore we save the symbol and the section now and update the
+  // size once we know the final size of the output section
+  if (Sec && Val == 0)
+    SectionStartSymbols.push_back(std::make_pair(Sym, Sec->getOutputSection()));
+  return Sym;
 }
 
 // The beginning and the ending of .rel[a].plt section are marked
@@ -759,10 +770,10 @@ template <class ELFT> void Writer<ELFT>::addRelIpltSymbols() {
   if (!Config->Static)
     return;
   StringRef S = Config->IsRela ? "__rela_iplt_start" : "__rel_iplt_start";
-  addOptionalRegular<ELFT>(S, In<ELFT>::RelaIplt, 0, STV_HIDDEN, STB_WEAK);
+  addOptionalRegular(S, In<ELFT>::RelaIplt, 0, STV_HIDDEN, STB_WEAK);
 
   S = Config->IsRela ? "__rela_iplt_end" : "__rel_iplt_end";
-  addOptionalRegular<ELFT>(S, In<ELFT>::RelaIplt, -1, STV_HIDDEN, STB_WEAK);
+  addOptionalRegular(S, In<ELFT>::RelaIplt, -1, STV_HIDDEN, STB_WEAK);
 }
 
 // The linker is expected to define some symbols depending on
@@ -796,7 +807,7 @@ template <class ELFT> void Writer<ELFT>::addReservedSymbols() {
   // of the .got
   InputSection *GotSection = InX::MipsGot ? cast<InputSection>(InX::MipsGot)
                                           : cast<InputSection>(InX::Got);
-  ElfSym::GlobalOffsetTable = addOptionalRegular<ELFT>(
+  ElfSym::GlobalOffsetTable = addOptionalRegular(
       "_GLOBAL_OFFSET_TABLE_", GotSection, Target->GotBaseSymOff);
 
   // __ehdr_start is the location of ELF file headers. Note that we define
@@ -810,14 +821,14 @@ template <class ELFT> void Writer<ELFT>::addReservedSymbols() {
   // different in different DSOs, so we chose the start address of the DSO.
   for (const char *Name :
        {"__ehdr_start", "__executable_start", "__dso_handle"})
-    addOptionalRegular<ELFT>(Name, Out::ElfHeader, 0, STV_HIDDEN);
+    addOptionalRegular(Name, Out::ElfHeader, 0, STV_HIDDEN);
 
   // If linker script do layout we do not need to create any standart symbols.
   if (Script->HasSectionsCommand)
     return;
 
-  auto Add = [](StringRef S, int64_t Pos) {
-    return addOptionalRegular<ELFT>(S, Out::ElfHeader, Pos, STV_DEFAULT);
+  auto Add = [this](StringRef S, int64_t Pos) {
+    return addOptionalRegular(S, Out::ElfHeader, Pos, STV_DEFAULT);
   };
 
   ElfSym::Bss = Add("__bss_start", 0);
@@ -1234,10 +1245,16 @@ template <class ELFT> void Writer<ELFT>::finalizeSections() {
   // It should be okay as no one seems to care about the type.
   // Even the author of gold doesn't remember why gold behaves that way.
   // https://sourceware.org/ml/binutils/2002-03/msg00360.html
-  if (InX::DynSymTab)
-    Symtab->addRegular<ELFT>("_DYNAMIC", STV_HIDDEN, STT_NOTYPE, 0 /*Value*/,
-                             /*Size=*/0, STB_WEAK, InX::Dynamic,
-                             /*File=*/nullptr);
+  if (InX::DynSymTab) {
+    SymbolBody *Sym = Symtab->addRegular<ELFT>(
+        "_DYNAMIC", STV_HIDDEN, STT_NOTYPE, 0 /*Value*/,
+        /*Size=*/0, STB_WEAK, InX::Dynamic,
+        /*File=*/nullptr);
+    // We don't know the final size of the dynamic section yet so defer setting
+    // the size of the output section
+    SectionStartSymbols.push_back(std::make_pair(
+        cast<DefinedRegular>(Sym), InX::Dynamic->getOutputSection()));
+  }
 
   // Define __rel[a]_iplt_{start,end} symbols if needed.
   addRelIpltSymbols();
@@ -1365,6 +1382,11 @@ template <class ELFT> void Writer<ELFT>::finalizeSections() {
   // createThunks may have added local symbols to the static symbol table
   applySynthetic({InX::SymTab},
                  [](SyntheticSection *SS) { SS->postThunkContents(); });
+
+  // Now that we know the size of all output sections we can update the size
+  // of the section start symbols.
+  for (const auto &it : SectionStartSymbols)
+    it.first->Size = it.second->Size;
 }
 
 template <class ELFT> void Writer<ELFT>::addPredefinedSections() {
@@ -1385,13 +1407,13 @@ template <class ELFT> void Writer<ELFT>::addStartEndSymbols() {
     // These symbols resolve to the image base if the section does not exist.
     // A special value -1 indicates end of the section.
     if (OS) {
-      addOptionalRegular<ELFT>(Start, OS, 0);
-      addOptionalRegular<ELFT>(End, OS, -1);
+      addOptionalRegular(Start, OS, 0);
+      addOptionalRegular(End, OS, -1);
     } else {
       if (Config->Pic)
         OS = Out::ElfHeader;
-      addOptionalRegular<ELFT>(Start, OS, 0);
-      addOptionalRegular<ELFT>(End, OS, 0);
+      addOptionalRegular(Start, OS, 0);
+      addOptionalRegular(End, OS, 0);
     }
   };
 
@@ -1413,8 +1435,8 @@ void Writer<ELFT>::addStartStopSymbols(OutputSection *Sec) {
   StringRef S = Sec->Name;
   if (!isValidCIdentifier(S))
     return;
-  addOptionalRegular<ELFT>(Saver.save("__start_" + S), Sec, 0, STV_DEFAULT);
-  addOptionalRegular<ELFT>(Saver.save("__stop_" + S), Sec, -1, STV_DEFAULT);
+  addOptionalRegular(Saver.save("__start_" + S), Sec, 0, STV_DEFAULT);
+  addOptionalRegular(Saver.save("__stop_" + S), Sec, -1, STV_DEFAULT);
 }
 
 template <class ELFT> OutputSection *Writer<ELFT>::findSection(StringRef Name) {
