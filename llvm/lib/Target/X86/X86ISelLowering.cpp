@@ -1225,6 +1225,9 @@ X86TargetLowering::X86TargetLowering(const X86TargetMachine &TM,
         setOperationAction(ISD::MSTORE, VT, Custom);
       }
     }
+    if (Subtarget.hasDQI() && Subtarget.hasVLX() && Subtarget.hasAVX512() &&
+        Subtarget.hasBWI())
+        setOperationAction(ISD::SELECT, MVT::v1i1, Custom);
 
     if (Subtarget.hasDQI()) {
       for (auto VT : { MVT::v2i64, MVT::v4i64, MVT::v8i64 }) {
@@ -17914,6 +17917,11 @@ SDValue X86TargetLowering::LowerSELECT(SDValue Op, SelectionDAG &DAG) const {
                                         Op1Scalar, Op2Scalar);
       if (newSelect.getValueSizeInBits() == VT.getSizeInBits())
         return DAG.getBitcast(VT, newSelect);
+
+      if(Subtarget.hasAVX512() && Subtarget.hasVLX() && Subtarget.hasBWI() &&
+         Subtarget.hasDQI())
+        return newSelect;
+
       SDValue ExtVec = DAG.getBitcast(MVT::v8i1, newSelect);
       return DAG.getNode(ISD::EXTRACT_SUBVECTOR, DL, VT, ExtVec,
                          DAG.getIntPtrConstant(0, DL));
