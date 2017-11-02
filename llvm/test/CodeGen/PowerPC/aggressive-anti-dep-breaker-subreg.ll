@@ -10,10 +10,8 @@ entry:
 lnext:
   %elementArray = load i32*, i32** %elementArrayPtr, align 8
 ; CHECK: lwz [[LDREG:[0-9]+]], 124(1)                   # 4-byte Folded Reload
-; CHECK: # implicit-def: %X[[TEMPREG:[0-9]+]]
   %element = load i32, i32* %elementArray, align 4
-; CHECK: mr [[TEMPREG]], [[LDREG]]
-; CHECK: clrldi   4, [[TEMPREG]], 32
+; CHECK: clrldi   4, [[LDREG]], 32
   %element.ext = zext i32 %element to i64
   %value.ext = zext i32 %value to i64
   call void @func(i8* %context, i64 %value.ext, i64 %element.ext)

@@ -42,6 +42,7 @@ namespace llvm {
   FunctionPass *createPPCVSXFMAMutatePass();
   FunctionPass *createPPCVSXSwapRemovalPass();
   FunctionPass *createPPCMIPeepholePass();
+  FunctionPass *createPPCPostRAPeepholePass();
   FunctionPass *createPPCBranchSelectionPass();
   FunctionPass *createPPCBranchCoalescingPass();
   FunctionPass *createPPCQPXLoadSplatPass();
@@ -59,6 +60,7 @@ namespace llvm {
   void initializePPCBoolRetToIntPass(PassRegistry&);
   void initializePPCExpandISELPass(PassRegistry &);
   void initializePPCTLSDynamicCallPass(PassRegistry &);
+  void initializePPCPostRAPeepholePass(PassRegistry &);
   extern char &PPCVSXFMAMutateID;
 
   namespace PPCII {
