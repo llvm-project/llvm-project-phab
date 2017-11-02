@@ -1,5 +1,5 @@
-; RUN: llc < %s -march=r600 -show-mc-encoding -mcpu=redwood | FileCheck --check-prefix=EG %s
-; RUN: llc < %s -march=r600 -show-mc-encoding -mcpu=rs880 | FileCheck --check-prefix=R600 %s
+; RUN: llc < %s -march=r600 -mtriple=r600---amdgiz -show-mc-encoding -mcpu=redwood | FileCheck --check-prefix=EG %s
+; RUN: llc < %s -march=r600 -mtriple=r600---amdgiz -show-mc-encoding -mcpu=rs880 | FileCheck --check-prefix=R600 %s
 
 ; The earliest R600 GPUs have a slightly different encoding than the rest of
 ; the VLIW4/5 GPUs.

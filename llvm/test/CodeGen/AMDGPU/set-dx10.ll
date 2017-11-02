@@ -1,8 +1,8 @@
-; RUN: llc < %s -march=r600 -mcpu=redwood | FileCheck %s
+; RUN: llc < %s -march=r600 -mtriple=r600---amdgiz -mcpu=redwood | FileCheck %s
 
 ; These tests check that floating point comparisons which are used by select
 ; to store integer true (-1) and false (0) values are lowered to one of the
-; SET*DX10 instructions.
+; SET addrspace(5)*DX10 instructions.
 
 ; CHECK: {{^}}fcmp_une_select_fptosi:
 ; CHECK: LSHR

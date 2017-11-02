@@ -1,4 +1,4 @@
-; RUN: llc -march=r600 -mcpu=cypress -verify-machineinstrs < %s | FileCheck -check-prefix=EG -check-prefix=FUNC %s
+; RUN: llc -march=r600 -mtriple=r600---amdgiz -mcpu=cypress -verify-machineinstrs < %s | FileCheck -check-prefix=EG -check-prefix=FUNC %s
 
 
 ; FUNC-LABEL: {{^}}sext_in_reg_i1_i32_add:

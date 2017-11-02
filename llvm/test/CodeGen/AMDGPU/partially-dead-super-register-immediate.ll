@@ -1,4 +1,4 @@
-; RUN: llc -march=amdgcn -verify-machineinstrs -verify-coalescing < %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz -verify-machineinstrs -verify-coalescing < %s
 
 ; The original and requires materializing a 64-bit immediate for
 ; s_and_b64. This is split into 2 x v_and_i32, part of the immediate

@@ -1,4 +1,4 @@
-;RUN: llc < %s -march=r600 -mcpu=redwood | FileCheck %s
+;RUN: llc < %s -march=r600 -mtriple=r600---amdgiz -mcpu=redwood | FileCheck %s
 
 ;CHECK: UINT_TO_FLT * T{{[0-9]+\.[XYZW], T[0-9]+\.[XYZW]}}
 

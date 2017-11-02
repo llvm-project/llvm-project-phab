@@ -1,9 +1,9 @@
-; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=gfx700 -filetype=obj -o - < %s | llvm-readobj -elf-output-style=GNU -notes | FileCheck --check-prefix=CHECK --check-prefix=GFX700 --check-prefix=NOTES %s
-; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=gfx800 -filetype=obj -o - < %s | llvm-readobj -elf-output-style=GNU -notes | FileCheck --check-prefix=CHECK --check-prefix=GFX800 --check-prefix=NOTES %s
-; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=gfx900 -filetype=obj -o - < %s | llvm-readobj -elf-output-style=GNU -notes | FileCheck --check-prefix=CHECK --check-prefix=GFX900 --check-prefix=NOTES %s
-; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=gfx700 -amdgpu-dump-hsa-metadata -amdgpu-verify-hsa-metadata -filetype=obj -o - < %s 2>&1 | FileCheck --check-prefix=PARSER %s
-; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=gfx800 -amdgpu-dump-hsa-metadata -amdgpu-verify-hsa-metadata -filetype=obj -o - < %s 2>&1 | FileCheck --check-prefix=PARSER %s
-; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=gfx900 -amdgpu-dump-hsa-metadata -amdgpu-verify-hsa-metadata -filetype=obj -o - < %s 2>&1 | FileCheck --check-prefix=PARSER %s
+; RUN: llc -mtriple=amdgcn-amd-amdhsa-amdgiz -mcpu=gfx700 -filetype=obj -o - < %s | llvm-readobj -elf-output-style=GNU -notes | FileCheck --check-prefix=CHECK --check-prefix=GFX700 --check-prefix=NOTES %s
+; RUN: llc -mtriple=amdgcn-amd-amdhsa-amdgiz -mcpu=gfx800 -filetype=obj -o - < %s | llvm-readobj -elf-output-style=GNU -notes | FileCheck --check-prefix=CHECK --check-prefix=GFX800 --check-prefix=NOTES %s
+; RUN: llc -mtriple=amdgcn-amd-amdhsa-amdgiz -mcpu=gfx900 -filetype=obj -o - < %s | llvm-readobj -elf-output-style=GNU -notes | FileCheck --check-prefix=CHECK --check-prefix=GFX900 --check-prefix=NOTES %s
+; RUN: llc -mtriple=amdgcn-amd-amdhsa-amdgiz -mcpu=gfx700 -amdgpu-dump-hsa-metadata -amdgpu-verify-hsa-metadata -filetype=obj -o - < %s 2>&1 | FileCheck --check-prefix=PARSER %s
+; RUN: llc -mtriple=amdgcn-amd-amdhsa-amdgiz -mcpu=gfx800 -amdgpu-dump-hsa-metadata -amdgpu-verify-hsa-metadata -filetype=obj -o - < %s 2>&1 | FileCheck --check-prefix=PARSER %s
+; RUN: llc -mtriple=amdgcn-amd-amdhsa-amdgiz -mcpu=gfx900 -amdgpu-dump-hsa-metadata -amdgpu-verify-hsa-metadata -filetype=obj -o - < %s 2>&1 | FileCheck --check-prefix=PARSER %s
 
 %struct.A = type { i8, float }
 %opencl.image1d_t = type opaque
@@ -431,7 +431,7 @@ define amdgpu_kernel void @test_queue(%opencl.queue_t addrspace(1)* %a)
 ; CHECK-NEXT:       ValueKind:     HiddenPrintfBuffer
 ; CHECK-NEXT:       ValueType:     I8
 ; CHECK-NEXT:       AddrSpaceQual: Global
-define amdgpu_kernel void @test_struct(%struct.A* byval %a)
+define amdgpu_kernel void @test_struct(%struct.A addrspace(5)* byval %a)
     !kernel_arg_addr_space !1 !kernel_arg_access_qual !2 !kernel_arg_type !20
     !kernel_arg_base_type !20 !kernel_arg_type_qual !4 {
   ret void
@@ -1032,7 +1032,7 @@ define amdgpu_kernel void @test_wgs_hint_vec_type_hint(i32 %a)
 ; CHECK-NEXT:       ValueKind:     HiddenPrintfBuffer
 ; CHECK-NEXT:       ValueType:     I8
 ; CHECK-NEXT:       AddrSpaceQual: Global
-define amdgpu_kernel void @test_arg_ptr_to_ptr(i32* addrspace(1)* %a)
+define amdgpu_kernel void @test_arg_ptr_to_ptr(i32 addrspace(5)* addrspace(1)* %a)
     !kernel_arg_addr_space !81 !kernel_arg_access_qual !2 !kernel_arg_type !80
     !kernel_arg_base_type !80 !kernel_arg_type_qual !4 {
   ret void
@@ -1067,7 +1067,7 @@ define amdgpu_kernel void @test_arg_ptr_to_ptr(i32* addrspace(1)* %a)
 ; CHECK-NEXT:       ValueKind:     HiddenPrintfBuffer
 ; CHECK-NEXT:       ValueType:     I8
 ; CHECK-NEXT:       AddrSpaceQual: Global
-define amdgpu_kernel void @test_arg_struct_contains_ptr(%struct.B* byval %a)
+define amdgpu_kernel void @test_arg_struct_contains_ptr(%struct.B addrspace(5)* byval %a)
     !kernel_arg_addr_space !1 !kernel_arg_access_qual !2 !kernel_arg_type !82
     !kernel_arg_base_type !82 !kernel_arg_type_qual !4 {
  ret void
@@ -1078,7 +1078,7 @@ define amdgpu_kernel void @test_arg_struct_contains_ptr(%struct.B* byval %a)
 ; CHECK-NEXT:   Language:        OpenCL C
 ; CHECK-NEXT:   LanguageVersion: [ 2, 0 ]
 ; CHECK-NEXT:   Args:
-; CHECK-NEXT:     - TypeName:      'global int* __attribute__((ext_vector_type(2)))'
+; CHECK-NEXT:     - TypeName:      'global int addrspace(5)* __attribute__((ext_vector_type(2)))'
 ; CHECK-NEXT:       Size:          16
 ; CHECK-NEXT:       Align:         16
 ; CHECK-NEXT:       ValueKind:     ByValue
@@ -1263,7 +1263,7 @@ define amdgpu_kernel void @test_pointee_align(i64 addrspace(1)* %a,
 ; CHECK-NEXT:       ValueType:     I8
 ; CHECK-NEXT:       AddrSpaceQual: Global
 define amdgpu_kernel void @__test_block_invoke_kernel(
-    <{ i32, i32, i8 addrspace(4)*, i8 addrspace(1)*, i8 }> %arg) #0
+    <{ i32, i32, i8*, i8 addrspace(1)*, i8 }> %arg) #0
     !kernel_arg_addr_space !1 !kernel_arg_access_qual !2 !kernel_arg_type !110
     !kernel_arg_base_type !110 !kernel_arg_type_qual !4 {
   ret void
@@ -1359,7 +1359,7 @@ attributes #1 = { "calls-enqueue-kernel" }
 !80 = !{!"int **"}
 !81 = !{i32 1}
 !82 = !{!"struct B"}
-!83 = !{!"global int* __attribute__((ext_vector_type(2)))"}
+!83 = !{!"global int addrspace(5)* __attribute__((ext_vector_type(2)))"}
 !84 = !{!"clk_event_t"}
 !opencl.ocl.version = !{!90}
 !90 = !{i32 2, i32 0}

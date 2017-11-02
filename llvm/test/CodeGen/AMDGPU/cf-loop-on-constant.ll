@@ -1,5 +1,5 @@
-; RUN: llc -march=amdgcn -verify-machineinstrs < %s | FileCheck -check-prefix=GCN %s
-; RUN: llc -march=amdgcn -verify-machineinstrs -O0 < %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz -verify-machineinstrs < %s | FileCheck -check-prefix=GCN %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz -verify-machineinstrs -O0 < %s
 
 ; GCN-LABEL: {{^}}test_loop:
 ; GCN: [[LABEL:BB[0-9+]_[0-9]+]]: ; %for.body{{$}}

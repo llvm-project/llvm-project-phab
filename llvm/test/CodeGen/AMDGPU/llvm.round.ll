@@ -1,7 +1,7 @@
-; RUN: llc -march=amdgcn -mcpu=tahiti < %s | FileCheck -check-prefix=GCN -check-prefix=SI -check-prefix=FUNC %s
-; RUN: llc -march=amdgcn -mcpu=tonga -mattr=-flat-for-global < %s | FileCheck -check-prefix=GCN -check-prefix=GFX89 -check-prefix=FUNC %s
-; RUN: llc -march=amdgcn -mcpu=gfx900 -mattr=-flat-for-global < %s | FileCheck -check-prefix=GCN -check-prefix=GFX89 -check-prefix=GFX9 -check-prefix=FUNC %s
-; RUN: llc -march=r600 -mcpu=redwood < %s | FileCheck -check-prefix=R600 -check-prefix=FUNC %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz -mcpu=tahiti < %s | FileCheck -check-prefix=GCN -check-prefix=SI -check-prefix=FUNC %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz -mcpu=tonga -mattr=-flat-for-global < %s | FileCheck -check-prefix=GCN -check-prefix=GFX89 -check-prefix=FUNC %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz -mcpu=gfx900 -mattr=-flat-for-global < %s | FileCheck -check-prefix=GCN -check-prefix=GFX89 -check-prefix=GFX9 -check-prefix=FUNC %s
+; RUN: llc -march=r600 -mtriple=r600---amdgiz -mcpu=redwood < %s | FileCheck -check-prefix=R600 -check-prefix=FUNC %s
 
 ; FUNC-LABEL: {{^}}round_f32:
 ; GCN-DAG: s_load_dword [[SX:s[0-9]+]]

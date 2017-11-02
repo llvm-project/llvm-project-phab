@@ -1,4 +1,4 @@
-; RUN:  llc -amdgpu-scalarize-global-loads=false -march=amdgcn -verify-machineinstrs < %s | FileCheck -check-prefix=GCN %s
+; RUN:  llc -amdgpu-scalarize-global-loads=false -march=amdgcn -mtriple=amdgcn---amdgiz -verify-machineinstrs < %s | FileCheck -check-prefix=GCN %s
 
 declare float @llvm.fabs.f32(float) #0
 declare float @llvm.canonicalize.f32(float) #0

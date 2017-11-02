@@ -1,4 +1,4 @@
-; RUN: llc -march=amdgcn -verify-machineinstrs < %s | FileCheck -check-prefix=GCN %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz -verify-machineinstrs < %s | FileCheck -check-prefix=GCN %s
 
 declare i32 @llvm.amdgcn.alignbit(i32, i32, i32) #0
 declare i32 @llvm.amdgcn.alignbyte(i32, i32, i32) #0

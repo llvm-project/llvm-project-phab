@@ -1,4 +1,4 @@
-;RUN: llc < %s -march=r600 -mcpu=cayman
+;RUN: llc < %s -march=r600 -mtriple=r600---amdgiz -mcpu=cayman
 
 ; CHECK-LABEL: {{^}}main:
 ; CHECK: PRED_SETE_INT * Pred,

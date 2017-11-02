@@ -1,4 +1,4 @@
-; RUN: llc -march=amdgcn -mcpu=kaveri -verify-machineinstrs < %s | FileCheck %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz -mcpu=kaveri -verify-machineinstrs < %s | FileCheck %s
 
 ; CHECK-LABEL: {{^}}test:
 ; CHECK s_and_saveexec_b64

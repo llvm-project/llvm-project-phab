@@ -1,5 +1,5 @@
-;RUN: llc < %s -march=amdgcn -mcpu=verde -show-mc-encoding -verify-machineinstrs | FileCheck %s --check-prefix=CHECK --check-prefix=SI
-;RUN: llc < %s -march=amdgcn -mcpu=tonga -show-mc-encoding -verify-machineinstrs | FileCheck %s --check-prefix=CHECK --check-prefix=VI
+;RUN: llc < %s -march=amdgcn -mtriple=amdgcn---amdgiz -mcpu=verde -show-mc-encoding -verify-machineinstrs | FileCheck %s --check-prefix=CHECK --check-prefix=SI
+;RUN: llc < %s -march=amdgcn -mtriple=amdgcn---amdgiz -mcpu=tonga -show-mc-encoding -verify-machineinstrs | FileCheck %s --check-prefix=CHECK --check-prefix=VI
 
 ;CHECK-LABEL: {{^}}image_atomic_swap:
 ;SI: image_atomic_swap v4, v[0:3], s[0:7] dmask:0x1 unorm glc ; encoding: [0x00,0x31,0x3c,0xf0,0x00,0x04,0x00,0x00]

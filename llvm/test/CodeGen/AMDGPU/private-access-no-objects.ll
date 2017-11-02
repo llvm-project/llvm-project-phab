@@ -1,7 +1,7 @@
-; RUN: llc -mtriple=amdgcn--amdhsa -mcpu=fiji -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefix=GCN -check-prefix=VI -check-prefix=OPT %s
-; RUN: llc -mtriple=amdgcn--amdhsa -mcpu=hawaii -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefix=GCN -check-prefix=CI -check-prefix=OPT %s
-; RUN: llc -mtriple=amdgcn--amdhsa -mcpu=iceland -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefix=GCN -check-prefix=VI -check-prefix=OPT %s
-; RUN: llc -O0 -mtriple=amdgcn--amdhsa -mcpu=fiji -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefix=GCN -check-prefix=OPTNONE %s
+; RUN: llc -mtriple=amdgcn--amdhsa-amdgiz -mcpu=fiji -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefix=GCN -check-prefix=VI -check-prefix=OPT %s
+; RUN: llc -mtriple=amdgcn--amdhsa-amdgiz -mcpu=hawaii -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefix=GCN -check-prefix=CI -check-prefix=OPT %s
+; RUN: llc -mtriple=amdgcn--amdhsa-amdgiz -mcpu=iceland -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefix=GCN -check-prefix=VI -check-prefix=OPT %s
+; RUN: llc -O0 -mtriple=amdgcn--amdhsa-amdgiz -mcpu=fiji -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefix=GCN -check-prefix=OPTNONE %s
 
 ; There are no stack objects, but still a private memory access. The
 ; private access regiters need to be correctly initialized anyway, and
@@ -19,7 +19,7 @@
 ; OPTNONE-NOT: s_mov_b32
 ; OPTNONE: buffer_store_dword v{{[0-9]+}}, v{{[0-9]+}}, s[0:3], s5 offen{{$}}
 define amdgpu_kernel void @store_to_undef() #0 {
-  store volatile i32 0, i32* undef
+  store volatile i32 0, i32 addrspace(5)* undef
   ret void
 }
 
@@ -29,7 +29,7 @@ define amdgpu_kernel void @store_to_undef() #0 {
 ; OPT-DAG: s_mov_b32 [[SOFFSET:s[0-9]+]], s5{{$}}
 ; OPT: buffer_store_dword v{{[0-9]+}}, off, s{{\[}}[[RSRC_LO]]:[[RSRC_HI]]{{\]}}, [[SOFFSET]] offset:124{{$}}
 define amdgpu_kernel void @store_to_inttoptr() #0 {
- store volatile i32 0, i32* inttoptr (i32 124 to i32*)
+ store volatile i32 0, i32 addrspace(5)* inttoptr (i32 124 to i32 addrspace(5)*)
  ret void
 }
 
@@ -39,7 +39,7 @@ define amdgpu_kernel void @store_to_inttoptr() #0 {
 ; OPT-DAG: s_mov_b32 [[SOFFSET:s[0-9]+]], s5{{$}}
 ; OPT: buffer_load_dword v{{[0-9]+}}, v{{[0-9]+}}, s{{\[}}[[RSRC_LO]]:[[RSRC_HI]]{{\]}}, [[SOFFSET]] offen{{$}}
 define amdgpu_kernel void @load_from_undef() #0 {
-  %ld = load volatile i32, i32* undef
+  %ld = load volatile i32, i32 addrspace(5)* undef
   ret void
 }
 
@@ -49,7 +49,7 @@ define amdgpu_kernel void @load_from_undef() #0 {
 ; OPT-DAG: s_mov_b32 [[SOFFSET:s[0-9]+]], s5{{$}}
 ; OPT: buffer_load_dword v{{[0-9]+}}, off, s{{\[}}[[RSRC_LO]]:[[RSRC_HI]]{{\]}}, [[SOFFSET]] offset:124{{$}}
 define amdgpu_kernel void @load_from_inttoptr() #0 {
-  %ld = load volatile i32, i32* inttoptr (i32 124 to i32*)
+  %ld = load volatile i32, i32 addrspace(5)* inttoptr (i32 124 to i32 addrspace(5)*)
   ret void
 }
 

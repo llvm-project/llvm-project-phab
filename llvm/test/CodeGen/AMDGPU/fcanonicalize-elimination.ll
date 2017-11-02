@@ -1,7 +1,7 @@
-; RUN: llc -march=amdgcn -mcpu=tonga -verify-machineinstrs -mattr=-fp32-denormals < %s | FileCheck -check-prefix=GCN -check-prefix=VI -check-prefix=GCN-FLUSH %s
-; RUN: llc -march=amdgcn -mcpu=tonga -verify-machineinstrs -mattr=-fp32-denormals,+fp-exceptions < %s | FileCheck -check-prefix=GCN -check-prefix=GCN-EXCEPT -check-prefix=VI -check-prefix=GCN-FLUSH %s
-; RUN: llc -march=amdgcn -mcpu=gfx901 -verify-machineinstrs -mattr=+fp32-denormals < %s | FileCheck -check-prefix=GCN -check-prefix=GFX9 -check-prefix=GFX9-DENORM %s
-; RUN: llc -march=amdgcn -mcpu=gfx901 -verify-machineinstrs -mattr=-fp32-denormals < %s | FileCheck -check-prefix=GCN -check-prefix=GFX9 -check-prefix=GCN-FLUSH %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz -mcpu=tonga -verify-machineinstrs -mattr=-fp32-denormals < %s | FileCheck -check-prefix=GCN -check-prefix=VI -check-prefix=GCN-FLUSH %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz -mcpu=tonga -verify-machineinstrs -mattr=-fp32-denormals,+fp-exceptions < %s | FileCheck -check-prefix=GCN -check-prefix=GCN-EXCEPT -check-prefix=VI -check-prefix=GCN-FLUSH %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz -mcpu=gfx901 -verify-machineinstrs -mattr=+fp32-denormals < %s | FileCheck -check-prefix=GCN -check-prefix=GFX9 -check-prefix=GFX9-DENORM %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz -mcpu=gfx901 -verify-machineinstrs -mattr=-fp32-denormals < %s | FileCheck -check-prefix=GCN -check-prefix=GFX9 -check-prefix=GCN-FLUSH %s
 
 ; GCN-LABEL: {{^}}test_no_fold_canonicalize_loaded_value_f32:
 ; GCN-FLUSH:   v_mul_f32_e32 v{{[0-9]+}}, 1.0, v{{[0-9]+}}

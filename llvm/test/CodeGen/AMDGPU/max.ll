@@ -1,5 +1,5 @@
-; RUN:  llc -amdgpu-scalarize-global-loads=false  -march=amdgcn < %s | FileCheck -check-prefix=SI -check-prefix=FUNC %s
-; RUN:  llc -amdgpu-scalarize-global-loads=false  -march=r600 -mcpu=cypress < %s | FileCheck -check-prefix=EG -check-prefix=FUNC %s
+; RUN:  llc -amdgpu-scalarize-global-loads=false  -march=amdgcn -mtriple=amdgcn---amdgiz < %s | FileCheck -check-prefix=SI -check-prefix=FUNC %s
+; RUN:  llc -amdgpu-scalarize-global-loads=false  -march=r600 -mtriple=r600---amdgiz -mcpu=cypress < %s | FileCheck -check-prefix=EG -check-prefix=FUNC %s
 
 
 ; FUNC-LABEL: {{^}}v_test_imax_sge_i32:

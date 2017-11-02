@@ -1,4 +1,4 @@
-; RUN: llc -march=r600 -mcpu=redwood < %s | FileCheck -check-prefix=EG -check-prefix=FUNC %s
+; RUN: llc -march=r600 -mtriple=r600---amdgiz -mcpu=redwood < %s | FileCheck -check-prefix=EG -check-prefix=FUNC %s
 
 ; FUNC-LABEL: {{^}}tgid_x:
 ; EG: MEM_RAT_CACHELESS STORE_RAW T1.X
@@ -55,7 +55,7 @@ entry:
 }
 
 ; FUNC-LABEL: {{^}}test_implicit:
-; 36 prepended implicit bytes + 4(out pointer) + 4*4 = 56
+; 36 prepended implicit bytes + 4(out pointer) + 4 addrspace(5)*4 = 56
 ; EG: VTX_READ_32 {{T[0-9]+\.[XYZW]}}, {{T[0-9]+\.[XYZW]}}, 56
 define amdgpu_kernel void @test_implicit(i32 addrspace(1)* %out) #1 {
   %implicitarg.ptr = call noalias i8 addrspace(7)* @llvm.r600.implicitarg.ptr()

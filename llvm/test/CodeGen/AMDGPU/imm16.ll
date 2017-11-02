@@ -1,5 +1,5 @@
-; RUN: llc -mtriple=amdgcn--amdhsa -mcpu=tonga -mattr=-flat-for-global -mattr=-flat-for-global -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=VI %s
-; RUN: llc -march=amdgcn -mcpu=tahiti -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=SI %s
+; RUN: llc -mtriple=amdgcn--amdhsa-amdgiz -mcpu=tonga -mattr=-flat-for-global -mattr=-flat-for-global -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=VI %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz -mcpu=tahiti -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=SI %s
 
 ; FIXME: Merge into imm.ll
 

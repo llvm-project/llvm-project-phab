@@ -1,5 +1,5 @@
-; RUN: opt -mtriple=amdgcn-- -codegenprepare -S < %s | FileCheck -check-prefix=OPT %s
-; RUN: llc -march=amdgcn -mcpu=verde -verify-machineinstrs < %s | FileCheck -check-prefix=SI-LLC %s
+; RUN: opt -mtriple=amdgcn---amdgiz -codegenprepare -S < %s | FileCheck -check-prefix=OPT %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz -mcpu=verde -verify-machineinstrs < %s | FileCheck -check-prefix=SI-LLC %s
 
 ; OPT-LABEL: @test(
 ; OPT: mul nsw i32

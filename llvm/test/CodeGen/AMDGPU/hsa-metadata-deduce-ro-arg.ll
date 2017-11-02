@@ -1,9 +1,9 @@
-; RUN: llc -mtriple=amdgcn-amd-amdhsa -filetype=obj -o - < %s | llvm-readobj -elf-output-style=GNU -notes | FileCheck %s
+; RUN: llc -mtriple=amdgcn-amd-amdhsa-amdgiz -filetype=obj -o - < %s | llvm-readobj -elf-output-style=GNU -notes | FileCheck %s
 
 ; CHECK:      - Name:            test_ro_arg
 ; CHECK-NEXT:   SymbolName:      'test_ro_arg@kd'
 ; CHECK-NEXT:   Args:
-; CHECK-NEXT: - TypeName:        'float*'
+; CHECK-NEXT: - TypeName:        'float addrspace(5)*'
 ; CHECK-NEXT:   Size:            8
 ; CHECK-NEXT:   Align:           8
 ; CHECK-NEXT:   ValueKind:       GlobalBuffer
@@ -12,7 +12,7 @@
 ; CHECK-NEXT:   AccQual:         ReadOnly
 ; CHECK-NEXT:   IsConst:         true
 ; CHECK-NEXT:   IsRestrict:      true
-; CHECK-NEXT: - TypeName:        'float*'
+; CHECK-NEXT: - TypeName:        'float addrspace(5)*'
 ; CHECK-NEXT:   Size:            8
 ; CHECK-NEXT:   Align:           8
 ; CHECK-NEXT:   ValueKind:       GlobalBuffer
@@ -28,5 +28,5 @@ define amdgpu_kernel void @test_ro_arg(float addrspace(1)* noalias readonly %in,
 
 !0 = !{i32 1, i32 1}
 !1 = !{!"none", !"none"}
-!2 = !{!"float*", !"float*"}
+!2 = !{!"float addrspace(5)*", !"float addrspace(5)*"}
 !3 = !{!"const restrict", !""}

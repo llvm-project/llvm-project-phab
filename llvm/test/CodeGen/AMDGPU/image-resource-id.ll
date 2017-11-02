@@ -1,4 +1,4 @@
-; RUN: llc -march=r600 -mcpu=juniper < %s | FileCheck -check-prefix=EG -check-prefix=FUNC %s
+; RUN: llc -march=r600 -mtriple=r600---amdgiz -mcpu=juniper < %s | FileCheck -check-prefix=EG -check-prefix=FUNC %s
 
 ; === 1 image arg, read_only ===================================================
 
@@ -342,10 +342,10 @@ attributes #0 = { readnone }
 !110 = !{!"kernel_arg_addr_space", i32 1, i32 1}
 !120 = !{!"kernel_arg_access_qual", !"read_only", !"none"}
 !121 = !{!"kernel_arg_access_qual", !"write_only", !"none"}
-!130 = !{!"kernel_arg_type", !"image2d_t", !"int*"}
-!131 = !{!"kernel_arg_type", !"image3d_t", !"int*"}
-!140 = !{!"kernel_arg_base_type", !"image2d_t", !"int*"}
-!141 = !{!"kernel_arg_base_type", !"image3d_t", !"int*"}
+!130 = !{!"kernel_arg_type", !"image2d_t", !"int addrspace(5)*"}
+!131 = !{!"kernel_arg_type", !"image3d_t", !"int addrspace(5)*"}
+!140 = !{!"kernel_arg_base_type", !"image2d_t", !"int addrspace(5)*"}
+!141 = !{!"kernel_arg_base_type", !"image3d_t", !"int addrspace(5)*"}
 !150 = !{!"kernel_arg_type_qual", !"", !""}
 
 !4  = !{void (%opencl.image2d_t addrspace(1)*, %opencl.image2d_t addrspace(1)*,
@@ -367,10 +367,10 @@ attributes #0 = { readnone }
 !112 = !{!"kernel_arg_addr_space", i32 1, i32 1, i32 1}
 !122 = !{!"kernel_arg_access_qual", !"read_only", !"read_only", !"none"}
 !123 = !{!"kernel_arg_access_qual", !"write_only", !"write_only", !"none"}
-!132 = !{!"kernel_arg_type", !"image2d_t", !"image2d_t", !"int*"}
-!133 = !{!"kernel_arg_type", !"image3d_t", !"image3d_t", !"int*"}
-!142 = !{!"kernel_arg_base_type", !"image2d_t", !"image2d_t", !"int*"}
-!143 = !{!"kernel_arg_base_type", !"image3d_t", !"image3d_t", !"int*"}
+!132 = !{!"kernel_arg_type", !"image2d_t", !"image2d_t", !"int addrspace(5)*"}
+!133 = !{!"kernel_arg_type", !"image3d_t", !"image3d_t", !"int addrspace(5)*"}
+!142 = !{!"kernel_arg_base_type", !"image2d_t", !"image2d_t", !"int addrspace(5)*"}
+!143 = !{!"kernel_arg_base_type", !"image3d_t", !"image3d_t", !"int addrspace(5)*"}
 !152 = !{!"kernel_arg_type_qual", !"", !"", !""}
 
 !12 = !{void (%opencl.image2d_t addrspace(1)*, %opencl.image3d_t addrspace(1)*,
@@ -402,8 +402,8 @@ attributes #0 = { readnone }
 !125 = !{!"kernel_arg_access_qual", !"write_only", !"write_only", !"write_only", !"none"}
 !126 = !{!"kernel_arg_access_qual", !"write_only", !"read_only", !"read_only", !"none"}
 !127 = !{!"kernel_arg_access_qual", !"write_only", !"read_only", !"write_only", !"none"}
-!134 = !{!"kernel_arg_type", !"image2d_t", !"image3d_t", !"image2d_t", !"int*"}
-!135 = !{!"kernel_arg_type", !"image3d_t", !"image2d_t", !"image3d_t", !"int*"}
-!144 = !{!"kernel_arg_base_type", !"image2d_t", !"image3d_t", !"image2d_t", !"int*"}
-!145 = !{!"kernel_arg_base_type", !"image3d_t", !"image2d_t", !"image3d_t", !"int*"}
+!134 = !{!"kernel_arg_type", !"image2d_t", !"image3d_t", !"image2d_t", !"int addrspace(5)*"}
+!135 = !{!"kernel_arg_type", !"image3d_t", !"image2d_t", !"image3d_t", !"int addrspace(5)*"}
+!144 = !{!"kernel_arg_base_type", !"image2d_t", !"image3d_t", !"image2d_t", !"int addrspace(5)*"}
+!145 = !{!"kernel_arg_base_type", !"image3d_t", !"image2d_t", !"image3d_t", !"int addrspace(5)*"}
 !154 = !{!"kernel_arg_type_qual", !"", !"", !"", !""}

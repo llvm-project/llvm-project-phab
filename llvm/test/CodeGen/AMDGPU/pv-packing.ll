@@ -1,4 +1,4 @@
-; RUN: llc < %s -march=r600 -mcpu=cayman | FileCheck %s
+; RUN: llc < %s -march=r600 -mtriple=r600---amdgiz -mcpu=cayman | FileCheck %s
 
 ;CHECK: DOT4  T{{[0-9]\.X}}
 ;CHECK: MULADD_IEEE * T{{[0-9]\.W}}

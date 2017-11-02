@@ -1,4 +1,4 @@
-; RUN: llc < %s -march=r600 -mcpu=redwood | FileCheck %s
+; RUN: llc < %s -march=r600 -mtriple=r600---amdgiz -mcpu=redwood | FileCheck %s
 
 ; This test is for a scheduler bug where VTX_READ instructions that used
 ; the result of another VTX_READ instruction were being grouped in the

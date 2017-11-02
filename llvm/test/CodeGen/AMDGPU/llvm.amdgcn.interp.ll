@@ -1,7 +1,7 @@
-; RUN: llc -march=amdgcn -mcpu=verde -verify-machineinstrs < %s | FileCheck -check-prefix=GCN %s
-; RUN: llc -march=amdgcn -mcpu=tonga -verify-machineinstrs < %s | FileCheck -check-prefixes=GCN,VI %s
-; RUN: llc -march=amdgcn -mcpu=kabini -verify-machineinstrs < %s | FileCheck -check-prefixes=GCN,16BANK %s
-; RUN: llc -march=amdgcn -mcpu=stoney -verify-machineinstrs < %s | FileCheck -check-prefixes=GCN,16BANK %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz -mcpu=verde -verify-machineinstrs < %s | FileCheck -check-prefix=GCN %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz -mcpu=tonga -verify-machineinstrs < %s | FileCheck -check-prefixes=GCN,VI %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz -mcpu=kabini -verify-machineinstrs < %s | FileCheck -check-prefixes=GCN,16BANK %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz -mcpu=stoney -verify-machineinstrs < %s | FileCheck -check-prefixes=GCN,16BANK %s
 
 ; GCN-LABEL: {{^}}v_interp:
 ; GCN-NOT: s_wqm

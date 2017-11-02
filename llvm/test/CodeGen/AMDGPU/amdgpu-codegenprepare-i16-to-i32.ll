@@ -1,5 +1,5 @@
-; RUN: opt -S -mtriple=amdgcn-- -amdgpu-codegenprepare %s | FileCheck -check-prefix=GCN -check-prefix=SI %s
-; RUN: opt -S -mtriple=amdgcn-- -mcpu=tonga -amdgpu-codegenprepare %s | FileCheck -check-prefix=GCN -check-prefix=VI %s
+; RUN: opt -S -mtriple=amdgcn---amdgiz -amdgpu-codegenprepare %s | FileCheck -check-prefix=GCN -check-prefix=SI %s
+; RUN: opt -S -mtriple=amdgcn---amdgiz -mcpu=tonga -amdgpu-codegenprepare %s | FileCheck -check-prefix=GCN -check-prefix=VI %s
 
 ; GCN-LABEL: @add_i3(
 ; SI: %r = add i3 %a, %b

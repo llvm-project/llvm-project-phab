@@ -1,6 +1,6 @@
-; RUN: llc -march=amdgcn -mcpu=tahiti -verify-machineinstrs < %s | FileCheck -check-prefix=GCN %s
-; RUN: llc -mtriple=amdgcn--amdhsa -mcpu=kaveri -verify-machineinstrs < %s | FileCheck -check-prefix=GCN %s
-; RUN: llc -mtriple=amdgcn--amdhsa -mcpu=fiji -verify-machineinstrs < %s | FileCheck -check-prefix=GCN %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz -mcpu=tahiti -verify-machineinstrs < %s | FileCheck -check-prefix=GCN %s
+; RUN: llc -mtriple=amdgcn--amdhsa-amdgiz -mcpu=kaveri -verify-machineinstrs < %s | FileCheck -check-prefix=GCN %s
+; RUN: llc -mtriple=amdgcn--amdhsa-amdgiz -mcpu=fiji -verify-machineinstrs < %s | FileCheck -check-prefix=GCN %s
 
 ; GCN-LABEL: {{^}}s_getreg_test:
 ; GCN: s_getreg_b32 s{{[0-9]+}}, hwreg(HW_REG_LDS_ALLOC, 8, 23)

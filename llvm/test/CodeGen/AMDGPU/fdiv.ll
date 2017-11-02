@@ -1,7 +1,7 @@
-; RUN: llc -march=amdgcn -mcpu=tahiti -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=FUNC %s
-; RUN: llc -march=amdgcn -mcpu=hawaii -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=FUNC %s
-; RUN: llc -march=amdgcn -mcpu=fiji -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=FUNC %s
-; RUN: llc -march=r600 -mcpu=redwood < %s | FileCheck -check-prefix=R600 -check-prefix=FUNC %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz -mcpu=tahiti -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=FUNC %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz -mcpu=hawaii -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=FUNC %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz -mcpu=fiji -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=FUNC %s
+; RUN: llc -march=r600 -mtriple=r600---amdgiz -mcpu=redwood < %s | FileCheck -check-prefix=R600 -check-prefix=FUNC %s
 
 ; These tests check that fdiv is expanded correctly and also test that the
 ; scheduler is scheduling the RECIP_IEEE and MUL_IEEE instructions in separate

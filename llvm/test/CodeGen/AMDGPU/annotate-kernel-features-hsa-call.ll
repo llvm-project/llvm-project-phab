@@ -1,4 +1,4 @@
-; RUN: opt -S -mtriple=amdgcn-unknown-amdhsa -amdgpu-annotate-kernel-features %s | FileCheck -check-prefix=HSA %s
+; RUN: opt -S -mtriple=amdgcn-unknown-amdhsa-amdgiz -amdgpu-annotate-kernel-features %s | FileCheck -check-prefix=HSA %s
 
 declare i32 @llvm.amdgcn.workgroup.id.x() #0
 declare i32 @llvm.amdgcn.workgroup.id.y() #0
@@ -186,22 +186,22 @@ define void @call_recursive_use_workitem_id_y() #1 {
 
 ; HSA: define void @use_group_to_flat_addrspacecast(i32 addrspace(3)* %ptr) #8 {
 define void @use_group_to_flat_addrspacecast(i32 addrspace(3)* %ptr) #1 {
-  %stof = addrspacecast i32 addrspace(3)* %ptr to i32 addrspace(4)*
-  store volatile i32 0, i32 addrspace(4)* %stof
+  %stof = addrspacecast i32 addrspace(3)* %ptr to i32*
+  store volatile i32 0, i32* %stof
   ret void
 }
 
 ; HSA: define void @use_group_to_flat_addrspacecast_gfx9(i32 addrspace(3)* %ptr) #12 {
 define void @use_group_to_flat_addrspacecast_gfx9(i32 addrspace(3)* %ptr) #2 {
-  %stof = addrspacecast i32 addrspace(3)* %ptr to i32 addrspace(4)*
-  store volatile i32 0, i32 addrspace(4)* %stof
+  %stof = addrspacecast i32 addrspace(3)* %ptr to i32*
+  store volatile i32 0, i32* %stof
   ret void
 }
 
 ; HSA: define void @use_group_to_flat_addrspacecast_queue_ptr_gfx9(i32 addrspace(3)* %ptr) #13 {
 define void @use_group_to_flat_addrspacecast_queue_ptr_gfx9(i32 addrspace(3)* %ptr) #2 {
-  %stof = addrspacecast i32 addrspace(3)* %ptr to i32 addrspace(4)*
-  store volatile i32 0, i32 addrspace(4)* %stof
+  %stof = addrspacecast i32 addrspace(3)* %ptr to i32*
+  store volatile i32 0, i32* %stof
   call void @func_indirect_use_queue_ptr()
   ret void
 }

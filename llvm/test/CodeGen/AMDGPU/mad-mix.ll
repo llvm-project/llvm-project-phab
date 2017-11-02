@@ -1,6 +1,6 @@
-; RUN: llc -march=amdgcn -mcpu=gfx900 -verify-machineinstrs -show-mc-encoding < %s | FileCheck -enable-var-scope -check-prefixes=GCN,GFX9 %s
-; RUN: llc -march=amdgcn -mcpu=fiji -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,CIVI,VI %s
-; RUN: llc -march=amdgcn -mcpu=hawaii -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,CIVI,CI %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz -mcpu=gfx900 -verify-machineinstrs -show-mc-encoding < %s | FileCheck -enable-var-scope -check-prefixes=GCN,GFX9 %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz -mcpu=fiji -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,CIVI,VI %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz -mcpu=hawaii -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,CIVI,CI %s
 
 ; GCN-LABEL: {{^}}v_mad_mix_f32_f16lo_f16lo_f16lo:
 ; GFX9: v_mad_mix_f32 v0, v0, v1, v2 ; encoding: [0x00,0x40,0xa0,0xd3,0x00,0x03,0x0a,0x1c]

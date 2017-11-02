@@ -1,5 +1,5 @@
-; RUN: llc -march=amdgcn -mcpu=tahiti -start-after=sink -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=GCN-SAFE -check-prefix=SI -check-prefix=FUNC %s
-; RUN: llc -enable-no-signed-zeros-fp-math -march=amdgcn -mcpu=tahiti -start-after=sink -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=GCN-NSZ -check-prefix=SI -check-prefix=FUNC %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz -mcpu=tahiti -start-after=sink -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=GCN-SAFE -check-prefix=SI -check-prefix=FUNC %s
+; RUN: llc -enable-no-signed-zeros-fp-math -march=amdgcn -mtriple=amdgcn---amdgiz -mcpu=tahiti -start-after=sink -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=GCN-NSZ -check-prefix=SI -check-prefix=FUNC %s
 
 ; --------------------------------------------------------------------------------
 ; fadd tests

@@ -1,6 +1,6 @@
-; RUN: llc -march=amdgcn -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,SI %s
-; RUN: llc -march=amdgcn -mcpu=fiji -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,GFX89 %s
-; RUN: llc -march=amdgcn -mcpu=gfx900 -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,GFX89,GFX9 %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,SI %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz -mcpu=fiji -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,GFX89 %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz -mcpu=gfx900 -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,GFX89,GFX9 %s
 
 ; GCN-LABEL: {{^}}v_clamp_add_src_f32:
 ; GCN: {{buffer|flat|global}}_load_dword [[A:v[0-9]+]]

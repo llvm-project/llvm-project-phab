@@ -1,4 +1,4 @@
-; RUN: llc -march=amdgcn -verify-machineinstrs < %s | FileCheck -check-prefix=GCN %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz -verify-machineinstrs < %s | FileCheck -check-prefix=GCN %s
 
 ; GCN-LABEL: {{^}}lower_control_flow_unreachable_terminator:
 ; GCN: v_cmp_eq_u32

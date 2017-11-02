@@ -1,5 +1,5 @@
-; RUN: llc < %s -march=amdgcn -verify-machineinstrs | FileCheck --check-prefix=SI --check-prefix=FUNC %s
-; RUN: llc < %s -march=r600 -mcpu=redwood | FileCheck --check-prefix=EG --check-prefix=FUNC %s
+; RUN: llc < %s -march=amdgcn -mtriple=amdgcn---amdgiz -verify-machineinstrs | FileCheck --check-prefix=SI --check-prefix=FUNC %s
+; RUN: llc < %s -march=r600 -mtriple=r600---amdgiz -mcpu=redwood | FileCheck --check-prefix=EG --check-prefix=FUNC %s
 
 ; Make sure the OpenCL Image lowering pass doesn't crash when argument metadata
 ; is not in expected order.
@@ -19,6 +19,6 @@ attributes #3 = { nounwind }
 !0 = !{void (i32 addrspace(1)*)* @kernel, !1, !2, !3, !4, !5}
 !1 = !{!"kernel_arg_addr_space", i32 0}
 !2 = !{!"kernel_arg_access_qual", !"none"}
-!3 = !{!"kernel_arg_type", !"int*"}
+!3 = !{!"kernel_arg_type", !"int addrspace(5)*"}
 !4 = !{!"kernel_arg_type_qual", !""}
 !5 = !{!"kernel_arg_name", !""}

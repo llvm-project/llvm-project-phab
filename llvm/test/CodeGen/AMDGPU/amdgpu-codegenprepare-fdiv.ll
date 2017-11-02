@@ -1,4 +1,4 @@
-; RUN: opt -S -mtriple=amdgcn-- -amdgpu-codegenprepare %s | FileCheck %s
+; RUN: opt -S -mtriple=amdgcn---amdgiz -amdgpu-codegenprepare %s | FileCheck %s
 ; RUN: opt -S -amdgpu-codegenprepare %s | FileCheck -check-prefix=NOOP %s
 ; Make sure this doesn't crash with no triple
 

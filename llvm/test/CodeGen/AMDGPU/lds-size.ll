@@ -1,6 +1,6 @@
-; RUN: llc -march=amdgcn < %s | FileCheck -check-prefix=ALL -check-prefix=GCN %s
-; RUN: llc -mtriple=amdgcn-amd-amdhsa < %s | FileCheck -check-prefix=ALL -check-prefix=HSA %s
-; RUN: llc -march=r600 -mcpu=redwood < %s | FileCheck -check-prefix=ALL -check-prefix=EG %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz < %s | FileCheck -check-prefix=ALL -check-prefix=GCN %s
+; RUN: llc -mtriple=amdgcn-amd-amdhsa-amdgiz < %s | FileCheck -check-prefix=ALL -check-prefix=HSA %s
+; RUN: llc -march=r600 -mtriple=r600---amdgiz -mcpu=redwood < %s | FileCheck -check-prefix=ALL -check-prefix=EG %s
 
 ; This test makes sure we do not double count global values when they are
 ; used in different basic blocks.

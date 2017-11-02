@@ -1,4 +1,4 @@
-; RUN: llc -march=amdgcn -verify-machineinstrs < %s | FileCheck -check-prefix=SI -check-prefix=FUNC %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz -verify-machineinstrs < %s | FileCheck -check-prefix=SI -check-prefix=FUNC %s
 
 declare float @llvm.amdgcn.rsq.legacy(float) #0
 

@@ -2,7 +2,7 @@
 ; XFAIL: *
 ; REQUIRES: asserts
 
-; RUN: llc -march=amdgcn -mcpu=verde -verify-machineinstrs < %s | FileCheck %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz -mcpu=verde -verify-machineinstrs < %s | FileCheck %s
 
 ; See also local-stack-slot-bug.ll
 ; This fails because a stack object is created during instruction selection.

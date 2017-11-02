@@ -1,4 +1,4 @@
-; RUN: llc -march=amdgcn < %s | FileCheck -check-prefix=SI -check-prefix=FUNC %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz < %s | FileCheck -check-prefix=SI -check-prefix=FUNC %s
 
 ; FUNC-LABEL: {{^}}round_f64:
 ; SI: s_endpgm

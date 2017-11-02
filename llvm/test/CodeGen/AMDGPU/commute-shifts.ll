@@ -1,5 +1,5 @@
-; RUN: llc -march=amdgcn -mcpu=verde -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=SI %s
-; RUN: llc -march=amdgcn -mcpu=tonga -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=VI %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz -mcpu=verde -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=SI %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz -mcpu=tonga -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=VI %s
 
 ; GCN-LABEL: {{^}}main:
 ; SI: v_lshl_b32_e32 v{{[0-9]+}}, 1, v{{[0-9]+}}

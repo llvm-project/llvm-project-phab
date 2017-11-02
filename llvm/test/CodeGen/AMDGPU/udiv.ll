@@ -1,9 +1,9 @@
-; RUN:  llc -amdgpu-scalarize-global-loads=false  -march=amdgcn -mcpu=verde -verify-machineinstrs < %s | FileCheck -check-prefix=SI -check-prefix=FUNC %s
-; RUN:  llc -amdgpu-scalarize-global-loads=false  -march=amdgcn -mcpu=tonga -mattr=-flat-for-global -verify-machineinstrs -mattr=-fp32-denormals < %s | FileCheck -check-prefix=SI -check-prefix=FUNC -check-prefix=VI %s
+; RUN:  llc -amdgpu-scalarize-global-loads=false  -march=amdgcn -mtriple=amdgcn---amdgiz -mcpu=verde -verify-machineinstrs < %s | FileCheck -check-prefix=SI -check-prefix=FUNC %s
+; RUN:  llc -amdgpu-scalarize-global-loads=false  -march=amdgcn -mtriple=amdgcn---amdgiz -mcpu=tonga -mattr=-flat-for-global -verify-machineinstrs -mattr=-fp32-denormals < %s | FileCheck -check-prefix=SI -check-prefix=FUNC -check-prefix=VI %s
 
-; RUN:  llc -amdgpu-scalarize-global-loads=false  -mtriple=amdgcn--amdhsa -mcpu=fiji -mattr=+fp32-denormals < %s | FileCheck -check-prefix=GCN -check-prefix=VI %s
+; RUN:  llc -amdgpu-scalarize-global-loads=false  -mtriple=amdgcn--amdhsa-amdgiz -mcpu=fiji -mattr=+fp32-denormals < %s | FileCheck -check-prefix=GCN -check-prefix=VI %s
 
-; RUN:  llc -amdgpu-scalarize-global-loads=false  -march=r600 -mcpu=redwood < %s | FileCheck -check-prefix=EG -check-prefix=FUNC %s
+; RUN:  llc -amdgpu-scalarize-global-loads=false  -march=r600 -mtriple=r600---amdgiz -mcpu=redwood < %s | FileCheck -check-prefix=EG -check-prefix=FUNC %s
 
 ; FUNC-LABEL: {{^}}udiv_i32:
 ; EG-NOT: SETGE_INT

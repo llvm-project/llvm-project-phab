@@ -1,5 +1,5 @@
-; RUN: llc -march=amdgcn < %s | FileCheck %s
-; RUN: opt -S -mtriple=amdgcn-- -amdgpu-lower-intrinsics < %s | FileCheck -check-prefix=OPT %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz < %s | FileCheck %s
+; RUN: opt -S -mtriple=amdgcn---amdgiz -amdgpu-lower-intrinsics < %s | FileCheck -check-prefix=OPT %s
 
 ; CHECK-NOT: and_b32
 

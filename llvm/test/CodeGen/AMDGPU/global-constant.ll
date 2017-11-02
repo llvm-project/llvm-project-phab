@@ -1,5 +1,5 @@
-; RUN: llc -march=amdgcn -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=NOHSA %s
-; RUN: llc -mtriple=amdgcn--amdhsa -mcpu=kaveri -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=HSA %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=NOHSA %s
+; RUN: llc -mtriple=amdgcn--amdhsa-amdgiz -mcpu=kaveri -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=HSA %s
 
 @private1 = private unnamed_addr addrspace(2) constant [4 x float] [float 0.0, float 1.0, float 2.0, float 3.0]
 @private2 = private unnamed_addr addrspace(2) constant [4 x float] [float 4.0, float 5.0, float 6.0, float 7.0]

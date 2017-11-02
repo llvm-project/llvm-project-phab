@@ -1,6 +1,6 @@
-; RUN: llc -march=amdgcn -verify-machineinstrs < %s | FileCheck %s -check-prefix=SI -check-prefix=FUNC
-; RUN: llc -march=amdgcn -mcpu=tonga -mattr=-flat-for-global -verify-machineinstrs < %s | FileCheck %s -check-prefix=SI -check-prefix=FUNC
-; RUN: llc -march=r600 -mcpu=redwood < %s | FileCheck -check-prefix=R600 -check-prefix=FUNC %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz -verify-machineinstrs < %s | FileCheck %s -check-prefix=SI -check-prefix=FUNC
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz -mcpu=tonga -mattr=-flat-for-global -verify-machineinstrs < %s | FileCheck %s -check-prefix=SI -check-prefix=FUNC
+; RUN: llc -march=r600 -mtriple=r600---amdgiz -mcpu=redwood < %s | FileCheck -check-prefix=R600 -check-prefix=FUNC %s
 
 ; FUNC-LABEL: {{^}}atomic_add_local:
 ; R600: LDS_ADD *

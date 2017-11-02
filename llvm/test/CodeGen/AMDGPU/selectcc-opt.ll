@@ -1,6 +1,6 @@
-; RUN: llc -march=amdgcn < %s | FileCheck -check-prefix=SI -check-prefix=FUNC %s
-; RUN: llc -march=amdgcn -mcpu=tonga -mattr=-flat-for-global < %s | FileCheck -check-prefix=SI -check-prefix=FUNC %s
-; RUN: llc -march=r600 -mcpu=redwood < %s | FileCheck -check-prefix=EG -check-prefix=FUNC %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz < %s | FileCheck -check-prefix=SI -check-prefix=FUNC %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz -mcpu=tonga -mattr=-flat-for-global < %s | FileCheck -check-prefix=SI -check-prefix=FUNC %s
+; RUN: llc -march=r600 -mtriple=r600---amdgiz -mcpu=redwood < %s | FileCheck -check-prefix=EG -check-prefix=FUNC %s
 
 
 ; FUNC-LABEL: {{^}}test_a:
@@ -56,7 +56,7 @@ ENDIF:
   ret void
 }
 
-; Test a CND*_INT instruction with float true/false values
+; Test a CND addrspace(5)*_INT instruction with float true/false values
 ; EG-LABEL: {{^}}test_c:
 ; EG: CND{{[GTE]+}}_INT
 define amdgpu_kernel void @test_c(float addrspace(1)* %out, i32 %in) {

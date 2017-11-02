@@ -1,4 +1,4 @@
-;RUN: llc < %s -march=r600 -mcpu=redwood < %s | FileCheck %s
+;RUN: llc < %s -march=r600 -mtriple=r600---amdgiz -mcpu=redwood < %s | FileCheck %s
 
 ;CHECK: ALU_PUSH
 ;CHECK: LOOP_START_DX10 @11

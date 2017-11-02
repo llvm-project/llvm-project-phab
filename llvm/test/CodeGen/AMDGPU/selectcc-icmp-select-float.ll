@@ -1,7 +1,7 @@
-; RUN: llc < %s -march=r600 -mcpu=redwood | FileCheck %s
+; RUN: llc < %s -march=r600 -mtriple=r600---amdgiz -mcpu=redwood | FileCheck %s
 
 ; Note additional optimizations may cause this SGT to be replaced with a
-; CND* instruction.
+; CND addrspace(5)* instruction.
 ; CHECK: SETGT_INT * T{{[0-9]+\.[XYZW], T[0-9]+\.[XYZW]}}, literal.x,
 ; CHECK-NEXT: -1
 ; Test a selectcc with i32 LHS/RHS and float True/False

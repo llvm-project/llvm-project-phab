@@ -1,6 +1,6 @@
-; RUN: llc -march=amdgcn -enable-no-signed-zeros-fp-math=0 < %s | FileCheck -check-prefix=GCN -check-prefix=GCN-SAFE %s
-; RUN: llc -march=amdgcn -enable-no-signed-zeros-fp-math=1 < %s | FileCheck -check-prefix=GCN -check-prefix=GCN-UNSAFE %s
-; RUN: llc -march=amdgcn -enable-unsafe-fp-math < %s | FileCheck -check-prefix=GCN -check-prefix=GCN-UNSAFE %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz -enable-no-signed-zeros-fp-math=0 < %s | FileCheck -check-prefix=GCN -check-prefix=GCN-SAFE %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz -enable-no-signed-zeros-fp-math=1 < %s | FileCheck -check-prefix=GCN -check-prefix=GCN-UNSAFE %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz -enable-unsafe-fp-math < %s | FileCheck -check-prefix=GCN -check-prefix=GCN-UNSAFE %s
 
 declare i32 @llvm.amdgcn.workitem.id.x() nounwind readnone
 

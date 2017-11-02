@@ -1,4 +1,4 @@
-; RUN: llc -march=r600 -mcpu=redwood < %s | FileCheck %s
+; RUN: llc -march=r600 -mtriple=r600---amdgiz -mcpu=redwood < %s | FileCheck %s
 
 ; CHECK: {{^}}main1:
 ; CHECK: MOV * T{{[0-9]+\.[XYZW], KC0}}

@@ -1,6 +1,6 @@
-; RUN: opt -mtriple=amdgcn--amdhsa -S -O3 -enable-unsafe-fp-math %s  | FileCheck -check-prefix=GCN -check-prefix=UNSAFE %s
-; RUN: opt -mtriple=amdgcn--amdhsa -S -O3 -enable-no-nans-fp-math %s | FileCheck -check-prefix=GCN -check-prefix=NONANS %s
-; RUN: opt -mtriple=amdgcn--amdhsa -S -O3 -enable-no-infs-fp-math %s | FileCheck -check-prefix=GCN -check-prefix=NOINFS %s
+; RUN: opt -mtriple=amdgcn--amdhsa-amdgiz -S -O3 -enable-unsafe-fp-math %s  | FileCheck -check-prefix=GCN -check-prefix=UNSAFE %s
+; RUN: opt -mtriple=amdgcn--amdhsa-amdgiz -S -O3 -enable-no-nans-fp-math %s | FileCheck -check-prefix=GCN -check-prefix=NONANS %s
+; RUN: opt -mtriple=amdgcn--amdhsa-amdgiz -S -O3 -enable-no-infs-fp-math %s | FileCheck -check-prefix=GCN -check-prefix=NOINFS %s
 
 ; GCN: define float @foo(float %x) local_unnamed_addr #0 {
 ; GCN: define amdgpu_kernel void @caller(float addrspace(1)* nocapture %p) local_unnamed_addr #1 {

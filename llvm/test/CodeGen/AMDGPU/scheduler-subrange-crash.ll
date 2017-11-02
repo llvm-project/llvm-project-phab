@@ -1,4 +1,4 @@
-; RUN: llc -march=amdgcn < %s | FileCheck %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz < %s | FileCheck %s
 ; REQUIRES: asserts
 ;
 ; This test used to crash with the following assertion:

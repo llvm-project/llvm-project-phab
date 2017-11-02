@@ -1,4 +1,5 @@
-; RUN: llc -march=amdgcn -amdgpu-sdwa-peephole=0 -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=SI %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz -amdgpu-sdwa-peephole=0 -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=SI %s
+target datalayout = "e-p:64:64-p1:64:64-p2:64:64-p3:32:32-p4:32:32-p5:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-v2048:2048-n32:64-A5"
 
 declare i32 @llvm.amdgcn.workitem.id.x() #0
 
@@ -703,9 +704,9 @@ define amdgpu_kernel void @commute_uno_2.0_f64(i32 addrspace(1)* %out, double ad
 ; GCN: v_cmp_eq_u32_e32 vcc, v{{[0-9]+}}, [[FI]]
 define amdgpu_kernel void @commute_frameindex(i32 addrspace(1)* nocapture %out) #0 {
 entry:
-  %stack0 = alloca i32
-  %ptr0 = load volatile i32*, i32* addrspace(1)* undef
-  %eq = icmp eq i32* %ptr0, %stack0
+  %stack0 = alloca i32, addrspace(5)
+  %ptr0 = load volatile i32 addrspace(5)*, i32 addrspace(5)* addrspace(1)* undef
+  %eq = icmp eq i32 addrspace(5)* %ptr0, %stack0
   %ext = zext i1 %eq to i32
   store volatile i32 %ext, i32 addrspace(1)* %out
   ret void

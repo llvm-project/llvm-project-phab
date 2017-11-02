@@ -1,7 +1,7 @@
-; RUN: llc < %s -march=r600 -mcpu=redwood | FileCheck %s
+; RUN: llc < %s -march=r600 -mtriple=r600---amdgiz -mcpu=redwood | FileCheck %s
 
-; PRED_SET* instructions must be tied to any instruction that uses their
-; result.  This tests that there are no instructions between the PRED_SET*
+; PRED_SET addrspace(5)* instructions must be tied to any instruction that uses their
+; result.  This tests that there are no instructions between the PRED_SET addrspace(5)*
 ; and the PREDICATE_BREAK in this loop.
 
 ; CHECK: {{^}}loop_ge:

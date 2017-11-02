@@ -1,6 +1,6 @@
-; RUN: llc < %s -march=r600 -mcpu=redwood | FileCheck %s --check-prefix=R600
-; RUN: llc < %s -march=amdgcn -verify-machineinstrs | FileCheck %s --check-prefix=SI
-; RUN: llc < %s -march=amdgcn -mcpu=tonga -mattr=-flat-for-global -verify-machineinstrs | FileCheck %s --check-prefix=SI
+; RUN: llc < %s -march=r600 -mtriple=r600---amdgiz -mcpu=redwood | FileCheck %s --check-prefix=R600
+; RUN: llc < %s -march=amdgcn -mtriple=amdgcn---amdgiz -verify-machineinstrs | FileCheck %s --check-prefix=SI
+; RUN: llc < %s -march=amdgcn -mtriple=amdgcn---amdgiz -mcpu=tonga -mattr=-flat-for-global -verify-machineinstrs | FileCheck %s --check-prefix=SI
 
 ; R600: {{^}}build_vector2:
 ; R600: MOV

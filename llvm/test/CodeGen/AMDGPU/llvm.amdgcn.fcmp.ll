@@ -1,5 +1,5 @@
-; RUN: llc -march=amdgcn -verify-machineinstrs < %s | FileCheck -check-prefix=GCN %s
-; RUN: llc -march=amdgcn -mcpu=fiji -verify-machineinstrs < %s | FileCheck -check-prefix=GCN %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz -verify-machineinstrs < %s | FileCheck -check-prefix=GCN %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz -mcpu=fiji -verify-machineinstrs < %s | FileCheck -check-prefix=GCN %s
 
 declare i64 @llvm.amdgcn.fcmp.f32(float, float, i32) #0
 declare i64 @llvm.amdgcn.fcmp.f64(double, double, i32) #0

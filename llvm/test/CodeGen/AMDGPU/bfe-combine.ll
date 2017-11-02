@@ -1,6 +1,6 @@
-; RUN: llc -march=amdgcn -mcpu=fiji -amdgpu-sdwa-peephole=0 < %s | FileCheck --check-prefix=GCN --check-prefix=VI %s
-; RUN: llc -march=amdgcn -mcpu=fiji < %s | FileCheck --check-prefix=GCN --check-prefix=VI-SDWA %s
-; RUN: llc -march=amdgcn -mcpu=bonaire < %s | FileCheck --check-prefix=GCN --check-prefix=CI %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz -mcpu=fiji -amdgpu-sdwa-peephole=0 < %s | FileCheck --check-prefix=GCN --check-prefix=VI %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz -mcpu=fiji < %s | FileCheck --check-prefix=GCN --check-prefix=VI-SDWA %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz -mcpu=bonaire < %s | FileCheck --check-prefix=GCN --check-prefix=CI %s
 
 ; GCN-LABEL: {{^}}bfe_combine8:
 ; VI: v_bfe_u32 v[[BFE:[0-9]+]], v{{[0-9]+}}, 8, 8

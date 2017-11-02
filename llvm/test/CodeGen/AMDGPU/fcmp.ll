@@ -1,4 +1,4 @@
-; RUN: llc < %s -march=r600 -mcpu=redwood | FileCheck %s
+; RUN: llc < %s -march=r600 -mtriple=r600---amdgiz -mcpu=redwood | FileCheck %s
 
 ; CHECK: {{^}}fcmp_sext:
 ; CHECK: SETE_DX10  T{{[0-9]+\.[XYZW], T[0-9]+\.[XYZW], T[0-9]+\.[XYZW]}}
@@ -15,8 +15,8 @@ entry:
 }
 
 ; This test checks that a setcc node with f32 operands is lowered to a
-; SET*_DX10 instruction.  Previously we were lowering this to:
-; SET* + FP_TO_SINT
+; SET addrspace(5)*_DX10 instruction.  Previously we were lowering this to:
+; SET addrspace(5)* + FP_TO_SINT
 
 ; CHECK: {{^}}fcmp_br:
 ; CHECK: SET{{[N]*}}E_DX10 * T{{[0-9]+\.[XYZW],}}

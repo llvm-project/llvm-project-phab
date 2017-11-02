@@ -1,4 +1,4 @@
-; RUN: llc -march=amdgcn -mcpu=tahiti -verify-machineinstrs < %s | FileCheck -check-prefix=SI %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz -mcpu=tahiti -verify-machineinstrs < %s | FileCheck -check-prefix=SI %s
 
 declare i32 @llvm.amdgcn.workitem.id.x() #1
 

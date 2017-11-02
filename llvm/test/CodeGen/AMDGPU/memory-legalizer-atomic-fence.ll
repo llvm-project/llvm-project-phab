@@ -1,6 +1,6 @@
-; RUN: llc -mtriple=amdgcn-amd- -mcpu=gfx600 -verify-machineinstrs < %s | FileCheck -check-prefix=FUNC -check-prefix=GCN -check-prefix=GFX6 %s
-; RUN: llc -mtriple=amdgcn-amd- -mcpu=gfx803 -verify-machineinstrs < %s | FileCheck -check-prefix=FUNC -check-prefix=GCN -check-prefix=GFX8 %s
-; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=gfx803 -verify-machineinstrs < %s | FileCheck -check-prefix=FUNC -check-prefix=GCN -check-prefix=GFX8 %s
+; RUN: llc -mtriple=amdgcn-amd--amdgiz -mcpu=gfx600 -verify-machineinstrs < %s | FileCheck -check-prefix=FUNC -check-prefix=GCN -check-prefix=GFX6 %s
+; RUN: llc -mtriple=amdgcn-amd--amdgiz -mcpu=gfx803 -verify-machineinstrs < %s | FileCheck -check-prefix=FUNC -check-prefix=GCN -check-prefix=GFX8 %s
+; RUN: llc -mtriple=amdgcn-amd-amdhsa-amdgiz -mcpu=gfx803 -verify-machineinstrs < %s | FileCheck -check-prefix=FUNC -check-prefix=GCN -check-prefix=GFX8 %s
 
 ; FUNC-LABEL: {{^}}system_acquire
 ; GCN:        BB#0

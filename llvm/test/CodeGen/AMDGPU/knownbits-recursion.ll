@@ -1,4 +1,4 @@
-; RUN: llc -march=amdgcn < %s | FileCheck -check-prefix=GCN %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz < %s | FileCheck -check-prefix=GCN %s
 
 ; Check we can compile this test without infinite loop in the
 ; DAG.computeKnownBits() due to missing (Depth + 1) argument in

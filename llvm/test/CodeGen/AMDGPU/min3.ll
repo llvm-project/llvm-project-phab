@@ -1,6 +1,6 @@
-; RUN: llc -march=amdgcn < %s | FileCheck -check-prefixes=GCN,SI %s
-; RUN: llc -march=amdgcn -mcpu=tonga < %s | FileCheck -check-prefixes=GCN,VI %s
-; RUN: llc -march=amdgcn -mcpu=gfx900 < %s | FileCheck -check-prefixes=GCN,GFX9 %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz < %s | FileCheck -check-prefixes=GCN,SI %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz -mcpu=tonga < %s | FileCheck -check-prefixes=GCN,VI %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz -mcpu=gfx900 < %s | FileCheck -check-prefixes=GCN,GFX9 %s
 
 ; GCN-LABEL: {{^}}v_test_imin3_slt_i32:
 ; GCN: v_min3_i32
