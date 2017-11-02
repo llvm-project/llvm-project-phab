@@ -78,6 +78,8 @@ static const TargetRegisterClass *getDstRC(const TargetRegisterClass *SrcRC,
     return &X86::VK32RegClass;
   if (SrcRC == &X86::GR64RegClass)
     return &X86::VK64RegClass;
+  if (SrcRC == &X86::GR64_with_sub_8bitRegClass)
+    return &X86::GR64_with_sub_8bitRegClass;
   llvm_unreachable("add register class");
   return nullptr;
 }
