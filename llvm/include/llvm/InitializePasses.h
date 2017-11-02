@@ -64,6 +64,7 @@ void initializeADCELegacyPassPass(PassRegistry&);
 void initializeAddDiscriminatorsLegacyPassPass(PassRegistry&);
 void initializeAddressSanitizerModulePass(PassRegistry&);
 void initializeAddressSanitizerPass(PassRegistry&);
+void initializeAggressiveInstCombinerPass(PassRegistry&);
 void initializeAliasSetPrinterPass(PassRegistry&);
 void initializeAlignmentFromAssumptionsPass(PassRegistry&);
 void initializeAlwaysInlinerLegacyPassPass(PassRegistry&);
