@@ -60,6 +60,11 @@ protected:
     NoThreeDNow, MMX, ThreeDNow, ThreeDNowA
   };
 
+  enum X86PreferVecWidthEnum {
+    // NOTE: Strictest constraint must have highest encoding.
+    PreferAny, Prefer256, Prefer128
+  };
+
   enum X86ProcFamilyEnum {
     Others, 
     IntelAtom,
@@ -86,6 +91,9 @@ protected:
 
   /// MMX, 3DNow, 3DNow Athlon, or none supported.
   X863DNowEnum X863DNowLevel;
+
+  /// Prefer 128-bit, 256-bit, or no preference.
+  X86PreferVecWidthEnum X86PreferVecWidth;
 
   /// True if the processor supports X87 instructions.
   bool HasX87;
@@ -523,6 +531,11 @@ public:
   bool hasMPX() const { return HasMPX; }
   bool hasCLFLUSHOPT() const { return HasCLFLUSHOPT; }
   bool hasCLWB() const { return HasCLWB; }
+
+  // NOTE: Width preferences are encoded as strictest constraint having highest
+  // value.
+  bool preferAVX128() const { return X86PreferVecWidth >= Prefer128; }
+  bool preferAVX128or256() const { return X86PreferVecWidth >= Prefer256; }
 
   bool isXRaySupported() const override { return is64Bit(); }
 

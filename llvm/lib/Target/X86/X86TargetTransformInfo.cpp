@@ -131,9 +131,9 @@ unsigned X86TTIImpl::getNumberOfRegisters(bool Vector) {
 
 unsigned X86TTIImpl::getRegisterBitWidth(bool Vector) const {
   if (Vector) {
-    if (ST->hasAVX512())
+    if (ST->hasAVX512() && !ST->preferAVX128or256())
       return 512;
-    if (ST->hasAVX())
+    if (ST->hasAVX() && !ST->preferAVX128())
       return 256;
     if (ST->hasSSE1())
       return 128;

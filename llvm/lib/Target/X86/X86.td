@@ -293,6 +293,13 @@ def FeatureMacroFusion
     : SubtargetFeature<"macrofusion", "HasMacroFusion", "true",
                  "Various instructions can be fused with conditional branches">;
 
+def FeaturePreferAVX128
+    : SubtargetFeature<"prefer-avx128", "X86PreferVecWidth", "Prefer128",
+                       "Prefer 128-bit AVX instructions in the vectorizer">;
+def FeaturePreferAVX256
+    : SubtargetFeature<"prefer-avx256", "X86PreferVecWidth", "Prefer256",
+                       "Prefer 256-bit AVX instructions in the vectorizer">;
+
 //===----------------------------------------------------------------------===//
 // X86 processors supported.
 //===----------------------------------------------------------------------===//
