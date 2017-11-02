@@ -164,8 +164,6 @@ void FileSpec::Resolve(llvm::SmallVectorImpl<char> &path) {
   }
 }
 
-FileSpec::FileSpec() : m_syntax(GetNativeSyntax()) {}
-
 //------------------------------------------------------------------
 // Default constructor that can take an optional full path to a
 // file on disk.
@@ -180,12 +178,12 @@ FileSpec::FileSpec(llvm::StringRef path, bool resolve_path,
     : FileSpec{path, resolve_path,
                Triple.isOSWindows() ? ePathSyntaxWindows : ePathSyntaxPosix} {}
 
-//------------------------------------------------------------------
-// Copy constructor
-//------------------------------------------------------------------
-FileSpec::FileSpec(const FileSpec &rhs)
-    : m_directory(rhs.m_directory), m_filename(rhs.m_filename),
-      m_is_resolved(rhs.m_is_resolved), m_syntax(rhs.m_syntax) {}
+FileSpec::FileSpec(RegularExpression regex) {
+  if(regex.IsValid()) {
+    m_filename.SetString(regex.GetText());
+    m_is_regex = true;
+  }
+}
 
 //------------------------------------------------------------------
 // Copy constructor
@@ -193,24 +191,6 @@ FileSpec::FileSpec(const FileSpec &rhs)
 FileSpec::FileSpec(const FileSpec *rhs) : m_directory(), m_filename() {
   if (rhs)
     *this = *rhs;
-}
-
-//------------------------------------------------------------------
-// Virtual destructor in case anyone inherits from this class.
-//------------------------------------------------------------------
-FileSpec::~FileSpec() {}
-
-//------------------------------------------------------------------
-// Assignment operator.
-//------------------------------------------------------------------
-const FileSpec &FileSpec::operator=(const FileSpec &rhs) {
-  if (this != &rhs) {
-    m_directory = rhs.m_directory;
-    m_filename = rhs.m_filename;
-    m_is_resolved = rhs.m_is_resolved;
-    m_syntax = rhs.m_syntax;
-  }
-  return *this;
 }
 
 //------------------------------------------------------------------
@@ -301,6 +281,12 @@ bool FileSpec::FileEquals(const FileSpec &rhs) const {
 // Equal to operator
 //------------------------------------------------------------------
 bool FileSpec::operator==(const FileSpec &rhs) const {
+  if(m_is_regex) {
+    RegularExpression regex(m_filename.GetStringRef());
+    if (regex.IsValid())
+      return regex.Execute(rhs.GetPath());
+  }
+
   if (!FileEquals(rhs))
     return false;
   if (DirectoryEquals(rhs))
@@ -411,6 +397,9 @@ int FileSpec::Compare(const FileSpec &a, const FileSpec &b, bool full) {
 
 bool FileSpec::Equal(const FileSpec &a, const FileSpec &b, bool full,
                      bool remove_backups) {
+  if (a.m_is_regex)
+    return a == b;
+
   static ConstString g_dot_string(".");
   static ConstString g_dot_dot_string("..");
 

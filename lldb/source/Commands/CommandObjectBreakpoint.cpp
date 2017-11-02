@@ -256,6 +256,8 @@ static OptionDefinition g_breakpoint_set_options[] = {
   { LLDB_OPT_NOT_10,               false, "shlib",                  's', OptionParser::eRequiredArgument, nullptr, nullptr, CommandCompletions::eModuleCompletion,     eArgTypeShlibName,           "Set the breakpoint only in this shared library.  Can repeat this option "
   "multiple times to specify multiple shared libraries." },
   { LLDB_OPT_SET_ALL,              false, "hardware",               'H', OptionParser::eNoArgument,       nullptr, nullptr, 0,                                         eArgTypeNone,                "Require the breakpoint to use hardware breakpoints." },
+  { LLDB_OPT_FILE,                 false, "source-file-regex",      'z', OptionParser::eRequiredArgument, nullptr, nullptr, CommandCompletions::eSourceFileCompletion, eArgTypeRegularExpression,   "Only files matching pattern." },
+  { LLDB_OPT_FILE,                 false, "module-regex",           'Z', OptionParser::eRequiredArgument, nullptr, nullptr, CommandCompletions::eSourceFileCompletion, eArgTypeRegularExpression,   "Only modules matching pattern." },
   { LLDB_OPT_FILE,                 false, "file",                   'f', OptionParser::eRequiredArgument, nullptr, nullptr, CommandCompletions::eSourceFileCompletion, eArgTypeFilename,            "Specifies the source file in which to set this breakpoint.  Note, by default "
   "lldb only looks for files that are #included if they use the standard include "
   "file extensions.  To set breakpoints on .c/.cpp/.m/.mm files that are "
@@ -558,6 +560,14 @@ public:
 
       case 'X':
         m_source_regex_func_names.insert(option_arg);
+        break;
+
+      case 'z':
+        m_filenames.AppendIfUnique(FileSpec(RegularExpression(option_arg)));
+        break;
+
+      case 'Z':
+        m_modules.AppendIfUnique(FileSpec(RegularExpression(option_arg)));
         break;
 
       default:

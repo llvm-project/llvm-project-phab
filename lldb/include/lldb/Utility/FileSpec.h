@@ -18,6 +18,7 @@
 // Other libraries and framework includes
 // Project includes
 #include "lldb/Utility/ConstString.h"
+#include "lldb/Utility/RegularExpression.h"
 
 #include "llvm/ADT/StringRef.h" // for StringRef
 #include "llvm/Support/FileSystem.h"
@@ -61,13 +62,11 @@ namespace lldb_private {
 //----------------------------------------------------------------------
 class FileSpec {
 public:
-  enum PathSyntax {
+  enum PathSyntax : unsigned char {
     ePathSyntaxPosix,
     ePathSyntaxWindows,
     ePathSyntaxHostNative
   };
-
-  FileSpec();
 
   //------------------------------------------------------------------
   /// Constructor with path.
@@ -81,27 +80,18 @@ public:
   ///
   /// @param[in] resolve_path
   ///     If \b true, then we resolve the path, removing stray ../.. and so
-  ///     forth,
-  ///     if \b false we trust the path is in canonical form already.
+  ///     forth, if \b false we trust the path is in canonical form already.
   ///
   /// @see FileSpec::SetFile (const char *path, bool resolve)
   //------------------------------------------------------------------
-  explicit FileSpec(llvm::StringRef path, bool resolve_path,
-                    PathSyntax syntax = ePathSyntaxHostNative);
+  FileSpec(llvm::StringRef path, bool resolve_path,
+           PathSyntax syntax = ePathSyntaxHostNative);
 
-  explicit FileSpec(llvm::StringRef path, bool resolve_path,
-                    const llvm::Triple &Triple);
+  FileSpec(llvm::StringRef path, bool resolve_path, const llvm::Triple &Triple);
 
-  //------------------------------------------------------------------
-  /// Copy constructor
-  ///
-  /// Makes a copy of the uniqued directory and filename strings from
-  /// \a rhs.
-  ///
-  /// @param[in] rhs
-  ///     A const FileSpec object reference to copy.
-  //------------------------------------------------------------------
-  FileSpec(const FileSpec &rhs);
+  explicit FileSpec(RegularExpression regex);
+
+  FileSpec() = default;
 
   //------------------------------------------------------------------
   /// Copy constructor
@@ -114,28 +104,9 @@ public:
   //------------------------------------------------------------------
   FileSpec(const FileSpec *rhs);
 
-  //------------------------------------------------------------------
-  /// Destructor.
-  //------------------------------------------------------------------
-  ~FileSpec();
-
   bool DirectoryEquals(const FileSpec &other) const;
 
   bool FileEquals(const FileSpec &other) const;
-
-  //------------------------------------------------------------------
-  /// Assignment operator.
-  ///
-  /// Makes a copy of the uniqued directory and filename strings from
-  /// \a rhs.
-  ///
-  /// @param[in] rhs
-  ///     A const FileSpec object reference to assign to this object.
-  ///
-  /// @return
-  ///     A const reference to this object.
-  //------------------------------------------------------------------
-  const FileSpec &operator=(const FileSpec &rhs);
 
   //------------------------------------------------------------------
   /// Equal to operator
@@ -580,9 +551,10 @@ protected:
   //------------------------------------------------------------------
   ConstString m_directory;            ///< The uniqued directory path
   ConstString m_filename;             ///< The uniqued filename path
+  PathSyntax m_syntax = ePathSyntaxHostNative; ///< The syntax that this path
+                                               ///< uses (e.g. Windows / Posix)
   mutable bool m_is_resolved = false; ///< True if this path has been resolved.
-  PathSyntax
-      m_syntax; ///< The syntax that this path uses (e.g. Windows / Posix)
+  bool m_is_regex = false;            ///< Filename is a regular expression.
 };
 
 //----------------------------------------------------------------------
