@@ -159,6 +159,7 @@ struct FDRState {
     SCAN_TO_END_OF_THREAD_BUF,
     CUSTOM_EVENT_DATA,
     CALL_ARGUMENT,
+    BUFFER_EXTENTS,
   };
   Token Expects;
 
@@ -184,6 +185,8 @@ const char *fdrStateToTwine(const FDRState::Token &state) {
     return "CUSTOM_EVENT_DATA";
   case FDRState::Token::CALL_ARGUMENT:
     return "CALL_ARGUMENT";
+  case FDRState::Token::BUFFER_EXTENTS:
+    return "BUFFER_EXTENTS";
   }
   return "UNKNOWN";
 }
@@ -242,14 +245,27 @@ Error processFDRTSCWrapRecord(FDRState &State, uint8_t RecordFirstByte,
 
 /// State transition when a WallTimeMarkerRecord is encountered.
 Error processFDRWallTimeRecord(FDRState &State, uint8_t RecordFirstByte,
-                               DataExtractor &RecordExtractor) {
+                               DataExtractor &RecordExtractor,
+                               uint16_t Version) {
   if (State.Expects != FDRState::Token::WALLCLOCK_RECORD)
     return make_error<StringError>(
         "Malformed log. Read Wallclock record kind out of sequence",
         std::make_error_code(std::errc::executable_format_error));
-  // We don't encode the wall time into any of the records.
-  // XRayRecords are concerned with the TSC instead.
-  State.Expects = FDRState::Token::NEW_CPU_ID_RECORD;
+
+  // TODO: Someday, reconcile the TSC ticks to wall clock time for presentation
+  // purposes. For now, we're ignoring these records.
+  switch (Version) {
+  case 1:
+    State.Expects = FDRState::Token::NEW_CPU_ID_RECORD;
+    break;
+  case 2:
+    State.Expects = FDRState::Token::BUFFER_EXTENTS;
+    break;
+  default:
+    return make_error<StringError>(
+        Twine("Malformed log; provided version unsupported: ") + Twine(Version),
+        std::make_error_code(std::errc::executable_format_error));
+  }
   return Error::success();
 }
 
@@ -268,6 +284,17 @@ Error processCustomEventMarker(FDRState &State, uint8_t RecordFirstByte,
   // skip through the data.
   (void)TSC;
   RecordSize = 16 + DataSize;
+  return Error::success();
+}
+
+/// State transition when an BufferExtents record is encountered.
+Error processBufferExtents(FDRState &State, uint8_t RecordFirstByte,
+                           DataExtractor &RecordExtractor, size_t &RecordSize,
+                           size_t &BufferSize) {
+  uint32_t OffsetPtr = 1; // Read after the first byte.
+  BufferSize = RecordExtractor.getU64(&OffsetPtr);
+  RecordSize = 16;
+  State.Expects = FDRState::Token::NEW_CPU_ID_RECORD;
   return Error::success();
 }
 
@@ -292,10 +319,15 @@ Error processFDRCallArgumentRecord(FDRState &State, uint8_t RecordFirstByte,
 /// record encountered. The RecordKind is encoded in the first byte of the
 /// Record, which the caller should pass in because they have already read it
 /// to determine that this is a metadata record as opposed to a function record.
+///
+/// Beginning with Version 2 of the FDR log, we do not depend on the size of the
+/// buffer, but rather use the extents to determine how far to read in the log
+/// for this particular buffer.
 Error processFDRMetadataRecord(FDRState &State, uint8_t RecordFirstByte,
                                DataExtractor &RecordExtractor,
                                size_t &RecordSize,
-                               std::vector<XRayRecord> &Records) {
+                               std::vector<XRayRecord> &Records,
+                               uint16_t Version, size_t &BufferSize) {
   // The remaining 7 bits are the RecordKind enum.
   uint8_t RecordKind = RecordFirstByte >> 1;
   switch (RecordKind) {
@@ -305,6 +337,10 @@ Error processFDRMetadataRecord(FDRState &State, uint8_t RecordFirstByte,
       return E;
     break;
   case 1: // EndOfBuffer
+    if (Version >= 2)
+      return make_error<StringError>(
+          "Since Version 2 of FDR logging, we no longer support EOB records.",
+          std::make_error_code(std::errc::executable_format_error));
     if (auto E = processFDREndOfBufferRecord(State, RecordFirstByte,
                                              RecordExtractor))
       return E;
@@ -320,8 +356,8 @@ Error processFDRMetadataRecord(FDRState &State, uint8_t RecordFirstByte,
       return E;
     break;
   case 4: // WallTimeMarker
-    if (auto E =
-            processFDRWallTimeRecord(State, RecordFirstByte, RecordExtractor))
+    if (auto E = processFDRWallTimeRecord(State, RecordFirstByte,
+                                          RecordExtractor, Version))
       return E;
     break;
   case 5: // CustomEventMarker
@@ -332,6 +368,11 @@ Error processFDRMetadataRecord(FDRState &State, uint8_t RecordFirstByte,
   case 6: // CallArgument
     if (auto E = processFDRCallArgumentRecord(State, RecordFirstByte,
                                               RecordExtractor, Records))
+      return E;
+    break;
+  case 7: // BufferExtents
+    if (auto E = processBufferExtents(State, RecordFirstByte, RecordExtractor,
+                                      RecordSize, BufferSize))
       return E;
     break;
   default:
@@ -425,7 +466,8 @@ Error processFDRFunctionRecord(FDRState &State, uint8_t RecordFirstByte,
 /// convention that BitFields within a struct will first be packed into the
 /// least significant bits the address they belong to.
 ///
-/// We expect a format complying with the grammar in the following pseudo-EBNF.
+/// We expect a format complying with the grammar in the following pseudo-EBNF
+/// in Version 1 of the FDR log.
 ///
 /// FDRLog: XRayFileHeader ThreadBuffer*
 /// XRayFileHeader: 32 bytes to identify the log as FDR with machine metadata.
@@ -439,6 +481,15 @@ Error processFDRFunctionRecord(FDRState &State, uint8_t RecordFirstByte,
 /// FunctionSequence: NewCPUId | TSCWrap | FunctionRecord
 /// TSCWrap: 16 byte metadata record with a full 64 bit TSC reading.
 /// FunctionRecord: 8 byte record with FunctionId, entry/exit, and TSC delta.
+///
+/// In Version 2, we make the following changes:
+///
+/// ThreadBuffer: NewBuffer WallClockTime BufferExtents NewCPUId
+///               FunctionSequence
+/// BufferExtents: 16 byte metdata record describing how many usable bytes are
+///                in the buffer. This is measured from the start of the buffer
+///                and must always be at least 48 (bytes).
+/// EOB: *deprecated*
 Error loadFDRLog(StringRef Data, XRayFileHeader &FileHeader,
                  std::vector<XRayRecord> &Records) {
   if (Data.size() < 32)
@@ -488,8 +539,9 @@ Error loadFDRLog(StringRef Data, XRayFileHeader &FileHeader,
     bool isMetadataRecord = BitField & 0x01uL;
     if (isMetadataRecord) {
       RecordSize = 16;
-      if (auto E = processFDRMetadataRecord(State, BitField, RecordExtractor,
-                                            RecordSize, Records))
+      if (auto E = processFDRMetadataRecord(
+              State, BitField, RecordExtractor, RecordSize, Records,
+              FileHeader.Version, State.CurrentBufferSize))
         return E;
     } else { // Process Function Record
       RecordSize = 8;
@@ -498,6 +550,15 @@ Error loadFDRLog(StringRef Data, XRayFileHeader &FileHeader,
         return E;
     }
     State.CurrentBufferConsumed += RecordSize;
+    assert(State.CurrentBufferConsumed <= State.CurrentBufferSize);
+    if (FileHeader.Version == 2 &&
+        State.CurrentBufferSize == State.CurrentBufferConsumed) {
+      // In Version 2 of the log, we don't need to scan to the end of the thread
+      // buffer if we've already consumed all the bytes we need to.
+      State.Expects = FDRState::Token::NEW_BUFFER_RECORD_OR_EOF;
+      State.CurrentBufferSize = BufferSize;
+      State.CurrentBufferConsumed = 0;
+    }
   }
 
   // Having iterated over everything we've been given, we've either consumed
@@ -579,6 +640,7 @@ Expected<Trace> llvm::xray::loadTraceFile(StringRef Filename, bool Sort) {
   //
   //   0x01 0x00 0x00 0x00 - version 1, "naive" format
   //   0x01 0x00 0x01 0x00 - version 1, "flight data recorder" format
+  //   0x02 0x00 0x01 0x00 - version 2, "flight data recorder" format
   //
   // YAML files don't typically have those first four bytes as valid text so we
   // try loading assuming YAML if we don't find these bytes.
@@ -594,13 +656,29 @@ Expected<Trace> llvm::xray::loadTraceFile(StringRef Filename, bool Sort) {
   enum BinaryFormatType { NAIVE_FORMAT = 0, FLIGHT_DATA_RECORDER_FORMAT = 1 };
 
   Trace T;
-  if (Type == NAIVE_FORMAT && (Version == 1 || Version == 2)) {
-    if (auto E = loadNaiveFormatLog(Data, T.FileHeader, T.Records))
-      return std::move(E);
-  } else if (Version == 1 && Type == FLIGHT_DATA_RECORDER_FORMAT) {
-    if (auto E = loadFDRLog(Data, T.FileHeader, T.Records))
-      return std::move(E);
-  } else {
+  switch (Type) {
+  case NAIVE_FORMAT:
+    if (Version == 1 || Version == 2) {
+      if (auto E = loadNaiveFormatLog(Data, T.FileHeader, T.Records))
+        return std::move(E);
+    } else {
+      return make_error<StringError>(
+          Twine("Unsupported version for Basic/Naive Mode logging: ") +
+              Twine(Version),
+          std::make_error_code(std::errc::executable_format_error));
+    }
+    break;
+  case FLIGHT_DATA_RECORDER_FORMAT:
+    if (Version == 1 || Version == 2) {
+      if (auto E = loadFDRLog(Data, T.FileHeader, T.Records))
+        return std::move(E);
+    } else {
+      return make_error<StringError>(
+          Twine("Unsupported version for FDR Mode logging: ") + Twine(Version),
+          std::make_error_code(std::errc::executable_format_error));
+    }
+    break;
+  default:
     if (auto E = loadYAMLLog(Data, T.FileHeader, T.Records))
       return std::move(E);
   }

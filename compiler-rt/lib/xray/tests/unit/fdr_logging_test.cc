@@ -17,8 +17,10 @@
 #include <iostream>
 #include <sys/mman.h>
 #include <sys/stat.h>
+#include <sys/syscall.h>
 #include <sys/types.h>
 #include <system_error>
+#include <thread>
 #include <unistd.h>
 
 #include "xray/xray_records.h"
@@ -51,7 +53,7 @@ TEST(FDRLoggingTest, Simple) {
   Options.Fd = mkstemp(TmpFilename);
   ASSERT_NE(Options.Fd, -1);
   ASSERT_EQ(fdrLoggingInit(kBufferSize, kBufferMax, &Options,
-                            sizeof(FDRLoggingOptions)),
+                           sizeof(FDRLoggingOptions)),
             XRayLogInitStatus::XRAY_LOG_INITIALIZED);
   fdrLoggingHandleArg0(1, XRayEntryType::ENTRY);
   fdrLoggingHandleArg0(1, XRayEntryType::EXIT);
@@ -73,7 +75,7 @@ TEST(FDRLoggingTest, Simple) {
 
   XRayFileHeader H;
   memcpy(&H, Contents, sizeof(XRayFileHeader));
-  ASSERT_EQ(H.Version, 1);
+  ASSERT_EQ(H.Version, 2);
   ASSERT_EQ(H.Type, FileTypes::FDR_LOG);
 
   // We require one buffer at least to have the "start of buffer" metadata
@@ -89,7 +91,7 @@ TEST(FDRLoggingTest, Multiple) {
   Options.Fd = mkstemp(TmpFilename);
   ASSERT_NE(Options.Fd, -1);
   ASSERT_EQ(fdrLoggingInit(kBufferSize, kBufferMax, &Options,
-                            sizeof(FDRLoggingOptions)),
+                           sizeof(FDRLoggingOptions)),
             XRayLogInitStatus::XRAY_LOG_INITIALIZED);
   for (uint64_t I = 0; I < 100; ++I) {
     fdrLoggingHandleArg0(1, XRayEntryType::ENTRY);
@@ -113,12 +115,61 @@ TEST(FDRLoggingTest, Multiple) {
 
   XRayFileHeader H;
   memcpy(&H, Contents, sizeof(XRayFileHeader));
-  ASSERT_EQ(H.Version, 1);
+  ASSERT_EQ(H.Version, 2);
   ASSERT_EQ(H.Type, FileTypes::FDR_LOG);
 
   MetadataRecord MDR0;
   memcpy(&MDR0, Contents + sizeof(XRayFileHeader), sizeof(MetadataRecord));
   ASSERT_EQ(MDR0.RecordKind, uint8_t(MetadataRecord::RecordKinds::NewBuffer));
+}
+
+TEST(FDRLoggingTest, MultiThreadedCycling) {
+  FDRLoggingOptions Options;
+  char TmpFilename[] = "fdr-logging-test.XXXXXX";
+  Options.Fd = mkstemp(TmpFilename);
+  ASSERT_NE(Options.Fd, -1);
+  ASSERT_EQ(fdrLoggingInit(kBufferSize, 1, &Options, sizeof(FDRLoggingOptions)),
+            XRayLogInitStatus::XRAY_LOG_INITIALIZED);
+
+  // Now we want to create one thread, do some logging, then create another one,
+  // in succession and making sure that we're able to get thread records from
+  // the latest thread (effectively being able to recycle buffers).
+  std::array<pid_t, 2> Threads;
+  for (uint64_t I = 0; I < 2; ++I) {
+    std::thread t{[I, &Threads] {
+      fdrLoggingHandleArg0(I + 1, XRayEntryType::ENTRY);
+      fdrLoggingHandleArg0(I + 1, XRayEntryType::EXIT);
+      Threads[I] = syscall(SYS_gettid);
+    }};
+    t.join();
+  }
+  ASSERT_EQ(fdrLoggingFinalize(), XRayLogInitStatus::XRAY_LOG_FINALIZED);
+  ASSERT_EQ(fdrLoggingFlush(), XRayLogFlushStatus::XRAY_LOG_FLUSHED);
+
+  // To do this properly, we have to close the file descriptor then re-open the
+  // file for reading this time.
+  ASSERT_EQ(close(Options.Fd), 0);
+  int Fd = open(TmpFilename, O_RDONLY);
+  ASSERT_NE(-1, Fd);
+  ScopedFileCloserAndDeleter Guard(Fd, TmpFilename);
+  auto Size = lseek(Fd, 0, SEEK_END);
+  ASSERT_NE(Size, 0);
+  // Map the file contents.
+  const char *Contents = static_cast<const char *>(
+      mmap(NULL, Size, PROT_READ, MAP_PRIVATE, Fd, 0));
+  ASSERT_NE(Contents, nullptr);
+
+  XRayFileHeader H;
+  memcpy(&H, Contents, sizeof(XRayFileHeader));
+  ASSERT_EQ(H.Version, 2);
+  ASSERT_EQ(H.Type, FileTypes::FDR_LOG);
+
+  MetadataRecord MDR0;
+  memcpy(&MDR0, Contents + sizeof(XRayFileHeader), sizeof(MetadataRecord));
+  ASSERT_EQ(MDR0.RecordKind, uint8_t(MetadataRecord::RecordKinds::NewBuffer));
+  pid_t Latest = 0;
+  memcpy(&Latest, MDR0.Data, sizeof(pid_t));
+  ASSERT_EQ(Latest, Threads[1]);
 }
 
 } // namespace
