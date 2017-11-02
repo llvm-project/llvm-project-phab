@@ -539,6 +539,11 @@ bool RegisterValue::SignExtend(uint32_t sign_bitpos) {
 }
 
 bool RegisterValue::CopyValue(const RegisterValue &rhs) {
+  // Maintain current behavior, but guard against self-assignment (see memcpy
+  // below).?
+  if (this == &rhs)
+    return rhs.m_type == eTypeInvalid ? false : true;
+
   m_type = rhs.m_type;
   switch (m_type) {
   case eTypeInvalid:

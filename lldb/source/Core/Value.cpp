@@ -143,6 +143,8 @@ Type *Value::GetType() {
 }
 
 size_t Value::AppendDataToHostBuffer(const Value &rhs) {
+  // FIXME: What should we do if this == &rhs?
+  // If we allow, change s/memcpy/memmove/ below.
   size_t curr_size = m_data_buffer.GetByteSize();
   Status error;
   switch (rhs.GetValueType()) {
