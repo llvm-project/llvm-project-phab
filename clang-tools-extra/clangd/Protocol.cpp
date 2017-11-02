@@ -531,6 +531,59 @@ DidChangeWatchedFilesParams::parse(llvm::yaml::MappingNode *Params,
   return Result;
 }
 
+llvm::Optional<DidChangeConfigurationParams>
+DidChangeConfigurationParams::parse(llvm::yaml::MappingNode *Params,
+                                    clangd::Logger &Logger) {
+  DidChangeConfigurationParams Result;
+  for (auto &NextKeyValue : *Params) {
+    auto *KeyString = dyn_cast<llvm::yaml::ScalarNode>(NextKeyValue.getKey());
+    if (!KeyString)
+      return llvm::None;
+
+    llvm::SmallString<10> KeyStorage;
+    StringRef KeyValue = KeyString->getValue(KeyStorage);
+    auto *Value =
+        dyn_cast_or_null<llvm::yaml::MappingNode>(NextKeyValue.getValue());
+    if (!Value)
+      return llvm::None;
+
+    llvm::SmallString<10> Storage;
+    if (KeyValue == "settings") {
+      auto Parsed = ClangdConfigurationParams::parse(Value, Logger);
+      if (!Parsed)
+        return llvm::None;
+      Result.settings = Parsed.getValue();
+    } else {
+      logIgnoredField(KeyValue, Logger);
+    }
+  }
+
+  return Result;
+}
+
+llvm::Optional<ClangdConfigurationParams>
+ClangdConfigurationParams::parse(llvm::yaml::MappingNode *Params,
+                                 clangd::Logger &Logger) {
+  ClangdConfigurationParams Result;
+  for (auto &NextKeyValue : *Params) {
+    auto *KeyString = dyn_cast<llvm::yaml::ScalarNode>(NextKeyValue.getKey());
+    if (!KeyString)
+      return llvm::None;
+
+    llvm::SmallString<10> KeyStorage;
+    StringRef KeyValue = KeyString->getValue(KeyStorage);
+    auto *Value =
+        dyn_cast_or_null<llvm::yaml::ScalarNode>(NextKeyValue.getValue());
+    if (!Value)
+      return llvm::None;
+
+    if (KeyValue == "compilationDatabasePath") {
+      Result.compilationDatabasePath = Value->getValue(KeyStorage);
+    }
+  }
+  return Result;
+}
+
 llvm::Optional<TextDocumentContentChangeEvent>
 TextDocumentContentChangeEvent::parse(llvm::yaml::MappingNode *Params,
                                       clangd::Logger &Logger) {

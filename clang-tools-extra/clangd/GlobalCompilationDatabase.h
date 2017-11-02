@@ -52,11 +52,14 @@ public:
 
   std::vector<tooling::CompileCommand>
   getCompileCommands(PathRef File) override;
+  llvm::Optional<Path> getCompileCommandsDir() { return CompileCommandsDir; }
+  void setCompileCommandsDir(Path P) { CompileCommandsDir = P; }
+
+  tooling::CompilationDatabase *getCompilationDatabase(PathRef File);
 
   void setExtraFlagsForFile(PathRef File, std::vector<std::string> ExtraFlags);
 
 private:
-  tooling::CompilationDatabase *getCompilationDatabase(PathRef File);
   tooling::CompilationDatabase *tryLoadDatabaseFromPath(PathRef File);
 
   std::mutex Mutex;

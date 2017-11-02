@@ -273,6 +273,27 @@ struct DidChangeWatchedFilesParams {
   parse(llvm::yaml::MappingNode *Params, clangd::Logger &Logger);
 };
 
+struct ClangdConfigurationParams {
+
+  llvm::Optional<std::string> compilationDatabasePath;
+  static llvm::Optional<ClangdConfigurationParams>
+  parse(llvm::yaml::MappingNode *Params, clangd::Logger &Logger);
+};
+
+struct DidChangeConfigurationParams {
+
+  DidChangeConfigurationParams() {}
+
+  DidChangeConfigurationParams(ClangdConfigurationParams settings)
+      : settings(settings) {}
+
+  ClangdConfigurationParams settings;
+
+  static llvm::Optional<DidChangeConfigurationParams>
+  parse(llvm::yaml::MappingNode *Params, clangd::Logger &Logger);
+  static std::string unparse(const DidChangeConfigurationParams &P);
+};
+
 struct FormattingOptions {
   /// Size of a tab in spaces.
   int tabSize;

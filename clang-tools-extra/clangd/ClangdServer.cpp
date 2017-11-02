@@ -434,6 +434,14 @@ llvm::Optional<Path> ClangdServer::switchSourceHeader(PathRef Path) {
   return llvm::None;
 }
 
+// Empty function for now. Once more settings can be handled by server instance they will be processed here.
+
+void ClangdServer::changeConfiguration(
+    std::map<std::string, std::string> ChangedSettings) {
+  if (!ChangedSettings.empty()) {
+  }
+}
+
 std::future<void> ClangdServer::scheduleReparseAndDiags(
     PathRef File, VersionedDraft Contents, std::shared_ptr<CppFile> Resources,
     Tagged<IntrusiveRefCntPtr<vfs::FileSystem>> TaggedFS) {

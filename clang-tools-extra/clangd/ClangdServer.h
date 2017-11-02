@@ -284,6 +284,10 @@ public:
   /// given a header file and vice versa.
   llvm::Optional<Path> switchSourceHeader(PathRef Path);
 
+  /// Modify configuration settings based on what is contained inside
+  /// ChangedSettings
+  void changeConfiguration(std::map<std::string, std::string> ChangedSettings);
+
   /// Run formatting for \p Rng inside \p File.
   std::vector<tooling::Replacement> formatRange(PathRef File, Range Rng);
   /// Run formatting for the whole \p File.

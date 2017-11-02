@@ -47,7 +47,8 @@ void ClangdLSPServer::onInitialize(Ctx C, InitializeParams &Params) {
           "codeActionProvider": true,
           "completionProvider": {"resolveProvider": false, "triggerCharacters": [".",">",":"]},
           "signatureHelpProvider": {"triggerCharacters": ["(",","]},
-          "definitionProvider": true
+          "definitionProvider": true,
+          "configurationChangeProvider": true
         }})");
   if (Params.rootUri && !Params.rootUri->file.empty())
     Server.setRootPath(Params.rootUri->file);
@@ -191,6 +192,20 @@ void ClangdLSPServer::onSwitchSourceHeader(Ctx C,
   llvm::Optional<Path> Result = Server.switchSourceHeader(Params.uri.file);
   std::string ResultUri;
   C.reply(Result ? URI::unparse(URI::fromFile(*Result)) : R"("")");
+}
+
+void ClangdLSPServer::onChangeConfiguration(
+    Ctx C, DidChangeConfigurationParams &Params) {
+  std::map<std::string, std::string> SettingsMap;
+  SettingsMap.insert(std::pair<std::string, std::string>(
+      "CDBPath", Params.settings.compilationDatabasePath.getValue()));
+  CDB.setCompileCommandsDir(Params.settings.compilationDatabasePath.getValue());
+  CDB.getCompilationDatabase(StringRef(CDB.getCompileCommandsDir().getValue()));
+
+  // There is nothing in this function yet but any change in settings that needs
+  // to be trickled down to the ClangdServer instance needs to be added to the
+  // map and sent with this function call.
+  Server.changeConfiguration(SettingsMap);
 }
 
 ClangdLSPServer::ClangdLSPServer(JSONOutput &Out, unsigned AsyncThreadsCount,

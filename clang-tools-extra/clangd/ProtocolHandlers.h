@@ -52,6 +52,8 @@ public:
   virtual void onGoToDefinition(Ctx C, TextDocumentPositionParams &Params) = 0;
   virtual void onSwitchSourceHeader(Ctx C, TextDocumentIdentifier &Params) = 0;
   virtual void onFileEvent(Ctx C, DidChangeWatchedFilesParams &Params) = 0;
+  virtual void onChangeConfiguration(Ctx C,
+                                     DidChangeConfigurationParams &Params) = 0;
 };
 
 void registerCallbackHandlers(JSONRPCDispatcher &Dispatcher, JSONOutput &Out,
