@@ -73,7 +73,7 @@ TEST(FDRLoggingTest, Simple) {
 
   XRayFileHeader H;
   memcpy(&H, Contents, sizeof(XRayFileHeader));
-  ASSERT_EQ(H.Version, 1);
+  ASSERT_EQ(H.Version, 2);
   ASSERT_EQ(H.Type, FileTypes::FDR_LOG);
 
   // We require one buffer at least to have the "start of buffer" metadata
@@ -113,7 +113,7 @@ TEST(FDRLoggingTest, Multiple) {
 
   XRayFileHeader H;
   memcpy(&H, Contents, sizeof(XRayFileHeader));
-  ASSERT_EQ(H.Version, 1);
+  ASSERT_EQ(H.Version, 2);
   ASSERT_EQ(H.Type, FileTypes::FDR_LOG);
 
   MetadataRecord MDR0;
