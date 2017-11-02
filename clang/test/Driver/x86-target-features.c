@@ -84,3 +84,13 @@
 // RUN: %clang -target i386-unknown-linux-gnu -march=i386 -mno-clzero %s -### -o %t.o 2>&1 | FileCheck -check-prefix=NO-CLZERO %s
 // CLZERO: "-target-feature" "+clzero"
 // NO-CLZERO: "-target-feature" "-clzero"
+
+// RUN: %clang -target i386-unknown-linux-gnu -march=i386 -mprefer-avx128 %s -### -o %t.o 2>&1 | FileCheck -check-prefix=PREFERAVX128 %s
+// RUN: %clang -target i386-unknown-linux-gnu -march=i386 -mno-prefer-avx128 %s -### -o %t.o 2>&1 | FileCheck -check-prefix=NO-PREFERAVX128 %s
+// PREFERAVX128: "-target-feature" "+prefer-avx128"
+// NO-PREFERAVX128: "-target-feature" "-prefer-avx128"
+
+// RUN: %clang -target i386-unknown-linux-gnu -march=i386 -mprefer-avx256 %s -### -o %t.o 2>&1 | FileCheck -check-prefix=PREFERAVX256 %s
+// RUN: %clang -target i386-unknown-linux-gnu -march=i386 -mno-prefer-avx256 %s -### -o %t.o 2>&1 | FileCheck -check-prefix=NO-PREFERAVX256 %s
+// PREFERAVX256: "-target-feature" "+prefer-avx256"
+// NO-PREFERAVX256: "-target-feature" "-prefer-avx256"
