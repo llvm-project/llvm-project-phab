@@ -234,6 +234,7 @@ PrintingPolicy CGDebugInfo::getPrintingPolicy() const {
   if (CGM.getCodeGenOpts().EmitCodeView)
     PP.MSVCFormatting = true;
 
+  PP.ABICompatibleFormatting = true;
   return PP;
 }
 

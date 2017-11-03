@@ -51,7 +51,8 @@ struct PrintingPolicy {
       TerseOutput(false), PolishForDeclaration(false),
       Half(LO.Half), MSWChar(LO.MicrosoftExt && !LO.WChar),
       IncludeNewlines(true), MSVCFormatting(false),
-      ConstantsAsWritten(false), SuppressImplicitBase(false) { }
+      ConstantsAsWritten(false), SuppressImplicitBase(false),
+      ABICompatibleFormatting(false) { }
 
   /// \brief Adjust this printing policy for cases where it's known that
   /// we're printing C++ code (for instance, if AST dumping reaches a
@@ -64,7 +65,7 @@ struct PrintingPolicy {
   }
 
   /// \brief The number of spaces to use to indent each line.
-  unsigned Indentation : 8;
+  unsigned Indentation : 7;
 
   /// \brief Whether we should suppress printing of the actual specifiers for
   /// the given type or declaration.
@@ -222,6 +223,13 @@ struct PrintingPolicy {
 
   /// \brief When true, don't print the implicit 'self' or 'this' expressions.
   bool SuppressImplicitBase : 1;
+
+  /// \brief Use formatting compatible with ABI specification. It is necessary for
+  /// saving entities into debug tables which have to be compatible with
+  /// the representation, described in ABI specification. In particular, this forces
+  /// templates parametrized with enums to be represented as "T<(Enum)0>" instead of
+  /// "T<Enum::Item0>".
+  bool ABICompatibleFormatting : 1;
 };
 
 } // end namespace clang
