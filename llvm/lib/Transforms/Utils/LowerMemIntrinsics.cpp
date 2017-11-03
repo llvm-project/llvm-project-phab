@@ -98,7 +98,7 @@ void llvm::createMemCpyLoopKnownSize(Instruction *InsertBefore, Value *SrcAddr,
     SrcAlign = std::min(SrcAlign, LoopOpSize);
     DestAlign = std::min(DestAlign, LoopOpSize);
 
-    SmallVector<Type *, 5> RemainingOps;
+    SmallVector<Type *, 10> RemainingOps;
     TTI.getMemcpyLoopResidualLoweringType(RemainingOps, Ctx, RemainingBytes,
                                           SrcAlign, DestAlign);
 

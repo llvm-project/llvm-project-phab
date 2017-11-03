@@ -483,7 +483,7 @@ int PPCTTIImpl::getInterleavedMemoryOpCost(unsigned Opcode, Type *VecTy,
 Type *PPCTTIImpl::getMemcpyLoopLoweringType(LLVMContext &Context, Value *Length,
                                             unsigned SrcAlign,
                                             unsigned DestAlign) const {
-  return Type::getInt64Ty(Context);
+  return VectorType::get(Type::getInt64Ty(Context),8);
 }
 
 /// Decomposes a copy operation with size \p RemainingBytes into the individual
@@ -492,13 +492,16 @@ void PPCTTIImpl::getMemcpyLoopResidualLoweringType(
     SmallVectorImpl<Type *> &OpsOut, LLVMContext &Context,
     unsigned RemainingBytes, unsigned SrcAlign, unsigned DestAlign) const {
   // Types to use in copy operations.
-  IntegerType *CopyTypes[] = {
+  Type *CopyTypes[] = {
+      VectorType::get(Type::getInt64Ty(Context),2),
       Type::getInt64Ty(Context), Type::getInt32Ty(Context),
       Type::getInt16Ty(Context), Type::getInt8Ty(Context)};
 
   // Deconstructs the remaining bytes into individual operands.
   for (auto OpTy : CopyTypes) {
-    unsigned OpSize = OpTy->getBitWidth() / 8;
+    unsigned OpSize = OpTy->getScalarSizeInBits() / 8;
+    if (OpTy->isVectorTy())
+      OpSize *= OpTy->getVectorNumElements();
     // Loops just in case the remaining bytes are greater or equal to
     // twice the largest copy operand type.
     while (RemainingBytes >= OpSize) {
