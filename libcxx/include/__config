@@ -177,6 +177,10 @@
 // Need to detect which libc we're using if we're on Linux.
 #if defined(__linux__)
 #include <features.h>
+#if __libcpp_has_include(<sys/cdefs.h>)
+// Needed to detect bionic libc.
+#include <sys/cdefs.h>
+#endif
 #if !defined(__GLIBC_PREREQ)
 #define __GLIBC_PREREQ(a, b) 0
 #endif // !defined(__GLIBC_PREREQ)
@@ -407,11 +411,10 @@ typedef __char32_t char32_t;
 #define _LIBCPP_HAS_C11_FEATURES
 #elif defined(__linux__)
 #if !defined(_LIBCPP_HAS_MUSL_LIBC)
-#if __GLIBC_PREREQ(2, 15) || defined(__BIONIC__)
+#if __GLIBC_PREREQ(2, 15) || (defined(__BIONIC__) && (__ANDROID_API__ >= 21))
 #define _LIBCPP_HAS_QUICK_EXIT
 #endif
-#if __GLIBC_PREREQ(2, 17)
-#define _LIBCPP_HAS_C11_FEATURES
+#if __GLIBC_PREREQ(2, 17)#define _LIBCPP_HAS_C11_FEATURES
 #endif
 #else // defined(_LIBCPP_HAS_MUSL_LIBC)
 #define _LIBCPP_HAS_QUICK_EXIT
