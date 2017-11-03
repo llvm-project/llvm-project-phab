@@ -165,9 +165,11 @@ BUILTIN(__builtin_atanl, "LdLd", "Fne")
 BUILTIN(__builtin_atanh , "dd", "Fne")
 BUILTIN(__builtin_atanhf, "ff", "Fne")
 BUILTIN(__builtin_atanhl, "LdLd", "Fne")
-BUILTIN(__builtin_cbrt , "dd", "Fne")
-BUILTIN(__builtin_cbrtf, "ff", "Fne")
-BUILTIN(__builtin_cbrtl, "LdLd", "Fne")
+// Disregard that 'cbrt' could set errno with a NaN input. The C standard says
+// that NaN arguments generally do not raise FP exceptions.
+BUILTIN(__builtin_cbrt , "dd", "Fnc")
+BUILTIN(__builtin_cbrtf, "ff", "Fnc")
+BUILTIN(__builtin_cbrtl, "LdLd", "Fnc")
 BUILTIN(__builtin_ceil , "dd"  , "Fnc")
 BUILTIN(__builtin_ceilf, "ff"  , "Fnc")
 BUILTIN(__builtin_ceill, "LdLd", "Fnc")
@@ -198,9 +200,11 @@ BUILTIN(__builtin_fdiml, "LdLdLd", "Fne")
 BUILTIN(__builtin_floor , "dd"  , "Fnc")
 BUILTIN(__builtin_floorf, "ff"  , "Fnc")
 BUILTIN(__builtin_floorl, "LdLd", "Fnc")
-BUILTIN(__builtin_fma, "dddd", "Fne")
-BUILTIN(__builtin_fmaf, "ffff", "Fne")
-BUILTIN(__builtin_fmal, "LdLdLdLd", "Fne")
+// Disregard that 'fma' could set errno. This is based on the assumption that no
+// reasonable implementation would set errno and harm performance of a basic op.
+BUILTIN(__builtin_fma, "dddd", "Fnc")
+BUILTIN(__builtin_fmaf, "ffff", "Fnc")
+BUILTIN(__builtin_fmal, "LdLdLdLd", "Fnc")
 BUILTIN(__builtin_fmax, "ddd", "Fnc")
 BUILTIN(__builtin_fmaxf, "fff", "Fnc")
 BUILTIN(__builtin_fmaxl, "LdLdLd", "Fnc")
@@ -293,6 +297,8 @@ BUILTIN(__builtin_truncf, "ff", "Fnc")
 BUILTIN(__builtin_truncl, "LdLd", "Fnc")
 
 // C99 complex builtins
+// All complex calls are marked const regardless of errno because exceptions are
+// listed as optional in the C standard. POSIX says these do not have errors.
 BUILTIN(__builtin_cabs, "dXd", "Fnc")
 BUILTIN(__builtin_cabsf, "fXf", "Fnc")
 BUILTIN(__builtin_cabsl, "LdXLd", "Fnc")
@@ -1040,9 +1046,11 @@ LIBBUILTIN(atanh, "dd", "fne", "math.h", ALL_LANGUAGES)
 LIBBUILTIN(atanhf, "ff", "fne", "math.h", ALL_LANGUAGES)
 LIBBUILTIN(atanhl, "LdLd", "fne", "math.h", ALL_LANGUAGES)
 
-LIBBUILTIN(cbrt, "dd", "fne", "math.h", ALL_LANGUAGES)
-LIBBUILTIN(cbrtf, "ff", "fne", "math.h", ALL_LANGUAGES)
-LIBBUILTIN(cbrtl, "LdLd", "fne", "math.h", ALL_LANGUAGES)
+// Disregard that 'cbrt' could set errno with a NaN input. The C standard says
+// that NaN arguments generally do not raise FP exceptions.
+LIBBUILTIN(cbrt, "dd", "fnc", "math.h", ALL_LANGUAGES)
+LIBBUILTIN(cbrtf, "ff", "fnc", "math.h", ALL_LANGUAGES)
+LIBBUILTIN(cbrtl, "LdLd", "fnc", "math.h", ALL_LANGUAGES)
 
 LIBBUILTIN(ceil, "dd", "fnc", "math.h", ALL_LANGUAGES)
 LIBBUILTIN(ceilf, "ff", "fnc", "math.h", ALL_LANGUAGES)
@@ -1084,9 +1092,11 @@ LIBBUILTIN(floor, "dd", "fnc", "math.h", ALL_LANGUAGES)
 LIBBUILTIN(floorf, "ff", "fnc", "math.h", ALL_LANGUAGES)
 LIBBUILTIN(floorl, "LdLd", "fnc", "math.h", ALL_LANGUAGES)
 
-LIBBUILTIN(fma, "dddd", "fne", "math.h", ALL_LANGUAGES)
-LIBBUILTIN(fmaf, "ffff", "fne", "math.h", ALL_LANGUAGES)
-LIBBUILTIN(fmal, "LdLdLdLd", "fne", "math.h", ALL_LANGUAGES)
+// Disregard that fma could set errno. This is based on the assumption that no
+// reasonable implementation would set errno and harm performance of a basic op.
+LIBBUILTIN(fma, "dddd", "fnc", "math.h", ALL_LANGUAGES)
+LIBBUILTIN(fmaf, "ffff", "fnc", "math.h", ALL_LANGUAGES)
+LIBBUILTIN(fmal, "LdLdLdLd", "fnc", "math.h", ALL_LANGUAGES)
 
 LIBBUILTIN(fmax, "ddd", "fnc", "math.h", ALL_LANGUAGES)
 LIBBUILTIN(fmaxf, "fff", "fnc", "math.h", ALL_LANGUAGES)
@@ -1206,6 +1216,8 @@ LIBBUILTIN(trunc, "dd", "fnc", "math.h", ALL_LANGUAGES)
 LIBBUILTIN(truncf, "ff", "fnc", "math.h", ALL_LANGUAGES)
 LIBBUILTIN(truncl, "LdLd", "fnc", "math.h", ALL_LANGUAGES)
 
+// All complex calls are marked const regardless of errno because exceptions are
+// listed as optional in the C standard. POSIX says these do not have errors.
 LIBBUILTIN(cabs, "dXd", "fnc", "complex.h", ALL_LANGUAGES)
 LIBBUILTIN(cabsf, "fXf", "fnc", "complex.h", ALL_LANGUAGES)
 LIBBUILTIN(cabsl, "LdXLd", "fnc", "complex.h", ALL_LANGUAGES)
