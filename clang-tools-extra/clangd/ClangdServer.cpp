@@ -34,13 +34,14 @@ private:
   std::promise<void> &Promise;
 };
 
-std::vector<tooling::Replacement> formatCode(StringRef Code, StringRef Filename,
-                                             ArrayRef<tooling::Range> Ranges) {
+llvm::Expected<std::vector<tooling::Replacement>>
+formatCode(StringRef Code, StringRef Filename,
+           ArrayRef<tooling::Range> Ranges) {
   // Call clang-format.
-  // FIXME: Don't ignore style.
-  format::FormatStyle Style = format::getLLVMStyle();
-  auto Result = format::reformat(Style, Code, Ranges, Filename);
-
+  auto StyleOrError = format::getStyle("file", Filename, "LLVM", Code);
+  if (!StyleOrError)
+    return StyleOrError.takeError();
+  auto Result = format::reformat(StyleOrError.get(), Code, Ranges, Filename);
   return std::vector<tooling::Replacement>(Result.begin(), Result.end());
 }
 
@@ -301,8 +302,8 @@ ClangdServer::signatureHelp(PathRef File, Position Pos,
   return make_tagged(std::move(Result), TaggedFS.Tag);
 }
 
-std::vector<tooling::Replacement> ClangdServer::formatRange(PathRef File,
-                                                            Range Rng) {
+llvm::Expected<std::vector<tooling::Replacement>>
+ClangdServer::formatRange(PathRef File, Range Rng) {
   std::string Code = getDocument(File);
 
   size_t Begin = positionToOffset(Code, Rng.start);
@@ -310,14 +311,15 @@ std::vector<tooling::Replacement> ClangdServer::formatRange(PathRef File,
   return formatCode(Code, File, {tooling::Range(Begin, Len)});
 }
 
-std::vector<tooling::Replacement> ClangdServer::formatFile(PathRef File) {
+llvm::Expected<std::vector<tooling::Replacement>>
+ClangdServer::formatFile(PathRef File) {
   // Format everything.
   std::string Code = getDocument(File);
   return formatCode(Code, File, {tooling::Range(0, Code.size())});
 }
 
-std::vector<tooling::Replacement> ClangdServer::formatOnType(PathRef File,
-                                                             Position Pos) {
+llvm::Expected<std::vector<tooling::Replacement>>
+ClangdServer::formatOnType(PathRef File, Position Pos) {
   // Look for the previous opening brace from the character position and
   // format starting from there.
   std::string Code = getDocument(File);

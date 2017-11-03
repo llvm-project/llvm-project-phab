@@ -285,11 +285,15 @@ public:
   llvm::Optional<Path> switchSourceHeader(PathRef Path);
 
   /// Run formatting for \p Rng inside \p File.
-  std::vector<tooling::Replacement> formatRange(PathRef File, Range Rng);
+  llvm::Expected<std::vector<tooling::Replacement>> formatRange(PathRef File,
+                                                                Range Rng);
+
   /// Run formatting for the whole \p File.
-  std::vector<tooling::Replacement> formatFile(PathRef File);
+  llvm::Expected<std::vector<tooling::Replacement>> formatFile(PathRef File);
+
   /// Run formatting after a character was typed at \p Pos in \p File.
-  std::vector<tooling::Replacement> formatOnType(PathRef File, Position Pos);
+  llvm::Expected<std::vector<tooling::Replacement>> formatOnType(PathRef File,
+                                                                 Position Pos);
 
   /// Gets current document contents for \p File. \p File must point to a
   /// currently tracked file.

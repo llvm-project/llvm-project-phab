@@ -64,6 +64,11 @@ void RequestContext::replyError(int code, const llvm::StringRef &Message) {
   }
 }
 
+void RequestContext::replyError(llvm::Error Err) {
+  const auto Message = llvm::toString(std::move(Err));
+  replyError(/*UnknownErrorCode*/ -32001, Message);
+}
+
 void JSONRPCDispatcher::registerHandler(StringRef Method, Handler H) {
   assert(!Handlers.count(Method) && "Handler already registered!");
   Handlers[Method] = std::move(H);

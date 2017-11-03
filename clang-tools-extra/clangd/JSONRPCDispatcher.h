@@ -15,6 +15,7 @@
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/Support/YAMLParser.h"
+#include "llvm/Support/Error.h"
 #include <iosfwd>
 #include <mutex>
 
@@ -58,6 +59,8 @@ public:
   void reply(const Twine &Result);
   /// Sends an error response to the client, and logs it.
   void replyError(int code, const llvm::StringRef &Message);
+  /// Send all error messages contained in Err to the client, and log them.
+  void replyError(llvm::Error Err);
 
 private:
   JSONOutput &Out;
