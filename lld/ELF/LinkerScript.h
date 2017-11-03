@@ -208,6 +208,8 @@ class LinkerScript final {
   llvm::DenseMap<StringRef, OutputSection *> NameToOutputSection;
 
   void addSymbol(SymbolAssignment *Cmd);
+  void handleAssignment(SymbolAssignment *Cmd);
+
   void assignSymbol(SymbolAssignment *Cmd, bool InSec);
   void setDot(Expr E, const Twine &Loc, bool InSec);
 
@@ -263,6 +265,8 @@ public:
   void assignAddresses();
   void allocateHeaders(std::vector<PhdrEntry *> &Phdrs);
   void processSectionCommands();
+
+  void defineSymbols();
 
   // SECTIONS command list.
   std::vector<BaseCommand *> SectionCommands;

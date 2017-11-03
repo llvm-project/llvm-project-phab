@@ -27,10 +27,10 @@
 # REQUIRES: mips
 
 # REL:      Contents of section .text:
-# REL-NEXT:  0000 3c080000 2108010c 8f82fffc
+# REL-NEXT:  0000 3c080000 2108010c 8f82001c
 #                 ^-- %hi(_gp_disp)
 #                          ^-- %lo(_gp_disp)
-#                                   ^-- 8 - (0x10c - 0x100)
+#                                   ^-- 8 - (0x10c - 0x120)
 #                                       G - (GP - .got)
 
 # REL:      Contents of section .reginfo:
@@ -39,18 +39,18 @@
 #                          ^-- _gp
 
 # REL:      Contents of section .data:
-# REL-NEXT:  00f0 fffffef4
+# REL-NEXT:  0110 fffffef4
 #                 ^-- 0-0x10c
 
 # REL: 00000000         .text           00000000 foo
 # REL: 00000000         *ABS*           00000000 .hidden _gp_disp
-# REL: 0000010c         *ABS*           00000000 .hidden _gp
+# REL: 0000010c         *ABS*           00000000  _gp
 
 # ABS:      Contents of section .text:
-# ABS-NEXT:  0000 3c080000 21080200 8f82ff08
+# ABS-NEXT:  0000 3c080000 21080200 8f82ff28
 #                 ^-- %hi(_gp_disp)
 #                          ^-- %lo(_gp_disp)
-#                                   ^-- 8 - (0x200 - 0x100)
+#                                   ^-- 8 - (0x200 - 0x120)
 #                                       G - (GP - .got)
 
 # ABS:      Contents of section .reginfo:
@@ -59,12 +59,12 @@
 #                          ^-- _gp
 
 # ABS:      Contents of section .data:
-# ABS-NEXT:  00f0 fffffe00
+# ABS-NEXT:  0110 fffffe00
 #                 ^-- 0-0x200
 
 # ABS: 00000000         .text           00000000 foo
 # ABS: 00000000         *ABS*           00000000 .hidden _gp_disp
-# ABS: 00000200         *ABS*           00000000 .hidden _gp
+# ABS: 00000200         *ABS*           00000000  _gp
 
   .text
 foo:

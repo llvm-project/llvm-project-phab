@@ -31,6 +31,7 @@
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/SaveAndRestore.h"
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
@@ -117,15 +118,6 @@ void LinkerScript::setDot(Expr E, const Twine &Loc, bool InSec) {
 // This function is called from processSectionCommands,
 // while we are fixing the output section layout.
 void LinkerScript::addSymbol(SymbolAssignment *Cmd) {
-  if (Cmd->Name == ".")
-    return;
-
-  // If a symbol was in PROVIDE(), we need to define it only when
-  // it is a referenced undefined symbol.
-  SymbolBody *B = Symtab->find(Cmd->Name);
-  if (Cmd->Provide && (!B || B->isDefined()))
-    return;
-
   // Define a symbol.
   SymbolBody *Sym;
   uint8_t Visibility = Cmd->Hidden ? STV_HIDDEN : STV_DEFAULT;
@@ -152,6 +144,43 @@ void LinkerScript::addSymbol(SymbolAssignment *Cmd) {
   replaceBody<DefinedRegular>(Sym, nullptr, Cmd->Name, /*IsLocal=*/false,
                               Visibility, STT_NOTYPE, SymValue, 0, Sec);
   Cmd->Sym = cast<DefinedRegular>(Sym);
+}
+
+void LinkerScript::handleAssignment(SymbolAssignment *Cmd) {
+  if (Cmd->Name == ".")
+    return;
+
+  if (!Cmd->Provide) {
+    addSymbol(Cmd);
+    return;
+  }
+
+  // If a symbol was in PROVIDE(), we need to define it only
+  // when it is a referenced undefined symbol.
+  SymbolBody *B = Symtab->find(Cmd->Name);
+  if (!B || B->isDefined())
+    return;
+  Cmd->Provide = false;
+
+  addSymbol(Cmd);
+}
+
+// Symbols defined in script should not be inlined by LTO. At the same time
+// we don't know their final values until late stages of link. Here we scan
+// over symbol assignment commands, create dummy symbols if needed and and set
+// appropriate flag.
+void LinkerScript::defineSymbols() {
+  assert(!Ctx);
+  for (BaseCommand *Base : SectionCommands) {
+    if (auto *Cmd = dyn_cast<SymbolAssignment>(Base)) {
+      // We can't calculate final value right now, so do not want to use
+      // underlying expression and temporarily swap it with dummy one.
+      SaveAndRestore<Expr> R(Cmd->Expression, [] { return ExprValue(0); });
+      handleAssignment(Cmd);
+      if (Cmd->Sym)
+        Cmd->Sym->CanInline = false;
+    }
+  }
 }
 
 // This function is called from assignAddresses, while we are
@@ -363,7 +392,7 @@ void LinkerScript::processSectionCommands() {
   for (BaseCommand *Base : SectionCommands) {
     // Handle symbol assignments outside of any output section.
     if (auto *Cmd = dyn_cast<SymbolAssignment>(Base)) {
-      addSymbol(Cmd);
+      handleAssignment(Cmd);
       continue;
     }
 
@@ -395,7 +424,7 @@ void LinkerScript::processSectionCommands() {
       // ".foo : { ...; bar = .; }". Handle them.
       for (BaseCommand *Base : Sec->SectionCommands)
         if (auto *OutCmd = dyn_cast<SymbolAssignment>(Base))
-          addSymbol(OutCmd);
+          handleAssignment(OutCmd);
 
       // Handle subalign (e.g. ".foo : SUBALIGN(32) { ... }"). If subalign
       // is given, input sections are aligned to that value, whether the
