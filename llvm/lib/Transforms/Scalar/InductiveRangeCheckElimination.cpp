@@ -179,10 +179,7 @@ public:
     OS << "  Step: ";
     Step->print(OS);
     OS << "  End: ";
-    if (End)
-      End->print(OS);
-    else
-      OS << "(null)";
+    End->print(OS);
     OS << "\n  CheckUse: ";
     getCheckUse()->getUser()->print(OS);
     OS << " Operand: " << getCheckUse()->getOperandNo() << "\n";
@@ -393,8 +390,23 @@ void InductiveRangeCheck::extractRangeChecksFromCond(
   if (!IsAffineIndex)
     return;
 
+  // We strengthen "0 <= I" to "0 <= I < INT_SMAX" and "I < L" to "0 <= I < L".
+  // We can potentially do much better here.
+  const SCEV *End = nullptr;
+  if (Length)
+    End = SE.getSCEV(Length);
+  else {
+    assert(RCKind == InductiveRangeCheck::RANGE_CHECK_LOWER && "invariant!");
+    unsigned BitWidth = cast<IntegerType>(Index->getType())->getBitWidth();
+    // So far we can only reach this point for Signed range check. This may
+    // change in future. In this case we will need to pick Unsigned max for the
+    // unsigned range check.
+    assert(IsSigned && "RANGE_CHECK_LOWER is only used for signed conditions!");
+    End = SE.getConstant(APInt::getSignedMaxValue(BitWidth));
+  }
+
   InductiveRangeCheck IRC;
-  IRC.End = Length ? SE.getSCEV(Length) : nullptr;
+  IRC.End = End;
   IRC.Begin = IndexAddRec->getStart();
   IRC.Step = IndexAddRec->getStepRecurrence(SE);
   IRC.CheckUse = &ConditionUse;
@@ -1630,17 +1642,7 @@ InductiveRangeCheck::computeSafeIterationSpace(
 
   const SCEV *M = SE.getMinusSCEV(C, A);
   const SCEV *Begin = SE.getNegativeSCEV(M);
-  const SCEV *UpperLimit = nullptr;
-
-  // We strengthen "0 <= I" to "0 <= I < INT_SMAX" and "I < L" to "0 <= I < L".
-  // We can potentially do much better here.
-  if (const SCEV *L = getEnd())
-    UpperLimit = L;
-  else {
-    assert(Kind == InductiveRangeCheck::RANGE_CHECK_LOWER && "invariant!");
-    unsigned BitWidth = cast<IntegerType>(IndVar->getType())->getBitWidth();
-    UpperLimit = SE.getConstant(APInt::getSignedMaxValue(BitWidth));
-  }
+  const SCEV *UpperLimit = getEnd();
 
   const SCEV *End = SE.getMinusSCEV(UpperLimit, M);
   return InductiveRangeCheck::Range(Begin, End);
