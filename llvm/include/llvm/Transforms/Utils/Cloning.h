@@ -232,7 +232,8 @@ bool InlineFunction(CallInst *C, InlineFunctionInfo &IFI,
 bool InlineFunction(InvokeInst *II, InlineFunctionInfo &IFI,
                     AAResults *CalleeAAR = nullptr, bool InsertLifetime = true);
 bool InlineFunction(CallSite CS, InlineFunctionInfo &IFI,
-                    AAResults *CalleeAAR = nullptr, bool InsertLifetime = true);
+                    AAResults *CalleeAAR = nullptr, bool InsertLifetime = true,
+                    Function *ForwardVarArgsTo = nullptr);
 
 /// \brief Clones a loop \p OrigLoop.  Returns the loop and the blocks in \p
 /// Blocks.

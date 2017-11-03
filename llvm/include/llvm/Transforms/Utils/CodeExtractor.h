@@ -70,7 +70,8 @@ class Value;
     /// extra checking and transformations are enabled.
     CodeExtractor(ArrayRef<BasicBlock *> BBs, DominatorTree *DT = nullptr,
                   bool AggregateArgs = false, BlockFrequencyInfo *BFI = nullptr,
-                  BranchProbabilityInfo *BPI = nullptr);
+                  BranchProbabilityInfo *BPI = nullptr,
+                  bool AllowVarargs = false);
 
     /// \brief Create a code extractor for a loop body.
     ///
@@ -83,7 +84,8 @@ class Value;
     /// \brief Check to see if a block is valid for extraction.
     ///
     /// Blocks containing EHPads, allocas, invokes, or vastarts are not valid.
-    static bool isBlockValidForExtraction(const BasicBlock &BB);
+    static bool isBlockValidForExtraction(const BasicBlock &BB,
+                                          bool AllowVarargs);
 
     /// \brief Perform the extraction, returning the new function.
     ///
