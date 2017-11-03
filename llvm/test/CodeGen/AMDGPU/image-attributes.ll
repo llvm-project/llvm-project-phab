@@ -1,4 +1,4 @@
-; RUN: llc -march=r600 -mcpu=juniper < %s | FileCheck -check-prefix=EG -check-prefix=FUNC %s
+; RUN: llc -march=r600 -mtriple=r600---amdgiz -mcpu=juniper < %s | FileCheck -check-prefix=EG -check-prefix=FUNC %s
 
 ; === WIDTH ==================================================================
 ; 9 implicit args = 9 dwords to first image argument.
@@ -193,14 +193,14 @@ attributes #0 = { readnone }
 !10 = !{!"kernel_arg_addr_space", i32 1, i32 1}
 !20 = !{!"kernel_arg_access_qual", !"read_only", !"none"}
 !21 = !{!"kernel_arg_access_qual", !"read_only", !"none"}
-!30 = !{!"kernel_arg_type", !"image2d_t", !"int*"}
-!31 = !{!"kernel_arg_type", !"image3d_t", !"int*"}
-!40 = !{!"kernel_arg_base_type", !"image2d_t", !"int*"}
-!41 = !{!"kernel_arg_base_type", !"image3d_t", !"int*"}
+!30 = !{!"kernel_arg_type", !"image2d_t", !"int addrspace(5)*"}
+!31 = !{!"kernel_arg_type", !"image3d_t", !"int addrspace(5)*"}
+!40 = !{!"kernel_arg_base_type", !"image2d_t", !"int addrspace(5)*"}
+!41 = !{!"kernel_arg_base_type", !"image3d_t", !"int addrspace(5)*"}
 !50 = !{!"kernel_arg_type_qual", !"", !""}
 
 !12 = !{!"kernel_arg_addr_space", i32 1, i32 0, i32 1, i32 1}
 !22 = !{!"kernel_arg_access_qual", !"read_only", !"none", !"write_only", !"none"}
-!32 = !{!"kernel_arg_type", !"image3d_t", !"sampler_t", !"image2d_t", !"int*"}
-!42 = !{!"kernel_arg_base_type", !"image3d_t", !"sampler_t", !"image2d_t", !"int*"}
+!32 = !{!"kernel_arg_type", !"image3d_t", !"sampler_t", !"image2d_t", !"int addrspace(5)*"}
+!42 = !{!"kernel_arg_base_type", !"image3d_t", !"sampler_t", !"image2d_t", !"int addrspace(5)*"}
 !52 = !{!"kernel_arg_type_qual", !"", !"", !"", !""}

@@ -1,5 +1,5 @@
-;RUN: llc < %s -march=r600 -mcpu=redwood | FileCheck %s --check-prefix=EG
-;RUN: llc < %s -march=r600 -mcpu=cayman | FileCheck %s --check-prefix=CM
+;RUN: llc < %s -march=r600 -mtriple=r600---amdgiz -mcpu=redwood | FileCheck %s --check-prefix=EG
+;RUN: llc < %s -march=r600 -mtriple=r600---amdgiz -mcpu=cayman | FileCheck %s --check-prefix=CM
 
 ;EG-LABEL: {{^}}test:
 ;EG: EXP_IEEE *

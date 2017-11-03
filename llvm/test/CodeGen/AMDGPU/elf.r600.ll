@@ -1,5 +1,5 @@
-; RUN: llc < %s -march=r600 -mcpu=redwood -filetype=obj | llvm-readobj -s - | FileCheck --check-prefix=ELF %s
-; RUN: llc < %s -march=r600 -mcpu=redwood -o - | FileCheck --check-prefix=CONFIG %s
+; RUN: llc < %s -march=r600 -mtriple=r600---amdgiz -mcpu=redwood -filetype=obj | llvm-readobj -s - | FileCheck --check-prefix=ELF %s
+; RUN: llc < %s -march=r600 -mtriple=r600---amdgiz -mcpu=redwood -o - | FileCheck --check-prefix=CONFIG %s
 
 ; ELF: Format: ELF32-amdgpu
 ; ELF: Name: .AMDGPU.config

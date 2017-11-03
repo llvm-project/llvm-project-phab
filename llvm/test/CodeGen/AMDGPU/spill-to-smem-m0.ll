@@ -1,4 +1,4 @@
-; RUN: llc -O0 -march=amdgcn -mcpu=fiji -amdgpu-spill-sgpr-to-smem=1 -verify-machineinstrs -stop-before=prologepilog < %s
+; RUN: llc -O0 -march=amdgcn -mtriple=amdgcn---amdgiz -mcpu=fiji -amdgpu-spill-sgpr-to-smem=1 -verify-machineinstrs -stop-before=prologepilog < %s
 
 ; Spill to SMEM clobbers M0. Check that the implicit-def dead operand is present
 ; in the pseudo instructions.

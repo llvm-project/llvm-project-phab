@@ -1,4 +1,4 @@
-; RUN: llc < %s -mtriple=amdgcn--amdhsa -mcpu=kaveri | FileCheck --check-prefix=HSA %s
+; RUN: llc < %s -mtriple=amdgcn--amdhsa-amdgiz -mcpu=kaveri | FileCheck --check-prefix=HSA %s
 
 @internal_group = internal addrspace(3) global i32 undef
 @external_group = addrspace(3) global i32 undef

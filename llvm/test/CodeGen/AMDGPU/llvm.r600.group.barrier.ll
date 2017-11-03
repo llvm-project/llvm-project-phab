@@ -1,4 +1,4 @@
-; RUN: llc -march=r600 -mcpu=redwood < %s | FileCheck -check-prefix=EG  %s
+; RUN: llc -march=r600 -mtriple=r600---amdgiz -mcpu=redwood < %s | FileCheck -check-prefix=EG  %s
 
 ; EG-LABEL: {{^}}test_group_barrier:
 ; EG: GROUP_BARRIER

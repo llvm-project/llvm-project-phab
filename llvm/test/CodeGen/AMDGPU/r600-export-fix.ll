@@ -1,4 +1,4 @@
-; RUN: llc < %s -march=r600 -mcpu=cedar | FileCheck %s
+; RUN: llc < %s -march=r600 -mtriple=r600---amdgiz -mcpu=cedar | FileCheck %s
 
 ;CHECK:	EXPORT T{{[0-9]}}.XYZW
 ;CHECK:	EXPORT T{{[0-9]}}.0000

@@ -1,4 +1,4 @@
-; RUN: opt -S -mtriple=amdgcn-unknown-unknown -amdgpu-annotate-kernel-features < %s | FileCheck -check-prefix=NOHSA -check-prefix=ALL %s
+; RUN: opt -S -mtriple=amdgcn-unknown-unknown-amdgiz -amdgpu-annotate-kernel-features < %s | FileCheck -check-prefix=NOHSA -check-prefix=ALL %s
 
 declare i32 @llvm.r600.read.tgid.x() #0
 declare i32 @llvm.r600.read.tgid.y() #0

@@ -1,4 +1,4 @@
-; RUN: llc -march=r600 -mcpu=cedar < %s
+; RUN: llc -march=r600 -mtriple=r600---amdgiz -mcpu=cedar < %s
 
 ; This test ensures that R600 backend can handle ifcvt properly
 

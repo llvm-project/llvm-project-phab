@@ -1,4 +1,4 @@
-; RUN: not llc -march=amdgcn -verify-machineinstrs < %s 2>&1 | FileCheck %s
+; RUN: not llc -march=amdgcn -mtriple=amdgcn---amdgiz -verify-machineinstrs < %s 2>&1 | FileCheck %s
 
 ; CHECK: invalid type for register "exec".
 

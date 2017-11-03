@@ -1,6 +1,6 @@
-; RUN: llc -O0 -march=amdgcn -mcpu=fiji -amdgpu-spill-sgpr-to-smem=0 -verify-machineinstrs < %s | FileCheck -check-prefix=ALL -check-prefix=VGPR %s
-; RUN: llc -O0 -march=amdgcn -mcpu=fiji -amdgpu-spill-sgpr-to-smem=1 -verify-machineinstrs < %s | FileCheck -check-prefix=ALL -check-prefix=SMEM %s
-; RUN: llc -O0 -march=amdgcn -mcpu=fiji -amdgpu-spill-sgpr-to-smem=0 -amdgpu-spill-sgpr-to-vgpr=0 -verify-machineinstrs < %s | FileCheck -check-prefix=ALL -check-prefix=VMEM %s
+; RUN: llc -O0 -march=amdgcn -mtriple=amdgcn---amdgiz -mcpu=fiji -amdgpu-spill-sgpr-to-smem=0 -verify-machineinstrs < %s | FileCheck -check-prefix=ALL -check-prefix=VGPR %s
+; RUN: llc -O0 -march=amdgcn -mtriple=amdgcn---amdgiz -mcpu=fiji -amdgpu-spill-sgpr-to-smem=1 -verify-machineinstrs < %s | FileCheck -check-prefix=ALL -check-prefix=SMEM %s
+; RUN: llc -O0 -march=amdgcn -mtriple=amdgcn---amdgiz -mcpu=fiji -amdgpu-spill-sgpr-to-smem=0 -amdgpu-spill-sgpr-to-vgpr=0 -verify-machineinstrs < %s | FileCheck -check-prefix=ALL -check-prefix=VMEM %s
 
 ; ALL-LABEL: {{^}}spill_sgpr_x2:
 ; SMEM: s_add_u32 m0, s3, 0x100{{$}}

@@ -1,4 +1,4 @@
-;RUN: llc < %s -march=amdgcn -mcpu=gfx900 -verify-machineinstrs | FileCheck %s --check-prefix=GCN
+;RUN: llc < %s -march=amdgcn -mtriple=amdgcn---amdgiz -mcpu=gfx900 -verify-machineinstrs | FileCheck %s --check-prefix=GCN
 
 ; GCN-LABEL: {{^}}full_mask:
 ; GCN: s_mov_b64 exec, -1

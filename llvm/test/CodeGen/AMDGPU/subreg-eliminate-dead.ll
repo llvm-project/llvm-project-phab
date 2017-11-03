@@ -1,4 +1,4 @@
-; RUN: llc -mtriple=amdgcn-- -verify-machineinstrs -o - %s | FileCheck %s
+; RUN: llc -mtriple=amdgcn---amdgiz -verify-machineinstrs -o - %s | FileCheck %s
 ; LiveRangeEdit::eliminateDeadDef did not update LiveInterval sub ranges
 ; properly.
 

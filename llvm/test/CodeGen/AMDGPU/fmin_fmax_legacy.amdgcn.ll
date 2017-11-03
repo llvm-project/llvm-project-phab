@@ -1,5 +1,5 @@
-; RUN: llc -march=amdgcn -verify-machineinstrs < %s | FileCheck -check-prefix=GCN-SAFE -check-prefix=GCN %s
-; RUN: llc -enable-no-nans-fp-math -enable-unsafe-fp-math -march=amdgcn -verify-machineinstrs < %s | FileCheck -check-prefix=GCN-NONAN -check-prefix=GCN %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz -verify-machineinstrs < %s | FileCheck -check-prefix=GCN-SAFE -check-prefix=GCN %s
+; RUN: llc -enable-no-nans-fp-math -enable-unsafe-fp-math -march=amdgcn -mtriple=amdgcn---amdgiz -verify-machineinstrs < %s | FileCheck -check-prefix=GCN-NONAN -check-prefix=GCN %s
 
 ; FIXME: Should replace unsafe-fp-math with no signed zeros.
 

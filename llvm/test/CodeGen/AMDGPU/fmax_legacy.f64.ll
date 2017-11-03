@@ -1,4 +1,4 @@
-; RUN: llc -march=amdgcn < %s | FileCheck -check-prefix=SI -check-prefix=FUNC %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz < %s | FileCheck -check-prefix=SI -check-prefix=FUNC %s
 ; Make sure we don't try to form FMAX_LEGACY nodes with f64
 
 declare i32 @llvm.amdgcn.workitem.id.x() #1

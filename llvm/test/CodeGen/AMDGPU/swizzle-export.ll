@@ -1,4 +1,4 @@
-; RUN: llc < %s -march=r600 -mcpu=redwood | FileCheck --check-prefix=EG %s
+; RUN: llc < %s -march=r600 -mtriple=r600---amdgiz -mcpu=redwood | FileCheck --check-prefix=EG %s
 
 ;EG: {{^}}main:
 ;EG: EXPORT T{{[0-9]+}}.XYXX

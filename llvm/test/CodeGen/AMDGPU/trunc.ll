@@ -1,6 +1,6 @@
-; RUN: llc -amdgpu-scalarize-global-loads=false -march=amdgcn -mcpu=tahiti -verify-machineinstrs< %s | FileCheck -check-prefix=GCN -check-prefix=SI %s
-; RUN: llc -amdgpu-scalarize-global-loads=false -march=amdgcn -mcpu=fiji -verify-machineinstrs< %s | FileCheck -check-prefix=GCN -check-prefix=VI  %s
-; RUN: llc -amdgpu-scalarize-global-loads=false -march=r600 -mcpu=cypress < %s | FileCheck -check-prefix=EG %s
+; RUN: llc -amdgpu-scalarize-global-loads=false -march=amdgcn -mtriple=amdgcn---amdgiz -mcpu=tahiti -verify-machineinstrs< %s | FileCheck -check-prefix=GCN -check-prefix=SI %s
+; RUN: llc -amdgpu-scalarize-global-loads=false -march=amdgcn -mtriple=amdgcn---amdgiz -mcpu=fiji -verify-machineinstrs< %s | FileCheck -check-prefix=GCN -check-prefix=VI  %s
+; RUN: llc -amdgpu-scalarize-global-loads=false -march=r600 -mtriple=r600---amdgiz -mcpu=cypress < %s | FileCheck -check-prefix=EG %s
 
 declare i32 @llvm.r600.read.tidig.x() nounwind readnone
 

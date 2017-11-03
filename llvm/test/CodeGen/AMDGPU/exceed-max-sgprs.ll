@@ -1,4 +1,4 @@
-; RUN: not llc -march=amdgcn -verify-machineinstrs < %s 2>&1 | FileCheck -check-prefix=ERROR %s
+; RUN: not llc -march=amdgcn -mtriple=amdgcn---amdgiz -verify-machineinstrs < %s 2>&1 | FileCheck -check-prefix=ERROR %s
 
 ; ERROR: error: scalar registers limit of 104 exceeded (106) in use_too_many_sgprs_tahiti
 define amdgpu_kernel void @use_too_many_sgprs_tahiti() #0 {

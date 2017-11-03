@@ -1,26 +1,26 @@
-; RUN: llc -march=r600 -filetype=obj < %s | llvm-readobj -file-headers - | FileCheck --check-prefix=R600 --check-prefix=R600-OSABI-NONE %s
-; RUN: llc -mtriple=r600-- -filetype=obj < %s | llvm-readobj -file-headers - | FileCheck --check-prefix=R600 --check-prefix=R600-OSABI-NONE %s
-; RUN: llc -mtriple=r600-amd- -filetype=obj < %s | llvm-readobj -file-headers - | FileCheck --check-prefix=R600 --check-prefix=R600-OSABI-NONE %s
-; RUN: llc -mtriple=r600-amd-unknown -filetype=obj < %s | llvm-readobj -file-headers - | FileCheck --check-prefix=R600 --check-prefix=R600-OSABI-NONE %s
-; RUN: llc -mtriple=r600-unknown-unknown -filetype=obj < %s | llvm-readobj -file-headers - | FileCheck --check-prefix=R600 --check-prefix=R600-OSABI-NONE %s
+; RUN: llc -march=r600 -mtriple=r600---amdgiz -filetype=obj < %s | llvm-readobj -file-headers - | FileCheck --check-prefix=R600 --check-prefix=R600-OSABI-NONE %s
+; RUN: llc -mtriple=r600---amdgiz -filetype=obj < %s | llvm-readobj -file-headers - | FileCheck --check-prefix=R600 --check-prefix=R600-OSABI-NONE %s
+; RUN: llc -mtriple=r600-amd--amdgiz -filetype=obj < %s | llvm-readobj -file-headers - | FileCheck --check-prefix=R600 --check-prefix=R600-OSABI-NONE %s
+; RUN: llc -mtriple=r600-amd-unknown-amdgiz -filetype=obj < %s | llvm-readobj -file-headers - | FileCheck --check-prefix=R600 --check-prefix=R600-OSABI-NONE %s
+; RUN: llc -mtriple=r600-unknown-unknown-amdgiz -filetype=obj < %s | llvm-readobj -file-headers - | FileCheck --check-prefix=R600 --check-prefix=R600-OSABI-NONE %s
 
-; RUN: llc -march=amdgcn -filetype=obj < %s | llvm-readobj -file-headers - | FileCheck --check-prefix=GCN --check-prefix=GCN-OSABI-NONE %s
-; RUN: llc -mtriple=amdgcn-- -filetype=obj < %s | llvm-readobj -file-headers - | FileCheck --check-prefix=GCN --check-prefix=GCN-OSABI-NONE %s
-; RUN: llc -mtriple=amdgcn-amd- -filetype=obj < %s | llvm-readobj -file-headers - | FileCheck --check-prefix=GCN --check-prefix=GCN-OSABI-NONE %s
-; RUN: llc -mtriple=amdgcn-amd-unknown -filetype=obj < %s | llvm-readobj -file-headers - | FileCheck --check-prefix=GCN --check-prefix=GCN-OSABI-NONE %s
-; RUN: llc -mtriple=amdgcn-unknown-unknown -filetype=obj < %s | llvm-readobj -file-headers - | FileCheck --check-prefix=GCN --check-prefix=GCN-OSABI-NONE %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz -filetype=obj < %s | llvm-readobj -file-headers - | FileCheck --check-prefix=GCN --check-prefix=GCN-OSABI-NONE %s
+; RUN: llc -mtriple=amdgcn---amdgiz -filetype=obj < %s | llvm-readobj -file-headers - | FileCheck --check-prefix=GCN --check-prefix=GCN-OSABI-NONE %s
+; RUN: llc -mtriple=amdgcn-amd--amdgiz -filetype=obj < %s | llvm-readobj -file-headers - | FileCheck --check-prefix=GCN --check-prefix=GCN-OSABI-NONE %s
+; RUN: llc -mtriple=amdgcn-amd-unknown-amdgiz -filetype=obj < %s | llvm-readobj -file-headers - | FileCheck --check-prefix=GCN --check-prefix=GCN-OSABI-NONE %s
+; RUN: llc -mtriple=amdgcn-unknown-unknown-amdgiz -filetype=obj < %s | llvm-readobj -file-headers - | FileCheck --check-prefix=GCN --check-prefix=GCN-OSABI-NONE %s
 
-; RUN: llc -mtriple=amdgcn--amdhsa -filetype=obj < %s | llvm-readobj -file-headers - | FileCheck --check-prefix=GCN --check-prefix=GCN-OSABI-HSA %s
-; RUN: llc -mtriple=amdgcn-amd-amdhsa -filetype=obj < %s | llvm-readobj -file-headers - | FileCheck --check-prefix=GCN --check-prefix=GCN-OSABI-HSA %s
-; RUN: llc -mtriple=amdgcn-unknown-amdhsa -filetype=obj < %s | llvm-readobj -file-headers - | FileCheck --check-prefix=GCN --check-prefix=GCN-OSABI-HSA %s
+; RUN: llc -mtriple=amdgcn--amdhsa-amdgiz -filetype=obj < %s | llvm-readobj -file-headers - | FileCheck --check-prefix=GCN --check-prefix=GCN-OSABI-HSA %s
+; RUN: llc -mtriple=amdgcn-amd-amdhsa-amdgiz -filetype=obj < %s | llvm-readobj -file-headers - | FileCheck --check-prefix=GCN --check-prefix=GCN-OSABI-HSA %s
+; RUN: llc -mtriple=amdgcn-unknown-amdhsa-amdgiz -filetype=obj < %s | llvm-readobj -file-headers - | FileCheck --check-prefix=GCN --check-prefix=GCN-OSABI-HSA %s
 
-; RUN: llc -mtriple=amdgcn--amdpal -filetype=obj < %s | llvm-readobj -file-headers - | FileCheck --check-prefix=GCN --check-prefix=GCN-OSABI-PAL %s
-; RUN: llc -mtriple=amdgcn-amd-amdpal -filetype=obj < %s | llvm-readobj -file-headers - | FileCheck --check-prefix=GCN --check-prefix=GCN-OSABI-PAL %s
-; RUN: llc -mtriple=amdgcn-unknown-amdpal -filetype=obj < %s | llvm-readobj -file-headers - | FileCheck --check-prefix=GCN --check-prefix=GCN-OSABI-PAL %s
+; RUN: llc -mtriple=amdgcn--amdpal-amdgiz -filetype=obj < %s | llvm-readobj -file-headers - | FileCheck --check-prefix=GCN --check-prefix=GCN-OSABI-PAL %s
+; RUN: llc -mtriple=amdgcn-amd-amdpal-amdgiz -filetype=obj < %s | llvm-readobj -file-headers - | FileCheck --check-prefix=GCN --check-prefix=GCN-OSABI-PAL %s
+; RUN: llc -mtriple=amdgcn-unknown-amdpal-amdgiz -filetype=obj < %s | llvm-readobj -file-headers - | FileCheck --check-prefix=GCN --check-prefix=GCN-OSABI-PAL %s
 
-; RUN: llc -mtriple=amdgcn--mesa3d -filetype=obj < %s | llvm-readobj -file-headers - | FileCheck --check-prefix=GCN --check-prefix=GCN-OSABI-MESA3D %s
-; RUN: llc -mtriple=amdgcn-amd-mesa3d -filetype=obj < %s | llvm-readobj -file-headers - | FileCheck --check-prefix=GCN --check-prefix=GCN-OSABI-MESA3D %s
-; RUN: llc -mtriple=amdgcn-unknown-mesa3d -filetype=obj < %s | llvm-readobj -file-headers - | FileCheck --check-prefix=GCN --check-prefix=GCN-OSABI-MESA3D %s
+; RUN: llc -mtriple=amdgcn--mesa3d-amdgiz -filetype=obj < %s | llvm-readobj -file-headers - | FileCheck --check-prefix=GCN --check-prefix=GCN-OSABI-MESA3D %s
+; RUN: llc -mtriple=amdgcn-amd-mesa3d-amdgiz -filetype=obj < %s | llvm-readobj -file-headers - | FileCheck --check-prefix=GCN --check-prefix=GCN-OSABI-MESA3D %s
+; RUN: llc -mtriple=amdgcn-unknown-mesa3d-amdgiz -filetype=obj < %s | llvm-readobj -file-headers - | FileCheck --check-prefix=GCN --check-prefix=GCN-OSABI-MESA3D %s
 
 ; R600: Format: ELF32-amdgpu
 ; R600: Arch: r600

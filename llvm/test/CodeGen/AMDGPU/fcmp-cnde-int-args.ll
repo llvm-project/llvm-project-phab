@@ -1,7 +1,7 @@
-; RUN: llc < %s -march=r600 -mcpu=redwood | FileCheck %s
+; RUN: llc < %s -march=r600 -mtriple=r600---amdgiz -mcpu=redwood | FileCheck %s
 
 ; This test checks a bug in R600TargetLowering::LowerSELECT_CC where the
-; chance to optimize the fcmp + select instructions to SET* was missed
+; chance to optimize the fcmp + select instructions to SET addrspace(5)* was missed
 ; due to the fact that the operands to fcmp and select had different types
 
 ; CHECK: SET{{[A-Z]+}}_DX10

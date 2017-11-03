@@ -1,4 +1,4 @@
-; RUN: llc -march=r600 -mcpu=redwood < %s | FileCheck %s
+; RUN: llc -march=r600 -mtriple=r600---amdgiz -mcpu=redwood < %s | FileCheck %s
 
 ; CHECK: FLOOR * T{{[0-9]+\.[XYZW], T[0-9]+\.[XYZW]}}
 define amdgpu_ps void @test(<4 x float> inreg %reg0) {

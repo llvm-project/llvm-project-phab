@@ -1,7 +1,7 @@
-; RUN: llc -march=amdgcn -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=GFX8 -check-prefix=NOAUTO %s
-; RUN: llc -march=amdgcn -mattr=+auto-waitcnt-before-barrier -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=GFX8 -check-prefix=AUTO %s
-; RUN: llc -march=amdgcn -mcpu=gfx900 -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=GFX9 -check-prefix=NOAUTO %s
-; RUN: llc -march=amdgcn -mcpu=gfx900 -mattr=+auto-waitcnt-before-barrier -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=GFX9 -check-prefix=AUTO %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=GFX8 -check-prefix=NOAUTO %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz -mattr=+auto-waitcnt-before-barrier -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=GFX8 -check-prefix=AUTO %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz -mcpu=gfx900 -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=GFX9 -check-prefix=NOAUTO %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz -mcpu=gfx900 -mattr=+auto-waitcnt-before-barrier -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=GFX9 -check-prefix=AUTO %s
 
 ; GCN-LABEL: {{^}}test_barrier:
 ; GFX8: buffer_store_dword

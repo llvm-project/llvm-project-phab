@@ -1,6 +1,6 @@
-; RUN: not llc -march=amdgcn -mcpu=tahiti < %s 2>&1 | FileCheck -check-prefix=ERROR %s
-; RUN: not llc -march=amdgcn -mcpu=hawaii < %s 2>&1 | FileCheck -check-prefix=ERROR %s
-; RUN: not llc -march=amdgcn -mcpu=fiji < %s 2>&1 | FileCheck -check-prefix=ERROR %s
+; RUN: not llc -march=amdgcn -mtriple=amdgcn---amdgiz -mcpu=tahiti < %s 2>&1 | FileCheck -check-prefix=ERROR %s
+; RUN: not llc -march=amdgcn -mtriple=amdgcn---amdgiz -mcpu=hawaii < %s 2>&1 | FileCheck -check-prefix=ERROR %s
+; RUN: not llc -march=amdgcn -mtriple=amdgcn---amdgiz -mcpu=fiji < %s 2>&1 | FileCheck -check-prefix=ERROR %s
 
 ; ERROR: error: local memory limit exceeded (400000) in use_huge_lds
 

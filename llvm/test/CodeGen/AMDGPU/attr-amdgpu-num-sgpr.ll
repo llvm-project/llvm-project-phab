@@ -1,5 +1,5 @@
-; RUN: llc -mtriple=amdgcn--amdhsa -mcpu=fiji -amdgpu-spill-sgpr-to-smem=0 -verify-machineinstrs < %s | FileCheck -check-prefix=TOSGPR -check-prefix=ALL %s
-; RUN: llc -mtriple=amdgcn--amdhsa -mcpu=fiji -amdgpu-spill-sgpr-to-smem=1 -verify-machineinstrs < %s | FileCheck -check-prefix=TOSMEM -check-prefix=ALL %s
+; RUN: llc -mtriple=amdgcn--amdhsa-amdgiz -mcpu=fiji -amdgpu-spill-sgpr-to-smem=0 -verify-machineinstrs < %s | FileCheck -check-prefix=TOSGPR -check-prefix=ALL %s
+; RUN: llc -mtriple=amdgcn--amdhsa-amdgiz -mcpu=fiji -amdgpu-spill-sgpr-to-smem=1 -verify-machineinstrs < %s | FileCheck -check-prefix=TOSMEM -check-prefix=ALL %s
 
 ; If spilling to smem, additional registers are used for the resource
 ; descriptor.
@@ -65,7 +65,7 @@ define amdgpu_kernel void @max_9_sgprs(i32 addrspace(1)* %out1,
 ;  %x.3 = call i64 @llvm.amdgcn.dispatch.id()
 ;  %x.4 = call i8 addrspace(2)* @llvm.amdgcn.dispatch.ptr()
 ;  %x.5 = call i8 addrspace(2)* @llvm.amdgcn.queue.ptr()
-;  store volatile i32 0, i32* undef
+;  store volatile i32 0, i32 addrspace(5)* undef
 ;  br label %stores
 ;
 ;stores:
@@ -100,7 +100,7 @@ define amdgpu_kernel void @max_9_sgprs(i32 addrspace(1)* %out1,
 ;                                        i32 addrspace(1)* %out3,
 ;                                        i32 addrspace(1)* %out4,
 ;                                        i32 %one, i32 %two, i32 %three, i32 %four) #2 {
-;  store volatile i32 0, i32* undef
+;  store volatile i32 0, i32 addrspace(5)* undef
 ;  %x.0 = call i32 @llvm.amdgcn.workgroup.id.x()
 ;  store volatile i32 %x.0, i32 addrspace(1)* undef
 ;  %x.1 = call i32 @llvm.amdgcn.workgroup.id.y()

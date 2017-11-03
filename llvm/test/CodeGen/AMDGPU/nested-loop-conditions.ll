@@ -1,5 +1,5 @@
-; RUN: opt -mtriple=amdgcn-- -S -structurizecfg -si-annotate-control-flow %s | FileCheck -check-prefix=IR %s
-; RUN: llc -march=amdgcn -mcpu=hawaii -verify-machineinstrs < %s | FileCheck -check-prefix=GCN %s
+; RUN: opt -mtriple=amdgcn---amdgiz -S -structurizecfg -si-annotate-control-flow %s | FileCheck -check-prefix=IR %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz -mcpu=hawaii -verify-machineinstrs < %s | FileCheck -check-prefix=GCN %s
 
 ; After structurizing, there are 3 levels of loops. The i1 phi
 ; conditions mutually depend on each other, so it isn't safe to delete

@@ -1,4 +1,4 @@
-; RUN: llc -march=amdgcn -mcpu=tonga -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefix=CHECK %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz -mcpu=tonga -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefix=CHECK %s
 
 ;CHECK-LABEL: {{^}}ret:
 ;CHECK: v_cmp_eq_u32_e32 [[CMP:[^,]+]], v0, v1

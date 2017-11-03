@@ -1,5 +1,5 @@
-; RUN: llc < %s -march=amdgcn -mcpu=bonaire -verify-machineinstrs | FileCheck --check-prefix=GCN %s
-; RUN: llc < %s -march=amdgcn -mcpu=tonga -verify-machineinstrs | FileCheck --check-prefix=GCN %s
+; RUN: llc < %s -march=amdgcn -mtriple=amdgcn---amdgiz -mcpu=bonaire -verify-machineinstrs | FileCheck --check-prefix=GCN %s
+; RUN: llc < %s -march=amdgcn -mtriple=amdgcn---amdgiz -mcpu=tonga -verify-machineinstrs | FileCheck --check-prefix=GCN %s
 
 ; GCN-LABEL: {{^}}inline_reg_constraints:
 ; GCN: flat_load_dword v{{[0-9]+}}, v[{{[0-9]+:[0-9]+}}]

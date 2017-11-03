@@ -1,4 +1,4 @@
-; RUN: llc -march=r600 -mcpu=juniper < %s | FileCheck -check-prefix=EG -check-prefix=FUNC %s
+; RUN: llc -march=r600 -mtriple=r600---amdgiz -mcpu=juniper < %s | FileCheck -check-prefix=EG -check-prefix=FUNC %s
 
 ; FUNC-LABEL: {{^}}test_0:
 ; EG: MEM_RAT_CACHELESS STORE_RAW [[VAL:T[0-9]+\.X]]
@@ -46,20 +46,20 @@ attributes #0 = { readnone }
 !0 = !{void (i32, i32 addrspace(1)*)* @test_0, !10, !20, !30, !40, !50}
 !10 = !{!"kernel_arg_addr_space", i32 0, i32 1}
 !20 = !{!"kernel_arg_access_qual", !"none", !"none"}
-!30 = !{!"kernel_arg_type", !"sampler_t", !"int*"}
-!40 = !{!"kernel_arg_base_type", !"sampler_t", !"int*"}
+!30 = !{!"kernel_arg_type", !"sampler_t", !"int addrspace(5)*"}
+!40 = !{!"kernel_arg_base_type", !"sampler_t", !"int addrspace(5)*"}
 !50 = !{!"kernel_arg_type_qual", !"", !""}
 
 !1 = !{void (i32, i32, i32 addrspace(1)*)* @test_1, !11, !21, !31, !41, !51}
 !11 = !{!"kernel_arg_addr_space", i32 0, i32 0, i32 1}
 !21 = !{!"kernel_arg_access_qual", !"none", !"none", !"none"}
-!31 = !{!"kernel_arg_type", !"sampler_t", !"sampler_t", !"int*"}
-!41 = !{!"kernel_arg_base_type", !"sampler_t", !"sampler_t", !"int*"}
+!31 = !{!"kernel_arg_type", !"sampler_t", !"sampler_t", !"int addrspace(5)*"}
+!41 = !{!"kernel_arg_base_type", !"sampler_t", !"sampler_t", !"int addrspace(5)*"}
 !51 = !{!"kernel_arg_type_qual", !"", !"", !""}
 
 !2 = !{void (i32, i32, i32, i32 addrspace(1)*)* @test_2, !12, !22, !32, !42, !52}
 !12 = !{!"kernel_arg_addr_space", i32 0, i32 0, i32 0, i32 1}
 !22 = !{!"kernel_arg_access_qual", !"none", !"none", !"none", !"none"}
-!32 = !{!"kernel_arg_type", !"sampler_t", !"sampler_t", !"sampler_t", !"int*"}
-!42 = !{!"kernel_arg_base_type", !"sampler_t", !"sampler_t", !"sampler_t", !"int*"}
+!32 = !{!"kernel_arg_type", !"sampler_t", !"sampler_t", !"sampler_t", !"int addrspace(5)*"}
+!42 = !{!"kernel_arg_base_type", !"sampler_t", !"sampler_t", !"sampler_t", !"int addrspace(5)*"}
 !52 = !{!"kernel_arg_type_qual", !"", !"", !"", !""}

@@ -1,4 +1,4 @@
-; RUN: not llc -march=amdgcn -verify-machineinstrs  -amdgpu-s-branch-bits=4 < %s 2>&1 | FileCheck -check-prefix=FAIL %s
+; RUN: not llc -march=amdgcn -mtriple=amdgcn---amdgiz -verify-machineinstrs  -amdgpu-s-branch-bits=4 < %s 2>&1 | FileCheck -check-prefix=FAIL %s
 
 ; FIXME: This should be able to compile, but requires inserting an
 ; extra block to restore the scavenged register.

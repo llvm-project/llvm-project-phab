@@ -1,4 +1,4 @@
-; RUN: llc -march=r600 -mcpu=cypress < %s | FileCheck %s
+; RUN: llc -march=r600 -mtriple=r600---amdgiz -mcpu=cypress < %s | FileCheck %s
 
 ; CHECK-LABEL: {{^}}kernel_arg_i64:
 define amdgpu_kernel void @kernel_arg_i64(i64 addrspace(1)* %out, i64 %a) nounwind {

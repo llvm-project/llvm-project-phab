@@ -1,4 +1,4 @@
-; RUN: llc -march=r600 -mcpu=cypress -start-after safe-stack %s -o - | FileCheck %s
+; RUN: llc -march=r600 -mtriple=r600---amdgiz -mcpu=cypress -start-after safe-stack %s -o - | FileCheck %s
 ; Don't crash
 
 ; CHECK: MAX_UINT

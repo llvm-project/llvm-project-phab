@@ -1,4 +1,4 @@
-; RUN: llc -march=r600 -mcpu=cayman < %s
+; RUN: llc -march=r600 -mtriple=r600---amdgiz -mcpu=cayman < %s
 
 define amdgpu_ps void @main(<4 x float> inreg %arg, <4 x float> inreg %arg1) {
 main_body:

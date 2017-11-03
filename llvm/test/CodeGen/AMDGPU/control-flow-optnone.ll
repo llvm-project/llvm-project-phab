@@ -1,4 +1,4 @@
-; RUN: llc -mtriple=amdgcn-amd-amdhsa -verify-machineinstrs < %s | FileCheck -check-prefix=GCN %s
+; RUN: llc -mtriple=amdgcn-amd-amdhsa-amdgiz -verify-machineinstrs < %s | FileCheck -check-prefix=GCN %s
 
 ; optnone disables AMDGPUAnnotateUniformValues, so no branch is known
 ; to be uniform during instruction selection. The custom selection for

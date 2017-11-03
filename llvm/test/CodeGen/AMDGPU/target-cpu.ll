@@ -1,4 +1,5 @@
-; RUN: llc -march=amdgcn -verify-machineinstrs < %s | FileCheck %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn---amdgiz -verify-machineinstrs < %s | FileCheck %s
+target datalayout = "e-p:64:64-p1:64:64-p2:64:64-p3:32:32-p4:32:32-p5:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-v2048:2048-n32:64-A5"
 
 declare i8 addrspace(2)* @llvm.amdgcn.kernarg.segment.ptr() #1
 
@@ -81,10 +82,10 @@ define amdgpu_kernel void @target_fiji() #4 {
 ; CHECK: ; LDSByteSize: 5120
 define amdgpu_kernel void @promote_alloca_enabled(i32 addrspace(1)* nocapture %out, i32 addrspace(1)* nocapture %in) #5 {
 entry:
-  %stack = alloca [5 x i32], align 4
+  %stack = alloca [5 x i32], align 4, addrspace(5)
   %tmp = load i32, i32 addrspace(1)* %in, align 4
-  %arrayidx1 = getelementptr inbounds [5 x i32], [5 x i32]* %stack, i32 0, i32 %tmp
-  %load = load i32, i32* %arrayidx1
+  %arrayidx1 = getelementptr inbounds [5 x i32], [5 x i32] addrspace(5)* %stack, i32 0, i32 %tmp
+  %load = load i32, i32 addrspace(5)* %arrayidx1
   store i32 %load, i32 addrspace(1)* %out
   ret void
 }
@@ -95,10 +96,10 @@ entry:
 ; CHECK: ScratchSize: 24
 define amdgpu_kernel void @promote_alloca_disabled(i32 addrspace(1)* nocapture %out, i32 addrspace(1)* nocapture %in) #6 {
 entry:
-  %stack = alloca [5 x i32], align 4
+  %stack = alloca [5 x i32], align 4, addrspace(5)
   %tmp = load i32, i32 addrspace(1)* %in, align 4
-  %arrayidx1 = getelementptr inbounds [5 x i32], [5 x i32]* %stack, i32 0, i32 %tmp
-  %load = load i32, i32* %arrayidx1
+  %arrayidx1 = getelementptr inbounds [5 x i32], [5 x i32] addrspace(5)* %stack, i32 0, i32 %tmp
+  %load = load i32, i32 addrspace(5)* %arrayidx1
   store i32 %load, i32 addrspace(1)* %out
   ret void
 }
