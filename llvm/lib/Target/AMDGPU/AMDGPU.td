@@ -280,6 +280,12 @@ def FeatureIntClamp : SubtargetFeature<"int-clamp-insts",
   "Support clamp for integer destination"
 >;
 
+def FeaturePackedD16VMem : SubtargetFeature<"packed-d16-vmem",
+  "HasPackedD16VMem",
+  "true",
+  "Has packed d16 vmem instructions"
+>;
+
 //===------------------------------------------------------------===//
 // Subtarget Features (options and debugging)
 //===------------------------------------------------------------===//
@@ -472,7 +478,7 @@ def FeatureGFX9 : SubtargetFeatureGeneration<"GFX9",
    FeatureFastFMAF32, FeatureDPP, FeatureIntClamp,
    FeatureSDWA, FeatureSDWAOmod, FeatureSDWAScalar, FeatureSDWASdst,
    FeatureFlatInstOffsets, FeatureFlatGlobalInsts, FeatureFlatScratchInsts,
-   FeatureAddNoCarryInsts
+   FeatureAddNoCarryInsts, FeaturePackedD16VMem
   ]
 >;
 
@@ -542,7 +548,8 @@ def FeatureISAVersion8_0_4 : SubtargetFeatureISAVersion <8,0,4,
 def FeatureISAVersion8_1_0 : SubtargetFeatureISAVersion <8,1,0,
   [FeatureVolcanicIslands,
    FeatureLDSBankCount16,
-   FeatureXNACK]>;
+   FeatureXNACK,
+   FeaturePackedD16VMem]>;
 
 def FeatureISAVersion9_0_0 : SubtargetFeatureISAVersion <9,0,0,
   [FeatureGFX9,
@@ -694,6 +701,12 @@ def HasFlatScratchInsts : Predicate<"Subtarget->hasFlatScratchInsts()">,
   AssemblerPredicate<"FeatureFlatScratchInsts">;
 def HasD16LoadStore : Predicate<"Subtarget->hasD16LoadStore()">,
   AssemblerPredicate<"FeatureGFX9Insts">;
+
+def HasPackedD16VMem : Predicate<"Subtarget->hasPackedD16VMem()">,
+  AssemblerPredicate<"FeaturePackedD16VMem">;
+
+def NotHasPackedD16VMem : Predicate<"!Subtarget->hasPackedD16VMem()">,
+  AssemblerPredicate<"!FeaturePackedD16VMem">;
 
 def HasDSAddTid : Predicate<"Subtarget->getGeneration() >= AMDGPUSubtarget::GFX9">,
   AssemblerPredicate<"FeatureGFX9Insts">;

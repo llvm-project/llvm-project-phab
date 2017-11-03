@@ -151,6 +151,7 @@ AMDGPUSubtarget::AMDGPUSubtarget(const Triple &TT, StringRef GPU, StringRef FS,
     FlatAddressSpace(false),
     FlatInstOffsets(false),
     FlatGlobalInsts(false),
+    HasPackedD16VMem(false),
     FlatScratchInsts(false),
     AddNoCarryInsts(false),
 
