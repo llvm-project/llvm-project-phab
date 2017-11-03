@@ -522,6 +522,11 @@ protected:
       DenseMap<std::pair<BasicBlock *, BasicBlock *>, VectorParts>;
   using BlockMaskCacheTy = DenseMap<BasicBlock *, VectorParts>;
 
+  /// Collect the return value of Legal->isConsecutivePtr() for each pointer in
+  /// the loop. This is done before modifications to the loop which can affect
+  /// the return value of Legal->isConsecutivePtr().
+  void collectIsConsecutivePtr();
+
   /// Set up the values of the IVs correctly when exiting the vector loop.
   void fixupIVUsers(PHINode *OrigPhi, const InductionDescriptor &II,
                     Value *CountRoundDown, Value *EndValue,
@@ -757,6 +762,10 @@ protected:
   // Holds the end values for each induction variable. We save the end values
   // so we can later fix-up the external users of the induction variables.
   DenseMap<PHINode *, Value *> IVEndValues;
+
+  /// Holds the return value of Legal->isConsecutivePtr() for each pointer in
+  /// the loop, computed before the loop is modified.
+  DenseMap<Value *, int> IsConsecutivePtr;
 };
 
 class InnerLoopUnroller : public InnerLoopVectorizer {
@@ -3105,7 +3114,9 @@ void InnerLoopVectorizer::vectorizeMemoryInstruction(Instruction *Instr) {
 
   // Determine if the pointer operand of the access is either consecutive or
   // reverse consecutive.
-  int ConsecutiveStride = Legal->isConsecutivePtr(Ptr);
+  assert(IsConsecutivePtr.count(Ptr) &&
+         "Missing IsConsecutivePtr information for this pointer.");
+  int ConsecutiveStride = IsConsecutivePtr[Ptr];
   bool Reverse = ConsecutiveStride < 0;
   bool CreateGatherScatter =
       (Decision == LoopVectorizationCostModel::CM_GatherScatter);
@@ -3521,6 +3532,10 @@ BasicBlock *InnerLoopVectorizer::createVectorizedLoopSkeleton() {
   assert(VectorPH && "Invalid loop structure");
   assert(ExitBlock && "Must have an exit block");
 
+  // Collect Legal->isConsecutivePtr() information for all the pointers in the
+  // loop before it's modified.
+  collectIsConsecutivePtr();
+
   // Some loops have a single integer induction variable, while other loops
   // don't. One example is c++ iterators that often have multiple pointer
   // induction variables. In the code below we also support a case where we
@@ -3665,6 +3680,22 @@ BasicBlock *InnerLoopVectorizer::createVectorizedLoopSkeleton() {
   Hints.setAlreadyVectorized();
 
   return LoopVectorPreHeader;
+}
+
+void InnerLoopVectorizer::collectIsConsecutivePtr() {
+  assert(IsConsecutivePtr.empty() &&
+         "IsConsecutivePtr information has been already collected.");
+
+  for (auto *BB : OrigLoop->blocks())
+    for (auto &I : *BB) {
+      // If there's no pointer operand or it was visited before, there's
+      // nothing to do.
+      auto *Ptr = dyn_cast_or_null<Instruction>(getPointerOperand(&I));
+      if (!Ptr || IsConsecutivePtr.count(Ptr))
+        continue;
+
+      IsConsecutivePtr[Ptr] = Legal->isConsecutivePtr(Ptr);
+    }
 }
 
 // Fix up external users of the induction variable. At this point, we are
