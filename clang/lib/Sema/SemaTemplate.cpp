@@ -5487,6 +5487,10 @@ static bool CheckTemplateArgumentIsCompatibleWithParameter(
       return true;
     }
   }
+  if (ParamType->isPointerType() &&
+      isa<TypedefType>(ParamType->getPointeeType()) &&
+      S.Context.hasSameUnqualifiedType(ArgType, ParamType.getNonReferenceType()))
+    return true;
 
   return false;
 }
