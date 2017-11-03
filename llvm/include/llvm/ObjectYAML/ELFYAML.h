@@ -206,6 +206,7 @@ struct Object {
   // top-level key, which automatically ensures that invariants like there
   // being a single SHT_SYMTAB section are upheld.
   LocalGlobalWeakSymbols Symbols;
+  LocalGlobalWeakSymbols DynamicSymbols;
 };
 
 } // end namespace ELFYAML
