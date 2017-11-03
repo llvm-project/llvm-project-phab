@@ -252,10 +252,12 @@ class LoopVectorizeHints;
 class LoopVectorizationLegality;
 class LoopVectorizationCostModel;
 class LoopVectorizationRequirements;
+class VPBlendRecipe;
 class VPInterleaveRecipe;
 class VPReplicateRecipe;
 class VPWidenIntOrFpInductionRecipe;
 class VPWidenRecipe;
+class VPWidenMemoryInstructionRecipe;
 
 /// Returns true if the given loop body has a cycle, excluding the loop
 /// itself.
@@ -426,6 +428,10 @@ public:
   /// mask for the block BB.
   VectorParts createBlockInMask(BasicBlock *BB);
 
+  /// A helper function that computes the predicate of the edge between SRC
+  /// and DST.
+  VectorParts createEdgeMask(BasicBlock *Src, BasicBlock *Dst);
+
   /// Vectorize a single PHINode in a block. This method handles the induction
   /// variable canonicalization. It supports both VF = 1 for unrolled loops and
   /// arbitrary length vectors.
@@ -478,6 +484,13 @@ public:
   /// Try to vectorize the interleaved access group that \p Instr belongs to.
   void vectorizeInterleaveGroup(Instruction *Instr);
 
+  /// Vectorize Load and Store instructions,
+  virtual void vectorizeMemoryInstruction(Instruction *Instr);
+
+  /// \brief Set the debug location in the builder using the debug location in
+  /// the instruction.
+  void setDebugLocFromInst(IRBuilder<> &B, const Value *Ptr);
+
 protected:
   /// A small list of PHINodes.
   typedef SmallVector<PHINode *, 4> PhiVector;
@@ -528,16 +541,9 @@ protected:
   /// represented as.
   void truncateToMinimalBitwidths();
 
-  /// A helper function that computes the predicate of the edge between SRC
-  /// and DST.
-  VectorParts createEdgeMask(BasicBlock *Src, BasicBlock *Dst);
-
   /// Insert the new loop to the loop hierarchy and pass manager
   /// and update the analysis passes.
   void updateAnalysis();
-
-  /// Vectorize Load and Store instructions,
-  virtual void vectorizeMemoryInstruction(Instruction *Instr);
 
   /// Create a broadcast instruction. This method generates a broadcast
   /// instruction (shuffle) for loop invariant values and for the induction
@@ -616,10 +622,6 @@ protected:
   /// \brief Similar to the previous function but it adds the metadata to a
   /// vector of instructions.
   void addMetadata(ArrayRef<Value *> To, Instruction *From);
-
-  /// \brief Set the debug location in the builder using the debug location in
-  /// the instruction.
-  void setDebugLocFromInst(IRBuilder<> &B, const Value *Ptr);
 
   /// The original loop.
   Loop *OrigLoop;
@@ -2208,12 +2210,22 @@ private:
   /// to \p Range.End.
   VPInterleaveRecipe *tryToInterleaveMemory(Instruction *I, VFRange &Range);
 
+  // Check if \I is a memory instruction to be widened for \p Range.Start and
+  // potentially masked.
+  VPWidenMemoryInstructionRecipe *tryToWidenMemory(Instruction *I,
+                                                   VFRange &Range);
+
   /// Check if an induction recipe should be constructed for \I within the given
   /// VF \p Range. If so build and return it. If not, return null. \p Range.End
   /// may be decreased to ensure same decision from \p Range.Start to
   /// \p Range.End.
   VPWidenIntOrFpInductionRecipe *tryToOptimizeInduction(Instruction *I,
                                                         VFRange &Range);
+
+  /// Handle non-loop phi nodes. Currently all such phi nodes are turned into
+  /// a sequence of select instructions as the vectorizer currently performs
+  /// full if-conversion.
+  VPBlendRecipe *tryToBlend(Instruction *I);
 
   /// Check if \p I can be widened within the given VF \p Range. If \p I can be
   /// widened for \p Range.Start, check if the last recipe of \p VPBB can be
@@ -4497,43 +4509,6 @@ void InnerLoopVectorizer::widenPHIInstruction(Instruction *PN, unsigned UF,
   }
 
   setDebugLocFromInst(Builder, P);
-  // Check for PHI nodes that are lowered to vector selects.
-  if (P->getParent() != OrigLoop->getHeader()) {
-    // We know that all PHIs in non-header blocks are converted into
-    // selects, so we don't have to worry about the insertion order and we
-    // can just use the builder.
-    // At this point we generate the predication tree. There may be
-    // duplications since this is a simple recursive scan, but future
-    // optimizations will clean it up.
-
-    unsigned NumIncoming = P->getNumIncomingValues();
-
-    // Generate a sequence of selects of the form:
-    // SELECT(Mask3, In3,
-    //      SELECT(Mask2, In2,
-    //                   ( ...)))
-    VectorParts Entry(UF);
-    for (unsigned In = 0; In < NumIncoming; In++) {
-      VectorParts Cond =
-          createEdgeMask(P->getIncomingBlock(In), P->getParent());
-
-      for (unsigned Part = 0; Part < UF; ++Part) {
-        Value *In0 = getOrCreateVectorValue(P->getIncomingValue(In), Part);
-        assert((Cond[Part] || NumIncoming == 1) &&
-               "Multiple predecessors with one predecessor having a full mask");
-        if (In == 0)
-          Entry[Part] = In0; // Initialize with the first incoming value.
-        else
-          // Select between the current value and the previous incoming edge
-          // based on the incoming mask.
-          Entry[Part] = Builder.CreateSelect(Cond[Part], In0, Entry[Part],
-                                             "predphi");
-      }
-    }
-    for (unsigned Part = 0; Part < UF; ++Part)
-      VectorLoopValueMap.setVectorValue(P, Part, Entry[Part]);
-    return;
-  }
 
   // This PHINode must be an induction variable.
   // Make sure that we know about it.
@@ -4758,10 +4733,6 @@ void InnerLoopVectorizer::widenInstruction(Instruction &I) {
     break;
   }
 
-  case Instruction::Store:
-  case Instruction::Load:
-    vectorizeMemoryInstruction(&I);
-    break;
   case Instruction::ZExt:
   case Instruction::SExt:
   case Instruction::FPToUI:
@@ -4866,7 +4837,7 @@ void InnerLoopVectorizer::widenInstruction(Instruction &I) {
   }
 
   default:
-    // All other instructions are scalarized.
+    // This instruction is not vectorized by simple widening.
     DEBUG(dbgs() << "LV: Found an unhandled instruction: " << I);
     llvm_unreachable("Unhandled instruction!");
   } // end of switch.
@@ -7752,6 +7723,82 @@ public:
   }
 };
 
+/// A recipe for vectorizing a phi-node as a sequence of mask-based select
+/// instructions.
+class VPBlendRecipe : public VPRecipeBase {
+private:
+  PHINode *Phi;
+
+public:
+  VPBlendRecipe(PHINode *Phi) : VPRecipeBase(VPBlendSC), Phi(Phi) {}
+
+  /// Method to support type inquiry through isa, cast, and dyn_cast.
+  static inline bool classof(const VPRecipeBase *V) {
+    return V->getVPRecipeID() == VPRecipeBase::VPBlendSC;
+  }
+
+  /// Generate the phi/select nodes.
+  void execute(VPTransformState &State) override {
+    State.ILV->setDebugLocFromInst(State.Builder, Phi);
+    // We know that all PHIs in non-header blocks are converted into
+    // selects, so we don't have to worry about the insertion order and we
+    // can just use the builder.
+    // At this point we generate the predication tree. There may be
+    // duplications since this is a simple recursive scan, but future
+    // optimizations will clean it up.
+
+    unsigned NumIncoming = Phi->getNumIncomingValues();
+
+    // Generate a sequence of selects of the form:
+    // SELECT(Mask3, In3,
+    //      SELECT(Mask2, In2,
+    //                   ( ...)))
+    InnerLoopVectorizer::VectorParts Entry(State.UF);
+    for (unsigned In = 0; In < NumIncoming; In++) {
+      InnerLoopVectorizer::VectorParts Cond =
+        State.ILV->createEdgeMask(Phi->getIncomingBlock(In), Phi->getParent());
+
+      for (unsigned Part = 0; Part < State.UF; ++Part) {
+        Value *In0 =
+          State.ILV->getOrCreateVectorValue(Phi->getIncomingValue(In), Part);
+        assert((Cond[Part] || NumIncoming == 1) &&
+               "Multiple predecessors with one predecessor having a full mask");
+        if (In == 0)
+          Entry[Part] = In0; // Initialize with the first incoming value.
+        else
+          // Select between the current value and the previous incoming edge
+          // based on the incoming mask.
+          Entry[Part] = State.Builder.CreateSelect(Cond[Part], In0, Entry[Part],
+                                                   "predphi");
+      }
+    }
+    for (unsigned Part = 0; Part < State.UF; ++Part)
+      State.ValueMap.setVectorValue(Phi, Part, Entry[Part]);
+  }
+
+  /// Print the recipe.
+  void print(raw_ostream &O, const Twine &Indent) const override {
+    O << " +\n" << Indent << "\"BLEND ";
+    Phi->printAsOperand(O, false);
+    O << " =";
+    if (Phi->getNumIncomingValues() == 1) {
+      // Not a User of any mask: not really blending, this is a
+      // single-predecessor phi.
+      O << " ";
+      Phi->getIncomingValue(0)->printAsOperand(O, false);
+    } else {
+      for (unsigned I = 0, E = Phi->getNumIncomingValues(); I < E; ++I) {
+        O << " ";
+        Phi->getIncomingValue(I)->printAsOperand(O, false);
+        O << "/";
+        Phi->getIncomingBlock(I)->printAsOperand(O, false);
+      }
+    }
+    O << "\\l\"";
+
+  }
+};
+
 /// VPInterleaveRecipe is a recipe for transforming an interleave group of load
 /// or stores into one wide load/store and shuffles.
 class VPInterleaveRecipe : public VPRecipeBase {
@@ -7896,6 +7943,32 @@ public:
       << "\\l\"";
   }
 };
+
+/// A Recipe for widening load/store operations.
+class VPWidenMemoryInstructionRecipe : public VPRecipeBase {
+private:
+  Instruction &Instr;
+
+public:
+  VPWidenMemoryInstructionRecipe(Instruction &Instr)
+      : VPRecipeBase(VPWidenMemoryInstructionSC), Instr(Instr) {}
+
+  /// Method to support type inquiry through isa, cast, and dyn_cast.
+  static inline bool classof(const VPRecipeBase *V) {
+    return V->getVPRecipeID() == VPRecipeBase::VPWidenMemoryInstructionSC;
+  }
+
+  /// Generate the wide load/store.
+  void execute(VPTransformState &State) override {
+    State.ILV->vectorizeMemoryInstruction(&Instr);
+  }
+
+  /// Print the recipe.
+  void print(raw_ostream &O, const Twine &Indent) const override {
+    O << " +\n" << Indent << "\"WIDEN " << VPlanIngredient(&Instr);
+    O << "\\l\"";
+  }
+};
 } // end anonymous namespace
 
 bool LoopVectorizationPlanner::getDecisionAndClampRange(
@@ -7953,6 +8026,32 @@ LoopVectorizationPlanner::tryToInterleaveMemory(Instruction *I,
   return new VPInterleaveRecipe(IG);
 }
 
+VPWidenMemoryInstructionRecipe *
+LoopVectorizationPlanner::tryToWidenMemory(Instruction *I, VFRange &Range) {
+  if (!isa<LoadInst>(I) && !isa<StoreInst>(I))
+    return nullptr;
+
+  auto willWiden = [&](unsigned VF) -> bool {
+    if (VF == 1)
+      return false;
+    if (CM.isScalarAfterVectorization(I, VF) ||
+        CM.isProfitableToScalarize(I, VF))
+      return false;
+    LoopVectorizationCostModel::InstWidening Decision =
+        CM.getWideningDecision(I, VF);
+    assert(Decision != LoopVectorizationCostModel::CM_Unknown &&
+           "CM decision should be taken at this point.");
+    assert(Decision != LoopVectorizationCostModel::CM_Interleave &&
+           "Interleave memory opportunity should be caught earlier.");
+    return Decision != LoopVectorizationCostModel::CM_Scalarize;
+  };
+
+  if (!getDecisionAndClampRange(willWiden, Range))
+    return nullptr;
+
+  return new VPWidenMemoryInstructionRecipe(*I);
+}
+
 VPWidenIntOrFpInductionRecipe *
 LoopVectorizationPlanner::tryToOptimizeInduction(Instruction *I,
                                                  VFRange &Range) {
@@ -7985,6 +8084,14 @@ LoopVectorizationPlanner::tryToOptimizeInduction(Instruction *I,
     return new VPWidenIntOrFpInductionRecipe(cast<PHINode>(I->getOperand(0)),
                                              cast<TruncInst>(I));
   return nullptr;
+}
+
+VPBlendRecipe *LoopVectorizationPlanner::tryToBlend(Instruction *I) {
+  PHINode *Phi = dyn_cast<PHINode>(I);
+  if (!Phi || Phi->getParent() == OrigLoop->getHeader())
+    return nullptr;
+
+  return new VPBlendRecipe(Phi);
 }
 
 bool LoopVectorizationPlanner::tryToWiden(Instruction *I, VPBasicBlock *VPBB,
@@ -8243,8 +8350,18 @@ VPlan *LoopVectorizationPlanner::buildVPlan(VFRange &Range) {
         continue;
       }
 
+      // Check if Instr is a memory operation that should be widened.
+      if ((Recipe = tryToWidenMemory(Instr, Range))) {
+        VPBB->appendRecipe(Recipe);
+        continue;
+      }
+
       // Check if Instr should form some PHI recipe.
       if ((Recipe = tryToOptimizeInduction(Instr, Range))) {
+        VPBB->appendRecipe(Recipe);
+        continue;
+      }
+      if ((Recipe = tryToBlend(Instr))) {
         VPBB->appendRecipe(Recipe);
         continue;
       }
