@@ -73,7 +73,7 @@ _start:
 // CHECK-NEXT:   Symbol {
 // CHECK-NEXT:     Name: __rel_iplt_start
 // CHECK-NEXT:     Value: 0x100F4
-// CHECK-NEXT:     Size: 0
+// CHECK-NEXT:     Size: 16
 // CHECK-NEXT:     Binding: Local
 // CHECK-NEXT:     Type: None
 // CHECK-NEXT:     Other [

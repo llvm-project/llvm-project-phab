@@ -6,7 +6,7 @@
 # RUN: llvm-readobj -symbols %t | FileCheck %s
 # CHECK:    Name: __ehdr_start (1)
 # CHECK-NEXT:    Value: 0x0
-# CHECK-NEXT:    Size: 0
+# CHECK-NEXT:    Size: 64
 # CHECK-NEXT:    Binding: Local (0x0)
 # CHECK-NEXT:    Type: None (0x0)
 # CHECK-NEXT:    Other [ (0x2)

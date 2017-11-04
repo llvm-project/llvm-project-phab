@@ -24,7 +24,7 @@ _start:
  .word _GLOBAL_OFFSET_TABLE_ - .
 // CHECK:     Name: _GLOBAL_OFFSET_TABLE_ (1)
 // CHECK-NEXT:     Value: 0x20000
-// CHECK-NEXT:     Size: 0
+// CHECK-NEXT:     Size: 40
 // CHECK-NEXT:     Binding: Local (0x0)
 // CHECK-NEXT:     Type: None (0x0)
 // CHECK-NEXT:     Other [ (0x2)

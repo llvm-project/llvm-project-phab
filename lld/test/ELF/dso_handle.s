@@ -5,7 +5,7 @@
 # RUN: llvm-readobj -symbols %t | FileCheck %s
 # CHECK:    Name: __dso_handle
 # CHECK-NEXT:    Value: 0x0
-# CHECK-NEXT:    Size: 0
+# CHECK-NEXT:    Size: 64
 # CHECK-NEXT:    Binding: Local
 # CHECK-NEXT:    Type: None
 # CHECK-NEXT:    Other [
