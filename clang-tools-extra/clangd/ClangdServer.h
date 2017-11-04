@@ -284,12 +284,18 @@ public:
   /// given a header file and vice versa.
   llvm::Optional<Path> switchSourceHeader(PathRef Path);
 
-  /// Run formatting for \p Rng inside \p File.
-  std::vector<tooling::Replacement> formatRange(PathRef File, Range Rng);
-  /// Run formatting for the whole \p File.
-  std::vector<tooling::Replacement> formatFile(PathRef File);
-  /// Run formatting after a character was typed at \p Pos in \p File.
-  std::vector<tooling::Replacement> formatOnType(PathRef File, Position Pos);
+  /// Run formatting for \p Rng inside \p File with content \p Code.
+  llvm::Expected<Tagged<std::vector<tooling::Replacement>>>
+  formatRange(llvm::StringRef Code, PathRef File, Range Rng);
+
+  /// Run formatting for the whole \p File with content \p Code.
+  llvm::Expected<Tagged<std::vector<tooling::Replacement>>>
+  formatFile(llvm::StringRef Code, PathRef File);
+
+  /// Run formatting after a character was typed at \p Pos in \p File with
+  /// content \p Code.
+  llvm::Expected<Tagged<std::vector<tooling::Replacement>>>
+  formatOnType(llvm::StringRef Code, PathRef File, Position Pos);
 
   /// Gets current document contents for \p File. \p File must point to a
   /// currently tracked file.
@@ -305,6 +311,12 @@ public:
   void onFileEvent(const DidChangeWatchedFilesParams &Params);
 
 private:
+  // FIXME: We don't need the Code argument, but that data just so happens to
+  // be present when invoking this method.
+  llvm::Expected<Tagged<std::vector<tooling::Replacement>>>
+  formatCode(llvm::StringRef Code, PathRef File,
+             ArrayRef<tooling::Range> Ranges);
+
   std::future<void>
   scheduleReparseAndDiags(PathRef File, VersionedDraft Contents,
                           std::shared_ptr<CppFile> Resources,

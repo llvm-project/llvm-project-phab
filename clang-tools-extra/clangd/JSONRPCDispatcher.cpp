@@ -47,13 +47,18 @@ void JSONOutput::mirrorInput(const Twine &Message) {
   InputMirror->flush();
 }
 
-void RequestContext::reply(const llvm::Twine &Result) {
+void RequestContext::reply(llvm::Expected<llvm::Twine> Result) {
   if (ID.empty()) {
     Out.log("Attempted to reply to a notification!\n");
     return;
   }
-  Out.writeMessage(llvm::Twine(R"({"jsonrpc":"2.0","id":)") + ID +
-                   R"(,"result":)" + Result + "}");
+  if (Result) {
+    Out.writeMessage(llvm::Twine(R"({"jsonrpc":"2.0","id":)") + ID +
+                     R"(,"result":)" + Result.get() + "}");
+  }
+  else {
+    replyError(Result.takeError());
+  }
 }
 
 void RequestContext::replyError(int code, const llvm::StringRef &Message) {
@@ -64,6 +69,11 @@ void RequestContext::replyError(int code, const llvm::StringRef &Message) {
                      R"(,"message":")" + llvm::yaml::escape(Message) +
                      R"("}})");
   }
+}
+
+void RequestContext::replyError(llvm::Error Err) {
+  const auto Message = llvm::toString(std::move(Err));
+  replyError(/*UnknownErrorCode*/ -32001, Message);
 }
 
 void RequestContext::call(StringRef Method, StringRef Params) {

@@ -15,6 +15,7 @@
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/Support/YAMLParser.h"
+#include "llvm/Support/Error.h"
 #include <iosfwd>
 #include <mutex>
 
@@ -54,10 +55,14 @@ class RequestContext {
 public:
   RequestContext(JSONOutput &Out, StringRef ID) : Out(Out), ID(ID) {}
 
-  /// Sends a successful reply. Result should be well-formed JSON.
-  void reply(const Twine &Result);
+  /// Send a response to a request from the client, or an error.
+  /// 
+  /// \param Result Well-formed JSON, or an llvm::Error.
+  void reply(llvm::Expected<Twine> Result);
   /// Sends an error response to the client, and logs it.
   void replyError(int code, const llvm::StringRef &Message);
+  /// Send all error messages contained in Err to the client, and log them.
+  void replyError(llvm::Error Err);
   /// Sends a request to the client.
   void call(llvm::StringRef Method, StringRef Params);
 

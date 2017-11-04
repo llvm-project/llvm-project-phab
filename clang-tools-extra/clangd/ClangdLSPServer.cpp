@@ -9,6 +9,7 @@
 
 #include "ClangdLSPServer.h"
 #include "JSONRPCDispatcher.h"
+#include <llvm/Support/Error.h>
 
 #include "llvm/Support/FormatVariadic.h"
 
@@ -119,29 +120,35 @@ void ClangdLSPServer::onDocumentDidClose(Ctx C,
 
 void ClangdLSPServer::onDocumentOnTypeFormatting(
     Ctx C, DocumentOnTypeFormattingParams &Params) {
-  auto File = Params.textDocument.uri.file;
-  std::string Code = Server.getDocument(File);
-  std::string Edits = TextEdit::unparse(
-      replacementsToEdits(Code, Server.formatOnType(File, Params.position)));
-  C.reply(Edits);
+  const auto File = Params.textDocument.uri.file;
+  const auto Code = Server.getDocument(File);
+  auto Edits = Server.formatOnType(Code, File, Params.position);
+  if (Edits)
+    C.reply(TextEdit::unparse(replacementsToEdits(Code, Edits->Value)));
+  else
+    C.reply(Edits.takeError());
 }
 
 void ClangdLSPServer::onDocumentRangeFormatting(
     Ctx C, DocumentRangeFormattingParams &Params) {
-  auto File = Params.textDocument.uri.file;
-  std::string Code = Server.getDocument(File);
-  std::string Edits = TextEdit::unparse(
-      replacementsToEdits(Code, Server.formatRange(File, Params.range)));
-  C.reply(Edits);
+  const auto File = Params.textDocument.uri.file;
+  const auto Code = Server.getDocument(File);
+  auto Edits = Server.formatRange(Code, File, Params.range);
+  if (Edits)
+    C.reply(TextEdit::unparse(replacementsToEdits(Code, Edits->Value)));
+  else
+    C.reply(Edits.takeError());
 }
 
 void ClangdLSPServer::onDocumentFormatting(Ctx C,
                                            DocumentFormattingParams &Params) {
-  auto File = Params.textDocument.uri.file;
-  std::string Code = Server.getDocument(File);
-  std::string Edits =
-      TextEdit::unparse(replacementsToEdits(Code, Server.formatFile(File)));
-  C.reply(Edits);
+  const auto File = Params.textDocument.uri.file;
+  const auto Code = Server.getDocument(File);
+  auto Edits = Server.formatFile(Code, File);
+  if (Edits)
+    C.reply(TextEdit::unparse(replacementsToEdits(Code, Edits->Value)));
+  else
+    C.reply(Edits.takeError());
 }
 
 void ClangdLSPServer::onCodeAction(Ctx C, CodeActionParams &Params) {
