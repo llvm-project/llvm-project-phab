@@ -248,7 +248,7 @@ static void printHtml(raw_ostream &OS, const StringRef Str) {
 
 static std::string getChangeKindAbbr(diff::ChangeKind Kind) {
   switch (Kind) {
-  case diff::None:
+  case diff::NoChange:
     return "";
   case diff::Delete:
     return "d";
@@ -300,7 +300,7 @@ static unsigned printHtmlForNode(raw_ostream &OS, const diff::ASTDiff &Diff,
     printHtml(OS, Value);
   }
   OS << "'";
-  if (Node.Change != diff::None)
+  if (Node.Change != diff::NoChange)
     OS << " class='" << getChangeKindAbbr(Node.Change) << "'";
   OS << ">";
 
@@ -409,7 +409,7 @@ static void printDstChange(raw_ostream &OS, diff::ASTDiff &Diff,
                            diff::NodeRef Dst) {
   const diff::Node *Src = Diff.getMapped(DstTree, Dst);
   switch (Dst.Change) {
-  case diff::None:
+  case diff::NoChange:
     break;
   case diff::Delete:
     llvm_unreachable("The destination tree can't have deletions.");

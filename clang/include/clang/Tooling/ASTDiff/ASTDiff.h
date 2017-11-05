@@ -26,7 +26,7 @@ namespace clang {
 namespace diff {
 
 enum ChangeKind {
-  None,
+  NoChange,
   Delete,    // (Src): delete node Src.
   Update,    // (Src, Dst): update the value of node Src to match Dst.
   Insert,    // (Src, Dst, Pos): insert Src as child of Dst at offset Pos.
@@ -95,7 +95,7 @@ struct Node {
   int Depth, Height, Shift = 0;
   ast_type_traits::DynTypedNode ASTNode;
   SmallVector<NodeId, 4> Children;
-  ChangeKind Change = None;
+  ChangeKind Change = NoChange;
   Node(SyntaxTree::Impl &Tree) : Tree(Tree), Children() {}
 
   NodeId getId() const;
