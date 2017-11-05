@@ -607,6 +607,8 @@ llvm::Optional<std::string> Node::getQualifiedIdentifier() const {
   if (auto *ND = ASTNode.get<NamedDecl>()) {
     if (ND->getDeclName().isIdentifier())
       return ND->getQualifiedNameAsString();
+    else
+      return std::string();
   }
   return llvm::None;
 }
@@ -617,6 +619,8 @@ llvm::Optional<StringRef> Node::getIdentifier() const {
   if (auto *ND = ASTNode.get<NamedDecl>()) {
     if (ND->getDeclName().isIdentifier())
       return ND->getName();
+    else
+      return StringRef();
   }
   return llvm::None;
 }

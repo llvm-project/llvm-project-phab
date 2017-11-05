@@ -10,6 +10,8 @@ void f1() {;}
 
 void f2(int) {;}
 
+class C3 { C3(); };
+
 #else
 
 // same parents, same value
@@ -21,5 +23,9 @@ void f1() {}
 // CHECK: Match FunctionDecl(4) to FunctionDecl(3)
 // CHECK: Match CompoundStmt
 void f2() {}
+
+// same parents, same identifier
+// CHECK: Match CXXConstructorDecl(9) to CXXConstructorDecl(6)
+class C3 { C3(int); };
 
 #endif
