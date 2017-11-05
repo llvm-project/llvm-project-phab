@@ -841,6 +841,37 @@ SmallVector<CharSourceRange, 4> Node::getOwnedSourceRanges() const {
   return SourceRanges;
 }
 
+CharSourceRange Node::findRangeForDeletion() const {
+  CharSourceRange Range = getSourceRange();
+  if (!getParent())
+    return Range;
+  NodeRef Parent = *getParent();
+  SyntaxTree &Tree = getTree();
+  SourceManager &SM = Tree.getSourceManager();
+  const LangOptions &LangOpts = Tree.getLangOpts();
+  auto &DTN = ASTNode;
+  auto &ParentDTN = Parent.ASTNode;
+  size_t SiblingIndex = findPositionInParent();
+  const auto &Siblings = Parent.Children;
+  // Remove the comma if the location is within a comma-separated list of
+  // at least size 2 (minus the callee for CallExpr).
+  if ((ParentDTN.get<CallExpr>() && Siblings.size() > 2) ||
+      (DTN.get<ParmVarDecl>() && Siblings.size() > 2)) {
+    bool LastSibling = SiblingIndex == Siblings.size() - 1;
+    SourceLocation CommaLoc;
+    if (LastSibling) {
+      CommaLoc = Parent.getChild(SiblingIndex - 1).getSourceRange().getEnd();
+      Range.setBegin(CommaLoc);
+    } else {
+      Optional<Token> Comma =
+          Lexer::findNextToken(Range.getEnd(), SM, LangOpts);
+      if (Comma && Comma->is(tok::comma))
+        Range.setEnd(Comma->getEndLoc());
+    }
+  }
+  return Range;
+}
+
 void forEachTokenInRange(CharSourceRange Range, SyntaxTree &Tree,
                          std::function<void(Token &)> Body) {
   SourceLocation Begin = Range.getBegin(), End = Range.getEnd();

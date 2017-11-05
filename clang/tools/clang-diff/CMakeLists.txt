@@ -9,6 +9,8 @@ add_clang_executable(clang-diff
 target_link_libraries(clang-diff
   clangBasic
   clangFrontend
+  clangRewrite
   clangTooling
+  clangToolingCore
   clangToolingASTDiff
   )

@@ -163,6 +163,11 @@ struct Node {
   /// this node, that is, none of its descendants includes them.
   SmallVector<CharSourceRange, 4> getOwnedSourceRanges() const;
 
+  /// This differs from getSourceRange() in the sense that the range is extended
+  /// to include the trailing comma if the node is within a comma-separated
+  /// list.
+  CharSourceRange findRangeForDeletion() const;
+
   /// Returns the offsets for the range returned by getSourceRange().
   std::pair<unsigned, unsigned> getSourceRangeOffsets() const;
 

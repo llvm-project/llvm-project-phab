@@ -1,0 +1,9 @@
+// compare the file with an empty file, patch it to remove all code
+RUN: rm -rf %t && mkdir -p %t
+RUN: cp %S/clang-diff-ast.cpp %t
+RUN: echo > %t/dst.cpp
+RUN: clang-diff %t/clang-diff-ast.cpp %t/dst.cpp \
+RUN:  -patch %t/clang-diff-ast.cpp -- -std=c++11
+// the resulting file should not contain anything other than comments and
+// whitespace
+RUN: cat %t/clang-diff-ast.cpp | grep -v '^#' | grep -v '^\s*//' | not grep -v '^\s*$'

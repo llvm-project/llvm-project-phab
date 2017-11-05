@@ -13,6 +13,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/Tooling/ASTDiff/ASTDiff.h"
+#include "clang/Tooling/ASTDiff/ASTPatch.h"
 #include "clang/Tooling/CommonOptionsParser.h"
 #include "clang/Tooling/Tooling.h"
 #include "llvm/Support/CommandLine.h"
@@ -40,6 +41,12 @@ static cl::opt<bool> PrintMatches("dump-matches",
 static cl::opt<bool> HtmlDiff("html",
                               cl::desc("Output a side-by-side diff in HTML."),
                               cl::init(false), cl::cat(ClangDiffCategory));
+
+static cl::opt<std::string>
+    FileToPatch("patch",
+                cl::desc("Try to apply the edit actions between the two input "
+                         "files to the specified target."),
+                cl::desc("<target>"), cl::cat(ClangDiffCategory));
 
 static cl::opt<std::string> SourcePath(cl::Positional, cl::desc("<source>"),
                                        cl::Required,
@@ -453,6 +460,24 @@ int main(int argc, const char **argv) {
   }
   diff::SyntaxTree SrcTree(*Src);
   diff::SyntaxTree DstTree(*Dst);
+
+  if (!FileToPatch.empty()) {
+    std::array<std::string, 1> Files = {{FileToPatch}};
+    RefactoringTool TargetTool(CommonCompilations
+                                   ? *CommonCompilations
+                                   : *getCompilationDatabase(FileToPatch),
+                               Files);
+    if (auto Err = diff::patch(TargetTool, SrcTree, DstTree, Options)) {
+      llvm::handleAllErrors(
+          std::move(Err),
+          [](const diff::PatchingError &PE) { PE.log(llvm::errs()); },
+          [](const ReplacementError &RE) { RE.log(llvm::errs()); });
+      llvm::errs() << "*** errors occured, patching failed.\n";
+      return 1;
+    }
+    return 0;
+  }
+
   diff::ASTDiff Diff(SrcTree, DstTree, Options);
 
   if (HtmlDiff) {

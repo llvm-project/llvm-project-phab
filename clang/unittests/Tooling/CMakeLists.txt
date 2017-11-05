@@ -11,6 +11,7 @@ if (MSVC)
 endif()
 
 add_clang_unittest(ToolingTests
+  ASTPatchTest.cpp
   ASTSelectionTest.cpp
   CastExprTest.cpp
   CommentHandlerTest.cpp
@@ -45,4 +46,5 @@ target_link_libraries(ToolingTests
   clangTooling
   clangToolingCore
   clangToolingRefactor
+  clangToolingASTDiff
   )
