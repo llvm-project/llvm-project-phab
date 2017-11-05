@@ -34,20 +34,6 @@ enum ChangeKind {
   UpdateMove // Same as Move plus Update.
 };
 
-/// Represents a Clang AST node, alongside some additional information.
-struct Node {
-  NodeId Parent, LeftMostDescendant, RightMostDescendant;
-  int Depth, Height, Shift = 0;
-  ast_type_traits::DynTypedNode ASTNode;
-  SmallVector<NodeId, 4> Children;
-  ChangeKind Change = None;
-
-  ast_type_traits::ASTNodeKind getType() const;
-  StringRef getTypeLabel() const;
-  bool isLeaf() const { return Children.empty(); }
-  llvm::Optional<StringRef> getIdentifier() const;
-  llvm::Optional<std::string> getQualifiedIdentifier() const;
-};
 
 class ASTDiff {
 public:
@@ -55,7 +41,7 @@ public:
   ~ASTDiff();
 
   // Returns the ID of the node that is mapped to the given node in SourceTree.
-  NodeId getMapped(const SyntaxTree &SourceTree, NodeId Id) const;
+  const Node *getMapped(const SyntaxTree &SourceTree, const Node &N) const;
 
   class Impl;
 
@@ -80,25 +66,61 @@ public:
   StringRef getFilename() const;
 
   int getSize() const;
-  NodeId getRootId() const;
-  using PreorderIterator = NodeId;
+  const Node &getRoot() const;
+  using PreorderIterator = const Node *;
   PreorderIterator begin() const;
   PreorderIterator end() const;
 
   const Node &getNode(NodeId Id) const;
-  int findPositionInParent(NodeId Id) const;
+  int findPositionInParent(const Node &Node) const;
 
   // Returns the starting and ending offset of the node in its source file.
   std::pair<unsigned, unsigned> getSourceRangeOffsets(const Node &N) const;
 
   /// Serialize the node attributes to a string representation. This should
-  /// uniquely distinguish nodes of the same kind. Note that this function just
+  /// uniquely distinguish nodes of the same kind. Note that this function
+  /// just
   /// returns a representation of the node value, not considering descendants.
-  std::string getNodeValue(NodeId Id) const;
   std::string getNodeValue(const Node &Node) const;
 
   class Impl;
   std::unique_ptr<Impl> TreeImpl;
+};
+
+/// Represents a Clang AST node, alongside some additional information.
+struct Node {
+  SyntaxTree::Impl &Tree;
+  NodeId Parent, LeftMostDescendant, RightMostDescendant;
+  int Depth, Height, Shift = 0;
+  ast_type_traits::DynTypedNode ASTNode;
+  SmallVector<NodeId, 4> Children;
+  ChangeKind Change = None;
+  Node(SyntaxTree::Impl &Tree) : Tree(Tree), Children() {}
+
+  NodeId getId() const;
+  SyntaxTree &getTree() const;
+  const Node *getParent() const;
+  const Node &getChild(size_t Index) const;
+  size_t getNumChildren() const { return Children.size(); }
+  ast_type_traits::ASTNodeKind getType() const;
+  StringRef getTypeLabel() const;
+  bool isLeaf() const { return Children.empty(); }
+  llvm::Optional<StringRef> getIdentifier() const;
+  llvm::Optional<std::string> getQualifiedIdentifier() const;
+
+  NodeRefIterator begin() const;
+  NodeRefIterator end() const;
+};
+
+struct NodeRefIterator {
+  SyntaxTree::Impl *Tree;
+  const NodeId *IdPointer;
+  NodeRefIterator(SyntaxTree::Impl *Tree, const NodeId *IdPointer)
+      : Tree(Tree), IdPointer(IdPointer) {}
+  const Node &operator*() const;
+  NodeRefIterator &operator++();
+  NodeRefIterator &operator+(int Offset);
+  bool operator!=(const NodeRefIterator &Other) const;
 };
 
 struct ComparisonOptions {

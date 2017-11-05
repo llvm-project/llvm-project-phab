@@ -265,30 +265,31 @@ static std::string getChangeKindAbbr(diff::ChangeKind Kind) {
 }
 
 static unsigned printHtmlForNode(raw_ostream &OS, const diff::ASTDiff &Diff,
-                                 diff::SyntaxTree &Tree, bool IsLeft,
-                                 diff::NodeId Id, unsigned Offset) {
-  const diff::Node &Node = Tree.getNode(Id);
+                                 bool IsLeft, const diff::Node &Node,
+                                 unsigned Offset) {
   char MyTag, OtherTag;
   diff::NodeId LeftId, RightId;
-  diff::NodeId TargetId = Diff.getMapped(Tree, Id);
+  diff::SyntaxTree &Tree = Node.getTree();
+  const diff::Node *Target = Diff.getMapped(Tree, Node);
+  diff::NodeId TargetId = Target ? Target->getId() : diff::NodeId();
   if (IsLeft) {
     MyTag = 'L';
     OtherTag = 'R';
-    LeftId = Id;
+    LeftId = Node.getId();
     RightId = TargetId;
   } else {
     MyTag = 'R';
     OtherTag = 'L';
     LeftId = TargetId;
-    RightId = Id;
+    RightId = Node.getId();
   }
   unsigned Begin, End;
   std::tie(Begin, End) = Tree.getSourceRangeOffsets(Node);
-  const SourceManager &SrcMgr = Tree.getASTContext().getSourceManager();
-  auto Code = SrcMgr.getBuffer(SrcMgr.getMainFileID())->getBuffer();
+  const SourceManager &SM = Tree.getASTContext().getSourceManager();
+  auto Code = SM.getBuffer(SM.getMainFileID())->getBuffer();
   for (; Offset < Begin; ++Offset)
     printHtml(OS, Code[Offset]);
-  OS << "<span id='" << MyTag << Id << "' "
+  OS << "<span id='" << MyTag << Node.getId() << "' "
      << "tid='" << OtherTag << TargetId << "' ";
   OS << "title='";
   printHtml(OS, Node.getTypeLabel());
@@ -303,12 +304,12 @@ static unsigned printHtmlForNode(raw_ostream &OS, const diff::ASTDiff &Diff,
     OS << " class='" << getChangeKindAbbr(Node.Change) << "'";
   OS << ">";
 
-  for (diff::NodeId Child : Node.Children)
-    Offset = printHtmlForNode(OS, Diff, Tree, IsLeft, Child, Offset);
+  for (const diff::Node &Child : Node)
+    Offset = printHtmlForNode(OS, Diff, IsLeft, Child, Offset);
 
   for (; Offset < End; ++Offset)
     printHtml(OS, Code[Offset]);
-  if (Id == Tree.getRootId()) {
+  if (&Node == &Tree.getRoot()) {
     End = Code.size();
     for (; Offset < End; ++Offset)
       printHtml(OS, Code[Offset]);
@@ -343,14 +344,13 @@ static void printJsonString(raw_ostream &OS, const StringRef Str) {
 }
 
 static void printNodeAttributes(raw_ostream &OS, diff::SyntaxTree &Tree,
-                                diff::NodeId Id) {
-  const diff::Node &N = Tree.getNode(Id);
-  OS << R"("id":)" << int(Id);
-  OS << R"(,"type":")" << N.getTypeLabel() << '"';
-  auto Offsets = Tree.getSourceRangeOffsets(N);
+                                const diff::Node &Node) {
+  OS << R"("id":)" << int(Node.getId());
+  OS << R"(,"type":")" << Node.getTypeLabel() << '"';
+  auto Offsets = Tree.getSourceRangeOffsets(Node);
   OS << R"(,"begin":)" << Offsets.first;
   OS << R"(,"end":)" << Offsets.second;
-  std::string Value = Tree.getNodeValue(N);
+  std::string Value = Tree.getNodeValue(Node);
   if (!Value.empty()) {
     OS << R"(,"value":")";
     printJsonString(OS, Value);
@@ -359,12 +359,11 @@ static void printNodeAttributes(raw_ostream &OS, diff::SyntaxTree &Tree,
 }
 
 static void printNodeAsJson(raw_ostream &OS, diff::SyntaxTree &Tree,
-                            diff::NodeId Id) {
-  const diff::Node &N = Tree.getNode(Id);
+                            const diff::Node &Node) {
   OS << "{";
-  printNodeAttributes(OS, Tree, Id);
-  auto Identifier = N.getIdentifier();
-  auto QualifiedIdentifier = N.getQualifiedIdentifier();
+  printNodeAttributes(OS, Tree, Node);
+  auto Identifier = Node.getIdentifier();
+  auto QualifiedIdentifier = Node.getQualifiedIdentifier();
   if (Identifier) {
     OS << R"(,"identifier":")";
     printJsonString(OS, *Identifier);
@@ -376,66 +375,65 @@ static void printNodeAsJson(raw_ostream &OS, diff::SyntaxTree &Tree,
     }
   }
   OS << R"(,"children":[)";
-  if (N.Children.size() > 0) {
-    printNodeAsJson(OS, Tree, N.Children[0]);
-    for (size_t I = 1, E = N.Children.size(); I < E; ++I) {
+  auto ChildBegin = Node.begin(), ChildEnd = Node.end();
+  if (ChildBegin != ChildEnd) {
+    printNodeAsJson(OS, Tree, *ChildBegin);
+    for (++ChildBegin; ChildBegin != ChildEnd; ++ChildBegin) {
       OS << ",";
-      printNodeAsJson(OS, Tree, N.Children[I]);
+      printNodeAsJson(OS, Tree, *ChildBegin);
     }
   }
   OS << "]}";
 }
 
 static void printNode(raw_ostream &OS, diff::SyntaxTree &Tree,
-                      diff::NodeId Id) {
-  if (Id.isInvalid()) {
-    OS << "None";
-    return;
-  }
-  OS << Tree.getNode(Id).getTypeLabel();
-  std::string Value = Tree.getNodeValue(Id);
+                      const diff::Node &Node) {
+  OS << Node.getTypeLabel();
+  std::string Value = Tree.getNodeValue(Node);
   if (!Value.empty())
     OS << ": " << Value;
-  OS << "(" << Id << ")";
+  OS << "(" << Node.getId() << ")";
 }
 
 static void printTree(raw_ostream &OS, diff::SyntaxTree &Tree) {
-  for (diff::NodeId Id : Tree) {
-    for (int I = 0; I < Tree.getNode(Id).Depth; ++I)
+  for (const diff::Node &Node : Tree) {
+    for (int I = 0; I < Node.Depth; ++I)
       OS << " ";
-    printNode(OS, Tree, Id);
+    printNode(OS, Tree, Node);
     OS << "\n";
   }
 }
 
 static void printDstChange(raw_ostream &OS, diff::ASTDiff &Diff,
                            diff::SyntaxTree &SrcTree, diff::SyntaxTree &DstTree,
-                           diff::NodeId Dst) {
-  const diff::Node &DstNode = DstTree.getNode(Dst);
-  diff::NodeId Src = Diff.getMapped(DstTree, Dst);
-  switch (DstNode.Change) {
+                           const diff::Node &Dst) {
+  const diff::Node *Src = Diff.getMapped(DstTree, Dst);
+  switch (Dst.Change) {
   case diff::None:
     break;
   case diff::Delete:
     llvm_unreachable("The destination tree can't have deletions.");
   case diff::Update:
     OS << "Update ";
-    printNode(OS, SrcTree, Src);
+    printNode(OS, SrcTree, *Src);
     OS << " to " << DstTree.getNodeValue(Dst) << "\n";
     break;
   case diff::Insert:
   case diff::Move:
   case diff::UpdateMove:
-    if (DstNode.Change == diff::Insert)
+    if (Dst.Change == diff::Insert)
       OS << "Insert";
-    else if (DstNode.Change == diff::Move)
+    else if (Dst.Change == diff::Move)
       OS << "Move";
-    else if (DstNode.Change == diff::UpdateMove)
+    else if (Dst.Change == diff::UpdateMove)
       OS << "Update and Move";
     OS << " ";
     printNode(OS, DstTree, Dst);
     OS << " into ";
-    printNode(OS, DstTree, DstNode.Parent);
+    if (!Dst.getParent())
+      OS << "None";
+    else
+      printNode(OS, DstTree, *Dst.getParent());
     OS << " at " << DstTree.findPositionInParent(Dst) << "\n";
     break;
   }
@@ -471,7 +469,7 @@ int main(int argc, const char **argv) {
     llvm::outs() << R"({"filename":")";
     printJsonString(llvm::outs(), SourcePath);
     llvm::outs() << R"(","root":)";
-    printNodeAsJson(llvm::outs(), Tree, Tree.getRootId());
+    printNodeAsJson(llvm::outs(), Tree, Tree.getRoot());
     llvm::outs() << "}\n";
     return 0;
   }
@@ -504,29 +502,28 @@ int main(int argc, const char **argv) {
   if (HtmlDiff) {
     llvm::outs() << HtmlDiffHeader << "<pre>";
     llvm::outs() << "<div id='L' class='code'>";
-    printHtmlForNode(llvm::outs(), Diff, SrcTree, true, SrcTree.getRootId(), 0);
+    printHtmlForNode(llvm::outs(), Diff, true, SrcTree.getRoot(), 0);
     llvm::outs() << "</div>";
     llvm::outs() << "<div id='R' class='code'>";
-    printHtmlForNode(llvm::outs(), Diff, DstTree, false, DstTree.getRootId(),
-                     0);
+    printHtmlForNode(llvm::outs(), Diff, false, DstTree.getRoot(), 0);
     llvm::outs() << "</div>";
     llvm::outs() << "</pre></div></body></html>\n";
     return 0;
   }
 
-  for (diff::NodeId Dst : DstTree) {
-    diff::NodeId Src = Diff.getMapped(DstTree, Dst);
-    if (PrintMatches && Src.isValid()) {
+  for (const diff::Node &Dst : DstTree) {
+    const diff::Node *Src = Diff.getMapped(DstTree, Dst);
+    if (PrintMatches && Src) {
       llvm::outs() << "Match ";
-      printNode(llvm::outs(), SrcTree, Src);
+      printNode(llvm::outs(), SrcTree, *Src);
       llvm::outs() << " to ";
       printNode(llvm::outs(), DstTree, Dst);
       llvm::outs() << "\n";
     }
     printDstChange(llvm::outs(), Diff, SrcTree, DstTree, Dst);
   }
-  for (diff::NodeId Src : SrcTree) {
-    if (Diff.getMapped(SrcTree, Src).isInvalid()) {
+  for (const diff::Node &Src : SrcTree) {
+    if (!Diff.getMapped(SrcTree, Src)) {
       llvm::outs() << "Delete ";
       printNode(llvm::outs(), SrcTree, Src);
       llvm::outs() << "\n";

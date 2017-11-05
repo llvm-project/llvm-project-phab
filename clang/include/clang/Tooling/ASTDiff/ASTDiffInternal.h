@@ -19,8 +19,9 @@ namespace diff {
 using DynTypedNode = ast_type_traits::DynTypedNode;
 
 class SyntaxTree;
-class SyntaxTreeImpl;
 struct ComparisonOptions;
+struct Node;
+struct NodeRefIterator;
 
 /// Within a tree, this identifies a node by its preorder offset.
 struct NodeId {
@@ -36,8 +37,6 @@ public:
   operator int() const { return Id; }
   NodeId &operator++() { return ++Id, *this; }
   NodeId &operator--() { return --Id, *this; }
-  // Support defining iterators on NodeId.
-  NodeId &operator*() { return *this; }
 
   bool isValid() const { return Id != InvalidNodeId; }
   bool isInvalid() const { return Id == InvalidNodeId; }
