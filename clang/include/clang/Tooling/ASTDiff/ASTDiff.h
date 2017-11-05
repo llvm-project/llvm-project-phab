@@ -34,6 +34,7 @@ enum ChangeKind {
   UpdateMove // Same as Move plus Update.
 };
 
+using NodeRef = const Node &;
 
 class ASTDiff {
 public:
@@ -41,7 +42,7 @@ public:
   ~ASTDiff();
 
   // Returns the ID of the node that is mapped to the given node in SourceTree.
-  const Node *getMapped(const SyntaxTree &SourceTree, const Node &N) const;
+  const Node *getMapped(const SyntaxTree &SourceTree, NodeRef N) const;
 
   class Impl;
 
@@ -66,22 +67,22 @@ public:
   StringRef getFilename() const;
 
   int getSize() const;
-  const Node &getRoot() const;
+  NodeRef getRoot() const;
   using PreorderIterator = const Node *;
   PreorderIterator begin() const;
   PreorderIterator end() const;
 
-  const Node &getNode(NodeId Id) const;
-  int findPositionInParent(const Node &Node) const;
+  NodeRef getNode(NodeId Id) const;
+  int findPositionInParent(NodeRef Node) const;
 
   // Returns the starting and ending offset of the node in its source file.
-  std::pair<unsigned, unsigned> getSourceRangeOffsets(const Node &N) const;
+  std::pair<unsigned, unsigned> getSourceRangeOffsets(NodeRef N) const;
 
   /// Serialize the node attributes to a string representation. This should
   /// uniquely distinguish nodes of the same kind. Note that this function
   /// just
   /// returns a representation of the node value, not considering descendants.
-  std::string getNodeValue(const Node &Node) const;
+  std::string getNodeValue(NodeRef Node) const;
 
   class Impl;
   std::unique_ptr<Impl> TreeImpl;
@@ -100,7 +101,7 @@ struct Node {
   NodeId getId() const;
   SyntaxTree &getTree() const;
   const Node *getParent() const;
-  const Node &getChild(size_t Index) const;
+  NodeRef getChild(size_t Index) const;
   size_t getNumChildren() const { return Children.size(); }
   ast_type_traits::ASTNodeKind getType() const;
   StringRef getTypeLabel() const;
@@ -117,7 +118,7 @@ struct NodeRefIterator {
   const NodeId *IdPointer;
   NodeRefIterator(SyntaxTree::Impl *Tree, const NodeId *IdPointer)
       : Tree(Tree), IdPointer(IdPointer) {}
-  const Node &operator*() const;
+  NodeRef operator*() const;
   NodeRefIterator &operator++();
   NodeRefIterator &operator+(int Offset);
   bool operator!=(const NodeRefIterator &Other) const;
@@ -138,7 +139,7 @@ struct ComparisonOptions {
   bool StopAfterTopDown = false;
 
   /// Returns false if the nodes should never be matched.
-  bool isMatchingAllowed(const Node &N1, const Node &N2) const {
+  bool isMatchingAllowed(NodeRef N1, NodeRef N2) const {
     return N1.getType().isSame(N2.getType());
   }
 };
