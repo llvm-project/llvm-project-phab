@@ -284,7 +284,7 @@ static unsigned printHtmlForNode(raw_ostream &OS, const diff::ASTDiff &Diff,
     RightId = Node.getId();
   }
   unsigned Begin, End;
-  std::tie(Begin, End) = Tree.getSourceRangeOffsets(Node);
+  std::tie(Begin, End) = Node.getSourceRangeOffsets();
   const SourceManager &SM = Tree.getASTContext().getSourceManager();
   auto Code = SM.getBuffer(SM.getMainFileID())->getBuffer();
   for (; Offset < Begin; ++Offset)
@@ -347,7 +347,7 @@ static void printNodeAttributes(raw_ostream &OS, diff::SyntaxTree &Tree,
                                 diff::NodeRef Node) {
   OS << R"("id":)" << int(Node.getId());
   OS << R"(,"type":")" << Node.getTypeLabel() << '"';
-  auto Offsets = Tree.getSourceRangeOffsets(Node);
+  auto Offsets = Node.getSourceRangeOffsets();
   OS << R"(,"begin":)" << Offsets.first;
   OS << R"(,"end":)" << Offsets.second;
   std::string Value = Tree.getNodeValue(Node);

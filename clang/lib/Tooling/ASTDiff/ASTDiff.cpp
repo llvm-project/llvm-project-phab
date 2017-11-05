@@ -716,6 +716,21 @@ int Node::findPositionInParent() const {
          Siblings.begin();
 }
 
+std::pair<unsigned, unsigned> Node::getSourceRangeOffsets() const {
+  const SourceManager &SM = Tree.AST.getSourceManager();
+  SourceRange Range = ASTNode.getSourceRange();
+  SourceLocation BeginLoc = Range.getBegin();
+  SourceLocation EndLoc = Lexer::getLocForEndOfToken(
+      Range.getEnd(), /*Offset=*/0, SM, Tree.AST.getLangOpts());
+  if (auto *ThisExpr = ASTNode.get<CXXThisExpr>()) {
+    if (ThisExpr->isImplicit())
+      EndLoc = BeginLoc;
+  }
+  unsigned Begin = SM.getFileOffset(SM.getExpansionLoc(BeginLoc));
+  unsigned End = SM.getFileOffset(SM.getExpansionLoc(EndLoc));
+  return {Begin, End};
+}
+
 namespace {
 // Compares nodes by their depth.
 struct HeightLess {
@@ -1025,22 +1040,6 @@ SyntaxTree::PreorderIterator SyntaxTree::begin() const {
   return TreeImpl->begin();
 }
 SyntaxTree::PreorderIterator SyntaxTree::end() const { return TreeImpl->end(); }
-
-std::pair<unsigned, unsigned>
-SyntaxTree::getSourceRangeOffsets(NodeRef N) const {
-  const SourceManager &SM = TreeImpl->AST.getSourceManager();
-  SourceRange Range = N.ASTNode.getSourceRange();
-  SourceLocation BeginLoc = Range.getBegin();
-  SourceLocation EndLoc = Lexer::getLocForEndOfToken(
-      Range.getEnd(), /*Offset=*/0, SM, TreeImpl->AST.getLangOpts());
-  if (auto *ThisExpr = N.ASTNode.get<CXXThisExpr>()) {
-    if (ThisExpr->isImplicit())
-      EndLoc = BeginLoc;
-  }
-  unsigned Begin = SM.getFileOffset(SM.getExpansionLoc(BeginLoc));
-  unsigned End = SM.getFileOffset(SM.getExpansionLoc(EndLoc));
-  return {Begin, End};
-}
 
 std::string SyntaxTree::getNodeValue(NodeRef N) const {
   return TreeImpl->getNodeValue(N);

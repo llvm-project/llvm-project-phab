@@ -91,9 +91,6 @@ public:
 
   NodeRef getNode(NodeId Id) const;
 
-  // Returns the starting and ending offset of the node in its source file.
-  std::pair<unsigned, unsigned> getSourceRangeOffsets(NodeRef N) const;
-
   /// Serialize the node attributes to a string representation. This should
   /// uniquely distinguish nodes of the same kind. Note that this function
   /// just
@@ -129,6 +126,9 @@ struct Node {
   NodeRefIterator end() const;
 
   int findPositionInParent() const;
+
+  // Returns the starting and ending offset of the node in its source file.
+  std::pair<unsigned, unsigned> getSourceRangeOffsets() const;
 };
 
 struct NodeRefIterator {
