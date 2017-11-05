@@ -1,4 +1,4 @@
-RUN: clang-diff -html %S/Inputs/clang-diff-basic-src.cpp %S/clang-diff-basic.cpp -- -std=c++11 | FileCheck %s
+RUN: clang-diff -html %S/Inputs/clang-diff-basic-src.cpp %S/clang-diff-basic.cpp -s=200 -- -std=c++11 | FileCheck %s
 
 CHECK: <pre><div id='L' class='code'><span id='L0' tid='R0' title='TranslationUnitDecl
 CHECK-NEXT: 0 -> 0' class='u'>
@@ -9,11 +9,15 @@ CHECK-NEXT: [[L]] -> [[R]]' class='u'>namespace src {
 
 match, move
 CHECK: <span id='L[[L:[0-9]+]]' tid='R[[R:[0-9]+]]' title='FunctionDecl
-CHECK-NEXT: [[L]] -> [[R]]' class='m'>void foo()
+CHECK-NEXT: [[L]] -> [[R]]' class='m'>{{.*}} title='TypeLoc
+CHECK-NEXT: TypeLoc
+CHECK-NEXT: void</span> foo()
 
 match
 CHECK: <span id='L[[L:[0-9]+]]' tid='R[[R:[0-9]+]]' title='FunctionDecl
-CHECK-NEXT: [[L]] -> [[R]]'>void main()
+CHECK-NEXT: TypeLoc
+CHECK-NEXT: TypeLoc
+CHECK-NEXT: void</span> main()
 
 deletion
 CHECK: <span id='L[[L:[0-9]+]]' tid='R-1' title='IntegerLiteral

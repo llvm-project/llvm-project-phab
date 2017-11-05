@@ -20,12 +20,12 @@ class C3 { C3(); };
 void f1() {}
 
 // same parents, same identifier
-// CHECK: Match FunctionDecl(4) to FunctionDecl(3)
+// CHECK: Match FunctionDecl(6) to FunctionDecl(5)
 // CHECK: Match CompoundStmt
 void f2() {}
 
 // same parents, same identifier
-// CHECK: Match CXXConstructorDecl(9) to CXXConstructorDecl(6)
+// CHECK: Match CXXConstructorDecl(14) to CXXConstructorDecl(10)
 class C3 { C3(int); };
 
 #endif

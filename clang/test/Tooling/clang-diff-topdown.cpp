@@ -9,9 +9,10 @@
 void f1()
 {
   // Match some subtree of height greater than 2.
-  // CHECK: Match CompoundStmt(3) to CompoundStmt(3)
-  // CHECK: Match CompoundStmt(4) to CompoundStmt(4)
-  // CHECK: Match NullStmt(5) to NullStmt(5)
+  // CHECK: Match CompoundStmt(5) to CompoundStmt(5)
+  // CHECK-NEXT: Move CompoundStmt
+  // CHECK-NEXT: Match CompoundStmt
+  // CHECK-NEXT: Match NullStmt({{.*}}) to NullStmt({{.*}})
   {{;}}
 
   // Don't match subtrees that are smaller.
@@ -21,9 +22,10 @@ void f1()
 
   // Greedy approach - use the first matching subtree when there are multiple
   // identical subtrees.
-  // CHECK: Match CompoundStmt(8) to CompoundStmt(8)
-  // CHECK: Match CompoundStmt(9) to CompoundStmt(9)
-  // CHECK: Match NullStmt(10) to NullStmt(10)
+  // CHECK: Match CompoundStmt(10) to CompoundStmt(10)
+  // CHECK-NEXT: Move CompoundStmt
+  // CHECK-NEXT: Match CompoundStmt({{.*}}) to CompoundStmt({{.*}})
+  // CHECK-NEXT: Match NullStmt({{.*}}) to NullStmt({{.*}})
   {{;;}}
 }
 
@@ -45,12 +47,12 @@ void f1() {
   {;}
 
   {{;;}}
-  // CHECK-NOT: Match {{.*}} to CompoundStmt(11)
-  // CHECK-NOT: Match {{.*}} to CompoundStmt(12)
-  // CHECK-NOT: Match {{.*}} to NullStmt(13)
+  // CHECK-NOT: Match {{.*}} to CompoundStmt(15)
+  // CHECK-NOT: Match {{.*}} to CompoundStmt(16)
+  // CHECK-NOT: Match {{.*}} to NullStmt(17)
   {{;;}}
 
-  // CHECK-NOT: Match {{.*}} to NullStmt(14)
+  // CHECK-NOT: Match {{.*}} to NullStmt(18)
   ;
 }
 
@@ -58,9 +60,9 @@ int x;
 
 namespace dst {
   int x;
-  // CHECK: Match DeclRefExpr(17) to DeclRefExpr(22)
+  // CHECK: Match DeclRefExpr(22) to DeclRefExpr(27)
   int x1 = x + 1;
-  // CHECK: Match DeclRefExpr(21) to DeclRefExpr(26)
+  // CHECK: Match DeclRefExpr
   int x2 = ::x + 1;
 }
 

@@ -179,6 +179,7 @@ static bool isSpecializedNodeExcluded(CXXCtorInitializer *I) {
 static bool isSpecializedNodeExcluded(const TemplateArgumentLoc *S) {
   return false;
 }
+static bool isNodeExcluded(ASTUnit &AST, QualType QT) { return false; }
 
 static bool isNodeExcluded(ASTUnit &AST, TemplateName *Template) {
   return false;
@@ -266,7 +267,20 @@ struct PreorderVisitor
     PostTraverse(SavedState);
     return true;
   }
-  bool TraverseType(QualType T) { return true; }
+  bool TraverseTypeLoc(TypeLoc TL) {
+    auto SavedState = PreTraverse(TL);
+    BaseType::TraverseTypeLoc(TL);
+    PostTraverse(SavedState);
+    return true;
+  }
+  bool TraverseType(QualType QT) {
+    if (isNodeExcluded(Tree.AST, QT))
+      return true;
+    auto SavedState = PreTraverse(QT);
+    BaseType::TraverseType(QT);
+    PostTraverse(SavedState);
+    return true;
+  }
   bool TraverseConstructorInitializer(CXXCtorInitializer *Init) {
     if (isNodeExcluded(Tree.AST, Init))
       return true;

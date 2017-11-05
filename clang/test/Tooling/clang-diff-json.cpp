@@ -16,8 +16,8 @@ class A {
 // CHECK-NEXT: "children": []
 // CHECK-NEXT: "end":
 // CHECK-NEXT: "id":
-// CHECK-NEXT: "type": "CharacterLiteral"
-// CHECK-NEXT: }
+// CHECK-NEXT: "type": "TypeLoc"
+// CHECK: }
 // CHECK: ]
 // CHECK: "type": "VarDecl"
 char nl = '\n';
