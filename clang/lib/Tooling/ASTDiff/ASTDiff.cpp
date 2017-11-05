@@ -13,7 +13,7 @@
 
 #include "clang/Tooling/ASTDiff/ASTDiff.h"
 
-#include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/AST/LexicallyOrderedRecursiveASTVisitor.h"
 #include "clang/Lex/Lexer.h"
 #include "llvm/ADT/PriorityQueue.h"
 #include "llvm/Support/MD5.h"
@@ -141,6 +141,7 @@ public:
   // Maps preorder indices to postorder ones.
   std::vector<int> PostorderIds;
   NodeList NodesBfs;
+  std::map<NodeId, SourceRange> TemplateArgumentLocations;
 
   int getSize() const { return Nodes.size(); }
   NodeRef getRoot() const { return getNode(getRootId()); }
@@ -175,6 +176,13 @@ static bool isSpecializedNodeExcluded(const Stmt *S) { return false; }
 static bool isSpecializedNodeExcluded(CXXCtorInitializer *I) {
   return !I->isWritten();
 }
+static bool isSpecializedNodeExcluded(const TemplateArgumentLoc *S) {
+  return false;
+}
+
+static bool isNodeExcluded(ASTUnit &AST, TemplateName *Template) {
+  return false;
+}
 
 template <class T> static bool isNodeExcluded(ASTUnit &AST, T *N) {
   const SourceManager &SM = AST.getSourceManager();
@@ -194,20 +202,24 @@ template <class T> static bool isNodeExcluded(ASTUnit &AST, T *N) {
 
 namespace {
 // Sets Height, Parent and Children for each node.
-struct PreorderVisitor : public RecursiveASTVisitor<PreorderVisitor> {
+struct PreorderVisitor
+    : public LexicallyOrderedRecursiveASTVisitor<PreorderVisitor> {
+  using BaseType = LexicallyOrderedRecursiveASTVisitor<PreorderVisitor>;
+
   int Id = 0, Depth = 0;
   NodeId Parent;
   SyntaxTree::Impl &Tree;
 
-  PreorderVisitor(SyntaxTree::Impl &Tree) : Tree(Tree) {}
+  PreorderVisitor(SyntaxTree::Impl &Tree)
+      : BaseType(Tree.AST.getSourceManager()), Tree(Tree) {}
 
-  template <class T> std::tuple<NodeId, NodeId> PreTraverse(T *ASTNode) {
+  template <class T> std::tuple<NodeId, NodeId> PreTraverse(const T &ASTNode) {
     NodeId MyId = Id;
     Tree.Nodes.emplace_back(Tree);
     Node &N = Tree.getMutableNode(MyId);
     N.Parent = Parent;
     N.Depth = Depth;
-    N.ASTNode = DynTypedNode::create(*ASTNode);
+    N.ASTNode = DynTypedNode::create(ASTNode);
     assert(!N.ASTNode.getNodeKind().isNone() &&
            "Expected nodes to have a valid kind.");
     if (Parent.isValid()) {
@@ -239,8 +251,8 @@ struct PreorderVisitor : public RecursiveASTVisitor<PreorderVisitor> {
   bool TraverseDecl(Decl *D) {
     if (isNodeExcluded(Tree.AST, D))
       return true;
-    auto SavedState = PreTraverse(D);
-    RecursiveASTVisitor<PreorderVisitor>::TraverseDecl(D);
+    auto SavedState = PreTraverse(*D);
+    BaseType::TraverseDecl(D);
     PostTraverse(SavedState);
     return true;
   }
@@ -249,8 +261,8 @@ struct PreorderVisitor : public RecursiveASTVisitor<PreorderVisitor> {
       S = S->IgnoreImplicit();
     if (isNodeExcluded(Tree.AST, S))
       return true;
-    auto SavedState = PreTraverse(S);
-    RecursiveASTVisitor<PreorderVisitor>::TraverseStmt(S);
+    auto SavedState = PreTraverse(*S);
+    BaseType::TraverseStmt(S);
     PostTraverse(SavedState);
     return true;
   }
@@ -258,8 +270,25 @@ struct PreorderVisitor : public RecursiveASTVisitor<PreorderVisitor> {
   bool TraverseConstructorInitializer(CXXCtorInitializer *Init) {
     if (isNodeExcluded(Tree.AST, Init))
       return true;
-    auto SavedState = PreTraverse(Init);
-    RecursiveASTVisitor<PreorderVisitor>::TraverseConstructorInitializer(Init);
+    auto SavedState = PreTraverse(*Init);
+    BaseType::TraverseConstructorInitializer(Init);
+    PostTraverse(SavedState);
+    return true;
+  }
+  bool TraverseTemplateArgumentLoc(const TemplateArgumentLoc &ArgLoc) {
+    if (isNodeExcluded(Tree.AST, &ArgLoc))
+      return true;
+    Tree.TemplateArgumentLocations.emplace(Id, ArgLoc.getSourceRange());
+    auto SavedState = PreTraverse(ArgLoc.getArgument());
+    BaseType::TraverseTemplateArgumentLoc(ArgLoc);
+    PostTraverse(SavedState);
+    return true;
+  }
+  bool TraverseTemplateName(TemplateName Template) {
+    if (isNodeExcluded(Tree.AST, &Template))
+      return true;
+    auto SavedState = PreTraverse(Template);
+    BaseType::TraverseTemplateName(Template);
     PostTraverse(SavedState);
     return true;
   }

@@ -1,4 +1,4 @@
-// RUN: clang-diff -dump-matches %S/Inputs/clang-diff-basic-src.cpp %s -- | FileCheck %s
+// RUN: clang-diff -dump-matches %S/Inputs/clang-diff-basic-src.cpp %s -- -std=c++11 | FileCheck %s
 
 // CHECK: Match TranslationUnitDecl(0) to TranslationUnitDecl(0)
 // CHECK: Match NamespaceDecl(1) to NamespaceDecl(1)
@@ -66,6 +66,19 @@ int f2() {
   M2;
   // CHECK: Match Macro(74)
   F(1, /*b=*/1);
+}
+
+// CHECK: Match TemplateTypeParmDecl(77)
+template <class Type, class U = int>
+U visit(Type &t) {
+  int x = t;
+  return U();
+}
+
+void tmp() {
+  long x;
+  // CHECK: Match TemplateArgument(93)
+  visit<long>(x);
 }
 
 // CHECK: Delete AccessSpecDecl(39)

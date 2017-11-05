@@ -41,3 +41,16 @@ int f2() {
   M1;
   F(1, 1);
 }
+
+template <class T, class U = void>
+U visit(T &t) {
+  int x = t;
+  return U();
+}
+
+void tmp() {
+  int x;
+  visit<int>(x);
+}
+
+int x = 1;

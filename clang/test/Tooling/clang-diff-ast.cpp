@@ -93,3 +93,16 @@ namespace world {
 // CHECK-NEXT: FunctionDecl(64)
 void sentinel();
 #endif
+
+// CHECK-NEXT: ClassTemplateDecl(65)
+// CHECK-NEXT: TemplateTypeParmDecl(66)
+// CHECK-NEXT: CXXRecordDecl(67)
+template <class T> class C {
+  // CHECK-NEXT: FieldDecl(68)
+  T t;
+};
+
+// CHECK-NEXT: CXXRecordDecl(69)
+// CHECK-NEXT: TemplateName(70)
+// CHECK-NEXT: TemplateArgument(71)
+class I : C<int> {};
