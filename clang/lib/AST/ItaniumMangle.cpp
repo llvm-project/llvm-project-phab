@@ -1323,9 +1323,16 @@ void CXXNameMangler::mangleUnqualifiedName(const NamedDecl *ND,
     }
 
     if (const VarDecl *VD = dyn_cast<VarDecl>(ND)) {
+
+      QualType valDecl = VD->getType();
+      if (valDecl.isNull())
+          break;
+
+      const RecordType* RT = VD->getType()->getAs<RecordType>();
+      if (!RT) break;
+
       // We must have an anonymous union or struct declaration.
-      const RecordDecl *RD =
-        cast<RecordDecl>(VD->getType()->getAs<RecordType>()->getDecl());
+      const RecordDecl *RD = cast<RecordDecl>(RT->getDecl());
 
       // Itanium C++ ABI 5.1.2:
       //
