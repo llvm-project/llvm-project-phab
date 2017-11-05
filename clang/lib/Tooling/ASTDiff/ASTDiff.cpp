@@ -197,24 +197,6 @@ template <class T> static bool isNodeExcluded(ASTUnit &AST, T *N) {
   return isSpecializedNodeExcluded(N);
 }
 
-static SourceRange getSourceRange(const ASTUnit &AST, const DynTypedNode &DTN) {
-  const SourceManager &SM = AST.getSourceManager();
-  SourceRange Range = DTN.getSourceRange();
-  SourceLocation BeginLoc = Range.getBegin();
-  SourceLocation EndLoc;
-  if (BeginLoc.isMacroID())
-    EndLoc = SM.getExpansionRange(BeginLoc).second;
-  else
-    EndLoc = Range.getEnd();
-  EndLoc =
-      Lexer::getLocForEndOfToken(EndLoc, /*Offset=*/0, SM, AST.getLangOpts());
-  if (auto *ThisExpr = DTN.get<CXXThisExpr>()) {
-    if (ThisExpr->isImplicit())
-      EndLoc = BeginLoc;
-  }
-  return {SM.getExpansionLoc(BeginLoc), SM.getExpansionLoc(EndLoc)};
-}
-
 namespace {
 // Sets Height, Parent and Children for each node.
 struct PreorderVisitor : public RecursiveASTVisitor<PreorderVisitor> {
@@ -420,8 +402,7 @@ std::string SyntaxTree::Impl::getNodeValue(NodeRef N) const {
   assert(&N.Tree == this);
   const DynTypedNode &DTN = N.ASTNode;
   if (N.isMacro()) {
-    CharSourceRange Range(getSourceRange(AST, N.ASTNode), false);
-    return Lexer::getSourceText(Range, AST.getSourceManager(),
+    return Lexer::getSourceText(N.getSourceRange(), AST.getSourceManager(),
                                 AST.getLangOpts());
   }
   if (auto *S = DTN.get<Stmt>())
@@ -756,9 +737,59 @@ int Node::findPositionInParent() const {
          Siblings.begin();
 }
 
+static SourceRange getSourceRangeImpl(NodeRef N) {
+  const DynTypedNode &DTN = N.ASTNode;
+  SyntaxTree::Impl &Tree = N.Tree;
+  SourceManager &SM = Tree.AST.getSourceManager();
+  const LangOptions &LangOpts = Tree.AST.getLangOpts();
+  auto EndOfToken = [&](SourceLocation Loc) {
+    return Lexer::getLocForEndOfToken(Loc, /*Offset=*/0, SM, LangOpts);
+  };
+  auto TokenToCharRange = [&](SourceRange Range) -> SourceRange {
+    return {Range.getBegin(), EndOfToken(Range.getEnd())};
+  };
+  SourceRange Range = DTN.getSourceRange();
+  if (N.isMacro()) {
+    SourceLocation BeginLoc = Range.getBegin();
+    SourceLocation End = SM.getExpansionRange(BeginLoc).second;
+    End = EndOfToken(End);
+    return {SM.getExpansionLoc(BeginLoc), SM.getExpansionLoc(End)};
+  }
+  if (auto *ThisExpr = DTN.get<CXXThisExpr>())
+    if (ThisExpr->isImplicit())
+      return {Range.getBegin(), Range.getBegin()};
+  if (auto *CE = DTN.get<CXXConstructExpr>()) {
+    if (!isa<CXXTemporaryObjectExpr>(CE))
+      return CE->getParenOrBraceRange();
+  } else if (DTN.get<ParmVarDecl>()) {
+    return TokenToCharRange(Range);
+  } else if (DTN.get<DeclStmt>() || DTN.get<FieldDecl>() ||
+             DTN.get<VarDecl>() ||
+             (DTN.get<CallExpr>() &&
+              N.getParent()->ASTNode.get<CompoundStmt>()) ||
+             (DTN.get<FunctionDecl>() &&
+              !DTN.get<FunctionDecl>()->isThisDeclarationADefinition()) ||
+             DTN.get<TypeDecl>() || DTN.get<UsingDirectiveDecl>() ||
+             DTN.get<ClassTemplateDecl>()) {
+    SourceLocation End = Range.getEnd();
+    if (DTN.get<DeclStmt>())
+      End = End.getLocWithOffset(-1);
+    SourceLocation SemicolonLoc = Lexer::findLocationAfterToken(
+        End, tok::semi, SM, LangOpts,
+        /*SkipTrailingWhitespaceAndNewLine=*/false);
+    Range.setEnd(SemicolonLoc);
+    return Range;
+  }
+  return TokenToCharRange(Range);
+}
+
+CharSourceRange Node::getSourceRange() const {
+  return CharSourceRange::getCharRange(getSourceRangeImpl(*this));
+}
+
 std::pair<unsigned, unsigned> Node::getSourceRangeOffsets() const {
   const SourceManager &SM = Tree.AST.getSourceManager();
-  SourceRange Range = getSourceRange(Tree.AST, ASTNode);
+  CharSourceRange Range = getSourceRange();
   unsigned Begin = SM.getFileOffset(Range.getBegin());
   unsigned End = SM.getFileOffset(Range.getEnd());
   return {Begin, End};

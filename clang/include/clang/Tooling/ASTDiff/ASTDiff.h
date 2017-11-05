@@ -139,7 +139,21 @@ struct Node {
 
   int findPositionInParent() const;
 
-  // Returns the starting and ending offset of the node in its source file.
+  /// Returns the range that contains the text that is associated with this
+  /// node. This is based on DynTypedNode::getSourceRange() with a couple of
+  /// workarounds.
+  ///
+  /// The range for statements includes the trailing semicolon.
+  ///
+  /// The range for implicit ThisExpression nodes is empty.
+  ///
+  /// If it is a CXXConstructExpr that is not a temporary, then we exclude
+  /// the class name from the range by returning
+  /// CXXConstructExpr::getParentOrBraceRange(). So the class name will belong
+  /// to the parent.
+  CharSourceRange getSourceRange() const;
+
+  /// Returns the offsets for the range returned by getSourceRange().
   std::pair<unsigned, unsigned> getSourceRangeOffsets() const;
 };
 
