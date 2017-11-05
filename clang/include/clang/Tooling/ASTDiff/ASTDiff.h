@@ -100,6 +100,10 @@ public:
   using PreorderIterator = const Node *;
   PreorderIterator begin() const;
   PreorderIterator end() const;
+  using PostorderIterator = NodeRefIterator;
+  PostorderIterator postorder_begin() const;
+  PostorderIterator postorder_end() const;
+  llvm::iterator_range<PostorderIterator> postorder() const;
 
   NodeRef getNode(NodeId Id) const;
 

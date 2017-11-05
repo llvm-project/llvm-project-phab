@@ -173,9 +173,9 @@ public:
   /// Nodes in preorder.
   std::vector<Node> Nodes;
   NodeList Leaves;
-  // Maps preorder indices to postorder ones.
-  std::vector<int> PostorderIds;
+  std::vector<int> PreorderToPostorderId;
   NodeList NodesBfs;
+  NodeList NodesPostorder;
   std::map<NodeId, SourceRange> TemplateArgumentLocations;
 
   int getSize() const { return Nodes.size(); }
@@ -183,6 +183,11 @@ public:
   NodeId getRootId() const { return 0; }
   PreorderIterator begin() const { return &getRoot(); }
   PreorderIterator end() const { return begin() + getSize(); }
+  PostorderIterator postorder_begin() const { return NodesPostorder.begin(); }
+  PostorderIterator postorder_end() const { return NodesPostorder.end(); }
+  llvm::iterator_range<PostorderIterator> postorder() const {
+    return {postorder_begin(), postorder_end()};
+  }
 
   NodeRef getNode(NodeId Id) const { return Nodes[Id]; }
   Node &getMutableNode(NodeRef N) { return Nodes[N.getId()]; }
@@ -199,11 +204,21 @@ NodeRefIterator &NodeRefIterator::operator++() { return ++IdPointer, *this; }
 NodeRefIterator &NodeRefIterator::operator+(int Offset) {
   return IdPointer += Offset, *this;
 }
+NodeRefIterator::difference_type NodeRefIterator::
+operator-(const NodeRefIterator &Other) const {
+  assert(Tree == Other.Tree &&
+         "Cannot subtract two iterators of different trees.");
+  return IdPointer - Other.IdPointer;
+}
 
 bool NodeRefIterator::operator!=(const NodeRefIterator &Other) const {
   assert(Tree == Other.Tree &&
          "Cannot compare two iterators of different trees.");
   return IdPointer != Other.IdPointer;
+}
+
+bool NodeRefIterator::operator==(const NodeRefIterator &Other) const {
+  return !(*this != Other);
 }
 
 static bool isSpecializedNodeExcluded(const Decl *D) { return D->isImplicit(); }
@@ -345,7 +360,7 @@ struct PreorderVisitor
 
 SyntaxTree::Impl::Impl(SyntaxTree *Parent, ASTUnit &AST)
     : Parent(Parent), AST(AST), TypePP(AST.getLangOpts()), Leaves(*this),
-      NodesBfs(*this) {
+      NodesBfs(*this), NodesPostorder(*this) {
   TypePP.AnonymousTagLocations = false;
 }
 
@@ -363,17 +378,13 @@ SyntaxTree::Impl::Impl(SyntaxTree *Parent, Stmt *N, ASTUnit &AST)
   initTree();
 }
 
-static std::vector<NodeId> getSubtreePostorder(SyntaxTree::Impl &Tree,
-                                               NodeId Root) {
-  std::vector<NodeId> Postorder;
-  std::function<void(NodeId)> Traverse = [&](NodeId Id) {
-    NodeRef N = Tree.getNode(Id);
-    for (NodeId Child : N.Children)
+static void getSubtreePostorder(NodeList &Ids, NodeRef Root) {
+  std::function<void(NodeRef)> Traverse = [&](NodeRef N) {
+    for (NodeRef Child : N)
       Traverse(Child);
-    Postorder.push_back(Id);
+    Ids.push_back(N.getId());
   };
   Traverse(Root);
-  return Postorder;
 }
 
 static void getSubtreeBfs(NodeList &Ids, NodeRef Root) {
@@ -387,15 +398,16 @@ static void getSubtreeBfs(NodeList &Ids, NodeRef Root) {
 void SyntaxTree::Impl::initTree() {
   setLeftMostDescendants();
   int PostorderId = 0;
-  PostorderIds.resize(getSize());
+  PreorderToPostorderId.resize(getSize());
   std::function<void(NodeRef)> PostorderTraverse = [&](NodeRef N) {
     for (NodeRef Child : N)
       PostorderTraverse(Child);
-    PostorderIds[N.getId()] = PostorderId;
+    PreorderToPostorderId[N.getId()] = PostorderId;
     ++PostorderId;
   };
   PostorderTraverse(getRoot());
   getSubtreeBfs(NodesBfs, getRoot());
+  getSubtreePostorder(NodesPostorder, getRoot());
 }
 
 void SyntaxTree::Impl::setLeftMostDescendants() {
@@ -459,32 +471,29 @@ class Subtree {
 private:
   /// The parent tree.
   SyntaxTree::Impl &Tree;
-  /// Maps SNodeIds to original ids.
-  std::vector<NodeId> RootIds;
-  /// Maps subtree nodes to their leftmost descendants wtihin the subtree.
+  NodeRef Root;
+  /// Maps subtree nodes to their leftmost descendants wihin the subtree.
   std::vector<SNodeId> LeftMostDescendants;
 
 public:
   std::vector<SNodeId> KeyRoots;
 
-  Subtree(SyntaxTree::Impl &Tree, NodeId SubtreeRoot) : Tree(Tree) {
-    RootIds = getSubtreePostorder(Tree, SubtreeRoot);
+  Subtree(NodeRef Root) : Tree(Root.Tree), Root(Root) {
     int NumLeaves = setLeftMostDescendants();
     computeKeyRoots(NumLeaves);
   }
-  int getSize() const { return RootIds.size(); }
+  int getSize() const { return getNumberOfDescendants(Root); }
   NodeId getIdInRoot(SNodeId Id) const {
-    assert(Id > 0 && Id <= getSize() && "Invalid subtree node index.");
-    return RootIds[Id - 1];
+    return Tree.NodesPostorder[getPostorderIdInRoot(Id)].getId();
   }
   NodeRef getNode(SNodeId Id) const { return Tree.getNode(getIdInRoot(Id)); }
   SNodeId getLeftMostDescendant(SNodeId Id) const {
     assert(Id > 0 && Id <= getSize() && "Invalid subtree node index.");
     return LeftMostDescendants[Id - 1];
   }
-  /// Returns the postorder index of the leftmost descendant in the subtree.
-  NodeId getPostorderOffset() const {
-    return Tree.PostorderIds[getIdInRoot(SNodeId(1))];
+  NodeId getPostorderIdInRoot(SNodeId Id = SNodeId(1)) const {
+    assert(Id > 0 && Id <= getSize() && "Invalid subtree node index.");
+    return Id - 1 + Tree.PreorderToPostorderId[Root.LeftMostDescendant];
   }
 
 private:
@@ -496,11 +505,13 @@ private:
       SNodeId SI(I + 1);
       NodeRef N = getNode(SI);
       NumLeaves += N.isLeaf();
-      assert(I == Tree.PostorderIds[getIdInRoot(SI)] - getPostorderOffset() &&
+      assert(I == Tree.PreorderToPostorderId[getIdInRoot(SI)] -
+                      getPostorderIdInRoot() &&
              "Postorder traversal in subtree should correspond to traversal in "
              "the root tree by a constant offset.");
-      LeftMostDescendants[I] = SNodeId(Tree.PostorderIds[N.LeftMostDescendant] -
-                                       getPostorderOffset());
+      LeftMostDescendants[I] =
+          SNodeId(Tree.PreorderToPostorderId[N.LeftMostDescendant] -
+                  getPostorderIdInRoot());
     }
     return NumLeaves;
   }
@@ -525,14 +536,12 @@ private:
 /// deletion and update as edit actions (similar to the Levenshtein distance).
 class ZhangShashaMatcher {
   const ASTDiff::Impl &DiffImpl;
-  Subtree S1;
-  Subtree S2;
+  Subtree S1, S2;
   std::unique_ptr<std::unique_ptr<double[]>[]> TreeDist, ForestDist;
 
 public:
-  ZhangShashaMatcher(const ASTDiff::Impl &DiffImpl, SyntaxTree::Impl &T1,
-                     SyntaxTree::Impl &T2, NodeId Id1, NodeId Id2)
-      : DiffImpl(DiffImpl), S1(T1, Id1), S2(T2, Id2) {
+  ZhangShashaMatcher(const ASTDiff::Impl &DiffImpl, NodeRef N1, NodeRef N2)
+      : DiffImpl(DiffImpl), S1(N1), S2(N2) {
     TreeDist = llvm::make_unique<std::unique_ptr<double[]>[]>(
         size_t(S1.getSize()) + 1);
     ForestDist = llvm::make_unique<std::unique_ptr<double[]>[]>(
@@ -934,7 +943,7 @@ void ASTDiff::Impl::addOptimalMapping(NodeRef N1, NodeRef N2) {
   if (std::max(getNumberOfDescendants(N1), getNumberOfDescendants(N2)) >
       Options.MaxSize)
     return;
-  ZhangShashaMatcher Matcher(*this, T1, T2, N1.getId(), N2.getId());
+  ZhangShashaMatcher Matcher(*this, N1, N2);
   std::vector<std::pair<NodeId, NodeId>> R = Matcher.getMatchingNodes();
   for (const auto Tuple : R) {
     NodeRef N1 = T1.getNode(Tuple.first);
@@ -1014,8 +1023,8 @@ const Node *ASTDiff::Impl::findCandidateFromChildren(NodeRef N1,
 }
 
 void ASTDiff::Impl::matchBottomUp() {
-  std::vector<NodeId> Postorder = getSubtreePostorder(T1, T1.getRootId());
-  for (NodeId Id1 : Postorder) {
+  for (NodeRef N1 : T1.postorder()) {
+    NodeId Id1 = N1.getId();
     if (Id1 == T1.getRootId() && !getDst(T1.getRoot()) &&
         !getSrc(T2.getRoot())) {
       if (isMatchingPossible(T1.getRoot(), T2.getRoot())) {
@@ -1024,7 +1033,6 @@ void ASTDiff::Impl::matchBottomUp() {
       }
       break;
     }
-    NodeRef N1 = T1.getNode(Id1);
     bool Matched = getDst(N1);
     bool MatchedChildren = false;
     for (NodeRef Child : N1) {
@@ -1311,6 +1319,17 @@ SyntaxTree::PreorderIterator SyntaxTree::begin() const {
   return TreeImpl->begin();
 }
 SyntaxTree::PreorderIterator SyntaxTree::end() const { return TreeImpl->end(); }
+
+SyntaxTree::PostorderIterator SyntaxTree::postorder_begin() const {
+  return TreeImpl->postorder_begin();
+}
+SyntaxTree::PostorderIterator SyntaxTree::postorder_end() const {
+  return TreeImpl->postorder_end();
+}
+llvm::iterator_range<SyntaxTree::PostorderIterator>
+SyntaxTree::postorder() const {
+  return TreeImpl->postorder();
+}
 
 } // end namespace diff
 } // end namespace clang
