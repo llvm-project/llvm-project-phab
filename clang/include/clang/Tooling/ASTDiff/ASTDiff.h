@@ -153,9 +153,21 @@ struct Node {
   /// to the parent.
   CharSourceRange getSourceRange() const;
 
+  /// Returns the sub-ranges of getSourceRange() that are exclusively owned by
+  /// this node, that is, none of its descendants includes them.
+  SmallVector<CharSourceRange, 4> getOwnedSourceRanges() const;
+
   /// Returns the offsets for the range returned by getSourceRange().
   std::pair<unsigned, unsigned> getSourceRangeOffsets() const;
+
+  /// Returns the starting locations of all tokens in getOwnedSourceRanges().
+  SmallVector<SourceLocation, 4> getOwnedTokens() const;
 };
+
+void forEachTokenInRange(CharSourceRange Range, SyntaxTree &Tree,
+                         std::function<void(Token &)> Body);
+
+inline bool isListSeparator(Token &Tok) { return Tok.is(tok::comma); }
 
 struct NodeRefIterator {
   SyntaxTree::Impl *Tree;

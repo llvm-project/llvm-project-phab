@@ -1,7 +1,7 @@
 RUN: clang-diff -html %S/Inputs/clang-diff-basic-src.cpp %S/clang-diff-basic.cpp -- | FileCheck %s
 
 CHECK: <pre><div id='L' class='code'><span id='L0' tid='R0' title='TranslationUnitDecl
-CHECK-NEXT: 0 -> 0'>
+CHECK-NEXT: 0 -> 0' class='u'>
 
 match, update
 CHECK: <span id='L[[L:[0-9]+]]' tid='R[[R:[0-9]+]]' title='NamespaceDecl
@@ -32,5 +32,4 @@ CHECK-NEXT: -1 -> [[R]]
 CHECK-NEXT: Bar' class='i'>&quot;Bar&quot;</span>
 
 comments
-CHECK: // CHECK: Insert IfStmt{{.*}} into IfStmt
 CHECK: // CHECK: Delete AccessSpecDecl: public

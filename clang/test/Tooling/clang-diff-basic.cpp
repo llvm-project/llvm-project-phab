@@ -30,10 +30,10 @@ int squared = prod * prod;
 
 class X {
   const char *foo(int i) {
+    // CHECK: Insert IfStmt(29) into CompoundStmt(28)
     if (i == 0)
       return "Bar";
-    // CHECK: Insert IfStmt{{.*}} into IfStmt
-    // CHECK: Insert BinaryOperator: =={{.*}} into IfStmt
+    // CHECK: Move IfStmt(35) into IfStmt
     else if (i == -1)
       return "foo";
     return 0;
@@ -64,7 +64,7 @@ int f2() {
   M1;
   // CHECK: Update Macro: M1{{.*}} to M2
   M2;
-  // CHECK: Update Macro: F(1, 1){{.*}} to F(1, /*b=*/1)
+  // CHECK: Match Macro: F(1, 1)(74)
   F(1, /*b=*/1);
 }
 

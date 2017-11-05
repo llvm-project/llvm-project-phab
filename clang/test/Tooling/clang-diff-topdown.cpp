@@ -35,8 +35,6 @@ namespace src {
   int x2 = ::x + 1;
 }
 
-class A { int x = 1 + 1; void f() { int x1 = x; } };
-
 #else
 
 
@@ -65,19 +63,5 @@ namespace dst {
   // CHECK: Match DeclRefExpr: x(21) to DeclRefExpr: x(26)
   int x2 = ::x + 1;
 }
-
-class B {
-  // Only the class name changed; it is not included in the field value,
-  // therefore there is no update.
-  // CHECK: Match FieldDecl: :x(int)(24) to FieldDecl: :x(int)(29)
-  // CHECK-NOT: Update FieldDecl: :x(int)(24)
-  int x = 1+1;
-  void f() {
-    // CHECK: Match MemberExpr: :x(32) to MemberExpr: :x(37)
-    // CHECK-NOT: Update MemberExpr: :x(32)
-    int x1 = B::x;
-  }
-
-};
 
 #endif

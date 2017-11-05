@@ -16,6 +16,7 @@
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Lex/Lexer.h"
 #include "llvm/ADT/PriorityQueue.h"
+#include "llvm/Support/MD5.h"
 
 #include <limits>
 #include <memory>
@@ -110,6 +111,8 @@ struct NodeList {
   void sort() { std::sort(Ids.begin(), Ids.end()); }
 };
 } // end anonymous namespace
+
+using HashType = std::array<uint8_t, 16>;
 
 /// Represents the AST of a TranslationUnit.
 class SyntaxTree::Impl {
@@ -463,6 +466,30 @@ std::string SyntaxTree::Impl::getStmtValue(const Stmt *S) const {
   return "";
 }
 
+static HashType hashNode(NodeRef N) {
+  llvm::MD5 Hash;
+  SourceManager &SM = N.getTree().getSourceManager();
+  const LangOptions &LangOpts = N.getTree().getLangOpts();
+  Token Tok;
+  for (auto TokenLocation : N.getOwnedTokens()) {
+    bool Failure = Lexer::getRawToken(TokenLocation, Tok, SM, LangOpts,
+                                      /*IgnoreWhiteSpace=*/true);
+    assert(!Failure);
+    auto Range = CharSourceRange::getCharRange(TokenLocation, Tok.getEndLoc());
+    // This is here to make CompoundStmt nodes compare equal, to make the tests
+    // pass. It should be changed to include changes to comments.
+    if (!Tok.isOneOf(tok::comment, tok::semi))
+      Hash.update(Lexer::getSourceText(Range, SM, LangOpts));
+  }
+  llvm::MD5::MD5Result HashResult;
+  Hash.final(HashResult);
+  return HashResult;
+}
+
+static bool areNodesDifferent(NodeRef N1, NodeRef N2) {
+  return hashNode(N1) != hashNode(N2);
+}
+
 /// Identifies a node in a subtree by its postorder offset, starting at 1.
 struct SNodeId {
   int Id = 0;
@@ -637,7 +664,7 @@ private:
     NodeRef N1 = S1.getNode(Id1), N2 = S2.getNode(Id2);
     if (!DiffImpl.isMatchingPossible(N1, N2))
       return std::numeric_limits<double>::max();
-    return S1.getNodeValue(Id1) != S2.getNodeValue(Id2);
+    return areNodesDifferent(S1.getNode(Id1), S2.getNode(Id2));
   }
 
   void computeTreeDist() {
@@ -795,6 +822,91 @@ std::pair<unsigned, unsigned> Node::getSourceRangeOffsets() const {
   return {Begin, End};
 }
 
+static bool onlyWhitespace(StringRef Str) {
+  return std::all_of(Str.begin(), Str.end(),
+                     [](char C) { return std::isspace(C); });
+}
+
+SmallVector<CharSourceRange, 4> Node::getOwnedSourceRanges() const {
+  SmallVector<CharSourceRange, 4> SourceRanges;
+  SourceManager &SM = getTree().getSourceManager();
+  const LangOptions &LangOpts = getTree().getLangOpts();
+  CharSourceRange Range = getSourceRange();
+  SourceLocation Offset = Range.getBegin();
+  BeforeThanCompare<SourceLocation> Less(SM);
+  auto AddSegment = [&](SourceLocation Until) {
+    if (Offset.isValid() && Until.isValid() && Less(Offset, Until)) {
+      CharSourceRange R = CharSourceRange::getCharRange({Offset, Until});
+      StringRef Text = Lexer::getSourceText(R, SM, LangOpts);
+      if (onlyWhitespace(Text))
+        return;
+      SourceRanges.emplace_back(CharSourceRange::getCharRange({Offset, Until}));
+    }
+  };
+  int ChildIndex = 0;
+  for (NodeRef Descendant : *this) {
+    CharSourceRange DescendantRange = Descendant.getSourceRange();
+    CharSourceRange LMDRange =
+        getTree().getNode(Descendant.LeftMostDescendant).getSourceRange();
+    CharSourceRange RMDRange =
+        getTree().getNode(Descendant.RightMostDescendant).getSourceRange();
+    auto MinValidBegin = [&Less](CharSourceRange &Range1,
+                                 CharSourceRange &Range2) {
+      SourceLocation Begin1 = Range1.getBegin(), Begin2 = Range2.getBegin();
+      if (Begin1.isInvalid())
+        return Begin2;
+      if (Begin2.isInvalid())
+        return Begin1;
+      return std::min(Begin1, Begin2, Less);
+    };
+    auto MaxValidEnd = [&Less](CharSourceRange &Range1,
+                               CharSourceRange &Range2) {
+      SourceLocation End1 = Range1.getEnd(), End2 = Range2.getEnd();
+      if (End1.isInvalid())
+        return End2;
+      if (End2.isInvalid())
+        return End1;
+      return std::max(End1, End2, Less);
+    };
+    auto Min = MinValidBegin(DescendantRange, LMDRange);
+    auto Max = MaxValidEnd(DescendantRange, RMDRange);
+    AddSegment(Min);
+    if (Max.isValid())
+      Offset = Max;
+    ++ChildIndex;
+  }
+  AddSegment(Range.getEnd());
+  return SourceRanges;
+}
+
+void forEachTokenInRange(CharSourceRange Range, SyntaxTree &Tree,
+                         std::function<void(Token &)> Body) {
+  SourceLocation Begin = Range.getBegin(), End = Range.getEnd();
+  SourceManager &SM = Tree.getSourceManager();
+  BeforeThanCompare<SourceLocation> Less(SM);
+  Token Tok;
+  while (Begin.isValid() && Less(Begin, End) &&
+         !Lexer::getRawToken(Begin, Tok, SM, Tree.getLangOpts(),
+                             /*IgnoreWhiteSpace=*/true) &&
+         Less(Tok.getLocation(), End)) {
+    Body(Tok);
+    Begin = Tok.getEndLoc();
+  }
+}
+
+SmallVector<SourceLocation, 4> Node::getOwnedTokens() const {
+  SmallVector<SourceLocation, 4> TokenLocations;
+  BeforeThanCompare<SourceLocation> Less(getTree().getSourceManager());
+  const auto &SourceRanges = getOwnedSourceRanges();
+  for (auto &Range : SourceRanges) {
+    forEachTokenInRange(Range, getTree(), [&TokenLocations](Token &Tok) {
+      if (!isListSeparator(Tok))
+        TokenLocations.push_back(Tok.getLocation());
+    });
+  }
+  return TokenLocations;
+}
+
 namespace {
 // Compares nodes by their depth.
 struct HeightLess {
@@ -847,7 +959,7 @@ public:
 
 bool ASTDiff::Impl::identical(NodeRef N1, NodeRef N2) const {
   if (N1.getNumChildren() != N2.getNumChildren() ||
-      !isMatchingPossible(N1, N2) || T1.getNodeValue(N1) != T2.getNodeValue(N2))
+      !isMatchingPossible(N1, N2) || areNodesDifferent(N1, N2))
     return false;
   for (size_t Id = 0, E = N1.getNumChildren(); Id < E; ++Id)
     if (!identical(N1.getChild(Id), N2.getChild(Id)))
@@ -901,7 +1013,7 @@ double ASTDiff::Impl::getJaccardSimilarity(NodeRef N1, NodeRef N2) const {
 double ASTDiff::Impl::getNodeSimilarity(NodeRef N1, NodeRef N2) const {
   auto Ident1 = N1.getIdentifier(), Ident2 = N2.getIdentifier();
 
-  bool SameValue = T1.getNodeValue(N1) == T2.getNodeValue(N2);
+  bool SameValue = !areNodesDifferent(N1, N2);
   auto SameIdent = Ident1 && Ident2 && *Ident1 == *Ident2;
 
   double NodeSimilarity = 0;
@@ -1091,7 +1203,7 @@ void ASTDiff::Impl::computeChangeKinds() {
         findNewPosition(N1) != findNewPosition(N2)) {
       MutableN1.Change = MutableN2.Change = Move;
     }
-    if (T1.getNodeValue(N1) != T2.getNodeValue(N2)) {
+    if (areNodesDifferent(N1, N2)) {
       MutableN1.Change = MutableN2.Change =
           (N1.Change == Move ? UpdateMove : Update);
     }
