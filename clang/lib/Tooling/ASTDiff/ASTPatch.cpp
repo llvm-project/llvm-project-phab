@@ -79,11 +79,18 @@ public:
 
   void addInsertion(PatchedTreeNode &PatchedNode, SourceLocation InsertionLoc) {
     addChildAt(PatchedNode, InsertionLoc);
+    SplitAt.emplace_back(InsertionLoc);
   }
   void addChild(PatchedTreeNode &PatchedNode) {
     SourceLocation InsertionLoc = PatchedNode.getSourceRange().getBegin();
     addChildAt(PatchedNode, InsertionLoc);
   }
+
+  // This returns an array of source ranges identical to the input,
+  // except whenever a SourceRange contains any of the locations in
+  // SplitAt, it is split up in two ranges at that location.
+  SmallVector<CharSourceRange, 4>
+  splitSourceRanges(ArrayRef<CharSourceRange> SourceRanges);
 
 private:
   void addChildAt(PatchedTreeNode &PatchedNode, SourceLocation InsertionLoc) {
@@ -94,6 +101,8 @@ private:
     Children.insert(Children.begin() + Offset, &PatchedNode);
     ChildrenLocations.insert(It, InsertionLoc);
   }
+
+  SmallVector<SourceLocation, 2> SplitAt;
 };
 } // end anonymous namespace
 
@@ -501,7 +510,7 @@ void Patcher::setOwnedSourceText(PatchedTreeNode &PatchedNode) {
   unsigned ChildIndex = 0;
   auto MySourceRanges = PatchedNode.getOwnedSourceRanges();
   BeforeThanCompare<SourceLocation> MyLess(Tree.getSourceManager());
-  for (auto &MySubRange : MySourceRanges) {
+  for (auto &MySubRange : PatchedNode.splitSourceRanges(MySourceRanges)) {
     SourceLocation ChildBegin;
     SourceLocation InsertionBegin;
     while (ChildIndex < NumChildren &&
@@ -553,6 +562,36 @@ Patcher::findPointOfInsertion(NodeRef N, PatchedTreeNode &TargetParent) const {
     }
   }
   return {-1, true};
+}
+
+static bool onlyWhitespace(StringRef Str) {
+  return std::all_of(Str.begin(), Str.end(),
+                     [](char C) { return std::isspace(C); });
+}
+
+SmallVector<CharSourceRange, 4>
+PatchedTreeNode::splitSourceRanges(ArrayRef<CharSourceRange> SourceRanges) {
+  SourceManager &SM = getTree().getSourceManager();
+  const LangOptions &LangOpts = getTree().getLangOpts();
+  SmallVector<CharSourceRange, 4> Result;
+  BeforeThanCompare<SourceLocation> Less(SM);
+  std::sort(SplitAt.begin(), SplitAt.end(), Less);
+  for (auto &Range : SourceRanges) {
+    SourceLocation Begin = Range.getBegin(), End = Range.getEnd();
+    for (auto SplitPoint : SplitAt) {
+      if (SM.isPointWithin(SplitPoint, Begin, End)) {
+        auto SplitRange = CharSourceRange::getCharRange(Begin, SplitPoint);
+        StringRef Text = Lexer::getSourceText(SplitRange, SM, LangOpts);
+        if (onlyWhitespace(Text))
+          continue;
+        Result.emplace_back(SplitRange);
+        Begin = SplitPoint;
+      }
+    }
+    if (Less(Begin, End))
+      Result.emplace_back(CharSourceRange::getCharRange(Begin, End));
+  }
+  return Result;
 }
 
 Error patch(RefactoringTool &TargetTool, SyntaxTree &Src, SyntaxTree &Dst,

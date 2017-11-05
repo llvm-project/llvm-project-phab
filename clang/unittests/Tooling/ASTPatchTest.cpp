@@ -262,4 +262,8 @@ TEST_F(ASTPatchTest, UpdateMove) {
         R"(void f() { })",
         R"(void f() { { int x = 2; } })",
         R"(void f() {  })");
+  PATCH(R"(void f() {;;} namespace {})",
+        R"(namespace { void f() {;;} })",
+        R"(void g() {;;} namespace {})",
+        R"(namespace { void g() {;;} })");
 }
