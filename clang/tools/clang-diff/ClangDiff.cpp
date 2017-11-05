@@ -299,13 +299,7 @@ static unsigned printHtmlForNode(raw_ostream &OS, const diff::ASTDiff &Diff,
      << "tid='" << OtherTag << TargetId << "' ";
   OS << "title='";
   printHtml(OS, Node.getTypeLabel());
-  OS << "\n" << LeftId << " -> " << RightId;
-  std::string Value = Tree.getNodeValue(Node);
-  if (!Value.empty()) {
-    OS << "\n";
-    printHtml(OS, Value);
-  }
-  OS << "'";
+  OS << "\n" << LeftId << " -> " << RightId << "'";
   if (Node.Change != diff::NoChange)
     OS << " class='" << getChangeKindAbbr(Node.Change) << "'";
   OS << ">";
@@ -356,12 +350,6 @@ static void printNodeAttributes(raw_ostream &OS, diff::SyntaxTree &Tree,
   auto Offsets = Node.getSourceRangeOffsets();
   OS << R"(,"begin":)" << Offsets.first;
   OS << R"(,"end":)" << Offsets.second;
-  std::string Value = Tree.getNodeValue(Node);
-  if (!Value.empty()) {
-    OS << R"(,"value":")";
-    printJsonString(OS, Value);
-    OS << '"';
-  }
 }
 
 static void printNodeAsJson(raw_ostream &OS, diff::SyntaxTree &Tree,
@@ -395,9 +383,6 @@ static void printNodeAsJson(raw_ostream &OS, diff::SyntaxTree &Tree,
 static void printNode(raw_ostream &OS, diff::SyntaxTree &Tree,
                       diff::NodeRef Node) {
   OS << Node.getTypeLabel();
-  std::string Value = Tree.getNodeValue(Node);
-  if (!Value.empty())
-    OS << ": " << Value;
   OS << "(" << Node.getId() << ")";
 }
 
@@ -422,7 +407,7 @@ static void printDstChange(raw_ostream &OS, diff::ASTDiff &Diff,
   case diff::Update:
     OS << "Update ";
     printNode(OS, SrcTree, *Src);
-    OS << " to " << DstTree.getNodeValue(Dst) << "\n";
+    OS << "\n";
     break;
   case diff::Insert:
   case diff::Move:

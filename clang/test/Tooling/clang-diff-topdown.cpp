@@ -58,9 +58,9 @@ int x;
 
 namespace dst {
   int x;
-  // CHECK: Match DeclRefExpr: :x(17) to DeclRefExpr: :x(22)
+  // CHECK: Match DeclRefExpr(17) to DeclRefExpr(22)
   int x1 = x + 1;
-  // CHECK: Match DeclRefExpr: x(21) to DeclRefExpr: x(26)
+  // CHECK: Match DeclRefExpr(21) to DeclRefExpr(26)
   int x2 = ::x + 1;
 }
 

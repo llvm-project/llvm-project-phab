@@ -1,31 +1,31 @@
 // RUN: clang-diff -dump-matches %S/Inputs/clang-diff-basic-src.cpp %s -- | FileCheck %s
 
-// CHECK: Match TranslationUnitDecl{{.*}} to TranslationUnitDecl
-// CHECK: Match NamespaceDecl: src{{.*}} to NamespaceDecl: dst
+// CHECK: Match TranslationUnitDecl(0) to TranslationUnitDecl(0)
+// CHECK: Match NamespaceDecl(1) to NamespaceDecl(1)
 namespace dst {
-// CHECK-NOT: Match NamespaceDecl: src{{.*}} to NamespaceDecl: inner
+// CHECK-NOT: Match NamespaceDecl(1) to NamespaceDecl(2)
 namespace inner {
 void foo() {
-  // CHECK: Match IntegerLiteral: 321{{.*}} to IntegerLiteral: 322
+  // CHECK: Match IntegerLiteral(6) to IntegerLiteral(7)
   int x = 322;
 }
 }
 
-// CHECK: Match DeclRefExpr: :foo{{.*}} to DeclRefExpr: :inner::foo
+// CHECK: Match DeclRefExpr(10) to DeclRefExpr(11)
 void main() { inner::foo(); }
 
-// CHECK: Match StringLiteral: foo{{.*}} to StringLiteral: foo
+// CHECK: Match StringLiteral(13) to StringLiteral(13)
 const char *b = "f" "o" "o";
 
 // unsigned is canonicalized to unsigned int
-// CHECK: Match TypedefDecl: :nat;unsigned int;{{.*}} to TypedefDecl: :nat;unsigned int;
+// CHECK: Match TypedefDecl(14) to TypedefDecl(14)
 typedef unsigned nat;
 
-// CHECK: Match VarDecl: :p(int){{.*}} to VarDecl: :prod(double)
-// CHECK: Update VarDecl: :p(int){{.*}} to :prod(double)
-// CHECK: Match BinaryOperator: *{{.*}} to BinaryOperator: *
+// CHECK: Match VarDecl(15)
+// CHECK: Update VarDecl(15)
+// CHECK: Match BinaryOperator(17)
 double prod = 1 * 2 * 10;
-// CHECK: Update DeclRefExpr
+// CHECK: Update DeclRefExpr(25)
 int squared = prod * prod;
 
 class X {
@@ -42,14 +42,14 @@ class X {
 };
 }
 
-// CHECK: Move CompoundStmt{{.*}} into CompoundStmt
+// CHECK: Move CompoundStmt(48) into CompoundStmt(47)
 void m() { { int x = 0 + 0 + 0; } }
-// CHECK: Update and Move IntegerLiteral: 7{{.*}} into BinaryOperator: +({{.*}}) at 1
+// CHECK: Update and Move IntegerLiteral(59) into BinaryOperator(57) at 1
 int um = 1 + 7;
 
 namespace {
 // match with parents of different type
-// CHECK: Match FunctionDecl: f1{{.*}} to FunctionDecl: (anonymous namespace)::f1
+// CHECK: Match FunctionDecl(70) to FunctionDecl(69)
 void f1() {{ (void) __func__;;; }}
 }
 
@@ -60,13 +60,13 @@ void f1() {{ (void) __func__;;; }}
 #define F(a, b) return a + b;
 
 int f2() {
-  // CHECK: Match Macro: M1{{.*}} to Macro: M1
+  // CHECK: Match Macro(72) to Macro(71)
   M1;
-  // CHECK: Update Macro: M1{{.*}} to M2
+  // CHECK: Update Macro(73)
   M2;
-  // CHECK: Match Macro: F(1, 1)(74)
+  // CHECK: Match Macro(74)
   F(1, /*b=*/1);
 }
 
-// CHECK: Delete AccessSpecDecl: public
-// CHECK: Delete CXXMethodDecl
+// CHECK: Delete AccessSpecDecl(39)
+// CHECK: Delete CXXMethodDecl(42)

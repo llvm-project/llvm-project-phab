@@ -98,12 +98,6 @@ public:
 
   NodeRef getNode(NodeId Id) const;
 
-  /// Serialize the node attributes to a string representation. This should
-  /// uniquely distinguish nodes of the same kind. Note that this function
-  /// just
-  /// returns a representation of the node value, not considering descendants.
-  std::string getNodeValue(NodeRef Node) const;
-
   class Impl;
   std::unique_ptr<Impl> TreeImpl;
 };

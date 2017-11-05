@@ -19,9 +19,5 @@ class A {
 // CHECK-NEXT: "type": "CharacterLiteral"
 // CHECK-NEXT: }
 // CHECK: ]
-// CHECK: "type": "VarDecl",
+// CHECK: "type": "VarDecl"
 char nl = '\n';
-
-// CHECK: "value": "abc \n\t\u0000\u001f"
-char s[] = "abc \n\t\0\x1f";
-

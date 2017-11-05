@@ -2,93 +2,94 @@
 
 
 // CHECK: {{^}}TranslationUnitDecl(0)
-// CHECK: {{^}} NamespaceDecl: test;(
+// CHECK: {{^}} NamespaceDecl(1)
 namespace test {
 
-// CHECK: {{^}} FunctionDecl: :f(
-// CHECK: CompoundStmt(
+// CHECK: {{^}} FunctionDecl(2)
+// CHECK: CompoundStmt(3)
 void f() {
-  // CHECK: VarDecl: i(int)(
-  // CHECK: IntegerLiteral: 1
+  // CHECK: DeclStmt(4)
+  // CHECK: VarDecl(5)
+  // CHECK: IntegerLiteral(6)
   auto i = 1;
-  // CHECK: FloatingLiteral: 1.5(
+  // CHECK: FloatingLiteral(9)
   auto r = 1.5;
-  // CHECK: CXXBoolLiteralExpr: true(
+  // CHECK: CXXBoolLiteralExpr(12)
   auto b = true;
-  // CHECK: CallExpr(
+  // CHECK: CallExpr(13)
   // CHECK-NOT: ImplicitCastExpr
-  // CHECK: DeclRefExpr: :f(
+  // CHECK: DeclRefExpr(14)
   f();
-  // CHECK: UnaryOperator: ++(
+  // CHECK: UnaryOperator(15)
   ++i;
-  // CHECK: BinaryOperator: =(
+  // CHECK: BinaryOperator(17)
   i = i;
 }
 
 } // end namespace test
 
-// CHECK: UsingDirectiveDecl: test(
+// CHECK: UsingDirectiveDecl(20)
 using namespace test;
 
-// CHECK: TypedefDecl: nat;unsigned int;(
+// CHECK: TypedefDecl(21)
 typedef unsigned nat;
-// CHECK: TypeAliasDecl: real;double;(
+// CHECK: TypeAliasDecl(22)
 using real = double;
 
 class Base {
 };
 
-// CHECK: CXXRecordDecl: X;X;(
+// CHECK: CXXRecordDecl(23)
 class X : Base {
   int m;
-  // CHECK: CXXMethodDecl: :foo(const char *(int)
-  // CHECK: ParmVarDecl: i(int)(
+  // CHECK: CXXMethodDecl(26)
+  // CHECK: ParmVarDecl(27)
   const char *foo(int i) {
     if (i == 0)
-      // CHECK: StringLiteral: foo(
+      // CHECK: StringLiteral(34)
       return "foo";
     // CHECK-NOT: ImplicitCastExpr
     return 0;
   }
 
-  // CHECK: AccessSpecDecl: public(
+  // CHECK: AccessSpecDecl(37)
 public:
   int not_initialized;
-  // CHECK: CXXConstructorDecl: :X(void (char, int){{( __attribute__\(\(thiscall\)\))?}})(
-  // CHECK-NEXT: ParmVarDecl: s(char)
-  // CHECK-NEXT: ParmVarDecl: (int)
-  // CHECK-NEXT: CXXCtorInitializer: Base
-  // CHECK-NEXT: CXXConstructExpr
-  // CHECK-NEXT: CXXCtorInitializer: m
-  // CHECK-NEXT: IntegerLiteral: 0
+  // CHECK: CXXConstructorDecl(39)
+  // CHECK-NEXT: ParmVarDecl(40)
+  // CHECK-NEXT: ParmVarDecl(41)
+  // CHECK-NEXT: CXXCtorInitializer(42)
+  // CHECK-NEXT: CXXConstructExpr(43)
+  // CHECK-NEXT: CXXCtorInitializer(44)
+  // CHECK-NEXT: IntegerLiteral(45)
   X(char s, int) : Base(), m(0) {
-    // CHECK-NEXT: CompoundStmt
-    // CHECK: MemberExpr: :m(
+    // CHECK-NEXT: CompoundStmt(46)
+    // CHECK: MemberExpr(49)
     int x = m;
   }
-  // CHECK: CXXConstructorDecl: :X(void (char){{( __attribute__\(\(thiscall\)\))?}})(
-  // CHECK: CXXCtorInitializer: X
+  // CHECK: CXXConstructorDecl(51)
+  // CHECK: CXXCtorInitializer(53)
   X(char s) : X(s, 4) {}
 };
 
 #define M (void)1
 #define F(a, b) (void)a, b
 void macros() {
-  // CHECK: Macro: M(
+  // CHECK: Macro(60)
   M;
   // two expressions, therefore it occurs twice
-  // CHECK-NEXT: Macro: F(1, 2)(
-  // CHECK-NEXT: Macro: F(1, 2)(
+  // CHECK-NEXT: Macro(61)
+  // CHECK-NEXT: Macro(62)
   F(1, 2);
 }
 
 #ifndef GUARD
 #define GUARD
-// CHECK-NEXT: NamespaceDecl
+// CHECK-NEXT: NamespaceDecl(63)
 namespace world {
 // nodes from other files are excluded, there should be no output here
 #include "clang-diff-ast.cpp"
 }
-// CHECK-NEXT: FunctionDecl: sentinel
+// CHECK-NEXT: FunctionDecl(64)
 void sentinel();
 #endif
