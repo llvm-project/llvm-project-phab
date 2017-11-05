@@ -496,8 +496,10 @@ int main(int argc, const char **argv) {
   if (!StopAfter.empty()) {
     if (StopAfter == "topdown")
       Options.StopAfterTopDown = true;
-    else if (StopAfter != "bottomup") {
-      llvm::errs() << "Error: Invalid argument for -stop-after\n";
+    else if (StopAfter == "bottomup")
+      Options.StopAfterBottomUp = true;
+    else {
+      llvm::errs() << "Error: Invalid argument for -stop-diff-after\n";
       return 1;
     }
   }

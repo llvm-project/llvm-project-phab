@@ -1,6 +1,6 @@
 // RUN: %clang_cc1 -E %s > %t.src.cpp
 // RUN: %clang_cc1 -E %s > %t.dst.cpp -DDEST
-// RUN: clang-diff -dump-matches -s=10 %t.src.cpp %t.dst.cpp -- | FileCheck %s
+// RUN: clang-diff -dump-matches -s=10 -stop-diff-after=bottomup %t.src.cpp %t.dst.cpp -- | FileCheck %s
 //
 // Test the behaviour of the matching according to the optimal tree edit
 // distance, implemented with Zhang and Shasha's algorithm.

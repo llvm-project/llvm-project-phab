@@ -49,6 +49,7 @@ struct ComparisonOptions {
   int MaxSize = 100;
 
   bool StopAfterTopDown = false;
+  bool StopAfterBottomUp = false;
 
   /// Returns false if the nodes should never be matched.
   bool isMatchingAllowed(NodeRef N1, NodeRef N2) const;

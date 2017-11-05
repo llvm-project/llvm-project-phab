@@ -1,6 +1,6 @@
 // RUN: %clang_cc1 -E %s > %t.src.cpp
 // RUN: %clang_cc1 -E %s > %t.dst.cpp -DDEST
-// RUN: clang-diff -dump-matches -s=0 %t.src.cpp %t.dst.cpp -- | FileCheck %s
+// RUN: clang-diff -dump-matches -s=0 -stop-diff-after=bottomup %t.src.cpp %t.dst.cpp -- | FileCheck %s
 //
 // Test the bottom-up matching, with maxsize set to 0, so that the optimal matching will never be applied.
 

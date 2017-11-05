@@ -74,14 +74,21 @@ private:
   // Descendants are only considered to be equal when they are mapped.
   double getJaccardSimilarity(NodeRef N1, NodeRef N2) const;
 
+  double getNodeSimilarity(NodeRef N1, NodeRef N2) const;
+
   // Returns the node that has the highest degree of similarity.
   const Node *findCandidate(NodeRef N1) const;
+
+  const Node *findCandidateFromChildren(NodeRef N1, NodeRef P2) const;
 
   // Returns a mapping of identical subtrees.
   void matchTopDown();
 
   // Tries to match any yet unmapped nodes, in a bottom-up fashion.
   void matchBottomUp();
+
+  // Matches nodes, whose parents are matched.
+  void matchChildren();
 
   int findNewPosition(NodeRef N) const;
 
@@ -832,6 +839,20 @@ double ASTDiff::Impl::getJaccardSimilarity(NodeRef N1, NodeRef N2) const {
   return CommonDescendants / Denominator;
 }
 
+double ASTDiff::Impl::getNodeSimilarity(NodeRef N1, NodeRef N2) const {
+  auto Ident1 = N1.getIdentifier(), Ident2 = N2.getIdentifier();
+
+  bool SameValue = T1.getNodeValue(N1) == T2.getNodeValue(N2);
+  auto SameIdent = Ident1 && Ident2 && *Ident1 == *Ident2;
+
+  double NodeSimilarity = 0;
+  NodeSimilarity += SameValue;
+  NodeSimilarity += SameIdent;
+
+  assert(haveSameParents(N1, N2));
+  return NodeSimilarity * Options.MinSimilarity;
+}
+
 const Node *ASTDiff::Impl::findCandidate(NodeRef N1) const {
   const Node *Candidate = nullptr;
   double HighestSimilarity = 0.0;
@@ -841,6 +862,25 @@ const Node *ASTDiff::Impl::findCandidate(NodeRef N1) const {
     if (getSrc(N2))
       continue;
     double Similarity = getJaccardSimilarity(N1, N2);
+    if (Similarity >= Options.MinSimilarity && Similarity > HighestSimilarity) {
+      HighestSimilarity = Similarity;
+      Candidate = &N2;
+    }
+  }
+  return Candidate;
+}
+
+const Node *ASTDiff::Impl::findCandidateFromChildren(NodeRef N1,
+                                                     NodeRef P2) const {
+  const Node *Candidate = nullptr;
+  double HighestSimilarity = 0.0;
+  for (NodeRef N2 : P2) {
+    if (!isMatchingPossible(N1, N2))
+      continue;
+    if (getSrc(N2))
+      continue;
+    double Similarity = getJaccardSimilarity(N1, N2);
+    Similarity += getNodeSimilarity(N1, N2);
     if (Similarity >= Options.MinSimilarity && Similarity > HighestSimilarity) {
       HighestSimilarity = Similarity;
       Candidate = &N2;
@@ -872,6 +912,24 @@ void ASTDiff::Impl::matchBottomUp() {
     if (Matched || !MatchedChildren)
       continue;
     const Node *N2 = findCandidate(N1);
+    if (N2) {
+      link(N1, *N2);
+      addOptimalMapping(N1, *N2);
+    }
+  }
+}
+
+void ASTDiff::Impl::matchChildren() {
+  for (NodeRef N1 : T1) {
+    if (getDst(N1))
+      continue;
+    if (!N1.getParent())
+      continue;
+    NodeRef P1 = *N1.getParent();
+    if (!getDst(P1))
+      continue;
+    NodeRef P2 = *getDst(P1);
+    const Node *N2 = findCandidateFromChildren(N1, P2);
     if (N2) {
       link(N1, *N2);
       addOptimalMapping(N1, *N2);
@@ -936,6 +994,9 @@ void ASTDiff::Impl::computeMapping() {
   if (Options.StopAfterTopDown)
     return;
   matchBottomUp();
+  if (Options.StopAfterBottomUp)
+    return;
+  matchChildren();
 }
 
 void ASTDiff::Impl::computeChangeKinds() {
