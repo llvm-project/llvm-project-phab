@@ -27,6 +27,10 @@ using namespace clang;
 namespace clang {
 namespace diff {
 
+bool ComparisonOptions::isMatchingAllowed(NodeRef N1, NodeRef N2) const {
+  return N1.getType().isSame(N2.getType());
+}
+
 class ASTDiff::Impl {
 private:
   std::unique_ptr<NodeId[]> SrcToDst, DstToSrc;

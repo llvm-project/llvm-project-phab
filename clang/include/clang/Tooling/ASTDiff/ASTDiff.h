@@ -36,6 +36,24 @@ enum ChangeKind {
 
 using NodeRef = const Node &;
 
+struct ComparisonOptions {
+  /// During top-down matching, only consider nodes of at least this height.
+  int MinHeight = 2;
+
+  /// During bottom-up matching, match only nodes with at least this value as
+  /// the ratio of their common descendants.
+  double MinSimilarity = 0.5;
+
+  /// Whenever two subtrees are matched in the bottom-up phase, the optimal
+  /// mapping is computed, unless the size of either subtrees exceeds this.
+  int MaxSize = 100;
+
+  bool StopAfterTopDown = false;
+
+  /// Returns false if the nodes should never be matched.
+  bool isMatchingAllowed(NodeRef N1, NodeRef N2) const;
+};
+
 class ASTDiff {
 public:
   ASTDiff(SyntaxTree &Src, SyntaxTree &Dst, const ComparisonOptions &Options);
@@ -121,26 +139,6 @@ struct NodeRefIterator {
   NodeRefIterator &operator++();
   NodeRefIterator &operator+(int Offset);
   bool operator!=(const NodeRefIterator &Other) const;
-};
-
-struct ComparisonOptions {
-  /// During top-down matching, only consider nodes of at least this height.
-  int MinHeight = 2;
-
-  /// During bottom-up matching, match only nodes with at least this value as
-  /// the ratio of their common descendants.
-  double MinSimilarity = 0.5;
-
-  /// Whenever two subtrees are matched in the bottom-up phase, the optimal
-  /// mapping is computed, unless the size of either subtrees exceeds this.
-  int MaxSize = 100;
-
-  bool StopAfterTopDown = false;
-
-  /// Returns false if the nodes should never be matched.
-  bool isMatchingAllowed(NodeRef N1, NodeRef N2) const {
-    return N1.getType().isSame(N2.getType());
-  }
 };
 
 } // end namespace diff
