@@ -84,27 +84,33 @@ static void addExtraArgs(std::unique_ptr<CompilationDatabase> &Compilations) {
   Compilations = std::move(AdjustingCompilations);
 }
 
+static std::unique_ptr<CompilationDatabase>
+getCompilationDatabase(StringRef Filename) {
+  std::string ErrorMessage;
+  std::unique_ptr<CompilationDatabase> Compilations =
+      CompilationDatabase::autoDetectFromSource(
+          BuildPath.empty() ? Filename : BuildPath, ErrorMessage);
+  if (!Compilations) {
+    llvm::errs()
+        << "Error while trying to load a compilation database, running "
+           "without flags.\n"
+        << ErrorMessage;
+    Compilations = llvm::make_unique<clang::tooling::FixedCompilationDatabase>(
+        ".", std::vector<std::string>());
+  }
+  addExtraArgs(Compilations);
+  return Compilations;
+}
+
 static std::unique_ptr<ASTUnit>
 getAST(const std::unique_ptr<CompilationDatabase> &CommonCompilations,
        const StringRef Filename) {
-  std::string ErrorMessage;
-  std::unique_ptr<CompilationDatabase> Compilations;
-  if (!CommonCompilations) {
-    Compilations = CompilationDatabase::autoDetectFromSource(
-        BuildPath.empty() ? Filename : BuildPath, ErrorMessage);
-    if (!Compilations) {
-      llvm::errs()
-          << "Error while trying to load a compilation database, running "
-             "without flags.\n"
-          << ErrorMessage;
-      Compilations =
-          llvm::make_unique<clang::tooling::FixedCompilationDatabase>(
-              ".", std::vector<std::string>());
-    }
-  }
-  addExtraArgs(Compilations);
   std::array<std::string, 1> Files = {{Filename}};
-  ClangTool Tool(Compilations ? *Compilations : *CommonCompilations, Files);
+  std::unique_ptr<CompilationDatabase> FileCompilations;
+  if (!CommonCompilations)
+    FileCompilations = getCompilationDatabase(Filename);
+  ClangTool Tool(CommonCompilations ? *CommonCompilations : *FileCompilations,
+                 Files);
   std::vector<std::unique_ptr<ASTUnit>> ASTs;
   Tool.buildASTs(ASTs);
   if (ASTs.size() != Files.size())
