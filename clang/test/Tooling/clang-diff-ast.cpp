@@ -95,14 +95,14 @@ void macros() {
 #define GUARD
 // CHECK-NEXT: NamespaceDecl(93)
 namespace world {
-// nodes from other files are excluded, there should be no output here
+// CHECK-NEXT: NamespaceDecl
 #include "clang-diff-ast.cpp"
 }
-// CHECK-NEXT: FunctionDecl(94)
+// CHECK: FunctionDecl(197)
 void sentinel();
 #endif
 
-// CHECK: ClassTemplateDecl(97)
+// CHECK: ClassTemplateDecl(200)
 // CHECK-NEXT: TemplateTypeParmDecl
 // CHECK-NEXT: QualType
 // CHECK-NEXT: CXXRecordDecl

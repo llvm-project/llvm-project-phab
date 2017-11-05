@@ -276,6 +276,10 @@ static unsigned printHtmlForNode(raw_ostream &OS, const diff::ASTDiff &Diff,
   char MyTag, OtherTag;
   diff::NodeId LeftId, RightId;
   diff::SyntaxTree &Tree = Node.getTree();
+  const SourceManager &SM = Tree.getASTContext().getSourceManager();
+  SourceLocation SLoc = Node.getSourceRange().getBegin();
+  if (SLoc.isValid() && !SM.isInMainFile(SLoc))
+    return Offset;
   const diff::Node *Target = Diff.getMapped(Node);
   diff::NodeId TargetId = Target ? Target->getId() : diff::NodeId();
   if (IsLeft) {
@@ -291,7 +295,6 @@ static unsigned printHtmlForNode(raw_ostream &OS, const diff::ASTDiff &Diff,
   }
   unsigned Begin, End;
   std::tie(Begin, End) = Node.getSourceRangeOffsets();
-  const SourceManager &SM = Tree.getASTContext().getSourceManager();
   auto Code = SM.getBuffer(SM.getMainFileID())->getBuffer();
   for (; Offset < Begin; ++Offset)
     printHtml(OS, Code[Offset]);

@@ -203,8 +203,7 @@ template <class T> static bool isNodeExcluded(ASTUnit &AST, T *N) {
     return true;
   SourceLocation SLoc = N->getSourceRange().getBegin();
   if (SLoc.isValid()) {
-    // Ignore everything from other files.
-    if (!SM.isInMainFile(SLoc))
+    if (SM.isInSystemHeader(SLoc))
       return true;
     const Preprocessor &PP = AST.getPreprocessor();
     if (SLoc.isMacroID() && !PP.isAtStartOfMacroExpansion(SLoc))
