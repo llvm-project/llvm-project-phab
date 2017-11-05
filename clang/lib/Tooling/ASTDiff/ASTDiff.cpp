@@ -83,6 +83,8 @@ private:
   // Tries to match any yet unmapped nodes, in a bottom-up fashion.
   void matchBottomUp();
 
+  int findNewPosition(NodeRef N) const;
+
   const ComparisonOptions &Options;
 
   friend class ZhangShashaMatcher;
@@ -141,7 +143,6 @@ public:
   Node &getMutableNode(NodeRef N) { return getMutableNode(N.getId()); }
   int getNumberOfDescendants(NodeRef N) const;
   bool isInSubtree(NodeRef N, NodeRef SubtreeRoot) const;
-  int findPositionInParent(NodeRef Id, bool Shifted = false) const;
 
   std::string getRelativeName(const NamedDecl *ND,
                               const DeclContext *Context) const;
@@ -337,23 +338,6 @@ int SyntaxTree::Impl::getNumberOfDescendants(NodeRef N) const {
 bool SyntaxTree::Impl::isInSubtree(NodeRef N, NodeRef SubtreeRoot) const {
   return N.getId() >= SubtreeRoot.getId() &&
          N.getId() <= SubtreeRoot.RightMostDescendant;
-}
-
-int SyntaxTree::Impl::findPositionInParent(NodeRef N, bool Shifted) const {
-  if (!N.getParent())
-    return 0;
-  NodeRef Parent = *N.getParent();
-  const auto &Siblings = Parent.Children;
-  int Position = 0;
-  for (size_t I = 0, E = Siblings.size(); I < E; ++I) {
-    if (Shifted)
-      Position += getNode(Siblings[I]).Shift;
-    if (Siblings[I] == N.getId()) {
-      Position += I;
-      return Position;
-    }
-  }
-  llvm_unreachable("Node not found in parent's children.");
 }
 
 // Returns the qualified name of ND. If it is subordinate to Context,
@@ -724,6 +708,14 @@ NodeRefIterator Node::end() const {
   return {&Tree, isLeaf() ? nullptr : &Children[0] + Children.size()};
 }
 
+int Node::findPositionInParent() const {
+  if (!getParent())
+    return 0;
+  const ArrayRef<NodeId> &Siblings = getParent()->Children;
+  return std::find(Siblings.begin(), Siblings.end(), getId()) -
+         Siblings.begin();
+}
+
 namespace {
 // Compares nodes by their depth.
 struct HeightLess {
@@ -950,8 +942,8 @@ void ASTDiff::Impl::computeChangeKinds() {
     if (!getDst(N1))
       continue;
     NodeRef N2 = *getDst(N1);
-    if (!haveSameParents(N1, N2) || T1.findPositionInParent(N1, true) !=
-                                        T2.findPositionInParent(N2, true)) {
+    if (!haveSameParents(N1, N2) ||
+        findNewPosition(N1) != findNewPosition(N2)) {
       T1.getMutableNode(N1).Shift -= 1;
       T2.getMutableNode(N2).Shift -= 1;
     }
@@ -962,8 +954,8 @@ void ASTDiff::Impl::computeChangeKinds() {
     NodeRef N1 = *getSrc(N2);
     Node &MutableN1 = T1.getMutableNode(N1);
     Node &MutableN2 = T2.getMutableNode(N2);
-    if (!haveSameParents(N1, N2) || T1.findPositionInParent(N1, true) !=
-                                        T2.findPositionInParent(N2, true)) {
+    if (!haveSameParents(N1, N2) ||
+        findNewPosition(N1) != findNewPosition(N2)) {
       MutableN1.Change = MutableN2.Change = Move;
     }
     if (T1.getNodeValue(N1) != T2.getNodeValue(N2)) {
@@ -995,6 +987,18 @@ const Node *ASTDiff::Impl::getSrc(NodeRef N2) const {
                                         : nullptr;
 }
 
+int ASTDiff::Impl::findNewPosition(NodeRef N) const {
+  if (!N.getParent())
+    return 0;
+  int Position = N.findPositionInParent();
+  for (NodeRef Sibling : *N.getParent()) {
+    Position += Sibling.Shift;
+    if (&Sibling == &N)
+      return Position;
+  }
+  llvm_unreachable("Node not found amongst parent's children.");
+}
+
 ASTDiff::ASTDiff(SyntaxTree &T1, SyntaxTree &T2,
                  const ComparisonOptions &Options)
     : DiffImpl(llvm::make_unique<Impl>(*T1.TreeImpl, *T2.TreeImpl, Options)) {}
@@ -1021,10 +1025,6 @@ SyntaxTree::PreorderIterator SyntaxTree::begin() const {
   return TreeImpl->begin();
 }
 SyntaxTree::PreorderIterator SyntaxTree::end() const { return TreeImpl->end(); }
-
-int SyntaxTree::findPositionInParent(NodeRef N) const {
-  return TreeImpl->findPositionInParent(N);
-}
 
 std::pair<unsigned, unsigned>
 SyntaxTree::getSourceRangeOffsets(NodeRef N) const {

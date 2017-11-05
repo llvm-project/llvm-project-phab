@@ -434,7 +434,7 @@ static void printDstChange(raw_ostream &OS, diff::ASTDiff &Diff,
       OS << "None";
     else
       printNode(OS, DstTree, *Dst.getParent());
-    OS << " at " << DstTree.findPositionInParent(Dst) << "\n";
+    OS << " at " << Dst.findPositionInParent() << "\n";
     break;
   }
 }

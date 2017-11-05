@@ -90,7 +90,6 @@ public:
   PreorderIterator end() const;
 
   NodeRef getNode(NodeId Id) const;
-  int findPositionInParent(NodeRef Node) const;
 
   // Returns the starting and ending offset of the node in its source file.
   std::pair<unsigned, unsigned> getSourceRangeOffsets(NodeRef N) const;
@@ -128,6 +127,8 @@ struct Node {
 
   NodeRefIterator begin() const;
   NodeRefIterator end() const;
+
+  int findPositionInParent() const;
 };
 
 struct NodeRefIterator {
