@@ -153,9 +153,9 @@ void foo() {
 // NO__ERRNO: declare double @cbrt(double) [[READNONE]]
 // NO__ERRNO: declare float @cbrtf(float) [[READNONE]]
 // NO__ERRNO: declare x86_fp80 @cbrtl(x86_fp80) [[READNONE]]
-// HAS_ERRNO: declare double @cbrt(double) [[NOT_READNONE]]
-// HAS_ERRNO: declare float @cbrtf(float) [[NOT_READNONE]]
-// HAS_ERRNO: declare x86_fp80 @cbrtl(x86_fp80) [[NOT_READNONE]]
+// HAS_ERRNO: declare double @cbrt(double) [[READNONE]]
+// HAS_ERRNO: declare float @cbrtf(float) [[READNONE]]
+// HAS_ERRNO: declare x86_fp80 @cbrtl(x86_fp80) [[READNONE]]
 
   ceil(f);       ceilf(f);      ceill(f);
 
