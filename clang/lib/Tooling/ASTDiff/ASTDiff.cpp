@@ -1119,6 +1119,14 @@ SyntaxTree::~SyntaxTree() = default;
 
 ASTUnit &SyntaxTree::getASTUnit() const { return TreeImpl->AST; }
 
+SourceManager &SyntaxTree::getSourceManager() const {
+  return TreeImpl->AST.getSourceManager();
+}
+
+const LangOptions &SyntaxTree::getLangOpts() const {
+  return TreeImpl->AST.getLangOpts();
+}
+
 const ASTContext &SyntaxTree::getASTContext() const {
   return TreeImpl->AST.getASTContext();
 }
@@ -1127,6 +1135,7 @@ NodeRef SyntaxTree::getNode(NodeId Id) const { return TreeImpl->getNode(Id); }
 
 int SyntaxTree::getSize() const { return TreeImpl->getSize(); }
 NodeRef SyntaxTree::getRoot() const { return TreeImpl->getRoot(); }
+NodeId SyntaxTree::getRootId() const { return TreeImpl->getRootId(); }
 SyntaxTree::PreorderIterator SyntaxTree::begin() const {
   return TreeImpl->begin();
 }

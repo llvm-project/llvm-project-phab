@@ -80,14 +80,18 @@ public:
   SyntaxTree(T *Node, ASTUnit &AST)
       : TreeImpl(llvm::make_unique<Impl>(this, Node, AST)) {}
   SyntaxTree(SyntaxTree &&Other) = default;
+  SyntaxTree &operator=(SyntaxTree &&Other) = default;
   ~SyntaxTree();
 
   ASTUnit &getASTUnit() const;
   const ASTContext &getASTContext() const;
+  SourceManager &getSourceManager() const;
+  const LangOptions &getLangOpts() const;
   StringRef getFilename() const;
 
   int getSize() const;
   NodeRef getRoot() const;
+  NodeId getRootId() const;
   using PreorderIterator = const Node *;
   PreorderIterator begin() const;
   PreorderIterator end() const;
@@ -113,6 +117,10 @@ struct Node {
   SmallVector<NodeId, 4> Children;
   ChangeKind Change = NoChange;
   Node(SyntaxTree::Impl &Tree) : Tree(Tree), Children() {}
+  Node(NodeRef Other) = delete;
+  explicit Node(Node &&Other) = default;
+  Node &operator=(NodeRef Other) = delete;
+  Node &operator=(Node &&Other) = default;
 
   NodeId getId() const;
   SyntaxTree &getTree() const;
