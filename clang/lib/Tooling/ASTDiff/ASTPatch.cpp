@@ -58,6 +58,9 @@ public:
   decltype(BaseNode.getOwnedSourceRanges()) getOwnedSourceRanges() {
     return BaseNode.getOwnedSourceRanges();
   }
+  decltype(BaseNode.getOwnedTokens()) getOwnedTokens() {
+    return BaseNode.getOwnedTokens();
+  }
 
   // This flag indicates whether this node, or any of its descendants was
   // changed with regards to the original tree.
@@ -107,6 +110,23 @@ private:
 } // end anonymous namespace
 
 namespace {
+struct TokenInsertion {
+  enum { BeforeFirst = -1 };
+  int AfterToken = BeforeFirst;
+  int AfterChild = BeforeFirst;
+  unsigned Token;
+};
+} // end anonymous namespace
+
+namespace {
+struct TokenMapping {
+  SmallVector<unsigned, 4> DeletedTokens;
+  SmallVector<TokenInsertion, 4> Insertions;
+  SmallVector<int, 4> Mapping;
+};
+} // end anonymous namespace
+
+namespace {
 class Patcher {
   SyntaxTree &Dst, &Target;
   SourceManager &SM;
@@ -146,6 +166,9 @@ private:
   // Recursively builds the text that is represented by this subtree.
   std::string buildSourceText(PatchedTreeNode &PatchedNode);
   void setOwnedSourceText(PatchedTreeNode &PatchedNode);
+  // Uses a LCS algorithm to determine insertions and deletions of tokens.
+  TokenMapping matchTokens(NodeRef InsertionDestination,
+                           NodeRef InsertionSource);
   std::pair<int, bool>
   findPointOfInsertion(NodeRef N, PatchedTreeNode &TargetParent) const;
   bool isInserted(const PatchedTreeNode &PatchedNode) const {
@@ -351,14 +374,51 @@ Patcher::findLocationForInsertion(NodeRef DstNode,
     if (InsertionLocation.isValid())
       return InsertionLocation;
   }
-  llvm_unreachable("Not implemented.");
+  NodeRef DstParent = *DstNode.getParent();
+  TokenMapping MapDstNew = matchTokens(DstParent, InsertionTarget);
+  BeforeThanCompare<SourceLocation> DstLess(Dst.getSourceManager());
+  auto InsertedLoc = DstNode.getSourceRange().getBegin();
+  assert(InsertedLoc.isValid());
+  auto DstTokens = DstParent.getOwnedTokens();
+  auto NewTokens = InsertionTarget.getOwnedTokens();
+  for (unsigned I = 0; I < NewTokens.size(); ++I) {
+    int DstIndex = MapDstNew.Mapping[I];
+    if (DstIndex == -1)
+      continue;
+    SourceLocation NewLoc = NewTokens[I];
+    SourceLocation DstLoc = DstTokens[DstIndex];
+    if (DstLoc.isValid() && wantToInsertBefore(InsertedLoc, DstLoc, DstLess))
+      return NewLoc;
+  }
+  if (isFromDst(InsertionTarget))
+    return InsertionTarget.getSourceRange().getEnd();
+  assert(NodeRef(InsertionTarget).ASTNode.get<TranslationUnitDecl>());
+  return SM.getLocForEndOfFile(SM.getMainFileID());
 }
 
 SourceLocation Patcher::findLocationForMove(NodeRef DstNode, NodeRef TargetNode,
                                             PatchedTreeNode &NewParent) {
   assert(isFromDst(DstNode));
   assert(isFromTarget(TargetNode));
-  return DstNode.getSourceRange().getEnd();
+  NodeRef DstParent = *DstNode.getParent();
+  auto Range = DstNode.getSourceRange();
+  SourceLocation MyLocInSource = Range.getBegin();
+  TokenMapping MapDstTarget = matchTokens(DstParent, NewParent);
+  BeforeThanCompare<SourceLocation> DstLess(Dst.getSourceManager());
+  auto DstParentTokens = DstParent.getOwnedTokens();
+  auto NewParentTokens = NewParent.getOwnedTokens();
+  for (unsigned I = 0; I < NewParentTokens.size(); ++I) {
+    int DstIndex = MapDstTarget.Mapping[I];
+    if (DstIndex == -1)
+      continue;
+    SourceLocation NewLoc = NewParentTokens[I];
+    SourceLocation DstLoc = DstParentTokens[DstIndex];
+    if (wantToInsertBefore(MyLocInSource, DstLoc, DstLess)) {
+      return NewLoc;
+    }
+  }
+  SourceLocation Loc = NewParent.getSourceRange().getEnd();
+  return Loc.isValid() ? Loc : SM.getLocForEndOfFile(SM.getMainFileID());
 }
 
 void Patcher::markChangedNodes() {
@@ -491,6 +551,114 @@ std::string Patcher::buildSourceText(PatchedTreeNode &PatchedNode) {
   return Result;
 }
 
+StringRef getTokenText(SourceLocation Loc, SyntaxTree &Tree) {
+  Token Tok;
+  bool Failure =
+      Lexer::getRawToken(Loc, Tok, Tree.getSourceManager(), Tree.getLangOpts(),
+                         /*IgnoreWhiteSpace=*/true);
+  assert(!Failure);
+  auto TokenRange = CharSourceRange::getCharRange({Loc, Tok.getEndLoc()});
+  return Lexer::getSourceText(TokenRange, Tree.getSourceManager(),
+                              Tree.getLangOpts());
+}
+
+TokenMapping Patcher::matchTokens(NodeRef NodeA, NodeRef NodeB) {
+  TokenMapping TheMapping;
+  auto &TreeA = NodeA.getTree(), &TreeB = NodeB.getTree();
+  auto A = NodeA.getOwnedTokens(), B = NodeB.getOwnedTokens();
+  auto SizeA = A.size(), SizeB = B.size();
+  std::vector<std::unique_ptr<int[]>> C(SizeA + 1);
+  auto AreSameTokens = [&](SourceLocation LocA, SourceLocation LocB) {
+    return getTokenText(LocA, TreeA) == getTokenText(LocB, TreeB);
+  };
+  for (auto &Row : C)
+    Row = llvm::make_unique<int[]>(SizeB + 1);
+  for (unsigned I = 0; I <= SizeA; ++I)
+    C[I][0] = 0;
+  for (unsigned J = 0; J <= SizeB; ++J)
+    C[0][J] = 0;
+  for (unsigned I = 1; I <= SizeA; ++I) {
+    for (unsigned J = 1; J <= SizeB; ++J) {
+      if (AreSameTokens(A[I - 1], B[J - 1]))
+        C[I][J] = C[I - 1][J - 1] + 1;
+      else
+        C[I][J] = std::max(C[I][J - 1], C[I - 1][J]);
+    }
+  }
+  auto FillUpMapping = [&](unsigned UpTo) {
+    while (TheMapping.Mapping.size() < UpTo)
+      TheMapping.Mapping.push_back(-1);
+  };
+  std::function<void(unsigned, unsigned)> BacktrackChanges = [&](unsigned I,
+                                                                 unsigned J) {
+    if (I > 0 && J > 0 && AreSameTokens(A[I - 1], B[J - 1])) {
+      BacktrackChanges(I - 1, J - 1);
+      FillUpMapping(J - 1);
+      TheMapping.Mapping.push_back(I - 1);
+    } else if (I > 0 && (J == 0 || C[I][J - 1] < C[I - 1][J])) {
+      BacktrackChanges(I - 1, J);
+      TheMapping.DeletedTokens.push_back(I - 1);
+    } else if (J > 0 && (I == 0 || C[I][J - 1] >= C[I - 1][J])) {
+      BacktrackChanges(I, J - 1);
+      unsigned ChildIndex = 0;
+      SourceLocation TokLoc = B[J - 1];
+      BeforeThanCompare<SourceLocation> LessB(TreeB.getSourceManager());
+      TokenInsertion Insertion;
+      Insertion.Token = J - 1;
+      if (I != 0) {
+        Insertion.AfterToken = I - 1;
+        for (NodeRef Child : NodeB) {
+          SourceLocation ChildLoc = Child.getSourceRange().getBegin();
+          if (LessB(TokLoc, ChildLoc) && ChildIndex) {
+            Insertion.AfterChild = ChildIndex - 1;
+            break;
+          }
+          ++ChildIndex;
+        }
+      }
+      TheMapping.Insertions.emplace_back(Insertion);
+    }
+  };
+  BacktrackChanges(SizeA, SizeB);
+  FillUpMapping(SizeB);
+  return TheMapping;
+}
+
+static void AppendToken(std::string &Text, SourceLocation Loc, SyntaxTree &Tree,
+                        bool UnlessListSeparator = false) {
+  Token Tok;
+  bool Failure =
+      Lexer::getRawToken(Loc, Tok, Tree.getSourceManager(), Tree.getLangOpts(),
+                         /*IgnoreWhiteSpace=*/true);
+  assert(!Failure);
+  auto TokenRange = CharSourceRange::getCharRange({Loc, Tok.getEndLoc()});
+  if (UnlessListSeparator && isListSeparator(Tok))
+    return;
+  Text += " ";
+  Text += Lexer::getSourceText(TokenRange, Tree.getSourceManager(),
+                               Tree.getLangOpts());
+}
+
+static bool haveCommonElement(ArrayRef<unsigned> A, ArrayRef<unsigned> B) {
+  assert(std::is_sorted(A.begin(), A.end()) &&
+         std::is_sorted(B.begin(), B.end()));
+  for (unsigned I = 0, J = 0, SizeA = A.size(), SizeB = B.size();
+       I < SizeA && J < SizeB;) {
+    if (A[I] == B[J])
+      return true;
+    if (A[I] > B[J])
+      ++J;
+    else
+      ++I;
+  }
+  return false;
+}
+
+static bool isInRange(SourceLocation Loc, CharSourceRange Range,
+                      BeforeThanCompare<SourceLocation> &Less) {
+  return !Less(Loc, Range.getBegin()) && !Less(Range.getEnd(), Loc);
+};
+
 void Patcher::setOwnedSourceText(PatchedTreeNode &PatchedNode) {
   assert(isFromTarget(PatchedNode) || isFromDst(PatchedNode));
   SyntaxTree &Tree = PatchedNode.getTree();
@@ -507,27 +675,101 @@ void Patcher::setOwnedSourceText(PatchedTreeNode &PatchedNode) {
     ChangeKind Change = SrcNode ? Diff.getNodeChange(*SrcNode) : NoChange;
     IsUpdate = Change == Update || Change == UpdateMove;
   }
-  unsigned ChildIndex = 0;
-  auto MySourceRanges = PatchedNode.getOwnedSourceRanges();
+  unsigned NumTokens;
+  TokenMapping MapSrcDst, MapSrcTarget;
+  auto Tokens = PatchedNode.getOwnedTokens();
+  decltype(Tokens) DstTokens;
+  if (IsUpdate) {
+    assert(isFromTarget(PatchedNode));
+    NodeRef DstNode = *Diff.getMapped(*SrcNode);
+    DstTokens = DstNode.getOwnedTokens();
+    MapSrcDst = matchTokens(*SrcNode, DstNode);
+    MapSrcTarget = matchTokens(*SrcNode, PatchedNode);
+    NumTokens = PatchedNode.getOwnedTokens().size();
+  }
+  unsigned NextChild = 0, NextToken = 0, NextTokenInSrc = 0,
+           NextInsertedToken = 0;
   BeforeThanCompare<SourceLocation> MyLess(Tree.getSourceManager());
-  for (auto &MySubRange : PatchedNode.splitSourceRanges(MySourceRanges)) {
-    SourceLocation ChildBegin;
-    SourceLocation InsertionBegin;
-    while (ChildIndex < NumChildren &&
-           ((ChildBegin = ChildrenLocations[ChildIndex]).isInvalid() ||
-            wantToInsertBefore(ChildBegin, MySubRange.getEnd(), MyLess))) {
-      ChildrenOffsets.push_back(OwnText->size());
-      ++ChildIndex;
+  auto AppendInsertedTokens = [&](int LastToken, int LastChild) {
+    while (NextInsertedToken < MapSrcDst.Insertions.size()) {
+      TokenInsertion &Insertion = MapSrcDst.Insertions[NextInsertedToken];
+      if (Insertion.AfterChild > LastChild || Insertion.AfterToken > LastToken)
+        break;
+      AppendToken(*OwnText, DstTokens[Insertion.Token], Dst);
+      *OwnText += " ";
+      ++NextInsertedToken;
     }
-    if (IsUpdate) {
-      llvm_unreachable("Not implemented.");
-    } else {
-      *OwnText += Lexer::getSourceText(MySubRange, Tree.getSourceManager(),
-                                       Tree.getLangOpts());
+  };
+  auto AppendChildren = [&](CharSourceRange &InRange) {
+    SourceLocation ChildBegin;
+    while (NextChild < NumChildren &&
+           ((ChildBegin = ChildrenLocations[NextChild]).isInvalid() ||
+            wantToInsertBefore(ChildBegin, InRange.getEnd(), MyLess))) {
+      ChildrenOffsets.push_back(OwnText->size());
+      NodeRef Child = *Children[NextChild];
+      const DynTypedNode &DTN = Child.ASTNode,
+                         &ParentDTN = NodeRef(PatchedNode).ASTNode;
+      if ((DTN.get<ParmVarDecl>() ||
+           (ParentDTN.get<CallExpr>() && NextChild > 0)) &&
+          NextChild + 1 < NumChildren) {
+        *OwnText += ", ";
+      }
+      ++NextChild;
+    }
+  };
+  auto DeletedBegin = MapSrcDst.DeletedTokens.begin();
+  auto DeletedEnd = MapSrcDst.DeletedTokens.end();
+  auto IsTokenDeleted = [&](unsigned TokenInSrc) {
+    auto DeletedLoc = std::find(DeletedBegin, DeletedEnd, TokenInSrc);
+    if (DeletedLoc != DeletedEnd) {
+      DeletedBegin = DeletedLoc;
+      return true;
+    }
+    return false;
+  };
+  auto AppendAndInsertTokens = [&](CharSourceRange &InRange) {
+    SourceLocation TokenBegin;
+    while (NextToken < NumTokens &&
+           isInRange((TokenBegin = Tokens[NextToken]), InRange, Less)) {
+      auto TokenIterator = std::find(MapSrcTarget.Mapping.begin(),
+                                     MapSrcTarget.Mapping.end(), NextToken);
+      bool IsTokenMapped = TokenIterator != MapSrcTarget.Mapping.end();
+      if (IsTokenMapped)
+        NextTokenInSrc = *TokenIterator;
+      if (!IsTokenMapped || !IsTokenDeleted(NextTokenInSrc)) {
+        AppendToken(*OwnText, TokenBegin, Target,
+                    /*UnlessListSeparator=*/true);
+      }
+      if (IsTokenMapped) {
+        AppendInsertedTokens(NextTokenInSrc, NextChild - 1);
+      }
+      ++NextToken;
+    }
+  };
+
+  AppendInsertedTokens(TokenInsertion::BeforeFirst,
+                       TokenInsertion::BeforeFirst);
+  bool AnyTokenDeletedTwice =
+      haveCommonElement(MapSrcDst.DeletedTokens, MapSrcTarget.DeletedTokens);
+  IsUpdate = IsUpdate && !AnyTokenDeletedTwice;
+  for (auto &MySubRange :
+       PatchedNode.splitSourceRanges(PatchedNode.getOwnedSourceRanges())) {
+    SourceLocation LastTokenLocation;
+    AppendChildren(MySubRange);
+    if (IsUpdate)
+      AppendAndInsertTokens(MySubRange);
+    else {
+      forEachTokenInRange(
+          MySubRange, Tree, [&Tree, &OwnText, &LastTokenLocation](Token &Tok) {
+            AppendToken(*OwnText, (LastTokenLocation = Tok.getLocation()), Tree,
+                        /*UnlessListSeparator=*/true);
+          });
     }
   }
-  while (ChildIndex++ < NumChildren)
+  while (NextChild++ < NumChildren) {
     ChildrenOffsets.push_back(OwnText->size());
+    AppendInsertedTokens(NextTokenInSrc, NextChild - 1);
+  }
 }
 
 std::pair<int, bool>
