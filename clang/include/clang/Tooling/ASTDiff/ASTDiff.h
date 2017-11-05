@@ -20,6 +20,7 @@
 #ifndef LLVM_CLANG_TOOLING_ASTDIFF_ASTDIFF_H
 #define LLVM_CLANG_TOOLING_ASTDIFF_ASTDIFF_H
 
+#include "clang/Frontend/ASTUnit.h"
 #include "clang/Tooling/ASTDiff/ASTDiffInternal.h"
 
 namespace clang {
@@ -73,14 +74,15 @@ private:
 class SyntaxTree {
 public:
   /// Constructs a tree from a translation unit.
-  SyntaxTree(ASTContext &AST);
+  SyntaxTree(ASTUnit &AST);
   /// Constructs a tree from any AST node.
   template <class T>
-  SyntaxTree(T *Node, ASTContext &AST)
+  SyntaxTree(T *Node, ASTUnit &AST)
       : TreeImpl(llvm::make_unique<Impl>(this, Node, AST)) {}
   SyntaxTree(SyntaxTree &&Other) = default;
   ~SyntaxTree();
 
+  ASTUnit &getASTUnit() const;
   const ASTContext &getASTContext() const;
   StringRef getFilename() const;
 
@@ -120,6 +122,7 @@ struct Node {
   ast_type_traits::ASTNodeKind getType() const;
   StringRef getTypeLabel() const;
   bool isLeaf() const { return Children.empty(); }
+  bool isMacro() const;
   llvm::Optional<StringRef> getIdentifier() const;
   llvm::Optional<std::string> getQualifiedIdentifier() const;
 

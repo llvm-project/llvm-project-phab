@@ -467,7 +467,7 @@ int main(int argc, const char **argv) {
     std::unique_ptr<ASTUnit> AST = getAST(CommonCompilations, SourcePath);
     if (!AST)
       return 1;
-    diff::SyntaxTree Tree(AST->getASTContext());
+    diff::SyntaxTree Tree(*AST);
     if (ASTDump) {
       printTree(llvm::outs(), Tree);
       return 0;
@@ -503,8 +503,8 @@ int main(int argc, const char **argv) {
       return 1;
     }
   }
-  diff::SyntaxTree SrcTree(Src->getASTContext());
-  diff::SyntaxTree DstTree(Dst->getASTContext());
+  diff::SyntaxTree SrcTree(*Src);
+  diff::SyntaxTree DstTree(*Dst);
   diff::ASTDiff Diff(SrcTree, DstTree, Options);
 
   if (HtmlDiff) {

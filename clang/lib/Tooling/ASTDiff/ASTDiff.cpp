@@ -28,7 +28,7 @@ namespace clang {
 namespace diff {
 
 bool ComparisonOptions::isMatchingAllowed(NodeRef N1, NodeRef N2) const {
-  return N1.getType().isSame(N2.getType());
+  return (N1.isMacro() && N2.isMacro()) || N1.getType().isSame(N2.getType());
 }
 
 class ASTDiff::Impl {
@@ -114,23 +114,23 @@ struct NodeList {
 /// Represents the AST of a TranslationUnit.
 class SyntaxTree::Impl {
 public:
-  Impl(SyntaxTree *Parent, ASTContext &AST);
+  Impl(SyntaxTree *Parent, ASTUnit &AST);
   /// Constructs a tree from an AST node.
-  Impl(SyntaxTree *Parent, Decl *N, ASTContext &AST);
-  Impl(SyntaxTree *Parent, Stmt *N, ASTContext &AST);
+  Impl(SyntaxTree *Parent, Decl *N, ASTUnit &AST);
+  Impl(SyntaxTree *Parent, Stmt *N, ASTUnit &AST);
   template <class T>
   Impl(SyntaxTree *Parent,
        typename std::enable_if<std::is_base_of<Stmt, T>::value, T>::type *Node,
-       ASTContext &AST)
+       ASTUnit &AST)
       : Impl(Parent, dyn_cast<Stmt>(Node), AST) {}
   template <class T>
   Impl(SyntaxTree *Parent,
        typename std::enable_if<std::is_base_of<Decl, T>::value, T>::type *Node,
-       ASTContext &AST)
+       ASTUnit &AST)
       : Impl(Parent, dyn_cast<Decl>(Node), AST) {}
 
   SyntaxTree *Parent;
-  ASTContext &AST;
+  ASTUnit &AST;
   PrintingPolicy TypePP;
   /// Nodes in preorder.
   std::vector<Node> Nodes;
@@ -181,7 +181,8 @@ static bool isSpecializedNodeExcluded(CXXCtorInitializer *I) {
   return !I->isWritten();
 }
 
-template <class T> static bool isNodeExcluded(const SourceManager &SM, T *N) {
+template <class T> static bool isNodeExcluded(ASTUnit &AST, T *N) {
+  const SourceManager &SM = AST.getSourceManager();
   if (!N)
     return true;
   SourceLocation SLoc = N->getSourceRange().getBegin();
@@ -189,11 +190,29 @@ template <class T> static bool isNodeExcluded(const SourceManager &SM, T *N) {
     // Ignore everything from other files.
     if (!SM.isInMainFile(SLoc))
       return true;
-    // Ignore macros.
-    if (SLoc != SM.getSpellingLoc(SLoc))
+    const Preprocessor &PP = AST.getPreprocessor();
+    if (SLoc.isMacroID() && !PP.isAtStartOfMacroExpansion(SLoc))
       return true;
   }
   return isSpecializedNodeExcluded(N);
+}
+
+static SourceRange getSourceRange(const ASTUnit &AST, const DynTypedNode &DTN) {
+  const SourceManager &SM = AST.getSourceManager();
+  SourceRange Range = DTN.getSourceRange();
+  SourceLocation BeginLoc = Range.getBegin();
+  SourceLocation EndLoc;
+  if (BeginLoc.isMacroID())
+    EndLoc = SM.getExpansionRange(BeginLoc).second;
+  else
+    EndLoc = Range.getEnd();
+  EndLoc =
+      Lexer::getLocForEndOfToken(EndLoc, /*Offset=*/0, SM, AST.getLangOpts());
+  if (auto *ThisExpr = DTN.get<CXXThisExpr>()) {
+    if (ThisExpr->isImplicit())
+      EndLoc = BeginLoc;
+  }
+  return {SM.getExpansionLoc(BeginLoc), SM.getExpansionLoc(EndLoc)};
 }
 
 namespace {
@@ -241,7 +260,7 @@ struct PreorderVisitor : public RecursiveASTVisitor<PreorderVisitor> {
       N.Height = std::max(N.Height, 1 + Tree.getNode(Child).Height);
   }
   bool TraverseDecl(Decl *D) {
-    if (isNodeExcluded(Tree.AST.getSourceManager(), D))
+    if (isNodeExcluded(Tree.AST, D))
       return true;
     auto SavedState = PreTraverse(D);
     RecursiveASTVisitor<PreorderVisitor>::TraverseDecl(D);
@@ -251,7 +270,7 @@ struct PreorderVisitor : public RecursiveASTVisitor<PreorderVisitor> {
   bool TraverseStmt(Stmt *S) {
     if (S)
       S = S->IgnoreImplicit();
-    if (isNodeExcluded(Tree.AST.getSourceManager(), S))
+    if (isNodeExcluded(Tree.AST, S))
       return true;
     auto SavedState = PreTraverse(S);
     RecursiveASTVisitor<PreorderVisitor>::TraverseStmt(S);
@@ -260,7 +279,7 @@ struct PreorderVisitor : public RecursiveASTVisitor<PreorderVisitor> {
   }
   bool TraverseType(QualType T) { return true; }
   bool TraverseConstructorInitializer(CXXCtorInitializer *Init) {
-    if (isNodeExcluded(Tree.AST.getSourceManager(), Init))
+    if (isNodeExcluded(Tree.AST, Init))
       return true;
     auto SavedState = PreTraverse(Init);
     RecursiveASTVisitor<PreorderVisitor>::TraverseConstructorInitializer(Init);
@@ -270,20 +289,20 @@ struct PreorderVisitor : public RecursiveASTVisitor<PreorderVisitor> {
 };
 } // end anonymous namespace
 
-SyntaxTree::Impl::Impl(SyntaxTree *Parent, ASTContext &AST)
+SyntaxTree::Impl::Impl(SyntaxTree *Parent, ASTUnit &AST)
     : Parent(Parent), AST(AST), TypePP(AST.getLangOpts()), Leaves(*this),
       NodesBfs(*this) {
   TypePP.AnonymousTagLocations = false;
 }
 
-SyntaxTree::Impl::Impl(SyntaxTree *Parent, Decl *N, ASTContext &AST)
+SyntaxTree::Impl::Impl(SyntaxTree *Parent, Decl *N, ASTUnit &AST)
     : Impl(Parent, AST) {
   PreorderVisitor PreorderWalker(*this);
   PreorderWalker.TraverseDecl(N);
   initTree();
 }
 
-SyntaxTree::Impl::Impl(SyntaxTree *Parent, Stmt *N, ASTContext &AST)
+SyntaxTree::Impl::Impl(SyntaxTree *Parent, Stmt *N, ASTUnit &AST)
     : Impl(Parent, AST) {
   PreorderVisitor PreorderWalker(*this);
   PreorderWalker.TraverseStmt(N);
@@ -373,10 +392,9 @@ std::string SyntaxTree::Impl::getRelativeName(const NamedDecl *ND) const {
   return getRelativeName(ND, ND->getDeclContext());
 }
 
-static const DeclContext *getEnclosingDeclContext(ASTContext &AST,
-                                                  const Stmt *S) {
+static const DeclContext *getEnclosingDeclContext(ASTUnit &AST, const Stmt *S) {
   while (S) {
-    const auto &Parents = AST.getParents(*S);
+    const auto &Parents = AST.getASTContext().getParents(*S);
     if (Parents.empty())
       return nullptr;
     const auto &P = Parents[0];
@@ -401,6 +419,11 @@ static std::string getInitializerValue(const CXXCtorInitializer *Init,
 std::string SyntaxTree::Impl::getNodeValue(NodeRef N) const {
   assert(&N.Tree == this);
   const DynTypedNode &DTN = N.ASTNode;
+  if (N.isMacro()) {
+    CharSourceRange Range(getSourceRange(AST, N.ASTNode), false);
+    return Lexer::getSourceText(Range, AST.getSourceManager(),
+                                AST.getLangOpts());
+  }
   if (auto *S = DTN.get<Stmt>())
     return getStmtValue(S);
   if (auto *D = DTN.get<Decl>())
@@ -688,9 +711,19 @@ ast_type_traits::ASTNodeKind Node::getType() const {
   return ASTNode.getNodeKind();
 }
 
-StringRef Node::getTypeLabel() const { return getType().asStringRef(); }
+StringRef Node::getTypeLabel() const {
+  if (isMacro())
+    return "Macro";
+  return getType().asStringRef();
+}
+
+bool Node::isMacro() const {
+  return ASTNode.getSourceRange().getBegin().isMacroID();
+}
 
 llvm::Optional<std::string> Node::getQualifiedIdentifier() const {
+  if (isMacro())
+    return llvm::None;
   if (auto *ND = ASTNode.get<NamedDecl>()) {
     if (ND->getDeclName().isIdentifier())
       return ND->getQualifiedNameAsString();
@@ -699,6 +732,8 @@ llvm::Optional<std::string> Node::getQualifiedIdentifier() const {
 }
 
 llvm::Optional<StringRef> Node::getIdentifier() const {
+  if (isMacro())
+    return llvm::None;
   if (auto *ND = ASTNode.get<NamedDecl>()) {
     if (ND->getDeclName().isIdentifier())
       return ND->getName();
@@ -723,16 +758,9 @@ int Node::findPositionInParent() const {
 
 std::pair<unsigned, unsigned> Node::getSourceRangeOffsets() const {
   const SourceManager &SM = Tree.AST.getSourceManager();
-  SourceRange Range = ASTNode.getSourceRange();
-  SourceLocation BeginLoc = Range.getBegin();
-  SourceLocation EndLoc = Lexer::getLocForEndOfToken(
-      Range.getEnd(), /*Offset=*/0, SM, Tree.AST.getLangOpts());
-  if (auto *ThisExpr = ASTNode.get<CXXThisExpr>()) {
-    if (ThisExpr->isImplicit())
-      EndLoc = BeginLoc;
-  }
-  unsigned Begin = SM.getFileOffset(SM.getExpansionLoc(BeginLoc));
-  unsigned End = SM.getFileOffset(SM.getExpansionLoc(EndLoc));
+  SourceRange Range = getSourceRange(Tree.AST, ASTNode);
+  unsigned Begin = SM.getFileOffset(Range.getBegin());
+  unsigned End = SM.getFileOffset(Range.getEnd());
   return {Begin, End};
 }
 
@@ -1083,13 +1111,17 @@ const Node *ASTDiff::getMapped(NodeRef N) const {
   return DiffImpl->getMapped(N);
 }
 
-SyntaxTree::SyntaxTree(ASTContext &AST)
+SyntaxTree::SyntaxTree(ASTUnit &AST)
     : TreeImpl(llvm::make_unique<SyntaxTree::Impl>(
-          this, AST.getTranslationUnitDecl(), AST)) {}
+          this, AST.getASTContext().getTranslationUnitDecl(), AST)) {}
 
 SyntaxTree::~SyntaxTree() = default;
 
-const ASTContext &SyntaxTree::getASTContext() const { return TreeImpl->AST; }
+ASTUnit &SyntaxTree::getASTUnit() const { return TreeImpl->AST; }
+
+const ASTContext &SyntaxTree::getASTContext() const {
+  return TreeImpl->AST.getASTContext();
+}
 
 NodeRef SyntaxTree::getNode(NodeId Id) const { return TreeImpl->getNode(Id); }
 

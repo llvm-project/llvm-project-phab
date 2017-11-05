@@ -31,3 +31,13 @@ void m() { int x = 0 + 0 + 0; }
 int um = 1 * 2 + 3;
 
 void f1() {{ (void) __func__;;; }}
+
+#define M1 return 1 + 1
+#define M2 return 1 + 2
+#define F(a, b) return a + b;
+
+int f2() {
+  M1;
+  M1;
+  F(1, 1);
+}

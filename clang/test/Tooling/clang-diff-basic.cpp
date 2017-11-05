@@ -53,5 +53,20 @@ namespace {
 void f1() {{ (void) __func__;;; }}
 }
 
+// macros are always compared by their full textual value
+
+#define M1 return 1 + 1
+#define M2 return 2 * 2
+#define F(a, b) return a + b;
+
+int f2() {
+  // CHECK: Match Macro: M1{{.*}} to Macro: M1
+  M1;
+  // CHECK: Update Macro: M1{{.*}} to M2
+  M2;
+  // CHECK: Update Macro: F(1, 1){{.*}} to F(1, /*b=*/1)
+  F(1, /*b=*/1);
+}
+
 // CHECK: Delete AccessSpecDecl: public
 // CHECK: Delete CXXMethodDecl

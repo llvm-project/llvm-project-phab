@@ -72,12 +72,14 @@ public:
 };
 
 #define M (void)1
-#define MA(a, b) (void)a, b
-// CHECK: FunctionDecl
-// CHECK-NEXT: CompoundStmt
+#define F(a, b) (void)a, b
 void macros() {
+  // CHECK: Macro: M(
   M;
-  MA(1, 2);
+  // two expressions, therefore it occurs twice
+  // CHECK-NEXT: Macro: F(1, 2)(
+  // CHECK-NEXT: Macro: F(1, 2)(
+  F(1, 2);
 }
 
 #ifndef GUARD
