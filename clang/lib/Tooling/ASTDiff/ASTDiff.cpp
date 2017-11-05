@@ -27,37 +27,12 @@ using namespace clang;
 namespace clang {
 namespace diff {
 
-namespace {
-/// Maps nodes of the left tree to ones on the right, and vice versa.
-class Mapping {
-public:
-  Mapping() = default;
-  Mapping(Mapping &&Other) = default;
-  Mapping &operator=(Mapping &&Other) = default;
-
-  Mapping(size_t Size) {
-    SrcToDst = llvm::make_unique<NodeId[]>(Size);
-    DstToSrc = llvm::make_unique<NodeId[]>(Size);
-  }
-
-  void link(NodeId Src, NodeId Dst) {
-    SrcToDst[Src] = Dst, DstToSrc[Dst] = Src;
-  }
-
-  NodeId getDst(NodeId Src) const { return SrcToDst[Src]; }
-  NodeId getSrc(NodeId Dst) const { return DstToSrc[Dst]; }
-  bool hasSrc(NodeId Src) const { return getDst(Src).isValid(); }
-  bool hasDst(NodeId Dst) const { return getSrc(Dst).isValid(); }
-
+class ASTDiff::Impl {
 private:
   std::unique_ptr<NodeId[]> SrcToDst, DstToSrc;
-};
-} // end anonymous namespace
 
-class ASTDiff::Impl {
 public:
   SyntaxTree::Impl &T1, &T2;
-  Mapping TheMapping;
 
   Impl(SyntaxTree::Impl &T1, SyntaxTree::Impl &T2,
        const ComparisonOptions &Options);
@@ -66,12 +41,18 @@ public:
   void computeMapping();
 
   // Compute Change for each node based on similarity.
-  void computeChangeKinds(Mapping &M);
+  void computeChangeKinds();
 
-  const Node *getMapped(const std::unique_ptr<SyntaxTree::Impl> &Tree,
-                        NodeRef N) const;
+  const Node *getMapped(NodeRef N) const;
 
 private:
+  // Adds a mapping between two nodes.
+  void link(NodeRef N1, NodeRef N2);
+
+  // Returns the mapped node, or null.
+  const Node *getDst(NodeRef N1) const;
+  const Node *getSrc(NodeRef N2) const;
+
   // Returns true if the two subtrees are identical.
   bool identical(NodeRef N1, NodeRef N2) const;
 
@@ -79,24 +60,24 @@ private:
   bool isMatchingPossible(NodeRef N1, NodeRef N2) const;
 
   // Returns true if the nodes' parents are matched.
-  bool haveSameParents(const Mapping &M, NodeRef N1, NodeRef N2) const;
+  bool haveSameParents(NodeRef N1, NodeRef N2) const;
 
   // Uses an optimal albeit slow algorithm to compute a mapping between two
   // subtrees, but only if both have fewer nodes than MaxSize.
-  void addOptimalMapping(Mapping &M, NodeRef N1, NodeRef N2) const;
+  void addOptimalMapping(NodeRef N1, NodeRef N2);
 
   // Computes the ratio of common descendants between the two nodes.
   // Descendants are only considered to be equal when they are mapped.
-  double getJaccardSimilarity(const Mapping &M, NodeRef N1, NodeRef N2) const;
+  double getJaccardSimilarity(NodeRef N1, NodeRef N2) const;
 
   // Returns the node that has the highest degree of similarity.
-  const Node *findCandidate(const Mapping &M, NodeRef N1) const;
+  const Node *findCandidate(NodeRef N1) const;
 
   // Returns a mapping of identical subtrees.
-  Mapping matchTopDown();
+  void matchTopDown();
 
   // Tries to match any yet unmapped nodes, in a bottom-up fashion.
-  void matchBottomUp(Mapping &M) const;
+  void matchBottomUp();
 
   const ComparisonOptions &Options;
 
@@ -803,15 +784,13 @@ bool ASTDiff::Impl::isMatchingPossible(NodeRef N1, NodeRef N2) const {
   return Options.isMatchingAllowed(N1, N2);
 }
 
-bool ASTDiff::Impl::haveSameParents(const Mapping &M, NodeRef N1,
-                                    NodeRef N2) const {
+bool ASTDiff::Impl::haveSameParents(NodeRef N1, NodeRef N2) const {
   const Node *P1 = N1.getParent();
   const Node *P2 = N2.getParent();
-  return (!P1 && !P2) || (P1 && P2 && M.getDst(P1->getId()) == P2->getId());
+  return (!P1 && !P2) || (P1 && P2 && getDst(*P1) == P2);
 }
 
-void ASTDiff::Impl::addOptimalMapping(Mapping &M, NodeRef N1,
-                                      NodeRef N2) const {
+void ASTDiff::Impl::addOptimalMapping(NodeRef N1, NodeRef N2) {
   if (std::max(T1.getNumberOfDescendants(N1), T2.getNumberOfDescendants(N2)) >
       Options.MaxSize)
     return;
@@ -820,17 +799,16 @@ void ASTDiff::Impl::addOptimalMapping(Mapping &M, NodeRef N1,
   for (const auto Tuple : R) {
     NodeRef N1 = T1.getNode(Tuple.first);
     NodeRef N2 = T2.getNode(Tuple.second);
-    if (!M.hasSrc(N1.getId()) && !M.hasDst(N2.getId()))
-      M.link(N1.getId(), N2.getId());
+    if (!getDst(N1) && !getSrc(N2))
+      link(N1, N2);
   }
 }
 
-double ASTDiff::Impl::getJaccardSimilarity(const Mapping &M, NodeRef N1,
-                                           NodeRef N2) const {
+double ASTDiff::Impl::getJaccardSimilarity(NodeRef N1, NodeRef N2) const {
   int CommonDescendants = 0;
   // Count the common descendants, excluding the subtree root.
   for (NodeId Src = N1.getId() + 1; Src <= N1.RightMostDescendant; ++Src) {
-    const Node *Dst = getMapped(T1.Parent->TreeImpl, T1.getNode(Src));
+    const Node *Dst = getDst(T1.getNode(Src));
     if (Dst)
       CommonDescendants += T2.isInSubtree(*Dst, N2);
   }
@@ -845,15 +823,15 @@ double ASTDiff::Impl::getJaccardSimilarity(const Mapping &M, NodeRef N1,
   return CommonDescendants / Denominator;
 }
 
-const Node *ASTDiff::Impl::findCandidate(const Mapping &M, NodeRef N1) const {
+const Node *ASTDiff::Impl::findCandidate(NodeRef N1) const {
   const Node *Candidate = nullptr;
   double HighestSimilarity = 0.0;
   for (NodeRef N2 : T2) {
     if (!isMatchingPossible(N1, N2))
       continue;
-    if (M.hasDst(N2.getId()))
+    if (getSrc(N2))
       continue;
-    double Similarity = getJaccardSimilarity(M, N1, N2);
+    double Similarity = getJaccardSimilarity(N1, N2);
     if (Similarity >= Options.MinSimilarity && Similarity > HighestSimilarity) {
       HighestSimilarity = Similarity;
       Candidate = &N2;
@@ -862,37 +840,39 @@ const Node *ASTDiff::Impl::findCandidate(const Mapping &M, NodeRef N1) const {
   return Candidate;
 }
 
-void ASTDiff::Impl::matchBottomUp(Mapping &M) const {
+void ASTDiff::Impl::matchBottomUp() {
   std::vector<NodeId> Postorder = getSubtreePostorder(T1, T1.getRootId());
   for (NodeId Id1 : Postorder) {
-    if (Id1 == T1.getRootId() && !M.hasSrc(T1.getRootId()) &&
-        !M.hasDst(T2.getRootId())) {
+    if (Id1 == T1.getRootId() && !getDst(T1.getRoot()) &&
+        !getSrc(T2.getRoot())) {
       if (isMatchingPossible(T1.getRoot(), T2.getRoot())) {
-        M.link(T1.getRootId(), T2.getRootId());
-        addOptimalMapping(M, T1.getRoot(), T2.getRoot());
+        link(T1.getRoot(), T2.getRoot());
+        addOptimalMapping(T1.getRoot(), T2.getRoot());
       }
       break;
     }
-    bool Matched = M.hasSrc(Id1);
     NodeRef N1 = T1.getNode(Id1);
-    bool MatchedChildren =
-        std::any_of(N1.Children.begin(), N1.Children.end(),
-                    [&](NodeId Child) { return M.hasSrc(Child); });
+    bool Matched = getDst(N1);
+    bool MatchedChildren = false;
+    for (NodeRef Child : N1) {
+      if (getDst(Child)) {
+        MatchedChildren = true;
+        break;
+      }
+    }
     if (Matched || !MatchedChildren)
       continue;
-    const Node *N2 = findCandidate(M, N1);
+    const Node *N2 = findCandidate(N1);
     if (N2) {
-      M.link(N1.getId(), N2->getId());
-      addOptimalMapping(M, N1, *N2);
+      link(N1, *N2);
+      addOptimalMapping(N1, *N2);
     }
   }
 }
 
-Mapping ASTDiff::Impl::matchTopDown() {
+void ASTDiff::Impl::matchTopDown() {
   PriorityList L1(T1);
   PriorityList L2(T2);
-
-  Mapping M(T1.getSize() + T2.getSize());
 
   L1.push(T1.getRootId());
   L2.push(T2.getRootId());
@@ -901,103 +881,114 @@ Mapping ASTDiff::Impl::matchTopDown() {
   while (std::min(Max1 = L1.peekMax(), Max2 = L2.peekMax()) >
          Options.MinHeight) {
     if (Max1 > Max2) {
-      for (NodeRef N1 : L1.pop())
-        L1.open(N1);
+      for (NodeRef N : L1.pop())
+        L1.open(N);
       continue;
     }
     if (Max2 > Max1) {
-      for (NodeRef N2 : L2.pop())
-        L2.open(N2);
+      for (NodeRef N : L2.pop())
+        L2.open(N);
       continue;
     }
-    NodeList H1 = L1.pop(), H2 = L2.pop();
+    NodeList H1 = L1.pop();
+    NodeList H2 = L2.pop();
     for (NodeRef N1 : H1) {
       for (NodeRef N2 : H2) {
-        if (identical(N1, N2) && !M.hasSrc(N1.getId()) &&
-            !M.hasDst(N2.getId())) {
-          for (int I = 0, E = T1.getNumberOfDescendants(N1); I < E; ++I)
-            M.link(N1.getId() + I, N2.getId() + I);
+        if (identical(N1, N2) && !getDst(N1) && !getSrc(N2)) {
+          for (int I = 0, E = T1.getNumberOfDescendants(N1); I < E; ++I) {
+            link(T1.getNode(N1.getId() + I), T2.getNode(N2.getId() + I));
+          }
         }
       }
     }
     for (NodeRef N1 : H1) {
-      if (!M.hasSrc(N1.getId()))
+      if (!getDst(N1))
         L1.open(N1);
     }
     for (NodeRef N2 : H2) {
-      if (!M.hasDst(N2.getId()))
+      if (!getSrc(N2))
         L2.open(N2);
     }
   }
-  return M;
 }
 
 ASTDiff::Impl::Impl(SyntaxTree::Impl &T1, SyntaxTree::Impl &T2,
                     const ComparisonOptions &Options)
     : T1(T1), T2(T2), Options(Options) {
+  int Size = T1.getSize() + T2.getSize();
+  SrcToDst = llvm::make_unique<NodeId[]>(Size);
+  DstToSrc = llvm::make_unique<NodeId[]>(Size);
   computeMapping();
-  computeChangeKinds(TheMapping);
+  computeChangeKinds();
 }
 
 void ASTDiff::Impl::computeMapping() {
-  TheMapping = matchTopDown();
+  matchTopDown();
   if (Options.StopAfterTopDown)
     return;
-  matchBottomUp(TheMapping);
+  matchBottomUp();
 }
 
-void ASTDiff::Impl::computeChangeKinds(Mapping &M) {
+void ASTDiff::Impl::computeChangeKinds() {
   for (NodeRef N1 : T1) {
-    if (!M.hasSrc(N1.getId())) {
-      T1.getMutableNode(N1.getId()).Change = Delete;
-      T1.getMutableNode(N1.getId()).Shift -= 1;
+    if (!getDst(N1)) {
+      T1.getMutableNode(N1).Change = Delete;
+      T1.getMutableNode(N1).Shift -= 1;
     }
   }
   for (NodeRef N2 : T2) {
-    if (!M.hasDst(N2.getId())) {
-      T2.getMutableNode(N2.getId()).Change = Insert;
-      T2.getMutableNode(N2.getId()).Shift -= 1;
+    if (!getSrc(N2)) {
+      T2.getMutableNode(N2).Change = Insert;
+      T2.getMutableNode(N2).Shift -= 1;
     }
   }
   for (NodeRef N1 : T1.NodesBfs) {
-    NodeId Id2 = M.getDst(N1.getId());
-    if (Id2.isInvalid())
+    if (!getDst(N1))
       continue;
-    NodeRef N2 = T2.getNode(Id2);
-    if (!haveSameParents(M, N1, N2) || T1.findPositionInParent(N1, true) !=
-                                           T2.findPositionInParent(N2, true)) {
+    NodeRef N2 = *getDst(N1);
+    if (!haveSameParents(N1, N2) || T1.findPositionInParent(N1, true) !=
+                                        T2.findPositionInParent(N2, true)) {
       T1.getMutableNode(N1).Shift -= 1;
       T2.getMutableNode(N2).Shift -= 1;
     }
   }
-  for (NodeRef N2TODO : T2.NodesBfs) {
-    NodeId Id1 = M.getSrc(N2TODO.getId());
-    if (Id1.isInvalid())
+  for (NodeRef N2 : T2.NodesBfs) {
+    if (!getSrc(N2))
       continue;
-    Node &N1 = T1.getMutableNode(Id1);
-    Node &N2 = T2.getMutableNode(N2TODO.getId());
-    if (Id1.isInvalid())
-      continue;
-    if (!haveSameParents(M, N1, N2) || T1.findPositionInParent(N1, true) !=
-                                           T2.findPositionInParent(N2, true)) {
-      N1.Change = N2.Change = Move;
+    NodeRef N1 = *getSrc(N2);
+    Node &MutableN1 = T1.getMutableNode(N1);
+    Node &MutableN2 = T2.getMutableNode(N2);
+    if (!haveSameParents(N1, N2) || T1.findPositionInParent(N1, true) !=
+                                        T2.findPositionInParent(N2, true)) {
+      MutableN1.Change = MutableN2.Change = Move;
     }
     if (T1.getNodeValue(N1) != T2.getNodeValue(N2)) {
-      N1.Change = N2.Change = (N1.Change == Move ? UpdateMove : Update);
+      MutableN1.Change = MutableN2.Change =
+          (N1.Change == Move ? UpdateMove : Update);
     }
   }
 }
 
-const Node *
-ASTDiff::Impl::getMapped(const std::unique_ptr<SyntaxTree::Impl> &Tree,
-                         NodeRef N) const {
-  if (&*Tree == &T1) {
-    NodeId Id = TheMapping.getDst(N.getId());
-    return Id.isValid() ? &T2.getNode(Id) : nullptr;
-  }
-  assert(&*Tree == &T2 && "Invalid tree.");
-  NodeId Id = TheMapping.getSrc(N.getId());
-  return Id.isValid() ? &T1.getNode(Id) : nullptr;
+const Node *ASTDiff::Impl::getMapped(NodeRef N) const {
+  if (&N.Tree == &T1)
+    return getDst(N);
+  assert(&N.Tree == &T2 && "Invalid tree.");
+  return getSrc(N);
+}
+
+void ASTDiff::Impl::link(NodeRef N1, NodeRef N2) {
+  SrcToDst[N1.getId()] = N2.getId(), DstToSrc[N2.getId()] = N1.getId();
+}
+
+const Node *ASTDiff::Impl::getDst(NodeRef N1) const {
+  assert(&N1.Tree == &T1 && "Invalid tree.");
+  return SrcToDst[N1.getId()].isValid() ? &T2.getNode(SrcToDst[N1.getId()])
+                                        : nullptr;
+}
+const Node *ASTDiff::Impl::getSrc(NodeRef N2) const {
+  assert(&N2.Tree == &T2 && "Invalid tree.");
+  return DstToSrc[N2.getId()].isValid() ? &T1.getNode(DstToSrc[N2.getId()])
+                                        : nullptr;
 }
 
 ASTDiff::ASTDiff(SyntaxTree &T1, SyntaxTree &T2,
@@ -1006,8 +997,8 @@ ASTDiff::ASTDiff(SyntaxTree &T1, SyntaxTree &T2,
 
 ASTDiff::~ASTDiff() = default;
 
-const Node *ASTDiff::getMapped(const SyntaxTree &SourceTree, NodeRef N) const {
-  return DiffImpl->getMapped(SourceTree.TreeImpl, N);
+const Node *ASTDiff::getMapped(NodeRef N) const {
+  return DiffImpl->getMapped(N);
 }
 
 SyntaxTree::SyntaxTree(ASTContext &AST)

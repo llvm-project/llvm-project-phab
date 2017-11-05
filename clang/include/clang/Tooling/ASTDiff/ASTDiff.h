@@ -41,8 +41,7 @@ public:
   ASTDiff(SyntaxTree &Src, SyntaxTree &Dst, const ComparisonOptions &Options);
   ~ASTDiff();
 
-  // Returns the ID of the node that is mapped to the given node in SourceTree.
-  const Node *getMapped(const SyntaxTree &SourceTree, NodeRef N) const;
+  const Node *getMapped(NodeRef N) const;
 
   class Impl;
 

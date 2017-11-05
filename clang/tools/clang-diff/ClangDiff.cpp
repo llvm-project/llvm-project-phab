@@ -270,7 +270,7 @@ static unsigned printHtmlForNode(raw_ostream &OS, const diff::ASTDiff &Diff,
   char MyTag, OtherTag;
   diff::NodeId LeftId, RightId;
   diff::SyntaxTree &Tree = Node.getTree();
-  const diff::Node *Target = Diff.getMapped(Tree, Node);
+  const diff::Node *Target = Diff.getMapped(Node);
   diff::NodeId TargetId = Target ? Target->getId() : diff::NodeId();
   if (IsLeft) {
     MyTag = 'L';
@@ -407,7 +407,7 @@ static void printTree(raw_ostream &OS, diff::SyntaxTree &Tree) {
 static void printDstChange(raw_ostream &OS, diff::ASTDiff &Diff,
                            diff::SyntaxTree &SrcTree, diff::SyntaxTree &DstTree,
                            diff::NodeRef Dst) {
-  const diff::Node *Src = Diff.getMapped(DstTree, Dst);
+  const diff::Node *Src = Diff.getMapped(Dst);
   switch (Dst.Change) {
   case diff::NoChange:
     break;
@@ -512,7 +512,7 @@ int main(int argc, const char **argv) {
   }
 
   for (diff::NodeRef Dst : DstTree) {
-    const diff::Node *Src = Diff.getMapped(DstTree, Dst);
+    const diff::Node *Src = Diff.getMapped(Dst);
     if (PrintMatches && Src) {
       llvm::outs() << "Match ";
       printNode(llvm::outs(), SrcTree, *Src);
@@ -523,7 +523,7 @@ int main(int argc, const char **argv) {
     printDstChange(llvm::outs(), Diff, SrcTree, DstTree, Dst);
   }
   for (diff::NodeRef Src : SrcTree) {
-    if (!Diff.getMapped(SrcTree, Src)) {
+    if (!Diff.getMapped(Src)) {
       llvm::outs() << "Delete ";
       printNode(llvm::outs(), SrcTree, Src);
       llvm::outs() << "\n";
