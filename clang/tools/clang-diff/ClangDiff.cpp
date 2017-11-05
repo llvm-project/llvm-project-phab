@@ -384,54 +384,12 @@ static void printNodeAsJson(raw_ostream &OS, diff::SyntaxTree &Tree,
   OS << "]}";
 }
 
-static void printNode(raw_ostream &OS, diff::SyntaxTree &Tree,
-                      diff::NodeRef Node) {
-  OS << Node.getTypeLabel();
-  OS << "(" << Node.getId() << ")";
-}
-
 static void printTree(raw_ostream &OS, diff::SyntaxTree &Tree) {
   for (diff::NodeRef Node : Tree) {
     for (int I = 0; I < Node.Depth; ++I)
       OS << " ";
-    printNode(OS, Tree, Node);
+    Node.dump(OS);
     OS << "\n";
-  }
-}
-
-static void printDstChange(raw_ostream &OS, diff::ASTDiff &Diff,
-                           diff::SyntaxTree &SrcTree, diff::SyntaxTree &DstTree,
-                           diff::NodeRef Dst) {
-  const diff::Node *Src = Diff.getMapped(Dst);
-  diff::ChangeKind Change = Diff.getNodeChange(Dst);
-  switch (Change) {
-  case diff::NoChange:
-    break;
-  case diff::Delete:
-    llvm_unreachable("The destination tree can't have deletions.");
-  case diff::Update:
-    OS << "Update ";
-    printNode(OS, SrcTree, *Src);
-    OS << "\n";
-    break;
-  case diff::Insert:
-  case diff::Move:
-  case diff::UpdateMove:
-    if (Change == diff::Insert)
-      OS << "Insert";
-    else if (Change == diff::Move)
-      OS << "Move";
-    else if (Change == diff::UpdateMove)
-      OS << "Update and Move";
-    OS << " ";
-    printNode(OS, DstTree, Dst);
-    OS << " into ";
-    if (!Dst.getParent())
-      OS << "None";
-    else
-      printNode(OS, DstTree, *Dst.getParent());
-    OS << " at " << Dst.findPositionInParent() << "\n";
-    break;
   }
 }
 
@@ -509,24 +467,7 @@ int main(int argc, const char **argv) {
     return 0;
   }
 
-  for (diff::NodeRef Dst : DstTree) {
-    const diff::Node *Src = Diff.getMapped(Dst);
-    if (PrintMatches && Src) {
-      llvm::outs() << "Match ";
-      printNode(llvm::outs(), SrcTree, *Src);
-      llvm::outs() << " to ";
-      printNode(llvm::outs(), DstTree, Dst);
-      llvm::outs() << "\n";
-    }
-    printDstChange(llvm::outs(), Diff, SrcTree, DstTree, Dst);
-  }
-  for (diff::NodeRef Src : SrcTree) {
-    if (!Diff.getMapped(Src)) {
-      llvm::outs() << "Delete ";
-      printNode(llvm::outs(), SrcTree, Src);
-      llvm::outs() << "\n";
-    }
-  }
+  Diff.dumpChanges(llvm::outs(), PrintMatches);
 
   return 0;
 }

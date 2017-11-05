@@ -31,6 +31,27 @@ namespace diff {
 bool ComparisonOptions::isMatchingAllowed(NodeRef N1, NodeRef N2) const {
   return (N1.isMacro() && N2.isMacro()) || N1.getType().isSame(N2.getType());
 }
+void printChangeKind(raw_ostream &OS, ChangeKind Kind) {
+  switch (Kind) {
+  case NoChange:
+    break;
+  case Delete:
+    OS << "Delete";
+    break;
+  case Update:
+    OS << "Update";
+    break;
+  case Insert:
+    OS << "Insert";
+    break;
+  case Move:
+    OS << "Move";
+    break;
+  case UpdateMove:
+    OS << "Update and Move";
+    break;
+  }
+}
 
 namespace {
 struct NodeChange {
@@ -61,6 +82,8 @@ public:
   const Node *getMapped(NodeRef N) const;
 
   ChangeKind getNodeChange(NodeRef N) const;
+
+  void dumpChanges(raw_ostream &OS, bool DumpMatches) const;
 
 private:
   // Adds a mapping between two nodes.
@@ -1201,6 +1224,62 @@ const Node *ASTDiff::getMapped(NodeRef N) const {
 
 ChangeKind ASTDiff::getNodeChange(NodeRef N) const {
   return DiffImpl->getNodeChange(N);
+}
+
+static void dumpDstChange(raw_ostream &OS, const ASTDiff::Impl &Diff,
+                          SyntaxTree::Impl &SrcTree, SyntaxTree::Impl &DstTree,
+                          NodeRef Dst) {
+  const Node *Src = Diff.getMapped(Dst);
+  ChangeKind Change = Diff.getNodeChange(Dst);
+  printChangeKind(OS, Change);
+  switch (Change) {
+  case NoChange:
+    break;
+  case Delete:
+    llvm_unreachable("The destination tree can't have deletions.");
+  case Update:
+    OS << " ";
+    Src->dump(OS);
+    OS << "\n";
+    break;
+  case Insert:
+  case Move:
+  case UpdateMove:
+    OS << " ";
+    Dst.dump(OS);
+    OS << " into ";
+    if (!Dst.getParent())
+      OS << "None";
+    else
+      Dst.getParent()->dump(OS);
+    OS << " at " << Dst.findPositionInParent() << "\n";
+    break;
+  }
+}
+
+void ASTDiff::Impl::dumpChanges(raw_ostream &OS, bool DumpMatches) const {
+  for (NodeRef N2 : T2) {
+    const Node *N1 = getMapped(N2);
+    if (DumpMatches && N1) {
+      OS << "Match ";
+      N1->dump(OS);
+      OS << " to ";
+      N2.dump(OS);
+      OS << "\n";
+    }
+    dumpDstChange(OS, *this, T1, T2, N2);
+  }
+  for (NodeRef N1 : T1) {
+    if (!getMapped(N1)) {
+      OS << "Delete ";
+      N1.dump(OS);
+      OS << "\n";
+    }
+  }
+}
+
+void ASTDiff::dumpChanges(raw_ostream &OS, bool DumpMatches) const {
+  DiffImpl->dumpChanges(OS, DumpMatches);
 }
 
 SyntaxTree::SyntaxTree(ASTUnit &AST)

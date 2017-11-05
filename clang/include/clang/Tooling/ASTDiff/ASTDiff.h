@@ -37,6 +37,8 @@ enum ChangeKind {
 
 using NodeRef = const Node &;
 
+void printChangeKind(raw_ostream &OS, ChangeKind Kind);
+
 struct ComparisonOptions {
   /// During top-down matching, only consider nodes of at least this height.
   int MinHeight = 2;
@@ -63,6 +65,8 @@ public:
 
   const Node *getMapped(NodeRef N) const;
   ChangeKind getNodeChange(NodeRef N) const;
+
+  void dumpChanges(raw_ostream &OS, bool DumpMatches = false) const;
 
   class Impl;
 
@@ -131,6 +135,10 @@ struct Node {
   NodeRefIterator begin() const;
   NodeRefIterator end() const;
 
+  void dump(raw_ostream &OS) const {
+    OS << getTypeLabel() << "(" << getId() << ")";
+  }
+
   int findPositionInParent() const;
 
   /// Returns the range that contains the text that is associated with this
@@ -163,7 +171,11 @@ void forEachTokenInRange(CharSourceRange Range, SyntaxTree &Tree,
 
 inline bool isListSeparator(Token &Tok) { return Tok.is(tok::comma); }
 
-struct NodeRefIterator {
+struct NodeRefIterator
+    : public std::iterator<std::random_access_iterator_tag, NodeId> {
+  using difference_type =
+      std::iterator<std::random_access_iterator_tag, Type>::difference_type;
+
   SyntaxTree::Impl *Tree;
   const NodeId *IdPointer;
   NodeRefIterator(SyntaxTree::Impl *Tree, const NodeId *IdPointer)
@@ -171,7 +183,9 @@ struct NodeRefIterator {
   NodeRef operator*() const;
   NodeRefIterator &operator++();
   NodeRefIterator &operator+(int Offset);
+  difference_type operator-(const NodeRefIterator &Other) const;
   bool operator!=(const NodeRefIterator &Other) const;
+  bool operator==(const NodeRefIterator &Other) const;
 };
 
 } // end namespace diff
