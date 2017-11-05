@@ -678,7 +678,8 @@ Value *RecurrenceDescriptor::createMinMaxOp(IRBuilder<> &Builder,
 }
 
 InductionDescriptor::InductionDescriptor(Value *Start, InductionKind K,
-                                         const SCEV *Step, BinaryOperator *BOp)
+                                         const SCEV *Step, BinaryOperator *BOp,
+                                         SmallVectorImpl<Instruction *> *Casts)
   : StartValue(Start), IK(K), Step(Step), InductionBinOp(BOp) {
   assert(IK != IK_NoInduction && "Not an induction");
 
@@ -705,6 +706,12 @@ InductionDescriptor::InductionDescriptor(Value *Start, InductionKind K,
           (InductionBinOp->getOpcode() == Instruction::FAdd ||
            InductionBinOp->getOpcode() == Instruction::FSub))) &&
          "Binary opcode should be specified for FP induction");
+
+  if (Casts) {
+    for (auto &Inst : *Casts) {
+      RedundantCasts.push_back(Inst);
+    }
+  }
 }
 
 int InductionDescriptor::getConsecutiveDirection() const {
@@ -870,13 +877,27 @@ bool InductionDescriptor::isInductionPHI(PHINode *Phi, const Loop *TheLoop,
     return false;
   }
 
-  return isInductionPHI(Phi, TheLoop, PSE.getSE(), D, AR);
+  // Record any Cast instructions that participate in the induction update
+  SmallVector<Instruction *, 2> *CastInsts = nullptr;
+  const auto *SymbolicPhi = dyn_cast<SCEVUnknown>(PhiScev);
+  // If we started from an UnknownSCEV, and managed to build an addRecurrence
+  // only after enabling Assume with PSCEV, this means we may have encountered 
+  // cast instructions that required adding a runtime check in order to 
+  // guarantee the correctness of the AddRecurence respresentation of the 
+  // induction. 
+  if (PhiScev != AR && SymbolicPhi) {  
+    SmallVector<Instruction *, 2> Casts; 
+    if (PSE.getSE()->getCastsForInductionPHI(SymbolicPhi, AR, Casts))
+      CastInsts = &Casts;
+  }
+
+  return isInductionPHI(Phi, TheLoop, PSE.getSE(), D, AR, CastInsts);
 }
 
-bool InductionDescriptor::isInductionPHI(PHINode *Phi, const Loop *TheLoop,
-                                         ScalarEvolution *SE,
-                                         InductionDescriptor &D,
-                                         const SCEV *Expr) {
+bool InductionDescriptor::isInductionPHI(
+    PHINode *Phi, const Loop *TheLoop, ScalarEvolution *SE,
+    InductionDescriptor &D, const SCEV *Expr,
+    SmallVectorImpl<Instruction *> *CastsToIgnore) {
   Type *PhiTy = Phi->getType();
   // We only handle integer and pointer inductions variables.
   if (!PhiTy->isIntegerTy() && !PhiTy->isPointerTy())
@@ -908,7 +929,8 @@ bool InductionDescriptor::isInductionPHI(PHINode *Phi, const Loop *TheLoop,
     return false;
 
   if (PhiTy->isIntegerTy()) {
-    D = InductionDescriptor(StartValue, IK_IntInduction, Step);
+    D = InductionDescriptor(StartValue, IK_IntInduction, Step, nullptr, 
+                            CastsToIgnore);
     return true;
   }
 

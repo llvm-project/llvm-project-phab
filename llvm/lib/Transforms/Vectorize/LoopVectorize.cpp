@@ -604,6 +604,20 @@ protected:
   /// Returns true if we should generate a scalar version of \p IV.
   bool needsScalarInduction(Instruction *IV) const;
 
+  /// If there is a cast involved in the induction variable \p ID, which should 
+  /// be ignored in the vectorized loop body, this function records the 
+  /// VectorLoopValue of the respective Phi also as the VectorLoopValue of the 
+  /// cast. We had already proved that the casted Phi is equal to the uncasted 
+  /// Phi in the vectorized loop (under a runtime guard), and therefore 
+  /// there is no need to vectorize the cast - the same value can be used in the 
+  /// vector loop for both the Phi and the cast. 
+  /// If \p VectorLoopValue is a scalarized value, \p Lane is also specified,
+  /// Otherwise, \p VectorLoopValue is a widened/vectorized value.
+  void recordVectorLoopValueForInductionCast (const InductionDescriptor &ID,
+                                              unsigned Part, 
+                                              Value *VectorLoopValue, 
+                                              unsigned Lane = UINT_MAX);
+
   /// Generate a shuffle sequence that will reverse the vector Vec.
   virtual Value *reverseVector(Value *Vec);
 
@@ -1572,6 +1586,11 @@ public:
   /// Returns True if V is an induction variable in this loop.
   bool isInductionVariable(const Value *V);
 
+  /// Returns True if V is a casted induction variable in this loop, that had
+  /// been proven to be redundant (possible under runtime guards) and can be
+  /// ignored when creating the vectorized loop body.
+  bool isCastedInductionVariable(Value *V);
+
   /// Returns True if PN is a reduction variable in this loop.
   bool isReductionVariable(PHINode *PN) { return Reductions.count(PN); }
 
@@ -1779,6 +1798,12 @@ private:
   /// Notice that inductions don't need to start at zero and that induction
   /// variables can be pointers.
   InductionList Inductions;
+
+  /// Holds all the casts that participate in the update chain of the induction 
+  /// variables, and that have been proven to be redundant (possibly under a 
+  /// runtime guard). These casts can be ignored when creating the vectorized 
+  /// loop body.
+  SmallPtrSet<Instruction *, 4> InductionCastsToIgnore;
 
   /// Holds the phi nodes that are first-order recurrences.
   RecurrenceSet FirstOrderRecurrences;
@@ -2549,6 +2574,7 @@ void InnerLoopVectorizer::createVectorIntOrFpInductionPHI(
   Instruction *LastInduction = VecInd;
   for (unsigned Part = 0; Part < UF; ++Part) {
     VectorLoopValueMap.setVectorValue(EntryVal, Part, LastInduction);
+    recordVectorLoopValueForInductionCast(II, Part, LastInduction);
     if (isa<TruncInst>(EntryVal))
       addMetadata(LastInduction, EntryVal);
     LastInduction = cast<Instruction>(addFastMathFlag(
@@ -2580,6 +2606,22 @@ bool InnerLoopVectorizer::needsScalarInduction(Instruction *IV) const {
     return (OrigLoop->contains(I) && shouldScalarizeInstruction(I));
   };
   return llvm::any_of(IV->users(), isScalarInst);
+}
+
+void InnerLoopVectorizer::recordVectorLoopValueForInductionCast(
+    const InductionDescriptor &ID, unsigned Part, Value *VectorLoopVal,
+    unsigned Lane) {
+  const SmallVectorImpl<Instruction *> &Casts = ID.getCastInsts();
+  if (!Casts.empty()) {
+    // Only the first Cast instruction in the Casts vector is of interest.
+    // The rest of the Casts (if exist) have no uses outside the
+    // induction update chain itself.
+    Instruction *CastInst = *Casts.begin();
+    if (Lane < UINT_MAX)
+      VectorLoopValueMap.setScalarValue(CastInst, {Part, Lane}, VectorLoopVal);
+    else
+      VectorLoopValueMap.setVectorValue(CastInst, Part, VectorLoopVal);
+  }
 }
 
 void InnerLoopVectorizer::widenIntOrFpInduction(PHINode *IV, TruncInst *Trunc) {
@@ -2662,6 +2704,7 @@ void InnerLoopVectorizer::widenIntOrFpInduction(PHINode *IV, TruncInst *Trunc) {
       Value *EntryPart =
           getStepVector(Broadcasted, VF * Part, Step, ID.getInductionOpcode());
       VectorLoopValueMap.setVectorValue(EntryVal, Part, EntryPart);
+      recordVectorLoopValueForInductionCast(ID, Part, EntryPart);
       if (Trunc)
         addMetadata(EntryPart, Trunc);
     }
@@ -2769,6 +2812,7 @@ void InnerLoopVectorizer::buildScalarSteps(Value *ScalarIV, Value *Step,
       auto *Mul = addFastMathFlag(Builder.CreateBinOp(MulOp, StartIdx, Step));
       auto *Add = addFastMathFlag(Builder.CreateBinOp(AddOp, ScalarIV, Mul));
       VectorLoopValueMap.setScalarValue(EntryVal, {Part, Lane}, Add);
+      recordVectorLoopValueForInductionCast(ID, Part, Add, Lane);
     }
   }
 }
@@ -5221,6 +5265,16 @@ void LoopVectorizationLegality::addInductionPhi(
     PHINode *Phi, const InductionDescriptor &ID,
     SmallPtrSetImpl<Value *> &AllowedExit) {
   Inductions[Phi] = ID;
+
+  // In case this induction also comes with casts that we know we can ignore
+  // in the vectorized loop body, record them here. Only one of these casts
+  // (the first in Casts, the last in the actual IR sequence) is needed here,
+  // because any other casts, if exist, are not used outside the cast sequence,
+  // and will therefore will not be queried.
+  const SmallVectorImpl<Instruction *> &Casts = ID.getCastInsts();
+  if (!Casts.empty())
+    InductionCastsToIgnore.insert(*Casts.begin());
+
   Type *PhiTy = Phi->getType();
   const DataLayout &DL = Phi->getModule()->getDataLayout();
 
@@ -5857,6 +5911,14 @@ bool LoopVectorizationLegality::isInductionVariable(const Value *V) {
     return false;
 
   return Inductions.count(PN);
+}
+
+bool LoopVectorizationLegality::isCastedInductionVariable(Value *V) {
+  auto *Inst = dyn_cast<Instruction>(V);
+  if (!Inst)
+    return false;
+
+  return InductionCastsToIgnore.count(Inst);
 }
 
 bool LoopVectorizationLegality::isFirstOrderRecurrence(const PHINode *Phi) {
@@ -6932,6 +6994,9 @@ LoopVectorizationCostModel::expectedCost(unsigned VF) {
       if (ValuesToIgnore.count(&I))
         continue;
 
+      if (VF > 1 && VecValuesToIgnore.count(&I))
+        continue;
+
       VectorizationCostTy C = getInstructionCost(&I, VF);
 
       // Check if we should override the cost.
@@ -6968,24 +7033,27 @@ LoopVectorizationCostModel::expectedCost(unsigned VF) {
 static const SCEV *getAddressAccessSCEV(
               Value *Ptr,
               LoopVectorizationLegality *Legal,
-              ScalarEvolution *SE,
+              PredicatedScalarEvolution &PSE,
               const Loop *TheLoop) {
+
   auto *Gep = dyn_cast<GetElementPtrInst>(Ptr);
   if (!Gep)
     return nullptr;
 
   // We are looking for a gep with all loop invariant indices except for one
   // which should be an induction variable.
+  auto SE = PSE.getSE();
   unsigned NumOperands = Gep->getNumOperands();
   for (unsigned i = 1; i < NumOperands; ++i) {
     Value *Opd = Gep->getOperand(i);
     if (!SE->isLoopInvariant(SE->getSCEV(Opd), TheLoop) &&
-        !Legal->isInductionVariable(Opd))
+        !Legal->isInductionVariable(Opd) &&
+        !Legal->isCastedInductionVariable(Opd))
       return nullptr;
   }
 
   // Now we know we have a GEP ptr, %inv, %ind, %inv. return the Ptr SCEV.
-  return SE->getSCEV(Ptr);
+  return PSE.getSCEV(Ptr);
 }
 
 static bool isStrideMul(Instruction *I, LoopVectorizationLegality *Legal) {
@@ -7005,7 +7073,7 @@ unsigned LoopVectorizationCostModel::getMemInstScalarizationCost(Instruction *I,
 
   // Figure out whether the access is strided and get the stride value
   // if it's known in compile time
-  const SCEV *PtrSCEV = getAddressAccessSCEV(Ptr, Legal, SE, TheLoop);
+  const SCEV *PtrSCEV = getAddressAccessSCEV(Ptr, Legal, PSE, TheLoop);
 
   // Get the cost of the scalar memory instruction and address computation.
   unsigned Cost = VF * TTI.getAddressComputationCost(PtrTy, SE, PtrSCEV);
@@ -7559,6 +7627,13 @@ void LoopVectorizationCostModel::collectValuesToIgnore() {
     SmallPtrSetImpl<Instruction *> &Casts = RedDes.getCastInsts();
     VecValuesToIgnore.insert(Casts.begin(), Casts.end());
   }
+  // Ignore type-casting instructions we identified during induction
+  // detection.
+  for (auto &Induction : *Legal->getInductionVars()) {
+    InductionDescriptor &IndDes = Induction.second;
+    const SmallVectorImpl<Instruction *> &Casts = IndDes.getCastInsts();
+    VecValuesToIgnore.insert(Casts.begin(), Casts.end());
+  }
 }
 
 LoopVectorizationCostModel::VectorizationFactor
@@ -7661,6 +7736,18 @@ void LoopVectorizationPlanner::collectTriviallyDeadInstructions(
           return U == Ind || DeadInstructions.count(cast<Instruction>(U));
         }))
       DeadInstructions.insert(IndUpdate);
+
+    // We record as "Dead" also the type-casting instructions we had identified 
+    // during induction analysis. We don't need any handling for them in the
+    // vectorized loop because we have proven that, under a proper runtime 
+    // test guarding the vectorized loop, the value of the phi, and the casted 
+    // value of the phi, are the same. The last instruction in this casting chain
+    // will get its scalar/vector/widened def from the scalar/vector/widened def 
+    // of the respective phi node. Any other casts in the induction def-use chain
+    // have no other uses outside the phi update chain, and will be ignored.
+    InductionDescriptor &IndDes = Induction.second;
+    const SmallVectorImpl<Instruction *> &Casts = IndDes.getCastInsts();
+    DeadInstructions.insert(Casts.begin(), Casts.end());
   }
 }
 

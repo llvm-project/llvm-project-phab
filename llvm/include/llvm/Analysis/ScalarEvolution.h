@@ -575,6 +575,15 @@ public:
   Optional<std::pair<const SCEV *, SmallVector<const SCEVPredicate *, 3>>>
   createAddRecFromPHIWithCasts(const SCEVUnknown *SymbolicPHI);
 
+  /// Check if \p PhiScev is an integer loop header phi for which PSCEV was
+  /// able to build the AddRecurrence \p AR under some predicates. If so, the
+  /// function returns in \p CastInsts the cast instructions that participate in
+  /// the induction update chain associated with this phi, and that can be
+  /// ignored under these predicates.
+  bool getCastsForInductionPHI(const SCEVUnknown *PhiScev,
+                               const SCEVAddRecExpr *AR,
+                               SmallVectorImpl<Instruction *> &CastInsts);
+
   /// Returns an expression for a GEP
   ///
   /// \p GEP The GEP. The indices contained in the GEP itself are ignored,

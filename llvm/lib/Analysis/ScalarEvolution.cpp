@@ -4342,6 +4342,181 @@ static const Loop *isIntegerLoopHeaderPHI(const PHINode *PN, LoopInfo &LI) {
   return L;
 }
 
+/// Helper function for getCastsForInductionPHIImpl.
+/// Given a Value \p CastedPhi, and a PhiNode Value \p PN, 
+/// look for the following sequence:
+///    %Ext = shl %PN, m 
+///    %CastedPhi = ashr %Ext, m 
+/// If found, return true, and insert the intermediate casts in \p CastInsts.
+/// Otherwise, return false.
+bool isAshrShlInductionCastSequence(Value *CastedPhi, Value *PN,
+                                    const DataLayout &DL, 
+                                    SmallVectorImpl<Instruction *> &CastInsts) {
+
+  // 1) look for ashr instruction
+  auto *AshrInst = dyn_cast<Instruction>(CastedPhi);
+  if (!AshrInst || AshrInst->getOpcode() != Instruction::AShr)
+    return false;
+
+  Value *Ext = AshrInst->getOperand(0);
+  uint64_t ExtSrcBitWidth = DL.getTypeSizeInBits(Ext->getType());
+  ConstantInt *AshrAmt = dyn_cast<ConstantInt>(AshrInst->getOperand(1));
+  if (!AshrAmt || !AshrAmt->getValue().ult(ExtSrcBitWidth))
+    return false;
+
+  // 2) look for the shl instruction
+  auto *ShlInst = dyn_cast<Instruction>(Ext);
+  if (!ShlInst || ShlInst->getOpcode() != Instruction::Shl || 
+      !ShlInst->hasOneUse() || ShlInst->getOperand(0) != PN)
+    return false;
+
+  auto *ShlAmt = dyn_cast<ConstantInt>(ShlInst->getOperand(1));
+  if (!ShlAmt || ShlAmt->getZExtValue() != AshrAmt->getZExtValue())
+    return false;
+
+  // First insert the last instruction from the ExtTrunc cast sequence.
+  // The first instruction in the CastInsts set may be used outside of the
+  // ExtTrunc cast sequence, and therefore needs special handling later on.
+  CastInsts.push_back(AshrInst);
+  CastInsts.push_back(ShlInst); 
+  return true;
+}
+
+/// Helper function for getCastsForInductionPHIImpl.
+/// Given a Value \p CastedPhi, and a PhiNode Value \p PN, 
+/// look for the following sequence:
+///    %CastedPhi = and i64 %PN, 2^n-1
+/// If found, return true, and insert the intermediate cast in \p CastInsts.
+/// Otherwise, return false.
+bool isAndInductionCastSequence(Value *CastedPhi, Value *PN, 
+                                const DataLayout &DL, 
+                                SmallVectorImpl<Instruction *> &CastInsts) {
+
+  auto *AndInst = dyn_cast<Instruction>(CastedPhi);
+  if (!AndInst || AndInst->getOpcode() != Instruction::And ||
+      AndInst->getOperand(0) != PN)
+    return false;
+
+  ConstantInt *Mask = dyn_cast<ConstantInt>(AndInst->getOperand(1));
+  if (!Mask || !Mask->getValue().isMask())
+    return false;
+
+  CastInsts.push_back(AndInst);
+  return true;
+}
+
+/// Look for the following IR sequence:
+/// %for.body:
+///   %x = phi i64 [ 0, %ph ], [ %add, %for.body ]
+///   %casted_phi = "ExtTrunc i64 %x"
+///   %add = add i64 %casted_phi, %step
+///
+/// where %x is given in \p PN, and where "ExtTrunc i64 %x" can take one of the
+/// following forms:
+/// a) %casted_phi = And i64 %x, 2^n-1
+/// e.g.:
+/// %for.body:
+///    %x = phi i64 [ 0, %ph ], [ %add, %for.body ]
+///    %casted_phi = And i64 %x, 255
+///    %add = add i64 %casted_phi, %step
+///
+/// b) %tmp = shl i64 %x, m 
+///    %casted_phi = ashr exact i64 %tmp, m 
+/// e.g.:
+/// %for.body:
+///   %x = phi i64 [ 0, %ph ], [ %add, %for.body ]
+///   %sext = shl i64 %x, 32
+///   %casted_phi = ashr exact i64 %sext, 32
+///   %add = add i64 %casted_phi, %step
+///
+/// If found, return true, and insert the intermediate casts in \p CastInsts.
+/// Otherwise, return false.
+bool getCastsForInductionPHIImpl(PHINode *PN, const Loop *L,
+                                 SmallVectorImpl<Instruction *> &CastInsts) {
+ 
+  // 1) Look for the add instruction that increments the induction via the 
+  // loop backedge. 
+  BasicBlock *Latch = L->getLoopLatch();
+  if (!Latch)
+    return false;
+  Value *BEValueV = PN->getIncomingValueForBlock(Latch);
+  auto *IndUpdate = dyn_cast<Instruction>(BEValueV);
+  if (!IndUpdate || IndUpdate->getOpcode() != Instruction::Add)
+    return false;
+  Value *Op0 = IndUpdate->getOperand(0);
+  Value *Op1 = IndUpdate->getOperand(1);
+  Value *CastedPhi = nullptr;
+  if (Op0 == PN || Op1 == PN)
+    return false;
+  if (L->isLoopInvariant(Op0))
+    CastedPhi = Op1;
+  else if (L->isLoopInvariant(Op1))
+    CastedPhi = Op0;
+  else
+    return false;
+
+  // 2) Look for the ExtTrunc Sequence
+  const DataLayout &DL = L->getHeader()->getModule()->getDataLayout();
+  return (isAshrShlInductionCastSequence(CastedPhi, PN, DL, CastInsts) ||
+          isAndInductionCastSequence(CastedPhi, PN, DL, CastInsts));
+}
+
+/// If PredicatedSCEVRewrites contains an entry that maps \p PhiScev to \p AR 
+/// under a runtime predicate, then we know the following:
+/// (1) The value of the phi at iteration i is:
+///      (Ext ix (Trunc iy ( Start + i*Step ) to ix) to iy)
+/// (2) Under the runtime predicate, the above expression is equal to:
+///       Start + i*Step 
+/// where Step is a loop invariant.
+///
+/// We want to find the cast instructions that are involved in the 
+/// update-chain of this induction. A caller that adds the required runtime
+/// predicate can be free to drop these cast instructions, and compute
+/// the phi using (2) above instead of (1). 
+///
+/// We look for the following sequence:
+///   x1 = phi (x0, x_next)
+///   x2 = ExtTrunc (x1)
+///   x_next = add (x2, Step)
+///
+/// Where ExtTrunc is the IR sequence that resulted in the SCEV "sext(trunc("
+/// or "zext(trunc" expression. This can be one of several patterns; We look 
+/// for one of the following two patterns:
+///   ExtTrunc1: 
+///     Cast:  %x2 = and  %x1, 2^n-1
+///   ExtTrunc2: 
+///     Cast:  %t = shl %x1, m
+///     Cast:  %x2 = ashr %t, m
+///       
+/// If we are able to find this sequence, we return the "Cast:" instructions 
+/// from the pattern we found.
+/// (TODO: Check for more IR induction patterns that can result in the SCEV 
+/// expression in (1) above.) 
+bool ScalarEvolution::getCastsForInductionPHI(
+    const SCEVUnknown *PhiScev, const SCEVAddRecExpr *AR,
+    SmallVectorImpl<Instruction *> &CastInsts) {
+
+  auto *PN = cast<PHINode>(PhiScev->getValue());
+  const Loop *L = isIntegerLoopHeaderPHI(PN, LI);
+  if (!L)
+    return false;
+
+  auto I = PredicatedSCEVRewrites.find({PhiScev, L});
+  if (I == PredicatedSCEVRewrites.end())
+    return false;
+  std::pair<const SCEV *, SmallVector<const SCEVPredicate *, 3>> Rewrite =
+     I->second;
+  assert(isa<SCEVAddRecExpr>(Rewrite.first) && "Expected an AddRec");
+  if (Rewrite.first != AR)
+    return false;
+
+  // PhiScev was found in PredicatedSCEVRewrites, and it is mapped to \p AR
+  // under some runtime tests. Find the cast instructions that participate in
+  // the def-use chain of PhiScev in the loop. 
+  //
+  return getCastsForInductionPHIImpl(PN, L, CastInsts); 
+}
+
 // Analyze \p SymbolicPHI, a SCEV expression of a phi node, and check if the
 // computation that updates the phi follows the following pattern:
 //   (SExt/ZExt ix (Trunc iy (%SymbolicPHI) to ix) to iy) + InvariantAccum
