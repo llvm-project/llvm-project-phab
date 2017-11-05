@@ -141,8 +141,6 @@ public:
   NodeRef getNode(NodeId Id) const { return Nodes[Id]; }
   Node &getMutableNode(NodeId Id) { return Nodes[Id]; }
   Node &getMutableNode(NodeRef N) { return getMutableNode(N.getId()); }
-  int getNumberOfDescendants(NodeRef N) const;
-  bool isInSubtree(NodeRef N, NodeRef SubtreeRoot) const;
 
   std::string getRelativeName(const NamedDecl *ND,
                               const DeclContext *Context) const;
@@ -331,11 +329,11 @@ void SyntaxTree::Impl::setLeftMostDescendants() {
   }
 }
 
-int SyntaxTree::Impl::getNumberOfDescendants(NodeRef N) const {
+static int getNumberOfDescendants(NodeRef N) {
   return N.RightMostDescendant - N.getId() + 1;
 }
 
-bool SyntaxTree::Impl::isInSubtree(NodeRef N, NodeRef SubtreeRoot) const {
+static bool isInSubtree(NodeRef N, NodeRef SubtreeRoot) {
   return N.getId() >= SubtreeRoot.getId() &&
          N.getId() <= SubtreeRoot.RightMostDescendant;
 }
@@ -802,7 +800,7 @@ bool ASTDiff::Impl::haveSameParents(NodeRef N1, NodeRef N2) const {
 }
 
 void ASTDiff::Impl::addOptimalMapping(NodeRef N1, NodeRef N2) {
-  if (std::max(T1.getNumberOfDescendants(N1), T2.getNumberOfDescendants(N2)) >
+  if (std::max(getNumberOfDescendants(N1), getNumberOfDescendants(N2)) >
       Options.MaxSize)
     return;
   ZhangShashaMatcher Matcher(*this, T1, T2, N1.getId(), N2.getId());
@@ -821,12 +819,12 @@ double ASTDiff::Impl::getJaccardSimilarity(NodeRef N1, NodeRef N2) const {
   for (NodeId Src = N1.getId() + 1; Src <= N1.RightMostDescendant; ++Src) {
     const Node *Dst = getDst(T1.getNode(Src));
     if (Dst)
-      CommonDescendants += T2.isInSubtree(*Dst, N2);
+      CommonDescendants += isInSubtree(*Dst, N2);
   }
   // We need to subtract 1 to get the number of descendants excluding the
   // root.
-  double Denominator = T1.getNumberOfDescendants(N1) - 1 +
-                       T2.getNumberOfDescendants(N2) - 1 - CommonDescendants;
+  double Denominator = getNumberOfDescendants(N1) - 1 +
+                       getNumberOfDescendants(N2) - 1 - CommonDescendants;
   // CommonDescendants is less than the size of one subtree.
   assert(Denominator >= 0 && "Expected non-negative denominator.");
   if (Denominator == 0)
@@ -906,7 +904,7 @@ void ASTDiff::Impl::matchTopDown() {
     for (NodeRef N1 : H1) {
       for (NodeRef N2 : H2) {
         if (identical(N1, N2) && !getDst(N1) && !getSrc(N2)) {
-          for (int I = 0, E = T1.getNumberOfDescendants(N1); I < E; ++I) {
+          for (int I = 0, E = getNumberOfDescendants(N1); I < E; ++I) {
             link(T1.getNode(N1.getId() + I), T2.getNode(N2.getId() + I));
           }
         }
