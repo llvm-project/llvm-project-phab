@@ -298,10 +298,11 @@ static unsigned printHtmlForNode(raw_ostream &OS, const diff::ASTDiff &Diff,
   OS << "<span id='" << MyTag << Node.getId() << "' "
      << "tid='" << OtherTag << TargetId << "' ";
   OS << "title='";
+  diff::ChangeKind Change = Diff.getNodeChange(Node);
   printHtml(OS, Node.getTypeLabel());
   OS << "\n" << LeftId << " -> " << RightId << "'";
-  if (Node.Change != diff::NoChange)
-    OS << " class='" << getChangeKindAbbr(Node.Change) << "'";
+  if (Change != diff::NoChange)
+    OS << " class='" << getChangeKindAbbr(Change) << "'";
   OS << ">";
 
   for (diff::NodeRef Child : Node)
@@ -399,7 +400,8 @@ static void printDstChange(raw_ostream &OS, diff::ASTDiff &Diff,
                            diff::SyntaxTree &SrcTree, diff::SyntaxTree &DstTree,
                            diff::NodeRef Dst) {
   const diff::Node *Src = Diff.getMapped(Dst);
-  switch (Dst.Change) {
+  diff::ChangeKind Change = Diff.getNodeChange(Dst);
+  switch (Change) {
   case diff::NoChange:
     break;
   case diff::Delete:
@@ -412,11 +414,11 @@ static void printDstChange(raw_ostream &OS, diff::ASTDiff &Diff,
   case diff::Insert:
   case diff::Move:
   case diff::UpdateMove:
-    if (Dst.Change == diff::Insert)
+    if (Change == diff::Insert)
       OS << "Insert";
-    else if (Dst.Change == diff::Move)
+    else if (Change == diff::Move)
       OS << "Move";
-    else if (Dst.Change == diff::UpdateMove)
+    else if (Change == diff::UpdateMove)
       OS << "Update and Move";
     OS << " ";
     printNode(OS, DstTree, Dst);

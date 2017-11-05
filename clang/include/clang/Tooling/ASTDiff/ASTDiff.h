@@ -62,6 +62,7 @@ public:
   ~ASTDiff();
 
   const Node *getMapped(NodeRef N) const;
+  ChangeKind getNodeChange(NodeRef N) const;
 
   class Impl;
 
@@ -106,10 +107,9 @@ public:
 struct Node {
   SyntaxTree::Impl &Tree;
   NodeId Parent, LeftMostDescendant, RightMostDescendant;
-  int Depth, Height, Shift = 0;
+  int Depth, Height;
   ast_type_traits::DynTypedNode ASTNode;
   SmallVector<NodeId, 4> Children;
-  ChangeKind Change = NoChange;
   Node(SyntaxTree::Impl &Tree) : Tree(Tree), Children() {}
   Node(NodeRef Other) = delete;
   explicit Node(Node &&Other) = default;

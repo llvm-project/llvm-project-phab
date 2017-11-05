@@ -32,12 +32,22 @@ bool ComparisonOptions::isMatchingAllowed(NodeRef N1, NodeRef N2) const {
   return (N1.isMacro() && N2.isMacro()) || N1.getType().isSame(N2.getType());
 }
 
+namespace {
+struct NodeChange {
+  ChangeKind Change = NoChange;
+  int Shift = 0;
+  NodeChange() = default;
+  NodeChange(ChangeKind Change, int Shift) : Change(Change), Shift(Shift) {}
+};
+} // end anonymous namespace
+
 class ASTDiff::Impl {
 private:
   std::unique_ptr<NodeId[]> SrcToDst, DstToSrc;
 
 public:
   SyntaxTree::Impl &T1, &T2;
+  std::map<NodeId, NodeChange> ChangesT1, ChangesT2;
 
   Impl(SyntaxTree::Impl &T1, SyntaxTree::Impl &T2,
        const ComparisonOptions &Options);
@@ -49,6 +59,8 @@ public:
   void computeChangeKinds();
 
   const Node *getMapped(NodeRef N) const;
+
+  ChangeKind getNodeChange(NodeRef N) const;
 
 private:
   // Adds a mapping between two nodes.
@@ -150,8 +162,8 @@ public:
   PreorderIterator end() const { return begin() + getSize(); }
 
   NodeRef getNode(NodeId Id) const { return Nodes[Id]; }
-  Node &getMutableNode(NodeId Id) { return Nodes[Id]; }
-  Node &getMutableNode(NodeRef N) { return getMutableNode(N.getId()); }
+  Node &getMutableNode(NodeRef N) { return Nodes[N.getId()]; }
+  Node &getMutableNode(NodeId Id) { return getMutableNode(getNode(Id)); }
 
 private:
   void initTree();
@@ -1091,16 +1103,12 @@ void ASTDiff::Impl::computeMapping() {
 
 void ASTDiff::Impl::computeChangeKinds() {
   for (NodeRef N1 : T1) {
-    if (!getDst(N1)) {
-      T1.getMutableNode(N1).Change = Delete;
-      T1.getMutableNode(N1).Shift -= 1;
-    }
+    if (!getDst(N1))
+      ChangesT1.emplace(N1.getId(), NodeChange(Delete, -1));
   }
   for (NodeRef N2 : T2) {
-    if (!getSrc(N2)) {
-      T2.getMutableNode(N2).Change = Insert;
-      T2.getMutableNode(N2).Shift -= 1;
-    }
+    if (!getSrc(N2))
+      ChangesT2.emplace(N2.getId(), NodeChange(Insert, -1));
   }
   for (NodeRef N1 : T1.NodesBfs) {
     if (!getDst(N1))
@@ -1108,23 +1116,22 @@ void ASTDiff::Impl::computeChangeKinds() {
     NodeRef N2 = *getDst(N1);
     if (!haveSameParents(N1, N2) ||
         findNewPosition(N1) != findNewPosition(N2)) {
-      T1.getMutableNode(N1).Shift -= 1;
-      T2.getMutableNode(N2).Shift -= 1;
+      ChangesT1[N1.getId()].Shift -= 1;
+      ChangesT2[N2.getId()].Shift -= 1;
     }
   }
   for (NodeRef N2 : T2.NodesBfs) {
     if (!getSrc(N2))
       continue;
     NodeRef N1 = *getSrc(N2);
-    Node &MutableN1 = T1.getMutableNode(N1);
-    Node &MutableN2 = T2.getMutableNode(N2);
     if (!haveSameParents(N1, N2) ||
         findNewPosition(N1) != findNewPosition(N2)) {
-      MutableN1.Change = MutableN2.Change = Move;
+      ChangesT1[N1.getId()].Change = ChangesT2[N2.getId()].Change = Move;
     }
     if (areNodesDifferent(N1, N2)) {
-      MutableN1.Change = MutableN2.Change =
-          (N1.Change == Move ? UpdateMove : Update);
+      bool Moved = ChangesT1[N1.getId()].Change == Move;
+      ChangesT1[N1.getId()].Change = ChangesT2[N2.getId()].Change =
+          (Moved ? UpdateMove : Update);
     }
   }
 }
@@ -1152,15 +1159,35 @@ const Node *ASTDiff::Impl::getSrc(NodeRef N2) const {
 }
 
 int ASTDiff::Impl::findNewPosition(NodeRef N) const {
+  const std::map<NodeId, NodeChange> *Changes;
+  if (&N.Tree == &T1)
+    Changes = &ChangesT1;
+  else
+    Changes = &ChangesT2;
+
   if (!N.getParent())
     return 0;
   int Position = N.findPositionInParent();
   for (NodeRef Sibling : *N.getParent()) {
-    Position += Sibling.Shift;
+    if (Changes->count(Sibling.getId()))
+      Position += Changes->at(Sibling.getId()).Shift;
     if (&Sibling == &N)
       return Position;
   }
   llvm_unreachable("Node not found amongst parent's children.");
+}
+
+ChangeKind ASTDiff::Impl::getNodeChange(NodeRef N) const {
+  const std::map<NodeId, NodeChange> *Changes;
+  if (&N.Tree == &T1) {
+    Changes = &ChangesT1;
+  } else {
+    assert(&N.Tree == &T2 && "Invalid tree.");
+    Changes = &ChangesT2;
+  }
+  if (Changes->count(N.getId()))
+    return Changes->at(N.getId()).Change;
+  return NoChange;
 }
 
 ASTDiff::ASTDiff(SyntaxTree &T1, SyntaxTree &T2,
@@ -1171,6 +1198,10 @@ ASTDiff::~ASTDiff() = default;
 
 const Node *ASTDiff::getMapped(NodeRef N) const {
   return DiffImpl->getMapped(N);
+}
+
+ChangeKind ASTDiff::getNodeChange(NodeRef N) const {
+  return DiffImpl->getNodeChange(N);
 }
 
 SyntaxTree::SyntaxTree(ASTUnit &AST)
