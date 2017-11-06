@@ -20,6 +20,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/Support/SourceMgr.h"
+#include "llvm/Testing/IR/Passes.h"
 
 // Workaround for the gcc 7.1 bug PR80916.
 #if defined(__GNUC__) && __GNUC__ > 6
@@ -44,76 +45,6 @@ using testing::Expectation;
 using testing::Invoke;
 using testing::InvokeWithoutArgs;
 using testing::_;
-
-template <typename DerivedT, typename IRUnitT,
-          typename AnalysisManagerT = AnalysisManager<IRUnitT>,
-          typename... ExtraArgTs>
-class MockAnalysisHandleBase {
-public:
-  class Analysis : public AnalysisInfoMixin<Analysis> {
-    friend AnalysisInfoMixin<Analysis>;
-    friend MockAnalysisHandleBase;
-    static AnalysisKey Key;
-
-    DerivedT *Handle;
-
-    Analysis(DerivedT &Handle) : Handle(&Handle) {
-      static_assert(std::is_base_of<MockAnalysisHandleBase, DerivedT>::value,
-                    "Must pass the derived type to this template!");
-    }
-
-  public:
-    class Result {
-      friend MockAnalysisHandleBase;
-
-      DerivedT *Handle;
-
-      Result(DerivedT &Handle) : Handle(&Handle) {}
-
-    public:
-      // Forward invalidation events to the mock handle.
-      bool invalidate(IRUnitT &IR, const PreservedAnalyses &PA,
-                      typename AnalysisManagerT::Invalidator &Inv) {
-        return Handle->invalidate(IR, PA, Inv);
-      }
-    };
-
-    Result run(IRUnitT &IR, AnalysisManagerT &AM, ExtraArgTs... ExtraArgs) {
-      return Handle->run(IR, AM, ExtraArgs...);
-    }
-  };
-
-  Analysis getAnalysis() { return Analysis(static_cast<DerivedT &>(*this)); }
-  typename Analysis::Result getResult() {
-    return typename Analysis::Result(static_cast<DerivedT &>(*this));
-  }
-
-protected:
-  // FIXME: MSVC seems unable to handle a lambda argument to Invoke from within
-  // the template, so we use a boring static function.
-  static bool invalidateCallback(IRUnitT &IR, const PreservedAnalyses &PA,
-                                 typename AnalysisManagerT::Invalidator &Inv) {
-    auto PAC = PA.template getChecker<Analysis>();
-    return !PAC.preserved() &&
-           !PAC.template preservedSet<AllAnalysesOn<IRUnitT>>();
-  }
-
-  /// Derived classes should call this in their constructor to set up default
-  /// mock actions. (We can't do this in our constructor because this has to
-  /// run after the DerivedT is constructed.)
-  void setDefaults() {
-    ON_CALL(static_cast<DerivedT &>(*this),
-            run(_, _, testing::Matcher<ExtraArgTs>(_)...))
-        .WillByDefault(Return(this->getResult()));
-    ON_CALL(static_cast<DerivedT &>(*this), invalidate(_, _, _))
-        .WillByDefault(Invoke(&invalidateCallback));
-  }
-};
-
-template <typename DerivedT, typename IRUnitT, typename AnalysisManagerT,
-          typename... ExtraArgTs>
-AnalysisKey MockAnalysisHandleBase<DerivedT, IRUnitT, AnalysisManagerT,
-                                   ExtraArgTs...>::Analysis::Key;
 
 /// Mock handle for loop analyses.
 ///
@@ -145,73 +76,11 @@ struct MockLoopAnalysisHandleTemplate
 };
 
 typedef MockLoopAnalysisHandleTemplate<> MockLoopAnalysisHandle;
+typedef MockAnalysisHandle<Function> MockFunctionAnalysisHandle;
 
-struct MockFunctionAnalysisHandle
-    : MockAnalysisHandleBase<MockFunctionAnalysisHandle, Function> {
-  MOCK_METHOD2(run, Analysis::Result(Function &, FunctionAnalysisManager &));
-
-  MOCK_METHOD3(invalidate, bool(Function &, const PreservedAnalyses &,
-                                FunctionAnalysisManager::Invalidator &));
-
-  MockFunctionAnalysisHandle() { setDefaults(); }
-};
-
-template <typename DerivedT, typename IRUnitT,
-          typename AnalysisManagerT = AnalysisManager<IRUnitT>,
-          typename... ExtraArgTs>
-class MockPassHandleBase {
-public:
-  class Pass : public PassInfoMixin<Pass> {
-    friend MockPassHandleBase;
-
-    DerivedT *Handle;
-
-    Pass(DerivedT &Handle) : Handle(&Handle) {
-      static_assert(std::is_base_of<MockPassHandleBase, DerivedT>::value,
-                    "Must pass the derived type to this template!");
-    }
-
-  public:
-    PreservedAnalyses run(IRUnitT &IR, AnalysisManagerT &AM,
-                          ExtraArgTs... ExtraArgs) {
-      return Handle->run(IR, AM, ExtraArgs...);
-    }
-  };
-
-  Pass getPass() { return Pass(static_cast<DerivedT &>(*this)); }
-
-protected:
-  /// Derived classes should call this in their constructor to set up default
-  /// mock actions. (We can't do this in our constructor because this has to
-  /// run after the DerivedT is constructed.)
-  void setDefaults() {
-    ON_CALL(static_cast<DerivedT &>(*this),
-            run(_, _, testing::Matcher<ExtraArgTs>(_)...))
-        .WillByDefault(Return(PreservedAnalyses::all()));
-  }
-};
-
-struct MockLoopPassHandle
-    : MockPassHandleBase<MockLoopPassHandle, Loop, LoopAnalysisManager,
-                         LoopStandardAnalysisResults &, LPMUpdater &> {
-  MOCK_METHOD4(run,
-               PreservedAnalyses(Loop &, LoopAnalysisManager &,
-                                 LoopStandardAnalysisResults &, LPMUpdater &));
-  MockLoopPassHandle() { setDefaults(); }
-};
-
-struct MockFunctionPassHandle
-    : MockPassHandleBase<MockFunctionPassHandle, Function> {
-  MOCK_METHOD2(run, PreservedAnalyses(Function &, FunctionAnalysisManager &));
-
-  MockFunctionPassHandle() { setDefaults(); }
-};
-
-struct MockModulePassHandle : MockPassHandleBase<MockModulePassHandle, Module> {
-  MOCK_METHOD2(run, PreservedAnalyses(Module &, ModuleAnalysisManager &));
-
-  MockModulePassHandle() { setDefaults(); }
-};
+typedef MockPassHandle<Loop> MockLoopPassHandle;
+typedef MockPassHandle<Function> MockFunctionPassHandle;
+typedef MockPassHandle<Module> MockModulePassHandle;
 
 /// Define a custom matcher for objects which support a 'getName' method
 /// returning a StringRef.
