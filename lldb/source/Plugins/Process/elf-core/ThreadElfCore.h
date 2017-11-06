@@ -131,6 +131,7 @@ struct ThreadData {
   lldb_private::DataExtractor gpregset;
   lldb_private::DataExtractor fpregset;
   lldb_private::DataExtractor vregset;
+  lldb_private::DataExtractor vsregset; /* For PPC VSX registers. */
   lldb::tid_t tid;
   int signo = 0;
   int prstatus_sig = 0;
@@ -179,6 +180,7 @@ protected:
   lldb_private::DataExtractor m_gpregset_data;
   lldb_private::DataExtractor m_fpregset_data;
   lldb_private::DataExtractor m_vregset_data;
+  lldb_private::DataExtractor m_vsregset_data; /* For PPC VSX registers. */
 
   bool CalculateStopInfo() override;
 };
