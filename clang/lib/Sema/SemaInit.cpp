@@ -7692,6 +7692,12 @@ bool InitializationSequence::Diagnose(Sema &S,
 
   case FK_ReferenceInitDropsQualifiers: {
     QualType SourceType = Args[0]->getType();
+
+    // For braced initializer lists, we want to get the type
+    // of its (only) element, and not the "type" of the list itself.
+    if (const auto *List = dyn_cast<InitListExpr>(Args[0]))
+      SourceType = List->getInit(0)->getType();
+
     QualType NonRefType = DestType.getNonReferenceType();
     Qualifiers DroppedQualifiers =
         SourceType.getQualifiers() - NonRefType.getQualifiers();
