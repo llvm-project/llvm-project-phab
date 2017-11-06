@@ -107,3 +107,1177 @@ define i64 @test7(i64 %hi, i64 %lo, i64 %bits) nounwind {
   %sh = or i64 %sh_lo, %sh_hi
   ret i64 %sh
 }
+
+;-------------------------------------------------------------------------------------
+; double shift left pattern
+;uint_t shld(uint_t a, uint_t b, int shift)
+;{
+;  return (a << shift) | (b >> (sizeof(uint_t)*8 - shift));
+;}
+
+
+define i64 @shld64_sh64(i64 %a, i64 %b, i64 %bits) nounwind {
+; CHECK-LABEL: shld64_sh64:
+; CHECK:       # BB#0:
+; CHECK-NEXT:    movl %edx, %ecx
+; CHECK-NEXT:    shldq %cl, %rsi, %rdi
+; CHECK-NEXT:    movq %rdi, %rax
+; CHECK-NEXT:    retq
+  %shl = shl i64 %a, %bits
+  %sub = sub i64 64, %bits
+  %shr = lshr i64 %b, %sub
+  %or = or i64 %shr, %shl
+  ret i64 %or
+}
+
+define i64 @shld64_sh32(i64 %a, i64 %b, i32 %bits) nounwind {
+; CHECK-LABEL: shld64_sh32:
+; CHECK:       # BB#0:
+; CHECK-NEXT:    movl %edx, %ecx
+; CHECK-NEXT:    shldq %cl, %rsi, %rdi
+; CHECK-NEXT:    movq %rdi, %rax
+; CHECK-NEXT:    retq
+  %sh_prom = zext i32 %bits to i64
+  %shl = shl i64 %a, %sh_prom
+  %sub = sub nsw i64 64, %sh_prom
+  %shr = lshr i64 %b, %sub
+  %or = or i64 %shr, %shl
+  ret i64 %or
+}
+
+define i64 @shld64_sh16(i64 %a, i64 %b, i16 zeroext %bits) nounwind {
+; CHECK-LABEL: shld64_sh16:
+; CHECK:       # BB#0:
+; CHECK-NEXT:    movl %edx, %ecx
+; CHECK-NEXT:    shldq %cl, %rsi, %rdi
+; CHECK-NEXT:    movq %rdi, %rax
+; CHECK-NEXT:    retq
+  %sh_prom = zext i16 %bits to i64
+  %shl = shl i64 %a, %sh_prom
+  %sub = sub nsw i64 64, %sh_prom
+  %shr = lshr i64 %b, %sub
+  %or = or i64 %shr, %shl
+  ret i64 %or
+}
+
+define i64 @shld64_sh8(i64 %a, i64 %b, i8 zeroext %bits) nounwind {
+; CHECK-LABEL: shld64_sh8:
+; CHECK:       # BB#0:
+; CHECK-NEXT:    movl %edx, %ecx
+; CHECK-NEXT:    shldq %cl, %rsi, %rdi
+; CHECK-NEXT:    movq %rdi, %rax
+; CHECK-NEXT:    retq
+  %sh_prom = zext i8 %bits to i64
+  %shl = shl i64 %a, %sh_prom
+  %sub = sub nsw i64 64, %sh_prom
+  %shr = lshr i64 %b, %sub
+  %or = or i64 %shr, %shl
+  ret i64 %or
+}
+
+define i32 @shld32_sh64(i32 %a, i32 %b, i64 %bits) nounwind {
+; CHECK-LABEL: shld32_sh64:
+; CHECK:       # BB#0:
+; CHECK-NEXT:    movl %edx, %ecx
+; CHECK-NEXT:    shldl %cl, %esi, %edi
+; CHECK-NEXT:    movl %edi, %eax
+; CHECK-NEXT:    retq
+  %sh_prom = trunc i64 %bits to i32
+  %shl = shl i32 %a, %sh_prom
+  %sub = sub i64 32, %bits
+  %sh_prom1 = trunc i64 %sub to i32
+  %shr = lshr i32 %b, %sh_prom1
+  %or = or i32 %shr, %shl
+  ret i32 %or
+}
+
+define i32 @shld32_sh32(i32 %a, i32 %b, i32 %bits) nounwind {
+; CHECK-LABEL: shld32_sh32:
+; CHECK:       # BB#0:
+; CHECK-NEXT:    movl %edx, %ecx
+; CHECK-NEXT:    shldl %cl, %esi, %edi
+; CHECK-NEXT:    movl %edi, %eax
+; CHECK-NEXT:    retq
+  %shl = shl i32 %a, %bits
+  %sub = sub i32 32, %bits
+  %shr = lshr i32 %b, %sub
+  %or = or i32 %shr, %shl
+  ret i32 %or
+}
+
+define i32 @shld32_sh16(i32 %a, i32 %b, i16 zeroext %bits) nounwind {
+; CHECK-LABEL: shld32_sh16:
+; CHECK:       # BB#0:
+; CHECK-NEXT:    movl %edx, %ecx
+; CHECK-NEXT:    shldl %cl, %esi, %edi
+; CHECK-NEXT:    movl %edi, %eax
+; CHECK-NEXT:    retq
+  %conv = zext i16 %bits to i32
+  %shl = shl i32 %a, %conv
+  %sub = sub nsw i32 32, %conv
+  %shr = lshr i32 %b, %sub
+  %or = or i32 %shr, %shl
+  ret i32 %or
+}
+
+define i32 @shld32_sh8(i32 %a, i32 %b, i8 zeroext %bits) nounwind {
+; CHECK-LABEL: shld32_sh8:
+; CHECK:       # BB#0:
+; CHECK-NEXT:    movl %edx, %ecx
+; CHECK-NEXT:    shldl %cl, %esi, %edi
+; CHECK-NEXT:    movl %edi, %eax
+; CHECK-NEXT:    retq
+  %conv = zext i8 %bits to i32
+  %shl = shl i32 %a, %conv
+  %sub = sub nsw i32 32, %conv
+  %shr = lshr i32 %b, %sub
+  %or = or i32 %shr, %shl
+  ret i32 %or
+}
+
+define zeroext i16 @shld16_sh64(i16 zeroext %a, i16 zeroext %b, i64 %bits) nounwind {
+; CHECK-LABEL: shld16_sh64:
+; CHECK:       # BB#0:
+; CHECK-NEXT:    shll $16, %esi
+; CHECK-NEXT:    movl %edx, %ecx
+; CHECK-NEXT:    shldl %cl, %esi, %edi
+; CHECK-NEXT:    movl %edi, %eax
+; CHECK-NEXT:    retq
+  %conv = zext i16 %a to i32
+  %sh_prom = trunc i64 %bits to i32
+  %shl = shl i32 %conv, %sh_prom
+  %conv1 = zext i16 %b to i32
+  %sub = sub i64 16, %bits
+  %sh_prom2 = trunc i64 %sub to i32
+  %shr = lshr i32 %conv1, %sh_prom2
+  %or = or i32 %shr, %shl
+  %conv3 = trunc i32 %or to i16
+  ret i16 %conv3
+}
+
+define zeroext i16 @shld16_sh32(i16 zeroext %a, i16 zeroext %b, i32 %bits) nounwind {
+; CHECK-LABEL: shld16_sh32:
+; CHECK:       # BB#0:
+; CHECK-NEXT:    shll $16, %esi
+; CHECK-NEXT:    movl %edx, %ecx
+; CHECK-NEXT:    shldl %cl, %esi, %edi
+; CHECK-NEXT:    movl %edi, %eax
+; CHECK-NEXT:    retq
+  %conv = zext i16 %a to i32
+  %shl = shl i32 %conv, %bits
+  %conv1 = zext i16 %b to i32
+  %sub = sub i32 16, %bits
+  %shr = lshr i32 %conv1, %sub
+  %or = or i32 %shr, %shl
+  %conv3 = trunc i32 %or to i16
+  ret i16 %conv3
+}
+
+define zeroext i16 @shld16_sh16(i16 zeroext %a, i16 zeroext %b, i16 zeroext %bits) nounwind {
+; CHECK-LABEL: shld16_sh16:
+; CHECK:       # BB#0:
+; CHECK-NEXT:    shll $16, %esi
+; CHECK-NEXT:    movl %edx, %ecx
+; CHECK-NEXT:    shldl %cl, %esi, %edi
+; CHECK-NEXT:    movl %edi, %eax
+; CHECK-NEXT:    retq
+  %conv = zext i16 %a to i32
+  %conv1 = zext i16 %bits to i32
+  %shl = shl i32 %conv, %conv1
+  %conv2 = zext i16 %b to i32
+  %sub = sub nsw i32 16, %conv1
+  %shr = lshr i32 %conv2, %sub
+  %or = or i32 %shr, %shl
+  %conv4 = trunc i32 %or to i16
+  ret i16 %conv4
+}
+
+define zeroext i16 @shld16_sh8(i16 zeroext %a, i16 zeroext %b, i8 zeroext %bits) nounwind {
+; CHECK-LABEL: shld16_sh8:
+; CHECK:       # BB#0:
+; CHECK-NEXT:    shll $16, %esi
+; CHECK-NEXT:    movl %edx, %ecx
+; CHECK-NEXT:    shldl %cl, %esi, %edi
+; CHECK-NEXT:    movl %edi, %eax
+; CHECK-NEXT:    retq
+  %conv = zext i16 %a to i32
+  %conv1 = zext i8 %bits to i32
+  %shl = shl i32 %conv, %conv1
+  %conv2 = zext i16 %b to i32
+  %sub = sub nsw i32 16, %conv1
+  %shr = lshr i32 %conv2, %sub
+  %or = or i32 %shr, %shl
+  %conv4 = trunc i32 %or to i16
+  ret i16 %conv4
+}
+
+define zeroext i8 @shld8_sh64(i8 zeroext %a, i8 zeroext %b, i64 %bits) nounwind {
+; CHECK-LABEL: shld8_sh64:
+; CHECK:       # BB#0:
+; CHECK-NEXT:    shll $24, %esi
+; CHECK-NEXT:    movl %edx, %ecx
+; CHECK-NEXT:    shldl %cl, %esi, %edi
+; CHECK-NEXT:    movl %edi, %eax
+; CHECK-NEXT:    retq
+  %conv = zext i8 %a to i32
+  %sh_prom = trunc i64 %bits to i32
+  %shl = shl i32 %conv, %sh_prom
+  %conv1 = zext i8 %b to i32
+  %sub = sub i64 8, %bits
+  %sh_prom2 = trunc i64 %sub to i32
+  %shr = lshr i32 %conv1, %sh_prom2
+  %or = or i32 %shr, %shl
+  %conv3 = trunc i32 %or to i8
+  ret i8 %conv3
+}
+
+define zeroext i8 @shld8_sh32(i8 zeroext %a, i8 zeroext %b, i32 %bits) nounwind {
+; CHECK-LABEL: shld8_sh32:
+; CHECK:       # BB#0:
+; CHECK-NEXT:    shll $24, %esi
+; CHECK-NEXT:    movl %edx, %ecx
+; CHECK-NEXT:    shldl %cl, %esi, %edi
+; CHECK-NEXT:    movl %edi, %eax
+; CHECK-NEXT:    retq
+  %conv = zext i8 %a to i32
+  %shl = shl i32 %conv, %bits
+  %conv1 = zext i8 %b to i32
+  %sub = sub i32 8, %bits
+  %shr = lshr i32 %conv1, %sub
+  %or = or i32 %shr, %shl
+  %conv3 = trunc i32 %or to i8
+  ret i8 %conv3
+}
+
+define zeroext i8 @shld8_sh16(i8 zeroext %a, i8 zeroext %b, i16 zeroext %bits) nounwind {
+; CHECK-LABEL: shld8_sh16:
+; CHECK:       # BB#0:
+; CHECK-NEXT:    shll $24, %esi
+; CHECK-NEXT:    movl %edx, %ecx
+; CHECK-NEXT:    shldl %cl, %esi, %edi
+; CHECK-NEXT:    movl %edi, %eax
+; CHECK-NEXT:    retq
+  %conv = zext i8 %a to i32
+  %conv1 = zext i16 %bits to i32
+  %shl = shl i32 %conv, %conv1
+  %conv2 = zext i8 %b to i32
+  %sub = sub nsw i32 8, %conv1
+  %shr = lshr i32 %conv2, %sub
+  %or = or i32 %shr, %shl
+  %conv4 = trunc i32 %or to i8
+  ret i8 %conv4
+}
+
+define zeroext i8 @shld8_sh8(i8 zeroext %a, i8 zeroext %b, i8 zeroext %bits) nounwind {
+; CHECK-LABEL: shld8_sh8:
+; CHECK:       # BB#0:
+; CHECK-NEXT:    shll $24, %esi
+; CHECK-NEXT:    movl %edx, %ecx
+; CHECK-NEXT:    shldl %cl, %esi, %edi
+; CHECK-NEXT:    movl %edi, %eax
+; CHECK-NEXT:    retq
+  %conv = zext i8 %a to i32
+  %conv1 = zext i8 %bits to i32
+  %shl = shl i32 %conv, %conv1
+  %conv2 = zext i8 %b to i32
+  %sub = sub nsw i32 8, %conv1
+  %shr = lshr i32 %conv2, %sub
+  %or = or i32 %shr, %shl
+  %conv4 = trunc i32 %or to i8
+  ret i8 %conv4
+}
+
+
+;-------------------------------------------------------------------------------------
+; double shift right pattern
+;uint_t shrd(uint_t a, uint_t b, int shift)
+;{
+;  return (a >> shift) | (b << (  sizeof(uint_t)*8 - shift));
+;}
+
+
+define i64 @shrd64_sh64(i64 %a, i64 %b, i64 %bits) nounwind {
+; CHECK-LABEL: shrd64_sh64:
+; CHECK:       # BB#0:
+; CHECK-NEXT:    movl %edx, %ecx
+; CHECK-NEXT:    shrdq %cl, %rsi, %rdi
+; CHECK-NEXT:    movq %rdi, %rax
+; CHECK-NEXT:    retq
+  %shr = lshr i64 %a, %bits
+  %sub = sub i64 64, %bits
+  %shl = shl i64 %b, %sub
+  %or = or i64 %shl, %shr
+  ret i64 %or
+}
+
+define i64 @shrd64_sh32(i64 %a, i64 %b, i32 %bits) nounwind {
+; CHECK-LABEL: shrd64_sh32:
+; CHECK:       # BB#0:
+; CHECK-NEXT:    movl %edx, %ecx
+; CHECK-NEXT:    shrdq %cl, %rsi, %rdi
+; CHECK-NEXT:    movq %rdi, %rax
+; CHECK-NEXT:    retq
+  %sh_prom = zext i32 %bits to i64
+  %shr = lshr i64 %a, %sh_prom
+  %sub = sub nsw i64 64, %sh_prom
+  %shl = shl i64 %b, %sub
+  %or = or i64 %shl, %shr
+  ret i64 %or
+}
+
+define i64 @shrd64_sh16(i64 %a, i64 %b, i16 zeroext %bits) nounwind {
+; CHECK-LABEL: shrd64_sh16:
+; CHECK:       # BB#0:
+; CHECK-NEXT:    movl %edx, %ecx
+; CHECK-NEXT:    shrdq %cl, %rsi, %rdi
+; CHECK-NEXT:    movq %rdi, %rax
+; CHECK-NEXT:    retq
+  %sh_prom = zext i16 %bits to i64
+  %shr = lshr i64 %a, %sh_prom
+  %sub = sub nsw i64 64, %sh_prom
+  %shl = shl i64 %b, %sub
+  %or = or i64 %shl, %shr
+  ret i64 %or
+}
+
+define i64 @shrd64_sh8(i64 %a, i64 %b, i8 zeroext %bits) nounwind {
+; CHECK-LABEL: shrd64_sh8:
+; CHECK:       # BB#0:
+; CHECK-NEXT:    movl %edx, %ecx
+; CHECK-NEXT:    shrdq %cl, %rsi, %rdi
+; CHECK-NEXT:    movq %rdi, %rax
+; CHECK-NEXT:    retq
+  %sh_prom = zext i8 %bits to i64
+  %shr = lshr i64 %a, %sh_prom
+  %sub = sub nsw i64 64, %sh_prom
+  %shl = shl i64 %b, %sub
+  %or = or i64 %shl, %shr
+  ret i64 %or
+}
+
+define i32 @shrd32_sh64(i32 %a, i32 %b, i64 %bits) nounwind {
+; CHECK-LABEL: shrd32_sh64:
+; CHECK:       # BB#0:
+; CHECK-NEXT:    movl %edx, %ecx
+; CHECK-NEXT:    shrdl %cl, %esi, %edi
+; CHECK-NEXT:    movl %edi, %eax
+; CHECK-NEXT:    retq
+  %sh_prom = trunc i64 %bits to i32
+  %shr = lshr i32 %a, %sh_prom
+  %sub = sub i64 32, %bits
+  %sh_prom1 = trunc i64 %sub to i32
+  %shl = shl i32 %b, %sh_prom1
+  %or = or i32 %shl, %shr
+  ret i32 %or
+}
+
+define i32 @shrd32_sh32(i32 %a, i32 %b, i32 %bits) nounwind {
+; CHECK-LABEL: shrd32_sh32:
+; CHECK:       # BB#0:
+; CHECK-NEXT:    movl %edx, %ecx
+; CHECK-NEXT:    shrdl %cl, %esi, %edi
+; CHECK-NEXT:    movl %edi, %eax
+; CHECK-NEXT:    retq
+  %shr = lshr i32 %a, %bits
+  %sub = sub i32 32, %bits
+  %shl = shl i32 %b, %sub
+  %or = or i32 %shl, %shr
+  ret i32 %or
+}
+
+define i32 @shrd32_sh16(i32 %a, i32 %b, i16 zeroext %bits) nounwind {
+; CHECK-LABEL: shrd32_sh16:
+; CHECK:       # BB#0:
+; CHECK-NEXT:    movl %edx, %ecx
+; CHECK-NEXT:    shrdl %cl, %esi, %edi
+; CHECK-NEXT:    movl %edi, %eax
+; CHECK-NEXT:    retq
+  %conv = zext i16 %bits to i32
+  %shr = lshr i32 %a, %conv
+  %sub = sub nsw i32 32, %conv
+  %shl = shl i32 %b, %sub
+  %or = or i32 %shl, %shr
+  ret i32 %or
+}
+
+define i32 @shrd32_sh8(i32 %a, i32 %b, i8 zeroext %bits) nounwind {
+; CHECK-LABEL: shrd32_sh8:
+; CHECK:       # BB#0:
+; CHECK-NEXT:    movl %edx, %ecx
+; CHECK-NEXT:    shrdl %cl, %esi, %edi
+; CHECK-NEXT:    movl %edi, %eax
+; CHECK-NEXT:    retq
+  %conv = zext i8 %bits to i32
+  %shr = lshr i32 %a, %conv
+  %sub = sub nsw i32 32, %conv
+  %shl = shl i32 %b, %sub
+  %or = or i32 %shl, %shr
+  ret i32 %or
+}
+
+define zeroext i16 @shrd16_sh64(i16 zeroext %a, i16 zeroext %b, i64 %bits) nounwind {
+; CHECK-LABEL: shrd16_sh64:
+; CHECK:       # BB#0:
+; CHECK-NEXT:    shll $16, %edi
+; CHECK-NEXT:    movl %edx, %ecx
+; CHECK-NEXT:    shrdl %cl, %esi, %edi
+; CHECK-NEXT:    shrl $16, %edi
+; CHECK-NEXT:    movl %edi, %eax
+; CHECK-NEXT:    retq
+  %conv = zext i16 %a to i32
+  %sh_prom = trunc i64 %bits to i32
+  %shr = lshr i32 %conv, %sh_prom
+  %conv1 = zext i16 %b to i32
+  %sub = sub i64 16, %bits
+  %sh_prom2 = trunc i64 %sub to i32
+  %shl = shl i32 %conv1, %sh_prom2
+  %or = or i32 %shl, %shr
+  %conv3 = trunc i32 %or to i16
+  ret i16 %conv3
+}
+
+define zeroext i16 @shrd16_sh32(i16 zeroext %a, i16 zeroext %b, i32 %bits) nounwind {
+; CHECK-LABEL: shrd16_sh32:
+; CHECK:       # BB#0:
+; CHECK-NEXT:    shll $16, %edi
+; CHECK-NEXT:    movl %edx, %ecx
+; CHECK-NEXT:    shrdl %cl, %esi, %edi
+; CHECK-NEXT:    shrl $16, %edi
+; CHECK-NEXT:    movl %edi, %eax
+; CHECK-NEXT:    retq
+  %conv = zext i16 %a to i32
+  %shr = lshr i32 %conv, %bits
+  %conv1 = zext i16 %b to i32
+  %sub = sub i32 16, %bits
+  %shl = shl i32 %conv1, %sub
+  %or = or i32 %shl, %shr
+  %conv3 = trunc i32 %or to i16
+  ret i16 %conv3
+}
+
+define zeroext i16 @shrd16_sh16(i16 zeroext %a, i16 zeroext %b, i16 zeroext %bits) nounwind {
+; CHECK-LABEL: shrd16_sh16:
+; CHECK:       # BB#0:
+; CHECK-NEXT:    shll $16, %edi
+; CHECK-NEXT:    movl %edx, %ecx
+; CHECK-NEXT:    shrdl %cl, %esi, %edi
+; CHECK-NEXT:    shrl $16, %edi
+; CHECK-NEXT:    movl %edi, %eax
+; CHECK-NEXT:    retq
+  %conv = zext i16 %a to i32
+  %conv1 = zext i16 %bits to i32
+  %shr = lshr i32 %conv, %conv1
+  %conv2 = zext i16 %b to i32
+  %sub = sub nsw i32 16, %conv1
+  %shl = shl i32 %conv2, %sub
+  %or = or i32 %shl, %shr
+  %conv4 = trunc i32 %or to i16
+  ret i16 %conv4
+}
+
+define zeroext i16 @shrd16_sh8(i16 zeroext %a, i16 zeroext %b, i8 zeroext %bits) nounwind {
+; CHECK-LABEL: shrd16_sh8:
+; CHECK:       # BB#0:
+; CHECK-NEXT:    shll $16, %edi
+; CHECK-NEXT:    movl %edx, %ecx
+; CHECK-NEXT:    shrdl %cl, %esi, %edi
+; CHECK-NEXT:    shrl $16, %edi
+; CHECK-NEXT:    movl %edi, %eax
+; CHECK-NEXT:    retq
+  %conv = zext i16 %a to i32
+  %conv1 = zext i8 %bits to i32
+  %shr = lshr i32 %conv, %conv1
+  %conv2 = zext i16 %b to i32
+  %sub = sub nsw i32 16, %conv1
+  %shl = shl i32 %conv2, %sub
+  %or = or i32 %shl, %shr
+  %conv4 = trunc i32 %or to i16
+  ret i16 %conv4
+}
+
+define zeroext i8 @shrd8_sh64(i8 zeroext %a, i8 zeroext %b, i64 %bits) nounwind {
+; CHECK-LABEL: shrd8_sh64:
+; CHECK:       # BB#0:
+; CHECK-NEXT:    shll $24, %edi
+; CHECK-NEXT:    movl %edx, %ecx
+; CHECK-NEXT:    shrdl %cl, %esi, %edi
+; CHECK-NEXT:    shrl $24, %edi
+; CHECK-NEXT:    movl %edi, %eax
+; CHECK-NEXT:    retq
+  %conv = zext i8 %a to i32
+  %sh_prom = trunc i64 %bits to i32
+  %shr = lshr i32 %conv, %sh_prom
+  %conv1 = zext i8 %b to i32
+  %sub = sub i64 8, %bits
+  %sh_prom2 = trunc i64 %sub to i32
+  %shl = shl i32 %conv1, %sh_prom2
+  %or = or i32 %shl, %shr
+  %conv3 = trunc i32 %or to i8
+  ret i8 %conv3
+}
+
+define zeroext i8 @shrd8_sh32(i8 zeroext %a, i8 zeroext %b, i32 %bits) nounwind {
+; CHECK-LABEL: shrd8_sh32:
+; CHECK:       # BB#0:
+; CHECK-NEXT:    shll $24, %edi
+; CHECK-NEXT:    movl %edx, %ecx
+; CHECK-NEXT:    shrdl %cl, %esi, %edi
+; CHECK-NEXT:    shrl $24, %edi
+; CHECK-NEXT:    movl %edi, %eax
+; CHECK-NEXT:    retq
+  %conv = zext i8 %a to i32
+  %shr = lshr i32 %conv, %bits
+  %conv1 = zext i8 %b to i32
+  %sub = sub i32 8, %bits
+  %shl = shl i32 %conv1, %sub
+  %or = or i32 %shl, %shr
+  %conv3 = trunc i32 %or to i8
+  ret i8 %conv3
+}
+
+define zeroext i8 @shrd8_sh16(i8 zeroext %a, i8 zeroext %b, i16 zeroext %bits) nounwind {
+; CHECK-LABEL: shrd8_sh16:
+; CHECK:       # BB#0:
+; CHECK-NEXT:    shll $24, %edi
+; CHECK-NEXT:    movl %edx, %ecx
+; CHECK-NEXT:    shrdl %cl, %esi, %edi
+; CHECK-NEXT:    shrl $24, %edi
+; CHECK-NEXT:    movl %edi, %eax
+; CHECK-NEXT:    retq
+  %conv = zext i8 %a to i32
+  %conv1 = zext i16 %bits to i32
+  %shr = lshr i32 %conv, %conv1
+  %conv2 = zext i8 %b to i32
+  %sub = sub nsw i32 8, %conv1
+  %shl = shl i32 %conv2, %sub
+  %or = or i32 %shl, %shr
+  %conv4 = trunc i32 %or to i8
+  ret i8 %conv4
+}
+
+define zeroext i8 @shrd8_sh8(i8 zeroext %a, i8 zeroext %b, i8 zeroext %bits) nounwind {
+; CHECK-LABEL: shrd8_sh8:
+; CHECK:       # BB#0:
+; CHECK-NEXT:    shll $24, %edi
+; CHECK-NEXT:    movl %edx, %ecx
+; CHECK-NEXT:    shrdl %cl, %esi, %edi
+; CHECK-NEXT:    shrl $24, %edi
+; CHECK-NEXT:    movl %edi, %eax
+; CHECK-NEXT:    retq
+  %conv = zext i8 %a to i32
+  %conv1 = zext i8 %bits to i32
+  %shr = lshr i32 %conv, %conv1
+  %conv2 = zext i8 %b to i32
+  %sub = sub nsw i32 8, %conv1
+  %shl = shl i32 %conv2, %sub
+  %or = or i32 %shl, %shr
+  %conv4 = trunc i32 %or to i8
+  ret i8 %conv4
+}
+
+;-------------------------------------------------------------------------------------
+; double shift left with xor pattern
+;uint64_t shldx(uint64_t a, uint64_t b, shift_t bits)
+;{
+;  return (a << bits) | ((b >> 1) >> (bits ^ (sizeof(a)*8 - 1)));
+;}
+
+
+define i64 @shld64x_sh64(i64 %a, i64 %b, i64 %bits) nounwind {
+; CHECK-LABEL: shld64x_sh64:
+; CHECK:       # BB#0:
+; CHECK-NEXT:    movl %edx, %ecx
+; CHECK-NEXT:    shldq %cl, %rsi, %rdi
+; CHECK-NEXT:    movq %rdi, %rax
+; CHECK-NEXT:    retq
+  %shl = shl i64 %a, %bits
+  %shr = lshr i64 %b, 1
+  %xor = xor i64 %bits, 63
+  %shr1 = lshr i64 %shr, %xor
+  %or = or i64 %shr1, %shl
+  ret i64 %or
+}
+
+define i64 @shld64x_sh32(i64 %a, i64 %b, i32 %bits) nounwind {
+; CHECK-LABEL: shld64x_sh32:
+; CHECK:       # BB#0:
+; CHECK-NEXT:    movl %edx, %ecx
+; CHECK-NEXT:    shldq %cl, %rsi, %rdi
+; CHECK-NEXT:    movq %rdi, %rax
+; CHECK-NEXT:    retq
+  %sh_prom = zext i32 %bits to i64
+  %shl = shl i64 %a, %sh_prom
+  %shr = lshr i64 %b, 1
+  %xor = xor i64 %sh_prom, 63
+  %shr1 = lshr i64 %shr, %xor
+  %or = or i64 %shr1, %shl
+  ret i64 %or
+}
+
+define i64 @shld64x_sh16(i64 %a, i64 %b, i16 zeroext %bits) nounwind {
+; CHECK-LABEL: shld64x_sh16:
+; CHECK:       # BB#0:
+; CHECK-NEXT:    movl %edx, %ecx
+; CHECK-NEXT:    shldq %cl, %rsi, %rdi
+; CHECK-NEXT:    movq %rdi, %rax
+; CHECK-NEXT:    retq
+  %sh_prom = zext i16 %bits to i64
+  %shl = shl i64 %a, %sh_prom
+  %shr = lshr i64 %b, 1
+  %xor0 = xor i16 %bits, 63
+  %xor = zext i16 %xor0 to i64
+  %shr2 = lshr i64 %shr, %xor
+  %or = or i64 %shr2, %shl
+  ret i64 %or
+}
+
+define i64 @shld64x_sh8(i64 %a, i64 %b, i8 zeroext %bits) nounwind {
+; CHECK-LABEL: shld64x_sh8:
+; CHECK:       # BB#0:
+; CHECK-NEXT:    movl %edx, %ecx
+; CHECK-NEXT:    shldq %cl, %rsi, %rdi
+; CHECK-NEXT:    movq %rdi, %rax
+; CHECK-NEXT:    retq
+  %sh_prom = zext i8 %bits to i64
+  %shl = shl i64 %a, %sh_prom
+  %shr = lshr i64 %b, 1
+  %xor0 = xor i8 %bits, 63
+  %xor = zext i8 %xor0 to i64
+  %shr2 = lshr i64 %shr, %xor
+  %or = or i64 %shr2, %shl
+  ret i64 %or
+}
+
+define i32 @shld32x_sh64(i32 %a, i32 %b, i64 %bits) nounwind {
+; CHECK-LABEL: shld32x_sh64:
+; CHECK:       # BB#0:
+; CHECK-NEXT:    movl %edx, %ecx
+; CHECK-NEXT:    shldl %cl, %esi, %edi
+; CHECK-NEXT:    movl %edi, %eax
+; CHECK-NEXT:    retq
+  %sh_prom = trunc i64 %bits to i32
+  %shl = shl i32 %a, %sh_prom
+  %shr = lshr i32 %b, 1
+  %sh_prom1 = xor i32 %sh_prom, 31
+  %shr2 = lshr i32 %shr, %sh_prom1
+  %or = or i32 %shr2, %shl
+  ret i32 %or
+}
+
+define i32 @shld32x_sh32(i32 %a, i32 %b, i32 %bits) nounwind {
+; CHECK-LABEL: shld32x_sh32:
+; CHECK:       # BB#0:
+; CHECK-NEXT:    movl %edx, %ecx
+; CHECK-NEXT:    shldl %cl, %esi, %edi
+; CHECK-NEXT:    movl %edi, %eax
+; CHECK-NEXT:    retq
+  %shl = shl i32 %a, %bits
+  %shr = lshr i32 %b, 1
+  %xor0 = xor i32 %bits, 31
+  %shr1 = lshr i32 %shr, %xor0
+  %or = or i32 %shr1, %shl
+  ret i32 %or
+}
+
+define i32 @shld32x_sh16(i32 %a, i32 %b, i16 zeroext %bits) nounwind {
+; CHECK-LABEL: shld32x_sh16:
+; CHECK:       # BB#0:
+; CHECK-NEXT:    movl %edx, %ecx
+; CHECK-NEXT:    shldl %cl, %esi, %edi
+; CHECK-NEXT:    movl %edi, %eax
+; CHECK-NEXT:    retq
+  %conv = zext i16 %bits to i32
+  %shl = shl i32 %a, %conv
+  %shr = lshr i32 %b, 1
+  %xor0 = xor i16 %bits, 31
+  %sh_prom = zext i16 %xor0 to i32
+  %shr2 = lshr i32 %shr, %sh_prom
+  %or = or i32 %shr2, %shl
+  ret i32 %or
+}
+
+define i32 @shld32x_sh8(i32 %a, i32 %b, i8 zeroext %bits) nounwind {
+; CHECK-LABEL: shld32x_sh8:
+; CHECK:       # BB#0:
+; CHECK-NEXT:    movl %edx, %ecx
+; CHECK-NEXT:    shldl %cl, %esi, %edi
+; CHECK-NEXT:    movl %edi, %eax
+; CHECK-NEXT:    retq
+  %conv = zext i8 %bits to i32
+  %shl = shl i32 %a, %conv
+  %shr = lshr i32 %b, 1
+  %xor0 = xor i8 %bits, 31
+  %sh_prom = zext i8 %xor0 to i32
+  %shr2 = lshr i32 %shr, %sh_prom
+  %or = or i32 %shr2, %shl
+  ret i32 %or
+}
+
+define zeroext i16 @shld16x_sh64(i16 zeroext %a, i16 zeroext %b, i64 %bits) nounwind {
+; CHECK-LABEL: shld16x_sh64:
+; CHECK:       # BB#0:
+; CHECK-NEXT:    shll $16, %esi
+; CHECK-NEXT:    movl %edx, %ecx
+; CHECK-NEXT:    shldl %cl, %esi, %edi
+; CHECK-NEXT:    movl %edi, %eax
+; CHECK-NEXT:    retq
+  %conv = zext i16 %a to i32
+  %sh_prom = trunc i64 %bits to i32
+  %shl = shl i32 %conv, %sh_prom
+  %conv1 = zext i16 %b to i32
+  %lshr0 = lshr i32 %conv1, 1
+  %sh_prom2 = xor i32 %sh_prom, 15
+  %shr3 = lshr i32 %lshr0, %sh_prom2
+  %or = or i32 %shr3, %shl
+  %conv4 = trunc i32 %or to i16
+  ret i16 %conv4
+}
+
+define zeroext i16 @shld16x_sh32(i16 zeroext %a, i16 zeroext %b, i32 %bits) nounwind {
+; CHECK-LABEL: shld16x_sh32:
+; CHECK:       # BB#0:
+; CHECK-NEXT:    shll $16, %esi
+; CHECK-NEXT:    movl %edx, %ecx
+; CHECK-NEXT:    shldl %cl, %esi, %edi
+; CHECK-NEXT:    movl %edi, %eax
+; CHECK-NEXT:    retq
+  %conv = zext i16 %a to i32
+  %shl = shl i32 %conv, %bits
+  %conv1 = zext i16 %b to i32
+  %lshr0 = lshr i32 %conv1, 1
+  %xor1 = xor i32 %bits, 15
+  %shr3 = lshr i32 %lshr0, %xor1
+  %or = or i32 %shr3, %shl
+  %conv4 = trunc i32 %or to i16
+  ret i16 %conv4
+}
+
+define zeroext i16 @shld16x_sh16(i16 zeroext %a, i16 zeroext %b, i16 zeroext %bits) nounwind {
+; CHECK-LABEL: shld16x_sh16:
+; CHECK:       # BB#0:
+; CHECK-NEXT:    shll $16, %esi
+; CHECK-NEXT:    movl %edx, %ecx
+; CHECK-NEXT:    shldl %cl, %esi, %edi
+; CHECK-NEXT:    movl %edi, %eax
+; CHECK-NEXT:    retq
+  %conv = zext i16 %a to i32
+  %conv1 = zext i16 %bits to i32
+  %shl = shl i32 %conv, %conv1
+  %conv2 = zext i16 %b to i32
+  %lshr0 = lshr i32 %conv2, 1
+  %xor1 = xor i16 %bits, 15
+  %sh_prom = zext i16 %xor1 to i32
+  %shr4 = lshr i32 %lshr0, %sh_prom
+  %or = or i32 %shr4, %shl
+  %conv5 = trunc i32 %or to i16
+  ret i16 %conv5
+}
+
+define zeroext i16 @shld16x_sh8(i16 zeroext %a, i16 zeroext %b, i8 zeroext %bits) nounwind {
+; CHECK-LABEL: shld16x_sh8:
+; CHECK:       # BB#0:
+; CHECK-NEXT:    shll $16, %esi
+; CHECK-NEXT:    movl %edx, %ecx
+; CHECK-NEXT:    shldl %cl, %esi, %edi
+; CHECK-NEXT:    movl %edi, %eax
+; CHECK-NEXT:    retq
+  %conv = zext i16 %a to i32
+  %conv1 = zext i8 %bits to i32
+  %shl = shl i32 %conv, %conv1
+  %conv2 = zext i16 %b to i32
+  %lshr0 = lshr i32 %conv2, 1
+  %xor1 = xor i8 %bits, 15
+  %sh_prom = zext i8 %xor1 to i32
+  %shr4 = lshr i32 %lshr0, %sh_prom
+  %or = or i32 %shr4, %shl
+  %conv5 = trunc i32 %or to i16
+  ret i16 %conv5
+}
+
+define zeroext i8 @shld8x_sh64(i8 zeroext %a, i8 zeroext %b, i64 %bits) nounwind {
+; CHECK-LABEL: shld8x_sh64:
+; CHECK:       # BB#0:
+; CHECK-NEXT:    shll $24, %esi
+; CHECK-NEXT:    movl %edx, %ecx
+; CHECK-NEXT:    shldl %cl, %esi, %edi
+; CHECK-NEXT:    movl %edi, %eax
+; CHECK-NEXT:    retq
+  %conv = zext i8 %a to i32
+  %sh_prom = trunc i64 %bits to i32
+  %shl = shl i32 %conv, %sh_prom
+  %conv1 = zext i8 %b to i32
+  %lshr0 = lshr i32 %conv1, 1
+  %sh_prom2 = xor i32 %sh_prom, 7
+  %shr3 = lshr i32 %lshr0, %sh_prom2
+  %or = or i32 %shr3, %shl
+  %conv4 = trunc i32 %or to i8
+  ret i8 %conv4
+}
+
+define zeroext i8 @shld8x_sh32(i8 zeroext %a, i8 zeroext %b, i32 %bits) nounwind {
+; CHECK-LABEL: shld8x_sh32:
+; CHECK:       # BB#0:
+; CHECK-NEXT:    shll $24, %esi
+; CHECK-NEXT:    movl %edx, %ecx
+; CHECK-NEXT:    shldl %cl, %esi, %edi
+; CHECK-NEXT:    movl %edi, %eax
+; CHECK-NEXT:    retq
+  %conv = zext i8 %a to i32
+  %shl = shl i32 %conv, %bits
+  %conv1 = zext i8 %b to i32
+  %lshr0 = lshr i32 %conv1, 1
+  %xor1 = xor i32 %bits, 7
+  %shr3 = lshr i32 %lshr0, %xor1
+  %or = or i32 %shr3, %shl
+  %conv4 = trunc i32 %or to i8
+  ret i8 %conv4
+}
+
+define zeroext i8 @shld8x_sh16(i8 zeroext %a, i8 zeroext %b, i16 zeroext %bits) nounwind {
+; CHECK-LABEL: shld8x_sh16:
+; CHECK:       # BB#0:
+; CHECK-NEXT:    shll $24, %esi
+; CHECK-NEXT:    movl %edx, %ecx
+; CHECK-NEXT:    shldl %cl, %esi, %edi
+; CHECK-NEXT:    movl %edi, %eax
+; CHECK-NEXT:    retq
+  %conv = zext i8 %a to i32
+  %conv1 = zext i16 %bits to i32
+  %shl = shl i32 %conv, %conv1
+  %conv2 = zext i8 %b to i32
+  %lshr0 = lshr i32 %conv2, 1
+  %xor1 = xor i16 %bits, 7
+  %sh_prom = zext i16 %xor1 to i32
+  %shr4 = lshr i32 %lshr0, %sh_prom
+  %or = or i32 %shr4, %shl
+  %conv5 = trunc i32 %or to i8
+  ret i8 %conv5
+}
+
+define zeroext i8 @shld8x_sh8(i8 zeroext %a, i8 zeroext %b, i8 zeroext %bits) nounwind {
+; CHECK-LABEL: shld8x_sh8:
+; CHECK:       # BB#0:
+; CHECK-NEXT:    shll $24, %esi
+; CHECK-NEXT:    movl %edx, %ecx
+; CHECK-NEXT:    shldl %cl, %esi, %edi
+; CHECK-NEXT:    movl %edi, %eax
+; CHECK-NEXT:    retq
+  %conv = zext i8 %a to i32
+  %conv1 = zext i8 %bits to i32
+  %shl = shl i32 %conv, %conv1
+  %conv2 = zext i8 %b to i32
+  %lshr0 = lshr i32 %conv2, 1
+  %xor1 = xor i8 %bits, 7
+  %sh_prom = zext i8 %xor1 to i32
+  %shr4 = lshr i32 %lshr0, %sh_prom
+  %or = or i32 %shr4, %shl
+  %conv5 = trunc i32 %or to i8
+  ret i8 %conv5
+}
+
+;-------------------------------------------------------------------------------------
+; double shift right with xor pattern
+;uint64_t shrdx(uint64_t a, uint64_t b, shift_t bits)
+;{
+;  return (a >> bits) | ((b << 1) << (bits ^ (sizeof(a)*8 - 1)));
+;}
+
+define i64 @shrd64x_sh64(i64 %a, i64 %b, i64 %bits) nounwind {
+; CHECK-LABEL: shrd64x_sh64:
+; CHECK:       # BB#0:
+; CHECK-NEXT:    movl %edx, %ecx
+; CHECK-NEXT:    shrdq %cl, %rsi, %rdi
+; CHECK-NEXT:    movq %rdi, %rax
+; CHECK-NEXT:    retq
+  %shr = lshr i64 %a, %bits
+  %shl = shl i64 %b, 1
+  %xor = xor i64 %bits, 63
+  %shl1 = shl i64 %shl, %xor
+  %or = or i64 %shl1, %shr
+  ret i64 %or
+}
+
+define i64 @shrd64x_sh32(i64 %a, i64 %b, i32 %bits) nounwind {
+; CHECK-LABEL: shrd64x_sh32:
+; CHECK:       # BB#0:
+; CHECK-NEXT:    movl %edx, %ecx
+; CHECK-NEXT:    shrdq %cl, %rsi, %rdi
+; CHECK-NEXT:    movq %rdi, %rax
+; CHECK-NEXT:    retq
+  %sh_prom = zext i32 %bits to i64
+  %shr = lshr i64 %a, %sh_prom
+  %shl = shl i64 %b, 1
+  %xor = xor i64 %sh_prom, 63
+  %shl1 = shl i64 %shl, %xor
+  %or = or i64 %shl1, %shr
+  ret i64 %or
+}
+
+define i64 @shrd64x_sh16(i64 %a, i64 %b, i16 zeroext %bits) nounwind {
+; CHECK-LABEL: shrd64x_sh16:
+; CHECK:       # BB#0:
+; CHECK-NEXT:    movl %edx, %ecx
+; CHECK-NEXT:    shrdq %cl, %rsi, %rdi
+; CHECK-NEXT:    movq %rdi, %rax
+; CHECK-NEXT:    retq
+  %sh_prom = zext i16 %bits to i64
+  %shr = lshr i64 %a, %sh_prom
+  %shl = shl i64 %b, 1
+  %xor0 = xor i16 %bits, 63
+  %xor = zext i16 %xor0 to i64
+  %shl2 = shl i64 %shl, %xor
+  %or = or i64 %shl2, %shr
+  ret i64 %or
+}
+
+define i64 @shrd64x_sh8(i64 %a, i64 %b, i8 zeroext %bits) nounwind {
+; CHECK-LABEL: shrd64x_sh8:
+; CHECK:       # BB#0:
+; CHECK-NEXT:    movl %edx, %ecx
+; CHECK-NEXT:    shrdq %cl, %rsi, %rdi
+; CHECK-NEXT:    movq %rdi, %rax
+; CHECK-NEXT:    retq
+  %sh_prom = zext i8 %bits to i64
+  %shr = lshr i64 %a, %sh_prom
+  %shl = shl i64 %b, 1
+  %xor0 = xor i8 %bits, 63
+  %xor = zext i8 %xor0 to i64
+  %shl2 = shl i64 %shl, %xor
+  %or = or i64 %shl2, %shr
+  ret i64 %or
+}
+
+define i32 @shrd32x_sh64(i32 %a, i32 %b, i64 %bits) nounwind {
+; CHECK-LABEL: shrd32x_sh64:
+; CHECK:       # BB#0:
+; CHECK-NEXT:    movl %edx, %ecx
+; CHECK-NEXT:    shrdl %cl, %esi, %edi
+; CHECK-NEXT:    movl %edi, %eax
+; CHECK-NEXT:    retq
+  %sh_prom = trunc i64 %bits to i32
+  %shr = lshr i32 %a, %sh_prom
+  %shl = shl i32 %b, 1
+  %sh_prom1 = xor i32 %sh_prom, 31
+  %shl2 = shl i32 %shl, %sh_prom1
+  %or = or i32 %shl2, %shr
+  ret i32 %or
+}
+
+define i32 @shrd32x_sh32(i32 %a, i32 %b, i32 %bits) nounwind {
+; CHECK-LABEL: shrd32x_sh32:
+; CHECK:       # BB#0:
+; CHECK-NEXT:    movl %edx, %ecx
+; CHECK-NEXT:    shrdl %cl, %esi, %edi
+; CHECK-NEXT:    movl %edi, %eax
+; CHECK-NEXT:    retq
+  %shr = lshr i32 %a, %bits
+  %shl = shl i32 %b, 1
+  %xor0 = xor i32 %bits, 31
+  %shl1 = shl i32 %shl, %xor0
+  %or = or i32 %shl1, %shr
+  ret i32 %or
+}
+
+define i32 @shrd32x_sh16(i32 %a, i32 %b, i16 zeroext %bits) nounwind {
+; CHECK-LABEL: shrd32x_sh16:
+; CHECK:       # BB#0:
+; CHECK-NEXT:    movl %edx, %ecx
+; CHECK-NEXT:    shrdl %cl, %esi, %edi
+; CHECK-NEXT:    movl %edi, %eax
+; CHECK-NEXT:    retq
+  %conv = zext i16 %bits to i32
+  %shr = lshr i32 %a, %conv
+  %shl = shl i32 %b, 1
+  %xor0 = xor i16 %bits, 31
+  %sh_prom = zext i16 %xor0 to i32
+  %shl2 = shl i32 %shl, %sh_prom
+  %or = or i32 %shl2, %shr
+  ret i32 %or
+}
+
+define i32 @shrd32x_sh8(i32 %a, i32 %b, i8 zeroext %bits) nounwind {
+; CHECK-LABEL: shrd32x_sh8:
+; CHECK:       # BB#0:
+; CHECK-NEXT:    movl %edx, %ecx
+; CHECK-NEXT:    shrdl %cl, %esi, %edi
+; CHECK-NEXT:    movl %edi, %eax
+; CHECK-NEXT:    retq
+  %conv = zext i8 %bits to i32
+  %shr = lshr i32 %a, %conv
+  %shl = shl i32 %b, 1
+  %xor0 = xor i8 %bits, 31
+  %sh_prom = zext i8 %xor0 to i32
+  %shl2 = shl i32 %shl, %sh_prom
+  %or = or i32 %shl2, %shr
+  ret i32 %or
+}
+
+define zeroext i16 @shrd16x_sh64(i16 zeroext %a, i16 zeroext %b, i64 %bits) nounwind {
+; CHECK-LABEL: shrd16x_sh64:
+; CHECK:       # BB#0:
+; CHECK-NEXT:    shll $16, %edi
+; CHECK-NEXT:    movl %edx, %ecx
+; CHECK-NEXT:    shrdl %cl, %esi, %edi
+; CHECK-NEXT:    shrl $16, %edi
+; CHECK-NEXT:    movl %edi, %eax
+; CHECK-NEXT:    retq
+  %conv = zext i16 %a to i32
+  %sh_prom = trunc i64 %bits to i32
+  %shr = lshr i32 %conv, %sh_prom
+  %conv1 = zext i16 %b to i32
+  %shl = shl nuw nsw i32 %conv1, 1
+  %sh_prom2 = xor i32 %sh_prom, 15
+  %shl3 = shl i32 %shl, %sh_prom2
+  %or = or i32 %shl3, %shr
+  %conv4 = trunc i32 %or to i16
+  ret i16 %conv4
+}
+
+define zeroext i16 @shrd16x_sh32(i16 zeroext %a, i16 zeroext %b, i32 %bits) nounwind {
+; CHECK-LABEL: shrd16x_sh32:
+; CHECK:       # BB#0:
+; CHECK-NEXT:    shll $16, %edi
+; CHECK-NEXT:    movl %edx, %ecx
+; CHECK-NEXT:    shrdl %cl, %esi, %edi
+; CHECK-NEXT:    shrl $16, %edi
+; CHECK-NEXT:    movl %edi, %eax
+; CHECK-NEXT:    retq
+  %conv = zext i16 %a to i32
+  %shr = lshr i32 %conv, %bits
+  %conv1 = zext i16 %b to i32
+  %shl = shl nuw nsw i32 %conv1, 1
+  %xor0 = xor i32 %bits, 15
+  %shl3 = shl i32 %shl, %xor0
+  %or = or i32 %shl3, %shr
+  %conv4 = trunc i32 %or to i16
+  ret i16 %conv4
+}
+
+define zeroext i16 @shrd16x_sh16(i16 zeroext %a, i16 zeroext %b, i16 zeroext %bits) nounwind {
+; CHECK-LABEL: shrd16x_sh16:
+; CHECK:       # BB#0:
+; CHECK-NEXT:    shll $16, %edi
+; CHECK-NEXT:    movl %edx, %ecx
+; CHECK-NEXT:    shrdl %cl, %esi, %edi
+; CHECK-NEXT:    shrl $16, %edi
+; CHECK-NEXT:    movl %edi, %eax
+; CHECK-NEXT:    retq
+  %conv = zext i16 %a to i32
+  %conv1 = zext i16 %bits to i32
+  %shr = lshr i32 %conv, %conv1
+  %conv2 = zext i16 %b to i32
+  %shl = shl nuw nsw i32 %conv2, 1
+  %xor0 = xor i16 %bits, 15
+  %sh_prom = zext i16 %xor0 to i32
+  %shl4 = shl i32 %shl, %sh_prom
+  %or = or i32 %shl4, %shr
+  %conv5 = trunc i32 %or to i16
+  ret i16 %conv5
+}
+
+define zeroext i16 @shrd16x_sh8(i16 zeroext %a, i16 zeroext %b, i8 zeroext %bits) nounwind {
+; CHECK-LABEL: shrd16x_sh8:
+; CHECK:       # BB#0:
+; CHECK-NEXT:    shll $16, %edi
+; CHECK-NEXT:    movl %edx, %ecx
+; CHECK-NEXT:    shrdl %cl, %esi, %edi
+; CHECK-NEXT:    shrl $16, %edi
+; CHECK-NEXT:    movl %edi, %eax
+; CHECK-NEXT:    retq
+  %conv = zext i16 %a to i32
+  %conv1 = zext i8 %bits to i32
+  %shr = lshr i32 %conv, %conv1
+  %conv2 = zext i16 %b to i32
+  %shl = shl nuw nsw i32 %conv2, 1
+  %xor0 = xor i8 %bits, 15
+  %sh_prom = zext i8 %xor0 to i32
+  %shl4 = shl i32 %shl, %sh_prom
+  %or = or i32 %shl4, %shr
+  %conv5 = trunc i32 %or to i16
+  ret i16 %conv5
+}
+
+define zeroext i8 @shrd8x_sh64(i8 zeroext %a, i8 zeroext %b, i64 %bits) nounwind {
+; CHECK-LABEL: shrd8x_sh64:
+; CHECK:       # BB#0:
+; CHECK-NEXT:    shll $24, %edi
+; CHECK-NEXT:    movl %edx, %ecx
+; CHECK-NEXT:    shrdl %cl, %esi, %edi
+; CHECK-NEXT:    shrl $24, %edi
+; CHECK-NEXT:    movl %edi, %eax
+; CHECK-NEXT:    retq
+  %conv = zext i8 %a to i32
+  %sh_prom = trunc i64 %bits to i32
+  %shr = lshr i32 %conv, %sh_prom
+  %conv1 = zext i8 %b to i32
+  %shl = shl nuw nsw i32 %conv1, 1
+  %sh_prom2 = xor i32 %sh_prom, 7
+  %shl3 = shl i32 %shl, %sh_prom2
+  %or = or i32 %shl3, %shr
+  %conv4 = trunc i32 %or to i8
+  ret i8 %conv4
+}
+
+define zeroext i8 @shrd8x_sh32(i8 zeroext %a, i8 zeroext %b, i32 %bits) nounwind {
+; CHECK-LABEL: shrd8x_sh32:
+; CHECK:       # BB#0:
+; CHECK-NEXT:    shll $24, %edi
+; CHECK-NEXT:    movl %edx, %ecx
+; CHECK-NEXT:    shrdl %cl, %esi, %edi
+; CHECK-NEXT:    shrl $24, %edi
+; CHECK-NEXT:    movl %edi, %eax
+; CHECK-NEXT:    retq
+  %conv = zext i8 %a to i32
+  %shr = lshr i32 %conv, %bits
+  %conv1 = zext i8 %b to i32
+  %shl = shl nuw nsw i32 %conv1, 1
+  %xor0 = xor i32 %bits, 7
+  %shl3 = shl i32 %shl, %xor0
+  %or = or i32 %shl3, %shr
+  %conv4 = trunc i32 %or to i8
+  ret i8 %conv4
+}
+
+define zeroext i8 @shrd8x_sh16(i8 zeroext %a, i8 zeroext %b, i16 zeroext %bits) nounwind {
+; CHECK-LABEL: shrd8x_sh16:
+; CHECK:       # BB#0:
+; CHECK-NEXT:    shll $24, %edi
+; CHECK-NEXT:    movl %edx, %ecx
+; CHECK-NEXT:    shrdl %cl, %esi, %edi
+; CHECK-NEXT:    shrl $24, %edi
+; CHECK-NEXT:    movl %edi, %eax
+; CHECK-NEXT:    retq
+  %conv = zext i8 %a to i32
+  %conv1 = zext i16 %bits to i32
+  %shr = lshr i32 %conv, %conv1
+  %conv2 = zext i8 %b to i32
+  %shl = shl nuw nsw i32 %conv2, 1
+  %xor0 = xor i16 %bits, 7
+  %sh_prom = zext i16 %xor0 to i32
+  %shl4 = shl i32 %shl, %sh_prom
+  %or = or i32 %shl4, %shr
+  %conv5 = trunc i32 %or to i8
+  ret i8 %conv5
+}
+
+define zeroext i8 @shrd8x_sh8(i8 zeroext %a, i8 zeroext %b, i8 zeroext %bits) nounwind {
+; CHECK-LABEL: shrd8x_sh8:
+; CHECK:       # BB#0:
+; CHECK-NEXT:    shll $24, %edi
+; CHECK-NEXT:    movl %edx, %ecx
+; CHECK-NEXT:    shrdl %cl, %esi, %edi
+; CHECK-NEXT:    shrl $24, %edi
+; CHECK-NEXT:    movl %edi, %eax
+; CHECK-NEXT:    retq
+  %conv = zext i8 %a to i32
+  %conv1 = zext i8 %bits to i32
+  %shr = lshr i32 %conv, %conv1
+  %conv2 = zext i8 %b to i32
+  %shl = shl nuw nsw i32 %conv2, 1
+  %xor0 = xor i8 %bits, 7
+  %sh_prom = zext i8 %xor0 to i32
+  %shl4 = shl i32 %shl, %sh_prom
+  %or = or i32 %shl4, %shr
+  %conv5 = trunc i32 %or to i8
+  ret i8 %conv5
+}

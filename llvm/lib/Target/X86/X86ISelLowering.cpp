@@ -33199,21 +33199,47 @@ static SDValue combineOr(SDNode *N, SelectionDAG &DAG,
     SDValue Sum = ShAmt1.getOperand(0);
     if (ConstantSDNode *SumC = dyn_cast<ConstantSDNode>(Sum)) {
       SDValue ShAmt1Op1 = ShAmt1.getOperand(1);
-      if (ShAmt1Op1.getOpcode() == ISD::TRUNCATE)
+      if ((ShAmt1Op1.getOpcode() == ISD::TRUNCATE) ||
+          (ShAmt1Op1.getOpcode() == ISD::ANY_EXTEND))
         ShAmt1Op1 = ShAmt1Op1.getOperand(0);
-      if (SumC->getSExtValue() == Bits && ShAmt1Op1 == ShAmt0)
-        return DAG.getNode(Opc, DL, VT,
-                           Op0, Op1,
-                           DAG.getNode(ISD::TRUNCATE, DL,
-                                       MVT::i8, ShAmt0));
+      if (SumC->getSExtValue() == Bits && ShAmt1Op1 == ShAmt0) {
+        return DAG.getNode(Opc, DL, VT, Op0, Op1,
+                           DAG.getNode(ISD::TRUNCATE, DL, MVT::i8, ShAmt0));
+      }
+      if ((Op0.getOpcode() == ISD::AssertZext &&
+           Op1.getOpcode() == ISD::AssertZext) &&
+          ShAmt1Op1 == ShAmt0) {
+        // Op0 is: ZEXT(Y, i16)
+        SDValue Op0Zext = Op0.getOperand(1);
+        VTSDNode *Op0VT = cast<VTSDNode>(Op0Zext);
+        // Op1 is: ZEXT(X, i16)
+        SDValue Op1Zext = Op1.getOperand(1);
+        VTSDNode *Op1VT = cast<VTSDNode>(Op1Zext);
+
+        if (Op0VT && Op1VT && (Op0VT->getVT() == Op1VT->getVT()) &&
+            (Op0VT->getVT() == MVT::i16 || Op0VT->getVT() == MVT::i8)) {
+          unsigned Op0Bits = Op0VT->getVT().getSizeInBits();
+          SDValue ShAmt0Trk = DAG.getNode(ISD::TRUNCATE, DL, MVT::i8, ShAmt0);
+          if (Opc == X86ISD::SHLD) {
+            SDValue Op1ShAmt =
+                DAG.getConstant(VT.getSizeInBits() - Op0Bits, DL, MVT::i8);
+            SDValue Op1Shl = DAG.getNode(ISD::SHL, DL, VT, Op1, Op1ShAmt);
+            return DAG.getNode(Opc, DL, VT, Op0, Op1Shl, ShAmt0Trk);
+          } else {
+            SDValue Op0ShAmt =
+                DAG.getConstant(VT.getSizeInBits() - Op0Bits, DL, MVT::i8);
+            SDValue Op0Shl = DAG.getNode(ISD::SHL, DL, VT, Op0, Op0ShAmt);
+            SDValue Op0Shrd = DAG.getNode(Opc, DL, VT, Op0Shl, Op1, ShAmt0Trk);
+            return DAG.getNode(ISD::SRL, DL, VT, Op0Shrd, Op0ShAmt);
+          }
+        }
+      }
     }
   } else if (ConstantSDNode *ShAmt1C = dyn_cast<ConstantSDNode>(ShAmt1)) {
     ConstantSDNode *ShAmt0C = dyn_cast<ConstantSDNode>(ShAmt0);
     if (ShAmt0C && (ShAmt0C->getSExtValue() + ShAmt1C->getSExtValue()) == Bits)
-      return DAG.getNode(Opc, DL, VT,
-                         N0.getOperand(0), N1.getOperand(0),
-                         DAG.getNode(ISD::TRUNCATE, DL,
-                                       MVT::i8, ShAmt0));
+      return DAG.getNode(Opc, DL, VT, N0.getOperand(0), N1.getOperand(0),
+                         DAG.getNode(ISD::TRUNCATE, DL, MVT::i8, ShAmt0));
   } else if (ShAmt1.getOpcode() == ISD::XOR) {
     SDValue Mask = ShAmt1.getOperand(1);
     if (ConstantSDNode *MaskC = dyn_cast<ConstantSDNode>(Mask)) {
@@ -33232,7 +33258,81 @@ static SDValue combineOr(SDNode *N, SelectionDAG &DAG,
         if (InnerShift == ISD::SHL && Op1.getOpcode() == ISD::ADD &&
             Op1.getOperand(0) == Op1.getOperand(1)) {
           return DAG.getNode(Opc, DL, VT, Op0, Op1.getOperand(0),
-                     DAG.getNode(ISD::TRUNCATE, DL, MVT::i8, ShAmt0));
+                             DAG.getNode(ISD::TRUNCATE, DL, MVT::i8, ShAmt0));
+        }
+      }
+      // Op1 node is either: SHL( ZEXT(Y, i16), 1) or: SRL( ZEXT(Y, i16), 1)
+      SDValue Op1Zext = Op1.getOperand(0);
+      SDValue Op1Const = Op1.getOperand(1);
+      ConstantSDNode *OneConst = dyn_cast<ConstantSDNode>(Op1Const);
+      // ShAmpt1 node can be: XOR( ZEXT(C, i16), MASK) or: XOR( C, MASK)
+      SDValue ShAmt1Zext = ShAmt1.getOperand(0);
+      if (ShAmt1Zext.getOpcode() == ISD::TRUNCATE)
+        ShAmt1Zext = ShAmt1Zext.getOperand(0);
+
+      SDValue ShAmt1Const = ShAmt1.getOperand(1);
+      ConstantSDNode *XorMaskConst = dyn_cast<ConstantSDNode>(ShAmt1Const);
+
+      if ((Op0.getOpcode() == ISD::AssertZext) &&
+          (Op1.getOpcode() == ISD::SHL || Op1.getOpcode() == ISD::SRL) &&
+          XorMaskConst && OneConst && (OneConst->getSExtValue() == 1) &&
+          (Op1Zext.getOpcode() == ISD::AssertZext)) {
+        // Op0 node is: ZEXT( X, i16)
+        SDValue OpXTypeExt =
+            Op0.getOperand(1); //  X operand type before integer promotion
+        VTSDNode *OpXTypeVT = cast<VTSDNode>(OpXTypeExt);
+
+        // ShAmt0 node can be: ZEXT( C, i16) or: CopyFromReg(C)
+        EVT ShAmt0CValueType;
+        SDValue ShAmt0C; //  C (shift amount) operand
+        if (ShAmt0.getOpcode() == ISD::AssertZext) {
+          ShAmt0C = ShAmt0.getOperand(0);
+          SDValue ShAmt0CTypeExt =
+              ShAmt0.getOperand(1); // C operand type before integer promotion
+          VTSDNode *ShAmt0CTypeVT = cast<VTSDNode>(ShAmt0CTypeExt);
+          ShAmt0CValueType = ShAmt0CTypeVT->getVT();
+        } else {
+          ShAmt0C = ShAmt0;
+          ShAmt0CValueType = ShAmt0.getValueType();
+        }
+        // Op1Zext is: ZEXT(Y, i16)
+        SDValue OpYTypeExt =
+            Op1Zext.getOperand(1); // Y operand type before integer promotion
+        VTSDNode *OpYTypeVT = cast<VTSDNode>(OpYTypeExt);
+        // ShAmt1Zext node is: ZEXT( C, i16) or: CopyFromReg(C)
+        EVT ShAmt1CValueType;
+        SDValue ShAmt1C; //  C (shift amount) operand
+        if (ShAmt1Zext.getOpcode() == ISD::AssertZext) {
+          ShAmt1C = ShAmt1Zext.getOperand(0);
+          SDValue ShAmt1CTypeExt = ShAmt1Zext.getOperand(1);
+          VTSDNode *ShAmt1CTypeVT = cast<VTSDNode>(ShAmt1CTypeExt);
+          ShAmt1CValueType = ShAmt1CTypeVT->getVT();
+        } else {
+          ShAmt1C = ShAmt1Zext;
+          ShAmt1CValueType = ShAmt1Zext.getValueType();
+        }
+
+        if (OpXTypeVT && OpYTypeVT &&
+            (OpXTypeVT->getVT() == OpYTypeVT->getVT()) &&
+            (ShAmt0CValueType == ShAmt1CValueType) && (ShAmt0C == ShAmt1C) &&
+            (OpXTypeVT->getVT() == MVT::i16 || OpXTypeVT->getVT() == MVT::i8)) {
+          unsigned OpXBits = OpXTypeVT->getVT().getSizeInBits();
+          if (XorMaskConst->getSExtValue() == (OpXBits - 1)) {
+            SDValue ShAmt0Trk = DAG.getNode(ISD::TRUNCATE, DL, MVT::i8, ShAmt0);
+            if (Opc == X86ISD::SHLD) {
+              SDValue Op1ShAmt =
+                  DAG.getConstant(VT.getSizeInBits() - OpXBits, DL, MVT::i8);
+              SDValue Op1Shl = DAG.getNode(ISD::SHL, DL, VT, Op1Zext, Op1ShAmt);
+              return DAG.getNode(Opc, DL, VT, Op0, Op1Shl, ShAmt0Trk);
+            } else {
+              SDValue Op0ShAmt =
+                  DAG.getConstant(VT.getSizeInBits() - OpXBits, DL, MVT::i8);
+              SDValue Op0Shl = DAG.getNode(ISD::SHL, DL, VT, Op0, Op0ShAmt);
+              SDValue Op0Shrd =
+                  DAG.getNode(Opc, DL, VT, Op0Shl, Op1Zext, ShAmt0Trk);
+              return DAG.getNode(ISD::SRL, DL, VT, Op0Shrd, Op0ShAmt);
+            }
+          }
         }
       }
     }
