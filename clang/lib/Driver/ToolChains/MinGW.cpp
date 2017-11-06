@@ -367,10 +367,6 @@ bool toolchains::MinGW::isPICDefaultForced() const {
   return getArch() == llvm::Triple::x86_64;
 }
 
-bool toolchains::MinGW::UseSEHExceptions() const {
-  return getArch() == llvm::Triple::x86_64;
-}
-
 void toolchains::MinGW::AddCudaIncludeArgs(const ArgList &DriverArgs,
                                            ArgStringList &CC1Args) const {
   CudaInstallation.AddCudaIncludeArgs(DriverArgs, CC1Args);

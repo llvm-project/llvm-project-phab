@@ -899,10 +899,6 @@ public:
     DefineStd(Builder, "WIN64", Opts);
     Builder.defineMacro("__MINGW64__");
     addMinGWDefines(Opts, Builder);
-
-    // GCC defines this macro when it is using __gxx_personality_seh0.
-    if (!Opts.SjLjExceptions)
-      Builder.defineMacro("__SEH__");
   }
 };
 
@@ -925,10 +921,6 @@ public:
     DefineStd(Builder, "unix", Opts);
     if (Opts.CPlusPlus)
       Builder.defineMacro("_GNU_SOURCE");
-
-    // GCC defines this macro when it is using __gxx_personality_seh0.
-    if (!Opts.SjLjExceptions)
-      Builder.defineMacro("__SEH__");
   }
 };
 
