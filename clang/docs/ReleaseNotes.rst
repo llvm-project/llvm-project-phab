@@ -81,6 +81,8 @@ Improvements to Clang's diagnostics
 - ``-Wtautological-constant-compare`` is a new warning that warns on
   tautological comparisons between integer variable of the type ``T`` and the
   largest/smallest possible integer constant of that same type.
+  If the tautologicalness of the comparison is data model dependent, then the
+  ``-Wmaybe-tautological-constant-compare`` (disabled by default) is used.
 
 - For C code, ``-Wsign-compare``, ``-Wsign-conversion``,
   ``-Wtautological-constant-compare`` and
