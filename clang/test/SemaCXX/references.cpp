@@ -1,4 +1,5 @@
 // RUN: %clang_cc1 -fsyntax-only -verify %s
+// RUN: %clang_cc1 -std=c++11 -fsyntax-only -verify %s 
 int g(int);
 
 void f() {
@@ -55,6 +56,13 @@ void test5() {
   //  const double& rcd2 = 2; // rcd2 refers to temporary with value 2.0
   const volatile int cvi = 1;
   const int& r = cvi; // expected-error{{binding value of type 'const volatile int' to reference to type 'const int' drops 'volatile' qualifier}}
+
+#if __cplusplus >= 201103L
+  const int& r2{cvi}; // expected-error{{binding value of type 'const volatile int' to reference to type 'const int' drops 'volatile' qualifier}}
+
+  const int a = 2;
+  int& r3{a}; // expected-error{{binding value of type 'const int' to reference to type 'int' drops 'const'}}
+#endif
 }
 
 // C++ [dcl.init.ref]p3
