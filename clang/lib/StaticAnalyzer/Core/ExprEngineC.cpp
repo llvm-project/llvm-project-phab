@@ -94,9 +94,13 @@ void ExprEngine::VisitBinaryOperator(const BinaryOperator* B,
       SVal Result = evalBinOp(state, Op, LeftV, RightV, B->getType());
       if (!Result.isUnknown()) {
         state = state->BindExpr(B, LCtx, Result);
+        ProgramStateRef state2 =
+            getConstraintManager().evalRangeOp(state, Result);
+        Bldr.generateNode(B, *it, state2 ? state2 : state);
+      } else {
+        Bldr.generateNode(B, *it, state);
       }
 
-      Bldr.generateNode(B, *it, state);
       continue;
     }
 

@@ -142,12 +142,14 @@ public:
   /// Scan all symbols referenced by the constraints. If the symbol is not
   /// alive, remove it.
   virtual ProgramStateRef removeDeadBindings(ProgramStateRef state,
-                                                 SymbolReaper& SymReaper) = 0;
+                                             SymbolReaper &SymReaper) = 0;
 
-  virtual void print(ProgramStateRef state,
-                     raw_ostream &Out,
-                     const char* nl,
+  virtual void print(ProgramStateRef state, raw_ostream &Out, const char *nl,
                      const char *sep) = 0;
+
+  virtual ProgramStateRef evalRangeOp(ProgramStateRef state, SVal V) {
+    return nullptr;
+  }
 
   virtual void EndPath(ProgramStateRef state) {}
 

@@ -23,6 +23,8 @@ namespace ento {
 
 class SimpleConstraintManager : public ConstraintManager {
   SubEngine *SU;
+
+protected:
   SValBuilder &SVB;
 
 public:
