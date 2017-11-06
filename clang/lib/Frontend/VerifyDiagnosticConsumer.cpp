@@ -315,7 +315,7 @@ static bool ParseDirective(StringRef S, ExpectedData *ED, SourceManager &SM,
   bool FoundDirective = false;
   for (ParseHelper PH(S); !PH.Done();) {
     // Search for token: expected
-    if (!PH.Search("expected", true))
+    if (!PH.Search(Diags.getDiagnosticOptions().VerifyPrefix, true))
       break;
     PH.Advance();
 

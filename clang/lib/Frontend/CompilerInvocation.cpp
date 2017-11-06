@@ -1146,7 +1146,17 @@ bool clang::ParseDiagnosticArgs(DiagnosticOptions &Opts, ArgList &Args,
   Opts.ShowSourceRanges = Args.hasArg(OPT_fdiagnostics_print_source_range_info);
   Opts.ShowParseableFixits = Args.hasArg(OPT_fdiagnostics_parseable_fixits);
   Opts.ShowPresumedLoc = !Args.hasArg(OPT_fno_diagnostics_use_presumed_location);
-  Opts.VerifyDiagnostics = Args.hasArg(OPT_verify);
+  Opts.VerifyDiagnostics = Args.hasArg(OPT_verify) || Args.hasArg(OPT_verify_EQ);
+  Opts.VerifyPrefix = Args.getLastArgValue(OPT_verify_EQ, "expected");
+  if (Opts.VerifyPrefix.empty()) {
+    Success = false;
+    Opts.VerifyDiagnostics = false;
+    if (Diags) {
+      Arg *A = Args.getLastArg(OPT_verify_EQ);
+      Diags->Report(diag::err_drv_invalid_value)
+        << A->getAsString(Args) << A->getValue();
+    }
+  }
   DiagnosticLevelMask DiagMask = DiagnosticLevelMask::None;
   Success &= parseDiagnosticLevelMask("-verify-ignore-unexpected=",
     Args.getAllArgValues(OPT_verify_ignore_unexpected_EQ),
