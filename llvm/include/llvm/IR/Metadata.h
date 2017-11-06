@@ -1334,11 +1334,10 @@ class NamedMDNode : public ilist_node<NamedMDNode> {
 
   template<class T1, class T2>
   class op_iterator_impl :
-      public std::iterator<std::bidirectional_iterator_tag, T2> {
+      public std::iterator<std::bidirectional_iterator_tag, T2, int, void, T1> {
     friend class NamedMDNode;
 
-    const NamedMDNode *Node = nullptr;
-    unsigned Idx = 0;
+    const NamedMDNode *Node = nullptr;    unsigned Idx = 0;
 
     op_iterator_impl(const NamedMDNode *N, unsigned i) : Node(N), Idx(i) {}
 
