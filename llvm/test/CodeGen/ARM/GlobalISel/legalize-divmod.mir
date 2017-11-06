@@ -2,10 +2,10 @@
 # RUN: llc -mtriple arm-linux-gnueabi -mattr=-hwdiv-arm -global-isel -run-pass=legalizer %s -o - | FileCheck %s -check-prefixes=CHECK,SOFT,SOFT-AEABI
 # RUN: llc -mtriple arm-linux-gnu -mattr=+hwdiv-arm -global-isel -run-pass=legalizer %s -o - | FileCheck %s  -check-prefixes=CHECK,HWDIV
 # RUN: llc -mtriple arm-linux-gnu -mattr=-hwdiv-arm -global-isel -run-pass=legalizer %s -o - | FileCheck %s  -check-prefixes=CHECK,SOFT,SOFT-DEFAULT
-# RUN: llc -mtriple thumbv7-linux-gnueabi -mattr=+hwdiv-arm -global-isel -run-pass=legalizer %s -o - | FileCheck %s -check-prefixes=CHECK,HWDIV
-# RUN: llc -mtriple thumbv7-linux-gnueabi -mattr=-hwdiv-arm -global-isel -run-pass=legalizer %s -o - | FileCheck %s -check-prefixes=CHECK,SOFT,SOFT-AEABI
-# RUN: llc -mtriple thumbv7-linux-gnu -mattr=+hwdiv-arm -global-isel -run-pass=legalizer %s -o - | FileCheck %s  -check-prefixes=CHECK,HWDIV
-# RUN: llc -mtriple thumbv7-linux-gnu -mattr=-hwdiv-arm -global-isel -run-pass=legalizer %s -o - | FileCheck %s  -check-prefixes=CHECK,SOFT,SOFT-DEFAULT
+# RUN: llc -mtriple thumbv7-linux-gnueabi -mattr=+hwdiv -global-isel -run-pass=legalizer %s -o - | FileCheck %s -check-prefixes=CHECK,HWDIV
+# RUN: llc -mtriple thumbv7-linux-gnueabi -mattr=-hwdiv -global-isel -run-pass=legalizer %s -o - | FileCheck %s -check-prefixes=CHECK,SOFT,SOFT-AEABI
+# RUN: llc -mtriple thumbv7-linux-gnu -mattr=+hwdiv -global-isel -run-pass=legalizer %s -o - | FileCheck %s  -check-prefixes=CHECK,HWDIV
+# RUN: llc -mtriple thumbv7-linux-gnu -mattr=-hwdiv -global-isel -run-pass=legalizer %s -o - | FileCheck %s  -check-prefixes=CHECK,SOFT,SOFT-DEFAULT
 --- |
   define void @test_sdiv_i32() { ret void }
   define void @test_udiv_i32() { ret void }

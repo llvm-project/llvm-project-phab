@@ -57,7 +57,7 @@ ARMLegalizerInfo::ARMLegalizerInfo(const ARMSubtarget &ST) {
   for (unsigned Op : {G_SDIV, G_UDIV}) {
     for (auto Ty : {s8, s16})
       setAction({Op, Ty}, WidenScalar);
-    if (ST.hasDivideInARMMode())
+    if (ST.hasDivideInARMMode() || ST.hasDivideInThumbMode())
       setAction({Op, s32}, Legal);
     else
       setAction({Op, s32}, Libcall);
@@ -66,7 +66,7 @@ ARMLegalizerInfo::ARMLegalizerInfo(const ARMSubtarget &ST) {
   for (unsigned Op : {G_SREM, G_UREM}) {
     for (auto Ty : {s8, s16})
       setAction({Op, Ty}, WidenScalar);
-    if (ST.hasDivideInARMMode())
+    if (ST.hasDivideInARMMode() || ST.hasDivideInThumbMode())
       setAction({Op, s32}, Lower);
     else if (AEABI(ST))
       setAction({Op, s32}, Custom);
