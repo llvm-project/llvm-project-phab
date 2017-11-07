@@ -183,6 +183,10 @@ public:
   virtual void emitLinkerFlagsForGlobal(raw_ostream &OS,
                                         const GlobalValue *GV) const {}
 
+  virtual MCSymbol *getGlobalOffsetTableSymbol() const {
+    return nullptr;
+  }
+
 protected:
   virtual MCSection *SelectSectionForGlobal(const GlobalObject *GO,
                                             SectionKind Kind,
