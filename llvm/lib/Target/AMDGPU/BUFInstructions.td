@@ -671,6 +671,61 @@ defm BUFFER_STORE_FORMAT_XYZ : MUBUF_Pseudo_Stores <
 defm BUFFER_STORE_FORMAT_XYZW : MUBUF_Pseudo_Stores <
   "buffer_store_format_xyzw", VReg_128
 >;
+
+let SubtargetPredicate = HasUnpackedD16VMem in {
+defm BUFFER_LOAD_FORMAT_D16_X_gfx80 : MUBUF_Pseudo_Loads <
+  "buffer_load_format_d16_x", VGPR_32
+>;
+defm BUFFER_LOAD_FORMAT_D16_XY_gfx80 : MUBUF_Pseudo_Loads <
+  "buffer_load_format_d16_xy", VReg_64
+>;
+defm BUFFER_LOAD_FORMAT_D16_XYZ_gfx80 : MUBUF_Pseudo_Loads <
+  "buffer_load_format_d16_xyz", VReg_96
+>;
+defm BUFFER_LOAD_FORMAT_D16_XYZW_gfx80 : MUBUF_Pseudo_Loads <
+  "buffer_load_format_d16_xyzw", VReg_128
+>;
+defm BUFFER_STORE_FORMAT_D16_X_gfx80 : MUBUF_Pseudo_Stores <
+  "buffer_store_format_d16_x", VGPR_32
+>;
+defm BUFFER_STORE_FORMAT_D16_XY_gfx80 : MUBUF_Pseudo_Stores <
+  "buffer_store_format_d16_xy", VReg_64
+>;
+defm BUFFER_STORE_FORMAT_D16_XYZ_gfx80 : MUBUF_Pseudo_Stores <
+  "buffer_store_format_d15_xyz", VReg_96
+>;
+defm BUFFER_STORE_FORMAT_D16_XYZW_gfx80 : MUBUF_Pseudo_Stores <
+  "buffer_store_format_d16_xyzw", VReg_128
+>;
+} // End HasUnpackedD16VMem.
+
+let SubtargetPredicate = HasPackedD16VMem in {
+defm BUFFER_LOAD_FORMAT_D16_X : MUBUF_Pseudo_Loads <
+  "buffer_load_format_d16_x", VGPR_32
+>;
+defm BUFFER_LOAD_FORMAT_D16_XY : MUBUF_Pseudo_Loads <
+  "buffer_load_format_d16_xy", VGPR_32
+>;
+defm BUFFER_LOAD_FORMAT_D16_XYZ : MUBUF_Pseudo_Loads <
+  "buffer_load_format_d16_xyz", VReg_64
+>;
+defm BUFFER_LOAD_FORMAT_D16_XYZW : MUBUF_Pseudo_Loads <
+  "buffer_load_format_d16_xyzw", VReg_64
+>;
+defm BUFFER_STORE_FORMAT_D16_X : MUBUF_Pseudo_Stores <
+  "buffer_store_format_d16_x", VGPR_32
+>;
+defm BUFFER_STORE_FORMAT_D16_XY : MUBUF_Pseudo_Stores <
+  "buffer_store_format_d16_xy", VGPR_32
+>;
+defm BUFFER_STORE_FORMAT_D16_XYZ : MUBUF_Pseudo_Stores <
+  "buffer_store_format_d15_xyz", VReg_64
+>;
+defm BUFFER_STORE_FORMAT_D16_XYZW : MUBUF_Pseudo_Stores <
+  "buffer_store_format_d16_xyzw", VReg_64
+>;
+} // End HasPackedD16VMem.
+
 defm BUFFER_LOAD_UBYTE : MUBUF_Pseudo_Loads <
   "buffer_load_ubyte", VGPR_32, i32, mubuf_az_extloadi8
 >;
@@ -860,6 +915,29 @@ defm TBUFFER_STORE_FORMAT_XY   : MTBUF_Pseudo_Stores <"tbuffer_store_format_xy",
 defm TBUFFER_STORE_FORMAT_XYZ  : MTBUF_Pseudo_Stores <"tbuffer_store_format_xyz",  VReg_128>;
 defm TBUFFER_STORE_FORMAT_XYZW : MTBUF_Pseudo_Stores <"tbuffer_store_format_xyzw", VReg_128>;
 
+let SubtargetPredicate = HasUnpackedD16VMem in {
+defm TBUFFER_LOAD_FORMAT_D16_X_gfx80     : MTBUF_Pseudo_Loads  <"tbuffer_load_format_d16_x",     VGPR_32>;
+defm TBUFFER_LOAD_FORMAT_D16_XY_gfx80    : MTBUF_Pseudo_Loads  <"tbuffer_load_format_d16_xy",    VReg_64>;
+defm TBUFFER_LOAD_FORMAT_D16_XYZ_gfx80   : MTBUF_Pseudo_Loads  <"tbuffer_load_format_d16_xyz",   VReg_128>;
+defm TBUFFER_LOAD_FORMAT_D16_XYZW_gfx80  : MTBUF_Pseudo_Loads  <"tbuffer_load_format_d16_xyzw",  VReg_128>;
+defm TBUFFER_STORE_FORMAT_D16_X_gfx80    : MTBUF_Pseudo_Stores <"tbuffer_store_format_d16_x",    VGPR_32>;
+defm TBUFFER_STORE_FORMAT_D16_XY_gfx80   : MTBUF_Pseudo_Stores <"tbuffer_store_format_d16_xy",   VReg_64>;
+defm TBUFFER_STORE_FORMAT_D16_XYZ_gfx80  : MTBUF_Pseudo_Stores <"tbuffer_store_format_d16_xyz",  VReg_128>;
+defm TBUFFER_STORE_FORMAT_D16_XYZW_gfx80 : MTBUF_Pseudo_Stores <"tbuffer_store_format_d16_xyzw", VReg_128>;
+} // End HasUnpackedD16VMem.
+
+let SubtargetPredicate = HasPackedD16VMem in {
+defm TBUFFER_LOAD_FORMAT_D16_X     : MTBUF_Pseudo_Loads  <"tbuffer_load_format_d16_x",     VGPR_32>;
+defm TBUFFER_LOAD_FORMAT_D16_XY    : MTBUF_Pseudo_Loads  <"tbuffer_load_format_d16_xy",    VGPR_32>;
+defm TBUFFER_LOAD_FORMAT_D16_XYZ   : MTBUF_Pseudo_Loads  <"tbuffer_load_format_d16_xyz",   VReg_64>;
+defm TBUFFER_LOAD_FORMAT_D16_XYZW  : MTBUF_Pseudo_Loads  <"tbuffer_load_format_d16_xyzw",  VReg_64>;
+defm TBUFFER_STORE_FORMAT_D16_X    : MTBUF_Pseudo_Stores <"tbuffer_store_format_d16_x",    VGPR_32>;
+defm TBUFFER_STORE_FORMAT_D16_XY   : MTBUF_Pseudo_Stores <"tbuffer_store_format_d16_xy",   VGPR_32>;
+defm TBUFFER_STORE_FORMAT_D16_XYZ  : MTBUF_Pseudo_Stores <"tbuffer_store_format_d16_xyz",  VReg_64>;
+defm TBUFFER_STORE_FORMAT_D16_XYZW : MTBUF_Pseudo_Stores <"tbuffer_store_format_d16_xyzw", VReg_64>;
+} // End HasPackedD16VMem.
+
+
 let SubtargetPredicate = isCIVI in {
 
 //===----------------------------------------------------------------------===//
@@ -929,6 +1007,20 @@ multiclass MUBUF_LoadIntrinsicPat<SDPatternOperator name, ValueType vt,
 defm : MUBUF_LoadIntrinsicPat<SIbuffer_load_format, f32, "BUFFER_LOAD_FORMAT_X">;
 defm : MUBUF_LoadIntrinsicPat<SIbuffer_load_format, v2f32, "BUFFER_LOAD_FORMAT_XY">;
 defm : MUBUF_LoadIntrinsicPat<SIbuffer_load_format, v4f32, "BUFFER_LOAD_FORMAT_XYZW">;
+
+let SubtargetPredicate = HasUnpackedD16VMem in {
+defm : MUBUF_LoadIntrinsicPat<SIbuffer_load_format, f16, "BUFFER_LOAD_FORMAT_D16_X_gfx80">;
+defm : MUBUF_LoadIntrinsicPat<SIbuffer_load_format_d16, v2i32, "BUFFER_LOAD_FORMAT_D16_XY_gfx80">;
+defm : MUBUF_LoadIntrinsicPat<SIbuffer_load_format_d16, v4i32, "BUFFER_LOAD_FORMAT_D16_XYZW_gfx80">;
+} // End HasUnpackedD16VMem.
+
+let SubtargetPredicate = HasPackedD16VMem in {
+defm : MUBUF_LoadIntrinsicPat<SIbuffer_load_format, f16, "BUFFER_LOAD_FORMAT_D16_X">;
+defm : MUBUF_LoadIntrinsicPat<SIbuffer_load_format, v2f16, "BUFFER_LOAD_FORMAT_D16_XY">;
+defm : MUBUF_LoadIntrinsicPat<SIbuffer_load_format_d16, i32, "BUFFER_LOAD_FORMAT_D16_XY">;
+defm : MUBUF_LoadIntrinsicPat<SIbuffer_load_format_d16, v2i32, "BUFFER_LOAD_FORMAT_D16_XYZW">;
+} // End HasPackedD16VMem.
+
 defm : MUBUF_LoadIntrinsicPat<SIbuffer_load, f32, "BUFFER_LOAD_DWORD">;
 defm : MUBUF_LoadIntrinsicPat<SIbuffer_load, v2f32, "BUFFER_LOAD_DWORDX2">;
 defm : MUBUF_LoadIntrinsicPat<SIbuffer_load, v4f32, "BUFFER_LOAD_DWORDX4">;
@@ -973,9 +1065,23 @@ multiclass MUBUF_StoreIntrinsicPat<SDPatternOperator name, ValueType vt,
   >;
 }
 
-defm : MUBUF_StoreIntrinsicPat<int_amdgcn_buffer_store_format, f32, "BUFFER_STORE_FORMAT_X">;
-defm : MUBUF_StoreIntrinsicPat<int_amdgcn_buffer_store_format, v2f32, "BUFFER_STORE_FORMAT_XY">;
-defm : MUBUF_StoreIntrinsicPat<int_amdgcn_buffer_store_format, v4f32, "BUFFER_STORE_FORMAT_XYZW">;
+defm : MUBUF_StoreIntrinsicPat<SIbuffer_store_format, f32, "BUFFER_STORE_FORMAT_X">;
+defm : MUBUF_StoreIntrinsicPat<SIbuffer_store_format, v2f32, "BUFFER_STORE_FORMAT_XY">;
+defm : MUBUF_StoreIntrinsicPat<SIbuffer_store_format, v4f32, "BUFFER_STORE_FORMAT_XYZW">;
+
+let SubtargetPredicate = HasUnpackedD16VMem in {
+defm : MUBUF_StoreIntrinsicPat<SIbuffer_store_format_d16, f16, "BUFFER_STORE_FORMAT_D16_X_gfx80">;
+defm : MUBUF_StoreIntrinsicPat<SIbuffer_store_format_d16, v2i32, "BUFFER_STORE_FORMAT_D16_XY_gfx80">;
+defm : MUBUF_StoreIntrinsicPat<SIbuffer_store_format_d16, v4i32, "BUFFER_STORE_FORMAT_D16_XYZW_gfx80">;
+} // End HasUnpackedD16VMem.
+
+let SubtargetPredicate = HasPackedD16VMem in {
+defm : MUBUF_StoreIntrinsicPat<SIbuffer_store_format_d16, f16, "BUFFER_STORE_FORMAT_D16_X">;
+defm : MUBUF_StoreIntrinsicPat<SIbuffer_store_format_d16, v2f16, "BUFFER_STORE_FORMAT_D16_XY">;
+defm : MUBUF_StoreIntrinsicPat<SIbuffer_store_format_d16, i32, "BUFFER_STORE_FORMAT_D16_XY">;
+defm : MUBUF_StoreIntrinsicPat<SIbuffer_store_format_d16, v2i32, "BUFFER_STORE_FORMAT_D16_XYZW">;
+} // End HasPackedD16VMem.
+
 defm : MUBUF_StoreIntrinsicPat<int_amdgcn_buffer_store, f32, "BUFFER_STORE_DWORD">;
 defm : MUBUF_StoreIntrinsicPat<int_amdgcn_buffer_store, v2f32, "BUFFER_STORE_DWORDX2">;
 defm : MUBUF_StoreIntrinsicPat<int_amdgcn_buffer_store, v4f32, "BUFFER_STORE_DWORDX4">;
@@ -1355,6 +1461,19 @@ defm : MTBUF_LoadIntrinsicPat<SItbuffer_load, f32,   "TBUFFER_LOAD_FORMAT_X">;
 defm : MTBUF_LoadIntrinsicPat<SItbuffer_load, v2f32, "TBUFFER_LOAD_FORMAT_XY">;
 defm : MTBUF_LoadIntrinsicPat<SItbuffer_load, v4f32, "TBUFFER_LOAD_FORMAT_XYZW">;
 
+let SubtargetPredicate = HasUnpackedD16VMem in {
+defm : MTBUF_LoadIntrinsicPat<SItbuffer_load, f16,   "TBUFFER_LOAD_FORMAT_D16_X_gfx80">;
+defm : MTBUF_LoadIntrinsicPat<SItbuffer_load_d16, v2i32, "TBUFFER_LOAD_FORMAT_D16_XY_gfx80">;
+defm : MTBUF_LoadIntrinsicPat<SItbuffer_load_d16, v4i32, "TBUFFER_LOAD_FORMAT_D16_XYZW_gfx80">;
+} // End HasUnpackedD16VMem.
+
+let SubtargetPredicate = HasPackedD16VMem in {
+defm : MTBUF_LoadIntrinsicPat<SItbuffer_load, f16,   "TBUFFER_LOAD_FORMAT_D16_X">;
+defm : MTBUF_LoadIntrinsicPat<SItbuffer_load, v2f16, "TBUFFER_LOAD_FORMAT_D16_XY">;
+defm : MTBUF_LoadIntrinsicPat<SItbuffer_load_d16, i32, "TBUFFER_LOAD_FORMAT_D16_XY">;
+defm : MTBUF_LoadIntrinsicPat<SItbuffer_load_d16, v2i32, "TBUFFER_LOAD_FORMAT_D16_XYZW">;
+} // End HasPackedD16VMem.
+
 multiclass MTBUF_StoreIntrinsicPat<SDPatternOperator name, ValueType vt,
                                    string opcode> {
   def : GCNPat<
@@ -1403,6 +1522,20 @@ defm : MTBUF_StoreIntrinsicPat<SItbuffer_store, f32,   "TBUFFER_STORE_FORMAT_X">
 defm : MTBUF_StoreIntrinsicPat<SItbuffer_store, v2f32, "TBUFFER_STORE_FORMAT_XY">;
 defm : MTBUF_StoreIntrinsicPat<SItbuffer_store_x3, v4f32, "TBUFFER_STORE_FORMAT_XYZ">;
 defm : MTBUF_StoreIntrinsicPat<SItbuffer_store, v4f32, "TBUFFER_STORE_FORMAT_XYZW">;
+
+let SubtargetPredicate = HasUnpackedD16VMem in {
+defm : MTBUF_StoreIntrinsicPat<SItbuffer_store_d16, f16,   "TBUFFER_STORE_FORMAT_D16_X_gfx80">;
+defm : MTBUF_StoreIntrinsicPat<SItbuffer_store_d16, v2i32, "TBUFFER_STORE_FORMAT_D16_XY_gfx80">;
+defm : MTBUF_StoreIntrinsicPat<SItbuffer_store_d16, v4i32, "TBUFFER_STORE_FORMAT_D16_XYZW_gfx80">;
+} // End HasUnpackedD16VMem.
+
+let SubtargetPredicate = HasPackedD16VMem in {
+defm : MTBUF_StoreIntrinsicPat<SItbuffer_store_d16, f16,   "TBUFFER_STORE_FORMAT_D16_X">;
+defm : MTBUF_StoreIntrinsicPat<SItbuffer_store_d16, v2f16, "TBUFFER_STORE_FORMAT_D16_XY">;
+defm : MTBUF_StoreIntrinsicPat<SItbuffer_store_d16, i32, "TBUFFER_STORE_FORMAT_D16_XY">;
+defm : MTBUF_StoreIntrinsicPat<SItbuffer_store_d16, v2i32, "TBUFFER_STORE_FORMAT_D16_XYZW">;
+} // End HasPackedD16VMem.
+
 
 //===----------------------------------------------------------------------===//
 // Target instructions, move to the appropriate target TD file
@@ -1617,6 +1750,14 @@ defm BUFFER_STORE_FORMAT_X      : MUBUF_Real_AllAddr_vi <0x04>;
 defm BUFFER_STORE_FORMAT_XY     : MUBUF_Real_AllAddr_vi <0x05>;
 defm BUFFER_STORE_FORMAT_XYZ    : MUBUF_Real_AllAddr_vi <0x06>;
 defm BUFFER_STORE_FORMAT_XYZW   : MUBUF_Real_AllAddr_vi <0x07>;
+defm BUFFER_LOAD_FORMAT_D16_X       : MUBUF_Real_AllAddr_vi <0x08>;
+defm BUFFER_LOAD_FORMAT_D16_XY      : MUBUF_Real_AllAddr_vi <0x09>;
+defm BUFFER_LOAD_FORMAT_D16_XYZ     : MUBUF_Real_AllAddr_vi <0x0a>;
+defm BUFFER_LOAD_FORMAT_D16_XYZW    : MUBUF_Real_AllAddr_vi <0x0b>;
+defm BUFFER_STORE_FORMAT_D16_X      : MUBUF_Real_AllAddr_vi <0x0c>;
+defm BUFFER_STORE_FORMAT_D16_XY     : MUBUF_Real_AllAddr_vi <0x0d>;
+defm BUFFER_STORE_FORMAT_D16_XYZ    : MUBUF_Real_AllAddr_vi <0x0e>;
+defm BUFFER_STORE_FORMAT_D16_XYZW   : MUBUF_Real_AllAddr_vi <0x0f>;
 defm BUFFER_LOAD_UBYTE          : MUBUF_Real_AllAddr_vi <0x10>;
 defm BUFFER_LOAD_SBYTE          : MUBUF_Real_AllAddr_vi <0x11>;
 defm BUFFER_LOAD_USHORT         : MUBUF_Real_AllAddr_vi <0x12>;
@@ -1702,11 +1843,19 @@ multiclass MTBUF_Real_AllAddr_vi<bits<4> op> {
   def _BOTHEN_vi : MTBUF_Real_vi <op, !cast<MTBUF_Pseudo>(NAME#"_BOTHEN")>;
 }
 
-defm TBUFFER_LOAD_FORMAT_X     : MTBUF_Real_AllAddr_vi <0>;
-defm TBUFFER_LOAD_FORMAT_XY    : MTBUF_Real_AllAddr_vi <1>;
-//defm TBUFFER_LOAD_FORMAT_XYZ   : MTBUF_Real_AllAddr_vi <2>;
-defm TBUFFER_LOAD_FORMAT_XYZW  : MTBUF_Real_AllAddr_vi <3>;
-defm TBUFFER_STORE_FORMAT_X    : MTBUF_Real_AllAddr_vi <4>;
-defm TBUFFER_STORE_FORMAT_XY   : MTBUF_Real_AllAddr_vi <5>;
-defm TBUFFER_STORE_FORMAT_XYZ  : MTBUF_Real_AllAddr_vi <6>;
-defm TBUFFER_STORE_FORMAT_XYZW : MTBUF_Real_AllAddr_vi <7>;
+defm TBUFFER_LOAD_FORMAT_X     : MTBUF_Real_AllAddr_vi <0x00>;
+defm TBUFFER_LOAD_FORMAT_XY    : MTBUF_Real_AllAddr_vi <0x01>;
+//defm TBUFFER_LOAD_FORMAT_XYZ   : MTBUF_Real_AllAddr_vi <0x02>;
+defm TBUFFER_LOAD_FORMAT_XYZW  : MTBUF_Real_AllAddr_vi <0x03>;
+defm TBUFFER_STORE_FORMAT_X    : MTBUF_Real_AllAddr_vi <0x04>;
+defm TBUFFER_STORE_FORMAT_XY   : MTBUF_Real_AllAddr_vi <0x05>;
+defm TBUFFER_STORE_FORMAT_XYZ  : MTBUF_Real_AllAddr_vi <0x06>;
+defm TBUFFER_STORE_FORMAT_XYZW : MTBUF_Real_AllAddr_vi <0x07>;
+defm TBUFFER_LOAD_FORMAT_D16_X     : MTBUF_Real_AllAddr_vi <0x08>;
+defm TBUFFER_LOAD_FORMAT_D16_XY    : MTBUF_Real_AllAddr_vi <0x09>;
+//defm TBUFFER_LOAD_FORMAT_D16_XYZ   : MTBUF_Real_AllAddr_vi <0x0a>;
+defm TBUFFER_LOAD_FORMAT_D16_XYZW  : MTBUF_Real_AllAddr_vi <0x0b>;
+defm TBUFFER_STORE_FORMAT_D16_X    : MTBUF_Real_AllAddr_vi <0x0c>;
+defm TBUFFER_STORE_FORMAT_D16_XY   : MTBUF_Real_AllAddr_vi <0x0d>;
+defm TBUFFER_STORE_FORMAT_D16_XYZ  : MTBUF_Real_AllAddr_vi <0x0e>;
+defm TBUFFER_STORE_FORMAT_D16_XYZW : MTBUF_Real_AllAddr_vi <0x0f>;

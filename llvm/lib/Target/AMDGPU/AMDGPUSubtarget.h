@@ -161,6 +161,7 @@ protected:
   bool FlatAddressSpace;
   bool FlatInstOffsets;
   bool FlatGlobalInsts;
+  bool HasUnpackedD16VMem;
   bool FlatScratchInsts;
   bool AddNoCarryInsts;
   bool R600ALUInst;
@@ -437,6 +438,10 @@ public:
 
   bool hasD16LoadStore() const {
     return getGeneration() >= GFX9;
+  }
+
+ bool hasUnpackedD16VMem() const {
+    return HasUnpackedD16VMem;
   }
 
   bool hasAddNoCarry() const {
