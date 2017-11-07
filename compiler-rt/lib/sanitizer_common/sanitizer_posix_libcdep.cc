@@ -341,9 +341,8 @@ uptr ReservedAddressRange::Init(uptr size, const char *name, uptr fixed_addr) {
   // We don't pass `name` along because, when you enable `decorate_proc_maps`
   // AND actually use a named mapping AND are using a sanitizer intercepting
   // `open` (e.g. TSAN, ESAN), then you'll get a failure during initialization.
-  // TODO: Fix the implementation of GetNamedMappingFd to solve this problem.
-  // One possible solution: port `shm_open` s.t. it's not invoking `open`,
-  // which is the point where the interceptors ccomplain currently.
+  // TODO(flowerhack): Fix the implementation of GetNamedMappingFd to solve
+  // this problem.
   if (fixed_addr) {
     base_ = MmapFixedNoAccess(fixed_addr, size);
   } else {
@@ -371,6 +370,10 @@ void ReservedAddressRange::Unmap(uptr addr, uptr size) {
   CHECK((addr_as_void == base_) || (addr + size == base_as_uptr + size_));
   CHECK_LE(size, size_);
   UnmapOrDie(reinterpret_cast<void*>(addr), size);
+  if (addr_as_void == base_) {
+    base_ = reinterpret_cast<void*>(reinterpret_cast<uptr>(addr) + size);
+  }
+  size_ = size_ - size;
 }
 
 void *MmapFixedNoAccess(uptr fixed_addr, uptr size, const char *name) {
