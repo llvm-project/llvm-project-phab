@@ -8,6 +8,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "Writer.h"
+#include "AArch64ErrataFix.h"
 #include "Config.h"
 #include "Filesystem.h"
 #include "LinkerScript.h"
@@ -1348,6 +1349,10 @@ template <class ELFT> void Writer<ELFT>::finalizeSections() {
         InX::MipsGot->updateAllocSize();
       Changed |= In<ELFT>::RelaDyn->updateAllocSize();
     } while (Changed);
+  }
+  if (Config->EMachine == EM_AARCH64 && Config->FixCortexA53Errata843419) {
+    Script->assignAddresses();
+    createA53Errata843419Fixes(OutputSections);
   }
 
   // Fill other section headers. The dynamic table is finalized
