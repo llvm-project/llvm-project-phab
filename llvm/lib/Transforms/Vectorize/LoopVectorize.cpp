@@ -48,6 +48,7 @@
 
 #include "llvm/Transforms/Vectorize/LoopVectorize.h"
 #include "VPlan.h"
+#include "VPlanBuilder.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/Hashing.h"
 #include "llvm/ADT/MapVector.h"
@@ -423,15 +424,6 @@ public:
   /// new unrolled loop, where UF is the unroll factor.
   typedef SmallVector<Value *, 2> VectorParts;
 
-  /// A helper function that computes the predicate of the block BB, assuming
-  /// that the header block of the loop is set to True. It returns the *entry*
-  /// mask for the block BB.
-  VectorParts createBlockInMask(BasicBlock *BB);
-
-  /// A helper function that computes the predicate of the edge between SRC
-  /// and DST.
-  VectorParts createEdgeMask(BasicBlock *Src, BasicBlock *Dst);
-
   /// Vectorize a single PHINode in a block. This method handles the induction
   /// variable canonicalization. It supports both VF = 1 for unrolled loops and
   /// arbitrary length vectors.
@@ -484,8 +476,10 @@ public:
   /// Try to vectorize the interleaved access group that \p Instr belongs to.
   void vectorizeInterleaveGroup(Instruction *Instr);
 
-  /// Vectorize Load and Store instructions,
-  virtual void vectorizeMemoryInstruction(Instruction *Instr);
+  /// Vectorize Load and Store instructions, optionally masking the vector
+  /// operations if \p BlockInMask is non-null.
+  void vectorizeMemoryInstruction(Instruction *Instr,
+                                  VectorParts *BlockInMask = nullptr);
 
   /// \brief Set the debug location in the builder using the debug location in
   /// the instruction.
@@ -500,12 +494,6 @@ protected:
   /// in the new unrolled loop, where UF is the unroll factor and VF is the
   /// vectorization factor.
   typedef SmallVector<SmallVector<Value *, 4>, 2> ScalarParts;
-
-  // When we if-convert we need to create edge masks. We have to cache values
-  // so that we don't end up with exponential recursion/IR.
-  typedef DenseMap<std::pair<BasicBlock *, BasicBlock *>, VectorParts>
-      EdgeMaskCacheTy;
-  typedef DenseMap<BasicBlock *, VectorParts> BlockMaskCacheTy;
 
   /// Set up the values of the IVs correctly when exiting the vector loop.
   void fixupIVUsers(PHINode *OrigPhi, const InductionDescriptor &II,
@@ -692,8 +680,6 @@ protected:
 
   /// Store instructions that were predicated.
   SmallVector<Instruction *, 4> PredicatedInstructions;
-  EdgeMaskCacheTy EdgeMaskCache;
-  BlockMaskCacheTy BlockMaskCache;
   /// Trip count of the original loop.
   Value *TripCount;
   /// Trip count of the widened loop (TripCount - TripCount % (VF*UF))
@@ -2139,6 +2125,34 @@ class LoopVectorizationPlanner {
 
   SmallVector<VPlan *, 4> VPlans;
 
+  /// The current plan;
+  VPlan *Plan = nullptr;
+
+  /// This class is used to enable the VPlan to invoke a method of ILV. This is
+  /// needed until the method is refactored out of ILV and becomes reusable.
+  struct VPCallbackILV : public VPCallback {
+    InnerLoopVectorizer &ILV;
+
+    VPCallbackILV(InnerLoopVectorizer &ILV) : ILV(ILV) {}
+
+    Value *getOrCreateVectorValues(Value *V, unsigned Part) override {
+      return ILV.getOrCreateVectorValue(V, Part);
+    }
+  };
+
+  /// A builder used to construct the current plan.
+  VPBuilder Builder;
+
+  /// When we if-convert we need to create edge masks. We have to cache values
+  /// so that we don't end up with exponential recursion/IR. Note that
+  /// if-conversion currently takes place during VPlan-construction, so these
+  /// caches are only used at that stage.
+  typedef DenseMap<std::pair<BasicBlock *, BasicBlock *>, VPValue *>
+      EdgeMaskCacheTy;
+  typedef DenseMap<BasicBlock *, VPValue *> BlockMaskCacheTy;
+  EdgeMaskCacheTy EdgeMaskCache;
+  BlockMaskCacheTy BlockMaskCache;
+
   unsigned BestVF;
   unsigned BestUF;
 
@@ -2200,6 +2214,15 @@ protected:
   void buildVPlans(unsigned MinVF, unsigned MaxVF);
 
 private:
+  /// A helper function that computes the predicate of the block BB, assuming
+  /// that the header block of the loop is set to True. It returns the *entry*
+  /// mask for the block BB.
+  VPValue *createBlockInMask(BasicBlock *BB);
+
+  /// A helper function that computes the predicate of the edge between SRC
+  /// and DST.
+  VPValue *createEdgeMask(BasicBlock *Src, BasicBlock *Dst);
+
   /// Check if \I belongs to an Interleave Group within the given VF \p Range,
   /// \return true in the first returned value if so and false otherwise.
   /// Build a new VPInterleaveGroup Recipe if \I is the primary member of an IG
@@ -2211,7 +2234,8 @@ private:
   VPInterleaveRecipe *tryToInterleaveMemory(Instruction *I, VFRange &Range);
 
   // Check if \I is a memory instruction to be widened for \p Range.Start and
-  // potentially masked.
+  // potentially masked. Such instructions are handled by a recipe that takes an
+  // additional VPInstruction for the mask.
   VPWidenMemoryInstructionRecipe *tryToWidenMemory(Instruction *I,
                                                    VFRange &Range);
 
@@ -2253,7 +2277,7 @@ private:
   /// Build a VPlan according to the information gathered by Legal. \return a
   /// VPlan for vectorization factors \p Range.Start and up to \p Range.End
   /// exclusive, possibly decreasing \p Range.End.
-  VPlan *buildVPlan(VFRange &Range);
+  VPlan *buildVPlan(VFRange &Range, const SmallPtrSetImpl<Value *> &NeedDef);
 };
 
 } // namespace llvm
@@ -3001,7 +3025,8 @@ void InnerLoopVectorizer::vectorizeInterleaveGroup(Instruction *Instr) {
   }
 }
 
-void InnerLoopVectorizer::vectorizeMemoryInstruction(Instruction *Instr) {
+void InnerLoopVectorizer::vectorizeMemoryInstruction(Instruction *Instr,
+                                                     VectorParts *BlockInMask) {
   // Attempt to issue a wide load.
   LoadInst *LI = dyn_cast<LoadInst>(Instr);
   StoreInst *SI = dyn_cast<StoreInst>(Instr);
@@ -3042,7 +3067,11 @@ void InnerLoopVectorizer::vectorizeMemoryInstruction(Instruction *Instr) {
   if (ConsecutiveStride)
     Ptr = getOrCreateScalarValue(Ptr, {0, 0});
 
-  VectorParts Mask = createBlockInMask(Instr->getParent());
+  VectorParts Mask;
+  bool isMaskRequired = BlockInMask;
+  if (isMaskRequired)
+    Mask = *BlockInMask;
+
   // Handle Stores:
   if (SI) {
     assert(!Legal->isUniform(SI->getPointerOperand()) &&
@@ -3053,7 +3082,7 @@ void InnerLoopVectorizer::vectorizeMemoryInstruction(Instruction *Instr) {
       Instruction *NewSI = nullptr;
       Value *StoredVal = getOrCreateVectorValue(SI->getValueOperand(), Part);
       if (CreateGatherScatter) {
-        Value *MaskPart = Legal->isMaskRequired(SI) ? Mask[Part] : nullptr;
+        Value *MaskPart = isMaskRequired ? Mask[Part] : nullptr;
         Value *VectorGep = getOrCreateVectorValue(Ptr, Part);
         NewSI = Builder.CreateMaskedScatter(StoredVal, VectorGep, Alignment,
                                             MaskPart);
@@ -3075,14 +3104,14 @@ void InnerLoopVectorizer::vectorizeMemoryInstruction(Instruction *Instr) {
               Builder.CreateGEP(nullptr, Ptr, Builder.getInt32(-Part * VF));
           PartPtr =
               Builder.CreateGEP(nullptr, PartPtr, Builder.getInt32(1 - VF));
-          if (Mask[Part]) // The reverse of a null all-one mask is a null mask.
+          if (isMaskRequired) // Reverse of a null all-one mask is a null mask.
             Mask[Part] = reverseVector(Mask[Part]);
         }
 
         Value *VecPtr =
             Builder.CreateBitCast(PartPtr, DataTy->getPointerTo(AddressSpace));
 
-        if (Legal->isMaskRequired(SI) && Mask[Part])
+        if (isMaskRequired)
           NewSI = Builder.CreateMaskedStore(StoredVal, VecPtr, Alignment,
                                             Mask[Part]);
         else
@@ -3099,7 +3128,7 @@ void InnerLoopVectorizer::vectorizeMemoryInstruction(Instruction *Instr) {
   for (unsigned Part = 0; Part < UF; ++Part) {
     Value *NewLI;
     if (CreateGatherScatter) {
-      Value *MaskPart = Legal->isMaskRequired(LI) ? Mask[Part] : nullptr;
+      Value *MaskPart = isMaskRequired ? Mask[Part] : nullptr;
       Value *VectorGep = getOrCreateVectorValue(Ptr, Part);
       NewLI = Builder.CreateMaskedGather(VectorGep, Alignment, MaskPart,
                                          nullptr, "wide.masked.gather");
@@ -3114,13 +3143,13 @@ void InnerLoopVectorizer::vectorizeMemoryInstruction(Instruction *Instr) {
         // wide load needs to start at the last vector element.
         PartPtr = Builder.CreateGEP(nullptr, Ptr, Builder.getInt32(-Part * VF));
         PartPtr = Builder.CreateGEP(nullptr, PartPtr, Builder.getInt32(1 - VF));
-        if (Mask[Part]) // The reverse of a null all-one mask is a null mask.
+        if (isMaskRequired) // Reverse of a null all-one mask is a null mask.
           Mask[Part] = reverseVector(Mask[Part]);
       }
 
       Value *VecPtr =
           Builder.CreateBitCast(PartPtr, DataTy->getPointerTo(AddressSpace));
-      if (Legal->isMaskRequired(LI) && Mask[Part])
+      if (isMaskRequired)
         NewLI = Builder.CreateMaskedLoad(VecPtr, Alignment, Mask[Part],
                                          UndefValue::get(DataTy),
                                          "wide.masked.load");
@@ -4420,6 +4449,9 @@ void InnerLoopVectorizer::sinkScalarOperands(Instruction *PredInst) {
 
 void InnerLoopVectorizer::widenPHIInstruction(Instruction *PN, unsigned UF,
                                               unsigned VF) {
+  assert(PN->getParent() == OrigLoop->getHeader() &&
+         "Non-header phis should have been handled elsewhere");
+
   PHINode *P = cast<PHINode>(PN);
   // In order to support recurrences we need to be able to vectorize Phi nodes.
   // Phi nodes have cycles, so we need to vectorize them in two stages. This is
@@ -7443,8 +7475,11 @@ void LoopVectorizationPlanner::executePlan(InnerLoopVectorizer &ILV,
   // Perform the actual loop transformation.
 
   // 1. Create a new empty loop. Unlink the old loop and connect the new one.
-  VPTransformState State{
-      BestVF, BestUF, LI, DT, ILV.Builder, ILV.VectorLoopValueMap, &ILV};
+  VPCallbackILV CallbackILV(ILV);
+
+  VPTransformState State{BestVF, BestUF,      LI,
+                         DT,     ILV.Builder, ILV.VectorLoopValueMap,
+                         &ILV,   CallbackILV};
   State.CFG.PrevBB = ILV.createVectorizedLoopSkeleton();
 
   //===------------------------------------------------===//
@@ -7457,7 +7492,7 @@ void LoopVectorizationPlanner::executePlan(InnerLoopVectorizer &ILV,
 
   // 2. Copy and widen instructions from the old loop into the new loop.
   assert(VPlans.size() == 1 && "Not a single VPlan to execute.");
-  VPlan *Plan = *VPlans.begin();
+  Plan = *VPlans.begin();
   Plan->execute(&State);
 
   // 3. Fix the vectorized code: take care of header phi's, live-outs,
@@ -7658,8 +7693,18 @@ class VPBlendRecipe : public VPRecipeBase {
 private:
   PHINode *Phi;
 
+  /// The blend operation is a User of a mask, if not null.
+  std::unique_ptr<VPUser> User;
+
 public:
-  VPBlendRecipe(PHINode *Phi) : VPRecipeBase(VPBlendSC), Phi(Phi) {}
+  VPBlendRecipe(PHINode *Phi, ArrayRef<VPValue *> Masks)
+      : VPRecipeBase(VPBlendSC), Phi(Phi) {
+    assert((Phi->getNumIncomingValues() == 1 ||
+            Phi->getNumIncomingValues() == Masks.size()) &&
+           "Expected the same number of incoming values and masks");
+    if (!Masks.empty())
+      User.reset(new VPUser(Masks));
+  }
 
   /// Method to support type inquiry through isa, cast, and dyn_cast.
   static inline bool classof(const VPRecipeBase *V) {
@@ -7678,27 +7723,28 @@ public:
 
     unsigned NumIncoming = Phi->getNumIncomingValues();
 
+    assert((User || NumIncoming == 1) &&
+           "Multiple predecessors with predecessors having a full mask");
     // Generate a sequence of selects of the form:
     // SELECT(Mask3, In3,
     //      SELECT(Mask2, In2,
     //                   ( ...)))
     InnerLoopVectorizer::VectorParts Entry(State.UF);
-    for (unsigned In = 0; In < NumIncoming; In++) {
-      InnerLoopVectorizer::VectorParts Cond =
-        State.ILV->createEdgeMask(Phi->getIncomingBlock(In), Phi->getParent());
-
+    for (unsigned In = 0; In < NumIncoming; ++In) {
       for (unsigned Part = 0; Part < State.UF; ++Part) {
+        // We might have single edge PHIs (blocks) - use an identity
+        // 'select' for the first PHI operand.
         Value *In0 =
-          State.ILV->getOrCreateVectorValue(Phi->getIncomingValue(In), Part);
-        assert((Cond[Part] || NumIncoming == 1) &&
-               "Multiple predecessors with one predecessor having a full mask");
+            State.ILV->getOrCreateVectorValue(Phi->getIncomingValue(In), Part);
         if (In == 0)
           Entry[Part] = In0; // Initialize with the first incoming value.
-        else
+        else {
           // Select between the current value and the previous incoming edge
           // based on the incoming mask.
-          Entry[Part] = State.Builder.CreateSelect(Cond[Part], In0, Entry[Part],
-                                                   "predphi");
+          Value *Cond = State.get(User->getOperand(In), Part);
+          Entry[Part] =
+              State.Builder.CreateSelect(Cond, In0, Entry[Part], "predphi");
+        }
       }
     }
     for (unsigned Part = 0; Part < State.UF; ++Part)
@@ -7710,21 +7756,20 @@ public:
     O << " +\n" << Indent << "\"BLEND ";
     Phi->printAsOperand(O, false);
     O << " =";
-    if (Phi->getNumIncomingValues() == 1) {
+    if (!User) {
       // Not a User of any mask: not really blending, this is a
       // single-predecessor phi.
       O << " ";
       Phi->getIncomingValue(0)->printAsOperand(O, false);
     } else {
-      for (unsigned I = 0, E = Phi->getNumIncomingValues(); I < E; ++I) {
+      for (unsigned I = 0, E = User->getNumOperands(); I < E; ++I) {
         O << " ";
         Phi->getIncomingValue(I)->printAsOperand(O, false);
         O << "/";
-        Phi->getIncomingBlock(I)->printAsOperand(O, false);
+        User->getOperand(I)->printAsOperand(O);
       }
     }
     O << "\\l\"";
-
   }
 };
 
@@ -7815,13 +7860,13 @@ public:
 /// A recipe for generating conditional branches on the bits of a mask.
 class VPBranchOnMaskRecipe : public VPRecipeBase {
 private:
-  /// The input IR basic block used to obtain the mask providing the condition
-  /// bits for the branch.
-  BasicBlock *MaskedBasicBlock;
+  std::unique_ptr<VPUser> User;
 
 public:
-  VPBranchOnMaskRecipe(BasicBlock *BB)
-      : VPRecipeBase(VPBranchOnMaskSC), MaskedBasicBlock(BB) {}
+  VPBranchOnMaskRecipe(VPValue *BlockInMask) : VPRecipeBase(VPBranchOnMaskSC) {
+    if (BlockInMask) // nullptr means all-one mask.
+      User.reset(new VPUser({BlockInMask}));
+  }
 
   /// Method to support type inquiry through isa, cast, and dyn_cast.
   static inline bool classof(const VPRecipeBase *V) {
@@ -7834,9 +7879,12 @@ public:
 
   /// Print the recipe.
   void print(raw_ostream &O, const Twine &Indent) const override {
-    O << " +\n"
-      << Indent << "\"BRANCH-ON-MASK-OF " << MaskedBasicBlock->getName()
-      << "\\l\"";
+    O << " +\n" << Indent << "\"BRANCH-ON-MASK ";
+    if (User)
+      O << *User->getOperand(0);
+    else
+      O << " All-One";
+    O << "\\l\"";
   }
 };
 
@@ -7874,13 +7922,19 @@ public:
 };
 
 /// A Recipe for widening load/store operations.
+/// TODO: We currently execute only per-part unless a specific instance is
+/// provided.
 class VPWidenMemoryInstructionRecipe : public VPRecipeBase {
 private:
   Instruction &Instr;
+  std::unique_ptr<VPUser> User;
 
 public:
-  VPWidenMemoryInstructionRecipe(Instruction &Instr)
-      : VPRecipeBase(VPWidenMemoryInstructionSC), Instr(Instr) {}
+  VPWidenMemoryInstructionRecipe(Instruction &Instr, VPValue *Mask)
+      : VPRecipeBase(VPWidenMemoryInstructionSC), Instr(Instr) {
+    if (Mask) // Create a VPInstruction to register as a user of the mask.
+      User.reset(new VPUser({Mask}));
+  }
 
   /// Method to support type inquiry through isa, cast, and dyn_cast.
   static inline bool classof(const VPRecipeBase *V) {
@@ -7889,12 +7943,24 @@ public:
 
   /// Generate the wide load/store.
   void execute(VPTransformState &State) override {
-    State.ILV->vectorizeMemoryInstruction(&Instr);
+    if (!User)
+      return State.ILV->vectorizeMemoryInstruction(&Instr);
+
+    // Last (and currently only) operand is a mask.
+    InnerLoopVectorizer::VectorParts MaskValues(State.UF);
+    VPValue *Mask = User->getOperand(User->getNumOperands() - 1);
+    for (unsigned Part = 0; Part < State.UF; ++Part)
+      MaskValues[Part] = State.get(Mask, Part);
+    State.ILV->vectorizeMemoryInstruction(&Instr, &MaskValues);
   }
 
   /// Print the recipe.
   void print(raw_ostream &O, const Twine &Indent) const override {
     O << " +\n" << Indent << "\"WIDEN " << VPlanIngredient(&Instr);
+    if (User) {
+      O << ", ";
+      User->getOperand(0)->printAsOperand(O);
+    }
     O << "\\l\"";
   }
 };
@@ -7920,16 +7986,29 @@ bool LoopVectorizationPlanner::getDecisionAndClampRange(
 /// vectorization decision can potentially shorten this sub-range during
 /// buildVPlan().
 void LoopVectorizationPlanner::buildVPlans(unsigned MinVF, unsigned MaxVF) {
+
+  // Collect conditions feeding internal conditional branches; they need to be
+  // represented in VPlan for it to model masking.
+  SmallPtrSet<Value *, 1> NeedDef;
+
+  auto *Latch = OrigLoop->getLoopLatch();
+  for (BasicBlock *BB : OrigLoop->blocks()) {
+    if (BB == Latch)
+      continue;
+    BranchInst *Branch = dyn_cast<BranchInst>(BB->getTerminator());
+    if (Branch && Branch->isConditional())
+      NeedDef.insert(Branch->getCondition());
+  }
+
   for (unsigned VF = MinVF; VF < MaxVF + 1;) {
     VFRange SubRange = {VF, MaxVF + 1};
-    VPlan *Plan = buildVPlan(SubRange);
-    VPlans.push_back(Plan);
+    VPlans.push_back(buildVPlan(SubRange, NeedDef));
     VF = SubRange.End;
   }
 }
 
-InnerLoopVectorizer::VectorParts
-InnerLoopVectorizer::createEdgeMask(BasicBlock *Src, BasicBlock *Dst) {
+VPValue *LoopVectorizationPlanner::createEdgeMask(BasicBlock *Src,
+                                                  BasicBlock *Dst) {
   assert(is_contained(predecessors(Dst), Src) && "Invalid edge");
 
   // Look for cached value.
@@ -7938,7 +8017,7 @@ InnerLoopVectorizer::createEdgeMask(BasicBlock *Src, BasicBlock *Dst) {
   if (ECEntryIt != EdgeMaskCache.end())
     return ECEntryIt->second;
 
-  VectorParts SrcMask = createBlockInMask(Src);
+  VPValue *SrcMask = createBlockInMask(Src);
 
   // The terminator has to be a branch inst!
   BranchInst *BI = dyn_cast<BranchInst>(Src->getTerminator());
@@ -7947,23 +8026,19 @@ InnerLoopVectorizer::createEdgeMask(BasicBlock *Src, BasicBlock *Dst) {
   if (!BI->isConditional())
     return EdgeMaskCache[Edge] = SrcMask;
 
-  VectorParts EdgeMask(UF);
-  for (unsigned Part = 0; Part < UF; ++Part) {
-    auto *EdgeMaskPart = getOrCreateVectorValue(BI->getCondition(), Part);
-    if (BI->getSuccessor(0) != Dst)
-      EdgeMaskPart = Builder.CreateNot(EdgeMaskPart);
+  VPValue *EdgeMask = Plan->getVPValue(BI->getCondition());
+  assert(EdgeMask && "No Edge Mask found for condition");
 
-    if (SrcMask[Part]) // Otherwise block in-mask is all-one, no need to AND.
-      EdgeMaskPart = Builder.CreateAnd(EdgeMaskPart, SrcMask[Part]);
+  if (BI->getSuccessor(0) != Dst)
+    EdgeMask = Builder.createNot(EdgeMask);
 
-    EdgeMask[Part] = EdgeMaskPart;
-  }
+  if (SrcMask) // Otherwise block in-mask is all-one, no need to AND.
+    EdgeMask = Builder.createAnd(EdgeMask, SrcMask);
 
   return EdgeMaskCache[Edge] = EdgeMask;
 }
 
-InnerLoopVectorizer::VectorParts
-InnerLoopVectorizer::createBlockInMask(BasicBlock *BB) {
+VPValue *LoopVectorizationPlanner::createBlockInMask(BasicBlock *BB) {
   assert(OrigLoop->contains(BB) && "Block is not a part of a loop");
 
   // Look for cached value.
@@ -7973,9 +8048,7 @@ InnerLoopVectorizer::createBlockInMask(BasicBlock *BB) {
 
   // All-one mask is modelled as no-mask following the convention for masked
   // load/store/gather/scatter. Initialize BlockMask to no-mask.
-  VectorParts BlockMask(UF);
-  for (unsigned Part = 0; Part < UF; ++Part)
-    BlockMask[Part] = nullptr;
+  VPValue *BlockMask = nullptr;
 
   // Loop incoming mask is all-one.
   if (OrigLoop->getHeader() == BB)
@@ -7983,19 +8056,17 @@ InnerLoopVectorizer::createBlockInMask(BasicBlock *BB) {
 
   // This is the block mask. We OR all incoming edges.
   for (auto *Predecessor : predecessors(BB)) {
-    VectorParts EdgeMask = createEdgeMask(Predecessor, BB);
-    if (!EdgeMask[0]) // Mask of predecessor is all-one so mask of block is too.
+    VPValue *EdgeMask = createEdgeMask(Predecessor, BB);
+    if (!EdgeMask) // Mask of predecessor is all-one so mask of block is too.
       return BlockMaskCache[BB] = EdgeMask;
 
-    if (!BlockMask[0]) { // BlockMask has its initialized nullptr value.
+    if (!BlockMask) { // BlockMask has its initialized nullptr value.
       BlockMask = EdgeMask;
       continue;
     }
 
-    for (unsigned Part = 0; Part < UF; ++Part)
-      BlockMask[Part] = Builder.CreateOr(BlockMask[Part], EdgeMask[Part]);
+    BlockMask = Builder.createOr(BlockMask, EdgeMask);
   }
-
   return BlockMaskCache[BB] = BlockMask;
 }
 
@@ -8049,7 +8120,10 @@ LoopVectorizationPlanner::tryToWidenMemory(Instruction *I, VFRange &Range) {
   if (!getDecisionAndClampRange(willWiden, Range))
     return nullptr;
 
-  return new VPWidenMemoryInstructionRecipe(*I);
+  VPValue *Mask =
+      Legal->isMaskRequired(I) ? createBlockInMask(I->getParent()) : nullptr;
+
+  return new VPWidenMemoryInstructionRecipe(*I, Mask);
 }
 
 VPWidenIntOrFpInductionRecipe *
@@ -8090,8 +8164,23 @@ VPBlendRecipe *LoopVectorizationPlanner::tryToBlend(Instruction *I) {
   PHINode *Phi = dyn_cast<PHINode>(I);
   if (!Phi || Phi->getParent() == OrigLoop->getHeader())
     return nullptr;
+  // We know that all PHIs in non-header blocks are converted into selects, so
+  // we don't have to worry about the insertion order and we can just use the
+  // builder. At this point we generate the predication tree. There may be
+  // duplications since this is a simple recursive scan, but future
+  // optimizations will clean it up.
 
-  return new VPBlendRecipe(Phi);
+  SmallVector<VPValue *, 2> Masks;
+  unsigned NumIncoming = Phi->getNumIncomingValues();
+  for (unsigned In = 0; In < NumIncoming; In++) {
+    VPValue *EdgeMask =
+        createEdgeMask(Phi->getIncomingBlock(In), Phi->getParent());
+    assert((EdgeMask || NumIncoming == 1) &&
+           "Multiple predecessors with one having a full mask");
+    if (EdgeMask)
+      Masks.push_back(EdgeMask);
+  }
+  return new VPBlendRecipe(Phi, Masks);
 }
 
 bool LoopVectorizationPlanner::tryToWiden(Instruction *I, VPBasicBlock *VPBB,
@@ -8173,13 +8262,10 @@ bool LoopVectorizationPlanner::tryToWiden(Instruction *I, VPBasicBlock *VPBB,
       return UseVectorIntrinsic || !NeedToScalarize;
     }
     if (isa<LoadInst>(I) || isa<StoreInst>(I)) {
-      LoopVectorizationCostModel::InstWidening Decision =
-          CM.getWideningDecision(I, VF);
-      assert(Decision != LoopVectorizationCostModel::CM_Unknown &&
-             "CM decision should be taken at this point.");
-      assert(Decision != LoopVectorizationCostModel::CM_Interleave &&
-             "Interleave memory opportunity should be caught earlier.");
-      return Decision != LoopVectorizationCostModel::CM_Scalarize;
+      assert(CM.getWideningDecision(I, VF) ==
+                 LoopVectorizationCostModel::CM_Scalarize &&
+             "Memory widening decisions should have been taken care by now");
+      return false;
     }
     return true;
   };
@@ -8239,10 +8325,13 @@ LoopVectorizationPlanner::createReplicateRegion(Instruction *Instr,
   // Instructions marked for predication are replicated and placed under an
   // if-then construct to prevent side-effects.
 
+  // Generate recipes to compute the block mask for this region.
+  VPValue *BlockInMask = createBlockInMask(Instr->getParent());
+
   // Build the triangular if-then region.
   std::string RegionName = (Twine("pred.") + Instr->getOpcodeName()).str();
   assert(Instr->getParent() && "Predicated instruction not in any basic block");
-  auto *BOMRecipe = new VPBranchOnMaskRecipe(Instr->getParent());
+  auto *BOMRecipe = new VPBranchOnMaskRecipe(BlockInMask);
   auto *Entry = new VPBasicBlock(Twine(RegionName) + ".entry", BOMRecipe);
   auto *PHIRecipe =
       Instr->getType()->isVoidTy() ? nullptr : new VPPredInstPHIRecipe(Instr);
@@ -8258,8 +8347,11 @@ LoopVectorizationPlanner::createReplicateRegion(Instruction *Instr,
   return Region;
 }
 
-VPlan *LoopVectorizationPlanner::buildVPlan(VFRange &Range) {
-
+VPlan *
+LoopVectorizationPlanner::buildVPlan(VFRange &Range,
+                                     const SmallPtrSetImpl<Value *> &NeedDef) {
+  EdgeMaskCache.clear();
+  BlockMaskCache.clear();
   DenseMap<Instruction *, Instruction *> &SinkAfter = Legal->getSinkAfter();
   DenseMap<Instruction *, Instruction *> SinkAfterInverse;
 
@@ -8279,7 +8371,11 @@ VPlan *LoopVectorizationPlanner::buildVPlan(VFRange &Range) {
 
   // Create a dummy pre-entry VPBasicBlock to start building the VPlan.
   VPBasicBlock *VPBB = new VPBasicBlock("Pre-Entry");
-  VPlan *Plan = new VPlan(VPBB);
+  Plan = new VPlan(VPBB);
+
+  // Represent values that will have defs inside VPlan.
+  for (Value *V : NeedDef)
+    Plan->addVPValue(V);
 
   // Scan the body of the loop in a topological order to visit each basic block
   // after having visited its predecessor basic blocks.
@@ -8293,6 +8389,7 @@ VPlan *LoopVectorizationPlanner::buildVPlan(VFRange &Range) {
     auto *FirstVPBBForBB = new VPBasicBlock(BB->getName());
     VPBB->setOneSuccessor(FirstVPBBForBB);
     VPBB = FirstVPBBForBB;
+    Builder.setInsertPoint(VPBB);
 
     std::vector<Instruction *> Ingredients;
 
@@ -8456,14 +8553,16 @@ void VPBranchOnMaskRecipe::execute(VPTransformState &State) {
   unsigned Part = State.Instance->Part;
   unsigned Lane = State.Instance->Lane;
 
-  auto Cond = State.ILV->createBlockInMask(MaskedBasicBlock);
-
-  Value *ConditionBit = Cond[Part];
-  if (!ConditionBit) // Block in mask is all-one.
+  Value *ConditionBit = nullptr;
+  if (!User) // Block in mask is all-one.
     ConditionBit = State.Builder.getTrue();
-  else if (ConditionBit->getType()->isVectorTy())
-    ConditionBit = State.Builder.CreateExtractElement(
-        ConditionBit, State.Builder.getInt32(Lane));
+  else {
+    VPValue *BlockInMask = User->getOperand(0);
+    ConditionBit = State.get(BlockInMask, Part);
+    if (ConditionBit->getType()->isVectorTy())
+      ConditionBit = State.Builder.CreateExtractElement(
+          ConditionBit, State.Builder.getInt32(Lane));
+  }
 
   // Replace the temporary unreachable terminator with a new conditional branch,
   // whose two destinations will be set later when they are created.
@@ -8473,9 +8572,6 @@ void VPBranchOnMaskRecipe::execute(VPTransformState &State) {
   auto *CondBr = BranchInst::Create(State.CFG.PrevBB, nullptr, ConditionBit);
   CondBr->setSuccessor(0, nullptr);
   ReplaceInstWithInst(CurrentTerminator, CondBr);
-
-  DEBUG(dbgs() << "\nLV: vectorizing BranchOnMask recipe "
-               << MaskedBasicBlock->getName());
 }
 
 void VPPredInstPHIRecipe::execute(VPTransformState &State) {
