@@ -76,6 +76,7 @@ static bool ShouldUpgradeX86Intrinsic(Function *F, StringRef Name) {
   if (Name=="ssse3.pabs.b.128" || // Added in 6.0
       Name=="ssse3.pabs.w.128" || // Added in 6.0
       Name=="ssse3.pabs.d.128" || // Added in 6.0
+      Name.startswith("avx512.kunpck") || //added in 6.0 
       Name.startswith("avx2.pabs.") || // Added in 6.0
       Name.startswith("avx512.mask.pabs.") || // Added in 6.0
       Name.startswith("avx512.broadcastm") || // Added in 6.0
@@ -1042,6 +1043,14 @@ void llvm::UpgradeIntrinsicCall(CallInst *CI, Function *NewFn) {
       Rep = Builder.CreateVectorSplat(NumElts, CI->getArgOperand(0));
       Rep = EmitX86Select(Builder, CI->getArgOperand(2), Rep,
                           CI->getArgOperand(1));
+    } else if (IsX86 && (Name.startswith("avx512.kunpck"))) {
+      uint64_t Shift = CI->getType()->getScalarSizeInBits() / 2;
+      uint64_t And = 0xFF;
+      if( Shift == 16) And = 0xFFFF;
+      else if( Shift == 32) And = 0xFFFFFFFF;
+      Value* LowBits =  Builder.CreateAnd(CI->getArgOperand(1), And);
+      Value* HighBits =  Builder.CreateShl(CI->getArgOperand(0), Shift);
+      Rep = Builder.CreateOr(LowBits, HighBits);
     } else if (IsX86 && (Name == "sse.add.ss" || Name == "sse2.add.sd")) {
       Type *I32Ty = Type::getInt32Ty(C);
       Value *Elt0 = Builder.CreateExtractElement(CI->getArgOperand(0),
