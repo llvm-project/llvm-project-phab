@@ -81,6 +81,8 @@ static cl::list<std::string> ToRemove("remove-section",
                                       cl::desc("Remove a specific section"));
 static cl::alias ToRemoveA("R", cl::desc("Alias for remove-section"),
                            cl::aliasopt(ToRemove));
+static cl::opt<bool> StripAll("strip-all",
+                              cl::desc("Removes non-allocated sections"));
 static cl::opt<bool> StripSections("strip-sections",
                                    cl::desc("Remove all section headers"));
 static cl::opt<bool>
@@ -167,6 +169,13 @@ void CopyBinary(const ELFObjectFile<ELF64LE> &ObjFile) {
   if (ExtractDWO)
     RemovePred = [RemovePred, &Obj](const SectionBase &Sec) {
       return OnlyKeepDWOPred(*Obj, Sec) || RemovePred(Sec);
+    };
+
+  if (StripAll)
+    RemovePred = [RemovePred, &Obj](const SectionBase &Sec) {
+      if (&Sec == Obj->getSectionHeaderStrTab())
+        return false;
+      return RemovePred(Sec) || (Sec.Flags & SHF_ALLOC) == 0;
     };
 
   if (StripSections) {
