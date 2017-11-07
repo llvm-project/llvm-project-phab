@@ -858,8 +858,8 @@ namespace llvm {
         return InlineAsm::Constraint_i;
       else if (ConstraintCode == "o")
         return InlineAsm::Constraint_o;
-      else if (ConstraintCode == "v")
-        return InlineAsm::Constraint_v;
+      else if (ConstraintCode == "V")
+        return InlineAsm::Constraint_V;
       else if (ConstraintCode == "X")
         return InlineAsm::Constraint_X;
       return TargetLowering::getInlineAsmMemConstraint(ConstraintCode);

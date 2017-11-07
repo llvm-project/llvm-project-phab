@@ -3078,7 +3078,7 @@ SelectInlineAsmMemoryOperand(const SDValue &Op, unsigned ConstraintID,
     //        be an immediate and not a memory constraint.
     LLVM_FALLTHROUGH;
   case InlineAsm::Constraint_o: // offsetable        ??
-  case InlineAsm::Constraint_v: // not offsetable    ??
+  case InlineAsm::Constraint_V: // not offsetable    ??
   case InlineAsm::Constraint_m: // memory
   case InlineAsm::Constraint_X:
     if (!selectAddr(nullptr, Op, Op0, Op1, Op2, Op3, Op4))

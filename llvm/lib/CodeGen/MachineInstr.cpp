@@ -2029,7 +2029,7 @@ void MachineInstr::print(raw_ostream &OS, ModuleSlotTracker &MST,
         case InlineAsm::Constraint_i:  OS << ":i"; break;
         case InlineAsm::Constraint_m:  OS << ":m"; break;
         case InlineAsm::Constraint_o:  OS << ":o"; break;
-        case InlineAsm::Constraint_v:  OS << ":v"; break;
+        case InlineAsm::Constraint_V:  OS << ":V"; break;
         case InlineAsm::Constraint_Q:  OS << ":Q"; break;
         case InlineAsm::Constraint_R:  OS << ":R"; break;
         case InlineAsm::Constraint_S:  OS << ":S"; break;
