@@ -485,6 +485,16 @@ TEST(ImportType, ImportAtomicType) {
                                        has(atomicType()))))))))));
 }
 
+TEST(ImportExpr, ImportTypeTraitExpr) {
+  MatchVerifier<Decl> Verifier;
+  EXPECT_TRUE(testImport("void declToImport() { __builtin_types_compatible_p(int, int); }",
+                         Lang_C, "", Lang_C, Verifier,
+                         functionDecl(
+                           hasBody(
+                             compoundStmt(
+                               has(
+                                 typeTraitExpr()))))));
+}
 
 } // end namespace ast_matchers
 } // end namespace clang

@@ -2239,6 +2239,17 @@ const internal::VariadicOperatorMatcherFunc<
     2, std::numeric_limits<unsigned>::max()>
     allOf = {internal::DynTypedMatcher::VO_AllOf};
 
+/// \brief Matches __builtin_types_compatible_p:
+/// GNU extension to check equivalent types
+/// Given
+/// \code
+///   __builtin_types_compatible_p(int, int)
+/// \endcode
+//  will generate TypeTraitExpr <...> 'int'
+const internal::VariadicDynCastAllOfMatcher<
+  Stmt,
+  TypeTraitExpr> typeTraitExpr;
+
 /// \brief Matches sizeof (C99), alignof (C++11) and vec_step (OpenCL)
 ///
 /// Given

@@ -280,6 +280,7 @@ namespace clang {
     Expr *VisitCXXDefaultInitExpr(CXXDefaultInitExpr *E);
     Expr *VisitCXXNamedCastExpr(CXXNamedCastExpr *E);
     Expr *VisitSubstNonTypeTemplateParmExpr(SubstNonTypeTemplateParmExpr *E);
+    Expr *VisitTypeTraitExpr(TypeTraitExpr *E);
 
 
     template<typename IIter, typename OIter>
@@ -5527,6 +5528,27 @@ Expr *ASTNodeImporter::VisitSubstNonTypeTemplateParmExpr(
   return new (Importer.getToContext()) SubstNonTypeTemplateParmExpr(
         T, E->getValueKind(), Importer.Import(E->getExprLoc()), Param,
         Replacement);
+}
+
+Expr *ASTNodeImporter::VisitTypeTraitExpr(TypeTraitExpr *E) {
+  QualType ToType = Importer.Import(E->getType());
+  if (ToType.isNull())
+    return nullptr;
+
+  SmallVector<TypeSourceInfo *, 4> ToArgVec;
+  for(auto FromArg : E->getArgs()) {
+    TypeSourceInfo *ToTI = Importer.Import(FromArg);
+    ToArgVec.push_back(ToTI);
+  }
+  ArrayRef<TypeSourceInfo *> ToArgRef(ToArgVec);
+
+  return TypeTraitExpr::Create( Importer.getToContext(),
+                         ToType,
+                         Importer.Import(E->getLocStart()),
+                         E->getTrait(),
+                         ToArgRef,
+                         Importer.Import(E->getLocEnd()),
+                         E->getValue());
 }
 
 void ASTNodeImporter::ImportOverrides(CXXMethodDecl *ToMethod,
