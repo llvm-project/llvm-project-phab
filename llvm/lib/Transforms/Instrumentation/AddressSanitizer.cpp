@@ -89,7 +89,11 @@ using namespace llvm;
 
 #define DEBUG_TYPE "asan"
 
+#if defined(_ASAN_SHADOW_SCALE)
+static const uint64_t kDefaultShadowScale = _ASAN_SHADOW_SCALE;
+#else
 static const uint64_t kDefaultShadowScale = 3;
+#endif
 static const uint64_t kDefaultShadowOffset32 = 1ULL << 29;
 static const uint64_t kDefaultShadowOffset64 = 1ULL << 44;
 static const uint64_t kDynamicShadowSentinel =

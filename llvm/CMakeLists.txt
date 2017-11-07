@@ -549,6 +549,14 @@ else()
   set(LLVM_ADD_NATIVE_VISUALIZERS_TO_SOLUTION FALSE CACHE INTERNAL "For Visual Studio 2013, manually copy natvis files to Documents\\Visual Studio 2013\\Visualizers" FORCE)
 endif()
 
+set(LLVM_ASAN_SHADOW_SCALE "3"
+    CACHE STRING "The Shadow Scale to use for ASan")
+
+# Check that LLVM_ASAN_SHADOW_SCALE is supported.
+if (NOT LLVM_ASAN_SHADOW_SCALE EQUAL 3 AND NOT LLVM_ASAN_SHADOW_SCALE EQUAL 5)
+  message(FATAL_ERROR "Unsupported ASan Shadow Scale '${LLVM_ASAN_SHADOW_SCALE}' (Valid value: 3, 5)")
+endif()
+
 if (LLVM_BUILD_INSTRUMENTED OR LLVM_BUILD_INSTRUMENTED_COVERAGE OR
     LLVM_ENABLE_IR_PGO)
   if(NOT LLVM_PROFILE_MERGE_POOL_SIZE)

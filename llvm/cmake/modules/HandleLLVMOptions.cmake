@@ -690,6 +690,10 @@ add_definitions( -D__STDC_CONSTANT_MACROS )
 add_definitions( -D__STDC_FORMAT_MACROS )
 add_definitions( -D__STDC_LIMIT_MACROS )
 
+if(NOT LLVM_ASAN_SHADOW_SCALE EQUAL 3)
+  add_definitions( -D_ASAN_SHADOW_SCALE=${LLVM_ASAN_SHADOW_SCALE} )
+endif()
+
 # clang doesn't print colored diagnostics when invoked from Ninja
 if (UNIX AND
     CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND
