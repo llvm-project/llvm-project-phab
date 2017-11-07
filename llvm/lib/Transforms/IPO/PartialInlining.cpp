@@ -149,7 +149,12 @@ struct PartialInlinerImpl {
     // the return block.
     void NormalizeReturnBlock();
 
-    // Do function outlining:
+    // Do function outlining.
+    // NOTE: For vararg functions that do the vararg handling in the outlined
+    //       function, we temporarily generate IR that does not properly
+    //       forward varargs to the outlined function. Calling InlineFunction
+    //       will update calls to the outlined functions to properly forward
+    //       the varargs.
     Function *doFunctionOutlining();
 
     Function *OrigFunc = nullptr;
@@ -813,8 +818,28 @@ Function *PartialInlinerImpl::FunctionCloner::doFunctionOutlining() {
 
   // Extract the body of the if.
   OutlinedFunc = CodeExtractor(ToExtract, &DT, /*AggregateArgs*/ false,
-                               ClonedFuncBFI.get(), &BPI)
+                               ClonedFuncBFI.get(), &BPI,
+                               /* AllowVarargs */ true)
                      .extractCodeRegion();
+
+  // For functions with varargs we must check that the varargs are forwarded
+  // to the outlined function. Unfortunately CodeExtractor does not provide
+  // a convenient way to access the non-extracted blocks, so we have to do
+  // the check after we created the outlined function. This means we have to
+  // cleanup if we find vastart.
+  if (ClonedFunc->isVarArg() && OutlinedFunc)
+    for (auto &BB : *ClonedFunc)
+      for (auto &I : BB)
+        if (const CallInst *CI = dyn_cast<CallInst>(&I))
+          if (const Function *F = CI->getCalledFunction())
+            if (F->getIntrinsicID() == Intrinsic::vastart) {
+              ClonedFunc->replaceAllUsesWith(OrigFunc);
+              ClonedFunc->eraseFromParent();
+              ClonedFunc = nullptr;
+              OutlinedFunc->eraseFromParent();
+              OutlinedFunc = nullptr;
+              return nullptr;
+            }
 
   if (OutlinedFunc) {
     OutliningCallBB = PartialInlinerImpl::getOneCallSiteTo(OutlinedFunc)
@@ -829,8 +854,10 @@ Function *PartialInlinerImpl::FunctionCloner::doFunctionOutlining() {
 PartialInlinerImpl::FunctionCloner::~FunctionCloner() {
   // Ditch the duplicate, since we're done with it, and rewrite all remaining
   // users (function pointers, etc.) back to the original function.
-  ClonedFunc->replaceAllUsesWith(OrigFunc);
-  ClonedFunc->eraseFromParent();
+  if (ClonedFunc) {
+    ClonedFunc->replaceAllUsesWith(OrigFunc);
+    ClonedFunc->eraseFromParent();
+  }
   if (!IsFunctionInlined) {
     // Remove the function that is speculatively created if there is no
     // reference.
@@ -938,7 +965,7 @@ bool PartialInlinerImpl::tryPartialInline(FunctionCloner &Cloner) {
        << ore::NV("Caller", CS.getCaller());
 
     InlineFunctionInfo IFI(nullptr, GetAssumptionCache, PSI);
-    if (!InlineFunction(CS, IFI))
+    if (!InlineFunction(CS, IFI, nullptr, true, Cloner.OutlinedFunc))
       continue;
 
     ORE.emit(OR);
