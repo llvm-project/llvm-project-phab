@@ -824,7 +824,7 @@ static bool handleEndBlock(BasicBlock &BB, AliasAnalysis *AA,
         // See if the call site touches the value.
         ModRefInfo A = AA->getModRefInfo(CS, I, getPointerSize(I, DL, *TLI));
 
-        return A == MRI_ModRef || A == MRI_Ref;
+        return A & MRI_Ref;
       });
 
       // If all of the allocas were clobbered by the call then we're not going

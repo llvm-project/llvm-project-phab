@@ -781,6 +781,7 @@ ModRefInfo BasicAAResult::getModRefInfo(ImmutableCallSite CS,
     // Optimistically assume that call doesn't touch Object and check this
     // assumption in the following loop.
     ModRefInfo Result = MRI_NoModRef;
+    ModRefInfo MustResult = MRI_Must;
 
     unsigned OperandNo = 0;
     for (auto CI = CS.data_operands_begin(), CE = CS.data_operands_end();
@@ -806,6 +807,8 @@ ModRefInfo BasicAAResult::getModRefInfo(ImmutableCallSite CS,
       // Operand doesnt alias 'Object', continue looking for other aliases
       if (AR == NoAlias)
         continue;
+      if (AR == MayAlias || AR == PartialAlias)
+        MustResult = MRI_NoModRef;
       // Operand aliases 'Object', but call doesn't modify it. Strengthen
       // initial assumption and keep looking in case if there are more aliases.
       if (CS.onlyReadsMemory(OperandNo)) {
@@ -822,9 +825,14 @@ ModRefInfo BasicAAResult::getModRefInfo(ImmutableCallSite CS,
       break;
     }
 
+    // No operand aliases, reset Must bit. Add below if at least one aliases
+    // and all aliases found are MustAlias.
+    if (Result == MRI_NoModRef)
+      MustResult = MRI_NoModRef;
+
     // Early return if we improved mod ref information
     if (Result != MRI_ModRef)
-      return Result;
+      return ModRefInfo(Result | MustResult);
   }
 
   // If the CallSite is to malloc or calloc, we can assume that it doesn't
@@ -851,11 +859,11 @@ ModRefInfo BasicAAResult::getModRefInfo(ImmutableCallSite CS,
     if ((SrcAA = getBestAAResults().alias(MemoryLocation::getForSource(Inst),
                                           Loc)) == MustAlias)
       // Loc is exactly the memcpy source thus disjoint from memcpy dest.
-      return MRI_Ref;
+      return MRI_MustRef;
     if ((DestAA = getBestAAResults().alias(MemoryLocation::getForDest(Inst),
                                            Loc)) == MustAlias)
       // The converse case.
-      return MRI_Mod;
+      return MRI_MustMod;
 
     // It's also possible for Loc to alias both src and dest, or neither.
     ModRefInfo rv = MRI_NoModRef;
