@@ -152,6 +152,12 @@ Improvements to clang-tidy
   Finds member expressions that access static members through instances and
   replaces them with uses of the appropriate qualified-id.
 
+- New `misc-copy-constructor-init
+  <http://clang.llvm.org/extra/clang-tidy/checks/misc-copy-constructor-init.html>`_ check
+
+  Finds copy constructors which don't call the constructor of the base class.
+
+
 - Added `modernize-use-emplace.IgnoreImplicitConstructors
   <http://clang.llvm.org/extra/clang-tidy/checks/modernize-use-emplace.html#cmdoption-arg-IgnoreImplicitConstructors>`_
   option.
