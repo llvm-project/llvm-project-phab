@@ -17,6 +17,10 @@ cmake_policy(SET CMP0056 NEW)
 
 cmake_policy(SET CMP0057 NEW)
 
+if(POLICY CMP0068)
+  cmake_policy(SET CMP0068 NEW)
+endif()
+
 if(NOT DEFINED LLVM_VERSION_MAJOR)
   set(LLVM_VERSION_MAJOR 6)
 endif()
