@@ -25009,6 +25009,7 @@ const char *X86TargetLowering::getTargetNodeName(unsigned Opcode) const {
   case X86ISD::PCMPGT:             return "X86ISD::PCMPGT";
   case X86ISD::PCMPEQM:            return "X86ISD::PCMPEQM";
   case X86ISD::PCMPGTM:            return "X86ISD::PCMPGTM";
+  case X86ISD::PHMINPOS:           return "X86ISD::PHMINPOS";
   case X86ISD::ADD:                return "X86ISD::ADD";
   case X86ISD::SUB:                return "X86ISD::SUB";
   case X86ISD::ADC:                return "X86ISD::ADC";
@@ -30235,6 +30236,68 @@ static SDValue createPSADBW(SelectionDAG &DAG, const SDValue &Zext0,
   return DAG.getNode(X86ISD::PSADBW, DL, SadVT, SadOp0, SadOp1);
 }
 
+// Attempt to replace an min/max v8i16 horizontal reduction with PHMINPOSUW.
+static SDValue combineHorizontalMinMaxResult(SDNode *Extract,
+                                             SelectionDAG &DAG,
+                                             const X86Subtarget &Subtarget) {
+  // Bail without SSE41.
+  if (!Subtarget.hasSSE41())
+    return SDValue();
+
+  EVT ExtractVT = Extract->getValueType(0);
+  if (ExtractVT != MVT::i16)
+    return SDValue();
+
+  // Check for SMAX/SMIN/UMAX/UMIN horizontal reduction patterns.
+  for (ISD::NodeType Op : {ISD::SMAX, ISD::SMIN, ISD::UMAX, ISD::UMIN}) {
+    SDValue Src = matchBinOpReduction(Extract, Op);
+    if (!Src)
+      continue;
+
+    EVT SrcVT = Src.getValueType();
+    if (SrcVT.getScalarType() != MVT::i16 || (SrcVT.getSizeInBits() % 128) != 0)
+      return SDValue();
+
+    SDLoc DL(Extract);
+    SDValue MinPos = Src;
+
+    // First, reduce the source down to 128-bit, applying the op to lo/hi.
+    while (SrcVT.getSizeInBits() > 128) {
+      unsigned NumElts = SrcVT.getVectorNumElements();
+      unsigned NumSubElts = NumElts / 2;
+      SrcVT = EVT::getVectorVT(*DAG.getContext(), MVT::i16, NumSubElts);
+      unsigned SubSizeInBits = SrcVT.getSizeInBits();
+      SDValue Lo = extractSubVector(MinPos, 0, DAG, DL, SubSizeInBits);
+      SDValue Hi = extractSubVector(MinPos, NumSubElts, DAG, DL, SubSizeInBits);
+      MinPos = DAG.getNode(Op, DL, SrcVT, Lo, Hi);
+    }
+    assert(SrcVT == MVT::v8i16 && "Unexpected value type");
+
+    // PHMINPOSUW applies to UMIN(v8i16), for SMIN/SMAX/UMAX we must apply a mask
+    // to flip the value accordingly.
+    SDValue Mask;
+    if (Op == ISD::SMAX)
+      Mask = DAG.getConstant(APInt::getSignedMaxValue(16), DL, MVT::v8i16);
+    else if (Op == ISD::SMIN)
+      Mask = DAG.getConstant(APInt::getSignedMinValue(16), DL, MVT::v8i16);
+    else if (Op == ISD::UMAX)
+      Mask = DAG.getConstant(APInt::getAllOnesValue(16), DL, MVT::v8i16);
+
+    if (Mask)
+      MinPos = DAG.getNode(ISD::XOR, DL, MVT::v8i16, Mask, MinPos);
+
+    MinPos = DAG.getNode(X86ISD::PHMINPOS, DL, MVT::v8i16, MinPos);
+
+    if (Mask)
+      MinPos = DAG.getNode(ISD::XOR, DL, MVT::v8i16, Mask, MinPos);
+
+    return DAG.getNode(ISD::EXTRACT_VECTOR_ELT, DL, MVT::i16, MinPos,
+                       DAG.getIntPtrConstant(0, DL));
+  }
+
+  return SDValue();
+}
+
 // Attempt to replace an all_of/any_of style horizontal reduction with a MOVMSK.
 static SDValue combineHorizontalPredicateResult(SDNode *Extract,
                                                 SelectionDAG &DAG,
@@ -30543,6 +30606,10 @@ static SDValue combineExtractVectorElt(SDNode *N, SelectionDAG &DAG,
   // Attempt to replace an all_of/any_of horizontal reduction with a MOVMSK.
   if (SDValue Cmp = combineHorizontalPredicateResult(N, DAG, Subtarget))
     return Cmp;
+
+  // Attempt to replace min/max v8i16 reductions with PHMINPOSUW.
+  if (SDValue MinMax = combineHorizontalMinMaxResult(N, DAG, Subtarget))
+    return MinMax;
 
   // Only operate on vectors of 4 elements, where the alternative shuffling
   // gets to be more expensive.
