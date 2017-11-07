@@ -1,0 +1,48 @@
+# test for BB-local register copy elimination
+# RUN: llc -run-pass ppc-regcopy-elim -verify-machineinstrs -o - %s | FileCheck %s
+
+--- |
+  target datalayout = "E-m:e-i64:64-n32:64"
+  target triple = "powerpc64le-unknown-linux-gnu"
+  define signext i32 @func(i32 signext %i) {
+  entry:
+    ret i32 %i
+  }
+
+...
+---
+name:            func
+alignment:       2
+exposesReturnsTwice: false
+legalized:       false
+regBankSelected: false
+selected:        false
+tracksRegLiveness: true
+liveins:
+  - { reg: '%x3' }
+frameInfo:
+  isFrameAddressTaken: false
+  isReturnAddressTaken: false
+  hasStackMap:     false
+  hasPatchPoint:   false
+  stackSize:       0
+  offsetAdjustment: 0
+  maxAlignment:    0
+  adjustsStack:    false
+  hasCalls:        false
+  maxCallFrameSize: 0
+  hasOpaqueSPAdjustment: false
+  hasVAStart:      false
+  hasMustTailInVarArgFunc: false
+body:             |
+  bb.0.entry:
+    liveins: %x3
+
+    ; CHECK-LABEL: bb.0.entry:
+    ; CHECK: %x3 = ADDI8 killed %x3, 1
+    ; CHECK-NOT: OR8
+    %x4 = ADDI8 killed %x3, 1
+    %x3 = OR8 %x4, killed %x4
+
+...
+

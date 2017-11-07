@@ -1,0 +1,75 @@
+# test for BB-local register copy elimination
+# RUN: llc -run-pass ppc-regcopy-elim -verify-machineinstrs -o - %s | FileCheck %s
+
+--- |
+  target datalayout = "E-m:e-i64:64-n32:64"
+  target triple = "powerpc64le-unknown-linux-gnu"
+  define i8* @func(i8* %a, i1 %b) {
+  entry:
+    br i1 %b, label %exit, label %foo
+  
+  foo:                                              ; preds = %entry
+    br label %exit
+  
+  exit:                                             ; preds = %foo, %entry
+    ret i8* %a
+  }
+  
+...
+---
+name:            func
+alignment:       2
+exposesReturnsTwice: false
+legalized:       false
+regBankSelected: false
+selected:        false
+tracksRegLiveness: true
+liveins:
+  - { reg: '%x3' }
+frameInfo:
+  isFrameAddressTaken: false
+  isReturnAddressTaken: false
+  hasStackMap:     false
+  hasPatchPoint:   false
+  stackSize:       0
+  offsetAdjustment: 0
+  maxAlignment:    0
+  adjustsStack:    false
+  hasCalls:        false
+  maxCallFrameSize: 0
+  hasOpaqueSPAdjustment: false
+  hasVAStart:      false
+  hasMustTailInVarArgFunc: false
+body:             |
+  bb.0.entry:
+    successors: %bb.2.exit(0x40000000), %bb.1.foo(0x40000000)
+    liveins: %x3
+
+    ; CHECK-LABEL: bb.0.entry:
+    ; CHECK-NOT: OR8
+    ; CHECK: %cr0 = CMPLDI %x3, 0
+    %x4 = OR8 %x3, killed %x3
+    %cr0 = CMPLDI %x4, 0
+    BCC 76, killed %cr0, %bb.2.exit
+    B %bb.1.foo
+    
+  bb.1.foo:
+    liveins: %x4
+
+    ; CHECK-LABEL: bb.1.foo:
+    ; CHECK: %x4 = OR8 %x3, killed %x3
+    ; CHECK: %x4 = ADDI8 %x4, 123
+    ; CHECK: %x3 = OR8 %x4, killed %x4
+    %x4 = ADDI8 %x4, 123
+    B %bb.2.exit
+
+  bb.2.exit:
+    liveins: %x4
+    ; CHECK-LABEL: bb.2.exit:
+    ; CHECK-NOT: OR8
+    ; CHECK: BLR8
+    %x3 = OR8 %x4, killed %x4
+    BLR8 implicit %lr8, implicit %rm
+
+...
+

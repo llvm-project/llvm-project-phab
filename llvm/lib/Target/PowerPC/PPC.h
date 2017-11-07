@@ -49,6 +49,7 @@ namespace llvm {
   FunctionPass *createPPCTLSDynamicCallPass();
   FunctionPass *createPPCBoolRetToIntPass();
   FunctionPass *createPPCExpandISELPass();
+  FunctionPass *createPPCRegCopyElimPass();
   void LowerPPCMachineInstrToMCInst(const MachineInstr *MI, MCInst &OutMI,
                                     AsmPrinter &AP, bool isDarwin);
   bool LowerPPCMachineOperandToMCOperand(const MachineOperand &MO,
@@ -59,6 +60,7 @@ namespace llvm {
   void initializePPCBoolRetToIntPass(PassRegistry&);
   void initializePPCExpandISELPass(PassRegistry &);
   void initializePPCTLSDynamicCallPass(PassRegistry &);
+  void initializePPCRegCopyElimPass(PassRegistry &);
   extern char &PPCVSXFMAMutateID;
 
   namespace PPCII {

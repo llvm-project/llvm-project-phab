@@ -68,6 +68,10 @@ static cl::
 opt<bool> DisableMIPeephole("disable-ppc-peephole", cl::Hidden,
                             cl::desc("Disable machine peepholes for PPC"));
 
+static cl::
+opt<bool> DisableRegCopyElim("disable-ppc-regcopy-elim", cl::Hidden,
+                        cl::desc("Disable register copy elimination for PPC"));
+
 static cl::opt<bool>
 EnableGEPOpt("ppc-gep-opt", cl::Hidden,
              cl::desc("Enable optimizations on complex GEPs"),
@@ -98,6 +102,7 @@ extern "C" void LLVMInitializePowerPCTarget() {
   initializePPCBoolRetToIntPass(PR);
   initializePPCExpandISELPass(PR);
   initializePPCTLSDynamicCallPass(PR);
+  initializePPCRegCopyElimPass(PR);
 }
 
 /// Return the datalayout string of a subtarget.
@@ -422,6 +427,10 @@ void PPCPassConfig::addPreRegAlloc() {
 
 void PPCPassConfig::addPreSched2() {
   if (getOptLevel() != CodeGenOpt::None) {
+    // We try to eliminate redundant register copies among physical registers.
+    if (!DisableRegCopyElim)
+      addPass(createPPCRegCopyElimPass());
+
     addPass(&IfConverterID);
 
     // This optimization must happen after anything that might do store-to-load
