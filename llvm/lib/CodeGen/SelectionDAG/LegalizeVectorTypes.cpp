@@ -1072,8 +1072,11 @@ void DAGTypeLegalizer::SplitVecRes_INSERT_VECTOR_ELT(SDNode *N, SDValue &Lo,
   EVT VecVT = Vec.getValueType();
   EVT EltVT = VecVT.getVectorElementType();
   SDValue StackPtr = DAG.CreateStackTemporary(VecVT);
+  auto &MF = DAG.getMachineFunction();
+  auto FrameIndex = cast<FrameIndexSDNode>(StackPtr.getNode())->getIndex();
+  auto PtrInfo = MachinePointerInfo::getFixedStack(MF, FrameIndex);
   SDValue Store =
-      DAG.getStore(DAG.getEntryNode(), dl, Vec, StackPtr, MachinePointerInfo());
+      DAG.getStore(DAG.getEntryNode(), dl, Vec, StackPtr, PtrInfo);
 
   // Store the new element.  This may be larger than the vector element type,
   // so use a truncating store.
@@ -1081,11 +1084,13 @@ void DAGTypeLegalizer::SplitVecRes_INSERT_VECTOR_ELT(SDNode *N, SDValue &Lo,
   Type *VecType = VecVT.getTypeForEVT(*DAG.getContext());
   unsigned Alignment = DAG.getDataLayout().getPrefTypeAlignment(VecType);
   Store =
-      DAG.getTruncStore(Store, dl, Elt, EltPtr, MachinePointerInfo(), EltVT);
+      DAG.getTruncStore(Store, dl, Elt, EltPtr,
+                        MachinePointerInfo(UndefValue::get(Type::getInt32PtrTy(
+                            *DAG.getContext(), PtrInfo.getAddrSpace()))),
+                        EltVT);
 
   // Load the Lo part from the stack slot.
-  Lo =
-      DAG.getLoad(Lo.getValueType(), dl, Store, StackPtr, MachinePointerInfo());
+  Lo = DAG.getLoad(Lo.getValueType(), dl, Store, StackPtr, PtrInfo);
 
   // Increment the pointer to the other part.
   unsigned IncrementSize = Lo.getValueSizeInBits() / 8;
@@ -1094,7 +1099,8 @@ void DAGTypeLegalizer::SplitVecRes_INSERT_VECTOR_ELT(SDNode *N, SDValue &Lo,
                                          StackPtr.getValueType()));
 
   // Load the Hi part from the stack slot.
-  Hi = DAG.getLoad(Hi.getValueType(), dl, Store, StackPtr, MachinePointerInfo(),
+  Hi = DAG.getLoad(Hi.getValueType(), dl, Store, StackPtr,
+                   PtrInfo.getWithOffset(IncrementSize),
                    MinAlign(Alignment, IncrementSize));
 }
 
