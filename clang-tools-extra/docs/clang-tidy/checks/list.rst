@@ -103,6 +103,7 @@ Clang-Tidy Checks
    misc-argument-comment
    misc-assert-side-effect
    misc-bool-pointer-implicit-conversion
+   misc-copy-constructor-init
    misc-dangling-handle
    misc-definitions-in-headers
    misc-fold-init-type

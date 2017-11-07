@@ -13,6 +13,7 @@
 #include "ArgumentCommentCheck.h"
 #include "AssertSideEffectCheck.h"
 #include "BoolPointerImplicitConversionCheck.h"
+#include "CopyConstructorInitCheck.h"
 #include "DanglingHandleCheck.h"
 #include "DefinitionsInHeadersCheck.h"
 #include "FoldInitTypeCheck.h"
@@ -76,6 +77,8 @@ public:
         "misc-unconventional-assign-operator");
     CheckFactories.registerCheck<BoolPointerImplicitConversionCheck>(
         "misc-bool-pointer-implicit-conversion");
+    CheckFactories.registerCheck<CopyConstructorInitCheck>(
+        "misc-copy-constructor-init");
     CheckFactories.registerCheck<DanglingHandleCheck>("misc-dangling-handle");
     CheckFactories.registerCheck<DefinitionsInHeadersCheck>(
         "misc-definitions-in-headers");
