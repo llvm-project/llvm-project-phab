@@ -255,6 +255,14 @@ public:
   inline MemoryAccess *getOptimized() const;
   inline void setOptimized(MemoryAccess *);
 
+  bool definingAccessMayAlias() const {
+    return AliasWithDefining == MayAlias || AliasWithDefining == PartialAlias;
+  }
+
+  bool definingAccessMustAlias() const {
+    return AliasWithDefining == MustAlias;
+  }
+
   /// \brief Reset the ID of what this MemoryUse was optimized to, causing it to
   /// be rewalked by the walker if necessary.
   /// This really should only be called by tests.
@@ -270,16 +278,24 @@ protected:
     setDefiningAccess(DMA);
   }
 
-  void setDefiningAccess(MemoryAccess *DMA, bool Optimized = false) {
+  void setDefiningToMayAlias() { AliasWithDefining = MayAlias; }
+
+  void setDefiningToMustAlias() { AliasWithDefining = MustAlias; }
+
+  void setDefiningAccess(MemoryAccess *DMA, bool Optimized = false,
+                         AliasResult AR = MayAlias) {
     if (!Optimized) {
+      AliasWithDefining = MayAlias;
       setOperand(0, DMA);
       return;
     }
+    AliasWithDefining = AR;
     setOptimized(DMA);
   }
 
 private:
   Instruction *MemoryInst;
+  AliasResult AliasWithDefining;
 };
 
 template <>
