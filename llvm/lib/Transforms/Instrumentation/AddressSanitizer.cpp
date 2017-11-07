@@ -101,7 +101,6 @@ static const uint64_t kDynamicShadowSentinel =
 static const uint64_t kIOSShadowOffset32 = 1ULL << 30;
 static const uint64_t kIOSSimShadowOffset32 = 1ULL << 30;
 static const uint64_t kIOSSimShadowOffset64 = kDefaultShadowOffset64;
-static const uint64_t kSmallX86_64ShadowOffset = 0x7FFF8000;  // < 2G.
 static const uint64_t kLinuxKasan_ShadowOffset64 = 0xdffffc0000000000;
 static const uint64_t kPPC64_ShadowOffset64 = 1ULL << 41;
 static const uint64_t kSystemZ_ShadowOffset64 = 1ULL << 52;
@@ -482,6 +481,11 @@ static ShadowMapping getShadowMapping(Triple &TargetTriple, int LongSize,
 
   ShadowMapping Mapping;
 
+  Mapping.Scale = kDefaultShadowScale;
+  if (ClMappingScale.getNumOccurrences() > 0) {
+    Mapping.Scale = ClMappingScale;
+  }
+
   if (LongSize == 32) {
     // Android is always PIE, which means that the beginning of the address
     // space is always available.
@@ -517,7 +521,7 @@ static ShadowMapping getShadowMapping(Triple &TargetTriple, int LongSize,
       if (IsKasan)
         Mapping.Offset = kLinuxKasan_ShadowOffset64;
       else
-        Mapping.Offset = kSmallX86_64ShadowOffset;
+        Mapping.Offset =  0x7FFFFFFF & ~((1 << (12 + Mapping.Scale)) - 1);
     } else if (IsWindows && IsX86_64) {
       Mapping.Offset = kWindowsShadowOffset64;
     } else if (IsMIPS64)
@@ -535,11 +539,6 @@ static ShadowMapping getShadowMapping(Triple &TargetTriple, int LongSize,
 
   if (ClForceDynamicShadow) {
     Mapping.Offset = kDynamicShadowSentinel;
-  }
-
-  Mapping.Scale = kDefaultShadowScale;
-  if (ClMappingScale.getNumOccurrences() > 0) {
-    Mapping.Scale = ClMappingScale;
   }
 
   if (ClMappingOffset.getNumOccurrences() > 0) {
