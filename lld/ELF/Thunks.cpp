@@ -48,6 +48,23 @@ namespace elf {
 
 namespace {
 
+// AArch64 long range Thunks
+class AArch64ABSLongThunk final : public Thunk {
+public:
+  AArch64ABSLongThunk(Symbol &Dest) : Thunk(Dest) {}
+  uint32_t size() const override { return 16; }
+  void writeTo(uint8_t *Buf, ThunkSection &IS) const override;
+  void addSymbols(ThunkSection &IS) override;
+};
+
+class AArch64PILongThunk final : public Thunk {
+public:
+  AArch64PILongThunk(Symbol &Dest) : Thunk(Dest) {}
+  uint32_t size() const override { return 24; }
+  void writeTo(uint8_t *Buf, ThunkSection &IS) const override;
+  void addSymbols(ThunkSection &IS) override;
+};
+
 // Specific ARM Thunk implementations. The naming convention is:
 // Source State, TargetState, Target Requirement, ABS or PI, Range
 class ARMV7ABSLongThunk final : public Thunk {
@@ -124,6 +141,59 @@ public:
 };
 
 } // end anonymous namespace
+
+// AArch64 long range Thunks
+
+static uint64_t getAArch64ThunkDestVA(const Symbol &S) {
+  uint64_t V = S.isInPlt() ? S.getPltVA() : S.getVA();
+  return V;
+}
+
+void AArch64ABSLongThunk::writeTo(uint8_t *Buf, ThunkSection &IS) const {
+  const uint8_t Data[] = {
+    0x50, 0x00, 0x00, 0x58, //     ldr x16, L0
+    0x00, 0x02, 0x1f, 0xd6, //     br  x16
+    0x00, 0x00, 0x00, 0x00, // L0: .xword S
+    0x00, 0x00, 0x00, 0x00,
+  };
+  uint64_t S = getAArch64ThunkDestVA(Destination);
+  memcpy(Buf, Data, sizeof(Data));
+  Target->relocateOne(Buf + 8, R_AARCH64_ABS64, S);
+}
+
+void AArch64ABSLongThunk::addSymbols(ThunkSection &IS) {
+  ThunkSym = addSyntheticLocal(
+      Saver.save("__AArch64AbsLongThunk_" + Destination.getName()), STT_FUNC,
+      Offset, size(), &IS);
+  addSyntheticLocal("$x", STT_NOTYPE, Offset, 0, &IS);
+  addSyntheticLocal("$d", STT_NOTYPE, Offset + 8, 0, &IS);
+}
+
+// Conservative implementation that can cover all of the address space. A more
+// efficient implementation with a maximum range of +- 4Gb is possible if ADRP
+// followed by add is used.
+void AArch64PILongThunk::writeTo(uint8_t *Buf, ThunkSection &IS) const {
+  const uint8_t Data[] = {
+    0x10, 0x00, 0x00, 0x10, // P:  adr x16, #0
+    0x71, 0x00, 0x00, 0x58, //     ldr x17, L1
+    0x10, 0x02, 0x11, 0x8b, //     add x16, x17, ip1
+    0x00, 0x02, 0x1f, 0xd6, //     br  x16
+    0x00, 0x00, 0x00, 0x00, // L1: .xword (S - P)
+    0x00, 0x00, 0x00, 0x00,
+  };
+  uint64_t S = getAArch64ThunkDestVA(Destination);
+  uint64_t P = ThunkSym->getVA();
+  memcpy(Buf, Data, sizeof(Data));
+  Target->relocateOne(Buf + 16, R_AARCH64_PREL64, S - P);
+}
+
+void AArch64PILongThunk::addSymbols(ThunkSection &IS) {
+  ThunkSym = addSyntheticLocal(
+      Saver.save("__AArch64PILongThunk_" + Destination.getName()), STT_FUNC,
+      Offset, size(), &IS);
+  addSyntheticLocal("$x", STT_NOTYPE, Offset, 0, &IS);
+  addSyntheticLocal("$d", STT_NOTYPE, Offset + 16, 0, &IS);
+}
 
 // ARM Target Thunks
 static uint64_t getARMThunkDestVA(const Symbol &S) {
@@ -309,6 +379,14 @@ Thunk::Thunk(Symbol &D) : Destination(D), Offset(0) {}
 
 Thunk::~Thunk() = default;
 
+static Thunk *addThunkAArch64(RelType Type, Symbol &S) {
+  if (Type != R_AARCH64_CALL26 && Type != R_AARCH64_JUMP26)
+    fatal("unrecognized relocation type");
+  if (Config->Pic)
+    return make<AArch64PILongThunk>(S);
+  return make<AArch64ABSLongThunk>(S);
+}
+
 // Creates a thunk for Thumb-ARM interworking.
 static Thunk *addThunkArm(RelType Reloc, Symbol &S) {
   // ARM relocations need ARM to Thumb interworking Thunks.
@@ -341,7 +419,9 @@ static Thunk *addThunkMips(RelType Type, Symbol &S) {
 }
 
 Thunk *addThunk(RelType Type, Symbol &S) {
-  if (Config->EMachine == EM_ARM)
+  if (Config->EMachine == EM_AARCH64)
+    return addThunkAArch64(Type, S);
+  else if (Config->EMachine == EM_ARM)
     return addThunkArm(Type, S);
   else if (Config->EMachine == EM_MIPS)
     return addThunkMips(Type, S);
