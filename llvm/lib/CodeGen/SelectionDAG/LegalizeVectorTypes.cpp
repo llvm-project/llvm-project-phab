@@ -1770,13 +1770,17 @@ SDValue DAGTypeLegalizer::SplitVecOp_EXTRACT_VECTOR_ELT(SDNode *N) {
 
   // Store the vector to the stack.
   SDValue StackPtr = DAG.CreateStackTemporary(VecVT);
-  SDValue Store =
-      DAG.getStore(DAG.getEntryNode(), dl, Vec, StackPtr, MachinePointerInfo());
+  auto &MF = DAG.getMachineFunction();
+  auto FrameIndex = cast<FrameIndexSDNode>(StackPtr.getNode())->getIndex();
+  auto PtrInfo = MachinePointerInfo::getFixedStack(MF, FrameIndex);
+  SDValue Store = DAG.getStore(DAG.getEntryNode(), dl, Vec, StackPtr, PtrInfo);
 
   // Load back the required element.
   StackPtr = TLI.getVectorElementPointer(DAG, StackPtr, VecVT, Idx);
   return DAG.getExtLoad(ISD::EXTLOAD, dl, N->getValueType(0), Store, StackPtr,
-                        MachinePointerInfo(), EltVT);
+                        MachinePointerInfo(UndefValue::get(Type::getInt32PtrTy(
+                            *DAG.getContext(), PtrInfo.getAddrSpace()))),
+                        EltVT);
 }
 
 SDValue DAGTypeLegalizer::SplitVecOp_ExtVecInRegOp(SDNode *N) {
