@@ -262,6 +262,10 @@ void ReservedAddressRange::Unmap(uptr addr, uptr size) {
   CHECK((addr_as_void == base_) || (addr + size == base_as_uptr + size_));
   CHECK_LE(size, size_);
   UnmapOrDie(reinterpret_cast<void*>(addr), size);
+  if (addr_as_void == base_) {
+    base_ = reinterpret_ccast<void*>(reinterpret_cast<uptr>(addr) + size);
+  }
+  size_ = size_ - size;
 }
 
 // MmapNoAccess and MmapFixedOrDie are used only by sanitizer_allocator.
