@@ -45,7 +45,7 @@ body:             |
   bb.0 (%ir-block.0):
     liveins: %edi
 
-    ; CHECK: %eax = MOV32rr undef %edi, implicit %dil
+    ; CHECK: %eax = MOV32rr norename undef %edi, implicit norename %dil
     %al = MOV8rr killed %dil
     RETQ killed %al
 
@@ -60,7 +60,7 @@ body:             |
   bb.0 (%ir-block.0):
     liveins: %edi
 
-    ; CHECK: %eax = MOV32rr undef %edi, implicit %dil
+    ; CHECK: %eax = MOV32rr norename undef %edi, implicit norename %dil
     %al = MOV8rr %dil, implicit %edi
     RETQ killed %al
 
@@ -75,7 +75,7 @@ body:             |
   bb.0 (%ir-block.0):
     liveins: %edi
 
-    ; CHECK: %eax = MOV32rr undef %edi, implicit %dil, implicit-def %rax
+    ; CHECK: %eax = MOV32rr norename undef %edi, implicit norename %dil, implicit-def %rax
     %al = MOV8rr %dil, implicit-def %rax
     RETQ killed %al
 
@@ -90,7 +90,7 @@ body:             |
   bb.0 (%ir-block.0):
     liveins: %edi
 
-    ; CHECK: %eax = MOV32rr undef %edi, implicit %dil
+    ; CHECK: %eax = MOV32rr norename undef %edi, implicit norename %dil
     %al = MOV8rr %dil, implicit-def %eax
     RETQ killed %al
 
@@ -105,7 +105,7 @@ body:             |
   bb.0 (%ir-block.0):
     liveins: %edi
 
-    ; CHECK: %eax = MOV32rr undef %edi, implicit %dil
+    ; CHECK: %eax = MOV32rr norename undef %edi, implicit norename %dil
     %al = MOV8rr %dil, implicit-def %ax
     RETQ killed %al
 
@@ -120,7 +120,7 @@ body:             |
   bb.0 (%ir-block.0):
     liveins: %edi
 
-    ; CHECK: %eax = MOV32rr undef %edi, implicit %di
+    ; CHECK: %eax = MOV32rr norename undef %edi, implicit norename %di
     %ax = MOV16rr %di, implicit-def %eax
     RETQ killed %ax
 
@@ -135,7 +135,7 @@ body:             |
   bb.0 (%ir-block.0):
     liveins: %edi
 
-    ; CHECK: %eax = MOV32rr undef %edi, implicit %di, implicit-def %rax
+    ; CHECK: %eax = MOV32rr norename undef %edi, implicit norename %di, implicit-def %rax
     %ax = MOV16rr %di, implicit-def %rax
     RETQ killed %ax
 

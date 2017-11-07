@@ -12,7 +12,7 @@
 # CHECK:     JUMPTABLE_ADDRS
 
 # CHECK-LABEL: name: bar
-# CHECK: tTBB_JT %pc, killed %r1
+# CHECK: tTBB_JT norename %pc, killed norename %r1
 
 --- |
   ; ModuleID = 'simple.ll'

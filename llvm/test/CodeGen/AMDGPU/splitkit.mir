@@ -34,8 +34,8 @@ body: |
 # allocated to sgpr0_sgpr1 and the first to something else so we see two copies
 # in between for the two subregisters that are alive.
 # CHECK-LABEL: name: func1
-# CHECK: [[REG0:%sgpr[0-9]+]] = COPY %sgpr0
-# CHECK: [[REG1:%sgpr[0-9]+]] = COPY %sgpr2
+# CHECK: [[REG0:%sgpr[0-9]+]] = COPY norename %sgpr0
+# CHECK: [[REG1:%sgpr[0-9]+]] = COPY norename %sgpr2
 # CHECK: S_NOP 0
 # CHECK: S_NOP 0, implicit [[REG0]]
 # CHECK: S_NOP 0, implicit [[REG1]]

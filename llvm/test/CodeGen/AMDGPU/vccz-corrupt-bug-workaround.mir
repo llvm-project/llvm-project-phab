@@ -47,7 +47,7 @@
 ---
 # CHECK-LABEL: name: vccz_corrupt_workaround
 # CHECK: %vcc = V_CMP_EQ_F32
-# CHECK-NEXT: %vcc = S_MOV_B64 %vcc
+# CHECK-NEXT: %vcc = S_MOV_B64 norename %vcc
 # CHECK-NEXT: S_CBRANCH_VCCZ %bb.2.else, implicit killed %vcc
 
 name:            vccz_corrupt_workaround

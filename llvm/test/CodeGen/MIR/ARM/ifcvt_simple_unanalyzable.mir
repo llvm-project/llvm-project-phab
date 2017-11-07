@@ -19,7 +19,7 @@ body:             |
 
 # CHECK: body:             |
 # CHECK:   bb.0:
-# CHECK:     %sp = tADDspi %sp, 2, 0, %cpsr
-# CHECK:     BX_RET 0, %cpsr
+# CHECK:     %sp = tADDspi %sp, 2, 0, norename %cpsr
+# CHECK:     BX_RET 0, norename %cpsr
 # CHECK:     BX_RET 14, _
 

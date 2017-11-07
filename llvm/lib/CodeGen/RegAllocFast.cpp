@@ -698,12 +698,12 @@ bool RegAllocFast::setPhysReg(MachineInstr &MI, unsigned OpNum,
   MachineOperand &MO = MI.getOperand(OpNum);
   bool Dead = MO.isDead();
   if (!MO.getSubReg()) {
-    MO.setReg(PhysReg);
+    MO.setRegKeepRenamable(PhysReg);
     return MO.isKill() || Dead;
   }
 
   // Handle subregister index.
-  MO.setReg(PhysReg ? TRI->getSubReg(PhysReg, MO.getSubReg()) : 0);
+  MO.setRegKeepRenamable(PhysReg ? TRI->getSubReg(PhysReg, MO.getSubReg()) : 0);
   MO.setSubReg(0);
 
   // A kill flag implies killing the full register. Add corresponding super

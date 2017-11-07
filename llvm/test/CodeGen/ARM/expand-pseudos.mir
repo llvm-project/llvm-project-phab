@@ -69,7 +69,7 @@ body:             |
 # CHECK-LABEL: name: test1
 # CHECK: %r1 = MOVi16 500, 0, killed %cpsr, implicit killed %r1
 # CHECK-LABEL: name: test2
-# CHECK:    %r1 = MOVi16 2068, 0, %cpsr, implicit killed %r1
-# CHECK:    %r1 = MOVTi16 %r1, 7637, 0, %cpsr
+# CHECK:    %r1 = MOVi16 2068, 0, norename %cpsr, implicit killed %r1
+# CHECK:    %r1 = MOVTi16 norename %r1, 7637, 0, norename %cpsr
 # CHECK-LABEL: name: test3
 # CHECK: %r0 = MOVr killed %r1, 12, killed %cpsr, _, implicit killed %r0

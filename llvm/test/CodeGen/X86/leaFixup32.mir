@@ -104,8 +104,8 @@ frameInfo:
 body:             |
   bb.0 (%ir-block.0):
     liveins: %eax, %ebp
-    ; CHECK: %eax = ADD32rr %eax, killed %ebp
-    ; CHECK: %eax = ADD32ri8 %eax, -5
+    ; CHECK: %eax = ADD32rr norename %eax, killed %ebp
+    ; CHECK: %eax = ADD32ri8 norename %eax, -5
  
     %eax = LEA32r killed %eax, 1, killed %ebp, -5, _
     RETQ %eax
@@ -139,8 +139,8 @@ frameInfo:
 body:             |
   bb.0 (%ir-block.0):
     liveins: %eax, %ebp
-    ; CHECK: %ebp = ADD32rr %ebp, killed %eax
-    ; CHECK: %ebp = ADD32ri8 %ebp, -5
+    ; CHECK: %ebp = ADD32rr norename %ebp, killed %eax
+    ; CHECK: %ebp = ADD32ri8 norename %ebp, -5
  
     %ebp = LEA32r killed %ebp, 1, killed %eax, -5, _
     RETQ %ebp
@@ -174,7 +174,7 @@ frameInfo:
 body:             |
   bb.0 (%ir-block.0):
     liveins: %eax, %ebp
-    ; CHECK: %ebp = ADD32rr %ebp, killed %eax
+    ; CHECK: %ebp = ADD32rr norename %ebp, killed %eax
  
     %ebp = LEA32r killed %ebp, 1, killed %eax, 0, _
     RETQ %ebp
@@ -210,7 +210,7 @@ body:             |
   bb.0 (%ir-block.0):
     liveins: %eax, %ebp, %esi
     ; CHECK: %ebx = LEA32r killed %eax, 1, killed %ebp, 0
-    ; CHECK: %ebx = ADD32ri8 %ebx, -5
+    ; CHECK: %ebx = ADD32ri8 norename %ebx, -5
  
     %ebx = LEA32r killed %eax, 1, killed %ebp, -5, _
     RETQ %ebx
@@ -246,7 +246,7 @@ body:             |
   bb.0 (%ir-block.0):
     liveins: %eax, %ebp
     ; CHECK: %ebx = LEA32r killed %eax, 1, killed %ebp, 0, _
-    ; CHECK: %ebx = ADD32ri8  %ebx, -5
+    ; CHECK: %ebx = ADD32ri8 norename %ebx, -5
  
     %ebx = LEA32r killed %ebp, 1, killed %eax, -5, _
     RETQ %ebx
@@ -315,8 +315,8 @@ frameInfo:
 body:             |
   bb.0 (%ir-block.0):
     liveins: %eax, %ebp
-    ; CHECK: %eax = ADD32rr %eax, killed %ebp
-    ; CHECK: %eax = ADD32ri %eax, 129
+    ; CHECK: %eax = ADD32rr norename %eax, killed %ebp
+    ; CHECK: %eax = ADD32ri norename %eax, 129
  
     %eax = LEA32r killed %eax, 1, killed %ebp, 129, _
     RETQ %eax
@@ -351,8 +351,8 @@ frameInfo:
 body:             |
   bb.0 (%ir-block.0):
     liveins: %eax, %ebp, %ebx
-    ; CHECK: %ebx = MOV32rr  %ebp
-    ; CHECK: %ebx = ADD32rr %ebx, %ebp
+    ; CHECK: %ebx = MOV32rr norename %ebp
+    ; CHECK: %ebx = ADD32rr norename %ebx, %ebp
  
     %ebx = LEA32r %ebp, 1, %ebp, 0, _
     RETQ %ebx
@@ -387,7 +387,7 @@ body:             |
   bb.0 (%ir-block.0):
     liveins: %eax, %ebp, %ebx
     ; CHECK: %ebx = LEA32r _, 1, %ebp, 5, _
-    ; CHECK: %ebx = ADD32rr %ebx, %ebp
+    ; CHECK: %ebx = ADD32rr norename %ebx, %ebp
  
     %ebx = LEA32r %ebp, 1, %ebp, 5, _
     RETQ %ebx
@@ -422,7 +422,7 @@ body:             |
   bb.0 (%ir-block.0):
     liveins: %eax, %ebp, %ebx
     ; CHECK: %ebx = LEA32r _, 4, %ebp, 5, _
-    ; CHECK: %ebx = ADD32rr %ebx, %ebp
+    ; CHECK: %ebx = ADD32rr norename %ebx, %ebp
  
     %ebx = LEA32r %ebp, 4, %ebp, 5, _
     RETQ %ebx
@@ -492,7 +492,7 @@ body:             |
     liveins: %eax, %ebp, %ebx
     ; CHECK: %ebx = LEA32r killed %eax, 4, killed %eax, 5, _
     ; CHECK: %ebp = LEA32r killed %ebx, 4, killed %ebx, 0, _
-    ; CHECK: %ebp = ADD32ri8 %ebp, 5
+    ; CHECK: %ebp = ADD32ri8 norename %ebp, 5
    
     CMP32rr   %eax, killed %ebx, implicit-def %eflags
     %ebx = LEA32r killed %eax, 4, killed %eax, 5, _

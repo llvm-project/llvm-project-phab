@@ -184,7 +184,7 @@ public:
   bool parseNamedRegister(unsigned &Reg);
   bool parseVirtualRegister(VRegInfo *&Info);
   bool parseRegister(unsigned &Reg, VRegInfo *&VRegInfo);
-  bool parseRegisterFlag(unsigned &Flags);
+  bool parseRegisterFlag(unsigned &Flags, bool &NoRename);
   bool parseRegisterClassOrBank(VRegInfo &RegInfo);
   bool parseSubRegisterIndex(unsigned &SubReg);
   bool parseRegisterTiedDefIndex(unsigned &TiedDefIdx);
@@ -1030,7 +1030,7 @@ bool MIParser::parseRegisterClassOrBank(VRegInfo &RegInfo) {
   llvm_unreachable("Unexpected register kind");
 }
 
-bool MIParser::parseRegisterFlag(unsigned &Flags) {
+bool MIParser::parseRegisterFlag(unsigned &Flags, bool &NoRename) {
   const unsigned OldFlags = Flags;
   switch (Token.kind()) {
   case MIToken::kw_implicit:
@@ -1047,6 +1047,9 @@ bool MIParser::parseRegisterFlag(unsigned &Flags) {
     break;
   case MIToken::kw_killed:
     Flags |= RegState::Kill;
+    break;
+  case MIToken::kw_norename:
+    NoRename = true;
     break;
   case MIToken::kw_undef:
     Flags |= RegState::Undef;
@@ -1137,9 +1140,10 @@ bool MIParser::assignRegisterTies(MachineInstr &MI,
 bool MIParser::parseRegisterOperand(MachineOperand &Dest,
                                     Optional<unsigned> &TiedDefIdx,
                                     bool IsDef) {
+  bool NoRename = false;
   unsigned Flags = IsDef ? RegState::Define : 0;
   while (Token.isRegisterFlag()) {
-    if (parseRegisterFlag(Flags))
+    if (parseRegisterFlag(Flags, NoRename))
       return true;
   }
   if (!Token.isRegister())
@@ -1213,6 +1217,13 @@ bool MIParser::parseRegisterOperand(MachineOperand &Dest,
       Flags & RegState::Kill, Flags & RegState::Dead, Flags & RegState::Undef,
       Flags & RegState::EarlyClobber, SubReg, Flags & RegState::Debug,
       Flags & RegState::InternalRead);
+
+  // Mark MIR regs as renamable unless they are explicitly marked norename.  We
+  // will later go back through and fix up all the physical regs to be marked as
+  // not renamable if we are reading a MIR file with NoVRegs not set (i.e. from
+  // before register allocation.
+  if (!NoRename)
+    Dest.setIsRenamable(true);
   return false;
 }
 
@@ -1874,6 +1885,7 @@ bool MIParser::parseMachineOperand(MachineOperand &Dest,
   case MIToken::kw_def:
   case MIToken::kw_dead:
   case MIToken::kw_killed:
+  case MIToken::kw_norename:
   case MIToken::kw_undef:
   case MIToken::kw_internal:
   case MIToken::kw_early_clobber:

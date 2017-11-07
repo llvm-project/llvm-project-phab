@@ -31,7 +31,7 @@ body:             |
     ; CHECK: %s3 = VLDRS %r0, 2, 14, _, implicit killed undef %q0, implicit-def %q0 :: (load 4)
 
     %s0 = VLDRS %r0, 0, 14, _, implicit killed %q0, implicit-def %q0 :: (load 4)
-    ; CHECK: VLDMSIA %r0, 14, _, def %s0, def %s1, implicit-def _
+    ; CHECK: VLDMSIA norename %r0, 14, _, def norename %s0, def norename %s1, implicit-def _
 
     %s2 = VLDRS killed %r0, 4, 14, _, implicit killed %q0, implicit-def %q0 :: (load 4)
     ; CHECK: %s2 = VLDRS killed %r0, 4, 14, _, implicit killed %q0, implicit-def %q0 :: (load 4)

@@ -2,7 +2,7 @@
 
 ---
 # CHECK-LABEL: name: test0
-# CHECK: J4_cmpeqi_f_jumpnv_t killed %r1, 0
+# CHECK: J4_cmpeqi_f_jumpnv_t killed norename %r1, 0
 name: test0
 tracksRegLiveness: true
 
@@ -17,7 +17,7 @@ body: |
 
 ---
 # CHECK-LABEL: name: test1
-# CHECK: J4_cmpgti_f_jumpnv_t killed %r1, 27
+# CHECK: J4_cmpgti_f_jumpnv_t killed norename %r1, 27
 name: test1
 tracksRegLiveness: true
 
@@ -32,7 +32,7 @@ body: |
 
 ---
 # CHECK-LABEL: name: test2
-# CHECK: J4_cmpgtui_f_jumpnv_t killed %r1, 31
+# CHECK: J4_cmpgtui_f_jumpnv_t killed norename %r1, 31
 name: test2
 tracksRegLiveness: true
 

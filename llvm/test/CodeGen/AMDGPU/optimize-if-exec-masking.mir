@@ -147,8 +147,8 @@
 ...
 ---
 # CHECK-LABEL: name: optimize_if_and_saveexec_xor{{$}}
-# CHECK: %sgpr0_sgpr1 = S_AND_SAVEEXEC_B64 %vcc, implicit-def %exec, implicit-def %scc, implicit %exec
-# CHECK-NEXT: %sgpr0_sgpr1 = S_XOR_B64 %exec, killed %sgpr0_sgpr1, implicit-def %scc
+# CHECK: %sgpr0_sgpr1 = S_AND_SAVEEXEC_B64 norename %vcc, implicit-def norename %exec, implicit-def norename %scc, implicit norename %exec
+# CHECK-NEXT: %sgpr0_sgpr1 = S_XOR_B64 norename %exec, killed %sgpr0_sgpr1, implicit-def %scc
 # CHECK-NEXT: SI_MASK_BRANCH
 
 name:            optimize_if_and_saveexec_xor
@@ -206,7 +206,7 @@ body:             |
 ...
 ---
 # CHECK-LABEL: name: optimize_if_and_saveexec{{$}}
-# CHECK: %sgpr0_sgpr1 = S_AND_SAVEEXEC_B64 %vcc, implicit-def %exec, implicit-def %scc, implicit %exec
+# CHECK: %sgpr0_sgpr1 = S_AND_SAVEEXEC_B64 norename %vcc, implicit-def norename %exec, implicit-def norename %scc, implicit norename %exec
 # CHECK-NEXT: SI_MASK_BRANCH
 
 name:            optimize_if_and_saveexec
@@ -263,7 +263,7 @@ body:             |
 ...
 ---
 # CHECK-LABEL: name: optimize_if_or_saveexec{{$}}
-# CHECK: %sgpr0_sgpr1 = S_OR_SAVEEXEC_B64 %vcc, implicit-def %exec, implicit-def %scc, implicit %exec
+# CHECK: %sgpr0_sgpr1 = S_OR_SAVEEXEC_B64 norename %vcc, implicit-def norename %exec, implicit-def norename %scc, implicit norename %exec
 # CHECK-NEXT: SI_MASK_BRANCH
 
 name:            optimize_if_or_saveexec
@@ -621,7 +621,7 @@ body:             |
 ...
 ---
 # CHECK-LABEL: name: optimize_if_andn2_saveexec{{$}}
-# CHECK: %sgpr0_sgpr1 = S_ANDN2_SAVEEXEC_B64 %vcc, implicit-def %exec, implicit-def %scc, implicit %exec
+# CHECK: %sgpr0_sgpr1 = S_ANDN2_SAVEEXEC_B64 norename %vcc, implicit-def norename %exec, implicit-def norename %scc, implicit norename %exec
 # CHECK-NEXT: SI_MASK_BRANCH
 
 name:            optimize_if_andn2_saveexec

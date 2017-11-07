@@ -56,6 +56,7 @@ struct MIToken {
     kw_dead,
     kw_dereferenceable,
     kw_killed,
+    kw_norename,
     kw_undef,
     kw_internal,
     kw_early_clobber,
@@ -165,7 +166,7 @@ public:
   bool isRegisterFlag() const {
     return Kind == kw_implicit || Kind == kw_implicit_define ||
            Kind == kw_def || Kind == kw_dead || Kind == kw_killed ||
-           Kind == kw_undef || Kind == kw_internal ||
+           Kind == kw_norename || Kind == kw_undef || Kind == kw_internal ||
            Kind == kw_early_clobber || Kind == kw_debug_use;
   }
 

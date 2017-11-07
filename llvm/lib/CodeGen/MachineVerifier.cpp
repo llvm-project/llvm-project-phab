@@ -101,6 +101,7 @@ namespace {
     // Avoid querying the MachineFunctionProperties for each operand.
     bool isFunctionRegBankSelected;
     bool isFunctionSelected;
+    bool areRegsAllocated;
 
     using RegVector = SmallVector<unsigned, 16>;
     using RegMaskVector = SmallVector<const uint32_t *, 4>;
@@ -344,9 +345,7 @@ void MachineVerifier::verifyProperties(const MachineFunction &MF) {
   // If a pass has introduced virtual registers without clearing the
   // NoVRegs property (or set it without allocating the vregs)
   // then report an error.
-  if (MF.getProperties().hasProperty(
-          MachineFunctionProperties::Property::NoVRegs) &&
-      MRI->getNumVirtRegs())
+  if (areRegsAllocated && MRI->getNumVirtRegs())
     report("Function has NoVRegs property but there are VReg operands", &MF);
 }
 
@@ -363,6 +362,8 @@ unsigned MachineVerifier::verify(MachineFunction &MF) {
       MachineFunctionProperties::Property::RegBankSelected);
   isFunctionSelected = MF.getProperties().hasProperty(
       MachineFunctionProperties::Property::Selected);
+  areRegsAllocated = MF.getProperties().hasProperty(
+      MachineFunctionProperties::Property::NoVRegs);
 
   LiveVars = nullptr;
   LiveInts = nullptr;
@@ -1204,6 +1205,14 @@ MachineVerifier::visitMachineOperand(const MachineOperand *MO, unsigned MONum) {
         }
       }
     }
+
+    // Check isRenamable is correct if we're before RA.
+    if (!areRegsAllocated)
+      if (MO->isRenamable() != TargetRegisterInfo::isVirtualRegister(Reg))
+        report("Virtual registers should be marked isRenamable and physical "
+               "registers should not be.",
+               MO, MONum);
+
     break;
   }
 

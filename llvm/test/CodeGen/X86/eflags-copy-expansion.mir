@@ -46,12 +46,12 @@ body:             |
     NOOP
     NOOP
     ; Save AL.
-    ; CHECK: PUSH32r killed %eax
+    ; CHECK: PUSH32r killed norename %eax
 
     ; Copy EDI into EFLAGS
-    ; CHECK-NEXT: %eax = MOV32rr %edi
-    ; CHECK-NEXT: %al = ADD8ri %al, 127, implicit-def %eflags
-    ; CHECK-NEXT: SAHF implicit-def %eflags, implicit %ah
+    ; CHECK-NEXT: %eax = MOV32rr norename %edi
+    ; CHECK-NEXT: %al = ADD8ri norename %al, 127, implicit-def norename %eflags
+    ; CHECK-NEXT: SAHF implicit-def norename %eflags, implicit norename %ah
     %eflags = COPY %edi
 
     ; Restore AL.

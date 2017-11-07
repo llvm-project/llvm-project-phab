@@ -142,7 +142,7 @@ body: |
 # CHECK: STRWui %w1, %sp, 0 :: (store 4)
 # CHECK-NOT: COPY killed %w1
 # CHECK: %wzr = COPY %w1
-# CHECK: %w11 = ORRWrs %wzr, %w1, 0
+# CHECK: norename %w11 = ORRWrs norename %wzr, %w1, 0
 # CHECK: HINT 0, implicit %w11
 ---
 name: promote-load-from-store-undef

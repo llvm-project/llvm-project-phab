@@ -25,8 +25,8 @@ body: |
     %xmm0 = PSHUFDri killed %xmm0, -24
     MOVPQI2QImr %rsp, 1, _, -8, _, killed %xmm0
     %mm0 = PSWAPDrm %rsp, 1, _, -8, _
-  ; CHECK:      %rax = MMX_MOVD64from64rr %mm0
-  ; CHECK-NEXT: %mm0 = MMX_MOVD64to64rr %rax
+  ; CHECK:      %rax = MMX_MOVD64from64rr norename %mm0
+  ; CHECK-NEXT: %mm0 = MMX_MOVD64to64rr norename %rax
     %rax = COPY %mm0
     %mm0 = COPY %rax
     MMX_MOVQ64mr %rsp, 1, _, -16, _, killed %mm0

@@ -3,8 +3,8 @@
 # Verify that the tag collision between the loads is resolved for various load opcodes.
 
 # CHECK-LABEL: name: hwpf1
-# CHECK: %[[BASE:[a-z0-9]+]] = ORRXrs %xzr, %x1, 0
-# CHECK: LDRWui %[[BASE]], 0
+# CHECK: %[[BASE:[a-z0-9]+]] = ORRXrs norename %xzr, norename %x1, 0
+# CHECK: LDRWui norename %[[BASE]], 0
 # CHECK: LDRWui %x1, 1
 name:            hwpf1
 tracksRegLiveness: true
@@ -24,8 +24,8 @@ body: |
 ...
 ---
 # CHECK-LABEL: name: hwpf2
-# CHECK: %[[BASE:[a-z0-9]+]] = ORRXrs %xzr, %x1, 0
-# CHECK: LD1i64 %q2, 0, %[[BASE]]
+# CHECK: %[[BASE:[a-z0-9]+]] = ORRXrs norename %xzr, norename %x1, 0
+# CHECK: LD1i64 %q2, 0, norename %[[BASE]]
 # CHECK: LDRWui %x1, 0
 name:            hwpf2
 tracksRegLiveness: true
@@ -45,8 +45,8 @@ body: |
 ...
 ---
 # CHECK-LABEL: name: hwpf3
-# CHECK: %[[BASE:[a-z0-9]+]] = ORRXrs %xzr, %x1, 0
-# CHECK: LD1i8 %q2, 0, %[[BASE]]
+# CHECK: %[[BASE:[a-z0-9]+]] = ORRXrs norename %xzr, norename %x1, 0
+# CHECK: LD1i8 %q2, 0, norename %[[BASE]]
 # CHECK: LDRWui %x1, 0
 name:            hwpf3
 tracksRegLiveness: true
@@ -66,8 +66,8 @@ body: |
 ...
 ---
 # CHECK-LABEL: name: hwpf4
-# CHECK: %[[BASE:[a-z0-9]+]] = ORRXrs %xzr, %x1, 0
-# CHECK: LD1Onev1d %[[BASE]]
+# CHECK: %[[BASE:[a-z0-9]+]] = ORRXrs norename %xzr, norename %x1, 0
+# CHECK: LD1Onev1d norename %[[BASE]]
 # CHECK: LDRWui %x1, 0
 name:            hwpf4
 tracksRegLiveness: true
@@ -87,8 +87,8 @@ body: |
 ...
 ---
 # CHECK-LABEL: name: hwpf5
-# CHECK: %[[BASE:[a-z0-9]+]] = ORRXrs %xzr, %x1, 0
-# CHECK: LD1Twov1d %[[BASE]]
+# CHECK: %[[BASE:[a-z0-9]+]] = ORRXrs norename %xzr, norename %x1, 0
+# CHECK: LD1Twov1d norename %[[BASE]]
 # CHECK: LDRWui %x1, 0
 name:            hwpf5
 tracksRegLiveness: true
@@ -108,8 +108,8 @@ body: |
 ...
 ---
 # CHECK-LABEL: name: hwpf6
-# CHECK: %[[BASE:[a-z0-9]+]] = ORRXrs %xzr, %x1, 0
-# CHECK: LDPQi %[[BASE]]
+# CHECK: %[[BASE:[a-z0-9]+]] = ORRXrs norename %xzr, norename %x1, 0
+# CHECK: LDPQi norename %[[BASE]]
 # CHECK: LDRWui %x1, 3
 name:            hwpf6
 tracksRegLiveness: true
@@ -129,8 +129,8 @@ body: |
 ...
 ---
 # CHECK-LABEL: name: hwpf7
-# CHECK: %[[BASE:[a-z0-9]+]] = ORRXrs %xzr, %x1, 0
-# CHECK: LDPXi %[[BASE]]
+# CHECK: %[[BASE:[a-z0-9]+]] = ORRXrs norename %xzr, norename %x1, 0
+# CHECK: LDPXi norename %[[BASE]]
 # CHECK: LDRWui %x1, 2
 name:            hwpf7
 tracksRegLiveness: true
@@ -153,9 +153,9 @@ body: |
 # for post increment addressing for various load opcodes.
 
 # CHECK-LABEL: name: hwpfinc1
-# CHECK: %[[BASE:[a-z0-9]+]] = ORRXrs %xzr, %x1, 0
-# CHECK: LDRWpost %[[BASE]], 0
-# CHECK: %x1 = ORRXrs %xzr, %[[BASE]], 0
+# CHECK: %[[BASE:[a-z0-9]+]] = ORRXrs norename %xzr, norename %x1, 0
+# CHECK: LDRWpost norename %[[BASE]], 0
+# CHECK: %x1 = ORRXrs norename %xzr, norename %[[BASE]], 0
 # CHECK: LDRWui %x1, 1
 name:            hwpfinc1
 tracksRegLiveness: true
@@ -175,9 +175,9 @@ body: |
 ...
 ---
 # CHECK-LABEL: name: hwpfinc2
-# CHECK: %[[BASE:[a-z0-9]+]] = ORRXrs %xzr, %x1, 0
-# CHECK: LD1i64_POST %q2, 0, %[[BASE]]
-# CHECK: %x1 = ORRXrs %xzr, %[[BASE]], 0
+# CHECK: %[[BASE:[a-z0-9]+]] = ORRXrs norename %xzr, norename %x1, 0
+# CHECK: LD1i64_POST %q2, 0, norename %[[BASE]]
+# CHECK: %x1 = ORRXrs norename %xzr, norename %[[BASE]], 0
 # CHECK: LDRWui %x1, 1
 name:            hwpfinc2
 tracksRegLiveness: true
@@ -197,9 +197,9 @@ body: |
 ...
 ---
 # CHECK-LABEL: name: hwpfinc3
-# CHECK: %[[BASE:[a-z0-9]+]] = ORRXrs %xzr, %x1, 0
-# CHECK: LD1i8_POST %q2, 0, %[[BASE]]
-# CHECK: %x1 = ORRXrs %xzr, %[[BASE]], 0
+# CHECK: %[[BASE:[a-z0-9]+]] = ORRXrs norename %xzr, norename %x1, 0
+# CHECK: LD1i8_POST %q2, 0, norename %[[BASE]]
+# CHECK: %x1 = ORRXrs norename %xzr, norename %[[BASE]], 0
 # CHECK: LDRWui %x1, 132
 name:            hwpfinc3
 tracksRegLiveness: true
@@ -219,9 +219,9 @@ body: |
 ...
 ---
 # CHECK-LABEL: name: hwpfinc4
-# CHECK: %[[BASE:[a-z0-9]+]] = ORRXrs %xzr, %x1, 0
-# CHECK: LD1Rv1d_POST %[[BASE]]
-# CHECK: %x1 = ORRXrs %xzr, %[[BASE]], 0
+# CHECK: %[[BASE:[a-z0-9]+]] = ORRXrs norename %xzr, norename %x1, 0
+# CHECK: LD1Rv1d_POST norename %[[BASE]]
+# CHECK: %x1 = ORRXrs norename %xzr, norename %[[BASE]], 0
 # CHECK: LDRWui %x1, 252
 name:            hwpfinc4
 tracksRegLiveness: true
@@ -241,9 +241,9 @@ body: |
 ...
 ---
 # CHECK-LABEL: name: hwpfinc5
-# CHECK: %[[BASE:[a-z0-9]+]] = ORRXrs %xzr, %x1, 0
-# CHECK: LD3Threev2s_POST %[[BASE]]
-# CHECK: %x1 = ORRXrs %xzr, %[[BASE]], 0
+# CHECK: %[[BASE:[a-z0-9]+]] = ORRXrs norename %xzr, norename %x1, 0
+# CHECK: LD3Threev2s_POST norename %[[BASE]]
+# CHECK: %x1 = ORRXrs norename %xzr, norename %[[BASE]], 0
 # CHECK: LDRWroX %x17, %x0
 name:            hwpfinc5
 tracksRegLiveness: true
@@ -263,9 +263,9 @@ body: |
 ...
 ---
 # CHECK-LABEL: name: hwpfinc6
-# CHECK: %[[BASE:[a-z0-9]+]] = ORRXrs %xzr, %x1, 0
-# CHECK: LDPDpost %[[BASE]]
-# CHECK: %x1 = ORRXrs %xzr, %[[BASE]], 0
+# CHECK: %[[BASE:[a-z0-9]+]] = ORRXrs norename %xzr, norename %x1, 0
+# CHECK: LDPDpost norename %[[BASE]]
+# CHECK: %x1 = ORRXrs norename %xzr, norename %[[BASE]], 0
 # CHECK: LDRWui %x17, 2
 name:            hwpfinc6
 tracksRegLiveness: true
@@ -285,9 +285,9 @@ body: |
 ...
 ---
 # CHECK-LABEL: name: hwpfinc7
-# CHECK: %[[BASE:[a-z0-9]+]] = ORRXrs %xzr, %x1, 0
-# CHECK: LDPXpost %[[BASE]]
-# CHECK: %x1 = ORRXrs %xzr, %[[BASE]], 0
+# CHECK: %[[BASE:[a-z0-9]+]] = ORRXrs norename %xzr, norename %x1, 0
+# CHECK: LDPXpost norename %[[BASE]]
+# CHECK: %x1 = ORRXrs norename %xzr, norename %[[BASE]], 0
 # CHECK: LDRWui %x17, 2
 name:            hwpfinc7
 tracksRegLiveness: true

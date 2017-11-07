@@ -19,15 +19,15 @@
 #
 # CHECK-LABEL: name: main
 # CHECK: BL @OUTLINED_FUNCTION_[[F0:[0-9]+]]
-# CHECK-NEXT: early-clobber %sp, %lr = LDRXpost %sp, 16
+# CHECK-NEXT: early-clobber %sp, norename %lr = LDRXpost norename %sp, 16
 # CHECK-NEXT: STRHHroW %w16, %x9, %w30, 1, 1
 # CHECK-NEXT: %lr = ORRXri %xzr, 1
 # CHECK: BL @OUTLINED_FUNCTION_[[F0]]
-# CHECK-NEXT: early-clobber %sp, %lr = LDRXpost %sp, 16
+# CHECK-NEXT: early-clobber %sp, norename %lr = LDRXpost norename %sp, 16
 # CHECK-NEXT: STRHHroW %w16, %x9, %w30, 1, 1
 # CHECK-NEXT: %lr = ORRXri %xzr, 1
 # CHECK: BL @OUTLINED_FUNCTION_[[F0]]
-# CHECK-NEXT: early-clobber %sp, %lr = LDRXpost %sp, 16
+# CHECK-NEXT: early-clobber %sp, norename %lr = LDRXpost norename %sp, 16
 # CHECK-NEXT: STRHHroW %w16, %x9, %w30, 1, 1
 # CHECK-NEXT: %lr = ORRXri %xzr, 1
 name:            main
@@ -77,9 +77,9 @@ body:             |
 ---
 # This test ensures that we can avoid saving LR when it's available.
 # CHECK-LABEL: bb.1:
-# CHECK: BL @OUTLINED_FUNCTION_[[F1:[0-9]+]], implicit-def %lr, implicit %sp
+# CHECK: BL @OUTLINED_FUNCTION_[[F1:[0-9]+]], implicit-def norename %lr, implicit norename %sp
 # CHECK-NEXT: %w17 = ORRWri %wzr, 2
-# CHECK-NEXT: BL @OUTLINED_FUNCTION_[[F1]], implicit-def %lr, implicit %sp
+# CHECK-NEXT: BL @OUTLINED_FUNCTION_[[F1]], implicit-def norename %lr, implicit norename %sp
 # CHECK-NEXT: %w8 = ORRWri %wzr, 0
 name:            bar
 tracksRegLiveness: true

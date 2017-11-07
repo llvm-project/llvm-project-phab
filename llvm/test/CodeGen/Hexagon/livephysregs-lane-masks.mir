@@ -3,7 +3,7 @@
 # CHECK-LABEL: name: foo
 # CHECK: %p0 = C2_cmpeqi %r16, 0
 # Make sure there is no implicit use of r1.
-# CHECK: %r1 = L2_ploadruhf_io %p0, %r29, 6
+# CHECK: %r1 = L2_ploadruhf_io norename %p0, %r29, 6
 
 --- |
   define void @foo() {

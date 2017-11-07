@@ -41,7 +41,7 @@ body:             |
 ...
 ---
 # GCN-LABEL: name: and_saveexec
-# GCN:      %sgpr0_sgpr1 = S_AND_SAVEEXEC_B64 %vcc
+# GCN:      %sgpr0_sgpr1 = S_AND_SAVEEXEC_B64 norename %vcc
 # GCN-NEXT: S_ENDPGM
 name: and_saveexec
 tracksRegLiveness: true

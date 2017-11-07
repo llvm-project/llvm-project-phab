@@ -12,12 +12,12 @@
 ; CHECK: ![[X:.*]] = !DILocalVariable(name: "x",
 ; CHECK: bb.0.entry:
 ; CHECK:   DBG_VALUE 23, debug-use _, ![[X]],
-; CHECK:   DBG_VALUE %rsp, 0, ![[X]], !DIExpression(DW_OP_plus_uconst, 4, DW_OP_deref),
+; CHECK:   DBG_VALUE norename %rsp, 0, ![[X]], !DIExpression(DW_OP_plus_uconst, 4, DW_OP_deref),
 ; CHECK: bb.1.if.then:
 ; CHECK:   DBG_VALUE 43, debug-use _, ![[X]],
 ; CHECK: bb.2.if.end:
 ; CHECK-NOT:  DBG_VALUE 23, debug-use _, ![[X]],
-; CHECK:   RETQ %eax
+; CHECK:   RETQ norename %eax
 
 target datalayout = "e-m:o-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-apple-macosx10.11.0"

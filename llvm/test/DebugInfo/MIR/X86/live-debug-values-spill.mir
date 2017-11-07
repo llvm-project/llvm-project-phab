@@ -53,29 +53,29 @@
 #
 # GENERATE:      bb.1.if.end:
 # GENERATE:      MOV32mr %rbp, 1, _, -48, _, killed %edx :: (store 4 into %stack.5)
-# GENERATE-NEXT: DBG_VALUE debug-use %rbp, 0, ![[INT0]], !DIExpression(DW_OP_constu, 48, DW_OP_minus)
+# GENERATE-NEXT: DBG_VALUE norename debug-use %rbp, 0, ![[INT0]], !DIExpression(DW_OP_constu, 48, DW_OP_minus)
 # GENERATE:      MOV32mr %rbp, 1, _, -52, _, killed %r8d :: (store 4 into %stack.4)
-# GENERATE-NEXT: DBG_VALUE debug-use %rbp, 0, ![[INTB]], !DIExpression(DW_OP_constu, 52, DW_OP_minus)
+# GENERATE-NEXT: DBG_VALUE norename debug-use %rbp, 0, ![[INTB]], !DIExpression(DW_OP_constu, 52, DW_OP_minus)
 # GENERATE:      MOV32mr %rbp, 1, _, -56, _, killed %esi :: (store 4 into %stack.3)
-# GENERATE-NEXT: DBG_VALUE debug-use %rbp, 0, ![[INTD]], !DIExpression(DW_OP_constu, 56, DW_OP_minus)
+# GENERATE-NEXT: DBG_VALUE norename debug-use %rbp, 0, ![[INTD]], !DIExpression(DW_OP_constu, 56, DW_OP_minus)
 #
 # Check that the spill locations that are valid at the end of bb.1.if.end are
 # propagated to subsequent BBs.
 #
 # GENERATE:      bb.2.if.then4:
 # GENERATE-NOT:  bb.3:
-# GENERATE-DAG:  DBG_VALUE debug-use %rbp, 0, ![[INTD]], !DIExpression(DW_OP_constu, 56, DW_OP_minus)
-# GENERATE-DAG:  DBG_VALUE debug-use %rbp, 0, ![[INTB]], !DIExpression(DW_OP_constu, 52, DW_OP_minus)
+# GENERATE-DAG:  DBG_VALUE norename debug-use %rbp, 0, ![[INTD]], !DIExpression(DW_OP_constu, 56, DW_OP_minus)
+# GENERATE-DAG:  DBG_VALUE norename debug-use %rbp, 0, ![[INTB]], !DIExpression(DW_OP_constu, 52, DW_OP_minus)
 #
 # GENERATE:      bb.3:
 # GENERATE-NOT:  bb.4.if.end13:
-# GENERATE-DAG:  DBG_VALUE debug-use %rbp, 0, ![[INTD]], !DIExpression(DW_OP_constu, 56, DW_OP_minus)
-# GENERATE-DAG:  DBG_VALUE debug-use %rbp, 0, ![[INTB]], !DIExpression(DW_OP_constu, 52, DW_OP_minus)
+# GENERATE-DAG:  DBG_VALUE norename debug-use %rbp, 0, ![[INTD]], !DIExpression(DW_OP_constu, 56, DW_OP_minus)
+# GENERATE-DAG:  DBG_VALUE norename debug-use %rbp, 0, ![[INTB]], !DIExpression(DW_OP_constu, 52, DW_OP_minus)
 #
 # GENERATE:      bb.4.if.end13:
 # GENERATE-NOT:  bb.5.cleanup:
-# GENERATE-DAG:  DBG_VALUE debug-use %rbp, 0, ![[INTD]], !DIExpression(DW_OP_constu, 56, DW_OP_minus)
-# GENERATE-DAG:  DBG_VALUE debug-use %rbp, 0, ![[INTB]], !DIExpression(DW_OP_constu, 52, DW_OP_minus)
+# GENERATE-DAG:  DBG_VALUE norename debug-use %rbp, 0, ![[INTD]], !DIExpression(DW_OP_constu, 56, DW_OP_minus)
+# GENERATE-DAG:  DBG_VALUE norename debug-use %rbp, 0, ![[INTB]], !DIExpression(DW_OP_constu, 52, DW_OP_minus)
 # 
 # Check that the spill location rbp-48 (the variable int0) is not propagated 
 # because int0 is redefined within the same basic block.

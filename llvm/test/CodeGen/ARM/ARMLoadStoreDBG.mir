@@ -154,6 +154,6 @@ body:             |
     %sp = t2LDMIA_UPD %sp, 14, _, def %r7, def %lr
     tBX_RET 14, _, implicit %r0, debug-location !34
 # Verify that the DBG_VALUE is ignored.
-# CHECK: %sp = t2LDMIA_RET %sp, 14, _, def %r7, def %pc, implicit %r0
+# CHECK: %sp = t2LDMIA_RET %sp, 14, _, def %r7, def norename %pc, implicit %r0
 
 ...

@@ -22,9 +22,9 @@
 #
 
 # CHECK: %r1 = A2_sxth killed %r0
-# CHECK: %r0 = C2_cmoveit %p0, 2
+# CHECK: %r0 = C2_cmoveit norename %p0, 2
 # CHECK-NOT: implicit-def %r0
-# CHECK: %r0 = C2_cmoveif killed %p0, 1, implicit killed %r0
+# CHECK: %r0 = C2_cmoveif killed norename %p0, 1, implicit killed norename %r0
 
 ---
 name: fred

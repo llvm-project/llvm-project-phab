@@ -24,9 +24,9 @@
 ;
 ; CHECK:   ![[S4:.*]] = !DILocalVariable(name: "s4", 
 ; CHECK:   ![[MYVAR:.*]] = !DILocalVariable(name: "myVar", 
-; CHECK:      DBG_VALUE debug-use %rax, debug-use _, ![[MYVAR]],
+; CHECK:      DBG_VALUE norename debug-use %rax, debug-use _, ![[MYVAR]],
 ; CHECK-SAME:           !DIExpression(DW_OP_plus_uconst, 4096, DW_OP_stack_value)
-; CHECK-NEXT: DBG_VALUE debug-use %rax, debug-use _, ![[S4]],
+; CHECK-NEXT: DBG_VALUE norename debug-use %rax, debug-use _, ![[S4]],
 ; CHECK-SAME:           !DIExpression(DW_OP_plus_uconst, 4096, DW_OP_stack_value)
 ; CHECK-NEXT: %rdi = MOV64rm killed %rax, 1, _, 4096, _,
 

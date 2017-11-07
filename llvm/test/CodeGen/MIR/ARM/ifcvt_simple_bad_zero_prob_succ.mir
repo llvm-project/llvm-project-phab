@@ -27,7 +27,7 @@ body:             |
 # CHECK:   bb.1:
 # CHECK:     successors: %bb.1(0x80000000)
 # CHECK-NOT: %bb.2(0x00000000)
-# CHECK:     tBRIND %r1, 1, %cpsr
+# CHECK:     tBRIND %r1, 1, norename %cpsr
 # CHECK:     B %bb.1
 
 #CHECK-NOT: bb.2:

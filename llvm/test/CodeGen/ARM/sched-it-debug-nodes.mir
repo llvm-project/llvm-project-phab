@@ -32,7 +32,7 @@
   ; debug value as KILL'ed, resulting in a DEBUG_VALUE node changing codegen!  (or
   ; hopefully, triggering an assert).
 
-  ; CHECK: BUNDLE %ITSTATE<imp-def,dead>
+  ; CHECK: BUNDLE %ITSTATE<imp-def,dead,norename>
   ; CHECK:  * DBG_VALUE %R1, %noreg, !"u"
   ; CHECK-NOT:  * DBG_VALUE %R1<kill>, %noreg, !"u"
 
