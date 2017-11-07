@@ -975,10 +975,6 @@ void ResultBuilder::AddResult(Result R, DeclContext *CurContext,
   bool AsNestedNameSpecifier = false;
   if (!isInterestingDecl(R.Declaration, AsNestedNameSpecifier))
     return;
-  
-  // C++ constructors are never found by name lookup.
-  if (isa<CXXConstructorDecl>(R.Declaration))
-    return;
 
   if (Hiding && CheckHiddenResult(R, CurContext, Hiding))
     return;
