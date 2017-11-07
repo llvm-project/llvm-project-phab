@@ -76,3 +76,23 @@ void testMixedTypeComparisons (char a, unsigned long b) {
   clang_analyzer_eval(b >= a); // expected-warning{{TRUE}}
   clang_analyzer_eval(a != b); // expected-warning{{TRUE}}
 }
+
+void testBitwiseRules(unsigned int a, int b) {
+  clang_analyzer_eval((a | 1) > 0); // expected-warning{{TRUE}}
+  clang_analyzer_eval((1 | a) > 0); // expected-warning{{TRUE}}
+  clang_analyzer_eval((a & 1) < 2); // expected-warning{{TRUE}}
+  clang_analyzer_eval((1 & a) < 2); // expected-warning{{TRUE}}
+
+  unsigned int c = a;
+  c |= 1;
+  clang_analyzer_eval((c | 0) == 0); // expected-warning{{FALSE}}
+
+  // Rules don't apply to signed typed, as the values might be negative.
+  clang_analyzer_eval((b | 1) > 0); // expected-warning{{UNKNOWN}}
+  clang_analyzer_eval((b | 1) == 0); // expected-warning{{UNKNOWN}}
+
+  // Check that dynamically computed constants also work.
+  int constant = 1 << 3;
+  unsigned int d = a | constant;
+  clang_analyzer_eval(constant > 0); // expected-warning{{TRUE}}
+}

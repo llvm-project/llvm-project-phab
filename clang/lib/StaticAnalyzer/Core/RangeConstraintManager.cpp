@@ -460,6 +460,44 @@ RangeConstraintManager::removeDeadBindings(ProgramStateRef State,
   return Changed ? State->set<ConstraintRange>(CR) : State;
 }
 
+/// \brief Apply implicit constraints for bitwise OR- and AND-.
+/// For unsigned types, bitwise OR with a constant always returns
+/// a value greater-or-equal than the constant, and bitwise AND
+/// returns a value less-or-equal then the constant.
+///
+/// Pattern matches the expression \p Sym against those rule,
+/// and applies the required constraints.
+static RangeSet applyBitwiseConstraints(
+    BasicValueFactory &BV,
+    RangeSet::Factory &F,
+    QualType T,
+    RangeSet Result,
+    SymbolRef Sym) {
+
+  if (const SymIntExpr *SIE = dyn_cast<SymIntExpr>(Sym)) {
+
+    // Only apply the rule to unsigned types, otherwise sign
+    // may change and ordering will be violated.
+    if (!SIE->getLHS()->getType()->isUnsignedIntegerType())
+      return Result;
+
+    switch (SIE->getOpcode()) {
+      case BO_Or:
+
+        // result >= constant
+        return Result.Intersect(BV, F, SIE->getRHS(), BV.getMaxValue(T));
+      case BO_And:
+
+        // result <= constant
+        return Result.Intersect(BV, F, BV.getMinValue(T), SIE->getRHS());
+      default:
+        break;
+    }
+  }
+  return Result;
+
+}
+
 RangeSet RangeConstraintManager::getRange(ProgramStateRef State,
                                           SymbolRef Sym) {
   if (ConstraintRangeTy::data_type *V = State->get<ConstraintRange>(Sym))
@@ -479,6 +517,7 @@ RangeSet RangeConstraintManager::getRange(ProgramStateRef State,
                               --IntType.getZeroValue());
   }
 
+  Result = applyBitwiseConstraints(BV, F, T, Result, Sym);
   return Result;
 }
 
