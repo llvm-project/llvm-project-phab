@@ -29,13 +29,13 @@
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/Support/Debug.h"
-#include "llvm/ADT/Statistic.h"
 #include "MCTargetDesc/PPCPredicates.h"
 
 using namespace llvm;
 
 #define DEBUG_TYPE "ppc-mi-peepholes"
 
+STATISTIC(RemoveTOCSave, "Number of TOC saves removed");
 STATISTIC(NumEliminatedSExt, "Number of eliminated sign-extensions");
 STATISTIC(NumEliminatedZExt, "Number of eliminated zero-extensions");
 STATISTIC(NumOptADDLIs, "Number of optimized ADD instruction fed by LI");
@@ -78,6 +78,7 @@ private:
 
   // Perform peepholes.
   bool eliminateRedundantCompare(void);
+  bool eliminateRedundantTOCSaves(std::list<MachineInstr *> TOCSaves);
 
   // Find the "true" register represented by SrcReg (following chains
   // of copies and subreg_to_reg operations).
@@ -180,6 +181,7 @@ getKnownLeadingZeroCount(MachineInstr *MI, const PPCInstrInfo *TII) {
 bool PPCMIPeephole::simplifyCode(void) {
   bool Simplified = false;
   MachineInstr* ToErase = nullptr;
+  std::list<MachineInstr *> TOCSaves;
 
   for (MachineBasicBlock &MBB : *MF) {
     for (MachineInstr &MI : MBB) {
@@ -201,6 +203,24 @@ bool PPCMIPeephole::simplifyCode(void) {
       default:
         break;
 
+      case PPC::STD: {
+        // Store all TOC save instructions, std r2,24(r1), into TOCSaves list
+        // for function eliminateRedundantTOCSaves. This function will then
+        // remove any TOC saves which are redundant due to having a dominating
+        // save.
+        if (!MI.getOperand(1).isImm() || !MI.getOperand(2).isReg())
+          break;
+        unsigned StackOffset = MI.getOperand(1).getImm();
+        unsigned StackReg = MI.getOperand(2).getReg();
+        if (StackReg == PPC::X1 && StackOffset == 24) {
+          MachineFrameInfo &MFI = MF->getFrameInfo();
+          if (MFI.hasVarSizedObjects() ||
+              !MF->getSubtarget<PPCSubtarget>().isELFv2ABI())
+            break;
+          TOCSaves.push_back(&MI);
+        }
+        break;
+      }
       case PPC::XXPERMDI: {
         // Perform simplifications of 2x64 vector swaps and splats.
         // A swap is identified by an immediate value of 2, and a splat
@@ -683,6 +703,7 @@ bool PPCMIPeephole::simplifyCode(void) {
     }
   }
 
+  Simplified |= eliminateRedundantTOCSaves(TOCSaves);
   // We try to eliminate redundant compare instruction.
   Simplified |= eliminateRedundantCompare();
 
@@ -882,6 +903,30 @@ static bool eligibleForCompareElimination(MachineBasicBlock &MBB,
   }
 
   return false;
+}
+
+// This function will iterate over the input list containing TOC save
+// instructions found in the Machine Function and remove the ones which are
+// dominated by another TOC Save instruction.
+bool PPCMIPeephole::eliminateRedundantTOCSaves(
+    std::list<MachineInstr *> TOCSaves) {
+  bool Simplified = false;
+  for (auto Iter = TOCSaves.begin(); Iter != TOCSaves.end(); Iter++) {
+    MachineInstr *CurrSave = *Iter;
+    auto Iter2 = TOCSaves.begin();
+    while (Iter2 != TOCSaves.end()) {
+      if ((Iter != Iter2) && (MDT->dominates(CurrSave, *Iter2))) {
+        (*Iter2)->eraseFromParent();
+        Iter2 = TOCSaves.erase(Iter2);
+        Simplified = true;
+        RemoveTOCSave++;
+      } else {
+        Iter2++;
+      }
+    }
+  }
+
+  return Simplified;
 }
 
 // If multiple conditional branches are executed based on the (essentially)
