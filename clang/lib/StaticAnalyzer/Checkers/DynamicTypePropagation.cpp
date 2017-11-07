@@ -584,6 +584,7 @@ void DynamicTypePropagation::checkPostStmt(const CastExpr *CE,
   // types, and there is no subtyping relationship between the tracked and the
   // static destination types, it indicates an error.
   if (TrackedType &&
+      !isa<ExplicitCastExpr>(CE) &&
       !ASTCtxt.canAssignObjCInterfaces(DestObjectPtrType, *TrackedType) &&
       !ASTCtxt.canAssignObjCInterfaces(*TrackedType, DestObjectPtrType)) {
     static CheckerProgramPointTag IllegalConv(this, "IllegalConversion");
