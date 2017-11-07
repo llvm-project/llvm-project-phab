@@ -2951,6 +2951,17 @@ static bool mergeConditionalStoreToAddress(BasicBlock *PTB, BasicBlock *PFB,
     if (&*I != PStore && I->mayReadOrWriteMemory())
       return false;
 
+  // If PostBB has more than two predecessors, we need to split it so we can
+  // sink the store.
+  if (std::next(pred_begin(PostBB), 2) != pred_end(PostBB)) {
+    BasicBlock *TruePred = QTB ? QTB : QFB->getSinglePredecessor();
+    BasicBlock *NewBB = SplitBlockPredecessors(PostBB, { QFB, TruePred},
+                                               "condstore.split");
+    if (!NewBB)
+      return false;
+    PostBB = NewBB;
+  }
+
   // OK, we're going to sink the stores to PostBB. The store has to be
   // conditional though, so first create the predicate.
   Value *PCond = cast<BranchInst>(PFB->getSinglePredecessor()->getTerminator())
@@ -3086,7 +3097,7 @@ static bool mergeConditionalStores(BranchInst *PBI, BranchInst *QBI,
   if ((PTB && !HasOnePredAndOneSucc(PTB, PBI->getParent(), QBI->getParent())) ||
       (QTB && !HasOnePredAndOneSucc(QTB, QBI->getParent(), PostBB)))
     return false;
-  if (!PostBB->hasNUses(2) || !QBI->getParent()->hasNUses(2))
+  if (!QBI->getParent()->hasNUses(2))
     return false;
 
   // OK, this is a sequence of two diamonds or triangles.
