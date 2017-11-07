@@ -36,8 +36,8 @@ public:
                         SmallVectorImpl<MachineInstr *> &DeadInsts) {
     if (MI.getOpcode() != TargetOpcode::G_ANYEXT)
       return false;
-    MachineInstr *DefMI = MRI.getVRegDef(MI.getOperand(1).getReg());
-    if (DefMI->getOpcode() == TargetOpcode::G_TRUNC) {
+    if (MachineInstr *DefMI =
+            getOpcodeDef(TargetOpcode::G_TRUNC, MI.getOperand(1).getReg())) {
       DEBUG(dbgs() << ".. Combine MI: " << MI;);
       unsigned DstReg = MI.getOperand(0).getReg();
       unsigned SrcReg = DefMI->getOperand(1).getReg();
@@ -47,7 +47,7 @@ public:
       markInstAndDefDead(MI, *DefMI, DeadInsts);
       return true;
     }
-    return false;
+    return tryFoldImplicitDef(MI, DeadInsts);
   }
 
   bool tryCombineZExt(MachineInstr &MI,
@@ -55,8 +55,8 @@ public:
 
     if (MI.getOpcode() != TargetOpcode::G_ZEXT)
       return false;
-    MachineInstr *DefMI = MRI.getVRegDef(MI.getOperand(1).getReg());
-    if (DefMI->getOpcode() == TargetOpcode::G_TRUNC) {
+    if (MachineInstr *DefMI =
+            getOpcodeDef(TargetOpcode::G_TRUNC, MI.getOperand(1).getReg())) {
       unsigned DstReg = MI.getOperand(0).getReg();
       LLT DstTy = MRI.getType(DstReg);
       if (isInstUnsupported(TargetOpcode::G_AND, DstTy) ||
@@ -75,7 +75,7 @@ public:
       markInstAndDefDead(MI, *DefMI, DeadInsts);
       return true;
     }
-    return false;
+    return tryFoldImplicitDef(MI, DeadInsts);
   }
 
   bool tryCombineSExt(MachineInstr &MI,
@@ -83,8 +83,8 @@ public:
 
     if (MI.getOpcode() != TargetOpcode::G_SEXT)
       return false;
-    MachineInstr *DefMI = MRI.getVRegDef(MI.getOperand(1).getReg());
-    if (DefMI->getOpcode() == TargetOpcode::G_TRUNC) {
+    if (MachineInstr *DefMI =
+            getOpcodeDef(TargetOpcode::G_TRUNC, MI.getOperand(1).getReg())) {
       unsigned DstReg = MI.getOperand(0).getReg();
       LLT DstTy = MRI.getType(DstReg);
       if (isInstUnsupported(TargetOpcode::G_SHL, DstTy) ||
@@ -103,6 +103,31 @@ public:
       auto ShlMIB = Builder.buildInstr(TargetOpcode::G_SHL, DstTy,
                                        SrcCopyExtOrTrunc, SizeDiffMIB);
       Builder.buildInstr(TargetOpcode::G_ASHR, DstReg, ShlMIB, SizeDiffMIB);
+      markInstAndDefDead(MI, *DefMI, DeadInsts);
+      return true;
+    }
+    return tryFoldImplicitDef(MI, DeadInsts);
+  }
+
+  bool tryFoldImplicitDef(MachineInstr &MI,
+                          SmallVectorImpl<MachineInstr *> &DeadInsts) {
+    switch (MI.getOpcode()) {
+    case TargetOpcode::G_ANYEXT:
+    case TargetOpcode::G_ZEXT:
+    case TargetOpcode::G_SEXT:
+      break;
+    default:
+      return false;
+    }
+    if (MachineInstr *DefMI = getOpcodeDef(TargetOpcode::G_IMPLICIT_DEF,
+                                           MI.getOperand(1).getReg())) {
+      unsigned DstReg = MI.getOperand(0).getReg();
+      LLT DstTy = MRI.getType(DstReg);
+      if (isInstUnsupported(TargetOpcode::G_IMPLICIT_DEF, DstTy))
+        return false;
+      DEBUG(dbgs() << ".. Combine EXT(IMPLICIT_DEF) " << MI;);
+      Builder.setInstr(MI);
+      Builder.buildInstr(TargetOpcode::G_IMPLICIT_DEF, DstReg);
       markInstAndDefDead(MI, *DefMI, DeadInsts);
       return true;
     }
@@ -200,6 +225,12 @@ public:
       return tryCombineSExt(MI, DeadInsts);
     case TargetOpcode::G_UNMERGE_VALUES:
       return tryCombineMerges(MI, DeadInsts);
+    case TargetOpcode::G_TRUNC: {
+      bool Changed = false;
+      for (auto &Use : MRI.use_instructions(MI.getOperand(0).getReg()))
+        Changed |= tryCombineInstruction(Use, DeadInsts);
+      return Changed;
+    }
     }
   }
 
@@ -218,6 +249,24 @@ private:
     auto Action = LI.getAction({Opcode, 0, DstTy});
     return Action.first == LegalizerInfo::LegalizeAction::Unsupported ||
            Action.first == LegalizerInfo::LegalizeAction::NotFound;
+  }
+  /// See if Reg is defined by an single def instruction that is
+  /// Opcode. Also try to do trivial folding if it's a COPY with
+  /// same types. Returns null otherwise.
+  MachineInstr *getOpcodeDef(unsigned Opcode, unsigned Reg) {
+    auto *DefMI = MRI.getVRegDef(Reg);
+    auto DstTy = MRI.getType(DefMI->getOperand(0).getReg());
+    if (!DstTy.isValid())
+      return nullptr;
+    while (DefMI->getOpcode() == TargetOpcode::COPY) {
+      unsigned SrcReg = DefMI->getOperand(1).getReg();
+      auto SrcTy = MRI.getType(SrcReg);
+      if (SrcTy.isValid() && SrcTy == DstTy)
+        DefMI = MRI.getVRegDef(SrcReg);
+      else
+        break;
+    }
+    return DefMI->getOpcode() == Opcode ? DefMI : nullptr;
   }
 };
 
