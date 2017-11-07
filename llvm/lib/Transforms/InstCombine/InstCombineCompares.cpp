@@ -4462,10 +4462,27 @@ Instruction *InstCombiner::visitICmpInst(ICmpInst &I) {
   // operands has at least one user besides the compare (the select),
   // which would often largely negate the benefit of folding anyway.
   if (I.hasOneUse())
-    if (SelectInst *SI = dyn_cast<SelectInst>(*I.user_begin()))
-      if ((SI->getOperand(1) == Op0 && SI->getOperand(2) == Op1) ||
-          (SI->getOperand(2) == Op0 && SI->getOperand(1) == Op1))
+    if (SelectInst *SI = dyn_cast<SelectInst>(*I.user_begin())) {
+      Value *TrueVal = SI->getTrueValue();
+      Value *FalseVal = SI->getFalseValue();
+      if ((TrueVal == Op0 && FalseVal == Op1) ||
+          (FalseVal == Op0 && TrueVal == Op1))
         return nullptr;
+
+      // Prevent disturbing an absolute value operation as well.
+      const APInt *C;
+      if (match(Op1, m_APInt(C))) {
+        if ((Op0 == TrueVal && match(FalseVal, m_Neg(m_Specific(Op0)))) ||
+            (Op0 == FalseVal && match(TrueVal, m_Neg(m_Specific(Op0))))) {
+          ICmpInst::Predicate Pred = I.getPredicate();
+          if ((Pred == ICmpInst::ICMP_SGT &&
+               (C->isNullValue() || C->isAllOnesValue())) ||
+              (Pred == ICmpInst::ICMP_SLT &&
+               (C->isNullValue() || C->isOneValue())))
+            return nullptr;
+        }
+      }
+    }
 
   // Do this after checking for min/max to prevent infinite looping.
   if (Instruction *Res = foldICmpWithZero(I))
