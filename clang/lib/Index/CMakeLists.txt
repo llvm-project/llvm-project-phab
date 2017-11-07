@@ -1,17 +1,25 @@
 set(LLVM_LINK_COMPONENTS
+  BitReader
   Core
   Support
   )
 
 add_clang_library(clangIndex
+  ClangIndexRecordWriter.cpp
   CodegenNameGenerator.cpp
   CommentToXML.cpp
+  FileIndexRecord.cpp
   IndexBody.cpp
+  IndexDataStore.cpp
+  IndexDataStoreUtils.cpp
   IndexDecl.cpp
   IndexingAction.cpp
   IndexingContext.cpp
+  IndexRecordHasher.cpp
+  IndexRecordWriter.cpp
   IndexSymbol.cpp
   IndexTypeSourceInfo.cpp
+  IndexUnitWriter.cpp
   USRGeneration.cpp
 
   ADDITIONAL_HEADERS
@@ -23,6 +31,7 @@ add_clang_library(clangIndex
   clangBasic
   clangFormat
   clangFrontend
+  clangLex
   clangRewrite
   clangSerialization
   clangToolingCore
