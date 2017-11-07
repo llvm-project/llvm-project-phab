@@ -396,6 +396,11 @@ public:
     return false;
   }
 
+  /// UseSEHExceptions - Does this tool chain use SEH exceptions.
+  virtual bool UseSEHExceptions(const llvm::opt::ArgList &Args) const {
+    return getTriple().isOSWindows() && getArch() == llvm::Triple::x86_64;
+  }
+
   /// SupportsEmbeddedBitcode - Does this tool chain support embedded bitcode.
   virtual bool SupportsEmbeddedBitcode() const {
     return false;
