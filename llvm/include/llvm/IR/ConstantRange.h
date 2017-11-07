@@ -194,6 +194,9 @@ public:
   bool operator!=(const ConstantRange &CR) const {
     return !operator==(CR);
   }
+  bool operator<(const ConstantRange &CR) const {
+    return Upper.slt(CR.Upper);
+  }
 
   /// Subtract the specified constant from the endpoints of this constant range.
   ConstantRange subtract(const APInt &CI) const;

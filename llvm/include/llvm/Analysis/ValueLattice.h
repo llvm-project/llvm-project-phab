@@ -24,6 +24,53 @@
 ///
 
 namespace llvm {
+
+constexpr size_t const_min(size_t a, size_t b) {
+  return (a < b) ? a : b;
+}
+
+// We use this trait to set NumLowBitsAvailable based on the alignment of
+// Constant and ConstantRange.
+struct ConstantAndConstantRangePointerTraits {
+  static inline void *getAsVoidPointer(void *P) { return P; }
+
+  static inline void *getFromVoidPointer(void *P) {
+    return P;
+  }
+
+  enum { NumLowBitsAvailable =
+             const_min(detail::ConstantLog2<alignof(Constant)>::value,
+                       detail::ConstantLog2<alignof(ConstantRange)>::value)  };
+};
+
+
+
+/// Provide DenseMapInfo for ConstantRange
+template<> struct DenseMapInfo<ConstantRange> {
+  static inline ConstantRange getEmptyKey() {
+    return ConstantRange(DenseMapAPIntKeyInfo::getEmptyKey(),
+                         DenseMapAPIntKeyInfo::getEmptyKey());
+  }
+
+  static inline ConstantRange getTombstoneKey() {
+    return ConstantRange(DenseMapAPIntKeyInfo::getEmptyKey(),
+                         DenseMapAPIntKeyInfo::getTombstoneKey());
+  }
+
+  static unsigned getHashValue(const ConstantRange &V) {
+    return static_cast<unsigned>(
+        hash_combine(hash_value(V.getLower()), hash_value(V.getUpper())));
+  }
+
+  static bool isEqual(const ConstantRange &LHS,
+                      const ConstantRange &RHS) {
+    return LHS.getBitWidth() == RHS.getBitWidth() && LHS == RHS;
+  }
+};
+
+
+ConstantRange* addConstantRange(ConstantRange CR, DenseMap<ConstantRange, unsigned> &CRP);
+
 class ValueLatticeElement {
   enum ValueLatticeElementTy {
     /// This Value has no known value yet.  As a result, this implies the
@@ -51,28 +98,30 @@ class ValueLatticeElement {
 
   /// Val: This stores the current lattice value along with the Constant* for
   /// the constant if this is a 'constant' or 'notconstant' value.
-  ValueLatticeElementTy Tag;
-  Constant *Val;
-  ConstantRange Range;
+  PointerIntPair<void*, 3, unsigned,
+                 ConstantAndConstantRangePointerTraits> ValuePtr;
 
 public:
-  ValueLatticeElement() : Tag(undefined), Val(nullptr), Range(1, true) {}
+  ValueLatticeElement() : ValuePtr(nullptr, undefined) {}
 
-  static ValueLatticeElement get(Constant *C) {
+  static ValueLatticeElement get(Constant *C,
+                                 DenseMap<ConstantRange, unsigned> &CRP) {
     ValueLatticeElement Res;
     if (!isa<UndefValue>(C))
-      Res.markConstant(C);
+      Res.markConstant(C, CRP);
     return Res;
   }
-  static ValueLatticeElement getNot(Constant *C) {
+  static ValueLatticeElement getNot(Constant *C,
+                                    DenseMap<ConstantRange, unsigned> &CRP ) {
     ValueLatticeElement Res;
     if (!isa<UndefValue>(C))
-      Res.markNotConstant(C);
+      Res.markNotConstant(C, CRP);
     return Res;
   }
-  static ValueLatticeElement getRange(ConstantRange CR) {
+  static ValueLatticeElement getRange(ConstantRange CR,
+                                      DenseMap<ConstantRange, unsigned> &CRP ) {
     ValueLatticeElement Res;
-    Res.markConstantRange(std::move(CR));
+    Res.markConstantRange(CR, CRP);
     return Res;
   }
   static ValueLatticeElement getOverdefined() {
@@ -81,33 +130,34 @@ public:
     return Res;
   }
 
-  bool isUndefined() const { return Tag == undefined; }
-  bool isConstant() const { return Tag == constant; }
-  bool isNotConstant() const { return Tag == notconstant; }
-  bool isConstantRange() const { return Tag == constantrange; }
-  bool isOverdefined() const { return Tag == overdefined; }
+  unsigned getTag() const { return ValuePtr.getInt(); }
+  bool isUndefined() const { return getTag() == undefined; }
+  bool isConstant() const { return getTag() == constant; }
+  bool isNotConstant() const { return getTag() == notconstant; }
+  bool isConstantRange() const { return getTag() == constantrange; }
+  bool isOverdefined() const { return getTag() == overdefined; }
 
   Constant *getConstant() const {
     assert(isConstant() && "Cannot get the constant of a non-constant!");
-    return Val;
+    return static_cast<Constant*>(ValuePtr.getPointer());
   }
 
   Constant *getNotConstant() const {
     assert(isNotConstant() && "Cannot get the constant of a non-notconstant!");
-    return Val;
+    return static_cast<Constant*>(ValuePtr.getPointer());
   }
 
   const ConstantRange &getConstantRange() const {
     assert(isConstantRange() &&
            "Cannot get the constant-range of a non-constant-range!");
-    return Range;
+    return *static_cast<ConstantRange*>(ValuePtr.getPointer());
   }
 
   Optional<APInt> asConstantInteger() const {
-    if (isConstant() && isa<ConstantInt>(Val)) {
-      return cast<ConstantInt>(Val)->getValue();
-    } else if (isConstantRange() && Range.isSingleElement()) {
-      return *Range.getSingleElement();
+    if (isConstant() && isa<ConstantInt>(getConstant())) {
+      return cast<ConstantInt>(getConstant())->getValue();
+    } else if (isConstantRange() && getConstantRange().isSingleElement()) {
+      return *getConstantRange().getSingleElement();
     }
     return None;
   }
@@ -116,13 +166,13 @@ private:
   void markOverdefined() {
     if (isOverdefined())
       return;
-    Tag = overdefined;
+    ValuePtr.setInt(overdefined);
   }
 
-  void markConstant(Constant *V) {
+  void markConstant(Constant *V, DenseMap<ConstantRange, unsigned> &CRP) {
     assert(V && "Marking constant with NULL");
     if (ConstantInt *CI = dyn_cast<ConstantInt>(V)) {
-      markConstantRange(ConstantRange(CI->getValue()));
+      markConstantRange(ConstantRange(CI->getValue()), CRP);
       return;
     }
     if (isa<UndefValue>(V))
@@ -131,14 +181,14 @@ private:
     assert((!isConstant() || getConstant() == V) &&
            "Marking constant with different value");
     assert(isUndefined());
-    Tag = constant;
-    Val = V;
+    ValuePtr.setInt(constant);
+    ValuePtr.setPointer(static_cast<void*>(V));
   }
 
-  void markNotConstant(Constant *V) {
+  void markNotConstant(Constant *V, DenseMap<ConstantRange, unsigned> &CRP) {
     assert(V && "Marking constant with NULL");
     if (ConstantInt *CI = dyn_cast<ConstantInt>(V)) {
-      markConstantRange(ConstantRange(CI->getValue() + 1, CI->getValue()));
+      markConstantRange(ConstantRange(CI->getValue() + 1, CI->getValue()), CRP);
       return;
     }
     if (isa<UndefValue>(V))
@@ -149,16 +199,17 @@ private:
     assert((!isNotConstant() || getNotConstant() == V) &&
            "Marking !constant with different value");
     assert(isUndefined() || isConstant());
-    Tag = notconstant;
-    Val = V;
+    ValuePtr.setInt(notconstant);
+    ValuePtr.setPointer(static_cast<void*>(V));
   }
 
-  void markConstantRange(ConstantRange NewR) {
+  void markConstantRange(ConstantRange NewR,
+                         DenseMap<ConstantRange, unsigned> &CRP) {
     if (isConstantRange()) {
       if (NewR.isEmptySet())
         markOverdefined();
       else {
-        Range = std::move(NewR);
+        ValuePtr.setPointer(static_cast<void*>(addConstantRange(NewR, CRP)));
       }
       return;
     }
@@ -167,15 +218,16 @@ private:
     if (NewR.isEmptySet())
       markOverdefined();
     else {
-      Tag = constantrange;
-      Range = std::move(NewR);
+      ValuePtr.setInt(constantrange);
+      ValuePtr.setPointer(static_cast<void*>(addConstantRange(NewR, CRP)));
     }
   }
 
 public:
   /// Updates this object to approximate both this object and RHS. Returns
   /// true if this object has been changed.
-  bool mergeIn(const ValueLatticeElement &RHS, const DataLayout &DL) {
+  bool mergeIn(const ValueLatticeElement &RHS, const DataLayout &DL,
+               DenseMap<ConstantRange, unsigned> &CRP) {
     if (RHS.isUndefined() || isOverdefined())
       return false;
     if (RHS.isOverdefined()) {
@@ -189,14 +241,14 @@ public:
     }
 
     if (isConstant()) {
-      if (RHS.isConstant() && Val == RHS.Val)
+      if (RHS.isConstant() && getConstant() == RHS.getConstant())
         return false;
       markOverdefined();
       return true;
     }
 
     if (isNotConstant()) {
-      if (RHS.isNotConstant() && Val == RHS.Val)
+      if (RHS.isNotConstant() && getNotConstant() == RHS.getNotConstant())
         return false;
       markOverdefined();
       return true;
@@ -209,11 +261,11 @@ public:
       markOverdefined();
       return true;
     }
-    ConstantRange NewR = Range.unionWith(RHS.getConstantRange());
+    ConstantRange NewR = getConstantRange().unionWith(RHS.getConstantRange());
     if (NewR.isFullSet())
       markOverdefined();
     else
-      markConstantRange(std::move(NewR));
+      markConstantRange(std::move(NewR), CRP);
     return true;
   }
 

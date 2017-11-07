@@ -90,7 +90,8 @@ static bool hasSingleValue(const ValueLatticeElement &Val) {
 ///   not confuse the rest of LVI.  Ideally, we'd always return Undefined, but
 ///   we do not make this guarantee.  TODO: This would be a useful enhancement.
 static ValueLatticeElement intersect(const ValueLatticeElement &A,
-                                     const ValueLatticeElement &B) {
+                                     const ValueLatticeElement &B,
+                                     DenseMap<ConstantRange, unsigned> &CRP) {
   // Undefined is the strongest state.  It means the value is known to be along
   // an unreachable path.
   if (A.isUndefined())
@@ -122,7 +123,7 @@ static ValueLatticeElement intersect(const ValueLatticeElement &A,
   // Note: An empty range is implicitly converted to overdefined internally.
   // TODO: We could instead use Undefined here since we've proven a conflict
   // and thus know this path must be unreachable.
-  return ValueLatticeElement::getRange(std::move(Range));
+  return ValueLatticeElement::getRange(std::move(Range), CRP);
 }
 
 //===----------------------------------------------------------------------===//
@@ -387,6 +388,8 @@ namespace {
     /// Keeps track of which block-value pairs are in BlockValueStack.
     DenseSet<std::pair<BasicBlock*, Value*> > BlockValueSet;
 
+    DenseMap<ConstantRange, unsigned> ConstantRangePool;
+
     /// Push BV onto BlockValueStack unless it's already in there.
     /// Returns true on success.
     bool pushBlockValue(const std::pair<BasicBlock *, Value *> &BV) {
@@ -470,7 +473,7 @@ namespace {
 
     LazyValueInfoImpl(AssumptionCache *AC, const DataLayout &DL,
                        DominatorTree *DT = nullptr)
-        : AC(AC), DL(DL), DT(DT) {}
+        : ConstantRangePool(), AC(AC), DL(DL), DT(DT){}
   };
 } // end anonymous namespace
 
@@ -536,12 +539,13 @@ ValueLatticeElement LazyValueInfoImpl::getBlockValue(Value *Val,
                                                      BasicBlock *BB) {
   // If already a constant, there is nothing to compute.
   if (Constant *VC = dyn_cast<Constant>(Val))
-    return ValueLatticeElement::get(VC);
+    return ValueLatticeElement::get(VC, ConstantRangePool);
 
   return TheCache.getCachedValueInfo(Val, BB);
 }
 
-static ValueLatticeElement getFromRangeMetadata(Instruction *BBI) {
+static ValueLatticeElement getFromRangeMetadata(Instruction *BBI,
+                                                DenseMap<ConstantRange, unsigned> &CRP) {
   switch (BBI->getOpcode()) {
   default: break;
   case Instruction::Load:
@@ -550,7 +554,7 @@ static ValueLatticeElement getFromRangeMetadata(Instruction *BBI) {
     if (MDNode *Ranges = BBI->getMetadata(LLVMContext::MD_range))
       if (isa<IntegerType>(BBI->getType())) {
         return ValueLatticeElement::getRange(
-            getConstantRangeFromMetadata(*Ranges));
+            getConstantRangeFromMetadata(*Ranges), CRP);
       }
     break;
   };
@@ -608,7 +612,8 @@ bool LazyValueInfoImpl::solveBlockValueImpl(ValueLatticeElement &Res,
   // That is unfortunate.
   PointerType *PT = dyn_cast<PointerType>(BBI->getType());
   if (PT && isKnownNonZero(BBI, DL)) {
-    Res = ValueLatticeElement::getNot(ConstantPointerNull::get(PT));
+    Res = ValueLatticeElement::getNot(ConstantPointerNull::get(PT),
+                                      ConstantRangePool);
     return true;
   }
   if (BBI->getType()->isIntegerTy()) {
@@ -622,7 +627,7 @@ bool LazyValueInfoImpl::solveBlockValueImpl(ValueLatticeElement &Res,
 
   DEBUG(dbgs() << " compute BB '" << BB->getName()
                  << "' - unknown inst def found.\n");
-  Res = getFromRangeMetadata(BBI);
+  Res = getFromRangeMetadata(BBI, ConstantRangePool);
   return true;
 }
 
@@ -688,7 +693,8 @@ bool LazyValueInfoImpl::solveBlockValueNonLocal(ValueLatticeElement &BBLV,
     if (Val->getType()->isPointerTy() &&
         (isKnownNonZero(Val, DL) || isObjectDereferencedInBlock(Val, BB))) {
       PointerType *PTy = cast<PointerType>(Val->getType());
-      Result = ValueLatticeElement::getNot(ConstantPointerNull::get(PTy));
+      Result = ValueLatticeElement::getNot(ConstantPointerNull::get(PTy),
+                                           ConstantRangePool);
     } else {
       Result = ValueLatticeElement::getOverdefined();
     }
@@ -711,7 +717,7 @@ bool LazyValueInfoImpl::solveBlockValueNonLocal(ValueLatticeElement &BBLV,
       // Explore that input, then return here
       return false;
 
-    Result.mergeIn(EdgeResult, DL);
+    Result.mergeIn(EdgeResult, DL, ConstantRangePool);
 
     // If we hit overdefined, exit early.  The BlockVals entry is already set
     // to overdefined.
@@ -723,7 +729,8 @@ bool LazyValueInfoImpl::solveBlockValueNonLocal(ValueLatticeElement &BBLV,
       if (Val->getType()->isPointerTy() &&
           isObjectDereferencedInBlock(Val, BB)) {
         PointerType *PTy = cast<PointerType>(Val->getType());
-        Result = ValueLatticeElement::getNot(ConstantPointerNull::get(PTy));
+        Result = ValueLatticeElement::getNot(ConstantPointerNull::get(PTy),
+                                             ConstantRangePool);
       }
 
       BBLV = Result;
@@ -755,7 +762,7 @@ bool LazyValueInfoImpl::solveBlockValuePHINode(ValueLatticeElement &BBLV,
       // Explore that input, then return here
       return false;
 
-    Result.mergeIn(EdgeResult, DL);
+    Result.mergeIn(EdgeResult, DL, ConstantRangePool);
 
     // If we hit overdefined, exit early.  The BlockVals entry is already set
     // to overdefined.
@@ -775,6 +782,7 @@ bool LazyValueInfoImpl::solveBlockValuePHINode(ValueLatticeElement &BBLV,
 }
 
 static ValueLatticeElement getValueFromCondition(Value *Val, Value *Cond,
+                                                 DenseMap<ConstantRange, unsigned> &CRP,
                                                  bool isTrueDest = true);
 
 // If we can determine a constraint on the value given conditions assumed by
@@ -792,7 +800,9 @@ void LazyValueInfoImpl::intersectAssumeOrGuardBlockValueConstantRange(
     if (!isValidAssumeForContext(I, BBI, DT))
       continue;
 
-    BBLV = intersect(BBLV, getValueFromCondition(Val, I->getArgOperand(0)));
+    BBLV = intersect(BBLV, getValueFromCondition(Val, I->getArgOperand(0),
+                                                 ConstantRangePool),
+                     ConstantRangePool);
   }
 
   // If guards are not used in the module, don't spend time looking for them
@@ -805,7 +815,9 @@ void LazyValueInfoImpl::intersectAssumeOrGuardBlockValueConstantRange(
                                    BBI->getParent()->rend())) {
     Value *Cond = nullptr;
     if (match(&I, m_Intrinsic<Intrinsic::experimental_guard>(m_Value(Cond))))
-      BBLV = intersect(BBLV, getValueFromCondition(Val, Cond));
+      BBLV = intersect(BBLV, getValueFromCondition(Val, Cond,
+                                                   ConstantRangePool),
+                       ConstantRangePool);
   }
 }
 
@@ -865,7 +877,7 @@ bool LazyValueInfoImpl::solveBlockValueSelect(ValueLatticeElement &BBLV,
           return TrueCR.umax(FalseCR);
         };
       }();
-      BBLV = ValueLatticeElement::getRange(ResultCR);
+      BBLV = ValueLatticeElement::getRange(ResultCR, ConstantRangePool);
       return true;
     }
 
@@ -877,9 +889,13 @@ bool LazyValueInfoImpl::solveBlockValueSelect(ValueLatticeElement &BBLV,
   // TODO: We could potentially refine an overdefined true value above.
   Value *Cond = SI->getCondition();
   TrueVal = intersect(TrueVal,
-                      getValueFromCondition(SI->getTrueValue(), Cond, true));
+                      getValueFromCondition(SI->getTrueValue(), Cond,
+                                            ConstantRangePool, true),
+                      ConstantRangePool);
   FalseVal = intersect(FalseVal,
-                       getValueFromCondition(SI->getFalseValue(), Cond, false));
+                       getValueFromCondition(SI->getFalseValue(), Cond,
+                                             ConstantRangePool, false),
+                       ConstantRangePool);
 
   // Handle clamp idioms such as:
   //   %24 = constantrange<0, 17>
@@ -908,7 +924,9 @@ bool LazyValueInfoImpl::solveBlockValueSelect(ValueLatticeElement &BBLV,
                                              m_ConstantInt(CIAdded)))) {
           auto ResNot = addConstants(CIBase, CIAdded);
           FalseVal = intersect(FalseVal,
-                               ValueLatticeElement::getNot(ResNot));
+                               ValueLatticeElement::getNot(ResNot,
+                                                           ConstantRangePool),
+                               ConstantRangePool);
         }
         break;
       case ICmpInst::ICMP_NE:
@@ -916,7 +934,9 @@ bool LazyValueInfoImpl::solveBlockValueSelect(ValueLatticeElement &BBLV,
                                             m_ConstantInt(CIAdded)))) {
           auto ResNot = addConstants(CIBase, CIAdded);
           TrueVal = intersect(TrueVal,
-                              ValueLatticeElement::getNot(ResNot));
+                              ValueLatticeElement::getNot(ResNot,
+                                                          ConstantRangePool),
+                              ConstantRangePool);
         }
         break;
       };
@@ -924,8 +944,8 @@ bool LazyValueInfoImpl::solveBlockValueSelect(ValueLatticeElement &BBLV,
   }
 
   ValueLatticeElement Result;  // Start Undefined.
-  Result.mergeIn(TrueVal, DL);
-  Result.mergeIn(FalseVal, DL);
+  Result.mergeIn(TrueVal, DL, ConstantRangePool);
+  Result.mergeIn(FalseVal, DL, ConstantRangePool);
   BBLV = Result;
   return true;
 }
@@ -982,7 +1002,8 @@ bool LazyValueInfoImpl::solveBlockValueCast(ValueLatticeElement &BBLV,
   // can evaluate symbolically.  Enhancing that set will allows us to analyze
   // more definitions.
   BBLV = ValueLatticeElement::getRange(LHSRange.castOp(CI->getOpcode(),
-                                                       ResultBitWidth));
+                                                       ResultBitWidth),
+                                       ConstantRangePool);
   return true;
 }
 
@@ -1041,11 +1062,13 @@ bool LazyValueInfoImpl::solveBlockValueBinaryOp(ValueLatticeElement &BBLV,
   // can evaluate symbolically.  Enhancing that set will allows us to analyze
   // more definitions.
   Instruction::BinaryOps BinOp = BO->getOpcode();
-  BBLV = ValueLatticeElement::getRange(LHSRange.binaryOp(BinOp, RHSRange));
+  BBLV = ValueLatticeElement::getRange(LHSRange.binaryOp(BinOp, RHSRange),
+                                       ConstantRangePool);
   return true;
 }
 
 static ValueLatticeElement getValueFromICmpCondition(Value *Val, ICmpInst *ICI,
+                                                     DenseMap<ConstantRange, unsigned> &CRP,
                                                      bool isTrueDest) {
   Value *LHS = ICI->getOperand(0);
   Value *RHS = ICI->getOperand(1);
@@ -1053,12 +1076,12 @@ static ValueLatticeElement getValueFromICmpCondition(Value *Val, ICmpInst *ICI,
 
   if (isa<Constant>(RHS)) {
     if (ICI->isEquality() && LHS == Val) {
-      // We know that V has the RHS constant if this is a true SETEQ or
+      // we know that v has the RHS constant if this is a true SETEQ or
       // false SETNE.
       if (isTrueDest == (Predicate == ICmpInst::ICMP_EQ))
-        return ValueLatticeElement::get(cast<Constant>(RHS));
+        return ValueLatticeElement::get(cast<Constant>(RHS), CRP);
       else
-        return ValueLatticeElement::getNot(cast<Constant>(RHS));
+        return ValueLatticeElement::getNot(cast<Constant>(RHS), CRP);
     }
   }
 
@@ -1102,7 +1125,7 @@ static ValueLatticeElement getValueFromICmpCondition(Value *Val, ICmpInst *ICI,
     if (Offset) // Apply the offset from above.
       TrueValues = TrueValues.subtract(Offset->getValue());
 
-    return ValueLatticeElement::getRange(std::move(TrueValues));
+    return ValueLatticeElement::getRange(std::move(TrueValues), CRP);
   }
 
   return ValueLatticeElement::getOverdefined();
@@ -1110,13 +1133,16 @@ static ValueLatticeElement getValueFromICmpCondition(Value *Val, ICmpInst *ICI,
 
 static ValueLatticeElement
 getValueFromCondition(Value *Val, Value *Cond, bool isTrueDest,
-                      DenseMap<Value*, ValueLatticeElement> &Visited);
+                      DenseMap<Value*, ValueLatticeElement> &Visited,
+                      DenseMap<ConstantRange, unsigned> &CRP);
 
 static ValueLatticeElement
 getValueFromConditionImpl(Value *Val, Value *Cond, bool isTrueDest,
-                          DenseMap<Value*, ValueLatticeElement> &Visited) {
+                          DenseMap<Value*, ValueLatticeElement> &Visited,
+                          DenseMap<ConstantRange, unsigned> &CRP) {
+
   if (ICmpInst *ICI = dyn_cast<ICmpInst>(Cond))
-    return getValueFromICmpCondition(Val, ICI, isTrueDest);
+    return getValueFromICmpCondition(Val, ICI, CRP, isTrueDest);
 
   // Handle conditions in the form of (cond1 && cond2), we know that on the
   // true dest path both of the conditions hold. Similarly for conditions of
@@ -1127,28 +1153,32 @@ getValueFromConditionImpl(Value *Val, Value *Cond, bool isTrueDest,
              (!isTrueDest && BO->getOpcode() != BinaryOperator::Or))
     return ValueLatticeElement::getOverdefined();
 
-  auto RHS = getValueFromCondition(Val, BO->getOperand(0), isTrueDest, Visited);
-  auto LHS = getValueFromCondition(Val, BO->getOperand(1), isTrueDest, Visited);
-  return intersect(RHS, LHS);
+  auto RHS = getValueFromCondition(Val, BO->getOperand(0), isTrueDest, Visited,
+                                   CRP);
+  auto LHS = getValueFromCondition(Val, BO->getOperand(1), isTrueDest, Visited,
+                                   CRP);
+  return intersect(RHS, LHS, CRP);
 }
 
 static ValueLatticeElement
 getValueFromCondition(Value *Val, Value *Cond, bool isTrueDest,
-                      DenseMap<Value*, ValueLatticeElement> &Visited) {
+                      DenseMap<Value*, ValueLatticeElement> &Visited,
+                      DenseMap<ConstantRange, unsigned> &CRP) {
   auto I = Visited.find(Cond);
   if (I != Visited.end())
     return I->second;
 
-  auto Result = getValueFromConditionImpl(Val, Cond, isTrueDest, Visited);
+  auto Result = getValueFromConditionImpl(Val, Cond, isTrueDest, Visited, CRP);
   Visited[Cond] = Result;
   return Result;
 }
 
 ValueLatticeElement getValueFromCondition(Value *Val, Value *Cond,
+                                          DenseMap<ConstantRange, unsigned> &CRP,
                                           bool isTrueDest) {
   assert(Cond && "precondition");
   DenseMap<Value*, ValueLatticeElement> Visited;
-  return getValueFromCondition(Val, Cond, isTrueDest, Visited);
+  return getValueFromCondition(Val, Cond, isTrueDest, Visited, CRP);
 }
 
 // Return true if Usr has Op as an operand, otherwise false.
@@ -1170,7 +1200,8 @@ static bool isOperationFoldable(User *Usr) {
 // lattice value.
 static ValueLatticeElement constantFoldUser(User *Usr, Value *Op,
                                             const APInt &OpConstVal,
-                                            const DataLayout &DL) {
+                                            const DataLayout &DL,
+                                            DenseMap<ConstantRange, unsigned> &CRP) {
   assert(isOperationFoldable(Usr) && "Precondition");
   Constant* OpConst = Constant::getIntegerValue(Op->getType(), OpConstVal);
   // Check if Usr can be simplified to a constant.
@@ -1179,7 +1210,7 @@ static ValueLatticeElement constantFoldUser(User *Usr, Value *Op,
     if (auto *C = dyn_cast_or_null<ConstantInt>(
             SimplifyCastInst(CI->getOpcode(), OpConst,
                              CI->getDestTy(), DL))) {
-      return ValueLatticeElement::getRange(ConstantRange(C->getValue()));
+      return ValueLatticeElement::getRange(ConstantRange(C->getValue()), CRP);
     }
   } else if (auto *BO = dyn_cast<BinaryOperator>(Usr)) {
     bool Op0Match = BO->getOperand(0) == Op;
@@ -1190,7 +1221,7 @@ static ValueLatticeElement constantFoldUser(User *Usr, Value *Op,
     Value *RHS = Op1Match ? OpConst : BO->getOperand(1);
     if (auto *C = dyn_cast_or_null<ConstantInt>(
             SimplifyBinOp(BO->getOpcode(), LHS, RHS, DL))) {
-      return ValueLatticeElement::getRange(ConstantRange(C->getValue()));
+      return ValueLatticeElement::getRange(ConstantRange(C->getValue()), CRP);
     }
   }
   return ValueLatticeElement::getOverdefined();
@@ -1200,7 +1231,8 @@ static ValueLatticeElement constantFoldUser(User *Usr, Value *Op,
 /// Val is not constrained on the edge.  Result is unspecified if return value
 /// is false.
 static bool getEdgeValueLocal(Value *Val, BasicBlock *BBFrom,
-                              BasicBlock *BBTo, ValueLatticeElement &Result) {
+                              BasicBlock *BBTo, ValueLatticeElement &Result,
+                              DenseMap<ConstantRange, unsigned> &CRP) {
   // TODO: Handle more complex conditionals. If (v == 0 || v2 < 1) is false, we
   // know that v != 0.
   if (BranchInst *BI = dyn_cast<BranchInst>(BBFrom->getTerminator())) {
@@ -1217,13 +1249,14 @@ static bool getEdgeValueLocal(Value *Val, BasicBlock *BBFrom,
       // it is.
       if (Condition == Val) {
         Result = ValueLatticeElement::get(ConstantInt::get(
-                              Type::getInt1Ty(Val->getContext()), isTrueDest));
+                              Type::getInt1Ty(Val->getContext()), isTrueDest),
+                              CRP);
         return true;
       }
 
       // If the condition of the branch is an equality comparison, we may be
       // able to infer the value.
-      Result = getValueFromCondition(Val, Condition, isTrueDest);
+      Result = getValueFromCondition(Val, Condition, CRP, isTrueDest);
       if (!Result.isOverdefined())
         return true;
 
@@ -1243,7 +1276,7 @@ static bool getEdgeValueLocal(Value *Val, BasicBlock *BBFrom,
             //   %Val = and i1 %Condition, true.
             //   br %Condition, label %then, label %else
             APInt ConditionVal(1, isTrueDest ? 1 : 0);
-            Result = constantFoldUser(Usr, Condition, ConditionVal, DL);
+            Result = constantFoldUser(Usr, Condition, ConditionVal, DL, CRP);
           } else {
             // If one of Val's operand has an inferred value, we may be able to
             // infer the value of Val.
@@ -1255,9 +1288,9 @@ static bool getEdgeValueLocal(Value *Val, BasicBlock *BBFrom,
             for (unsigned i = 0; i < Usr->getNumOperands(); ++i) {
               Value *Op = Usr->getOperand(i);
               ValueLatticeElement OpLatticeVal =
-                  getValueFromCondition(Op, Condition, isTrueDest);
+                  getValueFromCondition(Op, Condition, CRP, isTrueDest);
               if (Optional<APInt> OpConst = OpLatticeVal.asConstantInteger()) {
-                Result = constantFoldUser(Usr, Op, OpConst.getValue(), DL);
+                Result = constantFoldUser(Usr, Op, OpConst.getValue(), DL, CRP);
                 break;
               }
             }
@@ -1298,7 +1331,7 @@ static bool getEdgeValueLocal(Value *Val, BasicBlock *BBFrom,
         User *Usr = cast<User>(Val);
         const DataLayout &DL = BBTo->getModule()->getDataLayout();
         ValueLatticeElement EdgeLatticeVal =
-            constantFoldUser(Usr, Condition, CaseValue, DL);
+            constantFoldUser(Usr, Condition, CaseValue, DL, CRP);
         if (EdgeLatticeVal.isOverdefined())
           return false;
         EdgeVal = EdgeLatticeVal.getConstantRange();
@@ -1315,7 +1348,7 @@ static bool getEdgeValueLocal(Value *Val, BasicBlock *BBFrom,
       } else if (Case.getCaseSuccessor() == BBTo)
         EdgesVals = EdgesVals.unionWith(EdgeVal);
     }
-    Result = ValueLatticeElement::getRange(std::move(EdgesVals));
+    Result = ValueLatticeElement::getRange(std::move(EdgesVals), CRP);
     return true;
   }
   return false;
@@ -1329,12 +1362,12 @@ bool LazyValueInfoImpl::getEdgeValue(Value *Val, BasicBlock *BBFrom,
                                      Instruction *CxtI) {
   // If already a constant, there is nothing to compute.
   if (Constant *VC = dyn_cast<Constant>(Val)) {
-    Result = ValueLatticeElement::get(VC);
+    Result = ValueLatticeElement::get(VC, ConstantRangePool);
     return true;
   }
 
   ValueLatticeElement LocalResult;
-  if (!getEdgeValueLocal(Val, BBFrom, BBTo, LocalResult))
+  if (!getEdgeValueLocal(Val, BBFrom, BBTo, LocalResult, ConstantRangePool))
     // If we couldn't constrain the value on the edge, LocalResult doesn't
     // provide any information.
     LocalResult = ValueLatticeElement::getOverdefined();
@@ -1367,7 +1400,7 @@ bool LazyValueInfoImpl::getEdgeValue(Value *Val, BasicBlock *BBFrom,
   // but then the result is not cached.
   intersectAssumeOrGuardBlockValueConstantRange(Val, InBlock, CxtI);
 
-  Result = intersect(LocalResult, InBlock);
+  Result = intersect(LocalResult, InBlock, ConstantRangePool);
   return true;
 }
 
@@ -1393,11 +1426,11 @@ ValueLatticeElement LazyValueInfoImpl::getValueAt(Value *V, Instruction *CxtI) {
         << CxtI->getName() << "'\n");
 
   if (auto *C = dyn_cast<Constant>(V))
-    return ValueLatticeElement::get(C);
+    return ValueLatticeElement::get(C, ConstantRangePool);
 
   ValueLatticeElement Result = ValueLatticeElement::getOverdefined();
   if (auto *I = dyn_cast<Instruction>(V))
-    Result = getFromRangeMetadata(I);
+    Result = getFromRangeMetadata(I, ConstantRangePool);
   intersectAssumeOrGuardBlockValueConstantRange(V, Result, CxtI);
 
   DEBUG(dbgs() << "  Result = " << Result << "\n");

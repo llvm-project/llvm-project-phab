@@ -178,11 +178,11 @@ public:
     Val.setPointer(V);
   }
 
-  ValueLatticeElement toValueLattice() const {
+  ValueLatticeElement toValueLattice(DenseMap<ConstantRange, unsigned> &CRP) const {
     if (isOverdefined())
       return ValueLatticeElement::getOverdefined();
     if (isConstant())
-      return ValueLatticeElement::get(getConstant());
+      return ValueLatticeElement::get(getConstant(), CRP);
     return ValueLatticeElement();
   }
 };
@@ -245,6 +245,8 @@ class SCCPSolver : public InstVisitor<SCCPSolver> {
   /// PHI nodes retriggered.
   using Edge = std::pair<BasicBlock *, BasicBlock *>;
   DenseSet<Edge> KnownFeasibleEdges;
+
+  DenseMap<ConstantRange, unsigned> ConstantRangePool;
 
 public:
   SCCPSolver(const DataLayout &DL, const TargetLibraryInfo *tli)
@@ -335,7 +337,7 @@ public:
       DenseMap<Value*, LatticeVal>::const_iterator I = ValueState.find(V);
       assert(I != ValueState.end() &&
              "V not found in ValueState nor Paramstate map!");
-      LV = I->second.toValueLattice();
+      LV = I->second.toValueLattice(ConstantRangePool);
     }
 
     return LV;
@@ -474,7 +476,7 @@ private:
         PI = ParamState.insert(std::make_pair(V, ValueLatticeElement()));
     ValueLatticeElement &LV = PI.first->second;
     if (PI.second)
-      LV = getValueState(V).toValueLattice();
+      LV = getValueState(V).toValueLattice(ConstantRangePool);
 
     return LV;
   }
@@ -1207,7 +1209,7 @@ CallOverdefined:
       } else {
         // Most other parts of the Solver still only use the simpler value
         // lattice, so we propagate changes for parameters to both lattices.
-        getParamState(&*AI).mergeIn(getValueState(*CAI).toValueLattice(), DL);
+        getParamState(&*AI).mergeIn(getValueState(*CAI).toValueLattice(ConstantRangePool), DL, ConstantRangePool);
         mergeInValue(&*AI, getValueState(*CAI));
       }
     }

@@ -30,40 +30,42 @@ protected:
 };
 
 TEST_F(ValueLatticeTest, ValueLatticeGetters) {
+  DenseMap<ConstantRange, unsigned> CRP;
   auto I32Ty = IntegerType::get(Context, 32);
   auto *C1 = ConstantInt::get(I32Ty, 1);
 
-  EXPECT_TRUE(ValueLatticeElement::get(C1).isConstantRange());
+  EXPECT_TRUE(ValueLatticeElement::get(C1, CRP).isConstantRange());
   EXPECT_TRUE(
-      ValueLatticeElement::getRange({C1->getValue()}).isConstantRange());
+      ValueLatticeElement::getRange({C1->getValue()}, CRP).isConstantRange());
   EXPECT_TRUE(ValueLatticeElement::getOverdefined().isOverdefined());
 
   auto FloatTy = Type::getFloatTy(Context);
   auto *C2 = ConstantFP::get(FloatTy, 1.1);
-  EXPECT_TRUE(ValueLatticeElement::get(C2).isConstant());
-  EXPECT_TRUE(ValueLatticeElement::getNot(C2).isNotConstant());
+  EXPECT_TRUE(ValueLatticeElement::get(C2, CRP).isConstant());
+  EXPECT_TRUE(ValueLatticeElement::getNot(C2, CRP).isNotConstant());
 }
 
 TEST_F(ValueLatticeTest, MergeIn) {
+  DenseMap<ConstantRange, unsigned> CRP;
   auto I32Ty = IntegerType::get(Context, 32);
   auto *C1 = ConstantInt::get(I32Ty, 1);
 
   // Merge to lattice values with equal integer constant.
-  auto LV1 = ValueLatticeElement::get(C1);
-  LV1.mergeIn(ValueLatticeElement::get(C1), M.getDataLayout());
+  auto LV1 = ValueLatticeElement::get(C1, CRP);
+  LV1.mergeIn(ValueLatticeElement::get(C1, CRP), M.getDataLayout(), CRP);
   EXPECT_TRUE(LV1.isConstantRange());
   EXPECT_EQ(LV1.asConstantInteger().getValue().getLimitedValue(), 1U);
 
   // Merge LV1 with different integer constant.
-  LV1.mergeIn(ValueLatticeElement::get(ConstantInt::get(I32Ty, 99)),
-              M.getDataLayout());
+  LV1.mergeIn(ValueLatticeElement::get(ConstantInt::get(I32Ty, 99), CRP),
+              M.getDataLayout(), CRP);
   EXPECT_TRUE(LV1.isConstantRange());
   EXPECT_EQ(LV1.getConstantRange().getLower().getLimitedValue(), 1U);
   EXPECT_EQ(LV1.getConstantRange().getUpper().getLimitedValue(), 100U);
 
   // Merge LV1 in undefined value.
   ValueLatticeElement LV2;
-  LV2.mergeIn(LV1, M.getDataLayout());
+  LV2.mergeIn(LV1, M.getDataLayout(), CRP);
   EXPECT_TRUE(LV1.isConstantRange());
   EXPECT_EQ(LV1.getConstantRange().getLower().getLimitedValue(), 1U);
   EXPECT_EQ(LV1.getConstantRange().getUpper().getLimitedValue(), 100U);
@@ -72,14 +74,15 @@ TEST_F(ValueLatticeTest, MergeIn) {
   EXPECT_EQ(LV2.getConstantRange().getUpper().getLimitedValue(), 100U);
 
   // Merge with overdefined.
-  LV1.mergeIn(ValueLatticeElement::getOverdefined(), M.getDataLayout());
+  LV1.mergeIn(ValueLatticeElement::getOverdefined(), M.getDataLayout(), CRP);
   EXPECT_TRUE(LV1.isOverdefined());
 }
 
 TEST_F(ValueLatticeTest, satisfiesPredicateIntegers) {
+  DenseMap<ConstantRange, unsigned> CRP;
   auto I32Ty = IntegerType::get(Context, 32);
   auto *C1 = ConstantInt::get(I32Ty, 1);
-  auto LV1 = ValueLatticeElement::get(C1);
+  auto LV1 = ValueLatticeElement::get(C1, CRP);
 
   // Check satisfiesPredicate for equal integer constants.
   EXPECT_TRUE(LV1.satisfiesPredicate(CmpInst::ICMP_EQ, LV1));
@@ -90,7 +93,8 @@ TEST_F(ValueLatticeTest, satisfiesPredicateIntegers) {
   EXPECT_FALSE(LV1.satisfiesPredicate(CmpInst::ICMP_SGT, LV1));
 
   auto LV2 =
-      ValueLatticeElement::getRange({APInt(32, 10, true), APInt(32, 20, true)});
+      ValueLatticeElement::getRange({APInt(32, 10, true), APInt(32, 20, true)},
+                                    CRP);
   // Check satisfiesPredicate with distinct integer ranges.
   EXPECT_TRUE(LV1.satisfiesPredicate(CmpInst::ICMP_SLT, LV2));
   EXPECT_TRUE(LV1.satisfiesPredicate(CmpInst::ICMP_SLE, LV2));
@@ -100,7 +104,8 @@ TEST_F(ValueLatticeTest, satisfiesPredicateIntegers) {
   EXPECT_FALSE(LV1.satisfiesPredicate(CmpInst::ICMP_SGT, LV2));
 
   auto LV3 =
-      ValueLatticeElement::getRange({APInt(32, 15, true), APInt(32, 19, true)});
+      ValueLatticeElement::getRange({APInt(32, 15, true), APInt(32, 19, true)},
+                                    CRP);
   // Check satisfiesPredicate with a subset integer ranges.
   EXPECT_FALSE(LV2.satisfiesPredicate(CmpInst::ICMP_SLT, LV3));
   EXPECT_FALSE(LV2.satisfiesPredicate(CmpInst::ICMP_SLE, LV3));
@@ -110,7 +115,8 @@ TEST_F(ValueLatticeTest, satisfiesPredicateIntegers) {
   EXPECT_FALSE(LV2.satisfiesPredicate(CmpInst::ICMP_SGT, LV3));
 
   auto LV4 =
-      ValueLatticeElement::getRange({APInt(32, 15, true), APInt(32, 25, true)});
+      ValueLatticeElement::getRange({APInt(32, 15, true), APInt(32, 25, true)},
+                                    CRP);
   // Check satisfiesPredicate with overlapping integer ranges.
   EXPECT_FALSE(LV3.satisfiesPredicate(CmpInst::ICMP_SLT, LV4));
   EXPECT_FALSE(LV3.satisfiesPredicate(CmpInst::ICMP_SLE, LV4));
@@ -121,10 +127,11 @@ TEST_F(ValueLatticeTest, satisfiesPredicateIntegers) {
 }
 
 TEST_F(ValueLatticeTest, satisfiesPredicateFloat) {
+  DenseMap<ConstantRange, unsigned> CRP;
   auto FloatTy = IntegerType::getFloatTy(Context);
   auto *C1 = ConstantFP::get(FloatTy, 1.0);
-  auto LV1 = ValueLatticeElement::get(C1);
-  auto LV2 = ValueLatticeElement::get(C1);
+  auto LV1 = ValueLatticeElement::get(C1, CRP);
+  auto LV2 = ValueLatticeElement::get(C1, CRP);
 
   // Check satisfiesPredicate for equal floating point constants.
   EXPECT_TRUE(LV1.satisfiesPredicate(CmpInst::FCMP_OEQ, LV2));
@@ -134,8 +141,8 @@ TEST_F(ValueLatticeTest, satisfiesPredicateFloat) {
   EXPECT_FALSE(LV1.satisfiesPredicate(CmpInst::FCMP_OLT, LV2));
   EXPECT_FALSE(LV1.satisfiesPredicate(CmpInst::FCMP_OGT, LV2));
 
-  LV1.mergeIn(ValueLatticeElement::get(ConstantFP::get(FloatTy, 2.2)),
-              M.getDataLayout());
+  LV1.mergeIn(ValueLatticeElement::get(ConstantFP::get(FloatTy, 2.2), CRP),
+              M.getDataLayout(), CRP);
   EXPECT_FALSE(LV1.satisfiesPredicate(CmpInst::FCMP_OEQ, LV2));
   EXPECT_FALSE(LV1.satisfiesPredicate(CmpInst::FCMP_OGE, LV2));
   EXPECT_FALSE(LV1.satisfiesPredicate(CmpInst::FCMP_OLE, LV2));
