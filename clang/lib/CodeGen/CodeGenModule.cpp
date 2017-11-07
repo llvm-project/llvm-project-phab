@@ -844,20 +844,21 @@ CodeGenModule::getFunctionLinkage(GlobalDecl GD) {
   GVALinkage Linkage = getContext().GetGVALinkageForFunction(D);
 
   if (isa<CXXDestructorDecl>(D) &&
-      getCXXABI().useThunkForDtorVariant(cast<CXXDestructorDecl>(D),
-                                         GD.getDtorType())) {
-    // Destructor variants in the Microsoft C++ ABI are always internal or
-    // linkonce_odr thunks emitted on an as-needed basis. Except destructors
-    // that have a virtual base and dllimport attributes. Those will
-    // be marked with an external linkage.
-    if (cast<CXXDestructorDecl>(D)->getParent()->getNumVBases() &&
-        (GD.getDtorType() == CXXDtorType::Dtor_Complete ||
-         GD.getDtorType() == CXXDtorType::Dtor_Base) &&
-        D->hasAttr<DLLImportAttr>())
-      return llvm::Function::AvailableExternallyLinkage;
-    else
-      return Linkage == GVA_Internal ? llvm::GlobalValue::InternalLinkage
-                                     : llvm::GlobalValue::LinkOnceODRLinkage;
+      Context.getTargetInfo().getCXXABI().isMicrosoft()) {
+    switch (GD.getDtorType()) {
+    case CXXDtorType::Dtor_Base:
+      break;
+    case CXXDtorType::Dtor_Comdat:
+    case CXXDtorType::Dtor_Complete:
+      if (cast<CXXDestructorDecl>(D)->getParent()->getNumVBases() &&
+          D->hasAttr<DLLImportAttr>())
+        return llvm::Function::AvailableExternallyLinkage;
+      else
+        return Linkage == GVA_Internal ? llvm::GlobalValue::InternalLinkage
+                                       : llvm::GlobalValue::LinkOnceODRLinkage;
+    case CXXDtorType::Dtor_Deleting:
+      return llvm::GlobalValue::LinkOnceODRLinkage;
+    }
   }
 
   if (isa<CXXConstructorDecl>(D) &&
@@ -875,11 +876,18 @@ CodeGenModule::getFunctionLinkage(GlobalDecl GD) {
 void CodeGenModule::setFunctionDLLStorageClass(GlobalDecl GD, llvm::Function *F) {
   const auto *FD = cast<FunctionDecl>(GD.getDecl());
 
-  if (const auto *Dtor = dyn_cast_or_null<CXXDestructorDecl>(FD)) {
-    if (getCXXABI().useThunkForDtorVariant(Dtor, GD.getDtorType())) {
+  if (dyn_cast_or_null<CXXDestructorDecl>(FD) &&
+      Context.getTargetInfo().getCXXABI().isMicrosoft()) {
+    switch (GD.getDtorType()) {
+    case CXXDtorType::Dtor_Comdat:
+    case CXXDtorType::Dtor_Complete:
+    case CXXDtorType::Dtor_Deleting: {
       // Don't dllexport/import destructor thunks.
       F->setDLLStorageClass(llvm::GlobalValue::DefaultStorageClass);
       return;
+    }
+    case CXXDtorType::Dtor_Base:
+      break;
     }
   }
 
