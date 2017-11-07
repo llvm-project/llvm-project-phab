@@ -12841,8 +12841,10 @@ void Sema::AddKnownFunctionAttributes(FunctionDecl *FD) {
     // Mark const if we don't care about errno and that is the only
     // thing preventing the function from being const. This allows
     // IRgen to use LLVM intrinsics for such functions.
-    if (!getLangOpts().MathErrno &&
-        Context.BuiltinInfo.isConstWithoutErrno(BuiltinID)) {
+    if ((!getLangOpts().MathErrno &&
+         Context.BuiltinInfo.isConstWithoutErrno(BuiltinID)) ||
+        (Context.getTargetInfo().getTriple().isGNUEnvironment() &&
+         Context.BuiltinInfo.isConstOnGNU(BuiltinID))) {
       if (!FD->hasAttr<ConstAttr>())
         FD->addAttr(ConstAttr::CreateImplicit(Context, FD->getLocation()));
     }

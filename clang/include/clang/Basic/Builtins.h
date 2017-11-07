@@ -192,7 +192,14 @@ public:
   ///
   /// Such functions can be const when the MathErrno lang option is disabled.
   bool isConstWithoutErrno(unsigned ID) const {
-    return strchr(getRecord(ID).Attributes, 'e') != nullptr;
+    return strchr(getRecord(ID).Attributes, 'e') != nullptr ||
+           strchr(getRecord(ID).Attributes, 'E') != nullptr;
+  }
+
+  /// Return true if this function has no side effects and doesn't read memory
+  /// in a GNU environment.
+  bool isConstOnGNU(unsigned ID) const {
+    return strchr(getRecord(ID).Attributes, 'E') != nullptr;
   }
 
   const char *getRequiredFeatures(unsigned ID) const {
