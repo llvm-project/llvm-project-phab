@@ -966,14 +966,16 @@ TEST_F(FileSystemTest, CarriageReturn) {
 }
 #endif
 
-TEST_F(FileSystemTest, Resize) {
+TEST_F(FileSystemTest, Allocate) {
   int FD;
   SmallString<64> TempPath;
   ASSERT_NO_ERROR(fs::createTemporaryFile("prefix", "temp", FD, TempPath));
-  ASSERT_NO_ERROR(fs::resize_file(FD, 123));
-  fs::file_status Status;
-  ASSERT_NO_ERROR(fs::status(FD, Status));
-  ASSERT_EQ(Status.getSize(), 123U);
+  std::error_code EC = fs::allocate_file(FD, 123);
+  if (!EC) {
+    fs::file_status Status;
+    ASSERT_NO_ERROR(fs::status(FD, Status));
+    ASSERT_EQ(Status.getSize(), 123U);
+  }
   ::close(FD);
   ASSERT_NO_ERROR(fs::remove(TempPath));
 }
@@ -999,7 +1001,10 @@ TEST_F(FileSystemTest, FileMapping) {
   ASSERT_NO_ERROR(
       fs::createTemporaryFile("prefix", "temp", FileDescriptor, TempPath));
   unsigned Size = 4096;
-  ASSERT_NO_ERROR(fs::resize_file(FileDescriptor, Size));
+  if (fs::allocate_file(FileDescriptor, Size)) {
+    ASSERT_NO_ERROR(fs::remove(TempPath));
+    return;
+  }
 
   // Map in temp file and add some content
   std::error_code EC;

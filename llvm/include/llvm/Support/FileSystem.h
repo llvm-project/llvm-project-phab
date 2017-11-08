@@ -383,13 +383,13 @@ std::error_code rename(const Twine &from, const Twine &to);
 /// @param To The path to copy to. This is created.
 std::error_code copy_file(const Twine &From, const Twine &To);
 
-/// @brief Resize path to size. File is resized as if by POSIX truncate().
+/// @brief Preallocate disk blocks to a given file.
 ///
 /// @param FD Input file descriptor.
 /// @param Size Size to resize to.
 /// @returns errc::success if \a path has been resized to \a size, otherwise a
 ///          platform-specific error_code.
-std::error_code resize_file(int FD, uint64_t Size);
+std::error_code allocate_file(int FD, uint64_t Size);
 
 /// @brief Compute an MD5 hash of a file's contents.
 ///
