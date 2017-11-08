@@ -44,6 +44,7 @@
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/GlobalsModRef.h"
 #include "llvm/Analysis/IteratedDominanceFrontier.h"
+#include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/MemoryDependenceAnalysis.h"
 #include "llvm/Analysis/MemorySSA.h"
 #include "llvm/Analysis/MemorySSAUpdater.h"
@@ -256,8 +257,8 @@ static void combineKnownMetadata(Instruction *ReplInst, Instruction *I) {
 class GVNHoist {
 public:
   GVNHoist(DominatorTree *DT, PostDominatorTree *PDT, AliasAnalysis *AA,
-           MemoryDependenceResults *MD, MemorySSA *MSSA)
-      : DT(DT), PDT(PDT), AA(AA), MD(MD), MSSA(MSSA),
+           MemoryDependenceResults *MD, MemorySSA *MSSA, LoopInfo *LInfo)
+      : DT(DT), PDT(PDT), AA(AA), MD(MD), MSSA(MSSA), LInfo(LInfo),
         MSSAUpdater(llvm::make_unique<MemorySSAUpdater>(MSSA)) {}
 
   bool run(Function &F) {
@@ -333,6 +334,7 @@ private:
   AliasAnalysis *AA;
   MemoryDependenceResults *MD;
   MemorySSA *MSSA;
+  LoopInfo *LInfo;
   std::unique_ptr<MemorySSAUpdater> MSSAUpdater;
   DenseMap<const Value *, unsigned> DFSNumber;
   BBSideEffectsSet BBSideEffects;
@@ -795,8 +797,9 @@ private:
       for (auto IDFB : IDFBlocks) { // TODO: Prune out useless CHI insertions.
         for (unsigned i = 0; i < V.size(); ++i) {
           CHIArg C = {VN, nullptr, nullptr};
-          if (DT->dominates(IDFB, V[i]->getParent())) { // Ignore spurious PDFs.
-            // InValue[V[i]->getParent()].push_back(std::make_pair(VN, V[i]));
+          const BasicBlock *B = V[i]->getParent();
+          if (DT->dominates(IDFB, V[i]->getParent()) && // Ignore spurious PDFs.
+              LInfo->getLoopFor(IDFB) == LInfo->getLoopFor(B)) {
             OutValue[IDFB].push_back(C);
             DEBUG(dbgs() << "\nInsertion a CHI for BB: " << IDFB->getName()
                          << ", for Insn: " << *V[i]);
@@ -1156,13 +1159,15 @@ public:
     auto &AA = getAnalysis<AAResultsWrapperPass>().getAAResults();
     auto &MD = getAnalysis<MemoryDependenceWrapperPass>().getMemDep();
     auto &MSSA = getAnalysis<MemorySSAWrapperPass>().getMSSA();
+    auto &LInfo = getAnalysis<LoopInfoWrapperPass>().getLoopInfo();
 
-    GVNHoist G(&DT, &PDT, &AA, &MD, &MSSA);
+    GVNHoist G(&DT, &PDT, &AA, &MD, &MSSA, &LInfo);
     return G.run(F);
   }
 
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.addRequired<DominatorTreeWrapperPass>();
+    AU.addRequired<LoopInfoWrapperPass>();
     AU.addRequired<PostDominatorTreeWrapperPass>();
     AU.addRequired<AAResultsWrapperPass>();
     AU.addRequired<MemoryDependenceWrapperPass>();
@@ -1181,7 +1186,8 @@ PreservedAnalyses GVNHoistPass::run(Function &F, FunctionAnalysisManager &AM) {
   AliasAnalysis &AA = AM.getResult<AAManager>(F);
   MemoryDependenceResults &MD = AM.getResult<MemoryDependenceAnalysis>(F);
   MemorySSA &MSSA = AM.getResult<MemorySSAAnalysis>(F).getMSSA();
-  GVNHoist G(&DT, &PDT, &AA, &MD, &MSSA);
+  LoopInfo &LInfo = AM.getResult<LoopAnalysis>(F);
+  GVNHoist G(&DT, &PDT, &AA, &MD, &MSSA, &LInfo);
   if (!G.run(F))
     return PreservedAnalyses::all();
 
@@ -1199,6 +1205,7 @@ INITIALIZE_PASS_BEGIN(GVNHoistLegacyPass, "gvn-hoist",
 INITIALIZE_PASS_DEPENDENCY(MemoryDependenceWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(MemorySSAWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(DominatorTreeWrapperPass)
+INITIALIZE_PASS_DEPENDENCY(LoopInfoWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(AAResultsWrapperPass)
 INITIALIZE_PASS_END(GVNHoistLegacyPass, "gvn-hoist",
                     "Early GVN Hoisting of Expressions", false, false)
