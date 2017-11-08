@@ -421,7 +421,7 @@ bool ARMCallLowering::lowerFormalArguments(MachineIRBuilder &MIRBuilder,
   auto Subtarget = TLI.getSubtarget();
 
   if (Subtarget->isThumb())
-    return false;
+    return true;
 
   // Quick exit if there aren't any args
   if (F.arg_empty())
@@ -506,10 +506,13 @@ bool ARMCallLowering::lowerCall(MachineIRBuilder &MIRBuilder,
   // registers, but don't insert it yet.
   bool isDirect = !Callee.isReg();
   auto CallOpcode =
-      isDirect ? ARM::BL
-               : STI.hasV5TOps()
-                     ? ARM::BLX
-                     : STI.hasV4TOps() ? ARM::BX_CALL : ARM::BMOVPCRX_CALL;
+      STI.isThumb() ? (isDirect ? ARM::tBL : ARM::tBLXr)
+                    : (isDirect ? ARM::BL
+                                : STI.hasV5TOps()
+                                      ? ARM::BLX
+                                      : STI.hasV4TOps() ? ARM::BX_CALL
+                                                        : ARM::BMOVPCRX_CALL);
+
   auto MIB = MIRBuilder.buildInstrNoInsert(CallOpcode)
                  .add(Callee)
                  .addRegMask(TRI->getCallPreservedMask(MF, CallConv));
