@@ -274,6 +274,10 @@ DebuggerTuningOpt("debugger-tune",
                       clEnumValN(DebuggerKind::SCE, "sce",
                                  "SCE targets (e.g. PS4)")));
 
+cl::opt<bool> EnableStackSizeSection(
+    "stack-size-section",
+    cl::desc("Emit a section containing stack size metadata"), cl::init(false));
+
 // Common utility function tightly tied to the options listed here. Initializes
 // a TargetOptions object with CodeGen flags and returns it.
 static inline TargetOptions InitTargetOptionsFromCodeGenFlags() {
@@ -300,6 +304,7 @@ static inline TargetOptions InitTargetOptionsFromCodeGenFlags() {
   Options.UniqueSectionNames = UniqueSectionNames;
   Options.EmulatedTLS = EmulatedTLS;
   Options.ExceptionModel = ExceptionModel;
+  Options.EmitStackSizeSection = EnableStackSizeSection;
 
   Options.MCOptions = InitMCTargetOptionsFromFlags();
 
