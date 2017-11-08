@@ -143,7 +143,7 @@ void UnusedParametersCheck::warnOnUnusedParameter(
     // '*/*' for pointer types, which doesn't start a comment. clang-format will
     // clean this up afterwards.
     MyDiag << FixItHint::CreateReplacement(
-        RemovalRange, (Twine(" /*") + Param->getName() + "*/").str());
+        RemovalRange, (Twine(" /* ") + Param->getName() + " */").str());
     return;
   }
 

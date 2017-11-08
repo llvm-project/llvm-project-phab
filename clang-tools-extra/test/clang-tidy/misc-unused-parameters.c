@@ -4,7 +4,7 @@
 // =============
 void a(int i) {}
 // CHECK-MESSAGES: :[[@LINE-1]]:12: warning: parameter 'i' is unused [misc-unused-parameters]
-// CHECK-FIXES: {{^}}void a(int  /*i*/) {}{{$}}
+// CHECK-FIXES: {{^}}void a(int  /* i */) {}{{$}}
 
 static void b(); // In C, forward declarations can leave out parameters.
 static void b(int i) {}
@@ -14,4 +14,3 @@ static void b(int i) {}
 // Unchanged cases
 // ===============
 void h(i, c, d) int i; char *c, *d; {} // Don't mess with K&R style
-
