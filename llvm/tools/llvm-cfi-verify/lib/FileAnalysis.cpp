@@ -54,6 +54,22 @@ static cl::opt<bool, true> IgnoreDWARFArg(
         "will result in false positives for 'CFI unprotected' instructions."),
     cl::location(IgnoreDWARFFlag), cl::init(false));
 
+StringRef stringCFIProtectionStatus(CFIProtectionStatus Status) {
+  switch (Status) {
+  case PROTECTED:
+    return "PROTECTED";
+  case FAIL_NOT_INDIRECT_CF:
+    return "FAIL_NOT_INDIRECT_CF";
+  case FAIL_ORPHANS:
+    return "FAIL_ORPHANS";
+  case FAIL_BAD_CONDITIONAL_BRANCH:
+    return "FAIL_BAD_CONDITIONAL_BRANCH";
+  case FAIL_UNKNOWN:
+    return "FAIL_UNKNOWN";
+  }
+  return "FAIL_UNKNOWN";
+}
+
 Expected<FileAnalysis> FileAnalysis::Create(StringRef Filename) {
   // Open the filename provided.
   Expected<object::OwningBinary<object::Binary>> BinaryOrErr =
@@ -88,32 +104,6 @@ FileAnalysis::FileAnalysis(object::OwningBinary<object::Binary> Binary)
 FileAnalysis::FileAnalysis(const Triple &ObjectTriple,
                            const SubtargetFeatures &Features)
     : ObjectTriple(ObjectTriple), Features(Features) {}
-
-bool FileAnalysis::isIndirectInstructionCFIProtected(uint64_t Address) const {
-  const Instr *InstrMetaPtr = getInstruction(Address);
-  if (!InstrMetaPtr)
-    return false;
-
-  const auto &InstrDesc = MII->get(InstrMetaPtr->Instruction.getOpcode());
-
-  if (!InstrDesc.mayAffectControlFlow(InstrMetaPtr->Instruction, *RegisterInfo))
-    return false;
-
-  if (!usesRegisterOperand(*InstrMetaPtr))
-    return false;
-
-  auto Flows = GraphBuilder::buildFlowGraph(*this, Address);
-
-  if (!Flows.OrphanedNodes.empty())
-    return false;
-
-  for (const auto &BranchNode : Flows.ConditionalBranchNodes) {
-    if (!BranchNode.CFIProtection)
-      return false;
-  }
-
-  return true;
-}
 
 const Instr *
 FileAnalysis::getPrevInstructionSequential(const Instr &InstrMeta) const {
@@ -254,7 +244,34 @@ const MCInstrAnalysis *FileAnalysis::getMCInstrAnalysis() const {
   return MIA.get();
 }
 
-LLVMSymbolizer &FileAnalysis::getSymbolizer() { return *Symbolizer; }
+Expected<DIInliningInfo> FileAnalysis::symbolizeInlinedCode(uint64_t Address) {
+  assert(Symbolizer != nullptr && "Symbolizer is invalid.");
+  return Symbolizer->symbolizeInlinedCode(Object->getFileName(), Address);
+}
+
+CFIProtectionStatus
+FileAnalysis::validateCFIProtection(const GraphResult &Graph) const {
+  const Instr *InstrMetaPtr = getInstruction(Graph.BaseAddress);
+  if (!InstrMetaPtr)
+    return FAIL_UNKNOWN;
+
+  const auto &InstrDesc = MII->get(InstrMetaPtr->Instruction.getOpcode());
+  if (!InstrDesc.mayAffectControlFlow(InstrMetaPtr->Instruction, *RegisterInfo))
+    return FAIL_NOT_INDIRECT_CF;
+
+  if (!usesRegisterOperand(*InstrMetaPtr))
+    return FAIL_NOT_INDIRECT_CF;
+
+  if (!Graph.OrphanedNodes.empty())
+    return FAIL_ORPHANS;
+
+  for (const auto &BranchNode : Graph.ConditionalBranchNodes) {
+    if (!BranchNode.CFIProtection)
+      return FAIL_BAD_CONDITIONAL_BRANCH;
+  }
+
+  return PROTECTED;
+}
 
 Error FileAnalysis::initialiseDisassemblyMembers() {
   std::string TripleName = ObjectTriple.getTriple();
