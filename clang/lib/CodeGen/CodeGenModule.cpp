@@ -844,12 +844,22 @@ CodeGenModule::getFunctionLinkage(GlobalDecl GD) {
   GVALinkage Linkage = getContext().GetGVALinkageForFunction(D);
 
   if (isa<CXXDestructorDecl>(D) &&
-      getCXXABI().useThunkForDtorVariant(cast<CXXDestructorDecl>(D),
-                                         GD.getDtorType())) {
-    // Destructor variants in the Microsoft C++ ABI are always internal or
-    // linkonce_odr thunks emitted on an as-needed basis.
-    return Linkage == GVA_Internal ? llvm::GlobalValue::InternalLinkage
-                                   : llvm::GlobalValue::LinkOnceODRLinkage;
+      Context.getTargetInfo().getCXXABI().isMicrosoft()) {
+    switch (GD.getDtorType()) {
+    case CXXDtorType::Dtor_Base:
+      break;
+    case CXXDtorType::Dtor_Comdat:
+    case CXXDtorType::Dtor_Complete:
+      if (cast<CXXDestructorDecl>(D)->getParent()->getNumVBases() &&
+          D->hasAttr<DLLImportAttr>())
+        return llvm::Function::AvailableExternallyLinkage;
+      else
+        return Linkage == GVA_Internal ? llvm::GlobalValue::InternalLinkage
+                                       : llvm::GlobalValue::LinkOnceODRLinkage;
+    case CXXDtorType::Dtor_Deleting:
+        return Linkage == GVA_Internal ? llvm::GlobalValue::InternalLinkage
+                                       : llvm::GlobalValue::LinkOnceODRLinkage;
+    }
   }
 
   if (isa<CXXConstructorDecl>(D) &&
