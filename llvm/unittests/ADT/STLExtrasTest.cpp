@@ -326,4 +326,29 @@ TEST(STLExtrasTest, EraseIf) {
   EXPECT_EQ(7, V[3]);
 }
 
+namespace some_namespace {
+  struct some_struct {
+    std::vector<int> data;
+  };
+
+  std::vector<int>::const_iterator begin(const some_struct& s) {
+    return s.data.begin();
+  }
+
+  std::vector<int>::const_iterator end(const some_struct& s) {
+    return s.data.end();
+  }
+}
+
+TEST(STLExtrasTest, ADLBeginEnd) {
+  some_namespace::some_struct s{{ 1, 2, 3, 4, 5 }};
+
+  EXPECT_EQ(*adl::begin(s), 1);
+  EXPECT_EQ(*(adl::end(s) - 1), 5);
+
+  int count = 0;
+  llvm::for_each(s, [&count](int) { ++count; });
+  EXPECT_EQ(5, count);
+}
+
 }
