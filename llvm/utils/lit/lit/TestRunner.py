@@ -885,7 +885,7 @@ def applySubstitutions(script, substitutions):
     def processLine(ln):
         # Apply substitutions
         for a,b in substitutions:
-            if kIsWindows:
+            if kIsWindows and b:
                 b = b.replace("\\","\\\\")
             ln = re.sub(a, b, ln)
 
@@ -894,7 +894,6 @@ def applySubstitutions(script, substitutions):
     # Note Python 3 map() gives an iterator rather than a list so explicitly
     # convert to list before returning.
     return list(map(processLine, script))
-
 
 class ParserKind(object):
     """
@@ -931,7 +930,6 @@ class ParserKind(object):
                  ParserKind.BOOLEAN_EXPR: 'BOOLEAN_EXPR',
                  ParserKind.CUSTOM:       'CUSTOM'
                } [value]
-
 
 class IntegratedTestKeywordParser(object):
     """A parser for LLVM/Clang style integrated test scripts.
@@ -1139,7 +1137,6 @@ def parseIntegratedTestScript(test, additional_parsers=[],
 
     return script
 
-
 def _runShTest(test, litConfig, useExternalSh, script, tmpBase):
     # Create the output directory if it does not already exist.
     lit.util.mkdir_p(os.path.dirname(tmpBase))
@@ -1176,7 +1173,6 @@ def _runShTest(test, litConfig, useExternalSh, script, tmpBase):
         output += """Command Output (stderr):\n--\n%s\n--\n""" % (err,)
 
     return lit.Test.Result(status, output)
-
 
 def executeShTest(test, litConfig, useExternalSh,
                   extra_substitutions=[]):
