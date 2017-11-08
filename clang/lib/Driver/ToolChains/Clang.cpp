@@ -2156,6 +2156,9 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
   if (!SignedZeros)
     CmdArgs.push_back("-fno-signed-zeros");
 
+  if (AssociativeMath)
+    CmdArgs.push_back("-fassociative-math");
+
   if (ReciprocalMath)
     CmdArgs.push_back("-freciprocal-math");
 

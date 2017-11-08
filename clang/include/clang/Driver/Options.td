@@ -956,7 +956,7 @@ def funsafe_math_optimizations : Flag<["-"], "funsafe-math-optimizations">,
   Group<f_Group>;
 def fno_unsafe_math_optimizations : Flag<["-"], "fno-unsafe-math-optimizations">,
   Group<f_Group>;
-def fassociative_math : Flag<["-"], "fassociative-math">, Group<f_Group>;
+def fassociative_math : Flag<["-"], "fassociative-math">, Group<f_Group>, Flags<[CC1Option]>;
 def fno_associative_math : Flag<["-"], "fno-associative-math">, Group<f_Group>;
 def freciprocal_math :
   Flag<["-"], "freciprocal-math">, Group<f_Group>, Flags<[CC1Option]>,
