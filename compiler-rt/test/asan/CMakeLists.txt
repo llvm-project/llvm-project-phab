@@ -41,6 +41,8 @@ if(APPLE)
   darwin_filter_host_archs(ASAN_SUPPORTED_ARCH ASAN_TEST_ARCH)
 endif()
 
+set(ASAN_TEST_SHADOW_SCALE ${LLVM_ASAN_SHADOW_SCALE})
+
 foreach(arch ${ASAN_TEST_ARCH})
   if(ANDROID)
     set(ASAN_TEST_TARGET_ARCH ${arch}-android)
