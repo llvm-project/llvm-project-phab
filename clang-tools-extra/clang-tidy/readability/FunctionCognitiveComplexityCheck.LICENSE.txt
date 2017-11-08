@@ -1,0 +1,55 @@
+------------------------------------------------------------------------------
+clang-tidy Cognitive Complexity Check
+------------------------------------------------------------------------------
+All clang-tidy files are licensed under the LLVM license with the following
+additions:
+
+Any file referencing a SONARSOURCE Cognitive Complexity metric:
+
+COGNITIVE COMPLEXITY A new way of measuring understandability
+as per https://www.sonarsource.com/docs/CognitiveComplexity.pdf
+
+
+From: Olivier Gaudin <olivier.gaudin@sonarsource.com>
+Date: Tue, 01 Aug 2017 07:06:11 +0000
+Message-ID: <CAEbePr3XrHROgkO8Sy+Uzjo9cXx-WcHbP0rxNkcxReSFeK7gTQ@mail.gmail.com>
+Subject: Re: A question about CognitiveComplexity.pdf legal status
+To: Roman Lebedev <lebedev.ri@gmail.com>, info@sonarsource.com
+
+> Hello Roman,
+>
+> It would not, and I would be happy to be notified once done.
+>
+> Thanks
+>
+> Olivier
+
+On Fri, Jul 28, 2017 at 6:17 PM Roman Lebedev <lebedev.ri@gmail.com> wrote:
+> Date: Fri, 28 Jul 2017 19:17:05 +0300
+> Message-ID: <CADoyv_7F8-HJjdjSv3XWwv35n4i42keoaBb8ofjSBAOV4bbPmQ@mail.gmail.com>
+> Subject: A question about CognitiveComplexity.pdf legal status
+> From: Roman Lebedev <lebedev.ri@gmail.com>
+> To: info@sonarsource.com
+
+> Hi.
+>
+> I would like to know, what is the legal status of
+> https://www.sonarsource.com/docs/CognitiveComplexity.pdf ?
+>
+> If i (or someone else) is to implement the Specification described in
+> that paper,
+> which will produce the same results as the Cognitive Complexity in
+> SonarSource
+> as part of some other static analyzer, for example as a LLVM's clang-tidy
+> check,
+> would that be illegal thing to do?
+>
+> Roman.
+>
+--
+*Olivier Gaudin | **SonarSource*
+*CEO & Co-Founder*
+*+41 (0)22 510 2424*
+http://sonarsource.com
+
+Please see https://reviews.llvm.org/D36836#877642 for the full email.

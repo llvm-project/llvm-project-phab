@@ -61,3 +61,4 @@ Program             Directory
 -------             ---------
 clang-tidy          clang-tidy/cert
 clang-tidy          clang-tidy/hicpp
+clang-tidy          clang-tidy/readability/FunctionCognitiveComplexityCheck.LICENSE.txt

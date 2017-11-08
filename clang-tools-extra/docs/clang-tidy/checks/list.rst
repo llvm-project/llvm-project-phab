@@ -188,6 +188,7 @@ Clang-Tidy Checks
    readability-delete-null-pointer
    readability-deleted-default
    readability-else-after-return
+   readability-function-cognitive-complexity
    readability-function-size
    readability-identifier-naming
    readability-implicit-bool-conversion
