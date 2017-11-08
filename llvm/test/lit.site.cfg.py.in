@@ -43,6 +43,8 @@ config.link_llvm_dylib = @LLVM_LINK_LLVM_DYLIB@
 config.llvm_libxml2_enabled = "@LLVM_LIBXML2_ENABLED@"
 config.llvm_host_triple = '@LLVM_HOST_TRIPLE@'
 config.host_arch = "@HOST_ARCH@"
+config.asan_shadow_scale = "@LLVM_ASAN_SHADOW_SCALE@"
+config.asan_test_shadow_scale = "@LLVM_ASAN_TEST_SHADOW_SCALE@"
 
 # Support substitution of the tools_dir with user parameters. This is
 # used when we can't determine the tool dir at configuration time.

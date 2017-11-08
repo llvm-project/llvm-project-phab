@@ -1,6 +1,6 @@
-; RUN: opt < %s -asan -asan-module -asan-globals-live-support=0 -mtriple=x86_64-unknown-linux-gnu -S | FileCheck %s
-; RUN: opt < %s -asan -asan-module -asan-globals-live-support=0 -mtriple=x86_64-apple-macosx10.11.0 -S | FileCheck %s
-; RUN: opt < %s -asan -asan-module -asan-globals-live-support=0 -mtriple=x86_64-pc-windows-msvc19.0.24215 -S | FileCheck %s
+; RUN: %opt_asan < %s -asan -asan-module -asan-globals-live-support=0 -mtriple=x86_64-unknown-linux-gnu -S | FileCheck %s
+; RUN: %opt_asan < %s -asan -asan-module -asan-globals-live-support=0 -mtriple=x86_64-apple-macosx10.11.0 -S | FileCheck %s
+; RUN: %opt_asan < %s -asan -asan-module -asan-globals-live-support=0 -mtriple=x86_64-pc-windows-msvc19.0.24215 -S | FileCheck %s
 
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 
