@@ -22,6 +22,17 @@ def P9Model : SchedMachineModel {
   // Try to make sure we have at least 10 dispatch groups in a loop.
   let LoopMicroOpBufferSize = 60;
 
+  // Even though PowerPC is an out-of-order core this still produces the best
+  //  results for us. The reason is that the GenericScheduler does not properly
+  //  update the CurrCycle value when sceduling through instructions.
+  //  For example, when we reach the IssueWidth the scheduler simply adds one
+  //  to the CurrCycle instead of using the next ready cycle when one of the
+  //  slices will be free and allow another instruction to be issued.
+  // If, in the future, we decide to implement a PPC scheduler this value can be
+  //  changed to a value greater than 1 which will indicate an out-of-order
+  //  core.
+  let MicroOpBufferSize = 1;
+
   let CompleteModel = 1;
 
   let UnsupportedFeatures = [HasQPX];
