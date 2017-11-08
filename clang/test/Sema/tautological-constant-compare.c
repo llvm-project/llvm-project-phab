@@ -1,7 +1,7 @@
-// RUN: %clang_cc1 -triple x86_64-linux-gnu -fsyntax-only -DTEST -verify %s
-// RUN: %clang_cc1 -triple x86_64-linux-gnu -fsyntax-only -Wno-tautological-constant-compare -verify %s
-// RUN: %clang_cc1 -triple x86_64-linux-gnu -fsyntax-only -DTEST -verify -x c++ %s
-// RUN: %clang_cc1 -triple x86_64-linux-gnu -fsyntax-only -Wno-tautological-constant-compare -verify -x c++ %s
+// RUN: %clang_cc1 -triple x86_64-linux-gnu -fsyntax-only -verify %s
+// RUN: %clang_cc1 -triple x86_64-linux-gnu -fsyntax-only -Wno-tautological-constant-compare -verify=silence %s
+// RUN: %clang_cc1 -triple x86_64-linux-gnu -fsyntax-only -verify -x c++ %s
+// RUN: %clang_cc1 -triple x86_64-linux-gnu -fsyntax-only -Wno-tautological-constant-compare -verify=silence -x c++ %s
 
 int value(void);
 
@@ -12,13 +12,8 @@ template<typename T>
 void TFunc() {
   // Make sure that we do warn for normal variables in template functions !
   unsigned char c = value();
-#ifdef TEST
   if (c > 255) // expected-warning {{comparison 'unsigned char' > 255 is always false}}
       return;
-#else
-  if (c > 255)
-      return;
-#endif
 
   if (c > macro(255))
       return;
@@ -40,7 +35,8 @@ int main()
 
   short s = value();
 
-#ifdef TEST
+  // silence-no-diagnostics
+
   if (s == 32767)
       return 0;
   if (s != 32767)
@@ -146,114 +142,6 @@ int main()
       return 0;
   if (-32768L >= s)
       return 0;
-#else
-  // expected-no-diagnostics
-  if (s == 32767)
-    return 0;
-  if (s != 32767)
-    return 0;
-  if (s < 32767)
-    return 0;
-  if (s <= 32767)
-    return 0;
-  if (s > 32767)
-    return 0;
-  if (s >= 32767)
-    return 0;
-
-  if (32767 == s)
-    return 0;
-  if (32767 != s)
-    return 0;
-  if (32767 < s)
-    return 0;
-  if (32767 <= s)
-    return 0;
-  if (32767 > s)
-    return 0;
-  if (32767 >= s)
-    return 0;
-
-  // FIXME: assumes two's complement
-  if (s == -32768)
-    return 0;
-  if (s != -32768)
-    return 0;
-  if (s < -32768)
-    return 0;
-  if (s <= -32768)
-    return 0;
-  if (s > -32768)
-    return 0;
-  if (s >= -32768)
-    return 0;
-
-  if (-32768 == s)
-    return 0;
-  if (-32768 != s)
-    return 0;
-  if (-32768 < s)
-    return 0;
-  if (-32768 <= s)
-    return 0;
-  if (-32768 > s)
-    return 0;
-  if (-32768 >= s)
-    return 0;
-
-  if (s == 32767UL)
-    return 0;
-  if (s != 32767UL)
-    return 0;
-  if (s < 32767UL)
-    return 0;
-  if (s <= 32767UL)
-    return 0;
-  if (s > 32767UL)
-    return 0;
-  if (s >= 32767UL)
-    return 0;
-
-  if (32767UL == s)
-    return 0;
-  if (32767UL != s)
-    return 0;
-  if (32767UL < s)
-    return 0;
-  if (32767UL <= s)
-    return 0;
-  if (32767UL > s)
-    return 0;
-  if (32767UL >= s)
-    return 0;
-
-  // FIXME: assumes two's complement
-  if (s == -32768L)
-    return 0;
-  if (s != -32768L)
-    return 0;
-  if (s < -32768L)
-    return 0;
-  if (s <= -32768L)
-    return 0;
-  if (s > -32768L)
-    return 0;
-  if (s >= -32768L)
-    return 0;
-
-  if (-32768L == s)
-    return 0;
-  if (-32768L != s)
-    return 0;
-  if (-32768L < s)
-    return 0;
-  if (-32768L <= s)
-    return 0;
-  if (-32768L > s)
-    return 0;
-  if (-32768L >= s)
-    return 0;
-#endif
 
   if (s == 0)
     return 0;
@@ -285,7 +173,6 @@ int main()
 
   unsigned short us = value();
 
-#ifdef TEST
   if (us == 65535)
       return 0;
   if (us != 65535)
@@ -337,60 +224,6 @@ int main()
       return 0;
   if (65535UL >= us) // expected-warning {{comparison 65535 >= 'unsigned short' is always true}}
       return 0;
-#else
-  // expected-no-diagnostics
-  if (us == 65535)
-      return 0;
-  if (us != 65535)
-      return 0;
-  if (us < 65535)
-      return 0;
-  if (us <= 65535)
-      return 0;
-  if (us > 65535)
-      return 0;
-  if (us >= 65535)
-      return 0;
-
-  if (65535 == us)
-      return 0;
-  if (65535 != us)
-      return 0;
-  if (65535 < us)
-      return 0;
-  if (65535 <= us)
-      return 0;
-  if (65535 > us)
-      return 0;
-  if (65535 >= us)
-      return 0;
-
-  if (us == 65535UL)
-      return 0;
-  if (us != 65535UL)
-      return 0;
-  if (us < 65535UL)
-      return 0;
-  if (us <= 65535UL)
-      return 0;
-  if (us > 65535UL)
-      return 0;
-  if (us >= 65535UL)
-      return 0;
-
-  if (65535UL == us)
-      return 0;
-  if (65535UL != us)
-      return 0;
-  if (65535UL < us)
-      return 0;
-  if (65535UL <= us)
-      return 0;
-  if (65535UL > us)
-      return 0;
-  if (65535UL >= us)
-      return 0;
-#endif
 
   if (us == 32767)
     return 0;

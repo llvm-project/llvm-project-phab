@@ -1,18 +1,15 @@
 // RUN: %clang_cc1 -triple=x86_64-pc-linux-gnu -fsyntax-only -DUNSIGNED -verify %s
 // RUN: %clang_cc1 -triple=x86_64-pc-win32 -fsyntax-only -DSIGNED -verify %s
-// RUN: %clang_cc1 -triple=x86_64-pc-linux-gnu -fsyntax-only -DUNSIGNED -DSILENCE -Wno-tautological-constant-compare -verify %s
-// RUN: %clang_cc1 -triple=x86_64-pc-win32 -fsyntax-only -DSIGNED -DSILENCE -Wno-tautological-constant-compare -verify %s
+// RUN: %clang_cc1 -triple=x86_64-pc-linux-gnu -fsyntax-only -DUNSIGNED -Wno-tautological-constant-compare -verify=silence %s
+// RUN: %clang_cc1 -triple=x86_64-pc-win32 -fsyntax-only -DSIGNED -Wno-tautological-constant-compare -verify=silence %s
 
 int main() {
   enum A { A_a = 2 };
   enum A a;
 
-#ifdef SILENCE
-  // expected-no-diagnostics
-#endif
+// silence-no-diagnostics
 
 #ifdef UNSIGNED
-#ifndef SILENCE
   if (a < 0) // expected-warning {{comparison of unsigned enum expression < 0 is always false}}
     return 0;
   if (0 >= a)
@@ -80,77 +77,7 @@ int main() {
     return 0;
   if (4294967295U < a) // expected-warning {{comparison 4294967295 < 'enum A' is always false}}
     return 0;
-#else // SILENCE
-  if (a < 0)
-    return 0;
-  if (0 >= a)
-    return 0;
-  if (a > 0)
-    return 0;
-  if (0 <= a)
-    return 0;
-  if (a <= 0)
-    return 0;
-  if (0 > a)
-    return 0;
-  if (a >= 0)
-    return 0;
-  if (0 < a)
-    return 0;
-
-  if (a < 0U)
-    return 0;
-  if (0U >= a)
-    return 0;
-  if (a > 0U)
-    return 0;
-  if (0U <= a)
-    return 0;
-  if (a <= 0U)
-    return 0;
-  if (0U > a)
-    return 0;
-  if (a >= 0U)
-    return 0;
-  if (0U < a)
-    return 0;
-
-  if (a < 4294967295)
-    return 0;
-  if (4294967295 >= a)
-    return 0;
-  if (a > 4294967295)
-    return 0;
-  if (4294967295 <= a)
-    return 0;
-  if (a <= 4294967295)
-    return 0;
-  if (4294967295 > a)
-    return 0;
-  if (a >= 4294967295)
-    return 0;
-  if (4294967295 < a)
-    return 0;
-
-  if (a < 4294967295U)
-    return 0;
-  if (4294967295U >= a)
-    return 0;
-  if (a > 4294967295U)
-    return 0;
-  if (4294967295U <= a)
-    return 0;
-  if (a <= 4294967295U)
-    return 0;
-  if (4294967295U > a)
-    return 0;
-  if (a >= 4294967295U)
-    return 0;
-  if (4294967295U < a)
-    return 0;
-#endif
 #elif defined(SIGNED)
-#ifndef SILENCE
   if (a < -2147483648) // expected-warning {{comparison 'enum A' < -2147483648 is always false}}
     return 0;
   if (-2147483648 >= a)
@@ -201,58 +128,6 @@ int main() {
     return 0;
   if (2147483647U < a) // expected-warning {{comparison 2147483647 < 'enum A' is always false}}
     return 0;
-#else // SILENCE
-  if (a < -2147483648)
-    return 0;
-  if (-2147483648 >= a)
-    return 0;
-  if (a > -2147483648)
-    return 0;
-  if (-2147483648 <= a)
-    return 0;
-  if (a <= -2147483648)
-    return 0;
-  if (-2147483648 > a)
-    return 0;
-  if (a >= -2147483648)
-    return 0;
-  if (-2147483648 < a)
-    return 0;
-
-  if (a < 2147483647)
-    return 0;
-  if (2147483647 >= a)
-    return 0;
-  if (a > 2147483647)
-    return 0;
-  if (2147483647 <= a)
-    return 0;
-  if (a <= 2147483647)
-    return 0;
-  if (2147483647 > a)
-    return 0;
-  if (a >= 2147483647)
-    return 0;
-  if (2147483647 < a)
-    return 0;
-
-  if (a < 2147483647U)
-    return 0;
-  if (2147483647U >= a)
-    return 0;
-  if (a > 2147483647U)
-    return 0;
-  if (2147483647U <= a)
-    return 0;
-  if (a <= 2147483647U)
-    return 0;
-  if (2147483647U > a)
-    return 0;
-  if (a >= 2147483647U)
-    return 0;
-  if (2147483647U < a)
-    return 0;
-#endif
 #endif
 
   return 1;

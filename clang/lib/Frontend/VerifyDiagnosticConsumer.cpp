@@ -231,20 +231,43 @@ public:
 
   // Return true if string literal is found.
   // When true, P marks begin-position of S in content.
-  bool Search(StringRef S, bool EnsureStartOfWord = false) {
+  bool Search(StringRef S, bool EnsureStartOfWord = false,
+              bool FinishDirectiveWord = false) {
     do {
-      P = std::search(C, End, S.begin(), S.end());
-      PEnd = P + S.size();
+      if (!S.empty()) {
+        P = std::search(C, End, S.begin(), S.end());
+        PEnd = P + S.size();
+      }
+      else {
+        P = C;
+        while (P != End && !isLetter(*P))
+          ++P;
+        PEnd = P + 1;
+      }
       if (P == End)
         break;
-      if (!EnsureStartOfWord
-            // Check if string literal starts a new word.
-            || P == Begin || isWhitespace(P[-1])
-            // Or it could be preceded by the start of a comment.
-            || (P > (Begin + 1) && (P[-1] == '/' || P[-1] == '*')
-                                &&  P[-2] == '/'))
-        return true;
-      // Otherwise, skip and search again.
+      // If not start of word but required, skip and search again.
+      if (EnsureStartOfWord
+               // Check if string literal starts a new word.
+          && !(P == Begin || isWhitespace(P[-1])
+               // Or it could be preceded by the start of a comment.
+               || (P > (Begin + 1) && (P[-1] == '/' || P[-1] == '*')
+                                   &&  P[-2] == '/')))
+        continue;
+      if (FinishDirectiveWord) {
+        while (PEnd != End && (isAlphanumeric(*PEnd)
+                               || *PEnd == '-' || *PEnd == '_'))
+          ++PEnd;
+        // Put back trailing digits and hyphens to be parsed later as a count
+        // or count range.  Because -verify prefixes must start with letters,
+        // we know the actual directive we found starts with a letter, so
+        // we won't put back the entire directive word and thus record an empty
+        // string.
+        assert(isLetter(*P) && "-verify prefix must start with a letter");
+        while (isDigit(PEnd[-1]) || PEnd[-1] == '-')
+          --PEnd;
+      }
+      return true;
     } while (Advance());
     return false;
   }
@@ -314,37 +337,70 @@ static bool ParseDirective(StringRef S, ExpectedData *ED, SourceManager &SM,
   // A single comment may contain multiple directives.
   bool FoundDirective = false;
   for (ParseHelper PH(S); !PH.Done();) {
-    // Search for token: expected
-    if (!PH.Search("expected", true))
+    // Search for the initial directive token.
+    // If one prefix, save time by searching only for its directives.
+    // Otherwise, search for any potential directive token and check it later.
+    const auto &Prefixes = Diags.getDiagnosticOptions().VerifyPrefixes;
+    if (!(Prefixes.size() == 1 ? PH.Search(Prefixes[0], true, true)
+                               : PH.Search("", true, true)))
       break;
     PH.Advance();
 
-    // Next token: -
-    if (!PH.Next("-"))
-      continue;
-    PH.Advance();
+    // Default directive kind.
+    bool RegexKind = false;
+    const char* KindStr = "string";
 
-    // Next token: { error | warning | note }
+    // Parse the initial directive token in reverse so we can easily determine
+    // its exact actual prefix.  If we were to parse it from the front instead,
+    // it would be harder to determine where the prefix ends because there
+    // might be multiple matching -verify prefixes because some might prefix
+    // others.
+    StringRef DToken(PH.P, PH.C - PH.P);
+
+    // Regex in initial directive token: -re
+    if (DToken.endswith("-re")) {
+      RegexKind = true;
+      KindStr = "regex";
+      DToken = DToken.substr(0, DToken.size()-3);
+    }
+
+    // Type in initial directive token: -{error|warning|note|no-diagnostics}
     DirectiveList *DL = nullptr;
-    if (PH.Next("error"))
-      DL = ED ? &ED->Errors : nullptr;
-    else if (PH.Next("warning"))
-      DL = ED ? &ED->Warnings : nullptr;
-    else if (PH.Next("remark"))
-      DL = ED ? &ED->Remarks : nullptr;
-    else if (PH.Next("note"))
-      DL = ED ? &ED->Notes : nullptr;
-    else if (PH.Next("no-diagnostics")) {
+    bool NoDiag = false;
+    {
+      StringRef DType;
+      if (DToken.endswith(DType="-error"))
+        DL = ED ? &ED->Errors : nullptr;
+      else if (DToken.endswith(DType="-warning"))
+        DL = ED ? &ED->Warnings : nullptr;
+      else if (DToken.endswith(DType="-remark"))
+        DL = ED ? &ED->Remarks : nullptr;
+      else if (DToken.endswith(DType="-note"))
+        DL = ED ? &ED->Notes : nullptr;
+      else if (DToken.endswith(DType="-no-diagnostics")) {
+        NoDiag = true;
+        if (RegexKind)
+          continue;
+      }
+      else
+        continue;
+      DToken = DToken.substr(0, DToken.size()-DType.size());
+    }
+
+    // What's left in DToken is the actual prefix.  That might not be a -verify
+    // prefix even if there is only one -verify prefix (for example, the full
+    // DToken is foo-bar-warning, but foo is the only -verify prefix).
+    if (Prefixes.end() == std::find(Prefixes.begin(), Prefixes.end(), DToken))
+      continue;
+
+    if (NoDiag) {
       if (Status == VerifyDiagnosticConsumer::HasOtherExpectedDirectives)
         Diags.Report(Pos, diag::err_verify_invalid_no_diags)
           << /*IsExpectedNoDiagnostics=*/true;
       else
         Status = VerifyDiagnosticConsumer::HasExpectedNoDiagnostics;
       continue;
-    } else
-      continue;
-    PH.Advance();
-
+    }
     if (Status == VerifyDiagnosticConsumer::HasExpectedNoDiagnostics) {
       Diags.Report(Pos, diag::err_verify_invalid_no_diags)
         << /*IsExpectedNoDiagnostics=*/false;
@@ -356,17 +412,6 @@ static bool ParseDirective(StringRef S, ExpectedData *ED, SourceManager &SM,
     // in storing the directive information, return now.
     if (!DL)
       return true;
-
-    // Default directive kind.
-    bool RegexKind = false;
-    const char* KindStr = "string";
-
-    // Next optional token: -
-    if (PH.Next("-re")) {
-      PH.Advance();
-      RegexKind = true;
-      KindStr = "regex";
-    }
 
     // Next optional token: @
     SourceLocation ExpectedLoc;

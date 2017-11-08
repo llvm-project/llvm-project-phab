@@ -1060,6 +1060,41 @@ static bool parseShowColorsArgs(const ArgList &Args, bool DefaultColor) {
           llvm::sys::Process::StandardErrHasColors());
 }
 
+static bool checkVerifyPrefixes(DiagnosticOptions &Opts,
+                                DiagnosticsEngine *Diags) {
+  bool Success = true;
+  std::set<std::string> PrefixSet;
+  for (const auto &Prefix : Opts.VerifyPrefixes) {
+    // Every prefix must start with a letter and contain only alphanumeric
+    // characters, hyphens, and underscores.
+    auto badchar = std::find_if(Prefix.begin(), Prefix.end(),
+                                [](char c){return !isAlphanumeric(c)
+                                                  && c!='-' && c!='_';});
+    if (badchar != Prefix.end() || !isLetter(Prefix[0])) {
+      Success = false;
+      if (Diags) {
+        Diags->Report(diag::err_drv_invalid_value) << "-verify=" << Prefix;
+        Diags->Report(diag::note_drv_verify_prefix_spelling);
+      }
+      continue;
+    }
+    // Every prefix must be unique throughout all implicit or explicit
+    // -verify=<prefixes> arguments.
+    if (PrefixSet.count(Prefix)) {
+      Success = false;
+      if (Diags) {
+        Diags->Report(diag::err_drv_invalid_value) << "-verify=" << Prefix;
+        Diags->Report(diag::note_drv_verify_prefix_unique);
+      }
+      continue;
+    }
+    PrefixSet.insert(Prefix);
+  }
+  if (!Success)
+    Opts.VerifyDiagnostics = false;
+  return Success;
+}
+
 bool clang::ParseDiagnosticArgs(DiagnosticOptions &Opts, ArgList &Args,
                                 DiagnosticsEngine *Diags,
                                 bool DefaultDiagColor, bool DefaultShowOpt) {
@@ -1147,7 +1182,12 @@ bool clang::ParseDiagnosticArgs(DiagnosticOptions &Opts, ArgList &Args,
   Opts.ShowSourceRanges = Args.hasArg(OPT_fdiagnostics_print_source_range_info);
   Opts.ShowParseableFixits = Args.hasArg(OPT_fdiagnostics_parseable_fixits);
   Opts.ShowPresumedLoc = !Args.hasArg(OPT_fno_diagnostics_use_presumed_location);
-  Opts.VerifyDiagnostics = Args.hasArg(OPT_verify);
+  Opts.VerifyDiagnostics = Args.hasArg(OPT_verify) || Args.hasArg(OPT_verify_EQ);
+  Opts.VerifyPrefixes = Args.getAllArgValues(OPT_verify_EQ);
+  // All -verify arguments together imply one -verify=expected argument.
+  if (Args.hasArg(OPT_verify))
+    Opts.VerifyPrefixes.push_back("expected");
+  Success &= checkVerifyPrefixes(Opts, Diags);
   DiagnosticLevelMask DiagMask = DiagnosticLevelMask::None;
   Success &= parseDiagnosticLevelMask("-verify-ignore-unexpected=",
     Args.getAllArgValues(OPT_verify_ignore_unexpected_EQ),
