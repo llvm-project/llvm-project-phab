@@ -301,10 +301,13 @@ void GraphBuilder::buildFlowGraphImpl(const FileAnalysis &Analysis,
     BranchNode.Fallthrough = 0;
     BranchNode.CFIProtection = false;
 
-    if (BranchTarget == Address)
+    if (BranchTarget == Address) {
       BranchNode.Target = Address;
-    else
+      BranchNode.IndirectCFIsOnTargetPath = true;
+    } else {
       BranchNode.Fallthrough = Address;
+      BranchNode.IndirectCFIsOnTargetPath = false;
+    }
 
     HasValidCrossRef = true;
     buildFlowsToUndefined(Analysis, Result, BranchNode, ParentMeta);

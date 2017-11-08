@@ -64,6 +64,8 @@ StringRef stringCFIProtectionStatus(CFIProtectionStatus Status) {
     return "FAIL_ORPHANS";
   case FAIL_BAD_CONDITIONAL_BRANCH:
     return "FAIL_BAD_CONDITIONAL_BRANCH";
+  case FAIL_REGISTER_SPILLED:
+    return "FAIL_REGISTER_SPILLED";
   case FAIL_UNKNOWN:
     return "FAIL_UNKNOWN";
   }
@@ -270,7 +272,49 @@ FileAnalysis::validateCFIProtection(const GraphResult &Graph) const {
       return FAIL_BAD_CONDITIONAL_BRANCH;
   }
 
+  if (indirectCFOperandSpill(Graph) != Graph.BaseAddress)
+    return FAIL_REGISTER_SPILLED;
+
   return PROTECTED;
+}
+
+uint64_t FileAnalysis::indirectCFOperandSpill(const GraphResult &Graph) const {
+  assert(Graph.OrphanedNodes.empty() && "Orphaned nodes should be empty.");
+
+  // Get the set of registers we must spill check.
+  const Instr &IndirectCF = getInstructionOrDie(Graph.BaseAddress);
+  DenseSet<unsigned> RegisterNumbers;
+  for (const auto &Operand : IndirectCF.Instruction) {
+    if (Operand.isReg())
+      RegisterNumbers.insert(Operand.getReg());
+  }
+  assert(RegisterNumbers.size() && "Zero register operands on indirect CF.");
+
+  // Now check all branches to indirect CFs and ensure no spill happens.
+  for (const auto Branch : Graph.ConditionalBranchNodes) {
+    uint64_t Node;
+    if (Branch.IndirectCFIsOnTargetPath)
+      Node = Branch.Target;
+    else
+      Node = Branch.Fallthrough;
+
+    while (Node != Graph.BaseAddress) {
+      const Instr &NodeInstr = getInstructionOrDie(Node);
+      const auto &InstrDesc = MII->get(NodeInstr.Instruction.getOpcode());
+
+      for (unsigned RegNum : RegisterNumbers) {
+        if (InstrDesc.hasImplicitDefOfPhysReg(RegNum, RegisterInfo.get()))
+          return Node;
+      }
+
+      const auto &KV = Graph.IntermediateNodes.find(Node);
+      assert((KV != Graph.IntermediateNodes.end()) &&
+             "Could not get next node.");
+      Node = KV->second;
+    }
+  }
+
+  return Graph.BaseAddress;
 }
 
 void FileAnalysis::printInstruction(const Instr &InstrMeta,
