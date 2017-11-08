@@ -5,7 +5,7 @@
 // FIXME: fix 32-bits.
 // REQUIRES: asan-64-bits
 // FIXME: Implement ASan intra-object padding in Clang's MS record layout
-// UNSUPPORTED: win32
+// UNSUPPORTED: win32, custom-shadow-scale
 #include <stdio.h>
 #include <stdlib.h>
 class Foo {
