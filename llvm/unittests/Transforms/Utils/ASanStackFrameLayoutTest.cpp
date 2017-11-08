@@ -70,7 +70,7 @@ TEST(ASanStackFrameLayout, Test) {
   VAR(a, 105, 103, 1, 0);
 
   TEST_LAYOUT({a1_1}, 8, 16, "1 16 1 4 a1_1", "LL1R", "LL1R");
-  TEST_LAYOUT({a1_1}, 64, 64, "1 64 1 4 a1_1", "L1", "L1");
+  TEST_LAYOUT({a1_1}, 64, 64, "1 64 1 4 a1_1", "L1R", "L1R");
   TEST_LAYOUT({p1_32}, 8, 32, "1 32 1 8 p1_32:15", "LLLL1RRR", "LLLL1RRR");
   TEST_LAYOUT({p1_32}, 8, 64, "1 64 1 8 p1_32:15", "LLLLLLLL1RRRRRRR",
               "LLLLLLLL1RRRRRRR");
