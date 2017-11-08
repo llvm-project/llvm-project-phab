@@ -500,7 +500,7 @@ std::error_code rename(const Twine &From, const Twine &To) {
   return errc::permission_denied;
 }
 
-std::error_code resize_file(int FD, uint64_t Size) {
+std::error_code allocate_file(int FD, uint64_t Size) {
 #ifdef HAVE__CHSIZE_S
   errno_t error = ::_chsize_s(FD, Size);
 #else

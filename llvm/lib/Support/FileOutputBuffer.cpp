@@ -108,7 +108,7 @@ createInMemoryBuffer(StringRef Path, size_t Size, unsigned Mode) {
   return llvm::make_unique<InMemoryBuffer>(Path, MB, Mode);
 }
 
-static Expected<std::unique_ptr<OnDiskBuffer>>
+static Expected<std::unique_ptr<FileOutputBuffer>>
 createOnDiskBuffer(StringRef Path, size_t Size, unsigned Mode) {
   // Create new file in same directory but with random name.
   SmallString<128> TempPath;
@@ -119,13 +119,24 @@ createOnDiskBuffer(StringRef Path, size_t Size, unsigned Mode) {
   sys::RemoveFileOnSignal(TempPath);
 
 #ifndef LLVM_ON_WIN32
-  // On Windows, CreateFileMapping (the mmap function on Windows)
-  // automatically extends the underlying file. We don't need to
-  // extend the file beforehand. _chsize (ftruncate on Windows) is
-  // pretty slow just like it writes specified amount of bytes,
-  // so we should avoid calling that function.
-  if (auto EC = fs::resize_file(FD, Size))
+  // A signal (usually a SIGBUS) is raised when a disk becomes full while
+  // writing to a sparse file using mmap. There's no portable nor reliable
+  // way to handle such error condition. In order to prevent that error, we
+  // extend a file and then preallocate disk blocks now.
+  //
+  // Not all operating systems nor filesystems support block preallocation.
+  // If it is not supported, we use an in-memory buffer instead so that the
+  // disk full error can be caught on commit().
+  //
+  // On Windows, we don't need to do this because CreateFileMapping (the
+  // mmap function on Windows) automatically extends an undeflying file.
+  // Pre-extending a file is just a waste of time.
+  if (auto EC = fs::allocate_file(FD, Size)) {
+    fs::remove(TempPath);
+    if (EC == errc::function_not_supported)
+      return createInMemoryBuffer(Path, Size, Mode);
     return errorCodeToError(EC);
+  }
 #endif
 
   // Mmap it.

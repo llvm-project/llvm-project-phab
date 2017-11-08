@@ -970,10 +970,12 @@ TEST_F(FileSystemTest, Resize) {
   int FD;
   SmallString<64> TempPath;
   ASSERT_NO_ERROR(fs::createTemporaryFile("prefix", "temp", FD, TempPath));
-  ASSERT_NO_ERROR(fs::resize_file(FD, 123));
-  fs::file_status Status;
-  ASSERT_NO_ERROR(fs::status(FD, Status));
-  ASSERT_EQ(Status.getSize(), 123U);
+  std::error_code EC = fs::allocate_file(FD, 123);
+  if (!EC) {
+    fs::file_status Status;
+    ASSERT_NO_ERROR(fs::status(FD, Status));
+    ASSERT_EQ(Status.getSize(), 123U);
+  }
   ::close(FD);
   ASSERT_NO_ERROR(fs::remove(TempPath));
 }

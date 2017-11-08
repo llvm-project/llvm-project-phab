@@ -421,21 +421,31 @@ std::error_code rename(const Twine &from, const Twine &to) {
   return std::error_code();
 }
 
-std::error_code resize_file(int FD, uint64_t Size) {
-#if defined(HAVE_POSIX_FALLOCATE)
-  // If we have posix_fallocate use it. Unlike ftruncate it always allocates
-  // space, so we get an error if the disk is full.
+// Preallocate disk blocks.
+std::error_code allocate_file(int FD, uint64_t Size) {
+#ifdef HAVE_FALLOCATE
+  if (fallocate(FD, 0, 0, Size) == -1)
+    return std::error_code(errno, std::generic_category());
+  return std::error_code();
+#endif
+
+#ifdef HAVE_POSIX_FALLOCATE
   if (int Err = ::posix_fallocate(FD, 0, Size)) {
     if (Err != EINVAL && Err != EOPNOTSUPP)
       return std::error_code(Err, std::generic_category());
+    return make_error_code(errc::function_not_supported);
   }
-#endif
-  // Use ftruncate as a fallback. It may or may not allocate space. At least on
-  // OS X with HFS+ it does.
-  if (::ftruncate(FD, Size) == -1)
-    return std::error_code(errno, std::generic_category());
-
   return std::error_code();
+#endif
+
+#ifdef __APPLE__
+  fstore_t Store = {F_ALLOCATEALL, F_PEOFPOSMODE, 0, Size};
+  if (fcntl(fd, F_PREALLOCATE, &Store) == -1)
+    return std::error_code(errno, std::generic_category());
+  return std::error_code();
+#endif
+
+  return make_error_code(errc::function_not_supported);
 }
 
 static int convertAccessMode(AccessMode Mode) {
