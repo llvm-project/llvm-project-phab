@@ -14,6 +14,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/Tooling/Refactoring/Extract/Extract.h"
+#include "CaptureVariables.h"
 #include "SourceExtraction.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/DeclCXX.h"
@@ -111,7 +112,8 @@ ExtractFunction::createSourceReplacements(RefactoringRuleContext &Context) {
   const LangOptions &LangOpts = AST.getLangOpts();
   Rewriter ExtractedCodeRewriter(SM, LangOpts);
 
-  // FIXME: Capture used variables.
+  std::vector<CapturedExtractedEntity> Captures =
+      findCapturedExtractedEntities(Code);
 
   // Compute the return type.
   QualType ReturnType = AST.VoidTy;
@@ -124,14 +126,6 @@ ExtractFunction::createSourceReplacements(RefactoringRuleContext &Context) {
   }
 
   // FIXME: Rewrite the extracted code performing any required adjustments.
-
-  // FIXME: Capture any field if necessary (method -> function extraction).
-
-  // FIXME: Sort captured variables by name.
-
-  // FIXME: Capture 'this' / 'self' if necessary.
-
-  // FIXME: Compute the actual parameter types.
 
   // Compute the location of the extracted declaration.
   SourceLocation ExtractedDeclLocation =
@@ -157,7 +151,11 @@ ExtractFunction::createSourceReplacements(RefactoringRuleContext &Context) {
     OS << "static ";
     ReturnType.print(OS, PP, DeclName);
     OS << '(';
-    // FIXME: Arguments.
+    for (const auto &Capture : llvm::enumerate(Captures)) {
+      if (Capture.index() > 0)
+        OS << ", ";
+      Capture.value().printParamDecl(OS, PP);
+    }
     OS << ')';
 
     // Function body.
@@ -179,7 +177,11 @@ ExtractFunction::createSourceReplacements(RefactoringRuleContext &Context) {
     llvm::raw_string_ostream OS(ReplacedCode);
 
     OS << DeclName << '(';
-    // FIXME: Forward arguments.
+    for (const auto &Capture : llvm::enumerate(Captures)) {
+      if (Capture.index() > 0)
+        OS << ", ";
+      Capture.value().printFunctionCallArg(OS, PP);
+    }
     OS << ')';
     if (Semicolons.isNeededInOriginalFunction())
       OS << ';';
