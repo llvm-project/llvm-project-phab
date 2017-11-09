@@ -843,6 +843,7 @@ def HasXSAVES    : Predicate<"Subtarget->hasXSAVES()">;
 def HasPCLMUL    : Predicate<"Subtarget->hasPCLMUL()">;
 def HasFMA       : Predicate<"Subtarget->hasFMA()">;
 def HasFMA4      : Predicate<"Subtarget->hasFMA4()">;
+def NoFMA4       : Predicate<"!Subtarget->hasFMA4()">;
 def HasXOP       : Predicate<"Subtarget->hasXOP()">;
 def HasTBM       : Predicate<"Subtarget->hasTBM()">;
 def NoTBM        : Predicate<"!Subtarget->hasTBM()">;
