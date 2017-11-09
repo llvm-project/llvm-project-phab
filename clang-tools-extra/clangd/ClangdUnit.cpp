@@ -235,7 +235,7 @@ prepareCompilerInstance(std::unique_ptr<clang::CompilerInvocation> CI,
   // NOTE: we use Buffer.get() when adding remapped files, so we have to make
   // sure it will be released if no error is emitted.
   if (Preamble) {
-    Preamble->AddImplicitPreamble(*CI, Buffer.get());
+    Preamble->AddImplicitPreamble(*CI, /*ref*/ VFS, Buffer.get());
   } else {
     CI->getPreprocessorOpts().addRemappedFile(
         CI->getFrontendOpts().Inputs[0].getFile(), Buffer.get());
@@ -1301,7 +1301,7 @@ CppFile::deferRebuild(StringRef NewContents,
       CppFilePreambleCallbacks SerializedDeclsCollector;
       auto BuiltPreamble = PrecompiledPreamble::Build(
           *CI, ContentsBuffer.get(), Bounds, *PreambleDiagsEngine, VFS, PCHs,
-          SerializedDeclsCollector);
+          /*StoreInMemory=*/true, SerializedDeclsCollector);
 
       if (BuiltPreamble) {
         return std::make_shared<PreambleData>(
