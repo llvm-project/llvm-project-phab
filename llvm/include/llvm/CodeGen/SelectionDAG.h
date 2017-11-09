@@ -349,12 +349,15 @@ private:
     SDUse *Ops = OperandRecycler.allocate(
         ArrayRecycler<SDUse>::Capacity::get(Vals.size()), OperandAllocator);
 
+    bool IsDivergent = false;
     for (unsigned I = 0; I != Vals.size(); ++I) {
       Ops[I].setUser(Node);
       Ops[I].setInitial(Vals[I]);
+      IsDivergent = IsDivergent || Ops[I].getNode()->isDivergent();
     }
     Node->NumOperands = Vals.size();
     Node->OperandList = Ops;
+    Node->SDNodeBits.IsDivergent = IsDivergent;
     checkForCycles(Node);
   }
 

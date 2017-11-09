@@ -22,6 +22,7 @@
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/CodeGen/ISDOpcodes.h"
 #include "llvm/CodeGen/MachineValueType.h"
+#include "llvm/Analysis/DivergenceAnalysis.h"
 #include "llvm/CodeGen/SelectionDAG.h"
 #include "llvm/CodeGen/SelectionDAGNodes.h"
 #include "llvm/CodeGen/ValueTypes.h"
@@ -95,6 +96,8 @@ class SelectionDAGBuilder {
   const Instruction *CurInst = nullptr;
 
   DenseMap<const Value*, SDValue> NodeMap;
+
+  DivergenceAnalysis * DA;
 
   /// UnusedArgNodeMap - Maps argument value for unused arguments. This is used
   /// to preserve debug information for incoming arguments.
@@ -623,7 +626,7 @@ public:
     : SDNodeOrder(LowestSDNodeOrder), TM(dag.getTarget()), DAG(dag),
       FuncInfo(funcinfo) {}
 
-  void init(GCFunctionInfo *gfi, AliasAnalysis *AA,
+  void init(GCFunctionInfo *gfi, AliasAnalysis *AA, DivergenceAnalysis *DA,
             const TargetLibraryInfo *li);
 
   /// Clear out the current SelectionDAG and the associated state and prepare
@@ -678,6 +681,7 @@ public:
   SDValue getValueImpl(const Value *V);
 
   void setValue(const Value *V, SDValue NewN) {
+    NewN.getNode()->SDNodeBits.IsDivergent = DA->isDivergent(V);
     SDValue &N = NodeMap[V];
     assert(!N.getNode() && "Already set a value for this node!");
     N = NewN;

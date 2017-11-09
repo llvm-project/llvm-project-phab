@@ -623,6 +623,7 @@ void SDNode::print_details(raw_ostream &OS, const SelectionDAG *G) const {
     OS << ':' << L->getLine();
     if (unsigned C = L->getColumn())
       OS << ':' << C;
+    OS << "# D:" << isDivergent();
   }
 }
 

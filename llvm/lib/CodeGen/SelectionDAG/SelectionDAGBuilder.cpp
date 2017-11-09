@@ -965,9 +965,11 @@ void RegsForValue::AddInlineAsmOperands(unsigned Code, bool HasMatching,
 }
 
 void SelectionDAGBuilder::init(GCFunctionInfo *gfi, AliasAnalysis *aa,
+                               DivergenceAnalysis *da,
                                const TargetLibraryInfo *li) {
   AA = aa;
   GFI = gfi;
+  DA = da;
   LibInfo = li;
   DL = &DAG.getDataLayout();
   Context = DAG.getContext();

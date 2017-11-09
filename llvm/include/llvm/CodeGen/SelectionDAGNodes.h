@@ -466,11 +466,14 @@ protected:
     friend class SDNode;
     friend class MemIntrinsicSDNode;
     friend class MemSDNode;
+    friend class SelectionDAG;
+    friend class SelectionDAGBuilder;
 
     uint16_t HasDebugValue : 1;
     uint16_t IsMemIntrinsic : 1;
+    uint16_t IsDivergent : 1;
   };
-  enum { NumSDNodeBits = 2 };
+  enum { NumSDNodeBits = 3 };
 
   class ConstantSDNodeBitfields {
     friend class ConstantSDNode;
@@ -547,6 +550,8 @@ private:
   friend class SelectionDAG;
   // TODO: unfriend HandleSDNode once we fix its operand handling.
   friend class HandleSDNode;
+
+  friend class SelectionDAGBuilder;
 
   /// Unique id per SDNode in the DAG.
   int NodeId = -1;
@@ -661,6 +666,8 @@ public:
 
   bool getHasDebugValue() const { return SDNodeBits.HasDebugValue; }
   void setHasDebugValue(bool b) { SDNodeBits.HasDebugValue = b; }
+
+  bool isDivergent() const { return SDNodeBits.IsDivergent; }
 
   /// Return true if there are no uses of this node.
   bool use_empty() const { return UseList == nullptr; }

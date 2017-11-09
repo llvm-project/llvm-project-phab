@@ -4637,7 +4637,7 @@ SDValue SITargetLowering::LowerLOAD(SDValue Op, SelectionDAG &DAG) const {
 
   unsigned NumElements = MemVT.getVectorNumElements();
   if (AS == AMDGPUASI.CONSTANT_ADDRESS) {
-    if (isMemOpUniform(Load))
+    if (!Op->isDivergent())
       return SDValue();
     // Non-uniform loads will be selected to MUBUF instructions, so they
     // have the same legalization requirements as global and private
@@ -4645,7 +4645,7 @@ SDValue SITargetLowering::LowerLOAD(SDValue Op, SelectionDAG &DAG) const {
     //
   }
   if (AS == AMDGPUASI.CONSTANT_ADDRESS || AS == AMDGPUASI.GLOBAL_ADDRESS) {
-    if (Subtarget->getScalarizeGlobalBehavior() && isMemOpUniform(Load) &&
+    if (Subtarget->getScalarizeGlobalBehavior() && !Op->isDivergent() &&
         !Load->isVolatile() && isMemOpHasNoClobberedMemOperand(Load))
       return SDValue();
     // Non-uniform loads will be selected to MUBUF instructions, so they

@@ -331,6 +331,7 @@ void SelectionDAGISel::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<TargetLibraryInfoWrapperPass>();
   if (UseMBPI && OptLevel != CodeGenOpt::None)
     AU.addRequired<BranchProbabilityInfoWrapperPass>();
+  AU.addRequired<DivergenceAnalysis>();
   MachineFunctionPass::getAnalysisUsage(AU);
 }
 
@@ -432,7 +433,7 @@ bool SelectionDAGISel::runOnMachineFunction(MachineFunction &mf) {
   else
     AA = nullptr;
 
-  SDB->init(GFI, AA, LibInfo);
+  SDB->init(GFI, AA, &getAnalysis<DivergenceAnalysis>(), LibInfo);
 
   MF->setHasInlineAsm(false);
 
