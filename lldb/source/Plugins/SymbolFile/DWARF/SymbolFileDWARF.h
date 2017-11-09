@@ -299,6 +299,11 @@ public:
   GetDwoSymbolFileForCompileUnit(DWARFCompileUnit &dwarf_cu,
                                  const DWARFDebugInfoEntry &cu_die);
 
+   // For regular SymbolFileDWARF instances the method returns nullptr,
+   // for the instances of the subclass SymbolFileDWARFDwo
+   // the method returns a pointer to the base compile unit.
+   virtual DWARFCompileUnit* GetBaseCompileUnit();
+
 protected:
   typedef llvm::DenseMap<const DWARFDebugInfoEntry *, lldb_private::Type *>
       DIEToTypePtr;

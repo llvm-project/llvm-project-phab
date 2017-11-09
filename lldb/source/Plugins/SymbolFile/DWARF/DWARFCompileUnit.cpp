@@ -634,14 +634,23 @@ void DWARFCompileUnit::Index(NameToDIE &func_basenames,
       DWARFFormValue::GetFixedFormSizesForAddressSize(GetAddressByteSize(),
                                                       m_is_dwarf64);
 
-  IndexPrivate(this, cu_language, fixed_form_sizes, GetOffset(), func_basenames,
+  dw_offset_t cu_offset = DW_INVALID_OFFSET;
+  // m_dwarf2Data->GetBaseCompileUnit() will return non null
+  // if m_dwarf2Data represents a DWO or DWP file.
+  // In this case the offset of the base compile unit should be used.
+  if (const DWARFCompileUnit *base_cu =  m_dwarf2Data->GetBaseCompileUnit())
+    cu_offset = base_cu->GetOffset();
+  else
+    cu_offset = GetOffset();
+
+  IndexPrivate(this, cu_language, fixed_form_sizes, cu_offset, func_basenames,
                func_fullnames, func_methods, func_selectors,
                objc_class_selectors, globals, types, namespaces);
 
   SymbolFileDWARFDwo *dwo_symbol_file = GetDwoSymbolFile();
   if (dwo_symbol_file) {
     IndexPrivate(dwo_symbol_file->GetCompileUnit(), cu_language,
-                 fixed_form_sizes, GetOffset(), func_basenames, func_fullnames,
+                 fixed_form_sizes, cu_offset, func_basenames, func_fullnames,
                  func_methods, func_selectors, objc_class_selectors, globals,
                  types, namespaces);
   }

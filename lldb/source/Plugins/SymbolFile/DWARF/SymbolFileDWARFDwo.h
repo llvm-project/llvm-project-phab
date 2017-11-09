@@ -45,6 +45,10 @@ public:
     return nullptr;
   }
 
+  DWARFCompileUnit* GetBaseCompileUnit() override {
+    return m_base_dwarf_cu;
+  }
+
 protected:
   void LoadSectionData(lldb::SectionType sect_type,
                        lldb_private::DWARFDataExtractor &data) override;
