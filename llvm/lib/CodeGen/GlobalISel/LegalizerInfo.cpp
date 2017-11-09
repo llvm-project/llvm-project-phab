@@ -64,6 +64,28 @@ LegalizerInfo::LegalizerInfo() : TablesInitialized(false) {
   setLegalizeScalarToDifferentSizeStrategy(
       TargetOpcode::G_EXTRACT, 1, narrowToSmallerAndUnsupportedIfTooSmall);
   setScalarAction(TargetOpcode::G_FNEG, 0, {{1, Lower}});
+
+  // Set default actions for G_MERGE_VALUES and G_UNMERGE_VALUES.
+  // TODO: Remove this once we have better support for vector types.
+  for (unsigned Op :
+       {TargetOpcode::G_MERGE_VALUES, TargetOpcode::G_UNMERGE_VALUES})
+    for (unsigned TypeIdx : {0, 1}) {
+      setScalarAction(Op, TypeIdx, {{1, Legal}});
+      setScalarInVectorAction(Op, TypeIdx,
+                              {{1, Legal},
+                               {2, Unsupported},
+                               {4, Unsupported},
+                               {8, Legal},
+                               {9, Unsupported},
+                               {16, Legal},
+                               {17, Unsupported},
+                               {32, Legal},
+                               {33, Unsupported},
+                               {64, Legal},
+                               {65, Unsupported}});
+      for (unsigned Size : {1, 8, 16, 32, 64})
+        setVectorNumElementAction(Op, TypeIdx, Size, {{1, Legal}});
+    }
 }
 
 void LegalizerInfo::computeTables() {
@@ -167,13 +189,6 @@ LegalizerInfo::getAction(const InstrAspect &Aspect) const {
   assert(TablesInitialized && "backend forgot to call computeTables");
   // These *have* to be implemented for now, they're the fundamental basis of
   // how everything else is transformed.
-
-  // FIXME: the long-term plan calls for expansion in terms of load/store (if
-  // they're not legal).
-  if (Aspect.Opcode == TargetOpcode::G_MERGE_VALUES ||
-      Aspect.Opcode == TargetOpcode::G_UNMERGE_VALUES)
-    return std::make_pair(Legal, Aspect.Type);
-
   if (Aspect.Type.isScalar() || Aspect.Type.isPointer())
     return findScalarLegalAction(Aspect);
   assert(Aspect.Type.isVector());
@@ -198,7 +213,15 @@ LegalizerInfo::getAction(const MachineInstr &MI,
 
     SeenTypes.set(TypeIdx);
 
-    LLT Ty = MRI.getType(MI.getOperand(i).getReg());
+    unsigned Op = MI.getOperand(i).getReg();
+    // For G_MERGE_VALUES and G_UNMERGE_VALUES, get the last operand
+    // if TypeIdx == 1 as they have variable number of operands.
+    if ((MI.getOpcode() == TargetOpcode::G_MERGE_VALUES ||
+         MI.getOpcode() == TargetOpcode::G_UNMERGE_VALUES) &&
+        TypeIdx == 1) {
+      Op = MI.getOperand(MI.getNumOperands() - 1).getReg();
+    }
+    LLT Ty = MRI.getType(Op);
     auto Action = getAction({MI.getOpcode(), TypeIdx, Ty});
     if (Action.first != Legal)
       return std::make_tuple(Action.first, TypeIdx, Action.second);
