@@ -57,6 +57,11 @@ The improvements are...
 Improvements to clang-tidy
 --------------------------
 
+- New `objc-property-declaration
+  <http://clang.llvm.org/extra/clang-tidy/checks/objc-property-declaration.html>`_ check
+
+  FIXME: add release notes.
+
 - New `google-objc-global-variable-declaration
   <http://clang.llvm.org/extra/clang-tidy/checks/google-global-variable-declaration.html>`_ check
 
