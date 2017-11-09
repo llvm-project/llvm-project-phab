@@ -985,6 +985,16 @@ struct FormatStyle {
   /// For example: BOOST_FOREACH.
   std::vector<std::string> ForEachMacros;
 
+  /// \brief A vector of macros that should be interpreted as complete
+  /// statements.
+  ///
+  /// Typical macros are expressions, and require a semi-colon to be
+  /// added; sometimes this is not the case, and this allows to make
+  /// clang-format aware of such cases.
+  ///
+  /// For example: Q_UNUSED
+  std::vector<std::string> StatementMacros;
+
   /// \brief See documentation of ``IncludeCategories``.
   struct IncludeCategory {
     /// \brief The regular expression that this category matches.
@@ -1582,8 +1592,7 @@ struct FormatStyle {
            ObjCBlockIndentWidth == R.ObjCBlockIndentWidth &&
            ObjCSpaceAfterProperty == R.ObjCSpaceAfterProperty &&
            ObjCSpaceBeforeProtocolList == R.ObjCSpaceBeforeProtocolList &&
-           PenaltyBreakAssignment ==
-               R.PenaltyBreakAssignment &&
+           PenaltyBreakAssignment == R.PenaltyBreakAssignment &&
            PenaltyBreakBeforeFirstCallParameter ==
                R.PenaltyBreakBeforeFirstCallParameter &&
            PenaltyBreakComment == R.PenaltyBreakComment &&
@@ -1604,7 +1613,7 @@ struct FormatStyle {
            SpacesInParentheses == R.SpacesInParentheses &&
            SpacesInSquareBrackets == R.SpacesInSquareBrackets &&
            Standard == R.Standard && TabWidth == R.TabWidth &&
-           UseTab == R.UseTab;
+           StatementMacros == R.StatementMacros && UseTab == R.UseTab;
   }
 };
 

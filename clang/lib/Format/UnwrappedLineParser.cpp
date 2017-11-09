@@ -1093,6 +1093,10 @@ void UnwrappedLineParser::parseStructuralElement() {
         return;
       }
     }
+    if (Style.isCpp() && FormatTok->is(TT_StatementMacro)) {
+      parseStatementMacro();
+      return;
+    }
     // In all other cases, parse the declaration.
     break;
   default:
@@ -1239,6 +1243,11 @@ void UnwrappedLineParser::parseStructuralElement() {
         }
         parseRecord();
         addUnwrappedLine();
+        return;
+      }
+
+      if (Style.isCpp() && FormatTok->is(TT_StatementMacro)) {
+        parseStatementMacro();
         return;
       }
 
@@ -2189,6 +2198,16 @@ void UnwrappedLineParser::parseJavaScriptEs6ImportExport() {
       nextToken();
     }
   }
+}
+
+void UnwrappedLineParser::parseStatementMacro()
+{
+  nextToken();
+  if (FormatTok->is(tok::l_paren))
+    parseParens();
+  if (FormatTok->is(tok::semi))
+    nextToken();
+  addUnwrappedLine();
 }
 
 LLVM_ATTRIBUTE_UNUSED static void printDebugInfo(const UnwrappedLine &Line,
