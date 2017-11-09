@@ -21,6 +21,8 @@
 #include "llvm/ADT/SmallString.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include <string>
+
 using namespace clang;
 using namespace llvm;
 
@@ -51,6 +53,8 @@ class InclusionRewriter : public PPCallbacks {
   /// Used transitively for building up the FileIncludes mapping over the
   /// various \c PPCallbacks callbacks.
   SourceLocation LastInclusionLocation;
+  /// Used to keep track of current directory for include_next
+  std::map<std::string, const DirectoryLookup*> LastIncludeNext;
 public:
   InclusionRewriter(Preprocessor &PP, raw_ostream &OS, bool ShowLineMarkers,
                     bool UseLineDirectives);
@@ -87,8 +91,7 @@ private:
                            const MemoryBuffer &FromFile, StringRef EOL,
                            unsigned &NextToWrite, int &Lines);
   bool HandleHasInclude(FileID FileId, Lexer &RawLex,
-                        const DirectoryLookup *Lookup, Token &Tok,
-                        bool &FileExists);
+                        Token &Tok ,bool &FileExists);
   const IncludedFile *FindIncludeAtLocation(SourceLocation Loc) const;
   const Module *FindModuleAtLocation(SourceLocation Loc) const;
   const Module *FindEnteredModule(SourceLocation Loc) const;
@@ -344,8 +347,11 @@ StringRef InclusionRewriter::NextIdentifierName(Lexer &RawLex,
 // Expand __has_include and __has_include_next if possible. If there's no
 // definitive answer return false.
 bool InclusionRewriter::HandleHasInclude(
-    FileID FileId, Lexer &RawLex, const DirectoryLookup *Lookup, Token &Tok,
+    FileID FileId, Lexer &RawLex, Token &Tok,
     bool &FileExists) {
+ bool isHasIncludeNext =
+      Tok.getIdentifierInfo()->isStr("__has_include_next");
+
   // Lex the opening paren.
   RawLex.LexFromRawLexer(Tok);
   if (Tok.isNot(tok::l_paren))
@@ -406,9 +412,30 @@ bool InclusionRewriter::HandleHasInclude(
   SmallVector<std::pair<const FileEntry *, const DirectoryEntry *>, 1>
       Includers;
   Includers.push_back(std::make_pair(FileEnt, FileEnt->getDir()));
+
+  const DirectoryLookup *Lookup = nullptr;
+  if (isHasIncludeNext) {
+    // Find lookup for file and move past it.
+    std::string FilenameString(Filename.data(), Filename.size());
+    auto LastInclude = LastIncludeNext.find(FilenameString);
+    if (LastInclude == LastIncludeNext.end()) {
+      PP.getHeaderSearchInfo().LookupFile(Filename, SourceLocation(), isAngled,
+                                          nullptr, Lookup, Includers, nullptr,
+                                          nullptr, nullptr, nullptr, nullptr,
+                                          false);
+    } else {
+      Lookup = LastInclude->second;
+    }
+
+    if (Lookup) {
+      Lookup++;
+    }
+    LastIncludeNext[FilenameString] = Lookup;
+  }
+
   // FIXME: Why don't we call PP.LookupFile here?
   const FileEntry *File = PP.getHeaderSearchInfo().LookupFile(
-      Filename, SourceLocation(), isAngled, nullptr, CurDir, Includers, nullptr,
+      Filename, SourceLocation(), isAngled, Lookup, CurDir, Includers, nullptr,
       nullptr, nullptr, nullptr, nullptr);
 
   FileExists = File != nullptr;
@@ -525,23 +552,12 @@ void InclusionRewriter::Process(FileID FileId,
                 SourceLocation Loc = RawToken.getLocation();
 
                 // Rewrite __has_include(x)
-                if (RawToken.getIdentifierInfo()->isStr("__has_include")) {
-                  if (!HandleHasInclude(FileId, RawLex, nullptr, RawToken,
-                                        HasFile))
-                    continue;
-                  // Rewrite __has_include_next(x)
-                } else if (RawToken.getIdentifierInfo()->isStr(
-                               "__has_include_next")) {
-                  const DirectoryLookup *Lookup = PP.GetCurDirLookup();
-                  if (Lookup)
-                    ++Lookup;
-
-                  if (!HandleHasInclude(FileId, RawLex, Lookup, RawToken,
-                                        HasFile))
+                if (RawToken.getIdentifierInfo()->isStr("__has_include") ||
+                    RawToken.getIdentifierInfo()->isStr("__has_include_next")) {
+                  if (!HandleHasInclude(FileId, RawLex, RawToken, HasFile))
                     continue;
                 } else {
-                  continue;
-                }
+                  continue;                }
                 // Replace the macro with (0) or (1), followed by the commented
                 // out macro for reference.
                 OutputContentUpTo(FromFile, NextToWrite, SM.getFileOffset(Loc),
