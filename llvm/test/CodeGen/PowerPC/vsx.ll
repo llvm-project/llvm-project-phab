@@ -1163,10 +1163,9 @@ define <2 x i32> @test80(i32 %v) {
 
 ; CHECK-LE-LABEL: @test80
 ; CHECK-LE-DAG: mtvsrd [[R1:[0-9]+]], 3
-; CHECK-LE-DAG: xxswapd  [[V1:[0-9]+]], [[R1]]
 ; CHECK-LE-DAG: addi [[R2:[0-9]+]], {{[0-9]+}}, .LCPI
 ; CHECK-LE-DAG: lvx 3, 0, [[R2]]
-; CHECK-LE-DAG: xxspltw 34, [[V1]]
+; CHECK-LE-DAG: xxspltw 34, {{[0-9]+}}
 ; CHECK-LE-NOT: xxswapd 35, [[V2]]
 ; CHECK-LE: vadduwm 2, 2, 3
 ; CHECK-LE: blr

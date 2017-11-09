@@ -352,28 +352,69 @@ bool PPCMIPeephole::simplifyCode(void) {
           ToErase = &MI;
           Simplified = true;
         }
-        // Splat fed by a shift. Usually when we align value to splat into
-        // vector element zero.
-        if (DefOpcode == PPC::XXSLDWI) {
-          unsigned ShiftRes = DefMI->getOperand(0).getReg();
-          unsigned ShiftOp1 = DefMI->getOperand(1).getReg();
-          unsigned ShiftOp2 = DefMI->getOperand(2).getReg();
-          unsigned ShiftImm = DefMI->getOperand(3).getImm();
-          unsigned SplatImm = MI.getOperand(2).getImm();
-          if (ShiftOp1 == ShiftOp2) {
-            unsigned NewElem = (SplatImm + ShiftImm) & 0x3;
-            if (MRI->hasOneNonDBGUse(ShiftRes)) {
-              DEBUG(dbgs() << "Removing redundant shift: ");
-              DEBUG(DefMI->dump());
-              ToErase = DefMI;
-            }
-            Simplified = true;
-            DEBUG(dbgs() << "Changing splat immediate from " << SplatImm <<
-                  " to " << NewElem << " in instruction: ");
+
+        // Get the op number for the immediate and then check to make sure
+        //  that it is an immediate.
+        unsigned ImmOpNo = MyOpcode == PPC::XXSPLTW ? 2 : 1;
+        if (!MI.getOperand(ImmOpNo).isImm()) {
+          DEBUG(dbgs() << "Expected op number: " << ImmOpNo <<
+                " to be an immediate.\n");
+          DEBUG(MI.dump());
+          break;
+        }
+
+        // Deal with the situation where a splat is fed by either a shift
+        //  or a swap.
+        // Spalt is fed by a SHIFT of the form
+        //  XXSLDWI %VA, %VA, imm
+        // Splat is fed by a SWAP which is a permute of this form
+        //  XXPERMDI %VA, %VA, 2
+        // Since the splat instruction can use any of the vector elements to do
+        //  the splat we do not have to rearrange the elements in the vector
+        //  with a swap or shift before we do the splat. We can simply do the
+        //  splat from a different index.
+        // If the swap or shift has only one use (the splat) then we can
+        //  completely remove it.
+        if (DefOpcode == PPC::XXSLDWI || DefOpcode == PPC::XXPERMDI) {
+          unsigned DefRes = DefMI->getOperand(0).getReg();
+          unsigned DefOp1 = DefMI->getOperand(1).getReg();
+          unsigned DefOp2 = DefMI->getOperand(2).getReg();
+          unsigned DefImm = DefMI->getOperand(3).getImm();
+          unsigned SplatImm = MI.getOperand(ImmOpNo).getImm();
+
+          // Check that the two ops are equal.
+          if (DefOp1 != DefOp2)
+            break;
+
+          // The permute is not a swap so there is nothing we can do.
+          if (DefOpcode == PPC::XXPERMDI && DefImm != 2)
+            break;
+
+          unsigned NewElem = 0;
+          // Compute the new index to use for the splat.
+          if (MI.getOpcode() == PPC::VSPLTB)
+            NewElem = (SplatImm + DefImm*4) & 0xF;
+          else if (MI.getOpcode() == PPC::VSPLTH)
+            NewElem = (SplatImm + DefImm*2) & 0x7;
+          else if (MI.getOpcode() == PPC::XXSPLTW)
+            NewElem = (SplatImm + DefImm) & 0x3;
+          else {
+            DEBUG(dbgs() << "Unknown splat opcode.");
             DEBUG(MI.dump());
-            MI.getOperand(1).setReg(ShiftOp1);
-            MI.getOperand(2).setImm(NewElem);
+            break;
           }
+
+          if (MRI->hasOneNonDBGUse(DefRes)) {
+            DEBUG(dbgs() << "Removing redundant instruction: ");
+            DEBUG(DefMI->dump());
+            ToErase = DefMI;
+          }
+          Simplified = true;
+          DEBUG(dbgs() << "Changing splat immediate from " << SplatImm <<
+                " to " << NewElem << " in instruction: ");
+          DEBUG(MI.dump());
+          MI.getOperand(OpNo).setReg(DefOp1);
+          MI.getOperand(ImmOpNo).setImm(NewElem);
         }
         break;
       }
