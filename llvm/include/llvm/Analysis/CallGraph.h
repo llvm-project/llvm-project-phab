@@ -47,6 +47,7 @@
 #define LLVM_ANALYSIS_CALLGRAPH_H
 
 #include "llvm/ADT/GraphTraits.h"
+#include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/IR/CallSite.h"
 #include "llvm/IR/Function.h"
@@ -77,8 +78,21 @@ class CallGraph {
   using FunctionMapTy =
       std::map<const Function *, std::unique_ptr<CallGraphNode>>;
 
+  /// \brief A type for maintaining dummy nodes.
+  ///
+  /// Dummy nodes (i.e., nodes having a null function) include, for example,
+  /// those created to represent !callees metadata. We use a void pointer as
+  /// the key to allow for various kinds of dummy nodes. We use a MapVector to
+  /// ensure a deterministic iteration order (there's no good way to sort dummy
+  /// nodes). A deterministic iteration order is primarily useful for printing.
+  using DummyNodeMapTy =
+      MapVector<const void *, std::unique_ptr<CallGraphNode>>;
+
   /// \brief A map from \c Function* to \c CallGraphNode*.
   FunctionMapTy FunctionMap;
+
+  /// \brief A map for maintaining dummy nodes.
+  DummyNodeMapTy DummyNodeMap;
 
   /// \brief This node has edges to all external functions and those internal
   /// functions that have their address taken.
@@ -98,6 +112,9 @@ class CallGraph {
   /// \brief Add a function to the call graph, and link the node to all of the
   /// functions that it calls.
   void addToCallGraph(Function *F);
+
+  /// \brief Return the dummy node associated with the given pointer.
+  CallGraphNode *getOrInsertDummyNode(const void *P);
 
 public:
   explicit CallGraph(Module &M);
