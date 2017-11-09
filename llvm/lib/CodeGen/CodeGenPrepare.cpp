@@ -288,6 +288,7 @@ class TypePromotionTransaction;
     bool optimizeInst(Instruction *I, bool &ModifiedDT);
     bool optimizeMemoryInst(Instruction *I, Value *Addr,
                             Type *AccessTy, unsigned AS);
+    bool optimizeGatherAddress(IntrinsicInst *II);
     bool optimizeInlineAsmInst(CallInst *CS);
     bool optimizeCallInst(CallInst *CI, bool &ModifiedDT);
     bool optimizeExt(Instruction *&I);
@@ -1706,6 +1707,65 @@ static bool despeculateCountZeros(IntrinsicInst *CountZeros,
   return true;
 }
 
+// Look for GEPs that feed a gather instruction. If the last index is a vector
+// and all the other indices are scalar constants, split this into two GEPs.
+// TODO: Allow splats in the earlier indices.
+// TODO: Handle non-constant indices. Would need to be careful about sinking
+// too many operations.
+// TODO: Support ConstantExpr GEPs.
+// TODO: Support reusing the new GEPs.
+bool CodeGenPrepare::optimizeGatherAddress(IntrinsicInst *II) {
+  auto *GEP = dyn_cast<GetElementPtrInst>(II->getOperand(0));
+
+  // Only handle GEPs with multiple indices.
+  if (!GEP || GEP->getNumOperands() < 3)
+    return false;
+
+  unsigned FinalIndex = GEP->getNumOperands() - 1;
+  if (!GEP->getOperand(FinalIndex)->getType()->isVectorTy())
+    return false;
+
+  // Make sure the base pointer is a scalar.
+  if (GEP->getPointerOperand()->getType()->isVectorTy())
+    return false;
+
+  SmallVector<Value *, 8> Ops;
+  for (unsigned i = 1; i < FinalIndex; ++i) {
+    if (!isa<ConstantInt>(GEP->getOperand(i)))
+      return false;
+    Ops.push_back(GEP->getOperand(i));
+  }
+
+  IRBuilder<> Builder(II);
+
+  Value *Ptr = Builder.CreateGEP(GEP->getSourceElementType(),
+                                 GEP->getPointerOperand(), Ops, "gatheraddr");
+  Ptr = Builder.CreateGEP(cast<GEPOperator>(Ptr)->getResultElementType(), Ptr,
+                          GEP->getOperand(FinalIndex), "gatheraddr");
+
+  II->replaceUsesOfWith(GEP, Ptr);
+
+  // If we have no uses, recursively delete the value and all dead instructions
+  // using it.
+  if (GEP->use_empty()) {
+    // This can cause recursive deletion, which can invalidate our iterator.
+    // Use a WeakTrackingVH to hold onto it in case this happens.
+    Value *CurValue = &*CurInstIterator;
+    WeakTrackingVH IterHandle(CurValue);
+    BasicBlock *BB = CurInstIterator->getParent();
+
+    RecursivelyDeleteTriviallyDeadInstructions(GEP, TLInfo);
+
+    if (IterHandle != CurValue) {
+      // If the iterator instruction was recursively deleted, start over at the
+      // start of the block.
+      CurInstIterator = BB->begin();
+      SunkAddrs.clear();
+    }
+  }
+  return true;
+}
+
 bool CodeGenPrepare::optimizeCallInst(CallInst *CI, bool &ModifiedDT) {
   BasicBlock *BB = CI->getParent();
 
@@ -1829,6 +1889,9 @@ bool CodeGenPrepare::optimizeCallInst(CallInst *CI, bool &ModifiedDT) {
     case Intrinsic::ctlz:
       // If counting zeros is expensive, try to avoid it.
       return despeculateCountZeros(II, TLI, DL, ModifiedDT);
+
+    case Intrinsic::masked_gather:
+      return optimizeGatherAddress(II);
     }
 
     if (TLI) {
