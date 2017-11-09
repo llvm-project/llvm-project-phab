@@ -442,6 +442,8 @@ enum {
   NT_OPENBSD_AUXV = 11,
   NT_OPENBSD_REGS = 20,
   NT_OPENBSD_FPREGS = 21,
+  NT_PPC_VMX = 0x100,
+  NT_PPC_VSX = 0x102,
 };
 
 namespace FREEBSD {
@@ -651,16 +653,23 @@ Status ProcessElfCore::ParseThreadContextsFromNoteSegment(
         thread_data->tid = prstatus.pr_pid;
         header_size = ELFLinuxPrStatus::GetSize(arch);
         len = note_data.GetByteSize() - header_size;
+
+        if (arch.GetCore() == ArchSpec::eCore_ppc64le_generic)
+          thread_data->regsets.insert(
+            std::make_pair(0, DataExtractor(note_data, header_size, len)));
+
         thread_data->gpregset = DataExtractor(note_data, header_size, len);
         break;
       case NT_FPREGSET:
         // In a i386 core file NT_FPREGSET is present, but it's not the result
         // of the FXSAVE instruction like in 64 bit files.
         // The result from FXSAVE is in NT_PRXFPREG for i386 core files
-        if (arch.GetCore() == ArchSpec::eCore_x86_64_x86_64)
+        if (arch.GetCore() == ArchSpec::eCore_x86_64_x86_64 ||
+            arch.IsMIPS())
           thread_data->fpregset = note_data;
-        else if(arch.IsMIPS())
-          thread_data->fpregset = note_data;
+        else if (arch.GetCore() == ArchSpec::eCore_ppc64le_generic) {
+          thread_data->regsets.insert(std::make_pair(1, note_data));
+        }
         break;
       case NT_PRPSINFO:
         have_prpsinfo = true;
@@ -704,6 +713,15 @@ Status ProcessElfCore::ParseThreadContextsFromNoteSegment(
       switch (note.n_type) {
       case NT_PRXFPREG:
         thread_data->fpregset = note_data;
+        break;
+      case NT_PPC_VMX:
+        if (arch.GetCore() == ArchSpec::eCore_ppc64le_generic)
+          thread_data->regsets.insert(std::make_pair(2, note_data));
+        break;
+      case NT_PPC_VSX:
+        if (arch.GetCore() == ArchSpec::eCore_ppc64le_generic)
+          thread_data->regsets.insert(std::make_pair(3, note_data));
+        break;
       }
     }
 
