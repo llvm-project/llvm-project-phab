@@ -383,6 +383,9 @@ public:
     Items.reserve(NumResults);
     for (unsigned I = 0; I < NumResults; ++I) {
       auto &Result = Results[I];
+      if (Result.Availability == CXAvailability_NotAvailable ||
+          Result.Availability == CXAvailability_NotAccessible)
+        continue;
       const auto *CCS = Result.CreateCodeCompletionString(
           S, Context, *Allocator, CCTUInfo,
           CodeCompleteOpts.IncludeBriefComments);
@@ -428,23 +431,8 @@ private:
     // Fill in the sortText of the CompletionItem.
     assert(Score <= 99999 && "Expecting code completion result "
                              "priority to have at most 5-digits");
-
-    const int Penalty = 100000;
-    switch (static_cast<CXAvailabilityKind>(CCS.getAvailability())) {
-    case CXAvailability_Available:
-      // No penalty.
-      break;
-    case CXAvailability_Deprecated:
-      Score += Penalty;
-      break;
-    case CXAvailability_NotAccessible:
-      Score += 2 * Penalty;
-      break;
-    case CXAvailability_NotAvailable:
-      Score += 3 * Penalty;
-      break;
-    }
-
+    if (CCS.getAvailability() == CXAvailability_Deprecated)
+      Score += 100000;
     return Score;
   }
 
