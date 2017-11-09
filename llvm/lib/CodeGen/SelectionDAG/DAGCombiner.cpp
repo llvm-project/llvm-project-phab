@@ -9712,6 +9712,20 @@ SDValue DAGCombiner::visitFADD(SDNode *N) {
     SDValue Add = DAG.getNode(ISD::FADD, DL, VT, AddOp, AddOp, Flags);
     return DAG.getNode(ISD::FSUB, DL, VT, N1IsFMul ? N0 : N1, Add, Flags);
   }
+  
+  // fold (fadd (fmul (fmul B, -2.0) C), A) -> (fsub A, (fmul (fadd B, B) C)
+  // fold (fadd A, (fmul (fmul B, -2.0) C)) -> (fsub A, (fmul (fadd B, B) C)
+  SDValue N0N0 = N0->getOperand(0);
+  SDValue N1N0 = N1->getOperand(0);
+  if ((isFMulNegTwo(N0N0) && N0N0.hasOneUse()) ||
+      (isFMulNegTwo(N1N0) && N1N0.hasOneUse())) {
+    bool N1N0IsFMul = isFMulNegTwo(N1N0);
+    SDValue AddOp = N1N0IsFMul ? N1N0.getOperand(0) : N0N0.getOperand(0);
+    SDValue MulOp = N1N0IsFMul ? N1->getOperand(1) : N0->getOperand(1);
+    SDValue Add = DAG.getNode(ISD::FADD, DL, VT, AddOp, AddOp, Flags);
+    SDValue Mul = DAG.getNode(ISD::FMUL, DL, VT, Add, MulOp, Flags);
+    return DAG.getNode(ISD::FSUB, DL, VT, N1N0IsFMul ? N0 : N1, Mul, Flags);
+  }
 
   // FIXME: Auto-upgrade the target/function-level option.
   if (Options.NoSignedZerosFPMath || N->getFlags().hasNoSignedZeros()) {
