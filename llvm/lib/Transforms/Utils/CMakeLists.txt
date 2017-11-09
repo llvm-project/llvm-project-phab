@@ -5,6 +5,7 @@ add_llvm_library(LLVMTransformUtils
   BreakCriticalEdges.cpp
   BuildLibCalls.cpp
   BypassSlowDivision.cpp
+  CallSitePromotion.cpp
   CloneFunction.cpp
   CloneModule.cpp
   CodeExtractor.cpp

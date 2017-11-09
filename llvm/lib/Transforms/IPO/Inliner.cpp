@@ -47,6 +47,7 @@
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
+#include "llvm/IR/MDBuilder.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/PassManager.h"
@@ -57,6 +58,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Transforms/Utils/CallSitePromotion.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/ImportedFunctionsInliningStatistics.h"
 #include "llvm/Transforms/Utils/Local.h"
@@ -434,6 +436,173 @@ shouldInline(CallSite CS, function_ref<InlineCost(CallSite CS)> GetInlineCost,
   return IC;
 }
 
+/// Update the legacy call graph after the given call site is promoted.
+///
+/// The call site should be direct at this point. If it was versioned when it
+/// was promoted, \p Inst should refer to the newly created indirect call.
+static void updateLegacyCGAfterCSPromotion(CallGraph &CG, CallSite CS,
+                                           Instruction *Inst = nullptr) {
+  Function *Callee = CS.getCalledFunction();
+  assert(Callee && "Call was not promoted");
+  CallGraphNode *Caller = CG[CS.getInstruction()->getFunction()];
+
+  // The promoted call site had !callees metadata attached to it. This is
+  // represented in the legacy call graph by an external node. Find it.
+  CallGraphNode *External = nullptr;
+  for (CallGraphNode::iterator I = Caller->begin(), E = Caller->end(); I != E;
+       ++I)
+    if (I->first == CS.getInstruction()) {
+      External = I->second;
+      break;
+    }
+  assert(External && "External node for !callees metadata not found");
+
+  // The promoted call site now directly calls Callee. Additionally, there
+  // should no longer be an edge from the external node to Callee.
+  Caller->replaceCallEdge(CS, CS, CG[Callee]);
+  External->removeAnyCallEdgeTo(CG[Callee]);
+
+  // If the call site was versioned, Inst refers to the newly created indirect
+  // call. There should be an edge from this new call site to the external
+  // node.
+  if (Inst) {
+    assert(Inst->getMetadata(LLVMContext::MD_callees) &&
+           "Indirect call must have !callees metadata");
+    Caller->addCalledFunction(CallSite(Inst), External);
+  }
+}
+
+/// Try to promote an indirect call site.
+///
+/// This function attempts to promote the given indirect call site so that its
+/// callee (or potential callees) may be inlined. Promotion is attempted for
+/// call sites having !callees metadata. For indirect call sites having a small
+/// number of possible callees, !callees metadata indicates what those
+/// functions are.
+///
+/// The approach begins by inspecting the !callees metadata attached to a call
+/// site. There are a few cases to consider based on the number of possible
+/// callees. The first two are trivial. First, if the metadata indicates that
+/// there are zero possible callees, the call site must be dead, and so it is
+/// marked unreachable. Second, if the metadata indicates that there is only
+/// one possible callee, it is promoted to a direct call site regardless of
+/// whether inlining the callee is profitable or not. The last and most
+/// interesting case is when the metadata indicates that there are more than
+/// one possible callee.
+///
+/// When a call site has more then one possible callee, the inliner is allowed
+/// to inline any of the callees according to its usual heuristics. This is
+/// done by iterating over the possible callees and computing their inline
+/// cost. If a profitable callee is found, the iteration terminates and the
+/// call site is immediately promoted inside an if-then-else structure, where
+/// the "then" block contains a direct call to the profitable callee, and the
+/// "else" block contains a clone of the original indirect call site. The
+/// callees metadata of the two call sites is updated to reflect the promotion.
+///
+/// The inline cost and call site clone are communicated back to the inliner.
+/// This allows the inliner to avoid recomputing the inline cost for the callee
+/// that was just promoted, and it allows it to add the new indirect call site
+/// to its work list to be processed once again. The new indirect call site
+/// will have one less possible callee. Processing the call sites in this way
+/// effectively inlines all the profitable callees of the original indirect
+/// call site. Callees for which the inline cost is computed but found to be
+/// unprofitable to inline are cached so that they will not be analyzed more
+/// than once.
+///
+/// The function returns true if the given call site was promoted. If the
+/// inline cost of the resulting direct call site was computed, it is stored in
+/// \p OIC. If promotion was performed by versioning the call site, the
+/// instruction clone is stored in \p Inst. The inliner should add this call
+/// site to its work list. Lastly, the callees for which the inline cost is
+/// computed are stored in \p Visited.
+static bool
+tryToPromoteCallSite(CallSite CS,
+                     function_ref<InlineCost(CallSite CS)> GetInlineCost,
+                     OptimizationRemarkEmitter &ORE, Optional<InlineCost> &OIC,
+                     Instruction *&Inst, SmallPtrSetImpl<Function *> &Visited) {
+  assert(!CS.getCalledFunction() && "Can only promote indirect calls");
+
+  // Collect the functions the call site might call. If the call site doesn't
+  // have !callees metadata, we don't know its possible callees, so there's
+  // nothing to do.
+  if (!CS.getInstruction()->getMetadata(LLVMContext::MD_callees))
+    return false;
+  SmallVector<Function *, 4> PossibleCallees = CS.getKnownCallees();
+
+  // If the metadata indicates that there are zero possible callees, the call
+  // site must be dead, so we mark it unreachable.
+  if (PossibleCallees.empty()) {
+    BasicBlock *BB = CS.getInstruction()->getParent();
+    BB->splitBasicBlock(CS.getInstruction());
+    BB->getTerminator()->eraseFromParent();
+    new UnreachableInst(BB->getContext(), BB);
+    return false;
+  }
+
+  // If the metadata indicates that there is only one possible callee, we
+  // attempt to promote the call site. If successful, we clear the call site's
+  // !callees metadata.
+  if (PossibleCallees.size() == 1) {
+    if (!canPromoteCallSite(CS, PossibleCallees[0]))
+      return false;
+    makeCallSiteDirect(CS, PossibleCallees[0]);
+    CS.getInstruction()->setMetadata(LLVMContext::MD_callees, nullptr);
+    return true;
+  }
+
+  // If the metadata indicates that there is more than one possible callee, we
+  // attempt to promote the call site by versioning it.
+  for (unsigned I = 0; I < PossibleCallees.size(); ++I) {
+    Function *F = PossibleCallees[I];
+
+    // Skip this function if we already know it to be unprofitable, it's a
+    // declaration, or it can't be promoted.
+    if (Visited.count(F) || F->isDeclaration() || !canPromoteCallSite(CS, F))
+      continue;
+
+    Visited.insert(F);
+    Value *CalledValue = CS.getCalledValue();
+
+    // Compute the inline cost of the function. We do this by first
+    // speculatively modifying the call site so that it calls the desired
+    // function. We then compute the inline cost using the regular inline
+    // heuristic. Once the cost is computed, the call site is demoted to its
+    // original state. If inlining is not profitable, we move on to the next
+    // possible callee.
+    SmallVector<CastInst *, 4> Casts;
+    makeCallSiteDirect(CS, F, &Casts);
+    Optional<InlineCost> Cost = shouldInline(CS, GetInlineCost, ORE);
+    makeCallSiteIndirect(CS, CalledValue, Casts);
+    if (!Cost)
+      continue;
+
+    // Version the indirect call site. If 'CalledValue' is equal to 'F', the
+    // original call site will be executed, otherwise 'Inst' will be executed.
+    Inst = llvm::versionCallSite(CS, CmpInst::ICMP_EQ, CalledValue, F);
+
+    // The original call site is promoted so that it directly calls the desired
+    // function. The call site is now direct, so we clear its !callees
+    // metadata.
+    makeCallSiteDirect(CS, F, &Casts);
+    CS.getInstruction()->setMetadata(LLVMContext::MD_callees, nullptr);
+
+    // The call site clone remains indirect, but we must remove the function
+    // from its !callees metadata. After the promotion, we know this call site
+    // cannot target it.
+    PossibleCallees.erase(PossibleCallees.begin() + I);
+    MDBuilder MDB(Inst->getContext());
+    Inst->setMetadata(LLVMContext::MD_callees,
+                      MDB.createCallees(PossibleCallees));
+
+    // Save the inline cost so the inliner doesn't have to recompute it. The
+    // function will be inlined into the promoted call site.
+    OIC.emplace(*Cost);
+    return true;
+  }
+
+  return false;
+}
+
 /// Return true if the specified inline history ID
 /// indicates an inline history that includes the specified function.
 static bool InlineHistoryIncludes(
@@ -541,6 +710,11 @@ inlineCallsImpl(CallGraphSCC &SCC, CallGraph &CG,
   InlinedArrayAllocasTy InlinedArrayAllocas;
   InlineFunctionInfo InlineInfo(&CG, &GetAssumptionCache, PSI);
 
+  // A cache of callees per indirect call site for which we've computed an
+  // inline cost. Inlining these callees is not profitable, and we don't want
+  // to recompute the cost.
+  DenseMap<Instruction *, SmallPtrSet<Function *, 4>> UnprofitableCallees;
+
   // Now that we have all of the call sites, loop over them and inline them if
   // it looks profitable to do so.
   bool Changed = false;
@@ -554,10 +728,35 @@ inlineCallsImpl(CallGraphSCC &SCC, CallGraph &CG,
       CallSite CS = CallSites[CSi].first;
 
       Function *Caller = CS.getCaller();
-      Function *Callee = CS.getCalledFunction();
+
+      // FIXME for new PM: because of the old PM we currently generate ORE and
+      // in turn BFI on demand.  With the new PM, the ORE dependency should
+      // just become a regular analysis dependency.
+      OptimizationRemarkEmitter ORE(Caller);
+
+      // Try to inline through indirect call sites. If we have an indirect call
+      // site with a known set of possible callees (e.g., as specified by
+      // !callees metadata), promote the call site to directly call a function
+      // we know will be inlined. The inline cost, if computed during
+      // promotion, is saved to avoid recomputation. If the call site was
+      // versioned by the promotion, the new indirect call site is added to the
+      // work list.
+      Optional<InlineCost> OIC = None;
+      if (!CS.getCalledFunction()) {
+        Instruction *Inst = nullptr;
+        auto &Visited = UnprofitableCallees[CS.getInstruction()];
+        if (!tryToPromoteCallSite(CS, GetInlineCost, ORE, OIC, Inst, Visited))
+          continue;
+        updateLegacyCGAfterCSPromotion(CG, CS, Inst);
+        if (Inst) {
+          UnprofitableCallees[Inst] = Visited;
+          CallSites.push_back({CallSite(Inst), -1});
+        }
+      }
 
       // We can only inline direct calls to non-declarations.
-      if (!Callee || Callee->isDeclaration())
+      Function *Callee = CS.getCalledFunction();
+      if (Callee->isDeclaration())
         continue;
 
       Instruction *Instr = CS.getInstruction();
@@ -577,16 +776,14 @@ inlineCallsImpl(CallGraphSCC &SCC, CallGraph &CG,
           continue;
       }
 
-      // FIXME for new PM: because of the old PM we currently generate ORE and
-      // in turn BFI on demand.  With the new PM, the ORE dependency should
-      // just become a regular analysis dependency.
-      OptimizationRemarkEmitter ORE(Caller);
-
-      Optional<InlineCost> OIC = shouldInline(CS, GetInlineCost, ORE);
-      // If the policy determines that we should inline this function,
-      // delete the call instead.
-      if (!OIC)
-        continue;
+      if (!OIC) {
+        Optional<InlineCost> Cost = shouldInline(CS, GetInlineCost, ORE);
+        // If the policy determines that we should inline this function,
+        // delete the call instead.
+        if (!Cost)
+          continue;
+        OIC.emplace(*Cost);
+      }
 
       // If this call site is dead and it is to a readonly function, we should
       // just delete the call instead of trying to inline it, regardless of
@@ -839,9 +1036,7 @@ PreservedAnalyses InlinerPass::run(LazyCallGraph::SCC &InitialC,
     // Instead we should do an actual RPO walk of the function body.
     for (Instruction &I : instructions(N.getFunction()))
       if (auto CS = CallSite(&I))
-        if (Function *Callee = CS.getCalledFunction())
-          if (!Callee->isDeclaration())
-            Calls.push_back({CS, -1});
+        Calls.push_back({CS, -1});
   }
   if (Calls.empty())
     return PreservedAnalyses::all();
@@ -910,15 +1105,44 @@ PreservedAnalyses InlinerPass::run(LazyCallGraph::SCC &InitialC,
                            PSI, &ORE);
     };
 
+    // A cache of callees per indirect call site for which we've computed an
+    // inline cost. Inlining these callees is not profitable, and we don't want
+    // to recompute the cost.
+    DenseMap<Instruction *, SmallPtrSet<Function *, 4>> UnprofitableCallees;
+
     // Now process as many calls as we have within this caller in the sequnece.
     // We bail out as soon as the caller has to change so we can update the
     // call graph and prepare the context of that new caller.
-    bool DidInline = false;
+    bool ChangedCallGraph = false;
     for (; i < (int)Calls.size() && Calls[i].first.getCaller() == &F; ++i) {
       int InlineHistoryID;
       CallSite CS;
       std::tie(CS, InlineHistoryID) = Calls[i];
+
+      // Try to inline through indirect call sites. If we have an indirect call
+      // site with a known set of possible callees (e.g., as specified by
+      // !callees metadata), promote the call site to directly call a function
+      // we know will be inlined. The inline cost, if computed during
+      // promotion, is saved to avoid recomputation. If the call site was
+      // versioned by the promotion, the new indirect call site is added to the
+      // work list.
+      Optional<InlineCost> OIC = None;
+      if (!CS.getCalledFunction()) {
+        Instruction *Inst = nullptr;
+        auto &Visited = UnprofitableCallees[CS.getInstruction()];
+        if (!tryToPromoteCallSite(CS, GetInlineCost, ORE, OIC, Inst, Visited))
+          continue;
+        ChangedCallGraph = true;
+        if (Inst) {
+          UnprofitableCallees[Inst] = Visited;
+          Calls.push_back({CallSite(Inst), -1});
+        }
+      }
+
+      // We can only inline direct calls to non-declarations.
       Function &Callee = *CS.getCalledFunction();
+      if (Callee.isDeclaration())
+        continue;
 
       if (InlineHistoryID != -1 &&
           InlineHistoryIncludes(&Callee, InlineHistoryID, InlineHistory))
@@ -937,10 +1161,13 @@ PreservedAnalyses InlinerPass::run(LazyCallGraph::SCC &InitialC,
         continue;
       }
 
-      Optional<InlineCost> OIC = shouldInline(CS, GetInlineCost, ORE);
-      // Check whether we want to inline this callsite.
-      if (!OIC)
-        continue;
+      if (!OIC) {
+        Optional<InlineCost> Cost = shouldInline(CS, GetInlineCost, ORE);
+        // Check whether we want to inline this callsite.
+        if (!Cost)
+          continue;
+        OIC.emplace(*Cost);
+      }
 
       // Setup the data structure used to plumb customization into the
       // `InlineFunction` routine.
@@ -963,7 +1190,7 @@ PreservedAnalyses InlinerPass::run(LazyCallGraph::SCC &InitialC,
         });
         continue;
       }
-      DidInline = true;
+      ChangedCallGraph = true;
       InlinedCallees.insert(&Callee);
 
       ORE.emit([&]() {
@@ -1026,7 +1253,7 @@ PreservedAnalyses InlinerPass::run(LazyCallGraph::SCC &InitialC,
     // the outer loop.
     --i;
 
-    if (!DidInline)
+    if (!ChangedCallGraph)
       continue;
     Changed = true;
 
