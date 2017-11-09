@@ -231,10 +231,20 @@ public:
     return 0;
   }
 
-  CompilerType GetTemplateArgument(lldb::opaque_compiler_type_t type,
-                                   size_t idx,
-                                   lldb::TemplateArgumentKind &kind) override {
+  lldb::TemplateArgumentKind
+  GetTemplateArgumentKind(lldb::opaque_compiler_type_t type,
+                          size_t idx) override {
+    return lldb::eTemplateArgumentKindNull;
+  }
+
+  CompilerType GetTypeTemplateArgument(lldb::opaque_compiler_type_t type,
+                                       size_t idx) override {
     return CompilerType();
+  }
+  std::pair<llvm::APSInt, CompilerType>
+  GetIntegralTemplateArgument(lldb::opaque_compiler_type_t type,
+                              size_t idx) override {
+    return {llvm::APSInt(0), CompilerType()};
   }
 
   void DumpValue(lldb::opaque_compiler_type_t type, ExecutionContext *exe_ctx,

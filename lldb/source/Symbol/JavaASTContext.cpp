@@ -885,9 +885,8 @@ JavaASTContext::GetNumTemplateArguments(lldb::opaque_compiler_type_t type) {
 }
 
 CompilerType
-JavaASTContext::GetTemplateArgument(lldb::opaque_compiler_type_t type,
-                                    size_t idx,
-                                    lldb::TemplateArgumentKind &kind) {
+JavaASTContext::GetTypeTemplateArgument(lldb::opaque_compiler_type_t type,
+                                    size_t idx) {
   return CompilerType();
 }
 

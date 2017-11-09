@@ -203,9 +203,21 @@ public:
 
   size_t GetNumTemplateArguments(lldb::opaque_compiler_type_t type) override;
 
-  CompilerType GetTemplateArgument(lldb::opaque_compiler_type_t type,
-                                   size_t idx,
-                                   lldb::TemplateArgumentKind &kind) override;
+  lldb::TemplateArgumentKind
+  GetTemplateArgumentKind(lldb::opaque_compiler_type_t type,
+                          size_t idx) override {
+    return lldb::eTemplateArgumentKindNull;
+  }
+
+  CompilerType GetTypeTemplateArgument(lldb::opaque_compiler_type_t type,
+                                       size_t idx) override;
+
+  std::pair<llvm::APSInt, CompilerType>
+  GetIntegralTemplateArgument(lldb::opaque_compiler_type_t type,
+                              size_t idx) override {
+    return {llvm::APSInt(0), CompilerType()};
+  }
+
 
   int GetFunctionArgumentCount(lldb::opaque_compiler_type_t type) override;
 

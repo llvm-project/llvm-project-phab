@@ -409,15 +409,16 @@ TEST_F(TestClangASTContext, TemplateArguments) {
   CompilerType int_type(m_ast->getASTContext(), m_ast->getASTContext()->IntTy);
   for(CompilerType t: { type, typedef_type }) {
     SCOPED_TRACE(t.GetTypeName().AsCString());
-    TemplateArgumentKind kind;
 
-    CompilerType arg =
-        m_ast->GetTemplateArgument(t.GetOpaqueQualType(), 0, kind);
-    EXPECT_EQ(kind, eTemplateArgumentKindType);
-    EXPECT_EQ(arg, int_type);
+    EXPECT_EQ(m_ast->GetTemplateArgumentKind(t.GetOpaqueQualType(), 0),
+              eTemplateArgumentKindType);
+    EXPECT_EQ(m_ast->GetTypeTemplateArgument(t.GetOpaqueQualType(), 0),
+              int_type);
 
-    arg = m_ast->GetTemplateArgument(t.GetOpaqueQualType(), 1, kind);
-    EXPECT_EQ(kind, eTemplateArgumentKindIntegral);
-    EXPECT_EQ(arg, int_type);
+    EXPECT_EQ(m_ast->GetTemplateArgumentKind(t.GetOpaqueQualType(), 1),
+              eTemplateArgumentKindIntegral);
+    auto p = m_ast->GetIntegralTemplateArgument(t.GetOpaqueQualType(), 1);
+    EXPECT_EQ(p.first, llvm::APSInt(47));
+    EXPECT_EQ(p.second, int_type);
   }
 }

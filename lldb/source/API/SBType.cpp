@@ -415,21 +415,20 @@ uint32_t SBType::GetNumberOfTemplateArguments() {
 }
 
 lldb::SBType SBType::GetTemplateArgumentType(uint32_t idx) {
-  if (IsValid()) {
-    TemplateArgumentKind kind = eTemplateArgumentKindNull;
-    CompilerType template_arg_type =
-        m_opaque_sp->GetCompilerType(false).GetTemplateArgument(idx, kind);
-    if (template_arg_type.IsValid())
-      return SBType(template_arg_type);
-  }
+  if (!IsValid())
+    return SBType();
+
+  CompilerType template_arg_type =
+      m_opaque_sp->GetCompilerType(false).GetTypeTemplateArgument(idx);
+  if (template_arg_type.IsValid())
+    return SBType(template_arg_type);
   return SBType();
 }
 
 lldb::TemplateArgumentKind SBType::GetTemplateArgumentKind(uint32_t idx) {
-  TemplateArgumentKind kind = eTemplateArgumentKindNull;
   if (IsValid())
-    m_opaque_sp->GetCompilerType(false).GetTemplateArgument(idx, kind);
-  return kind;
+    return m_opaque_sp->GetCompilerType(false).GetTemplateArgumentKind(idx);
+  return eTemplateArgumentKindNull;
 }
 
 SBTypeList::SBTypeList() : m_opaque_ap(new TypeListImpl()) {}
