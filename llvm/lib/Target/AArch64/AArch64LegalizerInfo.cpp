@@ -135,10 +135,15 @@ AArch64LegalizerInfo::AArch64LegalizerInfo() {
   const LLT s16 = LLT::scalar(16);
   const LLT s32 = LLT::scalar(32);
   const LLT s64 = LLT::scalar(64);
+  const LLT s96 = LLT::scalar(96);
   const LLT s128 = LLT::scalar(128);
+  const LLT s192 = LLT::scalar(192);
   const LLT v2s32 = LLT::vector(2, 32);
+  const LLT v3s32 = LLT::vector(3, 32);
   const LLT v4s32 = LLT::vector(4, 32);
   const LLT v2s64 = LLT::vector(2, 64);
+  const LLT v4s64 = LLT::vector(4, 64);
+  const LLT v6s64 = LLT::vector(6, 64);
 
   for (auto Ty : {p0, s1, s8, s16, s32, s64})
     setAction({G_IMPLICIT_DEF, Ty}, Legal);
@@ -348,6 +353,17 @@ AArch64LegalizerInfo::AArch64LegalizerInfo() {
 
   for (auto Ty : {s8, s16, s32, s64, p0})
     setAction({G_VAARG, Ty}, Custom);
+
+  // Merge/Unmerge
+  for (const auto &Ty :
+       {s32, s64, s96, s128, s192, v2s32, v3s32, v4s32, v2s64, v4s64, v6s64}) {
+    setAction({G_MERGE_VALUES, Ty}, Legal);
+    setAction({G_UNMERGE_VALUES, 1, Ty}, Legal);
+  }
+  for (const auto &Ty : {s16, s32, s64, v2s32, v4s32, v2s64}) {
+    setAction({G_MERGE_VALUES, 1, Ty}, Legal);
+    setAction({G_UNMERGE_VALUES, Ty}, Legal);
+  }
 
   computeTables();
 }
