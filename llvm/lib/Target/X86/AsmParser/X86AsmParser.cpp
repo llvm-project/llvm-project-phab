@@ -2435,13 +2435,13 @@ bool X86AsmParser::ParseInstruction(ParseInstructionInfo &Info, StringRef Name,
     static_cast<X86Operand &>(*Operands[0]).setTokenValue(Repl);
   }
 
-  // Moving a 32 or 16 bit value into a segment register has the same
-  // behavior. Modify such instructions to always take shorter form.
+  // Avoid unecessary OpSize bytes from moves involving segment registers.
   if ((Name == "mov" || Name == "movw" || Name == "movl") &&
       (Operands.size() == 3)) {
     X86Operand &Op1 = (X86Operand &)*Operands[1];
     X86Operand &Op2 = (X86Operand &)*Operands[2];
     SMLoc Loc = Op1.getEndLoc();
+    // Moving a 32 or 16 bit reg to a segment register has the same behavior.
     if (Op1.isReg() && Op2.isReg() &&
         X86MCRegisterClasses[X86::SEGMENT_REGRegClassID].contains(
             Op2.getReg()) &&
@@ -2456,6 +2456,16 @@ bool X86AsmParser::ParseInstruction(ParseInstructionInfo &Info, StringRef Name,
       unsigned Reg =
           getX86SubSuperRegisterOrZero(Op1.getReg(), is16BitMode() ? 16 : 32);
       Operands[1] = X86Operand::CreateReg(Reg, Loc, Loc);
+    }
+    // All movs of segment to memory is always 16-bits.
+    else if (Op1.isReg() &&
+             X86MCRegisterClasses[X86::SEGMENT_REGRegClassID].contains(
+                 Op1.getReg()) &&
+             Op2.isMem()) {
+      if (Name != "mov" && Name[3] == (is16BitMode() ? 'l' : 'w')) {
+        Name = is16BitMode() ? "movw" : "movl";
+        Operands[0] = X86Operand::CreateToken(Name, NameLoc);
+      }
     }
   }
 
