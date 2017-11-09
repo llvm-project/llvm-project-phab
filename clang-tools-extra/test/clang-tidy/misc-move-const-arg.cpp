@@ -14,6 +14,12 @@ constexpr typename std::remove_reference<_Tp>::type &&move(_Tp &&__t) {
   return static_cast<typename std::remove_reference<_Tp>::type &&>(__t);
 }
 
+template <typename _Tp>
+constexpr _Tp &&
+forward(typename remove_reference<_Tp>::type &__t) noexcept {
+  return static_cast<_Tp &&>(__t);
+}
+
 } // namespace std
 
 class A {
@@ -23,22 +29,18 @@ public:
   A(A &&rhs) {}
 };
 
-int f1() {
-  return std::move(42);
-  // CHECK-MESSAGES: :[[@LINE-1]]:10: warning: std::move of the expression of the trivially-copyable type 'int' has no effect; remove std::move() [misc-move-const-arg]
-  // CHECK-FIXES: return 42;
-}
+struct TriviallyCopyable {
+  int i;
+};
 
-int f2(int x2) {
-  return std::move(x2);
-  // CHECK-MESSAGES: :[[@LINE-1]]:10: warning: std::move of the variable 'x2' of the trivially-copyable type 'int'
-  // CHECK-FIXES: return x2;
-}
+void f(TriviallyCopyable) {}
 
-int *f3(int *x3) {
-  return std::move(x3);
-  // CHECK-MESSAGES: :[[@LINE-1]]:10: warning: std::move of the variable 'x3' of the trivially-copyable type 'int *'
-  // CHECK-FIXES: return x3;
+void g() {
+  TriviallyCopyable obj;
+  f(std::move(obj));
+
+  // xCHECK-MESSAGES: :[[@LINE-1]]:10: warning: std::move of the expression of the trivially-copyable type 'int' has no effect; remove std::move() [misc-move-const-arg]
+  // xCHECK-FIXES: return 42;
 }
 
 A f4(A x4) { return std::move(x4); }
@@ -175,4 +177,39 @@ template <class T>
 void Q(T);
 void moveOnlyNegatives(MoveOnly val) {
   Q(std::move(val));
+}
+
+void fmovable(MoveSemantics);
+
+void lambda1() {
+  auto f = [](MoveSemantics m) {
+    fmovable(std::move(m));
+  };
+  f(MoveSemantics());
+}
+
+template<class T> struct function {};
+
+template<typename Result, typename... Args>
+class function<Result(Args...)> {
+public:
+  function() = default;
+  void operator()(Args... args) const {
+    fmovable(std::forward<Args>(args)...);
+  }
+};
+
+void functionInvocation() {
+  function<void(MoveSemantics)> callback;
+  MoveSemantics m;
+  callback(std::move(m));
+}
+
+void lambda2() {
+  function<void(MoveSemantics)> callback;
+
+  auto f = [callback = std::move(callback)](MoveSemantics m) mutable {
+    callback(std::move(m));
+  };
+  f(MoveSemantics());
 }

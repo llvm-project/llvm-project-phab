@@ -85,6 +85,10 @@ void MoveConstantArgumentCheck::check(const MatchFinder::MatchResult &Result) {
           return;
       }
     }
+
+    if (!IsConstArg && IsTriviallyCopyable)
+      return;
+
     bool IsVariable = isa<DeclRefExpr>(Arg);
     const auto *Var =
         IsVariable ? dyn_cast<DeclRefExpr>(Arg)->getDecl() : nullptr;
