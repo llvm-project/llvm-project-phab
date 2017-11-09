@@ -5469,16 +5469,33 @@ static void handleInterruptAttr(Sema &S, Decl *D, const AttributeList &Attr) {
   }
 }
 
+static bool checkAllAreIntegral(Sema &S, const AttributeList &Attr) {
+  for (auto i = 0u; i != Attr.getNumArgs(); ++i) {
+    Expr* E = Attr.getArgAsExpr(i);
+    if (E && !E->getType()->isIntegralOrEnumerationType()) {
+      S.Diag(getAttrLoc(Attr), diag::err_attribute_argument_n_type)
+        << getAttrName(Attr) << i << AANT_ArgumentIntegerConstant
+        << E->getSourceRange();
+
+      return false;
+    }
+  }
+
+  return true;
+}
+
 static void handleAMDGPUFlatWorkGroupSizeAttr(Sema &S, Decl *D,
                                               const AttributeList &Attr) {
   uint32_t Min = 0;
   Expr *MinExpr = Attr.getArgAsExpr(0);
-  if (!checkUInt32Argument(S, Attr, MinExpr, Min))
+  if (MinExpr->isEvaluatable(S.Context) &&
+      !checkUInt32Argument(S, Attr, MinExpr, Min))
     return;
 
   uint32_t Max = 0;
   Expr *MaxExpr = Attr.getArgAsExpr(1);
-  if (!checkUInt32Argument(S, Attr, MaxExpr, Max))
+  if (MaxExpr->isEvaluatable(S.Context) &&
+      !checkUInt32Argument(S, Attr, MaxExpr, Max))
     return;
 
   if (Min == 0 && Max != 0) {
@@ -5493,21 +5510,28 @@ static void handleAMDGPUFlatWorkGroupSizeAttr(Sema &S, Decl *D,
   }
 
   D->addAttr(::new (S.Context)
-             AMDGPUFlatWorkGroupSizeAttr(Attr.getLoc(), S.Context, Min, Max,
-                                         Attr.getAttributeSpellingListIndex()));
+             AMDGPUFlatWorkGroupSizeAttr(
+               Attr.getLoc(), S.Context, MinExpr, MaxExpr,
+               Attr.getAttributeSpellingListIndex()));
 }
 
 static void handleAMDGPUWavesPerEUAttr(Sema &S, Decl *D,
                                        const AttributeList &Attr) {
+  if (!checkAllAreIntegral(S, Attr))
+    return;
+
   uint32_t Min = 0;
   Expr *MinExpr = Attr.getArgAsExpr(0);
-  if (!checkUInt32Argument(S, Attr, MinExpr, Min))
+  if (MinExpr->isEvaluatable(S.Context) &&
+      !checkUInt32Argument(S, Attr, MinExpr, Min))
     return;
 
   uint32_t Max = 0;
+  Expr *MaxExpr = MinExpr;
   if (Attr.getNumArgs() == 2) {
-    Expr *MaxExpr = Attr.getArgAsExpr(1);
-    if (!checkUInt32Argument(S, Attr, MaxExpr, Max))
+    MaxExpr = Attr.getArgAsExpr(1);
+    if (MaxExpr->isEvaluatable(S.Context) &&
+        !checkUInt32Argument(S, Attr, MaxExpr, Max))
       return;
   }
 
@@ -5523,31 +5547,39 @@ static void handleAMDGPUWavesPerEUAttr(Sema &S, Decl *D,
   }
 
   D->addAttr(::new (S.Context)
-             AMDGPUWavesPerEUAttr(Attr.getLoc(), S.Context, Min, Max,
+             AMDGPUWavesPerEUAttr(Attr.getLoc(), S.Context, MinExpr, MaxExpr,
                                   Attr.getAttributeSpellingListIndex()));
 }
 
 static void handleAMDGPUNumSGPRAttr(Sema &S, Decl *D,
                                     const AttributeList &Attr) {
+  if (!checkAllAreIntegral(S, Attr))
+    return;
+
   uint32_t NumSGPR = 0;
   Expr *NumSGPRExpr = Attr.getArgAsExpr(0);
-  if (!checkUInt32Argument(S, Attr, NumSGPRExpr, NumSGPR))
+  if (NumSGPRExpr->isEvaluatable(S.Context) &&
+      !checkUInt32Argument(S, Attr, NumSGPRExpr, NumSGPR))
     return;
 
   D->addAttr(::new (S.Context)
-             AMDGPUNumSGPRAttr(Attr.getLoc(), S.Context, NumSGPR,
+             AMDGPUNumSGPRAttr(Attr.getLoc(), S.Context, NumSGPRExpr,
                                Attr.getAttributeSpellingListIndex()));
 }
 
 static void handleAMDGPUNumVGPRAttr(Sema &S, Decl *D,
                                     const AttributeList &Attr) {
+  if (!checkAllAreIntegral(S, Attr))
+    return;
+
   uint32_t NumVGPR = 0;
   Expr *NumVGPRExpr = Attr.getArgAsExpr(0);
-  if (!checkUInt32Argument(S, Attr, NumVGPRExpr, NumVGPR))
+  if (NumVGPRExpr->isEvaluatable(S.Context) &&
+      !checkUInt32Argument(S, Attr, NumVGPRExpr, NumVGPR))
     return;
 
   D->addAttr(::new (S.Context)
-             AMDGPUNumVGPRAttr(Attr.getLoc(), S.Context, NumVGPR,
+             AMDGPUNumVGPRAttr(Attr.getLoc(), S.Context, NumVGPRExpr,
                                Attr.getAttributeSpellingListIndex()));
 }
 
