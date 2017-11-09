@@ -1156,7 +1156,7 @@ template <class T, bool UseOptimizedChain = false>
 struct def_chain_iterator
     : public iterator_facade_base<def_chain_iterator<T, UseOptimizedChain>,
                                   std::forward_iterator_tag, MemoryAccess *> {
-  def_chain_iterator() : MA(nullptr) {}
+  def_chain_iterator() = default;
   def_chain_iterator(T MA) : MA(MA) {}
 
   T operator*() const { return MA; }
@@ -1178,7 +1178,7 @@ struct def_chain_iterator
   bool operator==(const def_chain_iterator &O) const { return MA == O.MA; }
 
 private:
-  T MA;
+  T MA = nullptr;
 };
 
 template <class T>

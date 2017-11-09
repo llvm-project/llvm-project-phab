@@ -118,10 +118,10 @@ struct VirtualCallTarget {
 
   // For testing only.
   VirtualCallTarget(const TypeMemberInfo *TM, bool IsBigEndian)
-      : Fn(nullptr), TM(TM), IsBigEndian(IsBigEndian), WasDevirt(false) {}
+      : TM(TM), IsBigEndian(IsBigEndian) {}
 
   // The function stored in the vtable.
-  Function *Fn;
+  Function *Fn = nullptr;
 
   // A pointer to the type identifier member through which the pointer to Fn is
   // accessed.
@@ -135,7 +135,7 @@ struct VirtualCallTarget {
   bool IsBigEndian;
 
   // Whether at least one call site to the target was devirtualized.
-  bool WasDevirt;
+  bool WasDevirt = false;
 
   // The minimum byte offset before the address point. This covers the bytes in
   // the vtable object before the address point (e.g. RTTI, access-to-top,

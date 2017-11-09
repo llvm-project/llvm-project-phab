@@ -81,7 +81,7 @@ protected:
         UnnamedAddrVal(unsigned(UnnamedAddr::None)),
         DllStorageClass(DefaultStorageClass), ThreadLocal(NotThreadLocal),
         HasLLVMReservedName(false), IsDSOLocal(false),
-        IntID((Intrinsic::ID)0U), Parent(nullptr) {
+        IntID((Intrinsic::ID)0U) {
     setName(Name);
   }
 
@@ -159,7 +159,7 @@ protected:
     SubClassData = V;
   }
 
-  Module *Parent;             // The containing module.
+  Module *Parent = nullptr; // The containing module.
 
   // Used by SymbolTableListTraits.
   void setParent(Module *parent) {

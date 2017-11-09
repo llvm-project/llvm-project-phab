@@ -969,10 +969,10 @@ private:
   // 0: Leaves in root.
   // 1: Root points to leaf.
   // 2: root->branch->leaf ...
-  unsigned height;
+  unsigned height = 0;
 
   // Number of entries in the root node.
-  unsigned rootSize;
+  unsigned rootSize = 0;
 
   // Allocator used for creating external nodes.
   Allocator &allocator;
@@ -1043,7 +1043,7 @@ private:
   void deleteNode(IntervalMapImpl::NodeRef Node, unsigned Level);
 
 public:
-  explicit IntervalMap(Allocator &a) : height(0), rootSize(0), allocator(a) {
+  explicit IntervalMap(Allocator &a) : allocator(a) {
     assert((uintptr_t(data.buffer) & (alignof(RootLeaf) - 1)) == 0 &&
            "Insufficient alignment");
     new(&rootLeaf()) RootLeaf();

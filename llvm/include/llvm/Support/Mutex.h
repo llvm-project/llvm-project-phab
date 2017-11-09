@@ -90,11 +90,11 @@ namespace llvm
     template<bool mt_only>
     class SmartMutex {
       MutexImpl impl;
-      unsigned acquired;
+      unsigned acquired = 0;
       bool recursive;
     public:
       explicit SmartMutex(bool rec = true) :
-        impl(rec), acquired(0), recursive(rec) { }
+        impl(rec), recursive(rec) { }
 
       bool lock() {
         if (!mt_only || llvm_is_multithreaded()) {

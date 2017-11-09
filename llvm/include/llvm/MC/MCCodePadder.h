@@ -42,14 +42,14 @@ class MCCodePadder {
   void operator=(const MCCodePadder &) = delete;
 
   /// Determines if the MCCodePaddingPolicies are active.
-  bool ArePoliciesActive;
+  bool ArePoliciesActive = false;
 
   /// All the supported MCCodePaddingPolicies.
   SmallPtrSet<MCCodePaddingPolicy *, 4> CodePaddingPolicies;
 
   /// A pointer to the fragment of the instruction whose padding is currently
   /// done for.
-  MCPaddingFragment *CurrHandledInstFragment;
+  MCPaddingFragment *CurrHandledInstFragment = nullptr;
 
   /// A map holding the jurisdiction for each padding fragment. Key: padding
   /// fragment. Value: The fragment's jurisdiction. A jurisdiction is a vector
@@ -65,7 +65,7 @@ class MCCodePadder {
 
 protected:
   /// The current streamer, used to stream code padding.
-  MCObjectStreamer *OS;
+  MCObjectStreamer *OS = nullptr;
 
   bool addPolicy(MCCodePaddingPolicy *Policy);
 
@@ -83,9 +83,7 @@ protected:
   }
 
 public:
-  MCCodePadder()
-      : ArePoliciesActive(false), CurrHandledInstFragment(nullptr),
-        OS(nullptr) {}
+  MCCodePadder() = default;
   virtual ~MCCodePadder();
 
   /// Handles all target related code padding when starting to write a new

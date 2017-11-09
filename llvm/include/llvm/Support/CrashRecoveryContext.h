@@ -39,11 +39,11 @@ class CrashRecoveryContextCleanup;
 ///      ... no crash was detected ...
 ///    }
 class CrashRecoveryContext {
-  void *Impl;
-  CrashRecoveryContextCleanup *head;
+  void *Impl = nullptr;
+  CrashRecoveryContextCleanup *head = nullptr;
 
 public:
-  CrashRecoveryContext() : Impl(nullptr), head(nullptr) {}
+  CrashRecoveryContext() = default;
   ~CrashRecoveryContext();
 
   void registerCleanup(CrashRecoveryContextCleanup *cleanup);

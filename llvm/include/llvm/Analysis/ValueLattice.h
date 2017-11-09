@@ -52,11 +52,11 @@ class ValueLatticeElement {
   /// Val: This stores the current lattice value along with the Constant* for
   /// the constant if this is a 'constant' or 'notconstant' value.
   ValueLatticeElementTy Tag;
-  Constant *Val;
+  Constant *Val = nullptr;
   ConstantRange Range;
 
 public:
-  ValueLatticeElement() : Tag(undefined), Val(nullptr), Range(1, true) {}
+  ValueLatticeElement() : Tag(undefined), Range(1, true) {}
 
   static ValueLatticeElement get(Constant *C) {
     ValueLatticeElement Res;

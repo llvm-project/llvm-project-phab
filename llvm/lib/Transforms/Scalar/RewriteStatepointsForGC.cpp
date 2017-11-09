@@ -611,7 +611,7 @@ class BDVState {
 public:
   enum Status { Unknown, Base, Conflict };
 
-  BDVState() : BaseValue(nullptr) {}
+  BDVState() = default;
 
   explicit BDVState(Status Status, Value *BaseValue = nullptr)
       : Status(Status), BaseValue(BaseValue) {
@@ -657,7 +657,7 @@ public:
 
 private:
   Status Status = Unknown;
-  AssertingVH<Value> BaseValue; // Non-null only if Status == Base.
+  AssertingVH<Value> BaseValue = nullptr; // Non-null only if Status == Base.
 };
 
 } // end anonymous namespace

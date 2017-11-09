@@ -40,7 +40,7 @@ template class llvm::SymbolTableListTraits<Instruction>;
 
 BasicBlock::BasicBlock(LLVMContext &C, const Twine &Name, Function *NewParent,
                        BasicBlock *InsertBefore)
-  : Value(Type::getLabelTy(C), Value::BasicBlockVal), Parent(nullptr) {
+  : Value(Type::getLabelTy(C), Value::BasicBlockVal) {
 
   if (NewParent)
     insertInto(NewParent, InsertBefore);

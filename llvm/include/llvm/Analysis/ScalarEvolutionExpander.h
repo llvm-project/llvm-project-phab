@@ -62,11 +62,11 @@ namespace llvm {
 
     /// When this is non-null, addrecs expanded in the loop it indicates should
     /// be inserted with increments at IVIncInsertPos.
-    const Loop *IVIncInsertLoop;
+    const Loop *IVIncInsertLoop = nullptr;
 
     /// When expanding addrecs in the IVIncInsertLoop loop, insert the IV
     /// increment at this position.
-    Instruction *IVIncInsertPos;
+    Instruction *IVIncInsertPos = nullptr;
 
     /// Phis that complete an IV chain. Reuse
     DenseSet<AssertingVH<PHINode>> ChainedPhis;
@@ -74,12 +74,12 @@ namespace llvm {
     /// When true, expressions are expanded in "canonical" form. In particular,
     /// addrecs are expanded as arithmetic based on a canonical induction
     /// variable. When false, expression are expanded in a more literal form.
-    bool CanonicalMode;
+    bool CanonicalMode = true;
 
     /// When invoked from LSR, the expander is in "strength reduction" mode. The
     /// only difference is that phi's are only reused if they are already in
     /// "expanded" form.
-    bool LSRMode;
+    bool LSRMode = false;
 
     typedef IRBuilder<TargetFolder> BuilderType;
     BuilderType Builder;
@@ -134,8 +134,7 @@ namespace llvm {
     /// Construct a SCEVExpander in "canonical" mode.
     explicit SCEVExpander(ScalarEvolution &se, const DataLayout &DL,
                           const char *name)
-        : SE(se), DL(DL), IVName(name), IVIncInsertLoop(nullptr),
-          IVIncInsertPos(nullptr), CanonicalMode(true), LSRMode(false),
+        : SE(se), DL(DL), IVName(name),
           Builder(se.getContext(), TargetFolder(DL)) {
 #ifndef NDEBUG
       DebugType = "";

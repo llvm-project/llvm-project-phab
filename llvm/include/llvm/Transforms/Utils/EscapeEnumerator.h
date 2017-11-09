@@ -31,15 +31,14 @@ class EscapeEnumerator {
 
   Function::iterator StateBB, StateE;
   IRBuilder<> Builder;
-  bool Done;
+  bool Done = false;
   bool HandleExceptions;
 
 public:
   EscapeEnumerator(Function &F, const char *N = "cleanup",
                    bool HandleExceptions = true)
       : F(F), CleanupBBName(N), StateBB(F.begin()), StateE(F.end()),
-        Builder(F.getContext()), Done(false),
-        HandleExceptions(HandleExceptions) {}
+        Builder(F.getContext()), HandleExceptions(HandleExceptions) {}
 
   IRBuilder<> *Next();
 };

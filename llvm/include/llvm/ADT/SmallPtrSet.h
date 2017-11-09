@@ -62,9 +62,9 @@ protected:
   /// Number of elements in CurArray that contain a value or are a tombstone.
   /// If small, all these elements are at the beginning of CurArray and the rest
   /// is uninitialized.
-  unsigned NumNonEmpty;
+  unsigned NumNonEmpty = 0;
   /// Number of tombstones in CurArray.
-  unsigned NumTombstones;
+  unsigned NumTombstones = 0;
 
   // Helpers to copy and move construct a SmallPtrSet.
   SmallPtrSetImplBase(const void **SmallStorage,
@@ -74,7 +74,7 @@ protected:
 
   explicit SmallPtrSetImplBase(const void **SmallStorage, unsigned SmallSize)
       : SmallArray(SmallStorage), CurArray(SmallStorage),
-        CurArraySize(SmallSize), NumNonEmpty(0), NumTombstones(0) {
+        CurArraySize(SmallSize) {
     assert(SmallSize && (SmallSize & (SmallSize-1)) == 0 &&
            "Initial size must be a power of two!");
   }

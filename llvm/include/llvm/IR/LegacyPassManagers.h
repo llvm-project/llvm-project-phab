@@ -115,17 +115,17 @@ enum PassDebuggingString {
 /// PassManagerPrettyStackEntry - This is used to print informative information
 /// about what pass is running when/if a stack trace is generated.
 class PassManagerPrettyStackEntry : public PrettyStackTraceEntry {
-  Pass *P;
-  Value *V;
-  Module *M;
+  Pass *P = nullptr;
+  Value *V = nullptr;
+  Module *M = nullptr;
 
 public:
   explicit PassManagerPrettyStackEntry(Pass *p)
-    : P(p), V(nullptr), M(nullptr) {}  // When P is releaseMemory'd.
+    : P(p) {}  // When P is releaseMemory'd.
   PassManagerPrettyStackEntry(Pass *p, Value &v)
-    : P(p), V(&v), M(nullptr) {} // When P is run on V
+    : P(p), V(&v) {} // When P is run on V
   PassManagerPrettyStackEntry(Pass *p, Module &m)
-    : P(p), V(nullptr), M(&m) {} // When P is run on M
+    : P(p), M(&m) {} // When P is run on M
 
   /// print - Emit information about this stack frame to OS.
   void print(raw_ostream &OS) const override;
@@ -302,7 +302,7 @@ private:
 /// used by pass managers.
 class PMDataManager {
 public:
-  explicit PMDataManager() : TPM(nullptr), Depth(0) {
+  explicit PMDataManager() {
     initializeAnalysisInfo();
   }
 
@@ -405,7 +405,7 @@ public:
 
 protected:
   // Top level manager.
-  PMTopLevelManager *TPM;
+  PMTopLevelManager *TPM = nullptr;
 
   // Collection of pass that are managed by this manager
   SmallVector<Pass *, 16> PassVector;
@@ -433,7 +433,7 @@ private:
   // this manager.
   SmallVector<Pass *, 16> HigherLevelAnalysis;
 
-  unsigned Depth;
+  unsigned Depth = 0;
 };
 
 //===----------------------------------------------------------------------===//

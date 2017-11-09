@@ -66,7 +66,7 @@ private:
   friend class SymbolTableListTraits<BasicBlock>;
 
   InstListType InstList;
-  Function *Parent;
+  Function *Parent = nullptr;
 
   void setParent(Function *parent);
 

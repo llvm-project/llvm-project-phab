@@ -1684,7 +1684,7 @@ public:
 //
 
 class alias : public Option {
-  Option *AliasFor;
+  Option *AliasFor = nullptr;
 
   bool handleOccurrence(unsigned pos, StringRef /*ArgName*/,
                         StringRef Arg) override {
@@ -1731,8 +1731,7 @@ public:
   }
 
   template <class... Mods>
-  explicit alias(const Mods &... Ms)
-      : Option(Optional, Hidden), AliasFor(nullptr) {
+  explicit alias(const Mods &... Ms) : Option(Optional, Hidden) {
     apply(this, Ms...);
     done();
   }

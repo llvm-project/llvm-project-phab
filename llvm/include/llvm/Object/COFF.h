@@ -1119,10 +1119,10 @@ public:
   ImportedSymbolRef() = default;
   ImportedSymbolRef(const import_lookup_table_entry32 *Entry, uint32_t I,
                     const COFFObjectFile *Owner)
-      : Entry32(Entry), Entry64(nullptr), Index(I), OwningObject(Owner) {}
+      : Entry32(Entry), Index(I), OwningObject(Owner) {}
   ImportedSymbolRef(const import_lookup_table_entry64 *Entry, uint32_t I,
                     const COFFObjectFile *Owner)
-      : Entry32(nullptr), Entry64(Entry), Index(I), OwningObject(Owner) {}
+      : Entry64(Entry), Index(I), OwningObject(Owner) {}
 
   bool operator==(const ImportedSymbolRef &Other) const;
   void moveNext();
@@ -1133,8 +1133,8 @@ public:
   std::error_code getHintNameRVA(uint32_t &Result) const;
 
 private:
-  const import_lookup_table_entry32 *Entry32;
-  const import_lookup_table_entry64 *Entry64;
+  const import_lookup_table_entry32 *Entry32 = nullptr;
+  const import_lookup_table_entry64 *Entry64 = nullptr;
   uint32_t Index;
   const COFFObjectFile *OwningObject = nullptr;
 };

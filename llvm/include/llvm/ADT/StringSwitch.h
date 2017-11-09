@@ -46,12 +46,11 @@ class StringSwitch {
 
   /// \brief The pointer to the result of this switch statement, once known,
   /// null before that.
-  const T *Result;
+  const T *Result = nullptr;
 
 public:
   LLVM_ATTRIBUTE_ALWAYS_INLINE
-  explicit StringSwitch(StringRef S)
-  : Str(S), Result(nullptr) { }
+  explicit StringSwitch(StringRef S) : Str(S) {}
 
   // StringSwitch is not copyable.
   StringSwitch(const StringSwitch &) = delete;

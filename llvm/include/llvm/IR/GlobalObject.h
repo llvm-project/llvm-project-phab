@@ -32,12 +32,11 @@ protected:
   GlobalObject(Type *Ty, ValueTy VTy, Use *Ops, unsigned NumOps,
                LinkageTypes Linkage, const Twine &Name,
                unsigned AddressSpace = 0)
-      : GlobalValue(Ty, VTy, Ops, NumOps, Linkage, Name, AddressSpace),
-        ObjComdat(nullptr) {
+      : GlobalValue(Ty, VTy, Ops, NumOps, Linkage, Name, AddressSpace) {
     setGlobalValueSubClassData(0);
   }
 
-  Comdat *ObjComdat;
+  Comdat *ObjComdat = nullptr;
   enum {
     LastAlignmentBit = 4,
     HasMetadataHashEntryBit,

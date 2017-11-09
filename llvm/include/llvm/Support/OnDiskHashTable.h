@@ -62,12 +62,12 @@ template <typename Info> class OnDiskChainedHashTableGenerator {
   public:
     typename Info::key_type Key;
     typename Info::data_type Data;
-    Item *Next;
+    Item *Next = nullptr;
     const typename Info::hash_value_type Hash;
 
     Item(typename Info::key_type_ref Key, typename Info::data_type_ref Data,
          Info &InfoObj)
-        : Key(Key), Data(Data), Next(nullptr), Hash(InfoObj.ComputeHash(Key)) {}
+        : Key(Key), Data(Data), Hash(InfoObj.ComputeHash(Key)) {}
   };
 
   typedef typename Info::offset_type offset_type;
@@ -319,12 +319,12 @@ public:
 
   class iterator {
     internal_key_type Key;
-    const unsigned char *const Data;
-    const offset_type Len;
-    Info *InfoObj;
+    const unsigned char *const Data = nullptr;
+    const offset_type Len = 0;
+    Info *InfoObj = nullptr;
 
   public:
-    iterator() : Key(), Data(nullptr), Len(0), InfoObj(nullptr) {}
+    iterator() = default;
     iterator(const internal_key_type K, const unsigned char *D, offset_type L,
              Info *InfoObj)
         : Key(K), Data(D), Len(L), InfoObj(InfoObj) {}
@@ -441,17 +441,16 @@ public:
 private:
   /// \brief Iterates over all of the keys in the table.
   class iterator_base {
-    const unsigned char *Ptr;
-    offset_type NumItemsInBucketLeft;
-    offset_type NumEntriesLeft;
+    const unsigned char *Ptr = nullptr;
+    offset_type NumItemsInBucketLeft = 0;
+    offset_type NumEntriesLeft = 0;
 
   public:
     typedef external_key_type value_type;
 
     iterator_base(const unsigned char *const Ptr, offset_type NumEntries)
-        : Ptr(Ptr), NumItemsInBucketLeft(0), NumEntriesLeft(NumEntries) {}
-    iterator_base()
-        : Ptr(nullptr), NumItemsInBucketLeft(0), NumEntriesLeft(0) {}
+        : Ptr(Ptr), NumEntriesLeft(NumEntries) {}
+    iterator_base() = default;
 
     friend bool operator==(const iterator_base &X, const iterator_base &Y) {
       return X.NumEntriesLeft == Y.NumEntriesLeft;

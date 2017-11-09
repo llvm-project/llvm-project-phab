@@ -19,7 +19,7 @@ namespace llvm {
 class StringRef;
 
 class ARMAttributeParser {
-  ScopedPrinter *SW;
+  ScopedPrinter *SW = nullptr;
 
   std::map<unsigned, unsigned> Attributes;
 
@@ -121,7 +121,7 @@ class ARMAttributeParser {
 public:
   ARMAttributeParser(ScopedPrinter *SW) : SW(SW) {}
 
-  ARMAttributeParser() : SW(nullptr) { }
+  ARMAttributeParser() = default;
 
   void Parse(ArrayRef<uint8_t> Section, bool isLittle);
 

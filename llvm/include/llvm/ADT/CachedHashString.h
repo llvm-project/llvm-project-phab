@@ -73,8 +73,8 @@ class CachedHashString {
   friend struct DenseMapInfo<CachedHashString>;
 
   char *P;
-  uint32_t Size;
-  uint32_t Hash;
+  uint32_t Size = 0;
+  uint32_t Hash = 0;
 
   static char *getEmptyKeyPtr() { return DenseMapInfo<char *>::getEmptyKey(); }
   static char *getTombstoneKeyPtr() {
@@ -88,7 +88,7 @@ class CachedHashString {
   struct ConstructEmptyOrTombstoneTy {};
 
   CachedHashString(ConstructEmptyOrTombstoneTy, char *EmptyOrTombstonePtr)
-      : P(EmptyOrTombstonePtr), Size(0), Hash(0) {
+      : P(EmptyOrTombstonePtr) {
     assert(isEmptyOrTombstone());
   }
 

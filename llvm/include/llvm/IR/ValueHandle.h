@@ -246,7 +246,7 @@ class AssertingVH
   Value *getRawValPtr() const { return ValueHandleBase::getValPtr(); }
   void setRawValPtr(Value *P) { ValueHandleBase::operator=(P); }
 #else
-  Value *ThePtr;
+  Value *ThePtr = nullptr;
   Value *getRawValPtr() const { return ThePtr; }
   void setRawValPtr(Value *P) { ThePtr = P; }
 #endif
@@ -263,7 +263,7 @@ public:
   AssertingVH(ValueTy *P) : ValueHandleBase(Assert, GetAsValue(P)) {}
   AssertingVH(const AssertingVH &RHS) : ValueHandleBase(Assert, RHS) {}
 #else
-  AssertingVH() : ThePtr(nullptr) {}
+  AssertingVH() = default;
   AssertingVH(ValueTy *P) : ThePtr(GetAsValue(P)) {}
 #endif
 

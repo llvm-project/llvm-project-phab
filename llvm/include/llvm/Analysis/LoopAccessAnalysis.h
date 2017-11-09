@@ -163,9 +163,7 @@ public:
   };
 
   MemoryDepChecker(PredicatedScalarEvolution &PSE, const Loop *L)
-      : PSE(PSE), InnermostLoop(L), AccessIdx(0), MaxSafeRegisterWidth(-1U),
-        ShouldRetryWithRuntimeCheck(false), SafeForVectorization(true),
-        RecordDependences(true) {}
+      : PSE(PSE), InnermostLoop(L) {}
 
   /// \brief Register the location (instructions are given increasing numbers)
   /// of a write access.
@@ -254,7 +252,7 @@ private:
   SmallVector<Instruction *, 16> InstMap;
 
   /// \brief The program order index to be used for the next instruction.
-  unsigned AccessIdx;
+  unsigned AccessIdx = 0;
 
   // We can access this many bytes in parallel safely.
   uint64_t MaxSafeDepDistBytes;
@@ -263,20 +261,20 @@ private:
   /// operate on simultaneously, multiplied by the size of the element in bits.
   /// The size of the element is taken from the memory access that is most
   /// restrictive.
-  uint64_t MaxSafeRegisterWidth;
+  uint64_t MaxSafeRegisterWidth = -1UL;
 
   /// \brief If we see a non-constant dependence distance we can still try to
   /// vectorize this loop with runtime checks.
-  bool ShouldRetryWithRuntimeCheck;
+  bool ShouldRetryWithRuntimeCheck = false;
 
   /// \brief No memory dependence was encountered that would inhibit
   /// vectorization.
-  bool SafeForVectorization;
+  bool SafeForVectorization = true;
 
   //// \brief True if Dependences reflects the dependences in the
   //// loop.  If false we exceeded MaxDependences and
   //// Dependences is invalid.
-  bool RecordDependences;
+  bool RecordDependences = true;
 
   /// \brief Memory dependences collected during the analysis.  Only valid if
   /// RecordDependences is true.

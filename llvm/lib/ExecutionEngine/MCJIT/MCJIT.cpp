@@ -67,9 +67,8 @@ MCJIT::MCJIT(std::unique_ptr<Module> M, std::unique_ptr<TargetMachine> TM,
              std::shared_ptr<MCJITMemoryManager> MemMgr,
              std::shared_ptr<JITSymbolResolver> Resolver)
     : ExecutionEngine(TM->createDataLayout(), std::move(M)), TM(std::move(TM)),
-      Ctx(nullptr), MemMgr(std::move(MemMgr)),
-      Resolver(*this, std::move(Resolver)), Dyld(*this->MemMgr, this->Resolver),
-      ObjCache(nullptr) {
+      MemMgr(std::move(MemMgr)), Resolver(*this, std::move(Resolver)),
+      Dyld(*this->MemMgr, this->Resolver) {
   // FIXME: We are managing our modules, so we do not want the base class
   // ExecutionEngine to manage them as well. To avoid double destruction
   // of the first (and only) module added in ExecutionEngine constructor

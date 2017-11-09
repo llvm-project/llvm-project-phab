@@ -350,6 +350,8 @@ void MachObjectWriter::writeNlist(MachSymbolData &MSD,
     // FIXME: Should this update Data as well?
   }
 
+  printf("writeNlist\n");
+
   // Set the N_TYPE bits. See <mach-o/nlist.h>.
   //
   // FIXME: Are the prebound or indirect fields possible here?

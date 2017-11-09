@@ -1029,7 +1029,7 @@ struct ScalarTraits<support::detail::packed_endian_specific_integral<
 template <typename TNorm, typename TFinal>
 struct MappingNormalization {
   MappingNormalization(IO &i_o, TFinal &Obj)
-      : io(i_o), BufPtr(nullptr), Result(Obj) {
+      : io(i_o), Result(Obj) {
     if ( io.outputting() ) {
       BufPtr = new (&Buffer) TNorm(io, Obj);
     }
@@ -1052,7 +1052,7 @@ private:
 
   Storage       Buffer;
   IO           &io;
-  TNorm        *BufPtr;
+  TNorm        *BufPtr = nullptr;
   TFinal       &Result;
 };
 

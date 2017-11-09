@@ -67,7 +67,7 @@ template <class N, class M> class LoopBase;
 /// flow graph.
 ///
 template <class BlockT, class LoopT> class LoopBase {
-  LoopT *ParentLoop;
+  LoopT *ParentLoop = nullptr;
   // Loops contained entirely within this one.
   std::vector<LoopT *> SubLoops;
 
@@ -376,9 +376,9 @@ protected:
   friend class LoopInfoBase<BlockT, LoopT>;
 
   /// This creates an empty loop.
-  LoopBase() : ParentLoop(nullptr) {}
+  LoopBase() {}
 
-  explicit LoopBase(BlockT *BB) : ParentLoop(nullptr) {
+  explicit LoopBase(BlockT *BB) {
     Blocks.push_back(BB);
     DenseBlockSet.insert(BB);
   }

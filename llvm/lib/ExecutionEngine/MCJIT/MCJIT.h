@@ -177,7 +177,7 @@ class MCJIT : public ExecutionEngine {
   };
 
   std::unique_ptr<TargetMachine> TM;
-  MCContext *Ctx;
+  MCContext *Ctx = nullptr;
   std::shared_ptr<MCJITMemoryManager> MemMgr;
   LinkingSymbolResolver Resolver;
   RuntimeDyld Dyld;
@@ -192,7 +192,7 @@ class MCJIT : public ExecutionEngine {
 
   // An optional ObjectCache to be notified of compiled objects and used to
   // perform lookup of pre-compiled code to avoid re-compilation.
-  ObjectCache *ObjCache;
+  ObjectCache *ObjCache = nullptr;
 
   Function *FindFunctionNamedInModulePtrSet(StringRef FnName,
                                             ModulePtrSet::iterator I,

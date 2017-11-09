@@ -383,17 +383,17 @@ struct CoverageSegment {
   /// The column where this segment begins.
   unsigned Col;
   /// The execution count, or zero if no count was recorded.
-  uint64_t Count;
+  uint64_t Count = 0;
   /// When false, the segment was uninstrumented or skipped.
-  bool HasCount;
+  bool HasCount = false;
   /// Whether this enters a new region or returns to a previous count.
   bool IsRegionEntry;
   /// Whether this enters a gap region.
   bool IsGapRegion;
 
   CoverageSegment(unsigned Line, unsigned Col, bool IsRegionEntry)
-      : Line(Line), Col(Col), Count(0), HasCount(false),
-        IsRegionEntry(IsRegionEntry), IsGapRegion(false) {}
+      : Line(Line), Col(Col), IsRegionEntry(IsRegionEntry), IsGapRegion(false) {
+  }
 
   CoverageSegment(unsigned Line, unsigned Col, uint64_t Count,
                   bool IsRegionEntry, bool IsGapRegion = false)
@@ -635,8 +635,7 @@ public:
       : LineCoverageIterator(CD, CD.begin()->Line) {}
 
   LineCoverageIterator(const CoverageData &CD, unsigned Line)
-      : CD(CD), WrappedSegment(nullptr), Next(CD.begin()), Ended(false),
-        Line(Line), Segments(), Stats() {
+      : CD(CD), Next(CD.begin()), Line(Line), Segments(), Stats() {
     this->operator++();
   }
 
@@ -661,9 +660,9 @@ public:
 
 private:
   const CoverageData &CD;
-  const CoverageSegment *WrappedSegment;
+  const CoverageSegment *WrappedSegment = nullptr;
   std::vector<CoverageSegment>::const_iterator Next;
-  bool Ended;
+  bool Ended = false;
   unsigned Line;
   SmallVector<const CoverageSegment *, 4> Segments;
   LineCoverageStats Stats;

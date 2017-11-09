@@ -154,7 +154,7 @@ private:
 
   /// ParentMI - This is the instruction that this operand is embedded into.
   /// This is valid for all operand types, when the operand is in an instr.
-  MachineInstr *ParentMI;
+  MachineInstr *ParentMI = nullptr;
 
   /// Contents union - This contains the payload for the various operand types.
   union {
@@ -190,7 +190,7 @@ private:
   } Contents;
 
   explicit MachineOperand(MachineOperandType K)
-    : OpKind(K), SubReg_TargetFlags(0), ParentMI(nullptr) {}
+    : OpKind(K), SubReg_TargetFlags(0) {}
 public:
   /// getType - Returns the MachineOperandType for this operand.
   ///

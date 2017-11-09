@@ -63,11 +63,11 @@ namespace llvm {
       friend class iterator;
       friend Registry<T>;
 
-      node *Next;
+      node *Next = nullptr;
       const entry& Val;
 
     public:
-      node(const entry &V) : Next(nullptr), Val(V) {}
+      node(const entry &V) : Val(V) {}
     };
 
     /// Add a node to the Registry: this is the interface between the plugin and

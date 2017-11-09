@@ -247,14 +247,14 @@ class ValueMapCallbackVH final : public CallbackVH {
   using ValueMapT = ValueMap<KeyT, ValueT, Config>;
   using KeySansPointerT = typename std::remove_pointer<KeyT>::type;
 
-  ValueMapT *Map;
+  ValueMapT *Map = nullptr;
 
   ValueMapCallbackVH(KeyT Key, ValueMapT *Map)
       : CallbackVH(const_cast<Value*>(static_cast<const Value*>(Key))),
         Map(Map) {}
 
   // Private constructor used to create empty/tombstone DenseMap keys.
-  ValueMapCallbackVH(Value *V) : CallbackVH(V), Map(nullptr) {}
+  ValueMapCallbackVH(Value *V) : CallbackVH(V) {}
 
 public:
   KeyT Unwrap() const { return cast_or_null<KeySansPointerT>(getValPtr()); }

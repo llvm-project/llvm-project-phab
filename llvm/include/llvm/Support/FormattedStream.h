@@ -28,7 +28,7 @@ class formatted_raw_ostream : public raw_ostream {
   /// TheStream - The real stream we output to. We set it to be
   /// unbuffered, since we're already doing our own buffering.
   ///
-  raw_ostream *TheStream;
+  raw_ostream *TheStream = nullptr;
 
   /// Position - The current output column and line of the data that's
   /// been flushed and the portion of the buffer that's been
@@ -39,7 +39,7 @@ class formatted_raw_ostream : public raw_ostream {
   /// Scanned - This points to one past the last character in the
   /// buffer we've scanned.
   ///
-  const char *Scanned;
+  const char *Scanned = nullptr;
 
   void write_impl(const char *Ptr, size_t Size) override;
 
@@ -86,13 +86,10 @@ public:
   /// so it doesn't want another layer of buffering to be happening
   /// underneath it.
   ///
-  formatted_raw_ostream(raw_ostream &Stream)
-      : TheStream(nullptr), Position(0, 0) {
+  formatted_raw_ostream(raw_ostream &Stream) : Position(0, 0) {
     setStream(Stream);
   }
-  explicit formatted_raw_ostream() : TheStream(nullptr), Position(0, 0) {
-    Scanned = nullptr;
-  }
+  explicit formatted_raw_ostream() : Position(0, 0) {}
 
   ~formatted_raw_ostream() override {
     flush();
