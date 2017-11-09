@@ -765,6 +765,16 @@ static Value *ConstructSSAForLoadSet(LoadInst *LI,
     if (SSAUpdate.HasValueForBlock(BB))
       continue;
 
+    // We must clear nuw/nsw for original value. Otherwise we
+    // can see the poison value where it was not originally.
+    Value *V = AV.AV.Val.getPointer();
+    if (V)
+      if (auto *I = dyn_cast<Instruction>(V))
+        if (isa<OverflowingBinaryOperator>(I)) {
+          I->setHasNoSignedWrap(false);
+          I->setHasNoUnsignedWrap(false);
+        }
+
     SSAUpdate.AddAvailableValue(BB, AV.MaterializeAdjustedValue(LI, gvn));
   }
 
