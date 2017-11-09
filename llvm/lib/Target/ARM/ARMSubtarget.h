@@ -767,6 +767,13 @@ public:
       return ARM::BX_RET;
     return ARM::MOVPCLR;
   }
+
+  /// Allow movt+movw for PIC global address calculation.
+  /// ELF does not have GOT relocations for movt+movw.
+  /// ROPI does not use GOT.
+  bool allowPositionIndependentMovt() const {
+    return isROPI() || !isTargetELF();
+  }
 };
 
 } // end namespace llvm
