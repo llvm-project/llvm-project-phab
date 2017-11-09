@@ -455,13 +455,20 @@ void Value::replaceUsesOutsideBlock(Value *New, BasicBlock *BB) {
 }
 
 void Value::replaceUsesExceptBlockAddr(Value *New) {
-  use_iterator UI = use_begin(), E = use_end();
-  for (; UI != E;) {
-    Use &U = *UI;
-    ++UI;
+  SmallVector<std::pair<Use*, Value*>, 8> BA;
+  while (!use_empty()) {
+    Use &U = *UseList;
 
-    if (isa<BlockAddress>(U.getUser()))
+    // Don't process blockaddress uses. Remove them from UseList
+    // temporarily and place onto a separate list. We can't use
+    // UseList iterator here as the list is changing inside the loop.
+    // That's why we need to remove skiped uses from the list.
+    if (isa<BlockAddress>(U.getUser())) {
+      Value *V = U.get();
+      BA.push_back(std::make_pair(&U, V));
+      U.set(nullptr);
       continue;
+    }
 
     // Must handle Constants specially, we cannot call replaceUsesOfWith on a
     // constant because they are uniqued.
@@ -473,6 +480,14 @@ void Value::replaceUsesExceptBlockAddr(Value *New) {
     }
 
     U.set(New);
+  }
+
+  // Go over the saved block address uses and add them back to UseList.
+  while (!BA.empty()) {
+    std::pair<Use*, Value*> P = BA.pop_back_val();
+    Use *U = P.first;
+    Value *V = P.second;
+    U->set(V);
   }
 }
 
