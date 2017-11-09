@@ -39,10 +39,12 @@ void MCCodePadder::handleBasicBlockStart(MCObjectStreamer *OS,
   ArePoliciesActive = usePoliciesForBasicBlock(Context);
 
   bool InsertionPoint = basicBlockRequiresInsertionPoint(Context);
-  assert((!InsertionPoint ||
-          OS->getCurrentFragment()->getKind() != MCFragment::FT_Align) &&
-         "Cannot insert padding nops right after an alignment fragment as it "
-         "will ruin the alignment");
+  bool BasicBlockHasAlignment =
+      OS->getCurrentFragment() == nullptr ||
+      OS->getCurrentFragment()->getKind() == MCFragment::FT_Align;
+  assert((!InsertionPoint || !BasicBlockHasAlignment) &&
+         "Cannot insert padding nops right after a basic block that has "
+         "alignment");
 
   uint64_t PoliciesMask = MCPaddingFragment::PFK_None;
   if (ArePoliciesActive) {
