@@ -2255,6 +2255,21 @@ bool GVN::performScalarPRE(Instruction *CurInst) {
   Instruction *PREInstr = nullptr;
 
   if (NumWithout != 0) {
+    bool IsSafeToSpeculativelyExecute = isSafeToSpeculativelyExecute(CurInst);
+    // It is only valid to insert a new instruction if the current instruction
+    // was always executed. An instruction with impicit control flow could
+    // prevent us from that. If we cannot speculate the execution, then the PRE
+    // should be prohibited.
+    if (!IsSafeToSpeculativelyExecute) {
+      auto It = FirstImplicitControlFlowInsts.find(CurrentBlock);
+      if (It != FirstImplicitControlFlowInsts.end()) {
+        assert(It->second->getParent() == CurrentBlock &&
+               "Implicit control flow map broken?");
+        if (OI->dominates(It->second, CurInst))
+          return false;
+      }
+    }
+
     // Don't do PRE across indirect branch.
     if (isa<IndirectBrInst>(PREPred->getTerminator()))
       return false;
