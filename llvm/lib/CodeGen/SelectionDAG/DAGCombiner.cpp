@@ -9665,6 +9665,28 @@ static bool isFMulNegTwo(SDValue &N) {
   return false;
 }
 
+static SDValue foldFPUndef(SelectionDAG &DAG, SDValue N0, SDValue N1) {
+  // fold (fadd x, undef) -> undef/NaN
+  if (N0.isUndef()) {
+    // If we know x cannot be NaN, then we propagate undef.
+    if (DAG.isKnownNeverNaN(N0))
+      return N0;
+
+    // TODO: If not, we should propagate NaN, but it's not clear how now.
+  }
+
+  // fold (fadd undef, x) -> undef/NaN
+  if (N1.isUndef()) {
+    // If we know x cannot be NaN, then we propagate undef.
+    if (DAG.isKnownNeverNaN(N1))
+      return N1;
+
+    // TODO: If not, we should propagate NaN, but it's not clear how now.
+  }
+
+  return SDValue();
+}
+
 SDValue DAGCombiner::visitFADD(SDNode *N) {
   SDValue N0 = N->getOperand(0);
   SDValue N1 = N->getOperand(1);
@@ -9674,6 +9696,10 @@ SDValue DAGCombiner::visitFADD(SDNode *N) {
   SDLoc DL(N);
   const TargetOptions &Options = DAG.getTarget().Options;
   const SDNodeFlags Flags = N->getFlags();
+
+  // fold (fadd x, undef) -> undef/NaN
+  if (SDValue X = foldFPUndef(DAG, N0, N1))
+    return X;
 
   // fold vector ops
   if (VT.isVector())
@@ -9839,6 +9865,10 @@ SDValue DAGCombiner::visitFSUB(SDNode *N) {
   const TargetOptions &Options = DAG.getTarget().Options;
   const SDNodeFlags Flags = N->getFlags();
 
+  // fold (fsub x, undef) -> undef/NaN
+  if (SDValue X = foldFPUndef(DAG, N0, N1))
+    return X;
+
   // fold vector ops
   if (VT.isVector())
     if (SDValue FoldedVOp = SimplifyVBinOp(N))
@@ -9909,6 +9939,10 @@ SDValue DAGCombiner::visitFMUL(SDNode *N) {
   SDLoc DL(N);
   const TargetOptions &Options = DAG.getTarget().Options;
   const SDNodeFlags Flags = N->getFlags();
+
+  // fold (fmul x, undef) -> undef/NaN
+  if (SDValue X = foldFPUndef(DAG, N0, N1))
+    return X;
 
   // fold vector ops
   if (VT.isVector()) {
