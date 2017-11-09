@@ -1494,7 +1494,14 @@ and is an optimization hint.
 ``<min>`` parameter specifies the minimum flat work-group size, and ``<max>``
 parameter specifies the maximum flat work-group size (must be greater than
 ``<min>``) to which all dispatches of the kernel will conform. Passing ``0, 0``
-as ``<min>, <max>`` implies the default behavior (``128, 256``).
+as ``<min>, <max>`` implies the default behavior (``128, 256``). Either
+parameter can be:
+  - An integral literal value e.g. ``1, 64, 128`` etc.;
+  - An integral value returned by a ``constexpr`` function which can be
+    evaluated at compile-time;
+  - A dependent integral value which depends on one or more template arguments,
+    be they type or non-type e.g. ``sizeof(T)`` within the scope of
+    ``template<typename T> struct S;``.
 
 If specified, the AMDGPU target backend might be able to produce better machine
 code for barriers and perform scratch promotion by estimating available group
@@ -1529,7 +1536,15 @@ function definition and is an optimization hint.
 per EU (must be greater than ``<min>`` if specified). If ``<max>`` is omitted,
 then there is no restriction on the maximum number of waves per EU other than
 the one dictated by the hardware for which the kernel is compiled. Passing
-``0, 0`` as ``<min>, <max>`` implies the default behavior (no limits).
+``0, 0`` as ``<min>, <max>`` implies the default behavior (no limits). Either
+parameter can be:
+  - An integral literal value e.g. ``1, 64, 128`` etc.;
+  - An integral value returned by a ``constexpr`` function which can be
+    evaluated at compile-time;
+  - A dependent integral value which depends on one or more template arguments,
+    be they type or non-type e.g. ``sizeof(T)`` within the scope of
+    ``template<typename T> struct S;``.
+
 
 If specified, this attribute allows an advanced developer to tune the number of
 wavefronts that are capable of fitting within the resources of an EU. The AMDGPU
@@ -1567,7 +1582,14 @@ If these attributes are specified, then the AMDGPU target backend will attempt
 to limit the number of SGPRs and/or VGPRs used to the specified value(s). The
 number of used SGPRs and/or VGPRs may further be rounded up to satisfy the
 allocation requirements or constraints of the subtarget. Passing ``0`` as
-``num_sgpr`` and/or ``num_vgpr`` implies the default behavior (no limits).
+``num_sgpr`` and/or ``num_vgpr`` implies the default behavior (no limits). For
+both attributes, the parameter can be:
+  - An integral literal value e.g. ``1, 64, 128`` etc.;
+  - An integral value returned by a ``constexpr`` function which can be
+    evaluated at compile-time;
+  - A dependent integral value which depends on one or more template arguments,
+    be they type or non-type e.g. ``sizeof(T)`` within the scope of
+    ``template<typename T> struct S;``.
 
 These attributes can be used to test the AMDGPU target backend. It is
 recommended that the ``amdgpu_waves_per_eu`` attribute be used to control
