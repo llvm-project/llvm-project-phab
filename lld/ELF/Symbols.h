@@ -133,8 +133,8 @@ protected:
   Symbol(Kind K, StringRefZ Name, bool IsLocal, uint8_t StOther, uint8_t Type)
       : SymbolKind(K), IsLocal(IsLocal), NeedsPltAddr(false),
         IsInGlobalMipsGot(false), Is32BitMipsGot(false), IsInIplt(false),
-        IsInIgot(false), IsPreemptible(false), Type(Type), StOther(StOther),
-        Name(Name) {}
+        IsInIgot(false), IsPreemptible(false), Live(false), Type(Type),
+        StOther(StOther), Name(Name) {}
 
   const unsigned SymbolKind : 8;
 
@@ -158,6 +158,10 @@ public:
   unsigned IsInIgot : 1;
 
   unsigned IsPreemptible : 1;
+
+  // True if this symbol survived after GC.
+  // If GC is disabled, all symbols are set to live.
+  unsigned Live : 1;
 
   // The following fields have the same meaning as the ELF symbol attributes.
   uint8_t Type;    // symbol type
@@ -362,6 +366,7 @@ void replaceSymbol(Symbol *S, InputFile *File, ArgT &&... Arg) {
   S->CanInline = Sym.CanInline;
   S->Traced = Sym.Traced;
   S->InVersionScript = Sym.InVersionScript;
+  S->Live = Sym.Live;
 
   // Print out a log message if --trace-symbol was specified.
   // This is for debugging.

@@ -2474,6 +2474,17 @@ void elf::decompressSections() {
   });
 }
 
+// This function splits all input merge sections so that separate
+// pieces can be marked alive in GC.
+void elf::splitMergeSections() {
+  parallelForEach(InputSections, [](InputSectionBase *Sec) {
+    if (auto *S = dyn_cast<MergeInputSection>(Sec)) {
+      S->maybeUncompress();
+      S->splitIntoPieces();
+    }
+  });
+}
+
 // This function scans over the inputsections to create mergeable
 // synthetic sections.
 //
@@ -2482,14 +2493,6 @@ void elf::decompressSections() {
 // that it replaces. It then finalizes each synthetic section in order
 // to compute an output offset for each piece of each input section.
 void elf::mergeSections() {
-  // splitIntoPieces needs to be called on each MergeInputSection
-  // before calling finalizeContents(). Do that first.
-  parallelForEach(InputSections, [](InputSectionBase *Sec) {
-    if (Sec->Live)
-      if (auto *S = dyn_cast<MergeInputSection>(Sec))
-        S->splitIntoPieces();
-  });
-
   std::vector<MergeSyntheticSection *> MergeSections;
   for (InputSectionBase *&S : InputSections) {
     MergeInputSection *MS = dyn_cast<MergeInputSection>(S);

@@ -59,10 +59,22 @@ static typename ELFT::uint getAddend(InputSectionBase &Sec,
 // identifiers, so we just store a std::vector instead of a multimap.
 static DenseMap<StringRef, std::vector<InputSectionBase *>> CNamedSections;
 
+template <class ELFT> static void markSymbolLive(Symbol *S) {
+  S->Live = true;
+  // For non-weak DSO symbols, mark the file to be added to a DT_NEEDED entry.
+  if (S->isWeak())
+    return;
+  if (auto *F = dyn_cast_or_null<SharedFile<ELFT>>(S->File))
+    F->IsUsed = true;
+}
+
 template <class ELFT, class RelT>
 static void resolveReloc(InputSectionBase &Sec, RelT &Rel,
                          std::function<void(InputSectionBase *, uint64_t)> Fn) {
   Symbol &B = Sec.getFile<ELFT>()->getRelocTargetSym(Rel);
+
+  // All symbols referenced in live sections are live.
+  markSymbolLive<ELFT>(&B);
 
   if (auto *D = dyn_cast<Defined>(&B)) {
     if (!D->Section)
@@ -259,10 +271,15 @@ template <class ELFT> static void doGcSections() {
 // input sections. This function make some or all of them on
 // so that they are emitted to the output file.
 template <class ELFT> void elf::markLive() {
-  // If -gc-sections is missing, no sections are removed.
+  // If -gc-sections is missing, no sections and no symbols are removed.
   if (!Config->GcSections) {
     for (InputSectionBase *Sec : InputSections)
       Sec->Live = true;
+    for (Symbol *S : Symtab->getSymbols())
+      markSymbolLive<ELFT>(S);
+    for (InputFile *F : ObjectFiles)
+      for (Symbol *S : cast<ObjFile<ELFT>>(F)->getLocalSymbols())
+        markSymbolLive<ELFT>(S);
     return;
   }
 
@@ -289,6 +306,36 @@ template <class ELFT> void elf::markLive() {
 
   // Follow the graph to mark all live sections.
   doGcSections<ELFT>();
+
+  // Set Live flag for all symbols which survived.
+  // We already marked some of them in resolveReloc(), but if a symbol just
+  // points to a section and is not used in any relocation we haven't seen it.
+  auto ProcessSymbol = [&](Symbol *S) {
+    auto *D = dyn_cast<Defined>(S);
+    if (!D)
+      return;
+    SectionBase *Sec = D->Section;
+    // Always include absolute symbols.
+    if (!Sec) {
+      markSymbolLive<ELFT>(S);
+      return;
+    }
+    if (auto *IS = dyn_cast<InputSectionBase>(Sec))
+      Sec = IS->Repl;
+    // Exclude symbols pointing to garbage-collected sections.
+    if (!Sec->Live)
+      return;
+    if (auto *S = dyn_cast<MergeInputSection>(Sec))
+      if (!S->getSectionPiece(D->Value)->Live)
+        return;
+    markSymbolLive<ELFT>(S);
+  };
+
+  for (Symbol *S : Symtab->getSymbols())
+    ProcessSymbol(S);
+  for (InputFile *F : ObjectFiles)
+    for (Symbol *S : cast<ObjFile<ELFT>>(F)->getLocalSymbols())
+      ProcessSymbol(S);
 
   // Report garbage-collected sections.
   if (Config->PrintGcSections)

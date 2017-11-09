@@ -133,6 +133,7 @@ void LinkerScript::addSymbol(SymbolAssignment *Cmd) {
                                               /*CanOmitFromDynSym*/ false,
                                               /*File*/ nullptr);
   Sym->Binding = STB_GLOBAL;
+  Sym->Live = true;
   ExprValue Value = Cmd->Expression();
   SectionBase *Sec = Value.isAbsolute() ? nullptr : Value.Sec;
 

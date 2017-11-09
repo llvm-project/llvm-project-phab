@@ -1120,6 +1120,7 @@ template <class ELFT> void LinkerDriver::link(opt::InputArgList &Args) {
   if (!Config->Relocatable)
     InputSections.push_back(createCommentSection<ELFT>());
 
+  splitMergeSections();
   // Do size optimizations: garbage collection, merging of SHF_MERGE sections
   // and identical code folding.
   markLive<ELFT>();

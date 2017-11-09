@@ -932,10 +932,14 @@ void MergeInputSection::splitIntoPieces() {
     splitStrings(Data, Entsize);
   else
     splitNonStrings(Data, Entsize);
+}
 
-  if (Config->GcSections && (this->Flags & SHF_ALLOC))
-    for (uint64_t Off : LiveOffsets)
-      this->getSectionPiece(Off)->Live = true;
+// Mark the piece at a given offset live. Used by GC.
+void MergeInputSection::markLiveAt(uint64_t Offset) {
+  assert(!Pieces.empty());
+
+  if (this->Flags & llvm::ELF::SHF_ALLOC)
+    this->getSectionPiece(Offset)->Live = true;
 }
 
 // Do binary search to get a section piece at a given input offset.

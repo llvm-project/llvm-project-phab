@@ -504,8 +504,6 @@ void SymbolTable::addShared(StringRef Name, SharedFile<ELFT> *File,
                       S->getVisibility() == STV_DEFAULT)) {
     replaceSymbol<SharedSymbol>(S, File, Name, Sym.st_other, Sym.getType(),
                                 Sym.st_value, Sym.st_size, Alignment, Verdef);
-    if (!S->isWeak())
-      File->IsUsed = true;
   }
 }
 

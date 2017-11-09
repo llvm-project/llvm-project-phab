@@ -230,12 +230,7 @@ public:
                     StringRef Name);
   static bool classof(const SectionBase *S) { return S->kind() == Merge; }
   void splitIntoPieces();
-
-  // Mark the piece at a given offset live. Used by GC.
-  void markLiveAt(uint64_t Offset) {
-    if (this->Flags & llvm::ELF::SHF_ALLOC)
-      LiveOffsets.insert(Offset);
-  }
+  void markLiveAt(uint64_t Offset);
 
   // Translate an offset in the input section to an offset
   // in the output section.
