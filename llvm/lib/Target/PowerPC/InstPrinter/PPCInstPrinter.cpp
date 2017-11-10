@@ -39,6 +39,12 @@ static cl::opt<bool>
 ShowVSRNumsAsVR("ppc-vsr-nums-as-vr", cl::Hidden, cl::init(false),
              cl::desc("Prints full register names with vs{31-63} as v{0-31}"));
 
+// Prints full register names with percent symbol.
+static cl::opt<bool>
+FullRegNamesWithPercent("ppc-reg-with-percent-prefix",
+                         cl::Hidden, cl::init(false),
+                         cl::desc("Prints full register names with percent"));
+
 #define PRINT_ALIAS_INSTR
 #include "PPCGenAsmWriter.inc"
 
@@ -445,11 +451,26 @@ void PPCInstPrinter::printTLSCall(const MCInst *MI, unsigned OpNo,
     O << '@' << MCSymbolRefExpr::getVariantKindName(refExp.getKind());
 }
 
-
 /// stripRegisterPrefix - This method strips the character prefix from a
 /// register name so that only the number is left.  Used by for linux asm.
-static const char *stripRegisterPrefix(const char *RegName, unsigned RegNum,
-                                       unsigned RegEncoding) {
+static const char *stripRegisterPrefix(const char *RegName) {
+  switch (RegName[0]) {
+  case 'r':
+  case 'f':
+  case 'q': // for QPX
+  case 'v':
+    if (RegName[1] == 's')
+      return RegName + 2;
+    return RegName + 1;
+  case 'c': if (RegName[1] == 'r') return RegName + 2;
+  }
+
+  return RegName;
+}
+
+/// Get full register name.
+static const char *getFullRegisterName(const char *RegName,
+  unsigned RegNum, unsigned RegEncoding) {
   if (FullRegNames) {
     if (RegNum >= PPC::CR0EQ && RegNum <= PPC::CR7UN) {
       const char *CRBits[] =
@@ -464,21 +485,43 @@ static const char *stripRegisterPrefix(const char *RegName, unsigned RegNum,
       };
       return CRBits[RegEncoding];
     }
-    return RegName;
-  }
-
-  switch (RegName[0]) {
-  case 'r':
-  case 'f':
-  case 'q': // for QPX
-  case 'v':
-    if (RegName[1] == 's')
-      return RegName + 2;
-    return RegName + 1;
-  case 'c': if (RegName[1] == 'r') return RegName + 2;
   }
 
   return RegName;
+}
+
+/// showRegistersWithPercentPrefix - Check if register name accepts percent
+/// symbol in its prefix.
+bool PPCInstPrinter::showRegistersWithPercentPrefix(
+  const char *RegName) {
+  if (FullRegNamesWithPercent && !TT.isOSDarwin()) {
+    switch (RegName[0]) {
+    case 'r':
+    case 'f':
+    case 'q':
+    case 'v':
+    case 'c':
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/// showRegistersWithoutPrefix - Check if register prefix can be removed.
+bool PPCInstPrinter::showRegistersWithoutPrefix(const char *RegName) {
+  if (!FullRegNames && !TT.isOSDarwin()) {
+	switch (RegName[0]) {
+	case 'r':
+	case 'f':
+	case 'q':
+	case 'v':
+	case 'c':
+	  return true;
+	}
+  }
+
+  return false;
 }
 
 void PPCInstPrinter::printOperand(const MCInst *MI, unsigned OpNo,
@@ -503,9 +546,17 @@ void PPCInstPrinter::printOperand(const MCInst *MI, unsigned OpNo,
     }
 
     const char *RegName = getRegisterName(Reg);
-    // The linux and AIX assembler does not take register prefixes.
-    if (!isDarwinSyntax())
-      RegName = stripRegisterPrefix(RegName, Reg, MRI.getEncodingValue(Reg));
+
+    if (showRegistersWithPercentPrefix(RegName)) {
+        // Print register with percent symbol and prefix.
+        O << "%";
+    } else if (showRegistersWithoutPrefix(RegName)) {
+        // Print register without prefix.
+        RegName = stripRegisterPrefix(RegName);
+    } else {
+        // Print register with full name.
+        RegName = getFullRegisterName(RegName, Reg, MRI.getEncodingValue(Reg));
+    }
 
     O << RegName;
     return;
