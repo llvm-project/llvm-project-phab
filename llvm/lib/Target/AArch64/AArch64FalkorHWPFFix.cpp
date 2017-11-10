@@ -10,7 +10,9 @@
 /// that may inhibit the HW prefetching.  This is done in two steps.  Before
 /// ISel, we mark strided loads (i.e. those that will likely benefit from
 /// prefetching) with metadata.  Then, after opcodes have been finalized, we
-/// insert MOVs and re-write loads to prevent unintnentional tag collisions.
+/// rewrite loads to prevent unintnentional tag collisions. First, we try to
+/// rename dest-reg. If the dest-reg cannot be renamed, then insert MOVs and
+/// change base-reg.
 // ===---------------------------------------------------------------------===//
 
 #include "AArch64.h"
@@ -21,6 +23,7 @@
 #include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
+#include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/LoopInfo.h"
@@ -176,6 +179,18 @@ bool FalkorMarkStridedAccesses::runOnLoop(Loop &L) {
 
 namespace {
 
+/// Bits from load opcodes used to compute HW prefetcher instruction tags.
+struct LoadInfo {
+  LoadInfo() = default;
+
+  unsigned DestReg = 0;
+  unsigned BaseReg = 0;
+  int BaseRegIdx = -1;
+  int DestRegIdx = -1;
+  const MachineOperand *OffsetOpnd = nullptr;
+  bool IsPrePost = false;
+};
+
 class FalkorHWPFFix : public MachineFunctionPass {
 public:
   static char ID;
@@ -198,22 +213,18 @@ public:
 
 private:
   void runOnLoop(MachineLoop &L, MachineFunction &Fn);
-
+  Optional<unsigned> rewriteLoads(MachineInstr &MI, LoadInfo &LdI,
+                                  LiveRegUnits &LR);
+  Optional<unsigned> rewriteBaseReg(MachineInstr &MI, const LoadInfo &LdI,
+                                    LiveRegUnits &LR);
+  Optional<unsigned> rewriteDestReg(MachineInstr &MI, LoadInfo &LdI);
+  bool canRewriteDestReg(MachineInstr &MI, LoadInfo &LdI,
+                         SmallVector<MachineInstr *, 4> &Users);
   const AArch64InstrInfo *TII;
   const TargetRegisterInfo *TRI;
+  const MachineRegisterInfo *MRI;
   DenseMap<unsigned, SmallVector<MachineInstr *, 4>> TagMap;
   bool Modified;
-};
-
-/// Bits from load opcodes used to compute HW prefetcher instruction tags.
-struct LoadInfo {
-  LoadInfo() = default;
-
-  unsigned DestReg = 0;
-  unsigned BaseReg = 0;
-  int BaseRegIdx = -1;
-  const MachineOperand *OffsetOpnd = nullptr;
-  bool IsPrePost = false;
 };
 
 } // end anonymous namespace
@@ -647,6 +658,7 @@ static Optional<LoadInfo> getLoadInfo(const MachineInstr &MI) {
   LI.DestReg = DestRegIdx == -1 ? 0 : MI.getOperand(DestRegIdx).getReg();
   LI.BaseReg = BaseReg;
   LI.BaseRegIdx = BaseRegIdx;
+  LI.DestRegIdx = DestRegIdx;
   LI.OffsetOpnd = OffsetIdx == -1 ? nullptr : &MI.getOperand(OffsetIdx);
   LI.IsPrePost = IsPrePost;
   return LI;
@@ -668,6 +680,255 @@ static Optional<unsigned> getTag(const TargetRegisterInfo *TRI,
     Off = LI.OffsetOpnd->getImm() >> 2;
 
   return makeTag(Dest, Base, Off);
+}
+
+static bool isLiveOut(MachineBasicBlock *MBB,
+                      SmallSet<unsigned, 8> RegAliasSet) {
+  for (MachineBasicBlock::succ_iterator SI = MBB->succ_begin(),
+                                        SE = MBB->succ_end();
+       SI != SE; ++SI)
+    for (const auto LI : (*SI)->liveins())
+      if (RegAliasSet.count(LI.PhysReg))
+        return true;
+  return false;
+}
+
+Optional<unsigned> FalkorHWPFFix::rewriteBaseReg(MachineInstr &MI,
+                                                 const LoadInfo &LdI,
+                                                 LiveRegUnits &LR) {
+  DEBUG(dbgs() << "Attempting to fix tag collision by rewriting BaseReg : "
+               << MI);
+  for (unsigned ScratchReg : AArch64::GPR64RegClass) {
+    if (!LR.available(ScratchReg) || MRI->isReserved(ScratchReg))
+      continue;
+
+    if (LdI.IsPrePost && MI.modifiesRegister(ScratchReg, TRI))
+      continue;
+
+    LoadInfo NewLdI(LdI);
+    NewLdI.BaseReg = ScratchReg;
+    unsigned NewTag = *getTag(TRI, MI, NewLdI);
+    // Scratch reg tag would collide too, so don't use it.
+    if (TagMap.count(NewTag))
+      continue;
+
+    DEBUG(dbgs() << "Changing base reg to: " << PrintReg(ScratchReg, TRI)
+                 << '\n');
+    // Rewrite:
+    //   Xd = LOAD Xb, off
+    // to:
+    //   Xc = MOV Xb
+    //   Xd = LOAD Xc, off
+    DebugLoc DL = MI.getDebugLoc();
+    MachineBasicBlock *MBB = MI.getParent();
+    BuildMI(*MBB, &MI, DL, TII->get(AArch64::ORRXrs), ScratchReg)
+        .addReg(AArch64::XZR)
+        .addReg(LdI.BaseReg)
+        .addImm(0);
+    MachineOperand &BaseOpnd = MI.getOperand(LdI.BaseRegIdx);
+    BaseOpnd.setReg(ScratchReg);
+
+    // If the load does a pre/post increment, then insert a MOV after as
+    // well to update the real base register.
+    if (LdI.IsPrePost) {
+      DEBUG(dbgs() << "Doing post MOV of incremented reg: "
+                   << PrintReg(ScratchReg, TRI) << '\n');
+      MI.getOperand(0).setReg(
+          ScratchReg); // Change tied operand pre/post update dest.
+      BuildMI(*MBB, std::next(MachineBasicBlock::iterator(MI)), DL,
+              TII->get(AArch64::ORRXrs), LdI.BaseReg)
+          .addReg(AArch64::XZR)
+          .addReg(ScratchReg)
+          .addImm(0);
+    }
+    return NewTag;
+  }
+  return None;
+}
+
+/// Return true if any Reg aliased with \p Reg is used in \p MI and set
+/// HasOnlyExplicitUse true if all the uses of \p Reg are explicitly matched
+/// with \p Reg.
+static bool isUsed(MachineInstr &MI, unsigned Reg,
+                   const TargetRegisterInfo *TRI, bool &HasOnlyExplicitUse) {
+  bool Used = false;
+  for (unsigned i = 0, e = MI.getNumOperands(); i != e; ++i) {
+    const MachineOperand &MO = MI.getOperand(i);
+    if (!MO.isReg() || !MO.isUse())
+      continue;
+    unsigned MOReg = MO.getReg();
+    if (!MOReg)
+      continue;
+    if (TRI->isSuperOrSubRegisterEq(MOReg, Reg)) {
+      Used = true;
+      if (MOReg != Reg || MO.isImplicit()) {
+        HasOnlyExplicitUse = false;
+        return true;
+      }
+      HasOnlyExplicitUse = true;
+    }
+  }
+  return Used;
+}
+
+/// Return true if \p Reg is clobbered and set HasOnlyExplicitDef
+/// true if all the def of \p Reg are explicitly matched with \p Reg.
+static bool isDefed(MachineInstr &MI, unsigned Reg,
+                    const TargetRegisterInfo *TRI, bool &HasOnlyExplicitDef) {
+  bool Defed = false;
+  for (unsigned i = 0, e = MI.getNumOperands(); i != e; ++i) {
+    const MachineOperand &MO = MI.getOperand(i);
+    if (MO.isRegMask() && MO.clobbersPhysReg(Reg)) {
+      HasOnlyExplicitDef = false;
+      return true;
+    }
+    if (!MO.isReg() || !MO.isDef())
+      continue;
+    unsigned MOReg = MO.getReg();
+    if (!MOReg)
+      continue;
+    if (TRI->regsOverlap(MOReg, Reg)) {
+      Defed = true;
+      if (MOReg != Reg || MO.isImplicit() || MO.isTied()) {
+        HasOnlyExplicitDef = false;
+        return true;
+      }
+      HasOnlyExplicitDef = true;
+    }
+  }
+  return Defed;
+}
+
+/// See if DestReg of \p MI is renamble. Collect uses of DestReg in between \p
+/// MI and the first instruction clobbering the DestReg.
+bool FalkorHWPFFix::canRewriteDestReg(MachineInstr &MI, LoadInfo &LdI,
+                                      SmallVector<MachineInstr *, 4> &Users) {
+  unsigned OrigDest = LdI.DestReg;
+  if (!OrigDest ||
+      !TRI->getRegClass(AArch64::GPR64RegClassID)->contains(OrigDest))
+    return false;
+  MachineOperand &DestMO = MI.getOperand(LdI.DestRegIdx);
+  if (!DestMO.isRenamable())
+    return false;
+
+  SmallSet<unsigned, 8> DestRegAliasSet;
+  for (MCRegAliasIterator AI(OrigDest, TRI, true); AI.isValid(); ++AI)
+    DestRegAliasSet.insert(*AI);
+
+  // Limit the cases where the load def is not live out to
+  // avoid tracking down uses in successors.
+  if (isLiveOut(MI.getParent(), DestRegAliasSet))
+    return false;
+
+  MachineBasicBlock::iterator MII = MI.getParent()->end(), MIE = &MI;
+  bool HasCallInMiddle = false;
+  while (--MII != MIE) {
+    MachineInstr &UI = *MII;
+    bool RegUsed = false;
+    bool HasOnlyExplicitUse = false;
+    if (isUsed(UI, OrigDest, TRI, HasOnlyExplicitUse)) {
+      // If the use is not perfect explicit match, bail out.
+      if (!HasOnlyExplicitUse)
+        return false;
+      Users.push_back(&UI);
+      RegUsed = true;
+    }
+
+    bool HasOnlyExplicitDef = false;
+    if (isDefed(UI, OrigDest, TRI, HasOnlyExplicitDef)) {
+      // If the def is not perfect explicit match, bail out.
+      if (!HasOnlyExplicitDef)
+        return false;
+
+      HasCallInMiddle = false;
+      Users.clear();
+      if (RegUsed)
+        Users.push_back(&UI);
+    }
+    if (UI.isCall())
+      HasCallInMiddle = true;
+  }
+  // FIXME: For now we simply bail out if encoutering any call before the
+  // first clobbering of DestReg.
+  return Users.size() > 0 && !HasCallInMiddle;
+}
+
+Optional<unsigned> FalkorHWPFFix::rewriteDestReg(MachineInstr &MI,
+                                                 LoadInfo &LdI) {
+  DEBUG(dbgs() << "Attempting to fix tag collision by rewriting DestReg: "
+               << MI);
+  MachineBasicBlock *MBB = MI.getParent();
+  LiveRegUnits LR(*TRI);
+  LR.addLiveOuts(*MBB);
+  SmallVector<MachineInstr *, 4> Users;
+  if (!canRewriteDestReg(MI, LdI, Users))
+    return None;
+
+  unsigned OrigDest = LdI.DestReg;
+  assert(OrigDest && "Invalid DestReg for rewriting.");
+
+  MachineOperand &DestMO = MI.getOperand(LdI.DestRegIdx);
+  assert(DestMO.isRenamable() && "Expect only renamable register.");
+
+  MachineInstr *LastUser = *Users.begin();
+  MachineBasicBlock::iterator MII = MI.getParent()->end(), MIE = LastUser;
+  // Step backward till the last use of DestReg.
+  while (--MII != MIE)
+    LR.stepBackward(*MII);
+
+  for (unsigned ScratchReg : AArch64::GPR64RegClass) {
+    if (MRI->isReserved(ScratchReg))
+      continue;
+
+    LoadInfo NewLdI(LdI);
+    NewLdI.DestReg = ScratchReg;
+    unsigned NewTag = *getTag(TRI, MI, NewLdI);
+
+    // Scratch reg tag would collide too, so don't use it.
+    if (TagMap.count(NewTag))
+      continue;
+
+    bool IsScratchAvailable = true;
+    LiveRegUnits LRScratch = LR;
+
+    // Check if ScratchReg is available.
+    for (MachineBasicBlock::iterator MII = LastUser, MIE = &MI;
+         MII != MIE && IsScratchAvailable; --MII) {
+      LRScratch.stepBackward(*MII);
+      IsScratchAvailable = LRScratch.available(ScratchReg);
+    }
+
+    if (!IsScratchAvailable)
+      continue;
+
+    DEBUG(dbgs() << "Changing dest reg to: " << PrintReg(ScratchReg, TRI)
+                 << '\n');
+    // Rewrite:
+    //   Xd = LOAD Xb, off
+    //   Add Xd, #1
+    // to:
+    //   Xc = LOAD Xb, off
+    //   Add Xc, #1
+    DestMO.setReg(ScratchReg);
+    for (auto *UI : Users) {
+      for (unsigned i = 0, e = UI->getNumOperands(); i != e; ++i) {
+        MachineOperand &MO = UI->getOperand(i);
+        if (!MO.isReg() || !MO.isUse() || MO.getReg() != OrigDest)
+          continue;
+        MO.setReg(ScratchReg);
+      }
+    }
+    return NewTag;
+  }
+  return None;
+}
+
+Optional<unsigned> FalkorHWPFFix::rewriteLoads(MachineInstr &MI, LoadInfo &LdI,
+                                               LiveRegUnits &LR) {
+  Optional<unsigned> OptNewTag = rewriteDestReg(MI, LdI);
+  if (OptNewTag)
+    return OptNewTag;
+  return rewriteBaseReg(MI, LdI, LR);
 }
 
 void FalkorHWPFFix::runOnLoop(MachineLoop &L, MachineFunction &Fn) {
@@ -702,15 +963,15 @@ void FalkorHWPFFix::runOnLoop(MachineLoop &L, MachineFunction &Fn) {
   if (!AnyCollisions)
     return;
 
-  MachineRegisterInfo &MRI = Fn.getRegInfo();
-
   // Go through all the basic blocks in the current loop and fix any streaming
   // loads to avoid collisions with any other loads.
   LiveRegUnits LR(*TRI);
   for (MachineBasicBlock *MBB : L.getBlocks()) {
     LR.clear();
     LR.addLiveOuts(*MBB);
-    for (auto I = MBB->rbegin(); I != MBB->rend(); LR.stepBackward(*I), ++I) {
+
+    for (auto I = MBB->rbegin(); I != MBB->rend(); ++I) {
+      LR.stepBackward(*I);
       MachineInstr &MI = *I;
       if (!TII->isStridedAccess(MI))
         continue;
@@ -726,50 +987,8 @@ void FalkorHWPFFix::runOnLoop(MachineLoop &L, MachineFunction &Fn) {
       if (OldCollisions.size() <= 1)
         continue;
 
-      bool Fixed = false;
-      DEBUG(dbgs() << "Attempting to fix tag collision: " << MI);
-
-      for (unsigned ScratchReg : AArch64::GPR64RegClass) {
-        if (!LR.available(ScratchReg) || MRI.isReserved(ScratchReg))
-          continue;
-
-        LoadInfo NewLdI(LdI);
-        NewLdI.BaseReg = ScratchReg;
-        unsigned NewTag = *getTag(TRI, MI, NewLdI);
-        // Scratch reg tag would collide too, so don't use it.
-        if (TagMap.count(NewTag))
-          continue;
-
-        DEBUG(dbgs() << "Changing base reg to: " << PrintReg(ScratchReg, TRI)
-                     << '\n');
-
-        // Rewrite:
-        //   Xd = LOAD Xb, off
-        // to:
-        //   Xc = MOV Xb
-        //   Xd = LOAD Xc, off
-        DebugLoc DL = MI.getDebugLoc();
-        BuildMI(*MBB, &MI, DL, TII->get(AArch64::ORRXrs), ScratchReg)
-            .addReg(AArch64::XZR)
-            .addReg(LdI.BaseReg)
-            .addImm(0);
-        MachineOperand &BaseOpnd = MI.getOperand(LdI.BaseRegIdx);
-        BaseOpnd.setReg(ScratchReg);
-
-        // If the load does a pre/post increment, then insert a MOV after as
-        // well to update the real base register.
-        if (LdI.IsPrePost) {
-          DEBUG(dbgs() << "Doing post MOV of incremented reg: "
-                       << PrintReg(ScratchReg, TRI) << '\n');
-          MI.getOperand(0).setReg(
-              ScratchReg); // Change tied operand pre/post update dest.
-          BuildMI(*MBB, std::next(MachineBasicBlock::iterator(MI)), DL,
-                  TII->get(AArch64::ORRXrs), LdI.BaseReg)
-              .addReg(AArch64::XZR)
-              .addReg(ScratchReg)
-              .addImm(0);
-        }
-
+      Optional<unsigned> OptNewTag = rewriteLoads(MI, LdI, LR);
+      if (OptNewTag) {
         for (int I = 0, E = OldCollisions.size(); I != E; ++I)
           if (OldCollisions[I] == &MI) {
             std::swap(OldCollisions[I], OldCollisions[E - 1]);
@@ -781,13 +1000,10 @@ void FalkorHWPFFix::runOnLoop(MachineLoop &L, MachineFunction &Fn) {
         // of later MOVs to be inserted.  This needs to be done after
         // OldCollisions is updated since it may be relocated by this
         // insertion.
-        TagMap[NewTag].push_back(&MI);
+        TagMap[*OptNewTag].push_back(&MI);
         ++NumCollisionsAvoided;
-        Fixed = true;
         Modified = true;
-        break;
-      }
-      if (!Fixed)
+      } else
         ++NumCollisionsNotAvoided;
     }
   }
@@ -803,6 +1019,7 @@ bool FalkorHWPFFix::runOnMachineFunction(MachineFunction &Fn) {
 
   TII = static_cast<const AArch64InstrInfo *>(ST.getInstrInfo());
   TRI = ST.getRegisterInfo();
+  MRI = &Fn.getRegInfo();
 
   assert(TRI->trackLivenessAfterRegAlloc(Fn) &&
          "Register liveness not available!");
