@@ -896,7 +896,12 @@ void LinkerDriver::link(ArrayRef<const char *> ArgsArr) {
   if (auto *Arg = Args.getLastArg(OPT_implib))
     Config->Implib = Arg->getValue();
 
-  // Handle /opt
+  // Handle /opt. Disable GC and ICF if /debug is specified and no /opt flag is
+  // specified.
+  if (Args.hasArg(OPT_debug)) {
+    Config->DoGC = false;
+    Config->DoICF = false;
+  }
   for (auto *Arg : Args.filtered(OPT_opt)) {
     std::string Str = StringRef(Arg->getValue()).lower();
     SmallVector<StringRef, 1> Vec;
@@ -907,7 +912,12 @@ void LinkerDriver::link(ArrayRef<const char *> ArgsArr) {
         Config->DoICF = false;
         continue;
       }
+      if (S == "ref") {
+        Config->DoGC = true;
+        continue;
+      }
       if (S == "icf" || S.startswith("icf=")) {
+        Config->DoGC = true;
         Config->DoICF = true;
         continue;
       }
@@ -935,7 +945,7 @@ void LinkerDriver::link(ArrayRef<const char *> ArgsArr) {
           error("/opt:lldltopartitions: invalid partition count: " + N);
         continue;
       }
-      if (S != "ref" && S != "lbr" && S != "nolbr")
+      if (S != "lbr" && S != "nolbr")
         error("/opt: unknown option: " + S);
     }
   }
