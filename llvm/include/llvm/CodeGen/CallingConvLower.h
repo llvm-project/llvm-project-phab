@@ -260,6 +260,10 @@ public:
     Locs.push_back(V);
   }
 
+  CCValAssign lastLoc(void) {
+    return Locs.back();
+  }
+
   LLVMContext &getContext() const { return Context; }
   MachineFunction &getMachineFunction() const { return MF; }
   CallingConv::ID getCallingConv() const { return CallingConv; }

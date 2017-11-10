@@ -8245,6 +8245,7 @@ TargetLowering::LowerCallTo(TargetLowering::CallLoweringInfo &CLI) const {
             MyFlags.Flags.setSplitEnd();
         }
 
+        MyFlags.Flags.setOrigVt(VT);
         CLI.Outs.push_back(MyFlags);
         CLI.OutVals.push_back(Parts[j]);
       }
@@ -8701,6 +8702,7 @@ void SelectionDAGISel::LowerArguments(const Function &F) {
           if (i == NumRegs - 1)
             MyFlags.Flags.setSplitEnd();
         }
+        MyFlags.Flags.setOrigVt(VT);
         Ins.push_back(MyFlags);
       }
       if (NeedsRegBlock && Value == NumValues - 1)
