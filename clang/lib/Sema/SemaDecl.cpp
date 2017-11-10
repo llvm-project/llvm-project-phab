@@ -12838,12 +12838,23 @@ void Sema::AddKnownFunctionAttributes(FunctionDecl *FD) {
                                               FD->getLocation()));
     }
 
-    // Mark const if we don't care about errno and that is the only
-    // thing preventing the function from being const. This allows
-    // IRgen to use LLVM intrinsics for such functions.
-    if (!getLangOpts().MathErrno &&
-        Context.BuiltinInfo.isConstWithoutErrno(BuiltinID)) {
-      if (!FD->hasAttr<ConstAttr>())
+    // Mark const if we don't care about errno and that is the only thing
+    // preventing the function from being const. This allows IRgen to use LLVM
+    // intrinsics for such functions.
+    if (!getLangOpts().MathErrno && !FD->hasAttr<ConstAttr>() &&
+        Context.BuiltinInfo.isConstWithoutErrno(BuiltinID))
+      FD->addAttr(ConstAttr::CreateImplicit(Context, FD->getLocation()));
+
+    // We make "fma" on GNU or Windows const because we know it does not set
+    // errno in those environments even though it could set errno based on the C
+    // standard.
+    if (IdentifierInfo *Name = FD->getIdentifier()) {
+      const llvm::Triple &Trip = Context.getTargetInfo().getTriple();
+      if ((Trip.isGNUEnvironment() || Trip.isKnownWindowsMSVCEnvironment()) &&
+          (Name->isStr("fma") || Name->isStr("fmaf") || Name->isStr("fmal") ||
+           Name->isStr("__builtin_fma") || Name->isStr("__builtin_fmaf") ||
+           Name->isStr("__builtin_fmal")) &&
+          !FD->hasAttr<ConstAttr>())
         FD->addAttr(ConstAttr::CreateImplicit(Context, FD->getLocation()));
     }
 
