@@ -3572,6 +3572,17 @@ void Sema::mergeObjCMethodDecls(ObjCMethodDecl *newMethod,
       : isa<ObjCImplDecl>(newMethod->getDeclContext()) ? AMK_Redeclaration
                                                        : AMK_Override;
 
+  // Warn on any availability clauses that are missing in the method's
+  // declaration but specified in the definition.
+  if (const ObjCImplDecl *Imp = dyn_cast<ObjCImplDecl>(newMethod->getDeclContext())) {
+    const Decl *DC = cast<Decl>(oldMethod->getDeclContext());
+    if (Imp->getClassInterface() == DC ||
+        (isa<ObjCCategoryDecl>(DC) && cast<ObjCCategoryDecl>(DC)->IsClassExtension() &&
+         Imp->getClassInterface() == cast<ObjCCategoryDecl>(DC)->getClassInterface()) ||
+        (isa<ObjCCategoryImplDecl>(Imp) &&
+         cast<ObjCCategoryImplDecl>(Imp)->getCategoryDecl() == DC))
+       checkMissingAvailabilityClausesInDeclaration(oldMethod, newMethod);
+  }
   mergeDeclAttributes(newMethod, oldMethod, MergeKind);
 
   // Merge attributes from the parameters.

@@ -2277,6 +2277,62 @@ static bool versionsMatch(const VersionTuple &X, const VersionTuple &Y,
   return false;
 }
 
+void Sema::checkMissingAvailabilityClausesInDeclaration(NamedDecl *Original, NamedDecl *Implementation) {
+  if (!Implementation->hasAttrs())
+    return;
+
+  auto CheckIfMissing = [&](const IdentifierInfo *Platform, llvm::function_ref<bool (const AvailabilityAttr &)> Callback) -> bool  {
+    for (const auto *A : Original->attrs()) {
+      if (const auto *Availability = dyn_cast<AvailabilityAttr>(A)) {
+        if (Availability->getPlatform() != Platform)
+          continue;
+        if (Callback(*Availability))
+          return false;
+      }
+    }
+    return true;
+  };
+  auto CheckIfVersionClauseMissing = [&](VersionTuple Version, const IdentifierInfo *Platform, llvm::function_ref<bool (const AvailabilityAttr &)> Callback) -> bool {
+    if (Version.empty())
+      return false;
+    return CheckIfMissing(Platform, Callback);
+  };
+
+  llvm::SmallPtrSet<const IdentifierInfo *, 4> MissingPlatformAttributes;
+  for (const auto *A : Implementation->attrs()) {
+    if (const auto *Availability = dyn_cast<AvailabilityAttr>(A)) {
+      const IdentifierInfo *Platform = Availability->getPlatform();
+
+      bool MissingIntroduced = CheckIfVersionClauseMissing(Availability->getIntroduced(), Platform, [] (const AvailabilityAttr &OriginalAA) -> bool {
+           return !OriginalAA.getIntroduced().empty();
+        });
+      bool MissingDeprecated = CheckIfVersionClauseMissing(Availability->getDeprecated(), Platform, [] (const AvailabilityAttr &OriginalAA) -> bool {
+           return !OriginalAA.getDeprecated().empty();
+        });
+      bool MissingObsoleted = CheckIfVersionClauseMissing(Availability->getObsoleted(), Platform, [] (const AvailabilityAttr &OriginalAA) -> bool {
+           return !OriginalAA.getObsoleted().empty();
+        });
+      bool MissingUnavailable = Availability->getUnavailable() && CheckIfMissing(Platform, [] (const AvailabilityAttr &OriginalAA) -> bool {
+        return OriginalAA.getUnavailable();
+     });
+
+      // Warn once about missing attribute for each platform.
+      if ((MissingIntroduced || MissingDeprecated || MissingObsoleted || MissingUnavailable) &&
+          MissingPlatformAttributes.count(Platform) == 0) {
+        MissingPlatformAttributes.insert(Platform);
+        StringRef PlatformSpelling = AvailabilityAttr::getPrettyPlatformName(Platform->getName());
+        Diag(Original->getLocation(), diag::warn_availability_on_implementation_not_interface)
+            << PlatformSpelling;
+        Diag(Availability->getLocation(), diag::note_definition_with_availability_here)
+            << PlatformSpelling;
+      }
+    } else if (isa<DeprecatedAttr>(A) && !Original->hasAttr<DeprecatedAttr>()) {
+      Diag(Original->getLocation(), diag::warn_deprecated_on_implementation_not_interface);
+      Diag(A->getLocation(), diag::note_definition_with_deprecated_here);
+    }
+  }
+}
+
 AvailabilityAttr *Sema::mergeAvailabilityAttr(NamedDecl *D, SourceRange Range,
                                               IdentifierInfo *Platform,
                                               bool Implicit,

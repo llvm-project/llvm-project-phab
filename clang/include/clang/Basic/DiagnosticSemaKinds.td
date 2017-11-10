@@ -2917,6 +2917,18 @@ def warn_mismatched_availability_override_unavail : Warning<
   "%select{the protocol method it implements|its overridden method}1 is "
   "available">,
   InGroup<Availability>;
+def warn_availability_on_implementation_not_interface : Warning<
+  "method declaration is missing an availability attribute for "
+  "%0 that is specified in the definition">,
+  InGroup<Availability>;
+def warn_deprecated_on_implementation_not_interface : Warning<
+  "method declaration is missing a deprecated attribute that is specified in "
+  "the definition">,
+  InGroup<Availability>;
+def note_definition_with_availability_here : Note<
+  "definition with %0 availability attribute is here">;
+def note_definition_with_deprecated_here : Note<
+  "definition with deprecated attribute is here">;
 def note_overridden_method : Note<
   "overridden method is here">;
 def note_protocol_method : Note<

@@ -77,7 +77,7 @@ AVAILABLE_10_11 @interface Class_10_11 { // expected-note{{annotate 'Class_10_11
   int_10_12 bar; // expected-warning {{'int_10_12' is only available on macOS 10.12 or newer}}
 }
 - (void)method1;
-- (void)method2;
+- (void)method2 AVAILABLE_10_12;
 @end
 
 @implementation Class_10_11

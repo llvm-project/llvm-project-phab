@@ -15,14 +15,14 @@
 @interface INTF
 - (int) foo1: (int)arg1 __attribute__((deprecated));
 
-- (int) foo: (int)arg1;
+- (int) foo: (int)arg1;  // expected-warning {{method declaration is missing a deprecated attribute that is specified in the definition}}
 
 - (int) foo2: (int)arg1 __attribute__((deprecated)) __attribute__((unavailable));
 - (int) foo3: (int)arg1 __attribute__((deprecated)) __attribute__((unavailable)) __attribute__((ns_consumes_self));
 @end
 
 @implementation INTF
-- (int) foo: (int)arg1  __attribute__((deprecated)){
+- (int) foo: (int)arg1  __attribute__((deprecated)){ // expected-note {{definition with deprecated attribute is here}}
         return 10;
 }
 - (int) foo1: (int)arg1 {

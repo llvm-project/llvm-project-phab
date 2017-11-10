@@ -2399,6 +2399,12 @@ public:
     AMK_ProtocolImplementation,
   };
 
+  /// Verifies that availability attribute clauses that are specified on an
+  /// method definition match the clauses from the method's declaration.
+  ///
+  /// This will warn on any missing clauses in the declaration.
+  void checkMissingAvailabilityClausesInDeclaration(NamedDecl *Original, NamedDecl *Implementation);
+
   /// Attribute merging methods. Return true if a new attribute was added.
   AvailabilityAttr *mergeAvailabilityAttr(NamedDecl *D, SourceRange Range,
                                           IdentifierInfo *Platform,
