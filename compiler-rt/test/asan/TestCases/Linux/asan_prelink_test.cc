@@ -11,6 +11,7 @@
 
 // GNU driver doesn't handle .so files properly.
 // REQUIRES: x86_64-target-arch, Clang
+// UNSUPPORTED: custom-shadow-scale
 #if BUILD_SO
 int G;
 int *getG() {

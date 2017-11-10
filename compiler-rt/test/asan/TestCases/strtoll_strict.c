@@ -24,6 +24,7 @@
 
 // FIXME: Enable strtoll interceptor.
 // XFAIL: win32
+// UNSUPPORTED: custom-shadow-scale
 
 #include <assert.h>
 #include <stdlib.h>
