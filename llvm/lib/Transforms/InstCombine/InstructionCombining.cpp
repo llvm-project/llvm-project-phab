@@ -1659,10 +1659,14 @@ Instruction *InstCombiner::visitGetElementPtrInst(GetElementPtrInst &GEP) {
     // Note that if our source is a gep chain itself then we wait for that
     // chain to be resolved before we perform this transformation.  This
     // avoids us creating a TON of code in some cases.
-    if (GEPOperator *SrcGEP =
-          dyn_cast<GEPOperator>(Src->getOperand(0)))
-      if (SrcGEP->getNumOperands() == 2 && shouldMergeGEPs(*Src, *SrcGEP))
-        return nullptr;   // Wait until our source is folded to completion.
+    // If the source has only one use, then there is no need of waiting for
+    // the chain to be resolved
+    if (!Src->hasOneUse()) {
+      if (GEPOperator *SrcGEP =
+            dyn_cast<GEPOperator>(Src->getOperand(0)))
+        if (SrcGEP->getNumOperands() == 2 && shouldMergeGEPs(*Src, *SrcGEP))
+          return nullptr;   // Wait until our source is folded to completion.
+    }
 
     SmallVector<Value*, 8> Indices;
 
@@ -1690,8 +1694,22 @@ Instruction *InstCombiner::visitGetElementPtrInst(GetElementPtrInst &GEP) {
           SimplifyAddInst(GO1, SO1, false, false, SQ.getWithInstruction(&GEP));
       // Only do the combine when we are sure the cost after the
       // merge is never more than that before the merge.
-      if (Sum == nullptr)
-        return nullptr;
+      if (Sum == nullptr) {
+        if (LI) {
+          if (Loop *L = LI->getLoopFor(GEP.getParent())) {
+            //If both the operands are either constants or loop-invariants
+            // then they can also be combined
+            if ((!isa<Constant>(GO1) && !(L->isLoopInvariant(GO1))) ||
+                (!isa<Constant>(SO1) && !(L->isLoopInvariant(SO1))))
+              return nullptr;
+            Sum = Builder.CreateAdd(SO1, GO1, PtrOp->getName() + ".sum");
+            if (Sum == nullptr)
+              return nullptr;
+          } else
+            return nullptr;
+        } else
+          return nullptr;
+      }
 
       // Update the GEP in place if possible.
       if (Src->getNumOperands() == 2) {
