@@ -485,6 +485,36 @@ TEST(ImportType, ImportAtomicType) {
                                        has(atomicType()))))))))));
 }
 
+TEST(ImportDecl, ImportUnnamedRecordDecl) {
+  MatchVerifier<Decl> Verifier;
+  EXPECT_TRUE(
+        testImport(
+          "void declToImport() {"
+          "  struct Root {"
+          "    struct { int a; } A;"
+          "    struct { float b; } B;"
+          "  } root;"
+          "}",
+          Lang_C, "", Lang_C, Verifier,
+          functionDecl(
+            hasBody(
+              compoundStmt(
+                has(
+                declStmt(
+                  has(
+                    recordDecl(
+                      has(
+                        recordDecl(
+                          has(
+                            fieldDecl(
+                              hasType(asString("int")))))),
+                      has(
+                        recordDecl(
+                          has(
+                            fieldDecl(
+                              hasType(asString("float"))))))
+                      )))))))));
+}
 
 } // end namespace ast_matchers
 } // end namespace clang
