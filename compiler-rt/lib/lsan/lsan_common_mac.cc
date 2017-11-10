@@ -155,6 +155,7 @@ void ProcessPlatformSpecificAllocations(Frontier *frontier) {
 
     uptr end_address = address + size;
 
+#ifdef VM_MEMORY_OS_ALLOC_ONCE
     // libxpc stashes some pointers in the Kernel Alloc Once page,
     // make sure not to report those as leaks.
     if (info.user_tag == VM_MEMORY_OS_ALLOC_ONCE) {
@@ -166,6 +167,7 @@ void ProcessPlatformSpecificAllocations(Frontier *frontier) {
       if (!flags()->use_root_regions || !root_regions->size())
         break;
     }
+#endif
 
     // This additional root region scan is required on Darwin in order to
     // detect root regions contained within mmap'd memory regions, because
