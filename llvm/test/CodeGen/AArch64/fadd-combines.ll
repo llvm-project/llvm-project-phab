@@ -76,3 +76,28 @@ entry:
 }
 
 declare void @use(double)
+
+; CHECK-LABEL: test8:
+; CHECK: fadd  d1, d1, d1
+; CHECK: fmul  d1, d1, d2
+; CHECK: fsub  d0, d0, d1
+define double @test8(double %a, double %b, double %c) local_unnamed_addr #0 {
+entry:
+  %mul = fmul double %b, -2.000000e+00
+  %mul1 = fmul double %mul, %c
+  %add = fadd double %mul1, %a
+  ret double %add
+}
+
+; DAGCombine will canonicalize 'a - 2.0*b*c' to 'a + -2.0*b*c'
+; CHECK-LABEL: test9:
+; CHECK: fadd  d1, d1, d1
+; CHECK: fmul  d1, d1, d2
+; CHECK: fsub  d0, d0, d1
+define double @test9(double %a, double %b, double %c) local_unnamed_addr #0 {
+entry:
+  %mul = fmul double %b, 2.000000e+00
+  %mul1 = fmul double %mul, %c
+  %sub = fsub double %a, %mul1
+  ret double %sub
+}
