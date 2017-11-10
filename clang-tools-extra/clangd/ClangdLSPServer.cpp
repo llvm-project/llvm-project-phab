@@ -57,12 +57,14 @@ void ClangdLSPServer::onInitialize(Ctx C, InitializeParams &Params) {
                  {"triggerCharacters", {"(", ","}},
              }},
             {"definitionProvider", true},
+            {"documentHighlightProvider", true},
             {"renameProvider", true},
             {"executeCommandProvider",
              json::obj{
                  {"commands", {ExecuteCommandParams::CLANGD_APPLY_FIX_COMMAND}},
              }},
         }}}});
+
   if (Params.rootUri && !Params.rootUri->file.empty())
     Server.setRootPath(Params.rootUri->file);
   else if (Params.rootPath && !Params.rootPath->empty())
@@ -233,6 +235,27 @@ void ClangdLSPServer::onSwitchSourceHeader(Ctx C,
   llvm::Optional<Path> Result = Server.switchSourceHeader(Params.uri.file);
   std::string ResultUri;
   C.reply(Result ? URI::fromFile(*Result).uri : "");
+}
+
+void ClangdLSPServer::onDocumentHighlight(Ctx C,
+                                          TextDocumentPositionParams &Params) {
+
+  auto Items = Server
+                   .findDocumentHighlights(Params.textDocument.uri.file,
+                                           Position{Params.position.line,
+                                                    Params.position.character})
+                   .Value;
+
+  std::string Highlights;
+
+//  for (const auto &Item : Items) {
+//    Highlights += DocumentHighlight::unparse(Item);
+//    Highlights += ",";
+//  }
+//  if (!Highlights.empty())
+//    Highlights.pop_back();
+//  C.reply("[" + Highlights + "]");
+  C.reply(json::ary(Items));
 }
 
 ClangdLSPServer::ClangdLSPServer(JSONOutput &Out, unsigned AsyncThreadsCount,

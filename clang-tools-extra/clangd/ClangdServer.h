@@ -284,6 +284,10 @@ public:
   /// given a header file and vice versa.
   llvm::Optional<Path> switchSourceHeader(PathRef Path);
 
+  /// Get document highlights for a symbol hovered on.
+  Tagged<std::vector<DocumentHighlight>> findDocumentHighlights(PathRef File,
+                                                                Position Pos);
+
   /// Run formatting for \p Rng inside \p File.
   std::vector<tooling::Replacement> formatRange(PathRef File, Range Rng);
   /// Run formatting for the whole \p File.

@@ -506,6 +506,26 @@ llvm::Optional<Path> ClangdServer::switchSourceHeader(PathRef Path) {
   return llvm::None;
 }
 
+Tagged<std::vector<DocumentHighlight>>
+ClangdServer::findDocumentHighlights(PathRef File, Position Pos) {
+  auto FileContents = DraftMgr.getDraft(File);
+  assert(FileContents.Draft &&
+         "findDocumentHighlights is called for non-added document");
+
+  auto TaggedFS = FSProvider.getTaggedFileSystem(File);
+
+  std::shared_ptr<CppFile> Resources = Units.getFile(File);
+  assert(Resources && "Calling findDocumentHighlights on non-added file");
+
+  std::vector<DocumentHighlight> Result;
+  Resources->getAST().get()->runUnderLock([Pos, &Result, this](ParsedAST *AST) {
+    if (!AST)
+      return;
+    Result = clangd::findDocumentHighlights(*AST, Pos, Logger);
+  });
+  return make_tagged(std::move(Result), TaggedFS.Tag);
+}
+
 std::future<void> ClangdServer::scheduleReparseAndDiags(
     PathRef File, VersionedDraft Contents, std::shared_ptr<CppFile> Resources,
     Tagged<IntrusiveRefCntPtr<vfs::FileSystem>> TaggedFS) {
