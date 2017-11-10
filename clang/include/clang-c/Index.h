@@ -32,7 +32,7 @@
  * compatible, thus CINDEX_VERSION_MAJOR is expected to remain stable.
  */
 #define CINDEX_VERSION_MAJOR 0
-#define CINDEX_VERSION_MINOR 43
+#define CINDEX_VERSION_MINOR 44
 
 #define CINDEX_VERSION_ENCODE(major, minor) ( \
       ((major) * 10000)                       \
@@ -4055,6 +4055,412 @@ CINDEX_LINKAGE CXString clang_getCursorSpelling(CXCursor);
 CINDEX_LINKAGE CXSourceRange clang_Cursor_getSpellingNameRange(CXCursor,
                                                           unsigned pieceIndex,
                                                           unsigned options);
+
+/**
+ * \brief A policy controlling the pretty printing for e.g.
+ * \c clang_getCursorPrettyPrinted.
+ */
+typedef void *CXPrintingPolicy;
+
+/**
+ * \brief Retrieve the default policy for the cursor.
+ *
+ * The policy should be released after use with \c
+ * clang_PrintingPolicy_dispose.
+ */
+CINDEX_LINKAGE CXPrintingPolicy clang_getCursorPrintingPolicy(CXCursor);
+
+/**
+ * \brief Release a printing policy.
+ */
+CINDEX_LINKAGE void clang_PrintingPolicy_dispose(CXPrintingPolicy);
+
+/**
+ * \brief Set the Indentation property of a CXPrintingPolicy.
+ *
+ * See \c clang::PrintingPolicy for more information.
+ */
+CINDEX_LINKAGE unsigned clang_PrintingPolicy_getIndentation(CXPrintingPolicy);
+
+/**
+ * \brief Get the SuppressSpecifiers property of a CXPrintingPolicy.
+ *
+ * See \c clang::PrintingPolicy for more information.
+ */
+CINDEX_LINKAGE unsigned
+    clang_PrintingPolicy_getSuppressSpecifiers(CXPrintingPolicy);
+
+/**
+ * \brief Get the SuppressTagKeyword property of a CXPrintingPolicy.
+ *
+ * See \c clang::PrintingPolicy for more information.
+ */
+CINDEX_LINKAGE unsigned
+    clang_PrintingPolicy_getSuppressTagKeyword(CXPrintingPolicy);
+
+/**
+ * \brief Get the IncludeTagDefinition property of a CXPrintingPolicy.
+ *
+ * See \c clang::PrintingPolicy for more information.
+ */
+CINDEX_LINKAGE unsigned
+    clang_PrintingPolicy_getIncludeTagDefinition(CXPrintingPolicy);
+
+/**
+ * \brief Get the SuppressScope property of a CXPrintingPolicy.
+ *
+ * See \c clang::PrintingPolicy for more information.
+ */
+CINDEX_LINKAGE unsigned clang_PrintingPolicy_getSuppressScope(CXPrintingPolicy);
+
+/**
+ * \brief Get the SuppressUnwrittenScope property of a CXPrintingPolicy.
+ *
+ * See \c clang::PrintingPolicy for more information.
+ */
+CINDEX_LINKAGE unsigned
+    clang_PrintingPolicy_getSuppressUnwrittenScope(CXPrintingPolicy);
+
+/**
+ * \brief Get the SuppressInitializers property of a CXPrintingPolicy.
+ *
+ * See \c clang::PrintingPolicy for more information.
+ */
+CINDEX_LINKAGE unsigned
+    clang_PrintingPolicy_getSuppressInitializers(CXPrintingPolicy);
+
+/**
+ * \brief Get the ConstantArraySizeAsWritten property of a CXPrintingPolicy.
+ *
+ * See \c clang::PrintingPolicy for more information.
+ */
+CINDEX_LINKAGE unsigned
+    clang_PrintingPolicy_getConstantArraySizeAsWritten(CXPrintingPolicy);
+
+/**
+ * \brief Get the AnonymousTagLocations property of a CXPrintingPolicy.
+ *
+ * See \c clang::PrintingPolicy for more information.
+ */
+CINDEX_LINKAGE unsigned
+    clang_PrintingPolicy_getAnonymousTagLocations(CXPrintingPolicy);
+
+/**
+ * \brief Get the SuppressStrongLifetime property of a CXPrintingPolicy.
+ *
+ * See \c clang::PrintingPolicy for more information.
+ */
+CINDEX_LINKAGE unsigned
+    clang_PrintingPolicy_getSuppressStrongLifetime(CXPrintingPolicy);
+
+/**
+ * \brief Get the SuppressLifetimeQualifiers property of a CXPrintingPolicy.
+ *
+ * See \c clang::PrintingPolicy for more information.
+ */
+CINDEX_LINKAGE unsigned
+    clang_PrintingPolicy_getSuppressLifetimeQualifiers(CXPrintingPolicy);
+
+/**
+ * \brief Get the SuppressTemplateArgsInCXXConstructors property of a
+ * CXPrintingPolicy.
+ *
+ * See \c clang::PrintingPolicy for more information.
+ */
+CINDEX_LINKAGE unsigned
+    clang_PrintingPolicy_getSuppressTemplateArgsInCXXConstructors(
+        CXPrintingPolicy);
+
+/**
+ * \brief Get the Bool property of a CXPrintingPolicy.
+ *
+ * See \c clang::PrintingPolicy for more information.
+ */
+CINDEX_LINKAGE unsigned clang_PrintingPolicy_getBool(CXPrintingPolicy);
+
+/**
+ * \brief Get the Restrict property of a CXPrintingPolicy.
+ *
+ * See \c clang::PrintingPolicy for more information.
+ */
+CINDEX_LINKAGE unsigned clang_PrintingPolicy_getRestrict(CXPrintingPolicy);
+
+/**
+ * \brief Get the Alignof property of a CXPrintingPolicy.
+ *
+ * See \c clang::PrintingPolicy for more information.
+ */
+CINDEX_LINKAGE unsigned clang_PrintingPolicy_getAlignof(CXPrintingPolicy);
+
+/**
+ * \brief Get the UnderscoreAlignof property of a CXPrintingPolicy.
+ *
+ * See \c clang::PrintingPolicy for more information.
+ */
+CINDEX_LINKAGE unsigned
+    clang_PrintingPolicy_getUnderscoreAlignof(CXPrintingPolicy);
+
+/**
+ * \brief Get the UseVoidForZeroParams property of a CXPrintingPolicy.
+ *
+ * See \c clang::PrintingPolicy for more information.
+ */
+CINDEX_LINKAGE unsigned
+    clang_PrintingPolicy_getUseVoidForZeroParams(CXPrintingPolicy);
+
+/**
+ * \brief Get the TerseOutput property of a CXPrintingPolicy.
+ *
+ * See \c clang::PrintingPolicy for more information.
+ */
+CINDEX_LINKAGE unsigned clang_PrintingPolicy_getTerseOutput(CXPrintingPolicy);
+
+/**
+ * \brief Get the PolishForDeclaration property of a CXPrintingPolicy.
+ *
+ * See \c clang::PrintingPolicy for more information.
+ */
+CINDEX_LINKAGE unsigned
+    clang_PrintingPolicy_getPolishForDeclaration(CXPrintingPolicy);
+
+/**
+ * \brief Get the Half property of a CXPrintingPolicy.
+ *
+ * See \c clang::PrintingPolicy for more information.
+ */
+CINDEX_LINKAGE unsigned clang_PrintingPolicy_getHalf(CXPrintingPolicy);
+
+/**
+ * \brief Get the MSWChar property of a CXPrintingPolicy.
+ *
+ * See \c clang::PrintingPolicy for more information.
+ */
+CINDEX_LINKAGE unsigned clang_PrintingPolicy_getMSWChar(CXPrintingPolicy);
+
+/**
+ * \brief Get the IncludeNewlines property of a CXPrintingPolicy.
+ *
+ * See \c clang::PrintingPolicy for more information.
+ */
+CINDEX_LINKAGE unsigned
+    clang_PrintingPolicy_getIncludeNewlines(CXPrintingPolicy);
+
+/**
+ * \brief Get the MSVCFormatting property of a CXPrintingPolicy.
+ *
+ * See \c clang::PrintingPolicy for more information.
+ */
+CINDEX_LINKAGE unsigned
+    clang_PrintingPolicy_getMSVCFormatting(CXPrintingPolicy);
+
+/**
+ * \brief Get the ConstantsAsWritten property of a CXPrintingPolicy.
+ *
+ * See \c clang::PrintingPolicy for more information.
+ */
+CINDEX_LINKAGE unsigned
+    clang_PrintingPolicy_getConstantsAsWritten(CXPrintingPolicy);
+
+/**
+ * \brief Get the SuppressImplicitBase property of a CXPrintingPolicy.
+ *
+ * See \c clang::PrintingPolicy for more information.
+ */
+CINDEX_LINKAGE unsigned
+    clang_PrintingPolicy_getSuppressImplicitBase(CXPrintingPolicy);
+
+/**
+ * \brief Set the Indentation property of a CXPrintingPolicy.
+ *
+ * See \c clang::PrintingPolicy for more information.
+ */
+void clang_PrintingPolicy_setIndentation(CXPrintingPolicy, unsigned);
+
+/**
+ * \brief Set the SuppressSpecifiers property of a CXPrintingPolicy.
+ *
+ * See \c clang::PrintingPolicy for more information.
+ */
+void clang_PrintingPolicy_setSuppressSpecifiers(CXPrintingPolicy, unsigned);
+
+/**
+ * \brief Set the SuppressTagKeyword property of a CXPrintingPolicy.
+ *
+ * See \c clang::PrintingPolicy for more information.
+ */
+void clang_PrintingPolicy_setSuppressTagKeyword(CXPrintingPolicy, unsigned);
+
+/**
+ * \brief Set the IncludeTagDefinition property of a CXPrintingPolicy.
+ *
+ * See \c clang::PrintingPolicy for more information.
+ */
+void clang_PrintingPolicy_setIncludeTagDefinition(CXPrintingPolicy, unsigned);
+
+/**
+ * \brief Set the SuppressScope property of a CXPrintingPolicy.
+ *
+ * See \c clang::PrintingPolicy for more information.
+ */
+void clang_PrintingPolicy_setSuppressScope(CXPrintingPolicy, unsigned);
+
+/**
+ * \brief Set the SuppressUnwrittenScope property of a CXPrintingPolicy.
+ *
+ * See \c clang::PrintingPolicy for more information.
+ */
+void clang_PrintingPolicy_setSuppressUnwrittenScope(CXPrintingPolicy, unsigned);
+
+/**
+ * \brief Set the SuppressInitializers property of a CXPrintingPolicy.
+ *
+ * See \c clang::PrintingPolicy for more information.
+ */
+void clang_PrintingPolicy_setSuppressInitializers(CXPrintingPolicy, unsigned);
+
+/**
+ * \brief Set the ConstantArraySizeAsWritten property of a CXPrintingPolicy.
+ *
+ * See \c clang::PrintingPolicy for more information.
+ */
+void clang_PrintingPolicy_setConstantArraySizeAsWritten(CXPrintingPolicy,
+                                                        unsigned);
+
+/**
+ * \brief Set the AnonymousTagLocations property of a CXPrintingPolicy.
+ *
+ * See \c clang::PrintingPolicy for more information.
+ */
+void clang_PrintingPolicy_setAnonymousTagLocations(CXPrintingPolicy, unsigned);
+
+/**
+ * \brief Set the SuppressStrongLifetime property of a CXPrintingPolicy.
+ *
+ * See \c clang::PrintingPolicy for more information.
+ */
+void clang_PrintingPolicy_setSuppressStrongLifetime(CXPrintingPolicy, unsigned);
+
+/**
+ * \brief Set the SuppressLifetimeQualifiers property of a CXPrintingPolicy.
+ *
+ * See \c clang::PrintingPolicy for more information.
+ */
+void clang_PrintingPolicy_setSuppressLifetimeQualifiers(CXPrintingPolicy,
+                                                        unsigned);
+
+/**
+ * \brief Set the SuppressTemplateArgsInCXXConstructors property of a
+ * CXPrintingPolicy.
+ *
+ * See \c clang::PrintingPolicy for more information.
+ */
+void clang_PrintingPolicy_setSuppressTemplateArgsInCXXConstructors(
+    CXPrintingPolicy, unsigned);
+
+/**
+ * \brief Set the Bool property of a CXPrintingPolicy.
+ *
+ * See \c clang::PrintingPolicy for more information.
+ */
+void clang_PrintingPolicy_setBool(CXPrintingPolicy, unsigned);
+
+/**
+ * \brief Set the Restrict property of a CXPrintingPolicy.
+ *
+ * See \c clang::PrintingPolicy for more information.
+ */
+void clang_PrintingPolicy_setRestrict(CXPrintingPolicy, unsigned);
+
+/**
+ * \brief Set the Alignof property of a CXPrintingPolicy.
+ *
+ * See \c clang::PrintingPolicy for more information.
+ */
+void clang_PrintingPolicy_setAlignof(CXPrintingPolicy, unsigned);
+
+/**
+ * \brief Set the UnderscoreAlignof property of a CXPrintingPolicy.
+ *
+ * See \c clang::PrintingPolicy for more information.
+ */
+void clang_PrintingPolicy_setUnderscoreAlignof(CXPrintingPolicy, unsigned);
+
+/**
+ * \brief Set the UseVoidForZeroParams property of a CXPrintingPolicy.
+ *
+ * See \c clang::PrintingPolicy for more information.
+ */
+void clang_PrintingPolicy_setUseVoidForZeroParams(CXPrintingPolicy, unsigned);
+
+/**
+ * \brief Set the TerseOutput property of a CXPrintingPolicy.
+ *
+ * See \c clang::PrintingPolicy for more information.
+ */
+void clang_PrintingPolicy_setTerseOutput(CXPrintingPolicy, unsigned);
+
+/**
+ * \brief Set the PolishForDeclaration property of a CXPrintingPolicy.
+ *
+ * See \c clang::PrintingPolicy for more information.
+ */
+void clang_PrintingPolicy_setPolishForDeclaration(CXPrintingPolicy, unsigned);
+
+/**
+ * \brief Set the Half property of a CXPrintingPolicy.
+ *
+ * See \c clang::PrintingPolicy for more information.
+ */
+void clang_PrintingPolicy_setHalf(CXPrintingPolicy, unsigned);
+
+/**
+ * \brief Set the MSWChar property of a CXPrintingPolicy.
+ *
+ * See \c clang::PrintingPolicy for more information.
+ */
+void clang_PrintingPolicy_setMSWChar(CXPrintingPolicy, unsigned);
+
+/**
+ * \brief Set the IncludeNewlines property of a CXPrintingPolicy.
+ *
+ * See \c clang::PrintingPolicy for more information.
+ */
+void clang_PrintingPolicy_setIncludeNewlines(CXPrintingPolicy, unsigned);
+
+/**
+ * \brief Set the MSVCFormatting property of a CXPrintingPolicy.
+ *
+ * See \c clang::PrintingPolicy for more information.
+ */
+void clang_PrintingPolicy_setMSVCFormatting(CXPrintingPolicy, unsigned);
+
+/**
+ * \brief Set the ConstantsAsWritten property of a CXPrintingPolicy.
+ *
+ * See \c clang::PrintingPolicy for more information.
+ */
+void clang_PrintingPolicy_setConstantsAsWritten(CXPrintingPolicy, unsigned);
+
+/**
+ * \brief Set the SuppressImplicitBase property of a CXPrintingPolicy.
+ *
+ * See \c clang::PrintingPolicy for more information.
+ */
+void clang_PrintingPolicy_setSuppressImplicitBase(CXPrintingPolicy, unsigned);
+
+/**
+ * \brief Pretty print declarations.
+ *
+ * \param cursor The cursor representing a declaration.
+ *
+ * \param policy The policy to control the entities being printed. If
+ * NULL, a default policy is used.
+ *
+ * \returns The pretty printed declaration or the empty string for
+ * other cursors.
+ */
+CINDEX_LINKAGE CXString clang_getCursorPrettyPrinted(CXCursor cursor,
+                                                     CXPrintingPolicy policy);
 
 /**
  * \brief Retrieve the display name for the entity referenced by this cursor.

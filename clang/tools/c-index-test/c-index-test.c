@@ -86,6 +86,58 @@ static unsigned getDefaultParsingOptions() {
   return options;
 }
 
+#define SET_POLICY_FROM_ENV(nameTag, policySetterName)                         \
+  {                                                                            \
+    char *value = getenv("CINDEXTEST_PRINTINGPOLICY_" nameTag);                \
+    if (value)                                                                 \
+      policySetterName(Policy, (unsigned) strtoul(value, 0L, 10));             \
+  }
+static void ModifyPrintingPolicyAccordingToEnv(CXPrintingPolicy Policy) {
+  SET_POLICY_FROM_ENV("INDENTATION", clang_PrintingPolicy_setIndentation);
+  SET_POLICY_FROM_ENV("SUPPRESSSPECIFIERS",
+                      clang_PrintingPolicy_setSuppressSpecifiers);
+  SET_POLICY_FROM_ENV("SUPPRESSTAGKEYWORD",
+                      clang_PrintingPolicy_setSuppressTagKeyword);
+  SET_POLICY_FROM_ENV("INCLUDETAGDEFINITION",
+                      clang_PrintingPolicy_setIncludeTagDefinition);
+  SET_POLICY_FROM_ENV("SUPPRESSSCOPE", clang_PrintingPolicy_setSuppressScope);
+  SET_POLICY_FROM_ENV("SUPPRESSUNWRITTENSCOPE",
+                      clang_PrintingPolicy_setSuppressUnwrittenScope);
+  SET_POLICY_FROM_ENV("SUPPRESSINITIALIZERS",
+                      clang_PrintingPolicy_setSuppressInitializers);
+  SET_POLICY_FROM_ENV("CONSTANTARRAYSIZEASWRITTEN",
+                      clang_PrintingPolicy_setConstantArraySizeAsWritten);
+  SET_POLICY_FROM_ENV("ANONYMOUSTAGLOCATIONS",
+                      clang_PrintingPolicy_setAnonymousTagLocations);
+  SET_POLICY_FROM_ENV("SUPPRESSSTRONGLIFETIME",
+                      clang_PrintingPolicy_setSuppressStrongLifetime);
+  SET_POLICY_FROM_ENV("SUPPRESSLIFETIMEQUALIFIERS",
+                      clang_PrintingPolicy_setSuppressLifetimeQualifiers);
+  SET_POLICY_FROM_ENV(
+      "SUPPRESSTEMPLATEARGSINCXXCONSTRUCTORS",
+      clang_PrintingPolicy_setSuppressTemplateArgsInCXXConstructors);
+  SET_POLICY_FROM_ENV("BOOL", clang_PrintingPolicy_setBool);
+  SET_POLICY_FROM_ENV("RESTRICT", clang_PrintingPolicy_setRestrict);
+  SET_POLICY_FROM_ENV("ALIGNOF", clang_PrintingPolicy_setAlignof);
+  SET_POLICY_FROM_ENV("UNDERSCOREALIGNOF",
+                      clang_PrintingPolicy_setUnderscoreAlignof);
+  SET_POLICY_FROM_ENV("USEVOIDFORZEROPARAMS",
+                      clang_PrintingPolicy_setUseVoidForZeroParams);
+  SET_POLICY_FROM_ENV("TERSEOUTPUT", clang_PrintingPolicy_setTerseOutput);
+  SET_POLICY_FROM_ENV("POLISHFORDECLARATION",
+                      clang_PrintingPolicy_setPolishForDeclaration);
+  SET_POLICY_FROM_ENV("HALF", clang_PrintingPolicy_setHalf);
+  SET_POLICY_FROM_ENV("MSWCHAR", clang_PrintingPolicy_setMSWChar);
+  SET_POLICY_FROM_ENV("INCLUDENEWLINES",
+                      clang_PrintingPolicy_setIncludeNewlines);
+  SET_POLICY_FROM_ENV("MSVCFORMATTING", clang_PrintingPolicy_setMSVCFormatting);
+  SET_POLICY_FROM_ENV("CONSTANTSASWRITTEN",
+                      clang_PrintingPolicy_setConstantsAsWritten);
+  SET_POLICY_FROM_ENV("SUPPRESSIMPLICITBASE",
+                      clang_PrintingPolicy_setSuppressImplicitBase);
+}
+#undef SET_POLICY_FROM_ENV
+
 /** \brief Returns 0 in case of success, non-zero in case of a failure. */
 static int checkForErrors(CXTranslationUnit TU);
 
@@ -356,7 +408,11 @@ static void PrintRange(CXSourceRange R, const char *str) {
   PrintExtent(stdout, begin_line, begin_column, end_line, end_column);
 }
 
-int want_display_name = 0;
+static enum DisplayType {
+    DisplayType_Spelling,
+    DisplayType_DisplayName,
+    DisplayType_Pretty
+} wanted_display_type = DisplayType_Spelling;
 
 static void printVersion(const char *Prefix, CXVersion Version) {
   if (Version.Major < 0)
@@ -656,6 +712,26 @@ static int lineCol_cmp(const void *p1, const void *p2) {
   return (int)lhs->col - (int)rhs->col;
 }
 
+static CXString CursorToText(CXCursor Cursor) {
+  CXString text;
+
+  switch (wanted_display_type) {
+  case DisplayType_Spelling:
+    return clang_getCursorSpelling(Cursor);
+  case DisplayType_DisplayName:
+    return clang_getCursorDisplayName(Cursor);
+  case DisplayType_Pretty: {
+    CXPrintingPolicy Policy = clang_getCursorPrintingPolicy(Cursor);
+    ModifyPrintingPolicyAccordingToEnv(Policy);
+    text = clang_getCursorPrettyPrinted(Cursor, Policy);
+    clang_PrintingPolicy_dispose(Policy);
+    return text;
+  }
+  }
+
+  return text;
+}
+
 static void PrintCursor(CXCursor Cursor, const char *CommentSchemaFile) {
   CXTranslationUnit TU = clang_Cursor_getTranslationUnit(Cursor);
   if (clang_isInvalid(Cursor.kind)) {
@@ -682,8 +758,7 @@ static void PrintCursor(CXCursor Cursor, const char *CommentSchemaFile) {
     int I;
 
     ks = clang_getCursorKindSpelling(Cursor.kind);
-    string = want_display_name? clang_getCursorDisplayName(Cursor) 
-                              : clang_getCursorSpelling(Cursor);
+    string = CursorToText(Cursor);
     printf("%s=%s", clang_getCString(ks),
                     clang_getCString(string));
     clang_disposeString(ks);
@@ -1682,7 +1757,12 @@ static int perform_test_load(CXIndex Idx, CXTranslationUnit TU,
     else if (!strcmp(filter, "all-display") || 
              !strcmp(filter, "local-display")) {
       ck = NULL;
-      want_display_name = 1;
+      wanted_display_type = DisplayType_DisplayName;
+    }
+    else if (!strcmp(filter, "all-pretty") ||
+             !strcmp(filter, "local-pretty")) {
+      ck = NULL;
+      wanted_display_type = DisplayType_Pretty;
     }
     else if (!strcmp(filter, "none")) K = (enum CXCursorKind) ~0;
     else if (!strcmp(filter, "category")) K = CXCursor_ObjCCategoryDecl;
@@ -1749,8 +1829,11 @@ int perform_test_load_source(int argc, const char **argv,
   unsigned I;
 
   Idx = clang_createIndex(/* excludeDeclsFromPCH */
-                          (!strcmp(filter, "local") || 
-                           !strcmp(filter, "local-display"))? 1 : 0,
+                          (!strcmp(filter, "local") ||
+                           !strcmp(filter, "local-display") ||
+                           !strcmp(filter, "local-pretty"))
+                              ? 1
+                              : 0,
                           /* displayDiagnostics=*/1);
 
   if ((CommentSchemaFile = parse_comments_schema(argc, argv))) {

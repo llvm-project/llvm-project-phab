@@ -4656,6 +4656,105 @@ CXStringSet *clang_Cursor_getObjCManglings(CXCursor C) {
   return cxstring::createSet(Manglings);
 }
 
+CXPrintingPolicy clang_getCursorPrintingPolicy(CXCursor C) {
+  if (clang_Cursor_isNull(C))
+    return 0;
+  return new PrintingPolicy(getCursorContext(C).getPrintingPolicy());
+}
+
+void clang_PrintingPolicy_dispose(CXPrintingPolicy policy) {
+  if (policy)
+    delete static_cast<PrintingPolicy *>(policy);
+}
+
+#define DEFINE_PRINTING_POLICY_GETTER(name)                                    \
+  unsigned clang_PrintingPolicy_get##name(CXPrintingPolicy policy) {           \
+    if (!policy)                                                               \
+      return 0;                                                                \
+    return static_cast<PrintingPolicy *>(policy)->name;                        \
+  }
+DEFINE_PRINTING_POLICY_GETTER(Indentation)
+DEFINE_PRINTING_POLICY_GETTER(SuppressSpecifiers)
+DEFINE_PRINTING_POLICY_GETTER(SuppressTagKeyword)
+DEFINE_PRINTING_POLICY_GETTER(IncludeTagDefinition)
+DEFINE_PRINTING_POLICY_GETTER(SuppressScope)
+DEFINE_PRINTING_POLICY_GETTER(SuppressUnwrittenScope)
+DEFINE_PRINTING_POLICY_GETTER(SuppressInitializers)
+DEFINE_PRINTING_POLICY_GETTER(ConstantArraySizeAsWritten)
+DEFINE_PRINTING_POLICY_GETTER(AnonymousTagLocations)
+DEFINE_PRINTING_POLICY_GETTER(SuppressStrongLifetime)
+DEFINE_PRINTING_POLICY_GETTER(SuppressLifetimeQualifiers)
+DEFINE_PRINTING_POLICY_GETTER(SuppressTemplateArgsInCXXConstructors)
+DEFINE_PRINTING_POLICY_GETTER(Bool)
+DEFINE_PRINTING_POLICY_GETTER(Restrict)
+DEFINE_PRINTING_POLICY_GETTER(Alignof)
+DEFINE_PRINTING_POLICY_GETTER(UnderscoreAlignof)
+DEFINE_PRINTING_POLICY_GETTER(UseVoidForZeroParams)
+DEFINE_PRINTING_POLICY_GETTER(TerseOutput)
+DEFINE_PRINTING_POLICY_GETTER(PolishForDeclaration)
+DEFINE_PRINTING_POLICY_GETTER(Half)
+DEFINE_PRINTING_POLICY_GETTER(MSWChar)
+DEFINE_PRINTING_POLICY_GETTER(IncludeNewlines)
+DEFINE_PRINTING_POLICY_GETTER(MSVCFormatting)
+DEFINE_PRINTING_POLICY_GETTER(ConstantsAsWritten)
+DEFINE_PRINTING_POLICY_GETTER(SuppressImplicitBase)
+#undef DEFINE_PRINTING_POLICY_GETTER
+
+#define DEFINE_PRINTING_POLICY_SETTER(name)                                    \
+  void clang_PrintingPolicy_set##name(CXPrintingPolicy policy,                 \
+                                      unsigned value) {                        \
+    if (!policy)                                                               \
+      return;                                                                  \
+    static_cast<PrintingPolicy *>(policy)->name = value;                       \
+  }
+DEFINE_PRINTING_POLICY_SETTER(Indentation)
+DEFINE_PRINTING_POLICY_SETTER(SuppressSpecifiers)
+DEFINE_PRINTING_POLICY_SETTER(SuppressTagKeyword)
+DEFINE_PRINTING_POLICY_SETTER(IncludeTagDefinition)
+DEFINE_PRINTING_POLICY_SETTER(SuppressScope)
+DEFINE_PRINTING_POLICY_SETTER(SuppressUnwrittenScope)
+DEFINE_PRINTING_POLICY_SETTER(SuppressInitializers)
+DEFINE_PRINTING_POLICY_SETTER(ConstantArraySizeAsWritten)
+DEFINE_PRINTING_POLICY_SETTER(AnonymousTagLocations)
+DEFINE_PRINTING_POLICY_SETTER(SuppressStrongLifetime)
+DEFINE_PRINTING_POLICY_SETTER(SuppressLifetimeQualifiers)
+DEFINE_PRINTING_POLICY_SETTER(SuppressTemplateArgsInCXXConstructors)
+DEFINE_PRINTING_POLICY_SETTER(Bool)
+DEFINE_PRINTING_POLICY_SETTER(Restrict)
+DEFINE_PRINTING_POLICY_SETTER(Alignof)
+DEFINE_PRINTING_POLICY_SETTER(UnderscoreAlignof)
+DEFINE_PRINTING_POLICY_SETTER(UseVoidForZeroParams)
+DEFINE_PRINTING_POLICY_SETTER(TerseOutput)
+DEFINE_PRINTING_POLICY_SETTER(PolishForDeclaration)
+DEFINE_PRINTING_POLICY_SETTER(Half)
+DEFINE_PRINTING_POLICY_SETTER(MSWChar)
+DEFINE_PRINTING_POLICY_SETTER(IncludeNewlines)
+DEFINE_PRINTING_POLICY_SETTER(MSVCFormatting)
+DEFINE_PRINTING_POLICY_SETTER(ConstantsAsWritten)
+DEFINE_PRINTING_POLICY_SETTER(SuppressImplicitBase)
+#undef DEFINE_PRINTING_POLICY_SETTER
+
+CXString clang_getCursorPrettyPrinted(CXCursor C, CXPrintingPolicy cxPolicy) {
+  if (clang_Cursor_isNull(C))
+    return cxstring::createEmpty();
+
+  if (clang_isDeclaration(C.kind)) {
+    const Decl *D = getCursorDecl(C);
+    if (!D)
+      return cxstring::createEmpty();
+
+    SmallString<128> Str;
+    llvm::raw_svector_ostream OS(Str);
+    PrintingPolicy *UserPolicy = static_cast<PrintingPolicy *>(cxPolicy);
+    D->print(OS, UserPolicy ? *UserPolicy
+                            : getCursorContext(C).getPrintingPolicy());
+
+    return cxstring::createDup(OS.str());
+  }
+
+  return cxstring::createEmpty();
+}
+
 CXString clang_getCursorDisplayName(CXCursor C) {
   if (!clang_isDeclaration(C.kind))
     return clang_getCursorSpelling(C);
