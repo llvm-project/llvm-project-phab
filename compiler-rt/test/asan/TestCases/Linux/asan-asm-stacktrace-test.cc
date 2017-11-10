@@ -15,6 +15,7 @@
 // CHECK-nounwind: READ of size 4
 // CHECK-nounwind-NEXT: {{#0 0x[0-9a-fA-F]+ in foo}}
 
+// UNSUPPORTED: custom-shadow-scale
 __attribute__((noinline)) int foo(size_t n, int *buffer) {
   int r;
   __asm__("movl (%[buffer], %[n], 4), %[r]  \n\t"

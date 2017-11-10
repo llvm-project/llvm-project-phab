@@ -2,6 +2,7 @@
 // that mmaps memory inside the asan's shadow gap.
 //
 // REQUIRES: x86_64-target-arch
+// UNSUPPORTED: custom-shadow-scale
 //
 // RUN: %clangxx_asan %s -o %t
 // RUN: not %env_asan_opts=protect_shadow_gap=1 %t 2>&1 | FileCheck %s  --check-prefix=CHECK-PROTECT1
@@ -33,5 +34,3 @@ int main(void) {
   *(char*)(Base + 1234) = 1;
   // CHECK-PROTECT0: AddressSanitizer: use-after-poison on address 0x0002000004d2
 }
-
-

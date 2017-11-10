@@ -31,7 +31,7 @@
 // ASan shadow memory on s390 is too large for this test.
 // AArch64 bots fail on this test.
 // TODO(alekseys): Android lit do not run ulimit on device.
-// UNSUPPORTED: s390,android,arm,aarch64
+// UNSUPPORTED: s390,android,arm,aarch64,custom-shadow-scale
 
 #include <stdlib.h>
 #include <string.h>

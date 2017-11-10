@@ -17,8 +17,8 @@
 // CHECK-kernel-64-bits: || `[0x24{{0+}}, 0x27{{f+}}]` || ShadowGap  ||
 //
 // REQUIRES: i386-target-arch
+// UNSUPPORTED: custom-shadow-scale
 
 int main() {
   return 0;
 }
-
