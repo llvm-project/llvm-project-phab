@@ -304,13 +304,21 @@ SignatureHelp signatureHelp(PathRef FileName,
                             std::shared_ptr<PCHContainerOperations> PCHs,
                             clangd::Logger &Logger);
 
+
 /// Get the beginning SourceLocation at a specified \p Pos.
 SourceLocation getBeginningOfIdentifier(ParsedAST &Unit, const Position &Pos,
                                         const FileEntry *FE);
 
+Location addDeclarationLocation(ParsedAST &AST, SourceRange SR);
+
+DocumentHighlight addHighlightLocation(ParsedAST &AST, SourceRange SR, DocumentHighlightKind Kind);
+
 /// Get definition of symbol at a specified \p Pos.
 std::vector<Location> findDefinitions(ParsedAST &AST, Position Pos,
                                       clangd::Logger &Logger);
+
+std::vector<DocumentHighlight>
+findDocumentHighlights(ParsedAST &AST, Position Pos, clangd::Logger &Logger);
 
 /// For testing/debugging purposes. Note that this method deserializes all
 /// unserialized Decls, so use with care.

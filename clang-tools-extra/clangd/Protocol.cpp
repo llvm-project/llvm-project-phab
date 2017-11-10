@@ -1121,3 +1121,18 @@ RenameParams::parse(llvm::yaml::MappingNode *Params, clangd::Logger &Logger) {
   }
   return Result;
 }
+
+json::Expr DocumentHighlight::unparse(const DocumentHighlight &DH) {
+
+  // int temp = DocumentHighlightKind::Text;
+
+  return json::obj{
+          {"range", Range::unparse(DH.range)},
+          {"kind", (int) DH.kind},
+      };
+
+//  llvm::raw_string_ostream(Result)
+//      << llvm::formatv("{\"range\": {0}", Range::unparse(DH.range)) << ","
+//      << llvm::format(R"( "kind": %d)", DH.kind) << "}";
+//  return Result;
+}

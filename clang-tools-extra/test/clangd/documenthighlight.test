@@ -1,0 +1,37 @@
+# RUN: clangd -run-synchronously < %s | FileCheck %s
+# It is absolutely vital that this file has CRLF line endings.
+#
+Content-Length: 125
+
+{"jsonrpc":"2.0","id":0,"method":"initialize","params":{"processId":123,"rootPath":"clangd","capabilities":{},"trace":"off"}}
+
+Content-Length: 455
+
+{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///main.cpp","languageId":"cpp","version":1,"text":"#define MACRO 1\nnamespace ns1 {\nstruct MyClass {\nint xasd;\nvoid anotherOperation() {\n}\nstatic int foo(MyClass*) {\nreturn 0;\n}\n\n};\nstruct Foo {\nint xasd;\n};\n}\nint main() {\nint bonjour;\nbonjour = 2;\nns1::Foo bar = { xasd : 1};\nbar.xasd = 3;\nns1::MyClass* Params;\nParams->anotherOperation();}\n"}}}
+
+Content-Length: 156
+
+{"jsonrpc":"2.0","id":1,"method":"textDocument/documentHighlight","params":{"textDocument":{"uri":"file:///main.cpp"},"position":{"line":17,"character":2}}}
+# Go to local variable
+# CHECK: {"id":1,"jsonrpc":"2.0","result":[{"kind":1,"range":{"end":{"character":12,"line":16},"start":{"character":4,"line":16}}},{"kind":0,"range":{"end":{"character":7,"line":17},"start":{"character":0,"line":17}}}]}
+
+
+Content-Length: 157
+
+{"jsonrpc":"2.0","id":1,"method":"textDocument/documentHighlight","params":{"textDocument":{"uri":"file:///main.cpp"},"position":{"line":18,"character":17}}}
+# Go to local variable
+# CHECK: {"id":1,"jsonrpc":"2.0","result":[{"kind":1,"range":{"end":{"character":9,"line":12},"start":{"character":4,"line":12}}},{"kind":1,"range":{"end":{"character":21,"line":18},"start":{"character":17,"line":18}}},{"kind":216,"range":{"end":{"character":21,"line":18},"start":{"character":17,"line":18}}},{"kind":220,"range":{"end":{"character":8,"line":19},"start":{"character":4,"line":19}}}]}
+
+Content-Length: 157
+
+{"jsonrpc":"2.0","id":1,"method":"textDocument/documentHighlight","params":{"textDocument":{"uri":"file:///main.cpp"},"position":{"line":21,"character":10}}}
+# Go to local variable
+# CHECK: {"id":1,"jsonrpc":"2.0","result":[{"kind":1,"range":{"end":{"character":22,"line":4},"start":{"character":5,"line":4}}},{"kind":0,"range":{"end":{"character":25,"line":21},"start":{"character":8,"line":21}}}]}
+
+Content-Length: 48
+
+{"jsonrpc":"2.0","id":10000,"method":"shutdown"}
+
+Content-Length: 33
+
+{"jsonrpc":"2.0":"method":"exit"}							

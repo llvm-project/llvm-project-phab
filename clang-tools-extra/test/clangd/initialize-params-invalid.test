@@ -20,6 +20,7 @@ Content-Length: 142
 # CHECK-NEXT:      },
 # CHECK-NEXT:      "definitionProvider": true,
 # CHECK-NEXT:      "documentFormattingProvider": true,
+# CHECK-NEXT:	   "documentHighlightProvider": true,
 # CHECK-NEXT:      "documentOnTypeFormattingProvider": {
 # CHECK-NEXT:        "firstTriggerCharacter": "}",
 # CHECK-NEXT:        "moreTriggerCharacter": []
@@ -40,6 +41,7 @@ Content-Length: 142
 # CHECK-NEXT:      "textDocumentSync": 1
 # CHECK-NEXT:    }
 # CHECK-NEXT:  }
+
 Content-Length: 44
 
 {"jsonrpc":"2.0","id":3,"method":"shutdown"}
