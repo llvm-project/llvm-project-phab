@@ -164,6 +164,10 @@ public:
   using AsmTargetStreamerCtorTy = MCTargetStreamer *(*)(
       MCStreamer &S, formatted_raw_ostream &OS, MCInstPrinter *InstPrint,
       bool IsVerboseAsm);
+  using AsmStreamerCtorTy = MCStreamer
+      *(*)(MCContext &Context, std::unique_ptr<formatted_raw_ostream> OS,
+           bool isVerboseAsm, bool useDwarfDirectory, MCInstPrinter *IP,
+           MCCodeEmitter *CE, MCAsmBackend *MAB, bool ShowInst);
   using ObjectTargetStreamerCtorTy = MCTargetStreamer *(*)(
       MCStreamer &S, const MCSubtargetInfo &STI);
   using MCRelocationInfoCtorTy = MCRelocationInfo *(*)(const Triple &TT,
@@ -251,6 +255,9 @@ private:
   /// Construction function for this target's asm TargetStreamer, if
   /// registered (default = nullptr).
   AsmTargetStreamerCtorTy AsmTargetStreamerCtorFn = nullptr;
+
+  /// Construction function for common asm streamer.
+  AsmStreamerCtorTy AsmStreamerCtorFn = nullptr;
 
   /// Construction function for this target's obj TargetStreamer, if
   /// registered (default = nullptr).
@@ -492,9 +499,11 @@ public:
                                 MCInstPrinter *InstPrint, MCCodeEmitter *CE,
                                 MCAsmBackend *TAB, bool ShowInst) const {
     formatted_raw_ostream &OSRef = *OS;
-    MCStreamer *S = llvm::createAsmStreamer(Ctx, std::move(OS), IsVerboseAsm,
-                                            UseDwarfDirectory, InstPrint, CE,
-                                            TAB, ShowInst);
+    AsmStreamerCtorTy Streamer =
+        AsmStreamerCtorFn ? AsmStreamerCtorFn : llvm::createAsmStreamer;
+    MCStreamer *S = Streamer(Ctx, std::move(OS), IsVerboseAsm,
+                             UseDwarfDirectory, InstPrint, CE, TAB, ShowInst);
+
     createAsmTargetStreamer(*S, OSRef, InstPrint, IsVerboseAsm);
     return S;
   }
@@ -828,6 +837,10 @@ struct TargetRegistry {
   static void RegisterAsmTargetStreamer(Target &T,
                                         Target::AsmTargetStreamerCtorTy Fn) {
     T.AsmTargetStreamerCtorFn = Fn;
+  }
+
+  static void RegisterAsmStreamer(Target &T, Target::AsmStreamerCtorTy Fn) {
+    T.AsmStreamerCtorFn = Fn;
   }
 
   static void
