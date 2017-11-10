@@ -14,8 +14,12 @@ from lit.llvm import llvm_config
 from lit.llvm.subst import FindTool
 from lit.llvm.subst import ToolSubst
 
-# name: The name of this test suite.
-config.name = 'LLVM'
+# name: The name of this test suite.  Append shadow scale value if it
+# is non-default.
+if config.asan_test_shadow_scale != '3':
+  config.name = 'LLVM-Scale%s' % config.asan_test_shadow_scale
+else:
+  config.name = 'LLVM'
 
 # testFormat: The test format to use to interpret tests.
 config.test_format = lit.formats.ShTest(not llvm_config.use_lit_shell)
@@ -31,9 +35,6 @@ config.excludes = ['Inputs', 'CMakeLists.txt', 'README.txt', 'LICENSE.txt']
 
 # test_source_root: The root path where tests are located.
 config.test_source_root = os.path.dirname(__file__)
-
-# test_exec_root: The root path where tests should be run.
-config.test_exec_root = os.path.join(config.llvm_obj_root, 'test')
 
 # Tweak the PATH to include the tools dir.
 llvm_config.with_environment('PATH', config.llvm_tools_dir, append_path=True)
@@ -90,6 +91,13 @@ config.substitutions.append(('%llvmshlibdir', config.llvm_shlib_dir))
 config.substitutions.append(('%shlibext', config.llvm_shlib_ext))
 config.substitutions.append(('%exeext', config.llvm_exe_ext))
 config.substitutions.append(('%host_cc', config.host_cc))
+if config.asan_test_shadow_scale == '3':
+  config.substitutions.append(('%opt_asan', 'opt'))
+else:
+  config.substitutions.append(('%opt_asan',
+                               'opt -asan-mapping-scale %s' %
+                               config.asan_test_shadow_scale))
+config.substitutions.append(('%scale', config.asan_test_shadow_scale))
 
 
 lli_args = []

@@ -1,6 +1,6 @@
 ; Test that the scale (-asan-mapping-scale) and offset (-asan-mapping-offset) command-line options work as expected
 ;
-; RUN: opt < %s -asan -asan-module -asan-mapping-offset 0xdeadbeef -S | FileCheck --check-prefix=CHECK-OFFSET %s
+; RUN: %opt_asan < %s -asan -asan-module -asan-mapping-offset 0xdeadbeef -S | FileCheck --check-prefixes=CHECK-OFFSET,CHECK-OFFSET-S%scale %s
 ; RUN: opt < %s -asan -asan-module -asan-mapping-scale 1 -S | FileCheck --check-prefix=CHECK-SCALE %s
 ; RUN: opt < %s -asan -asan-module -asan-mapping-offset 0xc0ffee -asan-mapping-scale 0 -S | FileCheck --check-prefix=CHECK-BOTH %s
 target triple = "x86_64-unknown-linux-gnu"
@@ -12,7 +12,8 @@ entry:
 }
 ; CHECK-OFFSET-LABEL: @read_offset
 ; CHECK-OFFSET-NOT: ret
-; CHECK-OFFSET: lshr {{.*}} 3
+; CHECK-OFFSET-S3: lshr {{.*}} 3
+; CHECK-OFFSET-S5: lshr {{.*}} 5
 ; CHECK-OFFSET-NEXT: add{{.*}}3735928559
 ; CHECK-OFFSET: ret
 

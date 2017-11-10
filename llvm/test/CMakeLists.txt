@@ -12,6 +12,7 @@ llvm_canonicalize_cmake_booleans(
   LLVM_LINK_LLVM_DYLIB
   )
 
+set (LLVM_ASAN_TEST_SHADOW_SCALE 3)
 configure_lit_site_cfg(
   ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in
   ${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg.py
@@ -153,8 +154,19 @@ endif()
 add_custom_target(llvm-test-depends DEPENDS ${LLVM_TEST_DEPENDS})
 set_target_properties(llvm-test-depends PROPERTIES FOLDER "Tests")
 
+# Add testsute for testing ASan instrumentation with shadow scale of
+# 5.
+set (LLVM_ASAN_TEST_SHADOW_SCALE 5)
+configure_lit_site_cfg(
+  ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in
+  ${CMAKE_CURRENT_BINARY_DIR}/ShadowScale5/lit.site.cfg.py
+  MAIN_CONFIG
+  ${CMAKE_CURRENT_SOURCE_DIR}/lit.cfg.py
+  )
+
 add_lit_testsuite(check-llvm "Running the LLVM regression tests"
   ${CMAKE_CURRENT_BINARY_DIR}
+  ${CMAKE_CURRENT_BINARY_DIR}/ShadowScale5/Instrumentation/AddressSanitizer
   DEPENDS ${LLVM_TEST_DEPENDS}
   )
 set_target_properties(check-llvm PROPERTIES FOLDER "Tests")

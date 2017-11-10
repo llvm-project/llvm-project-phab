@@ -1,6 +1,6 @@
 ; Test basic address sanitizer instrumentation.
 ;
-; RUN: opt -asan -asan-module -S  < %s | FileCheck %s
+; RUN: %opt_asan -asan -asan-module -S  < %s | FileCheck %s
 
 target triple = "x86_64-pc-windows-msvc"
 ; CHECK: @llvm.global_ctors = {{.*}}@asan.module_ctor
