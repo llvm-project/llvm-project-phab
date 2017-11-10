@@ -380,9 +380,12 @@ public:
   void ProcessCodeCompleteResults(Sema &S, CodeCompletionContext Context,
                                   CodeCompletionResult *Results,
                                   unsigned NumResults) override final {
+    StringRef Filter = S.getPreprocessor().getCodeCompletionFilter();
     Items.reserve(NumResults);
     for (unsigned I = 0; I < NumResults; ++I) {
       auto &Result = Results[I];
+      if (!Filter.empty() && !fuzzyMatch(S, Context, Filter, Result))
+        continue;
       const auto *CCS = Result.CreateCodeCompletionString(
           S, Context, *Allocator, CCTUInfo,
           CodeCompleteOpts.IncludeBriefComments);
@@ -397,6 +400,41 @@ public:
   CodeCompletionTUInfo &getCodeCompletionTUInfo() override { return CCTUInfo; }
 
 private:
+  bool fuzzyMatch(Sema &S, const CodeCompletionContext &CCCtx, StringRef Filter,
+                  CodeCompletionResult Result) {
+    switch (Result.Kind) {
+    case CodeCompletionResult::RK_Declaration:
+      if (auto *ID = Result.Declaration->getIdentifier())
+        return fuzzyMatch(Filter, ID->getName());
+      break;
+    case CodeCompletionResult::RK_Keyword:
+      return fuzzyMatch(Filter, Result.Keyword);
+    case CodeCompletionResult::RK_Macro:
+      return fuzzyMatch(Filter, Result.Macro->getName());
+    case CodeCompletionResult::RK_Pattern:
+      return fuzzyMatch(Filter, Result.Pattern->getTypedText());
+    }
+    auto *CCS = Result.CreateCodeCompletionString(
+        S, CCCtx, *Allocator, CCTUInfo, /*IncludeBriefComments=*/false);
+    return fuzzyMatch(Filter, CCS->getTypedText());
+  }
+
+  // Checks whether Target matches the Filter.
+  // Currently just requires a case-insensitive subsequence match.
+  // FIXME: make stricter and word-based: 'unique_ptr' should not match 'que'.
+  // FIXME: return a score to be incorporated into ranking.
+  static bool fuzzyMatch(StringRef Filter, StringRef Target) {
+    llvm::errs() << "match " << Target << " against " << Filter << "\n";
+    size_t TPos = 0;
+    for (char C : Filter) {
+      TPos = Target.find_lower(C, TPos);
+      if (TPos == StringRef::npos)
+        return false;
+    }
+    llvm::errs() << "yeah\n";
+    return true;
+  }
+
   CompletionItem
   ProcessCodeCompleteResult(const CodeCompletionResult &Result,
                             const CodeCompletionString &CCS) const {
