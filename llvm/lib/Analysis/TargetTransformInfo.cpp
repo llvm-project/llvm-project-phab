@@ -231,6 +231,10 @@ bool TargetTransformInfo::shouldBuildLookupTablesForConstant(Constant *C) const 
   return TTIImpl->shouldBuildLookupTablesForConstant(C);
 }
 
+bool TargetTransformInfo::useColdCCForColdCalls(Function &F) const {
+  return TTIImpl->useColdCCForColdCalls(F);
+}
+
 unsigned TargetTransformInfo::
 getScalarizationOverhead(Type *Ty, bool Insert, bool Extract) const {
   return TTIImpl->getScalarizationOverhead(Ty, Insert, Extract);

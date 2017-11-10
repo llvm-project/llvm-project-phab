@@ -27,6 +27,11 @@ static cl::opt<unsigned>
 CacheLineSize("ppc-loop-prefetch-cache-line", cl::Hidden, cl::init(64),
               cl::desc("The loop prefetch cache line size"));
 
+static cl::opt<bool>
+EnablePPCColdCC("ppc-enable-coldcc", cl::Hidden, cl::init(false),
+                cl::desc("Enable using coldcc calling conv for cold "
+                         "internal functions"));
+
 //===----------------------------------------------------------------------===//
 //
 // PPC cost model.
@@ -213,6 +218,39 @@ void PPCTTIImpl::getUnrollingPreferences(Loop *L, ScalarEvolution &SE,
   }
 
   BaseT::getUnrollingPreferences(L, SE, UP);
+}
+
+// This function returns true if the input function can be marked coldcc.
+// It does this by finding all call sites of this function and checking
+// that no other functions are called aside from the coldcc function by
+// the callers.
+bool PPCTTIImpl::useColdCCForColdCalls(Function &F) {
+  if (!EnablePPCColdCC)
+    return false;
+
+  if (F.user_empty())
+    return false;
+
+  for (User *U : F.users()) {
+    if (isa<BlockAddress>(U))
+      continue;
+
+    CallSite CS(cast<Instruction>(U));
+    Function *CallerFunc = CS.getInstruction()->getParent()->getParent();
+    // Check if the caller func has any other callsites aside from a call to
+    // the input function.
+    for (BasicBlock &B : *CallerFunc) {
+      for (Instruction &I : B) {
+        if (isa<CallInst>(I)) {
+          CallSite CS2(cast<Instruction>(&I));
+          if (CS2 != CS)
+            return false;
+        }
+      }
+    }
+  }
+
+  return true;
 }
 
 bool PPCTTIImpl::enableAggressiveInterleaving(bool LoopHasReductions) {
