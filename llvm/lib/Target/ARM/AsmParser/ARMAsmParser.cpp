@@ -380,6 +380,7 @@ class ARMAsmParser : public MCTargetAsmParser {
                            unsigned ListNo);
 
   int tryParseRegister();
+  int tryParseGPRegister();
   bool tryParseRegisterWithWriteBack(OperandVector &);
   int tryParseShiftRegister(OperandVector &);
   bool parseRegisterList(OperandVector &);
@@ -3296,6 +3297,19 @@ int ARMAsmParser::tryParseRegister() {
   return RegNum;
 }
 
+// Try to parse a register used as base or offset in a memory operand. We need
+// to distinguish between not parsing a register at all and parsing a
+// non-general purpose register. In the former case we may try other parsing
+// alternatives.
+int ARMAsmParser::tryParseGPRegister() {
+  auto Reg = tryParseRegister();
+  if (Reg < 0)
+    return -1;
+  if (!ARMMCRegisterClasses[ARM::GPRRegClassID].contains(Reg))
+    return -Reg;
+  return Reg;
+}
+
 // Try to parse a shifter  (e.g., "lsl <amt>"). On success, return 0.
 // If a recoverable error occurs, return 1. If an irrecoverable error
 // occurs, return -1. An irrecoverable error is one where tokens have been
@@ -3328,9 +3342,9 @@ int ARMAsmParser::tryParseShiftRegister(OperandVector &Operands) {
   // register operand instead.
   std::unique_ptr<ARMOperand> PrevOp(
       (ARMOperand *)Operands.pop_back_val().release());
-  if (!PrevOp->isReg())
-    return Error(PrevOp->getStartLoc(), "shift must be of a register");
-  int SrcReg = PrevOp->getReg();
+  int SrcReg = PrevOp->isReg() ? PrevOp->getReg() : -1;
+  if (SrcReg < 0 || !ARMMCRegisterClasses[ARM::GPRRegClassID].contains(SrcReg))
+    return Error(Parser.getTok().getLoc(), "shift must be of general-purpose register");
 
   SMLoc EndLoc;
   int64_t Imm = 0;
@@ -3374,14 +3388,14 @@ int ARMAsmParser::tryParseShiftRegister(OperandVector &Operands) {
     } else if (Parser.getTok().is(AsmToken::Identifier)) {
       SMLoc L = Parser.getTok().getLoc();
       EndLoc = Parser.getTok().getEndLoc();
-      ShiftReg = tryParseRegister();
-      if (ShiftReg == -1) {
-        Error(L, "expected immediate or register in shift operand");
+      ShiftReg = tryParseGPRegister();
+      if (ShiftReg < 0) {
+        Error(L, "expected immediate or general-purpose register in shift operand");
         return -1;
       }
     } else {
       Error(Parser.getTok().getLoc(),
-            "expected immediate or register in shift operand");
+            "expected immediate or general-purpose register in shift operand");
       return -1;
     }
   }
@@ -4723,11 +4737,11 @@ ARMAsmParser::parsePostIdxReg(OperandVector &Operands) {
   }
 
   SMLoc E = Parser.getTok().getEndLoc();
-  int Reg = tryParseRegister();
-  if (Reg == -1) {
-    if (!haveEaten)
+  int Reg = tryParseGPRegister();
+  if (Reg < 0) {
+    if (Reg == -1 && !haveEaten)
       return MatchOperand_NoMatch;
-    Error(Parser.getTok().getLoc(), "register expected");
+    Error(Parser.getTok().getLoc(), "general-purpose register expected");
     return MatchOperand_ParseFail;
   }
 
@@ -4805,11 +4819,11 @@ ARMAsmParser::parseAM3Offset(OperandVector &Operands) {
   }
 
   Tok = Parser.getTok();
-  int Reg = tryParseRegister();
-  if (Reg == -1) {
-    if (!haveEaten)
+  int Reg = tryParseGPRegister();
+  if (Reg < 0) {
+    if (Reg == -1 && !haveEaten)
       return MatchOperand_NoMatch;
-    Error(Tok.getLoc(), "register expected");
+    Error(Tok.getLoc(), "general-purpose register expected");
     return MatchOperand_ParseFail;
   }
 
@@ -4907,9 +4921,9 @@ bool ARMAsmParser::parseMemory(OperandVector &Operands) {
   Parser.Lex(); // Eat left bracket token.
 
   const AsmToken &BaseRegTok = Parser.getTok();
-  int BaseRegNum = tryParseRegister();
-  if (BaseRegNum == -1)
-    return Error(BaseRegTok.getLoc(), "register expected");
+  int BaseRegNum = tryParseGPRegister();
+  if (BaseRegNum < 0)
+    return Error(BaseRegTok.getLoc(), "general-purpose register expected");
 
   // The next token must either be a comma, a colon or a closing bracket.
   const AsmToken &Tok = Parser.getTok();
@@ -5054,9 +5068,9 @@ bool ARMAsmParser::parseMemory(OperandVector &Operands) {
   }
 
   E = Parser.getTok().getLoc();
-  int OffsetRegNum = tryParseRegister();
-  if (OffsetRegNum == -1)
-    return Error(E, "register expected");
+  int OffsetRegNum = tryParseGPRegister();
+  if (OffsetRegNum < 0)
+    return Error(E, "general-purpose register expected");
 
   // If there's a shift operator, handle it.
   ARM_AM::ShiftOpc ShiftType = ARM_AM::no_shift;
