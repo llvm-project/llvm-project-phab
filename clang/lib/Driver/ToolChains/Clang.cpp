@@ -4376,6 +4376,11 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       llvm::sys::path::replace_extension(F, "opt.yaml");
       CmdArgs.push_back(Args.MakeArgString(F));
     }
+  } else {
+    if (const Arg *A = Args.getLastArg(options::OPT_foptimization_record_file_EQ)) {
+      CmdArgs.push_back("-opt-record-file");
+      CmdArgs.push_back(A->getValue());
+    }
   }
 
   bool RewriteImports = Args.hasFlag(options::OPT_frewrite_imports,
