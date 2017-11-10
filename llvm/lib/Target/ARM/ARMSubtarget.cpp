@@ -252,7 +252,7 @@ void ARMSubtarget::initSubtargetFeatures(StringRef CPU, StringRef FS) {
       (Options.UnsafeFPMath || isTargetDarwin()))
     UseNEONForSinglePrecisionFP = true;
 
-  if (isRWPI())
+  if (isRWPI() || isPIP())
     ReserveR9 = true;
 
   // FIXME: Teach TableGen to deal with these instead of doing it manually here.
@@ -328,6 +328,9 @@ bool ARMSubtarget::isROPI() const {
 bool ARMSubtarget::isRWPI() const {
   return TM.getRelocationModel() == Reloc::RWPI ||
          TM.getRelocationModel() == Reloc::ROPI_RWPI;
+}
+bool ARMSubtarget::isPIP() const {
+  return TM.getRelocationModel() == Reloc::PIP;
 }
 
 bool ARMSubtarget::isGVIndirectSymbol(const GlobalValue *GV) const {
