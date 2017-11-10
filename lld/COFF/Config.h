@@ -84,7 +84,7 @@ struct Configuration {
   std::string OutputFile;
   std::string ImportName;
   bool DoGC = true;
-  bool DoICF = true;
+  bool DoICF = false;
   bool Relocatable = true;
   bool Force = false;
   bool Debug = false;
