@@ -680,8 +680,7 @@ TEST_F(FormatTestComments, SplitsLongCxxComments) {
   EXPECT_EQ("{\n"
             "  //\n"
             "  //\\\n"
-            "  // long 1 2 3 4\n"
-            "  // 5\n"
+            "  // long 1 2 3 4 5\n"
             "}",
             format("{\n"
                    "  //\n"
