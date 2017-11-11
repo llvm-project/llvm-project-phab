@@ -76,6 +76,8 @@ CODEGENOPT(ForbidGuardVariables , 1, 0) ///< Issue errors if C++ guard variables
 CODEGENOPT(FunctionSections  , 1, 0) ///< Set when -ffunction-sections is enabled.
 CODEGENOPT(InstrumentFunctions , 1, 0) ///< Set when -finstrument-functions is
                                        ///< enabled.
+CODEGENOPT(NoInlineInstrumentFunctions , 1, 0) ///< Set when
+                               ///< -fno-inline-instrument-functions is enabled.
 
 CODEGENOPT(XRayInstrumentFunctions , 1, 0) ///< Set when -fxray-instrument is
                                            ///< enabled.
