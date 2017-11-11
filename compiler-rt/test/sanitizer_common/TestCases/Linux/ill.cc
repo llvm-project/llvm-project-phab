@@ -7,8 +7,6 @@
 // RUN: %env_tool_opts=handle_sigill=1 not         %run %t 2>&1 | FileCheck --check-prefix=CHECK1 %s
 // clang-format on
 
-// FIXME: implement in other sanitizers.
-// XFAIL: tsan
 // XFAIL: ubsan
 //
 // FIXME: seems to fail on ARM
