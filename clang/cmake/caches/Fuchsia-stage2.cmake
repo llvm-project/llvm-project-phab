@@ -17,6 +17,8 @@ if(NOT APPLE)
   set(LLVM_ENABLE_LLD ON CACHE BOOL "")
   set(CLANG_DEFAULT_LINKER lld CACHE STRING "")
 endif()
+set(CLANG_DEFAULT_CXX_STDLIB libc++ CACHE STRING "")
+set(CLANG_DEFAULT_RTLIB compiler-rt CACHE STRING "")
 
 # This is a "Does your linker support it?" option that only applies
 # to x86-64 ELF targets.  All Fuchsia target linkers do support it.
