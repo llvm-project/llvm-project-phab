@@ -1,5 +1,4 @@
 // RUN: %clang_cc1 -std=c++11 -fsyntax-only -verify %s
-// expected-no-diagnostics
 
 template<typename T> T &lvalue();
 template<typename T> T &&xvalue();
@@ -19,6 +18,10 @@ struct X0 {
   operator func_float_ref() &&;
 
   void g();
+
+  void lvalue() &; // expected-note 2 {{'lvalue' declared here}}
+  void const_lvalue() const&;
+  void rvalue() &&; // expected-note {{'rvalue' declared here}}
 
   int &operator+(const X0&) &;
   float &operator+(const X0&) &&;
@@ -44,6 +47,18 @@ void test_ref_qualifier_binding() {
   int &ir2 = lvalue<X0>().ft(1);
   float &fr3 = xvalue<X0>().ft(2);
   float &fr4 = prvalue<X0>().ft(3);
+
+  lvalue<X0>().lvalue();
+  lvalue<X0>().const_lvalue();
+  lvalue<X0>().rvalue(); // expected-error {{'this' argument to member function 'rvalue' is an lvalue, but function has rvalue ref-qualifier}}
+
+  xvalue<X0>().lvalue(); // expected-error {{'this' argument to member function 'lvalue' is an rvalue, but function has non-const lvalue ref-qualifier}}
+  xvalue<X0>().const_lvalue();
+  xvalue<X0>().rvalue();
+
+  prvalue<X0>().lvalue(); // expected-error {{'this' argument to member function 'lvalue' is an rvalue, but function has non-const lvalue ref-qualifier}}
+  prvalue<X0>().const_lvalue();
+  prvalue<X0>().rvalue();
 }
 
 void test_ref_qualifier_binding_with_surrogates() {
