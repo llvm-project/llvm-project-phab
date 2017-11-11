@@ -10,7 +10,7 @@ void extractStatementNoSemiObjCFor(NSArray *array) {
   }
 }
 // CHECK: 1 'astmt' results:
-// CHECK:      static void extracted() {
+// CHECK:      static void extracted(NSArray *array) {
 // CHECK-NEXT: for (id i in array) {
 // CHECK-NEXT: int x = 0;
 // CHECK-NEXT: }{{$}}
@@ -23,7 +23,7 @@ void extractStatementNoSemiSync() {
   }
 }
 // CHECK: 1 'bstmt' results:
-// CHECK:      static void extracted() {
+// CHECK:      static void extracted(id lock) {
 // CHECK-NEXT: @synchronized(lock) {
 // CHECK-NEXT: int x = 0;
 // CHECK-NEXT: }{{$}}

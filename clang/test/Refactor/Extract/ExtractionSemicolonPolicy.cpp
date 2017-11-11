@@ -6,11 +6,11 @@ void extractStatement(const Rectangle &r) {
   /*range adeclstmt=->+0:59*/int area = r.width * r.height;
 }
 // CHECK: 1 'adeclstmt' results:
-// CHECK:      static void extracted() {
+// CHECK:      static void extracted(const Rectangle &r) {
 // CHECK-NEXT: int area = r.width * r.height;{{$}}
 // CHECK-NEXT: }{{[[:space:]].*}}
 // CHECK-NEXT: void extractStatement(const Rectangle &r) {
-// CHECK-NEXT:   /*range adeclstmt=->+0:59*/extracted();{{$}}
+// CHECK-NEXT:   /*range adeclstmt=->+0:59*/extracted(r);{{$}}
 // CHECK-NEXT: }
 
 void extractStatementNoSemiIf(const Rectangle &r) {
@@ -19,13 +19,13 @@ void extractStatementNoSemiIf(const Rectangle &r) {
   }
 }
 // CHECK: 1 'bextractif' results:
-// CHECK:      static void extracted() {
+// CHECK:      static void extracted(const Rectangle &r) {
 // CHECK-NEXT: if (r.width) {
 // CHECK-NEXT: int x = r.height;
 // CHECK-NEXT: }{{$}}
 // CHECK-NEXT: }{{[[:space:]].*}}
 // CHECK-NEXT: void extractStatementNoSemiIf(const Rectangle &r) {
-// CHECK-NEXT:   /*range bextractif=->+2:4*/extracted();{{$}}
+// CHECK-NEXT:   /*range bextractif=->+2:4*/extracted(r);{{$}}
 // CHECK-NEXT: }
 
 void extractStatementDontExtraneousSemi(const Rectangle &r) {
@@ -34,13 +34,13 @@ void extractStatementDontExtraneousSemi(const Rectangle &r) {
   } ;
 } //^ This semicolon shouldn't be extracted.
 // CHECK: 1 'cextractif' results:
-// CHECK:      static void extracted() {
+// CHECK:      static void extracted(const Rectangle &r) {
 // CHECK-NEXT: if (r.width) {
 // CHECK-NEXT: int x = r.height;
 // CHECK-NEXT: }{{$}}
 // CHECK-NEXT: }{{[[:space:]].*}}
 // CHECK-NEXT: void extractStatementDontExtraneousSemi(const Rectangle &r) {
-// CHECK-NEXT: extracted(); ;{{$}}
+// CHECK-NEXT: extracted(r); ;{{$}}
 // CHECK-NEXT: }
 
 void extractStatementNotSemiSwitch() {
@@ -102,12 +102,12 @@ void extractStatementNotSemiRangedFor(XS xs) {
   }
 }
 // CHECK: 1 'gextract' results:
-// CHECK:      static void extracted() {
+// CHECK:      static void extracted(XS xs) {
 // CHECK-NEXT: for (int i : xs) {
 // CHECK-NEXT: }{{$}}
 // CHECK-NEXT: }{{[[:space:]].*}}
 // CHECK-NEXT: void extractStatementNotSemiRangedFor(XS xs) {
-// CHECK-NEXT: extracted();{{$}}
+// CHECK-NEXT: extracted(xs);{{$}}
 // CHECK-NEXT: }
 
 void extractStatementNotSemiRangedTryCatch() {
